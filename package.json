@@ -1,0 +1,23 @@
+{
+  "name": "temporal-node-sdk",
+  "version": "1.0.0",
+  "description": "",
+  "main": "lib/index.js",
+  "scripts": {
+    "build": "tsc",
+    "build.watch": "tsc -w",
+    "lint": "eslint src --ext .ts",
+    "test": "ava lib/test/test*.js",
+    "test.watch": "ava -w lib/test/test*.js"
+  },
+  "keywords": [],
+  "author": "Roey Berman <roey@temporal.io>",
+  "license": "ISC",
+  "devDependencies": {
+    "@typescript-eslint/eslint-plugin": "^4.7.0",
+    "@typescript-eslint/parser": "^4.7.0",
+    "ava": "^3.13.0",
+    "eslint": "^7.13.0",
+    "typescript": "^4.0.5"
+  }
+}
