@@ -10,12 +10,15 @@ export enum ApplyMode {
 const AsyncFunction = Object.getPrototypeOf(async function() {}).constructor;
 
 export class Workflow {
+  public readonly id: string;
+
   private constructor(
     readonly isolate: ivm.Isolate,
     readonly context: ivm.Context
   ) {
     const jail = context.global;
     jail.setSync('global', jail.derefInto());
+    this.id = 'TODO';
   }
 
   public static async create() {

@@ -1,13 +1,15 @@
 import ivm from 'isolated-vm';
+import seedrandom from 'seedrandom';
 import { Workflow, ApplyMode } from './engine';
 
 export async function install(workflow: Workflow) {
   const timeoutIdsToTimeouts: Map<number, NodeJS.Timer> = new Map();
   let lastTimeoutId: number = 0;
+  const rng = seedrandom(workflow.id);
 
   await workflow.inject('Date', () => new Date(123));
   await workflow.inject('Date.now', () => 123);
-  await workflow.inject('Math.random', () => .456);
+  await workflow.inject('Math.random', rng);
   await workflow.inject('console.log', async (...args: unknown[]) => {
     await new Promise((resolve) => setTimeout(resolve, 200));
     console.log(...args);
