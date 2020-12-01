@@ -1,3 +1,4 @@
+import fs from 'fs/promises';
 import ivm from 'isolated-vm';
 
 export enum ApplyMode {
@@ -52,7 +53,8 @@ export class Workflow {
     }`, [handler], { arguments: { reference: true } });
   }
 
-  public async run(code: string) {
+  public async run(path: string) {
+    const code = await fs.readFile(path, 'utf8');
     const script = await this.isolate.compileScript(code);
     await script.run(this.context);
   }
