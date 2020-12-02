@@ -1,44 +1,36 @@
-import ivm from 'isolated-vm';
 import seedrandom from 'seedrandom';
 import { Workflow, ApplyMode } from './engine';
 
 export async function install(workflow: Workflow) {
-  const timeoutIdsToTimeouts: Map<number, NodeJS.Timer> = new Map();
-  let lastTimeoutId: number = 0;
   const rng = seedrandom(workflow.id);
 
   await workflow.inject('Date', () => new Date(123));
   await workflow.inject('Date.now', () => 123);
   await workflow.inject('Math.random', rng);
-  await workflow.inject('console.log', async (...args: unknown[]) => {
-    await new Promise((resolve) => setTimeout(resolve, 200));
-    console.log(...args);
-  }, ApplyMode.IGNORED);
+  await workflow.inject(
+    'console.log',
+    workflow.timeline.generateActivity('console.log', console.log),
+  );
+  // await workflow.inject(
+  //   'console.log',
+  //   workflow.timeline.generateActivity('console.log', async (...args: any[]) => void console.log(...args)),
+  //   ApplyMode.SYNC_PROMISE,
+  //   {
+  //     result: {},
+  //   },
+  // );
 
-  await workflow.inject('setTimeout', async (
-    callback: ivm.Reference<Function>,
-    msRef: ivm.Reference<number>,
-    ...args: ivm.Reference<any>[]
-  ) => {
-    const ms = msRef.copySync(); // Copy sync since the isolate executes setTimeout with EvalMode.SYNC
-    await new Promise((resolve) => setTimeout(resolve, 200));
-    const timeout = setTimeout(async () => {
-      await callback.apply(undefined, args.map((arg) => arg.derefInto()), { arguments: { copy: true } });
-    }, ms);
-    const timeoutId = ++lastTimeoutId;
-    timeoutIdsToTimeouts.set(timeoutId, timeout);
-    return timeoutId;
-  }, ApplyMode.SYNC_PROMISE, {
+  await workflow.inject('setTimeout', workflow.timeline.generateTimer(), ApplyMode.SYNC_PROMISE, {
     arguments: { reference: true },
     result: {},
   });
 
   await workflow.inject('clearTimeout', (timeoutId: number) => {
-    const timeout = timeoutIdsToTimeouts.get(timeoutId);
-    if (timeout === undefined) {
-      throw new Error('Invalid timeoutId');
-    }
-    clearTimeout(timeout);
-    timeoutIdsToTimeouts.delete(timeoutId);
+    // const timeout = timeoutIdsToTimeouts.get(timeoutId);
+    // if (timeout === undefined) {
+    //   throw new Error('Invalid timeoutId');
+    // }
+    // clearTimeout(timeout);
+    // timeoutIdsToTimeouts.delete(timeoutId);
   });
 }
