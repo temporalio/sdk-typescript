@@ -24,8 +24,12 @@ export class Timeline {
 
   private readonly timeoutIdsToTimeouts: Map<number, NodeJS.Timer> = new Map();
   private lastTimeoutId: number = 0;
+  private numPendingEvents: number = 0; // main() promise is never resolved
+  // private numPendingEvents: number = -1; // main() promise is never resolved
 
-  public startActivity<T>(name: string, action: () => T): T {
+  public startActivity<T>(name: string, action: () => T, pendingModifier: number = 0): T {
+    this.numPendingEvents += pendingModifier;
+    // TODO: receive args here
     console.log('> Started activity', name);
     let entry: Event<T>;
     if (this.history.length > this.cursor) {
@@ -48,28 +52,66 @@ export class Timeline {
     return entry.result;
   }
 
+  public stats() {
+    // TODO
+    // for (const entry of this.history) {
+    //   entry.name
+    // }
+  }
+
+  public hasUnprocessedEvents() {
+    return this.numPendingEvents > 0;
+  }
+
   public resetCursor() {
     this.cursor = 0;
   }
 
-  public generateActivity<TArgs extends any[], TRet>(name: string, action: Fn<TArgs, TRet>): Fn<TArgs, TRet> {
-    return (...args: TArgs) => this.startActivity(name, () => action(...args));
+  public generateActivity<TArgs extends any[], TRet>(name: string, action: Fn<TArgs, TRet>, pendingModifier: number = 0): Fn<TArgs, TRet> {
+    return (...args: TArgs) => this.startActivity(name, () => action(...args), pendingModifier);
+  }
+
+  public generatePromiseResolve() {
+    // TODO: actually resolve the promise
+    return (arg: unknown) => this.startActivity('Promise.resolve create', () => {
+      return new Promise((resolve) => this.startActivity('Promise.resolve.trigger', () => resolve(arg)));
+    });
+  }
+
+  public generatePromise() {
+    return (
+      callback: ivm.Reference<Function>,
+    ) => {
+      // TODO: store this promise
+      return new Promise((resolve, reject) => {
+        // TODO: await
+        callback.applySync(
+          undefined, [
+            resolve,
+            reject,
+            // this.generateActivity('Promise.resolve', resolve, 1),
+            // this.generateActivity('Promise.reject', reject, 1)
+          ], {
+          arguments: { reference: true },
+        });
+      });
+    };
   }
 
   public generateTimer() {
-    const activity = this.generateActivity('timer', (
+    const activity = this.generateActivity('timer set', (
       callback: ivm.Reference<Function>,
       msRef: ivm.Reference<number>,
       ...args: ivm.Reference<any>[]
     ) => {
       const ms = msRef.copySync(); // Copy sync since the isolate executes setTimeout with EvalMode.SYNC
       const timeout = setTimeout(async () => {
-        await this.startActivity('trigger timer', () => callback.apply(undefined, args.map((arg) => arg.derefInto()), { arguments: { copy: true } }));
+        await this.startActivity('trigger timer', () => callback.apply(undefined, args.map((arg) => arg.derefInto()), { arguments: { copy: true } }), -1);
       }, ms);
       const timeoutId = ++this.lastTimeoutId;
       this.timeoutIdsToTimeouts.set(timeoutId, timeout);
       return timeoutId;
-    });
+    }, 1);
     return (
       callback: ivm.Reference<Function>,
       msRef: ivm.Reference<number>,
@@ -116,7 +158,49 @@ export class Workflow {
   public static async create(timeline: Timeline = new Timeline()) {
     const isolate = new ivm.Isolate();
     const context = await isolate.createContext();
-    return new Workflow(isolate, context, timeline);
+    const workflow = new Workflow(isolate, context, timeline);
+    await workflow.injectPromise();
+    return workflow;
+  }
+
+  private async injectPromise() {
+    const outerThis = this;
+    function then(this: Promise<unknown>, callback: ivm.Reference<Function>) {
+      Promise.prototype.then.apply(this, [
+        (value) => callback.applySync(undefined, [value], { arguments: { copy: true } })
+        // (value) => outerThis.timeline.startActivity(
+        //   'Promise.then',
+        //   () => callback.applySync(undefined, [value], { arguments: { copy: true } }),
+        //   -1,
+        // )
+      ]);
+    }
+    await this.context.evalClosure(
+      `global.Promise = function(executor) {
+        this.impl = $0.applySync(
+          undefined,
+          [
+            (resolve, reject) => executor(
+              (val) => void resolve.applySync(undefined, [val], { arguments: { copy: true } }),
+              (err) => void reject.applySync(undefined, [val], { arguments: { copy: true } }),
+            )
+          ],
+          {
+            arguments: { reference: true },
+            result: { reference: true },
+          },
+        );
+      }
+      global.Promise.prototype.then = function promiseThen(callback) {
+        $1.applySync(this.impl.derefInto(), [callback], { arguments: { reference: true } });
+      }
+      `,
+      [this.timeline.generatePromise(), then], { arguments: { reference: true } });
+      // [this.timeline.generatePromise(), Promise.prototype.then], { arguments: { reference: true } });
+    // await workflow.inject('Promise.resolve', workflow.timeline.generatePromiseResolve(), ApplyMode.SYNC, {
+    //   arguments: { reference: true },
+    //   result: { promise: true },
+    // });
   }
 
   public async inject(
@@ -150,5 +234,9 @@ export class Workflow {
     await script.run(this.context);
     const main = await this.context.global.get('main');
     await main.apply(undefined, [], { result: { promise: true, copy: true } });
+    while (this.timeline.hasUnprocessedEvents()) {
+      console.log('unprocessed events');
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
   }
 }

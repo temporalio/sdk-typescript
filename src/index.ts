@@ -3,7 +3,6 @@ import { Workflow } from './engine';
 import * as stdlib from './stdlib';
 export { Workflow };
 
-
 async function run() {
   const example = path.join(__dirname, '../example/lib/index.js');
 
@@ -12,6 +11,7 @@ async function run() {
   await workflow.run(example);
   console.log('=== complete ===');
 
+  // TODO: run in loop to test determinism
   workflow.timeline.resetCursor();
   const workflow2 = await Workflow.create(workflow.timeline);
   await stdlib.install(workflow2);

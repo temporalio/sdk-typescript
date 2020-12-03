@@ -9,8 +9,9 @@ export async function install(workflow: Workflow) {
   await workflow.inject('Math.random', rng);
   await workflow.inject(
     'console.log',
-    workflow.timeline.generateActivity('console.log', console.log),
+    console.log,
   );
+  // workflow.timeline.generateActivity('console.log', console.log),
   // await workflow.inject(
   //   'console.log',
   //   workflow.timeline.generateActivity('console.log', async (...args: any[]) => void console.log(...args)),
