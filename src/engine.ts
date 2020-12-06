@@ -150,21 +150,21 @@ export class Workflow {
     readonly context: ivm.Context,
     public readonly timeline: Timeline,
   ) {
-    const jail = context.global;
-    jail.setSync('global', jail.derefInto());
     this.id = 'TODO';
   }
 
   public static async create(timeline: Timeline = new Timeline()) {
     const isolate = new ivm.Isolate();
     const context = await isolate.createContext();
+    const jail = context.global;
+    await jail.set('global', jail.derefInto());
     const workflow = new Workflow(isolate, context, timeline);
     await workflow.injectPromise();
     return workflow;
   }
 
   private async injectPromise() {
-    const outerThis = this;
+    // const outerThis = this;
     function then(this: Promise<unknown>, callback: ivm.Reference<Function>) {
       Promise.prototype.then.apply(this, [
         (value) => callback.applySync(undefined, [value], { arguments: { copy: true } })

@@ -1,9 +1,9 @@
 type Logger = (a: string) => void;
 
-// async function sleep(ms: number) {
-//   return new Promise((resolve) => setTimeout(() => resolve.applyIgnored(undefined, []), ms));
-// }
-//
+async function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 
 async function main() {
   // Promise.resolve(666).then(console.log);
@@ -19,7 +19,7 @@ async function main() {
   console.log(res);
   // ]);
   // console.log('done', x);
-  // await sleep(1000);
+  await sleep(1000);
   // console.log(timeout);
   // console.log('new Date', new Date());
   // console.log('Date.now', Date.now());

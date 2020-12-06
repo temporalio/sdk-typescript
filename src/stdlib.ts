@@ -21,7 +21,7 @@ export async function install(workflow: Workflow) {
   //   },
   // );
 
-  await workflow.inject('setTimeout', workflow.timeline.generateTimer(), ApplyMode.SYNC_PROMISE, {
+  await workflow.inject('setTimeout', workflow.timeline.generateTimer(), ApplyMode.SYNC, {
     arguments: { reference: true },
     result: {},
   });
