@@ -1,5 +1,5 @@
 import path from 'path';
-import { Workflow } from './engine';
+import { Workflow, Timeline } from './engine';
 import * as stdlib from './stdlib';
 export { Workflow };
 
@@ -12,10 +12,9 @@ async function run() {
   console.log('=== complete ===');
 
   // TODO: run in loop to test determinism
-  // workflow.timeline.resetCursor();
-  // const workflow2 = await Workflow.create(workflow.timeline);
-  // await stdlib.install(workflow2);
-  // await workflow2.run(example);
+  const workflow2 = await Workflow.create(new Timeline(workflow.timeline.history));
+  await stdlib.install(workflow2);
+  await workflow2.run(example);
 }
 
 run().catch((err) => {

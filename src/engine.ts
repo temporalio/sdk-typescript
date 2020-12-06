@@ -84,11 +84,18 @@ type TaskState = Readonly<EmptyTaskState | ResolvedTaskState | RejectedTaskState
 
 interface SchedulerState {
   tasks: Map<number, TaskState>,
+  isReplay: boolean,
+  replayIndex: number,
 }
 
 export class Timeline {
-  private history: Event[] = [];
-  private state: SchedulerState = { tasks: new Map() };
+  public readonly history: Event[];
+  public readonly state: SchedulerState;
+
+  constructor(history: Event[] = []) {
+    this.state = { tasks: new Map(), isReplay: history.length > 0, replayIndex: -1 };
+    this.history = history;
+  }
 
   protected getTaskState(taskId: number) {
     const task = this.state.tasks.get(taskId);
@@ -96,9 +103,24 @@ export class Timeline {
     return task;
   }
 
+  public startReplay() {
+    this.state.isReplay = true;
+    this.state.replayIndex = -1;
+  }
+
   public enqueueEvent(event: Event) {
+    if (this.state.isReplay) {
+      ++this.state.replayIndex;
+      console.log('> Enqueue Event from history', this.state.replayIndex, event);
+      const historyEvent = this.history[this.state.replayIndex];
+      if (historyEvent.type !== event.type) {
+        throw new InvalidSchedulerState(`Expected ${historyEvent.type} got ${event.type} at history index ${this.state.replayIndex}`);
+      }
+      this.history[this.state.replayIndex] = event;
+      return this.state.replayIndex;
+    }
     const eventIndex = this.history.length;
-    // console.log('> Enqueue Event', eventIndex, event);
+    console.log('> Enqueue Event', eventIndex, event);
     this.history.push(event);
     return eventIndex;
   }
@@ -168,7 +190,9 @@ export class Timeline {
         }
         case 'TimerStart':
           this.state.tasks.set(eventIndex, { state: 'CREATED', callbacks: [] });
-          await new Promise((resolve) => setTimeout(resolve, event.ms));
+          if (!this.state.isReplay) {
+            await new Promise((resolve) => setTimeout(resolve, event.ms));
+          }
           // TODO: create a separate event for TimerComplete
           this.enqueueEvent({
             type: 'PromiseComplete',
@@ -235,7 +259,7 @@ export class Workflow {
       const taskId = timeline.enqueueEvent({ type: 'PromiseCreate' });
       callback.applySync(
         undefined, [
-          (valueIsTaskId: boolean, value: unknown) => timeline.enqueueEvent({ type: 'PromiseResolve', valueIsTaskId, value, taskId }),
+          (valueIsTaskId: boolean, value: unknown) => void timeline.enqueueEvent({ type: 'PromiseResolve', valueIsTaskId, value, taskId })
           // TODO: reject,
         ], {
           arguments: { reference: true },

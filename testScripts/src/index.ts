@@ -12,8 +12,8 @@ export async function main() {
   // console.log('sleeping');
   // const x = await Promise.race([
   // Promise.resolve('Promise.resolve'),
-  const res = await (async () => 'async')();
-  console.log(res);
+  // const res = await (async () => 'async')();
+  // console.log(res);
   // ]);
   // console.log('done', x);
   await sleep(1000);
