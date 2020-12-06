@@ -10,135 +10,135 @@ export enum ApplyMode {
 
 const AsyncFunction = Object.getPrototypeOf(async function() {}).constructor;
 
-interface Event<T> {
-  name: string,
-  // args: unknown[],
-  result: T,
+export interface PromiseCreateEvent {
+  type: 'PromiseCreateEvent',
 }
+
+export interface PromiseResolveEvent {
+  type: 'PromiseResolveEvent',
+  promiseId: number,
+  value: unknown,
+}
+
+export interface PromiseRegisterEvent {
+  type: 'PromiseRegisterEvent',
+  promiseId: number,
+  callback: Fn<[unknown], unknown>,
+}
+
+export interface PromiseCompleteEvent {
+  type: 'PromiseCompleteEvent',
+  promiseId: number,
+  value: unknown,
+}
+
+type Event = PromiseCompleteEvent | PromiseCreateEvent | PromiseRegisterEvent | PromiseResolveEvent;
 
 type Fn<TArgs extends any[], TRet> = (...args: TArgs) => TRet;
 
+export class InvalidSchedulerState extends Error {
+  public readonly name: string = 'InvalidSchedulerState';
+}
+
+interface EmptyPromiseState {
+  state: 'CREATED',
+  callbacks: Array<Fn<[unknown], unknown>>,
+}
+
+interface ResolvedPromiseState {
+  state: 'RESOLVED',
+  callbacks: Array<Fn<[unknown], unknown>>,
+  value: unknown,
+}
+
+type PromiseState = Readonly<EmptyPromiseState | ResolvedPromiseState>;
+// interface PromiseState {
+//   callbacks: Array<Fn<[unknown], unknown>>,
+//   state: 'CREATED' | 'RESOLVED' | 'REJECTED',
+//   value?: unknown,
+//   error?: unknown,
+// }
+
+interface SchedulerState {
+  promises: Map<number, PromiseState>,
+}
+
 export class Timeline {
-  private cursor: number = 0;
-  private history: Array<Event<unknown>> = [];
+  private history: Event[] = [];
+  private state: SchedulerState = { promises: new Map() };
 
-  private readonly timeoutIdsToTimeouts: Map<number, NodeJS.Timer> = new Map();
-  private lastTimeoutId: number = 0;
-  private numPendingEvents: number = 0; // main() promise is never resolved
-  // private numPendingEvents: number = -1; // main() promise is never resolved
+  public handleEvent(event: Event) {
+    const eventIndex = this.history.length;
+    const state = this.state;
+    console.log('handleEvent', event);
 
-  public startActivity<T>(name: string, action: () => T, pendingModifier: number = 0): T {
-    this.numPendingEvents += pendingModifier;
-    // TODO: receive args here
-    console.log('> Started activity', name);
-    let entry: Event<T>;
-    if (this.history.length > this.cursor) {
-      console.log('Event from timeline');
-      entry = this.history[this.cursor] as Event<T>;
-      // TODO: is this legal? What to do?
-      if (entry.name !== name) {
-        throw new Error(`Invalid entry in timeline, got ${entry.name} requested ${name}`);
+    switch (event.type) {
+      case 'PromiseCreateEvent': {
+        state.promises.set(eventIndex, { state: 'CREATED', callbacks: [] });
+        break;
       }
-    } else {
-      console.log('Event execution');
-      entry = {
-        name,
-        result: action(),
-      };
-      this.history.push(entry);
+      case 'PromiseRegisterEvent': {
+        let promise = state.promises.get(event.promiseId);
+        if (promise === undefined) {
+          throw new InvalidSchedulerState(`No promise state for Promise ${event.promiseId}`);
+        }
+        promise.callbacks.push(event.callback);
+        break;
+      }
+      case 'PromiseResolveEvent': {
+        let promise = state.promises.get(event.promiseId);
+        if (promise === undefined) {
+          throw new InvalidSchedulerState(`No promise state for Promise ${event.promiseId}`);
+        }
+        state.promises.set(event.promiseId, {
+          callbacks: promise.callbacks,
+          state: 'RESOLVED',
+          value: event.value,
+        });
+        break;
+      }
+      case 'PromiseCompleteEvent': {
+        let promise = state.promises.get(event.promiseId);
+        if (promise === undefined) {
+          throw new InvalidSchedulerState(`No promise state for Promise ${event.promiseId}`);
+        }
+        for (const callback of promise.callbacks) {
+          // TODO: support chaining
+          callback(event.value);
+        }
+        break;
+      }
     }
-    this.cursor++;
-
-    return entry.result;
+    this.history.push(event);
+    return eventIndex;
   }
 
-  public stats() {
-    // TODO
-    // for (const entry of this.history) {
-    //   entry.name
-    // }
-  }
-
-  public hasUnprocessedEvents() {
-    return this.numPendingEvents > 0;
-  }
-
-  public resetCursor() {
-    this.cursor = 0;
-  }
-
-  public generateActivity<TArgs extends any[], TRet>(name: string, action: Fn<TArgs, TRet>, pendingModifier: number = 0): Fn<TArgs, TRet> {
-    return (...args: TArgs) => this.startActivity(name, () => action(...args), pendingModifier);
-  }
-
-  public generatePromiseResolve() {
-    // TODO: actually resolve the promise
-    return (arg: unknown) => this.startActivity('Promise.resolve create', () => {
-      return new Promise((resolve) => this.startActivity('Promise.resolve.trigger', () => resolve(arg)));
+  public complete(): Promise<void> {
+    // TODO: handle rejection
+    return new Promise((resolve) => {
+      this.handleEvent({ type: 'PromiseRegisterEvent', promiseId: 0, callback: () => resolve() });
     });
   }
 
-  public generatePromise() {
-    return (
-      callback: ivm.Reference<Function>,
-    ) => {
-      // TODO: store this promise
-      return new Promise((resolve, reject) => {
-        // TODO: await
-        callback.applySync(
-          undefined, [
-            resolve,
-            reject,
-            // this.generateActivity('Promise.resolve', resolve, 1),
-            // this.generateActivity('Promise.reject', reject, 1)
-          ], {
-          arguments: { reference: true },
-        });
-      });
-    };
-  }
-
-  public generateTimer() {
-    const activity = this.generateActivity('timer set', (
-      callback: ivm.Reference<Function>,
-      msRef: ivm.Reference<number>,
-      ...args: ivm.Reference<any>[]
-    ) => {
-      const ms = msRef.copySync(); // Copy sync since the isolate executes setTimeout with EvalMode.SYNC
-      const timeout = setTimeout(async () => {
-        await this.startActivity('trigger timer', () => callback.apply(undefined, args.map((arg) => arg.derefInto()), { arguments: { copy: true } }), -1);
-      }, ms);
-      const timeoutId = ++this.lastTimeoutId;
-      this.timeoutIdsToTimeouts.set(timeoutId, timeout);
-      return timeoutId;
-    }, 1);
-    return (
-      callback: ivm.Reference<Function>,
-      msRef: ivm.Reference<number>,
-      ...args: ivm.Reference<any>[]
-    ) => {
-      const result = activity(callback, msRef, ...args);
-      if (this.history.length > this.cursor) {
-        console.log('timer from history');
-        // TODO: check if cancelled
-        // callback.applySync(undefined, args.map((arg) => arg.derefInto()), { arguments: { copy: true } });
+  public async* run() {
+    let lastHandledEventId = 0;
+    const historyLength = this.history.length;
+    for (; lastHandledEventId < historyLength; ++lastHandledEventId) {
+      const event = this.history[lastHandledEventId];
+      switch (event.type) {
+        case 'PromiseResolveEvent':
+        case 'PromiseRegisterEvent':
+          const promise = this.state.promises.get(event.promiseId)!;
+          if (promise.state === 'RESOLVED') {
+            await new Promise((resolve) => setImmediate(resolve));
+            this.handleEvent({ type: 'PromiseCompleteEvent', promiseId: event.promiseId, value: promise.value });
+          }
+        case 'PromiseCompleteEvent':
+          if (event.promiseId === 0) {
+            break;
+          }
       }
-      return result;
     }
-    // return this.generateActivity('timer', async (
-    //   callback: ivm.Reference<Function>,
-    //   msRef: ivm.Reference<number>,
-    //   ...args: ivm.Reference<any>[]
-    // ) => {
-    //   const ms = msRef.copySync(); // Copy sync since the isolate executes setTimeout with EvalMode.SYNC
-    //   await new Promise((resolve) => setTimeout(resolve, 200));
-    //   const timeout = setTimeout(async () => {
-    //     await callback.apply(undefined, args.map((arg) => arg.derefInto()), { arguments: { copy: true } });
-    //   }, ms);
-    //   const timeoutId = ++this.lastTimeoutId;
-    //   this.timeoutIdsToTimeouts.set(timeoutId, timeout);
-    //   return timeoutId;
-    // });
   }
 }
 
@@ -164,20 +164,30 @@ export class Workflow {
   }
 
   private async injectPromise() {
-    // const outerThis = this;
-    function then(this: Promise<unknown>, callback: ivm.Reference<Function>) {
-      Promise.prototype.then.apply(this, [
-        (value) => callback.applySync(undefined, [value], { arguments: { copy: true } })
-        // (value) => outerThis.timeline.startActivity(
-        //   'Promise.then',
-        //   () => callback.applySync(undefined, [value], { arguments: { copy: true } }),
-        //   -1,
-        // )
-      ]);
+    const timeline = this.timeline;
+    function then(promiseId: ivm.Reference<number>, callback: ivm.Reference<Function>) {
+      timeline.handleEvent({
+        type: 'PromiseRegisterEvent',
+        promiseId: promiseId.copySync(),
+        callback: (value: unknown) => callback.applySync(undefined, [value], { arguments: { copy: true } }),
+      });
     }
+
+    function createPromise(callback: ivm.Reference<Function>) {
+      const promiseId = timeline.handleEvent({ type: 'PromiseCreateEvent' });
+      callback.applySync(
+        undefined, [
+          (value: unknown) => timeline.handleEvent({ type: 'PromiseResolveEvent', value, promiseId }),
+          // TODO: reject,
+        ], {
+          arguments: { reference: true },
+        });
+      return promiseId;
+    }
+
     await this.context.evalClosure(
       `global.Promise = function(executor) {
-        this.impl = $0.applySync(
+        this.promiseId = $0.applySync(
           undefined,
           [
             (resolve, reject) => executor(
@@ -187,20 +197,15 @@ export class Workflow {
           ],
           {
             arguments: { reference: true },
-            result: { reference: true },
+            result: { copy: true },
           },
         );
       }
       global.Promise.prototype.then = function promiseThen(callback) {
-        $1.applySync(this.impl.derefInto(), [callback], { arguments: { reference: true } });
+        $1.applySync(undefined, [this.promiseId, callback], { arguments: { reference: true } });
       }
       `,
-      [this.timeline.generatePromise(), then], { arguments: { reference: true } });
-      // [this.timeline.generatePromise(), Promise.prototype.then], { arguments: { reference: true } });
-    // await workflow.inject('Promise.resolve', workflow.timeline.generatePromiseResolve(), ApplyMode.SYNC, {
-    //   arguments: { reference: true },
-    //   result: { promise: true },
-    // });
+      [createPromise, then], { arguments: { reference: true } });
   }
 
   public async inject(
@@ -234,9 +239,6 @@ export class Workflow {
     await script.run(this.context);
     const main = await this.context.global.get('main');
     await main.apply(undefined, [], { result: { promise: true, copy: true } });
-    while (this.timeline.hasUnprocessedEvents()) {
-      console.log('unprocessed events');
-      await new Promise(resolve => setTimeout(resolve, 100));
-    }
+    for await (const _ of this.timeline.run()) {}
   }
 }

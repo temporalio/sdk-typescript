@@ -12,10 +12,10 @@ async function run() {
   console.log('=== complete ===');
 
   // TODO: run in loop to test determinism
-  workflow.timeline.resetCursor();
-  const workflow2 = await Workflow.create(workflow.timeline);
-  await stdlib.install(workflow2);
-  await workflow2.run(example);
+  // workflow.timeline.resetCursor();
+  // const workflow2 = await Workflow.create(workflow.timeline);
+  // await stdlib.install(workflow2);
+  // await workflow2.run(example);
 }
 
 run().catch((err) => {

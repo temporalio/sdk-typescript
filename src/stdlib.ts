@@ -1,5 +1,5 @@
 import seedrandom from 'seedrandom';
-import { Workflow, ApplyMode } from './engine';
+import { Workflow } from './engine';
 
 export async function install(workflow: Workflow) {
   const rng = seedrandom(workflow.id);
@@ -21,10 +21,10 @@ export async function install(workflow: Workflow) {
   //   },
   // );
 
-  await workflow.inject('setTimeout', workflow.timeline.generateTimer(), ApplyMode.SYNC, {
-    arguments: { reference: true },
-    result: {},
-  });
+  // await workflow.inject('setTimeout', workflow.timeline.generateTimer(), ApplyMode.SYNC, {
+  //   arguments: { reference: true },
+  //   result: {},
+  // });
 
   await workflow.inject('clearTimeout', (timeoutId: number) => {
     // const timeout = timeoutIdsToTimeouts.get(timeoutId);
