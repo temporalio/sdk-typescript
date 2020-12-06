@@ -118,12 +118,14 @@ export class Timeline {
             this.enqueueEvent({
               type: 'PromiseRegister',
               taskId: event.value as number,
-              callback: (valueIsTaskId, value) => this.enqueueEvent({
-                type: 'PromiseResolve',
-                taskId: event.taskId,
-                valueIsTaskId,
-                value,
-              }),
+              callback: (valueIsTaskId, value) => {
+                this.enqueueEvent({
+                  type: 'PromiseResolve',
+                  taskId: event.taskId,
+                  valueIsTaskId,
+                  value,
+                })
+              },
             });
           } else {
             this.state.tasks.set(event.taskId, {
@@ -167,7 +169,7 @@ export class Timeline {
         case 'TimerStart':
           this.state.tasks.set(eventIndex, { state: 'CREATED', callbacks: [] });
           await new Promise((resolve) => setTimeout(resolve, event.ms));
-          console.log('firing timer');
+          // TODO: create a separate event for TimerComplete
           this.enqueueEvent({
             type: 'PromiseComplete',
             taskId: eventIndex,
@@ -178,10 +180,9 @@ export class Timeline {
           break;
         case 'PromiseComplete': {
           for (const callback of event.callbacks) {
-            // TODO: support chaining
             callback(event.valueIsTaskId, event.value);
           }
-          if (event.taskId === 0) {
+          if (event.taskId === 0) { // Promise created by running main()
             return;
           }
           break;
@@ -229,13 +230,6 @@ export class Workflow {
 
   private async injectPromise() {
     const timeline = this.timeline;
-    function then(taskId: ivm.Reference<number>, callback: ivm.Reference<Function>) {
-      timeline.enqueueEvent({
-        type: 'PromiseRegister',
-        taskId: taskId.copySync(),
-        callback: (_, value) => callback.applySync(undefined, [value], { arguments: { copy: true } }),
-      });
-    }
 
     function createPromise(callback: ivm.Reference<Function>) {
       const taskId = timeline.enqueueEvent({ type: 'PromiseCreate' });
@@ -249,18 +243,36 @@ export class Workflow {
       return taskId;
     }
 
+    function then(taskId: ivm.Reference<number>, callback: ivm.Reference<Function>) {
+      const nextTaskId = timeline.enqueueEvent({ type: 'PromiseCreate' });
+      timeline.enqueueEvent({
+        type: 'PromiseRegister',
+        taskId: taskId.copySync(),
+        callback: (_, value) => {
+          const [valueIsTaskId, nextValue] = callback.applySync(undefined, [value], { arguments: { copy: true, }, result: { copy: true } }) as any; // TODO
+          timeline.enqueueEvent({
+            type: 'PromiseResolve',
+            taskId: nextTaskId,
+            valueIsTaskId,
+            value: nextValue,
+          });
+        },
+      });
+      return nextTaskId;
+    }
+
     await this.context.evalClosure(
       `global.Promise = function(executor) {
         this.taskId = $0.applySync(
           undefined,
           [
             (resolve, reject) => executor(
-              (val) => {
-                const isPromise = val instanceof Promise
-                const resolvedValue = isPromise ? val.taskId : val;
+              (value) => {
+                const isPromise = value instanceof Promise;
+                const resolvedValue = isPromise ? value.taskId : value;
                 resolve.applySync(undefined, [isPromise, resolvedValue], { arguments: { copy: true } });
               },
-              (err) => void reject.applySync(undefined, [val], { arguments: { copy: true } }),
+              (err) => void reject.applySync(undefined, [err], { arguments: { copy: true } }),
             )
           ],
           {
@@ -270,7 +282,16 @@ export class Workflow {
         );
       }
       global.Promise.prototype.then = function promiseThen(callback) {
-        $1.applySync(undefined, [this.taskId, callback], { arguments: { reference: true } });
+        const promise = Object.create(null);
+        Object.setPrototypeOf(promise, Promise.prototype);
+        const wrapper = function (value) {
+          const ret = callback(value);
+          const isPromise = ret instanceof Promise;
+          const resolvedValue = isPromise ? ret.taskId : ret;
+          return [isPromise, resolvedValue];
+        }
+        promise.taskId = $1.applySync(undefined, [this.taskId, wrapper], { arguments: { reference: true } });
+        return promise;
       }
       `,
       [createPromise, then], { arguments: { reference: true } });
