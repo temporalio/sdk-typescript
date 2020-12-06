@@ -10,6 +10,8 @@ export enum ApplyMode {
 
 const AsyncFunction = Object.getPrototypeOf(async function() {}).constructor;
 
+export type TaskCompleteCallback = Fn<[boolean, unknown], unknown>;
+
 export interface PromiseCreateEvent {
   type: 'PromiseCreate',
 }
@@ -17,20 +19,22 @@ export interface PromiseCreateEvent {
 export interface PromiseResolveEvent {
   type: 'PromiseResolve',
   taskId: number,
+  valueIsTaskId: boolean,
   value: unknown,
 }
 
 export interface PromiseRegisterEvent {
   type: 'PromiseRegister',
   taskId: number,
-  callback: Fn<[unknown], unknown>,
+  callback: TaskCompleteCallback,
 }
 
 export interface PromiseCompleteEvent {
   type: 'PromiseComplete',
   taskId: number,
+  valueIsTaskId: boolean,
   value: unknown,
-  callbacks: Array<Fn<[unknown], unknown>>,
+  callbacks: Array<TaskCompleteCallback>,
 }
 
 export interface TimerStartEvent {
@@ -58,24 +62,25 @@ export class InvalidSchedulerState extends Error {
   public readonly name: string = 'InvalidSchedulerState';
 }
 
-interface EmptyTaskState {
+export interface EmptyTaskState {
   state: 'CREATED',
-  callbacks: Array<Fn<[unknown], unknown>>,
+  callbacks: Array<TaskCompleteCallback>,
 }
 
-interface ResolvedTaskState {
+export interface ResolvedTaskState {
   state: 'RESOLVED',
-  callbacks: Array<Fn<[unknown], unknown>>,
+  callbacks: Array<TaskCompleteCallback>,
+  valueIsTaskId: boolean,
   value: unknown,
 }
 
-type TaskState = Readonly<EmptyTaskState | ResolvedTaskState>;
-// interface PromiseState {
-//   callbacks: Array<Fn<[unknown], unknown>>,
-//   state: 'CREATED' | 'RESOLVED' | 'REJECTED',
-//   value?: unknown,
-//   error?: unknown,
-// }
+export interface RejectedTaskState {
+  state: 'REJECTED',
+  callbacks: Array<TaskCompleteCallback>,
+  error: unknown,
+}
+
+type TaskState = Readonly<EmptyTaskState | ResolvedTaskState | RejectedTaskState>;
 
 interface SchedulerState {
   tasks: Map<number, TaskState>,
@@ -93,36 +98,9 @@ export class Timeline {
 
   public enqueueEvent(event: Event) {
     const eventIndex = this.history.length;
-    console.log('> Enqueue Event', eventIndex, event);
+    // console.log('> Enqueue Event', eventIndex, event);
     this.history.push(event);
     return eventIndex;
-  }
-
-  protected handlePromiseResolve(event: PromiseResolveEvent) {
-    const task = this.getTaskState(event.taskId);
-    this.state.tasks.set(event.taskId, {
-      callbacks: [],
-      state: 'RESOLVED',
-      value: event.value,
-    });
-    return task.callbacks;
-    // if (typeof event.value === 'object' && event.value !== null && 'taskId' in event.value) {
-    //   this.enqueueEvent({
-    //     type: 'PromiseRegister',
-    //     taskId: (event.value as any).taskId,
-    //     callback: (value) => this.enqueueEvent({
-    //       type: 'PromiseResolve',
-    //       taskId: event.taskId,
-    //       value,
-    //     }),
-    //   });
-    // } else {
-    //   this.state.tasks.set(event.taskId, {
-    //     callbacks: task.callbacks,
-    //     state: 'RESOLVED',
-    //     value: event.value,
-    //   });
-    // }
   }
 
   public async run() {
@@ -136,14 +114,34 @@ export class Timeline {
           break;
         case 'PromiseResolve': {
           const task = this.getTaskState(event.taskId);
-          this.state.tasks.set(event.taskId, {
-            callbacks: [],
-            state: 'RESOLVED',
-            value: event.value,
-          });
-          await new Promise((resolve) => setImmediate(resolve));
-          if (task.callbacks.length > 0) {
-            this.enqueueEvent({ type: 'PromiseComplete', taskId: event.taskId, value: event.value, callbacks: task.callbacks });
+          if (event.valueIsTaskId) {
+            this.enqueueEvent({
+              type: 'PromiseRegister',
+              taskId: event.value as number,
+              callback: (valueIsTaskId, value) => this.enqueueEvent({
+                type: 'PromiseResolve',
+                taskId: event.taskId,
+                valueIsTaskId,
+                value,
+              }),
+            });
+          } else {
+            this.state.tasks.set(event.taskId, {
+              callbacks: [],
+              state: 'RESOLVED',
+              valueIsTaskId: false,
+              value: event.value,
+            });
+            await new Promise((resolve) => setImmediate(resolve));
+            if (task.callbacks.length > 0) {
+              this.enqueueEvent({
+                type: 'PromiseComplete',
+                taskId: event.taskId,
+                valueIsTaskId: false,
+                value: event.value,
+                callbacks: task.callbacks,
+              });
+            }
           }
           break;
         }
@@ -152,7 +150,13 @@ export class Timeline {
           switch (task.state) {
             case 'RESOLVED':
               await new Promise((resolve) => setImmediate(resolve));
-              this.enqueueEvent({ type: 'PromiseComplete', taskId: event.taskId, value: task.value, callbacks: [event.callback] });
+              this.enqueueEvent({
+                type: 'PromiseComplete',
+                taskId: event.taskId,
+                value: task.value,
+                valueIsTaskId: task.valueIsTaskId,
+                callbacks: [event.callback],
+              });
               break;
             case 'CREATED':
               task.callbacks.push(event.callback);
@@ -161,15 +165,21 @@ export class Timeline {
           break;
         }
         case 'TimerStart':
-          this.state.tasks.set(eventIndex, { state: 'CREATED', callbacks: [event.callback] });
+          this.state.tasks.set(eventIndex, { state: 'CREATED', callbacks: [] });
           await new Promise((resolve) => setTimeout(resolve, event.ms));
           console.log('firing timer');
-          // this.enqueueEvent({ type: 'PromiseComplete', taskId: eventIndex, value: undefined });
+          this.enqueueEvent({
+            type: 'PromiseComplete',
+            taskId: eventIndex,
+            value: undefined,
+            valueIsTaskId: false,
+            callbacks: [event.callback],
+          });
           break;
         case 'PromiseComplete': {
           for (const callback of event.callbacks) {
             // TODO: support chaining
-            callback(event.value);
+            callback(event.valueIsTaskId, event.value);
           }
           if (event.taskId === 0) {
             return;
@@ -198,6 +208,7 @@ export class Workflow {
     const jail = context.global;
     await jail.set('global', jail.derefInto());
     const workflow = new Workflow(isolate, context, timeline);
+    await context.evalClosure('global.exports = {}'); // Needed for exporting main
     await workflow.injectPromise();
     await workflow.injectTimers();
     return workflow;
@@ -222,7 +233,7 @@ export class Workflow {
       timeline.enqueueEvent({
         type: 'PromiseRegister',
         taskId: taskId.copySync(),
-        callback: (value: unknown) => callback.applySync(undefined, [value], { arguments: { copy: true } }),
+        callback: (_, value) => callback.applySync(undefined, [value], { arguments: { copy: true } }),
       });
     }
 
@@ -230,7 +241,7 @@ export class Workflow {
       const taskId = timeline.enqueueEvent({ type: 'PromiseCreate' });
       callback.applySync(
         undefined, [
-          (value: unknown) => timeline.enqueueEvent({ type: 'PromiseResolve', value, taskId }),
+          (valueIsTaskId: boolean, value: unknown) => timeline.enqueueEvent({ type: 'PromiseResolve', valueIsTaskId, value, taskId }),
           // TODO: reject,
         ], {
           arguments: { reference: true },
@@ -244,7 +255,11 @@ export class Workflow {
           undefined,
           [
             (resolve, reject) => executor(
-              (val) => void resolve.applySync(undefined, [val], { arguments: { copy: true } }),
+              (val) => {
+                const isPromise = val instanceof Promise
+                const resolvedValue = isPromise ? val.taskId : val;
+                resolve.applySync(undefined, [isPromise, resolvedValue], { arguments: { copy: true } });
+              },
               (err) => void reject.applySync(undefined, [val], { arguments: { copy: true } }),
             )
           ],

@@ -4,7 +4,7 @@ import * as stdlib from './stdlib';
 export { Workflow };
 
 async function run() {
-  const example = path.join(__dirname, '../example/lib/index.js');
+  const example = path.join(__dirname, '../testScripts/lib/index.js');
 
   const workflow = await Workflow.create();
   await stdlib.install(workflow);

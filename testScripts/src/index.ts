@@ -1,11 +1,8 @@
-type Logger = (a: string) => void;
-
 async function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-
-async function main() {
+export async function main() {
   // Promise.resolve(666).then(console.log);
   // Promise.resolve().then(() => Date.now());
   // const cb = (a: string) => void console.log(a);
