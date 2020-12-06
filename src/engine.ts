@@ -11,28 +11,46 @@ export enum ApplyMode {
 const AsyncFunction = Object.getPrototypeOf(async function() {}).constructor;
 
 export interface PromiseCreateEvent {
-  type: 'PromiseCreateEvent',
+  type: 'PromiseCreate',
 }
 
 export interface PromiseResolveEvent {
-  type: 'PromiseResolveEvent',
-  promiseId: number,
+  type: 'PromiseResolve',
+  taskId: number,
   value: unknown,
 }
 
 export interface PromiseRegisterEvent {
-  type: 'PromiseRegisterEvent',
-  promiseId: number,
+  type: 'PromiseRegister',
+  taskId: number,
   callback: Fn<[unknown], unknown>,
 }
 
 export interface PromiseCompleteEvent {
-  type: 'PromiseCompleteEvent',
-  promiseId: number,
+  type: 'PromiseComplete',
+  taskId: number,
   value: unknown,
+  callbacks: Array<Fn<[unknown], unknown>>,
 }
 
-type Event = PromiseCompleteEvent | PromiseCreateEvent | PromiseRegisterEvent | PromiseResolveEvent;
+export interface TimerStartEvent {
+  type: 'TimerStart',
+  ms: number,
+  callback: Fn<[], unknown>,
+}
+
+export interface TimerCancelEvent {
+  type: 'TimerCancel',
+  timerId: number,
+}
+
+type Event = 
+  PromiseCompleteEvent
+  | PromiseCreateEvent
+  | PromiseRegisterEvent
+  | PromiseResolveEvent
+  | TimerStartEvent
+;
 
 type Fn<TArgs extends any[], TRet> = (...args: TArgs) => TRet;
 
@@ -40,18 +58,18 @@ export class InvalidSchedulerState extends Error {
   public readonly name: string = 'InvalidSchedulerState';
 }
 
-interface EmptyPromiseState {
+interface EmptyTaskState {
   state: 'CREATED',
   callbacks: Array<Fn<[unknown], unknown>>,
 }
 
-interface ResolvedPromiseState {
+interface ResolvedTaskState {
   state: 'RESOLVED',
   callbacks: Array<Fn<[unknown], unknown>>,
   value: unknown,
 }
 
-type PromiseState = Readonly<EmptyPromiseState | ResolvedPromiseState>;
+type TaskState = Readonly<EmptyTaskState | ResolvedTaskState>;
 // interface PromiseState {
 //   callbacks: Array<Fn<[unknown], unknown>>,
 //   state: 'CREATED' | 'RESOLVED' | 'REJECTED',
@@ -60,83 +78,104 @@ type PromiseState = Readonly<EmptyPromiseState | ResolvedPromiseState>;
 // }
 
 interface SchedulerState {
-  promises: Map<number, PromiseState>,
+  tasks: Map<number, TaskState>,
 }
 
 export class Timeline {
   private history: Event[] = [];
-  private state: SchedulerState = { promises: new Map() };
+  private state: SchedulerState = { tasks: new Map() };
 
-  public handleEvent(event: Event) {
+  protected getTaskState(taskId: number) {
+    const task = this.state.tasks.get(taskId);
+    if (task === undefined) throw new InvalidSchedulerState(`No task state for task Id: ${taskId}`);
+    return task;
+  }
+
+  public enqueueEvent(event: Event) {
     const eventIndex = this.history.length;
-    const state = this.state;
-    console.log('handleEvent', event);
-
-    switch (event.type) {
-      case 'PromiseCreateEvent': {
-        state.promises.set(eventIndex, { state: 'CREATED', callbacks: [] });
-        break;
-      }
-      case 'PromiseRegisterEvent': {
-        let promise = state.promises.get(event.promiseId);
-        if (promise === undefined) {
-          throw new InvalidSchedulerState(`No promise state for Promise ${event.promiseId}`);
-        }
-        promise.callbacks.push(event.callback);
-        break;
-      }
-      case 'PromiseResolveEvent': {
-        let promise = state.promises.get(event.promiseId);
-        if (promise === undefined) {
-          throw new InvalidSchedulerState(`No promise state for Promise ${event.promiseId}`);
-        }
-        state.promises.set(event.promiseId, {
-          callbacks: promise.callbacks,
-          state: 'RESOLVED',
-          value: event.value,
-        });
-        break;
-      }
-      case 'PromiseCompleteEvent': {
-        let promise = state.promises.get(event.promiseId);
-        if (promise === undefined) {
-          throw new InvalidSchedulerState(`No promise state for Promise ${event.promiseId}`);
-        }
-        for (const callback of promise.callbacks) {
-          // TODO: support chaining
-          callback(event.value);
-        }
-        break;
-      }
-    }
+    console.log('> Enqueue Event', eventIndex, event);
     this.history.push(event);
     return eventIndex;
   }
 
-  public complete(): Promise<void> {
-    // TODO: handle rejection
-    return new Promise((resolve) => {
-      this.handleEvent({ type: 'PromiseRegisterEvent', promiseId: 0, callback: () => resolve() });
+  protected handlePromiseResolve(event: PromiseResolveEvent) {
+    const task = this.getTaskState(event.taskId);
+    this.state.tasks.set(event.taskId, {
+      callbacks: [],
+      state: 'RESOLVED',
+      value: event.value,
     });
+    return task.callbacks;
+    // if (typeof event.value === 'object' && event.value !== null && 'taskId' in event.value) {
+    //   this.enqueueEvent({
+    //     type: 'PromiseRegister',
+    //     taskId: (event.value as any).taskId,
+    //     callback: (value) => this.enqueueEvent({
+    //       type: 'PromiseResolve',
+    //       taskId: event.taskId,
+    //       value,
+    //     }),
+    //   });
+    // } else {
+    //   this.state.tasks.set(event.taskId, {
+    //     callbacks: task.callbacks,
+    //     state: 'RESOLVED',
+    //     value: event.value,
+    //   });
+    // }
   }
 
-  public async* run() {
-    let lastHandledEventId = 0;
-    const historyLength = this.history.length;
-    for (; lastHandledEventId < historyLength; ++lastHandledEventId) {
-      const event = this.history[lastHandledEventId];
+  public async run() {
+    let eventIndex = 0;
+    for (; eventIndex < this.history.length; ++eventIndex) {
+      const event = this.history[eventIndex];
+      console.log('< Handle event ', eventIndex, event);
       switch (event.type) {
-        case 'PromiseResolveEvent':
-        case 'PromiseRegisterEvent':
-          const promise = this.state.promises.get(event.promiseId)!;
-          if (promise.state === 'RESOLVED') {
-            await new Promise((resolve) => setImmediate(resolve));
-            this.handleEvent({ type: 'PromiseCompleteEvent', promiseId: event.promiseId, value: promise.value });
+        case 'PromiseCreate':
+          this.state.tasks.set(eventIndex, { state: 'CREATED', callbacks: [] });
+          break;
+        case 'PromiseResolve': {
+          const task = this.getTaskState(event.taskId);
+          this.state.tasks.set(event.taskId, {
+            callbacks: [],
+            state: 'RESOLVED',
+            value: event.value,
+          });
+          await new Promise((resolve) => setImmediate(resolve));
+          if (task.callbacks.length > 0) {
+            this.enqueueEvent({ type: 'PromiseComplete', taskId: event.taskId, value: event.value, callbacks: task.callbacks });
           }
-        case 'PromiseCompleteEvent':
-          if (event.promiseId === 0) {
-            break;
+          break;
+        }
+        case 'PromiseRegister': {
+          const task = this.getTaskState(event.taskId);
+          switch (task.state) {
+            case 'RESOLVED':
+              await new Promise((resolve) => setImmediate(resolve));
+              this.enqueueEvent({ type: 'PromiseComplete', taskId: event.taskId, value: task.value, callbacks: [event.callback] });
+              break;
+            case 'CREATED':
+              task.callbacks.push(event.callback);
+              break;
           }
+          break;
+        }
+        case 'TimerStart':
+          this.state.tasks.set(eventIndex, { state: 'CREATED', callbacks: [event.callback] });
+          await new Promise((resolve) => setTimeout(resolve, event.ms));
+          console.log('firing timer');
+          // this.enqueueEvent({ type: 'PromiseComplete', taskId: eventIndex, value: undefined });
+          break;
+        case 'PromiseComplete': {
+          for (const callback of event.callbacks) {
+            // TODO: support chaining
+            callback(event.value);
+          }
+          if (event.taskId === 0) {
+            return;
+          }
+          break;
+        }
       }
     }
   }
@@ -160,34 +199,48 @@ export class Workflow {
     await jail.set('global', jail.derefInto());
     const workflow = new Workflow(isolate, context, timeline);
     await workflow.injectPromise();
+    await workflow.injectTimers();
     return workflow;
+  }
+
+  private async injectTimers() {
+    const timeline = this.timeline;
+    function createTimer(callback: ivm.Reference<Function>, msRef: ivm.Reference<number>, ...args: ivm.Reference<any>[]) {
+      const ms = msRef.copySync(); // Copy sync since the isolate executes setTimeout with EvalMode.SYNC
+      timeline.enqueueEvent({
+        type: 'TimerStart',
+        ms,
+        callback: () => callback.applySync(undefined, args),
+      });
+    }
+    await this.inject('setTimeout', createTimer, ApplyMode.SYNC, { arguments: { reference: true } });
   }
 
   private async injectPromise() {
     const timeline = this.timeline;
-    function then(promiseId: ivm.Reference<number>, callback: ivm.Reference<Function>) {
-      timeline.handleEvent({
-        type: 'PromiseRegisterEvent',
-        promiseId: promiseId.copySync(),
+    function then(taskId: ivm.Reference<number>, callback: ivm.Reference<Function>) {
+      timeline.enqueueEvent({
+        type: 'PromiseRegister',
+        taskId: taskId.copySync(),
         callback: (value: unknown) => callback.applySync(undefined, [value], { arguments: { copy: true } }),
       });
     }
 
     function createPromise(callback: ivm.Reference<Function>) {
-      const promiseId = timeline.handleEvent({ type: 'PromiseCreateEvent' });
+      const taskId = timeline.enqueueEvent({ type: 'PromiseCreate' });
       callback.applySync(
         undefined, [
-          (value: unknown) => timeline.handleEvent({ type: 'PromiseResolveEvent', value, promiseId }),
+          (value: unknown) => timeline.enqueueEvent({ type: 'PromiseResolve', value, taskId }),
           // TODO: reject,
         ], {
           arguments: { reference: true },
         });
-      return promiseId;
+      return taskId;
     }
 
     await this.context.evalClosure(
       `global.Promise = function(executor) {
-        this.promiseId = $0.applySync(
+        this.taskId = $0.applySync(
           undefined,
           [
             (resolve, reject) => executor(
@@ -202,7 +255,7 @@ export class Workflow {
         );
       }
       global.Promise.prototype.then = function promiseThen(callback) {
-        $1.applySync(undefined, [this.promiseId, callback], { arguments: { reference: true } });
+        $1.applySync(undefined, [this.taskId, callback], { arguments: { reference: true } });
       }
       `,
       [createPromise, then], { arguments: { reference: true } });
@@ -239,6 +292,6 @@ export class Workflow {
     await script.run(this.context);
     const main = await this.context.global.get('main');
     await main.apply(undefined, [], { result: { promise: true, copy: true } });
-    for await (const _ of this.timeline.run()) {}
+    await this.timeline.run();
   }
 }

@@ -19,7 +19,8 @@ async function main() {
   console.log(res);
   // ]);
   // console.log('done', x);
-  // await sleep(1000);
+  await sleep(1000);
+  console.log('slept');
   // console.log(timeout);
   // console.log('new Date', new Date());
   // console.log('Date.now', Date.now());
