@@ -272,7 +272,11 @@ export class Workflow {
     const isolate = new ivm.Isolate();
     const context = await isolate.createContext();
     const workflow = new Workflow(isolate, context, timeline);
-    await context.evalClosure('globalThis.exports = {}'); // Needed for exporting main
+    await context.evalClosure(`
+      globalThis.exports = {};
+      delete globalThis.WeakMap;
+      delete globalThis.WeakSet;
+    `); // Needed for exporting main
     await workflow.injectPromise();
     await workflow.injectTimers();
     return workflow;
