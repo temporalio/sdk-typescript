@@ -3,7 +3,7 @@ import test from 'ava';
 import { Workflow, Timeline } from '../engine';
 
 test('async workflow', async (t) => {
-  const script = path.join(__dirname, '../../testScripts/lib/asyncWorkflow.js');
+  const script = path.join(__dirname, '../../testWorkflows/lib/asyncWorkflow.js');
 
   const workflow = await Workflow.create();
   const logs: Array<Array<unknown>> = [];
@@ -13,7 +13,7 @@ test('async workflow', async (t) => {
 });
 
 test('setTimeout', async (t) => {
-  const script = path.join(__dirname, '../../testScripts/lib/setTimeout.js');
+  const script = path.join(__dirname, '../../testWorkflows/lib/setTimeout.js');
 
   const workflow = await Workflow.create();
   const logs: Array<Array<unknown>> = [];
@@ -23,7 +23,7 @@ test('setTimeout', async (t) => {
 });
 
 test('promiseThenPromise', async (t) => {
-  const script = path.join(__dirname, '../../testScripts/lib/promiseThenPromise.js');
+  const script = path.join(__dirname, '../../testWorkflows/lib/promiseThenPromise.js');
 
   const workflow = await Workflow.create();
   const logs: Array<Array<unknown>> = [];
@@ -33,7 +33,7 @@ test('promiseThenPromise', async (t) => {
 });
 
 test('race', async (t) => {
-  const script = path.join(__dirname, '../../testScripts/lib/race.js');
+  const script = path.join(__dirname, '../../testWorkflows/lib/race.js');
 
   let workflow: Workflow | undefined;
   for (let i = 0; i < 3; ++i) {
@@ -46,7 +46,7 @@ test('race', async (t) => {
 });
 
 test('importer', async (t) => {
-  const script = path.join(__dirname, '../../testScripts/lib/importer.js');
+  const script = path.join(__dirname, '../../testWorkflows/lib/importer.js');
 
   let workflow: Workflow | undefined;
   for (let i = 0; i < 3; ++i) {
