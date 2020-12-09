@@ -1,3 +1,4 @@
+import { dirname, resolve as pathResolve, extname } from 'path';
 import assert from 'assert';
 import fs from 'fs/promises';
 import ivm from 'isolated-vm';
@@ -394,11 +395,33 @@ export class Workflow {
     }`, [handler], { arguments: { reference: true } });
   }
 
+  async moduleResolveCallback(specifier: string, referrer: ivm.Module) {
+    const referrerFilename = (referrer as any).filename; // Hacky way of resolving relative imports
+    const root = dirname(referrerFilename);
+    const ext = extname(specifier);
+    if (ext === '') {
+      specifier += '.js';
+    } else if (ext !== 'js') {
+      throw new Error('Only .js files can be imported');
+    }
+
+    // TODO: check if specifier contains a path (e.g. ./)
+    const filename = pathResolve(root, specifier);
+    console.log('Instantiate', filename, (referrer as any).filename);
+    // TODO: assert modulePath in allowed root
+    const code = await fs.readFile(filename, 'utf8');
+    const compiled = await this.isolate.compileModule(code, { filename });
+    (compiled as any).filename = filename; // Hacky way of resolving relative imports
+    return compiled;
+  }
+
   public async run(path: string) {
     const code = await fs.readFile(path, 'utf8');
-    const script = await this.isolate.compileScript(code);
-    await script.run(this.context);
-    const main = await this.context.global.get('main');
+    const mod = await this.isolate.compileModule(code, { filename: path });
+    (mod as any).filename = path; // Hacky way of resolving relative imports
+    await mod.instantiate(this.context, this.moduleResolveCallback.bind(this));
+    await mod.evaluate();
+    const main = await mod.namespace.get('main');
     await main.apply(undefined, [], { result: { promise: true, copy: true } });
     await this.timeline.run();
   }

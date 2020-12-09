@@ -44,3 +44,16 @@ test('race', async (t) => {
     t.deepEqual(logs, [[1], [2]]);
   }
 });
+
+test('importer', async (t) => {
+  const script = path.join(__dirname, '../../testScripts/lib/importer.js');
+
+  let workflow: Workflow | undefined;
+  for (let i = 0; i < 3; ++i) {
+    workflow = await Workflow.create(new Timeline(workflow === undefined ? [] : workflow.timeline.history));
+    const logs: Array<Array<unknown>> = [];
+    await workflow.inject('console.log', (...args: unknown[]) => void logs.push(args));
+    await workflow.run(script);
+    t.deepEqual(logs, [['slept']]);
+  }
+});

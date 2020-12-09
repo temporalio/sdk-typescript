@@ -19,7 +19,7 @@
           "es2017.typedarrays"
         ],
         "target": "es6",
-        "module": "commonjs",
+        "module": "es2020",
         "moduleResolution": "node",
         "emitDecoratorMetadata": false,
         "experimentalDecorators": false,
