@@ -271,10 +271,8 @@ export class Workflow {
   public static async create(timeline: Timeline = new Timeline()) {
     const isolate = new ivm.Isolate();
     const context = await isolate.createContext();
-    const jail = context.global;
-    await jail.set('global', jail.derefInto());
     const workflow = new Workflow(isolate, context, timeline);
-    await context.evalClosure('global.exports = {}'); // Needed for exporting main
+    await context.evalClosure('globalThis.exports = {}'); // Needed for exporting main
     await workflow.injectPromise();
     await workflow.injectTimers();
     return workflow;
@@ -327,7 +325,7 @@ export class Workflow {
     }
 
     await this.context.evalClosure(
-      `global.Promise = function(executor) {
+      `globalThis.Promise = function(executor) {
         this.taskId = $0.applySync(
           undefined,
           [
@@ -346,7 +344,7 @@ export class Workflow {
           },
         );
       }
-      global.Promise.prototype.then = function promiseThen(callback) {
+      globalThis.Promise.prototype.then = function promiseThen(callback) {
         const promise = Object.create(null);
         Object.setPrototypeOf(promise, Promise.prototype);
         const wrapper = function (value) {
@@ -378,7 +376,7 @@ export class Workflow {
       }
     }
 
-    await this.context.evalClosure(`global.${path} = function(...args) {
+    await this.context.evalClosure(`globalThis.${path} = function(...args) {
       return $0.${applyMode}(
         undefined,
         args,
