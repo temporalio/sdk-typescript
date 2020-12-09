@@ -32,7 +32,7 @@ test('promiseThenPromise', async (t) => {
   t.deepEqual(logs, [[2]]);
 });
 
-test.only('race', async (t) => {
+test('race', async (t) => {
   const script = path.join(__dirname, '../../testScripts/lib/race.js');
 
   let workflow: Workflow | undefined;
