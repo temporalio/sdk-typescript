@@ -272,11 +272,16 @@ export class Workflow {
     const isolate = new ivm.Isolate();
     const context = await isolate.createContext();
     const workflow = new Workflow(isolate, context, timeline);
+
+    // `exports` is needed for exporting functions, e.g. main().
+    // Delete any weak reference holding structures because GC is non-deterministic.
+    // WeakRef is implemented in V8 8.4 while node 14 embeds V8 8.3, delete it just in case.
     await context.evalClosure(`
       globalThis.exports = {};
       delete globalThis.WeakMap;
       delete globalThis.WeakSet;
-    `); // Needed for exporting main
+      delete globalThis.WeakRef;
+    `);
     await workflow.injectPromise();
     await workflow.injectTimers();
     return workflow;
