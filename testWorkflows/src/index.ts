@@ -1,6 +1,4 @@
-import { sleep } from './sleep';
-
 export async function main() {
-  await sleep(1000);
-  console.log('slept');
+  const body = await activities.httpGet('http://example.com');
+  console.log(body);
 }

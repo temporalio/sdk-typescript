@@ -2,6 +2,8 @@ import { dirname, resolve as pathResolve, extname } from 'path';
 import assert from 'assert';
 import fs from 'fs/promises';
 import ivm from 'isolated-vm';
+import dedent from 'dedent';
+import { ActivityOptions, Fn } from './activity';
 
 export enum ApplyMode {
   ASYNC = 'apply',
@@ -11,8 +13,6 @@ export enum ApplyMode {
 }
 
 const AsyncFunction = Object.getPrototypeOf(async function() {}).constructor;
-
-type Fn<TArgs extends any[], TRet> = (...args: TArgs) => TRet;
 
 export type TaskCompleteCallback = Fn<[boolean, unknown], unknown>;
 
@@ -59,6 +59,21 @@ export interface TimerResolveEvent {
   value: unknown,
 }
 
+export interface ActivityInvokeEvent {
+  type: 'ActivityInvoke',
+  taskId: number,
+  options: ActivityOptions,
+  fn: Fn<unknown[], Promise<unknown>>,
+  args: unknown[],
+}
+
+export interface ActivityResolveEvent {
+  type: 'ActivityResolve',
+  taskId: number,
+  valueIsTaskId: boolean,
+  value: unknown,
+}
+
 type Event = 
   PromiseCompleteEvent
   | PromiseCreateEvent
@@ -66,6 +81,8 @@ type Event =
   | PromiseResolveEvent
   | TimerStartEvent
   | TimerResolveEvent
+  | ActivityInvokeEvent
+  | ActivityResolveEvent
 ;
 
 export class InvalidSchedulerState extends Error {
@@ -107,6 +124,7 @@ export class Timeline {
   public readonly history: Event[];
   public readonly state: SchedulerState;
   private onEnqueue: Fn<[], void> | undefined;
+  public static replayFastForwardEvents: Set<Event['type']> = new Set(['TimerResolve', 'ActivityResolve']);
 
   constructor(history: Event[] = []) {
     this.state = { tasks: new Map(), isReplay: history.length > 0, replayIndex: -1 };
@@ -129,7 +147,7 @@ export class Timeline {
       this.onEnqueue();
     }
     if (this.state.isReplay) {
-      while (this.history[++this.state.replayIndex].type === 'TimerResolve') ; // These won't get requeued, fast-forward
+      while (Timeline.replayFastForwardEvents.has(this.history[++this.state.replayIndex].type)) ; // These won't get requeued, fast-forward
       console.log('> Enqueue Event', this.state.replayIndex, event);
       const historyEvent = this.history[this.state.replayIndex];
       if (historyEvent.type !== event.type) {
@@ -156,6 +174,7 @@ export class Timeline {
           case 'PromiseCreate':
             this.state.tasks.set(eventIndex, { state: 'CREATED', callbacks: [] });
             break;
+          case 'ActivityResolve':
           case 'TimerResolve':
           case 'PromiseResolve': {
             const task = this.getTaskState(event.taskId);
@@ -211,7 +230,28 @@ export class Timeline {
             }
             break;
           }
-          case 'TimerStart':
+          case 'ActivityInvoke': {
+            const { fn, taskId, args } = event;
+            // TODO: implement options
+            if (!this.state.isReplay) {
+              const promise = (async() => {
+                let value = fn(args);
+                if (value instanceof Promise) {
+                  value = await value;
+                }
+
+                this.enqueueEvent({
+                  type: 'ActivityResolve',
+                  taskId,
+                  valueIsTaskId: false,
+                  value,
+                });
+              })();
+              pendingPromises.push(promise);
+            }
+            break;
+          }
+          case 'TimerStart': {
             const taskId = this.enqueueEvent({ type: 'PromiseCreate' });
             this.enqueueEvent({ type: 'PromiseRegister', taskId, callback: event.callback });
             if (!this.state.isReplay) {
@@ -228,6 +268,7 @@ export class Timeline {
               pendingPromises.push(promise);
             }
             break;
+          }
           case 'PromiseComplete': {
             for (const callback of event.callbacks) {
               callback(event.valueIsTaskId, event.value);
@@ -251,8 +292,10 @@ export class Timeline {
           Promise.all(pendingPromises).then(() => { pendingPromises = [] }),
         ]);
         this.onEnqueue = undefined;
-      } else {
+      } else if (this.state.tasks.get(0)?.state === "RESOLVED") {
         return;
+      } else {
+        await new Promise((resolve) => setTimeout(resolve, 100));
       }
     }
   }
@@ -274,11 +317,10 @@ export class Workflow {
     const context = await isolate.createContext();
     const workflow = new Workflow(isolate, context, timeline);
 
-    // `exports` is needed for exporting functions, e.g. main().
     // Delete any weak reference holding structures because GC is non-deterministic.
     // WeakRef is implemented in V8 8.4 while node 14 embeds V8 8.3, delete it just in case.
-    await context.evalClosure(`
-      globalThis.exports = {};
+    await context.eval(dedent`
+      globalThis.activities = {};
       delete globalThis.WeakMap;
       delete globalThis.WeakSet;
       delete globalThis.WeakRef;
@@ -300,6 +342,40 @@ export class Workflow {
     }
     await this.inject('setTimeout', createTimer, ApplyMode.SYNC, { arguments: { reference: true } });
   }
+
+  public async injectActivity(name: string, impl: Fn<any[], any>) {
+    const timeline = this.timeline;
+
+    const invoke = (options: ActivityOptions, args: any[]) => {
+      const taskId = this.timeline.enqueueEvent({ type: 'PromiseCreate' });
+      timeline.enqueueEvent({
+        type: 'ActivityInvoke',
+        taskId,
+        options,
+        fn: impl,
+        args,
+      });
+      return taskId;
+    }
+
+    await this.context.evalClosure(dedent`
+      function invoke(options, args) {
+        const promise = Object.create(null);
+        Object.setPrototypeOf(promise, Promise.prototype);
+        promise.taskId = $0.applySync(undefined, [{}, args], { arguments: { copy: true, }, result: { copy: true } });
+        return promise;
+      }
+
+      globalThis.activities.${name} = function(...args) {
+        return invoke({}, args);
+      }
+      globalThis.activities.${name}.withOptions = function(options) {
+        return { invoke: (...args) => invoke(options, args) };
+      }
+      `,
+      [invoke], { arguments: { reference: true } });
+  }
+
 
   private async injectPromise() {
     const timeline = this.timeline;
@@ -335,7 +411,8 @@ export class Workflow {
     }
 
     await this.context.evalClosure(
-      `globalThis.Promise = function(executor) {
+      `
+      globalThis.Promise = function(executor) {
         this.taskId = $0.applySync(
           undefined,
           [
@@ -386,7 +463,8 @@ export class Workflow {
       }
     }
 
-    await this.context.evalClosure(`globalThis.${path} = function(...args) {
+    await this.context.evalClosure(dedent`
+    globalThis.${path} = function(...args) {
       return $0.${applyMode}(
         undefined,
         args,

@@ -1,6 +1,7 @@
 import path from 'path';
 import test from 'ava';
 import { Workflow, Timeline } from '../engine';
+import { httpGet } from '../../testActivities/lib';
 
 test('async workflow', async (t) => {
   const script = path.join(__dirname, '../../testWorkflows/lib/asyncWorkflow.js');
@@ -55,5 +56,22 @@ test('importer', async (t) => {
     await workflow.inject('console.log', (...args: unknown[]) => void logs.push(args));
     await workflow.run(script);
     t.deepEqual(logs, [['slept']]);
+  }
+});
+
+test('invoke activity as an async function / with options', async (t) => {
+  const script = path.join(__dirname, '../../testWorkflows/lib/http.js');
+
+  let workflow: Workflow | undefined;
+  for (let i = 0; i < 3; ++i) {
+    workflow = await Workflow.create(new Timeline(workflow === undefined ? [] : workflow.timeline.history));
+    const logs: Array<Array<unknown>> = [];
+    await workflow.injectActivity('httpGet', httpGet);
+    await workflow.inject('console.log', (...args: unknown[]) => void logs.push(args));
+    await workflow.run(script);
+    t.deepEqual(logs, [
+      ['<html><body>hello from https://google.com</body></html>'],
+      ['<html><body>hello from http://example.com</body></html>'],
+    ]);
   }
 });
