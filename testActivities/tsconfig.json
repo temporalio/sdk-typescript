@@ -9,10 +9,14 @@
         "experimentalDecorators": false,
         "esModuleInterop": true,
         "declaration": true,
+        "declarationMap": true,
         "sourceMap": true,
         "strict": true,
         "noUnusedLocals": true,
-        "outDir": "./lib"
+        "outDir": "./lib",
+        "rootDir": "./src",
+        "composite": true,
+        "incremental": true
     },
     "include": [
         "./src/**/*.ts"

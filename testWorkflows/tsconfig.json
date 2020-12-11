@@ -25,12 +25,19 @@
         "experimentalDecorators": false,
         "esModuleInterop": true,
         "declaration": true,
+        "declarationMap": true,
         "sourceMap": true,
         "strict": true,
         "noUnusedLocals": true,
         "outDir": "./lib",
-        "typeRoots": ["./src"]
+        "typeRoots": ["./src"],
+        "rootDir": "./src",
+        "incremental": true
     },
+    "references": [
+        { "path": "../" },
+        { "path": "../testActivities/" }
+    ],
     "include": [
         "./src/**/*.ts"
     ],

@@ -1,5 +1,5 @@
 {
-    "version": "2.4.2",
+    "version": "4.1.2",
     "compilerOptions": {
         "lib": ["es2017"],
         "target": "es2017",
@@ -9,11 +9,18 @@
         "experimentalDecorators": false,
         "esModuleInterop": true,
         "declaration": true,
+        "declarationMap": true,
         "sourceMap": true,
         "strict": true,
         "noUnusedLocals": true,
-        "outDir": "./lib"
+        "outDir": "./lib",
+        "rootDir": "./src",
+        "composite": true,
+        "incremental": true
     },
+    "references": [
+        { "path": "./testActivities/" }
+    ],
     "include": [
         "./src/**/*.ts"
     ],

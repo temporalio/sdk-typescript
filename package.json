@@ -5,8 +5,8 @@
   "main": "lib/index.js",
   "types": "./lib/index.d.ts",
   "scripts": {
-    "build": "tsc",
-    "build.watch": "tsc -w",
+    "build": "(cd testWorkflows && tsc --build)",
+    "build.watch": "(cd testWorkflows && tsc --build --watch)",
     "lint": "eslint src --ext .ts",
     "test": "ava lib/test/test*.js",
     "test.watch": "ava -w lib/test/test*.js"
