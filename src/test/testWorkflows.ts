@@ -59,6 +59,21 @@ test('importer', async (t) => {
   }
 });
 
+test('import ramda', async (t) => {
+  const script = path.join(__dirname, '../../testWorkflows/lib/externalImporter.js');
+
+  let workflow: Workflow | undefined;
+  for (let i = 0; i < 3; ++i) {
+    workflow = await Workflow.create(new Timeline(workflow === undefined ? [] : workflow.timeline.history));
+    const logs: Array<Array<unknown>> = [];
+    await workflow.inject('console.log', (...args: unknown[]) => void logs.push(args));
+    await workflow.run(script);
+    t.deepEqual(logs, [
+      [{ a: 1, b: 2 }],
+    ]);
+  }
+});
+
 test('invoke activity as an async function / with options', async (t) => {
   const script = path.join(__dirname, '../../testWorkflows/lib/http.js');
 

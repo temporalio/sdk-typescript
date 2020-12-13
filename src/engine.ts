@@ -303,6 +303,7 @@ export class Timeline {
 
 export class Workflow {
   public readonly id: string;
+  private readonly moduleCache: Map<string, ivm.Module> = new Map();
 
   private constructor(
     readonly isolate: ivm.Isolate,
@@ -318,7 +319,7 @@ export class Workflow {
     const workflow = new Workflow(isolate, context, timeline);
 
     // Delete any weak reference holding structures because GC is non-deterministic.
-    // WeakRef is implemented in V8 8.4 while node 14 embeds V8 8.3, delete it just in case.
+    // WeakRef is implemented in V8 8.4 which is embedded in node >=14.6.0, delete it just in case.
     await context.eval(dedent`
       globalThis.activities = {};
       delete globalThis.WeakMap;
@@ -473,32 +474,54 @@ export class Workflow {
     }`, [handler], { arguments: { reference: true } });
   }
 
-  async moduleResolveCallback(specifier: string, referrer: ivm.Module) {
-    const referrerFilename = (referrer as any).filename; // Hacky way of resolving relative imports
-    const root = dirname(referrerFilename);
-    const ext = extname(specifier);
-    if (ext === '') {
-      specifier += '.js';
-    } else if (ext !== 'js') {
-      throw new Error('Only .js files can be imported');
-    }
+  protected async resolveModulePath(specifier: string, root: string) {
+      const ext = extname(specifier);
+      // TODO: find the right way to do this
+      const isPath = specifier.startsWith('.') || specifier.startsWith('/');
+      if (ext === '') {
+        if (isPath) {
+          specifier += '.js';
+        }
+      } else if (ext !== '.js') {
+        throw new Error(`Only .js files can be imported, got ${specifier}`);
+      }
+      if (!isPath) {
+        // TODO: figure out how to locate package.json
+        const packagePath = pathResolve(root, '../node_modules', specifier);
+        const packageJsonPath = pathResolve(packagePath, 'package.json');
+        const packageJson = JSON.parse(await fs.readFile(packageJsonPath, 'utf8'));
+        return pathResolve(packagePath, packageJson.module);
+      } else {
+        return pathResolve(root, specifier);
+      }
+  }
 
-    // TODO: check if specifier contains a path (e.g. ./)
-    const filename = pathResolve(root, specifier);
-    console.log('Instantiate', filename, (referrer as any).filename);
-    // TODO: assert modulePath in allowed root
+  protected async loadModule(filename: string) {
+    const cached = this.moduleCache.get(filename);
+    if (cached) return cached;
+    // console.log('Load module', filename);
     const code = await fs.readFile(filename, 'utf8');
     const compiled = await this.isolate.compileModule(code, { filename });
     (compiled as any).filename = filename; // Hacky way of resolving relative imports
+    await compiled.instantiate(this.context, this.moduleResolveCallback.bind(this));
+    await compiled.evaluate();
+    this.moduleCache.set(filename, compiled);
     return compiled;
   }
 
+  protected async moduleResolveCallback(specifier: string, referrer: ivm.Module) {
+    const referrerFilename = (referrer as any).filename; // Hacky way of resolving relative imports
+    const root = dirname(referrerFilename);
+
+    // const filename = require.resolve(specifier, { paths: [root] });
+    const filename = await this.resolveModulePath(specifier, root);
+    // TODO: assert modulePath in allowed root?
+
+    return this.loadModule(filename);
+  }
+
   public async run(path: string) {
-    const code = await fs.readFile(path, 'utf8');
-    const mod = await this.isolate.compileModule(code, { filename: path });
-    (mod as any).filename = path; // Hacky way of resolving relative imports
-    await mod.instantiate(this.context, this.moduleResolveCallback.bind(this));
-    await mod.evaluate();
+    const mod = await this.loadModule(path);
     const main = await mod.namespace.get('main');
     await main.apply(undefined, [], { result: { promise: true, copy: true } });
     await this.timeline.run();
