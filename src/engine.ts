@@ -1,8 +1,7 @@
-import { dirname, resolve as pathResolve, extname } from 'path';
 import assert from 'assert';
-import fs from 'fs/promises';
 import ivm from 'isolated-vm';
 import dedent from 'dedent';
+import { Loader } from './loader';
 import { ActivityOptions, Fn } from './activity';
 
 export enum ApplyMode {
@@ -303,7 +302,7 @@ export class Timeline {
 
 export class Workflow {
   public readonly id: string;
-  private readonly moduleCache: Map<string, ivm.Module> = new Map();
+  private readonly loader: Loader;
 
   private constructor(
     readonly isolate: ivm.Isolate,
@@ -311,6 +310,7 @@ export class Workflow {
     public readonly timeline: Timeline,
   ) {
     this.id = 'TODO';
+    this.loader = new Loader(isolate, context);
   }
 
   public static async create(timeline: Timeline = new Timeline()) {
@@ -474,54 +474,8 @@ export class Workflow {
     }`, [handler], { arguments: { reference: true } });
   }
 
-  protected async resolveModulePath(specifier: string, root: string) {
-      const ext = extname(specifier);
-      // TODO: find the right way to do this
-      const isPath = specifier.startsWith('.') || specifier.startsWith('/');
-      if (ext === '') {
-        if (isPath) {
-          specifier += '.js';
-        }
-      } else if (ext !== '.js') {
-        throw new Error(`Only .js files can be imported, got ${specifier}`);
-      }
-      if (!isPath) {
-        // TODO: figure out how to locate package.json
-        const packagePath = pathResolve(root, '../node_modules', specifier);
-        const packageJsonPath = pathResolve(packagePath, 'package.json');
-        const packageJson = JSON.parse(await fs.readFile(packageJsonPath, 'utf8'));
-        return pathResolve(packagePath, packageJson.module);
-      } else {
-        return pathResolve(root, specifier);
-      }
-  }
-
-  protected async loadModule(filename: string) {
-    const cached = this.moduleCache.get(filename);
-    if (cached) return cached;
-    // console.log('Load module', filename);
-    const code = await fs.readFile(filename, 'utf8');
-    const compiled = await this.isolate.compileModule(code, { filename });
-    (compiled as any).filename = filename; // Hacky way of resolving relative imports
-    await compiled.instantiate(this.context, this.moduleResolveCallback.bind(this));
-    await compiled.evaluate();
-    this.moduleCache.set(filename, compiled);
-    return compiled;
-  }
-
-  protected async moduleResolveCallback(specifier: string, referrer: ivm.Module) {
-    const referrerFilename = (referrer as any).filename; // Hacky way of resolving relative imports
-    const root = dirname(referrerFilename);
-
-    // const filename = require.resolve(specifier, { paths: [root] });
-    const filename = await this.resolveModulePath(specifier, root);
-    // TODO: assert modulePath in allowed root?
-
-    return this.loadModule(filename);
-  }
-
   public async run(path: string) {
-    const mod = await this.loadModule(path);
+    const mod = await this.loader.loadModule(path);
     const main = await mod.namespace.get('main');
     await main.apply(undefined, [], { result: { promise: true, copy: true } });
     await this.timeline.run();
