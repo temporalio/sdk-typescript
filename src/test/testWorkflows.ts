@@ -1,6 +1,7 @@
 import path from 'path';
 import test from 'ava';
-import { Workflow, Timeline } from '../engine';
+import { Scheduler } from '../scheduler';
+import { Workflow } from '../engine';
 import { httpGet } from '../../testActivities/lib';
 
 test('async workflow', async (t) => {
@@ -38,7 +39,7 @@ test('race', async (t) => {
 
   let workflow: Workflow | undefined;
   for (let i = 0; i < 3; ++i) {
-    workflow = await Workflow.create(new Timeline(workflow === undefined ? [] : workflow.timeline.history));
+    workflow = await Workflow.create(new Scheduler(workflow === undefined ? [] : workflow.scheduler.history));
     const logs: Array<Array<unknown>> = [];
     await workflow.inject('console.log', (...args: unknown[]) => void logs.push(args));
     await workflow.run(script);
@@ -51,7 +52,7 @@ test('importer', async (t) => {
 
   let workflow: Workflow | undefined;
   for (let i = 0; i < 3; ++i) {
-    workflow = await Workflow.create(new Timeline(workflow === undefined ? [] : workflow.timeline.history));
+    workflow = await Workflow.create(new Scheduler(workflow === undefined ? [] : workflow.scheduler.history));
     const logs: Array<Array<unknown>> = [];
     await workflow.inject('console.log', (...args: unknown[]) => void logs.push(args));
     await workflow.run(script);
@@ -64,7 +65,7 @@ test('import ramda', async (t) => {
 
   let workflow: Workflow | undefined;
   for (let i = 0; i < 3; ++i) {
-    workflow = await Workflow.create(new Timeline(workflow === undefined ? [] : workflow.timeline.history));
+    workflow = await Workflow.create(new Scheduler(workflow === undefined ? [] : workflow.scheduler.history));
     const logs: Array<Array<unknown>> = [];
     await workflow.inject('console.log', (...args: unknown[]) => void logs.push(args));
     await workflow.run(script);
@@ -79,7 +80,7 @@ test('invoke activity as an async function / with options', async (t) => {
 
   let workflow: Workflow | undefined;
   for (let i = 0; i < 3; ++i) {
-    workflow = await Workflow.create(new Timeline(workflow === undefined ? [] : workflow.timeline.history));
+    workflow = await Workflow.create(new Scheduler(workflow === undefined ? [] : workflow.scheduler.history));
     const logs: Array<Array<unknown>> = [];
     await workflow.injectActivity('httpGet', httpGet);
     await workflow.inject('console.log', (...args: unknown[]) => void logs.push(args));
