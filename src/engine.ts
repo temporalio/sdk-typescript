@@ -61,7 +61,7 @@ export class Workflow {
     const scheduler = this.scheduler;
 
     const invoke = (options: ActivityOptions, args: any[]) => {
-      const taskId = this.scheduler.enqueueEvent({ type: 'PromiseCreate' });
+      const taskId = this.scheduler.enqueueEvent({ type: 'TaskCreate' });
       scheduler.enqueueEvent({
         type: 'ActivityInvoke',
         taskId,
@@ -95,7 +95,7 @@ export class Workflow {
     const scheduler = this.scheduler;
 
     function createPromise(callback: ivm.Reference<Function>) {
-      const taskId = scheduler.enqueueEvent({ type: 'PromiseCreate' });
+      const taskId = scheduler.enqueueEvent({ type: 'TaskCreate' });
       callback.applySync(
         undefined, [
           (valueIsTaskId: boolean, value: unknown) => void scheduler.enqueueEvent({ type: 'PromiseResolve', valueIsTaskId, value, taskId })
@@ -107,9 +107,9 @@ export class Workflow {
     }
 
     function then(taskId: ivm.Reference<number>, callback: ivm.Reference<Function>) {
-      const nextTaskId = scheduler.enqueueEvent({ type: 'PromiseCreate' });
+      const nextTaskId = scheduler.enqueueEvent({ type: 'TaskCreate' });
       scheduler.enqueueEvent({
-        type: 'PromiseRegister',
+        type: 'TaskRegister',
         taskId: taskId.copySync(),
         callback: (_, value) => {
           const [valueIsTaskId, nextValue] = callback.applySync(undefined, [value], { arguments: { copy: true, }, result: { copy: true } }) as any; // TODO

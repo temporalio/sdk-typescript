@@ -78,14 +78,19 @@ export class Scheduler {
   public async run() {
     let eventIndex = 0;
     let promiseID = 0;
-    const pendingPromises: Map<number, Promise<{ ev: Event, id: number }>> = new Map();
+    const pendingPromises: Map<number, Promise<{ ev?: Event, id: number }>> = new Map();
+    const defer = (fn: () => Promise<Event | undefined>) => {
+      const promise = fn();
+      const id = promiseID++;
+      pendingPromises.set(id, promise.then((ev?: Event) => ({ id, ev })));
+    };
 
     while (true) {
       for (; eventIndex < this.history.length; ++eventIndex) {
         const event = this.history[eventIndex];
         // console.log('< Handle event ', eventIndex, event);
         switch (event.type) {
-          case 'PromiseCreate':
+          case 'TaskCreate':
             this.state.tasks.set(eventIndex, { state: 'CREATED', callbacks: [] });
             break;
           case 'ActivityResolve':
@@ -94,7 +99,7 @@ export class Scheduler {
             const task = this.getTaskState(event.taskId);
             if (event.valueIsTaskId) {
               this.enqueueEvent({
-                type: 'PromiseRegister',
+                type: 'TaskRegister',
                 taskId: event.value as number,
                 callback: (valueIsTaskId, value) => {
                   this.enqueueEvent({
@@ -112,10 +117,9 @@ export class Scheduler {
                 valueIsTaskId: false,
                 value: event.value,
               });
-              await new Promise((resolve) => setImmediate(resolve));
               if (task.callbacks.length > 0) {
                 this.enqueueEvent({
-                  type: 'PromiseComplete',
+                  type: 'TaskCallbackTrigger',
                   taskId: event.taskId,
                   valueIsTaskId: false,
                   value: event.value,
@@ -125,13 +129,12 @@ export class Scheduler {
             }
             break;
           }
-          case 'PromiseRegister': {
+          case 'TaskRegister': {
             const task = this.getTaskState(event.taskId);
             switch (task.state) {
               case 'RESOLVED':
-                await new Promise((resolve) => setImmediate(resolve));
                 this.enqueueEvent({
-                  type: 'PromiseComplete',
+                  type: 'TaskCallbackTrigger',
                   taskId: event.taskId,
                   value: task.value,
                   valueIsTaskId: task.valueIsTaskId,
@@ -148,7 +151,7 @@ export class Scheduler {
             const { fn, taskId, args } = event;
             // TODO: implement options
             if (!this.state.isReplay) {
-              const promise = (async() => {
+              defer(async () => {
                 let value = fn(args);
                 if (value instanceof Promise) {
                   value = await value;
@@ -160,37 +163,30 @@ export class Scheduler {
                   valueIsTaskId: false,
                   value,
                 } as const;
-              })();
-              const id = promiseID++;
-              pendingPromises.set(id, promise.then((ev: Event) => ({ id, ev })));
+              });
             }
             break;
           }
           case 'TimerStart': {
-            const taskId = this.enqueueEvent({ type: 'PromiseCreate' });
-            this.enqueueEvent({ type: 'PromiseRegister', taskId, callback: event.callback });
+            const taskId = this.enqueueEvent({ type: 'TaskCreate' });
+            this.enqueueEvent({ type: 'TaskRegister', taskId, callback: event.callback });
             if (!this.state.isReplay) {
-              const promise = (async () => {
+              defer(async () => {
                 await new Promise((resolve) => setTimeout(resolve, event.ms));
-                // TODO: create a separate event for TimerComplete
+
                 return {
                   type: 'TimerResolve',
                   taskId,
                   value: undefined,
                   valueIsTaskId: false,
                 } as const;
-              })();
-              const id = promiseID++;
-              pendingPromises.set(id, promise.then((ev: Event) => ({ id, ev })));
+              });
             }
             break;
           }
-          case 'PromiseComplete': {
+          case 'TaskCallbackTrigger': {
             for (const callback of event.callbacks) {
               callback(event.valueIsTaskId, event.value);
-            }
-            if (event.taskId === 0) { // Promise created by running main()
-              return;
             }
             break;
           }
@@ -198,9 +194,10 @@ export class Scheduler {
       }
       if (pendingPromises.size > 0) {
         const { id, ev } = await Promise.race(pendingPromises.values());
-        this.enqueueEvent(ev);
+        if (ev !== undefined) this.enqueueEvent(ev);
         pendingPromises.delete(id);
       } else if (this.state.tasks.get(0)?.state === "RESOLVED") {
+        // Task 0 is created by running main()
         return;
       }
     }

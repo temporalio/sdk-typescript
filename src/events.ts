@@ -1,8 +1,8 @@
 import { ActivityOptions } from './activity';
-export type TaskCompleteCallback = (isPromise: boolean, value: unknown) => unknown;
+export type TaskCompleteCallback = (valueIsTaskId: boolean, value: unknown) => unknown;
 
-export interface PromiseCreateEvent {
-  type: 'PromiseCreate',
+export interface TaskCreateEvent {
+  type: 'TaskCreate',
 }
 
 export interface PromiseResolveEvent {
@@ -12,14 +12,14 @@ export interface PromiseResolveEvent {
   value: unknown,
 }
 
-export interface PromiseRegisterEvent {
-  type: 'PromiseRegister',
+export interface TaskRegisterEvent {
+  type: 'TaskRegister',
   taskId: number,
   callback: TaskCompleteCallback,
 }
 
-export interface PromiseCompleteEvent {
-  type: 'PromiseComplete',
+export interface TaskCallbackTriggerEvent {
+  type: 'TaskCallbackTrigger',
   taskId: number,
   valueIsTaskId: boolean,
   value: unknown,
@@ -60,9 +60,9 @@ export interface ActivityResolveEvent {
 }
 
 export type Event = 
-  PromiseCompleteEvent
-  | PromiseCreateEvent
-  | PromiseRegisterEvent
+  TaskCallbackTriggerEvent
+  | TaskCreateEvent
+  | TaskRegisterEvent
   | PromiseResolveEvent
   | TimerStartEvent
   | TimerResolveEvent
