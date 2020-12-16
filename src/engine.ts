@@ -3,6 +3,7 @@ import dedent from 'dedent';
 import { Loader } from './loader';
 import { ActivityOptions, Fn } from './activity';
 import { Scheduler } from './scheduler';
+import { injectPromise } from './workflow/promise';
 
 export enum ApplyMode {
   ASYNC = 'apply',
@@ -39,7 +40,7 @@ export class Workflow {
       delete globalThis.WeakSet;
       delete globalThis.WeakRef;
     `);
-    await workflow.injectPromise();
+    await injectPromise(context, scheduler);
     await workflow.injectTimers();
     return workflow;
   }
@@ -88,77 +89,6 @@ export class Workflow {
       }
       `,
       [invoke], { arguments: { reference: true } });
-  }
-
-
-  private async injectPromise() {
-    const scheduler = this.scheduler;
-
-    function createPromise(callback: ivm.Reference<Function>) {
-      const taskId = scheduler.enqueueEvent({ type: 'TaskCreate' });
-      callback.applySync(
-        undefined, [
-          (valueIsTaskId: boolean, value: unknown) => void scheduler.enqueueEvent({ type: 'PromiseResolve', valueIsTaskId, value, taskId })
-          // TODO: reject,
-        ], {
-          arguments: { reference: true },
-        });
-      return taskId;
-    }
-
-    function then(taskId: ivm.Reference<number>, callback: ivm.Reference<Function>) {
-      const nextTaskId = scheduler.enqueueEvent({ type: 'TaskCreate' });
-      scheduler.enqueueEvent({
-        type: 'TaskRegister',
-        taskId: taskId.copySync(),
-        callback: (_, value) => {
-          const [valueIsTaskId, nextValue] = callback.applySync(undefined, [value], { arguments: { copy: true, }, result: { copy: true } }) as any; // TODO
-          scheduler.enqueueEvent({
-            type: 'PromiseResolve',
-            taskId: nextTaskId,
-            valueIsTaskId,
-            value: nextValue,
-          });
-        },
-      });
-      return nextTaskId;
-    }
-
-    await this.context.evalClosure(
-      `
-      globalThis.Promise = function(executor) {
-        this.taskId = $0.applySync(
-          undefined,
-          [
-            (resolve, reject) => executor(
-              (value) => {
-                const isPromise = value instanceof Promise;
-                const resolvedValue = isPromise ? value.taskId : value;
-                resolve.applySync(undefined, [isPromise, resolvedValue], { arguments: { copy: true } });
-              },
-              (err) => void reject.applySync(undefined, [err], { arguments: { copy: true } }),
-            )
-          ],
-          {
-            arguments: { reference: true },
-            result: { copy: true },
-          },
-        );
-      }
-      globalThis.Promise.prototype.then = function promiseThen(callback) {
-        const promise = Object.create(null);
-        Object.setPrototypeOf(promise, Promise.prototype);
-        const wrapper = function (value) {
-          const ret = callback(value);
-          const isPromise = ret instanceof Promise;
-          const resolvedValue = isPromise ? ret.taskId : ret;
-          return [isPromise, resolvedValue];
-        }
-        promise.taskId = $1.applySync(undefined, [this.taskId, wrapper], { arguments: { reference: true } });
-        return promise;
-      }
-      `,
-      [createPromise, then], { arguments: { reference: true } });
   }
 
   public async inject(

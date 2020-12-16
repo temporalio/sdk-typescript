@@ -36,6 +36,11 @@ test('promiseThenPromise', async (t) => {
   await run(script, (logs) => t.deepEqual(logs, [[2]]));
 });
 
+test('rejectPromise', async (t) => {
+  const script = path.join(__dirname, '../../testWorkflows/lib/rejectPromise.js');
+  await run(script, (logs) => t.deepEqual(logs, [[true]]));
+});
+
 test('race', async (t) => {
   const script = path.join(__dirname, '../../testWorkflows/lib/race.js');
   await run(script, (logs) => t.deepEqual(logs, [[1], [2]]));

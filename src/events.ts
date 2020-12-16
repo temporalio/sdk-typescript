@@ -1,5 +1,6 @@
 import { ActivityOptions } from './activity';
-export type TaskCompleteCallback = (valueIsTaskId: boolean, value: unknown) => unknown;
+export type TaskResolvedCallback = (valueIsTaskId: boolean, value: unknown) => unknown;
+export type TaskRejectedCallback = (err: unknown) => unknown;
 
 export interface TaskCreateEvent {
   type: 'TaskCreate',
@@ -12,18 +13,37 @@ export interface PromiseResolveEvent {
   value: unknown,
 }
 
-export interface TaskRegisterEvent {
-  type: 'TaskRegister',
+export interface PromiseRejectEvent {
+  type: 'PromiseReject',
   taskId: number,
-  callback: TaskCompleteCallback,
+  error: unknown,
 }
 
-export interface TaskCallbackTriggerEvent {
-  type: 'TaskCallbackTrigger',
+export interface TaskResolvedRegisterEvent {
+  type: 'TaskResolvedRegister',
+  taskId: number,
+  callback: TaskResolvedCallback,
+}
+
+export interface TaskRejectedRegisterEvent {
+  type: 'TaskRejectedRegister',
+  taskId: number,
+  callback: TaskRejectedCallback,
+}
+
+export interface TaskResolvedTriggerEvent {
+  type: 'TaskResolvedTrigger',
   taskId: number,
   valueIsTaskId: boolean,
   value: unknown,
-  callbacks: Array<TaskCompleteCallback>,
+  callbacks: Array<TaskResolvedCallback>,
+}
+
+export interface TaskRejectedTriggerEvent {
+  type: 'TaskRejectedTrigger',
+  taskId: number,
+  error: unknown,
+  callbacks: Array<TaskRejectedCallback>,
 }
 
 export interface TimerStartEvent {
@@ -60,10 +80,13 @@ export interface ActivityResolveEvent {
 }
 
 export type Event = 
-  TaskCallbackTriggerEvent
+  TaskResolvedTriggerEvent
+  | TaskRejectedTriggerEvent
   | TaskCreateEvent
-  | TaskRegisterEvent
+  | TaskResolvedRegisterEvent
+  | TaskRejectedRegisterEvent
   | PromiseResolveEvent
+  | PromiseRejectEvent
   | TimerStartEvent
   | TimerResolveEvent
   | ActivityInvokeEvent

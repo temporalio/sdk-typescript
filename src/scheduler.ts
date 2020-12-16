@@ -1,25 +1,27 @@
 import assert from 'assert';
-import { TaskCompleteCallback, Event } from './events';
+import { TaskResolvedCallback, TaskRejectedCallback, Event } from './events';
 
 export class InvalidSchedulerState extends Error {
   public readonly name: string = 'InvalidSchedulerState';
 }
 
-export interface EmptyTaskState {
-  state: 'CREATED',
-  callbacks: Array<TaskCompleteCallback>,
+export interface TaskCallbacks {
+  resolvedCallbacks: Array<TaskResolvedCallback>,
+  rejectedCallbacks: Array<TaskRejectedCallback>,
 }
 
-export interface ResolvedTaskState {
+export interface EmptyTaskState extends TaskCallbacks {
+  state: 'CREATED',
+}
+
+export interface ResolvedTaskState extends TaskCallbacks {
   state: 'RESOLVED',
-  callbacks: Array<TaskCompleteCallback>,
   valueIsTaskId: boolean,
   value: unknown,
 }
 
-export interface RejectedTaskState {
+export interface RejectedTaskState extends TaskCallbacks {
   state: 'REJECTED',
-  callbacks: Array<TaskCompleteCallback>,
   error: unknown,
 }
 
@@ -29,6 +31,20 @@ interface SchedulerState {
   tasks: Map<number, TaskState>,
   isReplay: boolean,
   replayIndex: number,
+}
+
+function createTaskCallbacks(): TaskCallbacks {
+  return {
+    resolvedCallbacks: [],
+    rejectedCallbacks: [],
+  };
+}
+
+function createTask(): EmptyTaskState {
+  return {
+    state: 'CREATED',
+    ...createTaskCallbacks(),
+  };
 }
 
 function sanitizeEvent(event: any): any {
@@ -70,7 +86,7 @@ export class Scheduler {
       return this.state.replayIndex;
     }
     const eventIndex = this.history.length;
-    // console.log('> Enqueue Event', eventIndex, event);
+    console.log('> Enqueue Event', eventIndex, event);
     this.history.push(event);
     return eventIndex;
   }
@@ -91,15 +107,32 @@ export class Scheduler {
         // console.log('< Handle event ', eventIndex, event);
         switch (event.type) {
           case 'TaskCreate':
-            this.state.tasks.set(eventIndex, { state: 'CREATED', callbacks: [] });
+            this.state.tasks.set(eventIndex, createTask());
             break;
+          case 'PromiseReject': {
+            const task = this.getTaskState(event.taskId);
+            this.state.tasks.set(event.taskId, {
+              state: 'REJECTED',
+              error: event.error,
+              ...createTaskCallbacks(),
+            });
+            if (task.rejectedCallbacks.length > 0) {
+              this.enqueueEvent({
+                type: 'TaskRejectedTrigger',
+                taskId: event.taskId,
+                error: event.error,
+                callbacks: task.rejectedCallbacks,
+              });
+            }
+            break;
+          }
           case 'ActivityResolve':
           case 'TimerResolve':
           case 'PromiseResolve': {
             const task = this.getTaskState(event.taskId);
             if (event.valueIsTaskId) {
               this.enqueueEvent({
-                type: 'TaskRegister',
+                type: 'TaskResolvedRegister',
                 taskId: event.value as number,
                 callback: (valueIsTaskId, value) => {
                   this.enqueueEvent({
@@ -112,29 +145,29 @@ export class Scheduler {
               });
             } else {
               this.state.tasks.set(event.taskId, {
-                callbacks: [],
                 state: 'RESOLVED',
                 valueIsTaskId: false,
                 value: event.value,
+                ...createTaskCallbacks(),
               });
-              if (task.callbacks.length > 0) {
+              if (task.resolvedCallbacks.length > 0) {
                 this.enqueueEvent({
-                  type: 'TaskCallbackTrigger',
+                  type: 'TaskResolvedTrigger',
                   taskId: event.taskId,
                   valueIsTaskId: false,
                   value: event.value,
-                  callbacks: task.callbacks,
+                  callbacks: task.resolvedCallbacks,
                 });
               }
             }
             break;
           }
-          case 'TaskRegister': {
+          case 'TaskResolvedRegister': {
             const task = this.getTaskState(event.taskId);
             switch (task.state) {
               case 'RESOLVED':
                 this.enqueueEvent({
-                  type: 'TaskCallbackTrigger',
+                  type: 'TaskResolvedTrigger',
                   taskId: event.taskId,
                   value: task.value,
                   valueIsTaskId: task.valueIsTaskId,
@@ -142,8 +175,37 @@ export class Scheduler {
                 });
                 break;
               case 'CREATED':
-                task.callbacks.push(event.callback);
+                task.resolvedCallbacks.push(event.callback);
                 break;
+            }
+            break;
+          }
+          case 'TaskRejectedRegister': {
+            const task = this.getTaskState(event.taskId);
+            switch (task.state) {
+              case 'REJECTED':
+                this.enqueueEvent({
+                  type: 'TaskRejectedTrigger',
+                  taskId: event.taskId,
+                  error: task.error,
+                  callbacks: [event.callback],
+                });
+                break;
+              case 'CREATED':
+                task.rejectedCallbacks.push(event.callback);
+                break;
+            }
+            break;
+          }
+          case 'TaskRejectedTrigger': {
+            for (const callback of event.callbacks) {
+              callback(event.error);
+            }
+            break;
+          }
+          case 'TaskResolvedTrigger': {
+            for (const callback of event.callbacks) {
+              callback(event.valueIsTaskId, event.value);
             }
             break;
           }
@@ -169,7 +231,7 @@ export class Scheduler {
           }
           case 'TimerStart': {
             const taskId = this.enqueueEvent({ type: 'TaskCreate' });
-            this.enqueueEvent({ type: 'TaskRegister', taskId, callback: event.callback });
+            this.enqueueEvent({ type: 'TaskResolvedRegister', taskId, callback: event.callback });
             if (!this.state.isReplay) {
               defer(async () => {
                 await new Promise((resolve) => setTimeout(resolve, event.ms));
@@ -184,22 +246,14 @@ export class Scheduler {
             }
             break;
           }
-          case 'TaskCallbackTrigger': {
-            for (const callback of event.callbacks) {
-              callback(event.valueIsTaskId, event.value);
-            }
-            break;
-          }
         }
       }
-      if (pendingPromises.size > 0) {
-        const { id, ev } = await Promise.race(pendingPromises.values());
-        if (ev !== undefined) this.enqueueEvent(ev);
-        pendingPromises.delete(id);
-      } else if (this.state.tasks.get(0)?.state === "RESOLVED") {
-        // Task 0 is created by running main()
+      if (pendingPromises.size === 0) {
         return;
       }
+      const { id, ev } = await Promise.race(pendingPromises.values());
+      if (ev !== undefined) this.enqueueEvent(ev);
+      pendingPromises.delete(id);
     }
   }
 }
