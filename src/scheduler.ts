@@ -39,7 +39,6 @@ function sanitizeEvent(event: any): any {
 export class Scheduler {
   public readonly history: Event[];
   public readonly state: SchedulerState;
-  private onEnqueue?: () => void;
   public static replayFastForwardEvents: Set<Event['type']> = new Set(['TimerResolve', 'ActivityResolve']);
 
   constructor(history: Event[] = []) {
@@ -59,12 +58,9 @@ export class Scheduler {
   }
 
   public enqueueEvent(event: Event) {
-    if (this.onEnqueue !== undefined) {
-      this.onEnqueue();
-    }
     if (this.state.isReplay) {
       while (Scheduler.replayFastForwardEvents.has(this.history[++this.state.replayIndex].type)) ; // These won't get requeued, fast-forward
-      console.log('> Enqueue Event', this.state.replayIndex, event);
+      // console.log('> Enqueue Event', this.state.replayIndex, event);
       const historyEvent = this.history[this.state.replayIndex];
       if (historyEvent.type !== event.type) {
         throw new InvalidSchedulerState(`Expected ${historyEvent.type} got ${event.type} at history index ${this.state.replayIndex}`);
@@ -74,18 +70,20 @@ export class Scheduler {
       return this.state.replayIndex;
     }
     const eventIndex = this.history.length;
-    console.log('> Enqueue Event', eventIndex, event);
+    // console.log('> Enqueue Event', eventIndex, event);
     this.history.push(event);
     return eventIndex;
   }
 
   public async run() {
     let eventIndex = 0;
-    let pendingPromises: Array<Promise<void>> = [];
+    let promiseID = 0;
+    const pendingPromises: Map<number, Promise<{ ev: Event, id: number }>> = new Map();
+
     while (true) {
       for (; eventIndex < this.history.length; ++eventIndex) {
         const event = this.history[eventIndex];
-        console.log('< Handle event ', eventIndex, event);
+        // console.log('< Handle event ', eventIndex, event);
         switch (event.type) {
           case 'PromiseCreate':
             this.state.tasks.set(eventIndex, { state: 'CREATED', callbacks: [] });
@@ -156,14 +154,15 @@ export class Scheduler {
                   value = await value;
                 }
 
-                this.enqueueEvent({
+                return {
                   type: 'ActivityResolve',
                   taskId,
                   valueIsTaskId: false,
                   value,
-                });
+                } as const;
               })();
-              pendingPromises.push(promise);
+              const id = promiseID++;
+              pendingPromises.set(id, promise.then((ev: Event) => ({ id, ev })));
             }
             break;
           }
@@ -174,14 +173,15 @@ export class Scheduler {
               const promise = (async () => {
                 await new Promise((resolve) => setTimeout(resolve, event.ms));
                 // TODO: create a separate event for TimerComplete
-                this.enqueueEvent({
+                return {
                   type: 'TimerResolve',
                   taskId,
                   value: undefined,
                   valueIsTaskId: false,
-                });
+                } as const;
               })();
-              pendingPromises.push(promise);
+              const id = promiseID++;
+              pendingPromises.set(id, promise.then((ev: Event) => ({ id, ev })));
             }
             break;
           }
@@ -196,22 +196,12 @@ export class Scheduler {
           }
         }
       }
-      if (pendingPromises.length > 0) {
-        const enqueuePromise = new Promise<void>((resolve) => {
-          this.onEnqueue = () => {
-            console.log('onEnqueue');
-            resolve();
-          }
-        });
-        await Promise.race([
-          enqueuePromise,
-          Promise.all(pendingPromises).then(() => { pendingPromises = [] }),
-        ]);
-        this.onEnqueue = undefined;
+      if (pendingPromises.size > 0) {
+        const { id, ev } = await Promise.race(pendingPromises.values());
+        this.enqueueEvent(ev);
+        pendingPromises.delete(id);
       } else if (this.state.tasks.get(0)?.state === "RESOLVED") {
         return;
-      } else {
-        await new Promise((resolve) => setTimeout(resolve, 100));
       }
     }
   }
