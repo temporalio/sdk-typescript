@@ -8,4 +8,9 @@ export async function main() {
   } catch (err) {
     console.log(err instanceof CustomError);
   }
+  try {
+    await Promise.reject(new CustomError('def'));
+  } catch (err) {
+    console.log(err instanceof CustomError);
+  }
 }

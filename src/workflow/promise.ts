@@ -94,6 +94,44 @@ export async function injectPromise(context: ivm.Context, scheduler: Scheduler) 
       globalThis.Promise.prototype.catch = function promiseCatch(callback) {
         return this.then(undefined, callback);
       }
+      globalThis.Promise.resolve = function promiseResolve(value) {
+        return new Promise((resolve) => resolve(value));
+      }
+      globalThis.Promise.reject = function promiseReject(value) {
+        return new Promise((_, reject) => reject(value));
+      }
+      globalThis.Promise.all = function promiseAll(promises) {
+        // TODO: make sure we follow the reference (https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise/all#Return_value)
+
+        return new Promise((resolve, reject) => {
+          let numPending = 0;
+          const results = [];
+          for (let promise of promises) {
+            if (!(promise instanceof Promise)) {
+              promise = Promise.resolve(promise);
+            }
+            const index = numPending++;
+
+            promise.then((value) => {
+              results[index] = value;
+              if (--numPending === 0) resolve(results);
+            }, reject);
+          }
+        });
+      }
+      globalThis.Promise.race = function promiseRace(promises) {
+        // TODO: make sure we follow the reference (https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise/race#Return_value)
+
+        return new Promise((resolve, reject) => {
+          for (let promise of promises) {
+            if (!(promise instanceof Promise)) {
+              promise = Promise.resolve(promise);
+            }
+
+            promise.then(resolve, reject);
+          }
+        });
+      }
     `,
     [createPromise, promiseThen], { arguments: { reference: true } });
 }

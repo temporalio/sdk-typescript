@@ -86,7 +86,7 @@ export class Scheduler {
       return this.state.replayIndex;
     }
     const eventIndex = this.history.length;
-    console.log('> Enqueue Event', eventIndex, event);
+    // console.log('> Enqueue Event', eventIndex, event);
     this.history.push(event);
     return eventIndex;
   }

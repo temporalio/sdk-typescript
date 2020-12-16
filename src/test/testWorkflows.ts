@@ -38,7 +38,29 @@ test('promiseThenPromise', async (t) => {
 
 test('rejectPromise', async (t) => {
   const script = path.join(__dirname, '../../testWorkflows/lib/rejectPromise.js');
-  await run(script, (logs) => t.deepEqual(logs, [[true]]));
+  await run(script, (logs) => t.deepEqual(logs, [[true], [true]]));
+});
+
+test('promiseAll', async (t) => {
+  const script = path.join(__dirname, '../../testWorkflows/lib/promiseAll.js');
+  await run(script, (logs) => t.deepEqual(logs, [
+    [1, 2, 3],
+    [1, 2, 3],
+    [1, 2, 3],
+    ['wow'],
+  ]));
+});
+
+test('promiseRace', async (t) => {
+  const script = path.join(__dirname, '../../testWorkflows/lib/promiseRace.js');
+  await run(script, (logs) => t.deepEqual(logs, [
+    [1],
+    [1],
+    [1],
+    [1],
+    [20],
+    ['wow'],
+  ]));
 });
 
 test('race', async (t) => {
