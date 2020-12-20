@@ -1,7 +1,7 @@
 import path from 'path';
 import test from 'ava';
-import { Scheduler } from '../scheduler';
-import { Workflow } from '../engine';
+import { Scheduler } from '../../lib/scheduler';
+import { Workflow } from '../../lib/engine';
 import { httpGet } from '../../testActivities/lib';
 
 async function run(script: string, callback: (logs: unknown[]) => void) {

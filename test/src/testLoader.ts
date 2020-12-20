@@ -3,7 +3,7 @@ import path from 'path';
 import { tmpdir } from 'os';
 import { mkdtemp } from 'fs/promises';
 import { remove, mkdirp, symlink, writeFile, writeJson } from 'fs-extra';
-import { LoaderError, findNodeModules, resolveModulePath } from '../loader';
+import { LoaderError, findNodeModules, resolveModulePath } from '../../lib/loader';
 
 export interface Context {
   dir: string;

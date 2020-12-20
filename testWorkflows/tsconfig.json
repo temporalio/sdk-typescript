@@ -32,7 +32,8 @@
         "outDir": "./lib",
         "typeRoots": ["./src"],
         "rootDir": "./src",
-        "incremental": true
+        "incremental": true,
+        "composite": true
     },
     "references": [
         { "path": "../" },

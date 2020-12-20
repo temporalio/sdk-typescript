@@ -18,9 +18,6 @@
         "composite": true,
         "incremental": true
     },
-    "references": [
-        { "path": "./testActivities/" }
-    ],
     "include": [
         "./src/**/*.ts"
     ],

@@ -5,11 +5,11 @@
   "main": "lib/index.js",
   "types": "./lib/index.d.ts",
   "scripts": {
-    "build": "(cd testWorkflows && tsc --build)",
-    "build.watch": "(cd testWorkflows && tsc --build --watch)",
+    "build": "(cd test && tsc --build)",
+    "build.watch": "(cd test && tsc --build --watch)",
     "lint": "eslint src --ext .ts",
-    "test": "ava lib/test/test*.js",
-    "test.watch": "ava -w lib/test/test*.js"
+    "test": "ava test/lib/test*.js",
+    "test.watch": "ava -w test/lib/test*.js"
   },
   "keywords": [],
   "author": "Roey Berman <roey@temporal.io>",

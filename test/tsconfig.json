@@ -19,7 +19,9 @@
         "incremental": true
     },
     "references": [
-        { "path": "../" }
+        { "path": "../" },
+        { "path": "../testActivities" },
+        { "path": "../testWorkflows" }
     ],
     "include": [
         "./src/**/*.ts"
