@@ -1,3 +1,4 @@
+import '@temporal-sdk/workflow';
 import * as R from 'ramda';
 
 export async function main() {

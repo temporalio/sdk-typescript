@@ -1,3 +1,5 @@
+import '@temporal-sdk/workflow';
+
 export async function main() {
   // None promises
   console.log(...(await Promise.all([1, 2, 3])));

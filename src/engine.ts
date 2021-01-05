@@ -125,6 +125,7 @@ export class Workflow {
     const code = dedent`
       export const Context = {
         configure(fn, options) {
+          // Wrap the function in an object so it gets the original function name
           return {
             [fn.name](...args) {
               return invokeActivity(fn.module, fn.name, args, { ...fn.options, ...options });

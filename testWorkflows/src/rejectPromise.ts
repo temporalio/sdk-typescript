@@ -1,3 +1,5 @@
+import '@temporal-sdk/workflow';
+
 class CustomError extends Error {
   public readonly name: string = 'CustomError';
 }
