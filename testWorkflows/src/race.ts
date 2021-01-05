@@ -3,8 +3,8 @@ async function sleep(ms: number) {
 }
 
 export async function main() {
-  const p1 = new Promise((resolve) => resolve(undefined)).then(() => console.log(1));
+  const p1 = Promise.resolve().then(() => console.log(1));
   const p2 = sleep(100).then(() => console.log(2));
-  await p1;
-  await p2;
+  const p3 = sleep(1000).then(() => console.log(3));
+  await Promise.all([p1, p2, p3]);
 }

@@ -3,7 +3,6 @@ import dedent from 'dedent';
 import { Loader } from './loader';
 import { ActivityOptions, Fn } from './activity';
 import { Scheduler } from './scheduler';
-import { injectPromise } from './workflow/promise';
 
 export enum ApplyMode {
   ASYNC = 'apply',
@@ -40,7 +39,6 @@ export class Workflow {
       delete globalThis.WeakSet;
       delete globalThis.WeakRef;
     `);
-    await injectPromise(context, scheduler);
     await workflow.injectTimers();
     return workflow;
   }
@@ -48,11 +46,11 @@ export class Workflow {
   private async injectTimers() {
     const scheduler = this.scheduler;
     function createTimer(callback: ivm.Reference<Function>, msRef: ivm.Reference<number>, ...args: ivm.Reference<any>[]) {
-      const ms = msRef.copySync(); // Copy sync since the isolate executes setTimeout with EvalMode.SYNC
+      const ms = msRef.copySync();
       return scheduler.enqueueEvent({
         type: 'TimerStart',
         ms,
-        callback: () => callback.applySync(undefined, args),
+        callback: () => callback.apply(undefined, args),
       });
     }
     await this.inject('setTimeout', createTimer, ApplyMode.SYNC, { arguments: { reference: true } });
@@ -61,24 +59,24 @@ export class Workflow {
   public async injectActivity(name: string, impl: Fn<any[], any>) {
     const scheduler = this.scheduler;
 
-    const invoke = (options: ActivityOptions, args: any[]) => {
-      const taskId = this.scheduler.enqueueEvent({ type: 'TaskCreate' });
+    function invoke(
+      options: ivm.Reference<ActivityOptions>, args: ivm.Reference<any[]>, resolve: ivm.Reference<Function>, reject: ivm.Reference<Function>
+    ) {
       scheduler.enqueueEvent({
         type: 'ActivityInvoke',
-        taskId,
-        options,
+        options: options.copySync(),
         fn: impl,
-        args,
+        args: args.copySync(),
+        resolve: (val) => resolve.apply(undefined, [val]),
+        reject: (val) => reject.apply(undefined, [val]),
       });
-      return taskId;
     }
 
     await this.context.evalClosure(dedent`
       function invoke(options, args) {
-        const promise = Object.create(null);
-        Object.setPrototypeOf(promise, Promise.prototype);
-        promise.taskId = $0.applySync(undefined, [{}, args], { arguments: { copy: true, }, result: { copy: true } });
-        return promise;
+        return new Promise((resolve, reject) => {
+          $0.applySync(undefined, [{}, args, resolve, reject], { arguments: { reference: true } });
+        });
       }
 
       globalThis.activities.${name} = function(...args) {
@@ -106,6 +104,9 @@ export class Workflow {
         applyMode = ApplyMode.SYNC;
       }
     }
+    if (applyMode === ApplyMode.SYNC_PROMISE) {
+      delete transferOptions.result;
+    }
 
     await this.context.evalClosure(dedent`
     globalThis.${path} = function(...args) {
@@ -120,7 +121,9 @@ export class Workflow {
   public async run(path: string) {
     const mod = await this.loader.loadModule(path);
     const main = await mod.namespace.get('main');
-    await main.apply(undefined, [], { result: { promise: true, copy: true } });
+
+    // TODO: make this async, for some reason the promise never resolves and the process exits
+    main.applySync(undefined, [], { result: { promise: true, copy: true } });
     await this.scheduler.run();
   }
 }

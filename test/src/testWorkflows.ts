@@ -65,7 +65,7 @@ test('promiseRace', async (t) => {
 
 test('race', async (t) => {
   const script = path.join(__dirname, '../../testWorkflows/lib/race.js');
-  await run(script, (logs) => t.deepEqual(logs, [[1], [2]]));
+  await run(script, (logs) => t.deepEqual(logs, [[1], [2], [3]]));
 });
 
 test('importer', async (t) => {
