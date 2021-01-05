@@ -63,16 +63,20 @@ export async function resolveModulePath(specifier: string, referrer: string) {
 
 export class Loader {
   private readonly moduleCache: Map<string, ivm.Module> = new Map();
+  private readonly moduleOverrides: Map<string, ivm.Module> = new Map();
 
   constructor(
     private readonly isolate: ivm.Isolate,
     private readonly context: ivm.Context,
   ) {}
 
+  public overrideModule(specifier: string, module: ivm.Module) {
+    this.moduleOverrides.set(specifier, module);
+  }
+
   public async loadModule(filename: string) {
     const cached = this.moduleCache.get(filename);
     if (cached) return cached;
-    // console.log('Load module', filename);
     const code = await fs.readFile(filename, 'utf8');
     const compiled = await this.isolate.compileModule(code, { filename });
     (compiled as any).filename = filename; // Hacky way of resolving relative imports
@@ -83,6 +87,10 @@ export class Loader {
   }
 
   protected async moduleResolveCallback(specifier: string, referrer: ivm.Module) {
+    const override = this.moduleOverrides.get(specifier);
+    if (override !== undefined) {
+      return override;
+    }
     const referrerFilename = (referrer as any).filename; // Hacky way of resolving relative imports
     const filename = await resolveModulePath(specifier, referrerFilename);
     return this.loadModule(filename);

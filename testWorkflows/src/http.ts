@@ -1,10 +1,15 @@
+import { Context } from '@temporal-sdk/workflow';
+import { httpGet } from '@activities';
+
+const httpGetWithCustomTimeout = Context.configure(httpGet, { type: 'local', startToCloseTimeout: '10 minutes' });
+
 export async function main() {
   {
-    const body = await activities.httpGet('https://google.com');
+    const body = await httpGet('https://google.com');
     console.log(body);
   }
   {
-    const body = await activities.httpGet.withOptions({ retries: 3 }).invoke('http://example.com');
+    const body = await httpGetWithCustomTimeout('http://example.com');
     console.log(body);
   }
 }

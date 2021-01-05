@@ -1,7 +1,7 @@
 import ivm from 'isolated-vm';
 import dedent from 'dedent';
 import { Loader } from './loader';
-import { ActivityOptions, Fn } from './activity';
+import { ActivityOptions } from './activity';
 import { Scheduler } from './scheduler';
 
 export enum ApplyMode {
@@ -16,6 +16,7 @@ const AsyncFunction = Object.getPrototypeOf(async function() {}).constructor;
 export class Workflow {
   public readonly id: string;
   private readonly loader: Loader;
+  private readonly activities: Map<string, Map<string, Function>> = new Map();
 
   private constructor(
     readonly isolate: ivm.Isolate,
@@ -40,6 +41,8 @@ export class Workflow {
       delete globalThis.WeakRef;
     `);
     await workflow.injectTimers();
+    await workflow.injectActivityStub();
+    await workflow.registerWorkflowModule();
     return workflow;
   }
 
@@ -56,16 +59,27 @@ export class Workflow {
     await this.inject('setTimeout', createTimer, ApplyMode.SYNC, { arguments: { reference: true } });
   }
 
-  public async injectActivity(name: string, impl: Fn<any[], any>) {
+  public async injectActivityStub() {
     const scheduler = this.scheduler;
+    const activities = this.activities;
 
     function invoke(
-      options: ivm.Reference<ActivityOptions>, args: ivm.Reference<any[]>, resolve: ivm.Reference<Function>, reject: ivm.Reference<Function>
+      module: ivm.Reference<string>, name: ivm.Reference<string>, args: ivm.Reference<any[]>, options: ivm.Reference<ActivityOptions>, resolve: ivm.Reference<Function>, reject: ivm.Reference<Function>
     ) {
+      const fnName = name.copySync();
+      const moduleName = module.copySync();
+      const moduleActivities = activities.get(moduleName);
+      if (moduleActivities === undefined) {
+        throw new Error(`No activities registered for module: ${moduleName}`);
+      }
+      const impl = moduleActivities.get(fnName);
+      if (impl === undefined) {
+        throw new Error(`No activities named ${fnName} in module: ${moduleName}`);
+      }
       scheduler.enqueueEvent({
         type: 'ActivityInvoke',
         options: options.copySync(),
-        fn: impl,
+        fn: impl as any, // TODO
         args: args.copySync(),
         resolve: (val) => resolve.apply(undefined, [val]),
         reject: (val) => reject.apply(undefined, [val]),
@@ -73,20 +87,56 @@ export class Workflow {
     }
 
     await this.context.evalClosure(dedent`
-      function invoke(options, args) {
+      globalThis.invokeActivity = function(module, name, args, options) {
         return new Promise((resolve, reject) => {
-          $0.applySync(undefined, [{}, args, resolve, reject], { arguments: { reference: true } });
+          $0.applySync(undefined, [module, name, args, options, resolve, reject], { arguments: { reference: true } });
         });
-      }
-
-      globalThis.activities.${name} = function(...args) {
-        return invoke({}, args);
-      }
-      globalThis.activities.${name}.withOptions = function(options) {
-        return { invoke: (...args) => invoke(options, args) };
       }
       `,
       [invoke], { arguments: { reference: true } });
+  }
+
+  public async registerActivities(activities: Record<string, Record<string, any>>) {
+    for (const [specifier, module] of Object.entries(activities)) {
+      const functions = new Map<string, Function>();
+      let code = '';
+      for (const [k, v] of Object.entries(module)) {
+        if (v instanceof Function) {
+          functions.set(k, v);
+          code += dedent`
+            export async function ${k}(...args) {
+              return invokeActivity('${specifier}', '${k}', args, {});
+            }
+            ${k}.module = '${specifier}';
+            ${k}.options = {};
+          `
+        }
+      }
+      const compiled = await this.isolate.compileModule(code, { filename: specifier });
+      await compiled.instantiate(this.context, async () => { throw new Error('Invalid') });
+      await compiled.evaluate();
+      this.activities.set(specifier, functions);
+      this.loader.overrideModule(specifier, compiled);
+    }
+  }
+
+  public async registerWorkflowModule() {
+    const specifier = '@temporal-sdk/workflow';
+    const code = dedent`
+      export const Context = {
+        configure(fn, options) {
+          return {
+            [fn.name](...args) {
+              return invokeActivity(fn.module, fn.name, args, { ...fn.options, ...options });
+            }
+          }[fn.name];
+        },
+      }
+    `;
+    const compiled = await this.isolate.compileModule(code, { filename: specifier });
+    await compiled.instantiate(this.context, async () => { throw new Error('Invalid') });
+    await compiled.evaluate();
+    this.loader.overrideModule(specifier, compiled);
   }
 
   public async inject(

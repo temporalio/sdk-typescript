@@ -33,7 +33,12 @@
         "typeRoots": ["./src"],
         "rootDir": "./src",
         "incremental": true,
-        "composite": true
+        "composite": true,
+        "paths": {
+            "@activities": ["../testActivities/lib"],
+            "@activities/*": ["../testActivities/lib/*"],
+            "@temporal-sdk/*": ["../lib/*"]
+        }
     },
     "references": [
         { "path": "../" },

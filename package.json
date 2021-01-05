@@ -9,7 +9,8 @@
     "build.watch": "(cd test && tsc --build --watch)",
     "lint": "eslint src --ext .ts",
     "test": "ava test/lib/test*.js",
-    "test.watch": "ava -w test/lib/test*.js"
+    "test.watch": "ava -w test/lib/test*.js",
+    "clean": "find . -name tsconfig.tsbuildinfo -delete && find . -name lib -maxdepth 2 | xargs rm -rf"
   },
   "keywords": [],
   "author": "Roey Berman <roey@temporal.io>",

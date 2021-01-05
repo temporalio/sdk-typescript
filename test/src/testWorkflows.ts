@@ -2,14 +2,14 @@ import path from 'path';
 import test from 'ava';
 import { Scheduler } from '../../lib/scheduler';
 import { Workflow } from '../../lib/engine';
-import { httpGet } from '../../testActivities/lib';
+import * as activities from '../../testActivities/lib';
 
 async function run(script: string, callback: (logs: unknown[]) => void) {
   let workflow: Workflow | undefined;
   for (let i = 0; i < 3; ++i) {
     workflow = await Workflow.create(new Scheduler(workflow === undefined ? [] : workflow.scheduler.history));
     const logs: Array<Array<unknown>> = [];
-    await workflow.injectActivity('httpGet', httpGet);
+    await workflow.registerActivities({ '@activities': activities });
     await workflow.inject('console.log', (...args: unknown[]) => void logs.push(args));
     await workflow.run(script);
     callback(logs);
