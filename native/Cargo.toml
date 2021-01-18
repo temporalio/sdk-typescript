@@ -1,0 +1,23 @@
+[package]
+name = "temporal-sdk-node"
+version = "0.1.0"
+authors = ["Roey Berman <roey@temporal.io>"]
+license = "MIT"
+build = "build.rs"
+edition = "2018"
+exclude = ["artifacts.json", "index.node"]
+
+[lib]
+name = "temporal_sdk_node"
+# TODO: SJ - Dylib on mac, but I think needs to be cdylib on linux?
+crate-type = ["dylib"]
+
+[dependencies]
+neon = { version = "0.7", default-features = false, features = ["napi-4"] }
+
+[dependencies.temporal-sdk-core]
+version = "*"
+path = "../../sdk-core"
+
+[build-dependencies]
+neon-build = "0.7"
