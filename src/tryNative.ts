@@ -2,9 +2,8 @@ import { promisify } from 'util';
 import { Worker } from '../native';
 
 async function run() {
-  console.log("before init");
   const worker = new Worker("tasks");
-  const res = await promisify(worker.poll)();
+  const res = await promisify(worker.poll.bind(worker))();
   console.log(res);
 }
 

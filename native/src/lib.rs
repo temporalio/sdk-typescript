@@ -1,5 +1,6 @@
 use neon::prelude::*;
 use neon::{declare_types, register_module};
+use temporal_sdk_core::protos::coresdk::poll_sdk_task_resp::Task::WfTask;
 use temporal_sdk_core::protos::coresdk::*;
 
 pub struct Worker {
@@ -9,15 +10,14 @@ pub struct Worker {
 declare_types! {
     pub class JsWorker for Worker {
         init(mut cx) {
-            println!("init");
             let queue_name: Handle<JsString> = cx.argument::<JsString>(0)?;
 
             Ok(Worker {
-                _queue_name: queue_name.value(&mut cx),
+                _queue_name: queue_name.value(),
             })
         }
 
-        method poll() {
+        method poll(mut cx) {
             let callback: Handle<JsFunction> = cx.argument::<JsFunction>(0)?;
             PollTask{
                 response: PollSdkTaskResp {
@@ -25,7 +25,7 @@ declare_types! {
                     task: Some(WfTask(SdkwfTask { original: None })),
                 },
             }.schedule(callback);
-            Ok(cx.undefined())
+            Ok(cx.undefined().upcast())
         }
     }
 }
