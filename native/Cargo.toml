@@ -9,12 +9,14 @@ exclude = ["artifacts.json", "index.node"]
 
 [lib]
 name = "temporal_sdk_node"
-# TODO: SJ/RB - With n-api, it should be dylib on mac, but I think needs to be cdylib on linux?
+# TODO(RB) - With the napi-* feature it should be dylib on mac.
+# SJ: I think needs to be cdylib on linux.
 crate-type = ["cdylib"]
 
 [dependencies]
 # TODO: neon = { version = "0.7", default-features = false, features = ["napi-4"] }
 neon = "0.7"
+anyhow = "1.0"  # For mocks
 
 [dependencies.temporal-sdk-core]
 version = "*"

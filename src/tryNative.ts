@@ -3,8 +3,10 @@ import { Worker } from '../native';
 
 async function run() {
   const worker = new Worker("tasks");
-  const res = await promisify(worker.poll.bind(worker))();
-  console.log(res);
+  while (true) {
+    const res = await promisify(worker.poll.bind(worker))();
+    console.log(res);
+  }
 }
 
 run().catch((err) => {

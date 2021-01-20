@@ -829,8 +829,10 @@ dependencies = [
 name = "temporal-sdk-core"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "async-trait",
  "derive_more",
+ "log",
  "prost",
  "prost-types",
  "rustfsm",
@@ -843,6 +845,7 @@ dependencies = [
 name = "temporal-sdk-node"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "neon",
  "neon-build",
  "temporal-sdk-core",
