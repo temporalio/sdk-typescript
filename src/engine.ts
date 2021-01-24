@@ -1,7 +1,8 @@
+import { resolve as pathResolve } from 'path';
 import ivm from 'isolated-vm';
 import dedent from 'dedent';
+import { HistoryEvent } from '../native';
 import { Loader } from './loader';
-import { ActivityOptions } from './activity';
 import { Scheduler } from './scheduler';
 
 export enum ApplyMode {
@@ -13,87 +14,36 @@ export enum ApplyMode {
 
 const AsyncFunction = Object.getPrototypeOf(async function() {}).constructor;
 
+interface WorkflowModule {
+  trigger: ivm.Reference<Function>;
+  getAndResetCommands: ivm.Reference<Function>;
+}
+
 export class Workflow {
   public readonly id: string;
-  private readonly loader: Loader;
   private readonly activities: Map<string, Map<string, Function>> = new Map();
 
   private constructor(
     readonly isolate: ivm.Isolate,
     readonly context: ivm.Context,
     public readonly scheduler: Scheduler,
+    readonly loader: Loader,
+    readonly workflowModule: WorkflowModule,
   ) {
     this.id = 'TODO';
-    this.loader = new Loader(isolate, context);
   }
 
   public static async create(scheduler: Scheduler = new Scheduler()) {
     const isolate = new ivm.Isolate();
     const context = await isolate.createContext();
-    const workflow = new Workflow(isolate, context, scheduler);
+    const loader = new Loader(isolate, context);
+    const workflowInternals = await loader.loadModule(pathResolve(__dirname, '../workflow-lib/lib/internals.js'));
+    const workflowModule = await loader.loadModule(pathResolve(__dirname, '../workflow-lib/lib/workflow.js'));
+    const trigger = await workflowInternals.namespace.get('trigger');
+    const getAndResetCommands = await workflowInternals.namespace.get('getAndResetCommands');
+    loader.overrideModule('@temporal-sdk/workflow', workflowModule);
 
-    // Delete any weak reference holding structures because GC is non-deterministic.
-    // WeakRef is implemented in V8 8.4 which is embedded in node >=14.6.0, delete it just in case.
-    await context.eval(dedent`
-      globalThis.activities = {};
-      delete globalThis.WeakMap;
-      delete globalThis.WeakSet;
-      delete globalThis.WeakRef;
-    `);
-    await workflow.injectTimers();
-    await workflow.injectActivityStub();
-    await workflow.registerWorkflowModule();
-    return workflow;
-  }
-
-  private async injectTimers() {
-    const scheduler = this.scheduler;
-    function createTimer(callback: ivm.Reference<Function>, msRef: ivm.Reference<number>, ...args: ivm.Reference<any>[]) {
-      const ms = msRef.copySync();
-      return scheduler.enqueueEvent({
-        type: 'TimerStart',
-        ms,
-        callback: () => callback.apply(undefined, args),
-      });
-    }
-    await this.inject('setTimeout', createTimer, ApplyMode.SYNC, { arguments: { reference: true } });
-  }
-
-  public async injectActivityStub() {
-    const scheduler = this.scheduler;
-    const activities = this.activities;
-
-    function invoke(
-      module: ivm.Reference<string>, name: ivm.Reference<string>, args: ivm.Reference<any[]>, options: ivm.Reference<ActivityOptions>, resolve: ivm.Reference<Function>, reject: ivm.Reference<Function>
-    ) {
-      const fnName = name.copySync();
-      const moduleName = module.copySync();
-      const moduleActivities = activities.get(moduleName);
-      if (moduleActivities === undefined) {
-        throw new Error(`No activities registered for module: ${moduleName}`);
-      }
-      const impl = moduleActivities.get(fnName);
-      if (impl === undefined) {
-        throw new Error(`No activities named ${fnName} in module: ${moduleName}`);
-      }
-      scheduler.enqueueEvent({
-        type: 'ActivityInvoke',
-        options: options.copySync(),
-        fn: impl as any, // TODO
-        args: args.copySync(),
-        resolve: (val) => resolve.apply(undefined, [val]),
-        reject: (val) => reject.apply(undefined, [val]),
-      });
-    }
-
-    await this.context.evalClosure(dedent`
-      globalThis.invokeActivity = function(module, name, args, options) {
-        return new Promise((resolve, reject) => {
-          $0.applySync(undefined, [module, name, args, options, resolve, reject], { arguments: { reference: true } });
-        });
-      }
-      `,
-      [invoke], { arguments: { reference: true } });
+    return new Workflow(isolate, context, scheduler, loader, { trigger, getAndResetCommands });
   }
 
   public async registerActivities(activities: Record<string, Record<string, any>>) {
@@ -118,26 +68,6 @@ export class Workflow {
       this.activities.set(specifier, functions);
       this.loader.overrideModule(specifier, compiled);
     }
-  }
-
-  public async registerWorkflowModule() {
-    const specifier = '@temporal-sdk/workflow';
-    const code = dedent`
-      export const Context = {
-        configure(fn, options) {
-          // Wrap the function in an object so it gets the original function name
-          return {
-            [fn.name](...args) {
-              return invokeActivity(fn.module, fn.name, args, { ...fn.options, ...options });
-            }
-          }[fn.name];
-        },
-      }
-    `;
-    const compiled = await this.isolate.compileModule(code, { filename: specifier });
-    await compiled.instantiate(this.context, async () => { throw new Error('Invalid') });
-    await compiled.evaluate();
-    this.loader.overrideModule(specifier, compiled);
   }
 
   public async inject(
@@ -169,11 +99,27 @@ export class Workflow {
     }`, [handler], { arguments: { reference: true } });
   }
 
+  public async trigger(events: HistoryEvent[]) {
+    await this.workflowModule.trigger.apply(undefined, [events], { arguments: { copy: true }, result: { copy: true } });
+    // Microtasks will already have run at this point
+    return this.workflowModule.getAndResetCommands.apply(undefined, [], { result: { copy: true } });
+  }
+
+  public async runMain(path: string) {
+    const mod = await this.loader.loadModule(path);
+    this.loader.overrideModule('main', mod);
+    const runner = await this.loader.loadModule(pathResolve(__dirname, '../workflow-lib/lib/eval.js'));
+    const run = await runner.namespace.get('run');
+
+    // Run main, result will be stored in an output command
+    await run.apply(undefined, [], {});
+    // Microtasks will already have run at this point
+    return this.workflowModule.getAndResetCommands.apply(undefined, [], { result: { copy: true } });
+  }
+
   public async run(path: string) {
     const mod = await this.loader.loadModule(path);
     const main = await mod.namespace.get('main');
-
-    // TODO: make this async, for some reason the promise never resolves and the process exits
     main.applySync(undefined, [], { result: { promise: true, copy: true } });
     await this.scheduler.run();
   }

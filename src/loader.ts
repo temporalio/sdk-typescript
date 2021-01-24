@@ -70,8 +70,12 @@ export class Loader {
     private readonly context: ivm.Context,
   ) {}
 
-  public overrideModule(specifier: string, module: ivm.Module) {
+  public overrideModule(specifier: string, module: ivm.Module): void {
     this.moduleOverrides.set(specifier, module);
+  }
+
+  public getModule(specifier: string): ivm.Module | undefined {
+    return this.moduleOverrides.get(specifier);
   }
 
   public async loadModule(filename: string) {

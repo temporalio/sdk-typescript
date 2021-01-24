@@ -1,9 +1,9 @@
 {
-    "version": "4.1.2",
+    "version": "2.4.2",
     "compilerOptions": {
         "lib": ["es2017"],
         "target": "es2017",
-        "module": "commonjs",
+        "module": "es2020",
         "moduleResolution": "node",
         "emitDecoratorMetadata": false,
         "experimentalDecorators": false,
@@ -15,17 +15,10 @@
         "noUnusedLocals": true,
         "outDir": "./lib",
         "rootDir": "./src",
-        "composite": true,
-        "incremental": true
+        "incremental": true,
+        "composite": true
     },
-    "references": [
-        { "path": "./workflow-lib/" }
-    ],
     "include": [
         "./src/**/*.ts"
-    ],
-    "exclude": [
-        "node_modules",
-        "examples"
     ]
 }
