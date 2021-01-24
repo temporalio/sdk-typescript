@@ -2,7 +2,7 @@ import path from 'path';
 import test from 'ava';
 import { Scheduler } from '../../lib/scheduler';
 import { Workflow } from '../../lib/engine';
-import * as activities from '../../testActivities/lib';
+import * as activities from '../../test-activities/lib';
 
 async function run(script: string, callback: (logs: unknown[]) => void) {
   let workflow: Workflow | undefined;
@@ -17,37 +17,37 @@ async function run(script: string, callback: (logs: unknown[]) => void) {
 }
 
 test('random', async (t) => {
-  const script = path.join(__dirname, '../../testWorkflows/lib/random.js');
+  const script = path.join(__dirname, '../../test-workflows/lib/random.js');
   await run(script, (logs) => t.deepEqual(logs, [[0.22569616744294763]]));
 });
 
 test('async workflow', async (t) => {
-  const script = path.join(__dirname, '../../testWorkflows/lib/asyncWorkflow.js');
+  const script = path.join(__dirname, '../../test-workflows/lib/asyncWorkflow.js');
   await run(script, (logs) => t.deepEqual(logs, [['async']]));
 });
 
 test('deferredResolve', async (t) => {
-  const script = path.join(__dirname, '../../testWorkflows/lib/deferredResolve.js');
+  const script = path.join(__dirname, '../../test-workflows/lib/deferredResolve.js');
   await run(script, (logs) => t.deepEqual(logs, [[1], [2]]));
 });
 
 test('setTimeout', async (t) => {
-  const script = path.join(__dirname, '../../testWorkflows/lib/setTimeout.js');
+  const script = path.join(__dirname, '../../test-workflows/lib/setTimeout.js');
   await run(script, (logs) => t.deepEqual(logs, [['slept']]));
 });
 
 test('promiseThenPromise', async (t) => {
-  const script = path.join(__dirname, '../../testWorkflows/lib/promiseThenPromise.js');
+  const script = path.join(__dirname, '../../test-workflows/lib/promiseThenPromise.js');
   await run(script, (logs) => t.deepEqual(logs, [[2]]));
 });
 
 test('rejectPromise', async (t) => {
-  const script = path.join(__dirname, '../../testWorkflows/lib/rejectPromise.js');
+  const script = path.join(__dirname, '../../test-workflows/lib/rejectPromise.js');
   await run(script, (logs) => t.deepEqual(logs, [[true], [true]]));
 });
 
 test('promiseAll', async (t) => {
-  const script = path.join(__dirname, '../../testWorkflows/lib/promiseAll.js');
+  const script = path.join(__dirname, '../../test-workflows/lib/promiseAll.js');
   await run(script, (logs) => t.deepEqual(logs, [
     [1, 2, 3],
     [1, 2, 3],
@@ -57,7 +57,7 @@ test('promiseAll', async (t) => {
 });
 
 test('promiseRace', async (t) => {
-  const script = path.join(__dirname, '../../testWorkflows/lib/promiseRace.js');
+  const script = path.join(__dirname, '../../test-workflows/lib/promiseRace.js');
   await run(script, (logs) => t.deepEqual(logs, [
     [1],
     [1],
@@ -69,22 +69,22 @@ test('promiseRace', async (t) => {
 });
 
 test('race', async (t) => {
-  const script = path.join(__dirname, '../../testWorkflows/lib/race.js');
+  const script = path.join(__dirname, '../../test-workflows/lib/race.js');
   await run(script, (logs) => t.deepEqual(logs, [[1], [2], [3]]));
 });
 
 test('importer', async (t) => {
-  const script = path.join(__dirname, '../../testWorkflows/lib/importer.js');
+  const script = path.join(__dirname, '../../test-workflows/lib/importer.js');
   await run(script, (logs) => t.deepEqual(logs, [['slept']]));
 });
 
 test('import ramda', async (t) => {
-  const script = path.join(__dirname, '../../testWorkflows/lib/externalImporter.js');
+  const script = path.join(__dirname, '../../test-workflows/lib/externalImporter.js');
   await run(script, (logs) => t.deepEqual(logs, [[{ a: 1, b: 2 }]]));
 });
 
 test('invoke activity as an async function / with options', async (t) => {
-  const script = path.join(__dirname, '../../testWorkflows/lib/http.js');
+  const script = path.join(__dirname, '../../test-workflows/lib/http.js');
   await run(script, (logs) => t.deepEqual(logs, [
     ['<html><body>hello from https://google.com</body></html>'],
     ['<html><body>hello from http://example.com</body></html>'],

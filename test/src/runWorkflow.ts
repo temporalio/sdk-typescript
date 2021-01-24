@@ -1,6 +1,6 @@
 import { Workflow } from '../../lib/engine';
 import * as stdlib from '../../lib/stdlib';
-import * as activities from '../../testActivities';
+import * as activities from '../../test-activities';
 
 async function run() {
   const scriptName = process.argv[process.argv.length - 1];

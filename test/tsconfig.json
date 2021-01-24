@@ -20,8 +20,8 @@
     },
     "references": [
         { "path": "../" },
-        { "path": "../testActivities" },
-        { "path": "../testWorkflows" }
+        { "path": "../test-activities" },
+        { "path": "../test-workflows" }
     ],
     "include": [
         "./src/**/*.ts"

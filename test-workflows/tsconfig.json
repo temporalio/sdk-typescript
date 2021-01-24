@@ -35,14 +35,14 @@
         "incremental": true,
         "composite": true,
         "paths": {
-            "@activities": ["../testActivities/lib"],
-            "@activities/*": ["../testActivities/lib/*"],
+            "@activities": ["../test-activities/lib"],
+            "@activities/*": ["../test-activities/lib/*"],
             "@temporal-sdk/*": ["../workflow-lib/lib/*"]
         }
     },
     "references": [
         { "path": "../" },
-        { "path": "../testActivities/" },
+        { "path": "../test-activities/" },
         { "path": "../workflow-lib/" }
     ],
     "include": [
