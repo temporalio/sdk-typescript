@@ -67,14 +67,14 @@ declare global {
 }
 
 (globalThis as any).setTimeout = function(cb: (...args: any[]) => any, ms: number, ...args: any[]): number {
-  const seq = ++state.nextSeq;
-  state.callbacks.set(seq, () => cb(...args));
+  const seq = state.nextSeq++;
+  state.callbacks.set(seq, [() => cb(...args), () => {} /* ignore cancellation */]);
   state.commands.push({ type: 'ScheduleTimer', seq, ms });
   return seq;
 };
 
 (globalThis as any).clearTimeout = function(handle: number): void {
-  const seq = ++state.nextSeq;
+  const seq = state.nextSeq++;
   state.callbacks.delete(handle);
   state.commands.push({ type: 'CancelTimer', seq, timerSeq: handle });
 };
@@ -85,10 +85,10 @@ export interface InternalActivityFunction<P extends any[], R> extends ActivityFu
 }
 
 export function scheduleActivity<R>(module: string, name: string, args: any[], options: ActivityOptions) {
-  const seq = ++state.nextSeq;
+  const seq = state.nextSeq++;
   state.commands.push({ type: 'ScheduleActivity', seq, module, name, arguments: args, options });
-  return new Promise<R>((resolve) => {
-    state.callbacks.set(seq, resolve);
+  return new Promise<R>((resolve, reject) => {
+    state.callbacks.set(seq, [resolve, reject]);
   });
 }
 

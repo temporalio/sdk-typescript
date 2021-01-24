@@ -1,7 +1,7 @@
 import { resolve as pathResolve } from 'path';
 import ivm from 'isolated-vm';
 import dedent from 'dedent';
-import { HistoryEvent } from '../native';
+import { PollResult } from '../native';
 import { Loader } from './loader';
 import { Scheduler } from './scheduler';
 
@@ -101,10 +101,10 @@ export class Workflow {
     }`, [handler], { arguments: { reference: true } });
   }
 
-  public async trigger(events: HistoryEvent[]) {
-    await this.workflowModule.trigger.apply(undefined, [events], { arguments: { copy: true }, result: { copy: true } });
+  public async trigger(task: PollResult) {
+    await this.workflowModule.trigger.apply(undefined, [task], { arguments: { copy: true }, result: { copy: true } });
     // Microtasks will already have run at this point
-    return this.workflowModule.getAndResetCommands.apply(undefined, [], { result: { copy: true } });
+    return this.workflowModule.getAndResetCommands.apply(undefined, [], { result: { copy: true } }) as Promise<Array<any>>;
   }
 
   public async runMain(path: string) {
@@ -116,7 +116,7 @@ export class Workflow {
     // Run main, result will be stored in an output command
     await run.apply(undefined, [], {});
     // Microtasks will already have run at this point
-    return this.workflowModule.getAndResetCommands.apply(undefined, [], { result: { copy: true } });
+    return this.workflowModule.getAndResetCommands.apply(undefined, [], { result: { copy: true } }) as Promise<Array<any>>;
   }
 
   public async run(path: string) {

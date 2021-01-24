@@ -1,12 +1,7 @@
-export declare interface HistoryEvent {
-  type: string;
-  // type: 'WorkflowExecutionStarted' | 'TimerStarted';
-  id: number;
-}
-
 export declare interface PollResult {
+  // type: 'WorkflowExecutionStarted' | 'TimerStarted';
   taskToken: string;
-  history: HistoryEvent[];
+  type: string;
 }
 
 export declare class Worker {

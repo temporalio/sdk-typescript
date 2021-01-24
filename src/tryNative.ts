@@ -13,31 +13,25 @@ async function run() {
   await stdlib.install(workflow);
 
   while (true) {
-    let res;
-    try {
-      res = await poll();
-    } catch (err) {
-      if (/History is over/.test(err.message)) {
-        console.log('Done');
-        return;
-      }
-      throw err;
+    const res = await poll();
+    if (Object.keys(res).length === 0) {
+      console.log('done');
+      return;
     }
-    for (const event of res.history) {
-      switch (event.type) {
-        case 'WorkflowExecutionStarted': {
-          const commands = await workflow.runMain(scriptName);
-          console.log({ commands });
-          break;
-        }
-        case 'TimerFired': {
-          const commands = await workflow.trigger([{ ...event, taskId: 1 }]);
-          console.log({ commands });
-          break;
-        }
-        default:
-          // ignore
+    console.log(res);
+    switch (res.type) {
+      case 'StartWorkflow': {
+        const commands = await workflow.runMain(scriptName);
+        console.log(commands[0]);
+        break;
       }
+      case 'CompleteTimer': {
+        const commands = await workflow.trigger(res);
+        console.log(commands[0]);
+        break;
+      }
+      default:
+        // ignore
     }
   }
 }

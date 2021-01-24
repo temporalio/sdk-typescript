@@ -37,19 +37,18 @@ type Command = ScheduleTimerCommand | CancelTimerCommand | ScheduleActivityComma
  * Track command sequences and callbacks, accumulate commands
  */
 export const state = {
-  callbacks: new Map<number, Function>(),
+  callbacks: new Map<number, [Function, Function]>(),
   commands: new Array<Command>(),
   nextSeq: 0,
 };
 
-export function trigger(events: any[] /* TODO */) {
-  for (const event of events) {
-    const callback = state.callbacks.get(event.taskId);
-    if (callback === undefined) {
-      throw new Error(`No callback for taskId ${event.taskId}`);
-    }
-    callback();
+export function trigger(task: any /* TODO */) {
+  const callbacks = state.callbacks.get(task.taskSeq);
+  if (callbacks === undefined) {
+    throw new Error(`No callback for taskSeq ${task.taskSeq}`);
   }
+  const [callback] = callbacks;
+  callback();
 }
 
 // TODO: improve this definition
@@ -60,11 +59,11 @@ export interface Workflow {
 export function runWorkflow({ main }: Workflow) {
   main()
     .then((result: any) => {
-      const seq = ++state.nextSeq;
+      const seq = state.nextSeq++;
       state.commands.push({ type: 'CompleteWorkflow', seq, result: { ok: result } });
     })
     .catch((error: any) => {
-      const seq = ++state.nextSeq;
+      const seq = state.nextSeq++;
       state.commands.push({ type: 'CompleteWorkflow', seq, result: { error } });
     });
 }

@@ -16,7 +16,7 @@ crate-type = ["cdylib"]
 [dependencies]
 # TODO: neon = { version = "0.7", default-features = false, features = ["napi-4"] }
 neon = "0.7"
-anyhow = "1.0"  # For mocks
+async-trait = "0.1"
 
 [dependencies.temporal-sdk-core]
 version = "*"
