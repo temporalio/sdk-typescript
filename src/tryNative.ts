@@ -9,7 +9,7 @@ async function run() {
   const poll = promisify(worker.poll.bind(worker));
 
   // Only a single workflow at the moment
-  const workflow = await Workflow.create();
+  const workflow = await Workflow.create('TODO');
   await stdlib.install(workflow);
 
   while (true) {

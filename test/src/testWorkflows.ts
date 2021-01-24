@@ -7,7 +7,7 @@ import * as activities from '../../testActivities/lib';
 async function run(script: string, callback: (logs: unknown[]) => void) {
   let workflow: Workflow | undefined;
   for (let i = 0; i < 3; ++i) {
-    workflow = await Workflow.create(new Scheduler(workflow === undefined ? [] : workflow.scheduler.history));
+    workflow = await Workflow.create('TODO', new Scheduler(workflow === undefined ? [] : workflow.scheduler.history));
     const logs: Array<Array<unknown>> = [];
     await workflow.registerActivities({ '@activities': activities });
     await workflow.inject('console.log', (...args: unknown[]) => void logs.push(args));
@@ -15,6 +15,11 @@ async function run(script: string, callback: (logs: unknown[]) => void) {
     callback(logs);
   }
 }
+
+test('random', async (t) => {
+  const script = path.join(__dirname, '../../testWorkflows/lib/random.js');
+  await run(script, (logs) => t.deepEqual(logs, [[0.22569616744294763]]));
+});
 
 test('async workflow', async (t) => {
   const script = path.join(__dirname, '../../testWorkflows/lib/asyncWorkflow.js');

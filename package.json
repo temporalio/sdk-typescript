@@ -32,7 +32,6 @@
   "dependencies": {
     "dedent": "^0.7.0",
     "isolated-vm": "^3.3.7",
-    "neon-cli": "^0.7.0",
-    "seedrandom": "^3.0.5"
+    "neon-cli": "^0.7.0"
   }
 }

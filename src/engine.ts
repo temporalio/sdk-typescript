@@ -20,20 +20,19 @@ interface WorkflowModule {
 }
 
 export class Workflow {
-  public readonly id: string;
   private readonly activities: Map<string, Map<string, Function>> = new Map();
 
   private constructor(
+    public readonly id: string,
     readonly isolate: ivm.Isolate,
     readonly context: ivm.Context,
     public readonly scheduler: Scheduler,
     readonly loader: Loader,
     readonly workflowModule: WorkflowModule,
   ) {
-    this.id = 'TODO';
   }
 
-  public static async create(scheduler: Scheduler = new Scheduler()) {
+  public static async create(id: string, scheduler: Scheduler = new Scheduler()) {
     const isolate = new ivm.Isolate();
     const context = await isolate.createContext();
     const loader = new Loader(isolate, context);
@@ -41,9 +40,12 @@ export class Workflow {
     const workflowModule = await loader.loadModule(pathResolve(__dirname, '../workflow-lib/lib/workflow.js'));
     const trigger = await workflowInternals.namespace.get('trigger');
     const getAndResetCommands = await workflowInternals.namespace.get('getAndResetCommands');
+    const initWorkflow = await workflowInternals.namespace.get('initWorkflow');
     loader.overrideModule('@temporal-sdk/workflow', workflowModule);
 
-    return new Workflow(isolate, context, scheduler, loader, { trigger, getAndResetCommands });
+    await initWorkflow.apply(undefined, [id], { arguments: { copy: true } });
+
+    return new Workflow(id, isolate, context, scheduler, loader, { trigger, getAndResetCommands });
   }
 
   public async registerActivities(activities: Record<string, Record<string, any>>) {

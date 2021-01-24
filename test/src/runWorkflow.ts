@@ -4,7 +4,7 @@ import * as activities from '../../testActivities';
 
 async function run() {
   const scriptName = process.argv[process.argv.length - 1];
-  const workflow = await Workflow.create();
+  const workflow = await Workflow.create('TODO');
   await stdlib.install(workflow);
   await workflow.registerActivities({ '@activities': activities });
   await workflow.run(scriptName);

@@ -1,5 +1,6 @@
 /// Internals manipulate the Global object, track callbacks, accumulate commands, and provide an interface for interacting with sdk-core.
 import { ActivityOptions } from './types';
+import { alea } from './alea';
 
 interface ScheduleTimerCommand {
   type: 'ScheduleTimer';
@@ -72,4 +73,8 @@ export function getAndResetCommands() {
   const { commands } = state;
   state.commands = [];
   return commands;
+}
+
+export function initWorkflow(id: string): void {
+  Math.random = alea(id);
 }
