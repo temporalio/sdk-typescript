@@ -4,7 +4,9 @@ export declare interface PollResult {
   type: string;
 }
 
-export declare class Worker {
-  constructor(queueName: string);
-  poll(callback: (err?: Error, result?: any) => void): void;
+export declare type PollCallback = (err?: Error, result?: PollResult) => void;
+export declare function newWorker(queueName: string): Worker;
+export declare function workerPoll(worker: Worker, callback: PollCallback): void;
+
+export interface Worker {
 }

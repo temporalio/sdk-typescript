@@ -1,12 +1,12 @@
 import { promisify } from 'util';
-import { Worker } from '../native';
+import { newWorker, workerPoll, PollCallback } from '../native';
 import { Workflow } from './engine';
 import * as stdlib from './stdlib';
 
 async function run() {
-  const worker = new Worker("tasks");
+  const worker = newWorker("tasks");
   const scriptName = process.argv[process.argv.length - 1];
-  const poll = promisify(worker.poll.bind(worker));
+  const poll = promisify((callback: PollCallback) => workerPoll(worker, callback));
 
   // Only a single workflow at the moment
   const workflow = await Workflow.create('TODO');
@@ -14,6 +14,10 @@ async function run() {
 
   while (true) {
     const res = await poll();
+    if (res === undefined) {
+      console.error('Unexpected undefined poll result');
+      return;
+    }
     if (Object.keys(res).length === 0) {
       console.log('done');
       return;
