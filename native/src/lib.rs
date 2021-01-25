@@ -4,11 +4,10 @@ use neon::prelude::*;
 
 use ::temporal_sdk_core::protos::coresdk::poll_sdk_task_resp::Task::WfTask;
 use ::temporal_sdk_core::protos::coresdk::*;
-use ::temporal_sdk_core::protos::temporal::api::taskqueue::v1::TaskQueue;
 use neon::{declare_types, register_module};
 
 pub struct Worker {
-    queue_name: String,
+    _queue_name: String,
     core: mock_core::MockCore,
 }
 
@@ -52,7 +51,7 @@ declare_types! {
             let core = mock_core::MockCore{ tasks };
 
             Ok(Worker {
-                queue_name: queue_name.value(),
+                _queue_name: queue_name.value(),
                 core,
             })
         }
@@ -60,16 +59,15 @@ declare_types! {
         method poll(mut cx) {
             let callback: Handle<JsFunction> = cx.argument::<JsFunction>(0)?;
             let mut this = cx.this();
-            let (core, queue_name) = {
+            let core = {
                 let guard = cx.lock();
                 let mut borrowed = this.borrow_mut(&guard);
                 let core = borrowed.core.clone();
                 borrowed.core.tasks.pop_front();
-                (core, borrowed.queue_name.clone())
+                core
             };
             PollTask{
                 core: Box::new(core),
-                queue_name,
             }.schedule(callback);
             Ok(cx.undefined().upcast())
         }
@@ -79,7 +77,6 @@ declare_types! {
 // Mock task that returns preset responses
 struct PollTask {
     core: Box<mock_core::MockCore>,
-    queue_name: String,
 }
 
 impl Task for PollTask {
@@ -88,12 +85,7 @@ impl Task for PollTask {
     type JsEvent = JsObject;
 
     fn perform(&self) -> Result<Self::Output, Self::Error> {
-        match self.core.poll_sdk_task(PollSdkTaskReq {
-            task_queues: vec![TaskQueue {
-                name: self.queue_name.clone(),
-                kind: 0, /* TODO */
-            }],
-        }) {
+        match self.core.poll_sdk_task() {
             Ok(task) => Ok(Some(task.clone())),
             Err(_error) => Ok(None),
         }
