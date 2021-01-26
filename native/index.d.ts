@@ -1,8 +1,10 @@
-export declare interface PollResult {
-  // type: 'WorkflowExecutionStarted' | 'TimerStarted';
+export declare interface WorkflowTask {
   taskToken: string;
-  type: string;
+  workflowID: string;
+  type: string; // TODO: define the different types
 }
+
+export declare type PollResult = WorkflowTask; // TODO: | ActivityTask
 
 export declare type PollCallback = (err?: Error, result?: PollResult) => void;
 export declare function newWorker(queueName: string): Worker;
