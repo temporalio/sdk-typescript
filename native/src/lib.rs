@@ -74,8 +74,7 @@ fn worker_poll(mut cx: FunctionContext) -> JsResult<JsUndefined> {
         match response_option {
             Ok(response) => {
                 queue.send(move |mut cx| {
-                    let raw_callback = ::std::sync::Arc::into_raw(arc_callback);
-                    if let Some(r) = unsafe { raw_callback.as_ref() } {
+                    if let Ok(r) = ::std::sync::Arc::try_unwrap(arc_callback) {
                         let callback = r.clone(&mut cx).into_inner(&mut cx);
                         let this = cx.undefined();
                         let error = cx.undefined();
@@ -88,9 +87,9 @@ fn worker_poll(mut cx: FunctionContext) -> JsResult<JsUndefined> {
             }
             Err(_) => {
                 queue.send(move |mut cx| {
-                    let raw_callback = ::std::sync::Arc::into_raw(arc_callback);
-                    if let Some(r) = unsafe { raw_callback.as_ref() } {
-                        let callback = r.clone(&mut cx).into_inner(&mut cx);
+                    if let Ok(r) = ::std::sync::Arc::try_unwrap(arc_callback) {
+                        // Original root callback gets dropped
+                        let callback = r.into_inner(&mut cx);
                         let this = cx.undefined();
                         // For mock core this signals end of tasks
                         let error = JsError::error(&mut cx, "EOF")?;
@@ -98,10 +97,6 @@ fn worker_poll(mut cx: FunctionContext) -> JsResult<JsUndefined> {
                         let args: Vec<Handle<JsValue>> = vec![error.upcast(), result.upcast()];
                         callback.call(&mut cx, this, args)?;
                     }
-                    // TODO:
-                    // if let Some(r) = unsafe { raw_callback.as_ref() } {
-                    //     r.drop(&mut cx);
-                    // };
                     Ok(())
                 });
                 break;
