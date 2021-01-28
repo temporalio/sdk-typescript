@@ -14,7 +14,6 @@ crate-type = ["dylib"]
 
 [dependencies]
 neon = { version = "0.7", default-features = false, features = ["napi-4", "event-queue-api"] }
-async-trait = "0.1"
 
 [dependencies.temporal-sdk-core]
 version = "*"

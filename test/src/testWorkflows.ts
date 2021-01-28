@@ -1,19 +1,18 @@
+/**
+ * Tests here are expected to fail until we complete the integration with core SDK
+ */
 import path from 'path';
 import test from 'ava';
-import { Scheduler } from '../../lib/scheduler';
 import { Workflow } from '../../lib/engine';
-import * as activities from '../../test-activities/lib';
 
 async function run(script: string, callback: (logs: unknown[]) => void) {
   let workflow: Workflow | undefined;
-  for (let i = 0; i < 3; ++i) {
-    workflow = await Workflow.create('TODO', new Scheduler(workflow === undefined ? [] : workflow.scheduler.history));
-    const logs: Array<Array<unknown>> = [];
-    await workflow.registerActivities({ '@activities': activities });
-    await workflow.inject('console.log', (...args: unknown[]) => void logs.push(args));
-    await workflow.run(script);
-    callback(logs);
-  }
+  // TODO: test replay
+  workflow = await Workflow.create('TODO');
+  const logs: unknown[][] = [];
+  await workflow.inject('console.log', (...args: unknown[]) => void logs.push(args));
+  await workflow.runMain(script);
+  callback(logs);
 }
 
 test('random', async (t) => {

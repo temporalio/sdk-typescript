@@ -3,7 +3,6 @@ import ivm from 'isolated-vm';
 import dedent from 'dedent';
 import { PollResult } from '../native';
 import { Loader } from './loader';
-import { Scheduler } from './scheduler';
 
 export enum ApplyMode {
   ASYNC = 'apply',
@@ -26,13 +25,12 @@ export class Workflow {
     public readonly id: string,
     readonly isolate: ivm.Isolate,
     readonly context: ivm.Context,
-    public readonly scheduler: Scheduler,
     readonly loader: Loader,
     readonly workflowModule: WorkflowModule,
   ) {
   }
 
-  public static async create(id: string, scheduler: Scheduler = new Scheduler()) {
+  public static async create(id: string) {
     const isolate = new ivm.Isolate();
     const context = await isolate.createContext();
     const loader = new Loader(isolate, context);
@@ -45,7 +43,7 @@ export class Workflow {
 
     await initWorkflow.apply(undefined, [id], { arguments: { copy: true } });
 
-    return new Workflow(id, isolate, context, scheduler, loader, { trigger, getAndResetCommands });
+    return new Workflow(id, isolate, context, loader, { trigger, getAndResetCommands });
   }
 
   public async registerActivities(activities: Record<string, Record<string, any>>) {
@@ -117,12 +115,5 @@ export class Workflow {
     await run.apply(undefined, [], {});
     // Microtasks will already have run at this point
     return this.workflowModule.getAndResetCommands.apply(undefined, [], { result: { copy: true } }) as Promise<Array<any>>;
-  }
-
-  public async run(path: string) {
-    const mod = await this.loader.loadModule(path);
-    const main = await mod.namespace.get('main');
-    main.applySync(undefined, [], { result: { promise: true, copy: true } });
-    await this.scheduler.run();
   }
 }

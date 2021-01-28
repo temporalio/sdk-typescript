@@ -1,33 +1,29 @@
-use ::temporal_sdk_core::protos::coresdk::{
-    poll_sdk_task_resp::Task, CompleteSdkTaskReq, PollSdkTaskResp, RegistrationReq,
-};
-use ::temporal_sdk_core::{Result, SDKServiceError::Unknown};
+use ::temporal_sdk_core::protos::coresdk::{task, CompleteTaskReq, RegistrationReq, Task};
+use ::temporal_sdk_core::{Core, CoreError::NoWork, Result};
 
 #[derive(Clone)]
 pub struct MockCore {
-    pub tasks: ::std::collections::VecDeque<Task>,
+    pub tasks: ::std::collections::VecDeque<task::Variant>,
 }
 
-// #[async_trait::async_trait]
-// impl CoreSDKService for MockCore {
-impl MockCore {
-    pub fn poll_sdk_task(&self) -> Result<PollSdkTaskResp> {
+impl Core for MockCore {
+    fn poll_task(&self) -> Result<Task> {
         match self.tasks.get(0) {
-            Some(task) => Result::Ok(PollSdkTaskResp {
+            Some(task) => Result::Ok(Task {
                 task_token: b"abc".to_vec(),
-                task: Some(task.clone()),
+                variant: Some(task.clone()),
             }),
-            _ => Result::Err(Unknown {}),
+            _ => Result::Err(NoWork {}),
         }
     }
 
     #[allow(dead_code)]
-    pub fn complete_sdk_task(&self, _req: CompleteSdkTaskReq) -> Result<()> {
+    fn complete_task(&self, _req: CompleteTaskReq) -> Result<()> {
         Result::Ok(())
     }
 
     #[allow(dead_code)]
-    pub fn register_implementations(&self, _req: RegistrationReq) -> Result<()> {
+    fn register_implementations(&self, _req: RegistrationReq) -> Result<()> {
         Result::Ok(())
     }
 }

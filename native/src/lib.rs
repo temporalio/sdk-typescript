@@ -3,9 +3,11 @@ mod mock_core;
 use ::neon::prelude::*;
 use ::neon::register_module;
 use ::std::cell::RefCell;
-use ::temporal_sdk_core::protos::coresdk::poll_sdk_task_resp::Task::WfTask;
-use ::temporal_sdk_core::protos::coresdk::PollSdkTaskResp;
-use ::temporal_sdk_core::protos::coresdk::*;
+use ::temporal_sdk_core::protos::coresdk;
+use ::temporal_sdk_core::protos::coresdk::{
+    task, workflow_task, StartWorkflowTaskAttributes, TriggerTimerTaskAttributes, WorkflowTask,
+};
+use ::temporal_sdk_core::Core;
 
 type BoxedWorker = JsBox<RefCell<Worker>>;
 
@@ -19,12 +21,11 @@ impl Finalize for Worker {}
 
 impl Worker {
     pub fn new(queue_name: String) -> Self {
-        let mut tasks = ::std::collections::VecDeque::<poll_sdk_task_resp::Task>::new();
-        tasks.push_back(WfTask(SdkwfTask {
-            r#type: WfTaskType::StartWorkflow as i32,
+        let mut tasks = ::std::collections::VecDeque::<task::Variant>::new();
+        tasks.push_back(task::Variant::Workflow(WorkflowTask {
             workflow_id: "test".to_string(),
             timestamp: None,
-            attributes: Some(sdkwf_task::Attributes::StartWorkflowTaskAttributes(
+            attributes: Some(workflow_task::Attributes::StartWorkflow(
                 StartWorkflowTaskAttributes {
                     namespace: "default".to_string(),
                     name: "main".to_string(),
@@ -32,12 +33,13 @@ impl Worker {
                 },
             )),
         }));
-        tasks.push_back(WfTask(SdkwfTask {
-            r#type: WfTaskType::CompleteTimer as i32,
+        tasks.push_back(task::Variant::Workflow(WorkflowTask {
             workflow_id: "test".to_string(),
             timestamp: None,
-            attributes: Some(sdkwf_task::Attributes::CompleteTimerTaskAttributes(
-                CompleteTimerTaskAttributes { timer_id: 0 },
+            attributes: Some(workflow_task::Attributes::TriggerTimer(
+                TriggerTimerTaskAttributes {
+                    timer_id: "0".to_string(),
+                },
             )),
         }));
         let core = mock_core::MockCore { tasks };
@@ -48,8 +50,8 @@ impl Worker {
         }
     }
 
-    pub fn poll(&mut self) -> ::temporal_sdk_core::Result<PollSdkTaskResp> {
-        let res = self.core.poll_sdk_task();
+    pub fn poll(&mut self) -> ::temporal_sdk_core::Result<coresdk::Task> {
+        let res = self.core.poll_task();
         self.core.tasks.pop_front();
         res
     }
@@ -70,29 +72,29 @@ fn worker_poll(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     let queue = cx.queue();
     std::thread::spawn(move || loop {
         let arc_callback = arc_callback.clone();
-        let response_option = worker.poll();
-        match response_option {
-            Ok(response) => {
+        match worker.poll() {
+            Ok(task) => {
                 queue.send(move |mut cx| {
-                    if let Ok(r) = ::std::sync::Arc::try_unwrap(arc_callback) {
-                        let callback = r.clone(&mut cx).into_inner(&mut cx);
-                        let this = cx.undefined();
-                        let error = cx.undefined();
-                        let result = poll_sdk_task_resp_to_js_object(&mut cx, &response)?;
-                        let args: Vec<Handle<JsValue>> = vec![error.upcast(), result.upcast()];
-                        callback.call(&mut cx, this, args)?;
-                    };
+                    // TODO: figure out how to do this safely, for some reason try_unwrap returns
+                    // Err here
+                    let r = unsafe { &*::std::sync::Arc::into_raw(arc_callback) };
+                    let callback = r.clone(&mut cx).into_inner(&mut cx);
+                    let this = cx.undefined();
+                    let error = cx.undefined();
+                    let result = task_to_js_object(&mut cx, &task)?;
+                    let args: Vec<Handle<JsValue>> = vec![error.upcast(), result.upcast()];
+                    callback.call(&mut cx, this, args)?;
                     Ok(())
                 });
             }
-            Err(_) => {
+            Err(err) => {
                 queue.send(move |mut cx| {
                     if let Ok(r) = ::std::sync::Arc::try_unwrap(arc_callback) {
+                        println!("unwrapped on err");
                         // Original root callback gets dropped
                         let callback = r.into_inner(&mut cx);
                         let this = cx.undefined();
-                        // For mock core this signals end of tasks
-                        let error = JsError::error(&mut cx, "EOF")?;
+                        let error = JsError::error(&mut cx, format!("{}", err))?;
                         let result = cx.undefined();
                         let args: Vec<Handle<JsValue>> = vec![error.upcast(), result.upcast()];
                         callback.call(&mut cx, this, args)?;
@@ -106,38 +108,43 @@ fn worker_poll(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     Ok(cx.undefined())
 }
 
-fn poll_sdk_task_resp_to_js_object<'a, 'b>(
+fn task_to_js_object<'a, 'b>(
     cx: &mut TaskContext<'a>,
-    response: &'b PollSdkTaskResp,
+    task: &'b coresdk::Task,
 ) -> JsResult<'a, JsObject> {
     let result = cx.empty_object();
-    match std::str::from_utf8(&response.task_token) {
+    match std::str::from_utf8(&task.task_token) {
         Ok(task_token) => {
             let token = cx.string(task_token);
             result.set(cx, "taskToken", token)?;
         }
         Err(err) => panic!(err.to_string()),
     };
-    match &response.task {
-        Some(WfTask(task)) => {
-            let task_type: WfTaskType = unsafe { std::mem::transmute(task.r#type) };
-            let type_str = cx.string(format!("{:?}", task_type));
-            result.set(cx, "type", type_str)?;
-            let workflow_id = cx.string(task.workflow_id.clone());
-            result.set(cx, "workflowID", workflow_id)?;
-            match &task.attributes {
-                Some(sdkwf_task::Attributes::CompleteTimerTaskAttributes(attrs)) => {
-                    let timer_id = cx.number(attrs.timer_id);
-                    result.set(cx, "taskSeq", timer_id)?;
-                }
-                Some(sdkwf_task::Attributes::StartWorkflowTaskAttributes(attrs)) => {
-                    let namespace = cx.string(attrs.namespace.clone());
-                    result.set(cx, "namespace", namespace)?;
-                    let name = cx.string(attrs.name.clone());
-                    result.set(cx, "name", name)?;
-                }
-                _ => {}
-            };
+    match &task.variant {
+        Some(task::Variant::Workflow(task)) => {
+            if let Some(attributes) = &task.attributes {
+                let workflow_id = cx.string(task.workflow_id.clone());
+                result.set(cx, "workflowID", workflow_id)?;
+                match &attributes {
+                    workflow_task::Attributes::TriggerTimer(attrs) => {
+                        let task_type = cx.string("TriggerTimer".to_string());
+                        result.set(cx, "type", task_type)?;
+                        if let Ok(timer_id) = attrs.timer_id.parse::<f32>() {
+                            let task_seq = cx.number(timer_id);
+                            result.set(cx, "taskSeq", task_seq)?;
+                        }; // TODO handle cast error
+                    }
+                    workflow_task::Attributes::StartWorkflow(attrs) => {
+                        let task_type = cx.string("StartWorkflow".to_string());
+                        result.set(cx, "type", task_type)?;
+                        let namespace = cx.string(attrs.namespace.clone());
+                        result.set(cx, "namespace", namespace)?;
+                        let name = cx.string(attrs.name.clone());
+                        result.set(cx, "name", name)?;
+                        // TODO: arguments
+                    }
+                };
+            }
         }
         _ => panic!("Failed to extract type from task"),
     };
