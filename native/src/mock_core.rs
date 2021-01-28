@@ -17,12 +17,10 @@ impl Core for MockCore {
         }
     }
 
-    #[allow(dead_code)]
     fn complete_task(&self, _req: CompleteTaskReq) -> Result<()> {
         Result::Ok(())
     }
 
-    #[allow(dead_code)]
     fn register_implementations(&self, _req: RegistrationReq) -> Result<()> {
         Result::Ok(())
     }

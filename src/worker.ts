@@ -1,7 +1,7 @@
 import { resolve } from 'path';
 import { Observable } from 'rxjs';
 import { groupBy, mergeMap, mergeScan } from 'rxjs/operators';
-import { newWorker, workerPoll, PollResult } from '../native';
+import { newWorker, workerPoll, workerIsSuspended, workerResumePolling, workerSuspendPolling, PollResult, Worker as NativeWorker } from '../native';
 import { Workflow } from './engine';
 import { ActivityOptions } from './activity';
 
@@ -43,6 +43,7 @@ export function getDefaultOptions(dirname: string): WorkerOptions {
 
 export class Worker {
   public readonly options: WorkerOptions;
+  nativeWorker?: NativeWorker;
 
   /**
    * Create a new `Worker`, `pwd` is used to resolve relative paths for locating and importing activities and workflows.
@@ -55,21 +56,33 @@ export class Worker {
   /**
    * Do not make new poll requests.
    */
-  public async suspendPolling(): Promise<void> {
+  public suspendPolling(): void {
+    if (this.nativeWorker === undefined) {
+      throw new Error('Not running');
+    }
+    workerSuspendPolling(this.nativeWorker);
   }
 
   /**
    * Allow new poll requests.
    */
   public resumePolling(): void {
+    if (this.nativeWorker === undefined) {
+      throw new Error('Not running');
+    }
+    workerResumePolling(this.nativeWorker);
   }
 
   public isSuspended(): boolean {
-    return false;
+    if (this.nativeWorker === undefined) {
+      throw new Error('Not running');
+    }
+    return workerIsSuspended(this.nativeWorker);
   }
 
   async run(queueName: string) {
     const native = newWorker(queueName);
+    this.nativeWorker = native;
     await new Observable<PollResult>((subscriber) => {
       workerPoll(native, (err, result) => {
         // TODO: this shouldn't happen in the non-mocked version

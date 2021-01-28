@@ -2,19 +2,20 @@ mod mock_core;
 
 use ::neon::prelude::*;
 use ::neon::register_module;
-use ::std::cell::RefCell;
+use ::std::sync::{Arc, Condvar, Mutex, RwLock};
 use ::temporal_sdk_core::protos::coresdk;
 use ::temporal_sdk_core::protos::coresdk::{
     task, workflow_task, StartWorkflowTaskAttributes, TriggerTimerTaskAttributes, WorkflowTask,
 };
 use ::temporal_sdk_core::Core;
 
-type BoxedWorker = JsBox<RefCell<Worker>>;
+type BoxedWorker = JsBox<Arc<RwLock<Worker>>>;
 
-#[derive(Clone)]
 pub struct Worker {
     _queue_name: String,
     core: mock_core::MockCore,
+    condition: Condvar,
+    suspended: Mutex<bool>,
 }
 
 impl Finalize for Worker {}
@@ -47,19 +48,37 @@ impl Worker {
         Worker {
             _queue_name: queue_name,
             core,
+            condition: Condvar::new(),
+            suspended: Mutex::new(false),
         }
     }
 
     pub fn poll(&mut self) -> ::temporal_sdk_core::Result<coresdk::Task> {
+        let _guard = self
+            .condition
+            .wait_while(self.suspended.lock().unwrap(), |suspended| *suspended)
+            .unwrap();
         let res = self.core.poll_task();
         self.core.tasks.pop_front();
         res
+    }
+
+    pub fn is_suspended(&self) -> bool {
+        *self.suspended.lock().unwrap()
+    }
+
+    pub fn suspend_polling(&self) {
+        *self.suspended.lock().unwrap() = true;
+    }
+
+    pub fn resume_polling(&self) {
+        *self.suspended.lock().unwrap() = false;
     }
 }
 
 fn worker_new(mut cx: FunctionContext) -> JsResult<BoxedWorker> {
     let queue_name = cx.argument::<JsString>(0)?.value(&mut cx);
-    let worker = RefCell::new(Worker::new(queue_name));
+    let worker = Arc::new(RwLock::new(Worker::new(queue_name)));
 
     Ok(cx.boxed(worker))
 }
@@ -67,17 +86,18 @@ fn worker_new(mut cx: FunctionContext) -> JsResult<BoxedWorker> {
 fn worker_poll(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     let worker = cx.argument::<BoxedWorker>(0)?;
     let callback = cx.argument::<JsFunction>(1)?.root(&mut cx);
-    let mut worker = worker.borrow_mut().clone();
-    let arc_callback = ::std::sync::Arc::new(callback);
+    let worker = Arc::clone(&**worker); // deref Handle and JsBox
+    let arc_callback = Arc::new(callback);
     let queue = cx.queue();
     std::thread::spawn(move || loop {
         let arc_callback = arc_callback.clone();
-        match worker.poll() {
+        let worker = worker.clone();
+        let worker = &mut worker.write().unwrap();
+        let result = worker.poll();
+        match result {
             Ok(task) => {
                 queue.send(move |mut cx| {
-                    // TODO: figure out how to do this safely, for some reason try_unwrap returns
-                    // Err here
-                    let r = unsafe { &*::std::sync::Arc::into_raw(arc_callback) };
+                    let r = &*arc_callback;
                     let callback = r.clone(&mut cx).into_inner(&mut cx);
                     let this = cx.undefined();
                     let error = cx.undefined();
@@ -89,8 +109,7 @@ fn worker_poll(mut cx: FunctionContext) -> JsResult<JsUndefined> {
             }
             Err(err) => {
                 queue.send(move |mut cx| {
-                    if let Ok(r) = ::std::sync::Arc::try_unwrap(arc_callback) {
-                        println!("unwrapped on err");
+                    if let Ok(r) = Arc::try_unwrap(arc_callback) {
                         // Original root callback gets dropped
                         let callback = r.into_inner(&mut cx);
                         let this = cx.undefined();
@@ -106,6 +125,26 @@ fn worker_poll(mut cx: FunctionContext) -> JsResult<JsUndefined> {
         }
     });
     Ok(cx.undefined())
+}
+
+fn worker_suspend_polling(mut cx: FunctionContext) -> JsResult<JsUndefined> {
+    let worker = cx.argument::<BoxedWorker>(0)?;
+    let w = &mut worker.write().unwrap();
+    w.suspend_polling();
+    Ok(cx.undefined())
+}
+
+fn worker_resume_polling(mut cx: FunctionContext) -> JsResult<JsUndefined> {
+    let worker = cx.argument::<BoxedWorker>(0)?;
+    let w = &mut worker.write().unwrap();
+    w.resume_polling();
+    Ok(cx.undefined())
+}
+
+fn worker_is_suspended(mut cx: FunctionContext) -> JsResult<JsBoolean> {
+    let worker = cx.argument::<BoxedWorker>(0)?;
+    let w = &mut worker.read().unwrap();
+    Ok(cx.boolean(w.is_suspended()))
 }
 
 fn task_to_js_object<'a, 'b>(
@@ -154,5 +193,8 @@ fn task_to_js_object<'a, 'b>(
 register_module!(mut cx, {
     cx.export_function("newWorker", worker_new)?;
     cx.export_function("workerPoll", worker_poll)?;
+    cx.export_function("workerSuspendPolling", worker_suspend_polling)?;
+    cx.export_function("workerResumePolling", worker_resume_polling)?;
+    cx.export_function("workerIsSuspended", worker_is_suspended)?;
     Ok(())
 });
