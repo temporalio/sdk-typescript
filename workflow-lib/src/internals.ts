@@ -40,9 +40,16 @@ export const state = {
   callbacks: new Map<number, [Function, Function]>(),
   commands: new Array<Command>(),
   nextSeq: 0,
+  /**
+   * This is set every time the workflow executes a task
+   */
+  now: 0,
 };
 
-export function trigger(task: any /* TODO */) {
+export type Task = any; // TODO
+
+export function trigger(task: Task) {
+  state.now = task.timestamp;
   const callbacks = state.callbacks.get(task.taskSeq);
   if (callbacks === undefined) {
     throw new Error(`No callback for taskSeq ${task.taskSeq}`);
@@ -56,7 +63,8 @@ export interface Workflow {
   main(...args: any[]): Promise<any>;
 }
 
-export function runWorkflow({ main }: Workflow) {
+export function runWorkflow({ main }: Workflow, timestamp: number) {
+  state.now = timestamp;
   main()
     .then((result: any) => {
       const seq = state.nextSeq++;

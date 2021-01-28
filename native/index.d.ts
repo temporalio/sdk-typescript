@@ -1,5 +1,6 @@
 export declare interface WorkflowTask {
   taskToken: string;
+  timestamp: number;
   workflowID: string;
   type: string; // TODO: define the different types
 }

@@ -66,6 +66,21 @@ declare global {
   export function clearTimeout(handle: number): void;
 }
 
+const OriginalDate = (globalThis as any).Date;
+
+(globalThis as any).Date = function() {
+  // TODO: implement for after local activity completion
+  return new OriginalDate(state.now);
+};
+
+(globalThis as any).Date.now = function() {
+  // TODO: implement for after local activity completion
+  return state.now;
+};
+
+(globalThis as any).Date.prototype = OriginalDate.prototype;
+
+
 (globalThis as any).setTimeout = function(cb: (...args: any[]) => any, ms: number, ...args: any[]): number {
   const seq = state.nextSeq++;
   state.callbacks.set(seq, [() => cb(...args), () => {} /* ignore cancellation */]);

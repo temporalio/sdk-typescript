@@ -1,1 +1,1 @@
-export { Workflow } from './engine';
+export { Worker } from './worker';

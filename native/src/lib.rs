@@ -2,7 +2,7 @@ mod mock_core;
 
 use ::neon::prelude::*;
 use ::neon::register_module;
-use ::prost_types::Duration;
+use ::prost_types::{Duration, Timestamp};
 use ::std::sync::{Arc, Condvar, Mutex, RwLock};
 use ::temporal_sdk_core::protos::coresdk;
 use ::temporal_sdk_core::protos::coresdk::{
@@ -35,7 +35,7 @@ impl Worker {
         let mut tasks = ::std::collections::VecDeque::<task::Variant>::new();
         tasks.push_back(task::Variant::Workflow(WorkflowTask {
             workflow_id: "test".to_string(),
-            timestamp: None,
+            timestamp: Some(Timestamp::from(::std::time::SystemTime::now())),
             attributes: Some(workflow_task::Attributes::StartWorkflow(
                 StartWorkflowTaskAttributes {
                     namespace: "default".to_string(),
@@ -46,7 +46,7 @@ impl Worker {
         }));
         tasks.push_back(task::Variant::Workflow(WorkflowTask {
             workflow_id: "test".to_string(),
-            timestamp: None,
+            timestamp: Some(Timestamp::from(::std::time::SystemTime::now())),
             attributes: Some(workflow_task::Attributes::TriggerTimer(
                 TriggerTimerTaskAttributes {
                     timer_id: "0".to_string(),
@@ -266,6 +266,20 @@ fn task_to_js_object<'a, 'b>(
     };
     match &task.variant {
         Some(task::Variant::Workflow(task)) => {
+            match &task.timestamp {
+                Some(timestamp) => {
+                    match ::std::time::SystemTime::from(timestamp.clone())
+                        .duration_since(::std::time::UNIX_EPOCH)
+                    {
+                        Ok(time_since_epoch) => {
+                            let timestamp = cx.number(time_since_epoch.as_millis() as f64);
+                            result.set(cx, "timestamp", timestamp)?;
+                        }
+                        _ => panic!("Failed to timestamp from task"),
+                    }
+                }
+                _ => panic!("Failed to timestamp from task"),
+            }
             if let Some(attributes) = &task.attributes {
                 let workflow_id = cx.string(task.workflow_id.clone());
                 result.set(cx, "workflowID", workflow_id)?;

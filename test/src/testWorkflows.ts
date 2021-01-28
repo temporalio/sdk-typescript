@@ -3,7 +3,9 @@
  */
 import path from 'path';
 import test from 'ava';
-import { Workflow } from '../../lib/engine';
+import { Workflow } from '../../lib/workflow';
+
+const NOW = 1611845470254;
 
 async function run(script: string, callback: (logs: unknown[]) => void) {
   let workflow: Workflow | undefined;
@@ -11,13 +13,18 @@ async function run(script: string, callback: (logs: unknown[]) => void) {
   workflow = await Workflow.create('TODO');
   const logs: unknown[][] = [];
   await workflow.inject('console.log', (...args: unknown[]) => void logs.push(args));
-  await workflow.runMain(script);
+  await workflow.runMain(script, NOW);
   callback(logs);
 }
 
 test('random', async (t) => {
   const script = path.join(__dirname, '../../test-workflows/lib/random.js');
   await run(script, (logs) => t.deepEqual(logs, [[0.22569616744294763]]));
+});
+
+test('date', async (t) => {
+  const script = path.join(__dirname, '../../test-workflows/lib/date.js');
+  await run(script, (logs) => t.deepEqual(logs, [[NOW], [NOW], [true]]));
 });
 
 test('async workflow', async (t) => {
@@ -32,6 +39,11 @@ test('deferredResolve', async (t) => {
 
 test('setTimeout', async (t) => {
   const script = path.join(__dirname, '../../test-workflows/lib/setTimeout.js');
+  await run(script, (logs) => t.deepEqual(logs, [['slept']]));
+});
+
+test('setTimeoutAfterMicrotask', async (t) => {
+  const script = path.join(__dirname, '../../test-workflows/lib/setTimeoutAfterMicrotask.js');
   await run(script, (logs) => t.deepEqual(logs, [['slept']]));
 });
 

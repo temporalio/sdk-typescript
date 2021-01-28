@@ -11,7 +11,7 @@ import {
   PollResult,
   Worker as NativeWorker,
 } from '../native';
-import { Workflow } from './engine';
+import { Workflow } from './workflow';
 import { ActivityOptions } from './activity';
 
 export interface WorkerOptions {
@@ -121,7 +121,7 @@ export class Worker {
                 case 'StartWorkflow': {
                   // TODO: get script name from task params
                   const scriptName = process.argv[process.argv.length - 1];
-                  const commands = await workflow.runMain(scriptName);
+                  const commands = await workflow.runMain(scriptName, task.timestamp);
                   workerCompleteTask(native, { completionType: 'workflow', taskToken: task.taskToken, ok: { commands } });
                   break;
                 }
