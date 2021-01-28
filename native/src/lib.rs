@@ -275,10 +275,10 @@ fn task_to_js_object<'a, 'b>(
                             let timestamp = cx.number(time_since_epoch.as_millis() as f64);
                             result.set(cx, "timestamp", timestamp)?;
                         }
-                        _ => panic!("Failed to timestamp from task"),
+                        _ => panic!("Failed to get timestamp from task"),
                     }
                 }
-                _ => panic!("Failed to timestamp from task"),
+                _ => panic!("Failed to get timestamp from task"),
             }
             if let Some(attributes) = &task.attributes {
                 let workflow_id = cx.string(task.workflow_id.clone());
