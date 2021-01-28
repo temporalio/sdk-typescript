@@ -2,19 +2,19 @@
 import { ActivityOptions } from './types';
 import { alea } from './alea';
 
-interface ScheduleTimerCommand {
-  type: 'ScheduleTimer';
+export interface StartTimerCommand {
+  type: 'StartTimer';
   seq: number;
   ms: number;
 }
 
-interface CancelTimerCommand {
+export interface CancelTimerCommand {
   type: 'CancelTimer';
   seq: number;
   timerSeq: number;
 }
 
-interface ScheduleActivityCommand {
+export interface ScheduleActivityCommand {
   type: 'ScheduleActivity';
   seq: number;
   module: string;
@@ -25,13 +25,13 @@ interface ScheduleActivityCommand {
 
 type Result<R, E> = { ok: R } | { error: E };
 
-interface CompleteWorkflowCommand {
+export interface CompleteWorkflowCommand {
   type: 'CompleteWorkflow';
   seq: number;
   result: Result<any, any>;
 }
 
-type Command = ScheduleTimerCommand | CancelTimerCommand | ScheduleActivityCommand | CompleteWorkflowCommand;
+export type Command = StartTimerCommand | CancelTimerCommand | ScheduleActivityCommand | CompleteWorkflowCommand;
 
 /**
  * Track command sequences and callbacks, accumulate commands

@@ -17,7 +17,8 @@ impl Core for MockCore {
         }
     }
 
-    fn complete_task(&self, _req: CompleteTaskReq) -> Result<()> {
+    fn complete_task(&self, req: CompleteTaskReq) -> Result<()> {
+        println!("Task complete: {:#?}", req);
         Result::Ok(())
     }
 

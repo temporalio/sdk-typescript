@@ -69,7 +69,7 @@ declare global {
 (globalThis as any).setTimeout = function(cb: (...args: any[]) => any, ms: number, ...args: any[]): number {
   const seq = state.nextSeq++;
   state.callbacks.set(seq, [() => cb(...args), () => {} /* ignore cancellation */]);
-  state.commands.push({ type: 'ScheduleTimer', seq, ms });
+  state.commands.push({ type: 'StartTimer', seq, ms });
   return seq;
 };
 

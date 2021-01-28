@@ -1,7 +1,16 @@
 import { resolve } from 'path';
 import { Observable } from 'rxjs';
 import { groupBy, mergeMap, mergeScan } from 'rxjs/operators';
-import { newWorker, workerPoll, workerIsSuspended, workerResumePolling, workerSuspendPolling, PollResult, Worker as NativeWorker } from '../native';
+import {
+  newWorker,
+  workerPoll,
+  workerIsSuspended,
+  workerResumePolling,
+  workerSuspendPolling,
+  workerCompleteTask,
+  PollResult,
+  Worker as NativeWorker,
+} from '../native';
 import { Workflow } from './engine';
 import { ActivityOptions } from './activity';
 
@@ -113,12 +122,12 @@ export class Worker {
                   // TODO: get script name from task params
                   const scriptName = process.argv[process.argv.length - 1];
                   const commands = await workflow.runMain(scriptName);
-                  console.log(commands[0]);
+                  workerCompleteTask(native, { completionType: 'workflow', taskToken: task.taskToken, ok: { commands } });
                   break;
                 }
                 case 'TriggerTimer': {
                   const commands = await workflow.trigger(task);
-                  console.log(commands[0]);
+                  workerCompleteTask(native, { completionType: 'workflow', taskToken: task.taskToken, ok: { commands } });
                   break;
                 }
                 default:

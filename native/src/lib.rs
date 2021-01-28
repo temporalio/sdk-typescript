@@ -2,11 +2,21 @@ mod mock_core;
 
 use ::neon::prelude::*;
 use ::neon::register_module;
+use ::prost_types::Duration;
 use ::std::sync::{Arc, Condvar, Mutex, RwLock};
 use ::temporal_sdk_core::protos::coresdk;
 use ::temporal_sdk_core::protos::coresdk::{
-    task, workflow_task, StartWorkflowTaskAttributes, TriggerTimerTaskAttributes, WorkflowTask,
+    command::Variant as CommandVariant, complete_task_req, task, workflow_task,
+    workflow_task_completion, ActivityTaskCompletion, Command, CompleteTaskReq,
+    StartWorkflowTaskAttributes, TriggerTimerTaskAttributes, WorkflowTask, WorkflowTaskCompletion,
+    WorkflowTaskSuccess,
 };
+use ::temporal_sdk_core::protos::temporal::api::command::v1::{
+    command::Attributes as CommandAttributes, Command as ApiCommand,
+    CompleteWorkflowExecutionCommandAttributes, StartTimerCommandAttributes,
+};
+use ::temporal_sdk_core::protos::temporal::api::enums::v1::CommandType;
+
 use ::temporal_sdk_core::Core;
 
 type BoxedWorker = JsBox<Arc<RwLock<Worker>>>;
@@ -147,6 +157,101 @@ fn worker_is_suspended(mut cx: FunctionContext) -> JsResult<JsBoolean> {
     Ok(cx.boolean(w.is_suspended()))
 }
 
+fn worker_complete_task(mut cx: FunctionContext) -> JsResult<JsUndefined> {
+    let worker = cx.argument::<BoxedWorker>(0)?;
+    let completion = cx.argument::<JsObject>(1)?;
+    let completion = completion_from_js_object(&mut cx, completion)?;
+    let w = &mut worker.read().unwrap();
+    if let Err(err) = w.core.complete_task(completion) {
+        let error = JsError::error(&mut cx, format!("{}", err))?;
+        cx.throw(error)
+    } else {
+        Ok(cx.undefined())
+    }
+}
+
+fn completion_from_js_object(
+    cx: &mut FunctionContext,
+    completion: Handle<JsObject>,
+) -> NeonResult<CompleteTaskReq> {
+    let task_token: Handle<JsString> = completion.get(cx, "taskToken")?.downcast_or_throw(cx)?;
+    let task_token = task_token.value(cx).as_bytes().to_vec();
+
+    let completion_type: Handle<JsString> = completion
+        .get(cx, "completionType")?
+        .downcast_or_throw(cx)?;
+    let completion = match completion_type.value(cx).as_ref() {
+        "workflow" => {
+            let status: Option<workflow_task_completion::Status> = match completion.get(cx, "ok") {
+                Ok(obj) => {
+                    let obj: Handle<JsObject> = obj.downcast_or_throw(cx)?;
+                    let js_commands: Handle<JsArray> =
+                        obj.get(cx, "commands")?.downcast_or_throw(cx)?;
+                    let len = js_commands.len(cx);
+                    let mut commands: Vec<Command> = Vec::with_capacity(len as usize);
+                    for i in 0..len {
+                        let js_command: Handle<JsObject> =
+                            js_commands.get(cx, i)?.downcast_or_throw(cx)?;
+                        let command_type: Handle<JsString> =
+                            js_command.get(cx, "type")?.downcast_or_throw(cx)?;
+                        let (command_type, attributes) = match command_type.value(cx).as_ref() {
+                            "StartTimer" => {
+                                let task_seq: Handle<JsNumber> =
+                                    js_command.get(cx, "seq")?.downcast_or_throw(cx)?;
+                                let ms: Handle<JsNumber> =
+                                    js_command.get(cx, "ms")?.downcast_or_throw(cx)?;
+                                let attributes =
+                                    Some(CommandAttributes::StartTimerCommandAttributes(
+                                        StartTimerCommandAttributes {
+                                            timer_id: task_seq.value(cx).to_string(),
+                                            start_to_fire_timeout: Some(Duration::from(
+                                                ::std::time::Duration::from_millis(
+                                                    ms.value(cx) as u64
+                                                ),
+                                            )),
+                                        },
+                                    ));
+                                (CommandType::StartTimer, attributes)
+                            }
+                            "CompleteWorkflow" => {
+                                // TODO: get result
+                                let attributes = Some(
+                                    CommandAttributes::CompleteWorkflowExecutionCommandAttributes(
+                                        CompleteWorkflowExecutionCommandAttributes { result: None },
+                                    ),
+                                );
+                                (CommandType::CompleteWorkflowExecution, attributes)
+                            }
+                            _ => panic!("Invalid command type"),
+                        };
+                        let command = Command {
+                            variant: Some(CommandVariant::Api(ApiCommand {
+                                command_type: command_type as i32,
+                                attributes,
+                            })),
+                        };
+                        commands.push(command);
+                    }
+                    Some(workflow_task_completion::Status::Successful(
+                        WorkflowTaskSuccess { commands },
+                    ))
+                }
+                _ => None, // TODO
+            };
+            complete_task_req::Completion::Workflow(WorkflowTaskCompletion { status })
+        }
+        "activity" => {
+            complete_task_req::Completion::Activity(ActivityTaskCompletion { status: None })
+        }
+        _ => panic!("Invalid completionType"),
+    };
+
+    Ok(CompleteTaskReq {
+        task_token,
+        completion: Some(completion),
+    })
+}
+
 fn task_to_js_object<'a, 'b>(
     cx: &mut TaskContext<'a>,
     task: &'b coresdk::Task,
@@ -193,6 +298,7 @@ fn task_to_js_object<'a, 'b>(
 register_module!(mut cx, {
     cx.export_function("newWorker", worker_new)?;
     cx.export_function("workerPoll", worker_poll)?;
+    cx.export_function("workerCompleteTask", worker_complete_task)?;
     cx.export_function("workerSuspendPolling", worker_suspend_polling)?;
     cx.export_function("workerResumePolling", worker_resume_polling)?;
     cx.export_function("workerIsSuspended", worker_is_suspended)?;
