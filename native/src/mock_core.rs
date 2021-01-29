@@ -1,4 +1,4 @@
-use ::temporal_sdk_core::protos::coresdk::{task, CompleteTaskReq, RegistrationReq, Task};
+use ::temporal_sdk_core::protos::coresdk::{task, CompleteTaskReq, Task};
 use ::temporal_sdk_core::{Core, CoreError::NoWork, Result};
 
 #[derive(Clone)]
@@ -19,10 +19,6 @@ impl Core for MockCore {
 
     fn complete_task(&self, req: CompleteTaskReq) -> Result<()> {
         println!("Task complete: {:#?}", req);
-        Result::Ok(())
-    }
-
-    fn register_implementations(&self, _req: RegistrationReq) -> Result<()> {
         Result::Ok(())
     }
 }

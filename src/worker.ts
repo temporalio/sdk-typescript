@@ -89,6 +89,20 @@ export class Worker {
     return workerIsSuspended(this.nativeWorker);
   }
 
+  /**
+   * Manually register workflows, e.g. for when using a non-standard directory structure.
+   */
+  public async registerWorkflows(_nameToPath: Record<string, string>): Promise<void> {
+    // Not implemented yet
+  }
+
+  /**
+   * Manually register activities, e.g. for when using a non-standard directory structure.
+   */
+  public async registerActivities(_importPathToImplementation: Record<string, Record<string, Function>>): Promise<void> {
+    // Not implemented yet
+  }
+
   async run(queueName: string) {
     const native = newWorker(queueName);
     this.nativeWorker = native;
@@ -108,12 +122,15 @@ export class Worker {
       });
     })
       .pipe(
-        groupBy(({ workflowID }) => workflowID),
+        groupBy(({ runID }) => runID),
         mergeMap((group$) => {
           return group$.pipe(
             mergeScan(async (workflow: Workflow | undefined, task) => {
               if (workflow === undefined) {
-                workflow = await Workflow.create(group$.key);
+                if (task.type !== 'StartWorkflow') {
+                  throw new Error('Expected StartWorkflow');
+                }
+                workflow = await Workflow.create(task.workflowID);
                 await workflow.inject('console.log', console.log);
               }
               console.log(task);

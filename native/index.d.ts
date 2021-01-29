@@ -1,7 +1,8 @@
 export declare interface WorkflowTask {
   taskToken: string;
   timestamp: number;
-  workflowID: string;
+  runID: string;
+  workflowID: string; // TODO: this is only for StartWorkflow
   type: string; // TODO: define the different types
 }
 

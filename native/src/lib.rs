@@ -8,7 +8,7 @@ use ::temporal_sdk_core::protos::coresdk;
 use ::temporal_sdk_core::protos::coresdk::{
     command::Variant as CommandVariant, complete_task_req, task, workflow_task,
     workflow_task_completion, ActivityTaskCompletion, Command, CompleteTaskReq,
-    StartWorkflowTaskAttributes, TriggerTimerTaskAttributes, WorkflowTask, WorkflowTaskCompletion,
+    StartWorkflowTaskAttributes, UnblockTimerTaskAttributes, WorkflowTask, WorkflowTaskCompletion,
     WorkflowTaskSuccess,
 };
 use ::temporal_sdk_core::protos::temporal::api::command::v1::{
@@ -34,21 +34,22 @@ impl Worker {
     pub fn new(queue_name: String) -> Self {
         let mut tasks = ::std::collections::VecDeque::<task::Variant>::new();
         tasks.push_back(task::Variant::Workflow(WorkflowTask {
-            workflow_id: "test".to_string(),
+            run_id: "test".to_string(),
             timestamp: Some(Timestamp::from(::std::time::SystemTime::now())),
             attributes: Some(workflow_task::Attributes::StartWorkflow(
                 StartWorkflowTaskAttributes {
                     namespace: "default".to_string(),
                     name: "main".to_string(),
                     arguments: None,
+                    workflow_id: "test".to_string(),
                 },
             )),
         }));
         tasks.push_back(task::Variant::Workflow(WorkflowTask {
-            workflow_id: "test".to_string(),
+            run_id: "test".to_string(),
             timestamp: Some(Timestamp::from(::std::time::SystemTime::now())),
-            attributes: Some(workflow_task::Attributes::TriggerTimer(
-                TriggerTimerTaskAttributes {
+            attributes: Some(workflow_task::Attributes::UnblockTimer(
+                UnblockTimerTaskAttributes {
                     timer_id: "0".to_string(),
                 },
             )),
@@ -281,10 +282,10 @@ fn task_to_js_object<'a, 'b>(
                 _ => panic!("Failed to get timestamp from task"),
             }
             if let Some(attributes) = &task.attributes {
-                let workflow_id = cx.string(task.workflow_id.clone());
-                result.set(cx, "workflowID", workflow_id)?;
+                let run_id = cx.string(task.run_id.clone());
+                result.set(cx, "runID", run_id)?;
                 match &attributes {
-                    workflow_task::Attributes::TriggerTimer(attrs) => {
+                    workflow_task::Attributes::UnblockTimer(attrs) => {
                         let task_type = cx.string("TriggerTimer".to_string());
                         result.set(cx, "type", task_type)?;
                         if let Ok(timer_id) = attrs.timer_id.parse::<f32>() {
@@ -299,6 +300,8 @@ fn task_to_js_object<'a, 'b>(
                         result.set(cx, "namespace", namespace)?;
                         let name = cx.string(attrs.name.clone());
                         result.set(cx, "name", name)?;
+                        let workflow_id = cx.string(attrs.workflow_id.clone());
+                        result.set(cx, "workflowID", workflow_id)?;
                         // TODO: arguments
                     }
                 };
