@@ -1,6 +1,8 @@
 import { resolve } from 'path';
-import { Observable } from 'rxjs';
+import { Observable, partition } from 'rxjs';
 import { groupBy, mergeMap, mergeScan } from 'rxjs/operators';
+import { Writer } from 'protobufjs';
+import { coresdk } from '../proto/core_interface';
 import {
   newWorker,
   workerPoll,
@@ -8,10 +10,9 @@ import {
   workerResumePolling,
   workerSuspendPolling,
   workerCompleteTask,
-  PollResult,
   Worker as NativeWorker,
 } from '../native';
-import { Workflow } from './workflow';
+import { Activator } from './workflow-activator';
 import { ActivityOptions } from './activity';
 
 export interface WorkerOptions {
@@ -106,51 +107,49 @@ export class Worker {
   async run(queueName: string) {
     const native = newWorker(queueName);
     this.nativeWorker = native;
-    await new Observable<PollResult>((subscriber) => {
-      workerPoll(native, (err, result) => {
+    const poller$ = new Observable<coresdk.Task>((subscriber) => {
+      workerPoll(native, (err, buffer) => {
         // TODO: this shouldn't happen in the non-mocked version
         if (err && err.message === 'No tasks to perform for now') {
           subscriber.complete();
           return;
         }
-        if (result === undefined) {
+        if (buffer === undefined) {
           subscriber.error(err);
           return;
         }
-        subscriber.next(result);
+        const task = coresdk.Task.decode(new Uint8Array(buffer));
+        subscriber.next(task);
         return () => {}; // TODO: shutdown worker if no subscribers
       });
-    })
+    });
+    type TaskForWorkflow = Required<{ taskToken: coresdk.ITask['taskToken'], workflow: coresdk.WorkflowTask }>;
+    type TaskForActivity = Required<{ taskToken: coresdk.ITask['taskToken'], workflow: coresdk.ActivityTask }>;
+    const [workflow$] = partition(poller$, (task) => task.variant === 'workflow') as any as [Observable<TaskForWorkflow>, Observable<TaskForActivity>];
+
+    return await workflow$
       .pipe(
-        groupBy(({ runID }) => runID),
+        groupBy((task) => task.workflow.runId),
         mergeMap((group$) => {
           return group$.pipe(
-            mergeScan(async (workflow: Workflow | undefined, task) => {
-              if (workflow === undefined) {
-                if (task.type !== 'StartWorkflow') {
+            mergeScan(async (activator: Activator | undefined, task) => {
+              // TODO: refactor this whole thing
+              console.log(task);
+              if (activator === undefined) {
+                if (!task.workflow.startWorkflow) {
                   throw new Error('Expected StartWorkflow');
                 }
-                workflow = await Workflow.create(task.workflowID);
-                await workflow.inject('console.log', console.log);
+                activator = await Activator.create(task.workflow.startWorkflow.workflowId!);
               }
-              console.log(task);
-              switch (task.type) {
-                case 'StartWorkflow': {
-                  // TODO: get script name from task params
-                  const scriptName = process.argv[process.argv.length - 1];
-                  const commands = await workflow.runMain(scriptName, task.timestamp);
-                  workerCompleteTask(native, { completionType: 'workflow', taskToken: task.taskToken, ok: { commands } });
-                  break;
-                }
-                case 'TriggerTimer': {
-                  const commands = await workflow.trigger(task);
-                  workerCompleteTask(native, { completionType: 'workflow', taskToken: task.taskToken, ok: { commands } });
-                  break;
-                }
-                default:
-                  // ignore
+              if (task.workflow.attributes === undefined) {
+                throw new Error('Expected workflow attributes to be defined');
               }
-              return workflow;
+              const completion = await activator[task.workflow.attributes](task.workflow);
+              const writer = new Writer(); // Use ArrayBuffer instead of the default node Buffer
+              const { buffer } = coresdk.CompleteTaskReq.encodeDelimited({ taskToken: task.taskToken, workflow: completion }, writer).finish();
+              console.log(buffer);
+              workerCompleteTask(native, buffer);
+              return activator;
             }, undefined, 1 /* concurrency */))
         })
       )

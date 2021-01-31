@@ -1,44 +1,13 @@
 /// Internals manipulate the Global object, track callbacks, accumulate commands, and provide an interface for interacting with sdk-core.
-import { ActivityOptions } from './types';
+import * as iface from '../../proto/core_interface';
 import { alea } from './alea';
-
-export interface StartTimerCommand {
-  type: 'StartTimer';
-  seq: number;
-  ms: number;
-}
-
-export interface CancelTimerCommand {
-  type: 'CancelTimer';
-  seq: number;
-  timerSeq: number;
-}
-
-export interface ScheduleActivityCommand {
-  type: 'ScheduleActivity';
-  seq: number;
-  module: string;
-  name: string;
-  arguments: any[];
-  options: ActivityOptions;
-}
-
-type Result<R, E> = { ok: R } | { error: E };
-
-export interface CompleteWorkflowCommand {
-  type: 'CompleteWorkflow';
-  seq: number;
-  result: Result<any, any>;
-}
-
-export type Command = StartTimerCommand | CancelTimerCommand | ScheduleActivityCommand | CompleteWorkflowCommand;
 
 /**
  * Track command sequences and callbacks, accumulate commands
  */
 export const state = {
   callbacks: new Map<number, [Function, Function]>(),
-  commands: new Array<Command>(),
+  commands: new Array<iface.coresdk.ICommand>(),
   nextSeq: 0,
   /**
    * This is set every time the workflow executes a task
@@ -46,16 +15,26 @@ export const state = {
   now: 0,
 };
 
-export type Task = any; // TODO
-
-export function trigger(task: Task) {
-  state.now = task.timestamp;
-  const callbacks = state.callbacks.get(task.taskSeq);
-  if (callbacks === undefined) {
-    throw new Error(`No callback for taskSeq ${task.taskSeq}`);
+export function tsToMs(ts: iface.google.protobuf.ITimestamp | null | undefined) {
+  if (ts === undefined || ts === null) {
+    throw new Error(`Expected timestamp, got ${ts}`);
   }
-  const [callback] = callbacks;
-  callback();
+  const { seconds, nanos } = ts;
+  // TODO: seconds could be bigint | long | null | undeinfed
+  return (seconds as number) * 1000 + Math.round((nanos || 0) / 1000000);
+}
+
+export function trigger(task: iface.coresdk.IWorkflowTask) {
+  state.now = tsToMs(task.timestamp);
+  if (task.unblockTimer) { // TODO: handle other attribute types
+    const taskSeq = parseInt(task.unblockTimer.timerId!);
+    const callbacks = state.callbacks.get(taskSeq);
+    if (callbacks === undefined) {
+      throw new Error(`No callback for taskSeq ${taskSeq}`);
+    }
+    const [callback] = callbacks;
+    callback();
+  }
 }
 
 // TODO: improve this definition
@@ -66,13 +45,27 @@ export interface Workflow {
 export function runWorkflow({ main }: Workflow, timestamp: number) {
   state.now = timestamp;
   main()
-    .then((result: any) => {
-      const seq = state.nextSeq++;
-      state.commands.push({ type: 'CompleteWorkflow', seq, result: { ok: result } });
+    .then((_result: any) => {
+      state.nextSeq++;
+      state.commands.push({
+        api: {
+          commandType: iface.temporal.api.enums.v1.CommandType.COMMAND_TYPE_COMPLETE_WORKFLOW_EXECUTION,
+          completeWorkflowExecutionCommandAttributes: {
+            result: { /* TODO: payloads */ },
+          },
+        },
+      });
     })
     .catch((error: any) => {
-      const seq = state.nextSeq++;
-      state.commands.push({ type: 'CompleteWorkflow', seq, result: { error } });
+      state.nextSeq++;
+      state.commands.push({
+        api: {
+          commandType: iface.temporal.api.enums.v1.CommandType.COMMAND_TYPE_FAIL_WORKFLOW_EXECUTION,
+          failWorkflowExecutionCommandAttributes: {
+            failure: { message: error.message }, // TODO: stackTrace
+          },
+        },
+      });
     });
 }
 

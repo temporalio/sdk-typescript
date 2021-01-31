@@ -1,7 +1,7 @@
 import { resolve as pathResolve } from 'path';
 import ivm from 'isolated-vm';
 import dedent from 'dedent';
-import { PollResult } from '../native';
+import { coresdk } from '../proto/core_interface';
 import { Loader } from './loader';
 
 export enum ApplyMode {
@@ -34,6 +34,8 @@ export class Workflow {
     const isolate = new ivm.Isolate();
     const context = await isolate.createContext();
     const loader = new Loader(isolate, context);
+    const protosModule = await loader.loadModule(pathResolve(__dirname, '../proto/isolate/core_interface.js'));
+    loader.overrideModule(pathResolve(__dirname, '../proto/core_interface.js'), protosModule);
     const workflowInternals = await loader.loadModule(pathResolve(__dirname, '../workflow-lib/lib/internals.js'));
     const workflowModule = await loader.loadModule(pathResolve(__dirname, '../workflow-lib/lib/workflow.js'));
     const trigger = await workflowInternals.namespace.get('trigger');
@@ -99,7 +101,7 @@ export class Workflow {
     }`, [handler], { arguments: { reference: true } });
   }
 
-  public async trigger(task: PollResult) {
+  public async trigger(task: coresdk.WorkflowTask) {
     await this.workflowModule.trigger.apply(undefined, [task], { arguments: { copy: true }, result: { copy: true } });
     // Microtasks will already have run at this point
     return this.workflowModule.getAndResetCommands.apply(undefined, [], { result: { copy: true } }) as Promise<Array<any>>;

@@ -1,3 +1,4 @@
+import { temporal } from '../../proto/core_interface';
 import { ContextType, ActivityOptions, ActivityFunction } from './types';
 import { state } from './internals';
 
@@ -84,14 +85,30 @@ const OriginalDate = (globalThis as any).Date;
 (globalThis as any).setTimeout = function(cb: (...args: any[]) => any, ms: number, ...args: any[]): number {
   const seq = state.nextSeq++;
   state.callbacks.set(seq, [() => cb(...args), () => {} /* ignore cancellation */]);
-  state.commands.push({ type: 'StartTimer', seq, ms });
+  state.commands.push({
+    api: {
+      commandType: temporal.api.enums.v1.CommandType.COMMAND_TYPE_START_TIMER,
+      startTimerCommandAttributes: {
+        timerId: `${seq}`,
+        startToFireTimeout: { seconds: Math.floor(ms / 1000), nanos: ms % 1000 * 1000000 },
+      },
+    },
+  });
+  // state.commands.push({ type: 'StartTimer', seq, ms });
   return seq;
 };
 
 (globalThis as any).clearTimeout = function(handle: number): void {
-  const seq = state.nextSeq++;
+  state.nextSeq++;
   state.callbacks.delete(handle);
-  state.commands.push({ type: 'CancelTimer', seq, timerSeq: handle });
+  state.commands.push({
+    api: {
+      commandType: temporal.api.enums.v1.CommandType.COMMAND_TYPE_CANCEL_TIMER,
+      cancelTimerCommandAttributes: {
+        timerId: `${handle}`,
+      },
+    },
+  });
 };
 
 export interface InternalActivityFunction<P extends any[], R> extends ActivityFunction<P, R> {
@@ -101,7 +118,13 @@ export interface InternalActivityFunction<P extends any[], R> extends ActivityFu
 
 export function scheduleActivity<R>(module: string, name: string, args: any[], options: ActivityOptions) {
   const seq = state.nextSeq++;
-  state.commands.push({ type: 'ScheduleActivity', seq, module, name, arguments: args, options });
+  // state.commands.push({ type: 'ScheduleActivity', seq, module, name, arguments: args, options });
+  state.commands.push({
+    api: {
+      commandType: temporal.api.enums.v1.CommandType.COMMAND_TYPE_SCHEDULE_ACTIVITY_TASK,
+      scheduleActivityTaskCommandAttributes: {},
+    },
+  });
   return new Promise<R>((resolve, reject) => {
     state.callbacks.set(seq, [resolve, reject]);
   });

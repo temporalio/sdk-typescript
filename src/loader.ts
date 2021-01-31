@@ -43,10 +43,12 @@ export async function resolveFilename(path: string, allowDir: boolean = true): P
   }
 }
 
+const isAbsPath = (specifier: string) => /^(\/|\\|[a-zA-Z]:\\)/.test(specifier);
+
 export async function resolveModulePath(specifier: string, referrer: string) {
   if (specifier.startsWith('.')) { // relative path
     return resolveFilename(pathResolve(dirname(referrer), specifier));
-  } else if (/^(\/|\\|[a-zA-Z]:\\)/.test(specifier)) { // absolute path
+  } else if (isAbsPath(specifier)) {
     return resolveFilename(specifier);
   }
   // TODO: root on windows FS
@@ -71,11 +73,11 @@ export class Loader {
   ) {}
 
   public overrideModule(specifier: string, module: ivm.Module): void {
-    this.moduleOverrides.set(specifier, module);
-  }
-
-  public getModule(specifier: string): ivm.Module | undefined {
-    return this.moduleOverrides.get(specifier);
+    if (isAbsPath(specifier)) {
+      this.moduleCache.set(specifier, module);
+    } else {
+      this.moduleOverrides.set(specifier, module);
+    }
   }
 
   public async loadModule(filename: string) {
