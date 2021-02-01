@@ -1,5 +1,5 @@
 /// Internals manipulate the Global object, track callbacks, accumulate commands, and provide an interface for interacting with sdk-core.
-import * as iface from '../../proto/core_interface';
+import * as iface from '../../proto/core-interface';
 import { alea } from './alea';
 import { Workflow } from './types';
 

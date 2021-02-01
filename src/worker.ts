@@ -1,7 +1,7 @@
 import { resolve } from 'path';
 import { Observable, partition } from 'rxjs';
 import { groupBy, mergeMap, mergeScan } from 'rxjs/operators';
-import { coresdk } from '../proto/core_interface';
+import { coresdk } from '../proto/core-interface';
 import {
   newWorker,
   workerPoll,

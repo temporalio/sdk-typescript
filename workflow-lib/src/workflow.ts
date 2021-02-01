@@ -1,4 +1,4 @@
-import { temporal } from '../../proto/core_interface';
+import { temporal } from '../../proto/core-interface';
 import { ContextType, ActivityOptions, ActivityFunction } from './types';
 import { state } from './internals';
 

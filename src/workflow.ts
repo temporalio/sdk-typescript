@@ -33,8 +33,10 @@ export class Workflow {
     const isolate = new ivm.Isolate();
     const context = await isolate.createContext();
     const loader = new Loader(isolate, context);
-    const protosModule = await loader.loadModule(pathResolve(__dirname, '../proto/isolate/core_interface.js'));
-    loader.overrideModule(pathResolve(__dirname, '../proto/core_interface.js'), protosModule);
+    const protobufModule = await loader.loadModule(pathResolve(__dirname, '../proto/isolate/protobuf.js'));
+    loader.overrideModule('protobufjs/minimal', protobufModule);
+    const protosModule = await loader.loadModule(pathResolve(__dirname, '../proto/isolate/core-interface.js'));
+    loader.overrideModule(pathResolve(__dirname, '../proto/core-interface.js'), protosModule);
     const workflowInternals = await loader.loadModule(pathResolve(__dirname, '../workflow-lib/lib/internals.js'));
     const workflowModule = await loader.loadModule(pathResolve(__dirname, '../workflow-lib/lib/workflow.js'));
     const activate = await workflowInternals.namespace.get('activate');
