@@ -114,10 +114,8 @@ export class Workflow {
   public async registerImplementation(path: string) {
     const mod = await this.loader.loadModule(path);
     this.loader.overrideModule('main', mod);
-    const runner = await this.loader.loadModule(pathResolve(__dirname, '../workflow-lib/lib/eval.js'));
-    const run = await runner.namespace.get('run');
-
-    // Run main, result will be stored in an output command
+    const registerWorkflow = await this.loader.loadModule(pathResolve(__dirname, '../workflow-lib/lib/register-workflow.js'));
+    const run = await registerWorkflow.namespace.get('run');
     await run.apply(undefined, [], {});
   }
 }
