@@ -11,7 +11,7 @@ export interface State {
   commands: iface.coresdk.ICommand[];
   nextSeq: number;
   /**
-   * This is set every time the workflow executes a task
+   * This is set every time the workflow executes an activation
    */
   now: number;
   workflow?: Workflow,
@@ -31,18 +31,18 @@ export function tsToMs(ts: iface.google.protobuf.ITimestamp | null | undefined) 
   }
   const { seconds, nanos } = ts;
   // TODO: seconds could be bigint | long | null | undeinfed
-  return (seconds as number) * 1000 + Math.round((nanos || 0) / 1000000);
+  return (seconds as number) * 1000 + Math.floor((nanos || 0) / 1000000);
 }
 
-export type HandlerFunction = (task: iface.coresdk.WorkflowTask) => void;
-export type WorkflowTaskHandler = Record<Exclude<iface.coresdk.WorkflowTask['attributes'], undefined>, HandlerFunction>;
+export type HandlerFunction = (activation: iface.coresdk.WFActivation) => void;
+export type WorkflowTaskHandler = Record<Exclude<iface.coresdk.WFActivation['attributes'], undefined>, HandlerFunction>;
 
 export class Activator implements WorkflowTaskHandler {
-  public startWorkflow(task: iface.coresdk.WorkflowTask): void {
+  public startWorkflow(activation: iface.coresdk.WFActivation): void {
     if (state.workflow === undefined) {
       throw new Error('state.workflow is not defined');
     }
-    state.workflow.main(...(task.startWorkflow?.arguments?.payloads || [])) // TODO: deserialize payloads
+    state.workflow.main(...(activation.startWorkflow?.arguments?.payloads || [])) // TODO: deserialize payloads
       .then((_result: any) => {
         state.commands.push({
           api: {
@@ -65,8 +65,8 @@ export class Activator implements WorkflowTaskHandler {
       });
   }
 
-  public unblockTimer(task: iface.coresdk.WorkflowTask): void {
-    const taskSeq = parseInt(task.unblockTimer!.timerId!); // TODO: improve types to get rid of !
+  public unblockTimer(activation: iface.coresdk.WFActivation): void {
+    const taskSeq = parseInt(activation.unblockTimer!.timerId!); // TODO: improve types to get rid of !
     const callbacks = state.callbacks.get(taskSeq);
     if (callbacks === undefined) {
       throw new Error(`No callback for taskSeq ${taskSeq}`);
@@ -77,15 +77,15 @@ export class Activator implements WorkflowTaskHandler {
 };
 
 export function activate(arr: Uint8Array) {
-  const task = iface.coresdk.WorkflowTask.decodeDelimited(arr);
-  state.now = tsToMs(task.timestamp);
+  const activation = iface.coresdk.WFActivation.decodeDelimited(arr);
+  state.now = tsToMs(activation.timestamp);
   if (state.activator === undefined) {
     throw new Error('state.activator is not defined');
   }
-  if (task.attributes === undefined) {
+  if (activation.attributes === undefined) {
     throw new Error('Expected workflow attributes to be defined');
   }
-  state.activator[task.attributes](task);
+  state.activator[activation.attributes](activation);
 }
 
 export function concludeActivation(taskToken: Uint8Array) {

@@ -1,5 +1,5 @@
 use ::temporal_sdk_core::protos::coresdk::{
-    complete_task_req, task, workflow_task_completion, CompleteTaskReq, Task,
+    complete_task_req, task, wf_activation_completion, CompleteTaskReq, Task,
 };
 use ::temporal_sdk_core::{Core, CoreError::NoWork, Result};
 
@@ -23,7 +23,7 @@ impl Core for MockCore {
         match req.completion {
             Some(complete_task_req::Completion::Workflow(wf)) => {
                 match wf.status {
-                    Some(workflow_task_completion::Status::Successful(success)) => {
+                    Some(wf_activation_completion::Status::Successful(success)) => {
                         println!("WF task success: {:#?}", success.commands);
                     }
                     _ => {}

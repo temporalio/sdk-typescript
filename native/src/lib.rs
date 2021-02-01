@@ -7,8 +7,8 @@ use ::prost_types::Timestamp;
 use ::std::sync::{Arc, Condvar, Mutex, RwLock};
 use ::temporal_sdk_core::protos::coresdk;
 use ::temporal_sdk_core::protos::coresdk::{
-    task, workflow_task, CompleteTaskReq, StartWorkflowTaskAttributes, UnblockTimerTaskAttributes,
-    WorkflowTask,
+    task, wf_activation, CompleteTaskReq, StartWorkflowTaskAttributes, UnblockTimerTaskAttributes,
+    WfActivation,
 };
 
 use ::temporal_sdk_core::Core;
@@ -27,10 +27,10 @@ impl Finalize for Worker {}
 impl Worker {
     pub fn new(queue_name: String) -> Self {
         let mut tasks = ::std::collections::VecDeque::<task::Variant>::new();
-        tasks.push_back(task::Variant::Workflow(WorkflowTask {
+        tasks.push_back(task::Variant::Workflow(WfActivation {
             run_id: "test".to_string(),
             timestamp: Some(Timestamp::from(::std::time::SystemTime::now())),
-            attributes: Some(workflow_task::Attributes::StartWorkflow(
+            attributes: Some(wf_activation::Attributes::StartWorkflow(
                 StartWorkflowTaskAttributes {
                     namespace: "default".to_string(),
                     name: "main".to_string(),
@@ -39,10 +39,10 @@ impl Worker {
                 },
             )),
         }));
-        tasks.push_back(task::Variant::Workflow(WorkflowTask {
+        tasks.push_back(task::Variant::Workflow(WfActivation {
             run_id: "test".to_string(),
             timestamp: Some(Timestamp::from(::std::time::SystemTime::now())),
-            attributes: Some(workflow_task::Attributes::UnblockTimer(
+            attributes: Some(wf_activation::Attributes::UnblockTimer(
                 UnblockTimerTaskAttributes {
                     timer_id: "0".to_string(),
                 },

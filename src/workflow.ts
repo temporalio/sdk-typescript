@@ -1,6 +1,7 @@
 import { resolve as pathResolve } from 'path';
 import ivm from 'isolated-vm';
 import dedent from 'dedent';
+import { coresdk } from '../proto/core-interface';
 import { Loader } from './loader';
 
 export enum ApplyMode {
@@ -102,7 +103,8 @@ export class Workflow {
     }`, [handler], { arguments: { reference: true } });
   }
 
-  public async activate(taskToken: Uint8Array, arr: Uint8Array) {
+  public async activate(taskToken: Uint8Array, activation: coresdk.IWFActivation) {
+    const arr = coresdk.WFActivation.encodeDelimited(activation).finish();
     await this.workflowModule.activate.apply(undefined, [arr], { arguments: { copy: true } });
     // Microtasks will already have run at this point
     return this.workflowModule.concludeActivation.apply(undefined, [taskToken], {

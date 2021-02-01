@@ -32,7 +32,7 @@
   },
   "dependencies": {
     "dedent": "^0.7.0",
-    "isolated-vm": "^3.3.7",
+    "isolated-vm": "^3.3.10",
     "neon-cli": "^0.7.0",
     "protobufjs": "^6.10.2",
     "rxjs": "^6.6.3"

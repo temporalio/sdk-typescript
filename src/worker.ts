@@ -122,7 +122,7 @@ export class Worker {
         return () => {}; // TODO: shutdown worker if no subscribers
       });
     });
-    type TaskForWorkflow = Required<{ taskToken: coresdk.ITask['taskToken'], workflow: coresdk.WorkflowTask }>;
+    type TaskForWorkflow = Required<{ taskToken: coresdk.ITask['taskToken'], workflow: coresdk.WFActivation }>;
     type TaskForActivity = Required<{ taskToken: coresdk.ITask['taskToken'], workflow: coresdk.ActivityTask }>;
     const [workflow$] = partition(poller$, (task) => task.variant === 'workflow') as any as [Observable<TaskForWorkflow>, Observable<TaskForActivity>];
 
@@ -134,7 +134,6 @@ export class Worker {
             mergeScan(async (workflow: Workflow | undefined, task) => {
               if (workflow === undefined) {
                 if (!task.workflow.startWorkflow) {
-
                   throw new Error('Expected StartWorkflow');
                 }
                 workflow = await Workflow.create(task.workflow.startWorkflow.workflowId!);
@@ -143,8 +142,7 @@ export class Worker {
                 const scriptName = process.argv[process.argv.length - 1];
                 await workflow.registerImplementation(scriptName);
               }
-              const encodedWorkflowTask = coresdk.WorkflowTask.encodeDelimited(task.workflow).finish();
-              const arr = await workflow.activate(task.taskToken!, encodedWorkflowTask);
+              const arr = await workflow.activate(task.taskToken!, task.workflow);
               workerCompleteTask(native, arr.buffer.slice(arr.byteOffset));
               return workflow;
             }, undefined, 1 /* concurrency */))
