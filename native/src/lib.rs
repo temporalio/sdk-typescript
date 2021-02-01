@@ -33,7 +33,7 @@ impl Worker {
             attributes: Some(wf_activation::Attributes::StartWorkflow(
                 StartWorkflowTaskAttributes {
                     namespace: "default".to_string(),
-                    name: "main".to_string(),
+                    name: "set-timeout".to_string(),
                     arguments: None,
                     workflow_id: "test".to_string(),
                 },

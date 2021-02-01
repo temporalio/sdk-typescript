@@ -1,7 +1,7 @@
 import { Worker } from './worker';
 
 async function run() {
-  const worker = new Worker(__dirname);
+  const worker = new Worker(__dirname, { workflowsPath: `${__dirname}/../test-workflows/lib` });
   await worker.run("test");
 }
 

@@ -12,46 +12,56 @@ import {
   Worker as NativeWorker,
 } from '../native';
 import { Workflow } from './workflow';
+import { resolveFilename, LoaderError } from './loader';
 import { ActivityOptions } from './activity';
 
 export interface WorkerOptions {
   activityDefaults?: ActivityOptions;
   /**
-   * Path to use as alias for the `@activities` import and registration
+   * Path to look up activities in.
+   * Use as alias for the `@activities` import.
    * defaults to `../activities`
+   * pass `null` to manually register activities
    */
-  activitiesPath?: string;
+  activitiesPath?: string | null;
   /**
-   * Path to use as alias for the `@activities` import
+   * Path to look up workflows in.
    * defaults to `../workflows`
+   * pass `null` to manually register workflows
    */
-  workflowsPath?: string;
+  workflowsPath?: string | null;
 
-  /**
-  * @defaultValue `true`
-  */
-  autoRegisterActivities?: boolean, // defaults to true
-  autoRegisterWorkflows?: boolean,  // defaults to true
-
-  maxConcurrentActivityExecutionSize?: number, // defaults to 200
-  maxConcurrentLocalActivityExecutionSize?: number, // defaults to 200
-  getMaxConcurrentWorkflowTaskExecutionSize?: number, // defaults to 200
-  getMaxTaskQueueActivitiesPerSecond?: number,
-  getMaxWorkerActivitiesPerSecond?: number,
+  // TODO: implement all of these
+  maxConcurrentActivityExecutions?: number, // defaults to 200
+  maxConcurrentLocalActivityExecutions?: number, // defaults to 200
+  maxConcurrentWorkflowTaskExecutions?: number, // defaults to 200
+  maxTaskQueueActivitiesPerSecond?: number,
+  maxWorkerActivitiesPerSecond?: number,
   isLocalActivityWorkerOnly?: boolean, // defaults to false
 }
 
-export function getDefaultOptions(dirname: string): WorkerOptions {
+export type WorkerOptionsWithDefaults = Required<Pick<WorkerOptions, 'activitiesPath' | 'workflowsPath'>>;
+
+export const resolver = (baseDir: string | null, overrides: Map<string, string>) => async (lookupName: string): Promise<string> => {
+  const resolved = overrides.get(lookupName);
+  if (resolved !== undefined) return resolved;
+  if (baseDir === null) {
+    throw new LoaderError(`Could not find ${lookupName} in overrides and no baseDir provided`);
+  }
+
+  return await resolveFilename(resolve(baseDir, lookupName));
+};
+
+export function getDefaultOptions(dirname: string): WorkerOptionsWithDefaults {
   return {
     activitiesPath: resolve(dirname, '../activities'),
     workflowsPath: resolve(dirname, '../workflows'),
-    autoRegisterActivities: true,
-    autoRegisterWorkflows: true,
   };
 };
 
 export class Worker {
-  public readonly options: WorkerOptions;
+  public readonly options: WorkerOptionsWithDefaults;
+  protected readonly workflowOverrides: Map<string, string> = new Map();
   nativeWorker?: NativeWorker;
 
   /**
@@ -92,8 +102,10 @@ export class Worker {
   /**
    * Manually register workflows, e.g. for when using a non-standard directory structure.
    */
-  public async registerWorkflows(_nameToPath: Record<string, string>): Promise<void> {
-    // Not implemented yet
+  public async registerWorkflows(nameToPath: Record<string, string>): Promise<void> {
+    for (const [name, path] of Object.entries(nameToPath)) {
+      this.workflowOverrides.set(name, path);
+    }
   }
 
   /**
@@ -133,13 +145,14 @@ export class Worker {
           return group$.pipe(
             mergeScan(async (workflow: Workflow | undefined, task) => {
               if (workflow === undefined) {
-                if (!task.workflow.startWorkflow) {
-                  throw new Error('Expected StartWorkflow');
+                const attrs = task.workflow.startWorkflow;
+                if (!(attrs && attrs.workflowId && attrs.name)) {
+                  throw new Error('Expected StartWorkflow with workflowId and name');
                 }
-                workflow = await Workflow.create(task.workflow.startWorkflow.workflowId!);
+                workflow = await Workflow.create(attrs.workflowId);
+                // TODO: this probably shouldn't be here, consider alternative implementation
                 await workflow.inject('console.log', console.log);
-                // TODO: get script name from task params
-                const scriptName = process.argv[process.argv.length - 1];
+                const scriptName = await resolver(this.options.workflowsPath, this.workflowOverrides)(attrs.name);
                 await workflow.registerImplementation(scriptName);
               }
               const arr = await workflow.activate(task.taskToken!, task.workflow);

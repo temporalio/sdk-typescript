@@ -33,6 +33,7 @@ export async function resolveFilename(path: string, allowDir: boolean = true): P
     if (ext === '') return resolveFilename(`${path}.js`, false);
     else throw new LoaderError(`Could not find file: ${path}`);
   } else if (stats.isFile()) {
+    // TODO: support .mjs and other extensions?
     if (ext === '.js') return path;
     else throw new LoaderError(`Only .js files can be imported, got ${path}`);
   } else if (stats?.isDirectory()) {
