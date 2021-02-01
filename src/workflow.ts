@@ -1,7 +1,6 @@
 import { resolve as pathResolve } from 'path';
 import ivm from 'isolated-vm';
 import dedent from 'dedent';
-import { coresdk } from '../proto/core_interface';
 import { Loader } from './loader';
 
 export enum ApplyMode {
@@ -14,8 +13,8 @@ export enum ApplyMode {
 const AsyncFunction = Object.getPrototypeOf(async function() {}).constructor;
 
 interface WorkflowModule {
-  trigger: ivm.Reference<Function>;
-  getAndResetCommands: ivm.Reference<Function>;
+  activate: ivm.Reference<Function>;
+  concludeActivation: ivm.Reference<Function>;
 }
 
 export class Workflow {
@@ -38,14 +37,14 @@ export class Workflow {
     loader.overrideModule(pathResolve(__dirname, '../proto/core_interface.js'), protosModule);
     const workflowInternals = await loader.loadModule(pathResolve(__dirname, '../workflow-lib/lib/internals.js'));
     const workflowModule = await loader.loadModule(pathResolve(__dirname, '../workflow-lib/lib/workflow.js'));
-    const trigger = await workflowInternals.namespace.get('trigger');
-    const getAndResetCommands = await workflowInternals.namespace.get('getAndResetCommands');
+    const activate = await workflowInternals.namespace.get('activate');
+    const concludeActivation = await workflowInternals.namespace.get('concludeActivation');
     const initWorkflow = await workflowInternals.namespace.get('initWorkflow');
     loader.overrideModule('@temporal-sdk/workflow', workflowModule);
 
     await initWorkflow.apply(undefined, [id], { arguments: { copy: true } });
 
-    return new Workflow(id, isolate, context, loader, { trigger, getAndResetCommands });
+    return new Workflow(id, isolate, context, loader, { activate, concludeActivation });
   }
 
   public async registerActivities(activities: Record<string, Record<string, any>>) {
@@ -101,21 +100,22 @@ export class Workflow {
     }`, [handler], { arguments: { reference: true } });
   }
 
-  public async trigger(task: coresdk.WorkflowTask) {
-    await this.workflowModule.trigger.apply(undefined, [task], { arguments: { copy: true }, result: { copy: true } });
+  public async activate(taskToken: Uint8Array, arr: Uint8Array) {
+    await this.workflowModule.activate.apply(undefined, [arr], { arguments: { copy: true } });
     // Microtasks will already have run at this point
-    return this.workflowModule.getAndResetCommands.apply(undefined, [], { result: { copy: true } }) as Promise<Array<any>>;
+    return this.workflowModule.concludeActivation.apply(undefined, [taskToken], {
+      arguments: { copy: true },
+      result: { copy: true },
+    }) as Promise<Uint8Array>;
   }
 
-  public async runMain(path: string, timestamp: number) {
+  public async registerImplementation(path: string) {
     const mod = await this.loader.loadModule(path);
     this.loader.overrideModule('main', mod);
     const runner = await this.loader.loadModule(pathResolve(__dirname, '../workflow-lib/lib/eval.js'));
     const run = await runner.namespace.get('run');
 
     // Run main, result will be stored in an output command
-    await run.apply(undefined, [timestamp], { arguments: { copy: true } });
-    // Microtasks will already have run at this point
-    return this.workflowModule.getAndResetCommands.apply(undefined, [], { result: { copy: true } }) as Promise<Array<any>>;
+    await run.apply(undefined, [], {});
   }
 }

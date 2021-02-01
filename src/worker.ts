@@ -1,7 +1,6 @@
 import { resolve } from 'path';
 import { Observable, partition } from 'rxjs';
 import { groupBy, mergeMap, mergeScan } from 'rxjs/operators';
-import { Writer } from 'protobufjs';
 import { coresdk } from '../proto/core_interface';
 import {
   newWorker,
@@ -12,7 +11,7 @@ import {
   workerCompleteTask,
   Worker as NativeWorker,
 } from '../native';
-import { Activator } from './workflow-activator';
+import { Workflow } from './workflow';
 import { ActivityOptions } from './activity';
 
 export interface WorkerOptions {
@@ -132,24 +131,22 @@ export class Worker {
         groupBy((task) => task.workflow.runId),
         mergeMap((group$) => {
           return group$.pipe(
-            mergeScan(async (activator: Activator | undefined, task) => {
-              // TODO: refactor this whole thing
-              console.log(task);
-              if (activator === undefined) {
+            mergeScan(async (workflow: Workflow | undefined, task) => {
+              if (workflow === undefined) {
                 if (!task.workflow.startWorkflow) {
+
                   throw new Error('Expected StartWorkflow');
                 }
-                activator = await Activator.create(task.workflow.startWorkflow.workflowId!);
+                workflow = await Workflow.create(task.workflow.startWorkflow.workflowId!);
+                await workflow.inject('console.log', console.log);
+                // TODO: get script name from task params
+                const scriptName = process.argv[process.argv.length - 1];
+                await workflow.registerImplementation(scriptName);
               }
-              if (task.workflow.attributes === undefined) {
-                throw new Error('Expected workflow attributes to be defined');
-              }
-              const completion = await activator[task.workflow.attributes](task.workflow);
-              const writer = new Writer(); // Use ArrayBuffer instead of the default node Buffer
-              const { buffer } = coresdk.CompleteTaskReq.encodeDelimited({ taskToken: task.taskToken, workflow: completion }, writer).finish();
-              console.log(buffer);
-              workerCompleteTask(native, buffer);
-              return activator;
+              const encodedWorkflowTask = coresdk.WorkflowTask.encodeDelimited(task.workflow).finish();
+              const arr = await workflow.activate(task.taskToken!, encodedWorkflowTask);
+              workerCompleteTask(native, arr.buffer.slice(arr.byteOffset));
+              return workflow;
             }, undefined, 1 /* concurrency */))
         })
       )

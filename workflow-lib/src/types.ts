@@ -38,3 +38,8 @@ export interface ActivityFunction<P extends any[], R> {
 export interface ContextType {
   configure<P extends any[], R>(activity: ActivityFunction<P, R>, options: ActivityOptions): ActivityFunction<P, R>;
 }
+
+// TODO: improve this definition
+export interface Workflow {
+  main(...args: any[]): Promise<any>;
+}

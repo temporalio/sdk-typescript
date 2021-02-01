@@ -143,7 +143,7 @@ fn worker_complete_task(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     let worker = cx.argument::<BoxedWorker>(0)?;
     let completion = cx.argument::<JsArrayBuffer>(1)?;
     let result = cx.borrow(&completion, |data| {
-        CompleteTaskReq::decode_length_delimited(data.as_slice())
+        CompleteTaskReq::decode_length_delimited(data.as_slice::<u8>())
     });
     match result {
         Ok(completion) => {

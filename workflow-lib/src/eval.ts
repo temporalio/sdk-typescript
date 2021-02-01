@@ -1,7 +1,7 @@
-import { runWorkflow } from './internals';
+import { registerWorkflow } from './internals';
  // @ts-ignore
 import { main } from 'main';
 
-export function run(timestamp: number) {
-  runWorkflow({ main }, timestamp);
+export function run() {
+  registerWorkflow({ main });
 }
