@@ -1,1 +1,1 @@
-export { sleep } from './sleep_impl';
+export { sleep } from './sleep-impl';
