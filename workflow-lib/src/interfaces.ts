@@ -2,31 +2,31 @@
 
 // See: https://www.javadoc.io/doc/io.temporal/temporal-sdk/latest/io/temporal/activity/ActivityOptions.Builder.html
 export interface CommonActivityOptions {
-  scheduleToCloseTimeout?: string,
-  startToCloseTimeout?: string,
-  scheduleToStartTimeout?: string,
-  heartbeatTimeout?: string,
+  scheduleToCloseTimeout?: string;
+  startToCloseTimeout?: string;
+  scheduleToStartTimeout?: string;
+  heartbeatTimeout?: string;
   /**
    * If not defined, will not retry, otherwise retry with given options
    */
-  retry?: RetryOptions,
+  retry?: RetryOptions;
 }
 
 export interface LocalActivityOptions extends CommonActivityOptions {
-  type: 'local',
+  type: 'local';
 }
 
 export interface RemoteActivityOptions extends CommonActivityOptions {
-  type: 'remote',
-  taskQueue: string,
+  type: 'remote';
+  taskQueue: string;
 }
 
 // See: https://www.javadoc.io/doc/io.temporal/temporal-sdk/latest/io/temporal/common/RetryOptions.Builder.html
 export interface RetryOptions {
-  backoffCoefficient?: number,
-  initialInterval?: string,
-  maximumAttempts?: number,
-  maximumInterval?: string,
+  backoffCoefficient?: number;
+  initialInterval?: string;
+  maximumAttempts?: number;
+  maximumInterval?: string;
 }
 
 export type ActivityOptions = RemoteActivityOptions | LocalActivityOptions;
@@ -39,7 +39,12 @@ export interface ContextType {
   configure<P extends any[], R>(activity: ActivityFunction<P, R>, options: ActivityOptions): ActivityFunction<P, R>;
 }
 
-// TODO: improve this definition
+export type WorkflowReturnType = Promise<void> | void;
+export type WorkflowSignalType = (...args: any[]) => Promise<void> | void;
+export type WorkflowQueryType = (...args: any[]) => any;
+
 export interface Workflow {
-  main(...args: any[]): Promise<any>;
+  main(...args: any[]): WorkflowReturnType;
+  signals?: Record<string, WorkflowSignalType>;
+  queries?: Record<string, WorkflowQueryType>;
 }

@@ -38,33 +38,46 @@ export function tsToMs(ts: iface.google.protobuf.ITimestamp | null | undefined) 
 export type HandlerFunction = (activation: iface.coresdk.WFActivation) => void;
 export type WorkflowTaskHandler = Record<Exclude<iface.coresdk.WFActivation['attributes'], undefined>, HandlerFunction>;
 
+function completeWorkflow(result: any) {
+  state.commands.push({
+    api: {
+      commandType: iface.temporal.api.enums.v1.CommandType.COMMAND_TYPE_COMPLETE_WORKFLOW_EXECUTION,
+      completeWorkflowExecutionCommandAttributes: {
+        result: defaultDataConverter.toPayloads(result),
+      },
+    },
+  });
+}
+
+function failWorkflow(error: any) {
+  state.commands.push({
+    api: {
+      commandType: iface.temporal.api.enums.v1.CommandType.COMMAND_TYPE_FAIL_WORKFLOW_EXECUTION,
+      failWorkflowExecutionCommandAttributes: {
+        failure: { message: error.message }, // TODO: stackTrace
+      },
+    },
+  });
+}
+
 export class Activator implements WorkflowTaskHandler {
   public startWorkflow(activation: iface.coresdk.WFActivation): void {
     if (state.workflow === undefined) {
       throw new Error('state.workflow is not defined');
     }
     // TODO: support custom converter
-    state.workflow.main(...arrayFromPayloads(defaultDataConverter, activation.startWorkflow?.arguments))
-      .then((result: any) => {
-        state.commands.push({
-          api: {
-            commandType: iface.temporal.api.enums.v1.CommandType.COMMAND_TYPE_COMPLETE_WORKFLOW_EXECUTION,
-            completeWorkflowExecutionCommandAttributes: {
-              result: defaultDataConverter.toPayloads(result),
-            },
-          },
-        });
-      })
-      .catch((error: any) => {
-        state.commands.push({
-          api: {
-            commandType: iface.temporal.api.enums.v1.CommandType.COMMAND_TYPE_FAIL_WORKFLOW_EXECUTION,
-            failWorkflowExecutionCommandAttributes: {
-              failure: { message: error.message }, // TODO: stackTrace
-            },
-          },
-        });
-      });
+    try {
+      const retOrPromise = state.workflow.main(...arrayFromPayloads(defaultDataConverter, activation.startWorkflow?.arguments))
+      if (retOrPromise instanceof Promise) {
+        retOrPromise
+          .then(completeWorkflow)
+          .catch(failWorkflow);
+      } else {
+        completeWorkflow(retOrPromise);
+      }
+    } catch (err) {
+      failWorkflow(err);
+    }
   }
 
   public unblockTimer(activation: iface.coresdk.WFActivation): void {
