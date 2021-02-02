@@ -2,6 +2,6 @@ import '@temporal-sdk/workflow';
 import { sleep } from './sleep';
 
 export async function main() {
-  await sleep(1000);
+  await sleep(10);
   console.log('slept');
 }

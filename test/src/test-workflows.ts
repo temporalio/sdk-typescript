@@ -59,12 +59,8 @@ function compareCompletion(
   t.deepEqual(actual, iface.coresdk.WFActivationCompletion.create(expected).toJSON());
 }
 
-function makeSuccess(...commands: iface.coresdk.ICommand[]): iface.coresdk.IWFActivationCompletion {
-  return {
-    successful: {
-      commands: commands.length > 0 ? commands : [makeCompleteWorkflowExecution()],
-    }
-  }
+function makeSuccess(commands: iface.coresdk.ICommand[] = [makeCompleteWorkflowExecution()]): iface.coresdk.IWFActivationCompletion {
+  return { successful: { commands } };
 }
 
 function makeStartWorkflow(
@@ -75,7 +71,7 @@ function makeStartWorkflow(
   return {
     runId: 'test-runId',
     timestamp: msToTs(timestamp),
-    startWorkflow: { workflowId: 'test-workflowId', name: script, arguments: args },
+    startWorkflow: { workflowId: 'test-workflowId', workflowType: script, arguments: args },
   };
 }
 
@@ -143,7 +139,7 @@ test('set-timeout', async (t) => {
   const { logs, script } = t.context;
   {
     const req = await activate(t, makeStartWorkflow(script));
-    compareCompletion(t, req, makeSuccess(makeStartTimerCommand({ timerId: '0', startToFireTimeout: msToTs(100) })));
+    compareCompletion(t, req, makeSuccess([makeStartTimerCommand({ timerId: '0', startToFireTimeout: msToTs(100) })]));
   }
   {
     const req = await activate(t, makeUnblockTimer('0'));
@@ -156,7 +152,7 @@ test('set-timeout-after-microtasks', async (t) => {
   const { logs, script } = t.context;
   {
     const req = await activate(t, makeStartWorkflow(script));
-    compareCompletion(t, req, makeSuccess(makeStartTimerCommand({ timerId: '0', startToFireTimeout: msToTs(100) })));
+    compareCompletion(t, req, makeSuccess([makeStartTimerCommand({ timerId: '0', startToFireTimeout: msToTs(100) })]));
   }
   {
     const req = await activate(t, makeUnblockTimer('0'));
@@ -191,11 +187,20 @@ test('promise-all', async (t) => {
   ]);
 });
 
-test.skip('promise-race', async (t) => {
-  // TODO: fixme
+test('promise-race', async (t) => {
   const { logs, script } = t.context;
-  const req = await activate(t, makeStartWorkflow(script));
-  compareCompletion(t, req, makeSuccess());
+  {
+    const req = await activate(t, makeStartWorkflow(script));
+    compareCompletion(t, req, makeSuccess([
+      makeStartTimerCommand({ timerId: '0', startToFireTimeout: msToTs(20) }),
+      makeStartTimerCommand({ timerId: '1', startToFireTimeout: msToTs(30) }),
+    ]));
+  }
+  {
+    const req = await activate(t, makeUnblockTimer('0'));
+    // Workflow completes without waiting for the second timer, TODO: cancel the pending timer?
+    compareCompletion(t, req, makeSuccess());
+  }
   t.deepEqual(logs, [
     [1],
     [1],
@@ -206,11 +211,23 @@ test.skip('promise-race', async (t) => {
   ]);
 });
 
-test.skip('race', async (t) => {
-  // TODO: fixme
+test('race', async (t) => {
   const { logs, script } = t.context;
-  const req = await activate(t, makeStartWorkflow(script));
-  compareCompletion(t, req, makeSuccess());
+  {
+    const req = await activate(t, makeStartWorkflow(script));
+    compareCompletion(t, req, makeSuccess([
+      makeStartTimerCommand({ timerId: '0', startToFireTimeout: msToTs(10) }),
+      makeStartTimerCommand({ timerId: '1', startToFireTimeout: msToTs(11) }),
+    ]));
+  }
+  {
+    const req = await activate(t, makeUnblockTimer('0'));
+    compareCompletion(t, req, makeSuccess([]));
+  }
+  {
+    const req = await activate(t, makeUnblockTimer('1'));
+    compareCompletion(t, req, makeSuccess());
+  }
   t.deepEqual(logs, [[1], [2], [3]]);
 });
 
@@ -218,7 +235,7 @@ test('importer', async (t) => {
   const { logs, script } = t.context;
   {
     const req = await activate(t, makeStartWorkflow(script));
-    compareCompletion(t, req, makeSuccess(makeStartTimerCommand({ timerId: '0', startToFireTimeout: msToTs(1000) })));
+    compareCompletion(t, req, makeSuccess([makeStartTimerCommand({ timerId: '0', startToFireTimeout: msToTs(10) })]));
   }
   {
     const req = await activate(t, makeUnblockTimer('0'));
@@ -251,12 +268,12 @@ test('args-and-return', async (t) => {
       },
     ],
   }));
-  compareCompletion(t, req, makeSuccess(makeCompleteWorkflowExecution(
+  compareCompletion(t, req, makeSuccess([makeCompleteWorkflowExecution(
     {
       metadata: { encoding: u8('json/plain') },
       data: u8(JSON.stringify('Hello, world')),
     },
-  )));
+  )]));
 });
 
 // TODO: Reimplement once activities are supported
