@@ -15,8 +15,10 @@ function getWorkflow(name: string) {
   return path.join(__dirname, '../../test-workflows/lib', name);
 }
 
-function u8(s: string) {
-  return new Uint8Array(s.split('').map((c) => c.charCodeAt(0)));
+function u8(s: string): Uint8Array {
+  // TextEncoder requires lib "dom"
+  // @ts-ignore
+  return new TextEncoder().encode(s);
 }
 
 export function msToTs(ms: number): iface.google.protobuf.ITimestamp {
@@ -65,11 +67,15 @@ function makeSuccess(...commands: iface.coresdk.ICommand[]): iface.coresdk.IWFAc
   }
 }
 
-function makeStartWorkflow(script: string, timestamp: number = Date.now()): iface.coresdk.IWFActivation {
+function makeStartWorkflow(
+  script: string,
+  args?: iface.temporal.api.common.v1.IPayloads,
+  timestamp: number = Date.now(),
+): iface.coresdk.IWFActivation {
   return {
     runId: 'test-runId',
     timestamp: msToTs(timestamp),
-    startWorkflow: { workflowId: 'test-workflowId', name: script },
+    startWorkflow: { workflowId: 'test-workflowId', name: script, arguments: args },
   };
 }
 
@@ -84,6 +90,7 @@ function makeUnblockTimer(timerId: string, timestamp: number = Date.now()): ifac
 function makeCompleteWorkflowExecution(
   ...payloads: iface.temporal.api.common.v1.IPayload[]
 ): iface.coresdk.ICommand {
+  if (payloads.length === 0) payloads = [{ metadata: { encoding: u8('binary/null') } }];
   return {
     api: {
       commandType: iface.temporal.api.enums.v1.CommandType.COMMAND_TYPE_COMPLETE_WORKFLOW_EXECUTION,
@@ -113,7 +120,7 @@ test('random', async (t) => {
 test('date', async (t) => {
   const { logs, script } = t.context;
   const now = Date.now();
-  const req = await activate(t, makeStartWorkflow(script, now));
+  const req = await activate(t, makeStartWorkflow(script, undefined, now));
   compareCompletion(t, req, makeSuccess());
   t.deepEqual(logs, [[now], [now], [true]]);
 });
@@ -227,8 +234,30 @@ test('external-importer', async (t) => {
   t.deepEqual(logs, [[{ a: 1, b: 2 }]]);
 });
 
-test.todo('args-and-return');
-// Test passing workflow args and return value
+test('args-and-return', async (t) => {
+  const { script } = t.context;
+  const req = await activate(t, makeStartWorkflow(script, {
+    payloads: [
+      {
+        metadata: { encoding: u8('json/plain') },
+        data: u8(JSON.stringify('Hello')),
+      },
+      {
+        metadata: { encoding: u8('binary/null') },
+      },
+      {
+        metadata: { encoding: u8('binary/plain') },
+        data: u8('world'),
+      },
+    ],
+  }));
+  compareCompletion(t, req, makeSuccess(makeCompleteWorkflowExecution(
+    {
+      metadata: { encoding: u8('json/plain') },
+      data: u8(JSON.stringify('Hello, world')),
+    },
+  )));
+});
 
 // TODO: Reimplement once activities are supported
 // test('invoke activity as an async function / with options', async (t) => {

@@ -1,4 +1,5 @@
 node_modules/
 lib/
 proto/
+workflow-lib/commonjs/
 *.tsbuildinfo

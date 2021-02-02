@@ -1,5 +1,6 @@
 /// Internals manipulate the Global object, track callbacks, accumulate commands, and provide an interface for interacting with sdk-core.
 import * as iface from '../../proto/core-interface';
+import { defaultDataConverter, arrayFromPayloads } from './converter/data-converter';
 import { alea } from './alea';
 import { Workflow } from './types';
 
@@ -42,13 +43,14 @@ export class Activator implements WorkflowTaskHandler {
     if (state.workflow === undefined) {
       throw new Error('state.workflow is not defined');
     }
-    state.workflow.main(...(activation.startWorkflow?.arguments?.payloads || [])) // TODO: deserialize payloads
-      .then((_result: any) => {
+    // TODO: support custom converter
+    state.workflow.main(...arrayFromPayloads(defaultDataConverter, activation.startWorkflow?.arguments))
+      .then((result: any) => {
         state.commands.push({
           api: {
             commandType: iface.temporal.api.enums.v1.CommandType.COMMAND_TYPE_COMPLETE_WORKFLOW_EXECUTION,
             completeWorkflowExecutionCommandAttributes: {
-              result: { /* TODO: payloads */ },
+              result: defaultDataConverter.toPayloads(result),
             },
           },
         });
