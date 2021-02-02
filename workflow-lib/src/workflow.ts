@@ -1,5 +1,5 @@
 import { temporal } from '../../proto/core-interface';
-import { ContextType, ActivityOptions, ActivityFunction } from './types';
+import { ContextType, ActivityOptions, ActivityFunction } from './interfaces';
 import { state } from './internals';
 
 export { ContextType, ActivityOptions };

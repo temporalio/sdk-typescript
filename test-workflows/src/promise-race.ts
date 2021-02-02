@@ -1,7 +1,8 @@
 import '@temporal-sdk/workflow';
+import { Workflow } from '@temporal-sdk/interfaces';
 import { sleep } from './sleep';
 
-export async function main() {
+async function main() {
   console.log(await Promise.race([1, 2, 3]));
   console.log(await Promise.race(new Set([1, 2, 3]).values()));
   console.log(await Promise.race([1, 2, 3].map((v) => Promise.resolve(v))));
@@ -20,3 +21,5 @@ export async function main() {
     console.log(err.message);
   }
 }
+
+export const workflow: Workflow = { main };

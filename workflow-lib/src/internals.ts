@@ -2,7 +2,7 @@
 import * as iface from '../../proto/core-interface';
 import { defaultDataConverter, arrayFromPayloads } from './converter/data-converter';
 import { alea } from './alea';
-import { Workflow } from './types';
+import { Workflow } from './interfaces';
 
 /**
  * Track command sequences and callbacks, accumulate commands

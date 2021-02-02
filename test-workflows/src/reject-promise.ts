@@ -16,3 +16,5 @@ export async function main() {
     console.log(err instanceof CustomError);
   }
 }
+
+export const workflow = { main };
