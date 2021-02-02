@@ -146,13 +146,13 @@ export class Worker {
             mergeScan(async (workflow: Workflow | undefined, task) => {
               if (workflow === undefined) {
                 const attrs = task.workflow.startWorkflow;
-                if (!(attrs && attrs.workflowId && attrs.name)) {
+                if (!(attrs && attrs.workflowId && attrs.workflowType)) {
                   throw new Error('Expected StartWorkflow with workflowId and name');
                 }
                 workflow = await Workflow.create(attrs.workflowId);
                 // TODO: this probably shouldn't be here, consider alternative implementation
                 await workflow.inject('console.log', console.log);
-                const scriptName = await resolver(this.options.workflowsPath, this.workflowOverrides)(attrs.name);
+                const scriptName = await resolver(this.options.workflowsPath, this.workflowOverrides)(attrs.workflowType);
                 await workflow.registerImplementation(scriptName);
               }
               const arr = await workflow.activate(task.taskToken!, task.workflow);
