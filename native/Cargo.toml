@@ -9,7 +9,6 @@ exclude = ["artifacts.json", "index.node"]
 
 [lib]
 name = "temporal_sdk_node"
-# TODO(SJ): I think needs to be cdylib on linux.
 crate-type = ["dylib"]
 
 [dependencies]
