@@ -1,14 +1,13 @@
 mod mock_core;
 
-use ::neon::prelude::*;
-use ::neon::register_module;
-use ::prost::Message;
-use ::prost_types::Timestamp;
-use ::std::sync::{Arc, Condvar, Mutex, RwLock};
-use ::temporal_sdk_core::protos::coresdk;
-use ::temporal_sdk_core::protos::coresdk::{
-    task, wf_activation, CompleteTaskReq, StartWorkflowTaskAttributes, UnblockTimerTaskAttributes,
-    WfActivation,
+use neon::prelude::*;
+use neon::register_module;
+use prost::Message;
+use prost_types::Timestamp;
+use std::sync::{Arc, Condvar, Mutex, RwLock};
+use temporal_sdk_core::protos::coresdk::{
+    self, task, wf_activation_job, CompleteTaskReq, StartWorkflowTaskAttributes,
+    TimerFiredTaskAttributes, WfActivation,
 };
 
 use ::temporal_sdk_core::Core;
@@ -30,22 +29,24 @@ impl Worker {
         tasks.push_back(task::Variant::Workflow(WfActivation {
             run_id: "test".to_string(),
             timestamp: Some(Timestamp::from(::std::time::SystemTime::now())),
-            attributes: Some(wf_activation::Attributes::StartWorkflow(
-                StartWorkflowTaskAttributes {
+            jobs: vec![
+                wf_activation_job::Attributes::StartWorkflow(StartWorkflowTaskAttributes {
                     arguments: None,
                     workflow_type: "set-timeout".to_string(),
                     workflow_id: "test".to_string(),
-                },
-            )),
+                })
+                .into(),
+            ],
         }));
         tasks.push_back(task::Variant::Workflow(WfActivation {
             run_id: "test".to_string(),
             timestamp: Some(Timestamp::from(::std::time::SystemTime::now())),
-            attributes: Some(wf_activation::Attributes::UnblockTimer(
-                UnblockTimerTaskAttributes {
+            jobs: vec![
+                wf_activation_job::Attributes::TimerFired(TimerFiredTaskAttributes {
                     timer_id: "0".to_string(),
-                },
-            )),
+                })
+                .into(),
+            ],
         }));
         let core = mock_core::MockCore { tasks };
 

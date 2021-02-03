@@ -3,6 +3,8 @@ import * as iface from '../../proto/core-interface';
 import { defaultDataConverter, arrayFromPayloads } from './converter/data-converter';
 import { alea } from './alea';
 import { Workflow } from './types';
+import {coresdk} from "../../proto/core-interface";
+import WFActivationJob = coresdk.WFActivationJob;
 
 /**
  * Track command sequences and callbacks, accumulate commands
@@ -17,11 +19,11 @@ export interface State {
   now: number;
   workflow?: Workflow,
   activator?: Activator,
-};
+}
 
 export const state: State = {
   callbacks: new Map(),
-  commands: new Array(),
+  commands: [],
   nextSeq: 0,
   now: 0,
 };
@@ -31,15 +33,15 @@ export function tsToMs(ts: iface.google.protobuf.ITimestamp | null | undefined) 
     throw new Error(`Expected timestamp, got ${ts}`);
   }
   const { seconds, nanos } = ts;
-  // TODO: seconds could be bigint | long | null | undeinfed
+  // TODO: seconds could be bigint | long | null | undefined
   return (seconds as number) * 1000 + Math.floor((nanos || 0) / 1000000);
 }
 
-export type HandlerFunction = (activation: iface.coresdk.WFActivation) => void;
-export type WorkflowTaskHandler = Record<Exclude<iface.coresdk.WFActivation['attributes'], undefined>, HandlerFunction>;
+export type HandlerFunction = (activation: iface.coresdk.WFActivationJob) => void;
+export type WorkflowTaskHandler = Record<Exclude<iface.coresdk.WFActivationJob['attributes'], undefined>, HandlerFunction>;
 
 export class Activator implements WorkflowTaskHandler {
-  public startWorkflow(activation: iface.coresdk.WFActivation): void {
+  public startWorkflow(activation: iface.coresdk.WFActivationJob): void {
     if (state.workflow === undefined) {
       throw new Error('state.workflow is not defined');
     }
@@ -67,8 +69,8 @@ export class Activator implements WorkflowTaskHandler {
       });
   }
 
-  public unblockTimer(activation: iface.coresdk.WFActivation): void {
-    const taskSeq = parseInt(activation.unblockTimer!.timerId!); // TODO: improve types to get rid of !
+  public timerFired(activation: iface.coresdk.WFActivationJob): void {
+    const taskSeq = parseInt(activation.timerFired!.timerId!); // TODO: improve types to get rid of !
     const callbacks = state.callbacks.get(taskSeq);
     if (callbacks === undefined) {
       throw new Error(`No callback for taskSeq ${taskSeq}`);
@@ -76,7 +78,7 @@ export class Activator implements WorkflowTaskHandler {
     const [callback] = callbacks;
     callback();
   }
-};
+}
 
 export function activate(arr: Uint8Array) {
   const activation = iface.coresdk.WFActivation.decodeDelimited(arr);
@@ -84,10 +86,16 @@ export function activate(arr: Uint8Array) {
   if (state.activator === undefined) {
     throw new Error('state.activator is not defined');
   }
-  if (activation.attributes === undefined) {
-    throw new Error('Expected workflow attributes to be defined');
+  if (activation.jobs === undefined) {
+    throw new Error('Expected workflow jobs to be defined');
   }
-  state.activator[activation.attributes](activation);
+  for (const job of activation.jobs) {
+    const concreteJob = job as WFActivationJob;
+    if (concreteJob.attributes === undefined) {
+      throw new Error('Expected job to have attributes');
+    }
+    state.activator[concreteJob.attributes](activation);
+  }
 }
 
 export function concludeActivation(taskToken: Uint8Array) {
