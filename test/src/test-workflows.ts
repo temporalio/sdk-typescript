@@ -95,6 +95,17 @@ function makeCompleteWorkflowExecution(
   };
 }
 
+function makeFailWorkflowExecution(
+  message: string
+): iface.coresdk.ICommand {
+  return {
+    api: {
+      commandType: iface.temporal.api.enums.v1.CommandType.COMMAND_TYPE_FAIL_WORKFLOW_EXECUTION,
+      failWorkflowExecutionCommandAttributes: { failure: { message } },
+    },
+  };
+}
+
 function makeStartTimerCommand(
   attrs: iface.temporal.api.command.v1.IStartTimerCommandAttributes
 ): iface.coresdk.ICommand {
@@ -111,6 +122,29 @@ test('random', async (t) => {
   const req = await activate(t, makeStartWorkflow(script));
   compareCompletion(t, req, makeSuccess());
   t.deepEqual(logs, [[0.9602179527282715]]);
+});
+
+test('sync', async (t) => {
+  const { script } = t.context;
+  const req = await activate(t, makeStartWorkflow(script));
+  compareCompletion(t, req, makeSuccess([makeCompleteWorkflowExecution(
+    {
+      metadata: { encoding: u8('json/plain') },
+      data: u8(JSON.stringify('success')),
+    },
+  )]));
+});
+
+test('throw-sync', async (t) => {
+  const { script } = t.context;
+  const req = await activate(t, makeStartWorkflow(script));
+  compareCompletion(t, req, makeSuccess([makeFailWorkflowExecution('failure')]));
+});
+
+test('throw-async', async (t) => {
+  const { script } = t.context;
+  const req = await activate(t, makeStartWorkflow(script));
+  compareCompletion(t, req, makeSuccess([makeFailWorkflowExecution('failure')]));
 });
 
 test('date', async (t) => {
