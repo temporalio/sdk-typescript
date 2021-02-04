@@ -64,6 +64,28 @@ function failWorkflow(error: any) {
   });
 }
 
+function completeQuery(result: any) {
+  state.commands.push({
+    core: {
+      queryResult: {
+        answer: { payloads: [defaultDataConverter.toPayload(result)!] },
+        resultType: iface.temporal.api.enums.v1.QueryResultType.QUERY_RESULT_TYPE_ANSWERED,
+      },
+    },
+  });
+}
+
+function failQuery(error: any) {
+  state.commands.push({
+    core: {
+      queryResult: {
+        resultType: iface.temporal.api.enums.v1.QueryResultType.QUERY_RESULT_TYPE_FAILED,
+        errorMessage: error.message,
+      },
+    },
+  });
+}
+
 export class Activator implements WorkflowTaskHandler {
   public startWorkflow(activation: iface.coresdk.IStartWorkflowTaskAttributes): void {
     if (state.workflow === undefined) {
@@ -95,6 +117,34 @@ export class Activator implements WorkflowTaskHandler {
     }
     const [callback] = callbacks;
     callback();
+  }
+
+  public queryWorkflow(job: iface.coresdk.IQueryWorkflowJob): void {
+    if (state.workflow === undefined) {
+      throw new Error('state.workflow is not defined');
+    }
+    // TODO: support custom converter
+    try {
+      const { queries } = state.workflow;
+      if (queries === undefined) {
+        throw new Error('Workflow did not define any queries');
+      }
+      if (!job.query?.queryType) {
+        throw new Error('Missing query type');
+      }
+
+      const fn = queries[job.query?.queryType];
+      const retOrPromise = fn(...arrayFromPayloads(defaultDataConverter, job.query.queryArgs))
+      if (retOrPromise instanceof Promise) {
+        retOrPromise
+          .then(completeQuery)
+          .catch(failQuery);
+      } else {
+        completeQuery(retOrPromise);
+      }
+    } catch (err) {
+      failQuery(err);
+    }
   }
 }
 

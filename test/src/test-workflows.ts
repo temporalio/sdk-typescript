@@ -97,6 +97,18 @@ function makeUnblockTimerJob(timerId: string): iface.coresdk.IWFActivationJob {
   };
 }
 
+function makeQueryWorkflow(queryType: string, queryArgs: any[], timestamp: number = Date.now()): iface.coresdk.IWFActivation {
+  return makeActivation(timestamp, makeQueryWorkflowJob(queryType, ...queryArgs));;
+}
+
+function makeQueryWorkflowJob(queryType: string, ...queryArgs: any[]): iface.coresdk.IWFActivationJob {
+  return {
+    queryWorkflow: {
+      query: { queryType, queryArgs: defaultDataConverter.toPayloads(...queryArgs) },
+    },
+  };
+}
+
 function makeCompleteWorkflowExecution(
   ...payloads: iface.temporal.api.common.v1.IPayload[]
 ): iface.coresdk.ICommand {
@@ -128,6 +140,14 @@ function makeStartTimerCommand(
       commandType: iface.temporal.api.enums.v1.CommandType.COMMAND_TYPE_START_TIMER,
       startTimerCommandAttributes: attrs,
     }
+  };
+}
+
+function makeWorkflowQueryResultCommand(
+  queryResult: iface.temporal.api.query.v1.IWorkflowQueryResult
+): iface.coresdk.ICommand {
+  return {
+    core: { queryResult }
   };
 }
 
@@ -369,6 +389,32 @@ test('args-and-return', async (t) => {
       data: u8(JSON.stringify('Hello, world')),
     },
   )]));
+});
+
+test('simple-query', async (t) => {
+  const { script } = t.context;
+  {
+    const req = await activate(t, makeStartWorkflow(script));
+    compareCompletion(t, req, makeSuccess([makeStartTimerCommand({ timerId: '0', startToFireTimeout: msToTs(10) })]));
+  }
+  {
+    const req = await activate(t, makeQueryWorkflow('hasSlept', []));
+    compareCompletion(t, req, makeSuccess([makeWorkflowQueryResultCommand({
+      answer: { payloads: [defaultDataConverter.toPayload(false)!] },
+      resultType: iface.temporal.api.enums.v1.QueryResultType.QUERY_RESULT_TYPE_ANSWERED,
+    })]));
+  }
+  {
+    const req = await activate(t, makeUnblockTimer('0'));
+    compareCompletion(t, req, makeSuccess());
+  }
+  {
+    const req = await activate(t, makeQueryWorkflow('hasSleptAsync', []));
+    compareCompletion(t, req, makeSuccess([makeWorkflowQueryResultCommand({
+      answer: { payloads: [defaultDataConverter.toPayload(true)!] },
+      resultType: iface.temporal.api.enums.v1.QueryResultType.QUERY_RESULT_TYPE_ANSWERED,
+    })]));
+  }
 });
 
 // TODO: Reimplement once activities are supported
