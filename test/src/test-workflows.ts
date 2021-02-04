@@ -1,6 +1,7 @@
 import anyTest, { TestInterface, ExecutionContext } from 'ava';
 import path from 'path';
 import iface from '../../proto/core-interface';
+import { defaultDataConverter } from '../../workflow-lib/commonjs/converter/data-converter';
 import { Workflow } from '../../lib/workflow';
 
 export interface Context {
@@ -75,11 +76,24 @@ function makeStartWorkflow(
   };
 }
 
-function makeUnblockTimer(timerId: string, timestamp: number = Date.now()): iface.coresdk.IWFActivation {
+function makeActivation(
+  timestamp: number = Date.now(),
+  ...jobs: iface.coresdk.IWFActivationJob[]
+): iface.coresdk.IWFActivation {
   return {
     runId: 'test-runId',
     timestamp: msToTs(timestamp),
-    jobs: [ { timerFired: { timerId } } ],
+    jobs,
+  };
+}
+
+function makeUnblockTimer(timerId: string, timestamp: number = Date.now()): iface.coresdk.IWFActivation {
+  return makeActivation(timestamp, makeUnblockTimerJob(timerId));;
+}
+
+function makeUnblockTimerJob(timerId: string): iface.coresdk.IWFActivationJob {
+  return {
+    timerFired: { timerId }
   };
 }
 
@@ -221,6 +235,50 @@ test('promise-all', async (t) => {
   ]);
 });
 
+test('tasks-and-microtasks', async (t) => {
+  const { logs, script } = t.context;
+  {
+    const req = await activate(t, makeStartWorkflow(script));
+    compareCompletion(t, req, makeSuccess([
+      makeStartTimerCommand({ timerId: '0', startToFireTimeout: msToTs(0) }),
+    ]));
+  }
+  {
+    const req = await activate(t, makeUnblockTimer('0'));
+    compareCompletion(t, req, makeSuccess());
+  }
+  t.deepEqual(logs, [
+    ['script start'],
+    ['script end'],
+    ['promise1'],
+    ['promise2'],
+    ['setTimeout'],
+  ]);
+});
+
+test('trailing-timer', async (t) => {
+  const { logs, script } = t.context;
+  {
+    const req = await activate(t, makeStartWorkflow(script));
+    compareCompletion(t, req, makeSuccess([
+      makeStartTimerCommand({ timerId: '0', startToFireTimeout: msToTs(20) }),
+      makeStartTimerCommand({ timerId: '1', startToFireTimeout: msToTs(30) }),
+    ]));
+  }
+  {
+    const req = await activate(t, makeActivation(
+      undefined,
+      makeUnblockTimerJob('0'),
+      makeUnblockTimerJob('1'),
+    ));
+    compareCompletion(t, req, makeSuccess([
+      makeCompleteWorkflowExecution(defaultDataConverter.toPayload(20)!),
+      makeStartTimerCommand({ timerId: '2', startToFireTimeout: msToTs(1) }),
+    ]));
+  }
+  t.deepEqual(logs, []);
+});
+
 test('promise-race', async (t) => {
   const { logs, script } = t.context;
   {
@@ -231,8 +289,11 @@ test('promise-race', async (t) => {
     ]));
   }
   {
-    const req = await activate(t, makeUnblockTimer('0'));
-    // Workflow completes without waiting for the second timer, TODO: cancel the pending timer?
+    const req = await activate(t, makeActivation(
+      undefined,
+      makeUnblockTimerJob('0'),
+      makeUnblockTimerJob('1'),
+    ));
     compareCompletion(t, req, makeSuccess());
   }
   t.deepEqual(logs, [

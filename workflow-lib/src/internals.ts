@@ -98,27 +98,22 @@ export class Activator implements WorkflowTaskHandler {
   }
 }
 
-export function activate(arr: Uint8Array) {
-  const activation = iface.coresdk.WFActivation.decodeDelimited(arr);
+export function activate(encodedActivation: Uint8Array, jobIndex: number) {
+  const activation = iface.coresdk.WFActivation.decodeDelimited(encodedActivation);
+  // job's type is IWFActivationJob which doesn't have the `attributes` property.
+  const job = activation.jobs[jobIndex] as iface.coresdk.WFActivationJob;
   state.now = tsToMs(activation.timestamp);
   if (state.activator === undefined) {
     throw new Error('state.activator is not defined');
   }
-  if (activation.jobs === undefined) {
-    throw new Error('Expected workflow jobs to be defined');
+  if (job.attributes === undefined) {
+    throw new Error('Expected job.attributes to be defined');
   }
-  for (const job of activation.jobs) {
-    // job's type is IWFActivationJob which doesn't have the `attributes` property.
-    const concreteJob = job as iface.coresdk.WFActivationJob;
-    if (concreteJob.attributes === undefined) {
-      throw new Error('Expected job to have attributes');
-    }
-    const attrs = concreteJob[concreteJob.attributes];
-    if (!attrs) {
-      throw new Error(`Expected job.${concreteJob.attributes} to be set`);
-    }
-    state.activator[concreteJob.attributes](attrs);
+  const attrs = job[job.attributes];
+  if (!attrs) {
+    throw new Error(`Expected job.${job.attributes} to be set`);
   }
+  state.activator[job.attributes](attrs);
 }
 
 export function concludeActivation(taskToken: Uint8Array) {

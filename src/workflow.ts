@@ -104,9 +104,16 @@ export class Workflow {
   }
 
   public async activate(taskToken: Uint8Array, activation: coresdk.IWFActivation) {
+    if (!activation.jobs) {
+      throw new Error('Expected workflow activation jobs to be defined');
+    }
     const arr = coresdk.WFActivation.encodeDelimited(activation).finish();
-    await this.workflowModule.activate.apply(undefined, [arr], { arguments: { copy: true } });
-    // Microtasks will already have run at this point
+    // Loop and invoke each job with entire microtasks chain.
+    // This is done outside of the isolate because we can't wait for microtasks from inside the isolate.
+    for (const idx in activation.jobs) {
+      await this.workflowModule.activate.apply(undefined, [arr, idx], { arguments: { copy: true } });
+      // Microtasks will already have run at this point
+    }
     return this.workflowModule.concludeActivation.apply(undefined, [taskToken], {
       arguments: { copy: true },
       result: { copy: true },
