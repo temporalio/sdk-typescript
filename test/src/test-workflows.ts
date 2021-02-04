@@ -71,7 +71,7 @@ function makeStartWorkflow(
   return {
     runId: 'test-runId',
     timestamp: msToTs(timestamp),
-    startWorkflow: { workflowId: 'test-workflowId', workflowType: script, arguments: args },
+    jobs: [ { startWorkflow: { workflowId: 'test-workflowId', workflowType: script, arguments: args } } ],
   };
 }
 
@@ -79,7 +79,7 @@ function makeUnblockTimer(timerId: string, timestamp: number = Date.now()): ifac
   return {
     runId: 'test-runId',
     timestamp: msToTs(timestamp),
-    unblockTimer: { timerId },
+    jobs: [ { timerFired: { timerId } } ],
   };
 }
 

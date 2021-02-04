@@ -146,6 +146,7 @@ export class Worker {
             mergeScan(async (workflow: Workflow | undefined, task) => {
               if (workflow === undefined) {
                 // Find a workflow start job in the activation jobs list
+                // TODO: should this alway be the first job in the list?
                 const maybeStartWorkflow = task.workflow.jobs.find(j => j.startWorkflow);
                 if (maybeStartWorkflow !== undefined) {
                   const attrs = maybeStartWorkflow.startWorkflow;
