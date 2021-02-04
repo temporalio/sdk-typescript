@@ -15,7 +15,7 @@ use ::temporal_sdk_core::Core;
 type BoxedWorker = JsBox<Arc<RwLock<Worker>>>;
 
 pub struct Worker {
-    _queue_name: String,
+    queue_name: String,
     core: mock_core::MockCore,
     condition: Condvar,
     suspended: Mutex<bool>,
@@ -51,7 +51,7 @@ impl Worker {
         let core = mock_core::MockCore { tasks };
 
         Worker {
-            _queue_name: queue_name,
+            queue_name,
             core,
             condition: Condvar::new(),
             suspended: Mutex::new(false),
@@ -63,7 +63,7 @@ impl Worker {
             .condition
             .wait_while(self.suspended.lock().unwrap(), |suspended| *suspended)
             .unwrap();
-        let res = self.core.poll_task();
+        let res = self.core.poll_task(&self.queue_name);
         self.core.tasks.pop_front();
         res
     }

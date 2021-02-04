@@ -9,7 +9,7 @@ pub struct MockCore {
 }
 
 impl Core for MockCore {
-    fn poll_task(&self) -> Result<Task> {
+    fn poll_task(&self, _task_q: &str) -> Result<Task> {
         match self.tasks.get(0) {
             Some(task) => Result::Ok(Task {
                 task_token: b"abc".to_vec(),
