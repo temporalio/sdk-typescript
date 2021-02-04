@@ -111,8 +111,14 @@ export class Workflow {
     // Loop and invoke each job with entire microtasks chain.
     // This is done outside of the isolate because we can't wait for microtasks from inside the isolate.
     for (const idx in activation.jobs) {
-      await this.workflowModule.activate.apply(undefined, [arr, idx], { arguments: { copy: true } });
+      const processed = await this.workflowModule.activate.apply(undefined, [arr, idx], {
+        arguments: { copy: true },
+        result: { copy: true },
+      });
       // Microtasks will already have run at this point
+      if (!processed) {
+        // TODO: Log?
+      }
     }
     return this.workflowModule.concludeActivation.apply(undefined, [taskToken], {
       arguments: { copy: true },

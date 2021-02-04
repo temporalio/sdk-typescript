@@ -291,9 +291,10 @@ test('trailing-timer', async (t) => {
       makeUnblockTimerJob('0'),
       makeUnblockTimerJob('1'),
     ));
+    // Note that the trailing timer does not get scheduled since the workflow completes
+    // after the first timer is triggered causing the second one to be dropped.
     compareCompletion(t, req, makeSuccess([
       makeCompleteWorkflowExecution(defaultDataConverter.toPayload(20)!),
-      makeStartTimerCommand({ timerId: '2', startToFireTimeout: msToTs(1) }),
     ]));
   }
   t.deepEqual(logs, []);

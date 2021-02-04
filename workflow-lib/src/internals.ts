@@ -10,6 +10,7 @@ import { Workflow } from './interfaces';
 export interface State {
   callbacks: Map<number, [Function, Function]>;
   commands: iface.coresdk.ICommand[];
+  completed: boolean;
   nextSeq: number;
   /**
    * This is set every time the workflow executes an activation
@@ -22,6 +23,7 @@ export interface State {
 export const state: State = {
   callbacks: new Map(),
   commands: [],
+  completed: false,
   nextSeq: 0,
   now: 0,
 };
@@ -51,6 +53,7 @@ function completeWorkflow(result: any) {
       },
     },
   });
+  state.completed = true;
 }
 
 function failWorkflow(error: any) {
@@ -62,6 +65,7 @@ function failWorkflow(error: any) {
       },
     },
   });
+  state.completed = true;
 }
 
 function completeQuery(result: any) {
@@ -148,6 +152,9 @@ export class Activator implements WorkflowTaskHandler {
   }
 }
 
+/**
+ * @returns a boolean indicating whether the job was processed or ignored
+ */
 export function activate(encodedActivation: Uint8Array, jobIndex: number) {
   const activation = iface.coresdk.WFActivation.decodeDelimited(encodedActivation);
   // job's type is IWFActivationJob which doesn't have the `attributes` property.
@@ -163,7 +170,14 @@ export function activate(encodedActivation: Uint8Array, jobIndex: number) {
   if (!attrs) {
     throw new Error(`Expected job.${job.attributes} to be set`);
   }
+  // The only job that can be executed on a completed workflow is a query.
+  // We might get other jobs after completion for instance when a single
+  // activation contains multiple jobs and the first one completes the workflow.
+  if (state.completed && job.attributes !== 'queryWorkflow') {
+    return false;
+  }
   state.activator[job.attributes](attrs);
+  return true;
 }
 
 export function concludeActivation(taskToken: Uint8Array) {
