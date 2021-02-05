@@ -1,16 +1,35 @@
-use ::temporal_sdk_core::protos::coresdk::{
-    complete_task_req, task, wf_activation_completion, CompleteTaskReq, Task,
+use std::{
+    collections::VecDeque,
+    sync::{Arc, RwLock},
 };
-use ::temporal_sdk_core::{Core, CoreError::NoWork, Result};
+use temporal_sdk_core::{
+    protos::coresdk::{complete_task_req, task, wf_activation_completion, CompleteTaskReq, Task},
+    Core,
+    CoreError::NoWork,
+    Result,
+};
 
 #[derive(Clone)]
 pub struct MockCore {
-    pub tasks: ::std::collections::VecDeque<task::Variant>,
+    tasks: Arc<RwLock<VecDeque<task::Variant>>>,
+}
+
+impl MockCore {
+    pub fn new() -> Self {
+        Self {
+            tasks: Arc::new(RwLock::new(Default::default())),
+        }
+    }
 }
 
 impl Core for MockCore {
     fn poll_task(&self, _task_q: &str) -> Result<Task> {
-        match self.tasks.get(0) {
+        match self
+            .tasks
+            .write()
+            .expect("Mock queue must be writeable")
+            .pop_front()
+        {
             Some(task) => Result::Ok(Task {
                 task_token: b"abc".to_vec(),
                 variant: Some(task.clone()),

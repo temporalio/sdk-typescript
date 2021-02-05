@@ -1,22 +1,31 @@
 mod mock_core;
 
-use neon::prelude::*;
-use neon::register_module;
+use neon::{prelude::*, register_module};
 use prost::Message;
 use prost_types::Timestamp;
-use std::sync::{Arc, Condvar, Mutex, RwLock};
-use temporal_sdk_core::protos::coresdk::{
-    self, task, wf_activation_job, CompleteTaskReq, StartWorkflowTaskAttributes,
-    TimerFiredTaskAttributes, WfActivation,
+use std::sync::RwLock;
+use std::{
+    collections::VecDeque,
+    sync::{Arc, Condvar, Mutex},
+    time::SystemTime,
+};
+use temporal_sdk_core::{
+    protos::coresdk::{
+        self, task, wf_activation_job, CompleteTaskReq, StartWorkflowTaskAttributes,
+        TimerFiredTaskAttributes, WfActivation,
+    },
+    Core,
 };
 
-use ::temporal_sdk_core::Core;
-
+// TODO: In principle this lock is totally unnecessary since worker never needs to mutate itself.
+//   -- in practice we are forced into it because the jsbox is passed into a new thread, and it
+//   imposes weird requirements where it can only be Send if also Sync. Can we avoid doing that, or
+//   otherwise avoid the lock?
 type BoxedWorker = JsBox<Arc<RwLock<Worker>>>;
 
 pub struct Worker {
     queue_name: String,
-    core: mock_core::MockCore,
+    core: Box<dyn Core + Send + Sync>,
     condition: Condvar,
     suspended: Mutex<bool>,
 }
@@ -25,10 +34,10 @@ impl Finalize for Worker {}
 
 impl Worker {
     pub fn new(queue_name: String) -> Self {
-        let mut tasks = ::std::collections::VecDeque::<task::Variant>::new();
+        let mut tasks = VecDeque::<task::Variant>::new();
         tasks.push_back(task::Variant::Workflow(WfActivation {
             run_id: "test".to_string(),
-            timestamp: Some(Timestamp::from(::std::time::SystemTime::now())),
+            timestamp: Some(Timestamp::from(SystemTime::now())),
             jobs: vec![
                 wf_activation_job::Attributes::StartWorkflow(StartWorkflowTaskAttributes {
                     arguments: None,
@@ -40,7 +49,7 @@ impl Worker {
         }));
         tasks.push_back(task::Variant::Workflow(WfActivation {
             run_id: "test".to_string(),
-            timestamp: Some(Timestamp::from(::std::time::SystemTime::now())),
+            timestamp: Some(Timestamp::from(SystemTime::now())),
             jobs: vec![
                 wf_activation_job::Attributes::TimerFired(TimerFiredTaskAttributes {
                     timer_id: "0".to_string(),
@@ -48,23 +57,22 @@ impl Worker {
                 .into(),
             ],
         }));
-        let core = mock_core::MockCore { tasks };
+        let core = mock_core::MockCore::new();
 
         Worker {
             queue_name,
-            core,
+            core: Box::new(core),
             condition: Condvar::new(),
             suspended: Mutex::new(false),
         }
     }
 
-    pub fn poll(&mut self) -> ::temporal_sdk_core::Result<coresdk::Task> {
+    pub fn poll(&self) -> ::temporal_sdk_core::Result<coresdk::Task> {
         let _guard = self
             .condition
             .wait_while(self.suspended.lock().unwrap(), |suspended| *suspended)
             .unwrap();
         let res = self.core.poll_task(&self.queue_name);
-        self.core.tasks.pop_front();
         res
     }
 
@@ -94,6 +102,7 @@ fn worker_poll(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     let arc_worker = Arc::clone(&**worker); // deref Handle and JsBox
     let arc_callback = Arc::new(callback);
     let queue = cx.queue();
+
     std::thread::spawn(move || loop {
         let arc_callback = arc_callback.clone();
         let arc_worker = arc_worker.clone();
