@@ -2,26 +2,18 @@ mod mock_core;
 
 use neon::{prelude::*, register_module};
 use prost::Message;
-use prost_types::Timestamp;
-use std::sync::RwLock;
 use std::{
-    collections::VecDeque,
+    convert::TryInto,
     sync::{Arc, Condvar, Mutex},
-    time::SystemTime,
+    time::Duration,
 };
 use temporal_sdk_core::{
-    protos::coresdk::{
-        self, task, wf_activation_job, CompleteTaskReq, StartWorkflowTaskAttributes,
-        TimerFiredTaskAttributes, WfActivation,
-    },
-    Core,
+    init,
+    protos::coresdk::{self, CompleteTaskReq},
+    Core, CoreInitOptions, ServerGatewayOptions,
 };
 
-// TODO: In principle this lock is totally unnecessary since worker never needs to mutate itself.
-//   -- in practice we are forced into it because the jsbox is passed into a new thread, and it
-//   imposes weird requirements where it can only be Send if also Sync. Can we avoid doing that, or
-//   otherwise avoid the lock?
-type BoxedWorker = JsBox<Arc<RwLock<Worker>>>;
+type BoxedWorker = JsBox<Arc<Worker>>;
 
 pub struct Worker {
     queue_name: String,
@@ -34,30 +26,25 @@ impl Finalize for Worker {}
 
 impl Worker {
     pub fn new(queue_name: String) -> Self {
-        let mut tasks = VecDeque::<task::Variant>::new();
-        tasks.push_back(task::Variant::Workflow(WfActivation {
-            run_id: "test".to_string(),
-            timestamp: Some(Timestamp::from(SystemTime::now())),
-            jobs: vec![
-                wf_activation_job::Attributes::StartWorkflow(StartWorkflowTaskAttributes {
-                    arguments: None,
-                    workflow_type: "set-timeout".to_string(),
-                    workflow_id: "test".to_string(),
-                })
-                .into(),
-            ],
-        }));
-        tasks.push_back(task::Variant::Workflow(WfActivation {
-            run_id: "test".to_string(),
-            timestamp: Some(Timestamp::from(SystemTime::now())),
-            jobs: vec![
-                wf_activation_job::Attributes::TimerFired(TimerFiredTaskAttributes {
-                    timer_id: "0".to_string(),
-                })
-                .into(),
-            ],
-        }));
-        let core = mock_core::MockCore::new(tasks);
+        let core = init(CoreInitOptions {
+            gateway_opts: ServerGatewayOptions {
+                target_url: "http://localhost:7233".try_into().unwrap(),
+                namespace: "default".to_string(),
+                identity: "node_sdk_test".to_string(),
+                worker_binary_id: "".to_string(),
+                long_poll_timeout: Duration::from_secs(30),
+            },
+        })
+        .unwrap();
+
+        // TODO: Needs to be moved to it's own function, and async handled better somehow
+        futures::executor::block_on(core.server_gateway().unwrap().start_workflow(
+            "default",
+            &queue_name,
+            "test-node-wf-id",
+            "set-timeout",
+        ))
+        .unwrap();
 
         Worker {
             queue_name,
@@ -82,16 +69,18 @@ impl Worker {
 
     pub fn suspend_polling(&self) {
         *self.suspended.lock().unwrap() = true;
+        self.condition.notify_one();
     }
 
     pub fn resume_polling(&self) {
         *self.suspended.lock().unwrap() = false;
+        self.condition.notify_one();
     }
 }
 
 fn worker_new(mut cx: FunctionContext) -> JsResult<BoxedWorker> {
     let queue_name = cx.argument::<JsString>(0)?.value(&mut cx);
-    let worker = Arc::new(RwLock::new(Worker::new(queue_name)));
+    let worker = Arc::new(Worker::new(queue_name));
 
     Ok(cx.boxed(worker))
 }
@@ -106,8 +95,10 @@ fn worker_poll(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     std::thread::spawn(move || loop {
         let arc_callback = arc_callback.clone();
         let arc_worker = arc_worker.clone();
-        let worker = &mut arc_worker.write().unwrap();
+        let worker = arc_worker;
         let result = worker.poll();
+        // We don't want to poll until re-awoken
+        worker.suspend_polling();
         match result {
             Ok(task) => {
                 queue.send(move |mut cx| {
@@ -156,9 +147,8 @@ fn worker_complete_task(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     });
     match result {
         Ok(completion) => {
-            let w = &mut worker.read().unwrap();
             // TODO: submit from background thread (using neon::Task)?
-            if let Err(err) = w.core.complete_task(completion) {
+            if let Err(err) = worker.core.complete_task(completion) {
                 let error = JsError::error(&mut cx, format!("{}", err))?;
                 cx.throw(error)
             } else {
@@ -178,22 +168,19 @@ fn worker_shutdown(mut cx: FunctionContext) -> JsResult<JsUndefined> {
 
 fn worker_suspend_polling(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     let worker = cx.argument::<BoxedWorker>(0)?;
-    let w = &mut worker.write().unwrap();
-    w.suspend_polling();
+    worker.suspend_polling();
     Ok(cx.undefined())
 }
 
 fn worker_resume_polling(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     let worker = cx.argument::<BoxedWorker>(0)?;
-    let w = &mut worker.write().unwrap();
-    w.resume_polling();
+    worker.resume_polling();
     Ok(cx.undefined())
 }
 
 fn worker_is_suspended(mut cx: FunctionContext) -> JsResult<JsBoolean> {
     let worker = cx.argument::<BoxedWorker>(0)?;
-    let w = &mut worker.read().unwrap();
-    Ok(cx.boolean(w.is_suspended()))
+    Ok(cx.boolean(worker.is_suspended()))
 }
 
 register_module!(mut cx, {

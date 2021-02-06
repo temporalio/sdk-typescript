@@ -45,6 +45,7 @@ export type WorkflowTaskHandler = {
 };
 
 function completeWorkflow(result: any) {
+  console.log("!!!!! Trying to complete workflow");
   state.commands.push({
     api: {
       commandType: iface.temporal.api.enums.v1.CommandType.COMMAND_TYPE_COMPLETE_WORKFLOW_EXECUTION,

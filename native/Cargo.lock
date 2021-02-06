@@ -1131,6 +1131,7 @@ dependencies = [
 name = "temporal-sdk-node"
 version = "0.1.0"
 dependencies = [
+ "futures",
  "neon",
  "neon-build",
  "prost",

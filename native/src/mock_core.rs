@@ -57,3 +57,28 @@ impl Core for MockCore {
         unimplemented!()
     }
 }
+// TODO: Left here to be stuffed in a fake poll builder or something
+// let mut tasks = VecDeque::<task::Variant>::new();
+// tasks.push_back(task::Variant::Workflow(WfActivation {
+//     run_id: "test".to_string(),
+//     timestamp: Some(Timestamp::from(SystemTime::now())),
+//     jobs: vec![
+//         wf_activation_job::Attributes::StartWorkflow(StartWorkflowTaskAttributes {
+//             arguments: None,
+//             workflow_type: "set-timeout".to_string(),
+//             workflow_id: "test".to_string(),
+//         })
+//         .into(),
+//     ],
+// }));
+// tasks.push_back(task::Variant::Workflow(WfActivation {
+//     run_id: "test".to_string(),
+//     timestamp: Some(Timestamp::from(SystemTime::now())),
+//     jobs: vec![
+//         wf_activation_job::Attributes::TimerFired(TimerFiredTaskAttributes {
+//             timer_id: "0".to_string(),
+//         })
+//         .into(),
+//     ],
+// }));
+// let core = mock_core::MockCore::new(tasks);
