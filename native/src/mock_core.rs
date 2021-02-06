@@ -6,7 +6,7 @@ use temporal_sdk_core::{
     protos::coresdk::{complete_task_req, task, wf_activation_completion, CompleteTaskReq, Task},
     Core,
     CoreError::NoWork,
-    Result,
+    Result, ServerGatewayApis,
 };
 
 #[derive(Clone)]
@@ -15,9 +15,9 @@ pub struct MockCore {
 }
 
 impl MockCore {
-    pub fn new() -> Self {
+    pub fn new(tasks: VecDeque<task::Variant>) -> Self {
         Self {
-            tasks: Arc::new(RwLock::new(Default::default())),
+            tasks: Arc::new(RwLock::new(tasks)),
         }
     }
 }
@@ -51,5 +51,9 @@ impl Core for MockCore {
             _ => {}
         };
         Result::Ok(())
+    }
+
+    fn server_gateway(&self) -> Result<Arc<dyn ServerGatewayApis>> {
+        unimplemented!()
     }
 }

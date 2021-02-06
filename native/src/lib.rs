@@ -57,7 +57,7 @@ impl Worker {
                 .into(),
             ],
         }));
-        let core = mock_core::MockCore::new();
+        let core = mock_core::MockCore::new(tasks);
 
         Worker {
             queue_name,
