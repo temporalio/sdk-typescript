@@ -1,6 +1,6 @@
 import { resolve } from 'path';
 import { Observable, partition } from 'rxjs';
-import { groupBy, mergeMap, mergeScan } from 'rxjs/operators';
+import { groupBy, mergeMap } from 'rxjs/operators';
 import { coresdk } from '../proto/core-interface';
 import {
   newWorker,
@@ -11,6 +11,7 @@ import {
   workerCompleteTask,
   Worker as NativeWorker,
 } from '../native';
+import { mergeMapWithState } from './rxutils';
 import { Workflow } from './workflow';
 import { resolveFilename, LoaderError } from './loader';
 import { ActivityOptions } from './activity';
@@ -143,7 +144,7 @@ export class Worker {
         groupBy((task) => task.workflow.runId),
         mergeMap((group$) => {
           return group$.pipe(
-            mergeScan(async (workflow: Workflow | undefined, task) => {
+            mergeMapWithState(async (workflow: Workflow | undefined, task) => {
               if (workflow === undefined) {
                 // Find a workflow start job in the activation jobs list
                 // TODO: should this always be the first job in the list?
@@ -167,8 +168,8 @@ export class Worker {
               workerCompleteTask(native, arr.buffer.slice(arr.byteOffset));
               // Allow polling to continue
               this.resumePolling();
-              return workflow;
-            }, undefined, 1 /* concurrency */))
+              return { state: workflow, output: arr };
+            }, undefined))
         })
       )
       .toPromise();
