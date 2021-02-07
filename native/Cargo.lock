@@ -660,6 +660,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "opentelemetry"
+version = "0.12.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "514d24875c140ed269eecc2d1b56d7b71b573716922a763c317fb1b1b4b58f15"
+dependencies = [
+ "async-trait",
+ "futures",
+ "js-sys",
+ "lazy_static",
+ "percent-encoding",
+ "pin-project 1.0.5",
+ "rand 0.8.3",
+ "thiserror",
+]
+
+[[package]]
 name = "opentelemetry-jaeger"
 version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -667,7 +683,7 @@ checksum = "b4c604a73595f605a852c431ef9c6bbacc7b911f094900905fd2f684b6fc44b4"
 dependencies = [
  "async-trait",
  "lazy_static",
- "opentelemetry",
+ "opentelemetry 0.11.2",
  "thiserror",
  "thrift",
 ]
@@ -1098,6 +1114,7 @@ dependencies = [
  "opentelemetry-jaeger",
  "prost",
  "prost-types",
+ "rand 0.8.3",
  "rustfsm",
  "thiserror",
  "tokio",
@@ -1107,12 +1124,14 @@ dependencies = [
  "tracing-opentelemetry",
  "tracing-subscriber",
  "url",
+ "uuid",
 ]
 
 [[package]]
 name = "temporal-sdk-node"
 version = "0.1.0"
 dependencies = [
+ "futures",
  "neon",
  "neon-build",
  "prost",
@@ -1260,8 +1279,7 @@ dependencies = [
 [[package]]
 name = "tonic"
 version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3ba8f479158947373b6df40cf48f4779bb25c99ca3c661bd95e0ab1963ad8b0e"
+source = "git+https://github.com/temporalio/tonic#a2658d6faddaf0aa5e5fc8a0ee0e4244ea53cbca"
 dependencies = [
  "async-stream",
  "async-trait",
@@ -1385,11 +1403,11 @@ dependencies = [
 
 [[package]]
 name = "tracing-opentelemetry"
-version = "0.10.0"
+version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b1706e1f42970e09aa0635deb4f4607e8704a4390427d5f0062bf59240338bcc"
+checksum = "cccdf13c28f1654fe806838f28c5b9cb23ca4c0eae71450daa489f50e523ceb1"
 dependencies = [
- "opentelemetry",
+ "opentelemetry 0.12.0",
  "tracing",
  "tracing-core",
  "tracing-log",
@@ -1474,6 +1492,15 @@ dependencies = [
  "idna",
  "matches",
  "percent-encoding",
+]
+
+[[package]]
+name = "uuid"
+version = "0.8.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bc5cf98d8186244414c848017f0e2676b3fcb46807f6668a97dfe67359a3c4b7"
+dependencies = [
+ "getrandom 0.2.2",
 ]
 
 [[package]]

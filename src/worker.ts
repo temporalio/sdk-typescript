@@ -57,7 +57,7 @@ export function getDefaultOptions(dirname: string): WorkerOptionsWithDefaults {
     activitiesPath: resolve(dirname, '../activities'),
     workflowsPath: resolve(dirname, '../workflows'),
   };
-};
+}
 
 export class Worker {
   public readonly options: WorkerOptionsWithDefaults;
@@ -146,12 +146,12 @@ export class Worker {
             mergeScan(async (workflow: Workflow | undefined, task) => {
               if (workflow === undefined) {
                 // Find a workflow start job in the activation jobs list
-                // TODO: should this alway be the first job in the list?
+                // TODO: should this always be the first job in the list?
                 const maybeStartWorkflow = task.workflow.jobs.find(j => j.startWorkflow);
                 if (maybeStartWorkflow !== undefined) {
                   const attrs = maybeStartWorkflow.startWorkflow;
                   if (!(attrs && attrs.workflowId && attrs.workflowType)) {
-                    throw new Error('Expected StartWorkflow with workflowId and name');
+                    throw new Error(`Expected StartWorkflow with workflowId and workflowType, got ${JSON.stringify(maybeStartWorkflow)}`);
                   }
                   workflow = await Workflow.create(attrs.workflowId);
                   // TODO: this probably shouldn't be here, consider alternative implementation
@@ -162,8 +162,11 @@ export class Worker {
                   throw new Error('Received workflow activation for an untracked workflow with no start workflow job');
                 }
               }
+              console.log(`!!!!! Trying to complete task: ${task.taskToken}`)
               const arr = await workflow.activate(task.taskToken!, task.workflow);
               workerCompleteTask(native, arr.buffer.slice(arr.byteOffset));
+              // Allow polling to continue
+              this.resumePolling();
               return workflow;
             }, undefined, 1 /* concurrency */))
         })
