@@ -37,13 +37,15 @@
         "paths": {
             "@activities": ["../test-activities/lib"],
             "@activities/*": ["../test-activities/lib/*"],
-            "@temporal-sdk/*": ["../workflow-lib/lib/*"]
+            "@temporal-sdk/*": ["../workflow-lib/lib/*"],
+            "@interfaces": ["../workflow-interfaces/lib"]
         }
     },
     "references": [
         { "path": "../" },
         { "path": "../test-activities/" },
-        { "path": "../workflow-lib/" }
+        { "path": "../workflow-lib/" },
+        { "path": "../workflow-interfaces/" }
     ],
     "include": [
         "./src/**/*.ts"

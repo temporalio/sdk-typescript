@@ -27,6 +27,7 @@ const pbjsArgs = (wrap, out) => [
   '--out',
   out,
   resolve(protoBaseDir, 'local/core_interface.proto'),
+  resolve(protoBaseDir, 'api_upstream//temporal/api/workflowservice/v1/service.proto'),
 ];
 
 console.log('Creating protobuf JS definitions');

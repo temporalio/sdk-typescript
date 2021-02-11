@@ -3,6 +3,7 @@ import * as iface from '../../proto/core-interface';
 import { defaultDataConverter, arrayFromPayloads } from './converter/data-converter';
 import { alea } from './alea';
 import { Workflow } from './interfaces';
+import { tsToMs } from './time';
 
 /**
  * Track command sequences and callbacks, accumulate commands
@@ -27,15 +28,6 @@ export const state: State = {
   nextSeq: 0,
   now: 0,
 };
-
-export function tsToMs(ts: iface.google.protobuf.ITimestamp | null | undefined) {
-  if (ts === undefined || ts === null) {
-    throw new Error(`Expected timestamp, got ${ts}`);
-  }
-  const { seconds, nanos } = ts;
-  // TODO: seconds could be bigint | long | null | undefined
-  return (seconds as number) * 1000 + Math.floor((nanos || 0) / 1000000);
-}
 
 export type HandlerFunction<K extends keyof iface.coresdk.IWFActivationJob> =
   (activation: NonNullable<iface.coresdk.IWFActivationJob[K]>) => void;

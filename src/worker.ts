@@ -163,10 +163,9 @@ export class Worker {
                   throw new Error('Received workflow activation for an untracked workflow with no start workflow job');
                 }
               }
-              console.log(`!!!!! Trying to complete task: ${task.taskToken}`)
               const arr = await workflow.activate(task.taskToken!, task.workflow);
               workerCompleteTask(native, arr.buffer.slice(arr.byteOffset));
-              // Allow polling to continue
+              // TODO: remove this when core supports concurrent task execution
               this.resumePolling();
               return { state: workflow, output: arr };
             }, undefined))
