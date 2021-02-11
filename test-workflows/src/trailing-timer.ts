@@ -3,10 +3,12 @@ import { sleep } from './sleep';
 
 export async function main() {
   return await Promise.race([
-    sleep(20).then(() => 20),
-    sleep(30).then(async () => {
-      sleep(1).then(() => console.log('trailing timer triggered after workflow completed'));
-      return 30;
+    sleep(1).then(() => 'first'),
+    sleep(1).then(() => {
+      // This should never be executed
+      console.log('trailing timer triggered after workflow completed');
+      sleep(0);
+      return 'second';
     }),
   ]);
 }

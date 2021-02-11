@@ -281,8 +281,8 @@ test('trailing-timer', async (t) => {
   {
     const req = await activate(t, makeStartWorkflow(script));
     compareCompletion(t, req, makeSuccess([
-      makeStartTimerCommand({ timerId: '0', startToFireTimeout: msToTs(20) }),
-      makeStartTimerCommand({ timerId: '1', startToFireTimeout: msToTs(30) }),
+      makeStartTimerCommand({ timerId: '0', startToFireTimeout: msToTs(1) }),
+      makeStartTimerCommand({ timerId: '1', startToFireTimeout: msToTs(1) }),
     ]));
   }
   {
@@ -294,7 +294,7 @@ test('trailing-timer', async (t) => {
     // Note that the trailing timer does not get scheduled since the workflow completes
     // after the first timer is triggered causing the second one to be dropped.
     compareCompletion(t, req, makeSuccess([
-      makeCompleteWorkflowExecution(defaultDataConverter.toPayload(20)!),
+      makeCompleteWorkflowExecution(defaultDataConverter.toPayload('first')!),
     ]));
   }
   t.deepEqual(logs, []);

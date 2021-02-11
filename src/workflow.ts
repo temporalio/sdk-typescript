@@ -110,6 +110,7 @@ export class Workflow {
     const arr = coresdk.WFActivation.encodeDelimited(activation).finish();
     // Loop and invoke each job with entire microtasks chain.
     // This is done outside of the isolate because we can't wait for microtasks from inside the isolate.
+    // TODO: Process signals first
     for (const idx in activation.jobs) {
       const processed = await this.workflowModule.activate.apply(undefined, [arr, idx], {
         arguments: { copy: true },
