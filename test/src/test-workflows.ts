@@ -45,15 +45,15 @@ async function activate(
 ) {
   const taskToken = u8(`${Math.random()}`);
   const arr = await t.context.workflow.activate(taskToken, activation);
-  const req = iface.coresdk.CompleteTaskReq.decodeDelimited(arr);
+  const req = iface.coresdk.TaskCompletion.decodeDelimited(arr);
   t.deepEqual(req.taskToken, taskToken);
-  t.is(req.completion, 'workflow');
+  t.is(req.variant, 'workflow');
   return req;
 }
 
 function compareCompletion(
   t: ExecutionContext<Context>,
-  req: iface.coresdk.CompleteTaskReq,
+  req: iface.coresdk.TaskCompletion,
   expected: iface.coresdk.IWFActivationCompletion,
 ) {
   const actual = req.toJSON().workflow;

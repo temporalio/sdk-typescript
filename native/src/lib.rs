@@ -1,5 +1,3 @@
-mod mock_core;
-
 use neon::{prelude::*, register_module};
 use prost::Message;
 use std::{
@@ -9,7 +7,7 @@ use std::{
 };
 use temporal_sdk_core::{
     init,
-    protos::coresdk::{self, CompleteTaskReq},
+    protos::coresdk::{self, TaskCompletion},
     Core, CoreInitOptions, ServerGatewayOptions,
 };
 
@@ -143,7 +141,7 @@ fn worker_complete_task(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     let worker = cx.argument::<BoxedWorker>(0)?;
     let completion = cx.argument::<JsArrayBuffer>(1)?;
     let result = cx.borrow(&completion, |data| {
-        CompleteTaskReq::decode_length_delimited(data.as_slice::<u8>())
+        TaskCompletion::decode_length_delimited(data.as_slice::<u8>())
     });
     match result {
         Ok(completion) => {
@@ -155,7 +153,7 @@ fn worker_complete_task(mut cx: FunctionContext) -> JsResult<JsUndefined> {
                 Ok(cx.undefined())
             }
         }
-        Err(_) => cx.throw_type_error("Cannot decode CompleteTaskReq from buffer"),
+        Err(_) => cx.throw_type_error("Cannot decode Completion from buffer"),
     }
 }
 

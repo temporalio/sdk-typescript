@@ -183,7 +183,7 @@ export function activate(encodedActivation: Uint8Array, jobIndex: number) {
 export function concludeActivation(taskToken: Uint8Array) {
   const { commands } = state;
   // TODO: activation failed (should this be done in main node isolate?)
-  const encoded = iface.coresdk.CompleteTaskReq.encodeDelimited({
+  const encoded = iface.coresdk.TaskCompletion.encodeDelimited({
     taskToken,
     workflow: { successful: { commands } },
   }).finish();
