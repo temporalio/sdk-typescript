@@ -283,7 +283,7 @@ test('trailing-timer', async (t) => {
     // Note that the trailing timer does not get scheduled since the workflow completes
     // after the first timer is triggered causing the second one to be dropped.
     compareCompletion(t, req, makeSuccess([
-      makeCompleteWorkflowExecution(defaultDataConverter.toPayload('first')!),
+      makeCompleteWorkflowExecution(defaultDataConverter.toPayload('first')),
     ]));
   }
   t.deepEqual(logs, []);
@@ -390,7 +390,7 @@ test('simple-query', async (t) => {
   {
     const req = await activate(t, makeQueryWorkflow('hasSlept', []));
     compareCompletion(t, req, makeSuccess([makeWorkflowQueryResultCommand({
-      answer: { payloads: [defaultDataConverter.toPayload(false)!] },
+      answer: { payloads: [defaultDataConverter.toPayload(false)] },
       resultType: iface.temporal.api.enums.v1.QueryResultType.QUERY_RESULT_TYPE_ANSWERED,
     })]));
   }
@@ -401,7 +401,7 @@ test('simple-query', async (t) => {
   {
     const req = await activate(t, makeQueryWorkflow('hasSleptAsync', []));
     compareCompletion(t, req, makeSuccess([makeWorkflowQueryResultCommand({
-      answer: { payloads: [defaultDataConverter.toPayload(true)!] },
+      answer: { payloads: [defaultDataConverter.toPayload(true)] },
       resultType: iface.temporal.api.enums.v1.QueryResultType.QUERY_RESULT_TYPE_ANSWERED,
     })]));
   }

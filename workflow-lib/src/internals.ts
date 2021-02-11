@@ -64,7 +64,7 @@ function completeQuery(result: any) {
   state.commands.push({
     core: {
       queryResult: {
-        answer: { payloads: [defaultDataConverter.toPayload(result)!] },
+        answer: { payloads: [defaultDataConverter.toPayload(result)] },
         resultType: iface.temporal.api.enums.v1.QueryResultType.QUERY_RESULT_TYPE_ANSWERED,
       },
     },
