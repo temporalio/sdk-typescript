@@ -13,7 +13,7 @@ import {
  * @author fateev
  */
 export interface DataConverter {
-  toPayload<T>(value: T): Payload | undefined;
+  toPayload<T>(value: T): Payload;
 
   fromPayload<T>(payload: Payload): T;
   /**
@@ -50,7 +50,7 @@ export class CompositeDataConverter implements DataConverter {
     }
   }
 
-  public toPayload<T>(value: T): Payload | undefined {
+  public toPayload<T>(value: T): Payload {
     for (const converter of this.converters) {
       const result = converter.toData(value);
       if (result !== undefined) return result;
@@ -72,7 +72,7 @@ export class CompositeDataConverter implements DataConverter {
       return undefined;
     }
     // TODO: From Java: Payload.getDefaultInstance()
-    const payloads: Payload[] = values.map((value) => this.toPayload(value) || {});
+    const payloads: Payload[] = values.map((value) => this.toPayload(value));
     return { payloads };
   }
 
@@ -91,6 +91,22 @@ export function arrayFromPayloads(converter: DataConverter, content?: Payloads |
     return [];
   }
   return content.payloads.map((payload) => converter.fromPayload(payload));
+}
+
+export function fromPairs<K extends keyof any, V>(source: Array<[K, V]>): Record<K, V> {
+  const target = {} as Record<K, V>;
+  const len = source.length;
+  for (let i = 0; i < len; ++i) {
+    const [k, v] = source[i];
+    target[k] = v;
+  }
+  return target;
+}
+
+export function mapToPayloads<K extends string>(converter: DataConverter, source: Record<K, any>): Record<K, Payload> {
+  return fromPairs(
+    Object.entries(source).map(([k, v]): [K, Payload] => [k as K, converter.toPayload(v)])
+  );
 }
 
 export const defaultDataConverter = new CompositeDataConverter(

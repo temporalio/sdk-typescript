@@ -13,3 +13,6 @@ test('args-and-return', async (t) => {
   const res = await workflow('Hello', undefined, u8('world!'));
   t.is(res, 'Hello, world!');
 });
+
+test.todo('WorkflowOptions are passed correctly with defaults');
+test.todo('WorkflowOptions are passed correctly');

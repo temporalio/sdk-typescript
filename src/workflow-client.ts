@@ -10,7 +10,12 @@ import {
   WorkflowQueryType,
 } from '../workflow-lib/commonjs/interfaces'; 
 import { msToTs, nullToUndefined } from '../workflow-lib/commonjs/time'; 
-import { arrayFromPayloads, DataConverter, defaultDataConverter } from '../workflow-lib/commonjs/converter/data-converter';
+import {
+  arrayFromPayloads,
+  DataConverter,
+  defaultDataConverter,
+  mapToPayloads,
+} from '../workflow-lib/commonjs/converter/data-converter';
 import * as errors from '../workflow-lib/commonjs/errors';
 
 type IStartWorkflowExecutionRequest = iface.temporal.api.workflowservice.v1.IStartWorkflowExecutionRequest;
@@ -95,14 +100,31 @@ export interface BaseWorkflowOptions {
   taskQueue: string;
 
   retryPolicy?: iface.temporal.api.common.v1.IRetryPolicy;
-  //
-  //   private String cronSchedule;
-  //
-  //   private Map<String, Object> memo;
-  //
-  //   private Map<String, Object> searchAttributes;
-  //
-  //   private List<ContextPropagator> contextPropagators;
+
+  /**
+   * Optional cron schedule for Workflow. If a cron schedule is specified, the Workflow will run
+   * as a cron based on the schedule. The scheduling will be based on UTC time. The schedule for the next run only happens
+   * after the current run is completed/failed/timeout. If a RetryPolicy is also supplied, and the Workflow failed
+   * or timed out, the Workflow will be retried based on the retry policy. While the Workflow is retrying, it won't
+   * schedule its next run. If the next schedule is due while the Workflow is running (or retrying), then it will skip that
+   * schedule. Cron Workflow will not stop until it is terminated or cancelled (by returning temporal.CanceledError).
+   * https://crontab.guru/ is useful for testing your cron expressions.
+   */
+  cronSchedule?: string;
+
+  /**
+   * Specifies additional non-indexed information in result of list workflow. The type of value
+   * can be any object that are serializable by `DataConverter`.
+   */
+  memo?: Record<string, any>;
+
+  /**
+   * Specifies additional indexed information in result of list workflow. The type of value should
+   * be a primitive (e.g. string, number, boolean), for dates use Date.toISOString();
+   */
+  searchAttributes?: Record<string, string | number | boolean>;
+
+  // TODO: Support interceptors
 }
 
 export interface WorkflowDurationOptions {
@@ -208,6 +230,11 @@ export class Connection {
       workflowExecutionTimeout: opts.workflowExecutionTimeout,
       workflowRunTimeout: opts.workflowRunTimeout,
       retryPolicy: opts.retryPolicy,
+      memo: opts.memo ? { fields: mapToPayloads(dataConverter, opts.memo) } : undefined,
+      searchAttributes: opts.searchAttributes ? {
+        indexedFields: mapToPayloads(dataConverter, opts.searchAttributes),
+      } : undefined,
+      cronSchedule: opts.cronSchedule,
     };
     const res = await this.service.startWorkflowExecution(req);
     return res.runId;
