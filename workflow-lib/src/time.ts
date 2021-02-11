@@ -12,17 +12,7 @@ export function tsToMs(ts: Timestamp | null | undefined) {
     throw new Error(`Expected timestamp, got ${ts}`);
   }
   const { seconds, nanos } = ts;
-  let secondsAsNumber: number;
-  if (!seconds) {
-    secondsAsNumber = 0;
-  } else {
-    if (typeof seconds === 'number') {
-      secondsAsNumber = seconds;
-    } else {
-      secondsAsNumber = seconds.toNumber();
-    }
-  }
-  return secondsAsNumber * 1000 + Math.floor((nanos || 0) / 1000000);
+  return (seconds || 0) * 1000 + Math.floor((nanos || 0) / 1000000);
 }
 
 export function msToTs(ms: number): Timestamp {

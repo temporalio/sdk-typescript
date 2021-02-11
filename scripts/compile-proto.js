@@ -24,6 +24,7 @@ const pbjsArgs = (wrap, out) => [
   wrap,
   '--target',
   'static-module',
+  '--force-number',
   '--out',
   out,
   resolve(protoBaseDir, 'local/core_interface.proto'),
