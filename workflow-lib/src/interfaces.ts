@@ -39,7 +39,7 @@ export interface ContextType {
   configure<P extends any[], R>(activity: ActivityFunction<P, R>, options: ActivityOptions): ActivityFunction<P, R>;
 }
 
-export type WorkflowReturnType = Promise<void> | void;
+export type WorkflowReturnType = any;
 export type WorkflowSignalType = (...args: any[]) => Promise<void> | void;
 export type WorkflowQueryType = (...args: any[]) => any;
 

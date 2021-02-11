@@ -1,4 +1,5 @@
 import '@temporal-sdk/workflow';
+import { ArgsAndReturn } from '@interfaces';
 
 export function str(a: Uint8Array): string {
   let out = '';
@@ -8,7 +9,9 @@ export function str(a: Uint8Array): string {
   return out;
 }
 
-export async function main(greeting: string, _skip: undefined, arr: ArrayBuffer) {
+async function main(greeting: string, _skip: undefined, arr: ArrayBuffer) {
   const name = str(new Uint8Array(arr));
   return `${greeting}, ${name}`;
 }
+
+export const workflow: ArgsAndReturn = { main };

@@ -1,9 +1,10 @@
 import '@temporal-sdk/workflow';
+import { SimpleQuery } from '@interfaces';
 import { sleep } from './sleep';
 
 let slept = false;
 
-export const queries = {
+const queries = {
   hasSlept() {
     return slept;
   },
@@ -12,7 +13,9 @@ export const queries = {
   },
 };
 
-export async function main() {
+async function main() {
   await sleep(10);
   slept = true;
 }
+
+export const workflow: SimpleQuery = { main, queries };

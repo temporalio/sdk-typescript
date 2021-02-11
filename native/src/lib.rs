@@ -35,15 +35,6 @@ impl Worker {
         })
         .unwrap();
 
-        // TODO: Needs to be moved to it's own function, and async handled better somehow
-        futures::executor::block_on(core.server_gateway().unwrap().start_workflow(
-            "default",
-            &queue_name,
-            "test-node-wf-id",
-            "set-timeout",
-        ))
-        .unwrap();
-
         Worker {
             queue_name,
             core: Box::new(core),
@@ -57,8 +48,7 @@ impl Worker {
             .condition
             .wait_while(self.suspended.lock().unwrap(), |suspended| *suspended)
             .unwrap();
-        let res = self.core.poll_task(&self.queue_name);
-        res
+        self.core.poll_task(&self.queue_name)
     }
 
     pub fn is_suspended(&self) -> bool {
@@ -95,7 +85,7 @@ fn worker_poll(mut cx: FunctionContext) -> JsResult<JsUndefined> {
         let arc_worker = arc_worker.clone();
         let worker = arc_worker;
         let result = worker.poll();
-        // We don't want to poll until re-awoken
+        // TODO: get rid of this, it limits concurrent tasks to 1
         worker.suspend_polling();
         match result {
             Ok(task) => {

@@ -2,7 +2,9 @@ import anyTest, { TestInterface, ExecutionContext } from 'ava';
 import path from 'path';
 import iface from '../../proto/core-interface';
 import { defaultDataConverter } from '../../workflow-lib/commonjs/converter/data-converter';
+import { msToTs } from '../../workflow-lib/commonjs/time';
 import { Workflow } from '../../lib/workflow';
+import { u8 } from './helpers';
 
 export interface Context {
   workflow: Workflow;
@@ -14,19 +16,6 @@ const test = anyTest as TestInterface<Context>;
 
 function getWorkflow(name: string) {
   return path.join(__dirname, '../../test-workflows/lib', name);
-}
-
-function u8(s: string): Uint8Array {
-  // TextEncoder requires lib "dom"
-  // @ts-ignore
-  return new TextEncoder().encode(s);
-}
-
-export function msToTs(ms: number): iface.google.protobuf.ITimestamp {
-  // TODO: seconds could be bigint | long | null | undeinfed
-  const seconds = Math.floor(ms / 1000);
-  const nanos = (ms % 1000) * 1000000;
-  return { seconds, nanos };
 }
 
 test.beforeEach(async (t) => {
