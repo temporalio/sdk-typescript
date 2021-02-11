@@ -1,11 +1,6 @@
 import { Connection } from '../workflow-client';
 import { ArgsAndReturn } from '../../workflow-interfaces/lib';
-
-function u8(s: string): Uint8Array {
-  // TextEncoder requires lib "dom"
-  // @ts-ignore
-  return new TextEncoder().encode(s);
-}
+import { u8 } from './utils';
 
 async function main() {
   const client = new Connection();
