@@ -35,8 +35,14 @@ export interface ActivityFunction<P extends any[], R> {
   (...args: P): Promise<R>;
 }
 
+export type CancellationFunction = (err: any) => void;
+
 export interface ContextType {
   configure<P extends any[], R>(activity: ActivityFunction<P, R>, options: ActivityOptions): ActivityFunction<P, R>;
+  scope<T>(fn: () => Promise<T>): Promise<T>;
+  shield<T>(fn: () => Promise<T>): Promise<T>;
+  cancel(reason?: string): void;
+  cancel(promise: Promise<any>, reason?: string): void;
 }
 
 export type WorkflowReturnType = any;

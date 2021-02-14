@@ -5,7 +5,7 @@
   "main": "lib/index.js",
   "types": "./lib/index.d.ts",
   "scripts": {
-    "install": "neon build",
+    "install": "neon build && node-gyp rebuild --release",
     "compile-proto": "node ./scripts/compile-proto.js",
     "build": "(cd test && tsc --build)",
     "build.watch": "(cd test && tsc --build --watch)",

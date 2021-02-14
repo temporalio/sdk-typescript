@@ -3,6 +3,7 @@ import ivm from 'isolated-vm';
 import dedent from 'dedent';
 import { coresdk } from '../proto/core-interface';
 import { Loader } from './loader';
+import '../build/Release/temporalio-workflow-runtime';
 
 export enum ApplyMode {
   ASYNC = 'apply',
@@ -33,6 +34,10 @@ export class Workflow {
   public static async create(id: string) {
     const isolate = new ivm.Isolate();
     const context = await isolate.createContext();
+
+    const runtimeModule = new ivm.NativeModule(require.resolve('../build/Release/temporalio-workflow-runtime'));
+    const runtime = await runtimeModule.create(context);
+
     const loader = new Loader(isolate, context);
     const protobufModule = await loader.loadModule(pathResolve(__dirname, '../proto/isolate/protobuf.js'));
     loader.overrideModule('protobufjs/minimal', protobufModule);
@@ -45,7 +50,7 @@ export class Workflow {
     const initWorkflow = await workflowInternals.namespace.get('initWorkflow');
     loader.overrideModule('@temporal-sdk/workflow', workflowModule);
 
-    await initWorkflow.apply(undefined, [id], { arguments: { copy: true } });
+    await initWorkflow.apply(undefined, [id, runtime.derefInto()], { arguments: { copy: true } });
 
     return new Workflow(id, isolate, context, loader, { activate, concludeActivation });
   }
