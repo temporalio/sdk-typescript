@@ -1,8 +1,10 @@
 import { temporal } from '../../proto/core-interface';
 import { ContextType, ActivityOptions, ActivityFunction } from './interfaces';
-import { state } from './internals';
+import { state, currentScope, childScope, propagateCancellation } from './internals';
+import { CancellationError } from './errors';
+import { msToTs } from './time';
 
-export { ContextType, ActivityOptions };
+export { CancellationError, ContextType, ActivityOptions };
 
 // Delete any weak reference holding structures because GC is non-deterministic.
 // WeakRef is implemented in V8 8.4 which is embedded in node >=14.6.0, delete it just in case.
@@ -84,23 +86,62 @@ const OriginalDate = (globalThis as any).Date;
 
 (globalThis as any).setTimeout = function(cb: (...args: any[]) => any, ms: number, ...args: any[]): number {
   const seq = state.nextSeq++;
-  state.callbacks.set(seq, [() => cb(...args), () => {} /* ignore cancellation */]);
+  state.completions.set(seq, {
+    resolve: () => cb(...args),
+    reject: () => {}, /* ignore cancellation */
+    scope: currentScope(),
+  });
   state.commands.push({
     api: {
       commandType: temporal.api.enums.v1.CommandType.COMMAND_TYPE_START_TIMER,
       startTimerCommandAttributes: {
         timerId: `${seq}`,
-        startToFireTimeout: { seconds: Math.floor(ms / 1000), nanos: ms % 1000 * 1000000 },
+        startToFireTimeout: msToTs(ms),
       },
     },
   });
-  // state.commands.push({ type: 'StartTimer', seq, ms });
   return seq;
 };
 
+export function sleep(ms: number): Promise<void> {
+  const seq = state.nextSeq++;
+  return childScope(
+    (reject) => (err) => {
+      if (!state.completions.delete(seq)) {
+        return; // Already resolved
+      }
+      state.commands.push({
+        api: {
+          commandType: temporal.api.enums.v1.CommandType.COMMAND_TYPE_CANCEL_TIMER,
+          cancelTimerCommandAttributes: {
+            timerId: `${seq}`,
+          },
+        },
+      });
+      reject(err);
+    },
+    () => new Promise((resolve, reject) => {
+      state.completions.set(seq, {
+        resolve,
+        reject,
+        scope: currentScope(),
+      });
+      state.commands.push({
+        api: {
+          commandType: temporal.api.enums.v1.CommandType.COMMAND_TYPE_START_TIMER,
+          startTimerCommandAttributes: {
+            timerId: `${seq}`,
+            startToFireTimeout: msToTs(ms),
+          },
+        },
+      });
+    })
+  );
+}
+
 (globalThis as any).clearTimeout = function(handle: number): void {
   state.nextSeq++;
-  state.callbacks.delete(handle);
+  state.completions.delete(handle);
   state.commands.push({
     api: {
       commandType: temporal.api.enums.v1.CommandType.COMMAND_TYPE_CANCEL_TIMER,
@@ -116,7 +157,7 @@ export interface InternalActivityFunction<P extends any[], R> extends ActivityFu
   options: ActivityOptions;
 }
 
-export function scheduleActivity<R>(module: string, name: string, args: any[], options: ActivityOptions) {
+export function scheduleActivity<R>(_module: string, _name: string, _args: any[], _options: ActivityOptions) {
   const seq = state.nextSeq++;
   // state.commands.push({ type: 'ScheduleActivity', seq, module, name, arguments: args, options });
   state.commands.push({
@@ -126,7 +167,7 @@ export function scheduleActivity<R>(module: string, name: string, args: any[], o
     },
   });
   return new Promise<R>((resolve, reject) => {
-    state.callbacks.set(seq, [resolve, reject]);
+    state.completions.set(seq, { resolve, reject, scope: currentScope() });
   });
 }
 
@@ -145,4 +186,27 @@ export const Context: ContextType = {
     configured.options = mergedOptions;
     return configured;
   },
+  shield<T>(fn: () => Promise<T>): Promise<T> {
+    return childScope((cancel) => cancel, fn);
+  },
+  scope<T>(fn: () => Promise<T>): Promise<T> {
+    return childScope(propagateCancellation, fn);
+  },
+  cancel(promiseOrReason?: Promise<any> | string, reason?: string): void {
+    try {
+      const promise = promiseOrReason instanceof Promise ? promiseOrReason : undefined;
+      const reasonStr = typeof promiseOrReason === 'string' ? promiseOrReason : (reason || 'Cancelled');
+      const data = promise !== undefined ? state.runtime!.getPromiseData(promise) : undefined;
+      if (data === undefined) {
+        throw new Error('Expected to find promise scope, got undefined');
+      }
+      if (!data.cancellable) {
+        throw new Error('Promise is not cancellable');
+      }
+      data.scope.cancel(new CancellationError(reasonStr));
+    } catch (e) {
+      if (!(e instanceof CancellationError)) throw e;
+    }
+
+  }
 }

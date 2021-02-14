@@ -35,3 +35,8 @@ export class WorkflowExecutionContinuedAsNewError extends Error {
   }
 }
 
+// Thrown in workflow
+export class CancellationError extends Error {
+  public readonly name: string = 'CancellationError';
+};
+

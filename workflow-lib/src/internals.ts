@@ -2,14 +2,42 @@
 import * as iface from '../../proto/core-interface';
 import { defaultDataConverter, arrayFromPayloads } from './converter/data-converter';
 import { alea } from './alea';
-import { Workflow } from './interfaces';
+import { CancellationFunction, Workflow } from './interfaces';
+import { CancellationError } from './errors';
 import { tsToMs } from './time';
+
+export interface Scope {
+  parent?: Scope;
+  cancel: CancellationFunction;
+  associated: boolean;
+}
+
+export interface Completion {
+  resolve: Function;
+  reject: Function;
+  scope: Scope;
+}
+
+export type HookType = 'init' | 'resolve' | 'before' | 'after';
+export type PromiseHook = (t: HookType, p: Promise<any>, pp?: Promise<any>) => void;
+export interface PromiseData {
+  scope: Scope;
+  cancellable: boolean;
+}
+
+export interface Runtime {
+  registerPromiseHook(hook: PromiseHook): void;
+  setPromiseData(p: Promise<any>, s: PromiseData): void;
+  getPromiseData(p: Promise<any>): PromiseData | undefined;
+}
 
 /**
  * Track command sequences and callbacks, accumulate commands
  */
 export interface State {
-  callbacks: Map<number, [Function, Function]>;
+  completions: Map<number, Completion>;
+  scopeStack: Scope[];
+  childScopes: Map<Scope, Set<Scope>>;
   commands: iface.coresdk.ICommand[];
   completed: boolean;
   nextSeq: number;
@@ -17,12 +45,26 @@ export interface State {
    * This is set every time the workflow executes an activation
    */
   now: number;
-  workflow?: Workflow,
-  activator?: Activator,
+  workflow?: Workflow;
+  activator?: Activator;
+  runtime?: Runtime;
 }
 
+let rootScopeCancel: CancellationFunction;
+
+const rootScope: Scope = {
+  associated: true,
+  cancel: (err) => {
+    rootScopeCancel(err);
+  },
+};
+
+rootScopeCancel = propagateCancellation(() => {}, rootScope);
+
 export const state: State = {
-  callbacks: new Map(),
+  completions: new Map(),
+  scopeStack: [rootScope],
+  childScopes: new Map(),
   commands: [],
   completed: false,
   nextSeq: 0,
@@ -102,17 +144,22 @@ export class Activator implements WorkflowTaskHandler {
     }
   }
 
+  public cancelWorkflow(_activation: iface.coresdk.ICancelWorkflowTaskAttributes) {
+    rootScopeCancel(new CancellationError('Workflow cancelled'));
+  }
+
   public timerFired(activation: iface.coresdk.ITimerFiredTaskAttributes): void {
     if (!activation.timerId) {
       throw new Error('Got a TimerFired activation with no timerId');
     }
     const taskSeq = parseInt(activation.timerId);
-    const callbacks = state.callbacks.get(taskSeq);
-    if (callbacks === undefined) {
+    const completion = state.completions.get(taskSeq);
+    if (completion === undefined) {
       throw new Error(`No callback for taskSeq ${taskSeq}`);
     }
-    const [callback] = callbacks;
-    callback();
+    state.completions.delete(taskSeq);
+    const { resolve } = completion;
+    resolve();
   }
 
   public queryWorkflow(job: iface.coresdk.IQueryWorkflowJob): void {
@@ -183,11 +230,119 @@ export function concludeActivation(taskToken: Uint8Array) {
   return encoded;
 }
 
-export function initWorkflow(id: string): void {
+export function currentScope(): Scope {
+  const scope = state.scopeStack[state.scopeStack.length - 1];
+  if (scope === undefined) {
+    throw new Error('No scopes in stack');
+  }
+  return scope;
+}
+
+export function pushScope(scope: Scope): Scope {
+  state.scopeStack.push(scope);
+  if (scope.parent === undefined) {
+    throw new Error('Tried to push a parentless scope');
+  }
+  let children = state.childScopes.get(scope.parent);
+  if (children === undefined) {
+    children = new Set();
+    state.childScopes.set(scope.parent, children);
+  }
+  children.add(scope);
+  return scope;
+}
+
+export function propagateCancellation(reject: CancellationFunction, scope: Scope) {
+  return (err: CancellationError) => {
+    const children = state.childScopes.get(scope);
+    if (children === undefined) {
+      throw new Error('Expected to find child scope mapping, got undefined');
+    }
+    for (const child of children) {
+      try {
+        child.cancel(err);
+      } catch (e) {
+        // TODO: aggregate errors?
+        if (e !== err) reject(e);
+      }
+    }
+    // If no children throw, make sure to reject this promise
+    reject(err);
+  };
+}
+
+export function childScope<T>(makeCancellation: (reject: CancellationFunction, scope: Scope) => CancellationFunction, fn: () => Promise<T>): Promise<T> {
+  let cancel: CancellationFunction | undefined = undefined;
+  const scope = pushScope({
+    parent: currentScope(),
+    cancel: (err) => {
+      cancel!(err);
+    },
+    associated: false,
+  });
+  const promise = new Promise<T>(async (resolve, reject) => {
+    try {
+      cancel = makeCancellation(reject, scope);
+      const promise = fn();
+      const result = await promise;
+      resolve(result);
+    } catch (e) {
+      reject(e);
+    }
+  });
+  state.scopeStack.pop();
+  return promise;
+}
+
+export function initWorkflow(id: string, runtime: Runtime): void {
   Math.random = alea(id);
+  state.runtime = runtime;
+  state.activator = new Activator();
+  runtime.registerPromiseHook((t, p, pp) => {
+    switch (t) {
+      case 'init': {
+        const scope = currentScope();
+        const cancellable = !scope.associated;
+        if (pp === undefined) {
+          runtime.setPromiseData(p, { scope, cancellable });
+        } else {
+          let parentScope: Scope;
+          let parentData = runtime.getPromiseData(pp);
+          if (parentData === undefined) {
+            parentScope = scope;
+            parentData = { scope: parentScope, cancellable: false };
+            runtime.setPromiseData(pp, parentData);
+          } else {
+            parentScope = parentData.scope;
+          }
+          runtime.setPromiseData(p, { scope: parentScope, cancellable });
+        }
+        scope.associated = true;
+        break;
+      }
+      case 'resolve': {
+        let data = runtime.getPromiseData(p);
+        if (data === undefined) {
+          throw new Error('Expected promise to have an associated scope');
+        }
+        if (data.cancellable) {
+          if (data.scope.parent === undefined) {
+            throw new Error('Resolved promise for orphan scope');
+          }
+          const scopes = state.childScopes.get(data.scope.parent);
+          if (scopes === undefined) {
+            throw new Error('Expected promise to have an associated scope');
+          }
+          scopes.delete(data.scope);
+          if (scopes.size === 0) {
+            state.childScopes.delete(data.scope.parent);
+          }
+        }
+      }
+    }
+  });
 }
 
 export function registerWorkflow(workflow: Workflow): void {
   state.workflow = workflow;
-  state.activator = new Activator();
 }

@@ -132,6 +132,17 @@ function makeStartTimerCommand(
   };
 }
 
+function makeCancelTimerCommand(
+  attrs: iface.temporal.api.command.v1.ICancelTimerCommandAttributes
+): iface.coresdk.ICommand {
+  return {
+    api: {
+      commandType: iface.temporal.api.enums.v1.CommandType.COMMAND_TYPE_CANCEL_TIMER,
+      cancelTimerCommandAttributes: attrs,
+    }
+  };
+}
+
 function makeWorkflowQueryResultCommand(
   queryResult: iface.temporal.api.query.v1.IWorkflowQueryResult
 ): iface.coresdk.ICommand {
@@ -405,6 +416,204 @@ test('simple-query', async (t) => {
       resultType: iface.temporal.api.enums.v1.QueryResultType.QUERY_RESULT_TYPE_ANSWERED,
     })]));
   }
+});
+
+test('cancel-workflow', async (t) => {
+  const url = 'https://temporal.io';
+  const { script, logs } = t.context;
+  {
+    const req = await activate(t, makeStartWorkflow(script, defaultDataConverter.toPayloads(url)));
+    compareCompletion(t, req, makeSuccess([
+      makeStartTimerCommand({ timerId: '0', startToFireTimeout: msToTs(1) }),
+    ]));
+  }
+  {
+    const req = await activate(t, makeActivation(undefined, { cancelWorkflow: {} }));
+    compareCompletion(t, req, makeSuccess([
+      makeCancelTimerCommand({ timerId: '0' }),
+      makeStartTimerCommand({ timerId: '1', startToFireTimeout: msToTs(1) }),
+    ]));
+  }
+  {
+    const req = await activate(t, makeActivation(undefined, { cancelWorkflow: {} }));
+    compareCompletion(t, req, makeSuccess([
+      makeStartTimerCommand({ timerId: '2', startToFireTimeout: msToTs(1) }),
+    ]));
+  }
+  {
+    const req = await activate(t, makeActivation(undefined, { cancelWorkflow: {} }));
+    compareCompletion(t, req, makeSuccess([
+    ]));
+  }
+  {
+    const req = await activate(t, makeUnblockTimer('2'));
+    compareCompletion(t, req, makeSuccess([
+      makeCompleteWorkflowExecution(defaultDataConverter.toPayload({ url })),
+    ]));
+  }
+  t.deepEqual(logs, [
+    ['Workflow cancelled'],
+    ['Workflow cancelled'],
+    ['Workflow cancelled'],
+  ]);
+});
+
+test('cancel-timer', async (t) => {
+  const { script, logs } = t.context;
+  const req = await activate(t, makeStartWorkflow(script));
+  compareCompletion(t, req, makeSuccess([
+    makeStartTimerCommand({ timerId: '0', startToFireTimeout: msToTs(3) }),
+    makeCancelTimerCommand({ timerId: '0' }),
+    makeCompleteWorkflowExecution(),
+  ]));
+  t.deepEqual(logs, [
+    ['Timer cancelled 👍'],
+  ]);
+});
+
+test('cancel-non-scope-throws', async (t) => {
+  const { script, logs } = t.context;
+  const req = await activate(t, makeStartWorkflow(script));
+  compareCompletion(t, req, makeSuccess([
+    makeStartTimerCommand({ timerId: '0', startToFireTimeout: msToTs(3) }),
+    makeCompleteWorkflowExecution(),
+  ]));
+  t.deepEqual(logs, [
+    ['Promise is not cancellable'],
+    ['Promise is not cancellable'],
+  ]);
+});
+
+test('cancellation-scopes', async (t) => {
+  const { script, logs } = t.context;
+  {
+    const req = await activate(t, makeStartWorkflow(script));
+    compareCompletion(t, req, makeSuccess([
+      makeStartTimerCommand({ timerId: '0', startToFireTimeout: msToTs(3) }),
+    ]));
+  }
+  {
+    const req = await activate(t, makeUnblockTimer('0'));
+    compareCompletion(t, req, makeSuccess([
+      makeStartTimerCommand({ timerId: '1', startToFireTimeout: msToTs(3) }),
+      makeStartTimerCommand({ timerId: '2', startToFireTimeout: msToTs(3) }),
+      makeCancelTimerCommand({ timerId: '1' }),
+    ]));
+  }
+  {
+    const req = await activate(t, makeUnblockTimer('2'));
+    compareCompletion(t, req, makeSuccess([
+      makeStartTimerCommand({ timerId: '3', startToFireTimeout: msToTs(3) }),
+    ]));
+  }
+  {
+    const req = await activate(t, makeActivation(undefined, { cancelWorkflow: {} }));
+    compareCompletion(t, req, makeSuccess([
+      makeCancelTimerCommand({ timerId: '3' }),
+      makeCompleteWorkflowExecution(),
+    ]));
+  }
+  t.deepEqual(logs, [
+    ['Scope cancelled 👍'],
+    ['Exception was propagated 👍'],
+    ['Scope 2 was not cancelled 👍'],
+    ['Scope cancelled 👍'],
+    ['Exception was propagated 👍'],
+  ]);
+});
+
+test('child-and-shield', async (t) => {
+  const { script, logs } = t.context;
+  {
+    const req = await activate(t, makeStartWorkflow(script));
+    compareCompletion(t, req, makeSuccess([
+      makeStartTimerCommand({ timerId: '0', startToFireTimeout: msToTs(5) }),
+      makeStartTimerCommand({ timerId: '1', startToFireTimeout: msToTs(6) }),
+    ]));
+  }
+  {
+    const req = await activate(t, makeUnblockTimer('0'));
+    compareCompletion(t, req, makeSuccess([]));
+  }
+  {
+    const req = await activate(t, makeUnblockTimer('1'));
+    compareCompletion(t, req, makeSuccess());
+  }
+  t.deepEqual(logs, [
+    ['Exception was propagated 👍'],
+    ['Slept in shield 👍'],
+  ]);
+});
+
+test('partial-shield', async (t) => {
+  const { script, logs } = t.context;
+  {
+    const req = await activate(t, makeStartWorkflow(script));
+    compareCompletion(t, req, makeSuccess([
+      makeStartTimerCommand({ timerId: '0', startToFireTimeout: msToTs(5) }),
+      makeStartTimerCommand({ timerId: '1', startToFireTimeout: msToTs(3) }),
+    ]));
+  }
+  {
+    const req = await activate(t, makeUnblockTimer('1'));
+    compareCompletion(t, req, makeSuccess([
+      makeStartTimerCommand({ timerId: '2', startToFireTimeout: msToTs(2) }),
+    ]));
+  }
+  {
+    const req = await activate(t, makeActivation(undefined, { cancelWorkflow: {} }));
+    compareCompletion(t, req, makeSuccess([
+      makeCancelTimerCommand({ timerId: '2' }),
+      makeStartTimerCommand({ timerId: '3', startToFireTimeout: msToTs(10) }),
+    ]));
+  }
+  {
+    const req = await activate(t, makeUnblockTimer('0'));
+    compareCompletion(t, req, makeSuccess([
+      makeStartTimerCommand({ timerId: '4', startToFireTimeout: msToTs(1) }),
+    ]));
+  }
+  {
+    const req = await activate(t, makeUnblockTimer('3'));
+    compareCompletion(t, req, makeSuccess());
+  }
+  t.deepEqual(logs, [['Workflow cancelled']]);
+});
+
+test('shield-in-shield', async (t) => {
+  const { script, logs } = t.context;
+  {
+    const req = await activate(t, makeStartWorkflow(script));
+    compareCompletion(t, req, makeSuccess([
+      makeStartTimerCommand({ timerId: '0', startToFireTimeout: msToTs(2) }),
+      makeStartTimerCommand({ timerId: '1', startToFireTimeout: msToTs(1) }),
+    ]));
+  }
+  {
+    const req = await activate(t, makeUnblockTimer('1'));
+    compareCompletion(t, req, makeSuccess([]));
+  }
+  {
+    const req = await activate(t, makeUnblockTimer('0'));
+    compareCompletion(t, req, makeSuccess());
+  }
+  t.deepEqual(logs, [
+    ['Exception was propagated 👍'],
+    ['Timer 1 finished 👍'],
+    ['Timer 0 finished 👍'],
+    ['Exception was propagated 👍'],
+  ]);
+});
+
+test('cancellation-error-is-propagated', async (t) => {
+  const { script, logs } = t.context;
+  const req = await activate(t, makeStartWorkflow(script));
+  compareCompletion(t, req, makeSuccess([
+    makeStartTimerCommand({ timerId: '0', startToFireTimeout: msToTs(0) }),
+    makeCancelTimerCommand({ timerId: '0' }),
+    makeFailWorkflowExecution('Cancelled'),
+  ]));
+  t.deepEqual(logs, []);
 });
 
 // TODO: Reimplement once activities are supported

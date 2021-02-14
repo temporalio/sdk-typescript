@@ -3,3 +3,4 @@ lib/
 proto/
 workflow-lib/commonjs/
 *.tsbuildinfo
+build/
