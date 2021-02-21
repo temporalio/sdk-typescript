@@ -20,7 +20,8 @@
     },
     "references": [
         { "path": "./workflow-lib/" },
-        { "path": "./workflow-lib/tsconfig-commonjs.json" }
+        { "path": "./workflow-lib/tsconfig-commonjs.json" },
+        { "path": "./workflow-interfaces/" }
     ],
     "include": [
         "./src/**/*.ts"
