@@ -213,7 +213,7 @@ export class Connection {
     this.service = WorkflowService.create(rpcImpl, false, false);
   }
 
-  public async startWorkflowExecution(opts: CompiledWorkflowOptionsWithDefaults, name: string, ...args: any[]) {
+  public async startWorkflowExecution(opts: CompiledWorkflowOptionsWithDefaults, name: string, ...args: any[]): Promise<string> {
     const { namespace, identity, dataConverter } = this.options;
     const req: IStartWorkflowExecutionRequest = {
       namespace,
