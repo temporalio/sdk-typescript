@@ -12,7 +12,7 @@ Each activity and timer implicitly creates a new scope to support cancellation.
 The following example demonstrates how to handle workflow cancellation by an external client while an activity is running.
 
 ```ts
-import { Context, CancellationError } from '@temporal-sdk/workflow';
+import { CancellationError } from '@temporal-sdk/workflow';
 import { httpGetJSON } from '@activities';
 
 export async function main(url: string) {
@@ -30,18 +30,18 @@ export async function main(url: string) {
 }
 ```
 
-Scopes may be cancelled from workflow code using `Context.cancel`.
+Scopes may be cancelled from workflow code using `cancel`.
 
 ```ts
-import { Context, CancellationError, sleep } from '@temporal-sdk/workflow';
+import { CancellationError, cancel, sleep } from '@temporal-sdk/workflow';
 
 export async function main() {
   // Timers and activities are automatically cancelled when their scope is cancelled.
   // Awaiting on a cancelled scope with throw the original CancellationError.
   const scope = sleep(1);
-  Context.cancel(scope);
+  cancel(scope);
   try {
-    await child;
+    await scope;
   } catch (e) {
     if (e instanceof CancellationError) {
       console.log('Exception was propagated 👍');
@@ -50,22 +50,22 @@ export async function main() {
 }
 ```
 
-In order to have fine-grained control over cancellation, the workflow's `Context` exposes 2 methods for explicitly creating scopes.
+In order to have fine-grained control over cancellation, the workflow library exports 2 methods for explicitly creating scopes.
 
-The first is `Context.scope` which when cancelled will propagate cancellation to all child scopes such as timers, activities and other scopes.
+The first is `cancellationScope` which when cancelled will propagate cancellation to all child scopes such as timers, activities and other scopes.
 ```ts
-import { Context, CancellationError, sleep } from '@temporal-sdk/workflow';
+import { CancellationError, cancellationScope, cancel, sleep } from '@temporal-sdk/workflow';
 import { httpGetJSON } from '@activities';
 
 export async function main(urls: string[], timeoutMs: number) {
-  const scope = Context.scope(async () => {
+  const scope = cancellationScope(async () => {
     return Promise.all(urls.map(httpGetJSON));
   });
   try {
     const results = await Promise.race([
       scope,
       sleep(timeoutMs).then(() => {
-        Context.cancel(scope);
+        cancel(scope);
         // CancellationError rejects the race via scope
         // Any code below this line may still run
       }),
@@ -79,20 +79,18 @@ export async function main(urls: string[], timeoutMs: number) {
 }
 ```
 
-The second is `Context.shield` which prevents cancellation from propagating to child scopes.
-Note that it still throws `CancellationError` to be handled by waiters.
+The second is `shield` which prevents cancellation from propagating to child scopes.
+Note that by default it still throws `CancellationError` to be handled by waiters.
 
 ```ts
-import { Context, CancellationError } from '@temporal-sdk/workflow';
+import { CancellationError, shield } from '@temporal-sdk/workflow';
 import { httpGetJSON } from '@activities';
 
 export async function main(url: string) {
   let result: any = undefined;
   try {
     // Shield and await completion unless cancelled
-    result = await Context.shield(async () => {
-      await httpGetJSON(url);
-    });
+    result = await shield(async () => httpGetJSON(url));
   } catch (e) {
     if (e instanceof CancellationError) {
       console.log('Exception was propagated 👍');
@@ -102,34 +100,20 @@ export async function main(url: string) {
 }
 ```
 
-In case the result of the shielded activity is needed despite the cancellation, the shielded `Promise` should be stored in a variable to be awaited later.
+In case the result of the shielded activity is needed despite the cancellation, pass `false` as the second argument to `shield` (`throwOnCancellation`).
+To see if the workflow was cancelled while waiting, check `Context.cancelled`.
 
 ```ts
-import { Context, CancellationError } from '@temporal-sdk/workflow';
+import { Context, CancellationError, shield } from '@temporal-sdk/workflow';
 import { httpGetJSON } from '@activities';
 
 export async function main(url: string) {
-  let shielded: Promise<any> | undefined;
-  try {
-    result = await Context.shield(async () => {
-      shielded = httpGetJSON(url);
-      return await shielded;
-    });
-  } catch (e) {
-    // We still want to know the workflow was cancelled
-    if (e instanceof CancellationError) {
-      console.log('Workflow cancelled');
-      try {
-        result = await shielded;
-      } catch (e) {
-        // handle activity failed
-      }
-    } else {
-      throw e;
-    }
+  const result = await shield(async () => httpGetJSON(url), false);
+  if (Context.cancelled) {
+    console.log('Workflow cancelled');
   }
   return result;
 }
 ```
 
-More complex flows may be achieved by nesting `Context.scope`s and `Context.shield`s.
+More complex flows may be achieved by nesting `cancellationScope`s and `shield`s.

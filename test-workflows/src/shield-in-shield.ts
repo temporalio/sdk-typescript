@@ -1,14 +1,14 @@
-import { Context, CancellationError, sleep } from '@temporal-sdk/workflow';
+import { shield, cancel, CancellationError, sleep } from '@temporal-sdk/workflow';
 
 export async function main() {
   try {
-    await Context.shield(async () => {
+    await shield(async () => {
       const timer = sleep(2);
-      const child = Context.shield(async () => {
+      const child = shield(async () => {
         await sleep(1);
         console.log('Timer 1 finished 👍');
       });
-      Context.cancel(child);
+      cancel(child);
       try {
         await child;
         console.log('Exception was not propagated 👎');

@@ -1,20 +1,20 @@
-import { Context, sleep } from '@temporal-sdk/workflow';
+import { cancel, cancellationScope, sleep } from '@temporal-sdk/workflow';
 
 export async function main() {
   {
     const promise = Promise.resolve();
     try {
-      Context.cancel(promise);
+      cancel(promise);
     } catch (e) {
       console.log(e.message);
     }
   }
-  await Context.scope(async () => {
+  await cancellationScope(async () => {
     const promise = (async () => {
       await sleep(3);
     })();
     try {
-      Context.cancel(promise);
+      cancel(promise);
     } catch (e) {
       console.log(e.message);
     }

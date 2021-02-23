@@ -40,6 +40,7 @@ export interface State {
   childScopes: Map<Scope, Set<Scope>>;
   commands: iface.coresdk.ICommand[];
   completed: boolean;
+  cancelled: boolean;
   nextSeq: number;
   /**
    * This is set every time the workflow executes an activation
@@ -67,6 +68,7 @@ export const state: State = {
   childScopes: new Map(),
   commands: [],
   completed: false,
+  cancelled: false,
   nextSeq: 0,
   now: 0,
 };
@@ -145,6 +147,7 @@ export class Activator implements WorkflowTaskHandler {
   }
 
   public cancelWorkflow(_activation: iface.coresdk.ICancelWorkflowTaskAttributes) {
+    state.cancelled = true;
     rootScopeCancel(new CancellationError('Workflow cancelled'));
   }
 
