@@ -1,10 +1,10 @@
 import { temporal } from '../../proto/core-interface';
-import { ContextType, ActivityOptions, ActivityFunction } from './interfaces';
+import { ActivityOptions, ActivityFunction } from './interfaces';
 import { state, currentScope, childScope, propagateCancellation } from './internals';
 import { CancellationError } from './errors';
 import { msToTs } from './time';
 
-export { CancellationError, ContextType, ActivityOptions };
+export { CancellationError, ActivityOptions };
 
 // Delete any weak reference holding structures because GC is non-deterministic.
 // WeakRef is implemented in V8 8.4 which is embedded in node >=14.6.0, delete it just in case.
@@ -171,8 +171,8 @@ export function scheduleActivity<R>(_module: string, _name: string, _args: any[]
   });
 }
 
-export const Context: ContextType = {
-  configure<P extends any[], R>(activity: ActivityFunction<P, R>, options: ActivityOptions): ActivityFunction<P, R> {
+class ContextImpl {
+  public configure<P extends any[], R>(activity: ActivityFunction<P, R>, options: ActivityOptions): ActivityFunction<P, R> {
     const internalActivity = activity as InternalActivityFunction<P, R>;
     const mergedOptions = { ...internalActivity.options, ...options };
     // Wrap the function in an object so it gets the original function name
@@ -185,28 +185,66 @@ export const Context: ContextType = {
     configured.module = internalActivity.module;
     configured.options = mergedOptions;
     return configured;
-  },
-  shield<T>(fn: () => Promise<T>): Promise<T> {
-    return childScope((cancel) => cancel, fn);
-  },
-  scope<T>(fn: () => Promise<T>): Promise<T> {
-    return childScope(propagateCancellation, fn);
-  },
-  cancel(promiseOrReason?: Promise<any> | string, reason?: string): void {
+  }
+  public get cancelled(): boolean {
+    return state.cancelled;
+  }
+
+  /**
+   * Cancel the current workflow
+   */
+  public cancel(reason: string = 'Cancelled'): void {
     try {
-      const promise = promiseOrReason instanceof Promise ? promiseOrReason : undefined;
-      const reasonStr = typeof promiseOrReason === 'string' ? promiseOrReason : (reason || 'Cancelled');
-      const data = promise !== undefined ? state.runtime!.getPromiseData(promise) : undefined;
-      if (data === undefined) {
-        throw new Error('Expected to find promise scope, got undefined');
-      }
-      if (!data.cancellable) {
-        throw new Error('Promise is not cancellable');
-      }
-      data.scope.cancel(new CancellationError(reasonStr));
+      state.scopeStack[0]!.cancel(new CancellationError(reason));
     } catch (e) {
       if (!(e instanceof CancellationError)) throw e;
     }
+  }
+}
 
+export const Context = new ContextImpl();
+
+/**
+ * Wraps Promise returned from `fn` with a cancellation scope.
+ * The returned Promise may be be cancelled with `cancel()` and will be cancelled
+ * if a parent scope is cancelled, e.g. when the entire workflow is cancelled.
+ */
+export function cancellationScope<T>(fn: () => Promise<T>): Promise<T> {
+  return childScope(propagateCancellation, fn);
+}
+
+/**
+ * Wraps the Promise returned from `fn` with a shielded scope.
+ * Any child scopes of this scope will *not* be cancelled if `shield` is cancelled.
+ * By default `shield` throws the original `CancellationError` in order for any awaiter
+ * to immediately be notified of the cancellation.
+ * @param throwOnCancellation - Pass false in case the result of the shielded `Promise` is needed
+ * despite cancellation. To see if the workflow was cancelled while waiting, check `Context.cancelled`.
+ */
+export function shield<T>(fn: () => Promise<T>, throwOnCancellation: boolean = true): Promise<T> {
+  if (throwOnCancellation) {
+    return childScope((cancel) => cancel, fn);
+  } else {
+    // Ignore cancellation
+    return childScope(() => () => {}, fn);
+  }
+}
+
+/**
+ * Cancel a scope created by an activity, timer or cancellationScope.
+ */
+export function cancel(promise: Promise<any>, reason: string = 'Cancelled'): void {
+  const data = state.runtime!.getPromiseData(promise);
+  if (data === undefined) {
+    throw new Error('Expected to find promise scope, got undefined');
+  }
+  if (!data.cancellable) {
+    throw new Error('Promise is not cancellable');
+  }
+
+  try {
+    data.scope.cancel(new CancellationError(reason));
+  } catch (e) {
+    if (!(e instanceof CancellationError)) throw e;
   }
 }

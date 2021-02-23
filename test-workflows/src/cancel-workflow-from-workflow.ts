@@ -1,8 +1,8 @@
-import { CancellationError, cancel, sleep } from '@temporal-sdk/workflow';
+import { CancellationError, Context, sleep } from '@temporal-sdk/workflow';
 
 export async function main() {
   const timer = sleep(3);
-  cancel(timer);
+  Context.cancel();
   try {
     await timer;
   } catch (e) {

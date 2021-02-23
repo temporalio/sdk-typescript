@@ -1,4 +1,4 @@
-import { Context, CancellationError, sleep } from '@temporal-sdk/workflow';
+import { CancellationError, cancellationScope, cancel, sleep } from '@temporal-sdk/workflow';
 
 function sleepAndLogCancellation(cancellationExpected: boolean) {
   return async () => {
@@ -16,12 +16,12 @@ function sleepAndLogCancellation(cancellationExpected: boolean) {
 
 export async function main() {
   // First without cancellation
-  await Context.scope(sleepAndLogCancellation(false));
+  await cancellationScope(sleepAndLogCancellation(false));
 
   // Test cancellation from workflow
-  const scope1 = Context.scope(sleepAndLogCancellation(true));
-  const scope2 = Context.scope(sleepAndLogCancellation(false));
-  Context.cancel(scope1);
+  const scope1 = cancellationScope(sleepAndLogCancellation(true));
+  const scope2 = cancellationScope(sleepAndLogCancellation(false));
+  cancel(scope1);
   try {
     await scope1;
     console.log('Exception was not propagated 👎');
@@ -35,7 +35,7 @@ export async function main() {
 
   // Test workflow cancellation propagates
   try {
-    await Context.scope(sleepAndLogCancellation(true));
+    await cancellationScope(sleepAndLogCancellation(true));
     console.log('Exception was not propagated 👎');
   } catch (e) {
     if (e instanceof CancellationError) {

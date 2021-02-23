@@ -1,4 +1,4 @@
-import { Context, CancellationError, sleep } from '@temporal-sdk/workflow';
+import { Context, CancellationError, shield, sleep } from '@temporal-sdk/workflow';
 // import { httpGetJSON } from '@activities';
 
 // TODO: replace with activity function once implemented
@@ -24,7 +24,7 @@ export async function main(url: string) {
 
   // Shield and await completion unless cancelled
   try {
-    result = await Context.shield(async () => httpGetJSON(url));
+    result = await shield(async () => httpGetJSON(url));
   } catch (e) {
     // We still want to know the workflow was cancelled
     if (e instanceof CancellationError) {
@@ -35,24 +35,9 @@ export async function main(url: string) {
   }
 
   // Shield and await completion after cancelled
-  let shielded: Promise<any> | undefined;
-  try {
-    result = await Context.shield(async () => {
-      shielded = httpGetJSON(url);
-      return await shielded;
-    });
-  } catch (e) {
-    // We still want to know the workflow was cancelled
-    if (e instanceof CancellationError) {
-      console.log('Workflow cancelled');
-      try {
-        result = await shielded;
-      } catch (e) {
-        // handle activity failed
-      }
-    } else {
-      throw e;
-    }
+  result = await shield(async () => httpGetJSON(url), false);
+  if (Context.cancelled) {
+    console.log('Workflow cancelled');
   }
   return result;
 }

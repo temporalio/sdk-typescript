@@ -458,6 +458,19 @@ test('cancel-workflow', async (t) => {
   ]);
 });
 
+test('cancel-workflow-from-workflow', async (t) => {
+  const { script, logs } = t.context;
+  const req = await activate(t, makeStartWorkflow(script));
+  compareCompletion(t, req, makeSuccess([
+    makeStartTimerCommand({ timerId: '0', startToFireTimeout: msToTs(3) }),
+    makeCancelTimerCommand({ timerId: '0' }),
+    makeCompleteWorkflowExecution(),
+  ]));
+  t.deepEqual(logs, [
+    ['Timer cancelled 👍'],
+  ]);
+});
+
 test('cancel-timer', async (t) => {
   const { script, logs } = t.context;
   const req = await activate(t, makeStartWorkflow(script));
