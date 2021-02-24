@@ -15,13 +15,9 @@
   ],
   "author": "Roey Berman <roey@temporal.io>",
   "license": "MIT",
-  "devDependencies": {
-    "@types/ms": "^0.7.31",
-    "@types/uuid": "^8.3.0"
-  },
   "dependencies": {
-    "@temporalio/proto": "0.1.0",
-    "@temporalio/workflow": "0.1.0",
+    "@temporalio/proto": "file:../proto",
+    "@temporalio/workflow": "file:../workflow",
     "dedent": "^0.7.0",
     "grpc": "^1.24.5",
     "isolated-vm": "^3.3.10",

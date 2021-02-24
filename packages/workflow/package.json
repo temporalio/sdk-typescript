@@ -14,7 +14,7 @@
   "author": "Roey Berman <roey@temporal.io>",
   "license": "MIT",
   "dependencies": {
-    "@temporalio/proto": "0.1.0"
+    "@temporalio/proto": "file:../proto"
   },
   "bugs": {
     "url": "https://github.com/temporalio/sdk-node/issues"

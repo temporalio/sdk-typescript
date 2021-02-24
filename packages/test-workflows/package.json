@@ -14,9 +14,6 @@
   "dependencies": {
     "ramda": "^0.27.1"
   },
-  "devDependencies": {
-    "@types/ramda": "^0.27.38"
-  },
   "bugs": {
     "url": "https://github.com/temporalio/sdk-node/issues"
   },
