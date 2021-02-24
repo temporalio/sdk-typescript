@@ -5,4 +5,3 @@ workflow-lib/commonjs/
 build/
 commonjs/
 es2020/
-package-lock.json
