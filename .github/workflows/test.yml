@@ -1,4 +1,4 @@
-name: 'build-lint-test'
+name: ci
 on: # rebuild any PRs and main branch changes
   pull_request:
   push:
@@ -7,18 +7,26 @@ on: # rebuild any PRs and main branch changes
       - 'releases/*'
 
 jobs:
-  build:
+  build-lint-test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
-      - run: |
-          npm install
-      - run: |
-          npm run build
-  test:
-    runs-on: ubuntu-latest
-    needs: build
-    steps:
-      - uses: actions/checkout@v2
-      - run: |
-          npm test
+        with:
+          submodules: recursive
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+      - uses: actions/setup-node@v1
+        with:
+          # only lint on latest node
+          node-version: 12
+      - uses: actions/cache@v2
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
+      - run: npm -g i npm@next-7
+      - run: npm ci
+      - run: npm run build
+      - run: npm test
