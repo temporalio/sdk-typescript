@@ -16,6 +16,8 @@ const char* promise_hook_type_to_str(PromiseHookType type) {
             return "before";
         case PromiseHookType::kAfter:
             return "after";
+        default:
+            return "unknown";
     }
 }
 
