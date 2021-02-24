@@ -1,0 +1,38 @@
+{
+  "name": "@temporalio/worker",
+  "version": "0.1.0",
+  "description": "Temporal.io Worker SDK",
+  "main": "lib/index.js",
+  "types": "./lib/index.d.ts",
+  "scripts": {
+    "install": "neon build && node-gyp rebuild --release"
+  },
+  "keywords": [
+    "temporal",
+    "workflow",
+    "worker",
+    "isolate"
+  ],
+  "author": "Roey Berman <roey@temporal.io>",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/ms": "^0.7.31",
+    "@types/uuid": "^8.3.0"
+  },
+  "dependencies": {
+    "@temporalio/proto": "0.1.0",
+    "@temporalio/workflow": "0.1.0",
+    "dedent": "^0.7.0",
+    "grpc": "^1.24.5",
+    "isolated-vm": "^3.3.10",
+    "ms": "^2.1.3",
+    "neon-cli": "^0.7.0",
+    "protobufjs": "^6.10.2",
+    "rxjs": "^6.6.3",
+    "uuid": "^8.3.2"
+  },
+  "bugs": {
+    "url": "https://github.com/temporalio/sdk-node/issues"
+  },
+  "homepage": "https://github.com/temporalio/sdk-node#readme"
+}

@@ -1,0 +1,32 @@
+{
+  "name": "@temporalio/test",
+  "version": "0.1.0",
+  "description": "Temporal.io SDK Tests",
+  "scripts": {
+    "build": "npx tsc --build",
+    "build.watch": "npx tsc --build --watch",
+    "test": "ava ./lib/test-*.js"
+  },
+  "keywords": [
+    "temporal",
+    "workflow",
+    "worker",
+    "isolate"
+  ],
+  "author": "Roey Berman <roey@temporal.io>",
+  "license": "MIT",
+  "dependencies": {
+    "@temporalio/client": "0.1.0",
+    "@temporalio/proto": "0.1.0",
+    "@temporalio/worker": "0.1.0",
+    "@temporalio/workflow": "0.1.0",
+    "uuid": "^8.3.2"
+  },
+  "devDependencies": {
+    "@types/uuid": "^8.3.0"
+  },
+  "bugs": {
+    "url": "https://github.com/temporalio/sdk-node/issues"
+  },
+  "homepage": "https://github.com/temporalio/sdk-node#readme"
+}

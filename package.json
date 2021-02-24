@@ -1,44 +1,52 @@
 {
-  "name": "temporal-node-sdk",
-  "version": "1.0.0",
-  "description": "",
-  "main": "lib/index.js",
-  "types": "./lib/index.d.ts",
-  "scripts": {
-    "install": "neon build && node-gyp rebuild --release",
-    "compile-proto": "node ./scripts/compile-proto.js",
-    "build": "(cd test && tsc --build)",
-    "build.watch": "(cd test && tsc --build --watch)",
-    "lint": "eslint src --ext .ts",
-    "test": "ava test/lib/test*.js",
-    "test.watch": "ava -w test/lib/test*.js",
-    "clean": "find . -name tsconfig.tsbuildinfo -delete && find . -name lib -maxdepth 2 | xargs rm -rf"
+  "name": "temporalio",
+  "version": "0.1.0",
+  "description": "Temporal.io SDK meta-package",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
   },
-  "keywords": [],
-  "author": "Roey Berman <roey@temporal.io>",
-  "license": "ISC",
   "devDependencies": {
+    "@tsconfig/node12": "^1.0.7",
     "@types/dedent": "^0.7.0",
-    "@types/fs-extra": "^9.0.5",
-    "@types/ms": "^0.7.31",
-    "@types/node": "^14.14.10",
-    "@types/uuid": "^8.3.0",
-    "@typescript-eslint/eslint-plugin": "^4.7.0",
-    "@typescript-eslint/parser": "^4.7.0",
-    "ava": "^3.13.0",
-    "eslint": "^7.13.0",
-    "fs-extra": "^9.0.1",
-    "ts-node": "^9.1.0",
-    "typescript": "^4.0.5"
-  },
-  "dependencies": {
+    "@types/fs-extra": "^9.0.7",
+    "@types/node": "^12.20.4",
+    "@typescript-eslint/eslint-plugin": "^4.15.2",
+    "@typescript-eslint/parser": "^4.15.2",
+    "ava": "^3.15.0",
     "dedent": "^0.7.0",
-    "grpc": "^1.24.5",
-    "isolated-vm": "^3.3.10",
-    "ms": "^2.1.3",
-    "neon-cli": "^0.7.0",
-    "protobufjs": "^6.10.2",
-    "rxjs": "^6.6.3",
-    "uuid": "^8.3.2"
-  }
+    "eslint": "^7.20.0",
+    "eslint-config-prettier": "^8.0.0",
+    "fs-extra": "^9.1.0",
+    "json5": "^2.2.0",
+    "lerna": "^3.22.1",
+    "prettier": "^2.2.1",
+    "ts-node": "^9.1.1",
+    "typescript": "^4.2.2"
+  },
+  "scripts": {
+    "install": "lerna bootstrap",
+    "build": "lerna run build",
+    "build.watch": "lerna run --stream build.watch",
+    "test": "lerna run test",
+    "lint": "eslint packages/*/src --ext .ts && prettier --check .",
+    "format": "prettier --write .",
+    "clean": "node ./scripts/clean.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/temporalio/sdk-node.git"
+  },
+  "keywords": [
+    "temporal",
+    "workflow",
+    "isolate"
+  ],
+  "author": "Roey Berman <roey@temporal.io>",
+  "license": "MIT",
+  "gypfile": true,
+  "bugs": {
+    "url": "https://github.com/temporalio/sdk-node/issues"
+  },
+  "homepage": "https://github.com/temporalio/sdk-node#readme"
 }

@@ -1,0 +1,23 @@
+{
+  "name": "@temporalio/workflow",
+  "version": "0.1.0",
+  "description": "Temporal.io Workflow SDK",
+  "main": "commonjs/index.js",
+  "types": "./commonjs/index.d.ts",
+  "module": "./es2020/index.js",
+  "scripts": {},
+  "keywords": [
+    "temporal",
+    "workflow",
+    "isolate"
+  ],
+  "author": "Roey Berman <roey@temporal.io>",
+  "license": "MIT",
+  "dependencies": {
+    "@temporalio/proto": "0.1.0"
+  },
+  "bugs": {
+    "url": "https://github.com/temporalio/sdk-node/issues"
+  },
+  "homepage": "https://github.com/temporalio/sdk-node#readme"
+}

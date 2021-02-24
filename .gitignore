@@ -1,6 +1,8 @@
 node_modules/
 lib/
-proto/
 workflow-lib/commonjs/
 *.tsbuildinfo
 build/
+commonjs/
+es2020/
+package-lock.json

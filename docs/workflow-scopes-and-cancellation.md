@@ -1,9 +1,10 @@
 ### Scopes and Cancellation
 
 Temporal workflows have different types that can be cancelled:
-* A timer or an activity
-* An entire workflow
-* A workflow scope
+
+- A timer or an activity
+- An entire workflow
+- A workflow scope
 
 Workflows are represented internally by a tree of scopes where the `main` function runs in the root scope.
 Cancellation propagates from outer scopes to inner ones and is handled by catching `CancellationError`s when `await`ing on `Promise`s.
@@ -53,6 +54,7 @@ export async function main() {
 In order to have fine-grained control over cancellation, the workflow library exports 2 methods for explicitly creating scopes.
 
 The first is `cancellationScope` which when cancelled will propagate cancellation to all child scopes such as timers, activities and other scopes.
+
 ```ts
 import { CancellationError, cancellationScope, cancel, sleep } from '@temporal-sdk/workflow';
 import { httpGetJSON } from '@activities';
