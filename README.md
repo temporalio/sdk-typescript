@@ -11,7 +11,7 @@ For more information see the [proposal](https://github.com/temporalio/proposals/
 ```
 git submodule init
 git submodule update
-npm install
+npm ci
 ```
 
 #### Building
@@ -21,10 +21,11 @@ npm run clean
 npm run build
 ```
 
--- OR --
+#### Building with watch
 
 ```
 npm run clean
+npm run build  # Must be run once before build.watch
 npm run build.watch
 ```
 
