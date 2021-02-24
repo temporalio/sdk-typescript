@@ -1,6 +1,6 @@
 import { dirname, resolve as pathResolve, extname } from 'path';
 import { Stats } from 'fs';
-import fs from 'fs/promises';
+import fs from 'fs-extra';
 import ivm from 'isolated-vm';
 
 export class LoaderError extends Error {
