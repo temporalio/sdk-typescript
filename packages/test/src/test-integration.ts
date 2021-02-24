@@ -69,7 +69,9 @@ if (process.env.RUN_INTEGRATION_TESTS === '1') {
     );
     t.deepEqual(defaultDataConverter.fromPayload(execution.workflowExecutionInfo!.memo!.fields!.a!), 'b');
     t.deepEqual(
-      defaultDataConverter.fromPayload(execution.workflowExecutionInfo!.searchAttributes!.indexedFields!.CustomIntField!),
+      defaultDataConverter.fromPayload(
+        execution.workflowExecutionInfo!.searchAttributes!.indexedFields!.CustomIntField!
+      ),
       3
     );
     t.is(execution.executionConfig?.taskQueue?.name, 'test2');
