@@ -1,0 +1,15 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "./lib",
+    "rootDir": "./src"
+  },
+  "references": [
+    { "path": "../client" },
+    { "path": "../worker" },
+    { "path": "../test-activities" },
+    { "path": "../test-workflows" }
+  ],
+  "include": ["./src/**/*.ts"],
+  "exclude": ["node_modules"]
+}

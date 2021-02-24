@@ -1,0 +1,21 @@
+{
+  "name": "@temporalio/test-workflows",
+  "version": "0.1.0",
+  "description": "Temporal.io SDK Test Workflows",
+  "scripts": {},
+  "keywords": [
+    "temporal",
+    "workflow",
+    "isolate",
+    "test"
+  ],
+  "author": "Roey Berman <roey@temporal.io>",
+  "license": "MIT",
+  "dependencies": {
+    "ramda": "^0.27.1"
+  },
+  "bugs": {
+    "url": "https://github.com/temporalio/sdk-node/issues"
+  },
+  "homepage": "https://github.com/temporalio/sdk-node#readme"
+}

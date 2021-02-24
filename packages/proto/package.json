@@ -1,0 +1,25 @@
+{
+  "name": "@temporalio/proto",
+  "version": "0.1.0",
+  "description": "Temporal.io protobuf definitions",
+  "main": "commonjs/index.js",
+  "types": "./commonjs/index.d.ts",
+  "module": "./es2020/index.js",
+  "scripts": {
+    "build": "node ./scripts/compile-proto.js"
+  },
+  "keywords": [
+    "temporal",
+    "workflow",
+    "isolate"
+  ],
+  "author": "Roey Berman <roey@temporal.io>",
+  "license": "MIT",
+  "dependencies": {
+    "protobufjs": "^6.10.2"
+  },
+  "bugs": {
+    "url": "https://github.com/temporalio/sdk-node/issues"
+  },
+  "homepage": "https://github.com/temporalio/sdk-node#readme"
+}

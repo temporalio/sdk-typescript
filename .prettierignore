@@ -1,4 +1,7 @@
 node_modules
+build
+native
+sdk-core
 lib
 es2020
 commonjs
