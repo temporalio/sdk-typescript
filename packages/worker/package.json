@@ -5,7 +5,8 @@
   "main": "lib/index.js",
   "types": "./lib/index.d.ts",
   "scripts": {
-    "install": "neon build && node-gyp rebuild --release"
+    "build": "neon build && node-gyp rebuild --release",
+    "install": "npm run build"
   },
   "keywords": [
     "temporal",

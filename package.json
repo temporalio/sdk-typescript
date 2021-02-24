@@ -30,7 +30,6 @@
     "typescript": "^4.2.2"
   },
   "scripts": {
-    "install": "lerna bootstrap",
     "build": "lerna run build",
     "build.watch": "lerna run --stream build.watch",
     "test": "lerna run test",

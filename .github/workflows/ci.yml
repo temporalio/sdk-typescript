@@ -9,6 +9,10 @@ on: # rebuild any PRs and main branch changes
 jobs:
   build-lint-test:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: true
+      matrix:
+        node: [ 12 ]
     steps:
       - uses: actions/checkout@v2
         with:
@@ -18,7 +22,7 @@ jobs:
           toolchain: stable
       - uses: actions/setup-node@v1
         with:
-          node-version: 12
+          node-version: ${{ matrix.node }}
       - run: npm -g i npm@next-7
       - run: npm ci
       - run: npm run build
