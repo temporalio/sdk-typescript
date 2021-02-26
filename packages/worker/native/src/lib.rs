@@ -85,8 +85,6 @@ fn worker_poll(mut cx: FunctionContext) -> JsResult<JsUndefined> {
         let arc_worker = arc_worker.clone();
         let worker = arc_worker;
         let result = worker.poll();
-        // TODO: get rid of this, it limits concurrent tasks to 1
-        worker.suspend_polling();
         match result {
             Ok(task) => {
                 queue.send(move |mut cx| {

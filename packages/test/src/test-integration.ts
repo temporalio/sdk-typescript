@@ -11,7 +11,7 @@ import { u8 } from './helpers';
 if (process.env.RUN_INTEGRATION_TESTS === '1') {
   test.before(() => {
     const worker = new Worker(__dirname, { workflowsPath: `${__dirname}/../../test-workflows/lib` });
-    // TODO: worker shutdown is not yet implemented, fix this dangling promise
+    // TODO: use worker shutdown, fix this dangling promise
     worker.run('test');
   });
 

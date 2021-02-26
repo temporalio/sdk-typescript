@@ -180,8 +180,6 @@ export class Worker {
 
               const arr = await workflow.activate(task.taskToken, task.workflow);
               workerCompleteTask(native, arr.buffer.slice(arr.byteOffset));
-              // TODO: remove this when core supports concurrent task execution
-              this.resumePolling();
               return { state: workflow, output: arr };
             }, undefined)
           );
