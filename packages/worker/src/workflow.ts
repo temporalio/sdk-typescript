@@ -3,7 +3,6 @@ import dedent from 'dedent';
 import { coresdk } from '@temporalio/proto';
 import { activate, concludeActivation } from '@temporalio/workflow/commonjs/internals';
 import { Loader } from './loader';
-import '../build/Release/temporalio-workflow-isolate-extension';
 
 export enum ApplyMode {
   ASYNC = 'apply',

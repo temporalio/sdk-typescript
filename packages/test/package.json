@@ -5,7 +5,8 @@
   "scripts": {
     "build": "npx tsc --build",
     "build.watch": "npx tsc --build --watch",
-    "test": "ava ./lib/test-*.js"
+    "test": "ava ./lib/test-*.js",
+    "test.watch": "ava --watch ./lib/test-*.js"
   },
   "keywords": [
     "temporal",

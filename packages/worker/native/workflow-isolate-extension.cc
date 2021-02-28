@@ -58,9 +58,3 @@ ISOLATED_VM_MODULE void InitForContext(Isolate* isolate, Local<Context> context,
     Nan::Set(target, Nan::New("setPromiseData").ToLocalChecked(), Nan::GetFunction(Nan::New<FunctionTemplate>(set_promise_data)).ToLocalChecked());
     Nan::Set(target, Nan::New("getPromiseData").ToLocalChecked(), Nan::GetFunction(Nan::New<FunctionTemplate>(get_promise_data)).ToLocalChecked());
 }
-
-NAN_MODULE_INIT(init) {
-    Isolate* isolate = Isolate::GetCurrent();
-    InitForContext(isolate, isolate->GetCurrentContext(), target);
-}
-NODE_MODULE(native, init);

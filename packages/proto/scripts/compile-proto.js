@@ -42,7 +42,7 @@ console.log('Creating protobuf TS definitions');
 npx('pbts', '--out', resolve(commonjsOutputDir, 'index.d.ts'), resolve(commonjsOutputDir, 'index.js'));
 
 console.log('Converting protobufjs/minimal to ES module for isolate import');
-const protobufjsSource = readFileSync(resolve(__dirname, '../node_modules/protobufjs/dist/minimal/protobuf.js'));
+const protobufjsSource = readFileSync(require.resolve('protobufjs/dist/minimal/protobuf.js'));
 writeFileSync(
   resolve(es2020OutputDir, 'protobuf.js'),
   dedent`
