@@ -7,6 +7,7 @@
     "doc": "docs"
   },
   "devDependencies": {
+    "@temporalio/create": "file:packages/create-project",
     "@temporalio/test": "file:packages/test",
     "@temporalio/test-workflows": "file:packages/test-workflows",
     "@tsconfig/node12": "^1.0.7",
