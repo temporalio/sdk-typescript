@@ -8,11 +8,12 @@ on: # rebuild any PRs and main branch changes
 
 jobs:
   build-lint-test:
-    runs-on: ubuntu-latest
     strategy:
       fail-fast: true
       matrix:
-        node: [12]
+        node: [12, 14]
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v2
         with:
