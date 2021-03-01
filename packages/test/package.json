@@ -8,6 +8,9 @@
     "test": "ava ./lib/test-*.js",
     "test.watch": "ava --watch ./lib/test-*.js"
   },
+  "ava": {
+    "timeout": "60s"
+  },
   "keywords": [
     "temporal",
     "workflow",
