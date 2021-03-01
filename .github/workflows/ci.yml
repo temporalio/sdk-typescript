@@ -1,4 +1,4 @@
-name: ci
+name: Continuous Integration
 on: # rebuild any PRs and main branch changes
   pull_request:
   push:
@@ -24,8 +24,19 @@ jobs:
       - uses: actions/setup-node@v1
         with:
           node-version: ${{ matrix.node }}
-      - run: npm -g i npm@next-7
+      - run: npm -g i npm@next-7 # TODO: do we need this?
       - run: npm ci
       - run: npm run build
       - run: npm run lint
+      - name: Get Temporal docker-compose.yml
+        run: wget https://raw.githubusercontent.com/temporalio/docker-compose/main/docker-compose.yml
+        if: ${{ startsWith(matrix.os, 'ubuntu') }}
+      - name: Start Temporal Server
+        run: docker-compose up -d
+        if: ${{ startsWith(matrix.os, 'ubuntu') }}
+      - name: Wait for Temporal Server
+        run: node scripts/wait-on-temporal.js
+        if: ${{ startsWith(matrix.os, 'ubuntu') }}
       - run: npm test
+        env:
+          RUN_INTEGRATION_TESTS: ${{ startsWith(matrix.os, 'ubuntu') }}

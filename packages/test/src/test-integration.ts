@@ -16,9 +16,16 @@ const {
   EVENT_TYPE_TIMER_FIRED,
   EVENT_TYPE_TIMER_CANCELED,
 } = iface.temporal.api.enums.v1.EventType;
+
 const timerEventTypes = new Set([EVENT_TYPE_TIMER_STARTED, EVENT_TYPE_TIMER_FIRED, EVENT_TYPE_TIMER_CANCELED]);
 
-if (process.env.RUN_INTEGRATION_TESTS === '1') {
+function isSet(env: string | undefined) {
+  if (env === undefined) return false;
+  env = env.toLocaleLowerCase();
+  return env === '1' || env === 't' || env === 'true';
+}
+
+if (isSet(process.env.RUN_INTEGRATION_TESTS)) {
   test.before((t) => {
     worker.run('test').catch((err) => {
       t.fail(`Failed to run worker: ${err}`);
@@ -55,7 +62,7 @@ if (process.env.RUN_INTEGRATION_TESTS === '1') {
   test('cancel-timer-immediately', async (t) => {
     const client = new Connection();
     const opts = compileWorkflowOptions(addDefaults({ taskQueue: 'test' }));
-    const runId = await client.startWorkflowExecution(opts, 'cancel-timer');
+    const runId = await client.startWorkflowExecution(opts, 'cancel-timer-immediately');
     const res = await client.untilComplete(opts.workflowId, runId);
     t.is(res, undefined);
     const execution = await client.service.getWorkflowExecutionHistory({
