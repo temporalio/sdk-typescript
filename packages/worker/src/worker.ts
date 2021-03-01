@@ -4,6 +4,7 @@ import { groupBy, mapTo, mergeMap } from 'rxjs/operators';
 import { coresdk } from '@temporalio/proto';
 import {
   newWorker,
+  workerShutdown,
   workerPoll,
   workerIsSuspended,
   workerResumePolling,
@@ -118,6 +119,13 @@ export class Worker {
     _importPathToImplementation: Record<string, Record<string, () => any>>
   ): Promise<void> {
     // Not implemented yet
+  }
+
+  shutdown(): void {
+    if (this.nativeWorker === undefined) {
+      throw new Error('Not running');
+    }
+    workerShutdown(this.nativeWorker);
   }
 
   async run(queueName: string): Promise<void> {

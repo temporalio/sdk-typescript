@@ -471,7 +471,7 @@ test('cancel-workflow-from-workflow', async (t) => {
   t.deepEqual(logs, [['Timer cancelled 👍']]);
 });
 
-test('cancel-timer', async (t) => {
+test('cancel-timer-immediately', async (t) => {
   const { script, logs } = t.context;
   const req = await activate(t, makeStartWorkflow(script));
   compareCompletion(

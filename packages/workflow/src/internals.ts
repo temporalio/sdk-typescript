@@ -129,6 +129,22 @@ function failQuery(error: any) {
   });
 }
 
+function consumeCompletion(taskSeq: number) {
+  const completion = state.completions.get(taskSeq);
+  if (completion === undefined) {
+    throw new Error(`No completion for taskSeq ${taskSeq}`);
+  }
+  state.completions.delete(taskSeq);
+  return completion;
+}
+
+function timerIdToSeq(timerId: string | undefined | null) {
+  if (!timerId) {
+    throw new Error('Got activation with no timerId');
+  }
+  return parseInt(timerId);
+}
+
 export class Activator implements WorkflowTaskHandler {
   public startWorkflow(activation: iface.coresdk.IStartWorkflowTaskAttributes): void {
     if (state.workflow === undefined) {
@@ -153,17 +169,17 @@ export class Activator implements WorkflowTaskHandler {
   }
 
   public timerFired(activation: iface.coresdk.ITimerFiredTaskAttributes): void {
-    if (!activation.timerId) {
-      throw new Error('Got a TimerFired activation with no timerId');
-    }
-    const taskSeq = parseInt(activation.timerId);
-    const completion = state.completions.get(taskSeq);
-    if (completion === undefined) {
-      throw new Error(`No callback for taskSeq ${taskSeq}`);
-    }
-    state.completions.delete(taskSeq);
-    const { resolve } = completion;
+    const { resolve } = consumeCompletion(timerIdToSeq(activation.timerId));
     resolve(undefined);
+  }
+
+  public timerCanceled(activation: iface.coresdk.ITimerCanceledTaskAttributes): void {
+    const { scope } = consumeCompletion(timerIdToSeq(activation.timerId));
+    try {
+      scope.cancel(new CancellationError('Timer cancelled'));
+    } catch (e) {
+      if (!(e instanceof CancellationError)) throw e;
+    }
   }
 
   public queryWorkflow(job: iface.coresdk.IQueryWorkflowJob): void {
@@ -190,6 +206,10 @@ export class Activator implements WorkflowTaskHandler {
     } catch (err) {
       failQuery(err);
     }
+  }
+
+  public randomSeedUpdated(_activation: iface.coresdk.IRandomSeedUpdatedAttributes): void {
+    throw new Error('Not implemented');
   }
 }
 

@@ -146,10 +146,14 @@ fn worker_complete_task(mut cx: FunctionContext) -> JsResult<JsUndefined> {
 }
 
 fn worker_shutdown(mut cx: FunctionContext) -> JsResult<JsUndefined> {
-    // TODO:
-    // let worker = cx.argument::<BoxedWorker>(0)?;
-    // let w = &mut worker.read().unwrap();
-    Ok(cx.undefined())
+    let worker = cx.argument::<BoxedWorker>(0)?;
+    match worker.core.shutdown() {
+        Ok(_) => Ok(cx.undefined()),
+        Err(err) => {
+            let error = JsError::error(&mut cx, format!("{}", err))?;
+            cx.throw(error)
+        }
+    }
 }
 
 fn worker_suspend_polling(mut cx: FunctionContext) -> JsResult<JsUndefined> {

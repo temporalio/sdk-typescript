@@ -7,12 +7,25 @@ import { ArgsAndReturn } from '../../test-interfaces/lib';
 import * as iface from '@temporalio/proto';
 import { defaultDataConverter } from '@temporalio/workflow/commonjs/converter/data-converter';
 import { u8 } from './helpers';
+import { tsToMs } from '@temporalio/workflow/commonjs/time';
+
+const worker = new Worker(__dirname, { workflowsPath: `${__dirname}/../../test-workflows/lib` });
+
+const {
+  EVENT_TYPE_TIMER_STARTED,
+  EVENT_TYPE_TIMER_FIRED,
+  EVENT_TYPE_TIMER_CANCELED,
+} = iface.temporal.api.enums.v1.EventType;
+const timerEventTypes = new Set([EVENT_TYPE_TIMER_STARTED, EVENT_TYPE_TIMER_FIRED, EVENT_TYPE_TIMER_CANCELED]);
 
 if (process.env.RUN_INTEGRATION_TESTS === '1') {
-  test.before(() => {
-    const worker = new Worker(__dirname, { workflowsPath: `${__dirname}/../../test-workflows/lib` });
-    // TODO: use worker shutdown, fix this dangling promise
-    worker.run('test');
+  test.before((t) => {
+    worker.run('test').catch((err) => {
+      t.fail(`Failed to run worker: ${err}`);
+    });
+  });
+  test.after.always(() => {
+    worker.shutdown();
   });
 
   test('args-and-return', async (t) => {
@@ -20,6 +33,58 @@ if (process.env.RUN_INTEGRATION_TESTS === '1') {
     const workflow = client.workflow<ArgsAndReturn>('args-and-return', { taskQueue: 'test' });
     const res = await workflow('Hello', undefined, u8('world!'));
     t.is(res, 'Hello, world!');
+  });
+
+  test('set-timeout', async (t) => {
+    const client = new Connection();
+    const opts = compileWorkflowOptions(addDefaults({ taskQueue: 'test' }));
+    const runId = await client.startWorkflowExecution(opts, 'set-timeout');
+    const res = await client.untilComplete(opts.workflowId, runId);
+    t.is(res, undefined);
+    const execution = await client.service.getWorkflowExecutionHistory({
+      namespace: client.options.namespace,
+      execution: { workflowId: opts.workflowId, runId },
+    });
+    const timerEvents = execution.history!.events!.filter(({ eventType }) => timerEventTypes.has(eventType!));
+    t.is(timerEvents.length, 2);
+    t.is(timerEvents[0].timerStartedEventAttributes!.timerId, '0');
+    t.is(tsToMs(timerEvents[0].timerStartedEventAttributes!.startToFireTimeout), 100);
+    t.is(timerEvents[1].timerFiredEventAttributes!.timerId, '0');
+  });
+
+  test('cancel-timer-immediately', async (t) => {
+    const client = new Connection();
+    const opts = compileWorkflowOptions(addDefaults({ taskQueue: 'test' }));
+    const runId = await client.startWorkflowExecution(opts, 'cancel-timer');
+    const res = await client.untilComplete(opts.workflowId, runId);
+    t.is(res, undefined);
+    const execution = await client.service.getWorkflowExecutionHistory({
+      namespace: client.options.namespace,
+      execution: { workflowId: opts.workflowId, runId },
+    });
+    const timerEvents = execution.history!.events!.filter(({ eventType }) => timerEventTypes.has(eventType!));
+    // Timer is cancelled before it is scheduled
+    t.is(timerEvents.length, 0);
+  });
+
+  test('cancel-timer-with-delay', async (t) => {
+    const client = new Connection();
+    const opts = compileWorkflowOptions(addDefaults({ taskQueue: 'test' }));
+    const runId = await client.startWorkflowExecution(opts, 'cancel-timer-with-delay');
+    const res = await client.untilComplete(opts.workflowId, runId);
+    t.is(res, undefined);
+    const execution = await client.service.getWorkflowExecutionHistory({
+      namespace: client.options.namespace,
+      execution: { workflowId: opts.workflowId, runId },
+    });
+    const timerEvents = execution.history!.events!.filter(({ eventType }) => timerEventTypes.has(eventType!));
+    t.is(timerEvents.length, 4);
+    t.is(timerEvents[0].timerStartedEventAttributes!.timerId, '0');
+    t.is(tsToMs(timerEvents[0].timerStartedEventAttributes!.startToFireTimeout), 10000);
+    t.is(timerEvents[1].timerStartedEventAttributes!.timerId, '1');
+    t.is(tsToMs(timerEvents[1].timerStartedEventAttributes!.startToFireTimeout), 1);
+    t.is(timerEvents[2].timerFiredEventAttributes!.timerId, '1');
+    t.is(timerEvents[3].timerCanceledEventAttributes!.timerId, '0');
   });
 
   test('WorkflowOptions are passed correctly with defaults', async (t) => {
