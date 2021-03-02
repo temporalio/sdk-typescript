@@ -4,10 +4,6 @@
     "doc": "docs"
   },
   "devDependencies": {
-    "@temporalio/create": "file:packages/create-project",
-    "@temporalio/test": "file:packages/test",
-    "@temporalio/test-workflows": "file:packages/test-workflows",
-    "temporalio": "file:packages/meta",
     "@tsconfig/node12": "^1.0.7",
     "@types/dedent": "^0.7.0",
     "@types/fs-extra": "^9.0.7",
@@ -52,5 +48,16 @@
     "url": "https://github.com/temporalio/sdk-node/issues"
   },
   "homepage": "https://github.com/temporalio/sdk-node#readme",
-  "files": []
+  "files": [],
+  "name": "typescript-sdk",
+  "dependencies": {
+    "@temporalio/client": "file:packages/client",
+    "@temporalio/create": "file:packages/create-project",
+    "@temporalio/proto": "file:packages/proto",
+    "@temporalio/test": "file:packages/test",
+    "@temporalio/test-workflows": "file:packages/test-workflows",
+    "@temporalio/worker": "file:packages/worker",
+    "@temporalio/workflow": "file:packages/workflow",
+    "temporalio": "file:packages/meta"
+  }
 }
