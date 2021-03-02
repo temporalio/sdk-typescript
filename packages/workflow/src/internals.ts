@@ -146,7 +146,7 @@ function timerIdToSeq(timerId: string | undefined | null) {
 }
 
 export class Activator implements WorkflowTaskHandler {
-  public startWorkflow(activation: iface.coresdk.IStartWorkflowTaskAttributes): void {
+  public startWorkflow(activation: iface.coresdk.IStartWorkflow): void {
     if (state.workflow === undefined) {
       throw new Error('state.workflow is not defined');
     }
@@ -163,17 +163,17 @@ export class Activator implements WorkflowTaskHandler {
     }
   }
 
-  public cancelWorkflow(_activation: iface.coresdk.ICancelWorkflowTaskAttributes): void {
+  public cancelWorkflow(_activation: iface.coresdk.ICancelWorkflow): void {
     state.cancelled = true;
     rootScopeCancel(new CancellationError('Workflow cancelled'));
   }
 
-  public timerFired(activation: iface.coresdk.ITimerFiredTaskAttributes): void {
+  public fireTimer(activation: iface.coresdk.IFireTimer): void {
     const { resolve } = consumeCompletion(timerIdToSeq(activation.timerId));
     resolve(undefined);
   }
 
-  public timerCanceled(activation: iface.coresdk.ITimerCanceledTaskAttributes): void {
+  public cancelTimer(activation: iface.coresdk.ICancelTimer): void {
     const { scope } = consumeCompletion(timerIdToSeq(activation.timerId));
     try {
       scope.cancel(new CancellationError('Timer cancelled'));
@@ -182,7 +182,7 @@ export class Activator implements WorkflowTaskHandler {
     }
   }
 
-  public queryWorkflow(job: iface.coresdk.IQueryWorkflowJob): void {
+  public queryWorkflow(job: iface.coresdk.IQueryWorkflow): void {
     if (state.workflow === undefined) {
       throw new Error('state.workflow is not defined');
     }
@@ -208,7 +208,7 @@ export class Activator implements WorkflowTaskHandler {
     }
   }
 
-  public randomSeedUpdated(_activation: iface.coresdk.IRandomSeedUpdatedAttributes): void {
+  public updateRandomSeed(_activation: iface.coresdk.IUpdateRandomSeed): void {
     throw new Error('Not implemented');
   }
 }
@@ -224,20 +224,20 @@ export function activate(encodedActivation: Uint8Array, jobIndex: number): boole
   if (state.activator === undefined) {
     throw new Error('state.activator is not defined');
   }
-  if (job.attributes === undefined) {
-    throw new Error('Expected job.attributes to be defined');
+  if (job.variant === undefined) {
+    throw new Error('Expected job.variant to be defined');
   }
-  const attrs = job[job.attributes];
-  if (!attrs) {
-    throw new Error(`Expected job.${job.attributes} to be set`);
+  const variant = job[job.variant];
+  if (!variant) {
+    throw new Error(`Expected job.${job.variant} to be set`);
   }
   // The only job that can be executed on a completed workflow is a query.
   // We might get other jobs after completion for instance when a single
   // activation contains multiple jobs and the first one completes the workflow.
-  if (state.completed && job.attributes !== 'queryWorkflow') {
+  if (state.completed && job.variant !== 'queryWorkflow') {
     return false;
   }
-  state.activator[job.attributes](attrs);
+  state.activator[job.variant](variant);
   return true;
 }
 

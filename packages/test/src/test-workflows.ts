@@ -76,13 +76,13 @@ function makeActivation(
   };
 }
 
-function makeUnblockTimer(timerId: string, timestamp: number = Date.now()): iface.coresdk.IWFActivation {
-  return makeActivation(timestamp, makeUnblockTimerJob(timerId));
+function makeFireTimer(timerId: string, timestamp: number = Date.now()): iface.coresdk.IWFActivation {
+  return makeActivation(timestamp, makeFireTimerJob(timerId));
 }
 
-function makeUnblockTimerJob(timerId: string): iface.coresdk.IWFActivationJob {
+function makeFireTimerJob(timerId: string): iface.coresdk.IWFActivationJob {
   return {
-    timerFired: { timerId },
+    fireTimer: { timerId },
   };
 }
 
@@ -214,7 +214,7 @@ test('set-timeout', async (t) => {
     compareCompletion(t, req, makeSuccess([makeStartTimerCommand({ timerId: '0', startToFireTimeout: msToTs(100) })]));
   }
   {
-    const req = await activate(t, makeUnblockTimer('0'));
+    const req = await activate(t, makeFireTimer('0'));
     compareCompletion(t, req, makeSuccess());
   }
   t.deepEqual(logs, [['slept']]);
@@ -227,7 +227,7 @@ test('set-timeout-after-microtasks', async (t) => {
     compareCompletion(t, req, makeSuccess([makeStartTimerCommand({ timerId: '0', startToFireTimeout: msToTs(100) })]));
   }
   {
-    const req = await activate(t, makeUnblockTimer('0'));
+    const req = await activate(t, makeFireTimer('0'));
     compareCompletion(t, req, makeSuccess());
   }
   t.deepEqual(logs, [['slept']]);
@@ -261,7 +261,7 @@ test('tasks-and-microtasks', async (t) => {
     compareCompletion(t, req, makeSuccess([makeStartTimerCommand({ timerId: '0', startToFireTimeout: msToTs(0) })]));
   }
   {
-    const req = await activate(t, makeUnblockTimer('0'));
+    const req = await activate(t, makeFireTimer('0'));
     compareCompletion(t, req, makeSuccess());
   }
   t.deepEqual(logs, [['script start'], ['script end'], ['promise1'], ['promise2'], ['setTimeout']]);
@@ -281,7 +281,7 @@ test('trailing-timer', async (t) => {
     );
   }
   {
-    const req = await activate(t, makeActivation(undefined, makeUnblockTimerJob('0'), makeUnblockTimerJob('1')));
+    const req = await activate(t, makeActivation(undefined, makeFireTimerJob('0'), makeFireTimerJob('1')));
     // Note that the trailing timer does not get scheduled since the workflow completes
     // after the first timer is triggered causing the second one to be dropped.
     compareCompletion(t, req, makeSuccess([makeCompleteWorkflowExecution(defaultDataConverter.toPayload('first'))]));
@@ -303,7 +303,7 @@ test('promise-race', async (t) => {
     );
   }
   {
-    const req = await activate(t, makeActivation(undefined, makeUnblockTimerJob('0'), makeUnblockTimerJob('1')));
+    const req = await activate(t, makeActivation(undefined, makeFireTimerJob('0'), makeFireTimerJob('1')));
     compareCompletion(t, req, makeSuccess());
   }
   t.deepEqual(logs, [[1], [1], [1], [1], [20], ['wow']]);
@@ -323,11 +323,11 @@ test('race', async (t) => {
     );
   }
   {
-    const req = await activate(t, makeUnblockTimer('0'));
+    const req = await activate(t, makeFireTimer('0'));
     compareCompletion(t, req, makeSuccess([]));
   }
   {
-    const req = await activate(t, makeUnblockTimer('1'));
+    const req = await activate(t, makeFireTimer('1'));
     compareCompletion(t, req, makeSuccess());
   }
   t.deepEqual(logs, [[1], [2], [3]]);
@@ -340,7 +340,7 @@ test('importer', async (t) => {
     compareCompletion(t, req, makeSuccess([makeStartTimerCommand({ timerId: '0', startToFireTimeout: msToTs(10) })]));
   }
   {
-    const req = await activate(t, makeUnblockTimer('0'));
+    const req = await activate(t, makeFireTimer('0'));
     compareCompletion(t, req, makeSuccess());
   }
   t.deepEqual(logs, [['slept']]);
@@ -405,7 +405,7 @@ test('simple-query', async (t) => {
     );
   }
   {
-    const req = await activate(t, makeUnblockTimer('0'));
+    const req = await activate(t, makeFireTimer('0'));
     compareCompletion(t, req, makeSuccess());
   }
   {
@@ -450,7 +450,7 @@ test('cancel-workflow', async (t) => {
     compareCompletion(t, req, makeSuccess([]));
   }
   {
-    const req = await activate(t, makeUnblockTimer('2'));
+    const req = await activate(t, makeFireTimer('2'));
     compareCompletion(t, req, makeSuccess([makeCompleteWorkflowExecution(defaultDataConverter.toPayload({ url }))]));
   }
   t.deepEqual(logs, [['Workflow cancelled'], ['Workflow cancelled'], ['Workflow cancelled']]);
@@ -507,7 +507,7 @@ test('cancellation-scopes', async (t) => {
     compareCompletion(t, req, makeSuccess([makeStartTimerCommand({ timerId: '0', startToFireTimeout: msToTs(3) })]));
   }
   {
-    const req = await activate(t, makeUnblockTimer('0'));
+    const req = await activate(t, makeFireTimer('0'));
     compareCompletion(
       t,
       req,
@@ -519,7 +519,7 @@ test('cancellation-scopes', async (t) => {
     );
   }
   {
-    const req = await activate(t, makeUnblockTimer('2'));
+    const req = await activate(t, makeFireTimer('2'));
     compareCompletion(t, req, makeSuccess([makeStartTimerCommand({ timerId: '3', startToFireTimeout: msToTs(3) })]));
   }
   {
@@ -549,11 +549,11 @@ test('child-and-shield', async (t) => {
     );
   }
   {
-    const req = await activate(t, makeUnblockTimer('0'));
+    const req = await activate(t, makeFireTimer('0'));
     compareCompletion(t, req, makeSuccess([]));
   }
   {
-    const req = await activate(t, makeUnblockTimer('1'));
+    const req = await activate(t, makeFireTimer('1'));
     compareCompletion(t, req, makeSuccess());
   }
   t.deepEqual(logs, [['Exception was propagated 👍'], ['Slept in shield 👍']]);
@@ -573,7 +573,7 @@ test('partial-shield', async (t) => {
     );
   }
   {
-    const req = await activate(t, makeUnblockTimer('1'));
+    const req = await activate(t, makeFireTimer('1'));
     compareCompletion(t, req, makeSuccess([makeStartTimerCommand({ timerId: '2', startToFireTimeout: msToTs(2) })]));
   }
   {
@@ -588,11 +588,11 @@ test('partial-shield', async (t) => {
     );
   }
   {
-    const req = await activate(t, makeUnblockTimer('0'));
+    const req = await activate(t, makeFireTimer('0'));
     compareCompletion(t, req, makeSuccess([makeStartTimerCommand({ timerId: '4', startToFireTimeout: msToTs(1) })]));
   }
   {
-    const req = await activate(t, makeUnblockTimer('3'));
+    const req = await activate(t, makeFireTimer('3'));
     compareCompletion(t, req, makeSuccess());
   }
   t.deepEqual(logs, [['Workflow cancelled']]);
@@ -612,11 +612,11 @@ test('shield-in-shield', async (t) => {
     );
   }
   {
-    const req = await activate(t, makeUnblockTimer('1'));
+    const req = await activate(t, makeFireTimer('1'));
     compareCompletion(t, req, makeSuccess([]));
   }
   {
-    const req = await activate(t, makeUnblockTimer('0'));
+    const req = await activate(t, makeFireTimer('0'));
     compareCompletion(t, req, makeSuccess());
   }
   t.deepEqual(logs, [
