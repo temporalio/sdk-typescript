@@ -5,6 +5,7 @@ import { Connection, compileWorkflowOptions, addDefaults } from '@temporalio/cli
 import { Worker } from '@temporalio/worker';
 import { ArgsAndReturn } from '../../test-interfaces/lib';
 import * as iface from '@temporalio/proto';
+import { WorkflowExecutionFailedError } from '@temporalio/workflow/commonjs/errors';
 import { defaultDataConverter } from '@temporalio/workflow/commonjs/converter/data-converter';
 import { u8, RUN_INTEGRATION_TESTS } from './helpers';
 import { tsToMs } from '@temporalio/workflow/commonjs/time';
@@ -22,11 +23,21 @@ if (RUN_INTEGRATION_TESTS) {
 
   test.before((t) => {
     worker.run('test').catch((err) => {
+      console.error(err);
       t.fail(`Failed to run worker: ${err}`);
     });
   });
   test.after.always(() => {
     worker.shutdown();
+  });
+
+  test('Workflow not found results in failure', async (t) => {
+    const client = new Connection();
+    const opts = compileWorkflowOptions(addDefaults({ taskQueue: 'test' }));
+    const runId = await client.startWorkflowExecution(opts, 'not-found');
+    const err = await t.throwsAsync(() => client.untilComplete(opts.workflowId, runId));
+    t.true(err instanceof WorkflowExecutionFailedError);
+    t.regex(err.message, /^Could not find file: \S+\/not-found.js$/);
   });
 
   test('args-and-return', async (t) => {
