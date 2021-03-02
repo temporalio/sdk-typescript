@@ -10,20 +10,20 @@ For more information see the [proposal](https://github.com/temporalio/proposals/
 
 <!-- vim-markdown-toc GFM -->
 
-* [Getting started](#getting-started)
-    * [Install system dependencies](#install-system-dependencies)
-    * [Create a new project](#create-a-new-project)
-    * [Build everything](#build-everything)
-    * [Run the Temporal server](#run-the-temporal-server)
-    * [Test your workflow](#test-your-workflow)
-* [Hello World](#hello-world)
-    * [Activities and workflows](#activities-and-workflows)
-    * [Worker and client](#worker-and-client)
-* [Development](#development)
-    * [Environment set up](#environment-set-up)
-    * [Building](#building)
-    * [Building with watch](#building-with-watch)
-    * [Testing](#testing)
+- [Getting started](#getting-started)
+  - [Install system dependencies](#install-system-dependencies)
+  - [Create a new project](#create-a-new-project)
+  - [Build everything](#build-everything)
+  - [Run the Temporal server](#run-the-temporal-server)
+  - [Test your workflow](#test-your-workflow)
+- [Hello World](#hello-world)
+  - [Activities and workflows](#activities-and-workflows)
+  - [Worker and client](#worker-and-client)
+- [Development](#development)
+  - [Environment set up](#environment-set-up)
+  - [Building](#building)
+  - [Building with watch](#building-with-watch)
+  - [Testing](#testing)
 
 <!-- vim-markdown-toc -->
 
