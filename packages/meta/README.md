@@ -1,6 +1,7 @@
 # Temporal NodeJS SDK
 
 ![CI](https://github.com/temporalio/sdk-node/actions/workflows/ci.yml/badge.svg)
+[![NPM](https://img.shields.io/npm/v/temporalio.svg?style=flat)](https://www.npmjs.com/package/temporalio)
 
 Typescript + NodeJS SDK for [Temporal](temporal.io).
 
@@ -28,8 +29,6 @@ For more information see the [proposal](https://github.com/temporalio/proposals/
 <!-- vim-markdown-toc -->
 
 ### Getting started
-
-> Not working yet, activities not implemented
 
 #### Install system dependencies
 
@@ -73,6 +72,8 @@ Download, install, and run the [Temporal server](https://docs.temporal.io/docs/s
   ```
 
 ### Hello World
+
+> Not working yet, activities not implemented
 
 #### Activities and workflows
 
