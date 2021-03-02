@@ -293,7 +293,7 @@ export class Connection {
       );
       return result;
     } else if (ev.workflowExecutionFailedEventAttributes) {
-      throw new Error(
+      throw new errors.WorkflowExecutionFailedError(
         ev.workflowExecutionFailedEventAttributes.failure?.message || 'Workflow failed without failure message'
       );
     } else if (ev.workflowExecutionCanceledEventAttributes) {
