@@ -5,3 +5,4 @@ workflow-lib/commonjs/
 build/
 commonjs/
 es2020/
+lerna*.log
