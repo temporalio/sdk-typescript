@@ -23,5 +23,8 @@
   "files": [
     "es2020",
     "commonjs"
-  ]
+  ],
+  "publishConfig": {
+    "access": "public"
+  }
 }

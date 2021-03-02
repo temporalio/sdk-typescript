@@ -43,5 +43,8 @@
     "native/Cargo.lock",
     "native/workflow-isolate-extension.cc",
     "binding.gyp"
-  ]
+  ],
+  "publishConfig": {
+    "access": "public"
+  }
 }

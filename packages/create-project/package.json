@@ -22,5 +22,8 @@
   "dependencies": {
     "arg": "^5.0.0",
     "fs-extra": "^9.0.1"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }
