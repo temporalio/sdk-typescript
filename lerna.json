@@ -3,7 +3,6 @@
   "npmClient": "npm",
   "command": {
     "publish": {
-      "ignoreChanges": ["*.md"],
       "message": "chore(release): publish",
       "registry": "https://registry.npmjs.org/"
     },
