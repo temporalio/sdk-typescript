@@ -31,9 +31,9 @@
     "typescript": "^4.2.2"
   },
   "scripts": {
-    "build": "lerna run build",
+    "build": "lerna run --stream build",
     "build.watch": "lerna run --stream build.watch",
-    "test": "lerna run test",
+    "test": "lerna run --stream test",
     "test.watch": "lerna run --stream test.watch",
     "lint": "eslint packages/*/src --ext .ts && prettier --check .",
     "format": "prettier --write .",
