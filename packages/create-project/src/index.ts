@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 import os from 'os';
 import path from 'path';
 import { mkdir, writeFile, copyFile } from 'fs-extra';
@@ -5,7 +6,6 @@ import arg from 'arg';
 import { spawn } from './subprocess';
 
 const command = '@temporalio/create';
-const temporalVersion = '0.1.0';
 const typescriptVersion = '4.2.2';
 
 const packageJsonBase = {
@@ -14,9 +14,6 @@ const packageJsonBase = {
   scripts: {
     build: 'tsc --build src/worker/tsconfig.json',
     'build.watch': 'tsc --build --watch src/worker/tsconfig.json',
-  },
-  dependencies: {
-    temporalio: `^${temporalVersion}`,
   },
   devDependencies: {
     typescript: `^${typescriptVersion}`,
@@ -72,7 +69,7 @@ const workflowsTsConfig = {
     esModuleInterop: true,
     strict: true,
     typeRoots: ['.'],
-    outDir: '../lib/workflows',
+    outDir: '../../lib/workflows',
     paths: {
       '@activities': ['../activities'],
       '@activities/*': ['../activities/*'],
@@ -91,7 +88,7 @@ export class UsageError extends Error {
   public readonly name: string = 'UsageError';
 }
 
-async function createProject(projectPath: string, useYarn: boolean) {
+async function createProject(projectPath: string, useYarn: boolean, temporalVersion: string) {
   const root = path.resolve(projectPath);
   const src = path.resolve(root, 'src');
   const name = path.basename(root);
@@ -105,16 +102,14 @@ async function createProject(projectPath: string, useYarn: boolean) {
   await mkdir(path.join(src, 'worker'));
   await writePrettyJson(path.join(src, 'interfaces', 'tsconfig.json'), {
     ...tsConfigBase,
-    compilerOptions: { ...tsConfigBase.compilerOptions, outDir: '../lib/interfaces' },
+    compilerOptions: { ...tsConfigBase.compilerOptions, outDir: '../../lib/interfaces' },
   });
-  await writeFile(path.join(src, 'interfaces', 'index.ts'), '');
   await writePrettyJson(path.join(src, 'workflows', 'tsconfig.json'), workflowsTsConfig);
-  await writeFile(path.join(src, 'workflows', 'index.ts'), '');
   await writePrettyJson(path.join(src, 'activities', 'tsconfig.json'), {
     ...tsConfigBase,
     compilerOptions: {
       ...tsConfigBase.compilerOptions,
-      outDir: '../lib/activities',
+      outDir: '../../lib/activities',
       paths: {
         '@interfaces': ['../interfaces'],
         '@interfaces/*': ['../interfaces/*'],
@@ -122,12 +117,11 @@ async function createProject(projectPath: string, useYarn: boolean) {
     },
     references: [{ path: '../interfaces/tsconfig.json' }],
   });
-  await writeFile(path.join(src, 'activities', 'index.ts'), '');
   await writePrettyJson(path.join(src, 'worker', 'tsconfig.json'), {
     ...tsConfigBase,
     compilerOptions: {
       ...tsConfigBase.compilerOptions,
-      outDir: '../lib/worker',
+      outDir: '../../lib/worker',
       paths: {
         '@workflows': ['../workflows'],
         '@workflows/*': ['../workflows/*'],
@@ -143,22 +137,30 @@ async function createProject(projectPath: string, useYarn: boolean) {
       { path: '../workflows/tsconfig.json' },
     ],
   });
-  await copyFile(path.join(__dirname, '../samples/worker.ts'), path.join(src, 'worker', 'index.ts'));
+  const sampleDir = path.join(__dirname, '../samples');
+  await copyFile(path.join(sampleDir, 'worker.ts'), path.join(src, 'worker', 'index.ts'));
+  await copyFile(path.join(sampleDir, 'client.ts'), path.join(src, 'worker', 'test.ts'));
+  await copyFile(path.join(sampleDir, 'activity.ts'), path.join(src, 'activities', 'greeter.ts'));
+  await copyFile(path.join(sampleDir, 'workflow.ts'), path.join(src, 'workflows', 'example.ts'));
+  await copyFile(path.join(sampleDir, 'interface.ts'), path.join(src, 'interfaces', 'workflows.ts'));
   if (useYarn) {
     await spawn('yarn', ['install'], { cwd: root, stdio: 'inherit' });
+    await spawn('yarn', ['add', `temporalio@${temporalVersion}`], { cwd: root, stdio: 'inherit' });
   } else {
     await spawn('npm', ['install'], { cwd: root, stdio: 'inherit' });
+    await spawn('npm', ['install', `temporalio@${temporalVersion}`], { cwd: root, stdio: 'inherit' });
   }
 }
 
 async function init() {
   const { _: args, ...opts } = arg({
     '--use-yarn': Boolean,
+    '--temporal-version': String,
   });
   if (args.length !== 1) {
     throw new UsageError();
   }
-  await createProject(args[0], !!opts['--use-yarn']);
+  await createProject(args[0], !!opts['--use-yarn'], opts['--temporal-version'] || 'latest');
 }
 
 init()

@@ -1,8 +1,5 @@
 {
-  "name": "temporalio",
-  "version": "0.1.0",
-  "description": "Temporal.io SDK meta-package",
-  "main": "index.js",
+  "private": true,
   "directories": {
     "doc": "docs"
   },
@@ -10,6 +7,7 @@
     "@temporalio/create": "file:packages/create-project",
     "@temporalio/test": "file:packages/test",
     "@temporalio/test-workflows": "file:packages/test-workflows",
+    "temporalio": "file:packages/meta",
     "@tsconfig/node12": "^1.0.7",
     "@types/dedent": "^0.7.0",
     "@types/fs-extra": "^9.0.7",
@@ -50,15 +48,9 @@
   ],
   "author": "Roey Berman <roey@temporal.io>",
   "license": "MIT",
-  "gypfile": true,
   "bugs": {
     "url": "https://github.com/temporalio/sdk-node/issues"
   },
   "homepage": "https://github.com/temporalio/sdk-node#readme",
-  "dependencies": {
-    "@temporalio/client": "file:packages/client",
-    "@temporalio/proto": "file:packages/proto",
-    "@temporalio/worker": "file:packages/worker",
-    "@temporalio/workflow": "file:packages/workflow"
-  }
+  "files": []
 }

@@ -3,9 +3,6 @@ import { ActivityOptions, ActivityFunction } from './interfaces';
 import { state, currentScope, childScope, propagateCancellation } from './internals';
 import { CancellationError } from './errors';
 import { msToTs } from './time';
-import './global-overrides';
-
-export { CancellationError, ActivityOptions };
 
 export function sleep(ms: number): Promise<void> {
   const seq = state.nextSeq++;

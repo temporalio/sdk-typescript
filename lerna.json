@@ -1,11 +1,11 @@
 {
-  "version": "3.22.1",
+  "version": "independent",
   "npmClient": "npm",
   "command": {
     "publish": {
-      "ignoreChanges": ["ignored-file", "*.md"],
+      "ignoreChanges": ["*.md"],
       "message": "chore(release): publish",
-      "registry": "https://npm.pkg.github.com"
+      "registry": "https://registry.npmjs.org/"
     },
     "bootstrap": {
       "npmClientArgs": ["--no-package-lock"]

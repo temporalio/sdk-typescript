@@ -4,6 +4,7 @@
   "description": "Temporal.io Worker SDK",
   "main": "lib/index.js",
   "types": "./lib/index.d.ts",
+  "gypfile": true,
   "scripts": {
     "build": "neon build && node-gyp rebuild --release",
     "install": "npm run build"
@@ -20,6 +21,7 @@
     "@temporalio/proto": "file:../proto",
     "@temporalio/workflow": "file:../workflow",
     "dedent": "^0.7.0",
+    "fs-extra": "^9.0.1",
     "grpc": "^1.24.5",
     "isolated-vm": "^3.3.10",
     "ms": "^2.1.3",
@@ -31,5 +33,15 @@
   "bugs": {
     "url": "https://github.com/temporalio/sdk-node/issues"
   },
-  "homepage": "https://github.com/temporalio/sdk-node#readme"
+  "homepage": "https://github.com/temporalio/sdk-node#readme",
+  "files": [
+    "lib",
+    "native/src",
+    "native/build.rs",
+    "native/sdk-core",
+    "native/Cargo.toml",
+    "native/Cargo.lock",
+    "native/workflow-isolate-extension.cc",
+    "binding.gyp"
+  ]
 }

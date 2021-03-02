@@ -46,7 +46,7 @@ export class Workflow {
     const protosModule = await loader.loadModule(require.resolve('@temporalio/proto/es2020/index.js'));
     loader.overrideModule('@temporalio/proto', protosModule);
     const workflowInternals = await loader.loadModule(require.resolve('@temporalio/workflow/es2020/internals.js'));
-    const workflowModule = await loader.loadModule(require.resolve('@temporalio/workflow/es2020/workflow.js'));
+    const workflowModule = await loader.loadModule(require.resolve('@temporalio/workflow/es2020/index.js'));
     const activate = await workflowInternals.namespace.get('activate');
     const concludeActivation = await workflowInternals.namespace.get('concludeActivation');
     const initWorkflow = await workflowInternals.namespace.get('initWorkflow');

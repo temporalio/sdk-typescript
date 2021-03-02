@@ -24,5 +24,8 @@
   "bugs": {
     "url": "https://github.com/temporalio/sdk-node/issues"
   },
-  "homepage": "https://github.com/temporalio/sdk-node#readme"
+  "homepage": "https://github.com/temporalio/sdk-node#readme",
+  "files": [
+    "lib"
+  ]
 }

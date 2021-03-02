@@ -1,5 +1,4 @@
-import '@temporalio/workflow';
-import { Workflow } from '@temporalio/interfaces';
+import { Workflow } from '@temporalio/workflow';
 import { sleep } from './sleep';
 
 async function main(): Promise<void> {

@@ -2,7 +2,7 @@
   "name": "@temporalio/workflow",
   "version": "0.1.0",
   "description": "Temporal.io Workflow SDK",
-  "main": "commonjs/index.js",
+  "main": "./commonjs/index.js",
   "types": "./commonjs/index.d.ts",
   "module": "./es2020/index.js",
   "scripts": {},
@@ -19,5 +19,9 @@
   "bugs": {
     "url": "https://github.com/temporalio/sdk-node/issues"
   },
-  "homepage": "https://github.com/temporalio/sdk-node#readme"
+  "homepage": "https://github.com/temporalio/sdk-node#readme",
+  "files": [
+    "es2020",
+    "commonjs"
+  ]
 }
