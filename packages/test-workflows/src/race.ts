@@ -1,5 +1,4 @@
-import '@temporalio/workflow';
-import { Workflow } from '@temporalio/interfaces';
+import { Workflow } from '@temporalio/workflow';
 
 async function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));

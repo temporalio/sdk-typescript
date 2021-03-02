@@ -1,4 +1,5 @@
 {
+  "private": true,
   "name": "@temporalio/test",
   "version": "0.1.0",
   "description": "Temporal.io SDK Tests",

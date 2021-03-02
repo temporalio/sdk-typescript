@@ -26,7 +26,7 @@
     "paths": {
       "@activities": ["../test-activities/lib"],
       "@activities/*": ["../test-activities/lib/*"],
-      "@temporalio/*": ["../workflow/es2020/*"],
+      "@temporalio/workflow": ["../workflow/es2020"],
       "@interfaces": ["../test-interfaces/lib"]
     }
   },

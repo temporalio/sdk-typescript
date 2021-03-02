@@ -9,7 +9,7 @@ const pbts = require('protobufjs/cli/pbts');
 const outputDir = resolve(__dirname, '..');
 const commonjsOutputDir = resolve(outputDir, 'commonjs');
 const es2020OutputDir = resolve(outputDir, 'es2020');
-const protoBaseDir = resolve(__dirname, '../../../sdk-core/protos');
+const protoBaseDir = resolve(__dirname, '../../worker/native/sdk-core/protos');
 removeSync(commonjsOutputDir);
 removeSync(es2020OutputDir);
 mkdirsSync(commonjsOutputDir);
@@ -52,8 +52,9 @@ async function main() {
   `
   );
 
-  console.log('Create protobuf JS definitions for isolates');
+  console.log('Creating protobuf JS definitions for isolates');
   await promisify(pbjs.main)(pbjsArgs('es6', resolve(es2020OutputDir, 'index.js')));
+  console.log('Done');
 }
 
 main().catch((err) => {
