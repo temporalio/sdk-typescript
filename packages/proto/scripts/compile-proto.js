@@ -1,8 +1,7 @@
 const { promisify } = require('util');
 const { resolve } = require('path');
-const { spawnSync } = require('child_process');
 const dedent = require('dedent');
-const { removeSync, mkdirsSync, readFileSync, writeFileSync } = require('fs-extra');
+const { statSync, removeSync, mkdirsSync, readFileSync, writeFileSync } = require('fs-extra');
 const pbjs = require('protobufjs/cli/pbjs');
 const pbts = require('protobufjs/cli/pbts');
 
@@ -10,10 +9,11 @@ const outputDir = resolve(__dirname, '..');
 const commonjsOutputDir = resolve(outputDir, 'commonjs');
 const es2020OutputDir = resolve(outputDir, 'es2020');
 const protoBaseDir = resolve(__dirname, '../../worker/native/sdk-core/protos');
-removeSync(commonjsOutputDir);
-removeSync(es2020OutputDir);
 mkdirsSync(commonjsOutputDir);
 mkdirsSync(es2020OutputDir);
+
+const coreProtoPath = resolve(protoBaseDir, 'local/core_interface.proto');
+const serviceProtoPath = resolve(protoBaseDir, 'api_upstream/temporal/api/workflowservice/v1/service.proto');
 
 const pbjsArgs = (wrap, out) => [
   '--path',
@@ -25,13 +25,33 @@ const pbjsArgs = (wrap, out) => [
   '--force-number',
   '--out',
   out,
-  resolve(protoBaseDir, 'local/core_interface.proto'),
-  resolve(protoBaseDir, 'api_upstream/temporal/api/workflowservice/v1/service.proto'),
+  coreProtoPath,
+  serviceProtoPath,
 ];
 
+function mtime(path) {
+  try {
+    return statSync(path).mtimeMs;
+  } catch (err) {
+    if (err.code === 'ENOENT') {
+      return 0;
+    }
+    throw err;
+  }
+}
+
 async function main() {
+  // TODO: any proto file could have changed
+  const protosMTime = Math.max(mtime(coreProtoPath), mtime(serviceProtoPath));
+
+  const commonjsImplPath = resolve(commonjsOutputDir, 'index.js');
+  if (protosMTime < mtime(commonjsImplPath)) {
+    console.log('Asuming protos are up to date');
+    return;
+  }
+
   console.log('Creating protobuf JS definitions');
-  await promisify(pbjs.main)(pbjsArgs('commonjs', resolve(commonjsOutputDir, 'index.js')));
+  await promisify(pbjs.main)(pbjsArgs('commonjs', commonjsImplPath));
 
   console.log('Creating protobuf TS definitions');
   await promisify(pbts.main)([
