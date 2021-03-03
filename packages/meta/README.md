@@ -48,6 +48,8 @@ npm init @temporalio ./example
 cd ./example
 ```
 
+> NOTE: `init` triggers native module compilation which will take a while, npm 7 hides the compilation output so it may appear that the installation is stuck, to see the compilation progress export `NPM_CONFIG_FOREGROUND_SCRIPTS=true`. The long wait time will be go away once the SDK [publishes pre-built binaries](https://github.com/temporalio/sdk-node/issues/16).
+
 #### Build everything
 
 ```
