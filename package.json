@@ -25,6 +25,7 @@
     "typescript": "^4.2.2"
   },
   "scripts": {
+    "rebuild": "npm run clean && npm run build",
     "build": "lerna run --stream build",
     "build.watch": "lerna run --stream build.watch",
     "test": "lerna run --stream test",
