@@ -23,7 +23,8 @@ For more information see the [proposal](https://github.com/temporalio/proposals/
 - [Development](#development)
   - [Environment set up](#environment-set-up)
   - [Building](#building)
-  - [Building with watch](#building-with-watch)
+  - [Rebuilding (useful for after deleting Typescript files)](#rebuilding-useful-for-after-deleting-typescript-files)
+  - [Building with watch (Typescript only)](#building-with-watch-typescript-only)
   - [Testing](#testing)
 
 <!-- vim-markdown-toc -->
@@ -150,14 +151,18 @@ npm ci
 #### Building
 
 ```sh
-npm run clean
 npm run build
 ```
 
-#### Building with watch
+#### Rebuilding (useful for after deleting Typescript files)
 
 ```sh
-npm run clean
+npm run rebuild
+```
+
+#### Building with watch (Typescript only)
+
+```sh
 npm run build  # Must be run once before build.watch
 npm run build.watch
 ```
