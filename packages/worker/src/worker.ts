@@ -1,6 +1,6 @@
 import { resolve } from 'path';
-import { Observable, partition } from 'rxjs';
-import { groupBy, mapTo, mergeMap, share, tap } from 'rxjs/operators';
+import { merge, Observable, OperatorFunction, partition, pipe } from 'rxjs';
+import { groupBy, map, mapTo, mergeMap, share, tap } from 'rxjs/operators';
 import ms from 'ms';
 import { coresdk } from '@temporalio/proto';
 import {
@@ -220,8 +220,51 @@ export class Worker {
     });
   }
 
+  activityOperator(): OperatorFunction<TaskForActivity, Uint8Array> {
+    // TODO: implement this
+    return mapTo(new Uint8Array());
+  }
+
+  workflowOperator(): OperatorFunction<TaskForWorkflow, Uint8Array> {
+    return pipe(
+      groupBy((task) => task.workflow.runId),
+      mergeMap((group$) => {
+        return group$.pipe(
+          mergeMapWithState(async (workflow: Workflow | undefined, task) => {
+            if (workflow === undefined) {
+              // Find a workflow start job in the activation jobs list
+              // TODO: should this always be the first job in the list?
+              const maybeStartWorkflow = task.workflow.jobs.find((j) => j.startWorkflow);
+              if (maybeStartWorkflow !== undefined) {
+                const attrs = maybeStartWorkflow.startWorkflow;
+                if (!(attrs && attrs.workflowId && attrs.workflowType)) {
+                  throw new Error(
+                    `Expected StartWorkflow with workflowId and workflowType, got ${JSON.stringify(maybeStartWorkflow)}`
+                  );
+                }
+                workflow = await Workflow.create(attrs.workflowId);
+                // TODO: this probably shouldn't be here, consider alternative implementation
+                await workflow.inject('console.log', console.log);
+                const scriptName = await resolver(
+                  this.options.workflowsPath,
+                  this.workflowOverrides
+                )(attrs.workflowType);
+                await workflow.registerImplementation(scriptName);
+              } else {
+                throw new Error('Received workflow activation for an untracked workflow with no start workflow job');
+              }
+            }
+
+            const arr = await workflow.activate(task.taskToken, task.workflow);
+            return { state: workflow, output: arr };
+          }, undefined)
+        );
+      })
+    );
+  }
+
   async run(queueName: string): Promise<void> {
-    const [workflow$] = (partition(
+    const partitioned$ = partition(
       this.poller$(queueName).pipe(
         tap(
           () => undefined,
@@ -235,48 +278,12 @@ export class Worker {
         share()
       ),
       (task) => task.variant === 'workflow'
-    ) as any) as [Observable<TaskForWorkflow>, Observable<TaskForActivity>];
+    );
+    // Need to cast to any in order to assign the correct types a partition returns an Observable<Task>
+    const [workflow$, activity$] = (partitioned$ as any) as [Observable<TaskForWorkflow>, Observable<TaskForActivity>];
 
-    return await workflow$
-      .pipe(
-        groupBy((task) => task.workflow.runId),
-        mergeMap((group$) => {
-          return group$.pipe(
-            mergeMapWithState(async (workflow: Workflow | undefined, task) => {
-              if (workflow === undefined) {
-                // Find a workflow start job in the activation jobs list
-                // TODO: should this always be the first job in the list?
-                const maybeStartWorkflow = task.workflow.jobs.find((j) => j.startWorkflow);
-                if (maybeStartWorkflow !== undefined) {
-                  const attrs = maybeStartWorkflow.startWorkflow;
-                  if (!(attrs && attrs.workflowId && attrs.workflowType)) {
-                    throw new Error(
-                      `Expected StartWorkflow with workflowId and workflowType, got ${JSON.stringify(
-                        maybeStartWorkflow
-                      )}`
-                    );
-                  }
-                  workflow = await Workflow.create(attrs.workflowId);
-                  // TODO: this probably shouldn't be here, consider alternative implementation
-                  await workflow.inject('console.log', console.log);
-                  const scriptName = await resolver(
-                    this.options.workflowsPath,
-                    this.workflowOverrides
-                  )(attrs.workflowType);
-                  await workflow.registerImplementation(scriptName);
-                } else {
-                  throw new Error('Received workflow activation for an untracked workflow with no start workflow job');
-                }
-              }
-
-              const arr = await workflow.activate(task.taskToken, task.workflow);
-              workerCompleteTask(this.nativeWorker, arr.buffer.slice(arr.byteOffset));
-              return { state: workflow, output: arr };
-            }, undefined)
-          );
-        }),
-        mapTo(undefined)
-      )
+    return await merge(workflow$.pipe(this.workflowOperator()), activity$.pipe(this.activityOperator()))
+      .pipe(map((arr) => workerCompleteTask(this.nativeWorker, arr.buffer.slice(arr.byteOffset))))
       .toPromise();
   }
 }
