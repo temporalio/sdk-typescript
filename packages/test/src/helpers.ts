@@ -4,3 +4,11 @@ export function u8(s: string): Uint8Array {
   // @ts-ignore
   return new TextEncoder().encode(s);
 }
+
+export function isSet(env: string | undefined): boolean {
+  if (env === undefined) return false;
+  env = env.toLocaleLowerCase();
+  return env === '1' || env === 't' || env === 'true';
+}
+
+export const RUN_INTEGRATION_TESTS = isSet(process.env.RUN_INTEGRATION_TESTS);

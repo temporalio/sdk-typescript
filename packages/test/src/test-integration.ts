@@ -2,11 +2,11 @@
 import test from 'ava';
 import { v4 as uuid4 } from 'uuid';
 import { Connection, compileWorkflowOptions, addDefaults } from '@temporalio/client';
-import { Worker } from '@temporalio/worker/lib/worker';
+import { Worker } from '@temporalio/worker';
 import { ArgsAndReturn } from '../../test-interfaces/lib';
 import * as iface from '@temporalio/proto';
 import { defaultDataConverter } from '@temporalio/workflow/commonjs/converter/data-converter';
-import { u8 } from './helpers';
+import { u8, RUN_INTEGRATION_TESTS } from './helpers';
 import { tsToMs } from '@temporalio/workflow/commonjs/time';
 
 const worker = new Worker(__dirname, { workflowsPath: `${__dirname}/../../test-workflows/lib` });
@@ -19,13 +19,7 @@ const {
 
 const timerEventTypes = new Set([EVENT_TYPE_TIMER_STARTED, EVENT_TYPE_TIMER_FIRED, EVENT_TYPE_TIMER_CANCELED]);
 
-function isSet(env: string | undefined) {
-  if (env === undefined) return false;
-  env = env.toLocaleLowerCase();
-  return env === '1' || env === 't' || env === 'true';
-}
-
-if (isSet(process.env.RUN_INTEGRATION_TESTS)) {
+if (RUN_INTEGRATION_TESTS) {
   test.before((t) => {
     worker.run('test').catch((err) => {
       t.fail(`Failed to run worker: ${err}`);
