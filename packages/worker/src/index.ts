@@ -1,1 +1,1 @@
-export { Worker } from './worker';
+export { Worker, WorkerOptions } from './worker';

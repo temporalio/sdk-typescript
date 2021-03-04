@@ -1,6 +1,7 @@
 import { resolve } from 'path';
 import { Observable, partition } from 'rxjs';
-import { groupBy, mapTo, mergeMap } from 'rxjs/operators';
+import { groupBy, mapTo, mergeMap, share, tap } from 'rxjs/operators';
+import ms from 'ms';
 import { coresdk } from '@temporalio/proto';
 import {
   newWorker,
@@ -10,8 +11,8 @@ import {
   workerResumePolling,
   workerSuspendPolling,
   workerCompleteTask,
-  Worker as NativeWorker,
 } from '../native';
+import { sleep } from './utils';
 import { mergeMapWithState } from './rxutils';
 import { Workflow } from './workflow';
 import { resolveFilename, LoaderError } from './loader';
@@ -32,6 +33,19 @@ export interface WorkerOptions {
    * pass `null` to manually register workflows
    */
   workflowsPath?: string | null;
+  /**
+   * Time to wait for pending tasks to drain after receiving a shutdown signal.
+   * @see {@link shutdownSignals}
+   *
+   * @format ms formatted string
+   */
+  shutdownGraceTime?: string;
+
+  /**
+   * Automatically shut down worker on any of these signals.
+   * @default ['SIGINT', 'SIGTERM', 'SIGQUIT']
+   */
+  shutdownSignals?: NodeJS.Signals[];
 
   // TODO: implement all of these
   maxConcurrentActivityExecutions?: number; // defaults to 200
@@ -42,7 +56,12 @@ export interface WorkerOptions {
   isLocalActivityWorkerOnly?: boolean; // defaults to false
 }
 
-export type WorkerOptionsWithDefaults = Required<Pick<WorkerOptions, 'activitiesPath' | 'workflowsPath'>>;
+export type WorkerOptionsWithDefaults = WorkerOptions &
+  Required<Pick<WorkerOptions, 'activitiesPath' | 'workflowsPath' | 'shutdownGraceTime' | 'shutdownSignals'>>;
+
+export interface CompiledWorkerOptionsWithDefaults extends WorkerOptionsWithDefaults {
+  shutdownGraceTimeMs: number;
+}
 
 export const resolver = (baseDir: string | null, overrides: Map<string, string>) => async (
   lookupName: string
@@ -60,47 +79,50 @@ export function getDefaultOptions(dirname: string): WorkerOptionsWithDefaults {
   return {
     activitiesPath: resolve(dirname, '../activities'),
     workflowsPath: resolve(dirname, '../workflows'),
+    shutdownGraceTime: '5s',
+    shutdownSignals: ['SIGINT', 'SIGTERM', 'SIGQUIT'],
   };
 }
 
+export function compileWorkerOptions(opts: WorkerOptionsWithDefaults): CompiledWorkerOptionsWithDefaults {
+  return { ...opts, shutdownGraceTimeMs: ms(opts.shutdownGraceTime) };
+}
+
+export type State = 'INITIALIZED' | 'RUNNING' | 'STOPPED' | 'STOPPING' | 'FAILED';
+
+type TaskForWorkflow = Required<{ taskToken: Uint8Array; workflow: coresdk.WFActivation }>;
+type TaskForActivity = Required<{ taskToken: Uint8Array; workflow: coresdk.ActivityTask }>;
+
 export class Worker {
-  public readonly options: WorkerOptionsWithDefaults;
+  public readonly options: CompiledWorkerOptionsWithDefaults;
   protected readonly workflowOverrides: Map<string, string> = new Map();
-  nativeWorker?: NativeWorker;
+  nativeWorker = newWorker();
+  _state: State = 'INITIALIZED';
 
   /**
    * Create a new `Worker`, `pwd` is used to resolve relative paths for locating and importing activities and workflows.
    */
   constructor(public readonly pwd: string, options?: WorkerOptions) {
     // TODO: merge activityDefaults
-    this.options = { ...getDefaultOptions(pwd), ...options };
+    this.options = compileWorkerOptions({ ...getDefaultOptions(pwd), ...options });
   }
 
   /**
-   * Do not make new poll requests.
+   * Get the poll state of this worker
    */
-  public suspendPolling(): void {
-    if (this.nativeWorker === undefined) {
-      throw new Error('Not running');
-    }
-    workerSuspendPolling(this.nativeWorker);
+  public getState(): State {
+    // Setters and getters require the same visibility, add this public getter function
+    return this._state;
   }
 
-  /**
-   * Allow new poll requests.
-   */
-  public resumePolling(): void {
-    if (this.nativeWorker === undefined) {
-      throw new Error('Not running');
-    }
-    workerResumePolling(this.nativeWorker);
+  get state(): State {
+    return this._state;
   }
 
-  public isSuspended(): boolean {
-    if (this.nativeWorker === undefined) {
-      throw new Error('Not running');
-    }
-    return workerIsSuspended(this.nativeWorker);
+  set state(state: State) {
+    // TODO: use logger
+    console.log('Worker state changed', { state });
+    this._state = state;
   }
 
   /**
@@ -121,38 +143,99 @@ export class Worker {
     // Not implemented yet
   }
 
-  shutdown(): void {
-    if (this.nativeWorker === undefined) {
+  /**
+   * Do not make new poll requests.
+   */
+  public suspendPolling(): void {
+    if (this.state !== 'RUNNING') {
       throw new Error('Not running');
     }
+    workerSuspendPolling(this.nativeWorker);
+  }
+
+  /**
+   * Allow new poll requests.
+   */
+  public resumePolling(): void {
+    if (this.state !== 'RUNNING') {
+      throw new Error('Not running');
+    }
+    workerResumePolling(this.nativeWorker);
+  }
+
+  public isSuspended(): boolean {
+    if (this.state !== 'RUNNING') {
+      throw new Error('Not running');
+    }
+    return workerIsSuspended(this.nativeWorker);
+  }
+
+  shutdown(): void {
+    if (this.state !== 'RUNNING') {
+      throw new Error('Not running');
+    }
+    this.state = 'STOPPING';
     workerShutdown(this.nativeWorker);
   }
 
-  async run(queueName: string): Promise<void> {
-    const native = newWorker(queueName);
-    this.nativeWorker = native;
-    const poller$ = new Observable<coresdk.Task>((subscriber) => {
-      workerPoll(native, (err, buffer) => {
-        // TODO: this shouldn't happen in the non-mocked version
-        if (err && err.message === 'No tasks to perform for now') {
+  protected poller$(queueName: string): Observable<coresdk.Task> {
+    if (this.state !== 'INITIALIZED') {
+      throw new Error('Poller was aleady started');
+    }
+    return new Observable<coresdk.Task>((subscriber) => {
+      const startShutdownSequence = async (): Promise<void> => {
+        deregisterSignalHandlers();
+        this.shutdown();
+        await sleep(this.options.shutdownGraceTimeMs);
+        if (!subscriber.closed) {
+          subscriber.error(new Error('Timed out waiting while waiting for worker to shutdown gracefully'));
+        }
+      };
+      const deregisterSignalHandlers = () => {
+        for (const signal of this.options.shutdownSignals) {
+          process.off(signal, startShutdownSequence);
+        }
+      };
+      for (const signal of this.options.shutdownSignals) {
+        process.once(signal, startShutdownSequence);
+      }
+
+      this.state = 'RUNNING';
+
+      workerPoll(this.nativeWorker, queueName, (err, buffer) => {
+        if (err && err.message.includes('[Core::shutdown]')) {
           subscriber.complete();
-          return;
-        }
-        if (buffer === undefined) {
+        } else if (buffer === undefined) {
           subscriber.error(err);
-          return;
+        } else {
+          const task = coresdk.Task.decode(new Uint8Array(buffer));
+          subscriber.next(task);
         }
-        const task = coresdk.Task.decode(new Uint8Array(buffer));
-        subscriber.next(task);
-        return () => undefined; // TODO: shutdown worker if no subscribers
       });
+
+      return function unsubscribe() {
+        // NOTE: We don't expose this observable directly so we don't have to shutdown here
+        deregisterSignalHandlers();
+      };
     });
-    type TaskForWorkflow = Required<{ taskToken: Uint8Array; workflow: coresdk.WFActivation }>;
-    type TaskForActivity = Required<{ taskToken: Uint8Array; workflow: coresdk.ActivityTask }>;
-    const [workflow$] = (partition(poller$, (task) => task.variant === 'workflow') as any) as [
-      Observable<TaskForWorkflow>,
-      Observable<TaskForActivity>
-    ];
+  }
+
+  async run(queueName: string): Promise<void> {
+    const [workflow$] = (partition(
+      this.poller$(queueName).pipe(
+        tap(
+          () => undefined,
+          () => {
+            this.state = 'FAILED';
+          },
+          () => {
+            this.state = 'STOPPED';
+          }
+        ),
+        share()
+      ),
+      (task) => task.variant === 'workflow'
+    ) as any) as [Observable<TaskForWorkflow>, Observable<TaskForActivity>];
 
     return await workflow$
       .pipe(
@@ -187,7 +270,7 @@ export class Worker {
               }
 
               const arr = await workflow.activate(task.taskToken, task.workflow);
-              workerCompleteTask(native, arr.buffer.slice(arr.byteOffset));
+              workerCompleteTask(this.nativeWorker, arr.buffer.slice(arr.byteOffset));
               return { state: workflow, output: arr };
             }, undefined)
           );

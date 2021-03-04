@@ -14,7 +14,6 @@ use temporal_sdk_core::{
 type BoxedWorker = JsBox<Arc<Worker>>;
 
 pub struct Worker {
-    queue_name: String,
     core: Box<dyn Core + Send + Sync>,
     condition: Condvar,
     suspended: Mutex<bool>,
@@ -23,7 +22,7 @@ pub struct Worker {
 impl Finalize for Worker {}
 
 impl Worker {
-    pub fn new(queue_name: String) -> Self {
+    pub fn new() -> Self {
         let core = init(CoreInitOptions {
             gateway_opts: ServerGatewayOptions {
                 target_url: "http://localhost:7233".try_into().unwrap(),
@@ -36,19 +35,18 @@ impl Worker {
         .unwrap();
 
         Worker {
-            queue_name,
             core: Box::new(core),
             condition: Condvar::new(),
             suspended: Mutex::new(false),
         }
     }
 
-    pub fn poll(&self) -> ::temporal_sdk_core::Result<coresdk::Task> {
+    pub fn poll(&self, queue_name: String) -> ::temporal_sdk_core::Result<coresdk::Task> {
         let _guard = self
             .condition
             .wait_while(self.suspended.lock().unwrap(), |suspended| *suspended)
             .unwrap();
-        self.core.poll_task(&self.queue_name)
+        self.core.poll_task(&queue_name)
     }
 
     pub fn is_suspended(&self) -> bool {
@@ -67,15 +65,15 @@ impl Worker {
 }
 
 fn worker_new(mut cx: FunctionContext) -> JsResult<BoxedWorker> {
-    let queue_name = cx.argument::<JsString>(0)?.value(&mut cx);
-    let worker = Arc::new(Worker::new(queue_name));
+    let worker = Arc::new(Worker::new());
 
     Ok(cx.boxed(worker))
 }
 
 fn worker_poll(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     let worker = cx.argument::<BoxedWorker>(0)?;
-    let callback = cx.argument::<JsFunction>(1)?.root(&mut cx);
+    let queue_name = cx.argument::<JsString>(1)?.value(&mut cx);
+    let callback = cx.argument::<JsFunction>(2)?.root(&mut cx);
     let arc_worker = Arc::clone(&**worker); // deref Handle and JsBox
     let arc_callback = Arc::new(callback);
     let queue = cx.queue();
@@ -83,8 +81,9 @@ fn worker_poll(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     std::thread::spawn(move || loop {
         let arc_callback = arc_callback.clone();
         let arc_worker = arc_worker.clone();
+        let queue_name = queue_name.clone();
         let worker = arc_worker;
-        let result = worker.poll();
+        let result = worker.poll(queue_name);
         match result {
             Ok(task) => {
                 queue.send(move |mut cx| {
