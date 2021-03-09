@@ -208,6 +208,10 @@ export class Activator implements WorkflowTaskHandler {
     }
   }
 
+  public signalWorkflow(): void {
+    throw new Error('Not implemented');
+  }
+
   public updateRandomSeed(_activation: iface.coresdk.IUpdateRandomSeed): void {
     throw new Error('Not implemented');
   }
