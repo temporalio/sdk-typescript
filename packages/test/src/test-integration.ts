@@ -9,8 +9,6 @@ import { defaultDataConverter } from '@temporalio/workflow/commonjs/converter/da
 import { u8, RUN_INTEGRATION_TESTS } from './helpers';
 import { tsToMs } from '@temporalio/workflow/commonjs/time';
 
-const worker = new Worker(__dirname, { workflowsPath: `${__dirname}/../../test-workflows/lib` });
-
 const {
   EVENT_TYPE_TIMER_STARTED,
   EVENT_TYPE_TIMER_FIRED,
@@ -20,6 +18,8 @@ const {
 const timerEventTypes = new Set([EVENT_TYPE_TIMER_STARTED, EVENT_TYPE_TIMER_FIRED, EVENT_TYPE_TIMER_CANCELED]);
 
 if (RUN_INTEGRATION_TESTS) {
+  const worker = new Worker(__dirname, { workflowsPath: `${__dirname}/../../test-workflows/lib` });
+
   test.before((t) => {
     worker.run('test').catch((err) => {
       t.fail(`Failed to run worker: ${err}`);
