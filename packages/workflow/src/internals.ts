@@ -3,7 +3,7 @@ import { defaultDataConverter, arrayFromPayloads } from './converter/data-conver
 import { alea } from './alea';
 import { CancellationFunction, Workflow } from './interfaces';
 import { CancellationError } from './errors';
-import { tsToMs } from './time';
+import { tsToMs, nullToUndefined } from './time';
 
 export interface Scope {
   parent?: Scope;
@@ -138,11 +138,11 @@ function consumeCompletion(taskSeq: number) {
   return completion;
 }
 
-function timerIdToSeq(timerId: string | undefined | null) {
-  if (!timerId) {
+function idToSeq(id: string | undefined | null) {
+  if (!id) {
     throw new Error('Got activation with no timerId');
   }
-  return parseInt(timerId);
+  return parseInt(id);
 }
 
 export class Activator implements WorkflowTaskHandler {
@@ -169,16 +169,34 @@ export class Activator implements WorkflowTaskHandler {
   }
 
   public fireTimer(activation: iface.coresdk.IFireTimer): void {
-    const { resolve } = consumeCompletion(timerIdToSeq(activation.timerId));
+    const { resolve } = consumeCompletion(idToSeq(activation.timerId));
     resolve(undefined);
   }
 
   public cancelTimer(activation: iface.coresdk.ICancelTimer): void {
-    const { scope } = consumeCompletion(timerIdToSeq(activation.timerId));
+    const { scope } = consumeCompletion(idToSeq(activation.timerId));
     try {
       scope.cancel(new CancellationError('Timer cancelled'));
     } catch (e) {
       if (!(e instanceof CancellationError)) throw e;
+    }
+  }
+
+  public resolveActivity(activation: iface.coresdk.IResolveActivity): void {
+    if (!activation.result) {
+      throw new Error('Got CompleteActivity activation with no result');
+    }
+    const { resolve, reject, scope } = consumeCompletion(idToSeq(activation.activityId));
+    if (activation.result.completed) {
+      resolve(defaultDataConverter.fromPayloads(0, activation.result.completed.result));
+    } else if (activation.result.failed) {
+      reject(new Error(nullToUndefined(activation.result.failed.failure?.message)));
+    } else if (activation.result.canceled) {
+      try {
+        scope.cancel(new CancellationError('Activity cancelled'));
+      } catch (e) {
+        if (!(e instanceof CancellationError)) throw e;
+      }
     }
   }
 

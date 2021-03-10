@@ -1,7 +1,11 @@
 import { Context } from '@temporalio/workflow';
 import { httpGet } from '@activities';
 
-const httpGetWithCustomTimeout = Context.configure(httpGet, { type: 'local', startToCloseTimeout: '10 minutes' });
+const httpGetWithCustomTimeout = Context.configure(httpGet, {
+  type: 'remote',
+  taskQueue: 'remote',
+  startToCloseTimeout: '10 minutes',
+});
 
 export async function main(): Promise<void> {
   {

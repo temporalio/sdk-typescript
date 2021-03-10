@@ -2,7 +2,7 @@ import anyTest, { TestInterface, ExecutionContext } from 'ava';
 import path from 'path';
 import iface from '@temporalio/proto';
 import { defaultDataConverter } from '@temporalio/workflow/commonjs/converter/data-converter';
-import { msToTs } from '@temporalio/workflow/commonjs/time';
+import { msToTs, msStrToTs } from '@temporalio/workflow/commonjs/time';
 import { Workflow } from '@temporalio/worker/lib/workflow';
 import { u8 } from './helpers';
 
@@ -22,6 +22,8 @@ test.beforeEach(async (t) => {
   const workflow = await Workflow.create('test-workflowId');
   const logs: unknown[][] = [];
   await workflow.inject('console.log', (...args: unknown[]) => void logs.push(args));
+  const activities = new Map([['@activities', { httpGet: () => undefined }]]);
+  await workflow.registerActivities(activities);
   // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
   const testName = t.title.match(/\S+$/)![0];
   const script = getWorkflow(`${testName}.js`);
@@ -86,6 +88,23 @@ function makeFireTimerJob(timerId: string): iface.coresdk.IWFActivationJob {
   };
 }
 
+function makeResolveActivityJob(
+  activityId: string,
+  result: iface.coresdk.IActivityResult
+): iface.coresdk.IWFActivationJob {
+  return {
+    resolveActivity: { activityId, result },
+  };
+}
+
+function makeResolveActivity(
+  timerId: string,
+  result: iface.coresdk.IActivityResult,
+  timestamp: number = Date.now()
+): iface.coresdk.IWFActivation {
+  return makeActivation(timestamp, makeResolveActivityJob(timerId, result));
+}
+
 function makeQueryWorkflow(
   queryType: string,
   queryArgs: any[],
@@ -117,6 +136,17 @@ function makeFailWorkflowExecution(message: string): iface.coresdk.ICommand {
     api: {
       commandType: iface.temporal.api.enums.v1.CommandType.COMMAND_TYPE_FAIL_WORKFLOW_EXECUTION,
       failWorkflowExecutionCommandAttributes: { failure: { message } },
+    },
+  };
+}
+
+function makeScheduleActivityCommand(
+  attrs: iface.temporal.api.command.v1.IScheduleActivityTaskCommandAttributes
+): iface.coresdk.ICommand {
+  return {
+    api: {
+      commandType: iface.temporal.api.enums.v1.CommandType.COMMAND_TYPE_SCHEDULE_ACTIVITY_TASK,
+      scheduleActivityTaskCommandAttributes: attrs,
     },
   };
 }
@@ -642,11 +672,45 @@ test('cancellation-error-is-propagated', async (t) => {
   t.deepEqual(logs, []);
 });
 
-// TODO: Reimplement once activities are supported
-// test('invoke activity as an async function / with options', async (t) => {
-//   const script = path.join(__dirname, '../../test-workflows/lib/http.js');
-//   await run(script, (logs) => t.deepEqual(logs, [
-//     ['<html><body>hello from https://google.com</body></html>'],
-//     ['<html><body>hello from http://example.com</body></html>'],
-//   ]));
-// });
+test('http', async (t) => {
+  const { script, logs } = t.context;
+  {
+    const req = await activate(t, makeStartWorkflow(script));
+    compareCompletion(
+      t,
+      req,
+      makeSuccess([
+        makeScheduleActivityCommand({
+          activityId: '0',
+          activityType: { name: JSON.stringify(['@activities', 'httpGet']) },
+          input: defaultDataConverter.toPayloads('https://google.com'),
+        }),
+      ])
+    );
+  }
+  const result = '<html><body>hello from https://google.com</body></html>';
+  {
+    const req = await activate(
+      t,
+      makeResolveActivity('0', { completed: { result: defaultDataConverter.toPayloads(result) } })
+    );
+    compareCompletion(
+      t,
+      req,
+      makeSuccess([
+        makeScheduleActivityCommand({
+          activityId: '1',
+          activityType: { name: JSON.stringify(['@activities', 'httpGet']) },
+          input: defaultDataConverter.toPayloads('http://example.com'),
+          startToCloseTimeout: msStrToTs('10 minutes'),
+          taskQueue: { name: 'remote' },
+        }),
+      ])
+    );
+  }
+  {
+    const req = await activate(t, makeResolveActivity('1', { failed: { failure: { message: 'Connection timeout' } } }));
+    compareCompletion(t, req, makeSuccess([makeFailWorkflowExecution('Connection timeout')]));
+  }
+  t.deepEqual(logs, [[result]]);
+});

@@ -21,8 +21,6 @@ interface WorkflowModule {
 }
 
 export class Workflow {
-  private readonly activities: Map<string, Map<string, () => any>> = new Map();
-
   private constructor(
     public readonly id: string,
     readonly isolate: ivm.Isolate,
@@ -57,31 +55,24 @@ export class Workflow {
     return new Workflow(id, isolate, context, loader, { activate, concludeActivation });
   }
 
-  /**
-   * TODO: reimplemnt this
-   */
-  public async registerActivities(activities: Record<string, Record<string, any>>): Promise<void> {
-    for (const [specifier, module] of Object.entries(activities)) {
-      const functions = new Map<string, () => any>();
-      let code = '';
+  public async registerActivities(activities: Map<string, Record<string, any>>): Promise<void> {
+    for (const [specifier, module] of activities.entries()) {
+      let code = dedent`
+        import { scheduleActivity } from '@temporalio/workflow';
+      `;
+      // TODO: inject options
       for (const [k, v] of Object.entries(module)) {
         if (v instanceof Function) {
-          functions.set(k, v);
           code += dedent`
             export async function ${k}(...args) {
-              return invokeActivity('${specifier}', '${k}', args, {});
+              return scheduleActivity('${specifier}', '${k}', args, {});
             }
             ${k}.module = '${specifier}';
             ${k}.options = {};
           `;
         }
       }
-      const compiled = await this.isolate.compileModule(code, { filename: specifier });
-      await compiled.instantiate(this.context, async () => {
-        throw new Error('Invalid');
-      });
-      await compiled.evaluate();
-      this.activities.set(specifier, functions);
+      const compiled = await this.loader.loadModuleFromSource(code, { path: specifier, type: 'esmodule' });
       this.loader.overrideModule(specifier, compiled);
     }
   }

@@ -1,7 +1,10 @@
 import { Worker } from '@temporalio/worker';
 
 async function main() {
-  const worker = new Worker(__dirname, { workflowsPath: `${__dirname}/../../test-workflows/lib` });
+  const worker = new Worker(__dirname, {
+    workflowsPath: `${__dirname}/../../test-workflows/lib`,
+    activitiesPath: `${__dirname}/../../test-activities/lib`,
+  });
   await worker.run('test');
   console.log('Worker gracefully shutdown');
 }

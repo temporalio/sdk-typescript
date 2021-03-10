@@ -1,8 +1,9 @@
 import { temporal } from '@temporalio/proto';
 import { ActivityOptions, ActivityFunction } from './interfaces';
 import { state, currentScope, childScope, propagateCancellation } from './internals';
+import { defaultDataConverter } from './converter/data-converter';
 import { CancellationError } from './errors';
-import { msToTs } from './time';
+import { msToTs, msOptionalStrToTs } from './time';
 
 export function sleep(ms: number): Promise<void> {
   const seq = state.nextSeq++;
@@ -46,23 +47,60 @@ export interface InternalActivityFunction<P extends any[], R> extends ActivityFu
   options: ActivityOptions;
 }
 
-export function scheduleActivity<R>(
-  _module: string,
-  _name: string,
-  _args: any[],
-  _options: ActivityOptions
-): Promise<R> {
+export function scheduleActivity<R>(module: string, name: string, args: any[], options: ActivityOptions): Promise<R> {
   const seq = state.nextSeq++;
-  // state.commands.push({ type: 'ScheduleActivity', seq, module, name, arguments: args, options });
-  state.commands.push({
-    api: {
-      commandType: temporal.api.enums.v1.CommandType.COMMAND_TYPE_SCHEDULE_ACTIVITY_TASK,
-      scheduleActivityTaskCommandAttributes: {},
+  return childScope(
+    (reject) => (err) => {
+      if (!state.completions.delete(seq)) {
+        return; // Already resolved
+      }
+      state.commands.push({
+        api: {
+          commandType: temporal.api.enums.v1.CommandType.COMMAND_TYPE_REQUEST_CANCEL_ACTIVITY_TASK,
+          requestCancelActivityTaskCommandAttributes: {
+            // TODO
+            scheduledEventId: seq,
+          },
+        },
+      });
+      reject(err);
     },
-  });
-  return new Promise<R>((resolve, reject) => {
-    state.completions.set(seq, { resolve, reject, scope: currentScope() });
-  });
+    () =>
+      new Promise((resolve, reject) => {
+        state.completions.set(seq, {
+          resolve,
+          reject,
+          scope: currentScope(),
+        });
+        state.commands.push({
+          api: {
+            commandType: temporal.api.enums.v1.CommandType.COMMAND_TYPE_SCHEDULE_ACTIVITY_TASK,
+            scheduleActivityTaskCommandAttributes: {
+              activityId: `${seq}`,
+              activityType: {
+                name: JSON.stringify([module, name]),
+              },
+              input: defaultDataConverter.toPayloads(...args),
+              retryPolicy: options.retry
+                ? {
+                    maximumAttempts: options.retry.maximumAttempts,
+                    initialInterval: msOptionalStrToTs(options.retry.initialInterval),
+                    maximumInterval: msOptionalStrToTs(options.retry.maximumInterval),
+                    backoffCoefficient: options.retry.backoffCoefficient,
+                    // TODO: nonRetryableErrorTypes
+                  }
+                : undefined,
+              taskQueue: options.type === 'remote' ? { name: options.taskQueue } : undefined,
+              heartbeatTimeout: msOptionalStrToTs(options.heartbeatTimeout),
+              startToCloseTimeout: msOptionalStrToTs(options.startToCloseTimeout),
+              scheduleToCloseTimeout: msOptionalStrToTs(options.scheduleToCloseTimeout),
+              scheduleToStartTimeout: msOptionalStrToTs(options.scheduleToStartTimeout),
+              // TODO: namespace, header
+            },
+          },
+        });
+      })
+  );
 }
 
 class ContextImpl {
