@@ -1,10 +1,14 @@
-export interface ActivityOptions {
-  retries: number;
-}
+import { ActivityFunction } from '@temporalio/workflow';
 
-export type Fn<TArgs extends any[], TRet> = (...args: TArgs) => TRet;
+export class Activity {
+  // TODO: get all of the atributes required for setting the ActivityContext
+  constructor(protected readonly fn: ActivityFunction<any[], any>, protected readonly args: any[]) {}
 
-export interface Activity<F extends Fn<any[], Promise<any>>> {
-  (...args: Parameters<F>): ReturnType<F>;
-  withOptions(options: ActivityOptions): { invoke: F };
+  public async run(): Promise<any> {
+    return this.fn(...this.args);
+  }
+
+  public async cancel(): Promise<void> {
+    throw new Error();
+  }
 }

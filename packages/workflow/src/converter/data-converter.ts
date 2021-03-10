@@ -79,9 +79,9 @@ export class CompositeDataConverter implements DataConverter {
     return { payloads };
   }
 
-  public fromPayloads<T>(index: number, content?: Payloads): T {
+  public fromPayloads<T>(index: number, content?: Payloads | null): T {
     // To make adding arguments a backwards compatible change
-    if (content === undefined || !content.payloads || index >= content.payloads.length) {
+    if (content === undefined || content === null || !content.payloads || index >= content.payloads.length) {
       // TODO: undefined might not be the right return value here
       return undefined as any;
     }
@@ -96,18 +96,10 @@ export function arrayFromPayloads(converter: DataConverter, content?: Payloads |
   return content.payloads.map((payload: Payload) => converter.fromPayload(payload));
 }
 
-export function fromPairs<K extends keyof any, V>(source: Array<[K, V]>): Record<K, V> {
-  const target = {} as Record<K, V>;
-  const len = source.length;
-  for (let i = 0; i < len; ++i) {
-    const [k, v] = source[i];
-    target[k] = v;
-  }
-  return target;
-}
-
 export function mapToPayloads<K extends string>(converter: DataConverter, source: Record<K, any>): Record<K, Payload> {
-  return fromPairs(Object.entries(source).map(([k, v]): [K, Payload] => [k as K, converter.toPayload(v)]));
+  return Object.fromEntries(
+    Object.entries(source).map(([k, v]): [K, Payload] => [k as K, converter.toPayload(v)])
+  ) as Record<K, Payload>;
 }
 
 export const defaultDataConverter = new CompositeDataConverter(

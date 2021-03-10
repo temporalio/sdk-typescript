@@ -158,23 +158,26 @@ export class Loader {
     this.moduleOverrides.set(specifier, module);
   }
 
+  public async loadModuleFromSource(code: string, resolved: ResolvedModule): Promise<ivm.Module> {
+    if (resolved.type === 'commonjs') {
+      code = await commonjsToEsModule(code);
+    }
+    const compiled = await this.isolate.compileModule(code, { filename: resolved.path });
+    (compiled as any).filename = resolved.path; // Hacky way of resolving relative imports
+    (compiled as any).moduleType = resolved.type; // Hacky way of preserving the module type
+    await compiled.instantiate(this.context, this.moduleResolveCallback.bind(this));
+    await compiled.evaluate();
+    return compiled;
+  }
+
   public async loadModule(filename: string, moduleType: ModuleType = 'esmodule'): Promise<ivm.Module> {
     const cached = this.moduleCache.get(filename);
     if (cached !== undefined) {
       return cached;
     }
     const promise = (async () => {
-      if (cached) return cached;
-      let code = await fs.readFile(filename, 'utf8');
-      if (moduleType === 'commonjs') {
-        code = await commonjsToEsModule(code);
-      }
-      const compiled = await this.isolate.compileModule(code, { filename });
-      (compiled as any).filename = filename; // Hacky way of resolving relative imports
-      (compiled as any).moduleType = moduleType; // Hacky way of preserving the module type
-      await compiled.instantiate(this.context, this.moduleResolveCallback.bind(this));
-      await compiled.evaluate();
-      return compiled;
+      const code = await fs.readFile(filename, 'utf8');
+      return this.loadModuleFromSource(code, { path: filename, type: moduleType });
     })();
     this.moduleCache.set(filename, promise);
     return promise;

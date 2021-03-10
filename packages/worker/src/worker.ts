@@ -1,8 +1,15 @@
-import { resolve } from 'path';
+import { basename, extname, resolve } from 'path';
+import { readdirSync } from 'fs';
 import { merge, Observable, OperatorFunction, partition, pipe } from 'rxjs';
-import { groupBy, map, mapTo, mergeMap, share, tap } from 'rxjs/operators';
+import { groupBy, map, mergeMap, share, tap } from 'rxjs/operators';
 import ms from 'ms';
 import { coresdk, temporal } from '@temporalio/proto';
+import { ActivityOptions } from '@temporalio/workflow';
+import {
+  DataConverter,
+  defaultDataConverter,
+  arrayFromPayloads,
+} from '@temporalio/workflow/commonjs/converter/data-converter';
 import {
   newWorker,
   workerShutdown,
@@ -14,9 +21,9 @@ import {
 } from '../native';
 import { sleep } from './utils';
 import { mergeMapWithState } from './rxutils';
-import { Workflow } from './workflow';
 import { resolveFilename, LoaderError } from './loader';
-import { ActivityOptions } from './activity';
+import { Workflow } from './workflow';
+import { Activity } from './activity';
 
 export interface WorkerOptions {
   activityDefaults?: ActivityOptions;
@@ -47,6 +54,11 @@ export interface WorkerOptions {
    */
   shutdownSignals?: NodeJS.Signals[];
 
+  /**
+   * TODO: document, figure out how to propagate this to the workflow isolate
+   */
+  dataConverter?: DataConverter;
+
   // TODO: implement all of these
   maxConcurrentActivityExecutions?: number; // defaults to 200
   maxConcurrentLocalActivityExecutions?: number; // defaults to 200
@@ -57,7 +69,9 @@ export interface WorkerOptions {
 }
 
 export type WorkerOptionsWithDefaults = WorkerOptions &
-  Required<Pick<WorkerOptions, 'activitiesPath' | 'workflowsPath' | 'shutdownGraceTime' | 'shutdownSignals'>>;
+  Required<
+    Pick<WorkerOptions, 'activitiesPath' | 'workflowsPath' | 'shutdownGraceTime' | 'shutdownSignals' | 'dataConverter'>
+  >;
 
 export interface CompiledWorkerOptionsWithDefaults extends WorkerOptionsWithDefaults {
   shutdownGraceTimeMs: number;
@@ -72,7 +86,7 @@ export const resolver = (baseDir: string | null, overrides: Map<string, string>)
     throw new LoaderError(`Could not find ${lookupName} in overrides and no baseDir provided`);
   }
 
-  return await resolveFilename(resolve(baseDir, lookupName));
+  return resolveFilename(resolve(baseDir, lookupName));
 };
 
 export function getDefaultOptions(dirname: string): WorkerOptionsWithDefaults {
@@ -81,6 +95,7 @@ export function getDefaultOptions(dirname: string): WorkerOptionsWithDefaults {
     workflowsPath: resolve(dirname, '../workflows'),
     shutdownGraceTime: '5s',
     shutdownSignals: ['SIGINT', 'SIGTERM', 'SIGQUIT'],
+    dataConverter: defaultDataConverter,
   };
 }
 
@@ -91,20 +106,44 @@ export function compileWorkerOptions(opts: WorkerOptionsWithDefaults): CompiledW
 export type State = 'INITIALIZED' | 'RUNNING' | 'STOPPED' | 'STOPPING' | 'FAILED';
 
 type TaskForWorkflow = Required<{ taskToken: Uint8Array; workflow: coresdk.WFActivation }>;
-type TaskForActivity = Required<{ taskToken: Uint8Array; workflow: coresdk.ActivityTask }>;
+type TaskForActivity = Required<{ taskToken: Uint8Array; activity: coresdk.ActivityTask }>;
 
 export class Worker {
   public readonly options: CompiledWorkerOptionsWithDefaults;
   protected readonly workflowOverrides: Map<string, string> = new Map();
+  protected readonly resolvedActivities: Map<string, Record<string, () => any>>;
   nativeWorker = newWorker();
   _state: State = 'INITIALIZED';
 
   /**
-   * Create a new `Worker`, `pwd` is used to resolve relative paths for locating and importing activities and workflows.
+   * Create a new Worker.
+   * This method immediately connects to the server and will throw on connection failure.
+   * @param pwd - Used to resolve relative paths for locating and importing activities and workflows.
    */
   constructor(public readonly pwd: string, options?: WorkerOptions) {
     // TODO: merge activityDefaults
     this.options = compileWorkerOptions({ ...getDefaultOptions(pwd), ...options });
+    this.resolvedActivities = new Map();
+    if (this.options.activitiesPath !== null) {
+      const files = readdirSync(this.options.activitiesPath, { encoding: 'utf8' });
+      for (const file in files) {
+        const ext = extname(file);
+        if (ext === '.js') {
+          const fullPath = resolve(this.options.activitiesPath, file);
+          // eslint-disable-next-line @typescript-eslint/no-var-requires
+          const module = require(fullPath);
+          const functions = Object.fromEntries(
+            Object.entries(module).filter((entry): entry is [string, () => any] => entry[1] instanceof Function)
+          );
+          const importName = basename(file, ext);
+          console.log('Loaded activity', { importName, fullPath });
+          this.resolvedActivities.set(`@activities/${importName}`, functions);
+          if (importName === 'index') {
+            this.resolvedActivities.set('@activities', functions);
+          }
+        }
+      }
+    }
   }
 
   /**
@@ -138,9 +177,12 @@ export class Worker {
    * Manually register activities, e.g. for when using a non-standard directory structure.
    */
   public async registerActivities(
-    _importPathToImplementation: Record<string, Record<string, () => any>>
+    importPathToImplementation: Record<string, Record<string, () => any>>
   ): Promise<void> {
-    // Not implemented yet
+    for (const [name, functions] of Object.entries(importPathToImplementation)) {
+      // TODO: check that functions are actually functions
+      this.resolvedActivities.set(name, functions);
+    }
   }
 
   /**
@@ -221,8 +263,90 @@ export class Worker {
   }
 
   activityOperator(): OperatorFunction<TaskForActivity, Uint8Array> {
-    // TODO: implement this
-    return mapTo(new Uint8Array());
+    return pipe(
+      groupBy((task) => task.activity.activityId),
+      mergeMap((group$) => {
+        return group$.pipe(
+          mergeMapWithState(async (activity: Activity | undefined, task) => {
+            // We either want to return an activity result or pass on the activity for running at a later stage
+            // We don't run the activity directly in this operator because we need to return the activity in the state
+            // so it can be cancelled if requested
+            let output: { type: 'result'; result: coresdk.IActivityResult } | { type: 'run'; activity: Activity };
+            const { taskToken } = task;
+            const { job } = task.activity;
+            if (!job) {
+              throw new Error('Got an activity task without a "job" attribute');
+            }
+
+            switch (job) {
+              case 'start': {
+                const { start } = task.activity;
+                if (!start) {
+                  throw new Error('Got a "start" activity task without a "start" attribute');
+                }
+                if (!start.activityType?.name) {
+                  throw new Error('Got a StartActivity.activityType without a "name" attribute');
+                }
+                const [path, fnName] = JSON.parse(start.activityType.name);
+                const module = this.resolvedActivities.get(path);
+                if (module === undefined) {
+                  output = {
+                    type: 'result',
+                    result: { failed: { failure: { message: `Activity module found: ${path}` } } },
+                  };
+                  break;
+                }
+                const fn = module[fnName];
+                if (!(fn instanceof Function)) {
+                  output = {
+                    type: 'result',
+                    result: { failed: { failure: { message: `Activity function ${fnName} not found in: ${path}` } } },
+                  };
+                  break;
+                }
+                const args = arrayFromPayloads(this.options.dataConverter, start.input);
+                activity = new Activity(fn, args);
+                output = { type: 'run', activity };
+                break;
+              }
+              case 'cancel': {
+                if (activity === undefined) {
+                  output = { type: 'result', result: { failed: { failure: { message: 'Activity not found' } } } };
+                  break;
+                }
+                await activity.cancel();
+                output = {
+                  type: 'result',
+                  result: {
+                    canceled: {},
+                  },
+                };
+                break;
+              }
+            }
+            return { state: activity, output: { taskToken, output } };
+          }, undefined),
+          mergeMap(async ({ output, taskToken }) => {
+            if (output.type === 'result') {
+              return { taskToken, result: output.result };
+            }
+
+            try {
+              const result = output.activity.run();
+              return { taskToken, result: { completed: { result: this.options.dataConverter.toPayloads(result) } } };
+            } catch (error) {
+              return { taskToken, result: { failed: { failure: { message: error.message /* TODO: stackTrace */ } } } };
+            }
+          }),
+          map(({ taskToken, result }) =>
+            coresdk.TaskCompletion.encodeDelimited({
+              taskToken: taskToken,
+              activity: result,
+            }).finish()
+          )
+        );
+      })
+    );
   }
 
   workflowOperator(): OperatorFunction<TaskForWorkflow, Uint8Array> {
@@ -248,6 +372,7 @@ export class Worker {
                   workflow = await Workflow.create(attrs.workflowId);
                   // TODO: this probably shouldn't be here, consider alternative implementation
                   await workflow.inject('console.log', console.log);
+                  await workflow.registerActivities(this.resolvedActivities);
                   const scriptName = await resolver(
                     this.options.workflowsPath,
                     this.workflowOverrides
