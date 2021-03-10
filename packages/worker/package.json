@@ -18,8 +18,10 @@
   "author": "Roey Berman <roey@temporal.io>",
   "license": "MIT",
   "dependencies": {
+    "@babel/core": "^7.13.10",
     "@temporalio/proto": "file:../proto",
     "@temporalio/workflow": "file:../workflow",
+    "babel-plugin-transform-commonjs": "^1.1.6",
     "dedent": "^0.7.0",
     "fs-extra": "^9.0.1",
     "grpc": "^1.24.5",

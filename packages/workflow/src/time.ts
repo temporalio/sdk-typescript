@@ -1,3 +1,4 @@
+import ms from 'ms';
 import * as iface from '@temporalio/proto';
 
 // NOTE: these are the same interface in JS
@@ -15,10 +16,19 @@ export function tsToMs(ts: Timestamp | null | undefined): number {
   return (seconds || 0) * 1000 + Math.floor((nanos || 0) / 1000000);
 }
 
-export function msToTs(ms: number): Timestamp {
-  const seconds = Math.floor(ms / 1000);
-  const nanos = (ms % 1000) * 1000000;
+export function msToTs(millis: number): Timestamp {
+  const seconds = Math.floor(millis / 1000);
+  const nanos = (millis % 1000) * 1000000;
   return { seconds, nanos };
+}
+
+export function msStrToTs(str: string): Timestamp {
+  return msToTs(ms(str));
+}
+
+export function msOptionalStrToTs(str: string | undefined): Timestamp | undefined {
+  if (str === undefined) return undefined;
+  return msToTs(ms(str));
 }
 
 export function nullToUndefined<T extends any | null | undefined>(x: T): Exclude<T, null> {
