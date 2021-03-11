@@ -19,7 +19,10 @@ const {
 const timerEventTypes = new Set([EVENT_TYPE_TIMER_STARTED, EVENT_TYPE_TIMER_FIRED, EVENT_TYPE_TIMER_CANCELED]);
 
 if (RUN_INTEGRATION_TESTS) {
-  const worker = new Worker(__dirname, { workflowsPath: `${__dirname}/../../test-workflows/lib` });
+  const worker = new Worker(__dirname, {
+    workflowsPath: `${__dirname}/../../test-workflows/lib`,
+    activitiesPath: `${__dirname}/../../test-activities/lib`,
+  });
 
   test.before((t) => {
     worker.run('test').catch((err) => {
