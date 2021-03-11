@@ -55,11 +55,9 @@ export function scheduleActivity<R>(module: string, name: string, args: any[], o
         return; // Already resolved
       }
       state.commands.push({
-        api: {
-          commandType: temporal.api.enums.v1.CommandType.COMMAND_TYPE_REQUEST_CANCEL_ACTIVITY_TASK,
-          requestCancelActivityTaskCommandAttributes: {
-            // TODO
-            scheduledEventId: seq,
+        core: {
+          requestActivityCancellation: {
+            activityId: `${seq}`,
           },
         },
       });
