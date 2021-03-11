@@ -53,12 +53,12 @@ export interface InternalActivityFunction<P extends any[], R> extends ActivityFu
 export function scheduleActivity<R>(module: string, name: string, args: any[], options: ActivityOptions): Promise<R> {
   const seq = state.nextSeq++;
   return childScope(
-    () => () => {
+    () => (err) => {
       state.commands.push({
         core: {
           requestActivityCancellation: {
             activityId: `${seq}`,
-            // TODO: reason
+            reason: err instanceof Error ? err.message : undefined,
           },
         },
       });

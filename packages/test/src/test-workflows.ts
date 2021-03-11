@@ -151,10 +151,10 @@ function makeScheduleActivityCommand(
   };
 }
 
-function makeCancelActivityCommand(activityId: string): iface.coresdk.ICommand {
+function makeCancelActivityCommand(activityId: string, reason?: string): iface.coresdk.ICommand {
   return {
     core: {
-      requestActivityCancellation: { activityId },
+      requestActivityCancellation: { activityId, reason },
     },
   };
 }
@@ -721,7 +721,7 @@ test('activity-cancellation', async (t) => {
           activityType: { name: JSON.stringify(['@activities', 'httpGet']) },
           input: defaultDataConverter.toPayloads('https://google.com'),
         }),
-        makeCancelActivityCommand('0'),
+        makeCancelActivityCommand('0', 'Cancelled'),
       ])
     );
   }
