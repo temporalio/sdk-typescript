@@ -11,6 +11,7 @@ import {
   arrayFromPayloads,
 } from '@temporalio/workflow/commonjs/converter/data-converter';
 import {
+  Worker as NativeWorkerImplementation,
   newWorker,
   workerShutdown,
   workerPoll,
@@ -18,6 +19,7 @@ import {
   workerResumePolling,
   workerSuspendPolling,
   workerCompleteTask,
+  PollCallback,
 } from '../native';
 import { sleep } from './utils';
 import { mergeMapWithState } from './rxutils';
@@ -108,25 +110,71 @@ export type State = 'INITIALIZED' | 'RUNNING' | 'STOPPED' | 'STOPPING' | 'FAILED
 type TaskForWorkflow = Required<{ taskToken: Uint8Array; workflow: coresdk.WFActivation }>;
 type TaskForActivity = Required<{ taskToken: Uint8Array; activity: coresdk.ActivityTask }>;
 
-export class Worker {
+type OmitFirst<T> = T extends [any, ...infer REST] ? REST : never;
+type RestParams<T> = T extends (...args: any[]) => any ? OmitFirst<Parameters<T>> : never;
+type OmitFirstParam<T> = T extends (...args: any[]) => any ? (...args: RestParams<T>) => ReturnType<T> : never;
+
+export interface NativeWorkerLike {
+  shutdown: OmitFirstParam<typeof workerShutdown>;
+  poll: OmitFirstParam<typeof workerPoll>;
+  isSuspended: OmitFirstParam<typeof workerIsSuspended>;
+  resumePolling: OmitFirstParam<typeof workerResumePolling>;
+  suspendPolling: OmitFirstParam<typeof workerSuspendPolling>;
+  completeTask: OmitFirstParam<typeof workerCompleteTask>;
+}
+
+export interface WorkerConstructor {
+  new (...args: Parameters<typeof newWorker>): NativeWorkerLike;
+}
+
+export class NativeWorker implements NativeWorkerLike {
+  protected readonly native: NativeWorkerImplementation;
+
+  public constructor() {
+    this.native = newWorker();
+  }
+
+  public shutdown(): void {
+    return workerShutdown(this.native);
+  }
+
+  public poll(queueName: string, callback: PollCallback): void {
+    return workerPoll(this.native, queueName, callback);
+  }
+
+  public isSuspended(): boolean {
+    return workerIsSuspended(this.native);
+  }
+
+  public resumePolling(): void {
+    return workerResumePolling(this.native);
+  }
+
+  public suspendPolling(): void {
+    return workerSuspendPolling(this.native);
+  }
+
+  public completeTask(result: ArrayBuffer): void {
+    return workerCompleteTask(this.native, result);
+  }
+}
+
+/**
+ * Base worker class - allows injection of native worker implementation for testing
+ */
+class BaseWorker {
   public readonly options: CompiledWorkerOptionsWithDefaults;
   protected readonly workflowOverrides: Map<string, string> = new Map();
   protected readonly resolvedActivities: Map<string, Record<string, () => any>>;
-  nativeWorker = newWorker();
   _state: State = 'INITIALIZED';
 
-  /**
-   * Create a new Worker.
-   * This method immediately connects to the server and will throw on connection failure.
-   * @param pwd - Used to resolve relative paths for locating and importing activities and workflows.
-   */
-  constructor(public readonly pwd: string, options?: WorkerOptions) {
+  constructor(protected readonly nativeWorker: NativeWorkerLike, public readonly pwd: string, options?: WorkerOptions) {
     // TODO: merge activityDefaults
     this.options = compileWorkerOptions({ ...getDefaultOptions(pwd), ...options });
     this.resolvedActivities = new Map();
     if (this.options.activitiesPath !== null) {
       const files = readdirSync(this.options.activitiesPath, { encoding: 'utf8' });
-      for (const file in files) {
+      for (const file of files) {
         const ext = extname(file);
         if (ext === '.js') {
           const fullPath = resolve(this.options.activitiesPath, file);
@@ -192,7 +240,7 @@ export class Worker {
     if (this.state !== 'RUNNING') {
       throw new Error('Not running');
     }
-    workerSuspendPolling(this.nativeWorker);
+    this.nativeWorker.suspendPolling();
   }
 
   /**
@@ -202,14 +250,14 @@ export class Worker {
     if (this.state !== 'RUNNING') {
       throw new Error('Not running');
     }
-    workerResumePolling(this.nativeWorker);
+    this.nativeWorker.resumePolling();
   }
 
   public isSuspended(): boolean {
     if (this.state !== 'RUNNING') {
       throw new Error('Not running');
     }
-    return workerIsSuspended(this.nativeWorker);
+    return this.nativeWorker.isSuspended();
   }
 
   shutdown(): void {
@@ -217,7 +265,7 @@ export class Worker {
       throw new Error('Not running');
     }
     this.state = 'STOPPING';
-    workerShutdown(this.nativeWorker);
+    this.nativeWorker.shutdown();
   }
 
   protected poller$(queueName: string): Observable<coresdk.Task> {
@@ -244,7 +292,7 @@ export class Worker {
 
       this.state = 'RUNNING';
 
-      workerPoll(this.nativeWorker, queueName, (err, buffer) => {
+      this.nativeWorker.poll(queueName, (err, buffer) => {
         if (err && err.message.includes('[Core::shutdown]')) {
           subscriber.complete();
         } else if (buffer === undefined) {
@@ -292,7 +340,7 @@ export class Worker {
                 if (module === undefined) {
                   output = {
                     type: 'result',
-                    result: { failed: { failure: { message: `Activity module found: ${path}` } } },
+                    result: { failed: { failure: { message: `Activity module not found: ${path}` } } },
                   };
                   break;
                 }
@@ -332,7 +380,7 @@ export class Worker {
             }
 
             try {
-              const result = output.activity.run();
+              const result = await output.activity.run();
               return { taskToken, result: { completed: { result: this.options.dataConverter.toPayloads(result) } } };
             } catch (error) {
               return { taskToken, result: { failed: { failure: { message: error.message /* TODO: stackTrace */ } } } };
@@ -446,7 +494,20 @@ export class Worker {
     const [workflow$, activity$] = (partitioned$ as any) as [Observable<TaskForWorkflow>, Observable<TaskForActivity>];
 
     return await merge(workflow$.pipe(this.workflowOperator()), activity$.pipe(this.activityOperator()))
-      .pipe(map((arr) => workerCompleteTask(this.nativeWorker, arr.buffer.slice(arr.byteOffset))))
+      .pipe(map((arr) => this.nativeWorker.completeTask(arr.buffer.slice(arr.byteOffset))))
       .toPromise();
   }
 }
+
+export class Worker extends BaseWorker {
+  /**
+   * Create a new Worker.
+   * This method immediately connects to the server and will throw on connection failure.
+   * @param pwd - Used to resolve relative paths for locating and importing activities and workflows.
+   */
+  constructor(public readonly pwd: string, options?: WorkerOptions) {
+    super(new NativeWorker(), pwd, options);
+  }
+}
+
+export const testing = { BaseWorker };
