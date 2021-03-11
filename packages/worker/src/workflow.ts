@@ -64,7 +64,7 @@ export class Workflow {
       for (const [k, v] of Object.entries(module)) {
         if (v instanceof Function) {
           code += dedent`
-            export async function ${k}(...args) {
+            export function ${k}(...args) {
               return scheduleActivity('${specifier}', '${k}', args, {});
             }
             ${k}.module = '${specifier}';

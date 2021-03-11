@@ -151,6 +151,14 @@ function makeScheduleActivityCommand(
   };
 }
 
+function makeCancelActivityCommand(activityId: string): iface.coresdk.ICommand {
+  return {
+    core: {
+      requestActivityCancellation: { activityId },
+    },
+  };
+}
+
 function makeStartTimerCommand(
   attrs: iface.temporal.api.command.v1.IStartTimerCommandAttributes
 ): iface.coresdk.ICommand {
@@ -486,21 +494,6 @@ test('cancel-workflow', async (t) => {
   t.deepEqual(logs, [['Workflow cancelled'], ['Workflow cancelled'], ['Workflow cancelled']]);
 });
 
-test('cancel-workflow-from-workflow', async (t) => {
-  const { script, logs } = t.context;
-  const req = await activate(t, makeStartWorkflow(script));
-  compareCompletion(
-    t,
-    req,
-    makeSuccess([
-      makeStartTimerCommand({ timerId: '0', startToFireTimeout: msToTs(3) }),
-      makeCancelTimerCommand({ timerId: '0' }),
-      makeCompleteWorkflowExecution(),
-    ])
-  );
-  t.deepEqual(logs, [['Timer cancelled 👍']]);
-});
-
 test('cancel-timer-immediately', async (t) => {
   const { script, logs } = t.context;
   const req = await activate(t, makeStartWorkflow(script));
@@ -713,4 +706,28 @@ test('http', async (t) => {
     compareCompletion(t, req, makeSuccess([makeFailWorkflowExecution('Connection timeout')]));
   }
   t.deepEqual(logs, [[result]]);
+});
+
+test('activity-cancellation', async (t) => {
+  const { script, logs } = t.context;
+  {
+    const req = await activate(t, makeStartWorkflow(script));
+    compareCompletion(
+      t,
+      req,
+      makeSuccess([
+        makeScheduleActivityCommand({
+          activityId: '0',
+          activityType: { name: JSON.stringify(['@activities', 'httpGet']) },
+          input: defaultDataConverter.toPayloads('https://google.com'),
+        }),
+        makeCancelActivityCommand('0'),
+      ])
+    );
+  }
+  {
+    const req = await activate(t, makeResolveActivity('0', { canceled: {} }));
+    compareCompletion(t, req, makeSuccess([makeFailWorkflowExecution('Activity cancelled')]));
+  }
+  t.deepEqual(logs, []);
 });
