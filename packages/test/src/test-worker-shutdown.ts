@@ -4,7 +4,7 @@ import { RUN_INTEGRATION_TESTS } from './helpers';
 
 if (RUN_INTEGRATION_TESTS) {
   test.serial('run shuts down gracefully', async (t) => {
-    const worker = new Worker(__dirname, { shutdownGraceTime: '500ms' });
+    const worker = new Worker(__dirname, { shutdownGraceTime: '500ms', activitiesPath: null });
     t.is(worker.getState(), 'INITIALIZED');
     const p = worker.run('shutdown-test');
     t.is(worker.getState(), 'RUNNING');
@@ -16,7 +16,7 @@ if (RUN_INTEGRATION_TESTS) {
   });
 
   test.serial('run throws if not shut down gracefully', async (t) => {
-    const worker = new Worker(__dirname, { shutdownGraceTime: '5ms' });
+    const worker = new Worker(__dirname, { shutdownGraceTime: '5ms', activitiesPath: null });
     t.is(worker.getState(), 'INITIALIZED');
     const p = worker.run('shutdown-test');
     t.is(worker.getState(), 'RUNNING');
