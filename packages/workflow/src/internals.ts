@@ -1,15 +1,9 @@
 import * as iface from '@temporalio/proto';
 import { defaultDataConverter, arrayFromPayloads } from './converter/data-converter';
 import { alea } from './alea';
-import { CancellationFunction, Workflow } from './interfaces';
+import { CancellationFunction, CancellationFunctionFactory, Scope, Workflow } from './interfaces';
 import { CancellationError } from './errors';
 import { tsToMs, nullToUndefined } from './time';
-
-export interface Scope {
-  parent?: Scope;
-  cancel: CancellationFunction;
-  associated: boolean;
-}
 
 export type ResolveFunction<T = any> = (val: T) => any;
 export type RejectFunction<E = any> = (val: E) => any;
@@ -56,12 +50,15 @@ export interface State {
 
 const rootScope: Scope = {
   associated: true,
-  cancel: (err) => {
+  requestCancel: () => {
+    throw new Error('Root scope cannot be cancelled from within a workflow');
+  },
+  completeCancel: (err) => {
     rootScopeCancel(err);
   },
 };
 
-const rootScopeCancel = propagateCancellation(() => undefined, rootScope);
+const rootScopeCancel = propagateCancellation('completeCancel')(() => undefined, rootScope);
 
 export const state: State = {
   completions: new Map(),
@@ -176,7 +173,7 @@ export class Activator implements WorkflowTaskHandler {
   public cancelTimer(activation: iface.coresdk.ICancelTimer): void {
     const { scope } = consumeCompletion(idToSeq(activation.timerId));
     try {
-      scope.cancel(new CancellationError('Timer cancelled'));
+      scope.completeCancel(new CancellationError('Timer cancelled'));
     } catch (e) {
       if (!(e instanceof CancellationError)) throw e;
     }
@@ -193,7 +190,7 @@ export class Activator implements WorkflowTaskHandler {
       reject(new Error(nullToUndefined(activation.result.failed.failure?.message)));
     } else if (activation.result.canceled) {
       try {
-        scope.cancel(new CancellationError('Activity cancelled'));
+        scope.completeCancel(new CancellationError('Activity cancelled'));
       } catch (e) {
         if (!(e instanceof CancellationError)) throw e;
       }
@@ -296,22 +293,24 @@ export function pushScope(scope: Scope): Scope {
   return scope;
 }
 
-export function propagateCancellation(reject: CancellationFunction, scope: Scope): CancellationFunction {
-  return (err: CancellationError) => {
-    const children = state.childScopes.get(scope);
-    if (children === undefined) {
-      throw new Error('Expected to find child scope mapping, got undefined');
-    }
-    for (const child of children) {
-      try {
-        child.cancel(err);
-      } catch (e) {
-        // TODO: aggregate errors?
-        if (e !== err) reject(e);
+export function propagateCancellation(method: 'requestCancel' | 'completeCancel'): CancellationFunctionFactory {
+  return (reject: CancellationFunction, scope: Scope): CancellationFunction => {
+    return (err: CancellationError) => {
+      const children = state.childScopes.get(scope);
+      if (children === undefined) {
+        throw new Error('Expected to find child scope mapping, got undefined');
       }
-    }
-    // If no children throw, make sure to reject this promise
-    reject(err);
+      for (const child of children) {
+        try {
+          child[method](err);
+        } catch (e) {
+          // TODO: aggregate errors?
+          if (e !== err) reject(e);
+        }
+      }
+      // If no children throw, make sure to reject this promise
+      reject(err);
+    };
   };
 }
 
@@ -320,19 +319,24 @@ function cancellationNotSet() {
 }
 
 export function childScope<T>(
-  makeCancellation: (reject: CancellationFunction, scope: Scope) => CancellationFunction,
+  makeRequestCancellation: CancellationFunctionFactory,
+  makeCompleteCancellation: CancellationFunctionFactory,
   fn: () => Promise<T>
 ): Promise<T> {
-  let cancel: CancellationFunction = cancellationNotSet;
+  let requestCancel: CancellationFunction = cancellationNotSet;
+  let completeCancel: CancellationFunction = cancellationNotSet;
+
   const scope = pushScope({
     parent: currentScope(),
-    cancel: (err) => cancel(err),
+    requestCancel: (err) => requestCancel(err),
+    completeCancel: (err) => completeCancel(err),
     associated: false,
   });
   // eslint-disable-next-line no-async-promise-executor
   const promise = new Promise<T>(async (resolve, reject) => {
     try {
-      cancel = makeCancellation(reject, scope);
+      requestCancel = makeRequestCancellation(reject, scope);
+      completeCancel = makeCompleteCancellation(reject, scope);
       const promise = fn();
       const result = await promise;
       resolve(result);

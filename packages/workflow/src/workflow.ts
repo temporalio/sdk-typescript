@@ -1,5 +1,5 @@
 import { temporal } from '@temporalio/proto';
-import { ActivityOptions, ActivityFunction } from './interfaces';
+import { ActivityOptions, ActivityFunction, CancellationFunctionFactory } from './interfaces';
 import { state, currentScope, childScope, propagateCancellation } from './internals';
 import { defaultDataConverter } from './converter/data-converter';
 import { CancellationError } from './errors';
@@ -7,21 +7,24 @@ import { msToTs, msOptionalStrToTs } from './time';
 
 export function sleep(ms: number): Promise<void> {
   const seq = state.nextSeq++;
-  return childScope(
-    (reject) => (err) => {
-      if (!state.completions.delete(seq)) {
-        return; // Already resolved
-      }
-      state.commands.push({
-        api: {
-          commandType: temporal.api.enums.v1.CommandType.COMMAND_TYPE_CANCEL_TIMER,
-          cancelTimerCommandAttributes: {
-            timerId: `${seq}`,
-          },
+  const cancellation: CancellationFunctionFactory = (reject) => (err) => {
+    if (!state.completions.delete(seq)) {
+      return; // Already resolved
+    }
+    state.commands.push({
+      api: {
+        commandType: temporal.api.enums.v1.CommandType.COMMAND_TYPE_CANCEL_TIMER,
+        cancelTimerCommandAttributes: {
+          timerId: `${seq}`,
         },
-      });
-      reject(err);
-    },
+      },
+    });
+    reject(err);
+  };
+
+  return childScope(
+    cancellation,
+    cancellation,
     () =>
       new Promise((resolve, reject) => {
         state.completions.set(seq, {
@@ -50,19 +53,17 @@ export interface InternalActivityFunction<P extends any[], R> extends ActivityFu
 export function scheduleActivity<R>(module: string, name: string, args: any[], options: ActivityOptions): Promise<R> {
   const seq = state.nextSeq++;
   return childScope(
-    (reject) => (err) => {
-      if (!state.completions.delete(seq)) {
-        return; // Already resolved
-      }
+    () => () => {
       state.commands.push({
         core: {
           requestActivityCancellation: {
             activityId: `${seq}`,
+            // TODO: reason
           },
         },
       });
-      reject(err);
     },
+    (reject) => reject,
     () =>
       new Promise((resolve, reject) => {
         state.completions.set(seq, {
@@ -119,19 +120,9 @@ class ContextImpl {
     configured.options = mergedOptions;
     return configured;
   }
+
   public get cancelled(): boolean {
     return state.cancelled;
-  }
-
-  /**
-   * Cancel the current workflow
-   */
-  public cancel(reason = 'Cancelled'): void {
-    try {
-      state.rootScope.cancel(new CancellationError(reason));
-    } catch (e) {
-      if (!(e instanceof CancellationError)) throw e;
-    }
   }
 }
 
@@ -143,9 +134,10 @@ export const Context = new ContextImpl();
  * if a parent scope is cancelled, e.g. when the entire workflow is cancelled.
  */
 export function cancellationScope<T>(fn: () => Promise<T>): Promise<T> {
-  return childScope(propagateCancellation, fn);
+  return childScope(propagateCancellation('requestCancel'), propagateCancellation('completeCancel'), fn);
 }
 
+const ignoreCancellation = () => () => undefined;
 /**
  * Wraps the Promise returned from `fn` with a shielded scope.
  * Any child scopes of this scope will *not* be cancelled if `shield` is cancelled.
@@ -155,12 +147,10 @@ export function cancellationScope<T>(fn: () => Promise<T>): Promise<T> {
  * despite cancellation. To see if the workflow was cancelled while waiting, check `Context.cancelled`.
  */
 export function shield<T>(fn: () => Promise<T>, throwOnCancellation = true): Promise<T> {
-  if (throwOnCancellation) {
-    return childScope((cancel) => cancel, fn);
-  } else {
-    // Ignore cancellation
-    return childScope(() => () => undefined, fn);
-  }
+  const cancellationFunction: CancellationFunctionFactory = throwOnCancellation
+    ? (cancel) => cancel
+    : ignoreCancellation;
+  return childScope(cancellationFunction, cancellationFunction, fn);
 }
 
 /**
@@ -180,7 +170,7 @@ export function cancel(promise: Promise<any>, reason = 'Cancelled'): void {
   }
 
   try {
-    data.scope.cancel(new CancellationError(reason));
+    data.scope.requestCancel(new CancellationError(reason));
   } catch (e) {
     if (!(e instanceof CancellationError)) throw e;
   }
