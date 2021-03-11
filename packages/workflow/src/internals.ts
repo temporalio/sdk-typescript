@@ -110,9 +110,9 @@ function failWorkflow(error: any) {
 function completeQuery(result: any) {
   state.commands.push({
     core: {
-      queryResult: {
-        answer: { payloads: [defaultDataConverter.toPayload(result)] },
+      respondToQuery: {
         resultType: iface.temporal.api.enums.v1.QueryResultType.QUERY_RESULT_TYPE_ANSWERED,
+        answer: { payloads: [defaultDataConverter.toPayload(result)] },
       },
     },
   });
@@ -121,7 +121,7 @@ function completeQuery(result: any) {
 function failQuery(error: any) {
   state.commands.push({
     core: {
-      queryResult: {
+      respondToQuery: {
         resultType: iface.temporal.api.enums.v1.QueryResultType.QUERY_RESULT_TYPE_FAILED,
         errorMessage: error.message,
       },

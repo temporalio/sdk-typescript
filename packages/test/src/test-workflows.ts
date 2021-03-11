@@ -173,11 +173,11 @@ function makeCancelTimerCommand(
   };
 }
 
-function makeWorkflowQueryResultCommand(
-  queryResult: iface.temporal.api.query.v1.IWorkflowQueryResult
+function makeRespondToQueryCommand(
+  respondToQuery: iface.temporal.api.query.v1.IWorkflowQueryResult
 ): iface.coresdk.ICommand {
   return {
-    core: { queryResult },
+    core: { respondToQuery },
   };
 }
 
@@ -427,7 +427,7 @@ test('simple-query', async (t) => {
       t,
       req,
       makeSuccess([
-        makeWorkflowQueryResultCommand({
+        makeRespondToQueryCommand({
           answer: { payloads: [defaultDataConverter.toPayload(false)] },
           resultType: iface.temporal.api.enums.v1.QueryResultType.QUERY_RESULT_TYPE_ANSWERED,
         }),
@@ -444,7 +444,7 @@ test('simple-query', async (t) => {
       t,
       req,
       makeSuccess([
-        makeWorkflowQueryResultCommand({
+        makeRespondToQueryCommand({
           answer: { payloads: [defaultDataConverter.toPayload(true)] },
           resultType: iface.temporal.api.enums.v1.QueryResultType.QUERY_RESULT_TYPE_ANSWERED,
         }),
