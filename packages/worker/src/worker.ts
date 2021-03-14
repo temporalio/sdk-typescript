@@ -1,6 +1,6 @@
 import { basename, extname, resolve } from 'path';
 import { readdirSync } from 'fs';
-import { merge, Observable, OperatorFunction, partition, pipe } from 'rxjs';
+import { merge, Observable, OperatorFunction, Subject, partition, pipe } from 'rxjs';
 import { filter, groupBy, map, mergeMap, share, tap } from 'rxjs/operators';
 import ms from 'ms';
 import { coresdk, temporal } from '@temporalio/proto';
@@ -10,17 +10,7 @@ import {
   defaultDataConverter,
   arrayFromPayloads,
 } from '@temporalio/workflow/commonjs/converter/data-converter';
-import {
-  Worker as NativeWorkerImplementation,
-  newWorker,
-  workerShutdown,
-  workerPoll,
-  workerIsSuspended,
-  workerResumePolling,
-  workerSuspendPolling,
-  workerCompleteTask,
-  PollCallback,
-} from '../native';
+import * as native from '../native';
 import { sleep } from './utils';
 import { mergeMapWithState } from './rxutils';
 import { resolveFilename, LoaderError } from './loader';
@@ -115,47 +105,52 @@ type RestParams<T> = T extends (...args: any[]) => any ? OmitFirst<Parameters<T>
 type OmitFirstParam<T> = T extends (...args: any[]) => any ? (...args: RestParams<T>) => ReturnType<T> : never;
 
 export interface NativeWorkerLike {
-  shutdown: OmitFirstParam<typeof workerShutdown>;
-  poll: OmitFirstParam<typeof workerPoll>;
-  isSuspended: OmitFirstParam<typeof workerIsSuspended>;
-  resumePolling: OmitFirstParam<typeof workerResumePolling>;
-  suspendPolling: OmitFirstParam<typeof workerSuspendPolling>;
-  completeTask: OmitFirstParam<typeof workerCompleteTask>;
+  shutdown: OmitFirstParam<typeof native.workerShutdown>;
+  poll: OmitFirstParam<typeof native.workerPoll>;
+  isSuspended: OmitFirstParam<typeof native.workerIsSuspended>;
+  resumePolling: OmitFirstParam<typeof native.workerResumePolling>;
+  suspendPolling: OmitFirstParam<typeof native.workerSuspendPolling>;
+  completeTask: OmitFirstParam<typeof native.workerCompleteTask>;
+  sendActivityHeartbeat: OmitFirstParam<typeof native.workerSendActivityHeartbeat>;
 }
 
 export interface WorkerConstructor {
-  new (...args: Parameters<typeof newWorker>): NativeWorkerLike;
+  new (...args: Parameters<typeof native.newWorker>): NativeWorkerLike;
 }
 
 export class NativeWorker implements NativeWorkerLike {
-  protected readonly native: NativeWorkerImplementation;
+  protected readonly native: native.Worker;
 
   public constructor() {
-    this.native = newWorker();
+    this.native = native.newWorker();
   }
 
   public shutdown(): void {
-    return workerShutdown(this.native);
+    return native.workerShutdown(this.native);
   }
 
-  public poll(queueName: string, callback: PollCallback): void {
-    return workerPoll(this.native, queueName, callback);
+  public poll(queueName: string, callback: native.PollCallback): void {
+    return native.workerPoll(this.native, queueName, callback);
   }
 
   public isSuspended(): boolean {
-    return workerIsSuspended(this.native);
+    return native.workerIsSuspended(this.native);
   }
 
   public resumePolling(): void {
-    return workerResumePolling(this.native);
+    return native.workerResumePolling(this.native);
   }
 
   public suspendPolling(): void {
-    return workerSuspendPolling(this.native);
+    return native.workerSuspendPolling(this.native);
   }
 
   public completeTask(result: ArrayBuffer): void {
-    return workerCompleteTask(this.native, result);
+    return native.workerCompleteTask(this.native, result);
+  }
+
+  public sendActivityHeartbeat(activityId: string, details?: ArrayBuffer): void {
+    return native.workerSendActivityHeartbeat(this.native, activityId, details);
   }
 }
 
@@ -166,6 +161,10 @@ class BaseWorker {
   public readonly options: CompiledWorkerOptionsWithDefaults;
   protected readonly workflowOverrides: Map<string, string> = new Map();
   protected readonly resolvedActivities: Map<string, Record<string, () => any>>;
+  protected readonly activityHeartbeatSubject = new Subject<{
+    activityId: string;
+    details?: any;
+  }>();
   _state: State = 'INITIALIZED';
 
   constructor(protected readonly nativeWorker: NativeWorkerLike, public readonly pwd: string, options?: WorkerOptions) {
@@ -295,6 +294,7 @@ class BaseWorker {
       this.nativeWorker.poll(queueName, (err, buffer) => {
         if (err && err.message.includes('[Core::shutdown]')) {
           subscriber.complete();
+          this.activityHeartbeatSubject.complete();
         } else if (buffer === undefined) {
           subscriber.error(err);
         } else {
@@ -328,7 +328,7 @@ class BaseWorker {
 
             switch (job) {
               case 'start': {
-                const { start } = task.activity;
+                const { start, activityId } = task.activity;
                 if (!start) {
                   throw new Error('Got a "start" activity task without a "start" attribute');
                 }
@@ -353,7 +353,12 @@ class BaseWorker {
                   break;
                 }
                 const args = arrayFromPayloads(this.options.dataConverter, start.input);
-                activity = new Activity(fn, args, this.options.dataConverter);
+                activity = new Activity(fn, args, this.options.dataConverter, (details) =>
+                  this.activityHeartbeatSubject.next({
+                    activityId,
+                    details,
+                  })
+                );
                 output = { type: 'run', activity };
                 break;
               }
@@ -492,9 +497,26 @@ class BaseWorker {
     // Need to cast to any in order to assign the correct types a partition returns an Observable<Task>
     const [workflow$, activity$] = (partitioned$ as any) as [Observable<TaskForWorkflow>, Observable<TaskForActivity>];
 
-    return await merge(workflow$.pipe(this.workflowOperator()), activity$.pipe(this.activityOperator()))
-      .pipe(map((arr) => this.nativeWorker.completeTask(arr.buffer.slice(arr.byteOffset))))
-      .toPromise();
+    return await merge(
+      this.activityHeartbeatSubject.pipe(
+        map(({ activityId, details }) => {
+          const payloads = this.options.dataConverter.toPayloads(details);
+          if (!payloads) {
+            this.nativeWorker.sendActivityHeartbeat(activityId);
+            return;
+          }
+
+          const arr = temporal.api.common.v1.Payloads.encode(payloads).finish();
+          this.nativeWorker.sendActivityHeartbeat(
+            activityId,
+            arr.buffer.slice(arr.byteOffset, arr.byteLength + arr.byteOffset)
+          );
+        })
+      ),
+      merge(workflow$.pipe(this.workflowOperator()), activity$.pipe(this.activityOperator())).pipe(
+        map((arr) => this.nativeWorker.completeTask(arr.buffer.slice(arr.byteOffset)))
+      )
+    ).toPromise();
   }
 }
 

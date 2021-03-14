@@ -3,13 +3,14 @@ import anyTest, { TestInterface, ExecutionContext } from 'ava';
 import * as iface from '@temporalio/proto';
 import { testing, NativeWorkerLike } from '@temporalio/worker/lib/worker';
 import { PollCallback } from '@temporalio/worker/native';
-import { defaultDataConverter } from '@temporalio/workflow/commonjs/converter/data-converter';
+import { defaultDataConverter, arrayFromPayloads } from '@temporalio/workflow/commonjs/converter/data-converter';
 import { u8 } from './helpers';
 import { httpGet } from '../../test-activities/lib';
 
 class MockNativeWorker implements NativeWorkerLike {
   callback?: PollCallback;
   completionCallback?: (arr: ArrayBuffer) => void;
+  activityHeartbeatCallback?: (activityId: string, details: any) => void;
 
   public shutdown(): void {
     // Do nothing
@@ -54,6 +55,25 @@ class MockNativeWorker implements NativeWorkerLike {
       this.callback!(undefined, buffer);
     });
     return iface.coresdk.TaskCompletion.decodeDelimited(new Uint8Array(result));
+  }
+
+  sendActivityHeartbeat(activityId: string, details?: ArrayBuffer): void {
+    const payloads = details && iface.temporal.api.common.v1.Payloads.decode(new Uint8Array(details));
+    const arr = arrayFromPayloads(defaultDataConverter, payloads);
+    if (arr.length !== 1) {
+      throw new Error('Expected exactly one payload from activity heartbeat');
+    }
+    this.activityHeartbeatCallback!(activityId, arr[0]);
+  }
+
+  public async untilHeartbeat(activityId: string): Promise<any> {
+    return new Promise((resolve) => {
+      this.activityHeartbeatCallback = (heartbeatActivityId, details) => {
+        if (heartbeatActivityId === activityId) {
+          resolve(details);
+        }
+      };
+    });
   }
 }
 
@@ -189,6 +209,30 @@ test('Activity Context AbortSignal cancels a fetch request', async (t) => {
     compareCompletion(t, completion, {
       taskToken,
       activity: { canceled: {} },
+    });
+  });
+});
+
+test('Activity Context heartbeat is sent to core', async (t) => {
+  const { nativeWorker } = t.context;
+  await runWorker(t, async () => {
+    const taskToken = u8(`${Math.random()}`);
+    const completionPromise = nativeWorker.runAndWaitCompletion({
+      taskToken,
+      activity: {
+        activityId: 'abc',
+        start: {
+          activityType: { name: JSON.stringify(['@activities', 'progressiveSleep']) },
+          input: defaultDataConverter.toPayloads(),
+        },
+      },
+    });
+    t.is(await nativeWorker.untilHeartbeat('abc'), 1);
+    t.is(await nativeWorker.untilHeartbeat('abc'), 2);
+    t.is(await nativeWorker.untilHeartbeat('abc'), 3);
+    compareCompletion(t, await completionPromise, {
+      taskToken,
+      activity: { completed: { result: defaultDataConverter.toPayloads(undefined) } },
     });
   });
 });

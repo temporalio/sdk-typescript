@@ -15,7 +15,8 @@ export class Activity {
   constructor(
     protected readonly fn: ActivityFunction<any[], any>,
     protected readonly args: any[],
-    public readonly dataConverter: DataConverter
+    public readonly dataConverter: DataConverter,
+    public readonly heartbeatCallback: Context['heartbeat']
   ) {
     const promise = new Promise<never>((_, reject) => {
       this.cancel = (reason?: any) => {
@@ -24,7 +25,7 @@ export class Activity {
         reject(new CancellationError(reason));
       };
     });
-    this.context = new Context(promise, this.abortController.signal);
+    this.context = new Context(promise, this.abortController.signal, this.heartbeatCallback);
     promise.catch(() => undefined);
   }
 
@@ -38,6 +39,7 @@ export class Activity {
           if (this.cancelRequested) {
             return { canceled: {} };
           }
+          console.log('completed activity', { result });
           return { completed: { result: this.dataConverter.toPayloads(result) } };
         } catch (err) {
           if (this.cancelRequested) {
