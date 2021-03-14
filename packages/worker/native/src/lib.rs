@@ -2,7 +2,10 @@ use neon::{prelude::*, register_module};
 use prost::Message;
 use std::{
     convert::TryInto,
-    sync::{Arc, Condvar, Mutex},
+    sync::{
+        mpsc::{sync_channel, SyncSender},
+        Arc,
+    },
     time::Duration,
 };
 use temporal_sdk_core::{
@@ -13,16 +16,20 @@ use temporal_sdk_core::{
 
 type BoxedWorker = JsBox<Arc<Worker>>;
 
+pub struct PollItem {
+    queue_name: String,
+    callback: Root<JsFunction>,
+}
+
 pub struct Worker {
     core: Box<dyn Core + Send + Sync>,
-    condition: Condvar,
-    suspended: Mutex<bool>,
+    sender: SyncSender<PollItem>,
 }
 
 impl Finalize for Worker {}
 
 impl Worker {
-    pub fn new() -> Self {
+    pub fn new(sender: SyncSender<PollItem>) -> Self {
         let core = init(CoreInitOptions {
             gateway_opts: ServerGatewayOptions {
                 target_url: "http://localhost:7233".try_into().unwrap(),
@@ -36,36 +43,64 @@ impl Worker {
 
         Worker {
             core: Box::new(core),
-            condition: Condvar::new(),
-            suspended: Mutex::new(false),
+            sender,
         }
     }
 
     pub fn poll(&self, queue_name: String) -> ::temporal_sdk_core::Result<coresdk::Task> {
-        let _guard = self
-            .condition
-            .wait_while(self.suspended.lock().unwrap(), |suspended| *suspended)
-            .unwrap();
         self.core.poll_task(&queue_name)
-    }
-
-    pub fn is_suspended(&self) -> bool {
-        *self.suspended.lock().unwrap()
-    }
-
-    pub fn suspend_polling(&self) {
-        *self.suspended.lock().unwrap() = true;
-        self.condition.notify_one();
-    }
-
-    pub fn resume_polling(&self) {
-        *self.suspended.lock().unwrap() = false;
-        self.condition.notify_one();
     }
 }
 
 fn worker_new(mut cx: FunctionContext) -> JsResult<BoxedWorker> {
-    let worker = Arc::new(Worker::new());
+    // TODO: is capacity of 1 enough here?
+    let (sender, receiver) = sync_channel::<PollItem>(1);
+    let worker = Arc::new(Worker::new(sender));
+    let queue = cx.queue();
+    let cloned_worker = Arc::clone(&worker);
+
+    std::thread::spawn(move || {
+        let worker = cloned_worker;
+        loop {
+            let item = receiver.recv().unwrap();
+            let queue_name = item.queue_name;
+            let callback = item.callback;
+            let result = worker.poll(queue_name);
+            match result {
+                Ok(task) => {
+                    queue.send(move |mut cx| {
+                        let callback = callback.into_inner(&mut cx);
+                        let this = cx.undefined();
+                        let error = cx.undefined();
+                        let len = task.encoded_len();
+                        let mut result = JsArrayBuffer::new(&mut cx, len as u32)?;
+                        cx.borrow_mut(&mut result, |data| {
+                            let mut slice = data.as_mut_slice::<u8>();
+                            if let Err(_) = task.encode(&mut slice) {
+                                panic!("Failed to encode task")
+                            };
+                        });
+                        let args: Vec<Handle<JsValue>> = vec![error.upcast(), result.upcast()];
+                        callback.call(&mut cx, this, args)?;
+                        Ok(())
+                    });
+                }
+                Err(err) => {
+                    queue.send(move |mut cx| {
+                        // Original root callback gets dropped
+                        let callback = callback.into_inner(&mut cx);
+                        let this = cx.undefined();
+                        let error = JsError::error(&mut cx, format!("{}", err))?;
+                        let result = cx.undefined();
+                        let args: Vec<Handle<JsValue>> = vec![error.upcast(), result.upcast()];
+                        callback.call(&mut cx, this, args)?;
+                        Ok(())
+                    });
+                    break;
+                }
+            }
+        }
+    });
 
     Ok(cx.boxed(worker))
 }
@@ -74,54 +109,17 @@ fn worker_poll(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     let worker = cx.argument::<BoxedWorker>(0)?;
     let queue_name = cx.argument::<JsString>(1)?.value(&mut cx);
     let callback = cx.argument::<JsFunction>(2)?.root(&mut cx);
-    let arc_worker = Arc::clone(&**worker); // deref Handle and JsBox
-    let arc_callback = Arc::new(callback);
-    let queue = cx.queue();
-
-    std::thread::spawn(move || loop {
-        let arc_callback = arc_callback.clone();
-        let arc_worker = arc_worker.clone();
-        let queue_name = queue_name.clone();
-        let worker = arc_worker;
-        let result = worker.poll(queue_name);
-        match result {
-            Ok(task) => {
-                queue.send(move |mut cx| {
-                    let r = &*arc_callback;
-                    let callback = r.clone(&mut cx).into_inner(&mut cx);
-                    let this = cx.undefined();
-                    let error = cx.undefined();
-                    let len = task.encoded_len();
-                    let mut result = JsArrayBuffer::new(&mut cx, len as u32)?;
-                    cx.borrow_mut(&mut result, |data| {
-                        let mut slice = data.as_mut_slice::<u8>();
-                        if let Err(_) = task.encode(&mut slice) {
-                            panic!("Failed to encode task")
-                        };
-                    });
-                    let args: Vec<Handle<JsValue>> = vec![error.upcast(), result.upcast()];
-                    callback.call(&mut cx, this, args)?;
-                    Ok(())
-                });
-            }
-            Err(err) => {
-                queue.send(move |mut cx| {
-                    if let Ok(r) = Arc::try_unwrap(arc_callback) {
-                        // Original root callback gets dropped
-                        let callback = r.into_inner(&mut cx);
-                        let this = cx.undefined();
-                        let error = JsError::error(&mut cx, format!("{}", err))?;
-                        let result = cx.undefined();
-                        let args: Vec<Handle<JsValue>> = vec![error.upcast(), result.upcast()];
-                        callback.call(&mut cx, this, args)?;
-                    }
-                    Ok(())
-                });
-                break;
-            }
+    let item = PollItem {
+        queue_name,
+        callback,
+    };
+    match worker.sender.send(item) {
+        Ok(_) => Ok(cx.undefined()),
+        Err(err) => {
+            let error = JsError::error(&mut cx, format!("{}", err))?;
+            cx.throw(error)
         }
-    });
-    Ok(cx.undefined())
+    }
 }
 
 fn worker_complete_task(mut cx: FunctionContext) -> JsResult<JsUndefined> {
@@ -155,30 +153,10 @@ fn worker_shutdown(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     }
 }
 
-fn worker_suspend_polling(mut cx: FunctionContext) -> JsResult<JsUndefined> {
-    let worker = cx.argument::<BoxedWorker>(0)?;
-    worker.suspend_polling();
-    Ok(cx.undefined())
-}
-
-fn worker_resume_polling(mut cx: FunctionContext) -> JsResult<JsUndefined> {
-    let worker = cx.argument::<BoxedWorker>(0)?;
-    worker.resume_polling();
-    Ok(cx.undefined())
-}
-
-fn worker_is_suspended(mut cx: FunctionContext) -> JsResult<JsBoolean> {
-    let worker = cx.argument::<BoxedWorker>(0)?;
-    Ok(cx.boolean(worker.is_suspended()))
-}
-
 register_module!(mut cx, {
     cx.export_function("newWorker", worker_new)?;
     cx.export_function("workerShutdown", worker_shutdown)?;
     cx.export_function("workerPoll", worker_poll)?;
     cx.export_function("workerCompleteTask", worker_complete_task)?;
-    cx.export_function("workerSuspendPolling", worker_suspend_polling)?;
-    cx.export_function("workerResumePolling", worker_resume_polling)?;
-    cx.export_function("workerIsSuspended", worker_is_suspended)?;
     Ok(())
 });
