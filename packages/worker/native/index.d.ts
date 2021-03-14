@@ -8,3 +8,4 @@ export declare function workerCompleteTask(worker: Worker, result: ArrayBuffer):
 export declare function workerSuspendPolling(worker: Worker): void;
 export declare function workerResumePolling(worker: Worker): void;
 export declare function workerIsSuspended(worker: Worker): boolean;
+export declare function workerSendActivityHeartbeat(worker: Worker, activityId: string, details?: ArrayBuffer): void;

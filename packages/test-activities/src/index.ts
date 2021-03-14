@@ -27,3 +27,12 @@ export async function cancellableFetch(): Promise<void> {
 
   await fetch(`http://127.0.0.1:${port}`, { signal: Context.current().cancellationSignal });
 }
+
+export async function progressiveSleep(): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  Context.current().heartbeat(1);
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  Context.current().heartbeat(2);
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  Context.current().heartbeat(3);
+}

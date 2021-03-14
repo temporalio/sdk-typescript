@@ -6,7 +6,11 @@ export { CancellationError } from './types';
 export class Context {
   protected cancel: (reason?: any) => void = () => undefined;
 
-  constructor(public readonly cancelled: Promise<never>, public readonly cancellationSignal: AbortSignal) {}
+  constructor(
+    public readonly cancelled: Promise<never>,
+    public readonly cancellationSignal: AbortSignal,
+    public readonly heartbeat: ContextLike['heartbeat']
+  ) {}
 
   public static current(): ContextLike {
     const store = asyncLocalStorage.getStore();
