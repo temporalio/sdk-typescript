@@ -1,7 +1,7 @@
 import { basename, extname, resolve } from 'path';
 import { readdirSync } from 'fs';
 import { merge, Observable, OperatorFunction, partition, pipe } from 'rxjs';
-import { groupBy, map, mergeMap, share, tap } from 'rxjs/operators';
+import { filter, groupBy, map, mergeMap, share, tap } from 'rxjs/operators';
 import ms from 'ms';
 import { coresdk, temporal } from '@temporalio/proto';
 import { ActivityOptions } from '@temporalio/workflow';
@@ -353,7 +353,7 @@ class BaseWorker {
                   break;
                 }
                 const args = arrayFromPayloads(this.options.dataConverter, start.input);
-                activity = new Activity(fn, args);
+                activity = new Activity(fn, args, this.options.dataConverter);
                 output = { type: 'run', activity };
                 break;
               }
@@ -362,7 +362,7 @@ class BaseWorker {
                   output = { type: 'result', result: { failed: { failure: { message: 'Activity not found' } } } };
                   break;
                 }
-                await activity.cancel();
+                activity.cancel();
                 output = {
                   type: 'result',
                   result: {
@@ -378,14 +378,13 @@ class BaseWorker {
             if (output.type === 'result') {
               return { taskToken, result: output.result };
             }
-
-            try {
-              const result = await output.activity.run();
-              return { taskToken, result: { completed: { result: this.options.dataConverter.toPayloads(result) } } };
-            } catch (error) {
-              return { taskToken, result: { failed: { failure: { message: error.message /* TODO: stackTrace */ } } } };
+            const result = await output.activity.run();
+            if (result.canceled) {
+              return undefined; // Cancelled emitted on cancellation request, ignored in activity run result
             }
+            return { taskToken, result };
           }),
+          filter(<T>(result: T): result is Exclude<T, undefined> => result !== undefined),
           map(({ taskToken, result }) =>
             coresdk.TaskCompletion.encodeDelimited({
               taskToken: taskToken,
