@@ -1,0 +1,22 @@
+{
+  "private": true,
+  "name": "@temporalio/test-activities",
+  "version": "0.1.1",
+  "description": "Temporal.io SDK Test Activities",
+  "scripts": {},
+  "keywords": [
+    "temporal",
+    "workflow",
+    "isolate",
+    "test"
+  ],
+  "author": "Roey Berman <roey@temporal.io>",
+  "license": "MIT",
+  "dependencies": {
+    "@temporalio/activity": "file:../activity"
+  },
+  "bugs": {
+    "url": "https://github.com/temporalio/sdk-node/issues"
+  },
+  "homepage": "https://github.com/temporalio/sdk-node#readme"
+}
