@@ -1,4 +1,17 @@
-import { AsyncLocalStorage } from 'async_hooks';
-import { Context } from './types';
+import { AsyncLocalStorage, Context } from './types';
 
-export const asyncLocalStorage = new AsyncLocalStorage<Context>();
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+let { AsyncLocalStorage } = require('async_hooks');
+
+if (AsyncLocalStorage === undefined) {
+  AsyncLocalStorage = require('./async-local-storage');
+}
+
+/**
+ * Workaround for the conditional require making AsyncLocalStorage 'any'
+ */
+function getAsyncLocalStorage(): AsyncLocalStorage<Context> {
+  return new AsyncLocalStorage();
+}
+
+export const asyncLocalStorage = getAsyncLocalStorage();

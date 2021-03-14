@@ -22,3 +22,8 @@ export interface Context {
    */
   cancellationSignal: AbortSignal;
 }
+
+export interface AsyncLocalStorage<T> {
+  getStore(): T | undefined;
+  run<A extends any[], R>(store: T, callback: (...args: A) => Promise<R>, ...args: A): Promise<R>;
+}
