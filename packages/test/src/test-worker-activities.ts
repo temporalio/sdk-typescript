@@ -164,3 +164,31 @@ test('Worker cancels activity and reports cancellation', async (t) => {
     });
   });
 });
+
+test('Activity Context AbortSignal cancels a fetch request', async (t) => {
+  const { nativeWorker } = t.context;
+  await runWorker(t, async () => {
+    nativeWorker.emit({
+      taskToken: u8(`${Math.random}`),
+      activity: {
+        activityId: 'abc',
+        start: {
+          activityType: { name: JSON.stringify(['@activities', 'cancellableFetch']) },
+          input: defaultDataConverter.toPayloads(),
+        },
+      },
+    });
+    const taskToken = u8(`${Math.random()}`);
+    const completion = await nativeWorker.runAndWaitCompletion({
+      taskToken,
+      activity: {
+        activityId: 'abc',
+        cancel: {},
+      },
+    });
+    compareCompletion(t, completion, {
+      taskToken,
+      activity: { canceled: {} },
+    });
+  });
+});

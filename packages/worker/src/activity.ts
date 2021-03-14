@@ -1,3 +1,4 @@
+import { AbortController } from 'abort-controller';
 import { ActivityFunction } from '@temporalio/workflow';
 import { DataConverter } from '@temporalio/workflow/commonjs/converter/data-converter';
 import { coresdk } from '@temporalio/proto';
@@ -5,8 +6,10 @@ import { asyncLocalStorage } from '@temporalio/activity/lib/internals';
 import { Context, CancellationError } from '@temporalio/activity';
 
 export class Activity {
+  protected cancelRequested = false;
   public readonly context;
   public cancel: (reason?: any) => void = () => undefined;
+  public readonly abortController: AbortController = new AbortController();
 
   // TODO: get all of the atributes required for setting the ActivityContext
   constructor(
@@ -14,21 +17,30 @@ export class Activity {
     protected readonly args: any[],
     public readonly dataConverter: DataConverter
   ) {
-    this.context = new Context(
-      new Promise<never>((_, reject) => {
-        this.cancel = (reason?: any) => reject(new CancellationError(reason));
-      })
-    );
+    const promise = new Promise<never>((_, reject) => {
+      this.cancel = (reason?: any) => {
+        this.cancelRequested = true;
+        this.abortController.abort();
+        reject(new CancellationError(reason));
+      };
+    });
+    this.context = new Context(promise, this.abortController.signal);
+    promise.catch(() => undefined);
   }
 
   public async run(): Promise<coresdk.IActivityResult> {
+    // Type of AsyncLocalStorage.run is incorrect, it returns the internal promise
     return asyncLocalStorage.run(
       this.context,
       async (): Promise<coresdk.IActivityResult> => {
         try {
-          return { completed: { result: this.dataConverter.toPayloads(await this.fn(...this.args)) } };
+          const result = await this.fn(...this.args);
+          if (this.cancelRequested) {
+            return { canceled: {} };
+          }
+          return { completed: { result: this.dataConverter.toPayloads(result) } };
         } catch (err) {
-          if (err instanceof CancellationError) {
+          if (this.cancelRequested) {
             return { canceled: {} };
           }
           return { failed: { failure: err?.message ? { message: err.message } : undefined } };

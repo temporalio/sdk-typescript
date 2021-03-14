@@ -8,6 +8,7 @@
     "@types/babel__core": "^7.1.12",
     "@types/dedent": "^0.7.0",
     "@types/fs-extra": "^9.0.7",
+    "@types/node-fetch": "^2.5.8",
     "@types/ms": "^0.7.31",
     "@types/node": "^12.20.4",
     "@types/ramda": "^0.27.38",
