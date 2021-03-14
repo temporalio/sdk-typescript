@@ -4,7 +4,7 @@
     "outDir": "./lib",
     "rootDir": "./src"
   },
-  "references": [{ "path": "../worker" }],
+  "references": [{ "path": "../activity" }],
   "include": ["./src/**/*.ts"],
   "exclude": ["node_modules"]
 }
