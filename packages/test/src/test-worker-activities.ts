@@ -40,6 +40,12 @@ class MockNativeWorker implements NativeWorkerLike {
     this.completionCallback = callback;
   }
 
+  public emit(task: iface.coresdk.ITask) {
+    const arr = iface.coresdk.Task.encode(task).finish();
+    const buffer = arr.buffer.slice(arr.byteOffset, arr.byteOffset + arr.byteLength);
+    this.callback!(undefined, buffer);
+  }
+
   public async runAndWaitCompletion(task: iface.coresdk.ITask): Promise<iface.coresdk.TaskCompletion> {
     const arr = iface.coresdk.Task.encode(task).finish();
     const buffer = arr.buffer.slice(arr.byteOffset, arr.byteOffset + arr.byteLength);
@@ -127,6 +133,34 @@ test('Worker runs an activity and reports failure', async (t) => {
     compareCompletion(t, completion, {
       taskToken,
       activity: { failed: { failure: { message } } },
+    });
+  });
+});
+
+test('Worker cancels activity and reports cancellation', async (t) => {
+  const { nativeWorker } = t.context;
+  await runWorker(t, async () => {
+    nativeWorker.emit({
+      taskToken: u8(`${Math.random}`),
+      activity: {
+        activityId: 'abc',
+        start: {
+          activityType: { name: JSON.stringify(['@activities', 'waitForCancellation']) },
+          input: defaultDataConverter.toPayloads(),
+        },
+      },
+    });
+    const taskToken = u8(`${Math.random()}`);
+    const completion = await nativeWorker.runAndWaitCompletion({
+      taskToken,
+      activity: {
+        activityId: 'abc',
+        cancel: {},
+      },
+    });
+    compareCompletion(t, completion, {
+      taskToken,
+      activity: { canceled: {} },
     });
   });
 });

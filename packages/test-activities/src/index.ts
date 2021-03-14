@@ -9,5 +9,5 @@ export async function throwAnError(message: string): Promise<void> {
 }
 
 export async function waitForCancellation(): Promise<void> {
-  throw new Error('Not implemented');
+  await Context.current().cancelled;
 }
