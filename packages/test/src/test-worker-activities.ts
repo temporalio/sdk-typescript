@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
-import test from 'ava';
+import anyTest, { TestInterface, ExecutionContext } from 'ava';
 import * as iface from '@temporalio/proto';
 import { testing, NativeWorkerLike } from '@temporalio/worker/lib/worker';
 import { PollCallback } from '@temporalio/worker/native';
@@ -51,31 +51,82 @@ class MockNativeWorker implements NativeWorkerLike {
   }
 }
 
-test('Worker runs an activity and reports completion', async (t) => {
+class Worker extends testing.BaseWorker {}
+
+export interface Context {
+  nativeWorker: MockNativeWorker;
+  worker: Worker;
+}
+
+const test = anyTest as TestInterface<Context>;
+
+test.beforeEach((t) => {
   const nativeWorker = new MockNativeWorker();
   const worker = new testing.BaseWorker(nativeWorker, __dirname, {
     activitiesPath: `${__dirname}/../../test-activities/lib`,
   });
+  t.context = {
+    nativeWorker,
+    worker,
+  };
+});
+
+async function runWorker(t: ExecutionContext<Context>, fn: () => Promise<any>) {
+  const { nativeWorker, worker } = t.context;
   const promise = worker.run('test');
-  const taskToken = u8(`${Math.random()}`);
-  const url = 'https://temporal.io';
-  const completion = await nativeWorker.runAndWaitCompletion({
-    taskToken,
-    activity: {
-      activityId: 'abc',
-      start: {
-        activityType: { name: JSON.stringify(['@activities', 'httpGet']) },
-        input: defaultDataConverter.toPayloads(url),
-      },
-    },
-  });
-  t.deepEqual(
-    completion.toJSON(),
-    iface.coresdk.TaskCompletion.create({
-      taskToken,
-      activity: { completed: { result: defaultDataConverter.toPayloads(await httpGet(url)) } },
-    }).toJSON()
-  );
+  await fn();
   nativeWorker.callback!(new Error('[Core::shutdown]'), undefined);
   await promise;
+}
+
+function compareCompletion(
+  t: ExecutionContext<Context>,
+  actual: iface.coresdk.TaskCompletion,
+  expected: iface.coresdk.ITaskCompletion
+) {
+  t.deepEqual(actual.toJSON(), iface.coresdk.TaskCompletion.create(expected).toJSON());
+}
+
+test('Worker runs an activity and reports completion', async (t) => {
+  const { nativeWorker } = t.context;
+  await runWorker(t, async () => {
+    const taskToken = u8(`${Math.random()}`);
+    const url = 'https://temporal.io';
+    const completion = await nativeWorker.runAndWaitCompletion({
+      taskToken,
+      activity: {
+        activityId: 'abc',
+        start: {
+          activityType: { name: JSON.stringify(['@activities', 'httpGet']) },
+          input: defaultDataConverter.toPayloads(url),
+        },
+      },
+    });
+    compareCompletion(t, completion, {
+      taskToken,
+      activity: { completed: { result: defaultDataConverter.toPayloads(await httpGet(url)) } },
+    });
+  });
+});
+
+test('Worker runs an activity and reports failure', async (t) => {
+  const { nativeWorker } = t.context;
+  await runWorker(t, async () => {
+    const taskToken = u8(`${Math.random()}`);
+    const message = ':(';
+    const completion = await nativeWorker.runAndWaitCompletion({
+      taskToken,
+      activity: {
+        activityId: 'abc',
+        start: {
+          activityType: { name: JSON.stringify(['@activities', 'throwAnError']) },
+          input: defaultDataConverter.toPayloads(message),
+        },
+      },
+    });
+    compareCompletion(t, completion, {
+      taskToken,
+      activity: { failed: { failure: { message } } },
+    });
+  });
 });
