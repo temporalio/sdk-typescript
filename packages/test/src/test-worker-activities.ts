@@ -1,90 +1,26 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
 import anyTest, { TestInterface, ExecutionContext } from 'ava';
 import * as iface from '@temporalio/proto';
-import { testing, NativeWorkerLike } from '@temporalio/worker/lib/worker';
-import { PollCallback } from '@temporalio/worker/native';
-import { defaultDataConverter, arrayFromPayloads } from '@temporalio/workflow/commonjs/converter/data-converter';
+import { testing } from '@temporalio/worker/lib/worker';
+import { defaultDataConverter } from '@temporalio/workflow/commonjs/converter/data-converter';
 import { u8 } from './helpers';
 import { httpGet } from '../../test-activities/lib';
-
-class MockNativeWorker implements NativeWorkerLike {
-  callback?: PollCallback;
-  completionCallback?: (arr: ArrayBuffer) => void;
-  activityHeartbeatCallback?: (activityId: string, details: any) => void;
-
-  public shutdown(): void {
-    // Do nothing
-  }
-
-  public poll(_queueName: string, callback: PollCallback): void {
-    this.callback = callback;
-  }
-
-  public isSuspended(): boolean {
-    return false;
-  }
-
-  public resumePolling(): void {
-    // Do nothing
-  }
-
-  public suspendPolling(): void {
-    // Do nothing
-  }
-
-  public completeTask(result: ArrayBuffer): void {
-    this.completionCallback!(result);
-    this.completionCallback = undefined;
-  }
-
-  setCompletionCallback(callback: (arr: ArrayBuffer) => void): void {
-    this.completionCallback = callback;
-  }
-
-  public emit(task: iface.coresdk.ITask) {
-    const arr = iface.coresdk.Task.encode(task).finish();
-    const buffer = arr.buffer.slice(arr.byteOffset, arr.byteOffset + arr.byteLength);
-    this.callback!(undefined, buffer);
-  }
-
-  public async runAndWaitCompletion(task: iface.coresdk.ITask): Promise<iface.coresdk.TaskCompletion> {
-    const arr = iface.coresdk.Task.encode(task).finish();
-    const buffer = arr.buffer.slice(arr.byteOffset, arr.byteOffset + arr.byteLength);
-    const result = await new Promise<ArrayBuffer>((resolve) => {
-      this.setCompletionCallback(resolve);
-      this.callback!(undefined, buffer);
-    });
-    return iface.coresdk.TaskCompletion.decodeDelimited(new Uint8Array(result));
-  }
-
-  sendActivityHeartbeat(activityId: string, details?: ArrayBuffer): void {
-    const payloads = details && iface.temporal.api.common.v1.Payloads.decode(new Uint8Array(details));
-    const arr = arrayFromPayloads(defaultDataConverter, payloads);
-    if (arr.length !== 1) {
-      throw new Error('Expected exactly one payload from activity heartbeat');
-    }
-    this.activityHeartbeatCallback!(activityId, arr[0]);
-  }
-
-  public async untilHeartbeat(activityId: string): Promise<any> {
-    return new Promise((resolve) => {
-      this.activityHeartbeatCallback = (heartbeatActivityId, details) => {
-        if (heartbeatActivityId === activityId) {
-          resolve(details);
-        }
-      };
-    });
-  }
-}
-
-class Worker extends testing.BaseWorker {}
+import { MockNativeWorker, Worker } from './mock-native-worker';
 
 export interface Context {
   nativeWorker: MockNativeWorker;
   worker: Worker;
 }
 
-const test = anyTest as TestInterface<Context>;
+export const test = anyTest as TestInterface<Context>;
+
+export async function runWorker(t: ExecutionContext<Context>, fn: () => Promise<any>): Promise<void> {
+  const { worker } = t.context;
+  const promise = worker.run('test');
+  await fn();
+  worker.shutdown();
+  await promise;
+}
 
 test.beforeEach((t) => {
   const nativeWorker = new MockNativeWorker();
@@ -96,14 +32,6 @@ test.beforeEach((t) => {
     worker,
   };
 });
-
-async function runWorker(t: ExecutionContext<Context>, fn: () => Promise<any>) {
-  const { nativeWorker, worker } = t.context;
-  const promise = worker.run('test');
-  await fn();
-  nativeWorker.callback!(new Error('[Core::shutdown]'), undefined);
-  await promise;
-}
 
 function compareCompletion(
   t: ExecutionContext<Context>,

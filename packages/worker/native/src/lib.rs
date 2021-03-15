@@ -87,7 +87,6 @@ fn worker_new(mut cx: FunctionContext) -> JsResult<BoxedWorker> {
                 }
                 Err(err) => {
                     queue.send(move |mut cx| {
-                        // Original root callback gets dropped
                         let callback = callback.into_inner(&mut cx);
                         let this = cx.undefined();
                         let error = JsError::error(&mut cx, format!("{}", err))?;
