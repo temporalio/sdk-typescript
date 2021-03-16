@@ -29,8 +29,7 @@ export class Activity {
     promise.catch(() => undefined);
   }
 
-  public async run(): Promise<coresdk.IActivityResult> {
-    // Type of AsyncLocalStorage.run is incorrect, it returns the internal promise
+  public run(): Promise<coresdk.IActivityResult> {
     return asyncLocalStorage.run(
       this.context,
       async (): Promise<coresdk.IActivityResult> => {
@@ -48,6 +47,6 @@ export class Activity {
           return { failed: { failure: err?.message ? { message: err.message } : undefined } };
         }
       }
-    ) as any;
+    );
   }
 }
