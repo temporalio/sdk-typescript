@@ -1,3 +1,7 @@
+/**
+ * Test the various states of a worker.
+ * Most tests use a mocked core, some tests run serially because they emit signals to the process
+ */
 import test from 'ava';
 import { Worker } from '@temporalio/worker';
 import { sleep } from '@temporalio/worker/lib/utils';
@@ -46,7 +50,7 @@ test.serial('Mocked run throws if not shut down gracefully', async (t) => {
   await t.throwsAsync(worker.run('shutdown-test'), { message: 'Poller was aleady started' });
 });
 
-test.serial('Mocked worker suspends and resumes', async (t) => {
+test('Mocked worker suspends and resumes', async (t) => {
   const nativeWorker = new MockNativeWorker();
   const worker = new MockableWorker(nativeWorker, __dirname, { shutdownGraceTime: '5ms', activitiesPath: null });
   const p = worker.run('suspend-test');

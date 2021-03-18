@@ -146,7 +146,7 @@ export class NativeWorker implements NativeWorkerLike {
 
   public constructor() {
     this.native = native.newWorker();
-    this.pollFn = promisify(native.workerPoll) as any; // Typescript isn't smart enough to deduce the type here
+    this.pollFn = promisify(native.workerPoll);
   }
 
   public shutdown(): void {
@@ -277,38 +277,55 @@ class BaseWorker {
     this.nativeWorker.shutdown();
   }
 
+  /**
+   * An observable which is triggered when state becomes STOPPING and emits an error
+   * after `this.options.shutdownGraceTimeMs`.
+   */
+  protected gracefulShutdown$(): Observable<never> {
+    return this.stateSubject.pipe(
+      filter((state): state is 'STOPPING' => state === 'STOPPING'),
+      delay(this.options.shutdownGraceTimeMs),
+      map(() => {
+        throw new Error('Timed out waiting while waiting for worker to shutdown gracefully');
+      })
+    );
+  }
+
+  /**
+   * An observable which repeatedly polls for new tasks unless worker becomes suspended
+   */
+  protected pollLoop$(queueName: string): Observable<coresdk.Task> {
+    return of(this.stateSubject).pipe(
+      map((state) => state.getValue()),
+      concatMap((state) => {
+        switch (state) {
+          case 'RUNNING':
+          case 'STOPPING':
+            return this.nativeWorker.poll(queueName);
+          case 'SUSPENDED':
+            // Completes once we're out of SUSPENDED state
+            return this.stateSubject.pipe(
+              filter((st) => st !== 'SUSPENDED'),
+              first(),
+              ignoreElements()
+            );
+          default:
+            // transition to STOPPED | FAILED happens only when an error occurs
+            // in which case this observable would be closed
+            throw new Error(`Unexpected state ${state}`);
+        }
+      }),
+      repeat(),
+      map((buffer) => coresdk.Task.decode(new Uint8Array(buffer)))
+    );
+  }
+
+  /**
+   * The main observable of the worker, starts the poll loop and takes care of state transitions
+   * in case of an error during poll or shutdown
+   */
   protected poller$(queueName: string): Observable<coresdk.Task> {
-    return merge(
-      this.stateSubject.pipe(
-        filter((state): state is 'STOPPING' => state === 'STOPPING'),
-        delay(this.options.shutdownGraceTimeMs),
-        map(() => {
-          throw new Error('Timed out waiting while waiting for worker to shutdown gracefully');
-        })
-      ),
-      of(this.stateSubject).pipe(
-        map((state) => state.getValue()),
-        concatMap((state) => {
-          switch (state) {
-            case 'RUNNING':
-            case 'STOPPING':
-              return this.nativeWorker.poll(queueName);
-            case 'SUSPENDED':
-              return this.stateSubject.pipe(
-                filter((st) => st !== 'SUSPENDED'),
-                first(),
-                ignoreElements()
-              );
-            default:
-              // transition to STOPPED | FAILED happens only when an error occurs
-              // in which case this observable would be closed
-              throw new Error(`Unexpected state ${state}`);
-          }
-        }),
-        repeat(),
-        map((buffer) => coresdk.Task.decode(new Uint8Array(buffer)))
-      )
-    ).pipe(
+    return merge(this.gracefulShutdown$(), this.pollLoop$(queueName)).pipe(
       catchError((err) => (err.message.includes('[Core::shutdown]') ? EMPTY : throwError(err))),
       tap({
         complete: () => {
@@ -321,7 +338,10 @@ class BaseWorker {
     );
   }
 
-  activityOperator(): OperatorFunction<TaskForActivity, Uint8Array> {
+  /**
+   * Process activity tasks
+   */
+  protected activityOperator(): OperatorFunction<TaskForActivity, Uint8Array> {
     return pipe(
       groupBy((task) => task.activity.activityId),
       mergeMap((group$) => {
@@ -412,7 +432,10 @@ class BaseWorker {
     );
   }
 
-  workflowOperator(): OperatorFunction<TaskForWorkflow, Uint8Array> {
+  /**
+   * Process workflow activations
+   */
+  protected workflowOperator(): OperatorFunction<TaskForWorkflow, Uint8Array> {
     return pipe(
       groupBy((task) => task.workflow.runId),
       mergeMap((group$) => {
@@ -489,6 +512,32 @@ class BaseWorker {
     );
   }
 
+  /**
+   * Listen on heartbeats emitted from activities and send them to core
+   */
+  protected activityHeartbeat$(): Observable<void> {
+    return this.activityHeartbeatSubject.pipe(
+      map(({ activityId, details }) => {
+        const payloads = this.options.dataConverter.toPayloads(details);
+        if (!payloads) {
+          this.nativeWorker.sendActivityHeartbeat(activityId);
+          return;
+        }
+
+        const arr = temporal.api.common.v1.Payloads.encode(payloads).finish();
+        this.nativeWorker.sendActivityHeartbeat(
+          activityId,
+          arr.buffer.slice(arr.byteOffset, arr.byteLength + arr.byteOffset)
+        );
+      }),
+      takeUntil(this.stateSubject.pipe(filter((value) => value === 'STOPPED' || value === 'FAILED')))
+    );
+  }
+
+  /**
+   * Start polling on tasks, completes after graceful shutdown after a receiving a shutdown signal
+   * or call to @link{shutdown}.
+   */
   async run(queueName: string): Promise<void> {
     if (this.state !== 'INITIALIZED') {
       throw new Error('Poller was aleady started');
@@ -506,26 +555,11 @@ class BaseWorker {
     }
 
     const partitioned$ = partition(this.poller$(queueName).pipe(share()), (task) => task.variant === 'workflow');
-    // Need to cast to any in order to assign the correct types a partition returns an Observable<Task>
+    // Need to cast to any in order to assign the specific types since partition returns an Observable<Task>
     const [workflow$, activity$] = (partitioned$ as any) as [Observable<TaskForWorkflow>, Observable<TaskForActivity>];
 
     return await merge(
-      this.activityHeartbeatSubject.pipe(
-        map(({ activityId, details }) => {
-          const payloads = this.options.dataConverter.toPayloads(details);
-          if (!payloads) {
-            this.nativeWorker.sendActivityHeartbeat(activityId);
-            return;
-          }
-
-          const arr = temporal.api.common.v1.Payloads.encode(payloads).finish();
-          this.nativeWorker.sendActivityHeartbeat(
-            activityId,
-            arr.buffer.slice(arr.byteOffset, arr.byteLength + arr.byteOffset)
-          );
-        }),
-        takeUntil(this.stateSubject.pipe(filter((value) => value === 'STOPPED' || value === 'FAILED')))
-      ),
+      this.activityHeartbeat$(),
       merge(workflow$.pipe(this.workflowOperator()), activity$.pipe(this.activityOperator())).pipe(
         map((arr) => this.nativeWorker.completeTask(arr.buffer.slice(arr.byteOffset)))
       )
