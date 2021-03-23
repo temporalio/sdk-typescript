@@ -1,6 +1,7 @@
 import anyTest, { TestInterface, ExecutionContext } from 'ava';
+import dedent from 'dedent';
 import path from 'path';
-import iface from '@temporalio/proto';
+import { coresdk } from '@temporalio/proto';
 import { defaultDataConverter } from '@temporalio/workflow/commonjs/converter/data-converter';
 import { msToTs, msStrToTs } from '@temporalio/workflow/commonjs/time';
 import { Workflow } from '@temporalio/worker/lib/workflow';
@@ -31,10 +32,10 @@ test.beforeEach(async (t) => {
   t.context = { workflow, logs, script };
 });
 
-async function activate(t: ExecutionContext<Context>, activation: iface.coresdk.IWFActivation) {
+async function activate(t: ExecutionContext<Context>, activation: coresdk.workflow_activation.IWFActivation) {
   const taskToken = u8(`${Math.random()}`);
   const arr = await t.context.workflow.activate(taskToken, activation);
-  const req = iface.coresdk.TaskCompletion.decodeDelimited(arr);
+  const req = coresdk.TaskCompletion.decodeDelimited(arr);
   t.deepEqual(req.taskToken, taskToken);
   t.is(req.variant, 'workflow');
   return req;
@@ -42,24 +43,24 @@ async function activate(t: ExecutionContext<Context>, activation: iface.coresdk.
 
 function compareCompletion(
   t: ExecutionContext<Context>,
-  req: iface.coresdk.TaskCompletion,
-  expected: iface.coresdk.IWFActivationCompletion
+  req: coresdk.TaskCompletion,
+  expected: coresdk.workflow_completion.IWFActivationCompletion
 ) {
   const actual = req.toJSON().workflow;
-  t.deepEqual(actual, iface.coresdk.WFActivationCompletion.create(expected).toJSON());
+  t.deepEqual(actual, coresdk.workflow_completion.WFActivationCompletion.create(expected).toJSON());
 }
 
 function makeSuccess(
-  commands: iface.coresdk.ICommand[] = [makeCompleteWorkflowExecution()]
-): iface.coresdk.IWFActivationCompletion {
+  commands: coresdk.workflow_commands.IWorkflowCommand[] = [makeCompleteWorkflowExecution()]
+): coresdk.workflow_completion.IWFActivationCompletion {
   return { successful: { commands } };
 }
 
 function makeStartWorkflow(
   script: string,
-  args?: iface.temporal.api.common.v1.IPayloads,
+  args?: coresdk.common.IPayload[],
   timestamp: number = Date.now()
-): iface.coresdk.IWFActivation {
+): coresdk.workflow_activation.IWFActivation {
   return {
     runId: 'test-runId',
     timestamp: msToTs(timestamp),
@@ -69,8 +70,8 @@ function makeStartWorkflow(
 
 function makeActivation(
   timestamp: number = Date.now(),
-  ...jobs: iface.coresdk.IWFActivationJob[]
-): iface.coresdk.IWFActivation {
+  ...jobs: coresdk.workflow_activation.IWFActivationJob[]
+): coresdk.workflow_activation.IWFActivation {
   return {
     runId: 'test-runId',
     timestamp: msToTs(timestamp),
@@ -78,11 +79,11 @@ function makeActivation(
   };
 }
 
-function makeFireTimer(timerId: string, timestamp: number = Date.now()): iface.coresdk.IWFActivation {
+function makeFireTimer(timerId: string, timestamp: number = Date.now()): coresdk.workflow_activation.IWFActivation {
   return makeActivation(timestamp, makeFireTimerJob(timerId));
 }
 
-function makeFireTimerJob(timerId: string): iface.coresdk.IWFActivationJob {
+function makeFireTimerJob(timerId: string): coresdk.workflow_activation.IWFActivationJob {
   return {
     fireTimer: { timerId },
   };
@@ -90,8 +91,8 @@ function makeFireTimerJob(timerId: string): iface.coresdk.IWFActivationJob {
 
 function makeResolveActivityJob(
   activityId: string,
-  result: iface.coresdk.IActivityResult
-): iface.coresdk.IWFActivationJob {
+  result: coresdk.activity_result.IActivityResult
+): coresdk.workflow_activation.IWFActivationJob {
   return {
     resolveActivity: { activityId, result },
   };
@@ -99,9 +100,9 @@ function makeResolveActivityJob(
 
 function makeResolveActivity(
   timerId: string,
-  result: iface.coresdk.IActivityResult,
+  result: coresdk.activity_result.IActivityResult,
   timestamp: number = Date.now()
-): iface.coresdk.IWFActivation {
+): coresdk.workflow_activation.IWFActivation {
   return makeActivation(timestamp, makeResolveActivityJob(timerId, result));
 }
 
@@ -109,83 +110,73 @@ function makeQueryWorkflow(
   queryType: string,
   queryArgs: any[],
   timestamp: number = Date.now()
-): iface.coresdk.IWFActivation {
+): coresdk.workflow_activation.IWFActivation {
   return makeActivation(timestamp, makeQueryWorkflowJob(queryType, ...queryArgs));
 }
 
-function makeQueryWorkflowJob(queryType: string, ...queryArgs: any[]): iface.coresdk.IWFActivationJob {
+function makeQueryWorkflowJob(queryType: string, ...queryArgs: any[]): coresdk.workflow_activation.IWFActivationJob {
   return {
     queryWorkflow: {
-      query: { queryType, queryArgs: defaultDataConverter.toPayloads(...queryArgs) },
+      queryType,
+      arguments: defaultDataConverter.toPayloads(...queryArgs),
     },
   };
 }
 
-function makeCompleteWorkflowExecution(...payloads: iface.temporal.api.common.v1.IPayload[]): iface.coresdk.ICommand {
+function makeCompleteWorkflowExecution(
+  ...payloads: coresdk.common.IPayload[]
+): coresdk.workflow_commands.IWorkflowCommand {
   if (payloads.length === 0) payloads = [{ metadata: { encoding: u8('binary/null') } }];
   return {
-    api: {
-      commandType: iface.temporal.api.enums.v1.CommandType.COMMAND_TYPE_COMPLETE_WORKFLOW_EXECUTION,
-      completeWorkflowExecutionCommandAttributes: { result: { payloads } },
-    },
+    completeWorkflowExecution: { result: payloads },
   };
 }
 
-function makeFailWorkflowExecution(message: string): iface.coresdk.ICommand {
+function makeFailWorkflowExecution(
+  message: string,
+  stackTrace: string,
+  type = 'Error'
+): coresdk.workflow_commands.IWorkflowCommand {
   return {
-    api: {
-      commandType: iface.temporal.api.enums.v1.CommandType.COMMAND_TYPE_FAIL_WORKFLOW_EXECUTION,
-      failWorkflowExecutionCommandAttributes: { failure: { message } },
-    },
+    failWorkflowExecution: { failure: { message, stackTrace, type } },
   };
 }
 
 function makeScheduleActivityCommand(
-  attrs: iface.temporal.api.command.v1.IScheduleActivityTaskCommandAttributes
-): iface.coresdk.ICommand {
+  attrs: coresdk.workflow_commands.IScheduleActivity
+): coresdk.workflow_commands.IWorkflowCommand {
   return {
-    api: {
-      commandType: iface.temporal.api.enums.v1.CommandType.COMMAND_TYPE_SCHEDULE_ACTIVITY_TASK,
-      scheduleActivityTaskCommandAttributes: attrs,
-    },
+    scheduleActivity: attrs,
   };
 }
 
-function makeCancelActivityCommand(activityId: string, reason?: string): iface.coresdk.ICommand {
+function makeCancelActivityCommand(activityId: string, _reason?: string): coresdk.workflow_commands.IWorkflowCommand {
   return {
-    core: {
-      requestActivityCancellation: { activityId, reason },
-    },
+    requestCancelActivity: { activityId },
   };
 }
 
 function makeStartTimerCommand(
-  attrs: iface.temporal.api.command.v1.IStartTimerCommandAttributes
-): iface.coresdk.ICommand {
+  attrs: coresdk.workflow_commands.IStartTimer
+): coresdk.workflow_commands.IWorkflowCommand {
   return {
-    api: {
-      commandType: iface.temporal.api.enums.v1.CommandType.COMMAND_TYPE_START_TIMER,
-      startTimerCommandAttributes: attrs,
-    },
+    startTimer: attrs,
   };
 }
 
 function makeCancelTimerCommand(
-  attrs: iface.temporal.api.command.v1.ICancelTimerCommandAttributes
-): iface.coresdk.ICommand {
+  attrs: coresdk.workflow_commands.ICancelTimer
+): coresdk.workflow_commands.IWorkflowCommand {
   return {
-    api: {
-      commandType: iface.temporal.api.enums.v1.CommandType.COMMAND_TYPE_CANCEL_TIMER,
-      cancelTimerCommandAttributes: attrs,
-    },
+    cancelTimer: attrs,
   };
 }
 
 function makeRespondToQueryCommand(
-  respondToQuery: iface.temporal.api.query.v1.IWorkflowQueryResult
-): iface.coresdk.ICommand {
+  respondToQuery: coresdk.workflow_commands.IQueryResult
+): coresdk.workflow_commands.IWorkflowCommand {
   return {
-    core: { respondToQuery },
+    respondToQuery,
   };
 }
 
@@ -211,16 +202,60 @@ test('sync', async (t) => {
   );
 });
 
+/**
+ * Replace path specifics from stack trace
+ */
+function cleanStackTrace(stack: string) {
+  return stack.replace(/\bat (\S+) \(.*\)/g, (_, m0) => `at ${m0}`);
+}
+
+function cleanWorkflowFailureStackTrace(req: coresdk.TaskCompletion, commandIndex = 0) {
+  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+  req.workflow!.successful!.commands![commandIndex].failWorkflowExecution!.failure!.stackTrace = cleanStackTrace(
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    req.workflow!.successful!.commands![commandIndex].failWorkflowExecution!.failure!.stackTrace!
+  );
+  return req;
+}
+
 test('throw-sync', async (t) => {
   const { script } = t.context;
-  const req = await activate(t, makeStartWorkflow(script));
-  compareCompletion(t, req, makeSuccess([makeFailWorkflowExecution('failure')]));
+  const req = cleanWorkflowFailureStackTrace(await activate(t, makeStartWorkflow(script)));
+  compareCompletion(
+    t,
+    req,
+    makeSuccess([
+      makeFailWorkflowExecution(
+        'failure',
+        dedent`
+        Error: failure
+            at Module.main
+            at Activator.startWorkflow
+            at activate
+        `
+      ),
+    ])
+  );
 });
 
 test('throw-async', async (t) => {
   const { script } = t.context;
-  const req = await activate(t, makeStartWorkflow(script));
-  compareCompletion(t, req, makeSuccess([makeFailWorkflowExecution('failure')]));
+  const req = cleanWorkflowFailureStackTrace(await activate(t, makeStartWorkflow(script)));
+  compareCompletion(
+    t,
+    req,
+    makeSuccess([
+      makeFailWorkflowExecution(
+        'failure',
+        dedent`
+        Error: failure
+            at Module.main
+            at Activator.startWorkflow
+            at activate
+        `
+      ),
+    ])
+  );
 });
 
 test('date', async (t) => {
@@ -395,21 +430,19 @@ test('args-and-return', async (t) => {
   const { script } = t.context;
   const req = await activate(
     t,
-    makeStartWorkflow(script, {
-      payloads: [
-        {
-          metadata: { encoding: u8('json/plain') },
-          data: u8(JSON.stringify('Hello')),
-        },
-        {
-          metadata: { encoding: u8('binary/null') },
-        },
-        {
-          metadata: { encoding: u8('binary/plain') },
-          data: u8('world'),
-        },
-      ],
-    })
+    makeStartWorkflow(script, [
+      {
+        metadata: { encoding: u8('json/plain') },
+        data: u8(JSON.stringify('Hello')),
+      },
+      {
+        metadata: { encoding: u8('binary/null') },
+      },
+      {
+        metadata: { encoding: u8('binary/plain') },
+        data: u8('world'),
+      },
+    ])
   );
   compareCompletion(
     t,
@@ -436,8 +469,7 @@ test('simple-query', async (t) => {
       req,
       makeSuccess([
         makeRespondToQueryCommand({
-          answer: { payloads: [defaultDataConverter.toPayload(false)] },
-          resultType: iface.temporal.api.enums.v1.QueryResultType.QUERY_RESULT_TYPE_ANSWERED,
+          succeeded: { response: defaultDataConverter.toPayload(false) },
         }),
       ])
     );
@@ -453,8 +485,7 @@ test('simple-query', async (t) => {
       req,
       makeSuccess([
         makeRespondToQueryCommand({
-          answer: { payloads: [defaultDataConverter.toPayload(true)] },
-          resultType: iface.temporal.api.enums.v1.QueryResultType.QUERY_RESULT_TYPE_ANSWERED,
+          succeeded: { response: defaultDataConverter.toPayload(true) },
         }),
       ])
     );
@@ -652,14 +683,24 @@ test('shield-in-shield', async (t) => {
 
 test('cancellation-error-is-propagated', async (t) => {
   const { script, logs } = t.context;
-  const req = await activate(t, makeStartWorkflow(script));
+  const req = cleanWorkflowFailureStackTrace(await activate(t, makeStartWorkflow(script)), 2);
   compareCompletion(
     t,
     req,
     makeSuccess([
       makeStartTimerCommand({ timerId: '0', startToFireTimeout: msToTs(0) }),
       makeCancelTimerCommand({ timerId: '0' }),
-      makeFailWorkflowExecution('Cancelled'),
+      makeFailWorkflowExecution(
+        'Cancelled',
+        dedent`
+        CancellationError: Cancelled
+            at cancel
+            at Module.main
+            at Activator.startWorkflow
+            at activate
+        `,
+        'CancellationError'
+      ),
     ])
   );
   t.deepEqual(logs, []);
@@ -675,8 +716,8 @@ test('http', async (t) => {
       makeSuccess([
         makeScheduleActivityCommand({
           activityId: '0',
-          activityType: { name: JSON.stringify(['@activities', 'httpGet']) },
-          input: defaultDataConverter.toPayloads('https://google.com'),
+          activityType: JSON.stringify(['@activities', 'httpGet']),
+          arguments: defaultDataConverter.toPayloads('https://google.com'),
         }),
       ])
     );
@@ -693,17 +734,32 @@ test('http', async (t) => {
       makeSuccess([
         makeScheduleActivityCommand({
           activityId: '1',
-          activityType: { name: JSON.stringify(['@activities', 'httpGet']) },
-          input: defaultDataConverter.toPayloads('http://example.com'),
+          activityType: JSON.stringify(['@activities', 'httpGet']),
+          arguments: defaultDataConverter.toPayloads('http://example.com'),
           startToCloseTimeout: msStrToTs('10 minutes'),
-          taskQueue: { name: 'remote' },
+          taskQueue: 'remote',
         }),
       ])
     );
   }
   {
-    const req = await activate(t, makeResolveActivity('1', { failed: { failure: { message: 'Connection timeout' } } }));
-    compareCompletion(t, req, makeSuccess([makeFailWorkflowExecution('Connection timeout')]));
+    const req = cleanWorkflowFailureStackTrace(
+      await activate(t, makeResolveActivity('1', { failed: { failure: { message: 'Connection timeout' } } }))
+    );
+    compareCompletion(
+      t,
+      req,
+      makeSuccess([
+        makeFailWorkflowExecution(
+          'Connection timeout',
+          dedent`
+          Error: Connection timeout
+              at Activator.resolveActivity
+              at activate
+          `
+        ),
+      ])
+    );
   }
   t.deepEqual(logs, [[result]]);
 });
@@ -718,16 +774,30 @@ test('activity-cancellation', async (t) => {
       makeSuccess([
         makeScheduleActivityCommand({
           activityId: '0',
-          activityType: { name: JSON.stringify(['@activities', 'httpGet']) },
-          input: defaultDataConverter.toPayloads('https://google.com'),
+          activityType: JSON.stringify(['@activities', 'httpGet']),
+          arguments: defaultDataConverter.toPayloads('https://google.com'),
         }),
         makeCancelActivityCommand('0', 'Cancelled'),
       ])
     );
   }
   {
-    const req = await activate(t, makeResolveActivity('0', { canceled: {} }));
-    compareCompletion(t, req, makeSuccess([makeFailWorkflowExecution('Activity cancelled')]));
+    const req = cleanWorkflowFailureStackTrace(await activate(t, makeResolveActivity('0', { canceled: {} })));
+    compareCompletion(
+      t,
+      req,
+      makeSuccess([
+        makeFailWorkflowExecution(
+          'Activity cancelled',
+          dedent`
+          CancellationError: Activity cancelled
+              at Activator.resolveActivity
+              at activate
+          `,
+          'CancellationError'
+        ),
+      ])
+    );
   }
   t.deepEqual(logs, []);
 });

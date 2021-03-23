@@ -1,5 +1,5 @@
-import { OperatorFunction, ObservableInput, pipe } from 'rxjs';
-import { map, scan, mergeScan } from 'rxjs/operators';
+import { GroupedObservable, OperatorFunction, ObservableInput, pipe, Subject } from 'rxjs';
+import { groupBy, map, scan, mergeScan } from 'rxjs/operators';
 
 interface StateAndOptionalOutput<T, O> {
   state: T;
@@ -35,5 +35,38 @@ export function mergeMapWithState<T, I, O>(
     ),
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     map(({ output }) => output!)
+  );
+}
+
+export interface CloseableGroupedObservable<K, T> extends GroupedObservable<K, T> {
+  close(): void;
+}
+
+/**
+ * An RX OperatorFunction similiar to groupBy, the returned GroupedObservable has a close() method
+ */
+export function closeableGroupBy<K extends string | number | undefined, T>(
+  keyFunc: (t: T) => K
+): OperatorFunction<T, CloseableGroupedObservable<K, T>> {
+  const keyToSubject = new Map<K, Subject<void>>();
+  return pipe(
+    groupBy(keyFunc, undefined, (group$) => {
+      // Duration selector function, the group will close when this subject emits a value
+      const subject = new Subject<void>();
+      keyToSubject.set(group$.key, subject);
+      return subject;
+    }),
+    map(
+      (group$: GroupedObservable<K, T>): CloseableGroupedObservable<K, T> => {
+        (group$ as CloseableGroupedObservable<K, T>).close = () => {
+          const subject = keyToSubject.get(group$.key);
+          if (subject !== undefined) {
+            subject.next();
+            keyToSubject.delete(group$.key);
+          }
+        };
+        return group$ as CloseableGroupedObservable<K, T>;
+      }
+    )
   );
 }

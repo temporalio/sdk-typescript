@@ -88,12 +88,9 @@ const OriginalDate = (globalThis as any).Date;
     scope: currentScope(),
   });
   state.commands.push({
-    api: {
-      commandType: temporal.api.enums.v1.CommandType.COMMAND_TYPE_START_TIMER,
-      startTimerCommandAttributes: {
-        timerId: `${seq}`,
-        startToFireTimeout: msToTs(ms),
-      },
+    startTimer: {
+      timerId: `${seq}`,
+      startToFireTimeout: msToTs(ms),
     },
   });
   return seq;
@@ -103,11 +100,8 @@ const OriginalDate = (globalThis as any).Date;
   state.nextSeq++;
   state.completions.delete(handle);
   state.commands.push({
-    api: {
-      commandType: temporal.api.enums.v1.CommandType.COMMAND_TYPE_CANCEL_TIMER,
-      cancelTimerCommandAttributes: {
-        timerId: `${handle}`,
-      },
+    cancelTimer: {
+      timerId: `${handle}`,
     },
   });
 };

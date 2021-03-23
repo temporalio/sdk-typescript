@@ -1,4 +1,3 @@
-import { temporal } from '@temporalio/proto';
 import { ActivityOptions, ActivityFunction, CancellationFunctionFactory } from './interfaces';
 import { state, currentScope, childScope, propagateCancellation } from './internals';
 import { defaultDataConverter } from './converter/data-converter';
@@ -12,11 +11,8 @@ export function sleep(ms: number): Promise<void> {
       return; // Already resolved
     }
     state.commands.push({
-      api: {
-        commandType: temporal.api.enums.v1.CommandType.COMMAND_TYPE_CANCEL_TIMER,
-        cancelTimerCommandAttributes: {
-          timerId: `${seq}`,
-        },
+      cancelTimer: {
+        timerId: `${seq}`,
       },
     });
     reject(err);
@@ -33,12 +29,9 @@ export function sleep(ms: number): Promise<void> {
           scope: currentScope(),
         });
         state.commands.push({
-          api: {
-            commandType: temporal.api.enums.v1.CommandType.COMMAND_TYPE_START_TIMER,
-            startTimerCommandAttributes: {
-              timerId: `${seq}`,
-              startToFireTimeout: msToTs(ms),
-            },
+          startTimer: {
+            timerId: `${seq}`,
+            startToFireTimeout: msToTs(ms),
           },
         });
       })
@@ -53,13 +46,11 @@ export interface InternalActivityFunction<P extends any[], R> extends ActivityFu
 export function scheduleActivity<R>(module: string, name: string, args: any[], options: ActivityOptions): Promise<R> {
   const seq = state.nextSeq++;
   return childScope(
-    () => (err) => {
+    () => (_err) => {
       state.commands.push({
-        core: {
-          requestActivityCancellation: {
-            activityId: `${seq}`,
-            reason: err instanceof Error ? err.message : undefined,
-          },
+        requestCancelActivity: {
+          activityId: `${seq}`,
+          // TODO: reason: err instanceof Error ? err.message : undefined,
         },
       });
     },
@@ -72,30 +63,25 @@ export function scheduleActivity<R>(module: string, name: string, args: any[], o
           scope: currentScope(),
         });
         state.commands.push({
-          api: {
-            commandType: temporal.api.enums.v1.CommandType.COMMAND_TYPE_SCHEDULE_ACTIVITY_TASK,
-            scheduleActivityTaskCommandAttributes: {
-              activityId: `${seq}`,
-              activityType: {
-                name: JSON.stringify([module, name]),
-              },
-              input: defaultDataConverter.toPayloads(...args),
-              retryPolicy: options.retry
-                ? {
-                    maximumAttempts: options.retry.maximumAttempts,
-                    initialInterval: msOptionalStrToTs(options.retry.initialInterval),
-                    maximumInterval: msOptionalStrToTs(options.retry.maximumInterval),
-                    backoffCoefficient: options.retry.backoffCoefficient,
-                    // TODO: nonRetryableErrorTypes
-                  }
-                : undefined,
-              taskQueue: options.type === 'remote' ? { name: options.taskQueue } : undefined,
-              heartbeatTimeout: msOptionalStrToTs(options.heartbeatTimeout),
-              startToCloseTimeout: msOptionalStrToTs(options.startToCloseTimeout),
-              scheduleToCloseTimeout: msOptionalStrToTs(options.scheduleToCloseTimeout),
-              scheduleToStartTimeout: msOptionalStrToTs(options.scheduleToStartTimeout),
-              // TODO: namespace, header
-            },
+          scheduleActivity: {
+            activityId: `${seq}`,
+            activityType: JSON.stringify([module, name]),
+            arguments: defaultDataConverter.toPayloads(...args),
+            retryPolicy: options.retry
+              ? {
+                  maximumAttempts: options.retry.maximumAttempts,
+                  initialInterval: msOptionalStrToTs(options.retry.initialInterval),
+                  maximumInterval: msOptionalStrToTs(options.retry.maximumInterval),
+                  backoffCoefficient: options.retry.backoffCoefficient,
+                  // TODO: nonRetryableErrorTypes
+                }
+              : undefined,
+            taskQueue: options.type === 'remote' ? options.taskQueue : undefined,
+            heartbeatTimeout: msOptionalStrToTs(options.heartbeatTimeout),
+            startToCloseTimeout: msOptionalStrToTs(options.startToCloseTimeout),
+            scheduleToCloseTimeout: msOptionalStrToTs(options.scheduleToCloseTimeout),
+            scheduleToStartTimeout: msOptionalStrToTs(options.scheduleToStartTimeout),
+            // TODO: namespace, header
           },
         });
       })

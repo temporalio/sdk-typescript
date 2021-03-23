@@ -234,7 +234,7 @@ export class Connection {
       workflowId: opts.workflowId,
       workflowIdReusePolicy: opts.workflowIdReusePolicy,
       workflowType: { name },
-      input: dataConverter.toPayloads(...args),
+      input: { payloads: dataConverter.toPayloads(...args) },
       taskQueue: {
         kind: iface.temporal.api.enums.v1.TaskQueueKind.TASK_QUEUE_KIND_UNSPECIFIED,
         name: opts.taskQueue,
@@ -289,7 +289,7 @@ export class Connection {
       // Ignore any other payloads in result
       const [result] = arrayFromPayloads(
         this.options.dataConverter,
-        ev.workflowExecutionCompletedEventAttributes.result
+        ev.workflowExecutionCompletedEventAttributes.result?.payloads
       );
       return result;
     } else if (ev.workflowExecutionFailedEventAttributes) {
@@ -299,12 +299,12 @@ export class Connection {
     } else if (ev.workflowExecutionCanceledEventAttributes) {
       throw new errors.WorkflowExecutionCancelledError(
         'Workflow execution cancelled',
-        arrayFromPayloads(this.options.dataConverter, ev.workflowExecutionCanceledEventAttributes.details)
+        arrayFromPayloads(this.options.dataConverter, ev.workflowExecutionCanceledEventAttributes.details?.payloads)
       );
     } else if (ev.workflowExecutionTerminatedEventAttributes) {
       throw new errors.WorkflowExecutionTerminatedError(
         ev.workflowExecutionTerminatedEventAttributes.reason || 'Workflow execution terminated',
-        arrayFromPayloads(this.options.dataConverter, ev.workflowExecutionTerminatedEventAttributes.details),
+        arrayFromPayloads(this.options.dataConverter, ev.workflowExecutionTerminatedEventAttributes.details?.payloads),
         nullToUndefined(ev.workflowExecutionTerminatedEventAttributes.identity)
       );
     } else if (ev.workflowExecutionTimedOutEventAttributes) {

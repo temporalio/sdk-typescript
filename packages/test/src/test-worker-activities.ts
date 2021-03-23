@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
 import anyTest, { TestInterface, ExecutionContext } from 'ava';
-import * as iface from '@temporalio/proto';
+import { coresdk } from '@temporalio/proto';
 import { testing } from '@temporalio/worker/lib/worker';
 import { defaultDataConverter } from '@temporalio/workflow/commonjs/converter/data-converter';
 import { u8 } from './helpers';
@@ -35,10 +35,10 @@ test.beforeEach((t) => {
 
 function compareCompletion(
   t: ExecutionContext<Context>,
-  actual: iface.coresdk.TaskCompletion,
-  expected: iface.coresdk.ITaskCompletion
+  actual: coresdk.TaskCompletion,
+  expected: coresdk.ITaskCompletion
 ) {
-  t.deepEqual(actual.toJSON(), iface.coresdk.TaskCompletion.create(expected).toJSON());
+  t.deepEqual(actual.toJSON(), coresdk.TaskCompletion.create(expected).toJSON());
 }
 
 test('Worker runs an activity and reports completion', async (t) => {
@@ -51,7 +51,7 @@ test('Worker runs an activity and reports completion', async (t) => {
       activity: {
         activityId: 'abc',
         start: {
-          activityType: { name: JSON.stringify(['@activities', 'httpGet']) },
+          activityType: JSON.stringify(['@activities', 'httpGet']),
           input: defaultDataConverter.toPayloads(url),
         },
       },
@@ -73,7 +73,7 @@ test('Worker runs an activity and reports failure', async (t) => {
       activity: {
         activityId: 'abc',
         start: {
-          activityType: { name: JSON.stringify(['@activities', 'throwAnError']) },
+          activityType: JSON.stringify(['@activities', 'throwAnError']),
           input: defaultDataConverter.toPayloads(message),
         },
       },
@@ -93,7 +93,7 @@ test('Worker cancels activity and reports cancellation', async (t) => {
       activity: {
         activityId: 'abc',
         start: {
-          activityType: { name: JSON.stringify(['@activities', 'waitForCancellation']) },
+          activityType: JSON.stringify(['@activities', 'waitForCancellation']),
           input: defaultDataConverter.toPayloads(),
         },
       },
@@ -121,7 +121,7 @@ test('Activity Context AbortSignal cancels a fetch request', async (t) => {
       activity: {
         activityId: 'abc',
         start: {
-          activityType: { name: JSON.stringify(['@activities', 'cancellableFetch']) },
+          activityType: JSON.stringify(['@activities', 'cancellableFetch']),
           input: defaultDataConverter.toPayloads(),
         },
       },
@@ -150,7 +150,7 @@ test('Activity Context heartbeat is sent to core', async (t) => {
       activity: {
         activityId: 'abc',
         start: {
-          activityType: { name: JSON.stringify(['@activities', 'progressiveSleep']) },
+          activityType: JSON.stringify(['@activities', 'progressiveSleep']),
           input: defaultDataConverter.toPayloads(),
         },
       },

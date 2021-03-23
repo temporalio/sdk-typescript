@@ -16,6 +16,7 @@
   "author": "Roey Berman <roey@temporal.io>",
   "license": "MIT",
   "dependencies": {
+    "glob": "^7.1.6",
     "protobufjs": "^6.10.2"
   },
   "bugs": {

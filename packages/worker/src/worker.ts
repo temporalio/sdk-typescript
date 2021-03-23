@@ -29,8 +29,9 @@ import {
   tap,
 } from 'rxjs/operators';
 import ms from 'ms';
-import { coresdk, temporal } from '@temporalio/proto';
+import { coresdk } from '@temporalio/proto';
 import { ActivityOptions } from '@temporalio/workflow';
+import { errorToUserCodeFailure } from '@temporalio/workflow/commonjs/common';
 import {
   DataConverter,
   defaultDataConverter,
@@ -122,8 +123,8 @@ export function compileWorkerOptions(opts: WorkerOptionsWithDefaults): CompiledW
 
 export type State = 'INITIALIZED' | 'RUNNING' | 'STOPPED' | 'STOPPING' | 'FAILED' | 'SUSPENDED';
 
-type TaskForWorkflow = Required<{ taskToken: Uint8Array; workflow: coresdk.WFActivation }>;
-type TaskForActivity = Required<{ taskToken: Uint8Array; activity: coresdk.ActivityTask }>;
+type TaskForWorkflow = Required<{ taskToken: Uint8Array; workflow: coresdk.workflow_activation.WFActivation }>;
+type TaskForActivity = Required<{ taskToken: Uint8Array; activity: coresdk.activity_task.ActivityTask }>;
 
 type OmitFirst<T> = T extends [any, ...infer REST] ? REST : never;
 type RestParams<T> = T extends (...args: any[]) => any ? OmitFirst<Parameters<T>> : never;
@@ -350,23 +351,25 @@ class BaseWorker {
             // We either want to return an activity result or pass on the activity for running at a later stage
             // We don't run the activity directly in this operator because we need to return the activity in the state
             // so it can be cancelled if requested
-            let output: { type: 'result'; result: coresdk.IActivityResult } | { type: 'run'; activity: Activity };
+            let output:
+              | { type: 'result'; result: coresdk.activity_result.IActivityResult }
+              | { type: 'run'; activity: Activity };
             const { taskToken } = task;
-            const { job } = task.activity;
-            if (!job) {
-              throw new Error('Got an activity task without a "job" attribute');
+            const { variant } = task.activity;
+            if (!variant) {
+              throw new Error('Got an activity task without a "variant" attribute');
             }
 
-            switch (job) {
+            switch (variant) {
               case 'start': {
                 const { start, activityId } = task.activity;
                 if (!start) {
                   throw new Error('Got a "start" activity task without a "start" attribute');
                 }
-                if (!start.activityType?.name) {
-                  throw new Error('Got a StartActivity.activityType without a "name" attribute');
+                if (!start.activityType) {
+                  throw new Error('Got a StartActivity without an "activityType" attribute');
                 }
-                const [path, fnName] = JSON.parse(start.activityType.name);
+                const [path, fnName] = JSON.parse(start.activityType);
                 const module = this.resolvedActivities.get(path);
                 if (module === undefined) {
                   output = {
@@ -474,26 +477,15 @@ class BaseWorker {
                     taskToken: task.taskToken,
                     workflow: {
                       successful: {
-                        commands: [
-                          {
-                            api: {
-                              commandType: temporal.api.enums.v1.CommandType.COMMAND_TYPE_FAIL_WORKFLOW_EXECUTION,
-                              failWorkflowExecutionCommandAttributes: {
-                                failure: { message: err.message /* TODO: stack trace */ },
-                              },
-                            },
-                          },
-                        ],
+                        commands: [{ failWorkflowExecution: { failure: errorToUserCodeFailure(err) } }],
                       },
                     },
                   }).finish();
                 } else {
-                  const cause = temporal.api.enums.v1.WorkflowTaskFailedCause.WORKFLOW_TASK_FAILED_CAUSE_UNSPECIFIED;
                   arr = coresdk.TaskCompletion.encodeDelimited({
                     taskToken: task.taskToken,
                     workflow: {
                       failed: {
-                        cause,
                         failure: { message: err.message /* TODO: stack trace */ },
                       },
                     },
@@ -518,13 +510,13 @@ class BaseWorker {
   protected activityHeartbeat$(): Observable<void> {
     return this.activityHeartbeatSubject.pipe(
       map(({ activityId, details }) => {
-        const payloads = this.options.dataConverter.toPayloads(details);
-        if (!payloads) {
+        const payload = this.options.dataConverter.toPayload(details);
+        if (!payload) {
           this.nativeWorker.sendActivityHeartbeat(activityId);
           return;
         }
 
-        const arr = temporal.api.common.v1.Payloads.encode(payloads).finish();
+        const arr = coresdk.common.Payload.encode(payload).finish();
         this.nativeWorker.sendActivityHeartbeat(
           activityId,
           arr.buffer.slice(arr.byteOffset, arr.byteLength + arr.byteOffset)
