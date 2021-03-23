@@ -19,7 +19,6 @@ import {
   delay,
   filter,
   first,
-  groupBy,
   ignoreElements,
   map,
   mergeMap,
@@ -38,7 +37,7 @@ import {
   arrayFromPayloads,
 } from '@temporalio/workflow/commonjs/converter/data-converter';
 import * as native from '../native';
-import { mergeMapWithState } from './rxutils';
+import { mergeMapWithState, closeableGroupBy } from './rxutils';
 import { resolveFilename, LoaderError } from './loader';
 import { Workflow } from './workflow';
 import { Activity } from './activity';
@@ -344,7 +343,7 @@ class BaseWorker {
    */
   protected activityOperator(): OperatorFunction<TaskForActivity, Uint8Array> {
     return pipe(
-      groupBy((task) => task.activity.activityId),
+      closeableGroupBy((task) => task.activity.activityId),
       mergeMap((group$) => {
         return group$.pipe(
           mergeMapWithState(async (activity: Activity | undefined, task) => {
@@ -429,7 +428,8 @@ class BaseWorker {
               taskToken: taskToken,
               activity: result,
             }).finish()
-          )
+          ),
+          tap(group$.close)
         );
       })
     );
@@ -440,7 +440,7 @@ class BaseWorker {
    */
   protected workflowOperator(): OperatorFunction<TaskForWorkflow, Uint8Array> {
     return pipe(
-      groupBy((task) => task.workflow.runId),
+      closeableGroupBy((task) => task.workflow.runId),
       mergeMap((group$) => {
         return group$.pipe(
           mergeMapWithState(async (workflow: Workflow | undefined, task) => {
@@ -492,15 +492,17 @@ class BaseWorker {
                   }).finish();
                 }
                 workflow?.isolate.dispose();
-                return { state: undefined, output: arr };
+                return { state: undefined, output: { close: true, arr } };
               }
             }
 
             const arr = await workflow.activate(task.taskToken, task.workflow);
-            return { state: workflow, output: arr };
-          }, undefined)
+            return { state: workflow, output: { close: false, arr } };
+          }, undefined),
+          tap(({ close }) => void close && group$.close())
         );
-      })
+      }),
+      map(({ arr }) => arr)
     );
   }
 
