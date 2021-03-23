@@ -486,7 +486,7 @@ class BaseWorker {
                     taskToken: task.taskToken,
                     workflow: {
                       failed: {
-                        failure: { message: err.message /* TODO: stack trace */ },
+                        failure: errorToUserCodeFailure(err),
                       },
                     },
                   }).finish();
