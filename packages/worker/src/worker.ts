@@ -1,4 +1,5 @@
 import { basename, extname, resolve } from 'path';
+import os from 'os';
 import { readdirSync } from 'fs';
 import { promisify } from 'util';
 import {
@@ -41,8 +42,49 @@ import { mergeMapWithState, closeableGroupBy } from './rxutils';
 import { resolveFilename, LoaderError } from './loader';
 import { Workflow } from './workflow';
 import { Activity } from './activity';
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore
+import pkg from '../package.json';
+
+export interface ServerOptions {
+  /**
+   * The URL of the Temporal server to connect to
+   * @default http://localhost:7233
+   */
+  url?: string;
+  /**
+   * What namespace will we operate under
+   * @default default
+   */
+  namespace?: string;
+
+  /**
+   * A human-readable string that can identify your worker
+   * @default `${process.pid}@${os.hostname()}`
+   */
+  identity?: string;
+  /**
+   * A string that should be unique to the exact worker code/binary being executed
+   * @default to the @temporal/worker package version
+   */
+  workerBinaryId?: string;
+  /**
+   * Timeout for long polls (polling of task queues)
+   * @format ms formatted string
+   */
+  longPollTimeout?: string;
+}
+
+export type CompiledServerOptions = Omit<Required<ServerOptions>, 'longPollTimeout'> & {
+  longPollTimeoutMs: number;
+};
 
 export interface WorkerOptions {
+  /**
+   * Options for communicating with the Tempral server
+   */
+  serverOptions?: ServerOptions;
+
   activityDefaults?: ActivityOptions;
   /**
    * Path to look up activities in.
@@ -106,6 +148,21 @@ export const resolver = (baseDir: string | null, overrides: Map<string, string>)
   return resolveFilename(resolve(baseDir, lookupName));
 };
 
+export function getDefaultServerOptions(): Required<ServerOptions> {
+  return {
+    url: 'http://localhost:7233',
+    identity: `${process.pid}@${os.hostname()}`,
+    namespace: 'default',
+    workerBinaryId: `${pkg.name}@${pkg.version}`,
+    longPollTimeout: '30s',
+  };
+}
+
+export function compileServerOptions(options: Required<ServerOptions>): native.ServerOptions {
+  const { longPollTimeout, ...rest } = options;
+  return { ...rest, longPollTimeoutMs: ms(longPollTimeout) };
+}
+
 export function getDefaultOptions(dirname: string): WorkerOptionsWithDefaults {
   return {
     activitiesPath: resolve(dirname, '../activities'),
@@ -144,8 +201,9 @@ export class NativeWorker implements NativeWorkerLike {
   protected readonly native: native.Worker;
   protected readonly pollFn: (worker: native.Worker, queueName: string) => Promise<ArrayBuffer>;
 
-  public constructor() {
-    this.native = native.newWorker();
+  public constructor(options?: ServerOptions) {
+    const compiledOptions = compileServerOptions({ ...getDefaultServerOptions(), ...options });
+    this.native = native.newWorker(compiledOptions);
     this.pollFn = promisify(native.workerPoll);
   }
 
@@ -568,7 +626,7 @@ export class Worker extends BaseWorker {
    * @param pwd - Used to resolve relative paths for locating and importing activities and workflows.
    */
   constructor(public readonly pwd: string, options?: WorkerOptions) {
-    super(new NativeWorker(), pwd, options);
+    super(new NativeWorker(options?.serverOptions), pwd, options);
   }
 }
 

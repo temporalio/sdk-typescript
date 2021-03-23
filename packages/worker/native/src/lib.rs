@@ -1,7 +1,6 @@
 use neon::{prelude::*, register_module};
 use prost::Message;
 use std::{
-    convert::TryInto,
     sync::{
         mpsc::{sync_channel, Receiver, SyncSender},
         Arc,
@@ -11,7 +10,7 @@ use std::{
 use temporal_sdk_core::{
     init,
     protos::coresdk::{self, TaskCompletion},
-    Core, CoreInitOptions, ServerGatewayOptions,
+    Core, CoreInitOptions, ServerGatewayOptions, Url,
 };
 
 type BoxedWorker = JsBox<Arc<Worker>>;
@@ -32,19 +31,10 @@ pub struct Worker {
 impl Finalize for Worker {}
 
 impl Worker {
-    pub fn new() -> (Self, Receiver<PollRequest>) {
+    pub fn new(gateway_opts: ServerGatewayOptions) -> (Self, Receiver<PollRequest>) {
         // Set capacity to 1 because we only poll from a single thread
         let (sender, receiver) = sync_channel::<PollRequest>(1);
-        let core = init(CoreInitOptions {
-            gateway_opts: ServerGatewayOptions {
-                target_url: "http://localhost:7233".try_into().unwrap(),
-                namespace: "default".to_string(),
-                identity: "node_sdk_test".to_string(),
-                worker_binary_id: "".to_string(),
-                long_poll_timeout: Duration::from_secs(30),
-            },
-        })
-        .unwrap();
+        let core = init(CoreInitOptions { gateway_opts }).unwrap();
 
         let worker = Worker {
             core: Box::new(core),
@@ -64,7 +54,34 @@ impl Worker {
 /// Create a new worker.
 /// Immediately spawns a poller thread that will block on [PollRequest]s
 fn worker_new(mut cx: FunctionContext) -> JsResult<BoxedWorker> {
-    let (worker, receiver) = Worker::new();
+    let options = cx.argument::<JsObject>(0)?;
+    let url = options
+        .get(&mut cx, "url")?
+        .downcast_or_throw::<JsString, FunctionContext>(&mut cx)?
+        .value(&mut cx);
+
+    let gateway_opts = ServerGatewayOptions {
+        target_url: Url::parse(&url).unwrap(),
+        namespace: options
+            .get(&mut cx, "namespace")?
+            .downcast_or_throw::<JsString, FunctionContext>(&mut cx)?
+            .value(&mut cx),
+        identity: options
+            .get(&mut cx, "identity")?
+            .downcast_or_throw::<JsString, FunctionContext>(&mut cx)?
+            .value(&mut cx),
+        worker_binary_id: options
+            .get(&mut cx, "workerBinaryId")?
+            .downcast_or_throw::<JsString, FunctionContext>(&mut cx)?
+            .value(&mut cx),
+        long_poll_timeout: Duration::from_millis(
+            options
+                .get(&mut cx, "longPollTimeoutMs")?
+                .downcast_or_throw::<JsNumber, FunctionContext>(&mut cx)?
+                .value(&mut cx) as u64,
+        ),
+    };
+    let (worker, receiver) = Worker::new(gateway_opts);
     let worker = Arc::new(worker);
     let queue = cx.queue();
     let cloned_worker = Arc::clone(&worker);
