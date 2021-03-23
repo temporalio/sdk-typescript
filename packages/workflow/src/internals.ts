@@ -3,6 +3,7 @@ import { defaultDataConverter, arrayFromPayloads } from './converter/data-conver
 import { alea } from './alea';
 import { CancellationFunction, CancellationFunctionFactory, Scope, Workflow } from './interfaces';
 import { CancellationError } from './errors';
+import { errorToUserCodeFailure } from './common';
 import { tsToMs, nullToUndefined } from './time';
 
 export type ResolveFunction<T = any> = (val: T) => any;
@@ -35,7 +36,7 @@ export interface State {
   rootScope: Scope;
   scopeStack: Scope[];
   childScopes: Map<Scope, Set<Scope>>;
-  commands: iface.coresdk.ICommand[];
+  commands: iface.coresdk.workflow_commands.IWorkflowCommand[];
   completed: boolean;
   cancelled: boolean;
   nextSeq: number;
@@ -72,21 +73,18 @@ export const state: State = {
   now: 0,
 };
 
-export type HandlerFunction<K extends keyof iface.coresdk.IWFActivationJob> = (
-  activation: NonNullable<iface.coresdk.IWFActivationJob[K]>
+export type HandlerFunction<K extends keyof iface.coresdk.workflow_activation.IWFActivationJob> = (
+  activation: NonNullable<iface.coresdk.workflow_activation.IWFActivationJob[K]>
 ) => void;
 
 export type WorkflowTaskHandler = {
-  [P in keyof iface.coresdk.IWFActivationJob]: HandlerFunction<P>;
+  [P in keyof iface.coresdk.workflow_activation.IWFActivationJob]: HandlerFunction<P>;
 };
 
 function completeWorkflow(result: any) {
   state.commands.push({
-    api: {
-      commandType: iface.temporal.api.enums.v1.CommandType.COMMAND_TYPE_COMPLETE_WORKFLOW_EXECUTION,
-      completeWorkflowExecutionCommandAttributes: {
-        result: defaultDataConverter.toPayloads(result),
-      },
+    completeWorkflowExecution: {
+      result: defaultDataConverter.toPayloads(result),
     },
   });
   state.completed = true;
@@ -94,11 +92,8 @@ function completeWorkflow(result: any) {
 
 function failWorkflow(error: any) {
   state.commands.push({
-    api: {
-      commandType: iface.temporal.api.enums.v1.CommandType.COMMAND_TYPE_FAIL_WORKFLOW_EXECUTION,
-      failWorkflowExecutionCommandAttributes: {
-        failure: { message: error.message }, // TODO: stackTrace
-      },
+    failWorkflowExecution: {
+      failure: errorToUserCodeFailure(error),
     },
   });
   state.completed = true;
@@ -106,23 +101,13 @@ function failWorkflow(error: any) {
 
 function completeQuery(result: any) {
   state.commands.push({
-    core: {
-      respondToQuery: {
-        resultType: iface.temporal.api.enums.v1.QueryResultType.QUERY_RESULT_TYPE_ANSWERED,
-        answer: { payloads: [defaultDataConverter.toPayload(result)] },
-      },
-    },
+    respondToQuery: { succeeded: { response: defaultDataConverter.toPayload(result) } },
   });
 }
 
 function failQuery(error: any) {
   state.commands.push({
-    core: {
-      respondToQuery: {
-        resultType: iface.temporal.api.enums.v1.QueryResultType.QUERY_RESULT_TYPE_FAILED,
-        errorMessage: error.message,
-      },
-    },
+    respondToQuery: { failedWithMessage: error.message },
   });
 }
 
@@ -143,7 +128,7 @@ function idToSeq(id: string | undefined | null) {
 }
 
 export class Activator implements WorkflowTaskHandler {
-  public startWorkflow(activation: iface.coresdk.IStartWorkflow): void {
+  public startWorkflow(activation: iface.coresdk.workflow_activation.IStartWorkflow): void {
     if (state.workflow === undefined) {
       throw new Error('state.workflow is not defined');
     }
@@ -160,26 +145,17 @@ export class Activator implements WorkflowTaskHandler {
     }
   }
 
-  public cancelWorkflow(_activation: iface.coresdk.ICancelWorkflow): void {
+  public cancelWorkflow(_activation: iface.coresdk.workflow_activation.ICancelWorkflow): void {
     state.cancelled = true;
     rootScopeCancel(new CancellationError('Workflow cancelled'));
   }
 
-  public fireTimer(activation: iface.coresdk.IFireTimer): void {
+  public fireTimer(activation: iface.coresdk.workflow_activation.IFireTimer): void {
     const { resolve } = consumeCompletion(idToSeq(activation.timerId));
     resolve(undefined);
   }
 
-  public cancelTimer(activation: iface.coresdk.ICancelTimer): void {
-    const { scope } = consumeCompletion(idToSeq(activation.timerId));
-    try {
-      scope.completeCancel(new CancellationError('Timer cancelled'));
-    } catch (e) {
-      if (!(e instanceof CancellationError)) throw e;
-    }
-  }
-
-  public resolveActivity(activation: iface.coresdk.IResolveActivity): void {
+  public resolveActivity(activation: iface.coresdk.workflow_activation.IResolveActivity): void {
     if (!activation.result) {
       throw new Error('Got CompleteActivity activation with no result');
     }
@@ -197,7 +173,7 @@ export class Activator implements WorkflowTaskHandler {
     }
   }
 
-  public queryWorkflow(job: iface.coresdk.IQueryWorkflow): void {
+  public queryWorkflow(job: iface.coresdk.workflow_activation.IQueryWorkflow): void {
     if (state.workflow === undefined) {
       throw new Error('state.workflow is not defined');
     }
@@ -207,12 +183,12 @@ export class Activator implements WorkflowTaskHandler {
       if (queries === undefined) {
         throw new Error('Workflow did not define any queries');
       }
-      if (!job.query?.queryType) {
+      if (!job.queryType) {
         throw new Error('Missing query type');
       }
 
-      const fn = queries[job.query?.queryType];
-      const retOrPromise = fn(...arrayFromPayloads(defaultDataConverter, job.query.queryArgs));
+      const fn = queries[job.queryType];
+      const retOrPromise = fn(...arrayFromPayloads(defaultDataConverter, job.arguments));
       if (retOrPromise instanceof Promise) {
         retOrPromise.then(completeQuery).catch(failQuery);
       } else {
@@ -227,7 +203,7 @@ export class Activator implements WorkflowTaskHandler {
     throw new Error('Not implemented');
   }
 
-  public updateRandomSeed(_activation: iface.coresdk.IUpdateRandomSeed): void {
+  public updateRandomSeed(_activation: iface.coresdk.workflow_activation.IUpdateRandomSeed): void {
     throw new Error('Not implemented');
   }
 }
@@ -236,9 +212,9 @@ export class Activator implements WorkflowTaskHandler {
  * @returns a boolean indicating whether the job was processed or ignored
  */
 export function activate(encodedActivation: Uint8Array, jobIndex: number): boolean {
-  const activation = iface.coresdk.WFActivation.decodeDelimited(encodedActivation);
+  const activation = iface.coresdk.workflow_activation.WFActivation.decodeDelimited(encodedActivation);
   // job's type is IWFActivationJob which doesn't have the `attributes` property.
-  const job = activation.jobs[jobIndex] as iface.coresdk.WFActivationJob;
+  const job = activation.jobs[jobIndex] as iface.coresdk.workflow_activation.WFActivationJob;
   state.now = tsToMs(activation.timestamp);
   if (state.activator === undefined) {
     throw new Error('state.activator is not defined');

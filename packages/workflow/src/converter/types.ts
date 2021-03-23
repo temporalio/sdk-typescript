@@ -1,8 +1,7 @@
 import { TextEncoder, TextDecoder } from '../encoding';
 import * as iface from '@temporalio/proto';
 
-export type Payload = iface.temporal.api.common.v1.IPayload;
-export type Payloads = iface.temporal.api.common.v1.IPayloads;
+export type Payload = iface.coresdk.common.IPayload;
 
 export class ValueError extends Error {
   public readonly name: string = 'ValueError';

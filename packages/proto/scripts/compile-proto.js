@@ -1,6 +1,7 @@
 const { promisify } = require('util');
 const { resolve } = require('path');
 const dedent = require('dedent');
+const glob = require('glob');
 const { statSync, removeSync, mkdirsSync, readFileSync, writeFileSync } = require('fs-extra');
 const pbjs = require('protobufjs/cli/pbjs');
 const pbts = require('protobufjs/cli/pbts');
@@ -41,8 +42,9 @@ function mtime(path) {
 }
 
 async function main() {
+  const protoFiles = glob.sync(resolve(protoBaseDir, '**/*.proto'));
   // TODO: any proto file could have changed
-  const protosMTime = Math.max(mtime(coreProtoPath), mtime(serviceProtoPath));
+  const protosMTime = Math.max(...protoFiles.map(mtime));
 
   const commonjsImplPath = resolve(commonjsOutputDir, 'index.js');
   if (protosMTime < mtime(commonjsImplPath)) {

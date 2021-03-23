@@ -1,4 +1,4 @@
-import { str, METADATA_ENCODING_KEY, Payload, Payloads, ValueError } from './types';
+import { str, METADATA_ENCODING_KEY, Payload, ValueError } from './types';
 import {
   PayloadConverter,
   UndefinedPayloadConverter,
@@ -24,7 +24,7 @@ export interface DataConverter {
    * @throws DataConverterError if conversion of the value passed as parameter failed for any
    *     reason.
    */
-  toPayloads(...values: any[]): Payloads | undefined;
+  toPayloads(...values: any[]): Payload[] | undefined;
 
   /**
    * Implements conversion of an array of values of different types. Useful for deserializing
@@ -36,7 +36,7 @@ export interface DataConverter {
    * @throws DataConverterError if conversion of the data passed as parameter failed for any
    *     reason.
    */
-  fromPayloads<T>(index: number, content?: Payloads): T;
+  fromPayloads<T>(index: number, content?: Payload[] | null): T;
 }
 
 export class CompositeDataConverter implements DataConverter {
@@ -70,30 +70,29 @@ export class CompositeDataConverter implements DataConverter {
     return converter.fromData(payload);
   }
 
-  public toPayloads(...values: any[]): Payloads | undefined {
+  public toPayloads(...values: any[]): Payload[] | undefined {
     if (values.length === 0) {
       return undefined;
     }
     // TODO: From Java: Payload.getDefaultInstance()
-    const payloads: Payload[] = values.map((value) => this.toPayload(value));
-    return { payloads };
+    return values.map((value) => this.toPayload(value));
   }
 
-  public fromPayloads<T>(index: number, content?: Payloads | null): T {
+  public fromPayloads<T>(index: number, payloads?: Payload[] | null): T {
     // To make adding arguments a backwards compatible change
-    if (content === undefined || content === null || !content.payloads || index >= content.payloads.length) {
+    if (payloads === undefined || payloads === null || index >= payloads.length) {
       // TODO: undefined might not be the right return value here
       return undefined as any;
     }
-    return this.fromPayload(content.payloads[index]);
+    return this.fromPayload(payloads[index]);
   }
 }
 
-export function arrayFromPayloads(converter: DataConverter, content?: Payloads | null): any[] {
-  if (!content || !content.payloads) {
+export function arrayFromPayloads(converter: DataConverter, content?: Payload[] | null): any[] {
+  if (!content) {
     return [];
   }
-  return content.payloads.map((payload: Payload) => converter.fromPayload(payload));
+  return content.map((payload: Payload) => converter.fromPayload(payload));
 }
 
 export function mapToPayloads<K extends string>(converter: DataConverter, source: Record<K, any>): Record<K, Payload> {

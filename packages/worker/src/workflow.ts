@@ -110,11 +110,14 @@ export class Workflow {
     );
   }
 
-  public async activate(taskToken: Uint8Array, activation: coresdk.IWFActivation): Promise<Uint8Array> {
+  public async activate(
+    taskToken: Uint8Array,
+    activation: coresdk.workflow_activation.IWFActivation
+  ): Promise<Uint8Array> {
     if (!activation.jobs) {
       throw new Error('Expected workflow activation jobs to be defined');
     }
-    const arr = coresdk.WFActivation.encodeDelimited(activation).finish();
+    const arr = coresdk.workflow_activation.WFActivation.encodeDelimited(activation).finish();
     // Loop and invoke each job with entire microtasks chain.
     // This is done outside of the isolate because we can't wait for microtasks from inside the isolate.
     // TODO: Process signals first

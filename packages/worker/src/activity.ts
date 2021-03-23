@@ -29,10 +29,10 @@ export class Activity {
     promise.catch(() => undefined);
   }
 
-  public run(): Promise<coresdk.IActivityResult> {
+  public run(): Promise<coresdk.activity_result.IActivityResult> {
     return asyncLocalStorage.run(
       this.context,
-      async (): Promise<coresdk.IActivityResult> => {
+      async (): Promise<coresdk.activity_result.IActivityResult> => {
         try {
           const result = await this.fn(...this.args);
           if (this.cancelRequested) {
