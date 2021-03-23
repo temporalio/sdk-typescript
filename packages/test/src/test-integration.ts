@@ -102,6 +102,24 @@ if (RUN_INTEGRATION_TESTS) {
     t.is(timerEvents[3].timerCanceledEventAttributes!.timerId, '0');
   });
 
+  test('Worker default ServerOptions are generated correctly', async (t) => {
+    const client = new Connection();
+    const opts = compileWorkflowOptions(addDefaults({ taskQueue: 'test' }));
+    const runId = await client.startWorkflowExecution(opts, 'args-and-return');
+    await client.untilComplete(opts.workflowId, runId);
+    const execution = await client.service.getWorkflowExecutionHistory({
+      namespace: client.options.namespace,
+      execution: { workflowId: opts.workflowId, runId },
+    });
+    const events = execution.history!.events!.filter(
+      ({ eventType }) => eventType === iface.temporal.api.enums.v1.EventType.EVENT_TYPE_WORKFLOW_TASK_COMPLETED
+    );
+    t.is(events.length, 1);
+    const [event] = events;
+    t.regex(event.workflowTaskCompletedEventAttributes!.identity!, /\d+@.+/);
+    t.regex(event.workflowTaskCompletedEventAttributes!.binaryChecksum!, /@temporalio\/worker@\d+\.\d+\.\d+/);
+  });
+
   test('WorkflowOptions are passed correctly with defaults', async (t) => {
     const client = new Connection();
     const opts = compileWorkflowOptions(addDefaults({ taskQueue: 'test' }));
