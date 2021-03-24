@@ -267,7 +267,7 @@ class BaseWorker {
             Object.entries(module).filter((entry): entry is [string, () => any] => entry[1] instanceof Function)
           );
           const importName = basename(file, ext);
-          this.options.logger.debug('Loaded activity', { importName, fullPath });
+          this.log.debug('Loaded activity', { importName, fullPath });
           this.resolvedActivities.set(`@activities/${importName}`, functions);
           if (importName === 'index') {
             this.resolvedActivities.set('@activities', functions);
@@ -275,6 +275,10 @@ class BaseWorker {
         }
       }
     }
+  }
+
+  protected get log(): Logger {
+    return this.options.logger;
   }
 
   /**
@@ -290,7 +294,7 @@ class BaseWorker {
   }
 
   set state(state: State) {
-    this.options.logger.debug('Worker state changed', { state });
+    this.log.info('Worker state changed', { state });
     this.stateSubject.next(state);
   }
 
@@ -299,6 +303,7 @@ class BaseWorker {
    */
   public async registerWorkflows(nameToPath: Record<string, string>): Promise<void> {
     for (const [name, path] of Object.entries(nameToPath)) {
+      this.log.info('Registering workflow override', { name, path });
       this.workflowOverrides.set(name, path);
     }
   }
@@ -311,6 +316,7 @@ class BaseWorker {
   ): Promise<void> {
     for (const [name, functions] of Object.entries(importPathToImplementation)) {
       // TODO: check that functions are actually functions
+      this.log.info('Registering activities', { name, functions: Object.keys(functions) });
       this.resolvedActivities.set(name, functions);
     }
   }
@@ -456,7 +462,8 @@ class BaseWorker {
                   break;
                 }
                 const args = arrayFromPayloads(this.options.dataConverter, start.input);
-                activity = new Activity(fn, args, this.options.dataConverter, (details) =>
+                this.log.debug('Starting activity', { activityId, path, fnName });
+                activity = new Activity(activityId, fn, args, this.options.dataConverter, (details) =>
                   this.activityHeartbeatSubject.next({
                     activityId,
                     details,
@@ -466,10 +473,13 @@ class BaseWorker {
                 break;
               }
               case 'cancel': {
+                const { activityId } = task.activity;
                 if (activity === undefined) {
+                  this.log.error('Tried to cancel a non-existing activity', { activityId });
                   output = { type: 'result', result: { failed: { failure: { message: 'Activity not found' } } } };
                   break;
                 }
+                this.log.debug('Cancelling activity', { activityId });
                 activity.cancel();
                 output = {
                   type: 'result',
@@ -487,6 +497,8 @@ class BaseWorker {
               return { taskToken, result: output.result };
             }
             const result = await output.activity.run();
+            const status = result.failed ? 'failed' : result.completed ? 'completed' : 'cancelled';
+            this.log.debug('Activity resolved', { activityId: output.activity.id, status });
             if (result.canceled) {
               return undefined; // Cancelled emitted on cancellation request, ignored in activity run result
             }
@@ -514,6 +526,7 @@ class BaseWorker {
       mergeMap((group$) => {
         return group$.pipe(
           mergeMapWithState(async (workflow: Workflow | undefined, task) => {
+            const { taskToken } = task;
             if (workflow === undefined) {
               try {
                 // Find a workflow start job in the activation jobs list
@@ -528,6 +541,11 @@ class BaseWorker {
                       )}`
                     );
                   }
+                  this.log.debug('Creating workflow', {
+                    taskToken,
+                    workflowId: attrs.workflowId,
+                    runId: task.workflow.runId,
+                  });
                   workflow = await Workflow.create(attrs.workflowId);
                   // TODO: this probably shouldn't be here, consider alternative implementation
                   await workflow.inject('console.log', console.log);
@@ -540,14 +558,15 @@ class BaseWorker {
                 } else {
                   throw new Error('Received workflow activation for an untracked workflow with no start workflow job');
                 }
-              } catch (err) {
+              } catch (error) {
+                this.log.error('Failed to create a workflow', { taskToken, runId: task.workflow.runId, error });
                 let arr: Uint8Array;
-                if (err instanceof LoaderError) {
+                if (error instanceof LoaderError) {
                   arr = coresdk.TaskCompletion.encodeDelimited({
                     taskToken: task.taskToken,
                     workflow: {
                       successful: {
-                        commands: [{ failWorkflowExecution: { failure: errorToUserCodeFailure(err) } }],
+                        commands: [{ failWorkflowExecution: { failure: errorToUserCodeFailure(error) } }],
                       },
                     },
                   }).finish();
@@ -556,7 +575,7 @@ class BaseWorker {
                     taskToken: task.taskToken,
                     workflow: {
                       failed: {
-                        failure: errorToUserCodeFailure(err),
+                        failure: errorToUserCodeFailure(error),
                       },
                     },
                   }).finish();
@@ -566,6 +585,7 @@ class BaseWorker {
               }
             }
 
+            this.log.debug('Activating workflow', { taskToken });
             const arr = await workflow.activate(task.taskToken, task.workflow);
             return { state: workflow, output: { close: false, arr } };
           }, undefined),
@@ -581,6 +601,8 @@ class BaseWorker {
    */
   protected activityHeartbeat$(): Observable<void> {
     return this.activityHeartbeatSubject.pipe(
+      takeUntil(this.stateSubject.pipe(filter((value) => value === 'STOPPED' || value === 'FAILED'))),
+      tap(({ activityId }) => this.log.debug('Got activity heartbeat', { activityId })),
       map(({ activityId, details }) => {
         const payload = this.options.dataConverter.toPayload(details);
         if (!payload) {
@@ -593,8 +615,7 @@ class BaseWorker {
           activityId,
           arr.buffer.slice(arr.byteOffset, arr.byteLength + arr.byteOffset)
         );
-      }),
-      takeUntil(this.stateSubject.pipe(filter((value) => value === 'STOPPED' || value === 'FAILED')))
+      })
     );
   }
 
