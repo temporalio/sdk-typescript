@@ -2,6 +2,7 @@ import ivm from 'isolated-vm';
 import dedent from 'dedent';
 import { coresdk } from '@temporalio/proto';
 import { activate, concludeActivation } from '@temporalio/workflow/commonjs/internals';
+import { ActivityOptions } from '@temporalio/workflow';
 import { Loader } from './loader';
 
 export enum ApplyMode {
@@ -55,20 +56,23 @@ export class Workflow {
     return new Workflow(id, isolate, context, loader, { activate, concludeActivation });
   }
 
-  public async registerActivities(activities: Map<string, Record<string, any>>): Promise<void> {
+  public async registerActivities(
+    activities: Map<string, Record<string, any>>,
+    options: ActivityOptions
+  ): Promise<void> {
+    const serializedOptions = JSON.stringify(options);
     for (const [specifier, module] of activities.entries()) {
       let code = dedent`
         import { scheduleActivity } from '@temporalio/workflow';
       `;
-      // TODO: inject options
       for (const [k, v] of Object.entries(module)) {
         if (v instanceof Function) {
           code += dedent`
             export function ${k}(...args) {
-              return scheduleActivity('${specifier}', '${k}', args, {});
+              return scheduleActivity('${specifier}', '${k}', args, ${serializedOptions});
             }
             ${k}.module = '${specifier}';
-            ${k}.options = {};
+            ${k}.options = ${serializedOptions};
           `;
         }
       }

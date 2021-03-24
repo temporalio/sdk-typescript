@@ -24,7 +24,7 @@ test.beforeEach(async (t) => {
   const logs: unknown[][] = [];
   await workflow.inject('console.log', (...args: unknown[]) => void logs.push(args));
   const activities = new Map([['@activities', { httpGet: () => undefined }]]);
-  await workflow.registerActivities(activities);
+  await workflow.registerActivities(activities, { type: 'remote', scheduleToCloseTimeout: '10m' });
   // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
   const testName = t.title.match(/\S+$/)![0];
   const script = getWorkflow(`${testName}.js`);
@@ -718,6 +718,8 @@ test('http', async (t) => {
           activityId: '0',
           activityType: JSON.stringify(['@activities', 'httpGet']),
           arguments: defaultDataConverter.toPayloads('https://google.com'),
+          scheduleToCloseTimeout: msStrToTs('10 minutes'),
+          taskQueue: 'test',
         }),
       ])
     );
@@ -736,8 +738,8 @@ test('http', async (t) => {
           activityId: '1',
           activityType: JSON.stringify(['@activities', 'httpGet']),
           arguments: defaultDataConverter.toPayloads('http://example.com'),
-          startToCloseTimeout: msStrToTs('10 minutes'),
-          taskQueue: 'remote',
+          scheduleToCloseTimeout: msStrToTs('30 minutes'),
+          taskQueue: 'test',
         }),
       ])
     );
@@ -776,6 +778,8 @@ test('activity-cancellation', async (t) => {
           activityId: '0',
           activityType: JSON.stringify(['@activities', 'httpGet']),
           arguments: defaultDataConverter.toPayloads('https://google.com'),
+          scheduleToCloseTimeout: msStrToTs('10 minutes'),
+          taskQueue: 'test',
         }),
         makeCancelActivityCommand('0', 'Cancelled'),
       ])

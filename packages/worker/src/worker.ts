@@ -144,7 +144,13 @@ export type WorkerOptionsWithDefaults = WorkerOptions &
   Required<
     Pick<
       WorkerOptions,
-      'activitiesPath' | 'workflowsPath' | 'shutdownGraceTime' | 'shutdownSignals' | 'dataConverter' | 'logger'
+      | 'activitiesPath'
+      | 'workflowsPath'
+      | 'shutdownGraceTime'
+      | 'shutdownSignals'
+      | 'dataConverter'
+      | 'logger'
+      | 'activityDefaults'
     >
   >;
 
@@ -187,6 +193,7 @@ export function getDefaultOptions(dirname: string): WorkerOptionsWithDefaults {
     shutdownSignals: ['SIGINT', 'SIGTERM', 'SIGQUIT'],
     dataConverter: defaultDataConverter,
     logger: new DefaultLogger(),
+    activityDefaults: { type: 'remote', scheduleToCloseTimeout: '10m' },
   };
 }
 
@@ -565,7 +572,7 @@ export class Worker {
                   workflow = await Workflow.create(attrs.workflowId);
                   // TODO: this probably shouldn't be here, consider alternative implementation
                   await workflow.inject('console.log', console.log);
-                  await workflow.registerActivities(this.resolvedActivities);
+                  await workflow.registerActivities(this.resolvedActivities, this.options.activityDefaults);
                   const scriptName = await resolver(
                     this.options.workflowsPath,
                     this.workflowOverrides
