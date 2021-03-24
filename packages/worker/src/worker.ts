@@ -42,6 +42,7 @@ import { mergeMapWithState, closeableGroupBy } from './rxutils';
 import { resolveFilename, LoaderError } from './loader';
 import { Workflow } from './workflow';
 import { Activity } from './activity';
+import { Logger, DefaultLogger } from './logger';
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
 import pkg from '../package.json';
@@ -85,7 +86,13 @@ export interface WorkerOptions {
    */
   serverOptions?: ServerOptions;
 
+  /**
+   * Custom logger for the worker, by default we log everything to stderr
+   */
+  logger?: Logger;
+
   activityDefaults?: ActivityOptions;
+
   /**
    * Path to look up activities in.
    * Use as alias for the `@activities` import.
@@ -93,12 +100,14 @@ export interface WorkerOptions {
    * pass `null` to manually register activities
    */
   activitiesPath?: string | null;
+
   /**
    * Path to look up workflows in.
    * defaults to `../workflows`
    * pass `null` to manually register workflows
    */
   workflowsPath?: string | null;
+
   /**
    * Time to wait for pending tasks to drain after receiving a shutdown signal.
    * @see {@link shutdownSignals}
@@ -129,7 +138,10 @@ export interface WorkerOptions {
 
 export type WorkerOptionsWithDefaults = WorkerOptions &
   Required<
-    Pick<WorkerOptions, 'activitiesPath' | 'workflowsPath' | 'shutdownGraceTime' | 'shutdownSignals' | 'dataConverter'>
+    Pick<
+      WorkerOptions,
+      'activitiesPath' | 'workflowsPath' | 'shutdownGraceTime' | 'shutdownSignals' | 'dataConverter' | 'logger'
+    >
   >;
 
 export interface CompiledWorkerOptionsWithDefaults extends WorkerOptionsWithDefaults {
@@ -170,6 +182,7 @@ export function getDefaultOptions(dirname: string): WorkerOptionsWithDefaults {
     shutdownGraceTime: '5s',
     shutdownSignals: ['SIGINT', 'SIGTERM', 'SIGQUIT'],
     dataConverter: defaultDataConverter,
+    logger: new DefaultLogger(),
   };
 }
 
@@ -254,7 +267,7 @@ class BaseWorker {
             Object.entries(module).filter((entry): entry is [string, () => any] => entry[1] instanceof Function)
           );
           const importName = basename(file, ext);
-          console.log('Loaded activity', { importName, fullPath });
+          this.options.logger.debug('Loaded activity', { importName, fullPath });
           this.resolvedActivities.set(`@activities/${importName}`, functions);
           if (importName === 'index') {
             this.resolvedActivities.set('@activities', functions);
@@ -277,8 +290,7 @@ class BaseWorker {
   }
 
   set state(state: State) {
-    // TODO: use logger
-    console.log('Worker state changed', { state });
+    this.options.logger.debug('Worker state changed', { state });
     this.stateSubject.next(state);
   }
 
