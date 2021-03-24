@@ -36,7 +36,8 @@
     "test.watch": "lerna run --stream test.watch",
     "lint": "eslint packages/*/src --ext .ts && prettier --check .",
     "format": "prettier --write .",
-    "clean": "node ./scripts/clean.js"
+    "clean": "node ./scripts/clean.js",
+    "docs": "node ./scripts/gen-docs.js"
   },
   "repository": {
     "type": "git",
