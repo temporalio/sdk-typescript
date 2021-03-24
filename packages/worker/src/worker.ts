@@ -47,6 +47,9 @@ import { Logger, DefaultLogger } from './logger';
 // @ts-ignore
 import pkg from '../package.json';
 
+export { RetryOptions, RemoteActivityOptions, LocalActivityOptions } from '@temporalio/workflow';
+export { ActivityOptions, DataConverter };
+
 export interface ServerOptions {
   /**
    * The URL of the Temporal server to connect to
@@ -66,12 +69,12 @@ export interface ServerOptions {
   identity?: string;
   /**
    * A string that should be unique to the exact worker code/binary being executed
-   * @default to the @temporal/worker package version
+   * @default `@temporal/worker` package name and version
    */
   workerBinaryId?: string;
   /**
    * Timeout for long polls (polling of task queues)
-   * @format ms formatted string
+   * @format {@link https://www.npmjs.com/package/ms | ms} formatted string
    */
   longPollTimeout?: string;
 }
@@ -96,29 +99,30 @@ export interface WorkerOptions {
   /**
    * Path to look up activities in.
    * Use as alias for the `@activities` import.
-   * defaults to `../activities`
-   * pass `null` to manually register activities
+   * pass `null` to manually register activities.
+   * @default ../activities
    */
   activitiesPath?: string | null;
 
   /**
    * Path to look up workflows in.
-   * defaults to `../workflows`
    * pass `null` to manually register workflows
+   * @default ../workflows
    */
   workflowsPath?: string | null;
 
   /**
-   * Time to wait for pending tasks to drain after receiving a shutdown signal.
-   * @see {@link shutdownSignals}
+   * Time to wait for pending tasks to drain after shutdown was requested.
    *
-   * @format ms formatted string
+   * @format {@link https://www.npmjs.com/package/ms | ms} formatted string
    */
   shutdownGraceTime?: string;
 
   /**
    * Automatically shut down worker on any of these signals.
-   * @default ['SIGINT', 'SIGTERM', 'SIGQUIT']
+   * @default ```ts
+   * ['SIGINT', 'SIGTERM', 'SIGQUIT']
+   * ```
    */
   shutdownSignals?: NodeJS.Signals[];
 
@@ -207,7 +211,7 @@ export interface NativeWorkerLike {
 }
 
 export interface WorkerConstructor {
-  new (...args: Parameters<typeof native.newWorker>): NativeWorkerLike;
+  new (options?: ServerOptions): NativeWorkerLike;
 }
 
 export class NativeWorker implements NativeWorkerLike {
@@ -238,9 +242,9 @@ export class NativeWorker implements NativeWorkerLike {
 }
 
 /**
- * Base worker class - allows injection of native worker implementation for testing
+ * Temporal Worker, connects to the Temporal server and runs workflows and activities
  */
-class BaseWorker {
+export class Worker {
   public readonly options: CompiledWorkerOptionsWithDefaults;
   protected readonly workflowOverrides: Map<string, string> = new Map();
   protected readonly resolvedActivities: Map<string, Record<string, () => any>>;
@@ -250,8 +254,20 @@ class BaseWorker {
   }>();
   protected readonly pollSubject = new Subject<coresdk.Task>();
   protected stateSubject: BehaviorSubject<State> = new BehaviorSubject<State>('INITIALIZED');
+  protected readonly nativeWorker: NativeWorkerLike;
 
-  constructor(protected readonly nativeWorker: NativeWorkerLike, public readonly pwd: string, options?: WorkerOptions) {
+  protected static nativeWorkerCtor: WorkerConstructor = NativeWorker;
+
+  /**
+   * Create a new Worker.
+   * This method immediately connects to the server and will throw on connection failure.
+   * @param pwd - Used to resolve relative paths for locating and importing activities and workflows.
+   */
+  constructor(public readonly pwd: string, options?: WorkerOptions) {
+    // Typescript derives the type of `this.constructor` as Function, work around it by casting to any
+    const nativeWorkerCtor: WorkerConstructor = (this.constructor as any).nativeWorkerCtor;
+    this.nativeWorker = new nativeWorkerCtor(options?.serverOptions);
+
     // TODO: merge activityDefaults
     this.options = compileWorkerOptions({ ...getDefaultOptions(pwd), ...options });
     this.resolvedActivities = new Map();
@@ -289,11 +305,11 @@ class BaseWorker {
     return this.stateSubject.getValue();
   }
 
-  get state(): State {
+  protected get state(): State {
     return this.stateSubject.getValue();
   }
 
-  set state(state: State) {
+  protected set state(state: State) {
     this.log.info('Worker state changed', { state });
     this.stateSubject.next(state);
   }
@@ -621,7 +637,7 @@ class BaseWorker {
 
   /**
    * Start polling on tasks, completes after graceful shutdown after a receiving a shutdown signal
-   * or call to @link{shutdown}.
+   * or call to {@link shutdown}.
    */
   async run(queueName: string): Promise<void> {
     if (this.state !== 'INITIALIZED') {
@@ -651,16 +667,3 @@ class BaseWorker {
     ).toPromise();
   }
 }
-
-export class Worker extends BaseWorker {
-  /**
-   * Create a new Worker.
-   * This method immediately connects to the server and will throw on connection failure.
-   * @param pwd - Used to resolve relative paths for locating and importing activities and workflows.
-   */
-  constructor(public readonly pwd: string, options?: WorkerOptions) {
-    super(new NativeWorker(options?.serverOptions), pwd, options);
-  }
-}
-
-export const testing = { BaseWorker };

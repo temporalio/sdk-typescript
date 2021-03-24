@@ -1,14 +1,12 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
 import anyTest, { TestInterface, ExecutionContext } from 'ava';
 import { coresdk } from '@temporalio/proto';
-import { testing } from '@temporalio/worker/lib/worker';
 import { defaultDataConverter } from '@temporalio/workflow/commonjs/converter/data-converter';
 import { u8 } from './helpers';
 import { httpGet } from '../../test-activities/lib';
-import { MockNativeWorker, Worker } from './mock-native-worker';
+import { Worker } from './mock-native-worker';
 
 export interface Context {
-  nativeWorker: MockNativeWorker;
   worker: Worker;
 }
 
@@ -23,12 +21,10 @@ export async function runWorker(t: ExecutionContext<Context>, fn: () => Promise<
 }
 
 test.beforeEach((t) => {
-  const nativeWorker = new MockNativeWorker();
-  const worker = new testing.BaseWorker(nativeWorker, __dirname, {
+  const worker = new Worker(__dirname, {
     activitiesPath: `${__dirname}/../../test-activities/lib`,
   });
   t.context = {
-    nativeWorker,
     worker,
   };
 });
@@ -42,11 +38,11 @@ function compareCompletion(
 }
 
 test('Worker runs an activity and reports completion', async (t) => {
-  const { nativeWorker } = t.context;
+  const { worker } = t.context;
   await runWorker(t, async () => {
     const taskToken = u8(`${Math.random()}`);
     const url = 'https://temporal.io';
-    const completion = await nativeWorker.runAndWaitCompletion({
+    const completion = await worker.native.runAndWaitCompletion({
       taskToken,
       activity: {
         activityId: 'abc',
@@ -64,11 +60,11 @@ test('Worker runs an activity and reports completion', async (t) => {
 });
 
 test('Worker runs an activity and reports failure', async (t) => {
-  const { nativeWorker } = t.context;
+  const { worker } = t.context;
   await runWorker(t, async () => {
     const taskToken = u8(`${Math.random()}`);
     const message = ':(';
-    const completion = await nativeWorker.runAndWaitCompletion({
+    const completion = await worker.native.runAndWaitCompletion({
       taskToken,
       activity: {
         activityId: 'abc',
@@ -86,9 +82,9 @@ test('Worker runs an activity and reports failure', async (t) => {
 });
 
 test('Worker cancels activity and reports cancellation', async (t) => {
-  const { nativeWorker } = t.context;
+  const { worker } = t.context;
   await runWorker(t, async () => {
-    nativeWorker.emit({
+    worker.native.emit({
       taskToken: u8(`${Math.random}`),
       activity: {
         activityId: 'abc',
@@ -99,7 +95,7 @@ test('Worker cancels activity and reports cancellation', async (t) => {
       },
     });
     const taskToken = u8(`${Math.random()}`);
-    const completion = await nativeWorker.runAndWaitCompletion({
+    const completion = await worker.native.runAndWaitCompletion({
       taskToken,
       activity: {
         activityId: 'abc',
@@ -114,9 +110,9 @@ test('Worker cancels activity and reports cancellation', async (t) => {
 });
 
 test('Activity Context AbortSignal cancels a fetch request', async (t) => {
-  const { nativeWorker } = t.context;
+  const { worker } = t.context;
   await runWorker(t, async () => {
-    nativeWorker.emit({
+    worker.native.emit({
       taskToken: u8(`${Math.random}`),
       activity: {
         activityId: 'abc',
@@ -127,7 +123,7 @@ test('Activity Context AbortSignal cancels a fetch request', async (t) => {
       },
     });
     const taskToken = u8(`${Math.random()}`);
-    const completion = await nativeWorker.runAndWaitCompletion({
+    const completion = await worker.native.runAndWaitCompletion({
       taskToken,
       activity: {
         activityId: 'abc',
@@ -142,10 +138,10 @@ test('Activity Context AbortSignal cancels a fetch request', async (t) => {
 });
 
 test('Activity Context heartbeat is sent to core', async (t) => {
-  const { nativeWorker } = t.context;
+  const { worker } = t.context;
   await runWorker(t, async () => {
     const taskToken = u8(`${Math.random()}`);
-    const completionPromise = nativeWorker.runAndWaitCompletion({
+    const completionPromise = worker.native.runAndWaitCompletion({
       taskToken,
       activity: {
         activityId: 'abc',
@@ -155,9 +151,9 @@ test('Activity Context heartbeat is sent to core', async (t) => {
         },
       },
     });
-    t.is(await nativeWorker.untilHeartbeat('abc'), 1);
-    t.is(await nativeWorker.untilHeartbeat('abc'), 2);
-    t.is(await nativeWorker.untilHeartbeat('abc'), 3);
+    t.is(await worker.native.untilHeartbeat('abc'), 1);
+    t.is(await worker.native.untilHeartbeat('abc'), 2);
+    t.is(await worker.native.untilHeartbeat('abc'), 3);
     compareCompletion(t, await completionPromise, {
       taskToken,
       activity: { completed: { result: defaultDataConverter.toPayloads(undefined) } },

@@ -23,8 +23,7 @@ if (RUN_INTEGRATION_TESTS) {
 }
 
 test.serial('Mocked run shuts down gracefully', async (t) => {
-  const nativeWorker = new MockNativeWorker();
-  const worker = new MockableWorker(nativeWorker, __dirname, { shutdownGraceTime: '500ms', activitiesPath: null });
+  const worker = new MockableWorker(__dirname, { shutdownGraceTime: '500ms', activitiesPath: null });
   t.is(worker.getState(), 'INITIALIZED');
   const p = worker.run('shutdown-test');
   t.is(worker.getState(), 'RUNNING');
@@ -36,12 +35,11 @@ test.serial('Mocked run shuts down gracefully', async (t) => {
 });
 
 test.serial('Mocked run throws if not shut down gracefully', async (t) => {
-  const nativeWorker = new MockNativeWorker();
-  const worker = new MockableWorker(nativeWorker, __dirname, { shutdownGraceTime: '5ms', activitiesPath: null });
+  const worker = new MockableWorker(__dirname, { shutdownGraceTime: '5ms', activitiesPath: null });
   t.is(worker.getState(), 'INITIALIZED');
   const p = worker.run('shutdown-test');
   t.is(worker.getState(), 'RUNNING');
-  nativeWorker.shutdown = () => undefined; // Make sure shutdown does not emit core shutdown
+  worker.native.shutdown = () => undefined; // Make sure shutdown does not emit core shutdown
   process.emit('SIGINT', 'SIGINT');
   await t.throwsAsync(p, {
     message: 'Timed out waiting while waiting for worker to shutdown gracefully',
@@ -51,15 +49,14 @@ test.serial('Mocked run throws if not shut down gracefully', async (t) => {
 });
 
 test('Mocked worker suspends and resumes', async (t) => {
-  const nativeWorker = new MockNativeWorker();
-  const worker = new MockableWorker(nativeWorker, __dirname, { shutdownGraceTime: '5ms', activitiesPath: null });
+  const worker = new MockableWorker(__dirname, { shutdownGraceTime: '5ms', activitiesPath: null });
   const p = worker.run('suspend-test');
   t.is(worker.getState(), 'RUNNING');
   worker.suspendPolling();
   t.is(worker.getState(), 'SUSPENDED');
   // Worker finishes its polling before suspension
-  await nativeWorker.runAndWaitCompletion({ workflow: { runId: 'abc' } });
-  const completion = nativeWorker.runAndWaitCompletion({ workflow: { runId: 'abc' } });
+  await worker.native.runAndWaitCompletion({ workflow: { runId: 'abc' } });
+  const completion = worker.native.runAndWaitCompletion({ workflow: { runId: 'abc' } });
   await t.throwsAsync(
     Promise.race([
       sleep(10).then(() => {

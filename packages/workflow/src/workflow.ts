@@ -44,6 +44,9 @@ export interface InternalActivityFunction<P extends any[], R> extends ActivityFu
 }
 
 export function scheduleActivity<R>(module: string, name: string, args: any[], options: ActivityOptions): Promise<R> {
+  if (options.type === 'local') {
+    throw new TypeError('local activity is not yet implemented');
+  }
   const seq = state.nextSeq++;
   return childScope(
     () => (_err) => {
@@ -76,7 +79,7 @@ export function scheduleActivity<R>(module: string, name: string, args: any[], o
                   // TODO: nonRetryableErrorTypes
                 }
               : undefined,
-            taskQueue: options.type === 'remote' ? options.taskQueue : undefined,
+            taskQueue: options.taskQueue,
             heartbeatTimeout: msOptionalStrToTs(options.heartbeatTimeout),
             startToCloseTimeout: msOptionalStrToTs(options.startToCloseTimeout),
             scheduleToCloseTimeout: msOptionalStrToTs(options.scheduleToCloseTimeout),

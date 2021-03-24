@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
 import { coresdk } from '@temporalio/proto';
 import { defaultDataConverter } from '@temporalio/workflow/commonjs/converter/data-converter';
-import { testing, NativeWorkerLike } from '@temporalio/worker/lib/worker';
+import { Worker as RealWorker, NativeWorkerLike } from '@temporalio/worker/lib/worker';
 import { sleep } from '@temporalio/worker/lib/utils';
 
 export class MockNativeWorker implements NativeWorkerLike {
@@ -62,4 +62,10 @@ export class MockNativeWorker implements NativeWorkerLike {
   }
 }
 
-export class Worker extends testing.BaseWorker {}
+export class Worker extends RealWorker {
+  protected static nativeWorkerCtor = MockNativeWorker;
+
+  public get native(): MockNativeWorker {
+    return this.nativeWorker as MockNativeWorker;
+  }
+}
