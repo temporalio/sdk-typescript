@@ -13,6 +13,7 @@ export class Activity {
 
   // TODO: get all of the atributes required for setting the ActivityContext
   constructor(
+    public readonly id: string,
     protected readonly fn: ActivityFunction<any[], any>,
     protected readonly args: any[],
     public readonly dataConverter: DataConverter,
