@@ -1,5 +1,4 @@
 /* eslint no-var: 0 */
-import { temporal } from '@temporalio/proto';
 import { state, currentScope } from './internals';
 import { msToTs } from './time';
 
