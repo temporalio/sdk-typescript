@@ -18,6 +18,7 @@ type IStartWorkflowExecutionRequest = iface.temporal.api.workflowservice.v1.ISta
 type IGetWorkflowExecutionHistoryRequest = iface.temporal.api.workflowservice.v1.IGetWorkflowExecutionHistoryRequest;
 type IDescribeWorkflowExecutionResponse = iface.temporal.api.workflowservice.v1.IDescribeWorkflowExecutionResponse;
 type ITerminateWorkflowExecutionResponse = iface.temporal.api.workflowservice.v1.ITerminateWorkflowExecutionResponse;
+type IRequestCancelWorkflowExecutionResponse = iface.temporal.api.workflowservice.v1.IRequestCancelWorkflowExecutionResponse;
 
 export type WorkflowService = iface.temporal.api.workflowservice.v1.WorkflowService;
 export const { WorkflowService } = iface.temporal.api.workflowservice.v1;
@@ -45,6 +46,7 @@ export type WorkflowClient<T extends Workflow> = {
   readonly started: PromiseLike<string>;
   describe(): Promise<IDescribeWorkflowExecutionResponse>;
   terminate(reason?: string): Promise<ITerminateWorkflowExecutionResponse>;
+  cancel(): Promise<IRequestCancelWorkflowExecutionResponse>;
   readonly workflowId: string;
   readonly runId?: string;
   readonly options: WorkflowOptionsWithDefaults;
@@ -366,6 +368,22 @@ export class Connection {
           workflowId: compiledOptions.workflowId,
         },
         reason,
+      });
+    };
+
+    ret.cancel = async () => {
+      // TODO: should we help our users out and wait for runId to be returned instead of throwing?
+      if (ret.runId === undefined) {
+        throw new errors.IllegalStateError('Cannot describe a workflow before it has been started');
+      }
+      return this.service.requestCancelWorkflowExecution({
+        namespace: this.options.namespace,
+        identity: this.options.identity,
+        requestId: uuid4(),
+        workflowExecution: {
+          runId: ret.runId,
+          workflowId: compiledOptions.workflowId,
+        },
       });
     };
 

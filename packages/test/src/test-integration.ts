@@ -226,7 +226,15 @@ if (RUN_INTEGRATION_TESTS) {
     await t.throwsAsync(promise, { instanceOf: WorkflowExecutionTerminatedError, message: 'hasta la vista baby' });
   });
 
-  test.todo('untilComplete throws if workflow cancelled');
+  test.skip('untilComplete throws if workflow cancelled', async (t) => {
+    const client = new Connection();
+    const workflow = client.workflow<SetTimeout>('set-timeout', { taskQueue: 'test' });
+    const promise = workflow(1000000);
+    await workflow.started;
+    await workflow.cancel();
+    await t.throwsAsync(promise, { instanceOf: WorkflowExecutionTerminatedError, message: 'check 1 2' });
+  });
+
   test.todo('untilComplete throws if continued as new');
 }
 
