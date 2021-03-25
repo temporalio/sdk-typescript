@@ -2,13 +2,14 @@
 import test from 'ava';
 import { v4 as uuid4 } from 'uuid';
 import { Connection, compileWorkflowOptions, addDefaults } from '@temporalio/client';
-import { Worker } from '@temporalio/worker';
-import { ArgsAndReturn } from '../../test-interfaces/lib';
+import { tsToMs } from '@temporalio/workflow/commonjs/time';
+import { Worker, DefaultLogger } from '@temporalio/worker';
 import * as iface from '@temporalio/proto';
 import { WorkflowExecutionFailedError } from '@temporalio/workflow/commonjs/errors';
 import { defaultDataConverter } from '@temporalio/workflow/commonjs/converter/data-converter';
+import { ArgsAndReturn, HTTP } from '../../test-interfaces/lib';
+import { httpGet } from '../../test-activities/lib';
 import { u8, RUN_INTEGRATION_TESTS } from './helpers';
-import { tsToMs } from '@temporalio/workflow/commonjs/time';
 
 const {
   EVENT_TYPE_TIMER_STARTED,
@@ -22,6 +23,7 @@ if (RUN_INTEGRATION_TESTS) {
   const worker = new Worker(__dirname, {
     workflowsPath: `${__dirname}/../../test-workflows/lib`,
     activitiesPath: `${__dirname}/../../test-activities/lib`,
+    logger: new DefaultLogger('DEBUG'),
   });
 
   test.before((t) => {
@@ -48,6 +50,14 @@ if (RUN_INTEGRATION_TESTS) {
     const workflow = client.workflow<ArgsAndReturn>('args-and-return', { taskQueue: 'test' });
     const res = await workflow('Hello', undefined, u8('world!'));
     t.is(res, 'Hello, world!');
+  });
+
+  // Activities not yet properly implemented
+  test.skip('http', async (t) => {
+    const client = new Connection();
+    const workflow = client.workflow<HTTP>('http', { taskQueue: 'test' });
+    const res = await workflow();
+    t.is(res, [await httpGet('https://google.com'), await httpGet('http://example.com')]);
   });
 
   test('set-timeout', async (t) => {
