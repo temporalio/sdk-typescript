@@ -5,9 +5,9 @@ import { Connection } from '@temporalio/client';
 import { tsToMs } from '@temporalio/workflow/commonjs/time';
 import { Worker, DefaultLogger } from '@temporalio/worker';
 import * as iface from '@temporalio/proto';
-import { WorkflowExecutionFailedError } from '@temporalio/workflow/commonjs/errors';
+import { WorkflowExecutionFailedError, WorkflowExecutionTimedOutError } from '@temporalio/workflow/commonjs/errors';
 import { defaultDataConverter } from '@temporalio/workflow/commonjs/converter/data-converter';
-import { ArgsAndReturn, HTTP, SimpleQuery, Empty } from '../../test-interfaces/lib';
+import { ArgsAndReturn, HTTP, SimpleQuery, Empty, Interruptable } from '../../test-interfaces/lib';
 import { httpGet } from '../../test-activities/lib';
 import { u8, RUN_INTEGRATION_TESTS } from './helpers';
 
@@ -39,9 +39,10 @@ if (RUN_INTEGRATION_TESTS) {
   test('Workflow not found results in failure', async (t) => {
     const client = new Connection();
     const workflow = client.workflow<Empty>('not-found', { taskQueue: 'test' });
-    const err = await t.throwsAsync(workflow);
-    t.true(err instanceof WorkflowExecutionFailedError);
-    t.regex(err.message, /^Could not find file: \S+\/not-found.js$/);
+    await t.throwsAsync(workflow, {
+      message: /^Could not find file: \S+\/not-found.js$/,
+      instanceOf: WorkflowExecutionFailedError,
+    });
   });
 
   test('args-and-return', async (t) => {
@@ -51,12 +52,23 @@ if (RUN_INTEGRATION_TESTS) {
     t.is(res, 'Hello, world!');
   });
 
-  test('simple-query', async (t) => {
+  // Queries not yet properly implemented
+  test.skip('simple-query', async (t) => {
     const client = new Connection();
     const workflow = client.workflow<SimpleQuery>('simple-query', { taskQueue: 'test' });
     const res = await workflow();
     await workflow.query.hasSlept();
     t.is(res, undefined);
+  });
+
+  // Queries not yet properly implemented
+  test.skip('signals', async (t) => {
+    const client = new Connection();
+    const workflow = client.workflow<Interruptable>('signals', { taskQueue: 'test' });
+    const promise = workflow();
+    await workflow.started;
+    await workflow.signal.interrupt('just because');
+    t.throwsAsync(promise, { message: /just because/, instanceOf: WorkflowExecutionFailedError });
   });
 
   // Activities not yet properly implemented
@@ -143,10 +155,13 @@ if (RUN_INTEGRATION_TESTS) {
       iface.temporal.api.common.v1.WorkflowType.create({ name: 'args-and-return' })
     );
     t.deepEqual(execution.workflowExecutionInfo?.memo, iface.temporal.api.common.v1.Memo.create({ fields: {} }));
-    t.deepEqual(
-      execution.workflowExecutionInfo?.searchAttributes,
-      iface.temporal.api.common.v1.SearchAttributes.create({})
+    t.deepEqual(Object.keys(execution.workflowExecutionInfo!.searchAttributes!.indexedFields!), ['BinaryChecksums']);
+
+    const checksums = defaultDataConverter.fromPayload(
+      execution.workflowExecutionInfo!.searchAttributes!.indexedFields!.BinaryChecksums!
     );
+    t.true(checksums instanceof Array && checksums.length === 1);
+    t.regex((checksums as string[])[0], /@temporalio\/worker@\d+\.\d+\.\d+/);
     t.is(execution.executionConfig?.taskQueue?.name, 'test');
     t.is(execution.executionConfig?.taskQueue?.kind, iface.temporal.api.enums.v1.TaskQueueKind.TASK_QUEUE_KIND_NORMAL);
     t.is(execution.executionConfig?.workflowRunTimeout, null);
@@ -163,6 +178,11 @@ if (RUN_INTEGRATION_TESTS) {
       workflowRunTimeout: '1s',
       workflowExecutionTimeout: '2s',
       workflowTaskTimeout: '3s',
+    });
+    // Throws because we use a different task queue
+    await t.throwsAsync(workflow, {
+      instanceOf: WorkflowExecutionTimedOutError,
+      message: 'Workflow execution timed out',
     });
     const execution = await workflow.describe();
     t.deepEqual(
@@ -186,6 +206,5 @@ if (RUN_INTEGRATION_TESTS) {
 
   test.todo('untilComplete throws if workflow cancelled');
   test.todo('untilComplete throws if terminated');
-  test.todo('untilComplete throws if timed out');
   test.todo('untilComplete throws if continued as new');
 }

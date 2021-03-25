@@ -5,6 +5,7 @@ import ms from 'ms';
 import * as iface from '@temporalio/proto';
 import { Workflow, WorkflowSignalType, WorkflowQueryType } from '@temporalio/workflow/commonjs/interfaces';
 import { msToTs, nullToUndefined } from '@temporalio/workflow/commonjs/time';
+import { ResolvablePromise } from '@temporalio/workflow/commonjs/common';
 import {
   arrayFromPayloads,
   DataConverter,
@@ -40,6 +41,7 @@ export type WorkflowClient<T extends Workflow> = {
       }
     : undefined;
 
+  readonly started: PromiseLike<string>;
   describe(): Promise<IDescribeWorkflowExecutionResponse>;
   readonly workflowId: string;
   readonly runId?: string;
@@ -328,11 +330,20 @@ export class Connection {
   public workflow<T extends Workflow>(name: string, options: WorkflowOptions): WorkflowClient<T> {
     const compiledOptions = compileWorkflowOptions(addDefaults(options));
 
+    const started = new ResolvablePromise<string>();
     // Deliberately define ret as `any` because we're using untyped functions everywhere here
     const ret: any = async (...args: any[]) => {
-      ret.runId = await this.startWorkflowExecution(compiledOptions, name, ...args);
+      try {
+        ret.runId = await this.startWorkflowExecution(compiledOptions, name, ...args);
+        ret.started.resolve(ret.runId);
+      } catch (err) {
+        ret.started.reject(err);
+        throw err;
+      }
       return this.untilComplete(compiledOptions.workflowId, ret.runId);
     };
+
+    ret.started = started;
 
     ret.describe = async () => {
       // TODO: should we help our users out and wait for runId to be returned instead of throwing?
