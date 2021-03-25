@@ -1,14 +1,17 @@
 /* eslint @typescript-eslint/no-non-null-assertion: 0 */
 import test from 'ava';
-import { Long } from 'long';
 import { v4 as uuid4 } from 'uuid';
 import { Connection } from '@temporalio/client';
 import { tsToMs } from '@temporalio/workflow/commonjs/time';
 import { Worker, DefaultLogger } from '@temporalio/worker';
 import * as iface from '@temporalio/proto';
-import { WorkflowExecutionFailedError, WorkflowExecutionTimedOutError } from '@temporalio/workflow/commonjs/errors';
+import {
+  WorkflowExecutionFailedError,
+  WorkflowExecutionTimedOutError,
+  WorkflowExecutionTerminatedError,
+} from '@temporalio/workflow/commonjs/errors';
 import { defaultDataConverter } from '@temporalio/workflow/commonjs/converter/data-converter';
-import { ArgsAndReturn, HTTP, SimpleQuery, Empty, Interruptable } from '../../test-interfaces/lib';
+import { ArgsAndReturn, HTTP, SimpleQuery, SetTimeout, Empty, Interruptable } from '../../test-interfaces/lib';
 import { httpGet } from '../../test-activities/lib';
 import { u8, RUN_INTEGRATION_TESTS } from './helpers';
 
@@ -214,8 +217,16 @@ if (RUN_INTEGRATION_TESTS) {
     );
   });
 
+  test('untilComplete throws if terminated', async (t) => {
+    const client = new Connection();
+    const workflow = client.workflow<SetTimeout>('set-timeout', { taskQueue: 'test' });
+    const promise = workflow(1000000);
+    await workflow.started;
+    await workflow.terminate('hasta la vista baby');
+    await t.throwsAsync(promise, { instanceOf: WorkflowExecutionTerminatedError, message: 'hasta la vista baby' });
+  });
+
   test.todo('untilComplete throws if workflow cancelled');
-  test.todo('untilComplete throws if terminated');
   test.todo('untilComplete throws if continued as new');
 }
 

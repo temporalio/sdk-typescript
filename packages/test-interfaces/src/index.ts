@@ -29,3 +29,7 @@ export interface HTTP extends Workflow {
 export interface Empty extends Workflow {
   main(): Promise<void>;
 }
+
+export interface SetTimeout extends Workflow {
+  main(ms?: number): Promise<void>;
+}

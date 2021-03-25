@@ -1,9 +1,9 @@
 import { sleep } from '@temporalio/workflow';
-import { Empty } from '@interfaces';
+import { SetTimeout } from '@interfaces';
 
-async function main(): Promise<void> {
-  await sleep(100);
+async function main(ms = 100): Promise<void> {
+  await sleep(ms);
   console.log('slept');
 }
 
-export const workflow: Empty = { main };
+export const workflow: SetTimeout = { main };

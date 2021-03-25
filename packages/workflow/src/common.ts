@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/ban-ts-comment */
 import { coresdk } from '@temporalio/proto';
 
 export function errorToUserCodeFailure(err: unknown, nonRetryable?: boolean): coresdk.common.IUserCodeFailure {
@@ -33,6 +34,6 @@ export class ResolvablePromise<T> implements PromiseLike<T> {
       // @ts-ignore
       this.reject = reject;
     });
-    this.then = promise.then;
+    this.then = promise.then.bind(promise);
   }
 }
