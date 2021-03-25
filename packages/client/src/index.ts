@@ -16,9 +16,9 @@ import * as errors from '@temporalio/workflow/commonjs/errors';
 
 type IStartWorkflowExecutionRequest = iface.temporal.api.workflowservice.v1.IStartWorkflowExecutionRequest;
 type IGetWorkflowExecutionHistoryRequest = iface.temporal.api.workflowservice.v1.IGetWorkflowExecutionHistoryRequest;
-type IDescribeWorkflowExecutionResponse = iface.temporal.api.workflowservice.v1.IDescribeWorkflowExecutionResponse;
-type ITerminateWorkflowExecutionResponse = iface.temporal.api.workflowservice.v1.ITerminateWorkflowExecutionResponse;
-type IRequestCancelWorkflowExecutionResponse = iface.temporal.api.workflowservice.v1.IRequestCancelWorkflowExecutionResponse;
+export type IDescribeWorkflowExecutionResponse = iface.temporal.api.workflowservice.v1.IDescribeWorkflowExecutionResponse;
+export type ITerminateWorkflowExecutionResponse = iface.temporal.api.workflowservice.v1.ITerminateWorkflowExecutionResponse;
+export type IRequestCancelWorkflowExecutionResponse = iface.temporal.api.workflowservice.v1.IRequestCancelWorkflowExecutionResponse;
 
 export type WorkflowService = iface.temporal.api.workflowservice.v1.WorkflowService;
 export const { WorkflowService } = iface.temporal.api.workflowservice.v1;
@@ -28,28 +28,72 @@ type EnsurePromise<F> = F extends Promise<any> ? F : Promise<F>;
 /// Takes a function type F and converts it to an async version if it isn't one already
 type AsyncOnly<F extends (...args: any[]) => any> = (...args: Parameters<F>) => EnsurePromise<ReturnType<F>>;
 
+/**
+ * Create a workflow client for running and interacting with a single workflow
+ *
+ * ```ts
+ * import { SomeWorkflowInterface } from '@interfaces';
+ *
+ * const connection = new Connection();
+ * const workflow = connection.workflow<SomeWorkflowInterface>('some-workflow-file', { taskQueue: 'tutorial' });
+ * const promise = workflow('arg0', 'arg', 2); // invoke workflow with arguments
+ * ```
+ */
 export type WorkflowClient<T extends Workflow> = {
+  /**
+   * @hidden
+   */
   (...args: Parameters<T['main']>): EnsurePromise<ReturnType<T['main']>>;
 
+  /**
+   * @hidden
+   */
   signal: T extends Record<'signals', Record<string, WorkflowSignalType>>
     ? {
         [P in keyof T['signals']]: AsyncOnly<T['signals'][P]>;
       }
     : undefined;
 
+  /**
+   * @hidden
+   */
   query: T extends Record<'queries', Record<string, WorkflowQueryType>>
     ? {
         [P in keyof T['queries']]: AsyncOnly<T['queries'][P]>;
       }
     : undefined;
 
+  /**
+   * Promise that resolves with current `runId` once the workflow is started
+   */
   readonly started: PromiseLike<string>;
+  /**
+   * Describe the current workflow execution
+   */
   describe(): Promise<IDescribeWorkflowExecutionResponse>;
+  /**
+   * Terminate a running workflow, will throw if workflow was not started
+   */
   terminate(reason?: string): Promise<ITerminateWorkflowExecutionResponse>;
+  /**
+   * Cancel a running workflow, will throw if workflow was not started
+   */
   cancel(): Promise<IRequestCancelWorkflowExecutionResponse>;
+  /**
+   * Alias to {@link options}`.workflowId`
+   */
   readonly workflowId: string;
+  /**
+   * The assigned run ID given by the server after starting the workflow
+   */
   readonly runId?: string;
+  /**
+   * Readonly accessor to the supplied workflow options after applying {@link addDefaults}
+   */
   readonly options: WorkflowOptionsWithDefaults;
+  /**
+   * Readonly accessor to the compiled workflow options (with ms strings converted to numbers)
+   */
   readonly compiledOptions: CompiledWorkflowOptionsWithDefaults;
 };
 
@@ -182,6 +226,9 @@ export type CompiledWorkflowOptionsWithDefaults = BaseWorkflowOptions &
     workflowTaskTimeout?: iface.google.protobuf.IDuration;
   };
 
+/**
+ * Adds default values to `workflowId` and `workflowIdReusePolicy` to given workflow options.
+ */
 export function addDefaults(opts: WorkflowOptions): WorkflowOptionsWithDefaults {
   return {
     workflowId: uuid4(),

@@ -1,9 +1,12 @@
 const path = require('path');
 const typedoc = require('typedoc');
 
-async function main() {
-  const root = path.resolve(__dirname, '../packages/worker');
-  const docsDir = path.resolve(__dirname, '../docs');
+const docsDir = path.resolve(__dirname, '../docs');
+
+/// Generate docs for a single package.
+// This many not run concurrently because it changes the directory to the package root
+async function genDocs(package) {
+  const root = path.resolve(__dirname, '../packages', package);
   const oldpwd = process.cwd();
   try {
     process.chdir(root);
@@ -11,8 +14,6 @@ async function main() {
     const app = new typedoc.Application();
     app.options.addReader(new typedoc.TSConfigReader());
 
-    // "docs": "(cd packages/worker && typedoc --out ../../docs/api --excludeProtected --entryPoints src/index.ts tsconfig.json)"
-    //
     app.bootstrap({
       tsconfig: 'tsconfig.json',
       entryPoints: ['src/index.ts'],
@@ -26,12 +27,22 @@ async function main() {
       throw new Error('Failed to convert app');
     }
     // Project may not have converted correctly
-    const outputDir = path.resolve(docsDir, 'worker');
+    const outputDir = path.resolve(docsDir, package);
 
     // Rendered docs
     await app.generateDocs(project, outputDir);
   } finally {
     process.chdir(oldpwd);
+  }
+}
+
+async function main() {
+  let packages = process.argv.slice(2);
+  if (packages.length === 0) {
+    packages = ['worker', 'client'];
+  }
+  for (const package of packages) {
+    await genDocs(package);
   }
 }
 
