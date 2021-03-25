@@ -14,39 +14,61 @@ import {
 } from '@temporalio/workflow/commonjs/converter/data-converter';
 import * as errors from '@temporalio/workflow/commonjs/errors';
 
-type IStartWorkflowExecutionRequest = iface.temporal.api.workflowservice.v1.IStartWorkflowExecutionRequest;
-type IGetWorkflowExecutionHistoryRequest = iface.temporal.api.workflowservice.v1.IGetWorkflowExecutionHistoryRequest;
-export type IDescribeWorkflowExecutionResponse = iface.temporal.api.workflowservice.v1.IDescribeWorkflowExecutionResponse;
-export type ITerminateWorkflowExecutionResponse = iface.temporal.api.workflowservice.v1.ITerminateWorkflowExecutionResponse;
-export type IRequestCancelWorkflowExecutionResponse = iface.temporal.api.workflowservice.v1.IRequestCancelWorkflowExecutionResponse;
+type StartWorkflowExecutionRequest = iface.temporal.api.workflowservice.v1.IStartWorkflowExecutionRequest;
+type GetWorkflowExecutionHistoryRequest = iface.temporal.api.workflowservice.v1.IGetWorkflowExecutionHistoryRequest;
+export type DescribeWorkflowExecutionResponse = iface.temporal.api.workflowservice.v1.IDescribeWorkflowExecutionResponse;
+export type TerminateWorkflowExecutionResponse = iface.temporal.api.workflowservice.v1.ITerminateWorkflowExecutionResponse;
+export type RequestCancelWorkflowExecutionResponse = iface.temporal.api.workflowservice.v1.IRequestCancelWorkflowExecutionResponse;
 
 export type WorkflowService = iface.temporal.api.workflowservice.v1.WorkflowService;
 export const { WorkflowService } = iface.temporal.api.workflowservice.v1;
 
-type EnsurePromise<F> = F extends Promise<any> ? F : Promise<F>;
+type EnsurePromise<T> = T extends Promise<any> ? T : Promise<T>;
 
 /// Takes a function type F and converts it to an async version if it isn't one already
 type AsyncOnly<F extends (...args: any[]) => any> = (...args: Parameters<F>) => EnsurePromise<ReturnType<F>>;
 
 /**
- * Create a workflow client for running and interacting with a single workflow
+ * Transforms a workflow interface `T` into a client interface
  *
+ * Given a workflow interface such as:
  * ```ts
- * import { SomeWorkflowInterface } from '@interfaces';
+ * export interface Counter {
+ *   main(initialValue?: number): number;
+ *   signals: {
+ *     increment(amount?: number): void;
+ *   };
+ *   queries: {
+ *     get(): number;
+ *   };
+ * }
+ * ```
  *
+ * Create a workflow client for running and interacting with a single workflow
+ * ```ts
  * const connection = new Connection();
- * const workflow = connection.workflow<SomeWorkflowInterface>('some-workflow-file', { taskQueue: 'tutorial' });
- * const promise = workflow('arg0', 'arg', 2); // invoke workflow with arguments
+ * // `counter` is a registered workflow file, typically found at
+ * // `lib/workflows/counter.js` after building the typescript project
+ * const workflow = connection.workflow<Counter>('counter', { taskQueue: 'tutorial' });
+ * // start workflow main function with initialValue of 2 and await it's completion
+ * const finalValue = await workflow.start(2);
  * ```
  */
-export type WorkflowClient<T extends Workflow> = {
+export interface WorkflowClient<T extends Workflow> {
   /**
-   * @hidden
+   * Start the workflow with arguments
    */
-  (...args: Parameters<T['main']>): EnsurePromise<ReturnType<T['main']>>;
+  start(...args: Parameters<T['main']>): EnsurePromise<ReturnType<T['main']>>;
 
   /**
-   * @hidden
+   * A mapping of the different signals defined by workflow interface `T` to callbable functions.
+   * Call to signal a running workflow.
+   * @throws IllegalStateError if workflow has not been started
+   * @example
+   * ```ts
+   * await workflow.started;
+   * await workflow.signal.increment(3);
+   * ```
    */
   signal: T extends Record<'signals', Record<string, WorkflowSignalType>>
     ? {
@@ -55,7 +77,14 @@ export type WorkflowClient<T extends Workflow> = {
     : undefined;
 
   /**
-   * @hidden
+   * A mapping of the different queries defined by workflow interface `T` to callbable functions.
+   * Call to query a workflow after it's been started even if it has already completed.
+   * @throws IllegalStateError if workflow has not been started
+   * @example
+   * ```ts
+   * await workflow.started;
+   * const value = await workflow.query.get();
+   * ```
    */
   query: T extends Record<'queries', Record<string, WorkflowQueryType>>
     ? {
@@ -65,20 +94,26 @@ export type WorkflowClient<T extends Workflow> = {
 
   /**
    * Promise that resolves with current `runId` once the workflow is started
+   * ```ts
+   * const completionPromise = workflow.start();
+   * await workflow.started;
+   * await workflow.describe();
+   * const result = await completionPromise;
+   * ```
    */
   readonly started: PromiseLike<string>;
   /**
    * Describe the current workflow execution
    */
-  describe(): Promise<IDescribeWorkflowExecutionResponse>;
+  describe(): Promise<DescribeWorkflowExecutionResponse>;
   /**
    * Terminate a running workflow, will throw if workflow was not started
    */
-  terminate(reason?: string): Promise<ITerminateWorkflowExecutionResponse>;
+  terminate(reason?: string): Promise<TerminateWorkflowExecutionResponse>;
   /**
    * Cancel a running workflow, will throw if workflow was not started
    */
-  cancel(): Promise<IRequestCancelWorkflowExecutionResponse>;
+  cancel(): Promise<RequestCancelWorkflowExecutionResponse>;
   /**
    * Alias to {@link options}`.workflowId`
    */
@@ -95,7 +130,8 @@ export type WorkflowClient<T extends Workflow> = {
    * Readonly accessor to the compiled workflow options (with ms strings converted to numbers)
    */
   readonly compiledOptions: CompiledWorkflowOptionsWithDefaults;
-};
+  readonly connection: Connection;
+}
 
 export interface ServiceOptions {
   address?: string;
@@ -282,7 +318,7 @@ export class Connection {
     ...args: any[]
   ): Promise<string> {
     const { namespace, identity, dataConverter } = this.options;
-    const req: IStartWorkflowExecutionRequest = {
+    const req: StartWorkflowExecutionRequest = {
       namespace,
       identity,
       requestId: uuid4(),
@@ -311,7 +347,7 @@ export class Connection {
   }
 
   public async untilComplete(workflowId: string, runId: string): Promise<unknown> {
-    const req: IGetWorkflowExecutionHistoryRequest = {
+    const req: GetWorkflowExecutionHistoryRequest = {
       namespace: this.options.namespace,
       execution: { workflowId, runId },
       skipArchival: true,
@@ -382,125 +418,129 @@ export class Connection {
   }
 
   public workflow<T extends Workflow>(name: string, options: WorkflowOptions): WorkflowClient<T> {
+    // eslint-disable-next-line @typescript-eslint/no-this-alias
     const optionsWithDefaults = addDefaults(options);
     const compiledOptions = compileWorkflowOptions(optionsWithDefaults);
-
     const started = new ResolvablePromise<string>();
-    // Deliberately define ret as `any` because we're using untyped functions everywhere here
-    const ret: any = async (...args: any[]) => {
-      try {
-        ret.runId = await this.startWorkflowExecution(compiledOptions, name, ...args);
-        ret.started.resolve(ret.runId);
-      } catch (err) {
-        ret.started.reject(err);
-        throw err;
-      }
-      return this.untilComplete(compiledOptions.workflowId, ret.runId);
-    };
 
-    ret.started = started;
-    ret.options = options;
-    ret.compiledOptions = compiledOptions;
-
-    ret.terminate = async (reason?: string) => {
-      // TODO: should we help our users out and wait for runId to be returned instead of throwing?
-      if (ret.runId === undefined) {
-        throw new errors.IllegalStateError('Cannot describe a workflow before it has been started');
-      }
-      return this.service.terminateWorkflowExecution({
-        namespace: this.options.namespace,
-        identity: this.options.identity,
-        workflowExecution: {
-          runId: ret.runId,
-          workflowId: compiledOptions.workflowId,
-        },
-        reason,
-      });
-    };
-
-    ret.cancel = async () => {
-      // TODO: should we help our users out and wait for runId to be returned instead of throwing?
-      if (ret.runId === undefined) {
-        throw new errors.IllegalStateError('Cannot describe a workflow before it has been started');
-      }
-      return this.service.requestCancelWorkflowExecution({
-        namespace: this.options.namespace,
-        identity: this.options.identity,
-        requestId: uuid4(),
-        workflowExecution: {
-          runId: ret.runId,
-          workflowId: compiledOptions.workflowId,
-        },
-      });
-    };
-
-    ret.describe = async () => {
-      // TODO: should we help our users out and wait for runId to be returned instead of throwing?
-      if (ret.runId === undefined) {
-        throw new errors.IllegalStateError('Cannot describe a workflow before it has been started');
-      }
-      return this.service.describeWorkflowExecution({
-        namespace: this.options.namespace,
-        execution: {
-          runId: ret.runId,
-          workflowId: compiledOptions.workflowId,
-        },
-      });
-    };
-
-    ret.workflowId = compiledOptions.workflowId;
-    ret.signal = new Proxy(
-      {},
-      {
-        get: (_, signalName) => {
-          if (typeof signalName !== 'string') {
-            throw new TypeError('signalName can only be a string');
-          }
-          // TODO: Is it OK to signal without runId, should we wait for a runId here?
-          return async (...args: any[]) => {
-            this.service.signalWorkflowExecution({
-              identity: this.options.identity,
-              namespace: this.options.namespace,
-              workflowExecution: { runId: ret.runId, workflowId: compiledOptions.workflowId },
-              requestId: uuid4(),
-              // TODO: control,
-              signalName,
-              input: { payloads: this.options.dataConverter.toPayloads(...args) },
-            });
-          };
-        },
-      }
-    );
-    ret.query = new Proxy(
-      {},
-      {
-        get: (_, queryType) => {
-          if (typeof queryType !== 'string') {
-            throw new TypeError('queryType can only be a string');
-          }
-          return async (...args: any[]) => {
-            const response = await this.service.queryWorkflow({
-              // TODO: queryRejectCondition
-              namespace: this.options.namespace,
-              execution: { runId: ret.runId, workflowId: compiledOptions.workflowId },
-              query: { queryType, queryArgs: { payloads: this.options.dataConverter.toPayloads(...args) } },
-            });
-            if (response.queryRejected) {
-              if (response.queryRejected.status === undefined || response.queryRejected.status === null) {
-                throw new TypeError('Received queryRejected from server with no status');
+    const workflow = {
+      connection: this,
+      runId: undefined,
+      started,
+      options: optionsWithDefaults,
+      compiledOptions,
+      workflowId: compiledOptions.workflowId,
+      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+      // @ts-ignore
+      async start(...args: Parameters<T['main']>): EnsurePromise<ReturnType<T['main']>> {
+        let runId: string;
+        try {
+          runId = await this.connection.startWorkflowExecution(compiledOptions, name, ...args);
+          // runId is readonly in public interface
+          (this as { runId?: string }).runId = runId;
+          started.resolve(runId);
+        } catch (err) {
+          started.reject(err);
+          throw err;
+        }
+        return (await this.connection.untilComplete(compiledOptions.workflowId, runId)) as any;
+      },
+      async terminate(reason?: string) {
+        // TODO: should we help our users out and wait for runId to be returned instead of throwing?
+        if (this.runId === undefined) {
+          throw new errors.IllegalStateError('Cannot describe a workflow before it has been started');
+        }
+        return this.connection.service.terminateWorkflowExecution({
+          namespace: this.connection.options.namespace,
+          identity: this.connection.options.identity,
+          workflowExecution: {
+            runId: this.runId,
+            workflowId: compiledOptions.workflowId,
+          },
+          reason,
+        });
+      },
+      async cancel() {
+        // TODO: should we help our users out and wait for runId to be returned instead of throwing?
+        if (this.runId === undefined) {
+          throw new errors.IllegalStateError('Cannot describe a workflow before it has been started');
+        }
+        return this.connection.service.requestCancelWorkflowExecution({
+          namespace: this.connection.options.namespace,
+          identity: this.connection.options.identity,
+          requestId: uuid4(),
+          workflowExecution: {
+            runId: this.runId,
+            workflowId: compiledOptions.workflowId,
+          },
+        });
+      },
+      async describe() {
+        // TODO: should we help our users out and wait for runId to be returned instead of throwing?
+        if (this.runId === undefined) {
+          throw new errors.IllegalStateError('Cannot describe a workflow before it has been started');
+        }
+        return this.connection.service.describeWorkflowExecution({
+          namespace: this.connection.options.namespace,
+          execution: {
+            runId: this.runId,
+            workflowId: compiledOptions.workflowId,
+          },
+        });
+      },
+      signal: new Proxy(
+        {},
+        {
+          get: (_, signalName) => {
+            if (typeof signalName !== 'string') {
+              throw new TypeError('signalName can only be a string');
+            }
+            // TODO: Is it OK to signal without runId, should we wait for a runId here?
+            return async (...args: any[]) => {
+              this.service.signalWorkflowExecution({
+                identity: this.options.identity,
+                namespace: this.options.namespace,
+                workflowExecution: { runId: workflow.runId, workflowId: compiledOptions.workflowId },
+                requestId: uuid4(),
+                // control is unused,
+                signalName,
+                input: { payloads: this.options.dataConverter.toPayloads(...args) },
+              });
+            };
+          },
+        }
+      ) as any,
+      query: new Proxy(
+        {},
+        {
+          get: (_, queryType) => {
+            if (typeof queryType !== 'string') {
+              throw new TypeError('queryType can only be a string');
+            }
+            return async (...args: any[]) => {
+              const response = await this.service.queryWorkflow({
+                // TODO: queryRejectCondition
+                namespace: this.options.namespace,
+                execution: { runId: workflow.runId, workflowId: compiledOptions.workflowId },
+                query: { queryType, queryArgs: { payloads: this.options.dataConverter.toPayloads(...args) } },
+              });
+              if (response.queryRejected) {
+                if (response.queryRejected.status === undefined || response.queryRejected.status === null) {
+                  throw new TypeError('Received queryRejected from server with no status');
+                }
+                throw new QueryRejectedError(response.queryRejected.status);
               }
-              throw new QueryRejectedError(response.queryRejected.status);
-            }
-            if (!response.queryResult) {
-              throw new TypeError('Invalid response from server');
-            }
-            // We ignore anything but the first result
-            return this.options.dataConverter.fromPayloads(0, response.queryResult?.payloads);
-          };
-        },
-      }
-    );
-    return ret;
+              if (!response.queryResult) {
+                throw new TypeError('Invalid response from server');
+              }
+              // We ignore anything but the first result
+              return this.options.dataConverter.fromPayloads(0, response.queryResult?.payloads);
+            };
+          },
+        }
+      ) as any,
+    };
+    return workflow;
   }
 }
 

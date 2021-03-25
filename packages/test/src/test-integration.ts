@@ -43,7 +43,7 @@ if (RUN_INTEGRATION_TESTS) {
   test('Workflow not found results in failure', async (t) => {
     const client = new Connection();
     const workflow = client.workflow<Empty>('not-found', { taskQueue: 'test' });
-    await t.throwsAsync(workflow, {
+    await t.throwsAsync(() => workflow.start(), {
       message: /^Could not find file: \S+\/not-found.js$/,
       instanceOf: WorkflowExecutionFailedError,
     });
@@ -52,7 +52,7 @@ if (RUN_INTEGRATION_TESTS) {
   test('args-and-return', async (t) => {
     const client = new Connection();
     const workflow = client.workflow<ArgsAndReturn>('args-and-return', { taskQueue: 'test' });
-    const res = await workflow('Hello', undefined, u8('world!'));
+    const res = await workflow.start('Hello', undefined, u8('world!'));
     t.is(res, 'Hello, world!');
   });
 
@@ -60,7 +60,7 @@ if (RUN_INTEGRATION_TESTS) {
   test.skip('simple-query', async (t) => {
     const client = new Connection();
     const workflow = client.workflow<SimpleQuery>('simple-query', { taskQueue: 'test' });
-    const res = await workflow();
+    const res = await workflow.start();
     await workflow.query.hasSlept();
     t.is(res, undefined);
   });
@@ -69,7 +69,7 @@ if (RUN_INTEGRATION_TESTS) {
   test.skip('signals', async (t) => {
     const client = new Connection();
     const workflow = client.workflow<Interruptable>('signals', { taskQueue: 'test' });
-    const promise = workflow();
+    const promise = workflow.start();
     await workflow.started;
     await workflow.signal.interrupt('just because');
     t.throwsAsync(promise, { message: /just because/, instanceOf: WorkflowExecutionFailedError });
@@ -79,14 +79,14 @@ if (RUN_INTEGRATION_TESTS) {
   test.skip('http', async (t) => {
     const client = new Connection();
     const workflow = client.workflow<HTTP>('http', { taskQueue: 'test' });
-    const res = await workflow();
+    const res = await workflow.start();
     t.is(res, [await httpGet('https://google.com'), await httpGet('http://example.com')]);
   });
 
   test('set-timeout', async (t) => {
     const client = new Connection();
     const workflow = client.workflow<Empty>('set-timeout', { taskQueue: 'test' });
-    const res = await workflow();
+    const res = await workflow.start();
     t.is(res, undefined);
     const execution = await client.service.getWorkflowExecutionHistory({
       namespace: client.options.namespace,
@@ -102,7 +102,7 @@ if (RUN_INTEGRATION_TESTS) {
   test('cancel-timer-immediately', async (t) => {
     const client = new Connection();
     const workflow = client.workflow<Empty>('cancel-timer-immediately', { taskQueue: 'test' });
-    const res = await workflow();
+    const res = await workflow.start();
     t.is(res, undefined);
     const execution = await client.service.getWorkflowExecutionHistory({
       namespace: client.options.namespace,
@@ -116,7 +116,7 @@ if (RUN_INTEGRATION_TESTS) {
   test('cancel-timer-with-delay', async (t) => {
     const client = new Connection();
     const workflow = client.workflow('cancel-timer-with-delay', { taskQueue: 'test' });
-    const res = await workflow();
+    const res = await workflow.start();
     t.is(res, undefined);
     const execution = await client.service.getWorkflowExecutionHistory({
       namespace: client.options.namespace,
@@ -135,7 +135,7 @@ if (RUN_INTEGRATION_TESTS) {
   test('Worker default ServerOptions are generated correctly', async (t) => {
     const client = new Connection();
     const workflow = client.workflow<ArgsAndReturn>('args-and-return', { taskQueue: 'test' });
-    await workflow('hey', undefined, Buffer.from('abc'));
+    await workflow.start('hey', undefined, Buffer.from('abc'));
     const execution = await client.service.getWorkflowExecutionHistory({
       namespace: client.options.namespace,
       execution: { workflowId: workflow.workflowId, runId: workflow.runId },
@@ -152,7 +152,7 @@ if (RUN_INTEGRATION_TESTS) {
   test('WorkflowOptions are passed correctly with defaults', async (t) => {
     const client = new Connection();
     const workflow = client.workflow<ArgsAndReturn>('args-and-return', { taskQueue: 'test' });
-    await workflow('hey', undefined, Buffer.from('def'));
+    await workflow.start('hey', undefined, Buffer.from('def'));
     const execution = await workflow.describe();
     t.deepEqual(
       execution.workflowExecutionInfo?.type,
@@ -184,7 +184,7 @@ if (RUN_INTEGRATION_TESTS) {
       workflowTaskTimeout: '1s',
     });
     // Throws because we use a different task queue
-    await t.throwsAsync(workflow, {
+    await t.throwsAsync(() => workflow.start(), {
       instanceOf: WorkflowExecutionTimedOutError,
       message: 'Workflow execution timed out',
     });
@@ -220,7 +220,7 @@ if (RUN_INTEGRATION_TESTS) {
   test('untilComplete throws if terminated', async (t) => {
     const client = new Connection();
     const workflow = client.workflow<SetTimeout>('set-timeout', { taskQueue: 'test' });
-    const promise = workflow(1000000);
+    const promise = workflow.start(1000000);
     await workflow.started;
     await workflow.terminate('hasta la vista baby');
     await t.throwsAsync(promise, { instanceOf: WorkflowExecutionTerminatedError, message: 'hasta la vista baby' });
@@ -229,7 +229,7 @@ if (RUN_INTEGRATION_TESTS) {
   test.skip('untilComplete throws if workflow cancelled', async (t) => {
     const client = new Connection();
     const workflow = client.workflow<SetTimeout>('set-timeout', { taskQueue: 'test' });
-    const promise = workflow(1000000);
+    const promise = workflow.start(1000000);
     await workflow.started;
     await workflow.cancel();
     await t.throwsAsync(promise, { instanceOf: WorkflowExecutionTerminatedError, message: 'check 1 2' });
