@@ -1,6 +1,7 @@
 import { CancellationError, cancel, sleep } from '@temporalio/workflow';
+import { Empty } from '@interfaces';
 
-export async function main(): Promise<void> {
+async function main(): Promise<void> {
   const timer = sleep(3);
   cancel(timer);
   try {
@@ -13,3 +14,5 @@ export async function main(): Promise<void> {
     }
   }
 }
+
+export const workflow: Empty = { main };

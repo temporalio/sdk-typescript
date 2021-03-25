@@ -490,6 +490,18 @@ test('simple-query', async (t) => {
       ])
     );
   }
+  {
+    const req = await activate(t, makeQueryWorkflow('fail', []));
+    compareCompletion(
+      t,
+      req,
+      makeSuccess([
+        makeRespondToQueryCommand({
+          failedWithMessage: 'Query failed',
+        }),
+      ])
+    );
+  }
 });
 
 test('cancel-workflow', async (t) => {

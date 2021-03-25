@@ -3,6 +3,8 @@ export interface SimpleQuery {
   queries: {
     hasSlept(): boolean;
     hasSleptAsync(): Promise<boolean>;
+    // Used to fail the query
+    fail(): never;
   };
 }
 
@@ -12,4 +14,8 @@ export interface ArgsAndReturn {
 
 export interface HTTP {
   main(): Promise<string[]>;
+}
+
+export interface Empty {
+  main(): Promise<void>;
 }

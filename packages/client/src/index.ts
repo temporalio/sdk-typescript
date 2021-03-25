@@ -3,12 +3,7 @@ import grpc from 'grpc';
 import { v4 as uuid4 } from 'uuid';
 import ms from 'ms';
 import * as iface from '@temporalio/proto';
-import {
-  Workflow,
-  WorkflowReturnType,
-  WorkflowSignalType,
-  WorkflowQueryType,
-} from '@temporalio/workflow/commonjs/interfaces';
+import { Workflow, WorkflowSignalType, WorkflowQueryType } from '@temporalio/workflow/commonjs/interfaces';
 import { msToTs, nullToUndefined } from '@temporalio/workflow/commonjs/time';
 import {
   arrayFromPayloads,
@@ -20,6 +15,7 @@ import * as errors from '@temporalio/workflow/commonjs/errors';
 
 type IStartWorkflowExecutionRequest = iface.temporal.api.workflowservice.v1.IStartWorkflowExecutionRequest;
 type IGetWorkflowExecutionHistoryRequest = iface.temporal.api.workflowservice.v1.IGetWorkflowExecutionHistoryRequest;
+type IDescribeWorkflowExecutionResponse = iface.temporal.api.workflowservice.v1.IDescribeWorkflowExecutionResponse;
 
 export type WorkflowService = iface.temporal.api.workflowservice.v1.WorkflowService;
 export const { WorkflowService } = iface.temporal.api.workflowservice.v1;
@@ -30,7 +26,7 @@ type EnsurePromise<F> = F extends Promise<any> ? F : Promise<F>;
 type AsyncOnly<F extends (...args: any[]) => any> = (...args: Parameters<F>) => EnsurePromise<ReturnType<F>>;
 
 export type WorkflowClient<T extends Workflow> = {
-  (...args: Parameters<T['main']>): EnsurePromise<WorkflowReturnType>;
+  (...args: Parameters<T['main']>): EnsurePromise<ReturnType<T['main']>>;
 
   signal: T extends Record<'signals', Record<string, WorkflowSignalType>>
     ? {
@@ -43,6 +39,10 @@ export type WorkflowClient<T extends Workflow> = {
         [P in keyof T['queries']]: AsyncOnly<T['queries'][P]>;
       }
     : undefined;
+
+  describe(): Promise<IDescribeWorkflowExecutionResponse>;
+  readonly workflowId: string;
+  readonly runId?: string;
 };
 
 export interface ServiceOptions {
@@ -328,29 +328,85 @@ export class Connection {
   public workflow<T extends Workflow>(name: string, options: WorkflowOptions): WorkflowClient<T> {
     const compiledOptions = compileWorkflowOptions(addDefaults(options));
 
-    const ret = async (...args: any) => {
-      const runId = await this.startWorkflowExecution(compiledOptions, name, ...args);
-      return this.untilComplete(compiledOptions.workflowId, runId);
+    // Deliberately define ret as `any` because we're using untyped functions everywhere here
+    const ret: any = async (...args: any[]) => {
+      ret.runId = await this.startWorkflowExecution(compiledOptions, name, ...args);
+      return this.untilComplete(compiledOptions.workflowId, ret.runId);
     };
 
+    ret.describe = async () => {
+      // TODO: should we help our users out and wait for runId to be returned instead of throwing?
+      if (ret.runId === undefined) {
+        throw new errors.IllegalStateError('Cannot describe a workflow before it has been started');
+      }
+      return this.service.describeWorkflowExecution({
+        namespace: this.options.namespace,
+        execution: {
+          runId: ret.runId,
+          workflowId: compiledOptions.workflowId,
+        },
+      });
+    };
+
+    ret.workflowId = compiledOptions.workflowId;
     ret.signal = new Proxy(
       {},
       {
-        // TODO
-        get(_, p) {
-          return (...args: any[]) => void console.log('signal', p, ...args);
+        get: (_, signalName) => {
+          if (typeof signalName !== 'string') {
+            throw new TypeError('signalName can only be a string');
+          }
+          // TODO: Is it OK to signal without runId, should we wait for a runId here?
+          return async (...args: any[]) => {
+            this.service.signalWorkflowExecution({
+              identity: this.options.identity,
+              namespace: this.options.namespace,
+              workflowExecution: { runId: ret.runId, workflowId: compiledOptions.workflowId },
+              requestId: uuid4(),
+              // TODO: control,
+              signalName,
+              input: { payloads: this.options.dataConverter.toPayloads(...args) },
+            });
+          };
         },
       }
     );
     ret.query = new Proxy(
       {},
       {
-        // TODO
-        get(_, p) {
-          return (...args: any[]) => void console.log('query', p, ...args);
+        get: (_, queryType) => {
+          if (typeof queryType !== 'string') {
+            throw new TypeError('queryType can only be a string');
+          }
+          return async (...args: any[]) => {
+            const response = await this.service.queryWorkflow({
+              // TODO: queryRejectCondition
+              namespace: this.options.namespace,
+              execution: { runId: ret.runId, workflowId: compiledOptions.workflowId },
+              query: { queryType, queryArgs: { payloads: this.options.dataConverter.toPayloads(...args) } },
+            });
+            if (response.queryRejected) {
+              if (response.queryRejected.status === undefined || response.queryRejected.status === null) {
+                throw new TypeError('Received queryRejected from server with no status');
+              }
+              throw new QueryRejectedError(response.queryRejected.status);
+            }
+            if (!response.queryResult) {
+              throw new TypeError('Invalid response from server');
+            }
+            // We ignore anything but the first result
+            return this.options.dataConverter.fromPayloads(0, response.queryResult?.payloads);
+          };
         },
       }
     );
-    return ret as any;
+    return ret;
+  }
+}
+
+export class QueryRejectedError extends Error {
+  public readonly name: string = 'QueryRejectedError';
+  constructor(public readonly status: iface.temporal.api.enums.v1.WorkflowExecutionStatus) {
+    super('Query rejected');
   }
 }
