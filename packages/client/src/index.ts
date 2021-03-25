@@ -45,6 +45,8 @@ export type WorkflowClient<T extends Workflow> = {
   describe(): Promise<IDescribeWorkflowExecutionResponse>;
   readonly workflowId: string;
   readonly runId?: string;
+  readonly options: WorkflowOptionsWithDefaults;
+  readonly compiledOptions: CompiledWorkflowOptionsWithDefaults;
 };
 
 export interface ServiceOptions {
@@ -243,6 +245,7 @@ export class Connection {
       },
       workflowExecutionTimeout: opts.workflowExecutionTimeout,
       workflowRunTimeout: opts.workflowRunTimeout,
+      workflowTaskTimeout: opts.workflowTaskTimeout,
       retryPolicy: opts.retryPolicy,
       memo: opts.memo ? { fields: mapToPayloads(dataConverter, opts.memo) } : undefined,
       searchAttributes: opts.searchAttributes
@@ -328,7 +331,8 @@ export class Connection {
   }
 
   public workflow<T extends Workflow>(name: string, options: WorkflowOptions): WorkflowClient<T> {
-    const compiledOptions = compileWorkflowOptions(addDefaults(options));
+    const optionsWithDefaults = addDefaults(options);
+    const compiledOptions = compileWorkflowOptions(optionsWithDefaults);
 
     const started = new ResolvablePromise<string>();
     // Deliberately define ret as `any` because we're using untyped functions everywhere here
@@ -344,6 +348,8 @@ export class Connection {
     };
 
     ret.started = started;
+    ret.options = options;
+    ret.compiledOptions = compiledOptions;
 
     ret.describe = async () => {
       // TODO: should we help our users out and wait for runId to be returned instead of throwing?

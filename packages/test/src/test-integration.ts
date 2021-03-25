@@ -1,5 +1,6 @@
 /* eslint @typescript-eslint/no-non-null-assertion: 0 */
 import test from 'ava';
+import { Long } from 'long';
 import { v4 as uuid4 } from 'uuid';
 import { Connection } from '@temporalio/client';
 import { tsToMs } from '@temporalio/workflow/commonjs/time';
@@ -175,9 +176,9 @@ if (RUN_INTEGRATION_TESTS) {
       memo: { a: 'b' },
       searchAttributes: { CustomIntField: 3 },
       workflowId: uuid4(),
-      workflowRunTimeout: '1s',
-      workflowExecutionTimeout: '2s',
-      workflowTaskTimeout: '3s',
+      workflowRunTimeout: '2s',
+      workflowExecutionTimeout: '3s',
+      workflowTaskTimeout: '1s',
     });
     // Throws because we use a different task queue
     await t.throwsAsync(workflow, {
@@ -198,13 +199,29 @@ if (RUN_INTEGRATION_TESTS) {
     );
     t.is(execution.executionConfig?.taskQueue?.name, 'test2');
     t.is(execution.executionConfig?.taskQueue?.kind, iface.temporal.api.enums.v1.TaskQueueKind.TASK_QUEUE_KIND_NORMAL);
-    // TODO: convert Duraton with Long to number and test these
-    // t.is(execution.executionConfig?.workflowRunTimeout, opts.workflowRunTimeout);
-    // t.is(execution.executionConfig?.workflowExecutionTimeout, opts.workflowExecutionTimeout);
-    // t.is(execution.executionConfig?.defaultWorkflowTaskTimeout, opts.workflowTaskTimeout);
+
+    t.is(
+      durationToMs(execution.executionConfig!.workflowRunTimeout!),
+      tsToMs(workflow.compiledOptions.workflowRunTimeout)
+    );
+    t.is(
+      durationToMs(execution.executionConfig!.workflowExecutionTimeout!),
+      tsToMs(workflow.compiledOptions.workflowExecutionTimeout)
+    );
+    t.is(
+      durationToMs(execution.executionConfig!.defaultWorkflowTaskTimeout!),
+      tsToMs(workflow.compiledOptions.workflowTaskTimeout)
+    );
   });
 
   test.todo('untilComplete throws if workflow cancelled');
   test.todo('untilComplete throws if terminated');
   test.todo('untilComplete throws if continued as new');
+}
+
+function durationToMs(duration: iface.google.protobuf.IDuration) {
+  // The client returns Longs instead of numbers from the client ignoring the generated proto instructions (--force-number)
+  return tsToMs(
+    iface.google.protobuf.Duration.toObject(iface.google.protobuf.Duration.create(duration), { longs: Number })
+  );
 }
