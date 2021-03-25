@@ -144,7 +144,13 @@ export type WorkerOptionsWithDefaults = WorkerOptions &
   Required<
     Pick<
       WorkerOptions,
-      'activitiesPath' | 'workflowsPath' | 'shutdownGraceTime' | 'shutdownSignals' | 'dataConverter' | 'logger'
+      | 'activitiesPath'
+      | 'workflowsPath'
+      | 'shutdownGraceTime'
+      | 'shutdownSignals'
+      | 'dataConverter'
+      | 'logger'
+      | 'activityDefaults'
     >
   >;
 
@@ -187,6 +193,7 @@ export function getDefaultOptions(dirname: string): WorkerOptionsWithDefaults {
     shutdownSignals: ['SIGINT', 'SIGTERM', 'SIGQUIT'],
     dataConverter: defaultDataConverter,
     logger: new DefaultLogger(),
+    activityDefaults: { type: 'remote', scheduleToCloseTimeout: '10m' },
   };
 }
 
@@ -535,14 +542,15 @@ export class Worker {
 
   /**
    * Process workflow activations
+   * @param queueName used to propagate the current task queue to the workflow
    */
-  protected workflowOperator(): OperatorFunction<TaskForWorkflow, Uint8Array> {
+  protected workflowOperator(queueName: string): OperatorFunction<TaskForWorkflow, Uint8Array> {
     return pipe(
       closeableGroupBy((task) => task.workflow.runId),
       mergeMap((group$) => {
         return group$.pipe(
           mergeMapWithState(async (workflow: Workflow | undefined, task) => {
-            const { taskToken } = task;
+            const taskToken = Buffer.from(task.taskToken).toString('hex');
             if (workflow === undefined) {
               try {
                 // Find a workflow start job in the activation jobs list
@@ -562,10 +570,10 @@ export class Worker {
                     workflowId: attrs.workflowId,
                     runId: task.workflow.runId,
                   });
-                  workflow = await Workflow.create(attrs.workflowId);
+                  workflow = await Workflow.create(attrs.workflowId, queueName);
                   // TODO: this probably shouldn't be here, consider alternative implementation
                   await workflow.inject('console.log', console.log);
-                  await workflow.registerActivities(this.resolvedActivities);
+                  await workflow.registerActivities(this.resolvedActivities, this.options.activityDefaults);
                   const scriptName = await resolver(
                     this.options.workflowsPath,
                     this.workflowOverrides
@@ -661,7 +669,7 @@ export class Worker {
 
     return await merge(
       this.activityHeartbeat$(),
-      merge(workflow$.pipe(this.workflowOperator()), activity$.pipe(this.activityOperator())).pipe(
+      merge(workflow$.pipe(this.workflowOperator(queueName)), activity$.pipe(this.activityOperator())).pipe(
         map((arr) => this.nativeWorker.completeTask(arr.buffer.slice(arr.byteOffset)))
       )
     ).toPromise();

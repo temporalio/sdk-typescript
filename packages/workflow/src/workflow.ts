@@ -79,12 +79,13 @@ export function scheduleActivity<R>(module: string, name: string, args: any[], o
                   // TODO: nonRetryableErrorTypes
                 }
               : undefined,
-            taskQueue: options.taskQueue,
+            taskQueue: options.taskQueue || state.taskQueue,
             heartbeatTimeout: msOptionalStrToTs(options.heartbeatTimeout),
-            startToCloseTimeout: msOptionalStrToTs(options.startToCloseTimeout),
             scheduleToCloseTimeout: msOptionalStrToTs(options.scheduleToCloseTimeout),
+            startToCloseTimeout: msOptionalStrToTs(options.startToCloseTimeout),
             scheduleToStartTimeout: msOptionalStrToTs(options.scheduleToStartTimeout),
-            // TODO: namespace, header
+            namespace: options.namespace,
+            // TODO: add header with interceptors
           },
         });
       })

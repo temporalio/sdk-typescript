@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
+import { v4 as uuid4 } from 'uuid';
 import { coresdk } from '@temporalio/proto';
 import { defaultDataConverter } from '@temporalio/workflow/commonjs/converter/data-converter';
 import { Worker as RealWorker, NativeWorkerLike } from '@temporalio/worker/lib/worker';
@@ -36,6 +37,7 @@ export class MockNativeWorker implements NativeWorkerLike {
   }
 
   public async runAndWaitCompletion(task: coresdk.ITask): Promise<coresdk.TaskCompletion> {
+    task = { ...task, taskToken: task.taskToken ?? Buffer.from(uuid4()) };
     const arr = coresdk.Task.encode(task).finish();
     const buffer = arr.buffer.slice(arr.byteOffset, arr.byteOffset + arr.byteLength);
     const result = await new Promise<ArrayBuffer>((resolve) => {

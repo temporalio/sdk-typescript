@@ -1,7 +1,8 @@
 import ivm from 'isolated-vm';
 import dedent from 'dedent';
 import { coresdk } from '@temporalio/proto';
-import { activate, concludeActivation } from '@temporalio/workflow/commonjs/internals';
+import * as internals from '@temporalio/workflow/commonjs/internals';
+import { ActivityOptions } from '@temporalio/workflow';
 import { Loader } from './loader';
 
 export enum ApplyMode {
@@ -16,8 +17,8 @@ const AsyncFunction = Object.getPrototypeOf(async function () {
 }).constructor;
 
 interface WorkflowModule {
-  activate: ivm.Reference<typeof activate>;
-  concludeActivation: ivm.Reference<typeof concludeActivation>;
+  activate: ivm.Reference<typeof internals.activate>;
+  concludeActivation: ivm.Reference<typeof internals.concludeActivation>;
 }
 
 export class Workflow {
@@ -29,7 +30,7 @@ export class Workflow {
     readonly workflowModule: WorkflowModule
   ) {}
 
-  public static async create(id: string): Promise<Workflow> {
+  public static async create(id: string, taskQueue: string): Promise<Workflow> {
     const isolate = new ivm.Isolate();
     const context = await isolate.createContext();
 
@@ -47,28 +48,33 @@ export class Workflow {
     const workflowModule = await loader.loadModule(require.resolve('@temporalio/workflow/es2020/index.js'));
     const activate = await workflowInternals.namespace.get('activate');
     const concludeActivation = await workflowInternals.namespace.get('concludeActivation');
-    const initWorkflow = await workflowInternals.namespace.get('initWorkflow');
+    const initWorkflow: ivm.Reference<typeof internals.initWorkflow> = await workflowInternals.namespace.get(
+      'initWorkflow'
+    );
     loader.overrideModule('@temporalio/workflow', workflowModule);
 
-    await initWorkflow.apply(undefined, [id, runtime.derefInto()], { arguments: { copy: true } });
+    await initWorkflow.apply(undefined, [id, taskQueue, runtime.derefInto()], { arguments: { copy: true } });
 
     return new Workflow(id, isolate, context, loader, { activate, concludeActivation });
   }
 
-  public async registerActivities(activities: Map<string, Record<string, any>>): Promise<void> {
+  public async registerActivities(
+    activities: Map<string, Record<string, any>>,
+    options: ActivityOptions
+  ): Promise<void> {
+    const serializedOptions = JSON.stringify(options);
     for (const [specifier, module] of activities.entries()) {
       let code = dedent`
         import { scheduleActivity } from '@temporalio/workflow';
       `;
-      // TODO: inject options
       for (const [k, v] of Object.entries(module)) {
         if (v instanceof Function) {
           code += dedent`
             export function ${k}(...args) {
-              return scheduleActivity('${specifier}', '${k}', args, {});
+              return scheduleActivity('${specifier}', '${k}', args, ${serializedOptions});
             }
             ${k}.module = '${specifier}';
-            ${k}.options = {};
+            ${k}.options = ${serializedOptions};
           `;
         }
       }

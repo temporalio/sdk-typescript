@@ -1,8 +1,8 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
 import anyTest, { TestInterface, ExecutionContext } from 'ava';
+import { v4 as uuid4 } from 'uuid';
 import { coresdk } from '@temporalio/proto';
 import { defaultDataConverter } from '@temporalio/workflow/commonjs/converter/data-converter';
-import { u8 } from './helpers';
 import { httpGet } from '../../test-activities/lib';
 import { Worker } from './mock-native-worker';
 
@@ -40,7 +40,7 @@ function compareCompletion(
 test('Worker runs an activity and reports completion', async (t) => {
   const { worker } = t.context;
   await runWorker(t, async () => {
-    const taskToken = u8(`${Math.random()}`);
+    const taskToken = Buffer.from(uuid4());
     const url = 'https://temporal.io';
     const completion = await worker.native.runAndWaitCompletion({
       taskToken,
@@ -62,7 +62,7 @@ test('Worker runs an activity and reports completion', async (t) => {
 test('Worker runs an activity and reports failure', async (t) => {
   const { worker } = t.context;
   await runWorker(t, async () => {
-    const taskToken = u8(`${Math.random()}`);
+    const taskToken = Buffer.from(uuid4());
     const message = ':(';
     const completion = await worker.native.runAndWaitCompletion({
       taskToken,
@@ -85,7 +85,7 @@ test('Worker cancels activity and reports cancellation', async (t) => {
   const { worker } = t.context;
   await runWorker(t, async () => {
     worker.native.emit({
-      taskToken: u8(`${Math.random}`),
+      taskToken: Buffer.from(uuid4()),
       activity: {
         activityId: 'abc',
         start: {
@@ -94,7 +94,7 @@ test('Worker cancels activity and reports cancellation', async (t) => {
         },
       },
     });
-    const taskToken = u8(`${Math.random()}`);
+    const taskToken = Buffer.from(uuid4());
     const completion = await worker.native.runAndWaitCompletion({
       taskToken,
       activity: {
@@ -113,7 +113,7 @@ test('Activity Context AbortSignal cancels a fetch request', async (t) => {
   const { worker } = t.context;
   await runWorker(t, async () => {
     worker.native.emit({
-      taskToken: u8(`${Math.random}`),
+      taskToken: Buffer.from(uuid4()),
       activity: {
         activityId: 'abc',
         start: {
@@ -122,7 +122,7 @@ test('Activity Context AbortSignal cancels a fetch request', async (t) => {
         },
       },
     });
-    const taskToken = u8(`${Math.random()}`);
+    const taskToken = Buffer.from(uuid4());
     const completion = await worker.native.runAndWaitCompletion({
       taskToken,
       activity: {
@@ -140,7 +140,7 @@ test('Activity Context AbortSignal cancels a fetch request', async (t) => {
 test('Activity Context heartbeat is sent to core', async (t) => {
   const { worker } = t.context;
   await runWorker(t, async () => {
-    const taskToken = u8(`${Math.random()}`);
+    const taskToken = Buffer.from(uuid4());
     const completionPromise = worker.native.runAndWaitCompletion({
       taskToken,
       activity: {

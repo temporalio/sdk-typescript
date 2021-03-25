@@ -5,7 +5,7 @@
 import test from 'ava';
 import { Worker } from '@temporalio/worker';
 import { sleep } from '@temporalio/worker/lib/utils';
-import { Worker as MockableWorker, MockNativeWorker } from './mock-native-worker';
+import { Worker as MockedWorker } from './mock-native-worker';
 import { RUN_INTEGRATION_TESTS } from './helpers';
 
 if (RUN_INTEGRATION_TESTS) {
@@ -23,7 +23,7 @@ if (RUN_INTEGRATION_TESTS) {
 }
 
 test.serial('Mocked run shuts down gracefully', async (t) => {
-  const worker = new MockableWorker(__dirname, { shutdownGraceTime: '500ms', activitiesPath: null });
+  const worker = new MockedWorker(__dirname, { shutdownGraceTime: '500ms', activitiesPath: null });
   t.is(worker.getState(), 'INITIALIZED');
   const p = worker.run('shutdown-test');
   t.is(worker.getState(), 'RUNNING');
@@ -35,7 +35,7 @@ test.serial('Mocked run shuts down gracefully', async (t) => {
 });
 
 test.serial('Mocked run throws if not shut down gracefully', async (t) => {
-  const worker = new MockableWorker(__dirname, { shutdownGraceTime: '5ms', activitiesPath: null });
+  const worker = new MockedWorker(__dirname, { shutdownGraceTime: '5ms', activitiesPath: null });
   t.is(worker.getState(), 'INITIALIZED');
   const p = worker.run('shutdown-test');
   t.is(worker.getState(), 'RUNNING');
@@ -49,7 +49,7 @@ test.serial('Mocked run throws if not shut down gracefully', async (t) => {
 });
 
 test('Mocked worker suspends and resumes', async (t) => {
-  const worker = new MockableWorker(__dirname, { shutdownGraceTime: '5ms', activitiesPath: null });
+  const worker = new MockedWorker(__dirname, { shutdownGraceTime: '5ms', activitiesPath: null });
   const p = worker.run('suspend-test');
   t.is(worker.getState(), 'RUNNING');
   worker.suspendPolling();

@@ -9,3 +9,7 @@ export interface SimpleQuery {
 export interface ArgsAndReturn {
   main(greeting: string, _skip: undefined, arr: ArrayBuffer): Promise<string>;
 }
+
+export interface HTTP {
+  main(): Promise<string[]>;
+}

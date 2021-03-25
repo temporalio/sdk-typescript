@@ -47,6 +47,7 @@ export interface State {
   workflow?: Workflow;
   activator?: Activator;
   runtime?: Runtime;
+  taskQueue?: string;
 }
 
 const rootScope: Scope = {
@@ -324,8 +325,9 @@ export function childScope<T>(
   return promise;
 }
 
-export function initWorkflow(id: string, runtime: Runtime): void {
+export function initWorkflow(id: string, taskQueue: string, runtime: Runtime): void {
   Math.random = alea(id);
+  state.taskQueue = taskQueue;
   state.runtime = runtime;
   state.activator = new Activator();
   runtime.registerPromiseHook((t, p, pp) => {
