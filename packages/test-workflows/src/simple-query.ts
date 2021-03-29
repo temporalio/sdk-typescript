@@ -10,6 +10,9 @@ const queries = {
   async hasSleptAsync(): Promise<boolean> {
     return slept;
   },
+  fail(): never {
+    throw new Error('Query failed');
+  },
 };
 
 async function main(): Promise<void> {

@@ -663,7 +663,13 @@ export class Worker {
       process.on(signal, startShutdownSequence);
     }
 
-    const partitioned$ = partition(this.poller$(queueName).pipe(share()), (task) => task.variant === 'workflow');
+    const partitioned$ = partition(
+      this.poller$(queueName).pipe(
+        share(),
+        tap((task) => this.log.debug('Got task', task))
+      ),
+      (task) => task.variant === 'workflow'
+    );
     // Need to cast to any in order to assign the specific types since partition returns an Observable<Task>
     const [workflow$, activity$] = (partitioned$ as any) as [Observable<TaskForWorkflow>, Observable<TaskForActivity>];
 

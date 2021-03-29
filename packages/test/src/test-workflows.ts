@@ -123,6 +123,14 @@ function makeQueryWorkflowJob(queryType: string, ...queryArgs: any[]): coresdk.w
   };
 }
 
+function makeSignalWorkflow(
+  signalName: string,
+  args: any[],
+  timestamp: number = Date.now()
+): coresdk.workflow_activation.IWFActivation {
+  return makeActivation(timestamp, { signalWorkflow: { signalName, input: args } });
+}
+
 function makeCompleteWorkflowExecution(
   ...payloads: coresdk.common.IPayload[]
 ): coresdk.workflow_commands.IWorkflowCommand {
@@ -489,6 +497,39 @@ test('simple-query', async (t) => {
         }),
       ])
     );
+  }
+  {
+    const req = await activate(t, makeQueryWorkflow('fail', []));
+    compareCompletion(
+      t,
+      req,
+      makeSuccess([
+        makeRespondToQueryCommand({
+          failedWithMessage: 'Query failed',
+        }),
+      ])
+    );
+  }
+});
+
+// Signals have not yet been implemented
+test.skip('signals', async (t) => {
+  const { script } = t.context;
+  {
+    const req = await activate(t, makeStartWorkflow(script));
+    compareCompletion(
+      t,
+      req,
+      makeSuccess([makeStartTimerCommand({ timerId: '0', startToFireTimeout: msToTs(100000) })])
+    );
+  }
+  {
+    const req = await activate(t, makeSignalWorkflow('fail', []));
+    compareCompletion(t, req, makeSuccess([])); // TODO
+  }
+  {
+    const req = await activate(t, makeSignalWorkflow('interrupt', ['just because']));
+    compareCompletion(t, req, makeSuccess([])); // TODO
   }
 });
 

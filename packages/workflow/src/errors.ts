@@ -32,7 +32,12 @@ export class WorkflowExecutionContinuedAsNewError extends Error {
   }
 }
 
-// Thrown in workflow
+/// Thrown in workflow
 export class CancellationError extends Error {
   public readonly name: string = 'CancellationError';
+}
+
+/// Used in different parts of the project to signal to the user that they've done something wrong
+export class IllegalStateError extends Error {
+  public readonly name: string = 'IllegalStateError';
 }

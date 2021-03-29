@@ -200,7 +200,7 @@ export class Activator implements WorkflowTaskHandler {
     }
   }
 
-  public signalWorkflow(): void {
+  public signalWorkflow(_job: iface.coresdk.workflow_activation.ISignalWorkflow): void {
     throw new Error('Not implemented');
   }
 
