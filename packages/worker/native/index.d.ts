@@ -27,6 +27,8 @@ export interface Worker {}
 export declare type PollCallback = (err?: Error, result: ArrayBuffer) => void;
 export declare function newWorker(serverOptions: ServerOptions): Worker;
 export declare function workerShutdown(worker: Worker): void;
-export declare function workerPoll(worker: Worker, queueName: string, callback: PollCallback): void;
-export declare function workerCompleteTask(worker: Worker, result: ArrayBuffer): void;
+export declare function workerPollWorkflowActivation(worker: Worker, queueName: string, callback: PollCallback): void;
+export declare function workerCompleteWorkflowActivation(worker: Worker, result: ArrayBuffer): void;
+export declare function workerPollActivityTask(worker: Worker, queueName: string, callback: PollCallback): void;
+export declare function workerCompleteActivityTask(worker: Worker, result: ArrayBuffer): void;
 export declare function workerSendActivityHeartbeat(worker: Worker, activityId: string, details?: ArrayBuffer): void;

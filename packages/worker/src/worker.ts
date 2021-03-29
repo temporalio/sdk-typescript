@@ -212,8 +212,8 @@ type OmitFirstParam<T> = T extends (...args: any[]) => any ? (...args: RestParam
 
 export interface NativeWorkerLike {
   shutdown: OmitFirstParam<typeof native.workerShutdown>;
-  poll(queueName: string): Promise<ArrayBuffer>;
-  completeTask: OmitFirstParam<typeof native.workerCompleteTask>;
+  pollWorkflowActivation(queueName: string): Promise<ArrayBuffer>;
+  completeWorkflowActivation: OmitFirstParam<typeof native.workerCompleteWorkflowActivation>;
   sendActivityHeartbeat: OmitFirstParam<typeof native.workerSendActivityHeartbeat>;
 }
 
@@ -228,19 +228,19 @@ export class NativeWorker implements NativeWorkerLike {
   public constructor(options?: ServerOptions) {
     const compiledOptions = compileServerOptions({ ...getDefaultServerOptions(), ...options });
     this.native = native.newWorker(compiledOptions);
-    this.pollFn = promisify(native.workerPoll);
+    this.pollFn = promisify(native.workerPollWorkflowActivation);
   }
 
   public shutdown(): void {
     return native.workerShutdown(this.native);
   }
 
-  public poll(queueName: string): Promise<ArrayBuffer> {
+  public pollWorkflowActivation(queueName: string): Promise<ArrayBuffer> {
     return this.pollFn(this.native, queueName);
   }
 
-  public completeTask(result: ArrayBuffer): void {
-    return native.workerCompleteTask(this.native, result);
+  public completeWorkflowActivation(result: ArrayBuffer): void {
+    return native.workerCompleteWorkflowActivation(this.native, result);
   }
 
   public sendActivityHeartbeat(activityId: string, details?: ArrayBuffer): void {
@@ -259,7 +259,7 @@ export class Worker {
     activityId: string;
     details?: any;
   }>();
-  protected readonly pollSubject = new Subject<coresdk.Task>();
+  protected readonly pollSubject = new Subject<coresdk.workflow_activation.WFActivation>();
   protected stateSubject: BehaviorSubject<State> = new BehaviorSubject<State>('INITIALIZED');
   protected readonly nativeWorker: NativeWorkerLike;
 
@@ -393,14 +393,14 @@ export class Worker {
   /**
    * An observable which repeatedly polls for new tasks unless worker becomes suspended
    */
-  protected pollLoop$(queueName: string): Observable<coresdk.Task> {
+  protected pollLoop$(queueName: string): Observable<coresdk.workflow_activation.WFActivation> {
     return of(this.stateSubject).pipe(
       map((state) => state.getValue()),
       concatMap((state) => {
         switch (state) {
           case 'RUNNING':
           case 'STOPPING':
-            return this.nativeWorker.poll(queueName);
+            return this.nativeWorker.pollWorkflowActivation(queueName);
           case 'SUSPENDED':
             // Completes once we're out of SUSPENDED state
             return this.stateSubject.pipe(
@@ -415,7 +415,7 @@ export class Worker {
         }
       }),
       repeat(),
-      map((buffer) => coresdk.Task.decode(new Uint8Array(buffer)))
+      map((buffer) => coresdk.workflow_activation.WFActivation.decode(new Uint8Array(buffer)))
     );
   }
 
@@ -423,7 +423,7 @@ export class Worker {
    * The main observable of the worker, starts the poll loop and takes care of state transitions
    * in case of an error during poll or shutdown
    */
-  protected poller$(queueName: string): Observable<coresdk.Task> {
+  protected poller$(queueName: string): Observable<coresdk.workflow_activation.WFActivation> {
     return merge(this.gracefulShutdown$(), this.pollLoop$(queueName)).pipe(
       catchError((err) => (err.message.includes('[Core::shutdown]') ? EMPTY : throwError(err))),
       tap({
@@ -529,10 +529,8 @@ export class Worker {
           }),
           filter(<T>(result: T): result is Exclude<T, undefined> => result !== undefined),
           map(({ taskToken, result }) =>
-            coresdk.TaskCompletion.encodeDelimited({
-              taskToken: taskToken,
-              activity: result,
-            }).finish()
+            // TODO: taskToken: taskToken,
+            coresdk.activity_result.ActivityResult.encodeDelimited(result).finish()
           ),
           tap(group$.close)
         );
@@ -544,9 +542,11 @@ export class Worker {
    * Process workflow activations
    * @param queueName used to propagate the current task queue to the workflow
    */
-  protected workflowOperator(queueName: string): OperatorFunction<TaskForWorkflow, Uint8Array> {
+  protected workflowOperator(
+    queueName: string
+  ): OperatorFunction<coresdk.workflow_activation.WFActivation, Uint8Array> {
     return pipe(
-      closeableGroupBy((task) => task.workflow.runId),
+      closeableGroupBy((task) => task.runId),
       mergeMap((group$) => {
         return group$.pipe(
           mergeMapWithState(async (workflow: Workflow | undefined, task) => {
@@ -555,7 +555,7 @@ export class Worker {
               try {
                 // Find a workflow start job in the activation jobs list
                 // TODO: should this always be the first job in the list?
-                const maybeStartWorkflow = task.workflow.jobs.find((j) => j.startWorkflow);
+                const maybeStartWorkflow = task.jobs.find((j) => j.startWorkflow);
                 if (maybeStartWorkflow !== undefined) {
                   const attrs = maybeStartWorkflow.startWorkflow;
                   if (!(attrs && attrs.workflowId && attrs.workflowType)) {
@@ -568,7 +568,7 @@ export class Worker {
                   this.log.debug('Creating workflow', {
                     taskToken,
                     workflowId: attrs.workflowId,
-                    runId: task.workflow.runId,
+                    runId: task.runId,
                   });
                   workflow = await Workflow.create(attrs.workflowId, queueName);
                   // TODO: this probably shouldn't be here, consider alternative implementation
@@ -583,24 +583,20 @@ export class Worker {
                   throw new Error('Received workflow activation for an untracked workflow with no start workflow job');
                 }
               } catch (error) {
-                this.log.error('Failed to create a workflow', { taskToken, runId: task.workflow.runId, error });
+                this.log.error('Failed to create a workflow', { taskToken, runId: task.runId, error });
                 let arr: Uint8Array;
                 if (error instanceof LoaderError) {
-                  arr = coresdk.TaskCompletion.encodeDelimited({
+                  arr = coresdk.workflow_completion.WFActivationCompletion.encodeDelimited({
                     taskToken: task.taskToken,
-                    workflow: {
-                      successful: {
-                        commands: [{ failWorkflowExecution: { failure: errorToUserCodeFailure(error) } }],
-                      },
+                    successful: {
+                      commands: [{ failWorkflowExecution: { failure: errorToUserCodeFailure(error) } }],
                     },
                   }).finish();
                 } else {
-                  arr = coresdk.TaskCompletion.encodeDelimited({
+                  arr = coresdk.workflow_completion.WFActivationCompletion.encodeDelimited({
                     taskToken: task.taskToken,
-                    workflow: {
-                      failed: {
-                        failure: errorToUserCodeFailure(error),
-                      },
+                    failed: {
+                      failure: errorToUserCodeFailure(error),
                     },
                   }).finish();
                 }
@@ -610,7 +606,8 @@ export class Worker {
             }
 
             this.log.debug('Activating workflow', { taskToken });
-            const arr = await workflow.activate(task.taskToken, task.workflow);
+            // TODO: single param
+            const arr = await workflow.activate(task.taskToken, task);
             return { state: workflow, output: { close: false, arr } };
           }, undefined),
           tap(({ close }) => void close && group$.close())
@@ -662,21 +659,22 @@ export class Worker {
     for (const signal of this.options.shutdownSignals) {
       process.on(signal, startShutdownSequence);
     }
+    const workflow$ = this.poller$(queueName).pipe(tap((task) => this.log.debug('Got task', task)));
 
-    const partitioned$ = partition(
-      this.poller$(queueName).pipe(
-        share(),
-        tap((task) => this.log.debug('Got task', task))
-      ),
-      (task) => task.variant === 'workflow'
-    );
-    // Need to cast to any in order to assign the specific types since partition returns an Observable<Task>
-    const [workflow$, activity$] = (partitioned$ as any) as [Observable<TaskForWorkflow>, Observable<TaskForActivity>];
-
+    // const partitioned$ = partition(
+    //   this.poller$(queueName).pipe(
+    //     share(),
+    //     tap((task) => this.log.debug('Got task', task))
+    //   ),
+    //   (task) => task.variant === 'workflow'
+    // );
+    // // Need to cast to any in order to assign the specific types since partition returns an Observable<Task>
+    // const [workflow$, activity$] = (partitioned$ as any) as [Observable<TaskForWorkflow>, Observable<TaskForActivity>];
+    // , activity$.pipe(this.activityOperator())
     return await merge(
       this.activityHeartbeat$(),
-      merge(workflow$.pipe(this.workflowOperator(queueName)), activity$.pipe(this.activityOperator())).pipe(
-        map((arr) => this.nativeWorker.completeTask(arr.buffer.slice(arr.byteOffset)))
+      merge(workflow$.pipe(this.workflowOperator(queueName))).pipe(
+        map((arr) => this.nativeWorker.completeWorkflowActivation(arr.buffer.slice(arr.byteOffset)))
       )
     ).toPromise();
   }

@@ -35,19 +35,17 @@ test.beforeEach(async (t) => {
 async function activate(t: ExecutionContext<Context>, activation: coresdk.workflow_activation.IWFActivation) {
   const taskToken = u8(`${Math.random()}`);
   const arr = await t.context.workflow.activate(taskToken, activation);
-  const req = coresdk.TaskCompletion.decodeDelimited(arr);
+  const req = coresdk.workflow_activation.WFActivation.decodeDelimited(arr);
   t.deepEqual(req.taskToken, taskToken);
-  t.is(req.variant, 'workflow');
   return req;
 }
 
 function compareCompletion(
   t: ExecutionContext<Context>,
-  req: coresdk.TaskCompletion,
+  req: coresdk.workflow_completion.WFActivationCompletion,
   expected: coresdk.workflow_completion.IWFActivationCompletion
 ) {
-  const actual = req.toJSON().workflow;
-  t.deepEqual(actual, coresdk.workflow_completion.WFActivationCompletion.create(expected).toJSON());
+  t.deepEqual(req.toJSON(), coresdk.workflow_completion.WFActivationCompletion.create(expected).toJSON());
 }
 
 function makeSuccess(
@@ -131,12 +129,10 @@ function makeSignalWorkflow(
   return makeActivation(timestamp, { signalWorkflow: { signalName, input: args } });
 }
 
-function makeCompleteWorkflowExecution(
-  ...payloads: coresdk.common.IPayload[]
-): coresdk.workflow_commands.IWorkflowCommand {
-  if (payloads.length === 0) payloads = [{ metadata: { encoding: u8('binary/null') } }];
+function makeCompleteWorkflowExecution(result?: coresdk.common.IPayload): coresdk.workflow_commands.IWorkflowCommand {
+  result ??= { metadata: { encoding: u8('binary/null') } };
   return {
-    completeWorkflowExecution: { result: payloads },
+    completeWorkflowExecution: { result },
   };
 }
 
@@ -217,11 +213,11 @@ function cleanStackTrace(stack: string) {
   return stack.replace(/\bat (\S+) \(.*\)/g, (_, m0) => `at ${m0}`);
 }
 
-function cleanWorkflowFailureStackTrace(req: coresdk.TaskCompletion, commandIndex = 0) {
+function cleanWorkflowFailureStackTrace(req: coresdk.workflow_completion.WFActivationCompletion, commandIndex = 0) {
   // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-  req.workflow!.successful!.commands![commandIndex].failWorkflowExecution!.failure!.stackTrace = cleanStackTrace(
+  req.successful!.commands![commandIndex].failWorkflowExecution!.failure!.stackTrace = cleanStackTrace(
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-    req.workflow!.successful!.commands![commandIndex].failWorkflowExecution!.failure!.stackTrace!
+    req.successful!.commands![commandIndex].failWorkflowExecution!.failure!.stackTrace!
   );
   return req;
 }
@@ -769,7 +765,7 @@ test('http', async (t) => {
   {
     const req = await activate(
       t,
-      makeResolveActivity('0', { completed: { result: defaultDataConverter.toPayloads(result) } })
+      makeResolveActivity('0', { completed: { result: defaultDataConverter.toPayload(result) } })
     );
     compareCompletion(
       t,

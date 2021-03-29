@@ -55,8 +55,8 @@ test('Mocked worker suspends and resumes', async (t) => {
   worker.suspendPolling();
   t.is(worker.getState(), 'SUSPENDED');
   // Worker finishes its polling before suspension
-  await worker.native.runAndWaitCompletion({ workflow: { runId: 'abc' } });
-  const completion = worker.native.runAndWaitCompletion({ workflow: { runId: 'abc' } });
+  await worker.native.runWorkflowActivation({ runId: 'abc' });
+  const completion = worker.native.runWorkflowActivation({ runId: 'abc' });
   await t.throwsAsync(
     Promise.race([
       sleep(10).then(() => {
