@@ -35,7 +35,7 @@ test.beforeEach(async (t) => {
 async function activate(t: ExecutionContext<Context>, activation: coresdk.workflow_activation.IWFActivation) {
   const taskToken = u8(`${Math.random()}`);
   const arr = await t.context.workflow.activate(taskToken, activation);
-  const req = coresdk.workflow_activation.WFActivation.decodeDelimited(arr);
+  const req = coresdk.workflow_completion.WFActivationCompletion.decodeDelimited(arr);
   t.deepEqual(req.taskToken, taskToken);
   return req;
 }
@@ -45,7 +45,10 @@ function compareCompletion(
   req: coresdk.workflow_completion.WFActivationCompletion,
   expected: coresdk.workflow_completion.IWFActivationCompletion
 ) {
-  t.deepEqual(req.toJSON(), coresdk.workflow_completion.WFActivationCompletion.create(expected).toJSON());
+  t.deepEqual(
+    req.toJSON(),
+    coresdk.workflow_completion.WFActivationCompletion.create({ ...expected, taskToken: req.taskToken }).toJSON()
+  );
 }
 
 function makeSuccess(

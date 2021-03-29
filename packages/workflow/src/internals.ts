@@ -85,7 +85,7 @@ export type WorkflowTaskHandler = {
 function completeWorkflow(result: any) {
   state.commands.push({
     completeWorkflowExecution: {
-      result: defaultDataConverter.toPayloads(result),
+      result: defaultDataConverter.toPayload(result),
     },
   });
   state.completed = true;
@@ -162,7 +162,13 @@ export class Activator implements WorkflowTaskHandler {
     }
     const { resolve, reject, scope } = consumeCompletion(idToSeq(activation.activityId));
     if (activation.result.completed) {
-      resolve(defaultDataConverter.fromPayloads(0, activation.result.completed.result));
+      const completed = activation.result.completed;
+      const result = completed.result ? defaultDataConverter.fromPayload(completed.result) : undefined;
+      if (result === undefined) {
+        reject(new Error('Failed to convert from payload'));
+      } else {
+        resolve(result);
+      }
     } else if (activation.result.failed) {
       reject(new Error(nullToUndefined(activation.result.failed.failure?.message)));
     } else if (activation.result.canceled) {
@@ -240,9 +246,9 @@ export function activate(encodedActivation: Uint8Array, jobIndex: number): boole
 export function concludeActivation(taskToken: Uint8Array): Uint8Array {
   const { commands } = state;
   // TODO: activation failed (should this be done in main node isolate?)
-  const encoded = iface.coresdk.TaskCompletion.encodeDelimited({
+  const encoded = iface.coresdk.workflow_completion.WFActivationCompletion.encodeDelimited({
     taskToken,
-    workflow: { successful: { commands } },
+    successful: { commands },
   }).finish();
   state.commands = [];
   return encoded;

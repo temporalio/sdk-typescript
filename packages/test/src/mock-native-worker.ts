@@ -15,18 +15,31 @@ export interface ActivityCompletion {
 }
 
 export class MockNativeWorker implements NativeWorkerLike {
-  tasks: Array<Promise<ArrayBuffer>> = [];
-  reject?: (err: Error) => void;
-  completionCallback?: (arr: ArrayBuffer) => void;
+  activityTasks: Array<Promise<ArrayBuffer>> = [];
+  workflowActivations: Array<Promise<ArrayBuffer>> = [];
+  activityCompletionCallback?: (arr: ArrayBuffer) => void;
+  workflowCompletionCallback?: (arr: ArrayBuffer) => void;
   activityHeartbeatCallback?: (activityId: string, details: any) => void;
+  reject?: (err: Error) => void;
 
   public shutdown(): void {
-    this.tasks.unshift(Promise.reject(new Error('[Core::shutdown]')));
+    this.activityTasks.unshift(Promise.reject(new Error('[Core::shutdown]')));
+    this.workflowActivations.unshift(Promise.reject(new Error('[Core::shutdown]')));
   }
 
   public async pollWorkflowActivation(_queueName: string): Promise<ArrayBuffer> {
     for (;;) {
-      const task = this.tasks.pop();
+      const task = this.workflowActivations.pop();
+      if (task !== undefined) {
+        return task;
+      }
+      await sleep(1);
+    }
+  }
+
+  public async pollActivityTask(_queueName: string): Promise<ArrayBuffer> {
+    for (;;) {
+      const task = this.activityTasks.pop();
       if (task !== undefined) {
         return task;
       }
@@ -35,19 +48,25 @@ export class MockNativeWorker implements NativeWorkerLike {
   }
 
   public completeWorkflowActivation(result: ArrayBuffer): void {
-    this.completionCallback!(result);
-    this.completionCallback = undefined;
+    this.workflowCompletionCallback!(result);
+    this.workflowCompletionCallback = undefined;
+  }
+
+  public completeActivityTask(result: ArrayBuffer): void {
+    this.activityCompletionCallback!(result);
+    this.activityCompletionCallback = undefined;
   }
 
   public emit(task: Task): void {
-    let arr: Uint8Array;
     if ('workflow' in task) {
-      arr = coresdk.workflow_activation.WFActivation.encode(task.workflow).finish();
+      const arr = coresdk.workflow_activation.WFActivation.encode(task.workflow).finish();
+      const buffer = arr.buffer.slice(arr.byteOffset, arr.byteOffset + arr.byteLength);
+      this.workflowActivations.unshift(Promise.resolve(buffer));
     } else {
-      arr = coresdk.activity_task.ActivityTask.encode(task.activity).finish();
+      const arr = coresdk.activity_task.ActivityTask.encode(task.activity).finish();
+      const buffer = arr.buffer.slice(arr.byteOffset, arr.byteOffset + arr.byteLength);
+      this.activityTasks.unshift(Promise.resolve(buffer));
     }
-    const buffer = arr.buffer.slice(arr.byteOffset, arr.byteOffset + arr.byteLength);
-    this.tasks.unshift(Promise.resolve(buffer));
   }
 
   public async runWorkflowActivation(
@@ -57,8 +76,8 @@ export class MockNativeWorker implements NativeWorkerLike {
     const arr = coresdk.workflow_activation.WFActivation.encode(activation).finish();
     const buffer = arr.buffer.slice(arr.byteOffset, arr.byteOffset + arr.byteLength);
     const result = await new Promise<ArrayBuffer>((resolve) => {
-      this.completionCallback = resolve;
-      this.tasks.unshift(Promise.resolve(buffer));
+      this.workflowCompletionCallback = resolve;
+      this.workflowActivations.unshift(Promise.resolve(buffer));
     });
     return coresdk.workflow_completion.WFActivationCompletion.decodeDelimited(new Uint8Array(result));
   }
@@ -67,8 +86,8 @@ export class MockNativeWorker implements NativeWorkerLike {
     const arr = coresdk.activity_task.ActivityTask.encode(task).finish();
     const buffer = arr.buffer.slice(arr.byteOffset, arr.byteOffset + arr.byteLength);
     const result = await new Promise<ArrayBuffer>((resolve) => {
-      this.completionCallback = resolve;
-      this.tasks.unshift(Promise.resolve(buffer));
+      this.activityCompletionCallback = resolve;
+      this.activityTasks.unshift(Promise.resolve(buffer));
     });
     return {
       taskToken: task.taskToken,

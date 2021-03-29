@@ -213,7 +213,9 @@ type OmitFirstParam<T> = T extends (...args: any[]) => any ? (...args: RestParam
 export interface NativeWorkerLike {
   shutdown: OmitFirstParam<typeof native.workerShutdown>;
   pollWorkflowActivation(queueName: string): Promise<ArrayBuffer>;
+  pollActivityTask(queueName: string): Promise<ArrayBuffer>;
   completeWorkflowActivation: OmitFirstParam<typeof native.workerCompleteWorkflowActivation>;
+  completeActivityTask: OmitFirstParam<typeof native.workerCompleteActivityTask>;
   sendActivityHeartbeat: OmitFirstParam<typeof native.workerSendActivityHeartbeat>;
 }
 
@@ -223,12 +225,14 @@ export interface WorkerConstructor {
 
 export class NativeWorker implements NativeWorkerLike {
   protected readonly native: native.Worker;
-  protected readonly pollFn: (worker: native.Worker, queueName: string) => Promise<ArrayBuffer>;
+  protected readonly workflowPollFn: (worker: native.Worker, queueName: string) => Promise<ArrayBuffer>;
+  protected readonly activityPollFn: (worker: native.Worker, queueName: string) => Promise<ArrayBuffer>;
 
   public constructor(options?: ServerOptions) {
     const compiledOptions = compileServerOptions({ ...getDefaultServerOptions(), ...options });
     this.native = native.newWorker(compiledOptions);
-    this.pollFn = promisify(native.workerPollWorkflowActivation);
+    this.workflowPollFn = promisify(native.workerPollWorkflowActivation);
+    this.activityPollFn = promisify(native.workerPollActivityTask);
   }
 
   public shutdown(): void {
@@ -236,11 +240,19 @@ export class NativeWorker implements NativeWorkerLike {
   }
 
   public pollWorkflowActivation(queueName: string): Promise<ArrayBuffer> {
-    return this.pollFn(this.native, queueName);
+    return this.workflowPollFn(this.native, queueName);
+  }
+
+  public pollActivityTask(queueName: string): Promise<ArrayBuffer> {
+    return this.activityPollFn(this.native, queueName);
   }
 
   public completeWorkflowActivation(result: ArrayBuffer): void {
     return native.workerCompleteWorkflowActivation(this.native, result);
+  }
+
+  public completeActivityTask(result: ArrayBuffer): void {
+    return native.workerCompleteActivityTask(this.native, result);
   }
 
   public sendActivityHeartbeat(activityId: string, details?: ArrayBuffer): void {
@@ -259,7 +271,6 @@ export class Worker {
     activityId: string;
     details?: any;
   }>();
-  protected readonly pollSubject = new Subject<coresdk.workflow_activation.WFActivation>();
   protected stateSubject: BehaviorSubject<State> = new BehaviorSubject<State>('INITIALIZED');
   protected readonly nativeWorker: NativeWorkerLike;
 
@@ -393,14 +404,14 @@ export class Worker {
   /**
    * An observable which repeatedly polls for new tasks unless worker becomes suspended
    */
-  protected pollLoop$(queueName: string): Observable<coresdk.workflow_activation.WFActivation> {
+  protected pollLoop$<T>(pollFn: () => Promise<T>): Observable<T> {
     return of(this.stateSubject).pipe(
       map((state) => state.getValue()),
       concatMap((state) => {
         switch (state) {
           case 'RUNNING':
           case 'STOPPING':
-            return this.nativeWorker.pollWorkflowActivation(queueName);
+            return pollFn();
           case 'SUSPENDED':
             // Completes once we're out of SUSPENDED state
             return this.stateSubject.pipe(
@@ -414,8 +425,7 @@ export class Worker {
             throw new Error(`Unexpected state ${state}`);
         }
       }),
-      repeat(),
-      map((buffer) => coresdk.workflow_activation.WFActivation.decode(new Uint8Array(buffer)))
+      repeat()
     );
   }
 
@@ -423,8 +433,8 @@ export class Worker {
    * The main observable of the worker, starts the poll loop and takes care of state transitions
    * in case of an error during poll or shutdown
    */
-  protected poller$(queueName: string): Observable<coresdk.workflow_activation.WFActivation> {
-    return merge(this.gracefulShutdown$(), this.pollLoop$(queueName)).pipe(
+  protected poller$<T>(pollFn: () => Promise<T>): Observable<T> {
+    return merge(this.gracefulShutdown$(), this.pollLoop$(pollFn)).pipe(
       catchError((err) => (err.message.includes('[Core::shutdown]') ? EMPTY : throwError(err))),
       tap({
         complete: () => {
@@ -440,9 +450,9 @@ export class Worker {
   /**
    * Process activity tasks
    */
-  protected activityOperator(): OperatorFunction<TaskForActivity, Uint8Array> {
+  protected activityOperator(): OperatorFunction<coresdk.activity_task.ActivityTask, Uint8Array> {
     return pipe(
-      closeableGroupBy((task) => task.activity.activityId),
+      closeableGroupBy((task) => task.activityId),
       mergeMap((group$) => {
         return group$.pipe(
           mergeMapWithState(async (activity: Activity | undefined, task) => {
@@ -452,15 +462,14 @@ export class Worker {
             let output:
               | { type: 'result'; result: coresdk.activity_result.IActivityResult }
               | { type: 'run'; activity: Activity };
-            const { taskToken } = task;
-            const { variant } = task.activity;
+            const { taskToken, variant, activityId } = task;
             if (!variant) {
               throw new Error('Got an activity task without a "variant" attribute');
             }
 
             switch (variant) {
               case 'start': {
-                const { start, activityId } = task.activity;
+                const { start } = task;
                 if (!start) {
                   throw new Error('Got a "start" activity task without a "start" attribute');
                 }
@@ -496,7 +505,6 @@ export class Worker {
                 break;
               }
               case 'cancel': {
-                const { activityId } = task.activity;
                 if (activity === undefined) {
                   this.log.error('Tried to cancel a non-existing activity', { activityId });
                   output = { type: 'result', result: { failed: { failure: { message: 'Activity not found' } } } };
@@ -659,22 +667,26 @@ export class Worker {
     for (const signal of this.options.shutdownSignals) {
       process.on(signal, startShutdownSequence);
     }
-    const workflow$ = this.poller$(queueName).pipe(tap((task) => this.log.debug('Got task', task)));
+    const workflow$ = this.poller$(async () => {
+      const buffer = await this.nativeWorker.pollWorkflowActivation(queueName);
+      return coresdk.workflow_activation.WFActivation.decode(new Uint8Array(buffer));
+    }).pipe(tap((task) => this.log.debug('Got workflow task', task)));
+    const activity$ = this.poller$(async () => {
+      const buffer = await this.nativeWorker.pollActivityTask(queueName);
+      return coresdk.activity_task.ActivityTask.decode(new Uint8Array(buffer));
+    }).pipe(tap((task) => this.log.debug('Got activity task', task)));
 
-    // const partitioned$ = partition(
-    //   this.poller$(queueName).pipe(
-    //     share(),
-    //     tap((task) => this.log.debug('Got task', task))
-    //   ),
-    //   (task) => task.variant === 'workflow'
-    // );
-    // // Need to cast to any in order to assign the specific types since partition returns an Observable<Task>
-    // const [workflow$, activity$] = (partitioned$ as any) as [Observable<TaskForWorkflow>, Observable<TaskForActivity>];
-    // , activity$.pipe(this.activityOperator())
     return await merge(
       this.activityHeartbeat$(),
-      merge(workflow$.pipe(this.workflowOperator(queueName))).pipe(
-        map((arr) => this.nativeWorker.completeWorkflowActivation(arr.buffer.slice(arr.byteOffset)))
+      merge(
+        workflow$.pipe(
+          this.workflowOperator(queueName),
+          map((arr) => this.nativeWorker.completeWorkflowActivation(arr.buffer.slice(arr.byteOffset)))
+        ),
+        activity$.pipe(
+          this.activityOperator(),
+          map((arr) => this.nativeWorker.completeActivityTask(arr.buffer.slice(arr.byteOffset)))
+        )
       )
     ).toPromise();
   }
