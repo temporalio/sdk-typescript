@@ -10,7 +10,7 @@ import { RUN_INTEGRATION_TESTS } from './helpers';
 
 if (RUN_INTEGRATION_TESTS) {
   test.serial('run shuts down gracefully', async (t) => {
-    const worker = new Worker(__dirname, { shutdownGraceTime: '500ms', activitiesPath: null });
+    const worker = await Worker.create(__dirname, { shutdownGraceTime: '500ms', activitiesPath: null });
     t.is(worker.getState(), 'INITIALIZED');
     const p = worker.run('shutdown-test');
     t.is(worker.getState(), 'RUNNING');

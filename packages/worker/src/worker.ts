@@ -220,7 +220,7 @@ export interface NativeWorkerLike {
 }
 
 export interface WorkerConstructor {
-  new (options?: ServerOptions): NativeWorkerLike;
+  create(options?: ServerOptions): Promise<NativeWorkerLike>;
 }
 
 export class NativeWorker implements NativeWorkerLike {
@@ -228,9 +228,14 @@ export class NativeWorker implements NativeWorkerLike {
   protected readonly workflowPollFn: (worker: native.Worker, queueName: string) => Promise<ArrayBuffer>;
   protected readonly activityPollFn: (worker: native.Worker, queueName: string) => Promise<ArrayBuffer>;
 
-  public constructor(options?: ServerOptions) {
+  public static async create(options?: ServerOptions): Promise<NativeWorkerLike> {
     const compiledOptions = compileServerOptions({ ...getDefaultServerOptions(), ...options });
-    this.native = native.newWorker(compiledOptions);
+    const nativeWorker = await promisify(native.newWorker)(compiledOptions);
+    return new NativeWorker(nativeWorker);
+  }
+
+  protected constructor(nativeWorker: native.Worker) {
+    this.native = nativeWorker;
     this.workflowPollFn = promisify(native.workerPollWorkflowActivation);
     this.activityPollFn = promisify(native.workerPollActivityTask);
   }
@@ -281,10 +286,18 @@ export class Worker {
    * This method immediately connects to the server and will throw on connection failure.
    * @param pwd - Used to resolve relative paths for locating and importing activities and workflows.
    */
-  constructor(public readonly pwd: string, options?: WorkerOptions) {
-    // Typescript derives the type of `this.constructor` as Function, work around it by casting to any
-    const nativeWorkerCtor: WorkerConstructor = (this.constructor as any).nativeWorkerCtor;
-    this.nativeWorker = new nativeWorkerCtor(options?.serverOptions);
+  public static async create(pwd: string, options?: WorkerOptions): Promise<Worker> {
+    const nativeWorkerCtor: WorkerConstructor = this.nativeWorkerCtor;
+    const nativeWorker = await nativeWorkerCtor.create(options?.serverOptions);
+    return new this(nativeWorker, pwd, options);
+  }
+
+  /**
+   * Create a new Worker from nativeWorker.
+   * @param pwd - Used to resolve relative paths for locating and importing activities and workflows.
+   */
+  protected constructor(nativeWorker: NativeWorkerLike, public readonly pwd: string, options?: WorkerOptions) {
+    this.nativeWorker = nativeWorker;
 
     // TODO: merge activityDefaults
     this.options = compileWorkerOptions({ ...getDefaultOptions(pwd), ...options });
@@ -435,15 +448,7 @@ export class Worker {
    */
   protected poller$<T>(pollFn: () => Promise<T>): Observable<T> {
     return merge(this.gracefulShutdown$(), this.pollLoop$(pollFn)).pipe(
-      catchError((err) => (err.message.includes('[Core::shutdown]') ? EMPTY : throwError(err))),
-      tap({
-        complete: () => {
-          this.state = 'STOPPED';
-        },
-        error: () => {
-          this.state = 'FAILED';
-        },
-      })
+      catchError((err) => (err.message.includes('[Core::shutdown]') ? EMPTY : throwError(err)))
     );
   }
 
@@ -687,6 +692,15 @@ export class Worker {
           this.activityOperator(),
           map((arr) => this.nativeWorker.completeActivityTask(arr.buffer.slice(arr.byteOffset)))
         )
+      ).pipe(
+        tap({
+          complete: () => {
+            this.state = 'STOPPED';
+          },
+          error: () => {
+            this.state = 'FAILED';
+          },
+        })
       )
     ).toPromise();
   }

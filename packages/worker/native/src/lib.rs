@@ -49,9 +49,10 @@ impl Finalize for Worker {}
 
 // Below are functions exported to JS
 
-/// Create a new worker.
-/// Immediately spawns a poller thread that will block on [PollRequest]s
-fn worker_new(mut cx: FunctionContext) -> JsResult<BoxedWorker> {
+/// Create a new worker asynchronously.
+/// Immediately spawns a poller thread that will block on [Request]s
+/// Worker is returned to JS using supplied callback
+fn worker_new(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     let options = cx.argument::<JsObject>(0)?;
     let url = options
         .get(&mut cx, "url")?
@@ -80,6 +81,7 @@ fn worker_new(mut cx: FunctionContext) -> JsResult<BoxedWorker> {
                 .value(&mut cx) as u64,
         ),
     };
+    // TODO: make this configurable
     let (sender, mut receiver) = channel::<Request>(1000);
     let worker = Worker { sender };
     let worker = Arc::new(worker);
@@ -94,14 +96,23 @@ fn worker_new(mut cx: FunctionContext) -> JsResult<BoxedWorker> {
             .block_on(async {
                 match init(CoreInitOptions { gateway_opts }).await {
                     Ok(result) => {
+                        queue_arc.clone().send(move |mut cx| {
+                            let callback = callback.into_inner(&mut cx);
+                            let this = cx.undefined();
+                            let error = cx.undefined();
+                            let result = cx.boxed(cloned_worker);
+                            let args: Vec<Handle<JsValue>> = vec![error.upcast(), result.upcast()];
+                            callback.call(&mut cx, this, args)?;
+                            Ok(())
+                        });
                         let core_arc = Arc::new(result);
                         loop {
                             // TODO: handle this error
                             let request = receiver.recv().await.unwrap();
                             let variant = request.variant;
                             let callback = request.callback;
-                            let core = Arc::clone(&core_arc);
-                            let queue = Arc::clone(&queue_arc);
+                            let core = core_arc.clone();
+                            let queue = queue_arc.clone();
                             tokio::spawn(async move {
                                 match variant {
                                     RequestVariant::PollWorkflowActivation { queue_name } => {
@@ -215,7 +226,7 @@ fn worker_new(mut cx: FunctionContext) -> JsResult<BoxedWorker> {
             })
     });
 
-    Ok(cx.boxed(cloned_worker))
+    Ok(cx.undefined())
 }
 
 /// Initiate a single poll request.

@@ -2,7 +2,7 @@
 import { v4 as uuid4 } from 'uuid';
 import { coresdk } from '@temporalio/proto';
 import { defaultDataConverter } from '@temporalio/workflow/commonjs/converter/data-converter';
-import { Worker as RealWorker, NativeWorkerLike } from '@temporalio/worker/lib/worker';
+import { Worker as RealWorker, NativeWorkerLike, WorkerOptions } from '@temporalio/worker/lib/worker';
 import { sleep } from '@temporalio/worker/lib/utils';
 
 export type Task =
@@ -21,6 +21,10 @@ export class MockNativeWorker implements NativeWorkerLike {
   workflowCompletionCallback?: (arr: ArrayBuffer) => void;
   activityHeartbeatCallback?: (activityId: string, details: any) => void;
   reject?: (err: Error) => void;
+
+  public static async create(): Promise<NativeWorkerLike> {
+    return new this();
+  }
 
   public shutdown(): void {
     this.activityTasks.unshift(Promise.reject(new Error('[Core::shutdown]')));
@@ -117,5 +121,10 @@ export class Worker extends RealWorker {
 
   public get native(): MockNativeWorker {
     return this.nativeWorker as MockNativeWorker;
+  }
+
+  public constructor(pwd: string, opts?: WorkerOptions) {
+    const nativeWorker = new MockNativeWorker();
+    super(nativeWorker, pwd, opts);
   }
 }
