@@ -31,10 +31,13 @@ test.beforeEach((t) => {
 
 function compareCompletion(
   t: ExecutionContext<Context>,
-  actual: coresdk.activity_result.ActivityResult,
+  actual: coresdk.activity_result.IActivityResult | null | undefined,
   expected: coresdk.activity_result.IActivityResult
 ) {
-  t.deepEqual(actual.toJSON(), coresdk.activity_result.ActivityResult.create(expected).toJSON());
+  t.deepEqual(
+    coresdk.activity_result.ActivityResult.create(actual || undefined).toJSON(),
+    coresdk.activity_result.ActivityResult.create(expected).toJSON()
+  );
 }
 
 test('Worker runs an activity and reports completion', async (t) => {

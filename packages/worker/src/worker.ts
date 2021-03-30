@@ -525,10 +525,7 @@ export class Worker {
             return { taskToken, result };
           }),
           filter(<T>(result: T): result is Exclude<T, undefined> => result !== undefined),
-          map(({ taskToken, result }) =>
-            // TODO: taskToken: taskToken,
-            coresdk.activity_result.ActivityResult.encodeDelimited(result).finish()
-          ),
+          map((result) => coresdk.ActivityTaskCompletion.encodeDelimited(result).finish()),
           tap(group$.close)
         );
       })

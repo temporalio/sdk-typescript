@@ -9,11 +9,6 @@ export type Task =
   | { workflow: coresdk.workflow_activation.IWFActivation }
   | { activity: coresdk.activity_task.IActivityTask };
 
-export interface ActivityCompletion {
-  taskToken?: Uint8Array | null;
-  result: coresdk.activity_result.ActivityResult;
-}
-
 export class MockNativeWorker implements NativeWorkerLike {
   activityTasks: Array<Promise<ArrayBuffer>> = [];
   workflowActivations: Array<Promise<ArrayBuffer>> = [];
@@ -86,17 +81,14 @@ export class MockNativeWorker implements NativeWorkerLike {
     return coresdk.workflow_completion.WFActivationCompletion.decodeDelimited(new Uint8Array(result));
   }
 
-  public async runActivityTask(task: coresdk.activity_task.IActivityTask): Promise<ActivityCompletion> {
+  public async runActivityTask(task: coresdk.activity_task.IActivityTask): Promise<coresdk.ActivityTaskCompletion> {
     const arr = coresdk.activity_task.ActivityTask.encode(task).finish();
     const buffer = arr.buffer.slice(arr.byteOffset, arr.byteOffset + arr.byteLength);
     const result = await new Promise<ArrayBuffer>((resolve) => {
       this.activityCompletionCallback = resolve;
       this.activityTasks.unshift(Promise.resolve(buffer));
     });
-    return {
-      taskToken: task.taskToken,
-      result: coresdk.activity_result.ActivityResult.decodeDelimited(new Uint8Array(result)),
-    };
+    return coresdk.ActivityTaskCompletion.decodeDelimited(new Uint8Array(result));
   }
 
   public async sendActivityHeartbeat(activityId: string, details?: ArrayBuffer): Promise<void> {

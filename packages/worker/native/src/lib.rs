@@ -2,44 +2,57 @@ use neon::{prelude::*, register_module};
 use prost::Message;
 use std::{sync::Arc, time::Duration};
 use temporal_sdk_core::{
-    init, protos::coresdk::activity_result::ActivityResult,
-    protos::coresdk::workflow_activation::WfActivation,
-    protos::coresdk::workflow_completion::WfActivationCompletion, Core, CoreInitOptions,
-    ServerGatewayOptions, Url,
+    init, protos::coresdk::workflow_completion::WfActivationCompletion,
+    protos::coresdk::ActivityHeartbeat, protos::coresdk::ActivityTaskCompletion, Core,
+    CoreInitOptions, ServerGatewayOptions, Url,
 };
 use tokio::sync::mpsc::{channel, Sender};
 
-/// A request from lang to bridge to core
+/// A request from JS to bridge to core
 pub enum Request {
-    /// A request sent from within the bridge when it encounters a CoreError::ShuttingDown
-    ShutdownComplete,
-    /// A request to shutdown core and the bridge thread, lang should wait on
-    /// CoreError::ShuttingDown before exiting to allow draining of pending tasks
+    /// A request to break from the thread loop sent from within the bridge when
+    /// it encounters a CoreError::ShuttingDown
+    /// TODO: this is odd, see if this should be sent from JS
+    BreakPoller,
+    /// A request to shutdown core, JS should wait on CoreError::ShuttingDown
+    /// before exiting to allow draining of pending tasks
     Shutdown,
     /// A request to poll for workflow activations
     PollWorkflowActivation {
         /// Name of queue to poll
         queue_name: String,
-        /// Used to send the result back into lang
+        /// Used to send the result back into JS
         callback: Root<JsFunction>,
     },
     /// A request to complete a single workflow activation
     CompleteWorkflowActivation {
         completion: WfActivationCompletion,
-        /// Used to send the result back into lang
+        /// Used to send the result back into JS
         callback: Root<JsFunction>,
     },
     /// A request to poll for activity tasks
     PollActivityTask {
         /// Name of queue to poll
         queue_name: String,
-        /// Used to send the result back into lang
+        /// Used to report completion or error back into JS
+        callback: Root<JsFunction>,
+    },
+    /// A request to complete a single activity task
+    CompleteActivityTask {
+        completion: ActivityTaskCompletion,
+        /// Used to send the result back into JS
+        callback: Root<JsFunction>,
+    },
+    /// A request to send a heartbeat from a running activity
+    SendActivityHeartbeat {
+        heartbeat: ActivityHeartbeat,
+        /// Used to send the result back into JS
         callback: Root<JsFunction>,
     },
 }
 
 /// Worker struct, hold a reference for the channel sender responsible for sending requests from
-/// lang to core
+/// JS to core
 pub struct Worker {
     sender: Sender<Request>,
 }
@@ -148,7 +161,7 @@ fn worker_new(mut cx: FunctionContext) -> JsResult<JsUndefined> {
                         loop {
                             // TODO: handle this error
                             let request = receiver.recv().await.unwrap();
-                            if matches!(request, Request::ShutdownComplete) {
+                            if matches!(request, Request::BreakPoller) {
                                 break;
                             } else if matches!(request, Request::Shutdown) {
                                 core.shutdown();
@@ -184,7 +197,7 @@ fn worker_new(mut cx: FunctionContext) -> JsResult<JsUndefined> {
                                                     err
                                                 {
                                                     if let Err(_) =
-                                                        sender.send(Request::ShutdownComplete).await
+                                                        sender.send(Request::BreakPoller).await
                                                     {
                                                         // TODO: handle error
                                                     }
@@ -218,7 +231,7 @@ fn worker_new(mut cx: FunctionContext) -> JsResult<JsUndefined> {
                                                     err
                                                 {
                                                     if let Err(_) =
-                                                        sender.send(Request::ShutdownComplete).await
+                                                        sender.send(Request::BreakPoller).await
                                                     {
                                                         // TODO: handle error
                                                     }
@@ -238,7 +251,31 @@ fn worker_new(mut cx: FunctionContext) -> JsResult<JsUndefined> {
                                             send_error(queue, callback, err);
                                         }
                                     },
-                                    _ => {}
+                                    Request::CompleteActivityTask {
+                                        completion,
+                                        callback,
+                                    } => match core.complete_activity_task(completion).await {
+                                        Ok(()) => {
+                                            send_result(queue, callback, |cx| Ok(cx.undefined()));
+                                        }
+                                        Err(err) => {
+                                            send_error(queue, callback, err);
+                                        }
+                                    },
+                                    Request::SendActivityHeartbeat {
+                                        heartbeat,
+                                        callback,
+                                    } => match core.send_activity_heartbeat(heartbeat).await {
+                                        Ok(()) => {
+                                            send_result(queue, callback, |cx| Ok(cx.undefined()));
+                                        }
+                                        Err(err) => {
+                                            send_error(queue, callback, err);
+                                        }
+                                    },
+                                    // Ignore BreakPoller and Shutdown, they're handled above
+                                    Request::BreakPoller => {}
+                                    Request::Shutdown => {}
                                 }
                             });
                         }
@@ -308,6 +345,29 @@ fn worker_complete_workflow_activation(mut cx: FunctionContext) -> JsResult<JsUn
     Ok(cx.undefined())
 }
 
+/// Submit a workflow activation completion to core.
+fn worker_complete_activity_task(mut cx: FunctionContext) -> JsResult<JsUndefined> {
+    let worker = cx.argument::<BoxedWorker>(0)?;
+    let result = cx.argument::<JsArrayBuffer>(1)?;
+    let callback = cx.argument::<JsFunction>(2)?;
+    let result = cx.borrow(&result, |data| {
+        ActivityTaskCompletion::decode_length_delimited(data.as_slice::<u8>())
+    });
+    match result {
+        Ok(completion) => {
+            let request = Request::CompleteActivityTask {
+                completion,
+                callback: callback.root(&mut cx),
+            };
+            if let Err(err) = worker.sender.blocking_send(request) {
+                callback_with_error(&mut cx, callback, err)?;
+            };
+        }
+        Err(_) => callback_with_error(&mut cx, callback, "Cannot decode Completion from buffer")?,
+    };
+    Ok(cx.undefined())
+}
+
 /// Request shutdown of the worker.
 /// Caller should wait until a [CoreError::ShuttingDown] is returned from poll to ensure graceful
 /// shutdown.
@@ -331,5 +391,6 @@ register_module!(mut cx, {
         "workerCompleteWorkflowActivation",
         worker_complete_workflow_activation,
     )?;
+    cx.export_function("workerCompleteActivityTask", worker_complete_activity_task)?;
     Ok(())
 });
