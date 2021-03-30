@@ -259,7 +259,7 @@ export class Worker {
 
   /**
    * Create a new Worker.
-   * This method immediately connects to the server and will throw on connection failure.
+   * This method initiates a connection to the server and will throw (asynchronously) on connection failure.
    * @param pwd - Used to resolve relative paths for locating and importing activities and workflows.
    */
   public static async create(pwd: string, options?: WorkerOptions): Promise<Worker> {
@@ -518,7 +518,7 @@ export class Worker {
           }),
           filter(<T>(result: T): result is Exclude<T, undefined> => result !== undefined),
           map((result) => coresdk.ActivityTaskCompletion.encodeDelimited(result).finish()),
-          tap(group$.close)
+          tap(group$.close) // Close the group after activity task completion
         );
       })
     );
@@ -627,7 +627,31 @@ export class Worker {
   }
 
   /**
-   * Start polling on tasks, completes after graceful shutdown after a receiving a shutdown signal
+   * Poll core for `WFActivation`s while respecting worker state
+   */
+  protected workflow$(queueName: string): Observable<coresdk.workflow_activation.WFActivation> {
+    return this.poller$(async () => {
+      const buffer = await this.nativeWorker.pollWorkflowActivation(queueName);
+      const task = coresdk.workflow_activation.WFActivation.decode(new Uint8Array(buffer));
+      this.log.debug('Got workflow task', task);
+      return task;
+    });
+  }
+
+  /**
+   * Poll core for `ActivityTask`s while respecting worker state
+   */
+  protected activity$(queueName: string): Observable<coresdk.activity_task.ActivityTask> {
+    return this.poller$(async () => {
+      const buffer = await this.nativeWorker.pollActivityTask(queueName);
+      const task = coresdk.activity_task.ActivityTask.decode(new Uint8Array(buffer));
+      this.log.debug('Got activity task', task);
+      return task;
+    });
+  }
+
+  /**
+   * Start polling on tasks, completes after graceful shutdown due to receiving a shutdown signal
    * or call to {@link shutdown}.
    */
   async run(queueName: string): Promise<void> {
@@ -645,23 +669,14 @@ export class Worker {
     for (const signal of this.options.shutdownSignals) {
       process.on(signal, startShutdownSequence);
     }
-    const workflow$ = this.poller$(async () => {
-      const buffer = await this.nativeWorker.pollWorkflowActivation(queueName);
-      return coresdk.workflow_activation.WFActivation.decode(new Uint8Array(buffer));
-    }).pipe(tap((task) => this.log.debug('Got workflow task', task)));
-    const activity$ = this.poller$(async () => {
-      const buffer = await this.nativeWorker.pollActivityTask(queueName);
-      return coresdk.activity_task.ActivityTask.decode(new Uint8Array(buffer));
-    }).pipe(tap((task) => this.log.debug('Got activity task', task)));
-
     return await merge(
       this.activityHeartbeat$(),
       merge(
-        workflow$.pipe(
+        this.workflow$(queueName).pipe(
           this.workflowOperator(queueName),
           mergeMap((arr) => this.nativeWorker.completeWorkflowActivation(arr.buffer.slice(arr.byteOffset)))
         ),
-        activity$.pipe(
+        this.activity$(queueName).pipe(
           this.activityOperator(),
           mergeMap((arr) => this.nativeWorker.completeActivityTask(arr.buffer.slice(arr.byteOffset)))
         )
