@@ -82,12 +82,11 @@ if (RUN_INTEGRATION_TESTS) {
     t.throwsAsync(promise, { message: /just because/, instanceOf: WorkflowExecutionFailedError });
   });
 
-  // Activities not yet properly implemented
-  test.skip('http', async (t) => {
+  test('http', async (t) => {
     const client = new Connection();
     const workflow = client.workflow<HTTP>('http', { taskQueue: 'test' });
     const res = await workflow.start();
-    t.is(res, [await httpGet('https://google.com'), await httpGet('http://example.com')]);
+    t.deepEqual(res, [await httpGet('https://google.com'), await httpGet('http://example.com')]);
   });
 
   test('set-timeout', async (t) => {
