@@ -7,10 +7,12 @@ use temporal_sdk_core::{
     protos::coresdk::workflow_completion::WfActivationCompletion, Core, CoreInitOptions,
     ServerGatewayOptions, Url,
 };
-use tokio::sync::mpsc::{channel, Receiver, Sender};
+use tokio::sync::mpsc::{channel, Sender};
 
-/// Possible Request variants
-enum RequestVariant {
+/// A request from lang to bridge to core
+pub enum Request {
+    /// A request sent from within the bridge when it encounters a CoreError::ShuttingDown
+    ShutdownComplete,
     /// A request to shutdown core and the bridge thread, lang should wait on
     /// CoreError::ShuttingDown before exiting to allow draining of pending tasks
     Shutdown,
@@ -18,21 +20,22 @@ enum RequestVariant {
     PollWorkflowActivation {
         /// Name of queue to poll
         queue_name: String,
+        /// Used to send the result back into lang
+        callback: Root<JsFunction>,
     },
     /// A request to complete a single workflow activation
-    CompleteWorkflowActivation { completion: WfActivationCompletion },
+    CompleteWorkflowActivation {
+        completion: WfActivationCompletion,
+        /// Used to send the result back into lang
+        callback: Root<JsFunction>,
+    },
     /// A request to poll for activity tasks
     PollActivityTask {
         /// Name of queue to poll
         queue_name: String,
+        /// Used to send the result back into lang
+        callback: Root<JsFunction>,
     },
-}
-
-/// A request from lang to bridge to core
-pub struct Request {
-    variant: RequestVariant,
-    /// Used to send the result back into lang
-    callback: Root<JsFunction>,
 }
 
 /// Worker struct, hold a reference for the channel sender responsible for sending requests from
@@ -83,9 +86,10 @@ fn worker_new(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     };
     // TODO: make this configurable
     let (sender, mut receiver) = channel::<Request>(1000);
-    let worker = Worker { sender };
-    let worker = Arc::new(worker);
-    let queue_arc = Arc::new(cx.queue());
+    let worker = Arc::new(Worker {
+        sender: sender.clone(),
+    });
+    let queue = Arc::new(cx.queue());
     let cloned_worker = Arc::clone(&worker);
 
     std::thread::spawn(move || {
@@ -96,7 +100,7 @@ fn worker_new(mut cx: FunctionContext) -> JsResult<JsUndefined> {
             .block_on(async {
                 match init(CoreInitOptions { gateway_opts }).await {
                     Ok(result) => {
-                        queue_arc.clone().send(move |mut cx| {
+                        queue.clone().send(move |mut cx| {
                             let callback = callback.into_inner(&mut cx);
                             let this = cx.undefined();
                             let error = cx.undefined();
@@ -105,17 +109,25 @@ fn worker_new(mut cx: FunctionContext) -> JsResult<JsUndefined> {
                             callback.call(&mut cx, this, args)?;
                             Ok(())
                         });
-                        let core_arc = Arc::new(result);
+                        let core = Arc::new(result);
                         loop {
                             // TODO: handle this error
                             let request = receiver.recv().await.unwrap();
-                            let variant = request.variant;
-                            let callback = request.callback;
-                            let core = core_arc.clone();
-                            let queue = queue_arc.clone();
+                            if matches!(request, Request::ShutdownComplete) {
+                                break;
+                            } else if matches!(request, Request::Shutdown) {
+                                core.shutdown();
+                                continue;
+                            }
+                            let core = core.clone();
+                            let queue = queue.clone();
+                            let sender = sender.clone();
                             tokio::spawn(async move {
-                                match variant {
-                                    RequestVariant::PollWorkflowActivation { queue_name } => {
+                                match request {
+                                    Request::PollWorkflowActivation {
+                                        queue_name,
+                                        callback,
+                                    } => {
                                         match core.poll_workflow_task(&queue_name).await {
                                             Ok(task) => {
                                                 queue.send(move |mut cx| {
@@ -139,10 +151,15 @@ fn worker_new(mut cx: FunctionContext) -> JsResult<JsUndefined> {
                                             }
                                             Err(err) => {
                                                 // TODO: on the JS side we consider all errors fatal, revise this later
-                                                // let should_break = match err {
-                                                //     temporal_sdk_core::CoreError::ShuttingDown => true,
-                                                //     _ => false,
-                                                // };
+                                                if let temporal_sdk_core::CoreError::ShuttingDown =
+                                                    err
+                                                {
+                                                    if let Err(_) =
+                                                        sender.send(Request::ShutdownComplete).await
+                                                    {
+                                                        // TODO: handle error
+                                                    }
+                                                };
                                                 queue.send(move |mut cx| {
                                                     let callback = callback.into_inner(&mut cx);
                                                     let this = cx.undefined();
@@ -156,13 +173,13 @@ fn worker_new(mut cx: FunctionContext) -> JsResult<JsUndefined> {
                                                     callback.call(&mut cx, this, args)?;
                                                     Ok(())
                                                 });
-                                                // if should_break {
-                                                //     break;
-                                                // }
                                             }
                                         }
                                     }
-                                    RequestVariant::CompleteWorkflowActivation { completion } => {
+                                    Request::CompleteWorkflowActivation {
+                                        completion,
+                                        callback,
+                                    } => {
                                         match core.complete_workflow_task(completion).await {
                                             Ok(()) => {
                                                 queue.send(move |mut cx| {
@@ -178,10 +195,15 @@ fn worker_new(mut cx: FunctionContext) -> JsResult<JsUndefined> {
                                             }
                                             Err(err) => {
                                                 // TODO: on the JS side we consider all errors fatal, revise this later
-                                                // let should_break = match err {
-                                                //     temporal_sdk_core::CoreError::ShuttingDown => true,
-                                                //     _ => false,
-                                                // };
+                                                if let temporal_sdk_core::CoreError::ShuttingDown =
+                                                    err
+                                                {
+                                                    if let Err(_) =
+                                                        sender.send(Request::ShutdownComplete).await
+                                                    {
+                                                        // TODO: handle error
+                                                    }
+                                                };
                                                 queue.send(move |mut cx| {
                                                     let callback = callback.into_inner(&mut cx);
                                                     let this = cx.undefined();
@@ -195,23 +217,16 @@ fn worker_new(mut cx: FunctionContext) -> JsResult<JsUndefined> {
                                                     callback.call(&mut cx, this, args)?;
                                                     Ok(())
                                                 });
-                                                // if should_break {
-                                                //     break;
-                                                // }
                                             }
                                         }
                                     }
-                                    // Shutdown {
-                                    //             match core.shutdown().await {
-                                    //             }
-                                    //         }
                                     _ => {}
                                 }
                             });
                         }
                     }
                     Err(err) => {
-                        let queue = queue_arc.clone();
+                        let queue = queue.clone();
                         queue.send(move |mut cx| {
                             let callback = callback.into_inner(&mut cx);
                             let this = cx.undefined();
@@ -235,8 +250,8 @@ fn worker_poll_workflow_activation(mut cx: FunctionContext) -> JsResult<JsUndefi
     let worker = cx.argument::<BoxedWorker>(0)?;
     let queue_name = cx.argument::<JsString>(1)?.value(&mut cx);
     let callback = cx.argument::<JsFunction>(2)?;
-    let request = Request {
-        variant: RequestVariant::PollWorkflowActivation { queue_name },
+    let request = Request::PollWorkflowActivation {
+        queue_name,
         callback: callback.root(&mut cx),
     };
     if let Err(err) = worker.sender.blocking_send(request) {
@@ -259,8 +274,8 @@ fn worker_complete_workflow_activation(mut cx: FunctionContext) -> JsResult<JsUn
     });
     match result {
         Ok(completion) => {
-            let request = Request {
-                variant: RequestVariant::CompleteWorkflowActivation { completion },
+            let request = Request::CompleteWorkflowActivation {
+                completion,
                 callback: callback.root(&mut cx),
             };
             if let Err(err) = worker.sender.blocking_send(request) {
@@ -281,19 +296,10 @@ fn worker_complete_workflow_activation(mut cx: FunctionContext) -> JsResult<JsUn
 /// shutdown.
 fn worker_shutdown(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     let worker = cx.argument::<BoxedWorker>(0)?;
-    let callback = cx.argument::<JsFunction>(1)?;
-    let request = Request {
-        variant: RequestVariant::Shutdown,
-        callback: callback.root(&mut cx),
-    };
-    if let Err(err) = worker.sender.blocking_send(request) {
-        let this = cx.undefined();
-        let error = JsError::error(&mut cx, format!("{}", err))?;
-        let result = cx.undefined();
-        let args: Vec<Handle<JsValue>> = vec![error.upcast(), result.upcast()];
-        callback.call(&mut cx, this, args)?;
+    match worker.sender.blocking_send(Request::Shutdown) {
+        Err(err) => cx.throw_error(format!("{}", err)),
+        _ => Ok(cx.undefined()),
     }
-    Ok(cx.undefined())
 }
 
 register_module!(mut cx, {
