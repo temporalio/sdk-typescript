@@ -45,10 +45,54 @@ pub struct Worker {
 }
 
 /// Box it so we can use Worker from JS
-// TODO: we might not need Arc
-type BoxedWorker = JsBox<Arc<Worker>>;
+type BoxedWorker = JsBox<Worker>;
 
 impl Finalize for Worker {}
+
+/// Send a result to JS via callback using an [EventQueue]
+fn send_result<F, T>(queue: Arc<EventQueue>, callback: Root<JsFunction>, res_fn: F)
+where
+    F: for<'a> FnOnce(&mut TaskContext<'a>) -> NeonResult<Handle<'a, T>> + Send + 'static,
+    T: Value,
+{
+    queue.send(move |mut cx| {
+        let callback = callback.into_inner(&mut cx);
+        let this = cx.undefined();
+        let error = cx.undefined();
+        let result = res_fn(&mut cx)?;
+        let args: Vec<Handle<JsValue>> = vec![error.upcast(), result.upcast()];
+        callback.call(&mut cx, this, args)?;
+        Ok(())
+    });
+}
+
+/// Send an error to JS via callback using an [EventQueue]
+fn send_error<T>(queue: Arc<EventQueue>, callback: Root<JsFunction>, error: T)
+where
+    T: ::std::fmt::Display + Send + 'static,
+{
+    queue.send(move |mut cx| {
+        let callback = callback.into_inner(&mut cx);
+        callback_with_error(&mut cx, callback, error)
+    });
+}
+
+/// Call [callback] with given error
+fn callback_with_error<'a, T>(
+    cx: &mut impl Context<'a>,
+    callback: Handle<JsFunction>,
+    error: T,
+) -> NeonResult<()>
+where
+    T: ::std::fmt::Display + Send + 'static,
+{
+    let this = cx.undefined();
+    let error = JsError::error(cx, format!("{}", error))?;
+    let result = cx.undefined();
+    let args: Vec<Handle<JsValue>> = vec![error.upcast(), result.upcast()];
+    callback.call(cx, this, args)?;
+    Ok(())
+}
 
 // Below are functions exported to JS
 
@@ -86,11 +130,10 @@ fn worker_new(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     };
     // TODO: make this configurable
     let (sender, mut receiver) = channel::<Request>(1000);
-    let worker = Arc::new(Worker {
+    let worker = Worker {
         sender: sender.clone(),
-    });
+    };
     let queue = Arc::new(cx.queue());
-    let cloned_worker = Arc::clone(&worker);
 
     std::thread::spawn(move || {
         tokio::runtime::Builder::new_current_thread()
@@ -100,15 +143,7 @@ fn worker_new(mut cx: FunctionContext) -> JsResult<JsUndefined> {
             .block_on(async {
                 match init(CoreInitOptions { gateway_opts }).await {
                     Ok(result) => {
-                        queue.clone().send(move |mut cx| {
-                            let callback = callback.into_inner(&mut cx);
-                            let this = cx.undefined();
-                            let error = cx.undefined();
-                            let result = cx.boxed(cloned_worker);
-                            let args: Vec<Handle<JsValue>> = vec![error.upcast(), result.upcast()];
-                            callback.call(&mut cx, this, args)?;
-                            Ok(())
-                        });
+                        send_result(queue.clone(), callback, |cx| Ok(cx.boxed(worker)));
                         let core = Arc::new(result);
                         loop {
                             // TODO: handle this error
@@ -130,23 +165,17 @@ fn worker_new(mut cx: FunctionContext) -> JsResult<JsUndefined> {
                                     } => {
                                         match core.poll_workflow_task(&queue_name).await {
                                             Ok(task) => {
-                                                queue.send(move |mut cx| {
-                                                    let callback = callback.into_inner(&mut cx);
-                                                    let this = cx.undefined();
-                                                    let error = cx.undefined();
+                                                send_result(queue, callback, move |cx| {
                                                     let len = task.encoded_len();
                                                     let mut result =
-                                                        JsArrayBuffer::new(&mut cx, len as u32)?;
+                                                        JsArrayBuffer::new(cx, len as u32)?;
                                                     cx.borrow_mut(&mut result, |data| {
                                                         let mut slice = data.as_mut_slice::<u8>();
                                                         if let Err(_) = task.encode(&mut slice) {
                                                             panic!("Failed to encode task")
                                                         };
                                                     });
-                                                    let args: Vec<Handle<JsValue>> =
-                                                        vec![error.upcast(), result.upcast()];
-                                                    callback.call(&mut cx, this, args)?;
-                                                    Ok(())
+                                                    Ok(result)
                                                 });
                                             }
                                             Err(err) => {
@@ -160,19 +189,7 @@ fn worker_new(mut cx: FunctionContext) -> JsResult<JsUndefined> {
                                                         // TODO: handle error
                                                     }
                                                 };
-                                                queue.send(move |mut cx| {
-                                                    let callback = callback.into_inner(&mut cx);
-                                                    let this = cx.undefined();
-                                                    let error = JsError::error(
-                                                        &mut cx,
-                                                        format!("{}", err),
-                                                    )?;
-                                                    let result = cx.undefined();
-                                                    let args: Vec<Handle<JsValue>> =
-                                                        vec![error.upcast(), result.upcast()];
-                                                    callback.call(&mut cx, this, args)?;
-                                                    Ok(())
-                                                });
+                                                send_error(queue, callback, err);
                                             }
                                         }
                                     }
@@ -182,23 +199,17 @@ fn worker_new(mut cx: FunctionContext) -> JsResult<JsUndefined> {
                                     } => {
                                         match core.poll_activity_task(&queue_name).await {
                                             Ok(task) => {
-                                                queue.send(move |mut cx| {
-                                                    let callback = callback.into_inner(&mut cx);
-                                                    let this = cx.undefined();
-                                                    let error = cx.undefined();
+                                                send_result(queue, callback, move |cx| {
                                                     let len = task.encoded_len();
                                                     let mut result =
-                                                        JsArrayBuffer::new(&mut cx, len as u32)?;
+                                                        JsArrayBuffer::new(cx, len as u32)?;
                                                     cx.borrow_mut(&mut result, |data| {
                                                         let mut slice = data.as_mut_slice::<u8>();
                                                         if let Err(_) = task.encode(&mut slice) {
                                                             panic!("Failed to encode task")
                                                         };
                                                     });
-                                                    let args: Vec<Handle<JsValue>> =
-                                                        vec![error.upcast(), result.upcast()];
-                                                    callback.call(&mut cx, this, args)?;
-                                                    Ok(())
+                                                    Ok(result)
                                                 });
                                             }
                                             Err(err) => {
@@ -212,19 +223,7 @@ fn worker_new(mut cx: FunctionContext) -> JsResult<JsUndefined> {
                                                         // TODO: handle error
                                                     }
                                                 };
-                                                queue.send(move |mut cx| {
-                                                    let callback = callback.into_inner(&mut cx);
-                                                    let this = cx.undefined();
-                                                    let error = JsError::error(
-                                                        &mut cx,
-                                                        format!("{}", err),
-                                                    )?;
-                                                    let result = cx.undefined();
-                                                    let args: Vec<Handle<JsValue>> =
-                                                        vec![error.upcast(), result.upcast()];
-                                                    callback.call(&mut cx, this, args)?;
-                                                    Ok(())
-                                                });
+                                                send_error(queue, callback, err);
                                             }
                                         }
                                     }
@@ -233,29 +232,10 @@ fn worker_new(mut cx: FunctionContext) -> JsResult<JsUndefined> {
                                         callback,
                                     } => match core.complete_workflow_task(completion).await {
                                         Ok(()) => {
-                                            queue.send(move |mut cx| {
-                                                let callback = callback.into_inner(&mut cx);
-                                                let this = cx.undefined();
-                                                let error = cx.undefined();
-                                                let result = cx.undefined();
-                                                let args: Vec<Handle<JsValue>> =
-                                                    vec![error.upcast(), result.upcast()];
-                                                callback.call(&mut cx, this, args)?;
-                                                Ok(())
-                                            });
+                                            send_result(queue, callback, |cx| Ok(cx.undefined()));
                                         }
                                         Err(err) => {
-                                            queue.send(move |mut cx| {
-                                                let callback = callback.into_inner(&mut cx);
-                                                let this = cx.undefined();
-                                                let error =
-                                                    JsError::error(&mut cx, format!("{}", err))?;
-                                                let result = cx.undefined();
-                                                let args: Vec<Handle<JsValue>> =
-                                                    vec![error.upcast(), result.upcast()];
-                                                callback.call(&mut cx, this, args)?;
-                                                Ok(())
-                                            });
+                                            send_error(queue, callback, err);
                                         }
                                     },
                                     _ => {}
@@ -264,16 +244,7 @@ fn worker_new(mut cx: FunctionContext) -> JsResult<JsUndefined> {
                         }
                     }
                     Err(err) => {
-                        let queue = queue.clone();
-                        queue.send(move |mut cx| {
-                            let callback = callback.into_inner(&mut cx);
-                            let this = cx.undefined();
-                            let error = JsError::error(&mut cx, format!("{}", err))?;
-                            let result = cx.undefined();
-                            let args: Vec<Handle<JsValue>> = vec![error.upcast(), result.upcast()];
-                            callback.call(&mut cx, this, args)?;
-                            Ok(())
-                        });
+                        send_error(queue.clone(), callback, err);
                     }
                 }
             })
@@ -293,11 +264,7 @@ fn worker_poll_workflow_activation(mut cx: FunctionContext) -> JsResult<JsUndefi
         callback: callback.root(&mut cx),
     };
     if let Err(err) = worker.sender.blocking_send(request) {
-        let this = cx.undefined();
-        let error = JsError::error(&mut cx, format!("{}", err))?;
-        let result = cx.undefined();
-        let args: Vec<Handle<JsValue>> = vec![error.upcast(), result.upcast()];
-        callback.call(&mut cx, this, args)?;
+        callback_with_error(&mut cx, callback, err)?;
     }
     Ok(cx.undefined())
 }
@@ -313,11 +280,7 @@ fn worker_poll_activity_task(mut cx: FunctionContext) -> JsResult<JsUndefined> {
         callback: callback.root(&mut cx),
     };
     if let Err(err) = worker.sender.blocking_send(request) {
-        let this = cx.undefined();
-        let error = JsError::error(&mut cx, format!("{}", err))?;
-        let result = cx.undefined();
-        let args: Vec<Handle<JsValue>> = vec![error.upcast(), result.upcast()];
-        callback.call(&mut cx, this, args)?;
+        callback_with_error(&mut cx, callback, err)?;
     }
     Ok(cx.undefined())
 }
@@ -337,16 +300,12 @@ fn worker_complete_workflow_activation(mut cx: FunctionContext) -> JsResult<JsUn
                 callback: callback.root(&mut cx),
             };
             if let Err(err) = worker.sender.blocking_send(request) {
-                let this = cx.undefined();
-                let error = JsError::error(&mut cx, format!("{}", err))?;
-                let result = cx.undefined();
-                let args: Vec<Handle<JsValue>> = vec![error.upcast(), result.upcast()];
-                callback.call(&mut cx, this, args)?;
+                callback_with_error(&mut cx, callback, err)?;
             };
-            Ok(cx.undefined())
         }
-        Err(_) => cx.throw_type_error("Cannot decode Completion from buffer"),
-    }
+        Err(_) => callback_with_error(&mut cx, callback, "Cannot decode Completion from buffer")?,
+    };
+    Ok(cx.undefined())
 }
 
 /// Request shutdown of the worker.
