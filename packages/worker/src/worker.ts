@@ -2,18 +2,7 @@ import { basename, extname, resolve } from 'path';
 import os from 'os';
 import { readdirSync } from 'fs';
 import { promisify } from 'util';
-import {
-  BehaviorSubject,
-  merge,
-  Observable,
-  OperatorFunction,
-  Subject,
-  partition,
-  pipe,
-  EMPTY,
-  throwError,
-  of,
-} from 'rxjs';
+import { BehaviorSubject, merge, Observable, OperatorFunction, Subject, pipe, EMPTY, throwError, of } from 'rxjs';
 import {
   catchError,
   concatMap,
@@ -24,7 +13,6 @@ import {
   map,
   mergeMap,
   repeat,
-  share,
   takeUntil,
   tap,
 } from 'rxjs/operators';
@@ -203,20 +191,26 @@ export function compileWorkerOptions(opts: WorkerOptionsWithDefaults): CompiledW
 
 export type State = 'INITIALIZED' | 'RUNNING' | 'STOPPED' | 'STOPPING' | 'FAILED' | 'SUSPENDED';
 
-type TaskForWorkflow = Required<{ taskToken: Uint8Array; workflow: coresdk.workflow_activation.WFActivation }>;
-type TaskForActivity = Required<{ taskToken: Uint8Array; activity: coresdk.activity_task.ActivityTask }>;
-
+type ExtractToPromise<T> = T extends (err: any, result: infer R) => void ? Promise<R> : never;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+type Last<T extends any[]> = T extends [...infer I, infer L] ? L : never;
+type LastParameter<F extends (...args: any) => any> = Last<Parameters<F>>;
 type OmitFirst<T> = T extends [any, ...infer REST] ? REST : never;
-type RestParams<T> = T extends (...args: any[]) => any ? OmitFirst<Parameters<T>> : never;
-type OmitFirstParam<T> = T extends (...args: any[]) => any ? (...args: RestParams<T>) => ReturnType<T> : never;
+type OmitLast<T> = T extends [...infer REST, any] ? REST : never;
+type OmitFirstParam<T> = T extends (...args: any[]) => any
+  ? (...args: OmitFirst<Parameters<T>>) => ReturnType<T>
+  : never;
+type Promisify<T> = T extends (...args: any[]) => void
+  ? (...args: OmitLast<Parameters<T>>) => ExtractToPromise<LastParameter<T>>
+  : never;
 
 export interface NativeWorkerLike {
   shutdown: OmitFirstParam<typeof native.workerShutdown>;
   pollWorkflowActivation(queueName: string): Promise<ArrayBuffer>;
   pollActivityTask(queueName: string): Promise<ArrayBuffer>;
-  completeWorkflowActivation: OmitFirstParam<typeof native.workerCompleteWorkflowActivation>;
-  completeActivityTask: OmitFirstParam<typeof native.workerCompleteActivityTask>;
-  sendActivityHeartbeat: OmitFirstParam<typeof native.workerSendActivityHeartbeat>;
+  completeWorkflowActivation: Promisify<OmitFirstParam<typeof native.workerCompleteWorkflowActivation>>;
+  completeActivityTask: Promisify<OmitFirstParam<typeof native.workerCompleteActivityTask>>;
+  sendActivityHeartbeat: Promisify<OmitFirstParam<typeof native.workerSendActivityHeartbeat>>;
 }
 
 export interface WorkerConstructor {
@@ -225,8 +219,9 @@ export interface WorkerConstructor {
 
 export class NativeWorker implements NativeWorkerLike {
   protected readonly native: native.Worker;
-  protected readonly workflowPollFn: (worker: native.Worker, queueName: string) => Promise<ArrayBuffer>;
-  protected readonly activityPollFn: (worker: native.Worker, queueName: string) => Promise<ArrayBuffer>;
+  public readonly pollWorkflowActivation: Promisify<OmitFirstParam<typeof native.workerPollWorkflowActivation>>;
+  public readonly pollActivityTask: Promisify<OmitFirstParam<typeof native.workerPollActivityTask>>;
+  public readonly completeWorkflowActivation: Promisify<OmitFirstParam<typeof native.workerCompleteWorkflowActivation>>;
 
   public static async create(options?: ServerOptions): Promise<NativeWorkerLike> {
     const compiledOptions = compileServerOptions({ ...getDefaultServerOptions(), ...options });
@@ -236,32 +231,21 @@ export class NativeWorker implements NativeWorkerLike {
 
   protected constructor(nativeWorker: native.Worker) {
     this.native = nativeWorker;
-    this.workflowPollFn = promisify(native.workerPollWorkflowActivation);
-    this.activityPollFn = promisify(native.workerPollActivityTask);
+    this.pollWorkflowActivation = promisify(native.workerPollWorkflowActivation).bind(undefined, nativeWorker);
+    this.pollActivityTask = promisify(native.workerPollActivityTask).bind(undefined, nativeWorker);
+    this.completeWorkflowActivation = promisify(native.workerCompleteWorkflowActivation).bind(undefined, nativeWorker);
   }
 
   public shutdown(): void {
     return native.workerShutdown(this.native);
   }
 
-  public pollWorkflowActivation(queueName: string): Promise<ArrayBuffer> {
-    return this.workflowPollFn(this.native, queueName);
+  public completeActivityTask(_result: ArrayBuffer): Promise<void> {
+    throw new Error('Not implemented');
   }
 
-  public pollActivityTask(queueName: string): Promise<ArrayBuffer> {
-    return this.activityPollFn(this.native, queueName);
-  }
-
-  public completeWorkflowActivation(result: ArrayBuffer): void {
-    return native.workerCompleteWorkflowActivation(this.native, result);
-  }
-
-  public completeActivityTask(result: ArrayBuffer): void {
-    return native.workerCompleteActivityTask(this.native, result);
-  }
-
-  public sendActivityHeartbeat(activityId: string, details?: ArrayBuffer): void {
-    return native.workerSendActivityHeartbeat(this.native, activityId, details);
+  public sendActivityHeartbeat(_activityId: string, _details?: ArrayBuffer): Promise<void> {
+    throw new Error('Not implemented');
   }
 }
 
@@ -409,7 +393,7 @@ export class Worker {
       filter((state): state is 'STOPPING' => state === 'STOPPING'),
       delay(this.options.shutdownGraceTimeMs),
       map(() => {
-        throw new Error('Timed out waiting while waiting for worker to shutdown gracefully');
+        throw new Error('Timed out while waiting for worker to shutdown gracefully');
       })
     );
   }
@@ -637,15 +621,15 @@ export class Worker {
     return this.activityHeartbeatSubject.pipe(
       takeUntil(this.stateSubject.pipe(filter((value) => value === 'STOPPED' || value === 'FAILED'))),
       tap(({ activityId }) => this.log.debug('Got activity heartbeat', { activityId })),
-      map(({ activityId, details }) => {
+      mergeMap(async ({ activityId, details }) => {
         const payload = this.options.dataConverter.toPayload(details);
         if (!payload) {
-          this.nativeWorker.sendActivityHeartbeat(activityId);
+          await this.nativeWorker.sendActivityHeartbeat(activityId, undefined);
           return;
         }
 
         const arr = coresdk.common.Payload.encode(payload).finish();
-        this.nativeWorker.sendActivityHeartbeat(
+        await this.nativeWorker.sendActivityHeartbeat(
           activityId,
           arr.buffer.slice(arr.byteOffset, arr.byteLength + arr.byteOffset)
         );
@@ -686,11 +670,11 @@ export class Worker {
       merge(
         workflow$.pipe(
           this.workflowOperator(queueName),
-          map((arr) => this.nativeWorker.completeWorkflowActivation(arr.buffer.slice(arr.byteOffset)))
+          mergeMap((arr) => this.nativeWorker.completeWorkflowActivation(arr.buffer.slice(arr.byteOffset)))
         ),
         activity$.pipe(
           this.activityOperator(),
-          map((arr) => this.nativeWorker.completeActivityTask(arr.buffer.slice(arr.byteOffset)))
+          mergeMap((arr) => this.nativeWorker.completeActivityTask(arr.buffer.slice(arr.byteOffset)))
         )
       ).pipe(
         tap({

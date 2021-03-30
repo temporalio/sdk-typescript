@@ -51,12 +51,12 @@ export class MockNativeWorker implements NativeWorkerLike {
     }
   }
 
-  public completeWorkflowActivation(result: ArrayBuffer): void {
+  public async completeWorkflowActivation(result: ArrayBuffer): Promise<void> {
     this.workflowCompletionCallback!(result);
     this.workflowCompletionCallback = undefined;
   }
 
-  public completeActivityTask(result: ArrayBuffer): void {
+  public async completeActivityTask(result: ArrayBuffer): Promise<void> {
     this.activityCompletionCallback!(result);
     this.activityCompletionCallback = undefined;
   }
@@ -99,7 +99,7 @@ export class MockNativeWorker implements NativeWorkerLike {
     };
   }
 
-  sendActivityHeartbeat(activityId: string, details?: ArrayBuffer): void {
+  public async sendActivityHeartbeat(activityId: string, details?: ArrayBuffer): Promise<void> {
     const payload = details && coresdk.common.Payload.decode(new Uint8Array(details));
     const arg = payload ? defaultDataConverter.fromPayload(payload) : undefined;
     this.activityHeartbeatCallback!(activityId, arg);

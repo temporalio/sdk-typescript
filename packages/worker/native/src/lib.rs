@@ -176,17 +176,25 @@ fn worker_new(mut cx: FunctionContext) -> JsResult<JsUndefined> {
                                             }
                                         }
                                     }
-                                    Request::CompleteWorkflowActivation {
-                                        completion,
+                                    Request::PollActivityTask {
+                                        queue_name,
                                         callback,
                                     } => {
-                                        match core.complete_workflow_task(completion).await {
-                                            Ok(()) => {
+                                        match core.poll_activity_task(&queue_name).await {
+                                            Ok(task) => {
                                                 queue.send(move |mut cx| {
                                                     let callback = callback.into_inner(&mut cx);
                                                     let this = cx.undefined();
                                                     let error = cx.undefined();
-                                                    let result = cx.undefined();
+                                                    let len = task.encoded_len();
+                                                    let mut result =
+                                                        JsArrayBuffer::new(&mut cx, len as u32)?;
+                                                    cx.borrow_mut(&mut result, |data| {
+                                                        let mut slice = data.as_mut_slice::<u8>();
+                                                        if let Err(_) = task.encode(&mut slice) {
+                                                            panic!("Failed to encode task")
+                                                        };
+                                                    });
                                                     let args: Vec<Handle<JsValue>> =
                                                         vec![error.upcast(), result.upcast()];
                                                     callback.call(&mut cx, this, args)?;
@@ -220,6 +228,36 @@ fn worker_new(mut cx: FunctionContext) -> JsResult<JsUndefined> {
                                             }
                                         }
                                     }
+                                    Request::CompleteWorkflowActivation {
+                                        completion,
+                                        callback,
+                                    } => match core.complete_workflow_task(completion).await {
+                                        Ok(()) => {
+                                            queue.send(move |mut cx| {
+                                                let callback = callback.into_inner(&mut cx);
+                                                let this = cx.undefined();
+                                                let error = cx.undefined();
+                                                let result = cx.undefined();
+                                                let args: Vec<Handle<JsValue>> =
+                                                    vec![error.upcast(), result.upcast()];
+                                                callback.call(&mut cx, this, args)?;
+                                                Ok(())
+                                            });
+                                        }
+                                        Err(err) => {
+                                            queue.send(move |mut cx| {
+                                                let callback = callback.into_inner(&mut cx);
+                                                let this = cx.undefined();
+                                                let error =
+                                                    JsError::error(&mut cx, format!("{}", err))?;
+                                                let result = cx.undefined();
+                                                let args: Vec<Handle<JsValue>> =
+                                                    vec![error.upcast(), result.upcast()];
+                                                callback.call(&mut cx, this, args)?;
+                                                Ok(())
+                                            });
+                                        }
+                                    },
                                     _ => {}
                                 }
                             });
@@ -244,13 +282,33 @@ fn worker_new(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     Ok(cx.undefined())
 }
 
-/// Initiate a single poll request.
+/// Initiate a single workflow activation poll request.
 /// There should be only one concurrent poll request for this type.
 fn worker_poll_workflow_activation(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     let worker = cx.argument::<BoxedWorker>(0)?;
     let queue_name = cx.argument::<JsString>(1)?.value(&mut cx);
     let callback = cx.argument::<JsFunction>(2)?;
     let request = Request::PollWorkflowActivation {
+        queue_name,
+        callback: callback.root(&mut cx),
+    };
+    if let Err(err) = worker.sender.blocking_send(request) {
+        let this = cx.undefined();
+        let error = JsError::error(&mut cx, format!("{}", err))?;
+        let result = cx.undefined();
+        let args: Vec<Handle<JsValue>> = vec![error.upcast(), result.upcast()];
+        callback.call(&mut cx, this, args)?;
+    }
+    Ok(cx.undefined())
+}
+
+/// Initiate a single activity task poll request.
+/// There should be only one concurrent poll request for this type.
+fn worker_poll_activity_task(mut cx: FunctionContext) -> JsResult<JsUndefined> {
+    let worker = cx.argument::<BoxedWorker>(0)?;
+    let queue_name = cx.argument::<JsString>(1)?.value(&mut cx);
+    let callback = cx.argument::<JsFunction>(2)?;
+    let request = Request::PollActivityTask {
         queue_name,
         callback: callback.root(&mut cx),
     };
@@ -309,6 +367,7 @@ register_module!(mut cx, {
         "workerPollWorkflowActivation",
         worker_poll_workflow_activation,
     )?;
+    cx.export_function("workerPollActivityTask", worker_poll_activity_task)?;
     cx.export_function(
         "workerCompleteWorkflowActivation",
         worker_complete_workflow_activation,

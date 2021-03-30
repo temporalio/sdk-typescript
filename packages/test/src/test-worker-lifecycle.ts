@@ -9,7 +9,7 @@ import { Worker as MockedWorker } from './mock-native-worker';
 import { RUN_INTEGRATION_TESTS } from './helpers';
 
 if (RUN_INTEGRATION_TESTS) {
-  test.serial('run shuts down gracefully', async (t) => {
+  test.serial.skip('run shuts down gracefully', async (t) => {
     const worker = await Worker.create(__dirname, { shutdownGraceTime: '500ms', activitiesPath: null });
     t.is(worker.getState(), 'INITIALIZED');
     const p = worker.run('shutdown-test');
@@ -42,7 +42,7 @@ test.serial('Mocked run throws if not shut down gracefully', async (t) => {
   worker.native.shutdown = () => undefined; // Make sure shutdown does not emit core shutdown
   process.emit('SIGINT', 'SIGINT');
   await t.throwsAsync(p, {
-    message: 'Timed out waiting while waiting for worker to shutdown gracefully',
+    message: 'Timed out while waiting for worker to shutdown gracefully',
   });
   t.is(worker.getState(), 'FAILED');
   await t.throwsAsync(worker.run('shutdown-test'), { message: 'Poller was aleady started' });

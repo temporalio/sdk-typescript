@@ -1,5 +1,5 @@
 /* eslint @typescript-eslint/no-non-null-assertion: 0 */
-import anyTest, { TestInterface, ExecutionContext } from 'ava';
+import anyTest, { TestInterface } from 'ava';
 import { v4 as uuid4 } from 'uuid';
 import { Connection } from '@temporalio/client';
 import { tsToMs } from '@temporalio/workflow/commonjs/time';
