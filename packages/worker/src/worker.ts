@@ -218,10 +218,12 @@ export interface WorkerConstructor {
 }
 
 export class NativeWorker implements NativeWorkerLike {
-  protected readonly native: native.Worker;
   public readonly pollWorkflowActivation: Promisify<OmitFirstParam<typeof native.workerPollWorkflowActivation>>;
   public readonly pollActivityTask: Promisify<OmitFirstParam<typeof native.workerPollActivityTask>>;
   public readonly completeWorkflowActivation: Promisify<OmitFirstParam<typeof native.workerCompleteWorkflowActivation>>;
+  public readonly completeActivityTask: Promisify<OmitFirstParam<typeof native.workerCompleteActivityTask>>;
+  public readonly sendActivityHeartbeat: Promisify<OmitFirstParam<typeof native.workerSendActivityHeartbeat>>;
+  public readonly shutdown: OmitFirstParam<typeof native.workerShutdown>;
 
   public static async create(options?: ServerOptions): Promise<NativeWorkerLike> {
     const compiledOptions = compileServerOptions({ ...getDefaultServerOptions(), ...options });
@@ -230,22 +232,12 @@ export class NativeWorker implements NativeWorkerLike {
   }
 
   protected constructor(nativeWorker: native.Worker) {
-    this.native = nativeWorker;
     this.pollWorkflowActivation = promisify(native.workerPollWorkflowActivation).bind(undefined, nativeWorker);
     this.pollActivityTask = promisify(native.workerPollActivityTask).bind(undefined, nativeWorker);
     this.completeWorkflowActivation = promisify(native.workerCompleteWorkflowActivation).bind(undefined, nativeWorker);
-  }
-
-  public shutdown(): void {
-    return native.workerShutdown(this.native);
-  }
-
-  public completeActivityTask(_result: ArrayBuffer): Promise<void> {
-    throw new Error('Not implemented');
-  }
-
-  public sendActivityHeartbeat(_activityId: string, _details?: ArrayBuffer): Promise<void> {
-    throw new Error('Not implemented');
+    this.completeActivityTask = promisify(native.workerCompleteActivityTask).bind(undefined, nativeWorker);
+    this.sendActivityHeartbeat = promisify(native.workerSendActivityHeartbeat).bind(undefined, nativeWorker);
+    this.shutdown = native.workerShutdown.bind(undefined, nativeWorker);
   }
 }
 

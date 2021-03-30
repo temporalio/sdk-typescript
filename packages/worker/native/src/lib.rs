@@ -345,7 +345,7 @@ fn worker_complete_workflow_activation(mut cx: FunctionContext) -> JsResult<JsUn
     Ok(cx.undefined())
 }
 
-/// Submit a workflow activation completion to core.
+/// Submit an activity task completion to core.
 fn worker_complete_activity_task(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     let worker = cx.argument::<BoxedWorker>(0)?;
     let result = cx.argument::<JsArrayBuffer>(1)?;
@@ -364,6 +364,33 @@ fn worker_complete_activity_task(mut cx: FunctionContext) -> JsResult<JsUndefine
             };
         }
         Err(_) => callback_with_error(&mut cx, callback, "Cannot decode Completion from buffer")?,
+    };
+    Ok(cx.undefined())
+}
+
+/// Submit an activity heartbeat to core.
+fn worker_send_activity_heartbeat(mut cx: FunctionContext) -> JsResult<JsUndefined> {
+    let worker = cx.argument::<BoxedWorker>(0)?;
+    let result = cx.argument::<JsArrayBuffer>(1)?;
+    let callback = cx.argument::<JsFunction>(2)?;
+    let result = cx.borrow(&result, |data| {
+        ActivityHeartbeat::decode_length_delimited(data.as_slice::<u8>())
+    });
+    match result {
+        Ok(heartbeat) => {
+            let request = Request::SendActivityHeartbeat {
+                heartbeat,
+                callback: callback.root(&mut cx),
+            };
+            if let Err(err) = worker.sender.blocking_send(request) {
+                callback_with_error(&mut cx, callback, err)?;
+            };
+        }
+        Err(_) => callback_with_error(
+            &mut cx,
+            callback,
+            "Cannot decode ActivityHeartbeat from buffer",
+        )?,
     };
     Ok(cx.undefined())
 }
@@ -392,5 +419,9 @@ register_module!(mut cx, {
         worker_complete_workflow_activation,
     )?;
     cx.export_function("workerCompleteActivityTask", worker_complete_activity_task)?;
+    cx.export_function(
+        "workerSendActivityHeartbeat",
+        worker_send_activity_heartbeat,
+    )?;
     Ok(())
 });
