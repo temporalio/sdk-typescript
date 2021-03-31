@@ -209,16 +209,13 @@ if (RUN_INTEGRATION_TESTS) {
     t.is(execution.executionConfig?.taskQueue?.name, 'test2');
     t.is(execution.executionConfig?.taskQueue?.kind, iface.temporal.api.enums.v1.TaskQueueKind.TASK_QUEUE_KIND_NORMAL);
 
+    t.is(tsToMs(execution.executionConfig!.workflowRunTimeout!), tsToMs(workflow.compiledOptions.workflowRunTimeout));
     t.is(
-      durationToMs(execution.executionConfig!.workflowRunTimeout!),
-      tsToMs(workflow.compiledOptions.workflowRunTimeout)
-    );
-    t.is(
-      durationToMs(execution.executionConfig!.workflowExecutionTimeout!),
+      tsToMs(execution.executionConfig!.workflowExecutionTimeout!),
       tsToMs(workflow.compiledOptions.workflowExecutionTimeout)
     );
     t.is(
-      durationToMs(execution.executionConfig!.defaultWorkflowTaskTimeout!),
+      tsToMs(execution.executionConfig!.defaultWorkflowTaskTimeout!),
       tsToMs(workflow.compiledOptions.workflowTaskTimeout)
     );
   });
@@ -242,11 +239,4 @@ if (RUN_INTEGRATION_TESTS) {
   });
 
   test.todo('untilComplete throws if continued as new');
-}
-
-function durationToMs(duration: iface.google.protobuf.IDuration) {
-  // The client returns Longs instead of numbers from the client ignoring the generated proto instructions (--force-number)
-  return tsToMs(
-    iface.google.protobuf.Duration.toObject(iface.google.protobuf.Duration.create(duration), { longs: Number })
-  );
 }

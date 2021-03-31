@@ -23,7 +23,7 @@ const pbjsArgs = (wrap, out) => [
   wrap,
   '--target',
   'static-module',
-  '--force-number',
+  '--force-long',
   '--out',
   out,
   coreProtoPath,
@@ -69,8 +69,8 @@ async function main() {
     dedent`
   const module = { exports: {} }; 
   ${protobufjsSource}
-  const { Reader, Writer, util, roots, rpc } = module.exports;
-  export { Reader, Writer, util, roots, rpc };
+  const { Reader, Writer, util, roots, rpc, configure } = module.exports;
+  export { Reader, Writer, util, roots, rpc, configure };
   `
   );
 

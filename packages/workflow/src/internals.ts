@@ -1,3 +1,5 @@
+import Long from 'long';
+import * as protobufjs from 'protobufjs/minimal';
 import * as iface from '@temporalio/proto';
 import { defaultDataConverter, arrayFromPayloads } from './converter/data-converter';
 import { alea } from './alea';
@@ -49,6 +51,9 @@ export interface State {
   runtime?: Runtime;
   taskQueue?: string;
 }
+
+protobufjs.util.Long = Long;
+protobufjs.configure();
 
 const rootScope: Scope = {
   associated: true,
