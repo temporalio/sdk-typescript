@@ -21,9 +21,13 @@ export class MockNativeWorker implements NativeWorkerLike {
     return new this();
   }
 
+  public async breakLoop(): Promise<void> {
+    // Nothing to break from
+  }
+
   public shutdown(): void {
-    this.activityTasks.unshift(Promise.reject(new Error('[Core::shutdown]')));
-    this.workflowActivations.unshift(Promise.reject(new Error('[Core::shutdown]')));
+    this.activityTasks.unshift(Promise.reject(new Error('Core is shut down')));
+    this.workflowActivations.unshift(Promise.reject(new Error('Core is shut down')));
   }
 
   public async pollWorkflowActivation(_queueName: string): Promise<ArrayBuffer> {

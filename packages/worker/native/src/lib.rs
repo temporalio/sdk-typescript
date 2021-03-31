@@ -1,6 +1,6 @@
 use neon::{prelude::*, register_module};
 use prost::Message;
-use std::{sync::Arc, time::Duration};
+use std::{fmt::Display, future::Future, sync::Arc, time::Duration};
 use temporal_sdk_core::{
     init, protos::coresdk::workflow_completion::WfActivationCompletion,
     protos::coresdk::ActivityHeartbeat, protos::coresdk::ActivityTaskCompletion, Core,
@@ -10,10 +10,10 @@ use tokio::sync::mpsc::{channel, Sender};
 
 /// A request from JS to bridge to core
 pub enum Request {
-    /// A request to break from the thread loop sent from within the bridge when
-    /// it encounters a CoreError::ShuttingDown
-    /// TODO: this is odd, see if this should be sent from JS
-    BreakPoller,
+    /// A request to break from the thread loop, should be sent from JS when it
+    /// encounters a CoreError::ShuttingDown and there are no outstanding
+    /// completions
+    BreakLoop { callback: Root<JsFunction> },
     /// A request to shutdown core, JS should wait on CoreError::ShuttingDown
     /// before exiting to allow draining of pending tasks
     Shutdown,
@@ -52,7 +52,7 @@ pub enum Request {
 }
 
 /// Worker struct, hold a reference for the channel sender responsible for sending requests from
-/// JS to core
+/// JS to a bridge thread which forwards them to core
 pub struct Worker {
     sender: Sender<Request>,
 }
@@ -82,7 +82,7 @@ where
 /// Send an error to JS via callback using an [EventQueue]
 fn send_error<T>(queue: Arc<EventQueue>, callback: Root<JsFunction>, error: T)
 where
-    T: ::std::fmt::Display + Send + 'static,
+    T: Display + Send + 'static,
 {
     queue.send(move |mut cx| {
         let callback = callback.into_inner(&mut cx);
@@ -97,14 +97,179 @@ fn callback_with_error<'a, T>(
     error: T,
 ) -> NeonResult<()>
 where
-    T: ::std::fmt::Display + Send + 'static,
+    T: Display + Send + 'static,
 {
     let this = cx.undefined();
+    // TODO: create better JS error types
     let error = JsError::error(cx, format!("{}", error))?;
     let result = cx.undefined();
     let args: Vec<Handle<JsValue>> = vec![error.upcast(), result.upcast()];
     callback.call(cx, this, args)?;
     Ok(())
+}
+
+/// When Future completes, call given JS callback using a neon::EventQueue with either error or
+/// undefined
+async fn void_future_to_js<E, F>(queue: Arc<EventQueue>, callback: Root<JsFunction>, f: F) -> ()
+where
+    E: Display + Send + 'static,
+    F: Future<Output = Result<(), E>> + Send + 'static,
+{
+    match f.await {
+        Ok(()) => {
+            send_result(queue, callback, |cx| Ok(cx.undefined()));
+        }
+        Err(err) => {
+            send_error(queue, callback, err);
+        }
+    }
+}
+
+/// Builds a tokio runtime and starts polling on [Request]s via an internal channel.
+/// Bridges requests from JS to core and sends responses back to JS using a neon::EventQueue.
+/// Blocks current thread until a [BreakPoller] request is received in channel.
+fn start_bridge_loop(
+    core_init_options: CoreInitOptions,
+    queue: Arc<EventQueue>,
+    callback: Root<JsFunction>,
+) {
+    // TODO: make capacity configurable
+    let (sender, mut receiver) = channel::<Request>(1000);
+
+    tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .unwrap()
+        .block_on(async {
+            match init(core_init_options).await {
+                Err(err) => {
+                    send_error(queue.clone(), callback, err);
+                }
+                Ok(result) => {
+                    send_result(
+                        queue.clone(),
+                        callback,
+                        |cx| Ok(cx.boxed(Worker { sender })),
+                    );
+                    let core = Arc::new(result);
+                    loop {
+                        // TODO: handle this error
+                        let request = receiver.recv().await.unwrap();
+                        let core = core.clone();
+                        let queue = queue.clone();
+
+                        match request {
+                            Request::Shutdown => {
+                                core.shutdown();
+                            }
+                            Request::BreakLoop { callback } => {
+                                send_result(queue, callback, |cx| Ok(cx.undefined()));
+                                break;
+                            }
+                            Request::PollWorkflowActivation {
+                                queue_name,
+                                callback,
+                            } => {
+                                tokio::spawn(handle_poll_workflow_activation_request(
+                                    core, queue, queue_name, callback,
+                                ));
+                            }
+                            Request::PollActivityTask {
+                                queue_name,
+                                callback,
+                            } => {
+                                tokio::spawn(handle_poll_activity_task_request(
+                                    core, queue, queue_name, callback,
+                                ));
+                            }
+                            Request::CompleteWorkflowActivation {
+                                completion,
+                                callback,
+                            } => {
+                                tokio::spawn(void_future_to_js(queue, callback, async move {
+                                    core.complete_workflow_task(completion).await
+                                }));
+                            }
+                            Request::CompleteActivityTask {
+                                completion,
+                                callback,
+                            } => {
+                                tokio::spawn(void_future_to_js(queue, callback, async move {
+                                    core.complete_activity_task(completion).await
+                                }));
+                            }
+                            Request::SendActivityHeartbeat {
+                                heartbeat,
+                                callback,
+                            } => {
+                                tokio::spawn(void_future_to_js(queue, callback, async move {
+                                    // send_activity_heartbeat returns Result<(), ()> and ()
+                                    // doesn't implement Display, syntesize an error
+                                    match core.send_activity_heartbeat(heartbeat).await {
+                                        Ok(()) => Ok(()),
+                                        Err(()) => Err("Failed to send activity heartbeat"),
+                                    }
+                                }));
+                            }
+                        }
+                    }
+                }
+            }
+        })
+}
+
+/// Called within the poll loop thread, calls core and triggers JS callback with result
+async fn handle_poll_workflow_activation_request(
+    core: Arc<impl Core>,
+    queue: Arc<EventQueue>,
+    queue_name: String,
+    callback: Root<JsFunction>,
+) {
+    match core.poll_workflow_task(&queue_name).await {
+        Ok(task) => {
+            send_result(queue, callback, move |cx| {
+                let len = task.encoded_len();
+                let mut result = JsArrayBuffer::new(cx, len as u32)?;
+                cx.borrow_mut(&mut result, |data| {
+                    let mut slice = data.as_mut_slice::<u8>();
+                    if let Err(_) = task.encode(&mut slice) {
+                        panic!("Failed to encode task")
+                    };
+                });
+                Ok(result)
+            });
+        }
+        Err(err) => {
+            send_error(queue, callback, err);
+        }
+    }
+}
+
+/// Called within the poll loop thread, calls core and triggers JS callback with result
+async fn handle_poll_activity_task_request(
+    core: Arc<impl Core>,
+    queue: Arc<EventQueue>,
+    queue_name: String,
+    callback: Root<JsFunction>,
+) {
+    match core.poll_activity_task(&queue_name).await {
+        Ok(task) => {
+            send_result(queue, callback, move |cx| {
+                let len = task.encoded_len();
+                let mut result = JsArrayBuffer::new(cx, len as u32)?;
+                cx.borrow_mut(&mut result, |data| {
+                    let mut slice = data.as_mut_slice::<u8>();
+                    if let Err(_) = task.encode(&mut slice) {
+                        panic!("Failed to encode task")
+                    };
+                });
+                Ok(result)
+            });
+        }
+        Err(err) => {
+            send_error(queue, callback, err);
+        }
+    }
 }
 
 // Below are functions exported to JS
@@ -141,152 +306,25 @@ fn worker_new(mut cx: FunctionContext) -> JsResult<JsUndefined> {
                 .value(&mut cx) as u64,
         ),
     };
-    // TODO: make this configurable
-    let (sender, mut receiver) = channel::<Request>(1000);
-    let worker = Worker {
-        sender: sender.clone(),
-    };
-    let queue = Arc::new(cx.queue());
 
+    let queue = Arc::new(cx.queue());
     std::thread::spawn(move || {
-        tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build()
-            .unwrap()
-            .block_on(async {
-                match init(CoreInitOptions { gateway_opts }).await {
-                    Ok(result) => {
-                        send_result(queue.clone(), callback, |cx| Ok(cx.boxed(worker)));
-                        let core = Arc::new(result);
-                        loop {
-                            // TODO: handle this error
-                            let request = receiver.recv().await.unwrap();
-                            if matches!(request, Request::BreakPoller) {
-                                break;
-                            } else if matches!(request, Request::Shutdown) {
-                                core.shutdown();
-                                continue;
-                            }
-                            let core = core.clone();
-                            let queue = queue.clone();
-                            let sender = sender.clone();
-                            tokio::spawn(async move {
-                                match request {
-                                    Request::PollWorkflowActivation {
-                                        queue_name,
-                                        callback,
-                                    } => {
-                                        match core.poll_workflow_task(&queue_name).await {
-                                            Ok(task) => {
-                                                send_result(queue, callback, move |cx| {
-                                                    let len = task.encoded_len();
-                                                    let mut result =
-                                                        JsArrayBuffer::new(cx, len as u32)?;
-                                                    cx.borrow_mut(&mut result, |data| {
-                                                        let mut slice = data.as_mut_slice::<u8>();
-                                                        if let Err(_) = task.encode(&mut slice) {
-                                                            panic!("Failed to encode task")
-                                                        };
-                                                    });
-                                                    Ok(result)
-                                                });
-                                            }
-                                            Err(err) => {
-                                                // TODO: on the JS side we consider all errors fatal, revise this later
-                                                if let temporal_sdk_core::CoreError::ShuttingDown =
-                                                    err
-                                                {
-                                                    if let Err(_) =
-                                                        sender.send(Request::BreakPoller).await
-                                                    {
-                                                        // TODO: handle error
-                                                    }
-                                                };
-                                                send_error(queue, callback, err);
-                                            }
-                                        }
-                                    }
-                                    Request::PollActivityTask {
-                                        queue_name,
-                                        callback,
-                                    } => {
-                                        match core.poll_activity_task(&queue_name).await {
-                                            Ok(task) => {
-                                                send_result(queue, callback, move |cx| {
-                                                    let len = task.encoded_len();
-                                                    let mut result =
-                                                        JsArrayBuffer::new(cx, len as u32)?;
-                                                    cx.borrow_mut(&mut result, |data| {
-                                                        let mut slice = data.as_mut_slice::<u8>();
-                                                        if let Err(_) = task.encode(&mut slice) {
-                                                            panic!("Failed to encode task")
-                                                        };
-                                                    });
-                                                    Ok(result)
-                                                });
-                                            }
-                                            Err(err) => {
-                                                // TODO: on the JS side we consider all errors fatal, revise this later
-                                                if let temporal_sdk_core::CoreError::ShuttingDown =
-                                                    err
-                                                {
-                                                    if let Err(_) =
-                                                        sender.send(Request::BreakPoller).await
-                                                    {
-                                                        // TODO: handle error
-                                                    }
-                                                };
-                                                send_error(queue, callback, err);
-                                            }
-                                        }
-                                    }
-                                    Request::CompleteWorkflowActivation {
-                                        completion,
-                                        callback,
-                                    } => match core.complete_workflow_task(completion).await {
-                                        Ok(()) => {
-                                            send_result(queue, callback, |cx| Ok(cx.undefined()));
-                                        }
-                                        Err(err) => {
-                                            send_error(queue, callback, err);
-                                        }
-                                    },
-                                    Request::CompleteActivityTask {
-                                        completion,
-                                        callback,
-                                    } => match core.complete_activity_task(completion).await {
-                                        Ok(()) => {
-                                            send_result(queue, callback, |cx| Ok(cx.undefined()));
-                                        }
-                                        Err(err) => {
-                                            send_error(queue, callback, err);
-                                        }
-                                    },
-                                    Request::SendActivityHeartbeat {
-                                        heartbeat,
-                                        callback,
-                                    } => match core.send_activity_heartbeat(heartbeat).await {
-                                        Ok(()) => {
-                                            send_result(queue, callback, |cx| Ok(cx.undefined()));
-                                        }
-                                        Err(err) => {
-                                            send_error(queue, callback, err);
-                                        }
-                                    },
-                                    // Ignore BreakPoller and Shutdown, they're handled above
-                                    Request::BreakPoller => {}
-                                    Request::Shutdown => {}
-                                }
-                            });
-                        }
-                    }
-                    Err(err) => {
-                        send_error(queue.clone(), callback, err);
-                    }
-                }
-            })
+        start_bridge_loop(CoreInitOptions { gateway_opts }, queue, callback)
     });
 
+    Ok(cx.undefined())
+}
+
+/// Cause the bridge loop to break, freeing up the thread
+fn worker_break_loop(mut cx: FunctionContext) -> JsResult<JsUndefined> {
+    let worker = cx.argument::<BoxedWorker>(0)?;
+    let callback = cx.argument::<JsFunction>(1)?;
+    let request = Request::BreakLoop {
+        callback: callback.root(&mut cx),
+    };
+    if let Err(err) = worker.sender.blocking_send(request) {
+        callback_with_error(&mut cx, callback, err)?;
+    };
     Ok(cx.undefined())
 }
 
@@ -409,6 +447,7 @@ fn worker_shutdown(mut cx: FunctionContext) -> JsResult<JsUndefined> {
 register_module!(mut cx, {
     cx.export_function("newWorker", worker_new)?;
     cx.export_function("workerShutdown", worker_shutdown)?;
+    cx.export_function("workerBreakLoop", worker_break_loop)?;
     cx.export_function(
         "workerPollWorkflowActivation",
         worker_poll_workflow_activation,

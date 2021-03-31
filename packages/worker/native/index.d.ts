@@ -30,6 +30,7 @@ export declare type VoidCallback = (err?: Error, result: void) => void;
 
 export declare function newWorker(serverOptions: ServerOptions, callback: WorkerCallback): void;
 export declare function workerShutdown(worker: Worker): void;
+export declare function workerBreakLoop(worker: Worker, callback: VoidCallback): void;
 export declare function workerPollWorkflowActivation(worker: Worker, queueName: string, callback: PollCallback): void;
 export declare function workerCompleteWorkflowActivation(
   worker: Worker,

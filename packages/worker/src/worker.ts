@@ -206,8 +206,9 @@ type Promisify<T> = T extends (...args: any[]) => void
 
 export interface NativeWorkerLike {
   shutdown: OmitFirstParam<typeof native.workerShutdown>;
-  pollWorkflowActivation(queueName: string): Promise<ArrayBuffer>;
-  pollActivityTask(queueName: string): Promise<ArrayBuffer>;
+  breakLoop: Promisify<OmitFirstParam<typeof native.workerBreakLoop>>;
+  pollWorkflowActivation: Promisify<OmitFirstParam<typeof native.workerPollWorkflowActivation>>;
+  pollActivityTask: Promisify<OmitFirstParam<typeof native.workerPollActivityTask>>;
   completeWorkflowActivation: Promisify<OmitFirstParam<typeof native.workerCompleteWorkflowActivation>>;
   completeActivityTask: Promisify<OmitFirstParam<typeof native.workerCompleteActivityTask>>;
   sendActivityHeartbeat: Promisify<OmitFirstParam<typeof native.workerSendActivityHeartbeat>>;
@@ -223,6 +224,7 @@ export class NativeWorker implements NativeWorkerLike {
   public readonly completeWorkflowActivation: Promisify<OmitFirstParam<typeof native.workerCompleteWorkflowActivation>>;
   public readonly completeActivityTask: Promisify<OmitFirstParam<typeof native.workerCompleteActivityTask>>;
   public readonly sendActivityHeartbeat: Promisify<OmitFirstParam<typeof native.workerSendActivityHeartbeat>>;
+  public readonly breakLoop: Promisify<OmitFirstParam<typeof native.workerBreakLoop>>;
   public readonly shutdown: OmitFirstParam<typeof native.workerShutdown>;
 
   public static async create(options?: ServerOptions): Promise<NativeWorkerLike> {
@@ -237,6 +239,7 @@ export class NativeWorker implements NativeWorkerLike {
     this.completeWorkflowActivation = promisify(native.workerCompleteWorkflowActivation).bind(undefined, nativeWorker);
     this.completeActivityTask = promisify(native.workerCompleteActivityTask).bind(undefined, nativeWorker);
     this.sendActivityHeartbeat = promisify(native.workerSendActivityHeartbeat).bind(undefined, nativeWorker);
+    this.breakLoop = promisify(native.workerBreakLoop).bind(undefined, nativeWorker);
     this.shutdown = native.workerShutdown.bind(undefined, nativeWorker);
   }
 }
@@ -424,7 +427,7 @@ export class Worker {
    */
   protected poller$<T>(pollFn: () => Promise<T>): Observable<T> {
     return merge(this.gracefulShutdown$(), this.pollLoop$(pollFn)).pipe(
-      catchError((err) => (err.message.includes('[Core::shutdown]') ? EMPTY : throwError(err)))
+      catchError((err) => (err.message.includes('Core is shut down') ? EMPTY : throwError(err)))
     );
   }
 
@@ -669,27 +672,31 @@ export class Worker {
     for (const signal of this.options.shutdownSignals) {
       process.on(signal, startShutdownSequence);
     }
-    return await merge(
-      this.activityHeartbeat$(),
-      merge(
-        this.workflow$(queueName).pipe(
-          this.workflowOperator(queueName),
-          mergeMap((arr) => this.nativeWorker.completeWorkflowActivation(arr.buffer.slice(arr.byteOffset)))
-        ),
-        this.activity$(queueName).pipe(
-          this.activityOperator(),
-          mergeMap((arr) => this.nativeWorker.completeActivityTask(arr.buffer.slice(arr.byteOffset)))
+    try {
+      await merge(
+        this.activityHeartbeat$(),
+        merge(
+          this.workflow$(queueName).pipe(
+            this.workflowOperator(queueName),
+            mergeMap((arr) => this.nativeWorker.completeWorkflowActivation(arr.buffer.slice(arr.byteOffset)))
+          ),
+          this.activity$(queueName).pipe(
+            this.activityOperator(),
+            mergeMap((arr) => this.nativeWorker.completeActivityTask(arr.buffer.slice(arr.byteOffset)))
+          )
+        ).pipe(
+          tap({
+            complete: () => {
+              this.state = 'STOPPED';
+            },
+            error: () => {
+              this.state = 'FAILED';
+            },
+          })
         )
-      ).pipe(
-        tap({
-          complete: () => {
-            this.state = 'STOPPED';
-          },
-          error: () => {
-            this.state = 'FAILED';
-          },
-        })
-      )
-    ).toPromise();
+      ).toPromise();
+    } finally {
+      await this.nativeWorker.breakLoop();
+    }
   }
 }
