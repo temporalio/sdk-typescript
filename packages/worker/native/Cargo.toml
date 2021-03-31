@@ -16,6 +16,7 @@ futures = { version = "0.3", features = ["executor"] }
 neon = { version = "0.7", default-features = false, features = ["napi-4", "event-queue-api"] }
 prost = "0.7"
 prost-types = "0.7"
+tokio = "1.4.0"
 
 [dependencies.temporal-sdk-core]
 version = "*"

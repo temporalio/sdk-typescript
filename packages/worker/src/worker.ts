@@ -2,18 +2,7 @@ import { basename, extname, resolve } from 'path';
 import os from 'os';
 import { readdirSync } from 'fs';
 import { promisify } from 'util';
-import {
-  BehaviorSubject,
-  merge,
-  Observable,
-  OperatorFunction,
-  Subject,
-  partition,
-  pipe,
-  EMPTY,
-  throwError,
-  of,
-} from 'rxjs';
+import { BehaviorSubject, merge, Observable, OperatorFunction, Subject, pipe, EMPTY, throwError, of } from 'rxjs';
 import {
   catchError,
   concatMap,
@@ -24,7 +13,6 @@ import {
   map,
   mergeMap,
   repeat,
-  share,
   takeUntil,
   tap,
 } from 'rxjs/operators';
@@ -203,48 +191,56 @@ export function compileWorkerOptions(opts: WorkerOptionsWithDefaults): CompiledW
 
 export type State = 'INITIALIZED' | 'RUNNING' | 'STOPPED' | 'STOPPING' | 'FAILED' | 'SUSPENDED';
 
-type TaskForWorkflow = Required<{ taskToken: Uint8Array; workflow: coresdk.workflow_activation.WFActivation }>;
-type TaskForActivity = Required<{ taskToken: Uint8Array; activity: coresdk.activity_task.ActivityTask }>;
-
+type ExtractToPromise<T> = T extends (err: any, result: infer R) => void ? Promise<R> : never;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+type Last<T extends any[]> = T extends [...infer I, infer L] ? L : never;
+type LastParameter<F extends (...args: any) => any> = Last<Parameters<F>>;
 type OmitFirst<T> = T extends [any, ...infer REST] ? REST : never;
-type RestParams<T> = T extends (...args: any[]) => any ? OmitFirst<Parameters<T>> : never;
-type OmitFirstParam<T> = T extends (...args: any[]) => any ? (...args: RestParams<T>) => ReturnType<T> : never;
+type OmitLast<T> = T extends [...infer REST, any] ? REST : never;
+type OmitFirstParam<T> = T extends (...args: any[]) => any
+  ? (...args: OmitFirst<Parameters<T>>) => ReturnType<T>
+  : never;
+type Promisify<T> = T extends (...args: any[]) => void
+  ? (...args: OmitLast<Parameters<T>>) => ExtractToPromise<LastParameter<T>>
+  : never;
 
 export interface NativeWorkerLike {
   shutdown: OmitFirstParam<typeof native.workerShutdown>;
-  poll(queueName: string): Promise<ArrayBuffer>;
-  completeTask: OmitFirstParam<typeof native.workerCompleteTask>;
-  sendActivityHeartbeat: OmitFirstParam<typeof native.workerSendActivityHeartbeat>;
+  breakLoop: Promisify<OmitFirstParam<typeof native.workerBreakLoop>>;
+  pollWorkflowActivation: Promisify<OmitFirstParam<typeof native.workerPollWorkflowActivation>>;
+  pollActivityTask: Promisify<OmitFirstParam<typeof native.workerPollActivityTask>>;
+  completeWorkflowActivation: Promisify<OmitFirstParam<typeof native.workerCompleteWorkflowActivation>>;
+  completeActivityTask: Promisify<OmitFirstParam<typeof native.workerCompleteActivityTask>>;
+  sendActivityHeartbeat: Promisify<OmitFirstParam<typeof native.workerSendActivityHeartbeat>>;
 }
 
 export interface WorkerConstructor {
-  new (options?: ServerOptions): NativeWorkerLike;
+  create(options?: ServerOptions): Promise<NativeWorkerLike>;
 }
 
 export class NativeWorker implements NativeWorkerLike {
-  protected readonly native: native.Worker;
-  protected readonly pollFn: (worker: native.Worker, queueName: string) => Promise<ArrayBuffer>;
+  public readonly pollWorkflowActivation: Promisify<OmitFirstParam<typeof native.workerPollWorkflowActivation>>;
+  public readonly pollActivityTask: Promisify<OmitFirstParam<typeof native.workerPollActivityTask>>;
+  public readonly completeWorkflowActivation: Promisify<OmitFirstParam<typeof native.workerCompleteWorkflowActivation>>;
+  public readonly completeActivityTask: Promisify<OmitFirstParam<typeof native.workerCompleteActivityTask>>;
+  public readonly sendActivityHeartbeat: Promisify<OmitFirstParam<typeof native.workerSendActivityHeartbeat>>;
+  public readonly breakLoop: Promisify<OmitFirstParam<typeof native.workerBreakLoop>>;
+  public readonly shutdown: OmitFirstParam<typeof native.workerShutdown>;
 
-  public constructor(options?: ServerOptions) {
+  public static async create(options?: ServerOptions): Promise<NativeWorkerLike> {
     const compiledOptions = compileServerOptions({ ...getDefaultServerOptions(), ...options });
-    this.native = native.newWorker(compiledOptions);
-    this.pollFn = promisify(native.workerPoll);
+    const nativeWorker = await promisify(native.newWorker)(compiledOptions);
+    return new NativeWorker(nativeWorker);
   }
 
-  public shutdown(): void {
-    return native.workerShutdown(this.native);
-  }
-
-  public poll(queueName: string): Promise<ArrayBuffer> {
-    return this.pollFn(this.native, queueName);
-  }
-
-  public completeTask(result: ArrayBuffer): void {
-    return native.workerCompleteTask(this.native, result);
-  }
-
-  public sendActivityHeartbeat(activityId: string, details?: ArrayBuffer): void {
-    return native.workerSendActivityHeartbeat(this.native, activityId, details);
+  protected constructor(nativeWorker: native.Worker) {
+    this.pollWorkflowActivation = promisify(native.workerPollWorkflowActivation).bind(undefined, nativeWorker);
+    this.pollActivityTask = promisify(native.workerPollActivityTask).bind(undefined, nativeWorker);
+    this.completeWorkflowActivation = promisify(native.workerCompleteWorkflowActivation).bind(undefined, nativeWorker);
+    this.completeActivityTask = promisify(native.workerCompleteActivityTask).bind(undefined, nativeWorker);
+    this.sendActivityHeartbeat = promisify(native.workerSendActivityHeartbeat).bind(undefined, nativeWorker);
+    this.breakLoop = promisify(native.workerBreakLoop).bind(undefined, nativeWorker);
+    this.shutdown = native.workerShutdown.bind(undefined, nativeWorker);
   }
 }
 
@@ -259,7 +255,6 @@ export class Worker {
     activityId: string;
     details?: any;
   }>();
-  protected readonly pollSubject = new Subject<coresdk.Task>();
   protected stateSubject: BehaviorSubject<State> = new BehaviorSubject<State>('INITIALIZED');
   protected readonly nativeWorker: NativeWorkerLike;
 
@@ -267,13 +262,21 @@ export class Worker {
 
   /**
    * Create a new Worker.
-   * This method immediately connects to the server and will throw on connection failure.
+   * This method initiates a connection to the server and will throw (asynchronously) on connection failure.
    * @param pwd - Used to resolve relative paths for locating and importing activities and workflows.
    */
-  constructor(public readonly pwd: string, options?: WorkerOptions) {
-    // Typescript derives the type of `this.constructor` as Function, work around it by casting to any
-    const nativeWorkerCtor: WorkerConstructor = (this.constructor as any).nativeWorkerCtor;
-    this.nativeWorker = new nativeWorkerCtor(options?.serverOptions);
+  public static async create(pwd: string, options?: WorkerOptions): Promise<Worker> {
+    const nativeWorkerCtor: WorkerConstructor = this.nativeWorkerCtor;
+    const nativeWorker = await nativeWorkerCtor.create(options?.serverOptions);
+    return new this(nativeWorker, pwd, options);
+  }
+
+  /**
+   * Create a new Worker from nativeWorker.
+   * @param pwd - Used to resolve relative paths for locating and importing activities and workflows.
+   */
+  protected constructor(nativeWorker: NativeWorkerLike, public readonly pwd: string, options?: WorkerOptions) {
+    this.nativeWorker = nativeWorker;
 
     // TODO: merge activityDefaults
     this.options = compileWorkerOptions({ ...getDefaultOptions(pwd), ...options });
@@ -385,7 +388,7 @@ export class Worker {
       filter((state): state is 'STOPPING' => state === 'STOPPING'),
       delay(this.options.shutdownGraceTimeMs),
       map(() => {
-        throw new Error('Timed out waiting while waiting for worker to shutdown gracefully');
+        throw new Error('Timed out while waiting for worker to shutdown gracefully');
       })
     );
   }
@@ -393,14 +396,14 @@ export class Worker {
   /**
    * An observable which repeatedly polls for new tasks unless worker becomes suspended
    */
-  protected pollLoop$(queueName: string): Observable<coresdk.Task> {
+  protected pollLoop$<T>(pollFn: () => Promise<T>): Observable<T> {
     return of(this.stateSubject).pipe(
       map((state) => state.getValue()),
       concatMap((state) => {
         switch (state) {
           case 'RUNNING':
           case 'STOPPING':
-            return this.nativeWorker.poll(queueName);
+            return pollFn();
           case 'SUSPENDED':
             // Completes once we're out of SUSPENDED state
             return this.stateSubject.pipe(
@@ -414,8 +417,7 @@ export class Worker {
             throw new Error(`Unexpected state ${state}`);
         }
       }),
-      repeat(),
-      map((buffer) => coresdk.Task.decode(new Uint8Array(buffer)))
+      repeat()
     );
   }
 
@@ -423,26 +425,18 @@ export class Worker {
    * The main observable of the worker, starts the poll loop and takes care of state transitions
    * in case of an error during poll or shutdown
    */
-  protected poller$(queueName: string): Observable<coresdk.Task> {
-    return merge(this.gracefulShutdown$(), this.pollLoop$(queueName)).pipe(
-      catchError((err) => (err.message.includes('[Core::shutdown]') ? EMPTY : throwError(err))),
-      tap({
-        complete: () => {
-          this.state = 'STOPPED';
-        },
-        error: () => {
-          this.state = 'FAILED';
-        },
-      })
+  protected poller$<T>(pollFn: () => Promise<T>): Observable<T> {
+    return merge(this.gracefulShutdown$(), this.pollLoop$(pollFn)).pipe(
+      catchError((err) => (err.message.includes('Core is shut down') ? EMPTY : throwError(err)))
     );
   }
 
   /**
    * Process activity tasks
    */
-  protected activityOperator(): OperatorFunction<TaskForActivity, Uint8Array> {
+  protected activityOperator(): OperatorFunction<coresdk.activity_task.ActivityTask, Uint8Array> {
     return pipe(
-      closeableGroupBy((task) => task.activity.activityId),
+      closeableGroupBy((task) => task.activityId),
       mergeMap((group$) => {
         return group$.pipe(
           mergeMapWithState(async (activity: Activity | undefined, task) => {
@@ -452,15 +446,14 @@ export class Worker {
             let output:
               | { type: 'result'; result: coresdk.activity_result.IActivityResult }
               | { type: 'run'; activity: Activity };
-            const { taskToken } = task;
-            const { variant } = task.activity;
+            const { taskToken, variant, activityId } = task;
             if (!variant) {
               throw new Error('Got an activity task without a "variant" attribute');
             }
 
             switch (variant) {
               case 'start': {
-                const { start, activityId } = task.activity;
+                const { start } = task;
                 if (!start) {
                   throw new Error('Got a "start" activity task without a "start" attribute');
                 }
@@ -496,7 +489,6 @@ export class Worker {
                 break;
               }
               case 'cancel': {
-                const { activityId } = task.activity;
                 if (activity === undefined) {
                   this.log.error('Tried to cancel a non-existing activity', { activityId });
                   output = { type: 'result', result: { failed: { failure: { message: 'Activity not found' } } } };
@@ -528,13 +520,8 @@ export class Worker {
             return { taskToken, result };
           }),
           filter(<T>(result: T): result is Exclude<T, undefined> => result !== undefined),
-          map(({ taskToken, result }) =>
-            coresdk.TaskCompletion.encodeDelimited({
-              taskToken: taskToken,
-              activity: result,
-            }).finish()
-          ),
-          tap(group$.close)
+          map((result) => coresdk.ActivityTaskCompletion.encodeDelimited(result).finish()),
+          tap(group$.close) // Close the group after activity task completion
         );
       })
     );
@@ -544,9 +531,11 @@ export class Worker {
    * Process workflow activations
    * @param queueName used to propagate the current task queue to the workflow
    */
-  protected workflowOperator(queueName: string): OperatorFunction<TaskForWorkflow, Uint8Array> {
+  protected workflowOperator(
+    queueName: string
+  ): OperatorFunction<coresdk.workflow_activation.WFActivation, Uint8Array> {
     return pipe(
-      closeableGroupBy((task) => task.workflow.runId),
+      closeableGroupBy((task) => task.runId),
       mergeMap((group$) => {
         return group$.pipe(
           mergeMapWithState(async (workflow: Workflow | undefined, task) => {
@@ -555,7 +544,7 @@ export class Worker {
               try {
                 // Find a workflow start job in the activation jobs list
                 // TODO: should this always be the first job in the list?
-                const maybeStartWorkflow = task.workflow.jobs.find((j) => j.startWorkflow);
+                const maybeStartWorkflow = task.jobs.find((j) => j.startWorkflow);
                 if (maybeStartWorkflow !== undefined) {
                   const attrs = maybeStartWorkflow.startWorkflow;
                   if (!(attrs && attrs.workflowId && attrs.workflowType)) {
@@ -568,7 +557,7 @@ export class Worker {
                   this.log.debug('Creating workflow', {
                     taskToken,
                     workflowId: attrs.workflowId,
-                    runId: task.workflow.runId,
+                    runId: task.runId,
                   });
                   workflow = await Workflow.create(attrs.workflowId, queueName);
                   // TODO: this probably shouldn't be here, consider alternative implementation
@@ -583,24 +572,20 @@ export class Worker {
                   throw new Error('Received workflow activation for an untracked workflow with no start workflow job');
                 }
               } catch (error) {
-                this.log.error('Failed to create a workflow', { taskToken, runId: task.workflow.runId, error });
+                this.log.error('Failed to create a workflow', { taskToken, runId: task.runId, error });
                 let arr: Uint8Array;
                 if (error instanceof LoaderError) {
-                  arr = coresdk.TaskCompletion.encodeDelimited({
+                  arr = coresdk.workflow_completion.WFActivationCompletion.encodeDelimited({
                     taskToken: task.taskToken,
-                    workflow: {
-                      successful: {
-                        commands: [{ failWorkflowExecution: { failure: errorToUserCodeFailure(error) } }],
-                      },
+                    successful: {
+                      commands: [{ failWorkflowExecution: { failure: errorToUserCodeFailure(error) } }],
                     },
                   }).finish();
                 } else {
-                  arr = coresdk.TaskCompletion.encodeDelimited({
+                  arr = coresdk.workflow_completion.WFActivationCompletion.encodeDelimited({
                     taskToken: task.taskToken,
-                    workflow: {
-                      failed: {
-                        failure: errorToUserCodeFailure(error),
-                      },
+                    failed: {
+                      failure: errorToUserCodeFailure(error),
                     },
                   }).finish();
                 }
@@ -610,7 +595,8 @@ export class Worker {
             }
 
             this.log.debug('Activating workflow', { taskToken });
-            const arr = await workflow.activate(task.taskToken, task.workflow);
+            // TODO: single param
+            const arr = await workflow.activate(task.taskToken, task);
             return { state: workflow, output: { close: false, arr } };
           }, undefined),
           tap(({ close }) => void close && group$.close())
@@ -627,15 +613,15 @@ export class Worker {
     return this.activityHeartbeatSubject.pipe(
       takeUntil(this.stateSubject.pipe(filter((value) => value === 'STOPPED' || value === 'FAILED'))),
       tap(({ activityId }) => this.log.debug('Got activity heartbeat', { activityId })),
-      map(({ activityId, details }) => {
+      mergeMap(async ({ activityId, details }) => {
         const payload = this.options.dataConverter.toPayload(details);
         if (!payload) {
-          this.nativeWorker.sendActivityHeartbeat(activityId);
+          await this.nativeWorker.sendActivityHeartbeat(activityId, undefined);
           return;
         }
 
         const arr = coresdk.common.Payload.encode(payload).finish();
-        this.nativeWorker.sendActivityHeartbeat(
+        await this.nativeWorker.sendActivityHeartbeat(
           activityId,
           arr.buffer.slice(arr.byteOffset, arr.byteLength + arr.byteOffset)
         );
@@ -644,7 +630,31 @@ export class Worker {
   }
 
   /**
-   * Start polling on tasks, completes after graceful shutdown after a receiving a shutdown signal
+   * Poll core for `WFActivation`s while respecting worker state
+   */
+  protected workflow$(queueName: string): Observable<coresdk.workflow_activation.WFActivation> {
+    return this.poller$(async () => {
+      const buffer = await this.nativeWorker.pollWorkflowActivation(queueName);
+      const task = coresdk.workflow_activation.WFActivation.decode(new Uint8Array(buffer));
+      this.log.debug('Got workflow task', task);
+      return task;
+    });
+  }
+
+  /**
+   * Poll core for `ActivityTask`s while respecting worker state
+   */
+  protected activity$(queueName: string): Observable<coresdk.activity_task.ActivityTask> {
+    return this.poller$(async () => {
+      const buffer = await this.nativeWorker.pollActivityTask(queueName);
+      const task = coresdk.activity_task.ActivityTask.decode(new Uint8Array(buffer));
+      this.log.debug('Got activity task', task);
+      return task;
+    });
+  }
+
+  /**
+   * Start polling on tasks, completes after graceful shutdown due to receiving a shutdown signal
    * or call to {@link shutdown}.
    */
   async run(queueName: string): Promise<void> {
@@ -662,22 +672,31 @@ export class Worker {
     for (const signal of this.options.shutdownSignals) {
       process.on(signal, startShutdownSequence);
     }
-
-    const partitioned$ = partition(
-      this.poller$(queueName).pipe(
-        share(),
-        tap((task) => this.log.debug('Got task', task))
-      ),
-      (task) => task.variant === 'workflow'
-    );
-    // Need to cast to any in order to assign the specific types since partition returns an Observable<Task>
-    const [workflow$, activity$] = (partitioned$ as any) as [Observable<TaskForWorkflow>, Observable<TaskForActivity>];
-
-    return await merge(
-      this.activityHeartbeat$(),
-      merge(workflow$.pipe(this.workflowOperator(queueName)), activity$.pipe(this.activityOperator())).pipe(
-        map((arr) => this.nativeWorker.completeTask(arr.buffer.slice(arr.byteOffset)))
-      )
-    ).toPromise();
+    try {
+      await merge(
+        this.activityHeartbeat$(),
+        merge(
+          this.workflow$(queueName).pipe(
+            this.workflowOperator(queueName),
+            mergeMap((arr) => this.nativeWorker.completeWorkflowActivation(arr.buffer.slice(arr.byteOffset)))
+          ),
+          this.activity$(queueName).pipe(
+            this.activityOperator(),
+            mergeMap((arr) => this.nativeWorker.completeActivityTask(arr.buffer.slice(arr.byteOffset)))
+          )
+        ).pipe(
+          tap({
+            complete: () => {
+              this.state = 'STOPPED';
+            },
+            error: () => {
+              this.state = 'FAILED';
+            },
+          })
+        )
+      ).toPromise();
+    } finally {
+      await this.nativeWorker.breakLoop();
+    }
   }
 }

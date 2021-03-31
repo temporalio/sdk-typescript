@@ -40,7 +40,7 @@ export class Activity {
             return { canceled: {} };
           }
           console.log('completed activity', { result });
-          return { completed: { result: this.dataConverter.toPayloads(result) } };
+          return { completed: { result: this.dataConverter.toPayload(result) } };
         } catch (err) {
           if (this.cancelRequested) {
             return { canceled: {} };

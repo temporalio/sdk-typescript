@@ -121,7 +121,7 @@ import { Worker } from '@temporalio/worker';
 
 (async () => {
   // Automatically locate and register activities and workflows
-  const worker = new Worker(__dirname);
+  const worker = await Worker.create(__dirname);
   // Bind to the `tutorial` queue and start accepting tasks
   await worker.run('tutorial');
 })();

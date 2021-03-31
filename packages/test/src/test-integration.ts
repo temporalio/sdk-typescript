@@ -1,5 +1,5 @@
 /* eslint @typescript-eslint/no-non-null-assertion: 0 */
-import test from 'ava';
+import anyTest, { TestInterface } from 'ava';
 import { v4 as uuid4 } from 'uuid';
 import { Connection } from '@temporalio/client';
 import { tsToMs } from '@temporalio/workflow/commonjs/time';
@@ -23,21 +23,28 @@ const {
 
 const timerEventTypes = new Set([EVENT_TYPE_TIMER_STARTED, EVENT_TYPE_TIMER_FIRED, EVENT_TYPE_TIMER_CANCELED]);
 
-if (RUN_INTEGRATION_TESTS) {
-  const worker = new Worker(__dirname, {
-    workflowsPath: `${__dirname}/../../test-workflows/lib`,
-    activitiesPath: `${__dirname}/../../test-activities/lib`,
-    logger: new DefaultLogger('DEBUG'),
-  });
+export interface Context {
+  worker: Worker;
+}
 
-  test.before((t) => {
+const test = anyTest as TestInterface<Context>;
+
+if (RUN_INTEGRATION_TESTS) {
+  test.before(async (t) => {
+    const worker = await Worker.create(__dirname, {
+      workflowsPath: `${__dirname}/../../test-workflows/lib`,
+      activitiesPath: `${__dirname}/../../test-activities/lib`,
+      logger: new DefaultLogger('DEBUG'),
+    });
+    t.context = { worker };
+
     worker.run('test').catch((err) => {
       console.error(err);
       t.fail(`Failed to run worker: ${err}`);
     });
   });
-  test.after.always(() => {
-    worker.shutdown();
+  test.after.always((t) => {
+    t.context.worker.shutdown();
   });
 
   test('Workflow not found results in failure', async (t) => {
@@ -75,12 +82,11 @@ if (RUN_INTEGRATION_TESTS) {
     t.throwsAsync(promise, { message: /just because/, instanceOf: WorkflowExecutionFailedError });
   });
 
-  // Activities not yet properly implemented
-  test.skip('http', async (t) => {
+  test('http', async (t) => {
     const client = new Connection();
     const workflow = client.workflow<HTTP>('http', { taskQueue: 'test' });
     const res = await workflow.start();
-    t.is(res, [await httpGet('https://google.com'), await httpGet('http://example.com')]);
+    t.deepEqual(res, [await httpGet('https://google.com'), await httpGet('http://example.com')]);
   });
 
   test('set-timeout', async (t) => {

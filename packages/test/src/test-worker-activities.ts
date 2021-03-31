@@ -31,10 +31,13 @@ test.beforeEach((t) => {
 
 function compareCompletion(
   t: ExecutionContext<Context>,
-  actual: coresdk.TaskCompletion,
-  expected: coresdk.ITaskCompletion
+  actual: coresdk.activity_result.IActivityResult | null | undefined,
+  expected: coresdk.activity_result.IActivityResult
 ) {
-  t.deepEqual(actual.toJSON(), coresdk.TaskCompletion.create(expected).toJSON());
+  t.deepEqual(
+    coresdk.activity_result.ActivityResult.create(actual || undefined).toJSON(),
+    coresdk.activity_result.ActivityResult.create(expected).toJSON()
+  );
 }
 
 test('Worker runs an activity and reports completion', async (t) => {
@@ -42,19 +45,16 @@ test('Worker runs an activity and reports completion', async (t) => {
   await runWorker(t, async () => {
     const taskToken = Buffer.from(uuid4());
     const url = 'https://temporal.io';
-    const completion = await worker.native.runAndWaitCompletion({
+    const completion = await worker.native.runActivityTask({
       taskToken,
-      activity: {
-        activityId: 'abc',
-        start: {
-          activityType: JSON.stringify(['@activities', 'httpGet']),
-          input: defaultDataConverter.toPayloads(url),
-        },
+      activityId: 'abc',
+      start: {
+        activityType: JSON.stringify(['@activities', 'httpGet']),
+        input: defaultDataConverter.toPayloads(url),
       },
     });
-    compareCompletion(t, completion, {
-      taskToken,
-      activity: { completed: { result: defaultDataConverter.toPayloads(await httpGet(url)) } },
+    compareCompletion(t, completion.result, {
+      completed: { result: defaultDataConverter.toPayload(await httpGet(url)) },
     });
   });
 });
@@ -64,19 +64,16 @@ test('Worker runs an activity and reports failure', async (t) => {
   await runWorker(t, async () => {
     const taskToken = Buffer.from(uuid4());
     const message = ':(';
-    const completion = await worker.native.runAndWaitCompletion({
+    const completion = await worker.native.runActivityTask({
       taskToken,
-      activity: {
-        activityId: 'abc',
-        start: {
-          activityType: JSON.stringify(['@activities', 'throwAnError']),
-          input: defaultDataConverter.toPayloads(message),
-        },
+      activityId: 'abc',
+      start: {
+        activityType: JSON.stringify(['@activities', 'throwAnError']),
+        input: defaultDataConverter.toPayloads(message),
       },
     });
-    compareCompletion(t, completion, {
-      taskToken,
-      activity: { failed: { failure: { message } } },
+    compareCompletion(t, completion.result, {
+      failed: { failure: { message } },
     });
   });
 });
@@ -85,8 +82,8 @@ test('Worker cancels activity and reports cancellation', async (t) => {
   const { worker } = t.context;
   await runWorker(t, async () => {
     worker.native.emit({
-      taskToken: Buffer.from(uuid4()),
       activity: {
+        taskToken: Buffer.from(uuid4()),
         activityId: 'abc',
         start: {
           activityType: JSON.stringify(['@activities', 'waitForCancellation']),
@@ -95,16 +92,13 @@ test('Worker cancels activity and reports cancellation', async (t) => {
       },
     });
     const taskToken = Buffer.from(uuid4());
-    const completion = await worker.native.runAndWaitCompletion({
+    const completion = await worker.native.runActivityTask({
       taskToken,
-      activity: {
-        activityId: 'abc',
-        cancel: {},
-      },
+      activityId: 'abc',
+      cancel: {},
     });
-    compareCompletion(t, completion, {
-      taskToken,
-      activity: { canceled: {} },
+    compareCompletion(t, completion.result, {
+      canceled: {},
     });
   });
 });
@@ -113,8 +107,8 @@ test('Activity Context AbortSignal cancels a fetch request', async (t) => {
   const { worker } = t.context;
   await runWorker(t, async () => {
     worker.native.emit({
-      taskToken: Buffer.from(uuid4()),
       activity: {
+        taskToken: Buffer.from(uuid4()),
         activityId: 'abc',
         start: {
           activityType: JSON.stringify(['@activities', 'cancellableFetch']),
@@ -123,16 +117,13 @@ test('Activity Context AbortSignal cancels a fetch request', async (t) => {
       },
     });
     const taskToken = Buffer.from(uuid4());
-    const completion = await worker.native.runAndWaitCompletion({
+    const completion = await worker.native.runActivityTask({
       taskToken,
-      activity: {
-        activityId: 'abc',
-        cancel: {},
-      },
+      activityId: 'abc',
+      cancel: {},
     });
-    compareCompletion(t, completion, {
-      taskToken,
-      activity: { canceled: {} },
+    compareCompletion(t, completion.result, {
+      canceled: {},
     });
   });
 });
@@ -141,22 +132,19 @@ test('Activity Context heartbeat is sent to core', async (t) => {
   const { worker } = t.context;
   await runWorker(t, async () => {
     const taskToken = Buffer.from(uuid4());
-    const completionPromise = worker.native.runAndWaitCompletion({
+    const completionPromise = worker.native.runActivityTask({
       taskToken,
-      activity: {
-        activityId: 'abc',
-        start: {
-          activityType: JSON.stringify(['@activities', 'progressiveSleep']),
-          input: defaultDataConverter.toPayloads(),
-        },
+      activityId: 'abc',
+      start: {
+        activityType: JSON.stringify(['@activities', 'progressiveSleep']),
+        input: defaultDataConverter.toPayloads(),
       },
     });
     t.is(await worker.native.untilHeartbeat('abc'), 1);
     t.is(await worker.native.untilHeartbeat('abc'), 2);
     t.is(await worker.native.untilHeartbeat('abc'), 3);
-    compareCompletion(t, await completionPromise, {
-      taskToken,
-      activity: { completed: { result: defaultDataConverter.toPayloads(undefined) } },
+    compareCompletion(t, (await completionPromise).result, {
+      completed: { result: defaultDataConverter.toPayload(undefined) },
     });
   });
 });
