@@ -1,4 +1,5 @@
 import anyTest, { TestInterface, ExecutionContext } from 'ava';
+import Long from 'long';
 import dedent from 'dedent';
 import path from 'path';
 import { coresdk } from '@temporalio/proto';
@@ -20,7 +21,7 @@ function getWorkflow(name: string) {
 }
 
 test.beforeEach(async (t) => {
-  const workflow = await Workflow.create('test-workflowId', 'test');
+  const workflow = await Workflow.create('test-workflowId', Long.fromInt(1337), 'test');
   const logs: unknown[][] = [];
   await workflow.inject('console.log', (...args: unknown[]) => void logs.push(args));
   const activities = new Map([['@activities', { httpGet: () => undefined }]]);
@@ -189,9 +190,22 @@ function makeRespondToQueryCommand(
 
 test('random', async (t) => {
   const { logs, script } = t.context;
-  const req = await activate(t, makeStartWorkflow(script));
-  compareCompletion(t, req, makeSuccess());
-  t.deepEqual(logs, [[0.9602179527282715]]);
+  {
+    const req = await activate(t, makeStartWorkflow(script));
+    compareCompletion(t, req, makeSuccess([makeStartTimerCommand({ timerId: '0', startToFireTimeout: msToTs(1) })]));
+  }
+  {
+    const req = await activate(
+      t,
+      makeActivation(
+        undefined,
+        { updateRandomSeed: { randomnessSeed: Long.fromNumber(7331) } },
+        { fireTimer: { timerId: '0' } }
+      )
+    );
+    compareCompletion(t, req, makeSuccess());
+  }
+  t.deepEqual(logs, [[0.8380154962651432], ['a50eca73-ff3e-4445-a512-2330c2f4f86e'], [0.18803317612037063]]);
 });
 
 test('sync', async (t) => {

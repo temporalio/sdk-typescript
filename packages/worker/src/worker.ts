@@ -547,9 +547,9 @@ export class Worker {
                 const maybeStartWorkflow = task.jobs.find((j) => j.startWorkflow);
                 if (maybeStartWorkflow !== undefined) {
                   const attrs = maybeStartWorkflow.startWorkflow;
-                  if (!(attrs && attrs.workflowId && attrs.workflowType)) {
+                  if (!(attrs && attrs.workflowId && attrs.workflowType && attrs.randomnessSeed)) {
                     throw new Error(
-                      `Expected StartWorkflow with workflowId and workflowType, got ${JSON.stringify(
+                      `Expected StartWorkflow with workflowId, workflowType and randomnessSeed, got ${JSON.stringify(
                         maybeStartWorkflow
                       )}`
                     );
@@ -559,7 +559,7 @@ export class Worker {
                     workflowId: attrs.workflowId,
                     runId: task.runId,
                   });
-                  workflow = await Workflow.create(attrs.workflowId, queueName);
+                  workflow = await Workflow.create(attrs.workflowId, attrs.randomnessSeed, queueName);
                   // TODO: this probably shouldn't be here, consider alternative implementation
                   await workflow.inject('console.log', console.log);
                   await workflow.registerActivities(this.resolvedActivities, this.options.activityDefaults);

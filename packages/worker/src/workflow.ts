@@ -1,4 +1,5 @@
 import ivm from 'isolated-vm';
+import Long from 'long';
 import dedent from 'dedent';
 import { coresdk } from '@temporalio/proto';
 import * as internals from '@temporalio/workflow/commonjs/internals';
@@ -30,7 +31,7 @@ export class Workflow {
     readonly workflowModule: WorkflowModule
   ) {}
 
-  public static async create(id: string, taskQueue: string): Promise<Workflow> {
+  public static async create(id: string, randomnessSeed: Long, taskQueue: string): Promise<Workflow> {
     const isolate = new ivm.Isolate();
     const context = await isolate.createContext();
 
@@ -53,7 +54,9 @@ export class Workflow {
     );
     loader.overrideModule('@temporalio/workflow', workflowModule);
 
-    await initWorkflow.apply(undefined, [id, taskQueue, runtime.derefInto()], { arguments: { copy: true } });
+    await initWorkflow.apply(undefined, [id, randomnessSeed.toBytes(), taskQueue, runtime.derefInto()], {
+      arguments: { copy: true },
+    });
 
     return new Workflow(id, isolate, context, loader, { activate, concludeActivation });
   }
