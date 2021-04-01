@@ -49,6 +49,7 @@ export interface State {
   workflow?: Workflow;
   activator?: Activator;
   runtime?: Runtime;
+  workflowId?: string;
   taskQueue?: string;
 }
 
@@ -185,7 +186,7 @@ export class Activator implements WorkflowTaskHandler {
     }
   }
 
-  public queryWorkflow(job: iface.coresdk.workflow_activation.IQueryWorkflow): void {
+  public queryWorkflow(activation: iface.coresdk.workflow_activation.IQueryWorkflow): void {
     if (state.workflow === undefined) {
       throw new Error('state.workflow is not defined');
     }
@@ -195,12 +196,12 @@ export class Activator implements WorkflowTaskHandler {
       if (queries === undefined) {
         throw new Error('Workflow did not define any queries');
       }
-      if (!job.queryType) {
+      if (!activation.queryType) {
         throw new Error('Missing query type');
       }
 
-      const fn = queries[job.queryType];
-      const retOrPromise = fn(...arrayFromPayloads(defaultDataConverter, job.arguments));
+      const fn = queries[activation.queryType];
+      const retOrPromise = fn(...arrayFromPayloads(defaultDataConverter, activation.arguments));
       if (retOrPromise instanceof Promise) {
         retOrPromise.then(completeQuery).catch(failQuery);
       } else {
@@ -211,12 +212,15 @@ export class Activator implements WorkflowTaskHandler {
     }
   }
 
-  public signalWorkflow(_job: iface.coresdk.workflow_activation.ISignalWorkflow): void {
+  public signalWorkflow(_activation: iface.coresdk.workflow_activation.ISignalWorkflow): void {
     throw new Error('Not implemented');
   }
 
-  public updateRandomSeed(_activation: iface.coresdk.workflow_activation.IUpdateRandomSeed): void {
-    throw new Error('Not implemented');
+  public updateRandomSeed(activation: iface.coresdk.workflow_activation.IUpdateRandomSeed): void {
+    if (!activation.randomnessSeed) {
+      throw new Error('Expected activation with randomnessSeed attribute');
+    }
+    Math.random = alea(activation.randomnessSeed.toBytes());
   }
 }
 
@@ -336,8 +340,9 @@ export function childScope<T>(
   return promise;
 }
 
-export function initWorkflow(id: string, taskQueue: string, runtime: Runtime): void {
-  Math.random = alea(id);
+export function initWorkflow(workflowId: string, randomnessSeed: number[], taskQueue: string, runtime: Runtime): void {
+  Math.random = alea(randomnessSeed);
+  state.workflowId = workflowId;
   state.taskQueue = taskQueue;
   state.runtime = runtime;
   state.activator = new Activator();

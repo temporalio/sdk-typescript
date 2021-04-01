@@ -23,7 +23,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-// Taken from https://github.com/davidbau/seedrandom/blob/released/lib/alea.js
+// Taken and modified from https://github.com/davidbau/seedrandom/blob/released/lib/alea.js
 
 class Alea {
   public c: number;
@@ -31,13 +31,13 @@ class Alea {
   public s1: number;
   public s2: number;
 
-  constructor(seed: string) {
+  constructor(seed: number[]) {
     const mash = new Mash();
     // Apply the seeding algorithm from Baagoe.
     this.c = 1;
-    this.s0 = mash.mash(' ');
-    this.s1 = mash.mash(' ');
-    this.s2 = mash.mash(' ');
+    this.s0 = mash.mash([32]);
+    this.s1 = mash.mash([32]);
+    this.s2 = mash.mash([32]);
     this.s0 -= mash.mash(seed);
     if (this.s0 < 0) {
       this.s0 += 1;
@@ -62,18 +62,18 @@ class Alea {
 
 export type RNG = () => number;
 
-export function alea(seed: string): RNG {
+export function alea(seed: number[]): RNG {
   const xg = new Alea(seed);
   return xg.next.bind(xg);
 }
 
-class Mash {
+export class Mash {
   private n = 0xefc8249d;
 
-  public mash(data: string) {
+  public mash(data: number[]): number {
     let { n } = this;
     for (let i = 0; i < data.length; i++) {
-      n += data.charCodeAt(i);
+      n += data[i];
       let h = 0.02519603282416938 * n;
       n = h >>> 0;
       h -= n;
