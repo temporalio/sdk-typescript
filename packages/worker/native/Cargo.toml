@@ -1,19 +1,18 @@
 [package]
-name = "temporal-sdk-node"
+name = "temporal-sdk-node-bridge"
 version = "0.1.0"
 authors = ["Roey Berman <roey@temporal.io>"]
 license = "MIT"
-build = "build.rs"
 edition = "2018"
-exclude = ["artifacts.json", "index.node", "sdk-core"]
+exclude = ["index.node", "sdk-core"]
 
 [lib]
-name = "temporal_sdk_node"
-crate-type = ["dylib"]
+name = "temporal_sdk_node_bridge"
+crate-type = ["cdylib"]
 
 [dependencies]
 futures = { version = "0.3", features = ["executor"] }
-neon = { version = "0.7", default-features = false, features = ["napi-4", "event-queue-api"] }
+neon = { version = "0.8.0", default-features = false, features = ["napi-4", "event-queue-api"] }
 prost = "0.7"
 prost-types = "0.7"
 tokio = "1.4.0"
@@ -21,6 +20,3 @@ tokio = "1.4.0"
 [dependencies.temporal-sdk-core]
 version = "*"
 path = "./sdk-core"
-
-[build-dependencies]
-neon-build = "0.7.1"

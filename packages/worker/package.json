@@ -6,7 +6,9 @@
   "types": "./lib/index.d.ts",
   "gypfile": true,
   "scripts": {
-    "build": "neon build && node-gyp rebuild --release",
+    "build-rust": "cd native && cargo-cp-artifact --artifact cdylib temporal_sdk_node_bridge index.node -- cargo build --message-format=json-render-diagnostics --release",
+    "build-cpp": "node-gyp rebuild --release",
+    "build": "npm run build-cpp && npm run build-rust",
     "install": "npm run build"
   },
   "keywords": [
@@ -28,7 +30,6 @@
     "grpc": "^1.24.5",
     "isolated-vm": "^3.3.10",
     "ms": "^2.1.3",
-    "neon-cli": "^0.7.0",
     "protobufjs": "^6.10.2",
     "rxjs": "^6.6.3",
     "uuid": "^8.3.2"
