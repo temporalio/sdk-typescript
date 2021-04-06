@@ -41,6 +41,7 @@
   "homepage": "https://github.com/temporalio/sdk-node#readme",
   "files": [
     "lib",
+    "scripts",
     "native/src",
     "native/releases",
     "native/build.rs",
