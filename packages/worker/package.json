@@ -6,9 +6,10 @@
   "types": "./lib/index.d.ts",
   "gypfile": true,
   "scripts": {
-    "build-rust": "cd native && cargo-cp-artifact --artifact cdylib temporal_sdk_node_bridge index.node -- cargo build --message-format=json-render-diagnostics --release",
+    "build-rust": "node ./scripts/build-rust.js",
+    "use-prebuilt-rust": "node ./scripts/use-prebuilt-rust.js",
     "build-cpp": "node-gyp rebuild --release",
-    "build": "npm run build-cpp && npm run build-rust",
+    "build": "npm run build-cpp && npm run use-prebuilt-rust || npm run build-rust",
     "install": "npm run build"
   },
   "keywords": [
