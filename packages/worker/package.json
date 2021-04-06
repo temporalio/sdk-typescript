@@ -42,6 +42,7 @@
   "files": [
     "lib",
     "native/src",
+    "native/releases",
     "native/build.rs",
     "native/sdk-core",
     "native/Cargo.toml",
