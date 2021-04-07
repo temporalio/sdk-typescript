@@ -13,21 +13,15 @@ By using NodeJS' `n-api` we get a binary which _should_ work on all supported No
 <!-- 1. Run `rustup target add x86_64-pc-windows-msvc` -->
 1. Run `rustup target add x86_64-pc-windows-gnu`
 1. Run `rustup target add x86_64-unknown-linux-gnu`
-1. Run `brew install llvm`
-1. Run `brew install mingw-w64`
-1. Run an Ubuntu container and copy relevant libs to your laptop:
-   1. `mkdir ~/lib`
-   1. `docker run -d --name ubuntu ubuntu sleep infinity`
-   1. `docker container cp ubuntu:/usr/lib/x86_64-linux-gnu/ ~/lib/`
-   1. `docker container rm -f ubuntu`
-   1. `(cd ~/lib/x86_64-linux-gnu && for lib in dl util gcc_s rt pthread c m; do ln -snf lib${lib}.so{.*,}; done)`
+1. Run `brew tap SergioBenitez/osxct`
+1. Run `brew install x86_64-unknown-linux-gnu` to compile for linux
+1. Run `brew install mingw-w64` to compile for windows
 1. Configure cargo for the Windows and Linux build targets
    `~/.cargo/config.toml`
 
    ```toml
    [target.x86_64-unknown-linux-gnu]
-   linker = "/usr/local/opt/llvm/bin/lld"
-   rustflags = "-L/Users/PUT_YOUR_USERNAME_HERE/lib/x86_64-linux-gnu/"
+   linker = "x86_64-unknown-linux-gnu-gcc"
 
    [target.x86_64-pc-windows-gnu]
    linker = "/usr/local/bin/x86_64-w64-mingw32-gcc"
