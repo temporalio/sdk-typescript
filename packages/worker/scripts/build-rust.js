@@ -3,11 +3,12 @@ const { spawnSync } = require('child_process');
 
 process.chdir(path.resolve(__dirname, '../native'));
 
-const buildAll = new Set(['y', 't', '1', 'yes', 'true']).has(
-  (process.env.TEMPORAL_WORKER_BUILD_ALL_TARGETS || '').toLowerCase()
-);
-
 const targets = ['x86_64-apple-darwin', 'aarch64-apple-darwin', 'x86_64-unknown-linux-gnu', 'x86_64-pc-windows-gnu'];
+
+const requestedTargets =
+  process.env.TEMPORAL_WORKER_BUILD_TARGETS === 'all'
+    ? targets
+    : (process.env.TEMPORAL_WORKER_BUILD_TARGETS || '').split(':');
 
 function compile(target) {
   console.log('Compiling bridge', { target });
@@ -32,8 +33,8 @@ function compile(target) {
   }
 }
 
-if (buildAll) {
-  for (const target of targets) {
+if (requestedTargets.length > 0) {
+  for (const target of requestedTargets) {
     compile(target);
   }
 } else {

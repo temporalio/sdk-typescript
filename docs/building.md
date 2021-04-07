@@ -27,4 +27,4 @@ By using NodeJS' `n-api` we get a binary which _should_ work on all supported No
    linker = "/usr/local/bin/x86_64-w64-mingw32-gcc"
    ```
 
-1. Build the project with `TEMPORAL_WORKER_BUILD_ALL_TARGETS=1 npx lerna run --stream build-rust`
+1. Build the project with `TEMPORAL_WORKER_BUILD_TARGETS=all npx lerna run --stream build-rust`

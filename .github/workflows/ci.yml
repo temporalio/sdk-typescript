@@ -55,15 +55,28 @@ jobs:
           brew tap SergioBenitez/osxct
           brew install x86_64-unknown-linux-gnu
           brew install mingw-w64
+      - run: cp etc/mac-cargo-config.toml ~/.cargo/config.toml
       - uses: actions/setup-node@v1
         with:
           node-version: 14
       - run: npm ci
       - run: npm run build
-      - run: TEMPORAL_WORKER_BUILD_ALL_TARGETS=1 npx lerna run --stream build-rust
-      - run: npm install --global verdaccio
+      # aarch64 build fails on GH actions, skip it
+      - run: TEMPORAL_WORKER_BUILD_TARGETS=x86_64-apple-darwin:x86_64-unknown-linux-gnu:x86_64-pc-windows-gnu npx lerna run --stream build-rust
       - run: node scripts/publish-to-verdaccio.js --registry-dir /tmp/registry
       - uses: actions/upload-artifact@v2
         with:
           name: packages
           path: /tmp/registry/storage
+  test-npm-init:
+    strategy:
+      fail-fast: true
+      matrix:
+        node: [12, 14]
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    needs: setup
+    steps:
+      - uses: actions/setup-node@v1
+        with:
+          node-version: ${{ matrix.node }}

@@ -59,7 +59,7 @@ class Registry {
   }
 
   static async create(workdir) {
-    await copy(path.resolve(__dirname, 'verdaccio-config.yaml'), path.resolve(workdir, 'verdaccio.yaml'));
+    await copy(path.resolve(__dirname, '../etc/verdaccio-config.yaml'), path.resolve(workdir, 'verdaccio.yaml'));
 
     const proc = spawnChild('npx', ['verdaccio', '-c', 'verdaccio.yaml'], {
       cwd: workdir,
