@@ -84,6 +84,8 @@ jobs:
       - uses: actions/setup-node@v1
         with:
           node-version: ${{ matrix.node }}
+      - name: Install dependencies without compilation
+        run: npm ci --ignore-scripts
       - uses: actions/download-artifact@v2
         with:
           name: packages
