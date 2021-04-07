@@ -4,15 +4,13 @@ const { withRegistry, getRegistryDirFromArgs } = require('./registry');
 async function main() {
   const registryDir = await getRegistryDirFromArgs();
   await withRegistry(registryDir, async () => {
-    const { status } = spawnSync(
-      'npx',
-      ['lerna', 'publish', 'from-package', '--yes', '--registry', 'http://localhost:4873/'],
-      {
-        stdio: 'inherit',
-      }
-    );
+    const { status } = spawnSync('npm', ['init', '@temporalio', 'example'], {
+      stdio: 'inherit',
+      cwd: registryDir,
+      env: { ...process.env, NPM_CONFIG_REGISTRY: 'http://localhost:4873/' },
+    });
     if (status !== 0) {
-      throw new Error('Failed to publish to registry');
+      throw new Error('Failed to init example');
     }
   });
 }
