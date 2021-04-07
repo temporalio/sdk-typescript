@@ -97,6 +97,8 @@ jobs:
         run: wget https://raw.githubusercontent.com/temporalio/docker-compose/main/docker-compose.yml
       - name: Start Temporal Server
         run: docker-compose up -d
+      - run: cp scripts/wait-on-temporal.js /tmp/registry/example
       - name: Wait for Temporal Server
-        run: node scripts/wait-on-temporal.js
+        run: node wait-on-temporal.js
+        working-directory: /tmp/registry/example
       - run: node scripts/test-example.js --work-dir /tmp/registry/example

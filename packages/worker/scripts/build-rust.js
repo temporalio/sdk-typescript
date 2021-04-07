@@ -8,7 +8,9 @@ const targets = ['x86_64-apple-darwin', 'aarch64-apple-darwin', 'x86_64-unknown-
 const requestedTargets =
   process.env.TEMPORAL_WORKER_BUILD_TARGETS === 'all'
     ? targets
-    : (process.env.TEMPORAL_WORKER_BUILD_TARGETS || '').split(':');
+    : process.env.TEMPORAL_WORKER_BUILD_TARGETS
+    ? process.env.TEMPORAL_WORKER_BUILD_TARGETS.split(':')
+    : [];
 
 function compile(target) {
   console.log('Compiling bridge', { target });
