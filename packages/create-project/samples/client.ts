@@ -4,7 +4,7 @@ import { Example } from '@interfaces/workflows';
 async function run() {
   const connection = new Connection();
   const example = connection.workflow<Example>('example', { taskQueue: 'tutorial' });
-  const result = await example('Temporal');
+  const result = await example.start('Temporal');
   console.log(result); // Hello, Temporal
 }
 
