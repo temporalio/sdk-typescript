@@ -7,7 +7,7 @@ const buildAll = new Set(['y', 't', '1', 'yes', 'true']).has(
   (process.env.TEMPORAL_WORKER_BUILD_ALL_TARGETS || '').toLowerCase()
 );
 
-const targets = ['x86_64-apple-darwin', 'aarch64-apple-darwin', 'x86_64-unknown-linux-gnu', 'x86_64-pc-windows-gnu'];
+const targets = ['x86_64-apple-darwin', 'aarch64-apple-darwin', 'x86_64-unknown-linux-musl', 'x86_64-pc-windows-gnu'];
 
 function compile(target) {
   console.log('Compiling bridge', { target });
