@@ -12,6 +12,7 @@ const arg_1 = __importDefault(require("arg"));
 const subprocess_1 = require("./subprocess");
 const command = '@temporalio/create';
 const typescriptVersion = '4.2.2';
+const npm = /^win/.test(process.platform) ? 'npm.cmd' : 'npm';
 const packageJsonBase = {
     version: '0.1.0',
     private: true,
@@ -150,8 +151,8 @@ async function createProject(projectPath, useYarn, temporalVersion) {
         await subprocess_1.spawn('yarn', ['add', `temporalio@${temporalVersion}`], { cwd: root, stdio: 'inherit' });
     }
     else {
-        await subprocess_1.spawn('npm', ['install'], { cwd: root, stdio: 'inherit' });
-        await subprocess_1.spawn('npm', ['install', `temporalio@${temporalVersion}`], { cwd: root, stdio: 'inherit' });
+        await subprocess_1.spawn(npm, ['install'], { cwd: root, stdio: 'inherit' });
+        await subprocess_1.spawn(npm, ['install', `temporalio@${temporalVersion}`], { cwd: root, stdio: 'inherit' });
     }
 }
 async function init() {
