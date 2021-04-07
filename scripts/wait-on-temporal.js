@@ -14,13 +14,16 @@ async function main(maxAttempts = 100, retryIntervalSecs = 1) {
   for (let attempt = 1; attempt <= maxAttempts; ++attempt) {
     try {
       const client = new Connection();
-      await client.service.describeNamespace({ namespace: 'default' });
-      // We wait an extra 3 seconds after a successful describe namespace because the namespace
-      // is not really ready after the call.
+      // Workaround for describeNamespace returning even though namespace is not registered yet
       // See: https://github.com/temporalio/temporal/issues/1336
-      await new Timer(3000);
-      break;
+      await client.service.getWorkflowExecutionHistory({
+        namespace: 'default',
+        execution: { workflowId: 'fake', runId: '26323773-ab30-4442-9a20-c5640b31a7a3' },
+      });
     } catch (err) {
+      if (err.details === 'Requested workflow history not found, may have passed retention period.') {
+        break;
+      }
       if (attempt === maxAttempts) {
         throw err;
       }
