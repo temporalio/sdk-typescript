@@ -2,6 +2,15 @@ const path = require('path');
 const os = require('os');
 const fs = require('fs');
 
+const forceBuild = new Set(['y', 't', '1', 'yes', 'true']).has(
+  (process.env.TEMPORAL_WORKER_FORCE_BUILD || '').toLowerCase()
+);
+
+if (forceBuild) {
+  console.log('Force build via TEMPORAL_WORKER_FORCE_BUILD env var');
+  process.exit(1);
+}
+
 const archAlias = { x64: 'x86_64', arm64: 'aarch64' };
 const platformMapping = { darwin: 'apple-darwin', linux: 'unknown-linux-musl', win32: 'pc-windows-gnu' };
 
