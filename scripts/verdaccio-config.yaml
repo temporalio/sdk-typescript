@@ -1,0 +1,40 @@
+storage: ./storage
+
+web:
+  title: Verdaccio
+
+auth:
+  htpasswd:
+    file: ./htpasswd
+
+uplinks:
+  npmjs:
+    url: https://registry.npmjs.org/
+
+packages:
+  '@temporalio/*':
+    access: $all
+    publish: $all
+    unpublish: $all
+  'temporalio':
+    access: $all
+    publish: $all
+    unpublish: $all
+  '@*/*':
+    access: $all
+    publish: $all
+    unpublish: $all
+    proxy: npmjs
+  '**':
+    access: $all
+    publish: $all
+    unpublish: $all
+    proxy: npmjs
+
+server:
+  keepAliveTimeout: 60
+
+max_body_size: 200mb
+
+logs:
+  - { type: file, path: verdaccio.log, level: info }

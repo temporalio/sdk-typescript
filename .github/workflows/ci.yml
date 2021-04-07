@@ -24,7 +24,6 @@ jobs:
       - uses: actions/setup-node@v1
         with:
           node-version: ${{ matrix.node }}
-      - run: npm -g i npm@next-7 # TODO: do we need this?
       - run: npm ci
       - run: npm run build
       - run: npm run lint
@@ -40,3 +39,31 @@ jobs:
       - run: npm test
         env:
           RUN_INTEGRATION_TESTS: ${{ startsWith(matrix.os, 'ubuntu') }}
+  cross-compile:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          submodules: recursive
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+      - run: |
+          rustup target add aarch64-apple-darwin
+          rustup target add x86_64-pc-windows-gnu
+          rustup target add x86_64-unknown-linux-gnu
+          brew tap SergioBenitez/osxct
+          brew install x86_64-unknown-linux-gnu
+          brew install mingw-w64
+      - uses: actions/setup-node@v1
+        with:
+          node-version: 14
+      - run: npm ci
+      - run: npm run build
+      - run: TEMPORAL_WORKER_BUILD_ALL_TARGETS=1 npx lerna run --stream build-rust
+      - run: npm install --global verdaccio
+      - run: node scripts/publish-to-verdaccio.js --registry-dir /tmp/registry
+      - uses: actions/upload-artifact@v2
+        with:
+          name: packages
+          path: /tmp/registry/storage
