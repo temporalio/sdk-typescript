@@ -23,6 +23,7 @@
   "license": "MIT",
   "dependencies": {
     "@babel/core": "^7.13.10",
+    "@temporalio/activity": "file:../activity",
     "@temporalio/proto": "file:../proto",
     "@temporalio/workflow": "file:../workflow",
     "abort-controller": "^3.0.0",

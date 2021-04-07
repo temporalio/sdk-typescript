@@ -58,7 +58,6 @@
   "files": [],
   "name": "typescript-sdk",
   "dependencies": {
-    "@temporalio/activity": "file:packages/activity",
     "@temporalio/client": "file:packages/client",
     "@temporalio/create": "file:packages/create-project",
     "@temporalio/proto": "file:packages/proto",
