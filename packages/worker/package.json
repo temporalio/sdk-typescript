@@ -6,10 +6,11 @@
   "types": "./lib/index.d.ts",
   "gypfile": true,
   "scripts": {
+    "maybe-build-rust": "npm run use-prebuilt-rust || npm run build-rust",
     "build-rust": "node ./scripts/build-rust.js",
     "use-prebuilt-rust": "node ./scripts/use-prebuilt-rust.js",
     "build-cpp": "node-gyp rebuild --release",
-    "build": "npm run build-cpp && npm run use-prebuilt-rust || npm run build-rust",
+    "build": "npm run build-cpp && npm run maybe-build-rust",
     "install": "npm run build"
   },
   "keywords": [
