@@ -31,6 +31,7 @@ async function test(workdir) {
     cwd: workdir,
     shell,
     encoding: 'utf8',
+    stdio: ['inherit', 'pipe', 'inherit'],
   });
   if (status !== 0) {
     throw new Error('Failed to run workflow');
