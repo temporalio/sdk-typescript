@@ -12,7 +12,7 @@ if (forceBuild) {
 }
 
 const archAlias = { x64: 'x86_64', arm64: 'aarch64' };
-const platformMapping = { darwin: 'apple-darwin', linux: 'unknown-linux-musl', win32: 'pc-windows-gnu' };
+const platformMapping = { darwin: 'apple-darwin', linux: 'unknown-linux-gnu', win32: 'pc-windows-gnu' };
 
 const arch = archAlias[os.arch()];
 if (arch === undefined) {
