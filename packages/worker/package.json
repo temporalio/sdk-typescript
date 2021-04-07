@@ -28,6 +28,7 @@
     "@temporalio/workflow": "file:../workflow",
     "abort-controller": "^3.0.0",
     "babel-plugin-transform-commonjs": "^1.1.6",
+    "cargo-cp-artifact": "^0.1.4",
     "dedent": "^0.7.0",
     "fs-extra": "^9.0.1",
     "grpc": "^1.24.5",
