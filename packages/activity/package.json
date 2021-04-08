@@ -1,6 +1,6 @@
 {
   "name": "@temporalio/activity",
-  "version": "0.1.2-alpha.0",
+  "version": "0.1.1",
   "description": "Temporal.io SDK activity sub-package",
   "main": "lib/index.js",
   "types": "./lib/index.d.ts",
