@@ -1,4 +1,4 @@
-# Temporal SDK activity library
+# Activity library for [temporal.io](https://temporal.io)
 
 [![NPM](https://img.shields.io/npm/v/temporalio/activity)](https://www.npmjs.com/package/@temporalio/activity)
 

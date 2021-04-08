@@ -1,9 +1,10 @@
-# Worker library for [temporal.io](http://temporal.io)
+# Worker library for [temporal.io](https://temporal.io)
 
-Main package of the Temporal SDK.
+[![NPM](https://img.shields.io/npm/v/temporalio/worker)](https://www.npmjs.com/package/@temporalio/worker)
+
+Part of the [Temporal NodeJS SDK](https://www.npmjs.com/package/temporalio).
+
 Used to run workflows and activities.
-
-See the root [README](https://github.com/temporalio/sdk-node/blob/main/packages/meta/README.md) for more details.
 
 ### Usage
 
@@ -14,7 +15,7 @@ async function run() => {
   // Automatically locate and register activities and workflows
   // (assuming package was bootstrapped with `npm init @temporalio`).
   // Worker connects to localhost by default and uses console error for logging.
-  // Customize the worker by passing options a second parameter to the constructor.
+  // Customize the worker by passing options a second parameter of `create()`.
   const worker = await Worker.create(__dirname);
   // Bind to the `tutorial` queue and start accepting tasks
   await worker.run('tutorial');

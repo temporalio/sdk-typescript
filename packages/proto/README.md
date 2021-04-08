@@ -1,4 +1,4 @@
-# Temporal SDK protobuf definitions
+# Compiled protocol buffers definitions for [temporal.io](https://temporal.io)
 
 [![NPM](https://img.shields.io/npm/v/temporalio/proto)](https://www.npmjs.com/package/@temporalio/proto)
 
