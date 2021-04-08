@@ -8,7 +8,7 @@ This library provides tools required for writing activities and should only be i
 
 ### Usage
 
-`activities/index.ts`
+`src/activities/index.ts`
 
 ```ts
 import fetch from 'node-fetch';
