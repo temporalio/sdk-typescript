@@ -1,5 +1,5 @@
 import os from 'os';
-import grpc from 'grpc';
+import * as grpc from '@grpc/grpc-js';
 import { v4 as uuid4 } from 'uuid';
 import ms from 'ms';
 import * as iface from '@temporalio/proto';
@@ -304,8 +304,9 @@ export class Connection {
         (arg: any) => arg,
         (arg: any) => arg,
         requestData,
-        null,
-        null,
+        // TODO: allow adding metadata and call options
+        new grpc.Metadata(),
+        {},
         callback
       );
     };
