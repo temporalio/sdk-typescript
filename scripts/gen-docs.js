@@ -19,6 +19,8 @@ async function genDocs(package) {
       entryPoints: ['src/index.ts'],
       excludePrivate: true,
       excludeProtected: true,
+      hideGenerator: true,
+      theme: 'minimal',
     });
 
     const project = app.convert();
