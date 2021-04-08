@@ -17,5 +17,5 @@ By using NodeJS' `n-api` we get a binary which _should_ work on all supported No
 1. Run `brew install mingw-w64` to enable Windows compilation
 1. Configure cargo for the Windows and Linux build targets
    `cp etc/mac-cargo-config.toml ~/.cargo/config.toml`
-
+1. (Re)Install the project's dependencies with `NPM_CONFIG_FOREGROUND_SCRIPTS=true npm ci`
 1. Build the project with `TEMPORAL_WORKER_BUILD_TARGETS=all npx lerna run --stream build-rust`
