@@ -14,7 +14,7 @@ const requestedTargets =
 
 function compile(target) {
   console.log('Compiling bridge', { target });
-  const { status } = spawnSync(
+  const { status, error } = spawnSync(
     'cargo-cp-artifact',
     [
       '--artifact',
@@ -30,6 +30,10 @@ function compile(target) {
     ],
     { stdio: 'inherit' }
   );
+  if (error !== undefined) {
+    console.error(`Failed to build${target ? ' for ' + target : ''}`);
+    throw error;
+  }
   if (status !== 0) {
     throw new Error(`Failed to build${target ? ' for ' + target : ''}`);
   }
