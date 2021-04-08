@@ -36,11 +36,19 @@ For more information see the [proposal](https://github.com/temporalio/proposals/
 
 This project requires nodejs LTS version 12 (or later).
 
-Furthermore, to install this module you will need a c++ compiler and the Rust toolchain installed.
+Furthermore, to install this module you will need a c++ compiler.
 If you run into errors during installation it is likely your environment is not properly set up.
 
+The worker package embeds the Temporal Core SDK which requires the Rust toolchain to compile.
+We provided prebuilt binaries for the worker for:
+
+- Mac with an Intel chip: `x86_64-apple-darwin`
+- Mac with an M1 chip: `aarch64-apple-darwin`
+- Linux with x86_64 architecture: `x86_64-unknown-linux-gnu`
+- Windows with x86_64 architecture: `x86_64-pc-windows-gnu`
+
+- If you need to compile the worker yourself, set up the Rust toolchain by following the instructions [here](https://rustup.rs/).
 - To set up a C++ compiler for `node-gyp`, follow the instuctions [here](https://github.com/nodejs/node-gyp)
-- To set up the Rust toolchain, follow the instruction [here](https://rustup.rs/)
 
 #### Create a new project
 
@@ -49,7 +57,7 @@ npm init @temporalio ./example
 cd ./example
 ```
 
-> NOTE: `init` triggers native module compilation which will take a while, npm 7 hides the compilation output so it may appear that the installation is stuck, to see the compilation progress export `NPM_CONFIG_FOREGROUND_SCRIPTS=true`. The long wait time will be go away once the SDK [publishes pre-built binaries](https://github.com/temporalio/sdk-node/issues/16).
+> NOTE: `init` triggers native module compilation which might take a while, npm 7 hides the compilation output so it may appear that the installation is stuck, to see the compilation progress export `NPM_CONFIG_FOREGROUND_SCRIPTS=true`.
 
 #### Build everything
 

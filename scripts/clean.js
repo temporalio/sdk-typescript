@@ -40,7 +40,8 @@ function cleanProtoGeneratedFiles() {
 
 function cleanCompiledRustFiles() {
   console.log('Cleaning compiled rust files');
-  spawnSync('neon', ['clean'], { cwd: workerDir, stdio: 'inherit' });
+  removeSync(resolve(workerDir, 'native/releases'));
+  spawnSync('cargo', ['clean'], { cwd: resolve(workerDir, 'native'), stdio: 'inherit' });
 }
 
 function cleanCompiledCppFiles() {

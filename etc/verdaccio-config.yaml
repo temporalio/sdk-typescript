@@ -1,0 +1,42 @@
+storage: ./storage
+
+web:
+  title: Verdaccio
+
+auth:
+  htpasswd:
+    file: ./htpasswd
+
+uplinks:
+  npmjs:
+    url: https://registry.npmjs.org/
+
+packages:
+  # Note that the Temporal packages don't proxy npmjs to ensure we test the correct packages
+  '@temporalio/*':
+    access: $all
+    publish: $all
+    unpublish: $all
+  'temporalio':
+    access: $all
+    publish: $all
+    unpublish: $all
+  '@*/*':
+    access: $all
+    publish: $all
+    unpublish: $all
+    proxy: npmjs
+  '**':
+    access: $all
+    publish: $all
+    unpublish: $all
+    proxy: npmjs
+
+server:
+  keepAliveTimeout: 60
+
+# We have some really large packages (e.g. worker)
+max_body_size: 200mb
+
+logs:
+  - { type: file, path: verdaccio.log, level: info }

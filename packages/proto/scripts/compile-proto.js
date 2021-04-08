@@ -62,6 +62,16 @@ async function main() {
     resolve(commonjsOutputDir, 'index.js'),
   ]);
 
+  // Fix issue where Long is not found in TS definitions (https://github.com/protobufjs/protobuf.js/issues/1533)
+  const pbtsOutput = readFileSync(resolve(commonjsOutputDir, 'index.d.ts'), 'utf8');
+  writeFileSync(
+    resolve(commonjsOutputDir, 'index.d.ts'),
+    dedent`
+  import Long from "long";
+  ${pbtsOutput}
+  `
+  );
+
   console.log('Converting protobufjs/minimal to ES module for isolate import');
   const protobufjsSource = readFileSync(require.resolve('protobufjs/dist/minimal/protobuf.js'));
   writeFileSync(
