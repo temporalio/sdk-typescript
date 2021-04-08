@@ -7,12 +7,13 @@ on: # rebuild any PRs and main branch changes
       - 'releases/*'
 
 jobs:
-  build-lint-test: # Build and test the project
+  # Build and test the project
+  build-lint-test:
     strategy:
       fail-fast: true
       matrix:
         node: [12, 14]
-        os: [ubuntu-latest, macos-latest]
+        os: [ubuntu-latest, macos-latest] # TODO: support windows
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v2
@@ -38,8 +39,12 @@ jobs:
         if: ${{ startsWith(matrix.os, 'ubuntu') }}
       - run: npm test
         env:
+          # TODO: Run integration tests on MacOS once we get docker-compose running on the GH actions Mac instance
           RUN_INTEGRATION_TESTS: ${{ startsWith(matrix.os, 'ubuntu') }}
-  cross-compile: # Cross compile native bridge code for Windows, Mac and Linux
+  # Cross compile native bridge code for Windows, Mac and Linux.
+  # We use Mac here because it's harder to compile to Mac from other OSes.
+  # Uploads the packages as a build artifact to be tested later.
+  cross-compile:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v2
@@ -61,44 +66,52 @@ jobs:
           node-version: 14
       - run: npm ci
       - run: npm run build
-      # aarch64 build fails on GH actions, skip it
-      - run: npx lerna run --stream build-rust
+      - name: Cross compile rust code
+        run: npx lerna run --stream build-rust
         env:
+          # aarch64 build fails on GH actions, skip it since we can't test it anyways
           TEMPORAL_WORKER_BUILD_TARGETS: 'x86_64-apple-darwin:x86_64-unknown-linux-gnu:x86_64-pc-windows-gnu'
       - run: node scripts/publish-to-verdaccio.js --registry-dir /tmp/registry
       - uses: actions/upload-artifact@v2
         with:
           name: packages
           path: /tmp/registry/storage
-  test-npm-init: # Tests that npm init @temporalio results in a working worker and client
+  # Tests that npm init @temporalio results in a working worker and client
+  # Note that the instances used here don't have the Rust toolchain installed which ensures use of prebuilt libs.
+  test-npm-init:
     strategy:
       fail-fast: true
       matrix:
         node: [12, 14]
-        os: [ubuntu-latest]
-        # TODO: os: [ubuntu-latest, macos-latest]
+        os: [ubuntu-latest] # TODO: add windows and macos-latest
     runs-on: ${{ matrix.os }}
     needs: cross-compile
     steps:
+      # We don't need the core submodule here since bridge since we don't build the project
       - uses: actions/checkout@v2
       - uses: actions/setup-node@v1
         with:
           node-version: ${{ matrix.node }}
+      # No need to compile anything, we just need the package ./scripts and their dependencies
       - name: Install dependencies without compilation
         run: npm ci --ignore-scripts
       - uses: actions/download-artifact@v2
         with:
           name: packages
           path: /tmp/registry/storage
+      # This runs npm init @temporalio from a local registry
       - run: node scripts/init-from-verdaccio.js --registry-dir /tmp/registry
-      - run: npm run build
+      - name: Compile Typescript in example project
+        run: npm run build
         working-directory: /tmp/registry/example
       - name: Get Temporal docker-compose.yml
         run: wget https://raw.githubusercontent.com/temporalio/docker-compose/main/docker-compose.yml
       - name: Start Temporal Server
         run: docker-compose up -d
+      # Copy wait-on-temporal script to the example project where the built client package is installed
       - run: cp scripts/wait-on-temporal.js /tmp/registry/example
       - name: Wait for Temporal Server
         run: node wait-on-temporal.js
         working-directory: /tmp/registry/example
-      - run: node scripts/test-example.js --work-dir /tmp/registry/example
+      - name: Test run a workflow
+        run: node scripts/test-example.js --work-dir /tmp/registry/example

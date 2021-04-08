@@ -12,6 +12,7 @@ uplinks:
     url: https://registry.npmjs.org/
 
 packages:
+  # Note that the Temporal packages don't proxy npmjs to ensure we test the correct packages
   '@temporalio/*':
     access: $all
     publish: $all
@@ -34,6 +35,7 @@ packages:
 server:
   keepAliveTimeout: 60
 
+# We have some really large packages (e.g. worker)
 max_body_size: 200mb
 
 logs:
