@@ -82,6 +82,13 @@ export interface WorkerOptions {
    */
   logger?: Logger;
 
+  /**
+   * Activities created in workflows will default to having these options
+   *
+   * @default ```ts
+   * { type: 'remote', scheduleToCloseTimeout: '10m' }
+   * ```
+   */
   activityDefaults?: ActivityOptions;
 
   /**
@@ -278,7 +285,6 @@ export class Worker {
   protected constructor(nativeWorker: NativeWorkerLike, public readonly pwd: string, options?: WorkerOptions) {
     this.nativeWorker = nativeWorker;
 
-    // TODO: merge activityDefaults
     this.options = compileWorkerOptions({ ...getDefaultOptions(pwd), ...options });
     this.resolvedActivities = new Map();
     if (this.options.activitiesPath !== null) {
@@ -559,7 +565,12 @@ export class Worker {
                     workflowId: attrs.workflowId,
                     runId: task.runId,
                   });
-                  workflow = await Workflow.create(attrs.workflowId, attrs.randomnessSeed, queueName);
+                  workflow = await Workflow.create(
+                    attrs.workflowId,
+                    attrs.randomnessSeed,
+                    queueName,
+                    this.options.activityDefaults
+                  );
                   // TODO: this probably shouldn't be here, consider alternative implementation
                   await workflow.inject('console.log', console.log);
                   await workflow.registerActivities(this.resolvedActivities, this.options.activityDefaults);

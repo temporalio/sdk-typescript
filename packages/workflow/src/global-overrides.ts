@@ -1,12 +1,5 @@
 /* eslint no-var: 0 */
-import { state, currentScope } from './internals';
-import { msToTs } from './time';
-
-// Delete any weak reference holding structures because GC is non-deterministic.
-// WeakRef is implemented in V8 8.4 which is embedded in node >=14.6.0, delete it just in case.
-delete (globalThis as any).WeakMap;
-delete (globalThis as any).WeakSet;
-delete (globalThis as any).WeakRef;
+export {};
 
 declare global {
   // es2015.collection - WeakMap and WeakSet omitted
@@ -64,43 +57,3 @@ declare global {
   export function setTimeout(cb: (...args: any[]) => any, ms: number, ...args: any[]): number;
   export function clearTimeout(handle: number): void;
 }
-
-const OriginalDate = (globalThis as any).Date;
-
-(globalThis as any).Date = function () {
-  // TODO: implement for after local activity completion
-  return new OriginalDate(state.now);
-};
-
-(globalThis as any).Date.now = function () {
-  // TODO: implement for after local activity completion
-  return state.now;
-};
-
-(globalThis as any).Date.prototype = OriginalDate.prototype;
-
-(globalThis as any).setTimeout = function (cb: (...args: any[]) => any, ms: number, ...args: any[]): number {
-  const seq = state.nextSeq++;
-  state.completions.set(seq, {
-    resolve: () => cb(...args),
-    reject: () => undefined /* ignore cancellation */,
-    scope: currentScope(),
-  });
-  state.commands.push({
-    startTimer: {
-      timerId: `${seq}`,
-      startToFireTimeout: msToTs(ms),
-    },
-  });
-  return seq;
-};
-
-(globalThis as any).clearTimeout = function (handle: number): void {
-  state.nextSeq++;
-  state.completions.delete(handle);
-  state.commands.push({
-    cancelTimer: {
-      timerId: `${handle}`,
-    },
-  });
-};

@@ -36,6 +36,7 @@ export interface RemoteActivityOptions {
    * @format {@link https://www.npmjs.com/package/ms | ms} formatted string
    */
   heartbeatTimeout?: string;
+
   /**
    * RetryOptions that define how activity is retried in case of failure. If this is not set, then the server-defined default activity retry policy will be used. To ensure zero retries, set maximum attempts to 1.
    */

@@ -1,4 +1,4 @@
-import { ActivityOptions, ActivityFunction, CancellationFunctionFactory } from './interfaces';
+import { ActivityFunction, ActivityOptions, CancellationFunctionFactory, RemoteActivityOptions } from './interfaces';
 import { state, currentScope, childScope, propagateCancellation } from './internals';
 import { defaultDataConverter } from './converter/data-converter';
 import { CancellationError } from './errors';
@@ -38,15 +38,30 @@ export function sleep(ms: number): Promise<void> {
   );
 }
 
-export interface InternalActivityFunction<P extends any[], R> extends ActivityFunction<P, R> {
-  module: string;
-  options: ActivityOptions;
+export interface ActivityInfo {
+  name: string;
+  type: string;
 }
 
-export function scheduleActivity<R>(module: string, name: string, args: any[], options: ActivityOptions): Promise<R> {
+export type InternalActivityFunction<P extends any[], R> = ActivityFunction<P, R> & ActivityInfo;
+
+export function validateActivityOptions(options: ActivityOptions): asserts options is RemoteActivityOptions {
   if (options.type === 'local') {
     throw new TypeError('local activity is not yet implemented');
   }
+
+  if (
+    options.scheduleToCloseTimeout === undefined &&
+    (options.scheduleToStartTimeout === undefined || options.startToCloseTimeout === undefined)
+  ) {
+    throw new TypeError(
+      'Required either scheduleToCloseTimeout or both scheduleToStartTimeout and startToCloseTimeout'
+    );
+  }
+}
+
+export function scheduleActivity<R>(activityType: string, args: any[], options: ActivityOptions): Promise<R> {
+  validateActivityOptions(options);
   const seq = state.nextSeq++;
   return childScope(
     () => (_err) => {
@@ -68,7 +83,7 @@ export function scheduleActivity<R>(module: string, name: string, args: any[], o
         state.commands.push({
           scheduleActivity: {
             activityId: `${seq}`,
-            activityType: JSON.stringify([module, name]),
+            activityType,
             arguments: defaultDataConverter.toPayloads(...args),
             retryPolicy: options.retry
               ? {
@@ -92,22 +107,64 @@ export function scheduleActivity<R>(module: string, name: string, args: any[], o
   );
 }
 
-class ContextImpl {
+function activityInfo(activity: string | [string, string] | ActivityFunction<any, any>): ActivityInfo {
+  if (typeof activity === 'string') {
+    return { name: activity, type: activity };
+  }
+  if (activity instanceof Array) {
+    return { name: activity[1], type: JSON.stringify(activity) };
+  } else {
+    return activity as InternalActivityFunction<any, any>;
+  }
+}
+
+export class ContextImpl {
+  /**
+   * Configure an activity function with given {@link ActivityOptions}
+   * Activities use the worker options's `activityDefaults` unless configured otherwise.
+   *
+   * @typeparam P type of parameters of activity function, e.g `[string, string]` for `(a: string, b: string) => Promise<number>`
+   * @typeparam R return type of activity function, e.g `number` for `(a: string, b: string) => Promise<number>`
+   *
+   * @param activity either an activity name if triggering an activity in another language, a tuple of [module, name] for untyped activities (e.g. ['@activities', 'greet']) or an imported activity function.
+   * @param options partial {@link ActivityOptions} object, any attributes provided here override the provided activity's options
+   *
+   * ```ts
+   * import { Context } from '@temporalio/workflow';
+   * import { httpGet } from '@activities';
+   *
+   * const httpGetWithCustomTimeout = Context.configure(httpGet, {
+   *   type: 'remote',
+   *   scheduleToCloseTimeout: '30 minutes',
+   * });
+   *
+   * // Example of creating an activity from string
+   * // Passing type parameters is optional, configured function will be untyped unless provided
+   * const httpGetFromJava = Context.configure<[string, number], number>('SomeJavaMethod'); // Use worker activityDefaults when 2nd parameter is omitted
+   *
+   * export function main(): Promise<void> {
+   *   const response = await httpGetWithCustomTimeout('http://example.com');
+   *   // ...
+   * }
+   * ```
+   */
   public configure<P extends any[], R>(
-    activity: ActivityFunction<P, R>,
-    options: ActivityOptions
+    activity: string | [string, string] | ActivityFunction<P, R>,
+    options: ActivityOptions | undefined = state.activityDefaults
   ): ActivityFunction<P, R> {
-    const internalActivity = activity as InternalActivityFunction<P, R>;
-    const mergedOptions = { ...internalActivity.options, ...options };
+    const { name, type } = activityInfo(activity);
+    if (options === undefined) {
+      throw new TypeError('options must be defined');
+    }
+    validateActivityOptions(options);
     // Wrap the function in an object so it gets the original function name
-    const { [internalActivity.name]: fn } = {
-      [internalActivity.name](...args: P) {
-        return scheduleActivity<R>(internalActivity.module, internalActivity.name, args, mergedOptions);
+    const { [name]: fn } = {
+      [name](...args: P) {
+        return scheduleActivity<R>(type, args, options);
       },
     };
     const configured = fn as InternalActivityFunction<P, R>;
-    configured.module = internalActivity.module;
-    configured.options = mergedOptions;
+    Object.assign(configured, { type, options });
     return configured;
   }
 
@@ -116,6 +173,9 @@ class ContextImpl {
   }
 }
 
+/**
+ * Holds context of current running workflow
+ */
 export const Context = new ContextImpl();
 
 /**
