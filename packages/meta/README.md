@@ -27,6 +27,7 @@ For more information see the [proposal](https://github.com/temporalio/proposals/
   - [Rebuilding (useful for after deleting Typescript files)](#rebuilding-useful-for-after-deleting-typescript-files)
   - [Building with watch (Typescript only)](#building-with-watch-typescript-only)
   - [Testing](#testing)
+    - [Integration tests](#integration-tests)
 
 <!-- vim-markdown-toc -->
 
@@ -85,8 +86,6 @@ Download, install, and run the [Temporal server](https://docs.temporal.io/docs/s
 
 ### Hello World
 
-> Not working yet, activities not implemented
-
 #### Activities and workflows
 
 `src/activities/greeter.ts`
@@ -144,7 +143,7 @@ import { Example } from '@interfaces/workflows';
 (async () => {
   const connection = new Connection();
   const example = connection.workflow<Example>('example', { taskQueue: 'tutorial' });
-  const result = await example('Temporal');
+  const result = await example.start('Temporal');
   console.log(result); // Hello, Temporal
 })();
 ```
@@ -193,3 +192,10 @@ npm run test
 ```sh
 npm run test.watch
 ```
+
+##### Integration tests
+
+In order to run integration tests:
+
+1. Run the temporal server using [docker-compose](https://github.com/temporalio/docker-compose).
+1. Export `RUN_INTEGRATION_TESTS=true`
