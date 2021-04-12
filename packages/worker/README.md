@@ -1,8 +1,8 @@
-# Worker library for [temporal.io](https://temporal.io)
+# `@temporalio/worker`
 
 [![NPM](https://img.shields.io/npm/v/temporalio/worker)](https://www.npmjs.com/package/@temporalio/worker)
 
-Part of the [Temporal NodeJS SDK](https://www.npmjs.com/package/temporalio).
+Part of the [Temporal](https://temporal.io) [NodeJS SDK](https://www.npmjs.com/package/temporalio).
 
 Used to run workflows and activities.
 

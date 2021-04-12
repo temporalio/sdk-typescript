@@ -1,8 +1,8 @@
-# Activity library for [temporal.io](https://temporal.io)
+# `@temporalio/activity`
 
-[![NPM](https://img.shields.io/npm/v/temporalio/activity)](https://www.npmjs.com/package/@temporalio/activity)
+[![NPM](https://img.shields.io/npm/v/@temporalio/activity)](https://www.npmjs.com/package/@temporalio/activity)
 
-Part of the [Temporal NodeJS SDK](https://www.npmjs.com/package/temporalio).
+Part of the [Temporal](https://temporal.io) [NodeJS SDK](https://www.npmjs.com/package/temporalio).
 
 This library provides tools required for writing activities and should only be imported in activity code.
 

@@ -1,8 +1,8 @@
-# Compiled protocol buffers definitions for [temporal.io](https://temporal.io)
+# `@temporalio/proto`
 
-[![NPM](https://img.shields.io/npm/v/temporalio/proto)](https://www.npmjs.com/package/@temporalio/proto)
+[![NPM](https://img.shields.io/npm/v/@temporalio/proto)](https://www.npmjs.com/package/@temporalio/proto)
 
-Part of the [Temporal NodeJS SDK](https://www.npmjs.com/package/temporalio).
+Part of the [Temporal](https://temporal.io) [NodeJS SDK](https://www.npmjs.com/package/temporalio).
 
 This package contains code generated from the Temporal `sdk-core` protobuf definitions using [protobufjs](https://www.npmjs.com/package/protobufjs), it is used by the Temporal worker and client packages.
 
