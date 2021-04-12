@@ -27,6 +27,7 @@
     "tail": "^2.2.1",
     "ts-node": "^9.1.1",
     "typedoc": "^0.20.33",
+    "typedoc-plugin-markdown": "^3.6.1",
     "typescript": "^4.2.3"
   },
   "scripts": {

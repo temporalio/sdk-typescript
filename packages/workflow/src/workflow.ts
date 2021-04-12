@@ -146,6 +146,7 @@ export class ContextImpl {
    * @param activity either an activity name if triggering an activity in another language, a tuple of [module, name] for untyped activities (e.g. ['@activities', 'greet']) or an imported activity function.
    * @param options partial {@link ActivityOptions} object, any attributes provided here override the provided activity's options
    *
+   * @example
    * ```ts
    * import { Context } from '@temporalio/workflow';
    * import { httpGet } from '@activities';
