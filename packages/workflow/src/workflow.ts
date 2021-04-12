@@ -4,6 +4,14 @@ import { defaultDataConverter } from './converter/data-converter';
 import { CancellationError } from './errors';
 import { msToTs, msOptionalStrToTs } from './time';
 
+/**
+ * Asynchronous sleep.
+ *
+ * Schedules a timer on the Temporal service.
+ * The returned promise is {@link cancel | cancellable}.
+ *
+ * @param ms milliseconds to sleep for
+ */
 export function sleep(ms: number): Promise<void> {
   const seq = state.nextSeq++;
   const cancellation: CancellationFunctionFactory = (reject) => (err) => {
@@ -45,6 +53,9 @@ export interface ActivityInfo {
 
 export type InternalActivityFunction<P extends any[], R> = ActivityFunction<P, R> & ActivityInfo;
 
+/**
+ * @hidden
+ */
 export function validateActivityOptions(options: ActivityOptions): asserts options is RemoteActivityOptions {
   if (options.type === 'local') {
     throw new TypeError('local activity is not yet implemented');
@@ -120,6 +131,12 @@ function activityInfo(activity: string | [string, string] | ActivityFunction<any
 
 export class ContextImpl {
   /**
+   * @protected
+   */
+  constructor() {
+    // Does nothing just marks this as protected for documentation
+  }
+  /**
    * Configure an activity function with given {@link ActivityOptions}
    * Activities use the worker options's `activityDefaults` unless configured otherwise.
    *
@@ -168,6 +185,11 @@ export class ContextImpl {
     return configured;
   }
 
+  /**
+   * Returns whether or not this workflow received a cancellation request.
+   *
+   * The workflow might still be running in case {@link CancellationError}s were caught.
+   */
   public get cancelled(): boolean {
     return state.cancelled;
   }
@@ -182,19 +204,23 @@ export const Context = new ContextImpl();
  * Wraps Promise returned from `fn` with a cancellation scope.
  * The returned Promise may be be cancelled with `cancel()` and will be cancelled
  * if a parent scope is cancelled, e.g. when the entire workflow is cancelled.
+ *
+ * @see {@link https://github.com/temporalio/sdk-node/blob/main/docs/workflow-scopes-and-cancellation.md | Workflow scopes and cancellation}
  */
 export function cancellationScope<T>(fn: () => Promise<T>): Promise<T> {
   return childScope(propagateCancellation('requestCancel'), propagateCancellation('completeCancel'), fn);
 }
 
 const ignoreCancellation = () => () => undefined;
+
 /**
  * Wraps the Promise returned from `fn` with a shielded scope.
  * Any child scopes of this scope will *not* be cancelled if `shield` is cancelled.
- * By default `shield` throws the original `CancellationError` in order for any awaiter
+ * By default `shield` throws the original {@link CancellationError} in order for any awaiter
  * to immediately be notified of the cancellation.
  * @param throwOnCancellation - Pass false in case the result of the shielded `Promise` is needed
  * despite cancellation. To see if the workflow was cancelled while waiting, check `Context.cancelled`.
+ * @see {@link https://github.com/temporalio/sdk-node/blob/main/docs/workflow-scopes-and-cancellation.md | Workflow scopes and cancellation}
  */
 export function shield<T>(fn: () => Promise<T>, throwOnCancellation = true): Promise<T> {
   const cancellationFunction: CancellationFunctionFactory = throwOnCancellation
@@ -205,6 +231,8 @@ export function shield<T>(fn: () => Promise<T>, throwOnCancellation = true): Pro
 
 /**
  * Cancel a scope created by an activity, timer or cancellationScope.
+ *
+ * @see {@link https://github.com/temporalio/sdk-node/blob/main/docs/workflow-scopes-and-cancellation.md | Workflow scopes and cancellation}
  */
 export function cancel(promise: Promise<any>, reason = 'Cancelled'): void {
   if (state.runtime === undefined) {
@@ -220,7 +248,7 @@ export function cancel(promise: Promise<any>, reason = 'Cancelled'): void {
   }
 
   try {
-    data.scope.requestCancel(new CancellationError(reason));
+    data.scope.requestCancel(new CancellationError(reason, 'internal'));
   } catch (e) {
     if (!(e instanceof CancellationError)) throw e;
   }

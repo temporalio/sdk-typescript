@@ -13,27 +13,27 @@ This library provides tools required for writing workflows.
 ```ts
 import { Workflow } from '@temporalio/workflow';
 
-export interface Example extends Workflow {
+// Extend the generic Workflow interface in order to validate that Echo is a valid workflow interface
+export interface Echo extends Workflow {
   main(name: string): Promise<string>;
 }
 ```
 
-`src/workflows/example.ts`
+`src/workflows/echo.ts`
 
 ```ts
 import { sleep } from '@temporalio/workflow';
 import { Example } from '@interfaces/workflows';
-import { greet } from '@activities/greeter'; // Implementation omitted for brevity
 
-async function main(name: string): Promise<string> {
-  await sleep(500); // Wait 500 milliseconds before doing anything for the example
-  return await greetWithCustomTimeout(name);
+async function main(input: string): Promise<string> {
+  await sleep(500); // Wait 500 milliseconds before doing anything for this example
+  return input;
 }
 
-export const workflow: Example = { main };
+export const workflow: Echo = { main };
 ```
 
-### Importing from a workflow
+### Importing in workflow code
 
 Workflow code can reliably import [ES modules](https://nodejs.org/api/esm.html#esm_modules_ecmascript_modules).
 In order for the Typescript compiler to output ES modules we set the [`module` compiler option] to `es2020` in the initializer project (`npm init @temporalio`).

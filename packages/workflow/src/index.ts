@@ -8,7 +8,7 @@ export {
   ActivityFunction,
   RetryOptions,
 } from './interfaces';
-export { CancellationError } from './errors';
+export { CancellationError, CancellationSource } from './errors';
 export {
   Context,
   ContextImpl,
@@ -16,7 +16,6 @@ export {
   cancel,
   cancellationScope,
   shield,
-  scheduleActivity,
   uuid4,
   validateActivityOptions,
 } from './workflow';

@@ -1,6 +1,7 @@
 /**
- * Options for local activity invocation
- * Not yet implemented
+ * Options for local activity invocation - will be processed by the worker running the calling workflow.
+ *
+ * **Not yet implemented**
  */
 export interface LocalActivityOptions {
   /**
@@ -10,23 +11,24 @@ export interface LocalActivityOptions {
 }
 
 /**
- * Options for remote activity invocation
+ * Options for remote activity invocation - will be processed from a task queue.
  * @see https://www.javadoc.io/doc/io.temporal/temporal-sdk/latest/io/temporal/activity/ActivityOptions.Builder.html
  */
 export interface RemoteActivityOptions {
   /**
-   * Indicates this is a remote activity invocation
+   * Indicates this is a remote activity invocation.
    */
   type: 'remote';
 
   /**
-   * Namespace to schedule this activity in
+   * Namespace to schedule this activity in.
    * @default current worker namespace
    */
   namespace?: string;
 
   /**
-   * Task queue name
+   * Task queue name.
+   *
    * @default current worker task queue
    */
   taskQueue?: string;
@@ -99,6 +101,9 @@ export interface RetryOptions {
   maximumInterval?: string;
 }
 
+/**
+ * Used to configure the way activities are run
+ */
 export type ActivityOptions = RemoteActivityOptions | LocalActivityOptions;
 
 export interface ActivityFunction<P extends any[], R> {
@@ -119,6 +124,9 @@ export type WorkflowReturnType = any;
 export type WorkflowSignalType = (...args: any[]) => Promise<void> | void;
 export type WorkflowQueryType = (...args: any[]) => any;
 
+/**
+ * Generic workflow interface, extend this in order to validate your workflow interface definitions
+ */
 export interface Workflow {
   main(...args: any[]): WorkflowReturnType;
   signals?: Record<string, WorkflowSignalType>;

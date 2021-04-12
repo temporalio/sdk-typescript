@@ -155,7 +155,7 @@ export class Activator implements WorkflowTaskHandler {
 
   public cancelWorkflow(_activation: iface.coresdk.workflow_activation.ICancelWorkflow): void {
     state.cancelled = true;
-    rootScopeCancel(new CancellationError('Workflow cancelled'));
+    rootScopeCancel(new CancellationError('Workflow cancelled', 'external'));
   }
 
   public fireTimer(activation: iface.coresdk.workflow_activation.IFireTimer): void {
@@ -180,7 +180,7 @@ export class Activator implements WorkflowTaskHandler {
       reject(new Error(nullToUndefined(activation.result.failed.failure?.message)));
     } else if (activation.result.canceled) {
       try {
-        scope.completeCancel(new CancellationError('Activity cancelled'));
+        scope.completeCancel(new CancellationError('Activity cancelled', 'internal'));
       } catch (e) {
         if (!(e instanceof CancellationError)) throw e;
       }
