@@ -14,13 +14,14 @@ For more information see the [proposal](https://github.com/temporalio/proposals/
 - [Getting started](#getting-started)
   - [Install system dependencies](#install-system-dependencies)
   - [Create a new project](#create-a-new-project)
-  - [Build everything](#build-everything)
+  - [Compile Typescript](#compile-typescript)
   - [Run the Temporal server](#run-the-temporal-server)
   - [Test your workflow](#test-your-workflow)
 - [Hello World](#hello-world)
   - [Activities and workflows](#activities-and-workflows)
   - [Worker and client](#worker-and-client)
-  - [Logging](#logging)
+- [Sub Packages](#sub-packages)
+- [Logging](#logging)
 - [Development](#development)
   - [Environment set up](#environment-set-up)
   - [Building](#building)
@@ -37,7 +38,7 @@ For more information see the [proposal](https://github.com/temporalio/proposals/
 
 This project requires nodejs LTS version 12 (or later).
 
-Furthermore, to install this module you will need a c++ compiler.
+Furthermore, to install, you will need a c++ compiler.
 If you run into errors during installation it is likely your environment is not properly set up.
 
 The worker package embeds the Temporal Core SDK which requires the Rust toolchain to compile.
@@ -53,6 +54,8 @@ We provided prebuilt binaries for the worker for:
 
 #### Create a new project
 
+Use the [project initializer](../create-project/README.md) to create a new project.
+
 ```sh
 npm init @temporalio ./example
 cd ./example
@@ -60,7 +63,7 @@ cd ./example
 
 > NOTE: `init` triggers native module compilation which might take a while, npm 7 hides the compilation output so it may appear that the installation is stuck, to see the compilation progress export `NPM_CONFIG_FOREGROUND_SCRIPTS=true`.
 
-#### Build everything
+#### Compile Typescript
 
 ```
 npm run build
@@ -91,6 +94,7 @@ Download, install, and run the [Temporal server](https://docs.temporal.io/docs/s
 `src/activities/greeter.ts`
 
 ```ts
+// Activities are just async functions
 export async function greet(name: string): Promise<string> {
   return `Hello, ${name}!`;
 }
@@ -101,6 +105,8 @@ export async function greet(name: string): Promise<string> {
 ```ts
 import { Workflow } from '@temporalio/workflow';
 
+// Extend the generic Workflow interface to check that Example is a valid workflow interface
+// Workflow interfaces are useful for generating type safe workflow clients
 export interface Example extends Workflow {
   main(name: string): Promise<string>;
 }
@@ -112,10 +118,12 @@ export interface Example extends Workflow {
 import { Example } from '@interfaces/workflows';
 import { greet } from '@activities/greeter';
 
+// A workflow that simply calls an activity
 async function main(name: string): Promise<string> {
-  return await greet(name);
+  return greet(name);
 }
 
+// Declare the workflow's type to be checked by the Typescript compiler
 export const workflow: Example = { main };
 ```
 
@@ -128,6 +136,9 @@ import { Worker } from '@temporalio/worker';
 
 (async () => {
   // Automatically locate and register activities and workflows
+  // (assuming package was bootstrapped with `npm init @temporalio`).
+  // Worker connects to localhost by default and uses console error for logging.
+  // Customize the worker by passing options a second parameter of `create()`.
   const worker = await Worker.create(__dirname);
   // Bind to the `tutorial` queue and start accepting tasks
   await worker.run('tutorial');
@@ -141,14 +152,30 @@ import { Connection } from '@temporalio/client';
 import { Example } from '@interfaces/workflows';
 
 (async () => {
+  // Connect to localhost and use the "default" namespace
   const connection = new Connection();
+  // Create a typed client for the workflow defined above
   const example = connection.workflow<Example>('example', { taskQueue: 'tutorial' });
   const result = await example.start('Temporal');
   console.log(result); // Hello, Temporal
 })();
 ```
 
-#### Logging
+### Sub Packages
+
+This project is effectively a mono-repo consisting of several packages, the public packages are listed below.
+
+The repo is managed with [`lerna`](https://lerna.js.org/).
+
+- [`temporalio`](./packages/meta/) - The meta package, installs the worker, client, activity, and workflow packages.
+- [`@temporalio/worker`](./packages/worker/) - Communicates with the Temporal service and runs workflows and activities
+- [`@temporalio/workflow`](./packages/workflow/) - Utilities for authoring workflows
+- [`@temporalio/activity`](./packages/activity/) - Utilities for authoring activites
+- [`@temporalio/client`](./packages/client/) - Communicate with the Temporal service for things like administration and scheduling workflows
+- [`@temporalio/proto`](./packages/proto/) - Compiled protobuf definitions
+- [`@temporalio/create`](./packages/create-project/) - NPM project initializer
+
+### Logging
 
 See [docs](docs/logging.md)
 

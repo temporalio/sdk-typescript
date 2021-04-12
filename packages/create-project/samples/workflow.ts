@@ -1,10 +1,8 @@
-import { sleep } from '@temporalio/workflow';
 import { Example } from '@interfaces/workflows';
+import { greet } from '@activities/greeter';
 
 async function main(name: string): Promise<string> {
-  // TODO: use activity instead
-  await sleep(1000);
-  return `Hello, ${name}!`;
+  return greet(name);
 }
 
 export const workflow: Example = { main };

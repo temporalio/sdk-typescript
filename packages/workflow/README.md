@@ -13,7 +13,7 @@ This library provides tools required for writing workflows.
 ```ts
 import { Workflow } from '@temporalio/workflow';
 
-// Extend the generic Workflow interface in order to validate that Echo is a valid workflow interface
+// Extend the generic Workflow interface to check that Echo is a valid workflow interface
 export interface Echo extends Workflow {
   main(name: string): Promise<string>;
 }
