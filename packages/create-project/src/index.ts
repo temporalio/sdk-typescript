@@ -85,7 +85,7 @@ async function writePrettyJson(path: string, obj: any) {
   await writeFile(path, JSON.stringify(obj, null, 2) + os.EOL);
 }
 
-export class UsageError extends Error {
+class UsageError extends Error {
   public readonly name: string = 'UsageError';
 }
 

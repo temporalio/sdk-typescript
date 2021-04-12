@@ -48,7 +48,7 @@ async function genDocs(package) {
 async function main() {
   let packages = process.argv.slice(2);
   if (packages.length === 0) {
-    packages = ['worker', 'client', 'activity', 'workflow'];
+    packages = ['worker', 'client', 'activity', 'workflow', 'create-project'];
   }
   for (const package of packages) {
     await genDocs(package);
