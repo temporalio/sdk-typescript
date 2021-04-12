@@ -38,5 +38,4 @@ server:
 # We have some really large packages (e.g. worker)
 max_body_size: 200mb
 
-logs:
-  - { type: file, path: verdaccio.log, level: info }
+logs: { type: file, format: json, path: verdaccio.log, level: info }
