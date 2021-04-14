@@ -62,11 +62,13 @@ async function main() {
     resolve(commonjsOutputDir, 'index.js'),
   ]);
 
-  // Fix issue where Long is not found in TS definitions (https://github.com/protobufjs/protobuf.js/issues/1533)
+  const moduleHeader = readFileSync(resolve(__dirname, 'module-header.txt'), 'utf8');
+  // Prepend module docs and fix issue where Long is not found in TS definitions (https://github.com/protobufjs/protobuf.js/issues/1533)
   const pbtsOutput = readFileSync(resolve(commonjsOutputDir, 'index.d.ts'), 'utf8');
   writeFileSync(
     resolve(commonjsOutputDir, 'index.d.ts'),
     dedent`
+  ${moduleHeader}
   import Long from "long";
   ${pbtsOutput}
   `
