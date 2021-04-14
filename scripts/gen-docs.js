@@ -5,7 +5,7 @@ const docsDir = path.resolve(__dirname, '../docs');
 
 /// Generate docs for a single package.
 /// This may not run concurrently because it changes the directory to the package root
-async function genDocs(package = 'meta') {
+async function genDocs(package = 'meta', outputDir) {
   const root = path.resolve(__dirname, '../packages', package);
   const oldpwd = process.cwd();
   try {
@@ -21,15 +21,15 @@ async function genDocs(package = 'meta') {
       excludeProtected: true,
       hideGenerator: true,
       disableSources: true,
+      hideBreadcrumbs: true,
     });
 
     const project = app.convert();
 
+    // Project may not have converted correctly
     if (!project) {
       throw new Error('Failed to convert app');
     }
-    // Project may not have converted correctly
-    const outputDir = path.resolve(docsDir, package);
 
     // Rendered docs
     await app.generateDocs(project, outputDir);
@@ -39,7 +39,11 @@ async function genDocs(package = 'meta') {
 }
 
 async function main() {
-  await genDocs();
+  const outputDir = process.argv[2];
+  if (!outputDir) {
+    throw new Error('Usage: gen-docs <outputDir>');
+  }
+  await genDocs('meta', outputDir);
 }
 
 main().catch((err) => {
