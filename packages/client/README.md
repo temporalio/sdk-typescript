@@ -4,4 +4,4 @@
 
 Part of the [Temporal](https://temporal.io) [NodeJS SDK](https://www.npmjs.com/package/temporalio).
 
-Use in order to communicate with the Temporal service.
+See documentation on the [documentation site](https://docs.temporal.io/docs/nodejs-sdk-overview).

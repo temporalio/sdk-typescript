@@ -1,3 +1,10 @@
+/**
+ * Use in order to communicate with the Temporal service.
+ *
+ * Interact with workflows using [`WorkflowClient`](../interfaces/client.workflowclient.md) or call GRPC methods directly using [`Connection.service`](../classes/client.connection.md#service).
+ * @module
+ */
+
 import os from 'os';
 import * as grpc from '@grpc/grpc-js';
 import { v4 as uuid4 } from 'uuid';
