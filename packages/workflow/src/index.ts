@@ -18,4 +18,5 @@ export {
   shield,
   uuid4,
   validateActivityOptions,
+  scheduleActivity,
 } from './workflow';

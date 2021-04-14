@@ -71,6 +71,9 @@ export function validateActivityOptions(options: ActivityOptions): asserts optio
   }
 }
 
+/**
+ * @hidden
+ */
 export function scheduleActivity<R>(activityType: string, args: any[], options: ActivityOptions): Promise<R> {
   validateActivityOptions(options);
   const seq = state.nextSeq++;
