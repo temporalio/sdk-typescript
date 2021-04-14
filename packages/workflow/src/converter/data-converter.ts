@@ -10,7 +10,7 @@ import {
  * Used by the framework to serialize/deserialize method parameters that need to be sent over the
  * wire.
  *
- * @author fateev
+ * Implement this in order to customize worker data serialization or use the default data converter which supports `Uint8Array` and JSON serializables.
  */
 export interface DataConverter {
   toPayload<T>(value: T): Payload;

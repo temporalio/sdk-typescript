@@ -85,7 +85,8 @@ export interface WorkerOptions {
   /**
    * Activities created in workflows will default to having these options
    *
-   * @default ```ts
+   * @default
+   * ```ts
    * { type: 'remote', scheduleToCloseTimeout: '10m' }
    * ```
    */
@@ -115,7 +116,8 @@ export interface WorkerOptions {
 
   /**
    * Automatically shut down worker on any of these signals.
-   * @default ```ts
+   * @default
+   * ```ts
    * ['SIGINT', 'SIGTERM', 'SIGQUIT']
    * ```
    */
@@ -196,6 +198,9 @@ export function compileWorkerOptions(opts: WorkerOptionsWithDefaults): CompiledW
   return { ...opts, shutdownGraceTimeMs: ms(opts.shutdownGraceTime) };
 }
 
+/**
+ * The worker's possible states
+ */
 export type State = 'INITIALIZED' | 'RUNNING' | 'STOPPED' | 'STOPPING' | 'FAILED' | 'SUSPENDED';
 
 type ExtractToPromise<T> = T extends (err: any, result: infer R) => void ? Promise<R> : never;
@@ -252,7 +257,7 @@ export class NativeWorker implements NativeWorkerLike {
 }
 
 /**
- * Temporal Worker, connects to the Temporal server and runs workflows and activities
+ * The temporal worker connects to the service and runs workflows and activities.
  */
 export class Worker {
   public readonly options: CompiledWorkerOptionsWithDefaults;
