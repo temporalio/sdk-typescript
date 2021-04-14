@@ -3,15 +3,9 @@ const typedoc = require('typedoc');
 
 const docsDir = path.resolve(__dirname, '../docs');
 
-const packageOverrides = {
-  workflow: {
-    tsconfig: 'tsconfig.commonjs.json',
-  },
-};
-
 /// Generate docs for a single package.
-// This many not run concurrently because it changes the directory to the package root
-async function genDocs(package) {
+/// This may not run concurrently because it changes the directory to the package root
+async function genDocs(package = 'meta') {
   const root = path.resolve(__dirname, '../packages', package);
   const oldpwd = process.cwd();
   try {
@@ -26,8 +20,7 @@ async function genDocs(package) {
       excludePrivate: true,
       excludeProtected: true,
       hideGenerator: true,
-      theme: 'minimal',
-      ...packageOverrides[package],
+      disableSources: true,
     });
 
     const project = app.convert();
@@ -46,13 +39,7 @@ async function genDocs(package) {
 }
 
 async function main() {
-  let packages = process.argv.slice(2);
-  if (packages.length === 0) {
-    packages = ['worker', 'client', 'activity', 'workflow', 'create-project'];
-  }
-  for (const package of packages) {
-    await genDocs(package);
-  }
+  await genDocs();
 }
 
 main().catch((err) => {
