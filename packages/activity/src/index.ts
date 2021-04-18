@@ -1,5 +1,5 @@
 /**
- * Library for authoring activities.
+ * This library provides tools for authoring activities.
  *
  * Import this module from activity code - must **not** be used in workflows.
  *

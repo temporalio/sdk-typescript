@@ -1,7 +1,11 @@
 /**
- * Use in order to communicate with the Temporal service.
+ * Client for communicating with the Temporal service.
  *
- * Interact with workflows using [`WorkflowClient`](../interfaces/client.workflowclient.md) or call GRPC methods directly using [`Connection.service`](../classes/client.connection.md#service).
+ * Interact with workflows using {@link WorkflowClient} or call GRPC methods directly using {@link Connection.service}.
+ *
+ * ### Usage
+ * <!--SNIPSTART nodejs-hello-client-->
+ * <!--SNIPEND-->
  * @module
  */
 
@@ -295,6 +299,9 @@ export function compileWorkflowOptions({
   };
 }
 
+/**
+ * Client connection to the Temporal Service
+ */
 export class Connection {
   public static readonly Client = grpc.makeGenericClientConstructor({}, 'WorkflowService', {});
   public readonly options: ConnectionOptionsWithDefaults;

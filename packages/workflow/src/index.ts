@@ -1,47 +1,33 @@
 /**
- * This library provides tools required for writing workflows.
+ * This library provides tools required for authoring workflows.
  *
- * ### Usage
+ * ## Usage
+ * See the [tutorial](https://docs.temporal.io/docs/node/hello-world#workflows) for writing your first workflow.
  *
- * `src/interfaces/workflows.ts`
+ * ### Timers
  *
- * ```ts
- * import { Workflow } from '@temporalio/workflow';
+ * The recommended way of scheduling timers is by using the {@link sleep} function.
+ * We've replaced `setTimeout` and `clearTimeout` with deterministic versions so these are also usable but have a limitation that they don't play well with [cancellation scopes](https://docs.temporal.io/docs/node/workflow-scopes-and-cancellation).
  *
- * // Extend the generic Workflow interface to check that Echo is a valid workflow interface
- * export interface Echo extends Workflow {
- *   main(name: string): Promise<string>;
- * }
- * ```
+ * <!--SNIPSTART nodejs-sleep-workflow-->
+ * <!--SNIPEND-->
  *
- * `src/workflows/echo.ts`
+ * ### Activities
  *
- * ```ts
- * import { sleep } from '@temporalio/workflow';
- * import { Example } from '@interfaces/workflows';
+ * To schedule activities in the system, simply import an activity function from any registered activity file and call it like a normal function, the Temporal workflow runtime will replace the imported function with a stub which will schedules an activity.
  *
- * async function main(input: string): Promise<string> {
- *   await sleep(500); // Wait 500 milliseconds before doing anything for this example
- *   return input;
- * }
+ * Activities run with the worker's configured {@link WorkerOptions.activityDefaults | activityDefaults}, use {@link ContextImpl.configure | Context.configure} in order to customize the {@link ActivityOptions | activity options}.
  *
- * export const workflow: Echo = { main };
- * ```
+ * <!--SNIPSTART nodejs-schedule-activity-workflow-->
+ * <!--SNIPEND-->
  *
- * ### Importing in workflow code
+ * ### Deterministic built-ins
+ * It is safe to call `Math.random()` and `Date()` in workflow code as they are replaced with deterministic versions. We also provide a deterministic {@link uuid4} function for convenience.
  *
- * Workflow code can reliably import [ES modules](https://nodejs.org/api/esm.html#esm_modules_ecmascript_modules).
- * In order for the Typescript compiler to output ES modules we set the [`module` compiler option] to `es2020` in the initializer project (`npm init @temporalio`).
- * [CommonJS](https://nodejs.org/docs/latest/api/modules.html#modules_modules_commonjs_modules) modules are experimentally supported via babel transformation using [babel-plugin-transform-commonjs](https://www.npmjs.com/package/babel-plugin-transform-commonjs).
- * Built-in node modules are not supported and will throw an exception on import.
- *
- * ### Determinism
- *
- * See: https://github.com/temporalio/sdk-node/blob/more-documentation/docs/determinism.md
- *
- * ### Cancellation
- *
- * See: https://github.com/temporalio/sdk-node/blob/more-documentation/docs/workflow-scopes-and-cancellation.md
+ * ### [Cancellation and scopes](https://docs.temporal.io/docs/node/workflow-scopes-and-cancellation)
+ * - {@link cancel}
+ * - {@link shield}
+ * - {@link cancellationScope}
  * @module
  */
 

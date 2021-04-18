@@ -1,5 +1,4 @@
-import { Workflow } from '@temporalio/workflow';
-import { sleep } from './sleep';
+import { Workflow, sleep } from '@temporalio/workflow';
 
 async function main(): Promise<void> {
   console.log(await Promise.race([1, 2, 3]));

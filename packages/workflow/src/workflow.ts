@@ -141,7 +141,7 @@ export class ContextImpl {
   }
   /**
    * Configure an activity function with given {@link ActivityOptions}
-   * Activities use the worker options's `activityDefaults` unless configured otherwise.
+   * Activities use the worker options's {@link WorkerOptions.activityDefaults | activityDefaults} unless configured otherwise.
    *
    * @typeparam P type of parameters of activity function, e.g `[string, string]` for `(a: string, b: string) => Promise<number>`
    * @typeparam R return type of activity function, e.g `number` for `(a: string, b: string) => Promise<number>`
@@ -209,7 +209,7 @@ export const Context = new ContextImpl();
  * The returned Promise may be be cancelled with `cancel()` and will be cancelled
  * if a parent scope is cancelled, e.g. when the entire workflow is cancelled.
  *
- * @see {@link https://github.com/temporalio/sdk-node/blob/main/docs/workflow-scopes-and-cancellation.md | Workflow scopes and cancellation}
+ * @see {@link https://docs.temporal.io/docs/node/workflow-scopes-and-cancellation | Workflow scopes and cancellation}
  */
 export function cancellationScope<T>(fn: () => Promise<T>): Promise<T> {
   return childScope(propagateCancellation('requestCancel'), propagateCancellation('completeCancel'), fn);
@@ -224,7 +224,7 @@ const ignoreCancellation = () => () => undefined;
  * to immediately be notified of the cancellation.
  * @param throwOnCancellation - Pass false in case the result of the shielded `Promise` is needed
  * despite cancellation. To see if the workflow was cancelled while waiting, check `Context.cancelled`.
- * @see {@link https://github.com/temporalio/sdk-node/blob/main/docs/workflow-scopes-and-cancellation.md | Workflow scopes and cancellation}
+ * @see {@link https://docs.temporal.io/docs/node/workflow-scopes-and-cancellation | Workflow scopes and cancellation}
  */
 export function shield<T>(fn: () => Promise<T>, throwOnCancellation = true): Promise<T> {
   const cancellationFunction: CancellationFunctionFactory = throwOnCancellation
@@ -236,7 +236,7 @@ export function shield<T>(fn: () => Promise<T>, throwOnCancellation = true): Pro
 /**
  * Cancel a scope created by an activity, timer or cancellationScope.
  *
- * @see {@link https://github.com/temporalio/sdk-node/blob/main/docs/workflow-scopes-and-cancellation.md | Workflow scopes and cancellation}
+ * @see {@link https://docs.temporal.io/docs/node/workflow-scopes-and-cancellation | Workflow scopes and cancellation}
  */
 export function cancel(promise: Promise<any>, reason = 'Cancelled'): void {
   if (state.runtime === undefined) {

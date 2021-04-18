@@ -11,7 +11,7 @@ import {
   WorkflowExecutionTerminatedError,
 } from '@temporalio/workflow/commonjs/errors';
 import { defaultDataConverter } from '@temporalio/workflow/commonjs/converter/data-converter';
-import { ArgsAndReturn, HTTP, SimpleQuery, SetTimeout, Empty, Interruptable } from '../../test-interfaces/lib';
+import { ArgsAndReturn, HTTP, SimpleQuery, Sleeper, Empty, Interruptable } from '../../test-interfaces/lib';
 import { httpGet } from '../../test-activities/lib';
 import { u8, RUN_INTEGRATION_TESTS } from './helpers';
 
@@ -89,9 +89,9 @@ if (RUN_INTEGRATION_TESTS) {
     t.deepEqual(res, [await httpGet('https://google.com'), await httpGet('http://example.com')]);
   });
 
-  test('set-timeout', async (t) => {
+  test('sleep', async (t) => {
     const client = new Connection();
-    const workflow = client.workflow<Empty>('set-timeout', { taskQueue: 'test' });
+    const workflow = client.workflow<Empty>('sleep', { taskQueue: 'test' });
     const res = await workflow.start();
     t.is(res, undefined);
     const execution = await client.service.getWorkflowExecutionHistory({
@@ -180,7 +180,7 @@ if (RUN_INTEGRATION_TESTS) {
 
   test('WorkflowOptions are passed correctly', async (t) => {
     const client = new Connection();
-    const workflow = client.workflow<Empty>('set-timeout', {
+    const workflow = client.workflow<Empty>('sleep', {
       taskQueue: 'test2',
       memo: { a: 'b' },
       searchAttributes: { CustomIntField: 3 },
@@ -197,7 +197,7 @@ if (RUN_INTEGRATION_TESTS) {
     const execution = await workflow.describe();
     t.deepEqual(
       execution.workflowExecutionInfo?.type,
-      iface.temporal.api.common.v1.WorkflowType.create({ name: 'set-timeout' })
+      iface.temporal.api.common.v1.WorkflowType.create({ name: 'sleep' })
     );
     t.deepEqual(defaultDataConverter.fromPayload(execution.workflowExecutionInfo!.memo!.fields!.a!), 'b');
     t.deepEqual(
@@ -222,7 +222,7 @@ if (RUN_INTEGRATION_TESTS) {
 
   test('untilComplete throws if terminated', async (t) => {
     const client = new Connection();
-    const workflow = client.workflow<SetTimeout>('set-timeout', { taskQueue: 'test' });
+    const workflow = client.workflow<Sleeper>('sleep', { taskQueue: 'test' });
     const promise = workflow.start(1000000);
     await workflow.started;
     await workflow.terminate('hasta la vista baby');
@@ -231,7 +231,7 @@ if (RUN_INTEGRATION_TESTS) {
 
   test.skip('untilComplete throws if workflow cancelled', async (t) => {
     const client = new Connection();
-    const workflow = client.workflow<SetTimeout>('set-timeout', { taskQueue: 'test' });
+    const workflow = client.workflow<Sleeper>('sleep', { taskQueue: 'test' });
     const promise = workflow.start(1000000);
     await workflow.started;
     await workflow.cancel();

@@ -304,7 +304,7 @@ test('deferred-resolve', async (t) => {
   t.deepEqual(logs, [[1], [2]]);
 });
 
-test('set-timeout', async (t) => {
+test('sleep', async (t) => {
   const { logs, script } = t.context;
   {
     const req = await activate(t, makeStartWorkflow(script));

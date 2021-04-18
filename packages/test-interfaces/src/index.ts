@@ -30,6 +30,6 @@ export interface Empty extends Workflow {
   main(): Promise<void>;
 }
 
-export interface SetTimeout extends Workflow {
+export interface Sleeper extends Workflow {
   main(ms?: number): Promise<void>;
 }
