@@ -1,8 +1,6 @@
 const path = require('path');
 const typedoc = require('typedoc');
 
-const docsDir = path.resolve(__dirname, '../docs');
-
 /// Generate docs for a single package.
 /// This may not run concurrently because it changes the directory to the package root
 async function genDocs(package = 'meta', outputDir) {

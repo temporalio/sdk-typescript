@@ -7,16 +7,15 @@ Typescript + NodeJS SDK for [Temporal](temporal.io).
 
 ## !!! This is a work in progress, not ready for use yet !!!
 
-For more information see the [proposal](https://github.com/temporalio/proposals/blob/master/node/node-sdk.md).
+> NOTE: This SDK is in alpha stage, API is considered unstable and may change at any time.
+> While in alpha we plan on gathering feedback from developers about their experience with the SDK.
+> To provide feedback please [open an issue](https://github.com/temporalio/sdk-node/issues).
+
+For more information see the [Temporal docs site](https://docs.temporal.io/) and the [NodeJS SDK proposal](https://github.com/temporalio/proposals/blob/master/node/node-sdk.md).
 
 <!-- vim-markdown-toc GFM -->
 
 - [Getting started](#getting-started)
-  - [Install system dependencies](#install-system-dependencies)
-  - [Create a new project](#create-a-new-project)
-  - [Compile Typescript](#compile-typescript)
-  - [Run the Temporal server](#run-the-temporal-server)
-  - [Test your workflow](#test-your-workflow)
 - [Hello World](#hello-world)
   - [Activities and workflows](#activities-and-workflows)
   - [Worker and client](#worker-and-client)
@@ -32,60 +31,7 @@ For more information see the [proposal](https://github.com/temporalio/proposals/
 
 <!-- vim-markdown-toc -->
 
-### Getting started
-
-#### Install system dependencies
-
-This project requires nodejs LTS version 12 (or later).
-
-Furthermore, to install, you will need a c++ compiler.
-If you run into errors during installation it is likely your environment is not properly set up.
-
-The worker package embeds the Temporal Core SDK which requires the Rust toolchain to compile.
-We provided prebuilt binaries for the worker for:
-
-- Mac with an Intel chip: `x86_64-apple-darwin`
-- Mac with an M1 chip: `aarch64-apple-darwin`
-- Linux with x86_64 architecture: `x86_64-unknown-linux-gnu`
-- Windows with x86_64 architecture: `x86_64-pc-windows-gnu`
-
-- If you need to compile the worker yourself, set up the Rust toolchain by following the instructions [here](https://rustup.rs/).
-- To set up a C++ compiler for `node-gyp`, follow the instuctions [here](https://github.com/nodejs/node-gyp)
-
-#### Create a new project
-
-Use the [project initializer](../create-project/README.md) to create a new project.
-
-```sh
-npm init @temporalio ./example
-cd ./example
-```
-
-> NOTE: `init` triggers native module compilation which might take a while, npm 7 hides the compilation output so it may appear that the installation is stuck, to see the compilation progress export `NPM_CONFIG_FOREGROUND_SCRIPTS=true`.
-
-#### Compile Typescript
-
-```
-npm run build
-```
-
-#### Run the Temporal server
-
-Download, install, and run the [Temporal server](https://docs.temporal.io/docs/server-quick-install) via docker-compose. It is easy to do and you can keep it running in the background while you build applications.
-
-#### Test your workflow
-
-- Run the worker
-
-  ```sh
-  node lib/worker/index.js
-  ```
-
-- Run the workflow
-
-  ```sh
-  node lib/worker/test.js
-  ```
+### [Getting started](https://docs.temporalio/docs/node/getting-started)
 
 ### Hello World
 
