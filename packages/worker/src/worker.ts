@@ -87,7 +87,7 @@ export interface WorkerOptions {
    *
    * @default
    * ```ts
-   * { type: 'remote', scheduleToCloseTimeout: '10m' }
+   * { type: 'remote', startToCloseTimeout: '10m' }
    * ```
    */
   activityDefaults?: ActivityOptions;
@@ -190,7 +190,7 @@ export function getDefaultOptions(dirname: string): WorkerOptionsWithDefaults {
     shutdownSignals: ['SIGINT', 'SIGTERM', 'SIGQUIT'],
     dataConverter: defaultDataConverter,
     logger: new DefaultLogger(),
-    activityDefaults: { type: 'remote', scheduleToCloseTimeout: '10m' },
+    activityDefaults: { type: 'remote', startToCloseTimeout: '10m' },
   };
 }
 

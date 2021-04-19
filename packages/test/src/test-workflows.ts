@@ -23,12 +23,12 @@ function getWorkflow(name: string) {
 test.beforeEach(async (t) => {
   const workflow = await Workflow.create('test-workflowId', Long.fromInt(1337), 'test', {
     type: 'remote',
-    scheduleToCloseTimeout: '10m',
+    startToCloseTimeout: '10m',
   });
   const logs: unknown[][] = [];
   await workflow.inject('console.log', (...args: unknown[]) => void logs.push(args));
   const activities = new Map([['@activities', { httpGet: () => undefined }]]);
-  await workflow.registerActivities(activities, { type: 'remote', scheduleToCloseTimeout: '10m' });
+  await workflow.registerActivities(activities, { type: 'remote', startToCloseTimeout: '10m' });
   // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
   const testName = t.title.match(/\S+$/)![0];
   const script = getWorkflow(`${testName}.js`);
@@ -775,7 +775,7 @@ test('http', async (t) => {
           activityId: '0',
           activityType: JSON.stringify(['@activities', 'httpGet']),
           arguments: defaultDataConverter.toPayloads('https://google.com'),
-          scheduleToCloseTimeout: msStrToTs('10 minutes'),
+          startToCloseTimeout: msStrToTs('10 minutes'),
           taskQueue: 'test',
         }),
       ])
@@ -836,7 +836,7 @@ test('activity-configure', async (t) => {
           activityId: '0',
           activityType: JSON.stringify(['@activities', 'httpGet']),
           arguments: defaultDataConverter.toPayloads('http://example.com'),
-          scheduleToCloseTimeout: msStrToTs('10 minutes'),
+          startToCloseTimeout: msStrToTs('10 minutes'),
           taskQueue: 'test',
         }),
       ])
@@ -893,9 +893,8 @@ test('activity-configure', async (t) => {
       makeSuccess([makeCompleteWorkflowExecution(defaultDataConverter.toPayload([result, result, result]))])
     );
   }
-  const errorMessage =
-    'TypeError: Required either scheduleToCloseTimeout or both scheduleToStartTimeout and startToCloseTimeout';
-  t.deepEqual(logs, [[errorMessage], [errorMessage]]);
+  const errorMessage = 'TypeError: Required either scheduleToCloseTimeout or startToCloseTimeout';
+  t.deepEqual(logs, [[errorMessage]]);
 });
 
 test('activity-cancellation', async (t) => {
@@ -910,7 +909,7 @@ test('activity-cancellation', async (t) => {
           activityId: '0',
           activityType: JSON.stringify(['@activities', 'httpGet']),
           arguments: defaultDataConverter.toPayloads('https://google.com'),
-          scheduleToCloseTimeout: msStrToTs('10 minutes'),
+          startToCloseTimeout: msStrToTs('10 minutes'),
           taskQueue: 'test',
         }),
         makeCancelActivityCommand('0', 'Cancelled'),

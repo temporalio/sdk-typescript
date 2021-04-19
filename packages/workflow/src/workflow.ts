@@ -61,13 +61,8 @@ export function validateActivityOptions(options: ActivityOptions): asserts optio
     throw new TypeError('local activity is not yet implemented');
   }
 
-  if (
-    options.scheduleToCloseTimeout === undefined &&
-    (options.scheduleToStartTimeout === undefined || options.startToCloseTimeout === undefined)
-  ) {
-    throw new TypeError(
-      'Required either scheduleToCloseTimeout or both scheduleToStartTimeout and startToCloseTimeout'
-    );
+  if (options.scheduleToCloseTimeout === undefined && options.startToCloseTimeout === undefined) {
+    throw new TypeError('Required either scheduleToCloseTimeout or startToCloseTimeout');
   }
 }
 

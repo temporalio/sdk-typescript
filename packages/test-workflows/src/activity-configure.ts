@@ -25,14 +25,6 @@ async function main(): Promise<string[]> {
     console.log(`${err}`);
   }
 
-  try {
-    Context.configure(['@activities', 'httpGet'], {
-      type: 'remote',
-      startToCloseTimeout: '30 minutes',
-    });
-  } catch (err) {
-    console.log(`${err}`);
-  }
   const responses: string[] = [];
   {
     const response = await httpGetFromString('http://example.com');
