@@ -17,7 +17,6 @@
     "@typescript-eslint/parser": "^4.19.0",
     "ava": "^3.15.0",
     "dedent": "^0.7.0",
-    "docusaurus-plugin-typedoc": "^0.12.1",
     "eslint": "^7.22.0",
     "eslint-config-prettier": "^8.1.0",
     "eslint-plugin-tsdoc": "^0.2.11",
