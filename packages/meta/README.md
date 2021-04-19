@@ -2,194 +2,32 @@
 
 ![CI](https://github.com/temporalio/sdk-node/actions/workflows/ci.yml/badge.svg)
 [![NPM](https://img.shields.io/npm/v/temporalio.svg?style=flat)](https://www.npmjs.com/package/temporalio)
+![LICENSE](https://img.shields.io/npm/l/temporalio)
 
-Typescript + NodeJS SDK for [Temporal](temporal.io).
+### This SDK is not quite ready yet
 
-## !!! This is a work in progress, not ready for use yet !!!
+We are currently working on an alpha release, you can follow the progress [here](https://github.com/temporalio/sdk-node/milestone/1) or talk to us on the [community slack channel](https://slack.com/app_redirect?app=TNWA8QCGZ&channel=nodejs-sdk).
 
-For more information see the [proposal](https://github.com/temporalio/proposals/blob/master/node/node-sdk.md).
+> NOTE: This SDK is in alpha stage, API is considered unstable and may change at any time.
+> While in alpha we plan on gathering feedback from developers about their experience with the SDK.
+> To provide feedback please [open an issue](https://github.com/temporalio/sdk-node/issues).
 
-<!-- vim-markdown-toc GFM -->
+Temporal is a microservice orchestration platform which enables developers to build scalable applications without sacrificing productivity or reliability. Temporal server executes units of application logic, Workflows, in a resilient manner that automatically handles intermittent failures, and retries failed operations.
 
-- [Getting started](#getting-started)
-  - [Install system dependencies](#install-system-dependencies)
-  - [Create a new project](#create-a-new-project)
-  - [Build everything](#build-everything)
-  - [Run the Temporal server](#run-the-temporal-server)
-  - [Test your workflow](#test-your-workflow)
-- [Hello World](#hello-world)
-  - [Activities and workflows](#activities-and-workflows)
-  - [Worker and client](#worker-and-client)
-  - [Logging](#logging)
-- [Development](#development)
-  - [Environment set up](#environment-set-up)
-  - [Building](#building)
-  - [Rebuilding (useful for after deleting Typescript files)](#rebuilding-useful-for-after-deleting-typescript-files)
-  - [Building with watch (Typescript only)](#building-with-watch-typescript-only)
-  - [Testing](#testing)
+Temporal is a mature technology, a fork of Uber's Cadence. Temporal is being developed by [Temporal Technologies](https://temporal.io), a startup by the creators of Cadence.
 
-<!-- vim-markdown-toc -->
+Learn how to use Temporal on the [docs site](https://docs.temporal.io/docs/node/hello-world).
 
-### Getting started
+### Installation
 
-#### Install system dependencies
+See the [getting started](https://docs.temporal.io/docs/node/getting-started) guide for setting up a project on your laptop.
 
-This project requires nodejs LTS version 12 (or later).
+### Documentation
 
-Furthermore, to install this module you will need a c++ compiler.
-If you run into errors during installation it is likely your environment is not properly set up.
+You can find the project's documentation as well as general documentation for Temporal on our [docs site](https://docs.temporal.io).
 
-The worker package embeds the Temporal Core SDK which requires the Rust toolchain to compile.
-We provided prebuilt binaries for the worker for:
+The API reference for this SDK can be found [here](https://docs.temporal.io/docs/node/reference/modules).
 
-- Mac with an Intel chip: `x86_64-apple-darwin`
-- Mac with an M1 chip: `aarch64-apple-darwin`
-- Linux with x86_64 architecture: `x86_64-unknown-linux-gnu`
-- Windows with x86_64 architecture: `x86_64-pc-windows-gnu`
+### Contributing
 
-- If you need to compile the worker yourself, set up the Rust toolchain by following the instructions [here](https://rustup.rs/).
-- To set up a C++ compiler for `node-gyp`, follow the instuctions [here](https://github.com/nodejs/node-gyp)
-
-#### Create a new project
-
-```sh
-npm init @temporalio ./example
-cd ./example
-```
-
-> NOTE: `init` triggers native module compilation which might take a while, npm 7 hides the compilation output so it may appear that the installation is stuck, to see the compilation progress export `NPM_CONFIG_FOREGROUND_SCRIPTS=true`.
-
-#### Build everything
-
-```
-npm run build
-```
-
-#### Run the Temporal server
-
-Download, install, and run the [Temporal server](https://docs.temporal.io/docs/server-quick-install) via docker-compose. It is easy to do and you can keep it running in the background while you build applications.
-
-#### Test your workflow
-
-- Run the worker
-
-  ```sh
-  node lib/worker/index.js
-  ```
-
-- Run the workflow
-
-  ```sh
-  node lib/worker/test.js
-  ```
-
-### Hello World
-
-> Not working yet, activities not implemented
-
-#### Activities and workflows
-
-`src/activities/greeter.ts`
-
-```ts
-export async function greet(name: string): Promise<string> {
-  return `Hello, ${name}!`;
-}
-```
-
-`src/interfaces/workflows.ts`
-
-```ts
-import { Workflow } from '@temporalio/workflow';
-
-export interface Example extends Workflow {
-  main(name: string): Promise<string>;
-}
-```
-
-`src/workflows/example.ts`
-
-```ts
-import { Example } from '@interfaces/workflows';
-import { greet } from '@activities/greeter';
-
-async function main(name: string): Promise<string> {
-  return await greet(name);
-}
-
-export const workflow: Example = { main };
-```
-
-#### Worker and client
-
-`src/worker/index.ts`
-
-```ts
-import { Worker } from '@temporalio/worker';
-
-(async () => {
-  // Automatically locate and register activities and workflows
-  const worker = await Worker.create(__dirname);
-  // Bind to the `tutorial` queue and start accepting tasks
-  await worker.run('tutorial');
-})();
-```
-
-`src/worker/test.ts`
-
-```ts
-import { Connection } from '@temporalio/client';
-import { Example } from '@interfaces/workflows';
-
-(async () => {
-  const connection = new Connection();
-  const example = connection.workflow<Example>('example', { taskQueue: 'tutorial' });
-  const result = await example('Temporal');
-  console.log(result); // Hello, Temporal
-})();
-```
-
-#### Logging
-
-See [docs](docs/logging.md)
-
-### Development
-
-#### Environment set up
-
-```sh
-git submodule init
-git submodule update
-npm ci
-```
-
-#### Building
-
-```sh
-npm run build
-```
-
-#### Rebuilding (useful for after deleting Typescript files)
-
-```sh
-npm run rebuild
-```
-
-#### Building with watch (Typescript only)
-
-```sh
-npm run build  # Must be run once before build.watch
-npm run build.watch
-```
-
-#### Testing
-
-```sh
-npm run test
-```
-
--- OR --
-
-```sh
-npm run test.watch
-```
+Read our [contributing guide](https://github.com/temporalio/sdk-node/blob/main/CONTRIBUTING.md) to learn about our development process, how to propose bugfixes and improvements, and how to build and test your changes to the SDK.

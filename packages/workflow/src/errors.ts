@@ -32,9 +32,24 @@ export class WorkflowExecutionContinuedAsNewError extends Error {
   }
 }
 
-/// Thrown in workflow
+/**
+ * Used to denote where the cancellation was originated
+ *
+ * - external - The workflow was cancelled by an external API call
+ * - internal - Cancellation was requested by using `cancel` from within a workflow
+ */
+export type CancellationSource = 'internal' | 'external';
+
+/**
+ * Thrown in workflow when it is requested to be cancelled either externally or internally.
+ *
+ * @see {@link CancellationSource}
+ */
 export class CancellationError extends Error {
   public readonly name: string = 'CancellationError';
+  public constructor(message: string, public readonly source: CancellationSource) {
+    super(message);
+  }
 }
 
 /// Used in different parts of the project to signal to the user that they've done something wrong

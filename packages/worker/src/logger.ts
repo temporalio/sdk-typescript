@@ -1,3 +1,6 @@
+/**
+ * Implement this interface in order to customize worker logging
+ */
 export interface Logger {
   debug(message: string, meta?: Record<string, any>): any;
   info(message: string, meta?: Record<string, any>): any;
@@ -9,8 +12,6 @@ export type LogLevel = 'DEBUG' | 'INFO' | 'WARNING' | 'ERROR';
 
 const severities: LogLevel[] = ['DEBUG', 'INFO', 'WARNING', 'ERROR'];
 
-export type LogFunction = (level: LogLevel, message: string, meta?: Record<string, any>) => any;
-
 /**
  * Log messages using `console.error` and basic formatting
  */
@@ -19,7 +20,7 @@ function defaultLogFunction(level: LogLevel, message: string, meta?: Record<stri
 }
 
 /**
- * Default worker logger - uses @link{defaultLogFunction} to log messages to @link{console.error}.
+ * Default worker logger - uses a default log function to log messages to `console.error`.
  * See constructor arguments for customization.
  */
 export class DefaultLogger implements Logger {

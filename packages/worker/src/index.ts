@@ -1,3 +1,13 @@
+/**
+ * The temporal worker connects to the service and runs workflows and activities.
+ *
+ * ### Usage
+ *
+ * <!--SNIPSTART nodejs-hello-worker-->
+ * <!--SNIPEND-->
+ * @module
+ */
+
 export {
   State,
   Worker,

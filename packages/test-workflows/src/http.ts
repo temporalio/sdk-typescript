@@ -1,3 +1,4 @@
+// @@@SNIPSTART nodejs-schedule-activity-workflow
 import { Context } from '@temporalio/workflow';
 import { httpGet } from '@activities';
 import { HTTP } from '@interfaces';
@@ -23,3 +24,4 @@ async function main(): Promise<string[]> {
 }
 
 export const workflow: HTTP = { main };
+// @@@SNIPEND

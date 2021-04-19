@@ -3,7 +3,7 @@ import * as protobufjs from 'protobufjs/minimal';
 import * as iface from '@temporalio/proto';
 import { defaultDataConverter, arrayFromPayloads } from './converter/data-converter';
 import { alea } from './alea';
-import { CancellationFunction, CancellationFunctionFactory, Scope, Workflow } from './interfaces';
+import { ActivityOptions, CancellationFunction, CancellationFunctionFactory, Scope, Workflow } from './interfaces';
 import { CancellationError } from './errors';
 import { errorToUserCodeFailure } from './common';
 import { tsToMs, nullToUndefined } from './time';
@@ -51,6 +51,7 @@ export interface State {
   runtime?: Runtime;
   workflowId?: string;
   taskQueue?: string;
+  activityDefaults?: ActivityOptions;
 }
 
 protobufjs.util.Long = Long;
@@ -154,7 +155,7 @@ export class Activator implements WorkflowTaskHandler {
 
   public cancelWorkflow(_activation: iface.coresdk.workflow_activation.ICancelWorkflow): void {
     state.cancelled = true;
-    rootScopeCancel(new CancellationError('Workflow cancelled'));
+    rootScopeCancel(new CancellationError('Workflow cancelled', 'external'));
   }
 
   public fireTimer(activation: iface.coresdk.workflow_activation.IFireTimer): void {
@@ -179,7 +180,7 @@ export class Activator implements WorkflowTaskHandler {
       reject(new Error(nullToUndefined(activation.result.failed.failure?.message)));
     } else if (activation.result.canceled) {
       try {
-        scope.completeCancel(new CancellationError('Activity cancelled'));
+        scope.completeCancel(new CancellationError('Activity cancelled', 'internal'));
       } catch (e) {
         if (!(e instanceof CancellationError)) throw e;
       }
@@ -338,59 +339,4 @@ export function childScope<T>(
   });
   state.scopeStack.pop();
   return promise;
-}
-
-export function initWorkflow(workflowId: string, randomnessSeed: number[], taskQueue: string, runtime: Runtime): void {
-  Math.random = alea(randomnessSeed);
-  state.workflowId = workflowId;
-  state.taskQueue = taskQueue;
-  state.runtime = runtime;
-  state.activator = new Activator();
-  runtime.registerPromiseHook((t, p, pp) => {
-    switch (t) {
-      case 'init': {
-        const scope = currentScope();
-        const cancellable = !scope.associated;
-        if (pp === undefined) {
-          runtime.setPromiseData(p, { scope, cancellable });
-        } else {
-          let parentScope: Scope;
-          let parentData = runtime.getPromiseData(pp);
-          if (parentData === undefined) {
-            parentScope = scope;
-            parentData = { scope: parentScope, cancellable: false };
-            runtime.setPromiseData(pp, parentData);
-          } else {
-            parentScope = parentData.scope;
-          }
-          runtime.setPromiseData(p, { scope: parentScope, cancellable });
-        }
-        scope.associated = true;
-        break;
-      }
-      case 'resolve': {
-        const data = runtime.getPromiseData(p);
-        if (data === undefined) {
-          throw new Error('Expected promise to have an associated scope');
-        }
-        if (data.cancellable) {
-          if (data.scope.parent === undefined) {
-            throw new Error('Resolved promise for orphan scope');
-          }
-          const scopes = state.childScopes.get(data.scope.parent);
-          if (scopes === undefined) {
-            throw new Error('Expected promise to have an associated scope');
-          }
-          scopes.delete(data.scope);
-          if (scopes.size === 0) {
-            state.childScopes.delete(data.scope.parent);
-          }
-        }
-      }
-    }
-  });
-}
-
-export function registerWorkflow(workflow: Workflow): void {
-  state.workflow = workflow;
 }

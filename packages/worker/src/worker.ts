@@ -82,6 +82,14 @@ export interface WorkerOptions {
    */
   logger?: Logger;
 
+  /**
+   * Activities created in workflows will default to having these options
+   *
+   * @default
+   * ```ts
+   * { type: 'remote', startToCloseTimeout: '10m' }
+   * ```
+   */
   activityDefaults?: ActivityOptions;
 
   /**
@@ -108,7 +116,8 @@ export interface WorkerOptions {
 
   /**
    * Automatically shut down worker on any of these signals.
-   * @default ```ts
+   * @default
+   * ```ts
    * ['SIGINT', 'SIGTERM', 'SIGQUIT']
    * ```
    */
@@ -181,7 +190,7 @@ export function getDefaultOptions(dirname: string): WorkerOptionsWithDefaults {
     shutdownSignals: ['SIGINT', 'SIGTERM', 'SIGQUIT'],
     dataConverter: defaultDataConverter,
     logger: new DefaultLogger(),
-    activityDefaults: { type: 'remote', scheduleToCloseTimeout: '10m' },
+    activityDefaults: { type: 'remote', startToCloseTimeout: '10m' },
   };
 }
 
@@ -189,6 +198,9 @@ export function compileWorkerOptions(opts: WorkerOptionsWithDefaults): CompiledW
   return { ...opts, shutdownGraceTimeMs: ms(opts.shutdownGraceTime) };
 }
 
+/**
+ * The worker's possible states
+ */
 export type State = 'INITIALIZED' | 'RUNNING' | 'STOPPED' | 'STOPPING' | 'FAILED' | 'SUSPENDED';
 
 type ExtractToPromise<T> = T extends (err: any, result: infer R) => void ? Promise<R> : never;
@@ -245,7 +257,7 @@ export class NativeWorker implements NativeWorkerLike {
 }
 
 /**
- * Temporal Worker, connects to the Temporal server and runs workflows and activities
+ * The temporal worker connects to the service and runs workflows and activities.
  */
 export class Worker {
   public readonly options: CompiledWorkerOptionsWithDefaults;
@@ -278,7 +290,6 @@ export class Worker {
   protected constructor(nativeWorker: NativeWorkerLike, public readonly pwd: string, options?: WorkerOptions) {
     this.nativeWorker = nativeWorker;
 
-    // TODO: merge activityDefaults
     this.options = compileWorkerOptions({ ...getDefaultOptions(pwd), ...options });
     this.resolvedActivities = new Map();
     if (this.options.activitiesPath !== null) {
@@ -559,7 +570,12 @@ export class Worker {
                     workflowId: attrs.workflowId,
                     runId: task.runId,
                   });
-                  workflow = await Workflow.create(attrs.workflowId, attrs.randomnessSeed, queueName);
+                  workflow = await Workflow.create(
+                    attrs.workflowId,
+                    attrs.randomnessSeed,
+                    queueName,
+                    this.options.activityDefaults
+                  );
                   // TODO: this probably shouldn't be here, consider alternative implementation
                   await workflow.inject('console.log', console.log);
                   await workflow.registerActivities(this.resolvedActivities, this.options.activityDefaults);

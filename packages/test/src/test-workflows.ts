@@ -21,11 +21,14 @@ function getWorkflow(name: string) {
 }
 
 test.beforeEach(async (t) => {
-  const workflow = await Workflow.create('test-workflowId', Long.fromInt(1337), 'test');
+  const workflow = await Workflow.create('test-workflowId', Long.fromInt(1337), 'test', {
+    type: 'remote',
+    startToCloseTimeout: '10m',
+  });
   const logs: unknown[][] = [];
   await workflow.inject('console.log', (...args: unknown[]) => void logs.push(args));
   const activities = new Map([['@activities', { httpGet: () => undefined }]]);
-  await workflow.registerActivities(activities, { type: 'remote', scheduleToCloseTimeout: '10m' });
+  await workflow.registerActivities(activities, { type: 'remote', startToCloseTimeout: '10m' });
   // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
   const testName = t.title.match(/\S+$/)![0];
   const script = getWorkflow(`${testName}.js`);
@@ -301,7 +304,7 @@ test('deferred-resolve', async (t) => {
   t.deepEqual(logs, [[1], [2]]);
 });
 
-test('set-timeout', async (t) => {
+test('sleep', async (t) => {
   const { logs, script } = t.context;
   {
     const req = await activate(t, makeStartWorkflow(script));
@@ -772,7 +775,7 @@ test('http', async (t) => {
           activityId: '0',
           activityType: JSON.stringify(['@activities', 'httpGet']),
           arguments: defaultDataConverter.toPayloads('https://google.com'),
-          scheduleToCloseTimeout: msStrToTs('10 minutes'),
+          startToCloseTimeout: msStrToTs('10 minutes'),
           taskQueue: 'test',
         }),
       ])
@@ -820,6 +823,80 @@ test('http', async (t) => {
   t.deepEqual(logs, [[result]]);
 });
 
+test('activity-configure', async (t) => {
+  const { script, logs } = t.context;
+  const result = '<html><body>hello from https://example.com</body></html>';
+  {
+    const req = await activate(t, makeStartWorkflow(script));
+    compareCompletion(
+      t,
+      req,
+      makeSuccess([
+        makeScheduleActivityCommand({
+          activityId: '0',
+          activityType: JSON.stringify(['@activities', 'httpGet']),
+          arguments: defaultDataConverter.toPayloads('http://example.com'),
+          startToCloseTimeout: msStrToTs('10 minutes'),
+          taskQueue: 'test',
+        }),
+      ])
+    );
+  }
+  {
+    const req = await activate(
+      t,
+      makeResolveActivity('0', { completed: { result: defaultDataConverter.toPayload(result) } })
+    );
+    compareCompletion(
+      t,
+      req,
+      makeSuccess([
+        makeScheduleActivityCommand({
+          activityId: '1',
+          activityType: JSON.stringify(['@activities', 'httpGet']),
+          arguments: defaultDataConverter.toPayloads('http://example.com'),
+          heartbeatTimeout: msStrToTs('3s'),
+          scheduleToCloseTimeout: msStrToTs('30 minutes'),
+          taskQueue: 'test',
+        }),
+      ])
+    );
+  }
+  {
+    const req = await activate(
+      t,
+      makeResolveActivity('1', { completed: { result: defaultDataConverter.toPayload(result) } })
+    );
+    compareCompletion(
+      t,
+      req,
+      makeSuccess([
+        makeScheduleActivityCommand({
+          activityId: '2',
+          activityType: JSON.stringify(['@activities', 'httpGet']),
+          arguments: defaultDataConverter.toPayloads('http://example.com'),
+          scheduleToStartTimeout: msStrToTs('20 minutes'),
+          startToCloseTimeout: msStrToTs('10 minutes'),
+          taskQueue: 'test',
+        }),
+      ])
+    );
+  }
+  {
+    const req = await activate(
+      t,
+      makeResolveActivity('2', { completed: { result: defaultDataConverter.toPayload(result) } })
+    );
+    compareCompletion(
+      t,
+      req,
+      makeSuccess([makeCompleteWorkflowExecution(defaultDataConverter.toPayload([result, result, result]))])
+    );
+  }
+  const errorMessage = 'TypeError: Required either scheduleToCloseTimeout or startToCloseTimeout';
+  t.deepEqual(logs, [[errorMessage]]);
+});
+
 test('activity-cancellation', async (t) => {
   const { script, logs } = t.context;
   {
@@ -832,7 +909,7 @@ test('activity-cancellation', async (t) => {
           activityId: '0',
           activityType: JSON.stringify(['@activities', 'httpGet']),
           arguments: defaultDataConverter.toPayloads('https://google.com'),
-          scheduleToCloseTimeout: msStrToTs('10 minutes'),
+          startToCloseTimeout: msStrToTs('10 minutes'),
           taskQueue: 'test',
         }),
         makeCancelActivityCommand('0', 'Cancelled'),

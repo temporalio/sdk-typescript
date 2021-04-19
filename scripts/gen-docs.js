@@ -1,11 +1,9 @@
 const path = require('path');
 const typedoc = require('typedoc');
 
-const docsDir = path.resolve(__dirname, '../docs');
-
 /// Generate docs for a single package.
-// This many not run concurrently because it changes the directory to the package root
-async function genDocs(package) {
+/// This may not run concurrently because it changes the directory to the package root
+async function genDocs(package = 'meta', outputDir) {
   const root = path.resolve(__dirname, '../packages', package);
   const oldpwd = process.cwd();
   try {
@@ -19,15 +17,17 @@ async function genDocs(package) {
       entryPoints: ['src/index.ts'],
       excludePrivate: true,
       excludeProtected: true,
+      hideGenerator: true,
+      disableSources: true,
+      hideBreadcrumbs: true,
     });
 
     const project = app.convert();
 
+    // Project may not have converted correctly
     if (!project) {
       throw new Error('Failed to convert app');
     }
-    // Project may not have converted correctly
-    const outputDir = path.resolve(docsDir, package);
 
     // Rendered docs
     await app.generateDocs(project, outputDir);
@@ -37,13 +37,11 @@ async function genDocs(package) {
 }
 
 async function main() {
-  let packages = process.argv.slice(2);
-  if (packages.length === 0) {
-    packages = ['worker', 'client'];
+  const outputDir = process.argv[2];
+  if (!outputDir) {
+    throw new Error('Usage: gen-docs <outputDir>');
   }
-  for (const package of packages) {
-    await genDocs(package);
-  }
+  await genDocs('meta', outputDir);
 }
 
 main().catch((err) => {

@@ -3,7 +3,8 @@ import Long from 'long';
 import dedent from 'dedent';
 import { coresdk } from '@temporalio/proto';
 import * as internals from '@temporalio/workflow/commonjs/internals';
-import { ActivityOptions } from '@temporalio/workflow';
+import * as init from '@temporalio/workflow/commonjs/init';
+import { ActivityOptions, validateActivityOptions } from '@temporalio/workflow';
 import { Loader } from './loader';
 
 export enum ApplyMode {
@@ -31,7 +32,12 @@ export class Workflow {
     readonly workflowModule: WorkflowModule
   ) {}
 
-  public static async create(id: string, randomnessSeed: Long, taskQueue: string): Promise<Workflow> {
+  public static async create(
+    id: string,
+    randomnessSeed: Long,
+    taskQueue: string,
+    activityDefaults: ActivityOptions
+  ): Promise<Workflow> {
     const isolate = new ivm.Isolate();
     const context = await isolate.createContext();
 
@@ -47,16 +53,19 @@ export class Workflow {
     loader.overrideModule('@temporalio/proto', protosModule);
     const workflowInternals = await loader.loadModule(require.resolve('@temporalio/workflow/es2020/internals.js'));
     const workflowModule = await loader.loadModule(require.resolve('@temporalio/workflow/es2020/index.js'));
+    const initModule = await loader.loadModule(require.resolve('@temporalio/workflow/es2020/init.js'));
     const activate = await workflowInternals.namespace.get('activate');
     const concludeActivation = await workflowInternals.namespace.get('concludeActivation');
-    const initWorkflow: ivm.Reference<typeof internals.initWorkflow> = await workflowInternals.namespace.get(
-      'initWorkflow'
-    );
+    const initWorkflow: ivm.Reference<typeof init.initWorkflow> = await initModule.namespace.get('initWorkflow');
     loader.overrideModule('@temporalio/workflow', workflowModule);
 
-    await initWorkflow.apply(undefined, [id, randomnessSeed.toBytes(), taskQueue, runtime.derefInto()], {
-      arguments: { copy: true },
-    });
+    await initWorkflow.apply(
+      undefined,
+      [id, randomnessSeed.toBytes(), taskQueue, activityDefaults, runtime.derefInto()],
+      {
+        arguments: { copy: true },
+      }
+    );
 
     return new Workflow(id, isolate, context, loader, { activate, concludeActivation });
   }
@@ -65,6 +74,7 @@ export class Workflow {
     activities: Map<string, Record<string, any>>,
     options: ActivityOptions
   ): Promise<void> {
+    validateActivityOptions(options);
     const serializedOptions = JSON.stringify(options);
     for (const [specifier, module] of activities.entries()) {
       let code = dedent`
@@ -72,11 +82,15 @@ export class Workflow {
       `;
       for (const [k, v] of Object.entries(module)) {
         if (v instanceof Function) {
+          // Activities are identified by their module specifier and name.
+          // We double stringify below to generate a string containing a JSON array.
+          const type = JSON.stringify(JSON.stringify([specifier, k]));
+          // TODO: Validate k against pattern
           code += dedent`
             export function ${k}(...args) {
-              return scheduleActivity('${specifier}', '${k}', args, ${serializedOptions});
+              return scheduleActivity(${type}, args, ${serializedOptions});
             }
-            ${k}.module = '${specifier}';
+            ${k}.type = ${type};
             ${k}.options = ${serializedOptions};
           `;
         }

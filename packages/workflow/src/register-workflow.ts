@@ -1,4 +1,4 @@
-import { registerWorkflow } from './internals';
+import { registerWorkflow } from './init';
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
 import * as workflowModule from 'main';
