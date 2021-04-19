@@ -6,7 +6,7 @@ async function main() {
   await withRegistry(registryDir, async () => {
     const { status } = spawnSync(
       'npx',
-      ['lerna', 'publish', 'from-package', '--no-git-reset', '--yes', '--registry', 'http://localhost:4873/'],
+      ['lerna', 'publish', 'from-package', '--yes', '--registry', 'http://localhost:4873/'],
       {
         stdio: 'inherit',
       }
