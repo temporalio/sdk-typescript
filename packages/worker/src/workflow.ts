@@ -82,15 +82,15 @@ export class Workflow {
       `;
       for (const [k, v] of Object.entries(module)) {
         if (v instanceof Function) {
+          const type = JSON.stringify(JSON.stringify([specifier, k]));
           // Activities are identified by their module specifier and name.
           // We double stringify below to generate a string containing a JSON array.
           // TODO: Validate k against pattern
           code += dedent`
-            const type = ${JSON.stringify(JSON.stringify([specifier, k]))};
             export function ${k}(...args) {
-              return scheduleActivity(type, args, ${serializedOptions});
+              return scheduleActivity(${type}, args, ${serializedOptions});
             }
-            ${k}.type = type;
+            ${k}.type = ${type};
             ${k}.options = ${serializedOptions};
           `;
         }
