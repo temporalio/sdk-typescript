@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/ban-ts-comment */
 /**
  * Test that we get meaningful errors when trying to use Weak* constructors.
  * NOTE that we had to add @ts-ignore to all of the constructor calls because
