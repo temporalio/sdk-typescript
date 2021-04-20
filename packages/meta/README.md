@@ -9,7 +9,7 @@
 We are currently working on an alpha release, you can follow the progress [here](https://github.com/temporalio/sdk-node/milestone/1) or talk to us on the [community slack channel](https://slack.com/app_redirect?app=TNWA8QCGZ&channel=nodejs-sdk).
 
 > NOTE: This SDK is in alpha stage, API is considered unstable and may change at any time.
-> While in alpha we plan on gathering feedback from developers about their experience with the SDK.
+> While in alpha we plan on gathering feedback from developers about the usability and ergonomics of the API.
 > To provide feedback please [open an issue](https://github.com/temporalio/sdk-node/issues).
 
 Temporal is a microservice orchestration platform which enables developers to build scalable applications without sacrificing productivity or reliability. Temporal server executes units of application logic, Workflows, in a resilient manner that automatically handles intermittent failures, and retries failed operations.

@@ -1,6 +1,8 @@
 /**
  * This package contains code generated from the Temporal `sdk-core` protobuf definitions using [protobufjs](https://www.npmjs.com/package/protobufjs), it is used by the Temporal worker and client packages.
  * 
+ * You will most likely never import this package directly.
+ * 
  * ### Core SDK API
  * 
  * [Core SDK](https://github.com/temporalio/sdk-core) interfaces can be accessed in the `coresdk` namespace.
