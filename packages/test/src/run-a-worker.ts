@@ -4,8 +4,9 @@ async function main() {
   const worker = await Worker.create(__dirname, {
     workflowsPath: `${__dirname}/../../test-workflows/lib`,
     activitiesPath: `${__dirname}/../../test-activities/lib`,
+    taskQueue: 'test'
   });
-  await worker.run('test');
+  await worker.run();
   console.log('Worker gracefully shutdown');
 }
 

@@ -30,7 +30,7 @@ export class MockNativeWorker implements NativeWorkerLike {
     this.workflowActivations.unshift(Promise.reject(new Error('Core is shut down')));
   }
 
-  public async pollWorkflowActivation(_queueName: string): Promise<ArrayBuffer> {
+  public async pollWorkflowActivation(): Promise<ArrayBuffer> {
     for (;;) {
       const task = this.workflowActivations.pop();
       if (task !== undefined) {
@@ -40,7 +40,7 @@ export class MockNativeWorker implements NativeWorkerLike {
     }
   }
 
-  public async pollActivityTask(_queueName: string): Promise<ArrayBuffer> {
+  public async pollActivityTask(): Promise<ArrayBuffer> {
     for (;;) {
       const task = this.activityTasks.pop();
       if (task !== undefined) {

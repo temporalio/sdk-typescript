@@ -10,34 +10,46 @@ import { RUN_INTEGRATION_TESTS } from './helpers';
 
 if (RUN_INTEGRATION_TESTS) {
   test.serial.skip('run shuts down gracefully', async (t) => {
-    const worker = await Worker.create(__dirname, { shutdownGraceTime: '500ms', activitiesPath: null });
+    const worker = await Worker.create(__dirname, {
+      shutdownGraceTime: '500ms',
+      activitiesPath: null,
+      taskQueue: 'shutdown-test'
+    });
     t.is(worker.getState(), 'INITIALIZED');
-    const p = worker.run('shutdown-test');
+    const p = worker.run();
     t.is(worker.getState(), 'RUNNING');
     process.emit('SIGINT', 'SIGINT');
     t.is(worker.getState(), 'STOPPING');
     await p;
     t.is(worker.getState(), 'STOPPED');
-    await t.throwsAsync(worker.run('shutdown-test'), { message: 'Poller was aleady started' });
+    await t.throwsAsync(worker.run(), { message: 'Poller was aleady started' });
   });
 }
 
 test.serial('Mocked run shuts down gracefully', async (t) => {
-  const worker = new MockedWorker(__dirname, { shutdownGraceTime: '500ms', activitiesPath: null });
+  const worker = new MockedWorker(__dirname, {
+    shutdownGraceTime: '500ms',
+    activitiesPath: null,
+    taskQueue: 'shutdown-test'
+  });
   t.is(worker.getState(), 'INITIALIZED');
-  const p = worker.run('shutdown-test');
+  const p = worker.run();
   t.is(worker.getState(), 'RUNNING');
   process.emit('SIGINT', 'SIGINT');
   t.is(worker.getState(), 'STOPPING');
   await p;
   t.is(worker.getState(), 'STOPPED');
-  await t.throwsAsync(worker.run('shutdown-test'), { message: 'Poller was aleady started' });
+  await t.throwsAsync(worker.run(), { message: 'Poller was aleady started' });
 });
 
 test.serial('Mocked run throws if not shut down gracefully', async (t) => {
-  const worker = new MockedWorker(__dirname, { shutdownGraceTime: '5ms', activitiesPath: null });
+  const worker = new MockedWorker(__dirname, {
+    shutdownGraceTime: '5ms',
+    activitiesPath: null,
+    taskQueue: 'shutdown-test'
+  });
   t.is(worker.getState(), 'INITIALIZED');
-  const p = worker.run('shutdown-test');
+  const p = worker.run();
   t.is(worker.getState(), 'RUNNING');
   worker.native.shutdown = () => undefined; // Make sure shutdown does not emit core shutdown
   process.emit('SIGINT', 'SIGINT');
@@ -45,12 +57,16 @@ test.serial('Mocked run throws if not shut down gracefully', async (t) => {
     message: 'Timed out while waiting for worker to shutdown gracefully',
   });
   t.is(worker.getState(), 'FAILED');
-  await t.throwsAsync(worker.run('shutdown-test'), { message: 'Poller was aleady started' });
+  await t.throwsAsync(worker.run(), { message: 'Poller was aleady started' });
 });
 
 test('Mocked worker suspends and resumes', async (t) => {
-  const worker = new MockedWorker(__dirname, { shutdownGraceTime: '5ms', activitiesPath: null });
-  const p = worker.run('suspend-test');
+  const worker = new MockedWorker(__dirname, {
+    shutdownGraceTime: '5ms',
+    activitiesPath: null,
+    taskQueue: 'suspend-test'
+  });
+  const p = worker.run();
   t.is(worker.getState(), 'RUNNING');
   worker.suspendPolling();
   t.is(worker.getState(), 'SUSPENDED');
