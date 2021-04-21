@@ -1,18 +1,8 @@
-import {basename, extname, resolve} from 'path';
+import { basename, extname, resolve } from 'path';
 import os from 'os';
-import {readdirSync} from 'fs';
-import {promisify} from 'util';
-import {
-  BehaviorSubject,
-  EMPTY,
-  merge,
-  Observable,
-  of,
-  OperatorFunction,
-  pipe,
-  Subject,
-  throwError
-} from 'rxjs';
+import { readdirSync } from 'fs';
+import { promisify } from 'util';
+import { BehaviorSubject, EMPTY, merge, Observable, of, OperatorFunction, pipe, Subject, throwError } from 'rxjs';
 import {
   catchError,
   concatMap,
@@ -27,20 +17,20 @@ import {
   tap,
 } from 'rxjs/operators';
 import ms from 'ms';
-import {coresdk} from '@temporalio/proto';
-import {ActivityOptions} from '@temporalio/workflow';
-import {errorToUserCodeFailure} from '@temporalio/workflow/commonjs/common';
+import { coresdk } from '@temporalio/proto';
+import { ActivityOptions } from '@temporalio/workflow';
+import { errorToUserCodeFailure } from '@temporalio/workflow/commonjs/common';
 import {
   arrayFromPayloads,
   DataConverter,
   defaultDataConverter,
 } from '@temporalio/workflow/commonjs/converter/data-converter';
 import * as native from '../native';
-import {closeableGroupBy, mergeMapWithState} from './rxutils';
-import {LoaderError, resolveFilename} from './loader';
-import {Workflow} from './workflow';
-import {Activity} from './activity';
-import {DefaultLogger, Logger} from './logger';
+import { closeableGroupBy, mergeMapWithState } from './rxutils';
+import { LoaderError, resolveFilename } from './loader';
+import { Workflow } from './workflow';
+import { Activity } from './activity';
+import { DefaultLogger, Logger } from './logger';
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
 import pkg from '../package.json';
@@ -212,7 +202,7 @@ export function getDefaultOptions(dirname: string): WorkerOptionsWithDefaults {
     activityDefaults: { type: 'remote', startToCloseTimeout: '10m' },
     serverOptions: getDefaultServerOptions(),
     maxConcurrentActivityExecutions: 200,
-    maxConcurrentWorkflowTaskExecutions: 200
+    maxConcurrentWorkflowTaskExecutions: 200,
   };
 }
 
@@ -220,8 +210,11 @@ export function compileWorkerOptions(opts: WorkerOptionsWithDefaults): CompiledW
   return { ...opts, shutdownGraceTimeMs: ms(opts.shutdownGraceTime) };
 }
 
-export function compileNativeWorkerOptions(opts: WorkerOptionsWithDefaults, serverOpts: Required<ServerOptions>): native.WorkerOptions {
-  return {...opts, serverOptions: compileServerOptions(serverOpts)}
+export function compileNativeWorkerOptions(
+  opts: WorkerOptionsWithDefaults,
+  serverOpts: Required<ServerOptions>
+): native.WorkerOptions {
+  return { ...opts, serverOptions: compileServerOptions(serverOpts) };
 }
 
 /**
@@ -265,9 +258,12 @@ export class NativeWorker implements NativeWorkerLike {
   public readonly breakLoop: Promisify<OmitFirstParam<typeof native.workerBreakLoop>>;
   public readonly shutdown: OmitFirstParam<typeof native.workerShutdown>;
 
-  public static async create( pwd: string, options?: WorkerOptions): Promise<NativeWorkerLike> {
+  public static async create(pwd: string, options?: WorkerOptions): Promise<NativeWorkerLike> {
     const serverOptions = { ...getDefaultServerOptions(), ...options?.serverOptions };
-    const compiledOptions = compileNativeWorkerOptions(compileWorkerOptions({...getDefaultOptions(pwd), ...options}), serverOptions);
+    const compiledOptions = compileNativeWorkerOptions(
+      compileWorkerOptions({ ...getDefaultOptions(pwd), ...options }),
+      serverOptions
+    );
     const nativeWorker = await promisify(native.newWorker)(compiledOptions);
     return new NativeWorker(nativeWorker);
   }

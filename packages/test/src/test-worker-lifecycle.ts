@@ -13,7 +13,7 @@ if (RUN_INTEGRATION_TESTS) {
     const worker = await Worker.create(__dirname, {
       shutdownGraceTime: '500ms',
       activitiesPath: null,
-      taskQueue: 'shutdown-test'
+      taskQueue: 'shutdown-test',
     });
     t.is(worker.getState(), 'INITIALIZED');
     const p = worker.run();
@@ -30,7 +30,7 @@ test.serial('Mocked run shuts down gracefully', async (t) => {
   const worker = new MockedWorker(__dirname, {
     shutdownGraceTime: '500ms',
     activitiesPath: null,
-    taskQueue: 'shutdown-test'
+    taskQueue: 'shutdown-test',
   });
   t.is(worker.getState(), 'INITIALIZED');
   const p = worker.run();
@@ -46,7 +46,7 @@ test.serial('Mocked run throws if not shut down gracefully', async (t) => {
   const worker = new MockedWorker(__dirname, {
     shutdownGraceTime: '5ms',
     activitiesPath: null,
-    taskQueue: 'shutdown-test'
+    taskQueue: 'shutdown-test',
   });
   t.is(worker.getState(), 'INITIALIZED');
   const p = worker.run();
@@ -64,7 +64,7 @@ test('Mocked worker suspends and resumes', async (t) => {
   const worker = new MockedWorker(__dirname, {
     shutdownGraceTime: '5ms',
     activitiesPath: null,
-    taskQueue: 'suspend-test'
+    taskQueue: 'suspend-test',
   });
   const p = worker.run();
   t.is(worker.getState(), 'RUNNING');

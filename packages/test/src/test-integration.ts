@@ -35,7 +35,7 @@ if (RUN_INTEGRATION_TESTS) {
       workflowsPath: `${__dirname}/../../test-workflows/lib`,
       activitiesPath: `${__dirname}/../../test-activities/lib`,
       logger: new DefaultLogger('DEBUG'),
-      taskQueue: "test"
+      taskQueue: 'test',
     });
     t.context = { worker };
 
