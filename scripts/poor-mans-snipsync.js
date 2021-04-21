@@ -56,7 +56,7 @@ for (const target of potentialTargets) {
       const start = line.match(/<\!--SNIPSTART (\S+)-->/);
       if (start) {
         foundSnip = true;
-        snip = { start: i, id: start[1] };
+        snip = { target, id: start[1], start: i };
       } else {
         output.push(line);
       }
