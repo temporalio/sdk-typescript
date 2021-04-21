@@ -36,10 +36,10 @@
     "build.watch": "lerna run --stream build.watch",
     "test": "lerna run --stream test",
     "test.watch": "lerna run --stream test.watch",
-    "lint": "eslint packages/*/src --ext .ts && prettier --check .",
+    "lint": "eslint packages/*/src --ext .ts --no-error-on-unmatched-pattern && prettier --check .",
     "format": "prettier --write .",
     "clean": "node ./scripts/clean.js",
-    "docs": "node ./scripts/gen-docs.js"
+    "docs": "lerna run --stream build-docs"
   },
   "repository": {
     "type": "git",
@@ -61,6 +61,7 @@
   "dependencies": {
     "@temporalio/client": "file:packages/client",
     "@temporalio/create": "file:packages/create-project",
+    "@temporalio/docs": "file:packages/docs",
     "@temporalio/proto": "file:packages/proto",
     "@temporalio/test": "file:packages/test",
     "@temporalio/test-activities": "file:packages/test-activities",
