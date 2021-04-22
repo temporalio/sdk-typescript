@@ -125,8 +125,8 @@ export class Worker extends RealWorker {
     return this.nativeWorker as MockNativeWorker;
   }
 
-  public constructor(pwd: string, opts: WorkerOptions) {
+  public constructor(opts: WorkerOptions) {
     const nativeWorker = new MockNativeWorker();
-    super(nativeWorker, compileWorkerOptions(addDefaults(pwd, opts)));
+    super(nativeWorker, compileWorkerOptions(addDefaults(opts)));
   }
 }

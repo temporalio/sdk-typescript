@@ -15,14 +15,14 @@ test('resolver resolves without .js extension', async (t) => {
 });
 
 test('resolver throws if no override', async (t) => {
-  const resolve = resolver(null, new Map());
+  const resolve = resolver(undefined, new Map());
   const err = await t.throwsAsync(() => resolve(__filename.replace(`${__dirname}/`, '')));
   t.true(err instanceof LoaderError);
   t.regex(err.message, /Could not find \S+ in overrides and no baseDir provided/);
 });
 
 test('resolver uses override', async (t) => {
-  const resolve = resolver(null, new Map([['test', __filename]]));
+  const resolve = resolver(undefined, new Map([['test', __filename]]));
   const resolved = await resolve('test');
   t.is(resolved, __filename);
 });

@@ -98,19 +98,25 @@ export interface WorkerOptions {
   activityDefaults?: ActivityOptions;
 
   /**
-   * Path to look up activities in.
-   * Use as alias for the `@activities` import.
-   * pass `null` to manually register activities.
-   * @default ../activities
+   * If provided, automatically discover Workflows and Activities relative to path.
+   *
+   * @see {@link activitiesPath} and {@link workflowsPath}
    */
-  activitiesPath?: string | null;
+  workDir?: string;
+
+  /**
+   * Path to look up activities in.
+   * Automatically discovered if {@link workDir} is provided.
+   * @default ${workDir}/../activities
+   */
+  activitiesPath?: string;
 
   /**
    * Path to look up workflows in.
-   * pass `null` to manually register workflows
-   * @default ../workflows
+   * Automatically discovered if {@link workDir} is provided.
+   * @default ${workDir}/../workflows
    */
-  workflowsPath?: string | null;
+  workflowsPath?: string;
 
   /**
    * Time to wait for pending tasks to drain after shutdown was requested.
@@ -158,8 +164,6 @@ export type WorkerOptionsWithDefaults = Omit<WorkerOptions, 'serverOptions'> & {
 } & Required<
     Pick<
       WorkerOptions,
-      | 'activitiesPath'
-      | 'workflowsPath'
       | 'shutdownGraceTime'
       | 'shutdownSignals'
       | 'dataConverter'
@@ -175,12 +179,12 @@ export interface CompiledWorkerOptionsWithDefaults extends Omit<WorkerOptionsWit
   serverOptions: CompiledServerOptions;
 }
 
-export const resolver = (baseDir: string | null, overrides: Map<string, string>) => async (
+export const resolver = (baseDir: string | undefined, overrides: Map<string, string>) => async (
   lookupName: string
 ): Promise<string> => {
   const resolved = overrides.get(lookupName);
   if (resolved !== undefined) return resolved;
-  if (baseDir === null) {
+  if (baseDir === undefined) {
     throw new LoaderError(`Could not find ${lookupName} in overrides and no baseDir provided`);
   }
 
@@ -202,11 +206,11 @@ export function compileServerOptions(options: Required<ServerOptions>): native.S
   return { ...rest, longPollTimeoutMs: ms(longPollTimeout) };
 }
 
-export function addDefaults(dirname: string, options: WorkerOptions): WorkerOptionsWithDefaults {
-  const { serverOptions, ...rest } = options;
+export function addDefaults(options: WorkerOptions): WorkerOptionsWithDefaults {
+  const { serverOptions, workDir, ...rest } = options;
   return {
-    activitiesPath: resolve(dirname, '../activities'),
-    workflowsPath: resolve(dirname, '../workflows'),
+    activitiesPath: workDir ? resolve(workDir, '../activities') : undefined,
+    workflowsPath: workDir ? resolve(workDir, '../workflows') : undefined,
     shutdownGraceTime: '5s',
     shutdownSignals: ['SIGINT', 'SIGTERM', 'SIGQUIT'],
     dataConverter: defaultDataConverter,
@@ -309,11 +313,10 @@ export class Worker {
   /**
    * Create a new Worker.
    * This method initiates a connection to the server and will throw (asynchronously) on connection failure.
-   * @param pwd - Used to resolve relative paths for locating and importing activities and workflows.
    */
-  public static async create(pwd: string, options: WorkerOptions): Promise<Worker> {
+  public static async create(options: WorkerOptions): Promise<Worker> {
     const nativeWorkerCtor: WorkerConstructor = this.nativeWorkerCtor;
-    const compiledOptions = compileWorkerOptions(addDefaults(pwd, options));
+    const compiledOptions = compileWorkerOptions(addDefaults(options));
     const nativeWorker = await nativeWorkerCtor.create(compiledOptions);
     return new this(nativeWorker, compiledOptions);
   }
@@ -326,7 +329,7 @@ export class Worker {
     this.nativeWorker = nativeWorker;
 
     this.resolvedActivities = new Map();
-    if (this.options.activitiesPath !== null) {
+    if (this.options.activitiesPath !== undefined) {
       const files = readdirSync(this.options.activitiesPath, { encoding: 'utf8' });
       for (const file of files) {
         const ext = extname(file);
