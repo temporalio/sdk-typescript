@@ -21,7 +21,7 @@ export async function runWorker(t: ExecutionContext<Context>, fn: () => Promise<
 }
 
 test.beforeEach((t) => {
-  const worker = new Worker(__dirname, {
+  const worker = new Worker({
     activitiesPath: `${__dirname}/../../test-activities/lib`,
     taskQueue: 'test',
   });

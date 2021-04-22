@@ -31,7 +31,7 @@ const test = anyTest as TestInterface<Context>;
 
 if (RUN_INTEGRATION_TESTS) {
   test.before(async (t) => {
-    const worker = await Worker.create(__dirname, {
+    const worker = await Worker.create({
       workflowsPath: `${__dirname}/../../test-workflows/lib`,
       activitiesPath: `${__dirname}/../../test-activities/lib`,
       logger: new DefaultLogger('DEBUG'),
