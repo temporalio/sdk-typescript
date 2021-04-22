@@ -936,3 +936,17 @@ test('activity-cancellation', async (t) => {
   }
   t.deepEqual(logs, []);
 });
+
+test('global-overrides', async (t) => {
+  const { script, logs } = t.context;
+  {
+    const req = await activate(t, makeStartWorkflow(script));
+    compareCompletion(t, req, makeSuccess());
+  }
+  t.deepEqual(
+    logs,
+    ['WeakMap', 'WeakSet', 'WeakRef'].map((type) => [
+      `DeterminismViolationError: ${type} cannot be used in workflows because v8 GC is non-deterministic`,
+    ])
+  );
+});

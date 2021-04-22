@@ -56,3 +56,10 @@ export class CancellationError extends Error {
 export class IllegalStateError extends Error {
   public readonly name: string = 'IllegalStateError';
 }
+
+/**
+ * Thrown in workflow when it trys to do something that non-deterministic such as construct a WeakMap()
+ */
+export class DeterminismViolationError extends Error {
+  public readonly name: string = 'DeterminismViolationError';
+}

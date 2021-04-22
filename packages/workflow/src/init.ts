@@ -2,28 +2,37 @@ import { ActivityOptions, Scope, Workflow } from './interfaces';
 import { state, currentScope, Runtime, Activator } from './internals';
 import { msToTs } from './time';
 import { alea } from './alea';
+import { DeterminismViolationError } from './errors';
 
 export function overrideGlobals(randomnessSeed: number[]): void {
+  const global = globalThis as any;
   Math.random = alea(randomnessSeed);
-  // Delete any weak reference holding structures because GC is non-deterministic.
+  // Mock any weak reference holding structures because GC is non-deterministic.
   // WeakRef is implemented in V8 8.4 which is embedded in node >=14.6.0, delete it just in case.
-  delete (globalThis as any).WeakMap;
-  delete (globalThis as any).WeakSet;
-  delete (globalThis as any).WeakRef;
+  // Workflow developer will get a meaningful exception if they try to use these.
+  global.WeakMap = function () {
+    throw new DeterminismViolationError('WeakMap cannot be used in workflows because v8 GC is non-deterministic');
+  };
+  global.WeakSet = function () {
+    throw new DeterminismViolationError('WeakSet cannot be used in workflows because v8 GC is non-deterministic');
+  };
+  global.WeakRef = function () {
+    throw new DeterminismViolationError('WeakRef cannot be used in workflows because v8 GC is non-deterministic');
+  };
 
-  const OriginalDate = (globalThis as any).Date;
+  const OriginalDate = globalThis.Date;
 
-  (globalThis as any).Date = function () {
+  global.Date = function () {
     return new OriginalDate(state.now);
   };
 
-  (globalThis as any).Date.now = function () {
+  global.Date.now = function () {
     return state.now;
   };
 
-  (globalThis as any).Date.prototype = OriginalDate.prototype;
+  global.Date.prototype = OriginalDate.prototype;
 
-  (globalThis as any).setTimeout = function (cb: (...args: any[]) => any, ms: number, ...args: any[]): number {
+  global.setTimeout = function (cb: (...args: any[]) => any, ms: number, ...args: any[]): number {
     const seq = state.nextSeq++;
     state.completions.set(seq, {
       resolve: () => cb(...args),
@@ -39,7 +48,7 @@ export function overrideGlobals(randomnessSeed: number[]): void {
     return seq;
   };
 
-  (globalThis as any).clearTimeout = function (handle: number): void {
+  global.clearTimeout = function (handle: number): void {
     state.nextSeq++;
     state.completions.delete(handle);
     state.commands.push({

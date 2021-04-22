@@ -18,6 +18,7 @@ const packageJsonBase = {
     scripts: {
         build: 'tsc --build src/worker/tsconfig.json',
         'build.watch': 'tsc --build --watch src/worker/tsconfig.json',
+        start: 'node lib/worker',
     },
     devDependencies: {
         typescript: `^${typescriptVersion}`,
@@ -140,7 +141,7 @@ async function createProject(projectPath, useYarn, temporalVersion) {
     });
     const sampleDir = path_1.default.join(__dirname, '../samples');
     await fs_extra_1.copyFile(path_1.default.join(sampleDir, 'worker.ts'), path_1.default.join(src, 'worker', 'index.ts'));
-    await fs_extra_1.copyFile(path_1.default.join(sampleDir, 'client.ts'), path_1.default.join(src, 'worker', 'test.ts'));
+    await fs_extra_1.copyFile(path_1.default.join(sampleDir, 'client.ts'), path_1.default.join(src, 'worker', 'schedule-workflow.ts'));
     await fs_extra_1.copyFile(path_1.default.join(sampleDir, 'activity.ts'), path_1.default.join(src, 'activities', 'greeter.ts'));
     await fs_extra_1.copyFile(path_1.default.join(sampleDir, 'workflow.ts'), path_1.default.join(src, 'workflows', 'example.ts'));
     await fs_extra_1.copyFile(path_1.default.join(sampleDir, 'interface.ts'), path_1.default.join(src, 'interfaces', 'workflows.ts'));

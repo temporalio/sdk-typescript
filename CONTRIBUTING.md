@@ -8,6 +8,8 @@ We welcome contributions from the community. To contribute please start by openi
 
 You will need to submit a CLA before we can accept your contribution. You only have to do this once. Follow [this link](https://cla-assistant.io/temporalio/sdk-node) and sign in with your GitHub account.
 
+### [SDK Structure](./docs/sdk-structure.md)
+
 ### Environment set up
 
 - Install system dependencies including the rust toolchain by follow the instructions [here](https://docs.temporal.io/docs/node/getting-started#install-system-dependencies)

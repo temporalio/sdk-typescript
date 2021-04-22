@@ -41,7 +41,7 @@ export {
   ActivityFunction,
   RetryOptions,
 } from './interfaces';
-export { CancellationError, CancellationSource } from './errors';
+export { CancellationError, CancellationSource, DeterminismViolationError } from './errors';
 export {
   Context,
   ContextImpl,

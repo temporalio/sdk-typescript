@@ -3,8 +3,10 @@ const { spawn: spawnChild, spawnSync } = require('child_process');
 const arg = require('arg');
 const { shell, sleep, kill, waitOnChild, ChildProcessError } = require('./utils');
 
+const npm = /^win/.test(process.platform) ? 'npm.cmd' : 'npm';
+
 function createWorker(workdir) {
-  return spawnChild('node', [path.join(workdir, 'lib/worker/index.js')], {
+  return spawnChild(npm, ['start'], {
     cwd: workdir,
     stdio: 'inherit',
     shell,
@@ -27,7 +29,7 @@ async function withWorker(workdir, fn) {
 }
 
 async function test(workdir) {
-  const { status, output } = spawnSync('node', [path.join(workdir, 'lib/worker/test.js')], {
+  const { status, output } = spawnSync('node', [path.join(workdir, 'lib/worker/schedule-workflow.js')], {
     cwd: workdir,
     shell,
     encoding: 'utf8',
