@@ -71,6 +71,7 @@ if (RUN_INTEGRATION_TESTS) {
       message: 'Activity cancelled',
       instanceOf: WorkflowExecutionFailedError,
     });
+    // TODO: assert the activity was cancelled
     t.pass();
   });
 

@@ -2,6 +2,10 @@ import fetch from 'node-fetch';
 import http from 'http';
 import { Context } from '@temporalio/activity';
 
+async function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export async function httpGet(url: string): Promise<string> {
   return `<html><body>hello from ${url}</body></html>`;
 }
@@ -15,9 +19,15 @@ export async function waitForCancellation(): Promise<void> {
 }
 
 export async function cancellableFetch(): Promise<Uint8Array> {
-  const server = http.createServer((_req, res) => {
-    res.writeHead(200, 'OK', { 'Content-Length': '5' });
-    setTimeout(() => res.end(), 5000);
+  const server = http.createServer(async (_req, res) => {
+    const numIterations = 100;
+    const bytesPerIteration = 1024;
+    res.writeHead(200, 'OK', { 'Content-Length': `${bytesPerIteration * numIterations}` });
+    for (let i = 0; i < numIterations; ++i) {
+      await sleep(5000 / numIterations);
+      res.write(Buffer.alloc(bytesPerIteration));
+    }
+    res.end();
   });
   server.listen();
   const addr = server.address();
@@ -47,10 +57,10 @@ export async function cancellableFetch(): Promise<Uint8Array> {
 }
 
 export async function progressiveSleep(): Promise<void> {
-  await new Promise((resolve) => setTimeout(resolve, 100));
+  await sleep(100);
   Context.current().heartbeat(1);
-  await new Promise((resolve) => setTimeout(resolve, 100));
+  await sleep(100);
   Context.current().heartbeat(2);
-  await new Promise((resolve) => setTimeout(resolve, 100));
+  await sleep(100);
   Context.current().heartbeat(3);
 }
