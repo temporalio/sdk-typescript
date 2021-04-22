@@ -112,5 +112,19 @@ module.exports = {
         watch: ['y', 'yes', 't', 'true', '1'].includes(process.env.TYPEDOC_WATCH),
       },
     ],
+    [
+      'docusaurus-plugin-snipsync',
+      {
+        origins: [
+          {
+            files: ['../*/src/*.ts', '../create-project/samples/*.ts'],
+          },
+        ],
+        target: 'docs',
+        features: {
+          enable_source_link: false,
+        },
+      },
+    ],
   ],
 };

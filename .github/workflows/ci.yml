@@ -49,7 +49,7 @@ jobs:
           RUN_INTEGRATION_TESTS: ${{ startsWith(matrix.os, 'ubuntu') }}
       - name: Build docs
         if: ${{ github.head_ref == 'docusaurus' && matrix.docsTarget }}
-        run: node ./scripts/poor-mans-snipsync.js && git status && npm run docs
+        run: npm run docs
       - name: Deploy docs
         if: ${{ github.head_ref == 'docusaurus' && matrix.docsTarget }}
         uses: netlify/actions/cli@master
