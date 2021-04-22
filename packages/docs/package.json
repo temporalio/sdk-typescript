@@ -1,6 +1,6 @@
 {
   "name": "@temporalio/docs",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "private": true,
   "scripts": {
     "docusaurus": "docusaurus",
@@ -18,8 +18,8 @@
     "@docusaurus/preset-classic": "2.0.0-alpha.73",
     "@mdx-js/react": "^1.6.21",
     "clsx": "^1.1.1",
-    "docusaurus-plugin-typedoc": "^0.12.1",
     "docusaurus-plugin-snipsync": "^1.0.0",
+    "docusaurus-plugin-typedoc": "^0.12.1",
     "prism-react-renderer": "^1.2.0",
     "react": "^17.0.1",
     "react-dom": "^17.0.1",
