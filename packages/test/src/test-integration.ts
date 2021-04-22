@@ -64,6 +64,16 @@ if (RUN_INTEGRATION_TESTS) {
     t.is(res, 'Hello, world!');
   });
 
+  test('cancel-http-request', async (t) => {
+    const client = new Connection();
+    const workflow = client.workflow<Empty>('cancel-http-request', { taskQueue: 'test' });
+    await t.throwsAsync(() => workflow.start(), {
+      message: 'Activity cancelled',
+      instanceOf: WorkflowExecutionFailedError,
+    });
+    t.pass();
+  });
+
   // Queries not yet properly implemented
   test.skip('simple-query', async (t) => {
     const client = new Connection();
