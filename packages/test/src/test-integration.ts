@@ -71,6 +71,7 @@ if (RUN_INTEGRATION_TESTS) {
       message: 'Activity cancelled',
       instanceOf: WorkflowExecutionFailedError,
     });
+    await new Promise((resolve) => setTimeout(resolve, 3000));
     // TODO: assert the activity was cancelled
     t.pass();
   });

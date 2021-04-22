@@ -21,6 +21,7 @@ import ms from 'ms';
 import { coresdk } from '@temporalio/proto';
 import { ActivityOptions } from '@temporalio/workflow';
 import { errorToUserCodeFailure } from '@temporalio/workflow/commonjs/common';
+import { msToTs } from '@temporalio/workflow/commonjs/time';
 import {
   arrayFromPayloads,
   DataConverter,
@@ -303,7 +304,7 @@ export class Worker {
   protected readonly workflowOverrides: Map<string, string> = new Map();
   protected readonly resolvedActivities: Map<string, Record<string, () => any>>;
   protected readonly activityHeartbeatSubject = new Subject<{
-    activityId: string;
+    taskToken: Uint8Array;
     details?: any;
   }>();
   protected stateSubject: BehaviorSubject<State> = new BehaviorSubject<State>('INITIALIZED');
@@ -531,7 +532,7 @@ export class Worker {
                 this.log.debug('Starting activity', { activityId, path, fnName });
                 activity = new Activity(activityId, fn, args, this.options.dataConverter, (details) =>
                   this.activityHeartbeatSubject.next({
-                    activityId,
+                    taskToken,
                     details,
                   })
                 );
@@ -667,17 +668,15 @@ export class Worker {
   protected activityHeartbeat$(): Observable<void> {
     return this.activityHeartbeatSubject.pipe(
       takeUntil(this.stateSubject.pipe(filter((value) => value === 'STOPPED' || value === 'FAILED'))),
-      tap(({ activityId }) => this.log.debug('Got activity heartbeat', { activityId })),
-      mergeMap(async ({ activityId, details }) => {
+      tap(({ taskToken }) => this.log.debug('Got activity heartbeat', { taskToken })),
+      mergeMap(async ({ taskToken, details }) => {
         const payload = this.options.dataConverter.toPayload(details);
-        if (!payload) {
-          await this.nativeWorker.recordActivityHeartbeat(activityId, undefined);
-          return;
-        }
-
-        const arr = coresdk.common.Payload.encode(payload).finish();
+        const arr = coresdk.ActivityHeartbeat.encodeDelimited({
+          taskToken,
+          details: [payload],
+          heartbeatTimeout: msToTs(1000), // TODO: remove this
+        }).finish();
         await this.nativeWorker.recordActivityHeartbeat(
-          activityId,
           arr.buffer.slice(arr.byteOffset, arr.byteLength + arr.byteOffset)
         );
       })

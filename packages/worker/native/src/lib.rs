@@ -423,12 +423,12 @@ fn worker_complete_activity_task(mut cx: FunctionContext) -> JsResult<JsUndefine
 /// Submit an activity heartbeat to core.
 fn worker_record_activity_heartbeat(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     let worker = cx.argument::<BoxedWorker>(0)?;
-    let result = cx.argument::<JsArrayBuffer>(1)?;
+    let heartbeat = cx.argument::<JsArrayBuffer>(1)?;
     let callback = cx.argument::<JsFunction>(2)?;
-    let result = cx.borrow(&result, |data| {
+    let heartbeat = cx.borrow(&heartbeat, |data| {
         ActivityHeartbeat::decode_length_delimited(data.as_slice::<u8>())
     });
-    match result {
+    match heartbeat {
         Ok(heartbeat) => {
             let request = Request::RecordActivityHeartbeat {
                 heartbeat,

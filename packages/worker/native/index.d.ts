@@ -56,7 +56,6 @@ export declare function workerPollActivityTask(worker: Worker, callback: PollCal
 export declare function workerCompleteActivityTask(worker: Worker, result: ArrayBuffer, callback: VoidCallback): void;
 export declare function workerRecordActivityHeartbeat(
   worker: Worker,
-  activityId: string,
-  details?: ArrayBuffer,
+  heartbeat: ArrayBuffer,
   callback: VoidCallback
 ): void;
