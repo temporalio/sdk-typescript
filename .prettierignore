@@ -5,3 +5,6 @@ sdk-core
 lib
 es2020
 commonjs
+.docusaurus
+packages/docs/docs/api
+typedoc-sidebar.js

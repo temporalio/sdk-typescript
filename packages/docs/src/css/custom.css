@@ -1,0 +1,132 @@
+/* stylelint-disable docusaurus/copyright-header */
+/**
+ * Any CSS included here will be global. The classic template
+ * bundles Infima by default. Infima is a CSS framework designed to
+ * work well for content-centric websites.
+ */
+
+/* You can override the default Infima variables here. */
+
+:root {
+  --ifm-color-primary: #6b62b6;
+  --ifm-color-primary-dark: #5a50ac;
+  --ifm-color-primary-darker: #554ca2;
+  --ifm-color-primary-darkest: #463e86;
+  --ifm-color-primary-light: #7d75bf;
+  --ifm-color-primary-lighter: #867fc3;
+  --ifm-color-primary-lightest: #b8b4dc;
+  --ifm-code-font-size: 95%;
+  --ifm-color-hero-background-dark: #18191a;
+}
+
+html[data-theme='dark'] {
+  --ifm-link-color: #b8b4dc;
+  --ifm-menu-color-active: #b8b4dc;
+  --ifm-navbar-link-hover-color: #b8b4dc;
+  --ifm-toc-link-color: #b8b4dc;
+  --ifm-blockquote-color: #eeeeee;
+  --ifm-code-background: var(--ifm-color-primary-dark);
+}
+
+html[data-theme='light'] {
+  --ifm-blockquote-color: #000000;
+  --ifm-color-emphasis-300: #505050;
+  --ifm-code-background: var(--ifm-color-primary-lightest);
+  --ifm-color-input-background: #ffffff;
+}
+
+/* These fonts are available but not used. */
+/* @font-face {
+  font-family: 'Aeonik';
+  src: url('../fonts/Aeonik-Regular.woff');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Aeonik-Bold';
+  src: url('../fonts/Aeonik-Bold.woff');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Aeonik-Light';
+  src: url('../fonts/Aeonik-Light.woff');
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+
+body {
+  font-family: 'Aeonik', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+    'Helvetica Neue', Arial, 'Noto Sans', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
+    'Segoe UI Symbol', 'Noto Color Emoji';
+} */
+
+.markdown {
+  font-size: 1.1em;
+}
+
+.hero--primary {
+  --ifm-hero-text-color: #ffffff;
+}
+
+.button.button--secondary.button--outline:not(.button--active):not(:hover) {
+  color: #ffffff;
+}
+
+.footer {
+  background-color: var(--ifm-color-primary);
+}
+
+.footer a:hover {
+  color: #ffffff;
+}
+
+.docusaurus-highlight-code-line {
+  background-color: rgb(72, 77, 91);
+  display: block;
+  margin: 0 calc(-1 * var(--ifm-pre-padding));
+  padding: 0 var(--ifm-pre-padding);
+}
+
+.docs-image-centered {
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
+  margin-bottom: 25px;
+}
+
+.docs-image-max-width-20 {
+  width: 20%;
+}
+
+.case-study-header {
+  background-color: #000000;
+}
+
+.signUpInput {
+  width: 100%;
+  color: #5d6570;
+  border-width: 0px 0px 1px 0px;
+  border-style: solid;
+  border-color: #a2a2a2;
+  padding-top: 1rem;
+  padding-bottom: 1rem;
+  background-color: var(--ifm-color-input-background);
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}

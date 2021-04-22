@@ -14,8 +14,14 @@ jobs:
       matrix:
         node: [12, 14]
         os: [ubuntu-latest, macos-latest] # TODO: support windows
+        include:
+          - os: ubuntu-latest
+            node: 14
+            docsTarget: true
     runs-on: ${{ matrix.os }}
     steps:
+      - name: Print build information
+        run: 'echo head_ref: ${{ github.head_ref }}, ref: ${{ github.ref }}, os: ${{ matrix.os }}, node: ${{ matrix.node }}, docsTarget: ${{ toJson(matrix.docsTarget) }}'
       - uses: actions/checkout@v2
         with:
           submodules: recursive
@@ -41,6 +47,18 @@ jobs:
         env:
           # TODO: Run integration tests on MacOS once we get docker-compose running on the GH actions Mac instance
           RUN_INTEGRATION_TESTS: ${{ startsWith(matrix.os, 'ubuntu') }}
+      - name: Build docs
+        if: ${{ github.head_ref == 'main' && matrix.docsTarget }}
+        run: npm run docs
+      - name: Deploy docs
+        if: ${{ github.head_ref == 'main' && matrix.docsTarget }}
+        uses: netlify/actions/cli@master
+        with:
+          args: deploy --dir=packages/docs/build --prod
+        env:
+          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+
   # Cross compile native bridge code for Windows, Mac and Linux.
   # We use Mac here because it's harder to compile to Mac from other OSes.
   # Uploads the packages as a build artifact to be tested later.
