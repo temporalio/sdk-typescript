@@ -14,6 +14,7 @@ import {
   mergeMap,
   repeat,
   takeUntil,
+  takeWhile,
   tap,
 } from 'rxjs/operators';
 import ms from 'ms';
@@ -257,13 +258,13 @@ type Promisify<T> = T extends (...args: any[]) => void
   : never;
 
 export interface NativeWorkerLike {
-  shutdown: OmitFirstParam<typeof native.workerShutdown>;
+  shutdown: Promisify<OmitFirstParam<typeof native.workerShutdown>>;
   breakLoop: Promisify<OmitFirstParam<typeof native.workerBreakLoop>>;
   pollWorkflowActivation: Promisify<OmitFirstParam<typeof native.workerPollWorkflowActivation>>;
   pollActivityTask: Promisify<OmitFirstParam<typeof native.workerPollActivityTask>>;
   completeWorkflowActivation: Promisify<OmitFirstParam<typeof native.workerCompleteWorkflowActivation>>;
   completeActivityTask: Promisify<OmitFirstParam<typeof native.workerCompleteActivityTask>>;
-  sendActivityHeartbeat: Promisify<OmitFirstParam<typeof native.workerSendActivityHeartbeat>>;
+  recordActivityHeartbeat: Promisify<OmitFirstParam<typeof native.workerRecordActivityHeartbeat>>;
 }
 
 export interface WorkerConstructor {
@@ -275,9 +276,9 @@ export class NativeWorker implements NativeWorkerLike {
   public readonly pollActivityTask: Promisify<OmitFirstParam<typeof native.workerPollActivityTask>>;
   public readonly completeWorkflowActivation: Promisify<OmitFirstParam<typeof native.workerCompleteWorkflowActivation>>;
   public readonly completeActivityTask: Promisify<OmitFirstParam<typeof native.workerCompleteActivityTask>>;
-  public readonly sendActivityHeartbeat: Promisify<OmitFirstParam<typeof native.workerSendActivityHeartbeat>>;
+  public readonly recordActivityHeartbeat: Promisify<OmitFirstParam<typeof native.workerRecordActivityHeartbeat>>;
   public readonly breakLoop: Promisify<OmitFirstParam<typeof native.workerBreakLoop>>;
-  public readonly shutdown: OmitFirstParam<typeof native.workerShutdown>;
+  public readonly shutdown: Promisify<OmitFirstParam<typeof native.workerShutdown>>;
 
   public static async create(options: CompiledWorkerOptionsWithDefaults): Promise<NativeWorkerLike> {
     const nativeWorker = await promisify(native.newWorker)(options);
@@ -289,9 +290,9 @@ export class NativeWorker implements NativeWorkerLike {
     this.pollActivityTask = promisify(native.workerPollActivityTask).bind(undefined, nativeWorker);
     this.completeWorkflowActivation = promisify(native.workerCompleteWorkflowActivation).bind(undefined, nativeWorker);
     this.completeActivityTask = promisify(native.workerCompleteActivityTask).bind(undefined, nativeWorker);
-    this.sendActivityHeartbeat = promisify(native.workerSendActivityHeartbeat).bind(undefined, nativeWorker);
+    this.recordActivityHeartbeat = promisify(native.workerRecordActivityHeartbeat).bind(undefined, nativeWorker);
     this.breakLoop = promisify(native.workerBreakLoop).bind(undefined, nativeWorker);
-    this.shutdown = native.workerShutdown.bind(undefined, nativeWorker);
+    this.shutdown = promisify(native.workerShutdown).bind(undefined, nativeWorker);
   }
 }
 
@@ -424,7 +425,7 @@ export class Worker {
       throw new Error('Not running and not suspended');
     }
     this.state = 'STOPPING';
-    this.nativeWorker.shutdown();
+    this.nativeWorker.shutdown().then(() => this.stateSubject.next('STOPPED'));
   }
 
   /**
@@ -447,6 +448,7 @@ export class Worker {
   protected pollLoop$<T>(pollFn: () => Promise<T>): Observable<T> {
     return of(this.stateSubject).pipe(
       map((state) => state.getValue()),
+      takeWhile((state) => state !== 'STOPPED'),
       concatMap((state) => {
         switch (state) {
           case 'RUNNING':
@@ -669,12 +671,12 @@ export class Worker {
       mergeMap(async ({ activityId, details }) => {
         const payload = this.options.dataConverter.toPayload(details);
         if (!payload) {
-          await this.nativeWorker.sendActivityHeartbeat(activityId, undefined);
+          await this.nativeWorker.recordActivityHeartbeat(activityId, undefined);
           return;
         }
 
         const arr = coresdk.common.Payload.encode(payload).finish();
-        await this.nativeWorker.sendActivityHeartbeat(
+        await this.nativeWorker.recordActivityHeartbeat(
           activityId,
           arr.buffer.slice(arr.byteOffset, arr.byteLength + arr.byteOffset)
         );
@@ -744,9 +746,6 @@ export class Worker {
           )
         ).pipe(
           tap({
-            complete: () => {
-              this.state = 'STOPPED';
-            },
             error: () => {
               this.state = 'FAILED';
             },

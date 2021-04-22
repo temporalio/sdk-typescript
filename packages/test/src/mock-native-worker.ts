@@ -31,7 +31,7 @@ export class MockNativeWorker implements NativeWorkerLike {
     // Nothing to break from
   }
 
-  public shutdown(): void {
+  public async shutdown(): Promise<void> {
     this.activityTasks.unshift(Promise.reject(new Error('Core is shut down')));
     this.workflowActivations.unshift(Promise.reject(new Error('Core is shut down')));
   }
@@ -101,7 +101,7 @@ export class MockNativeWorker implements NativeWorkerLike {
     return coresdk.ActivityTaskCompletion.decodeDelimited(new Uint8Array(result));
   }
 
-  public async sendActivityHeartbeat(activityId: string, details?: ArrayBuffer): Promise<void> {
+  public async recordActivityHeartbeat(activityId: string, details?: ArrayBuffer): Promise<void> {
     const payload = details && coresdk.common.Payload.decode(new Uint8Array(details));
     const arg = payload ? defaultDataConverter.fromPayload(payload) : undefined;
     this.activityHeartbeatCallback!(activityId, arg);

@@ -48,7 +48,7 @@ test.serial('Mocked run throws if not shut down gracefully', async (t) => {
   t.is(worker.getState(), 'INITIALIZED');
   const p = worker.run();
   t.is(worker.getState(), 'RUNNING');
-  worker.native.shutdown = () => undefined; // Make sure shutdown does not emit core shutdown
+  worker.native.shutdown = () => new Promise(() => undefined); // Make sure shutdown does not emit core shutdown
   process.emit('SIGINT', 'SIGINT');
   await t.throwsAsync(p, {
     message: 'Timed out while waiting for worker to shutdown gracefully',
