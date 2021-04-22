@@ -14,7 +14,7 @@ export const test = anyTest as TestInterface<Context>;
 
 export async function runWorker(t: ExecutionContext<Context>, fn: () => Promise<any>): Promise<void> {
   const { worker } = t.context;
-  const promise = worker.run('test');
+  const promise = worker.run();
   await fn();
   worker.shutdown();
   await promise;
@@ -23,6 +23,7 @@ export async function runWorker(t: ExecutionContext<Context>, fn: () => Promise<
 test.beforeEach((t) => {
   const worker = new Worker(__dirname, {
     activitiesPath: `${__dirname}/../../test-activities/lib`,
+    taskQueue: 'test',
   });
   t.context = {
     worker,

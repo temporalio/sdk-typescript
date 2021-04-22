@@ -3,8 +3,8 @@ use prost::Message;
 use std::{fmt::Display, future::Future, sync::Arc, time::Duration};
 use temporal_sdk_core::{
     init, protos::coresdk::workflow_completion::WfActivationCompletion,
-    protos::coresdk::ActivityHeartbeat, protos::coresdk::ActivityTaskCompletion, Core,
-    CoreInitOptions, ServerGatewayOptions, Url,
+    protos::coresdk::ActivityHeartbeat, protos::coresdk::ActivityTaskCompletion, tracing_init,
+    Core, CoreInitOptions, ServerGatewayOptions, Url,
 };
 use tokio::sync::mpsc::{channel, Sender};
 
@@ -19,8 +19,6 @@ pub enum Request {
     Shutdown,
     /// A request to poll for workflow activations
     PollWorkflowActivation {
-        /// Name of queue to poll
-        queue_name: String,
         /// Used to send the result back into JS
         callback: Root<JsFunction>,
     },
@@ -32,8 +30,6 @@ pub enum Request {
     },
     /// A request to poll for activity tasks
     PollActivityTask {
-        /// Name of queue to poll
-        queue_name: String,
         /// Used to report completion or error back into JS
         callback: Root<JsFunction>,
     },
@@ -152,6 +148,7 @@ fn start_bridge_loop(
                         |cx| Ok(cx.boxed(Worker { sender })),
                     );
                     let core = Arc::new(result);
+                    tracing_init();
                     loop {
                         // TODO: handle this error
                         let request = receiver.recv().await.unwrap();
@@ -166,20 +163,14 @@ fn start_bridge_loop(
                                 send_result(queue, callback, |cx| Ok(cx.undefined()));
                                 break;
                             }
-                            Request::PollWorkflowActivation {
-                                queue_name,
-                                callback,
-                            } => {
+                            Request::PollWorkflowActivation { callback } => {
                                 tokio::spawn(handle_poll_workflow_activation_request(
-                                    core, queue, queue_name, callback,
+                                    core, queue, callback,
                                 ));
                             }
-                            Request::PollActivityTask {
-                                queue_name,
-                                callback,
-                            } => {
+                            Request::PollActivityTask { callback } => {
                                 tokio::spawn(handle_poll_activity_task_request(
-                                    core, queue, queue_name, callback,
+                                    core, queue, callback,
                                 ));
                             }
                             Request::CompleteWorkflowActivation {
@@ -222,10 +213,9 @@ fn start_bridge_loop(
 async fn handle_poll_workflow_activation_request(
     core: Arc<impl Core>,
     queue: Arc<EventQueue>,
-    queue_name: String,
     callback: Root<JsFunction>,
 ) {
-    match core.poll_workflow_task(&queue_name).await {
+    match core.poll_workflow_task().await {
         Ok(task) => {
             send_result(queue, callback, move |cx| {
                 let len = task.encoded_len();
@@ -249,10 +239,9 @@ async fn handle_poll_workflow_activation_request(
 async fn handle_poll_activity_task_request(
     core: Arc<impl Core>,
     queue: Arc<EventQueue>,
-    queue_name: String,
     callback: Root<JsFunction>,
 ) {
-    match core.poll_activity_task(&queue_name).await {
+    match core.poll_activity_task().await {
         Ok(task) => {
             send_result(queue, callback, move |cx| {
                 let len = task.encoded_len();
@@ -278,8 +267,11 @@ async fn handle_poll_activity_task_request(
 /// Immediately spawns a poller thread that will block on [Request]s
 /// Worker is returned to JS using supplied callback
 fn worker_new(mut cx: FunctionContext) -> JsResult<JsUndefined> {
-    let options = cx.argument::<JsObject>(0)?;
-    let url = options
+    let worker_options = cx.argument::<JsObject>(0)?;
+    let server_options = worker_options
+        .get(&mut cx, "serverOptions")?
+        .downcast_or_throw::<JsObject, FunctionContext>(&mut cx)?;
+    let url = server_options
         .get(&mut cx, "url")?
         .downcast_or_throw::<JsString, FunctionContext>(&mut cx)?
         .value(&mut cx);
@@ -287,29 +279,52 @@ fn worker_new(mut cx: FunctionContext) -> JsResult<JsUndefined> {
 
     let gateway_opts = ServerGatewayOptions {
         target_url: Url::parse(&url).unwrap(),
-        namespace: options
+        namespace: server_options
             .get(&mut cx, "namespace")?
             .downcast_or_throw::<JsString, FunctionContext>(&mut cx)?
             .value(&mut cx),
-        identity: options
+        task_queue: worker_options
+            .get(&mut cx, "taskQueue")?
+            .downcast_or_throw::<JsString, FunctionContext>(&mut cx)?
+            .value(&mut cx),
+        identity: server_options
             .get(&mut cx, "identity")?
             .downcast_or_throw::<JsString, FunctionContext>(&mut cx)?
             .value(&mut cx),
-        worker_binary_id: options
+        worker_binary_id: server_options
             .get(&mut cx, "workerBinaryId")?
             .downcast_or_throw::<JsString, FunctionContext>(&mut cx)?
             .value(&mut cx),
         long_poll_timeout: Duration::from_millis(
-            options
+            server_options
                 .get(&mut cx, "longPollTimeoutMs")?
                 .downcast_or_throw::<JsNumber, FunctionContext>(&mut cx)?
                 .value(&mut cx) as u64,
         ),
     };
 
+    let max_outstanding_activities = worker_options
+        .get(&mut cx, "maxConcurrentActivityExecutions")?
+        .downcast_or_throw::<JsNumber, FunctionContext>(&mut cx)?
+        .value(&mut cx) as usize;
+    let max_outstanding_workflow_tasks = worker_options
+        .get(&mut cx, "maxConcurrentWorkflowTaskExecutions")?
+        .downcast_or_throw::<JsNumber, FunctionContext>(&mut cx)?
+        .value(&mut cx) as usize;
+
     let queue = Arc::new(cx.queue());
     std::thread::spawn(move || {
-        start_bridge_loop(CoreInitOptions { gateway_opts }, queue, callback)
+        start_bridge_loop(
+            CoreInitOptions {
+                gateway_opts,
+                // TODO: Fix evictions not being sent back to lang and set to true
+                evict_after_pending_cleared: false,
+                max_outstanding_workflow_tasks,
+                max_outstanding_activities,
+            },
+            queue,
+            callback,
+        )
     });
 
     Ok(cx.undefined())
@@ -332,10 +347,8 @@ fn worker_break_loop(mut cx: FunctionContext) -> JsResult<JsUndefined> {
 /// There should be only one concurrent poll request for this type.
 fn worker_poll_workflow_activation(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     let worker = cx.argument::<BoxedWorker>(0)?;
-    let queue_name = cx.argument::<JsString>(1)?.value(&mut cx);
-    let callback = cx.argument::<JsFunction>(2)?;
+    let callback = cx.argument::<JsFunction>(1)?;
     let request = Request::PollWorkflowActivation {
-        queue_name,
         callback: callback.root(&mut cx),
     };
     if let Err(err) = worker.sender.blocking_send(request) {
@@ -348,10 +361,8 @@ fn worker_poll_workflow_activation(mut cx: FunctionContext) -> JsResult<JsUndefi
 /// There should be only one concurrent poll request for this type.
 fn worker_poll_activity_task(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     let worker = cx.argument::<BoxedWorker>(0)?;
-    let queue_name = cx.argument::<JsString>(1)?.value(&mut cx);
-    let callback = cx.argument::<JsFunction>(2)?;
+    let callback = cx.argument::<JsFunction>(1)?;
     let request = Request::PollActivityTask {
-        queue_name,
         callback: callback.root(&mut cx),
     };
     if let Err(err) = worker.sender.blocking_send(request) {

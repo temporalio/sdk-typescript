@@ -35,10 +35,11 @@ if (RUN_INTEGRATION_TESTS) {
       workflowsPath: `${__dirname}/../../test-workflows/lib`,
       activitiesPath: `${__dirname}/../../test-activities/lib`,
       logger: new DefaultLogger('DEBUG'),
+      taskQueue: 'test',
     });
     t.context = { worker };
 
-    worker.run('test').catch((err) => {
+    worker.run().catch((err) => {
       console.error(err);
       t.fail(`Failed to run worker: ${err}`);
     });

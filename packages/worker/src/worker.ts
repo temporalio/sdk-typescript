@@ -2,7 +2,7 @@ import { basename, extname, resolve } from 'path';
 import os from 'os';
 import { readdirSync } from 'fs';
 import { promisify } from 'util';
-import { BehaviorSubject, merge, Observable, OperatorFunction, Subject, pipe, EMPTY, throwError, of } from 'rxjs';
+import { BehaviorSubject, EMPTY, merge, Observable, of, OperatorFunction, pipe, Subject, throwError } from 'rxjs';
 import {
   catchError,
   concatMap,
@@ -21,16 +21,16 @@ import { coresdk } from '@temporalio/proto';
 import { ActivityOptions } from '@temporalio/workflow';
 import { errorToUserCodeFailure } from '@temporalio/workflow/commonjs/common';
 import {
+  arrayFromPayloads,
   DataConverter,
   defaultDataConverter,
-  arrayFromPayloads,
 } from '@temporalio/workflow/commonjs/converter/data-converter';
 import * as native from '../native';
-import { mergeMapWithState, closeableGroupBy } from './rxutils';
-import { resolveFilename, LoaderError } from './loader';
+import { closeableGroupBy, mergeMapWithState } from './rxutils';
+import { LoaderError, resolveFilename } from './loader';
 import { Workflow } from './workflow';
 import { Activity } from './activity';
-import { Logger, DefaultLogger } from './logger';
+import { DefaultLogger, Logger } from './logger';
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
 import pkg from '../package.json';
@@ -73,9 +73,14 @@ export type CompiledServerOptions = Omit<Required<ServerOptions>, 'longPollTimeo
 
 export interface WorkerOptions {
   /**
-   * Options for communicating with the Tempral server
+   * Options for communicating with the Temporal server
    */
   serverOptions?: ServerOptions;
+
+  /**
+   * The task queue the worker will pull from
+   */
+  taskQueue: string;
 
   /**
    * Custom logger for the worker, by default we log everything to stderr
@@ -128,17 +133,29 @@ export interface WorkerOptions {
    */
   dataConverter?: DataConverter;
 
+  /**
+   * Maximum number of Activities to execute concurrently.
+   * Adjust this to improve Worker resource consumption.
+   * @default 200
+   */
+  maxConcurrentActivityExecutions?: number;
+  /**
+   * Maximum number of Workflow tasks to execute concurrently.
+   * Adjust this to improve Worker resource consumption.
+   * @default 200
+   */
+  maxConcurrentWorkflowTaskExecutions?: number;
+
   // TODO: implement all of these
-  maxConcurrentActivityExecutions?: number; // defaults to 200
   maxConcurrentLocalActivityExecutions?: number; // defaults to 200
-  maxConcurrentWorkflowTaskExecutions?: number; // defaults to 200
   maxTaskQueueActivitiesPerSecond?: number;
   maxWorkerActivitiesPerSecond?: number;
   isLocalActivityWorkerOnly?: boolean; // defaults to false
 }
 
-export type WorkerOptionsWithDefaults = WorkerOptions &
-  Required<
+export type WorkerOptionsWithDefaults = Omit<WorkerOptions, 'serverOptions'> & {
+  serverOptions: Required<ServerOptions>;
+} & Required<
     Pick<
       WorkerOptions,
       | 'activitiesPath'
@@ -148,11 +165,14 @@ export type WorkerOptionsWithDefaults = WorkerOptions &
       | 'dataConverter'
       | 'logger'
       | 'activityDefaults'
+      | 'maxConcurrentActivityExecutions'
+      | 'maxConcurrentWorkflowTaskExecutions'
     >
   >;
 
-export interface CompiledWorkerOptionsWithDefaults extends WorkerOptionsWithDefaults {
+export interface CompiledWorkerOptionsWithDefaults extends Omit<WorkerOptionsWithDefaults, 'serverOptions'> {
   shutdownGraceTimeMs: number;
+  serverOptions: CompiledServerOptions;
 }
 
 export const resolver = (baseDir: string | null, overrides: Map<string, string>) => async (
@@ -182,7 +202,8 @@ export function compileServerOptions(options: Required<ServerOptions>): native.S
   return { ...rest, longPollTimeoutMs: ms(longPollTimeout) };
 }
 
-export function getDefaultOptions(dirname: string): WorkerOptionsWithDefaults {
+export function addDefaults(dirname: string, options: WorkerOptions): WorkerOptionsWithDefaults {
+  const { serverOptions, ...rest } = options;
   return {
     activitiesPath: resolve(dirname, '../activities'),
     workflowsPath: resolve(dirname, '../workflows'),
@@ -191,11 +212,26 @@ export function getDefaultOptions(dirname: string): WorkerOptionsWithDefaults {
     dataConverter: defaultDataConverter,
     logger: new DefaultLogger(),
     activityDefaults: { type: 'remote', startToCloseTimeout: '10m' },
+    serverOptions: { ...getDefaultServerOptions(), ...serverOptions },
+    maxConcurrentActivityExecutions: 200,
+    maxConcurrentWorkflowTaskExecutions: 200,
+    ...rest,
   };
 }
 
 export function compileWorkerOptions(opts: WorkerOptionsWithDefaults): CompiledWorkerOptionsWithDefaults {
-  return { ...opts, shutdownGraceTimeMs: ms(opts.shutdownGraceTime) };
+  return {
+    ...opts,
+    shutdownGraceTimeMs: ms(opts.shutdownGraceTime),
+    serverOptions: compileServerOptions(opts.serverOptions),
+  };
+}
+
+export function compileNativeWorkerOptions(
+  opts: WorkerOptionsWithDefaults,
+  serverOptions: Required<ServerOptions>
+): native.WorkerOptions {
+  return { ...opts, serverOptions: compileServerOptions(serverOptions) };
 }
 
 /**
@@ -227,7 +263,7 @@ export interface NativeWorkerLike {
 }
 
 export interface WorkerConstructor {
-  create(options?: ServerOptions): Promise<NativeWorkerLike>;
+  create(options: CompiledWorkerOptionsWithDefaults): Promise<NativeWorkerLike>;
 }
 
 export class NativeWorker implements NativeWorkerLike {
@@ -239,9 +275,8 @@ export class NativeWorker implements NativeWorkerLike {
   public readonly breakLoop: Promisify<OmitFirstParam<typeof native.workerBreakLoop>>;
   public readonly shutdown: OmitFirstParam<typeof native.workerShutdown>;
 
-  public static async create(options?: ServerOptions): Promise<NativeWorkerLike> {
-    const compiledOptions = compileServerOptions({ ...getDefaultServerOptions(), ...options });
-    const nativeWorker = await promisify(native.newWorker)(compiledOptions);
+  public static async create(options: CompiledWorkerOptionsWithDefaults): Promise<NativeWorkerLike> {
+    const nativeWorker = await promisify(native.newWorker)(options);
     return new NativeWorker(nativeWorker);
   }
 
@@ -260,7 +295,6 @@ export class NativeWorker implements NativeWorkerLike {
  * The temporal worker connects to the service and runs workflows and activities.
  */
 export class Worker {
-  public readonly options: CompiledWorkerOptionsWithDefaults;
   protected readonly workflowOverrides: Map<string, string> = new Map();
   protected readonly resolvedActivities: Map<string, Record<string, () => any>>;
   protected readonly activityHeartbeatSubject = new Subject<{
@@ -277,20 +311,20 @@ export class Worker {
    * This method initiates a connection to the server and will throw (asynchronously) on connection failure.
    * @param pwd - Used to resolve relative paths for locating and importing activities and workflows.
    */
-  public static async create(pwd: string, options?: WorkerOptions): Promise<Worker> {
+  public static async create(pwd: string, options: WorkerOptions): Promise<Worker> {
     const nativeWorkerCtor: WorkerConstructor = this.nativeWorkerCtor;
-    const nativeWorker = await nativeWorkerCtor.create(options?.serverOptions);
-    return new this(nativeWorker, pwd, options);
+    const compiledOptions = compileWorkerOptions(addDefaults(pwd, options));
+    const nativeWorker = await nativeWorkerCtor.create(compiledOptions);
+    return new this(nativeWorker, compiledOptions);
   }
 
   /**
    * Create a new Worker from nativeWorker.
    * @param pwd - Used to resolve relative paths for locating and importing activities and workflows.
    */
-  protected constructor(nativeWorker: NativeWorkerLike, public readonly pwd: string, options?: WorkerOptions) {
+  protected constructor(nativeWorker: NativeWorkerLike, public readonly options: CompiledWorkerOptionsWithDefaults) {
     this.nativeWorker = nativeWorker;
 
-    this.options = compileWorkerOptions({ ...getDefaultOptions(pwd), ...options });
     this.resolvedActivities = new Map();
     if (this.options.activitiesPath !== null) {
       const files = readdirSync(this.options.activitiesPath, { encoding: 'utf8' });
@@ -648,9 +682,9 @@ export class Worker {
   /**
    * Poll core for `WFActivation`s while respecting worker state
    */
-  protected workflow$(queueName: string): Observable<coresdk.workflow_activation.WFActivation> {
+  protected workflow$(): Observable<coresdk.workflow_activation.WFActivation> {
     return this.poller$(async () => {
-      const buffer = await this.nativeWorker.pollWorkflowActivation(queueName);
+      const buffer = await this.nativeWorker.pollWorkflowActivation();
       const task = coresdk.workflow_activation.WFActivation.decode(new Uint8Array(buffer));
       this.log.debug('Got workflow task', task);
       return task;
@@ -660,9 +694,9 @@ export class Worker {
   /**
    * Poll core for `ActivityTask`s while respecting worker state
    */
-  protected activity$(queueName: string): Observable<coresdk.activity_task.ActivityTask> {
+  protected activity$(): Observable<coresdk.activity_task.ActivityTask> {
     return this.poller$(async () => {
-      const buffer = await this.nativeWorker.pollActivityTask(queueName);
+      const buffer = await this.nativeWorker.pollActivityTask();
       const task = coresdk.activity_task.ActivityTask.decode(new Uint8Array(buffer));
       this.log.debug('Got activity task', task);
       return task;
@@ -673,11 +707,16 @@ export class Worker {
    * Start polling on tasks, completes after graceful shutdown due to receiving a shutdown signal
    * or call to {@link shutdown}.
    */
-  async run(queueName: string): Promise<void> {
+  async run(): Promise<void> {
     if (this.state !== 'INITIALIZED') {
       throw new Error('Poller was aleady started');
     }
     this.state = 'RUNNING';
+
+    if (this.options.taskQueue === undefined) {
+      throw new Error('Worker taskQueue not defined');
+    }
+    const queueName = this.options.taskQueue;
 
     const startShutdownSequence = () => {
       for (const signal of this.options.shutdownSignals) {
@@ -692,11 +731,11 @@ export class Worker {
       await merge(
         this.activityHeartbeat$(),
         merge(
-          this.workflow$(queueName).pipe(
+          this.workflow$().pipe(
             this.workflowOperator(queueName),
             mergeMap((arr) => this.nativeWorker.completeWorkflowActivation(arr.buffer.slice(arr.byteOffset)))
           ),
-          this.activity$(queueName).pipe(
+          this.activity$().pipe(
             this.activityOperator(),
             mergeMap((arr) => this.nativeWorker.completeActivityTask(arr.buffer.slice(arr.byteOffset)))
           )
