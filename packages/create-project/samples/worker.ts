@@ -6,9 +6,9 @@ async function run() {
   // (assuming package was bootstrapped with `npm init @temporalio`).
   // Worker connects to localhost by default and uses console error for logging.
   // Customize the worker by passing options a second parameter of `create()`.
-  const worker = await Worker.create(__dirname);
-  // Bind to the `tutorial` queue and start accepting tasks
-  await worker.run('tutorial');
+  const worker = await Worker.create(__dirname, { taskQueue: 'tutorial' });
+  // Start accepting tasks on the `tutorial` queue
+  await worker.run();
 }
 
 run().catch((err) => {

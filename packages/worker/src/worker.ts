@@ -79,7 +79,6 @@ export interface WorkerOptions {
 
   /**
    * The task queue the worker will pull from
-   * @default default (TODO: ideally this is always set w/o a default)
    */
   taskQueue: string;
 
@@ -134,17 +133,29 @@ export interface WorkerOptions {
    */
   dataConverter?: DataConverter;
 
+  /**
+   * Maximum number of Activities to execute concurrently.
+   * Adjust this to improve Worker resource consumption.
+   * @default 200
+   */
+  maxConcurrentActivityExecutions?: number;
+  /**
+   * Maximum number of Workflow tasks to execute concurrently.
+   * Adjust this to improve Worker resource consumption.
+   * @default 200
+   */
+  maxConcurrentWorkflowTaskExecutions?: number;
+
   // TODO: implement all of these
-  maxConcurrentActivityExecutions?: number; // defaults to 200
   maxConcurrentLocalActivityExecutions?: number; // defaults to 200
-  maxConcurrentWorkflowTaskExecutions?: number; // defaults to 200
   maxTaskQueueActivitiesPerSecond?: number;
   maxWorkerActivitiesPerSecond?: number;
   isLocalActivityWorkerOnly?: boolean; // defaults to false
 }
 
-export type WorkerOptionsWithDefaults = WorkerOptions &
-  Required<
+export type WorkerOptionsWithDefaults = Omit<WorkerOptions, 'serverOptions'> & {
+  serverOptions: Required<ServerOptions>;
+} & Required<
     Pick<
       WorkerOptions,
       | 'activitiesPath'
@@ -159,8 +170,9 @@ export type WorkerOptionsWithDefaults = WorkerOptions &
     >
   >;
 
-export interface CompiledWorkerOptionsWithDefaults extends WorkerOptionsWithDefaults {
+export interface CompiledWorkerOptionsWithDefaults extends Omit<WorkerOptionsWithDefaults, 'serverOptions'> {
   shutdownGraceTimeMs: number;
+  serverOptions: CompiledServerOptions;
 }
 
 export const resolver = (baseDir: string | null, overrides: Map<string, string>) => async (
@@ -190,31 +202,36 @@ export function compileServerOptions(options: Required<ServerOptions>): native.S
   return { ...rest, longPollTimeoutMs: ms(longPollTimeout) };
 }
 
-export function getDefaultOptions(dirname: string): WorkerOptionsWithDefaults {
+export function addDefaults(dirname: string, options: WorkerOptions): WorkerOptionsWithDefaults {
+  const { serverOptions, ...rest } = options;
   return {
     activitiesPath: resolve(dirname, '../activities'),
     workflowsPath: resolve(dirname, '../workflows'),
-    taskQueue: 'default',
     shutdownGraceTime: '5s',
     shutdownSignals: ['SIGINT', 'SIGTERM', 'SIGQUIT'],
     dataConverter: defaultDataConverter,
     logger: new DefaultLogger(),
     activityDefaults: { type: 'remote', startToCloseTimeout: '10m' },
-    serverOptions: getDefaultServerOptions(),
+    serverOptions: { ...getDefaultServerOptions(), ...serverOptions },
     maxConcurrentActivityExecutions: 200,
     maxConcurrentWorkflowTaskExecutions: 200,
+    ...rest,
   };
 }
 
 export function compileWorkerOptions(opts: WorkerOptionsWithDefaults): CompiledWorkerOptionsWithDefaults {
-  return { ...opts, shutdownGraceTimeMs: ms(opts.shutdownGraceTime) };
+  return {
+    ...opts,
+    shutdownGraceTimeMs: ms(opts.shutdownGraceTime),
+    serverOptions: compileServerOptions(opts.serverOptions),
+  };
 }
 
 export function compileNativeWorkerOptions(
   opts: WorkerOptionsWithDefaults,
-  serverOpts: Required<ServerOptions>
+  serverOptions: Required<ServerOptions>
 ): native.WorkerOptions {
-  return { ...opts, serverOptions: compileServerOptions(serverOpts) };
+  return { ...opts, serverOptions: compileServerOptions(serverOptions) };
 }
 
 /**
@@ -246,7 +263,7 @@ export interface NativeWorkerLike {
 }
 
 export interface WorkerConstructor {
-  create(pwd: string, options?: WorkerOptions): Promise<NativeWorkerLike>;
+  create(options: CompiledWorkerOptionsWithDefaults): Promise<NativeWorkerLike>;
 }
 
 export class NativeWorker implements NativeWorkerLike {
@@ -258,13 +275,8 @@ export class NativeWorker implements NativeWorkerLike {
   public readonly breakLoop: Promisify<OmitFirstParam<typeof native.workerBreakLoop>>;
   public readonly shutdown: OmitFirstParam<typeof native.workerShutdown>;
 
-  public static async create(pwd: string, options?: WorkerOptions): Promise<NativeWorkerLike> {
-    const serverOptions = { ...getDefaultServerOptions(), ...options?.serverOptions };
-    const compiledOptions = compileNativeWorkerOptions(
-      compileWorkerOptions({ ...getDefaultOptions(pwd), ...options }),
-      serverOptions
-    );
-    const nativeWorker = await promisify(native.newWorker)(compiledOptions);
+  public static async create(options: CompiledWorkerOptionsWithDefaults): Promise<NativeWorkerLike> {
+    const nativeWorker = await promisify(native.newWorker)(options);
     return new NativeWorker(nativeWorker);
   }
 
@@ -283,7 +295,6 @@ export class NativeWorker implements NativeWorkerLike {
  * The temporal worker connects to the service and runs workflows and activities.
  */
 export class Worker {
-  public readonly options: CompiledWorkerOptionsWithDefaults;
   protected readonly workflowOverrides: Map<string, string> = new Map();
   protected readonly resolvedActivities: Map<string, Record<string, () => any>>;
   protected readonly activityHeartbeatSubject = new Subject<{
@@ -300,20 +311,20 @@ export class Worker {
    * This method initiates a connection to the server and will throw (asynchronously) on connection failure.
    * @param pwd - Used to resolve relative paths for locating and importing activities and workflows.
    */
-  public static async create(pwd: string, options?: WorkerOptions): Promise<Worker> {
+  public static async create(pwd: string, options: WorkerOptions): Promise<Worker> {
     const nativeWorkerCtor: WorkerConstructor = this.nativeWorkerCtor;
-    const nativeWorker = await nativeWorkerCtor.create(pwd, options);
-    return new this(nativeWorker, pwd, options);
+    const compiledOptions = compileWorkerOptions(addDefaults(pwd, options));
+    const nativeWorker = await nativeWorkerCtor.create(compiledOptions);
+    return new this(nativeWorker, compiledOptions);
   }
 
   /**
    * Create a new Worker from nativeWorker.
    * @param pwd - Used to resolve relative paths for locating and importing activities and workflows.
    */
-  protected constructor(nativeWorker: NativeWorkerLike, public readonly pwd: string, options?: WorkerOptions) {
+  protected constructor(nativeWorker: NativeWorkerLike, public readonly options: CompiledWorkerOptionsWithDefaults) {
     this.nativeWorker = nativeWorker;
 
-    this.options = compileWorkerOptions({ ...getDefaultOptions(pwd), ...options });
     this.resolvedActivities = new Map();
     if (this.options.activitiesPath !== null) {
       const files = readdirSync(this.options.activitiesPath, { encoding: 'utf8' });
