@@ -7,7 +7,7 @@ const fetch = Context.configure(cancellableFetch, {
   heartbeatTimeout: '3s',
 });
 
-export async function main(): Promise<void> {
+export async function main(completeOnActivityCancellation = false): Promise<void> {
   const promise = fetch();
   // TODO: wait on signal from activity instead of sleeping
   await sleep(3000);
@@ -16,7 +16,9 @@ export async function main(): Promise<void> {
     await promise;
   } catch (err) {
     if (err instanceof CancellationError) {
-      await sleep(3000);
+      if (!completeOnActivityCancellation) {
+        await sleep(3000);
+      }
     }
     throw err;
   }
