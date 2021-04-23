@@ -669,13 +669,14 @@ export class Worker {
   protected activityHeartbeat$(): Observable<void> {
     return this.activityHeartbeatSubject.pipe(
       takeUntil(this.stateSubject.pipe(filter((value) => value === 'STOPPED' || value === 'FAILED'))),
-      tap(({ taskToken }) => this.log.debug('Got activity heartbeat', { taskToken: taskToken.slice(0, 8) })),
+      tap(({ taskToken }) =>
+        this.log.debug('Got activity heartbeat', { taskToken: Buffer.from(taskToken.slice(0, 8)).toString('base64') })
+      ),
       mergeMap(async ({ taskToken, details }) => {
         const payload = this.options.dataConverter.toPayload(details);
         const arr = coresdk.ActivityHeartbeat.encodeDelimited({
           taskToken,
           details: [payload],
-          heartbeatTimeout: msToTs(1000), // TODO: remove this
         }).finish();
         await this.nativeWorker.recordActivityHeartbeat(
           arr.buffer.slice(arr.byteOffset, arr.byteLength + arr.byteOffset)

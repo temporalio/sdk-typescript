@@ -18,5 +18,7 @@ prost-types = "0.7"
 tokio = "1.4.0"
 
 [dependencies.temporal-sdk-core]
-version = "*"
+# TODO: revert back to *, can't now because of this error: prerelease package needs to be specified explicitly
+# version = "*"
+version = "0.1.0-alpha.1"
 path = "./sdk-core"

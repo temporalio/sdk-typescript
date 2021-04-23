@@ -975,9 +975,24 @@ dependencies = [
 name = "rustfsm"
 version = "0.1.0"
 dependencies = [
- "state_machine_procmacro",
- "state_machine_trait",
+ "rustfsm_procmacro",
+ "rustfsm_trait",
 ]
+
+[[package]]
+name = "rustfsm_procmacro"
+version = "0.1.0"
+dependencies = [
+ "derive_more",
+ "proc-macro2",
+ "quote",
+ "rustfsm_trait",
+ "syn",
+]
+
+[[package]]
+name = "rustfsm_trait"
+version = "0.1.0"
 
 [[package]]
 name = "ryu"
@@ -1064,21 +1079,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "state_machine_procmacro"
-version = "0.1.0"
-dependencies = [
- "derive_more",
- "proc-macro2",
- "quote",
- "state_machine_trait",
- "syn",
-]
-
-[[package]]
-name = "state_machine_trait"
-version = "0.1.0"
-
-[[package]]
 name = "syn"
 version = "1.0.69"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1105,7 +1105,7 @@ dependencies = [
 
 [[package]]
 name = "temporal-sdk-core"
-version = "0.1.0"
+version = "0.1.0-alpha.1"
 dependencies = [
  "anyhow",
  "async-trait",
