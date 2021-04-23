@@ -589,6 +589,7 @@ export class Worker {
       closeableGroupBy((task) => task.runId),
       mergeMap((group$) => {
         return group$.pipe(
+          takeUntil(this.stateSubject.pipe(filter((value) => value === 'STOPPED'))),
           mergeMapWithState(async (workflow: Workflow | undefined, task) => {
             const taskToken = Buffer.from(task.taskToken).toString('hex');
             if (workflow === undefined) {
@@ -668,7 +669,7 @@ export class Worker {
   protected activityHeartbeat$(): Observable<void> {
     return this.activityHeartbeatSubject.pipe(
       takeUntil(this.stateSubject.pipe(filter((value) => value === 'STOPPED' || value === 'FAILED'))),
-      tap(({ taskToken }) => this.log.debug('Got activity heartbeat', { taskToken })),
+      tap(({ taskToken }) => this.log.debug('Got activity heartbeat', { taskToken: taskToken.slice(0, 8) })),
       mergeMap(async ({ taskToken, details }) => {
         const payload = this.options.dataConverter.toPayload(details);
         const arr = coresdk.ActivityHeartbeat.encodeDelimited({
