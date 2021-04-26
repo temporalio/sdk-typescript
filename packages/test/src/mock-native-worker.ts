@@ -110,7 +110,7 @@ export class MockNativeWorker implements NativeWorkerLike {
   public async untilHeartbeat(taskToken: Uint8Array): Promise<any> {
     return new Promise((resolve) => {
       this.activityHeartbeatCallback = (heartbeatTaskToken, details) => {
-        if (heartbeatTaskToken === taskToken) {
+        if (Buffer.from(heartbeatTaskToken).equals(taskToken)) {
           resolve(details);
         }
       };

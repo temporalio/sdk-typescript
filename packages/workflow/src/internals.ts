@@ -4,7 +4,7 @@ import * as iface from '@temporalio/proto';
 import { defaultDataConverter, arrayFromPayloads } from './converter/data-converter';
 import { alea } from './alea';
 import { ActivityOptions, CancellationFunction, CancellationFunctionFactory, Scope, Workflow } from './interfaces';
-import { CancellationError } from './errors';
+import { CancellationError, IllegalStateError } from './errors';
 import { errorToUserCodeFailure } from './common';
 import { tsToMs, nullToUndefined } from './time';
 
@@ -222,6 +222,10 @@ export class Activator implements WorkflowTaskHandler {
       throw new Error('Expected activation with randomnessSeed attribute');
     }
     Math.random = alea(activation.randomnessSeed.toBytes());
+  }
+
+  public removeFromCache(): void {
+    throw new IllegalStateError('removeFromCache activation job should not reach workflow');
   }
 }
 

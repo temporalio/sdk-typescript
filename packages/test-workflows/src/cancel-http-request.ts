@@ -1,4 +1,5 @@
 import { Context, CancellationError, cancel, sleep } from '@temporalio/workflow';
+import { CancellableHTTPRequest } from '@interfaces';
 import { cancellableFetch } from '@activities';
 
 const fetch = Context.configure(cancellableFetch, {
@@ -7,8 +8,8 @@ const fetch = Context.configure(cancellableFetch, {
   heartbeatTimeout: '3s',
 });
 
-export async function main(completeOnActivityCancellation = false): Promise<void> {
-  const promise = fetch();
+async function main(url: string, completeOnActivityCancellation = false): Promise<void> {
+  const promise = fetch(url);
   // TODO: wait on signal from activity instead of sleeping
   await sleep(3000);
   cancel(promise);
@@ -17,9 +18,12 @@ export async function main(completeOnActivityCancellation = false): Promise<void
   } catch (err) {
     if (err instanceof CancellationError) {
       if (!completeOnActivityCancellation) {
+        // TODO: wait on signal from activity instead of sleeping
         await sleep(3000);
       }
     }
     throw err;
   }
 }
+
+export const workflow: CancellableHTTPRequest = { main };

@@ -16,7 +16,11 @@ const severities: LogLevel[] = ['DEBUG', 'INFO', 'WARNING', 'ERROR'];
  * Log messages using `console.error` and basic formatting
  */
 function defaultLogFunction(level: LogLevel, message: string, meta?: Record<string, any>): void {
-  console.error(`[${level}]`, message, meta);
+  if (meta === undefined) {
+    console.error(new Date(), `[${level}]`, message);
+  } else {
+    console.error(new Date(), `[${level}]`, message, meta);
+  }
 }
 
 /**

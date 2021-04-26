@@ -1,6 +1,5 @@
 import fetch from 'node-fetch';
-import http from 'http';
-import { Context } from '@temporalio/activity';
+import { Context, CancellationError } from '@temporalio/activity';
 
 async function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -18,42 +17,33 @@ export async function waitForCancellation(): Promise<void> {
   await Context.current().cancelled;
 }
 
-export async function cancellableFetch(): Promise<Uint8Array> {
-  const server = http.createServer(async (_req, res) => {
-    const numIterations = 100;
-    const bytesPerIteration = 1024;
-    res.writeHead(200, 'OK', { 'Content-Length': `${bytesPerIteration * numIterations}` });
-    for (let i = 0; i < numIterations; ++i) {
-      await sleep(5000 / numIterations);
-      res.write(Buffer.alloc(bytesPerIteration));
+export async function cancellableFetch(url: string): Promise<Uint8Array> {
+  try {
+    const response = await fetch(`${url}/zeroes`, { signal: Context.current().cancellationSignal });
+    const contentLengthHeader = response.headers.get('Content-Length');
+    if (contentLengthHeader === null) {
+      throw new Error('expected Content-Length header to be set');
     }
-    res.end();
-  });
-  server.listen();
-  const addr = server.address();
-  if (typeof addr === 'string' || addr === null) {
-    throw new Error('Unexpected server address type');
-  }
-  const { port } = addr;
+    const contentLength = parseInt(contentLengthHeader);
+    let bytesRead = 0;
+    const chunks: Buffer[] = [];
 
-  const response = await fetch(`http://127.0.0.1:${port}`, { signal: Context.current().cancellationSignal });
-  const contentLengthHeader = response.headers.get('Content-Length');
-  if (contentLengthHeader === null) {
-    throw new Error('expected Content-Length header to be set');
-  }
-  const contentLength = parseInt(contentLengthHeader);
-  let bytesRead = 0;
-  const chunks: Buffer[] = [];
-
-  for await (const chunk of response.body) {
-    if (!(chunk instanceof Buffer)) {
-      throw new TypeError('Expected Buffer');
+    for await (const chunk of response.body) {
+      if (!(chunk instanceof Buffer)) {
+        throw new TypeError('Expected Buffer');
+      }
+      bytesRead += chunk.length;
+      chunks.push(chunk);
+      Context.current().heartbeat(bytesRead / contentLength);
     }
-    bytesRead += chunk.length;
-    chunks.push(chunk);
-    Context.current().heartbeat(bytesRead / contentLength);
+    return Buffer.concat(chunks);
+  } catch (err) {
+    if (err.name === 'AbortError' && err.type === 'aborted') {
+      const res = await fetch(`${url}/finish`);
+      await res.text();
+    }
+    throw err;
   }
-  return Buffer.concat(chunks);
 }
 
 export async function progressiveSleep(): Promise<void> {
