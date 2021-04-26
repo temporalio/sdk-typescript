@@ -93,6 +93,12 @@ if (RUN_INTEGRATION_TESTS) {
 
   test("cancel-http-request don't completeOnActivityCancellation", (t) => testCancelHTTPRequest(t, false));
 
+  test('activity-failure', async (t) => {
+    const client = new Connection();
+    const workflow = client.workflow<Empty>('activity-failure', { taskQueue: 'test' });
+    await t.throwsAsync(workflow.start(), { message: 'Fail me', instanceOf: WorkflowExecutionFailedError });
+  });
+
   // Queries not yet properly implemented
   test.skip('simple-query', async (t) => {
     const client = new Connection();
