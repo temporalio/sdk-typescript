@@ -516,7 +516,7 @@ export class Worker {
                   throw new Error('Got a "start" activity task without a "start" attribute');
                 }
                 if (!start.activityType) {
-                  throw new Error('Got a StartActivity without an "activityType" attribute');
+                  throw new Error('Got StartActivity without an "activityType" attribute');
                 }
                 const [path, fnName] = JSON.parse(start.activityType);
                 const module = this.resolvedActivities.get(path);
