@@ -240,6 +240,12 @@ export function compileNativeWorkerOptions(
 
 /**
  * The worker's possible states
+ * `INITIALIZED` - The initial state of the Worker after calling create() and successful connection to the server
+ * `RUNNING` - {@link Worker.run} was called, polling task queues
+ * `SUSPENDED` - {@link Worker.suspendPolling} was called, not polling for new tasks
+ * `STOPPING` - {@link Worker.shutdown} was called or received shutdown signal
+ * `STOPPED` - Core has indicated that shutdown is complete, {@link Worker.run} should resolve soon
+ * `FAILED` - Worker encountered an unrecoverable error, {@link Worker.run} should reject with the error
  */
 export type State = 'INITIALIZED' | 'RUNNING' | 'STOPPED' | 'STOPPING' | 'FAILED' | 'SUSPENDED';
 

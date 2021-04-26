@@ -2,7 +2,6 @@
 import anyTest, { TestInterface, ExecutionContext } from 'ava';
 import { v4 as uuid4 } from 'uuid';
 import { coresdk } from '@temporalio/proto';
-import { DefaultLogger } from '@temporalio/worker';
 import { defaultDataConverter } from '@temporalio/workflow/commonjs/converter/data-converter';
 import { httpGet } from '../../test-activities/lib';
 import { Worker } from './mock-native-worker';
@@ -14,23 +13,18 @@ export interface Context {
 
 export const test = anyTest as TestInterface<Context>;
 
-let pendingShutdowns = 0;
 export async function runWorker(t: ExecutionContext<Context>, fn: () => Promise<any>): Promise<void> {
   const { worker } = t.context;
-  ++pendingShutdowns;
   const promise = worker.run();
   await fn();
   worker.shutdown();
   await promise;
-  --pendingShutdowns;
-  console.log('-------------', 'shutdown', t.title, pendingShutdowns);
 }
 
 test.beforeEach((t) => {
   const worker = new Worker({
     activitiesPath: `${__dirname}/../../test-activities/lib`,
     taskQueue: 'test',
-    logger: new DefaultLogger('DEBUG'),
   });
   t.context = {
     worker,

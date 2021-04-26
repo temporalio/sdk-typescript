@@ -39,7 +39,6 @@ export class Activity {
           if (this.cancelRequested) {
             return { canceled: {} };
           }
-          console.log('completed activity', { result });
           return { completed: { result: this.dataConverter.toPayload(result) } };
         } catch (err) {
           if (this.cancelRequested) {
