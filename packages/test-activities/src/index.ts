@@ -1,5 +1,5 @@
 import fetch from 'node-fetch';
-import { Context, CancellationError } from '@temporalio/activity';
+import { Context } from '@temporalio/activity';
 
 async function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));

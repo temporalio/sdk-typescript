@@ -15,7 +15,7 @@ export async function withZeroesHTTPServer(
   bytesPerIteration = 1024,
   msForCompleteResponse = 5000
 ): Promise<void> {
-  let finishedPromise = new ResolvablePromise<void>();
+  const finished = new ResolvablePromise<void>();
   const server = http.createServer(async (req, res) => {
     const { url } = req;
     switch (url) {
@@ -28,7 +28,7 @@ export async function withZeroesHTTPServer(
         res.end();
         break;
       case '/finish':
-        finishedPromise.resolve(undefined);
+        finished.resolve(undefined);
         res.writeHead(200, 'OK', { 'Content-Length': '2' });
         res.write('OK');
         res.end();
@@ -41,7 +41,7 @@ export async function withZeroesHTTPServer(
     throw new Error('Unexpected server address type');
   }
   try {
-    await callback(addr.port, finishedPromise);
+    await callback(addr.port, finished);
   } finally {
     server.close();
   }
