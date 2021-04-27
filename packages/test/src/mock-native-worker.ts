@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
 import { v4 as uuid4 } from 'uuid';
 import { coresdk } from '@temporalio/proto';
+import { msStrToTs } from '@temporalio/workflow/commonjs/time';
 import { defaultDataConverter } from '@temporalio/workflow/commonjs/converter/data-converter';
 import {
   Worker as RealWorker,
@@ -10,6 +11,22 @@ import {
   addDefaults,
 } from '@temporalio/worker/lib/worker';
 import { sleep } from '@temporalio/worker/lib/utils';
+
+function addActivityStartDefaults(task: coresdk.activity_task.IActivityTask) {
+  // Add some defaults for convenience
+  if (task.start) {
+    task.start = {
+      attempt: 1,
+      startedTime: msStrToTs('0 seconds'),
+      currentAttemptScheduledTime: msStrToTs('0 seconds'),
+      startToCloseTimeout: msStrToTs('1 minute'),
+      scheduleToCloseTimeout: msStrToTs('1 minute'),
+      heartbeatTimeout: msStrToTs('1 minute'),
+      scheduledTime: msStrToTs('0 seconds'),
+      ...task.start,
+    };
+  }
+}
 
 export type Task =
   | { workflow: coresdk.workflow_activation.IWFActivation }
@@ -72,6 +89,7 @@ export class MockNativeWorker implements NativeWorkerLike {
       const buffer = arr.buffer.slice(arr.byteOffset, arr.byteOffset + arr.byteLength);
       this.workflowActivations.unshift(Promise.resolve(buffer));
     } else {
+      addActivityStartDefaults(task.activity);
       const arr = coresdk.activity_task.ActivityTask.encode(task.activity).finish();
       const buffer = arr.buffer.slice(arr.byteOffset, arr.byteOffset + arr.byteLength);
       this.activityTasks.unshift(Promise.resolve(buffer));
@@ -92,6 +110,7 @@ export class MockNativeWorker implements NativeWorkerLike {
   }
 
   public async runActivityTask(task: coresdk.activity_task.IActivityTask): Promise<coresdk.ActivityTaskCompletion> {
+    addActivityStartDefaults(task);
     const arr = coresdk.activity_task.ActivityTask.encode(task).finish();
     const buffer = arr.buffer.slice(arr.byteOffset, arr.byteOffset + arr.byteLength);
     const result = await new Promise<ArrayBuffer>((resolve) => {
