@@ -13,10 +13,10 @@ const activityStarted = new ResolvablePromise<void>();
 const activityCancelled = new ResolvablePromise<void>();
 
 const signals = {
-  activityStarted() {
+  activityStarted(): void {
     activityStarted.resolve(undefined);
   },
-  activityCancelled() {
+  activityCancelled(): void {
     activityCancelled.resolve(undefined);
   },
 };

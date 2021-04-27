@@ -789,11 +789,12 @@ function extractActivityInfo(
   activityNamespace: string
 ): ActivityInfo {
   // NOTE: We trust core to supply all of these fields instead of checking for null and undefined everywhere
+  const { taskToken, activityId } = task as NonNullableObject<coresdk.activity_task.IActivityTask>;
   const start = task.start as NonNullableObject<coresdk.activity_task.IStart>;
   const activityType = JSON.parse(start.activityType);
   return {
-    taskToken: task.taskToken!,
-    activityId: task.activityId!,
+    taskToken,
+    activityId,
     workflowExecution: start.workflowExecution as NonNullableObject<coresdk.common.WorkflowExecution>,
     attempt: start.attempt,
     isLocal,
