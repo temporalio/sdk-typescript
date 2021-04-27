@@ -79,7 +79,7 @@ if (RUN_INTEGRATION_TESTS) {
   });
 
   const testCancelHTTPRequest = async (t: ExecutionContext<Context>, waitForActivityCancelled: boolean) => {
-    await withZeroesHTTPServer(async (port) => {
+    await withZeroesHTTPServer(async (port, finished) => {
       const client = new Connection();
       const url = `http://127.0.0.1:${port}`;
       const workflow = client.workflow<CancellableHTTPRequest>('cancel-http-request', { taskQueue: 'test' });
@@ -87,6 +87,7 @@ if (RUN_INTEGRATION_TESTS) {
         message: 'Activity cancelled',
         instanceOf: WorkflowExecutionFailedError,
       });
+      await finished;
     });
   };
 
