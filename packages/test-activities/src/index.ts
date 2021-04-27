@@ -1,5 +1,6 @@
 import fetch from 'node-fetch';
 import { Context } from '@temporalio/activity';
+import { Connection } from '@temporalio/client';
 
 async function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -17,9 +18,22 @@ export async function waitForCancellation(): Promise<void> {
   await Context.current().cancelled;
 }
 
-export async function cancellableFetch(url: string): Promise<Uint8Array> {
+async function signalSchedulingWorkflow(signalName: string) {
+  const { info } = Context.current();
+  const connection = new Connection(undefined, { namespace: info.workflowNamespace });
+  await connection.service.signalWorkflowExecution({
+    namespace: info.workflowNamespace,
+    workflowExecution: Context.current().info.workflowExecution,
+    signalName,
+  });
+}
+
+export async function cancellableFetch(url: string, signalWorkflowOnCheckpoint = false): Promise<Uint8Array> {
+  if (signalWorkflowOnCheckpoint) {
+    await signalSchedulingWorkflow('activityStarted');
+  }
   try {
-    const response = await fetch(`${url}/zeroes`, { signal: Context.current().cancellationSignal });
+    const response = await fetch(url, { signal: Context.current().cancellationSignal });
     const contentLengthHeader = response.headers.get('Content-Length');
     if (contentLengthHeader === null) {
       throw new Error('expected Content-Length header to be set');
@@ -38,9 +52,8 @@ export async function cancellableFetch(url: string): Promise<Uint8Array> {
     }
     return Buffer.concat(chunks);
   } catch (err) {
-    if (err.name === 'AbortError' && err.type === 'aborted') {
-      const res = await fetch(`${url}/finish`);
-      await res.text();
+    if (signalWorkflowOnCheckpoint && err.name === 'AbortError' && err.type === 'aborted') {
+      await signalSchedulingWorkflow('activityCancelled');
     }
     throw err;
   }

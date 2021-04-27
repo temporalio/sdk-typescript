@@ -19,7 +19,9 @@ import {
 import ms from 'ms';
 import { coresdk } from '@temporalio/proto';
 import { ActivityOptions } from '@temporalio/workflow';
+import { Info as ActivityInfo } from '@temporalio/activity';
 import { errorToUserCodeFailure } from '@temporalio/workflow/commonjs/common';
+import { tsToMs } from '@temporalio/workflow/commonjs/time';
 import {
   arrayFromPayloads,
   DataConverter,
@@ -511,14 +513,13 @@ export class Worker {
 
             switch (variant) {
               case 'start': {
-                const { start } = task;
-                if (!start) {
-                  throw new Error('Got a "start" activity task without a "start" attribute');
-                }
-                if (!start.activityType) {
-                  throw new Error('Got StartActivity without an "activityType" attribute');
-                }
-                const [path, fnName] = JSON.parse(start.activityType);
+                const info = extractActivityInfo(
+                  task,
+                  false,
+                  this.options.dataConverter,
+                  this.options.serverOptions.namespace
+                );
+                const [path, fnName] = info.activityType;
                 const module = this.resolvedActivities.get(path);
                 if (module === undefined) {
                   output = {
@@ -535,9 +536,10 @@ export class Worker {
                   };
                   break;
                 }
-                const args = arrayFromPayloads(this.options.dataConverter, start.input);
+                const args = arrayFromPayloads(this.options.dataConverter, task?.start?.input);
                 this.log.debug('Starting activity', { activityId, path, fnName });
-                activity = new Activity(activityId, fn, args, this.options.dataConverter, (details) =>
+
+                activity = new Activity(info, fn, args, this.options.dataConverter, (details) =>
                   this.activityHeartbeatSubject.next({
                     taskToken,
                     details,
@@ -571,7 +573,7 @@ export class Worker {
             }
             const result = await output.activity.run();
             const status = result.failed ? 'failed' : result.completed ? 'completed' : 'cancelled';
-            this.log.debug('Activity resolved', { activityId: output.activity.id, status });
+            this.log.debug('Activity resolved', { activityId: output.activity.info.activityId, status });
             if (result.canceled) {
               return undefined; // Cancelled emitted on cancellation request, ignored in activity run result
             }
@@ -772,4 +774,36 @@ export class Worker {
       await this.nativeWorker.breakLoop();
     }
   }
+}
+
+type NonNullable<T> = Exclude<T, null | undefined>; // Remove null and undefined from T
+type NonNullableObject<T> = { [P in keyof T]-?: NonNullable<T[P]> };
+
+/**
+ * Transform an ActivityTask into ActivityInfo to pass on into an Activity
+ */
+function extractActivityInfo(
+  task: coresdk.activity_task.IActivityTask,
+  isLocal: boolean,
+  dataConverter: DataConverter,
+  activityNamespace: string
+): ActivityInfo {
+  // NOTE: We trust core to supply all of these fields instead of checking for null and undefined everywhere
+  const start = task.start as NonNullableObject<coresdk.activity_task.IStart>;
+  const activityType = JSON.parse(start.activityType);
+  return {
+    taskToken: task.taskToken!,
+    activityId: task.activityId!,
+    workflowExecution: start.workflowExecution as NonNullableObject<coresdk.common.WorkflowExecution>,
+    attempt: start.attempt,
+    isLocal,
+    activityType,
+    workflowType: start.workflowType,
+    heartbeatDetails: dataConverter.fromPayloads(0, start.heartbeatDetails),
+    activityNamespace,
+    workflowNamespace: start.workflowNamespace,
+    scheduledTimestampMs: tsToMs(start.scheduledTime),
+    startToCloseTimeoutMs: tsToMs(start.startToCloseTimeout),
+    scheduleToCloseTimeoutMs: tsToMs(start.scheduleToCloseTimeout),
+  };
 }

@@ -50,5 +50,9 @@ export interface Sleeper extends Workflow {
 }
 
 export interface CancellableHTTPRequest extends Workflow {
-  main(url: string, completeOnActivityCancellation?: boolean): Promise<void>;
+  main(url: string, completeOnActivityCancellation: boolean): Promise<void>;
+  signals: {
+    activityStarted(): void;
+    activityCancelled(): void;
+  };
 }

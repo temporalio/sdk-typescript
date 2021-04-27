@@ -1,39 +1,26 @@
 import http from 'http';
 import { sleep } from './helpers';
-import { ResolvablePromise } from '@temporalio/workflow/commonjs/common';
 
 /**
- * Creates an HTTP server which responds with zeroes on /zeros.
- * @param callback called with the port and a promise that resolves when /finish is called once the server is ready, the server will close when the callback completes
+ * Creates an HTTP server which responds with zeroes
+ * @param callback called with the port once the server is ready, the server will close when the callback completes
  * @param numIterations write zeroes into response every iteration
  * @param bytesPerIteration number of bytes to respond with on each iteration
  * @param msForCompleteResponse approximate number of milliseconds the response should take
  */
 export async function withZeroesHTTPServer(
-  callback: (port: number, finished: PromiseLike<void>) => Promise<any>,
+  callback: (port: number) => Promise<any>,
   numIterations = 100,
   bytesPerIteration = 1024,
   msForCompleteResponse = 5000
 ): Promise<void> {
-  const finished = new ResolvablePromise<void>();
-  const server = http.createServer(async (req, res) => {
-    const { url } = req;
-    switch (url) {
-      case '/zeroes':
-        res.writeHead(200, 'OK', { 'Content-Length': `${bytesPerIteration * numIterations}` });
-        for (let i = 0; i < numIterations; ++i) {
-          await sleep(msForCompleteResponse / numIterations);
-          res.write(Buffer.alloc(bytesPerIteration));
-        }
-        res.end();
-        break;
-      case '/finish':
-        finished.resolve(undefined);
-        res.writeHead(200, 'OK', { 'Content-Length': '2' });
-        res.write('OK');
-        res.end();
-        break;
+  const server = http.createServer(async (_req, res) => {
+    res.writeHead(200, 'OK', { 'Content-Length': `${bytesPerIteration * numIterations}` });
+    for (let i = 0; i < numIterations; ++i) {
+      await sleep(msForCompleteResponse / numIterations);
+      res.write(Buffer.alloc(bytesPerIteration));
     }
+    res.end();
   });
   server.listen();
   const addr = server.address();
@@ -41,7 +28,7 @@ export async function withZeroesHTTPServer(
     throw new Error('Unexpected server address type');
   }
   try {
-    await callback(addr.port, finished);
+    await callback(addr.port);
   } finally {
     server.close();
   }

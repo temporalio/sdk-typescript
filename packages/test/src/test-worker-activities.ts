@@ -108,7 +108,7 @@ test('Worker cancels activity and reports cancellation', async (t) => {
 test('Activity Context AbortSignal cancels a fetch request', async (t) => {
   const { worker } = t.context;
   await runWorker(t, async () => {
-    await withZeroesHTTPServer(async (port, finished) => {
+    await withZeroesHTTPServer(async (port) => {
       const taskToken = Buffer.from(uuid4());
       worker.native.emit({
         activity: {
@@ -116,7 +116,7 @@ test('Activity Context AbortSignal cancels a fetch request', async (t) => {
           activityId: 'abc',
           start: {
             activityType: JSON.stringify(['@activities', 'cancellableFetch']),
-            input: defaultDataConverter.toPayloads(`http://127.0.0.1:${port}`),
+            input: defaultDataConverter.toPayloads(`http://127.0.0.1:${port}`, false),
           },
         },
       });
@@ -128,7 +128,6 @@ test('Activity Context AbortSignal cancels a fetch request', async (t) => {
       compareCompletion(t, completion.result, {
         canceled: {},
       });
-      await finished;
     });
   });
 });

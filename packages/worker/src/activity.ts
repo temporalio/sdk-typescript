@@ -3,17 +3,17 @@ import { ActivityFunction } from '@temporalio/workflow';
 import { DataConverter } from '@temporalio/workflow/commonjs/converter/data-converter';
 import { coresdk } from '@temporalio/proto';
 import { asyncLocalStorage } from '@temporalio/activity/lib/internals';
-import { Context, CancellationError } from '@temporalio/activity';
+import { Context, CancellationError, Info } from '@temporalio/activity';
 
 export class Activity {
   protected cancelRequested = false;
-  public readonly context;
+  public readonly context: Context;
   public cancel: (reason?: any) => void = () => undefined;
   public readonly abortController: AbortController = new AbortController();
 
   // TODO: get all of the atributes required for setting the ActivityContext
   constructor(
-    public readonly id: string,
+    public readonly info: Info,
     protected readonly fn: ActivityFunction<any[], any>,
     protected readonly args: any[],
     public readonly dataConverter: DataConverter,
@@ -26,7 +26,7 @@ export class Activity {
         reject(new CancellationError(reason));
       };
     });
-    this.context = new Context(promise, this.abortController.signal, this.heartbeatCallback);
+    this.context = new Context(info, promise, this.abortController.signal, this.heartbeatCallback);
     promise.catch(() => undefined);
   }
 
