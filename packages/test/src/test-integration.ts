@@ -18,6 +18,8 @@ import {
   Sleeper,
   Empty,
   Interruptable,
+  AsyncFailable,
+  Failable,
   CancellableHTTPRequest,
 } from '../../test-interfaces/lib';
 import { httpGet } from '../../test-activities/lib';
@@ -108,12 +110,29 @@ if (RUN_INTEGRATION_TESTS) {
     t.is(res, undefined);
   });
 
-  test('signals', async (t) => {
+  test('interrupt-signal', async (t) => {
     const client = new Connection();
-    const workflow = client.workflow<Interruptable>('signals', { taskQueue: 'test' });
+    const workflow = client.workflow<Interruptable>('interrupt-signal', { taskQueue: 'test' });
     const promise = workflow.start();
     await workflow.started;
     await workflow.signal.interrupt('just because');
+    await t.throwsAsync(promise, { message: /just because/, instanceOf: WorkflowExecutionFailedError });
+  });
+
+  test('fail-signal', async (t) => {
+    const client = new Connection();
+    const workflow = client.workflow<Failable>('fail-signal', { taskQueue: 'test' });
+    const promise = workflow.start();
+    await workflow.started;
+    await workflow.signal.fail();
+    await t.throwsAsync(promise, { message: /Signal failed/, instanceOf: WorkflowExecutionFailedError });
+  });
+
+  test('async-fail-signal', async (t) => {
+    const client = new Connection();
+    const workflow = client.workflow<AsyncFailable>('async-fail-signal', { taskQueue: 'test' });
+    const promise = workflow.start();
+    await workflow.started;
     await workflow.signal.fail();
     await t.throwsAsync(promise, { message: /Signal failed/, instanceOf: WorkflowExecutionFailedError });
   });

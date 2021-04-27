@@ -528,7 +528,35 @@ test('simple-query', async (t) => {
   }
 });
 
-test('signals', async (t) => {
+test('interrupt-signal', async (t) => {
+  const { script } = t.context;
+  {
+    const req = await activate(t, makeStartWorkflow(script));
+    compareCompletion(t, req, makeSuccess([]));
+  }
+  {
+    const req = cleanWorkflowFailureStackTrace(await activate(t, makeSignalWorkflow('interrupt', ['just because'])));
+    compareCompletion(
+      t,
+      req,
+      makeSuccess([
+        makeFailWorkflowExecution(
+          'just because',
+          // The stack trace is weird here and might confuse users, it might be a JS limitation
+          // since the Error stack trace is generated in the constructor.
+          dedent`
+          Error: just because
+              at interrupt
+              at Activator.signalWorkflow
+              at activate`,
+          'Error'
+        ),
+      ])
+    );
+  }
+});
+
+test('fail-signal', async (t) => {
   const { script } = t.context;
   {
     const req = await activate(t, makeStartWorkflow(script));
@@ -536,14 +564,6 @@ test('signals', async (t) => {
       t,
       req,
       makeSuccess([makeStartTimerCommand({ timerId: '0', startToFireTimeout: msToTs(100000) })])
-    );
-  }
-  {
-    const req = await activate(t, makeSignalWorkflow('interrupt', ['just because']));
-    compareCompletion(
-      t,
-      req,
-      makeSuccess([makeStartTimerCommand({ timerId: '1', startToFireTimeout: msToTs(100000) })])
     );
   }
   {
@@ -559,6 +579,38 @@ test('signals', async (t) => {
               at fail
               at Activator.signalWorkflow
               at activate`,
+          'Error'
+        ),
+      ])
+    );
+  }
+});
+
+test('async-fail-signal', async (t) => {
+  const { script } = t.context;
+  {
+    const req = await activate(t, makeStartWorkflow(script));
+    compareCompletion(
+      t,
+      req,
+      makeSuccess([makeStartTimerCommand({ timerId: '0', startToFireTimeout: msToTs(100000) })])
+    );
+  }
+  {
+    const req = await activate(t, makeSignalWorkflow('fail', []));
+    compareCompletion(t, req, makeSuccess([makeStartTimerCommand({ timerId: '1', startToFireTimeout: msToTs(100) })]));
+  }
+  {
+    const req = cleanWorkflowFailureStackTrace(await activate(t, makeFireTimer('1')));
+    compareCompletion(
+      t,
+      req,
+      makeSuccess([
+        makeFailWorkflowExecution(
+          'Signal failed',
+          dedent`
+          Error: Signal failed
+              at fail`,
           'Error'
         ),
       ])

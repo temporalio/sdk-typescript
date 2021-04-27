@@ -21,6 +21,19 @@
  * <!--SNIPSTART nodejs-schedule-activity-workflow-->
  * <!--SNIPEND-->
  *
+ * ### Signals
+ *
+ * To add signal handlers to a workflow, add a signals property to the exported workflow object.
+ * Signal handlers can return either `void` or `Promise<void>`, you may schedule activities and timers from a signal handler.
+ *
+ * #### Interface
+ * <!--SNIPSTART nodejs-workflow-signal-interface-->
+ * <!--SNIPEND-->
+ *
+ * #### Implementation
+ * <!--SNIPSTART nodejs-workflow-signal-implementation-->
+ * <!--SNIPEND-->
+ *
  * ### Deterministic built-ins
  * It is safe to call `Math.random()` and `Date()` in workflow code as they are replaced with deterministic versions. We also provide a deterministic {@link uuid4} function for convenience.
  *
