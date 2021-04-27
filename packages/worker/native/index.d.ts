@@ -44,7 +44,7 @@ export declare type WorkerCallback = (err?: Error, result: Worker) => void;
 export declare type VoidCallback = (err?: Error, result: void) => void;
 
 export declare function newWorker(workerOptions: WorkerOptions, callback: WorkerCallback): void;
-export declare function workerShutdown(worker: Worker): void;
+export declare function workerShutdown(worker: Worker, callback: VoidCallback): void;
 export declare function workerBreakLoop(worker: Worker, callback: VoidCallback): void;
 export declare function workerPollWorkflowActivation(worker: Worker, callback: PollCallback): void;
 export declare function workerCompleteWorkflowActivation(
@@ -54,9 +54,8 @@ export declare function workerCompleteWorkflowActivation(
 ): void;
 export declare function workerPollActivityTask(worker: Worker, callback: PollCallback): void;
 export declare function workerCompleteActivityTask(worker: Worker, result: ArrayBuffer, callback: VoidCallback): void;
-export declare function workerSendActivityHeartbeat(
+export declare function workerRecordActivityHeartbeat(
   worker: Worker,
-  activityId: string,
-  details?: ArrayBuffer,
+  heartbeat: ArrayBuffer,
   callback: VoidCallback
 ): void;

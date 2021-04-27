@@ -5,6 +5,7 @@ import { coresdk } from '@temporalio/proto';
 import { defaultDataConverter } from '@temporalio/workflow/commonjs/converter/data-converter';
 import { httpGet } from '../../test-activities/lib';
 import { Worker } from './mock-native-worker';
+import { withZeroesHTTPServer } from './zeroes-http-server';
 
 export interface Context {
   worker: Worker;
@@ -82,9 +83,10 @@ test('Worker runs an activity and reports failure', async (t) => {
 test('Worker cancels activity and reports cancellation', async (t) => {
   const { worker } = t.context;
   await runWorker(t, async () => {
+    const taskToken = Buffer.from(uuid4());
     worker.native.emit({
       activity: {
-        taskToken: Buffer.from(uuid4()),
+        taskToken,
         activityId: 'abc',
         start: {
           activityType: JSON.stringify(['@activities', 'waitForCancellation']),
@@ -92,7 +94,6 @@ test('Worker cancels activity and reports cancellation', async (t) => {
         },
       },
     });
-    const taskToken = Buffer.from(uuid4());
     const completion = await worker.native.runActivityTask({
       taskToken,
       activityId: 'abc',
@@ -107,24 +108,27 @@ test('Worker cancels activity and reports cancellation', async (t) => {
 test('Activity Context AbortSignal cancels a fetch request', async (t) => {
   const { worker } = t.context;
   await runWorker(t, async () => {
-    worker.native.emit({
-      activity: {
-        taskToken: Buffer.from(uuid4()),
-        activityId: 'abc',
-        start: {
-          activityType: JSON.stringify(['@activities', 'cancellableFetch']),
-          input: defaultDataConverter.toPayloads(),
+    await withZeroesHTTPServer(async (port, finished) => {
+      const taskToken = Buffer.from(uuid4());
+      worker.native.emit({
+        activity: {
+          taskToken,
+          activityId: 'abc',
+          start: {
+            activityType: JSON.stringify(['@activities', 'cancellableFetch']),
+            input: defaultDataConverter.toPayloads(`http://127.0.0.1:${port}`),
+          },
         },
-      },
-    });
-    const taskToken = Buffer.from(uuid4());
-    const completion = await worker.native.runActivityTask({
-      taskToken,
-      activityId: 'abc',
-      cancel: {},
-    });
-    compareCompletion(t, completion.result, {
-      canceled: {},
+      });
+      const completion = await worker.native.runActivityTask({
+        taskToken,
+        activityId: 'abc',
+        cancel: {},
+      });
+      compareCompletion(t, completion.result, {
+        canceled: {},
+      });
+      await finished;
     });
   });
 });
@@ -141,9 +145,12 @@ test('Activity Context heartbeat is sent to core', async (t) => {
         input: defaultDataConverter.toPayloads(),
       },
     });
-    t.is(await worker.native.untilHeartbeat('abc'), 1);
-    t.is(await worker.native.untilHeartbeat('abc'), 2);
-    t.is(await worker.native.untilHeartbeat('abc'), 3);
+    console.log('waiting heartbeat 1');
+    t.is(await worker.native.untilHeartbeat(taskToken), 1);
+    console.log('waiting heartbeat 2');
+    t.is(await worker.native.untilHeartbeat(taskToken), 2);
+    t.is(await worker.native.untilHeartbeat(taskToken), 3);
+    console.log('waiting completion');
     compareCompletion(t, (await completionPromise).result, {
       completed: { result: defaultDataConverter.toPayload(undefined) },
     });

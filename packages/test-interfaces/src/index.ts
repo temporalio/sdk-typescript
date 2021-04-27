@@ -33,3 +33,7 @@ export interface Empty extends Workflow {
 export interface Sleeper extends Workflow {
   main(ms?: number): Promise<void>;
 }
+
+export interface CancellableHTTPRequest extends Workflow {
+  main(url: string, completeOnActivityCancellation?: boolean): Promise<void>;
+}

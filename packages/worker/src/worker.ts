@@ -2,7 +2,7 @@ import { basename, extname, resolve } from 'path';
 import os from 'os';
 import { readdirSync } from 'fs';
 import { promisify } from 'util';
-import { BehaviorSubject, EMPTY, merge, Observable, of, OperatorFunction, pipe, Subject, throwError } from 'rxjs';
+import { BehaviorSubject, EMPTY, merge, Observable, of, OperatorFunction, pipe, race, Subject, throwError } from 'rxjs';
 import {
   catchError,
   concatMap,
@@ -240,6 +240,12 @@ export function compileNativeWorkerOptions(
 
 /**
  * The worker's possible states
+ * `INITIALIZED` - The initial state of the Worker after calling create() and successful connection to the server
+ * `RUNNING` - {@link Worker.run} was called, polling task queues
+ * `SUSPENDED` - {@link Worker.suspendPolling} was called, not polling for new tasks
+ * `STOPPING` - {@link Worker.shutdown} was called or received shutdown signal
+ * `STOPPED` - Core has indicated that shutdown is complete, {@link Worker.run} should resolve soon
+ * `FAILED` - Worker encountered an unrecoverable error, {@link Worker.run} should reject with the error
  */
 export type State = 'INITIALIZED' | 'RUNNING' | 'STOPPED' | 'STOPPING' | 'FAILED' | 'SUSPENDED';
 
@@ -257,13 +263,13 @@ type Promisify<T> = T extends (...args: any[]) => void
   : never;
 
 export interface NativeWorkerLike {
-  shutdown: OmitFirstParam<typeof native.workerShutdown>;
+  shutdown: Promisify<OmitFirstParam<typeof native.workerShutdown>>;
   breakLoop: Promisify<OmitFirstParam<typeof native.workerBreakLoop>>;
   pollWorkflowActivation: Promisify<OmitFirstParam<typeof native.workerPollWorkflowActivation>>;
   pollActivityTask: Promisify<OmitFirstParam<typeof native.workerPollActivityTask>>;
   completeWorkflowActivation: Promisify<OmitFirstParam<typeof native.workerCompleteWorkflowActivation>>;
   completeActivityTask: Promisify<OmitFirstParam<typeof native.workerCompleteActivityTask>>;
-  sendActivityHeartbeat: Promisify<OmitFirstParam<typeof native.workerSendActivityHeartbeat>>;
+  recordActivityHeartbeat: Promisify<OmitFirstParam<typeof native.workerRecordActivityHeartbeat>>;
 }
 
 export interface WorkerConstructor {
@@ -275,9 +281,9 @@ export class NativeWorker implements NativeWorkerLike {
   public readonly pollActivityTask: Promisify<OmitFirstParam<typeof native.workerPollActivityTask>>;
   public readonly completeWorkflowActivation: Promisify<OmitFirstParam<typeof native.workerCompleteWorkflowActivation>>;
   public readonly completeActivityTask: Promisify<OmitFirstParam<typeof native.workerCompleteActivityTask>>;
-  public readonly sendActivityHeartbeat: Promisify<OmitFirstParam<typeof native.workerSendActivityHeartbeat>>;
+  public readonly recordActivityHeartbeat: Promisify<OmitFirstParam<typeof native.workerRecordActivityHeartbeat>>;
   public readonly breakLoop: Promisify<OmitFirstParam<typeof native.workerBreakLoop>>;
-  public readonly shutdown: OmitFirstParam<typeof native.workerShutdown>;
+  public readonly shutdown: Promisify<OmitFirstParam<typeof native.workerShutdown>>;
 
   public static async create(options: CompiledWorkerOptionsWithDefaults): Promise<NativeWorkerLike> {
     const nativeWorker = await promisify(native.newWorker)(options);
@@ -289,10 +295,14 @@ export class NativeWorker implements NativeWorkerLike {
     this.pollActivityTask = promisify(native.workerPollActivityTask).bind(undefined, nativeWorker);
     this.completeWorkflowActivation = promisify(native.workerCompleteWorkflowActivation).bind(undefined, nativeWorker);
     this.completeActivityTask = promisify(native.workerCompleteActivityTask).bind(undefined, nativeWorker);
-    this.sendActivityHeartbeat = promisify(native.workerSendActivityHeartbeat).bind(undefined, nativeWorker);
+    this.recordActivityHeartbeat = promisify(native.workerRecordActivityHeartbeat).bind(undefined, nativeWorker);
     this.breakLoop = promisify(native.workerBreakLoop).bind(undefined, nativeWorker);
-    this.shutdown = native.workerShutdown.bind(undefined, nativeWorker);
+    this.shutdown = promisify(native.workerShutdown).bind(undefined, nativeWorker);
   }
+}
+
+function formatTaskToken(taskToken: Uint8Array) {
+  return Buffer.from(taskToken.slice(0, 8)).toString('base64');
 }
 
 /**
@@ -302,7 +312,7 @@ export class Worker {
   protected readonly workflowOverrides: Map<string, string> = new Map();
   protected readonly resolvedActivities: Map<string, Record<string, () => any>>;
   protected readonly activityHeartbeatSubject = new Subject<{
-    activityId: string;
+    taskToken: Uint8Array;
     details?: any;
   }>();
   protected stateSubject: BehaviorSubject<State> = new BehaviorSubject<State>('INITIALIZED');
@@ -424,25 +434,33 @@ export class Worker {
       throw new Error('Not running and not suspended');
     }
     this.state = 'STOPPING';
-    this.nativeWorker.shutdown();
+    this.nativeWorker.shutdown().then(() => {
+      this.state = 'STOPPED';
+    });
   }
 
   /**
-   * An observable which is triggered when state becomes STOPPING and emits an error
-   * after `this.options.shutdownGraceTimeMs`.
+   * An observable which completes when state becomes STOPPED or throws if state transitions to STOPPING and remains that way for {@link this.options.shutdownGraceTimeMs}.
    */
   protected gracefulShutdown$(): Observable<never> {
-    return this.stateSubject.pipe(
-      filter((state): state is 'STOPPING' => state === 'STOPPING'),
-      delay(this.options.shutdownGraceTimeMs),
-      map(() => {
-        throw new Error('Timed out while waiting for worker to shutdown gracefully');
-      })
-    );
+    return race(
+      this.stateSubject.pipe(
+        filter((state): state is 'STOPPING' => state === 'STOPPING'),
+        delay(this.options.shutdownGraceTimeMs),
+        map(() => {
+          throw new Error('Timed out while waiting for worker to shutdown gracefully');
+        })
+      ),
+      this.stateSubject.pipe(
+        filter((state) => state === 'STOPPED'),
+        first()
+      )
+    ).pipe(ignoreElements());
   }
 
   /**
-   * An observable which repeatedly polls for new tasks unless worker becomes suspended
+   * An observable which repeatedly polls for new tasks unless worker becomes suspended.
+   * The observable stops emitting once core is shutting down.
    */
   protected pollLoop$<T>(pollFn: () => Promise<T>): Observable<T> {
     return of(this.stateSubject).pipe(
@@ -465,16 +483,8 @@ export class Worker {
             throw new Error(`Unexpected state ${state}`);
         }
       }),
-      repeat()
-    );
-  }
-
-  /**
-   * The main observable of the worker, starts the poll loop and takes care of state transitions
-   * in case of an error during poll or shutdown
-   */
-  protected poller$<T>(pollFn: () => Promise<T>): Observable<T> {
-    return merge(this.gracefulShutdown$(), this.pollLoop$(pollFn)).pipe(
+      repeat(),
+      // TODO: use typed errors
       catchError((err) => (err.message.includes('Core is shut down') ? EMPTY : throwError(err)))
     );
   }
@@ -484,7 +494,7 @@ export class Worker {
    */
   protected activityOperator(): OperatorFunction<coresdk.activity_task.ActivityTask, Uint8Array> {
     return pipe(
-      closeableGroupBy((task) => task.activityId),
+      closeableGroupBy((task) => task.taskToken.toString()),
       mergeMap((group$) => {
         return group$.pipe(
           mergeMapWithState(async (activity: Activity | undefined, task) => {
@@ -506,7 +516,7 @@ export class Worker {
                   throw new Error('Got a "start" activity task without a "start" attribute');
                 }
                 if (!start.activityType) {
-                  throw new Error('Got a StartActivity without an "activityType" attribute');
+                  throw new Error('Got StartActivity without an "activityType" attribute');
                 }
                 const [path, fnName] = JSON.parse(start.activityType);
                 const module = this.resolvedActivities.get(path);
@@ -529,7 +539,7 @@ export class Worker {
                 this.log.debug('Starting activity', { activityId, path, fnName });
                 activity = new Activity(activityId, fn, args, this.options.dataConverter, (details) =>
                   this.activityHeartbeatSubject.next({
-                    activityId,
+                    taskToken,
                     details,
                   })
                 );
@@ -586,8 +596,9 @@ export class Worker {
       closeableGroupBy((task) => task.runId),
       mergeMap((group$) => {
         return group$.pipe(
+          takeUntil(this.stateSubject.pipe(filter((value) => value === 'STOPPED'))),
           mergeMapWithState(async (workflow: Workflow | undefined, task) => {
-            const taskToken = Buffer.from(task.taskToken).toString('hex');
+            const taskToken = formatTaskToken(task.taskToken);
             if (workflow === undefined) {
               try {
                 // Find a workflow start job in the activation jobs list
@@ -647,10 +658,14 @@ export class Worker {
               }
             }
 
-            this.log.debug('Activating workflow', { taskToken });
+            const jobs = task.jobs.filter(({ removeFromCache }) => !removeFromCache);
+            // Found a removeFromCache job
+            const close = jobs.length < task.jobs.length;
+            task.jobs = jobs;
+
             // TODO: single param
             const arr = await workflow.activate(task.taskToken, task);
-            return { state: workflow, output: { close: false, arr } };
+            return { state: workflow, output: { close, arr } };
           }, undefined),
           tap(({ close }) => void close && group$.close())
         );
@@ -664,18 +679,15 @@ export class Worker {
    */
   protected activityHeartbeat$(): Observable<void> {
     return this.activityHeartbeatSubject.pipe(
-      takeUntil(this.stateSubject.pipe(filter((value) => value === 'STOPPED' || value === 'FAILED'))),
-      tap(({ activityId }) => this.log.debug('Got activity heartbeat', { activityId })),
-      mergeMap(async ({ activityId, details }) => {
+      takeUntil(this.stateSubject.pipe(filter((value) => value === 'STOPPED'))),
+      tap(({ taskToken }) => this.log.debug('Got activity heartbeat', { taskToken: formatTaskToken(taskToken) })),
+      mergeMap(async ({ taskToken, details }) => {
         const payload = this.options.dataConverter.toPayload(details);
-        if (!payload) {
-          await this.nativeWorker.sendActivityHeartbeat(activityId, undefined);
-          return;
-        }
-
-        const arr = coresdk.common.Payload.encode(payload).finish();
-        await this.nativeWorker.sendActivityHeartbeat(
-          activityId,
+        const arr = coresdk.ActivityHeartbeat.encodeDelimited({
+          taskToken,
+          details: [payload],
+        }).finish();
+        await this.nativeWorker.recordActivityHeartbeat(
           arr.buffer.slice(arr.byteOffset, arr.byteLength + arr.byteOffset)
         );
       })
@@ -686,10 +698,11 @@ export class Worker {
    * Poll core for `WFActivation`s while respecting worker state
    */
   protected workflow$(): Observable<coresdk.workflow_activation.WFActivation> {
-    return this.poller$(async () => {
+    return this.pollLoop$(async () => {
       const buffer = await this.nativeWorker.pollWorkflowActivation();
       const task = coresdk.workflow_activation.WFActivation.decode(new Uint8Array(buffer));
-      this.log.debug('Got workflow task', task);
+      const { taskToken, ...rest } = task;
+      this.log.debug('Got workflow activation', { taskToken: formatTaskToken(taskToken), ...rest });
       return task;
     });
   }
@@ -698,10 +711,11 @@ export class Worker {
    * Poll core for `ActivityTask`s while respecting worker state
    */
   protected activity$(): Observable<coresdk.activity_task.ActivityTask> {
-    return this.poller$(async () => {
+    return this.pollLoop$(async () => {
       const buffer = await this.nativeWorker.pollActivityTask();
       const task = coresdk.activity_task.ActivityTask.decode(new Uint8Array(buffer));
-      this.log.debug('Got activity task', task);
+      const { taskToken, ...rest } = task;
+      this.log.debug('Got activity task', { taskToken: formatTaskToken(taskToken), ...rest });
       return task;
     });
   }
@@ -732,27 +746,28 @@ export class Worker {
     }
     try {
       await merge(
-        this.activityHeartbeat$(),
-        merge(
-          this.workflow$().pipe(
-            this.workflowOperator(queueName),
-            mergeMap((arr) => this.nativeWorker.completeWorkflowActivation(arr.buffer.slice(arr.byteOffset)))
-          ),
-          this.activity$().pipe(
-            this.activityOperator(),
-            mergeMap((arr) => this.nativeWorker.completeActivityTask(arr.buffer.slice(arr.byteOffset)))
-          )
-        ).pipe(
+        this.gracefulShutdown$(),
+        this.activityHeartbeat$().pipe(tap({ complete: () => this.log.debug('Heartbeats complete') })),
+        this.workflow$().pipe(
+          this.workflowOperator(queueName),
+          mergeMap((arr) => this.nativeWorker.completeWorkflowActivation(arr.buffer.slice(arr.byteOffset))),
+          tap({ complete: () => this.log.debug('Workflows complete') })
+        ),
+
+        this.activity$().pipe(
+          this.activityOperator(),
+          mergeMap((arr) => this.nativeWorker.completeActivityTask(arr.buffer.slice(arr.byteOffset))),
+          tap({ complete: () => this.log.debug('Activities complete') })
+        )
+      )
+        .pipe(
           tap({
-            complete: () => {
-              this.state = 'STOPPED';
-            },
             error: () => {
               this.state = 'FAILED';
             },
           })
         )
-      ).toPromise();
+        .toPromise();
     } finally {
       await this.nativeWorker.breakLoop();
     }

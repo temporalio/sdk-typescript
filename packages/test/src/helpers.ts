@@ -12,3 +12,7 @@ export function isSet(env: string | undefined): boolean {
 }
 
 export const RUN_INTEGRATION_TESTS = isSet(process.env.RUN_INTEGRATION_TESTS);
+
+export async function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}

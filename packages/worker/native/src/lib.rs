@@ -16,7 +16,10 @@ pub enum Request {
     BreakLoop { callback: Root<JsFunction> },
     /// A request to shutdown core, JS should wait on CoreError::ShuttingDown
     /// before exiting to allow draining of pending tasks
-    Shutdown,
+    Shutdown {
+        /// Used to send the result back into JS
+        callback: Root<JsFunction>,
+    },
     /// A request to poll for workflow activations
     PollWorkflowActivation {
         /// Used to send the result back into JS
@@ -40,7 +43,7 @@ pub enum Request {
         callback: Root<JsFunction>,
     },
     /// A request to send a heartbeat from a running activity
-    SendActivityHeartbeat {
+    RecordActivityHeartbeat {
         heartbeat: ActivityHeartbeat,
         /// Used to send the result back into JS
         callback: Root<JsFunction>,
@@ -156,8 +159,13 @@ fn start_bridge_loop(
                         let queue = queue.clone();
 
                         match request {
-                            Request::Shutdown => {
-                                core.shutdown();
+                            Request::Shutdown { callback } => {
+                                tokio::spawn(void_future_to_js(queue, callback, async move {
+                                    core.shutdown().await;
+                                    // Wrap the empty result in a valid Result object
+                                    let result: Result<(), String> = Ok(());
+                                    result
+                                }));
                             }
                             Request::BreakLoop { callback } => {
                                 send_result(queue, callback, |cx| Ok(cx.undefined()));
@@ -189,17 +197,12 @@ fn start_bridge_loop(
                                     core.complete_activity_task(completion).await
                                 }));
                             }
-                            Request::SendActivityHeartbeat {
+                            Request::RecordActivityHeartbeat {
                                 heartbeat,
                                 callback,
                             } => {
                                 tokio::spawn(void_future_to_js(queue, callback, async move {
-                                    // send_activity_heartbeat returns Result<(), ()> and ()
-                                    // doesn't implement Display, syntesize an error
-                                    match core.send_activity_heartbeat(heartbeat).await {
-                                        Ok(()) => Ok(()),
-                                        Err(()) => Err("Failed to send activity heartbeat"),
-                                    }
+                                    core.record_activity_heartbeat(heartbeat).await
                                 }));
                             }
                         }
@@ -418,16 +421,16 @@ fn worker_complete_activity_task(mut cx: FunctionContext) -> JsResult<JsUndefine
 }
 
 /// Submit an activity heartbeat to core.
-fn worker_send_activity_heartbeat(mut cx: FunctionContext) -> JsResult<JsUndefined> {
+fn worker_record_activity_heartbeat(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     let worker = cx.argument::<BoxedWorker>(0)?;
-    let result = cx.argument::<JsArrayBuffer>(1)?;
+    let heartbeat = cx.argument::<JsArrayBuffer>(1)?;
     let callback = cx.argument::<JsFunction>(2)?;
-    let result = cx.borrow(&result, |data| {
+    let heartbeat = cx.borrow(&heartbeat, |data| {
         ActivityHeartbeat::decode_length_delimited(data.as_slice::<u8>())
     });
-    match result {
+    match heartbeat {
         Ok(heartbeat) => {
-            let request = Request::SendActivityHeartbeat {
+            let request = Request::RecordActivityHeartbeat {
                 heartbeat,
                 callback: callback.root(&mut cx),
             };
@@ -449,7 +452,10 @@ fn worker_send_activity_heartbeat(mut cx: FunctionContext) -> JsResult<JsUndefin
 /// shutdown.
 fn worker_shutdown(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     let worker = cx.argument::<BoxedWorker>(0)?;
-    match worker.sender.blocking_send(Request::Shutdown) {
+    let callback = cx.argument::<JsFunction>(1)?;
+    match worker.sender.blocking_send(Request::Shutdown {
+        callback: callback.root(&mut cx),
+    }) {
         Err(err) => cx.throw_error(format!("{}", err)),
         _ => Ok(cx.undefined()),
     }
@@ -470,8 +476,8 @@ register_module!(mut cx, {
     )?;
     cx.export_function("workerCompleteActivityTask", worker_complete_activity_task)?;
     cx.export_function(
-        "workerSendActivityHeartbeat",
-        worker_send_activity_heartbeat,
+        "workerRecordActivityHeartbeat",
+        worker_record_activity_heartbeat,
     )?;
     Ok(())
 });

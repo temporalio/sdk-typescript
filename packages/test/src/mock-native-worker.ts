@@ -20,7 +20,7 @@ export class MockNativeWorker implements NativeWorkerLike {
   workflowActivations: Array<Promise<ArrayBuffer>> = [];
   activityCompletionCallback?: (arr: ArrayBuffer) => void;
   workflowCompletionCallback?: (arr: ArrayBuffer) => void;
-  activityHeartbeatCallback?: (activityId: string, details: any) => void;
+  activityHeartbeatCallback?: (taskToken: Uint8Array, details: any) => void;
   reject?: (err: Error) => void;
 
   public static async create(): Promise<NativeWorkerLike> {
@@ -31,7 +31,7 @@ export class MockNativeWorker implements NativeWorkerLike {
     // Nothing to break from
   }
 
-  public shutdown(): void {
+  public async shutdown(): Promise<void> {
     this.activityTasks.unshift(Promise.reject(new Error('Core is shut down')));
     this.workflowActivations.unshift(Promise.reject(new Error('Core is shut down')));
   }
@@ -101,16 +101,16 @@ export class MockNativeWorker implements NativeWorkerLike {
     return coresdk.ActivityTaskCompletion.decodeDelimited(new Uint8Array(result));
   }
 
-  public async sendActivityHeartbeat(activityId: string, details?: ArrayBuffer): Promise<void> {
-    const payload = details && coresdk.common.Payload.decode(new Uint8Array(details));
-    const arg = payload ? defaultDataConverter.fromPayload(payload) : undefined;
-    this.activityHeartbeatCallback!(activityId, arg);
+  public async recordActivityHeartbeat(buffer: ArrayBuffer): Promise<void> {
+    const { taskToken, details } = coresdk.ActivityHeartbeat.decodeDelimited(new Uint8Array(buffer));
+    const arg = defaultDataConverter.fromPayloads(0, details);
+    this.activityHeartbeatCallback!(taskToken, arg);
   }
 
-  public async untilHeartbeat(activityId: string): Promise<any> {
+  public async untilHeartbeat(taskToken: Uint8Array): Promise<any> {
     return new Promise((resolve) => {
-      this.activityHeartbeatCallback = (heartbeatActivityId, details) => {
-        if (heartbeatActivityId === activityId) {
+      this.activityHeartbeatCallback = (heartbeatTaskToken, details) => {
+        if (Buffer.from(heartbeatTaskToken).equals(taskToken)) {
           resolve(details);
         }
       };

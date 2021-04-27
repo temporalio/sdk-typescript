@@ -41,6 +41,7 @@ function cleanProtoGeneratedFiles() {
 function cleanCompiledRustFiles() {
   console.log('Cleaning compiled rust files');
   removeSync(resolve(workerDir, 'native/releases'));
+  removeSync(resolve(workerDir, 'native/index.node'));
   spawnSync('cargo', ['clean'], { cwd: resolve(workerDir, 'native'), stdio: 'inherit' });
 }
 

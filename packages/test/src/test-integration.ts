@@ -1,5 +1,5 @@
 /* eslint @typescript-eslint/no-non-null-assertion: 0 */
-import anyTest, { TestInterface } from 'ava';
+import anyTest, { TestInterface, ExecutionContext } from 'ava';
 import { v4 as uuid4 } from 'uuid';
 import { Connection } from '@temporalio/client';
 import { tsToMs } from '@temporalio/workflow/commonjs/time';
@@ -11,9 +11,18 @@ import {
   WorkflowExecutionTerminatedError,
 } from '@temporalio/workflow/commonjs/errors';
 import { defaultDataConverter } from '@temporalio/workflow/commonjs/converter/data-converter';
-import { ArgsAndReturn, HTTP, SimpleQuery, Sleeper, Empty, Interruptable } from '../../test-interfaces/lib';
+import {
+  ArgsAndReturn,
+  HTTP,
+  SimpleQuery,
+  Sleeper,
+  Empty,
+  Interruptable,
+  CancellableHTTPRequest,
+} from '../../test-interfaces/lib';
 import { httpGet } from '../../test-activities/lib';
 import { u8, RUN_INTEGRATION_TESTS } from './helpers';
+import { withZeroesHTTPServer } from './zeroes-http-server';
 
 const {
   EVENT_TYPE_TIMER_STARTED,
@@ -25,6 +34,7 @@ const timerEventTypes = new Set([EVENT_TYPE_TIMER_STARTED, EVENT_TYPE_TIMER_FIRE
 
 export interface Context {
   worker: Worker;
+  runPromise: Promise<void>;
 }
 
 const test = anyTest as TestInterface<Context>;
@@ -37,15 +47,17 @@ if (RUN_INTEGRATION_TESTS) {
       logger: new DefaultLogger('DEBUG'),
       taskQueue: 'test',
     });
-    t.context = { worker };
 
-    worker.run().catch((err) => {
-      console.error(err);
-      t.fail(`Failed to run worker: ${err}`);
+    const runPromise = worker.run();
+    // Catch the error here to avoid unhandled rejection
+    runPromise.catch((err) => {
+      console.error('Caught error while worker was running', err);
     });
+    t.context = { worker, runPromise };
   });
-  test.after.always((t) => {
+  test.after.always(async (t) => {
     t.context.worker.shutdown();
+    await t.context.runPromise;
   });
 
   test('Workflow not found results in failure', async (t) => {
@@ -62,6 +74,29 @@ if (RUN_INTEGRATION_TESTS) {
     const workflow = client.workflow<ArgsAndReturn>('args-and-return', { taskQueue: 'test' });
     const res = await workflow.start('Hello', undefined, u8('world!'));
     t.is(res, 'Hello, world!');
+  });
+
+  const testCancelHTTPRequest = async (t: ExecutionContext<Context>, completeOnActivityCancellation: boolean) => {
+    const client = new Connection();
+    await withZeroesHTTPServer(async (port, activityProperlyCancelled) => {
+      const url = `http://127.0.0.1:${port}`;
+      const workflow = client.workflow<CancellableHTTPRequest>('cancel-http-request', { taskQueue: 'test' });
+      await t.throwsAsync(() => workflow.start(url, completeOnActivityCancellation), {
+        message: 'Activity cancelled',
+        instanceOf: WorkflowExecutionFailedError,
+      });
+      await activityProperlyCancelled;
+    });
+  };
+
+  test('cancel-http-request completeOnActivityCancellation', (t) => testCancelHTTPRequest(t, true));
+
+  test("cancel-http-request don't completeOnActivityCancellation", (t) => testCancelHTTPRequest(t, false));
+
+  test('activity-failure', async (t) => {
+    const client = new Connection();
+    const workflow = client.workflow<Empty>('activity-failure', { taskQueue: 'test' });
+    await t.throwsAsync(workflow.start(), { message: 'Fail me', instanceOf: WorkflowExecutionFailedError });
   });
 
   // Queries not yet properly implemented

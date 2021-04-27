@@ -20,11 +20,7 @@ async function withWorker(workdir, fn) {
   try {
     return await fn();
   } finally {
-    try {
-      await kill(worker);
-    } catch (err) {
-      // TODO: This is ignored right now due to worker shutdown issues, remove this try statement once fixed
-    }
+    await kill(worker);
   }
 }
 
