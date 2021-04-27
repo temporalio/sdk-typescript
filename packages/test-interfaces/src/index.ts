@@ -10,11 +10,26 @@ export interface SimpleQuery extends Workflow {
   };
 }
 
+// @@@SNIPSTART nodejs-workflow-signal-interface
 export interface Interruptable extends Workflow {
   main(): void;
   signals: {
     interrupt(reason: string): void;
-    fail(): never;
+  };
+}
+// @@@SNIPEND
+
+export interface Failable extends Workflow {
+  main(): void;
+  signals: {
+    fail(): void;
+  };
+}
+
+export interface AsyncFailable extends Workflow {
+  main(): void;
+  signals: {
+    fail(): Promise<void>;
   };
 }
 
