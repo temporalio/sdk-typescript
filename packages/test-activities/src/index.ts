@@ -33,7 +33,7 @@ export async function cancellableFetch(url: string, signalWorkflowOnCheckpoint =
     await signalSchedulingWorkflow('activityStarted');
   }
   try {
-    const response = await fetch(url, { signal: Context.current().cancellationSignal });
+    const response = await fetch(`${url}/zeroes`, { signal: Context.current().cancellationSignal });
     const contentLengthHeader = response.headers.get('Content-Length');
     if (contentLengthHeader === null) {
       throw new Error('expected Content-Length header to be set');
@@ -52,8 +52,18 @@ export async function cancellableFetch(url: string, signalWorkflowOnCheckpoint =
     }
     return Buffer.concat(chunks);
   } catch (err) {
-    if (signalWorkflowOnCheckpoint && err.name === 'AbortError' && err.type === 'aborted') {
-      await signalSchedulingWorkflow('activityCancelled');
+    if (err.name === 'AbortError' && err.type === 'aborted') {
+      if (signalWorkflowOnCheckpoint) {
+        try {
+          await signalSchedulingWorkflow('activityCancelled');
+        } catch (signalErr) {
+          if (signalErr.details !== 'workflow execution already completed') {
+            // Throw to avoid calling /finish
+            throw signalErr;
+          }
+        }
+      }
+      await fetch(`${url}/finish`);
     }
     throw err;
   }
