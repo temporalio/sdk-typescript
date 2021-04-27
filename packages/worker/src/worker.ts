@@ -764,7 +764,8 @@ export class Worker {
       )
         .pipe(
           tap({
-            error: () => {
+            error: (error) => {
+              this.log.error('Worker failed', { error });
               this.state = 'FAILED';
             },
           })
