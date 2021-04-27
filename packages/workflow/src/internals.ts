@@ -213,8 +213,32 @@ export class Activator implements WorkflowTaskHandler {
     }
   }
 
-  public signalWorkflow(_activation: iface.coresdk.workflow_activation.ISignalWorkflow): void {
-    throw new Error('Not implemented');
+  public signalWorkflow(activation: iface.coresdk.workflow_activation.ISignalWorkflow): void {
+    if (state.workflow === undefined) {
+      throw new Error('state.workflow is not defined');
+    }
+    const { signals } = state.workflow;
+    if (signals === undefined) {
+      throw new Error('Workflow did not define any signals');
+    }
+
+    if (!activation.signalName) {
+      throw new Error('Missing activation signalName');
+    }
+
+    const fn = signals[activation.signalName];
+    if (fn === undefined) {
+      throw new Error(`Workflow did not register a signal named ${activation.signalName}`);
+    }
+    try {
+      // TODO: support custom converter
+      const retOrPromise = fn(...arrayFromPayloads(defaultDataConverter, activation.input));
+      if (retOrPromise instanceof Promise) {
+        retOrPromise.catch(failWorkflow);
+      }
+    } catch (err) {
+      failWorkflow(err);
+    }
   }
 
   public updateRandomSeed(activation: iface.coresdk.workflow_activation.IUpdateRandomSeed): void {

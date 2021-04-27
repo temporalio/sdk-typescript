@@ -108,14 +108,14 @@ if (RUN_INTEGRATION_TESTS) {
     t.is(res, undefined);
   });
 
-  // Queries not yet properly implemented
-  test.skip('signals', async (t) => {
+  test('signals', async (t) => {
     const client = new Connection();
     const workflow = client.workflow<Interruptable>('signals', { taskQueue: 'test' });
     const promise = workflow.start();
     await workflow.started;
     await workflow.signal.interrupt('just because');
-    t.throwsAsync(promise, { message: /just because/, instanceOf: WorkflowExecutionFailedError });
+    await workflow.signal.fail();
+    await t.throwsAsync(promise, { message: /Signal failed/, instanceOf: WorkflowExecutionFailedError });
   });
 
   test('http', async (t) => {

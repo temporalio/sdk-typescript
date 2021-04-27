@@ -133,7 +133,7 @@ function makeSignalWorkflow(
   args: any[],
   timestamp: number = Date.now()
 ): coresdk.workflow_activation.IWFActivation {
-  return makeActivation(timestamp, { signalWorkflow: { signalName, input: args } });
+  return makeActivation(timestamp, { signalWorkflow: { signalName, input: defaultDataConverter.toPayloads(...args) } });
 }
 
 function makeCompleteWorkflowExecution(result?: coresdk.common.IPayload): coresdk.workflow_commands.IWorkflowCommand {
@@ -528,8 +528,7 @@ test('simple-query', async (t) => {
   }
 });
 
-// Signals have not yet been implemented
-test.skip('signals', async (t) => {
+test('signals', async (t) => {
   const { script } = t.context;
   {
     const req = await activate(t, makeStartWorkflow(script));
@@ -540,12 +539,30 @@ test.skip('signals', async (t) => {
     );
   }
   {
-    const req = await activate(t, makeSignalWorkflow('fail', []));
-    compareCompletion(t, req, makeSuccess([])); // TODO
+    const req = await activate(t, makeSignalWorkflow('interrupt', ['just because']));
+    compareCompletion(
+      t,
+      req,
+      makeSuccess([makeStartTimerCommand({ timerId: '1', startToFireTimeout: msToTs(100000) })])
+    );
   }
   {
-    const req = await activate(t, makeSignalWorkflow('interrupt', ['just because']));
-    compareCompletion(t, req, makeSuccess([])); // TODO
+    const req = cleanWorkflowFailureStackTrace(await activate(t, makeSignalWorkflow('fail', [])));
+    compareCompletion(
+      t,
+      req,
+      makeSuccess([
+        makeFailWorkflowExecution(
+          'Signal failed',
+          dedent`
+          Error: Signal failed
+              at fail
+              at Activator.signalWorkflow
+              at activate`,
+          'Error'
+        ),
+      ])
+    );
   }
 });
 
