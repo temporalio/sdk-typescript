@@ -2,7 +2,6 @@
 import anyTest, { TestInterface, ExecutionContext } from 'ava';
 import { v4 as uuid4 } from 'uuid';
 import { coresdk } from '@temporalio/proto';
-import { DefaultLogger } from '@temporalio/worker';
 import { defaultDataConverter } from '@temporalio/workflow/commonjs/converter/data-converter';
 import { httpGet } from '../../test-activities/lib';
 import { Worker } from './mock-native-worker';
