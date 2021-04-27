@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/ban-ts-comment */
+
 /**
  * Helper for creating promises which can be manually resolved
  * Copied from workflow/common
