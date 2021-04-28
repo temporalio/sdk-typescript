@@ -24,13 +24,21 @@ const platformMapping = { darwin: 'apple-darwin', linux: 'unknown-linux-gnu', wi
 
 function compile(target) {
   console.log('Compiling bridge', { target });
+  const out = target ? `releases/${target}/index.node` : 'index.node';
+  try {
+    fs.rmSync(out);
+  } catch (err) {
+    if (err.code !== 'ENOENT') {
+      throw err;
+    }
+  }
   const { status, error } = spawnSync(
     'cargo-cp-artifact',
     [
       '--artifact',
       'cdylib',
       'temporal_sdk_node_bridge',
-      ...(target ? [`releases/${target}/index.node`] : ['index.node']),
+      out,
       '--',
       'cargo',
       'build',
