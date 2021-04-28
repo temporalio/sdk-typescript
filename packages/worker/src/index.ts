@@ -18,5 +18,6 @@ export {
   ServerOptions,
   DataConverter,
   RetryOptions,
+  errors,
 } from './worker';
 export * from './logger';
