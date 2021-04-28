@@ -3,6 +3,7 @@
  * Most tests use a mocked core, some tests run serially because they emit signals to the process
  */
 import test from 'ava';
+import Long from 'long';
 import { Worker } from '@temporalio/worker';
 import { sleep } from '@temporalio/worker/lib/utils';
 import { Worker as MockedWorker } from './mock-native-worker';
@@ -67,9 +68,23 @@ test('Mocked worker suspends and resumes', async (t) => {
   t.is(worker.getState(), 'RUNNING');
   worker.suspendPolling();
   t.is(worker.getState(), 'SUSPENDED');
+
+  const activation = {
+    runId: 'abc',
+    jobs: [
+      {
+        startWorkflow: {
+          workflowId: 'wfid',
+          arguments: [],
+          workflowType: 'not-found',
+          randomnessSeed: new Long(3),
+        },
+      },
+    ],
+  };
   // Worker finishes its polling before suspension
-  await worker.native.runWorkflowActivation({ runId: 'abc' });
-  const completion = worker.native.runWorkflowActivation({ runId: 'abc' });
+  await worker.native.runWorkflowActivation(activation);
+  const completion = worker.native.runWorkflowActivation(activation);
   await t.throwsAsync(
     Promise.race([
       sleep(10).then(() => {

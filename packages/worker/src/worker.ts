@@ -22,6 +22,7 @@ import { ActivityOptions } from '@temporalio/workflow';
 import { Info as ActivityInfo } from '@temporalio/activity';
 import { errorToUserCodeFailure } from '@temporalio/workflow/commonjs/common';
 import { tsToMs } from '@temporalio/workflow/commonjs/time';
+import { IllegalStateError } from '@temporalio/workflow/commonjs/errors';
 import {
   arrayFromPayloads,
   DataConverter,
@@ -599,8 +600,22 @@ export class Worker {
       mergeMap((group$) => {
         return group$.pipe(
           takeUntil(this.stateSubject.pipe(filter((value) => value === 'STOPPED'))),
-          mergeMapWithState(async (workflow: Workflow | undefined, task) => {
+          mergeMapWithState(async (workflow: Workflow | undefined, task): Promise<{
+            state: Workflow | undefined;
+            output: { arr?: Uint8Array; close: boolean };
+          }> => {
             const taskToken = formatTaskToken(task.taskToken);
+            const jobs = task.jobs.filter(({ removeFromCache }) => !removeFromCache);
+            // Found a removeFromCache job
+            const close = jobs.length < task.jobs.length;
+            task.jobs = jobs;
+            if (jobs.length === 0) {
+              if (!close) {
+                throw new IllegalStateError('Got a Workflow activation with no jobs');
+              }
+              return { state: undefined, output: { close, arr: undefined } };
+            }
+
             if (workflow === undefined) {
               try {
                 // Find a workflow start job in the activation jobs list
@@ -660,19 +675,15 @@ export class Worker {
               }
             }
 
-            const jobs = task.jobs.filter(({ removeFromCache }) => !removeFromCache);
-            // Found a removeFromCache job
-            const close = jobs.length < task.jobs.length;
-            task.jobs = jobs;
-
-            // TODO: single param
             const arr = await workflow.activate(task.taskToken, task);
+
             return { state: workflow, output: { close, arr } };
           }, undefined),
           tap(({ close }) => void close && group$.close())
         );
       }),
-      map(({ arr }) => arr)
+      map(({ arr }) => arr),
+      filter((arr): arr is Uint8Array => arr !== undefined)
     );
   }
 
