@@ -439,7 +439,7 @@ export class Worker {
    */
   public suspendPolling(): void {
     if (this.state !== 'RUNNING') {
-      throw new Error('Not running');
+      throw new IllegalStateError('Not running');
     }
     this.state = 'SUSPENDED';
   }
@@ -449,7 +449,7 @@ export class Worker {
    */
   public resumePolling(): void {
     if (this.state !== 'SUSPENDED') {
-      throw new Error('Not suspended');
+      throw new IllegalStateError('Not suspended');
     }
     this.state = 'RUNNING';
   }
@@ -466,7 +466,7 @@ export class Worker {
    */
   shutdown(): void {
     if (this.state !== 'RUNNING' && this.state !== 'SUSPENDED') {
-      throw new Error('Not running and not suspended');
+      throw new IllegalStateError('Not running and not suspended');
     }
     this.state = 'STOPPING';
     this.nativeWorker.shutdown().then(() => {
@@ -517,7 +517,7 @@ export class Worker {
           default:
             // transition to DRAINING | FAILED happens only when an error occurs
             // in which case this observable would be closed
-            throw new Error(`Unexpected state ${state}`);
+            throw new IllegalStateError(`Unexpected state ${state}`);
         }
       }),
       repeat(),
@@ -542,7 +542,7 @@ export class Worker {
               | { type: 'run'; activity: Activity };
             const { taskToken, variant, activityId } = task;
             if (!variant) {
-              throw new Error('Got an activity task without a "variant" attribute');
+              throw new TypeError('Got an activity task without a "variant" attribute');
             }
 
             switch (variant) {
@@ -661,7 +661,7 @@ export class Worker {
                 if (maybeStartWorkflow !== undefined) {
                   const attrs = maybeStartWorkflow.startWorkflow;
                   if (!(attrs && attrs.workflowId && attrs.workflowType && attrs.randomnessSeed)) {
-                    throw new Error(
+                    throw new TypeError(
                       `Expected StartWorkflow with workflowId, workflowType and randomnessSeed, got ${JSON.stringify(
                         maybeStartWorkflow
                       )}`
@@ -687,7 +687,9 @@ export class Worker {
                   )(attrs.workflowType);
                   await workflow.registerImplementation(scriptName);
                 } else {
-                  throw new Error('Received workflow activation for an untracked workflow with no start workflow job');
+                  throw new IllegalStateError(
+                    'Received workflow activation for an untracked workflow with no start workflow job'
+                  );
                 }
               } catch (error) {
                 this.log.error('Failed to create a workflow', { taskToken, runId: task.runId, error });
@@ -777,7 +779,7 @@ export class Worker {
 
   protected workflow$(): Observable<void> {
     if (this.options.taskQueue === undefined) {
-      throw new Error('Worker taskQueue not defined');
+      throw new TypeError('Worker taskQueue not defined');
     }
 
     // Used to send back cache evictions when completing an activation with a WorkflowError
@@ -875,7 +877,7 @@ export class Worker {
    */
   async run(): Promise<void> {
     if (this.state !== 'INITIALIZED') {
-      throw new Error('Poller was aleady started');
+      throw new IllegalStateError('Poller was aleady started');
     }
     this.state = 'RUNNING';
 
