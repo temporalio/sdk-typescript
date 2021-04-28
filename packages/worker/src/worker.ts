@@ -646,6 +646,7 @@ export class Worker {
             const close = jobs.length < task.jobs.length;
             task.jobs = jobs;
             if (jobs.length === 0) {
+              workflow?.isolate.dispose();
               if (!close) {
                 throw new IllegalStateError('Got a Workflow activation with no jobs');
               }
