@@ -9,6 +9,7 @@ import {
   WorkerOptions,
   compileWorkerOptions,
   addDefaults,
+  errors,
 } from '@temporalio/worker/lib/worker';
 import { sleep } from '@temporalio/worker/lib/utils';
 
@@ -49,8 +50,8 @@ export class MockNativeWorker implements NativeWorkerLike {
   }
 
   public async shutdown(): Promise<void> {
-    this.activityTasks.unshift(Promise.reject(new Error('Core is shut down')));
-    this.workflowActivations.unshift(Promise.reject(new Error('Core is shut down')));
+    this.activityTasks.unshift(Promise.reject(new errors.ShutdownError('Core is shut down')));
+    this.workflowActivations.unshift(Promise.reject(new errors.ShutdownError('Core is shut down')));
   }
 
   public async pollWorkflowActivation(): Promise<ArrayBuffer> {

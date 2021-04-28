@@ -34,12 +34,15 @@ import { LoaderError, resolveFilename } from './loader';
 import { Workflow } from './workflow';
 import { Activity } from './activity';
 import { DefaultLogger, Logger } from './logger';
+import * as errors from './errors';
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
 import pkg from '../package.json';
 
 export { RetryOptions, RemoteActivityOptions, LocalActivityOptions } from '@temporalio/workflow';
-export { ActivityOptions, DataConverter };
+export { ActivityOptions, DataConverter, errors };
+
+native.registerErrors(errors);
 
 export interface ServerOptions {
   /**
@@ -487,8 +490,7 @@ export class Worker {
         }
       }),
       repeat(),
-      // TODO: use typed errors
-      catchError((err) => (err.message.includes('Core is shut down') ? EMPTY : throwError(err)))
+      catchError((err) => (err instanceof errors.ShutdownError ? EMPTY : throwError(err)))
     );
   }
 
@@ -712,11 +714,23 @@ export class Worker {
    */
   protected workflow$(): Observable<coresdk.workflow_activation.WFActivation> {
     return this.pollLoop$(async () => {
-      const buffer = await this.nativeWorker.pollWorkflowActivation();
-      const task = coresdk.workflow_activation.WFActivation.decode(new Uint8Array(buffer));
-      const { taskToken, ...rest } = task;
-      this.log.debug('Got workflow activation', { taskToken: formatTaskToken(taskToken), ...rest });
-      return task;
+      try {
+        const buffer = await this.nativeWorker.pollWorkflowActivation();
+        const task = coresdk.workflow_activation.WFActivation.decode(new Uint8Array(buffer));
+        const { taskToken, ...rest } = task;
+        this.log.debug('Got workflow activation', { taskToken: formatTaskToken(taskToken), ...rest });
+        return task;
+      } catch (err) {
+        // Transform a Workflow error into an activation with a single removeFromCache job
+        if (err instanceof errors.WorkflowError) {
+          return coresdk.workflow_activation.WFActivation.create({
+            runId: err.runId,
+            jobs: [{ removeFromCache: true }],
+          });
+        } else {
+          throw err;
+        }
+      }
     });
   }
 
@@ -757,13 +771,30 @@ export class Worker {
     for (const signal of this.options.shutdownSignals) {
       process.on(signal, startShutdownSequence);
     }
+
+    const workflowCompletionFeedbackSubject = new Subject<coresdk.workflow_activation.WFActivation>();
     try {
       await merge(
         this.gracefulShutdown$(),
         this.activityHeartbeat$().pipe(tap({ complete: () => this.log.debug('Heartbeats complete') })),
-        this.workflow$().pipe(
+        merge(this.workflow$(), workflowCompletionFeedbackSubject).pipe(
           this.workflowOperator(queueName),
-          mergeMap((arr) => this.nativeWorker.completeWorkflowActivation(arr.buffer.slice(arr.byteOffset))),
+          mergeMap(async (arr) => {
+            try {
+              return await this.nativeWorker.completeWorkflowActivation(arr.buffer.slice(arr.byteOffset));
+            } catch (err) {
+              if (err instanceof errors.WorkflowError) {
+                workflowCompletionFeedbackSubject.next(
+                  coresdk.workflow_activation.WFActivation.create({
+                    runId: err.runId,
+                    jobs: [{ removeFromCache: true }],
+                  })
+                );
+              } else {
+                throw err;
+              }
+            }
+          }),
           tap({ complete: () => this.log.debug('Workflows complete') })
         ),
 
