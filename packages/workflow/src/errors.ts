@@ -52,7 +52,9 @@ export class CancellationError extends Error {
   }
 }
 
-/// Used in different parts of the project to signal to the user that they've done something wrong
+/**
+ * Used in different parts of the project to signal that something unexpected has happened
+ */
 export class IllegalStateError extends Error {
   public readonly name: string = 'IllegalStateError';
 }

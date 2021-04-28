@@ -320,8 +320,7 @@ fn worker_new(mut cx: FunctionContext) -> JsResult<JsUndefined> {
         start_bridge_loop(
             CoreInitOptions {
                 gateway_opts,
-                // TODO: Fix evictions not being sent back to lang and set to true
-                evict_after_pending_cleared: false,
+                evict_after_pending_cleared: true,
                 max_outstanding_workflow_tasks,
                 max_outstanding_activities,
             },
