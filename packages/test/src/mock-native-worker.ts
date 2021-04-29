@@ -11,6 +11,7 @@ import {
   addDefaults,
   errors,
 } from '@temporalio/worker/lib/worker';
+import { DefaultLogger } from '@temporalio/worker';
 import { sleep } from '@temporalio/worker/lib/utils';
 
 function addActivityStartDefaults(task: coresdk.activity_task.IActivityTask) {
@@ -97,6 +98,10 @@ export class MockNativeWorker implements NativeWorkerLike {
     }
   }
 
+  public emitWorkflowError(error: Error): void {
+    this.workflowActivations.unshift(Promise.reject(error));
+  }
+
   public async runWorkflowActivation(
     activation: coresdk.workflow_activation.IWFActivation
   ): Promise<coresdk.workflow_completion.WFActivationCompletion> {
@@ -149,4 +154,18 @@ export class Worker extends RealWorker {
     const nativeWorker = new MockNativeWorker();
     super(nativeWorker, compileWorkerOptions(addDefaults(opts)));
   }
+
+  public runWorkflows(...args: Parameters<Worker['workflow$']>): Promise<void> {
+    this.state = 'RUNNING';
+    return this.workflow$(...args).toPromise();
+  }
+}
+
+export function makeDefaultWorker() {
+  return new Worker({
+    workflowsPath: `${__dirname}/../../test-workflows/lib`,
+    activitiesPath: `${__dirname}/../../test-activities/lib`,
+    taskQueue: 'test',
+    logger: new DefaultLogger('DEBUG'),
+  });
 }

@@ -625,7 +625,8 @@ export class Worker {
    * Process workflow activations
    */
   protected workflowOperator(
-    numInFlightActivationsSubject: BehaviorSubject<number>
+    numInFlightActivationsSubject: BehaviorSubject<number>,
+    numRunningWorkflowInstancesSubject: BehaviorSubject<number>
   ): OperatorFunction<coresdk.workflow_activation.WFActivation, Uint8Array> {
     return pipe(
       tap(() => {
@@ -686,6 +687,7 @@ export class Worker {
                     this.workflowOverrides
                   )(attrs.workflowType);
                   await workflow.registerImplementation(scriptName);
+                  numRunningWorkflowInstancesSubject.next(numRunningWorkflowInstancesSubject.value + 1);
                 } else {
                   throw new IllegalStateError(
                     'Received workflow activation for an untracked workflow with no start workflow job'
@@ -718,14 +720,19 @@ export class Worker {
 
             return { state: workflow, output: { close, arr } };
           }, undefined),
-          tap(({ close }) => void close && group$.close())
+          tap(({ close }) => {
+            if (close) {
+              group$.close();
+              numRunningWorkflowInstancesSubject.next(numRunningWorkflowInstancesSubject.value - 1);
+            }
+          })
         );
       }),
       map(({ arr }) => arr),
-      filter((arr): arr is Uint8Array => arr !== undefined),
       tap(() => {
         numInFlightActivationsSubject.next(numInFlightActivationsSubject.value - 1);
-      })
+      }),
+      filter((arr): arr is Uint8Array => arr !== undefined)
     );
   }
 
@@ -777,15 +784,23 @@ export class Worker {
     });
   }
 
-  protected workflow$(): Observable<void> {
+  /**
+   * Poll for Workflow activations, handle them, and report completions.
+   * NOTE: the parameters here are injectable for testing.
+   *
+   * @param workflowCompletionFeedbackSubject used to send back cache evictions when completing an activation with a WorkflowError
+   * @param numInFlightActivationsSubject used to automatically close all of the cached workflows
+   * @param numRunningWorkflowInstancesSubject used to monitor the number of workflow instances - useful for testing cleanup.
+   */
+  protected workflow$(
+    workflowCompletionFeedbackSubject = new Subject<coresdk.workflow_activation.WFActivation>(),
+    numInFlightActivationsSubject = new BehaviorSubject(0),
+    numRunningWorkflowInstancesSubject = new BehaviorSubject(0)
+  ): Observable<void> {
     if (this.options.taskQueue === undefined) {
       throw new TypeError('Worker taskQueue not defined');
     }
 
-    // Used to send back cache evictions when completing an activation with a WorkflowError
-    const workflowCompletionFeedbackSubject = new Subject<coresdk.workflow_activation.WFActivation>();
-    // We'll use this to automatically close all of the cached workflows
-    const numInFlightActivationsSubject = new BehaviorSubject(0);
     // Comsume activations from Core and the feedback subject
     return merge(
       this.workflowPoll$(),
@@ -793,7 +808,7 @@ export class Worker {
       // workflows will eventually be evicted when numInFlightActivations is 0
       workflowCompletionFeedbackSubject.pipe(this.takeUntilState('DRAINING'))
     ).pipe(
-      this.workflowOperator(numInFlightActivationsSubject),
+      this.workflowOperator(numInFlightActivationsSubject, numRunningWorkflowInstancesSubject),
       mergeMap(async (arr) => {
         try {
           return await this.nativeWorker.completeWorkflowActivation(arr.buffer.slice(arr.byteOffset));
