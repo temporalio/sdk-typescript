@@ -6,6 +6,9 @@ import { v4 as uuid4 } from 'uuid';
 import { errors } from '@temporalio/worker';
 import { coresdk } from '@temporalio/proto';
 import { msToTs } from '@temporalio/workflow/commonjs/time';
+import { ResolvablePromise } from '@temporalio/workflow/commonjs/common';
+import { defaultDataConverter } from '@temporalio/workflow/commonjs/converter/data-converter';
+import { Context as ActivityContext, CancellationError } from '@temporalio/activity';
 import { Worker, makeDefaultWorker } from './mock-native-worker';
 
 export interface Context {
@@ -90,5 +93,44 @@ test('Worker handles WorkflowError in completeWorkflowActivation correctly', asy
   worker.shutdown();
   // Catch the ShutdownError to avoid unhandled rejection
   await t.throwsAsync(() => worker.native.pollActivityTask(), { instanceOf: errors.ShutdownError });
+  await p;
+});
+
+test('Worker handles heartbeat errors correctly', async (t) => {
+  const { worker } = t.context;
+  const cancelled = new ResolvablePromise();
+  await worker.registerActivities({
+    test: {
+      async activity() {
+        const ctx = ActivityContext.current();
+        for (;;) {
+          ctx.heartbeat();
+          try {
+            await Promise.race([new Promise((resolve) => setTimeout(resolve, 10)), ctx.cancelled]);
+          } catch (err) {
+            if (err instanceof CancellationError) {
+              cancelled.resolve(undefined);
+            }
+            throw err;
+          }
+        }
+      },
+    },
+  });
+  const p = worker.run();
+  worker.native.recordActivityHeartbeat = () => {
+    throw new errors.ActivityHeartbeatError('This is a test');
+  };
+  await worker.native.runActivityTask({
+    taskToken: new Uint8Array([1, 2, 1, 3]),
+    activityId: 'abc',
+    start: {
+      activityType: JSON.stringify(['test', 'activity']),
+      input: defaultDataConverter.toPayloads(),
+    },
+  });
+  await cancelled;
+  worker.shutdown();
+  t.pass();
   await p;
 });

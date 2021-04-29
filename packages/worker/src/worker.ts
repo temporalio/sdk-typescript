@@ -344,6 +344,7 @@ export class Worker {
     taskToken: Uint8Array;
     details?: any;
   }>();
+  protected readonly activityFeedbackSubject = new Subject<coresdk.activity_task.ActivityTask>();
   protected stateSubject: BehaviorSubject<State> = new BehaviorSubject<State>('INITIALIZED');
   protected readonly nativeWorker: NativeWorkerLike;
 
@@ -737,10 +738,12 @@ export class Worker {
   }
 
   /**
-   * Listen on heartbeats emitted from activities and send them to core
+   * Listen on heartbeats emitted from activities and send them to core.
+   * Errors from core responses are translated to cancellation requests and fed back via the activityFeedbackSubject.
    */
   protected activityHeartbeat$(): Observable<void> {
     return this.activityHeartbeatSubject.pipe(
+      // Close this observable in case we're not sending anymore heartbeats and thus don't get notified of shutdown
       this.takeUntilState('DRAINED'),
       tap({
         next: ({ taskToken }) => this.log.debug('Got activity heartbeat', { taskToken: formatTaskToken(taskToken) }),
@@ -752,10 +755,25 @@ export class Worker {
           taskToken,
           details: [payload],
         }).finish();
-        await this.nativeWorker.recordActivityHeartbeat(
-          arr.buffer.slice(arr.byteOffset, arr.byteLength + arr.byteOffset)
-        );
-      })
+        try {
+          await this.nativeWorker.recordActivityHeartbeat(
+            arr.buffer.slice(arr.byteOffset, arr.byteLength + arr.byteOffset)
+          );
+        } catch (err) {
+          if (err instanceof errors.ShutdownError) {
+            throw err;
+          }
+          // We assume any error here means we should cancel the offending Activity
+          this.activityFeedbackSubject.next(
+            coresdk.activity_task.ActivityTask.create({
+              taskToken,
+              // TODO: activityId,
+              cancel: {},
+            })
+          );
+        }
+      }),
+      catchError((err) => (err instanceof errors.ShutdownError ? EMPTY : throwError(err)))
     );
   }
 
@@ -842,7 +860,7 @@ export class Worker {
   }
 
   protected activity$(): Observable<void> {
-    return this.activityPoll$().pipe(
+    return merge(this.activityPoll$(), this.activityFeedbackSubject.pipe(this.takeUntilState('DRAINING'))).pipe(
       this.activityOperator(),
       mergeMap((arr) => this.nativeWorker.completeActivityTask(arr.buffer.slice(arr.byteOffset))),
       tap({ complete: () => this.log.debug('Activities complete') })

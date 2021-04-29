@@ -165,7 +165,7 @@ export class Context {
    *
    * If an Activity times out, the last value of details is included in the ActivityTimeoutException delivered to a Workflow. Then the Workflow can pass the details to the next Activity invocation. This acts as a periodic checkpoint mechanism for the progress of an Activity.
    */
-  public readonly heartbeat: (details: any) => void;
+  public readonly heartbeat: (details?: any) => void;
 
   /**
    * **Not** meant to instantiated by Activity code, used by the worker.
@@ -176,7 +176,7 @@ export class Context {
     info: Info,
     cancelled: Promise<never>,
     cancellationSignal: AbortSignal,
-    heartbeat: (details: any) => void
+    heartbeat: (details?: any) => void
   ) {
     this.info = info;
     this.cancelled = cancelled;

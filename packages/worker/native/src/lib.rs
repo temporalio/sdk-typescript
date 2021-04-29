@@ -7,18 +7,18 @@ use std::{fmt::Display, future::Future, sync::Arc, time::Duration};
 use temporal_sdk_core::{
     init, protos::coresdk::workflow_completion::WfActivationCompletion,
     protos::coresdk::ActivityHeartbeat, protos::coresdk::ActivityTaskCompletion, tracing_init,
-    CompleteActivityError, CompleteWfError, Core, CoreInitError, CoreInitOptions,
-    PollActivityError, PollWfError, ServerGatewayOptions, Url,
+    ActivityHeartbeatError, CompleteActivityError, CompleteWfError, Core, CoreInitError,
+    CoreInitOptions, PollActivityError, PollWfError, ServerGatewayOptions, Url,
 };
 use tokio::sync::mpsc::{channel, Sender};
 
 /// A request from JS to bridge to core
 pub enum Request {
     /// A request to break from the thread loop, should be sent from JS when it
-    /// encounters a CoreError::ShuttingDown and there are no outstanding
+    /// encounters a ShuttingDown and there are no outstanding
     /// completions
     BreakLoop { callback: Root<JsFunction> },
-    /// A request to shutdown core, JS should wait on CoreError::ShuttingDown
+    /// A request to shutdown core, JS should wait on ShuttingDown
     /// before exiting to allow draining of pending tasks
     Shutdown {
         /// Used to send the result back into JS
@@ -260,9 +260,19 @@ fn start_bridge_loop(
                                     queue,
                                     callback,
                                     async move { core.record_activity_heartbeat(heartbeat).await },
-                                    // TODO: refine these error types once core exposes them
-                                    // correctly
-                                    |cx, err| UNEXPECTED_ERROR.from_error(cx, err),
+                                    |cx, err| match err {
+                                        ActivityHeartbeatError::ShuttingDown => {
+                                            SHUTDOWN_ERROR.from_error(cx, err)
+                                        }
+                                        ActivityHeartbeatError::HeartbeatTimeoutNotSet
+                                        | ActivityHeartbeatError::UnknownActivity => {
+                                            ACTIVITY_HEARTBEAT_ERROR.from_error(cx, err)
+                                        }
+                                        ActivityHeartbeatError::InvalidHeartbeatTimeout => {
+                                            Ok(JsError::type_error(cx, format!("{}", err))?
+                                                .upcast())
+                                        }
+                                    },
                                 ));
                             }
                         }

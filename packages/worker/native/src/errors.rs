@@ -10,6 +10,8 @@ pub static SHUTDOWN_ERROR: OnceCell<Root<JsFunction>> = OnceCell::new();
 pub static WORKFLOW_ERROR: OnceCell<Root<JsFunction>> = OnceCell::new();
 /// Something unexpected happened, considered fatal
 pub static UNEXPECTED_ERROR: OnceCell<Root<JsFunction>> = OnceCell::new();
+/// Activity heartbeat can not sent, the Activity should be cancelled
+pub static ACTIVITY_HEARTBEAT_ERROR: OnceCell<Root<JsFunction>> = OnceCell::new();
 
 /// This is one of the ways to implement custom errors in neon.
 /// Taken from the answer in GitHub issues: https://github.com/neon-bindings/neon/issues/714
@@ -78,6 +80,10 @@ pub fn register_errors(mut cx: FunctionContext) -> JsResult<JsUndefined> {
         .get(&mut cx, "WorkflowError")?
         .downcast_or_throw::<JsFunction, FunctionContext>(&mut cx)?
         .root(&mut cx);
+    let activity_heartbeat_error = mapping
+        .get(&mut cx, "ActivityHeartbeatError")?
+        .downcast_or_throw::<JsFunction, FunctionContext>(&mut cx)?
+        .root(&mut cx);
     let unexpected_error = mapping
         .get(&mut cx, "UnexpectedError")?
         .downcast_or_throw::<JsFunction, FunctionContext>(&mut cx)?
@@ -86,6 +92,7 @@ pub fn register_errors(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     TRANSPORT_ERROR.get_or_try_init(|| Ok(transport_error))?;
     SHUTDOWN_ERROR.get_or_try_init(|| Ok(shutdown_error))?;
     WORKFLOW_ERROR.get_or_try_init(|| Ok(workflow_error))?;
+    ACTIVITY_HEARTBEAT_ERROR.get_or_try_init(|| Ok(activity_heartbeat_error))?;
     UNEXPECTED_ERROR.get_or_try_init(|| Ok(unexpected_error))?;
 
     Ok(cx.undefined())
