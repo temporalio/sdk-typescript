@@ -15,11 +15,11 @@ use tokio::sync::mpsc::{channel, Sender};
 /// A request from JS to bridge to core
 pub enum Request {
     /// A request to break from the thread loop, should be sent from JS when it
-    /// encounters a ShuttingDown and there are no outstanding
+    /// encounters when core shutdown() resolves and there are no outstanding
     /// completions
     BreakLoop { callback: Root<JsFunction> },
-    /// A request to shutdown core, JS should wait on ShuttingDown
-    /// before exiting to allow draining of pending tasks
+    /// A request to shutdown core, the core instance will remain active to
+    /// allow draining of pending tasks
     Shutdown {
         /// Used to send the result back into JS
         callback: Root<JsFunction>,
@@ -547,8 +547,9 @@ fn worker_record_activity_heartbeat(mut cx: FunctionContext) -> JsResult<JsUndef
 }
 
 /// Request shutdown of the worker.
-/// Caller should wait until a [CoreError::ShuttingDown] is returned from poll to ensure graceful
-/// shutdown.
+/// Once complete Core will stop polling on new tasks and activations.
+/// Caller should drain any pending tasks and activations before breaking from
+/// the loop to ensure graceful shutdown.
 fn worker_shutdown(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     let worker = cx.argument::<BoxedWorker>(0)?;
     let callback = cx.argument::<JsFunction>(1)?;
