@@ -889,7 +889,7 @@ export class Worker {
     );
   }
 
-  protected setupShutdownHook() {
+  protected setupShutdownHook(): void {
     const startShutdownSequence = () => {
       for (const signal of this.options.shutdownSignals) {
         process.off(signal, startShutdownSequence);

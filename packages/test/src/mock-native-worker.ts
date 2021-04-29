@@ -161,7 +161,7 @@ export class Worker extends RealWorker {
   }
 }
 
-export function makeDefaultWorker() {
+export function makeDefaultWorker(): Worker {
   return new Worker({
     workflowsPath: `${__dirname}/../../test-workflows/lib`,
     activitiesPath: `${__dirname}/../../test-activities/lib`,

@@ -1,7 +1,7 @@
 import anyTest, { TestInterface } from 'ava';
 import Long from 'long';
 import { BehaviorSubject, Subject } from 'rxjs';
-import { first, take, tap, toArray } from 'rxjs/operators';
+import { first, take, toArray } from 'rxjs/operators';
 import { v4 as uuid4 } from 'uuid';
 import { errors } from '@temporalio/worker';
 import { coresdk } from '@temporalio/proto';
@@ -77,12 +77,7 @@ test('Worker handles WorkflowError in completeWorkflowActivation correctly', asy
   const promises = Promise.all([
     numInFlightActivationsSubject.pipe(take(3), toArray()).toPromise(),
     numRunningWorkflowInstancesSubject.pipe(take(3), toArray()).toPromise(),
-    feedbackSubject
-      .pipe(
-        tap((activation) => console.log('feedback', activation)),
-        first()
-      )
-      .toPromise(),
+    feedbackSubject.pipe(first()).toPromise(),
   ]);
   worker.native.emit({
     workflow: makeStartWorkflowActivation(runId),
