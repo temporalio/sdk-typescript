@@ -26,7 +26,7 @@ function compile(target) {
   console.log('Compiling bridge', { target });
   const out = target ? `releases/${target}/index.node` : 'index.node';
   try {
-    fs.rmSync(out);
+    fs.unlinkSync(out);
   } catch (err) {
     if (err.code !== 'ENOENT') {
       throw err;
