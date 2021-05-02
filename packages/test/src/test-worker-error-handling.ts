@@ -1,6 +1,6 @@
 import anyTest, { TestInterface } from 'ava';
 import Long from 'long';
-import { BehaviorSubject, Subject } from 'rxjs';
+import { Subject } from 'rxjs';
 import { first, take, toArray } from 'rxjs/operators';
 import { v4 as uuid4 } from 'uuid';
 import { errors } from '@temporalio/worker';
@@ -14,8 +14,6 @@ import { Worker, makeDefaultWorker } from './mock-native-worker';
 export interface Context {
   worker: Worker;
   feedbackSubject: Subject<coresdk.workflow_activation.WFActivation>;
-  numInFlightActivationsSubject: BehaviorSubject<number>;
-  numRunningWorkflowInstancesSubject: BehaviorSubject<number>;
 }
 
 export const test = anyTest as TestInterface<Context>;
@@ -24,8 +22,6 @@ test.beforeEach((t) => {
   t.context = {
     worker: makeDefaultWorker(),
     feedbackSubject: new Subject(),
-    numInFlightActivationsSubject: new BehaviorSubject(0),
-    numRunningWorkflowInstancesSubject: new BehaviorSubject(0),
   };
 });
 
@@ -48,12 +44,12 @@ function makeStartWorkflowActivation(runId: string) {
 }
 
 test('Worker handles WorkflowError in pollWorkflowActivation correctly', async (t) => {
-  const { worker, feedbackSubject, numInFlightActivationsSubject, numRunningWorkflowInstancesSubject } = t.context;
-  const p = worker.runWorkflows(feedbackSubject, numInFlightActivationsSubject, numRunningWorkflowInstancesSubject);
+  const { worker, feedbackSubject } = t.context;
+  const p = worker.runWorkflows(feedbackSubject);
   const runId = uuid4();
   const [numInFlightActivations, numRunningWorkflowInstances] = await Promise.all([
-    numInFlightActivationsSubject.pipe(take(5), toArray()).toPromise(),
-    numRunningWorkflowInstancesSubject.pipe(take(3), toArray()).toPromise(),
+    worker.numInFlightActivations$.pipe(take(5), toArray()).toPromise(),
+    worker.numRunningWorkflowInstances$.pipe(take(3), toArray()).toPromise(),
     (async () => {
       await worker.native.runWorkflowActivation(makeStartWorkflowActivation(runId));
       worker.native.emitWorkflowError(new errors.WorkflowError('Something bad happened', runId, 'details'));
@@ -68,15 +64,15 @@ test('Worker handles WorkflowError in pollWorkflowActivation correctly', async (
 });
 
 test('Worker handles WorkflowError in completeWorkflowActivation correctly', async (t) => {
-  const { worker, feedbackSubject, numInFlightActivationsSubject, numRunningWorkflowInstancesSubject } = t.context;
-  const p = worker.runWorkflows(feedbackSubject, numInFlightActivationsSubject, numRunningWorkflowInstancesSubject);
+  const { worker, feedbackSubject } = t.context;
+  const p = worker.runWorkflows(feedbackSubject);
   const runId = uuid4();
   worker.native.completeWorkflowActivation = () => {
     return Promise.reject(new errors.WorkflowError('Something bad happened', runId, 'details'));
   };
   const promises = Promise.all([
-    numInFlightActivationsSubject.pipe(take(3), toArray()).toPromise(),
-    numRunningWorkflowInstancesSubject.pipe(take(3), toArray()).toPromise(),
+    worker.numInFlightActivations$.pipe(take(3), toArray()).toPromise(),
+    worker.numRunningWorkflowInstances$.pipe(take(3), toArray()).toPromise(),
     feedbackSubject.pipe(first()).toPromise(),
   ]);
   worker.native.emit({
