@@ -345,7 +345,9 @@ export class Worker {
     details?: any;
   }>();
   protected readonly activityFeedbackSubject = new Subject<coresdk.activity_task.ActivityTask>();
-  protected stateSubject: BehaviorSubject<State> = new BehaviorSubject<State>('INITIALIZED');
+  protected readonly stateSubject = new BehaviorSubject<State>('INITIALIZED');
+  protected readonly numInFlightActivationsSubject = new BehaviorSubject<number>(0);
+  protected readonly numRunningWorkflowInstancesSubject = new BehaviorSubject<number>(0);
   protected readonly nativeWorker: NativeWorkerLike;
 
   protected static nativeWorkerCtor: WorkerConstructor = NativeWorker;
@@ -389,6 +391,20 @@ export class Worker {
         }
       }
     }
+  }
+
+  /**
+   * An Observable which emits each time the number of in flight activations changes
+   */
+  public get numInFlightActivations$(): Observable<number> {
+    return this.numInFlightActivationsSubject;
+  }
+
+  /**
+   * An Observable which emits each time the number of in flight activations changes
+   */
+  public get numRunningWorkflowInstances$(): Observable<number> {
+    return this.numRunningWorkflowInstancesSubject;
   }
 
   protected get log(): Logger {
@@ -625,19 +641,16 @@ export class Worker {
   /**
    * Process workflow activations
    */
-  protected workflowOperator(
-    numInFlightActivationsSubject: BehaviorSubject<number>,
-    numRunningWorkflowInstancesSubject: BehaviorSubject<number>
-  ): OperatorFunction<coresdk.workflow_activation.WFActivation, Uint8Array> {
+  protected workflowOperator(): OperatorFunction<coresdk.workflow_activation.WFActivation, Uint8Array> {
     return pipe(
       tap(() => {
-        numInFlightActivationsSubject.next(numInFlightActivationsSubject.value + 1);
+        this.numInFlightActivationsSubject.next(this.numInFlightActivationsSubject.value + 1);
       }),
       closeableGroupBy((task) => task.runId),
       mergeMap((group$) => {
         return group$.pipe(
           // TODO: We close the Observable here but we should make sure to dispose of the isolate
-          this.takeUntilIdle(numInFlightActivationsSubject),
+          this.takeUntilWorkflowsIdle(),
           mergeMapWithState(async (workflow: Workflow | undefined, task): Promise<{
             state: Workflow | undefined;
             output: { arr?: Uint8Array; close: boolean };
@@ -688,7 +701,7 @@ export class Worker {
                     this.workflowOverrides
                   )(attrs.workflowType);
                   await workflow.registerImplementation(scriptName);
-                  numRunningWorkflowInstancesSubject.next(numRunningWorkflowInstancesSubject.value + 1);
+                  this.numRunningWorkflowInstancesSubject.next(this.numRunningWorkflowInstancesSubject.value + 1);
                 } else {
                   throw new IllegalStateError(
                     'Received workflow activation for an untracked workflow with no start workflow job'
@@ -724,14 +737,14 @@ export class Worker {
           tap(({ close }) => {
             if (close) {
               group$.close();
-              numRunningWorkflowInstancesSubject.next(numRunningWorkflowInstancesSubject.value - 1);
+              this.numRunningWorkflowInstancesSubject.next(this.numRunningWorkflowInstancesSubject.value - 1);
             }
           })
         );
       }),
       map(({ arr }) => arr),
       tap(() => {
-        numInFlightActivationsSubject.next(numInFlightActivationsSubject.value - 1);
+        this.numInFlightActivationsSubject.next(this.numInFlightActivationsSubject.value - 1);
       }),
       filter((arr): arr is Uint8Array => arr !== undefined)
     );
@@ -805,16 +818,11 @@ export class Worker {
 
   /**
    * Poll for Workflow activations, handle them, and report completions.
-   * NOTE: the parameters here are injectable for testing.
    *
    * @param workflowCompletionFeedbackSubject used to send back cache evictions when completing an activation with a WorkflowError
-   * @param numInFlightActivationsSubject used to automatically close all of the cached workflows
-   * @param numRunningWorkflowInstancesSubject used to monitor the number of workflow instances - useful for testing cleanup.
    */
   protected workflow$(
-    workflowCompletionFeedbackSubject = new Subject<coresdk.workflow_activation.WFActivation>(),
-    numInFlightActivationsSubject = new BehaviorSubject(0),
-    numRunningWorkflowInstancesSubject = new BehaviorSubject(0)
+    workflowCompletionFeedbackSubject = new Subject<coresdk.workflow_activation.WFActivation>()
   ): Observable<void> {
     if (this.options.taskQueue === undefined) {
       throw new TypeError('Worker taskQueue not defined');
@@ -827,7 +835,7 @@ export class Worker {
       // workflows will eventually be evicted when numInFlightActivations is 0
       workflowCompletionFeedbackSubject.pipe(this.takeUntilState('DRAINING'))
     ).pipe(
-      this.workflowOperator(numInFlightActivationsSubject, numRunningWorkflowInstancesSubject),
+      this.workflowOperator(),
       mergeMap(async (arr) => {
         try {
           return await this.nativeWorker.completeWorkflowActivation(arr.buffer.slice(arr.byteOffset));
@@ -872,11 +880,11 @@ export class Worker {
     return takeUntil(this.stateSubject.pipe(filter((value) => value === state)));
   }
 
-  protected takeUntilIdle<T>(numInFlightActivitiesSubject: Observable<number>): MonoTypeOperatorFunction<T> {
+  protected takeUntilWorkflowsIdle<T>(): MonoTypeOperatorFunction<T> {
     return takeUntil(
       merge(
         this.stateSubject.pipe(map((state) => ({ state }))),
-        numInFlightActivitiesSubject.pipe(map((numInFlightActivations) => ({ numInFlightActivations })))
+        this.numInFlightActivationsSubject.pipe(map((numInFlightActivations) => ({ numInFlightActivations })))
       ).pipe(
         scan(
           (acc: { state?: State; numInFlightActivations?: number }, curr) => ({
