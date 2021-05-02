@@ -2,7 +2,19 @@ import { basename, extname, resolve } from 'path';
 import os from 'os';
 import { readdirSync } from 'fs';
 import { promisify } from 'util';
-import { BehaviorSubject, EMPTY, merge, Observable, of, OperatorFunction, pipe, race, Subject, throwError } from 'rxjs';
+import {
+  BehaviorSubject,
+  EMPTY,
+  merge,
+  MonoTypeOperatorFunction,
+  Observable,
+  of,
+  OperatorFunction,
+  pipe,
+  race,
+  Subject,
+  throwError,
+} from 'rxjs';
 import {
   catchError,
   concatMap,
@@ -15,6 +27,7 @@ import {
   repeat,
   takeUntil,
   tap,
+  scan,
 } from 'rxjs/operators';
 import ms from 'ms';
 import { coresdk } from '@temporalio/proto';
@@ -34,12 +47,15 @@ import { LoaderError, resolveFilename } from './loader';
 import { Workflow } from './workflow';
 import { Activity } from './activity';
 import { DefaultLogger, Logger } from './logger';
+import * as errors from './errors';
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
 import pkg from '../package.json';
 
 export { RetryOptions, RemoteActivityOptions, LocalActivityOptions } from '@temporalio/workflow';
-export { ActivityOptions, DataConverter };
+export { ActivityOptions, DataConverter, errors };
+
+native.registerErrors(errors);
 
 export interface ServerOptions {
   /**
@@ -243,14 +259,24 @@ export function compileNativeWorkerOptions(
 
 /**
  * The worker's possible states
- * `INITIALIZED` - The initial state of the Worker after calling create() and successful connection to the server
- * `RUNNING` - {@link Worker.run} was called, polling task queues
- * `SUSPENDED` - {@link Worker.suspendPolling} was called, not polling for new tasks
- * `STOPPING` - {@link Worker.shutdown} was called or received shutdown signal
- * `STOPPED` - Core has indicated that shutdown is complete, {@link Worker.run} should resolve soon
- * `FAILED` - Worker encountered an unrecoverable error, {@link Worker.run} should reject with the error
+ * * `INITIALIZED` - The initial state of the Worker after calling create() and successful connection to the server
+ * * `RUNNING` - {@link Worker.run} was called, polling task queues
+ * * `SUSPENDED` - {@link Worker.suspendPolling} was called, not polling for new tasks
+ * * `STOPPING` - {@link Worker.shutdown} was called or received shutdown signal
+ * * `DRAINING` - Core has indicated that shutdown is complete, allow activations and tasks to complete with respect to {@link WorkerOptions.shutdownGraceTime | shutdownGraceTime}
+ * * `DRAINED` - Draining complete, completing shutdown
+ * * `STOPPED` - Shutdown complete, {@link Worker.run} resolves
+ * * `FAILED` - Worker encountered an unrecoverable error, {@link Worker.run} should reject with the error
  */
-export type State = 'INITIALIZED' | 'RUNNING' | 'STOPPED' | 'STOPPING' | 'FAILED' | 'SUSPENDED';
+export type State =
+  | 'INITIALIZED'
+  | 'RUNNING'
+  | 'STOPPED'
+  | 'STOPPING'
+  | 'DRAINING'
+  | 'DRAINED'
+  | 'FAILED'
+  | 'SUSPENDED';
 
 type ExtractToPromise<T> = T extends (err: any, result: infer R) => void ? Promise<R> : never;
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -318,6 +344,7 @@ export class Worker {
     taskToken: Uint8Array;
     details?: any;
   }>();
+  protected readonly activityFeedbackSubject = new Subject<coresdk.activity_task.ActivityTask>();
   protected stateSubject: BehaviorSubject<State> = new BehaviorSubject<State>('INITIALIZED');
   protected readonly nativeWorker: NativeWorkerLike;
 
@@ -413,7 +440,7 @@ export class Worker {
    */
   public suspendPolling(): void {
     if (this.state !== 'RUNNING') {
-      throw new Error('Not running');
+      throw new IllegalStateError('Not running');
     }
     this.state = 'SUSPENDED';
   }
@@ -423,7 +450,7 @@ export class Worker {
    */
   public resumePolling(): void {
     if (this.state !== 'SUSPENDED') {
-      throw new Error('Not suspended');
+      throw new IllegalStateError('Not suspended');
     }
     this.state = 'RUNNING';
   }
@@ -432,18 +459,24 @@ export class Worker {
     return this.state === 'SUSPENDED';
   }
 
+  /**
+   * Start shutting down the Worker.
+   * Immediately transitions state to STOPPING and asks Core to shut down.
+   * Once Core has confirmed that it's shutting down the Worker enters DRAINING state.
+   * {@see State}.
+   */
   shutdown(): void {
     if (this.state !== 'RUNNING' && this.state !== 'SUSPENDED') {
-      throw new Error('Not running and not suspended');
+      throw new IllegalStateError('Not running and not suspended');
     }
     this.state = 'STOPPING';
     this.nativeWorker.shutdown().then(() => {
-      this.state = 'STOPPED';
+      this.state = 'DRAINING';
     });
   }
 
   /**
-   * An observable which completes when state becomes STOPPED or throws if state transitions to STOPPING and remains that way for {@link this.options.shutdownGraceTimeMs}.
+   * An observable which completes when state becomes DRAINED or throws if state transitions to STOPPING and remains that way for {@link this.options.shutdownGraceTimeMs}.
    */
   protected gracefulShutdown$(): Observable<never> {
     return race(
@@ -451,11 +484,13 @@ export class Worker {
         filter((state): state is 'STOPPING' => state === 'STOPPING'),
         delay(this.options.shutdownGraceTimeMs),
         map(() => {
-          throw new Error('Timed out while waiting for worker to shutdown gracefully');
+          throw new errors.GracefulShutdownPeriodExpiredError(
+            'Timed out while waiting for worker to shutdown gracefully'
+          );
         })
       ),
       this.stateSubject.pipe(
-        filter((state) => state === 'STOPPED'),
+        filter((state) => state === 'DRAINED'),
         first()
       )
     ).pipe(ignoreElements());
@@ -481,14 +516,13 @@ export class Worker {
               ignoreElements()
             );
           default:
-            // transition to STOPPED | FAILED happens only when an error occurs
+            // transition to DRAINING | FAILED happens only when an error occurs
             // in which case this observable would be closed
-            throw new Error(`Unexpected state ${state}`);
+            throw new IllegalStateError(`Unexpected state ${state}`);
         }
       }),
       repeat(),
-      // TODO: use typed errors
-      catchError((err) => (err.message.includes('Core is shut down') ? EMPTY : throwError(err)))
+      catchError((err) => (err instanceof errors.ShutdownError ? EMPTY : throwError(err)))
     );
   }
 
@@ -509,7 +543,7 @@ export class Worker {
               | { type: 'run'; activity: Activity };
             const { taskToken, variant, activityId } = task;
             if (!variant) {
-              throw new Error('Got an activity task without a "variant" attribute');
+              throw new TypeError('Got an activity task without a "variant" attribute');
             }
 
             switch (variant) {
@@ -590,16 +624,20 @@ export class Worker {
 
   /**
    * Process workflow activations
-   * @param queueName used to propagate the current task queue to the workflow
    */
   protected workflowOperator(
-    queueName: string
+    numInFlightActivationsSubject: BehaviorSubject<number>,
+    numRunningWorkflowInstancesSubject: BehaviorSubject<number>
   ): OperatorFunction<coresdk.workflow_activation.WFActivation, Uint8Array> {
     return pipe(
+      tap(() => {
+        numInFlightActivationsSubject.next(numInFlightActivationsSubject.value + 1);
+      }),
       closeableGroupBy((task) => task.runId),
       mergeMap((group$) => {
         return group$.pipe(
-          takeUntil(this.stateSubject.pipe(filter((value) => value === 'STOPPED'))),
+          // TODO: We close the Observable here but we should make sure to dispose of the isolate
+          this.takeUntilIdle(numInFlightActivationsSubject),
           mergeMapWithState(async (workflow: Workflow | undefined, task): Promise<{
             state: Workflow | undefined;
             output: { arr?: Uint8Array; close: boolean };
@@ -610,6 +648,7 @@ export class Worker {
             const close = jobs.length < task.jobs.length;
             task.jobs = jobs;
             if (jobs.length === 0) {
+              workflow?.isolate.dispose();
               if (!close) {
                 throw new IllegalStateError('Got a Workflow activation with no jobs');
               }
@@ -624,7 +663,7 @@ export class Worker {
                 if (maybeStartWorkflow !== undefined) {
                   const attrs = maybeStartWorkflow.startWorkflow;
                   if (!(attrs && attrs.workflowId && attrs.workflowType && attrs.randomnessSeed)) {
-                    throw new Error(
+                    throw new TypeError(
                       `Expected StartWorkflow with workflowId, workflowType and randomnessSeed, got ${JSON.stringify(
                         maybeStartWorkflow
                       )}`
@@ -638,7 +677,7 @@ export class Worker {
                   workflow = await Workflow.create(
                     attrs.workflowId,
                     attrs.randomnessSeed,
-                    queueName,
+                    this.options.taskQueue,
                     this.options.activityDefaults
                   );
                   // TODO: this probably shouldn't be here, consider alternative implementation
@@ -649,8 +688,11 @@ export class Worker {
                     this.workflowOverrides
                   )(attrs.workflowType);
                   await workflow.registerImplementation(scriptName);
+                  numRunningWorkflowInstancesSubject.next(numRunningWorkflowInstancesSubject.value + 1);
                 } else {
-                  throw new Error('Received workflow activation for an untracked workflow with no start workflow job');
+                  throw new IllegalStateError(
+                    'Received workflow activation for an untracked workflow with no start workflow job'
+                  );
                 }
               } catch (error) {
                 this.log.error('Failed to create a workflow', { taskToken, runId: task.runId, error });
@@ -679,51 +721,136 @@ export class Worker {
 
             return { state: workflow, output: { close, arr } };
           }, undefined),
-          tap(({ close }) => void close && group$.close())
+          tap(({ close }) => {
+            if (close) {
+              group$.close();
+              numRunningWorkflowInstancesSubject.next(numRunningWorkflowInstancesSubject.value - 1);
+            }
+          })
         );
       }),
       map(({ arr }) => arr),
+      tap(() => {
+        numInFlightActivationsSubject.next(numInFlightActivationsSubject.value - 1);
+      }),
       filter((arr): arr is Uint8Array => arr !== undefined)
     );
   }
 
   /**
-   * Listen on heartbeats emitted from activities and send them to core
+   * Listen on heartbeats emitted from activities and send them to core.
+   * Errors from core responses are translated to cancellation requests and fed back via the activityFeedbackSubject.
    */
   protected activityHeartbeat$(): Observable<void> {
     return this.activityHeartbeatSubject.pipe(
-      takeUntil(this.stateSubject.pipe(filter((value) => value === 'STOPPED'))),
-      tap(({ taskToken }) => this.log.debug('Got activity heartbeat', { taskToken: formatTaskToken(taskToken) })),
+      // Close this observable in case we're not sending anymore heartbeats and thus don't get notified of shutdown
+      this.takeUntilState('DRAINED'),
+      tap({
+        next: ({ taskToken }) => this.log.debug('Got activity heartbeat', { taskToken: formatTaskToken(taskToken) }),
+        complete: () => this.log.debug('Heartbeats complete'),
+      }),
       mergeMap(async ({ taskToken, details }) => {
         const payload = this.options.dataConverter.toPayload(details);
         const arr = coresdk.ActivityHeartbeat.encodeDelimited({
           taskToken,
           details: [payload],
         }).finish();
-        await this.nativeWorker.recordActivityHeartbeat(
-          arr.buffer.slice(arr.byteOffset, arr.byteLength + arr.byteOffset)
-        );
-      })
+        try {
+          await this.nativeWorker.recordActivityHeartbeat(
+            arr.buffer.slice(arr.byteOffset, arr.byteLength + arr.byteOffset)
+          );
+        } catch (err) {
+          if (err instanceof errors.ShutdownError) {
+            throw err;
+          }
+          // We assume any error here means we should cancel the offending Activity
+          this.activityFeedbackSubject.next(
+            coresdk.activity_task.ActivityTask.create({
+              taskToken,
+              // TODO: activityId,
+              cancel: {},
+            })
+          );
+        }
+      }),
+      catchError((err) => (err instanceof errors.ShutdownError ? EMPTY : throwError(err)))
     );
   }
 
   /**
    * Poll core for `WFActivation`s while respecting worker state
    */
-  protected workflow$(): Observable<coresdk.workflow_activation.WFActivation> {
+  protected workflowPoll$(): Observable<coresdk.workflow_activation.WFActivation> {
     return this.pollLoop$(async () => {
-      const buffer = await this.nativeWorker.pollWorkflowActivation();
-      const task = coresdk.workflow_activation.WFActivation.decode(new Uint8Array(buffer));
-      const { taskToken, ...rest } = task;
-      this.log.debug('Got workflow activation', { taskToken: formatTaskToken(taskToken), ...rest });
-      return task;
+      try {
+        const buffer = await this.nativeWorker.pollWorkflowActivation();
+        const task = coresdk.workflow_activation.WFActivation.decode(new Uint8Array(buffer));
+        const { taskToken, ...rest } = task;
+        this.log.debug('Got workflow activation', { taskToken: formatTaskToken(taskToken), ...rest });
+        return task;
+      } catch (err) {
+        // Transform a Workflow error into an activation with a single removeFromCache job
+        if (err instanceof errors.WorkflowError) {
+          this.log.warn('Poll resulted in WorkflowError, converting to a removeFromCache job', { runId: err.runId });
+          return coresdk.workflow_activation.WFActivation.create({
+            runId: err.runId,
+            jobs: [{ removeFromCache: true }],
+          });
+        } else {
+          throw err;
+        }
+      }
     });
   }
 
   /**
+   * Poll for Workflow activations, handle them, and report completions.
+   * NOTE: the parameters here are injectable for testing.
+   *
+   * @param workflowCompletionFeedbackSubject used to send back cache evictions when completing an activation with a WorkflowError
+   * @param numInFlightActivationsSubject used to automatically close all of the cached workflows
+   * @param numRunningWorkflowInstancesSubject used to monitor the number of workflow instances - useful for testing cleanup.
+   */
+  protected workflow$(
+    workflowCompletionFeedbackSubject = new Subject<coresdk.workflow_activation.WFActivation>(),
+    numInFlightActivationsSubject = new BehaviorSubject(0),
+    numRunningWorkflowInstancesSubject = new BehaviorSubject(0)
+  ): Observable<void> {
+    if (this.options.taskQueue === undefined) {
+      throw new TypeError('Worker taskQueue not defined');
+    }
+
+    // Consume activations from Core and the feedback subject
+    return merge(
+      this.workflowPoll$(),
+      // We can stop subscribing to this when we're in DRAINING state,
+      // workflows will eventually be evicted when numInFlightActivations is 0
+      workflowCompletionFeedbackSubject.pipe(this.takeUntilState('DRAINING'))
+    ).pipe(
+      this.workflowOperator(numInFlightActivationsSubject, numRunningWorkflowInstancesSubject),
+      mergeMap(async (arr) => {
+        try {
+          return await this.nativeWorker.completeWorkflowActivation(arr.buffer.slice(arr.byteOffset));
+        } catch (err) {
+          if (err instanceof errors.WorkflowError) {
+            workflowCompletionFeedbackSubject.next(
+              coresdk.workflow_activation.WFActivation.create({
+                runId: err.runId,
+                jobs: [{ removeFromCache: true }],
+              })
+            );
+          } else {
+            throw err;
+          }
+        }
+      }),
+      tap({ complete: () => this.log.debug('Workflows complete') })
+    );
+  }
+  /**
    * Poll core for `ActivityTask`s while respecting worker state
    */
-  protected activity$(): Observable<coresdk.activity_task.ActivityTask> {
+  protected activityPoll$(): Observable<coresdk.activity_task.ActivityTask> {
     return this.pollLoop$(async () => {
       const buffer = await this.nativeWorker.pollActivityTask();
       const task = coresdk.activity_task.ActivityTask.decode(new Uint8Array(buffer));
@@ -733,21 +860,37 @@ export class Worker {
     });
   }
 
-  /**
-   * Start polling on tasks, completes after graceful shutdown due to receiving a shutdown signal
-   * or call to {@link shutdown}.
-   */
-  async run(): Promise<void> {
-    if (this.state !== 'INITIALIZED') {
-      throw new Error('Poller was aleady started');
-    }
-    this.state = 'RUNNING';
+  protected activity$(): Observable<void> {
+    return merge(this.activityPoll$(), this.activityFeedbackSubject.pipe(this.takeUntilState('DRAINING'))).pipe(
+      this.activityOperator(),
+      mergeMap((arr) => this.nativeWorker.completeActivityTask(arr.buffer.slice(arr.byteOffset))),
+      tap({ complete: () => this.log.debug('Activities complete') })
+    );
+  }
 
-    if (this.options.taskQueue === undefined) {
-      throw new Error('Worker taskQueue not defined');
-    }
-    const queueName = this.options.taskQueue;
+  protected takeUntilState<T>(state: State): MonoTypeOperatorFunction<T> {
+    return takeUntil(this.stateSubject.pipe(filter((value) => value === state)));
+  }
 
+  protected takeUntilIdle<T>(numInFlightActivitiesSubject: Observable<number>): MonoTypeOperatorFunction<T> {
+    return takeUntil(
+      merge(
+        this.stateSubject.pipe(map((state) => ({ state }))),
+        numInFlightActivitiesSubject.pipe(map((numInFlightActivations) => ({ numInFlightActivations })))
+      ).pipe(
+        scan(
+          (acc: { state?: State; numInFlightActivations?: number }, curr) => ({
+            ...acc,
+            ...curr,
+          }),
+          {}
+        ),
+        filter(({ state, numInFlightActivations }) => state === 'DRAINING' && numInFlightActivations === 0)
+      )
+    );
+  }
+
+  protected setupShutdownHook(): void {
     const startShutdownSequence = () => {
       for (const signal of this.options.shutdownSignals) {
         process.off(signal, startShutdownSequence);
@@ -757,24 +900,40 @@ export class Worker {
     for (const signal of this.options.shutdownSignals) {
       process.on(signal, startShutdownSequence);
     }
+  }
+
+  /**
+   * Start polling on tasks, completes after graceful shutdown.
+   * Throws on a fatal error or failure to shutdown gracefully.
+   * @see {@link errors}
+   *
+   * To stop polling call {@link shutdown} or send one of {@link Worker.options.shutdownSignals}.
+   */
+  async run(): Promise<void> {
+    if (this.state !== 'INITIALIZED') {
+      throw new IllegalStateError('Poller was aleady started');
+    }
+    this.state = 'RUNNING';
+
+    this.setupShutdownHook();
+
     try {
       await merge(
         this.gracefulShutdown$(),
-        this.activityHeartbeat$().pipe(tap({ complete: () => this.log.debug('Heartbeats complete') })),
-        this.workflow$().pipe(
-          this.workflowOperator(queueName),
-          mergeMap((arr) => this.nativeWorker.completeWorkflowActivation(arr.buffer.slice(arr.byteOffset))),
-          tap({ complete: () => this.log.debug('Workflows complete') })
-        ),
-
-        this.activity$().pipe(
-          this.activityOperator(),
-          mergeMap((arr) => this.nativeWorker.completeActivityTask(arr.buffer.slice(arr.byteOffset))),
-          tap({ complete: () => this.log.debug('Activities complete') })
+        this.activityHeartbeat$(),
+        merge(this.workflow$(), this.activity$()).pipe(
+          tap({
+            complete: () => {
+              this.state = 'DRAINED';
+            },
+          })
         )
       )
         .pipe(
           tap({
+            complete: () => {
+              this.state = 'STOPPED';
+            },
             error: (error) => {
               this.log.error('Worker failed', { error });
               this.state = 'FAILED';

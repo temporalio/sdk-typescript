@@ -1142,6 +1142,7 @@ version = "0.1.0"
 dependencies = [
  "futures",
  "neon",
+ "once_cell",
  "prost",
  "prost-types",
  "temporal-sdk-core",

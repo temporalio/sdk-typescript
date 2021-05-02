@@ -9,7 +9,9 @@ import {
   WorkerOptions,
   compileWorkerOptions,
   addDefaults,
+  errors,
 } from '@temporalio/worker/lib/worker';
+import { DefaultLogger } from '@temporalio/worker';
 import { sleep } from '@temporalio/worker/lib/utils';
 
 function addActivityStartDefaults(task: coresdk.activity_task.IActivityTask) {
@@ -49,8 +51,8 @@ export class MockNativeWorker implements NativeWorkerLike {
   }
 
   public async shutdown(): Promise<void> {
-    this.activityTasks.unshift(Promise.reject(new Error('Core is shut down')));
-    this.workflowActivations.unshift(Promise.reject(new Error('Core is shut down')));
+    this.activityTasks.unshift(Promise.reject(new errors.ShutdownError('Core is shut down')));
+    this.workflowActivations.unshift(Promise.reject(new errors.ShutdownError('Core is shut down')));
   }
 
   public async pollWorkflowActivation(): Promise<ArrayBuffer> {
@@ -94,6 +96,10 @@ export class MockNativeWorker implements NativeWorkerLike {
       const buffer = arr.buffer.slice(arr.byteOffset, arr.byteOffset + arr.byteLength);
       this.activityTasks.unshift(Promise.resolve(buffer));
     }
+  }
+
+  public emitWorkflowError(error: Error): void {
+    this.workflowActivations.unshift(Promise.reject(error));
   }
 
   public async runWorkflowActivation(
@@ -148,4 +154,18 @@ export class Worker extends RealWorker {
     const nativeWorker = new MockNativeWorker();
     super(nativeWorker, compileWorkerOptions(addDefaults(opts)));
   }
+
+  public runWorkflows(...args: Parameters<Worker['workflow$']>): Promise<void> {
+    this.state = 'RUNNING';
+    return this.workflow$(...args).toPromise();
+  }
+}
+
+export function makeDefaultWorker(): Worker {
+  return new Worker({
+    workflowsPath: `${__dirname}/../../test-workflows/lib`,
+    activitiesPath: `${__dirname}/../../test-activities/lib`,
+    taskQueue: 'test',
+    logger: new DefaultLogger('DEBUG'),
+  });
 }

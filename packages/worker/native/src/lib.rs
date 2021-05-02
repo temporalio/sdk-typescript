@@ -1,21 +1,25 @@
-use neon::{prelude::*, register_module};
+mod errors;
+
+use errors::*;
+use neon::prelude::*;
 use prost::Message;
 use std::{fmt::Display, future::Future, sync::Arc, time::Duration};
 use temporal_sdk_core::{
     init, protos::coresdk::workflow_completion::WfActivationCompletion,
     protos::coresdk::ActivityHeartbeat, protos::coresdk::ActivityTaskCompletion, tracing_init,
-    Core, CoreInitOptions, ServerGatewayOptions, Url,
+    ActivityHeartbeatError, CompleteActivityError, CompleteWfError, Core, CoreInitError,
+    CoreInitOptions, PollActivityError, PollWfError, ServerGatewayOptions, Url,
 };
 use tokio::sync::mpsc::{channel, Sender};
 
 /// A request from JS to bridge to core
 pub enum Request {
     /// A request to break from the thread loop, should be sent from JS when it
-    /// encounters a CoreError::ShuttingDown and there are no outstanding
+    /// encounters when core shutdown() resolves and there are no outstanding
     /// completions
     BreakLoop { callback: Root<JsFunction> },
-    /// A request to shutdown core, JS should wait on CoreError::ShuttingDown
-    /// before exiting to allow draining of pending tasks
+    /// A request to shutdown core, the core instance will remain active to
+    /// allow draining of pending tasks
     Shutdown {
         /// Used to send the result back into JS
         callback: Root<JsFunction>,
@@ -79,47 +83,71 @@ where
 }
 
 /// Send an error to JS via callback using an [EventQueue]
-fn send_error<T>(queue: Arc<EventQueue>, callback: Root<JsFunction>, error: T)
+fn send_error<E, F>(queue: Arc<EventQueue>, callback: Root<JsFunction>, error_ctor: F)
 where
-    T: Display + Send + 'static,
+    E: Object,
+    F: for<'a> FnOnce(&mut TaskContext<'a>) -> JsResult<'a, E> + Send + 'static,
 {
     queue.send(move |mut cx| {
         let callback = callback.into_inner(&mut cx);
-        callback_with_error(&mut cx, callback, error)
+        callback_with_error(&mut cx, callback, error_ctor)
     });
 }
 
 /// Call [callback] with given error
-fn callback_with_error<'a, T>(
-    cx: &mut impl Context<'a>,
+fn callback_with_error<'a, C, E, F>(
+    cx: &mut C,
     callback: Handle<JsFunction>,
-    error: T,
+    error_ctor: F,
 ) -> NeonResult<()>
 where
-    T: Display + Send + 'static,
+    C: Context<'a>,
+    E: Object,
+    F: FnOnce(&mut C) -> JsResult<'a, E> + Send + 'static,
 {
     let this = cx.undefined();
-    // TODO: create better JS error types
-    let error = JsError::error(cx, format!("{}", error))?;
+    let error = error_ctor(cx)?;
     let result = cx.undefined();
     let args: Vec<Handle<JsValue>> = vec![error.upcast(), result.upcast()];
     callback.call(cx, this, args)?;
     Ok(())
 }
 
+fn callback_with_unexpected_error<'a, C, E>(
+    cx: &mut C,
+    callback: Handle<JsFunction>,
+    err: E,
+) -> NeonResult<()>
+where
+    C: Context<'a>,
+    E: std::fmt::Display,
+{
+    let err_str = format!("{}", err);
+    callback_with_error(cx, callback, move |cx| {
+        UNEXPECTED_ERROR.from_string(cx, err_str)
+    })
+}
+
 /// When Future completes, call given JS callback using a neon::EventQueue with either error or
 /// undefined
-async fn void_future_to_js<E, F>(queue: Arc<EventQueue>, callback: Root<JsFunction>, f: F) -> ()
+async fn void_future_to_js<E, F, ER, EF>(
+    queue: Arc<EventQueue>,
+    callback: Root<JsFunction>,
+    f: F,
+    error_function: EF,
+) -> ()
 where
     E: Display + Send + 'static,
     F: Future<Output = Result<(), E>> + Send + 'static,
+    ER: Object,
+    EF: for<'a> FnOnce(&mut TaskContext<'a>, E) -> JsResult<'a, ER> + Send + 'static,
 {
     match f.await {
         Ok(()) => {
             send_result(queue, callback, |cx| Ok(cx.undefined()));
         }
         Err(err) => {
-            send_error(queue, callback, err);
+            send_error(queue, callback, |cx| error_function(cx, err));
         }
     }
 }
@@ -142,7 +170,14 @@ fn start_bridge_loop(
         .block_on(async {
             match init(core_init_options).await {
                 Err(err) => {
-                    send_error(queue.clone(), callback, err);
+                    send_error(queue.clone(), callback, |cx| match err {
+                        CoreInitError::InvalidUri(_) => {
+                            Ok(JsError::type_error(cx, "Invalid URI")?.upcast())
+                        }
+                        CoreInitError::TonicTransportError(err) => {
+                            TRANSPORT_ERROR.from_error(cx, err)
+                        }
+                    });
                 }
                 Ok(result) => {
                     send_result(
@@ -160,12 +195,17 @@ fn start_bridge_loop(
 
                         match request {
                             Request::Shutdown { callback } => {
-                                tokio::spawn(void_future_to_js(queue, callback, async move {
-                                    core.shutdown().await;
-                                    // Wrap the empty result in a valid Result object
-                                    let result: Result<(), String> = Ok(());
-                                    result
-                                }));
+                                tokio::spawn(void_future_to_js(
+                                    queue,
+                                    callback,
+                                    async move {
+                                        core.shutdown().await;
+                                        // Wrap the empty result in a valid Result object
+                                        let result: Result<(), String> = Ok(());
+                                        result
+                                    },
+                                    |cx, err| UNEXPECTED_ERROR.from_error(cx, err),
+                                ));
                             }
                             Request::BreakLoop { callback } => {
                                 send_result(queue, callback, |cx| Ok(cx.undefined()));
@@ -185,25 +225,70 @@ fn start_bridge_loop(
                                 completion,
                                 callback,
                             } => {
-                                tokio::spawn(void_future_to_js(queue, callback, async move {
-                                    core.complete_workflow_task(completion).await
-                                }));
+                                tokio::spawn(void_future_to_js(
+                                    queue,
+                                    callback,
+                                    async move { core.complete_workflow_task(completion).await },
+                                    |cx, err| match err {
+                                        CompleteWfError::WorkflowUpdateError { run_id, source } => {
+                                            let args = vec![
+                                                cx.string("Workflow update error").upcast(),
+                                                cx.string(run_id).upcast(),
+                                                cx.string(format!("{}", source)).upcast(),
+                                            ];
+                                            WORKFLOW_ERROR.construct(cx, args)
+                                        }
+                                        CompleteWfError::TonicError(_) => {
+                                            TRANSPORT_ERROR.from_error(cx, err)
+                                        }
+                                        CompleteWfError::MalformedWorkflowCompletion {
+                                            reason,
+                                            ..
+                                        } => Ok(JsError::type_error(cx, reason)?.upcast()),
+                                    },
+                                ));
                             }
                             Request::CompleteActivityTask {
                                 completion,
                                 callback,
                             } => {
-                                tokio::spawn(void_future_to_js(queue, callback, async move {
-                                    core.complete_activity_task(completion).await
-                                }));
+                                tokio::spawn(void_future_to_js(
+                                    queue,
+                                    callback,
+                                    async move { core.complete_activity_task(completion).await },
+                                    |cx, err| match err {
+                                        CompleteActivityError::MalformedActivityCompletion {
+                                            reason,
+                                            ..
+                                        } => Ok(JsError::type_error(cx, reason)?.upcast()),
+                                        CompleteActivityError::TonicError(_) => {
+                                            TRANSPORT_ERROR.from_error(cx, err)
+                                        }
+                                    },
+                                ));
                             }
                             Request::RecordActivityHeartbeat {
                                 heartbeat,
                                 callback,
                             } => {
-                                tokio::spawn(void_future_to_js(queue, callback, async move {
-                                    core.record_activity_heartbeat(heartbeat).await
-                                }));
+                                tokio::spawn(void_future_to_js(
+                                    queue,
+                                    callback,
+                                    async move { core.record_activity_heartbeat(heartbeat).await },
+                                    |cx, err| match err {
+                                        ActivityHeartbeatError::ShuttingDown => {
+                                            SHUTDOWN_ERROR.from_error(cx, err)
+                                        }
+                                        ActivityHeartbeatError::HeartbeatTimeoutNotSet
+                                        | ActivityHeartbeatError::UnknownActivity => {
+                                            ACTIVITY_HEARTBEAT_ERROR.from_error(cx, err)
+                                        }
+                                        ActivityHeartbeatError::InvalidHeartbeatTimeout => {
+                                            Ok(JsError::type_error(cx, format!("{}", err))?
+                                                .upcast())
+                                        }
+                                    },
+                                ));
                             }
                         }
                     }
@@ -233,7 +318,32 @@ async fn handle_poll_workflow_activation_request(
             });
         }
         Err(err) => {
-            send_error(queue, callback, err);
+            send_error(queue, callback, move |cx| match err {
+                PollWfError::ShutDown => SHUTDOWN_ERROR.from_error(cx, err),
+                PollWfError::AutocompleteError(CompleteWfError::WorkflowUpdateError {
+                    run_id,
+                    source,
+                })
+                | PollWfError::WorkflowUpdateError { run_id, source } => {
+                    let args = vec![
+                        cx.string("Workflow update error").upcast(),
+                        cx.string(run_id).upcast(),
+                        cx.string(format!("{}", source)).upcast(),
+                    ];
+                    WORKFLOW_ERROR.construct(cx, args)
+                }
+                PollWfError::BadPollResponseFromServer(_) => {
+                    UNEXPECTED_ERROR.from_error(cx, "Bad poll response from server")
+                }
+                PollWfError::TonicError(_)
+                | PollWfError::AutocompleteError(CompleteWfError::TonicError(_)) => {
+                    TRANSPORT_ERROR.from_error(cx, err)
+                }
+                PollWfError::AutocompleteError(CompleteWfError::MalformedWorkflowCompletion {
+                    reason,
+                    ..
+                }) => Ok(JsError::type_error(cx, reason)?.upcast()),
+            });
         }
     }
 }
@@ -259,7 +369,10 @@ async fn handle_poll_activity_task_request(
             });
         }
         Err(err) => {
-            send_error(queue, callback, err);
+            send_error(queue, callback, |cx| match err {
+                PollActivityError::ShutDown => SHUTDOWN_ERROR.from_error(cx, err),
+                PollActivityError::TonicError(_) => TRANSPORT_ERROR.from_error(cx, err),
+            });
         }
     }
 }
@@ -340,7 +453,7 @@ fn worker_break_loop(mut cx: FunctionContext) -> JsResult<JsUndefined> {
         callback: callback.root(&mut cx),
     };
     if let Err(err) = worker.sender.blocking_send(request) {
-        callback_with_error(&mut cx, callback, err)?;
+        callback_with_unexpected_error(&mut cx, callback, err)?;
     };
     Ok(cx.undefined())
 }
@@ -354,7 +467,7 @@ fn worker_poll_workflow_activation(mut cx: FunctionContext) -> JsResult<JsUndefi
         callback: callback.root(&mut cx),
     };
     if let Err(err) = worker.sender.blocking_send(request) {
-        callback_with_error(&mut cx, callback, err)?;
+        callback_with_unexpected_error(&mut cx, callback, err)?;
     }
     Ok(cx.undefined())
 }
@@ -368,7 +481,7 @@ fn worker_poll_activity_task(mut cx: FunctionContext) -> JsResult<JsUndefined> {
         callback: callback.root(&mut cx),
     };
     if let Err(err) = worker.sender.blocking_send(request) {
-        callback_with_error(&mut cx, callback, err)?;
+        callback_with_unexpected_error(&mut cx, callback, err)?;
     }
     Ok(cx.undefined())
 }
@@ -388,10 +501,12 @@ fn worker_complete_workflow_activation(mut cx: FunctionContext) -> JsResult<JsUn
                 callback: callback.root(&mut cx),
             };
             if let Err(err) = worker.sender.blocking_send(request) {
-                callback_with_error(&mut cx, callback, err)?;
+                callback_with_error(&mut cx, callback, |cx| UNEXPECTED_ERROR.from_error(cx, err))?;
             };
         }
-        Err(_) => callback_with_error(&mut cx, callback, "Cannot decode Completion from buffer")?,
+        Err(_) => callback_with_error(&mut cx, callback, |cx| {
+            JsError::type_error(cx, "Cannot decode Completion from buffer")
+        })?,
     };
     Ok(cx.undefined())
 }
@@ -411,10 +526,12 @@ fn worker_complete_activity_task(mut cx: FunctionContext) -> JsResult<JsUndefine
                 callback: callback.root(&mut cx),
             };
             if let Err(err) = worker.sender.blocking_send(request) {
-                callback_with_error(&mut cx, callback, err)?;
+                callback_with_unexpected_error(&mut cx, callback, err)?;
             };
         }
-        Err(_) => callback_with_error(&mut cx, callback, "Cannot decode Completion from buffer")?,
+        Err(_) => callback_with_error(&mut cx, callback, |cx| {
+            JsError::type_error(cx, "Cannot decode Completion from buffer")
+        })?,
     };
     Ok(cx.undefined())
 }
@@ -434,21 +551,20 @@ fn worker_record_activity_heartbeat(mut cx: FunctionContext) -> JsResult<JsUndef
                 callback: callback.root(&mut cx),
             };
             if let Err(err) = worker.sender.blocking_send(request) {
-                callback_with_error(&mut cx, callback, err)?;
+                callback_with_unexpected_error(&mut cx, callback, err)?;
             };
         }
-        Err(_) => callback_with_error(
-            &mut cx,
-            callback,
-            "Cannot decode ActivityHeartbeat from buffer",
-        )?,
+        Err(_) => callback_with_error(&mut cx, callback, |cx| {
+            JsError::type_error(cx, "Cannot decode ActivityHeartbeat from buffer")
+        })?,
     };
     Ok(cx.undefined())
 }
 
 /// Request shutdown of the worker.
-/// Caller should wait until a [CoreError::ShuttingDown] is returned from poll to ensure graceful
-/// shutdown.
+/// Once complete Core will stop polling on new tasks and activations.
+/// Caller should drain any pending tasks and activations before breaking from
+/// the loop to ensure graceful shutdown.
 fn worker_shutdown(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     let worker = cx.argument::<BoxedWorker>(0)?;
     let callback = cx.argument::<JsFunction>(1)?;
@@ -460,7 +576,9 @@ fn worker_shutdown(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     }
 }
 
-register_module!(mut cx, {
+#[neon::main]
+fn main(mut cx: ModuleContext) -> NeonResult<()> {
+    cx.export_function("registerErrors", errors::register_errors)?;
     cx.export_function("newWorker", worker_new)?;
     cx.export_function("workerShutdown", worker_shutdown)?;
     cx.export_function("workerBreakLoop", worker_break_loop)?;
@@ -479,4 +597,4 @@ register_module!(mut cx, {
         worker_record_activity_heartbeat,
     )?;
     Ok(())
-});
+}

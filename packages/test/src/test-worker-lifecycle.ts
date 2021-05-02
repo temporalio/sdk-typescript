@@ -4,7 +4,7 @@
  */
 import test from 'ava';
 import Long from 'long';
-import { Worker } from '@temporalio/worker';
+import { Worker, DefaultLogger } from '@temporalio/worker';
 import { sleep } from '@temporalio/worker/lib/utils';
 import { Worker as MockedWorker } from './mock-native-worker';
 import { RUN_INTEGRATION_TESTS } from './helpers';
@@ -63,6 +63,7 @@ test('Mocked worker suspends and resumes', async (t) => {
   const worker = new MockedWorker({
     shutdownGraceTime: '5ms',
     taskQueue: 'suspend-test',
+    logger: new DefaultLogger('DEBUG'),
   });
   const p = worker.run();
   t.is(worker.getState(), 'RUNNING');

@@ -39,10 +39,12 @@ export interface WorkerOptions {
 
 export interface Worker {}
 
-export declare type PollCallback = (err?: Error, result: ArrayBuffer) => void;
-export declare type WorkerCallback = (err?: Error, result: Worker) => void;
-export declare type VoidCallback = (err?: Error, result: void) => void;
+export declare type PollCallback = (err: Error, result: ArrayBuffer) => void;
+export declare type WorkerCallback = (err: Error, result: Worker) => void;
+export declare type VoidCallback = (err: Error, result: void) => void;
 
+// TODO: improve type, for some reason Error is not accepted here
+export declare function registerErrors(errors: Record<string, any>): void;
 export declare function newWorker(workerOptions: WorkerOptions, callback: WorkerCallback): void;
 export declare function workerShutdown(worker: Worker, callback: VoidCallback): void;
 export declare function workerBreakLoop(worker: Worker, callback: VoidCallback): void;
