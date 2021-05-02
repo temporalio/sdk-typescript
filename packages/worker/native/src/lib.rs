@@ -113,6 +113,21 @@ where
     Ok(())
 }
 
+fn callback_with_unexpected_error<'a, C, E>(
+    cx: &mut C,
+    callback: Handle<JsFunction>,
+    err: E,
+) -> NeonResult<()>
+where
+    C: Context<'a>,
+    E: std::fmt::Display,
+{
+    let err_str = format!("{}", err);
+    callback_with_error(cx, callback, move |cx| {
+        UNEXPECTED_ERROR.from_string(cx, err_str)
+    })
+}
+
 /// When Future completes, call given JS callback using a neon::EventQueue with either error or
 /// undefined
 async fn void_future_to_js<E, F, ER, EF>(
@@ -438,7 +453,7 @@ fn worker_break_loop(mut cx: FunctionContext) -> JsResult<JsUndefined> {
         callback: callback.root(&mut cx),
     };
     if let Err(err) = worker.sender.blocking_send(request) {
-        callback_with_error(&mut cx, callback, |cx| UNEXPECTED_ERROR.from_error(cx, err))?;
+        callback_with_unexpected_error(&mut cx, callback, err)?;
     };
     Ok(cx.undefined())
 }
@@ -452,7 +467,7 @@ fn worker_poll_workflow_activation(mut cx: FunctionContext) -> JsResult<JsUndefi
         callback: callback.root(&mut cx),
     };
     if let Err(err) = worker.sender.blocking_send(request) {
-        callback_with_error(&mut cx, callback, |cx| UNEXPECTED_ERROR.from_error(cx, err))?;
+        callback_with_unexpected_error(&mut cx, callback, err)?;
     }
     Ok(cx.undefined())
 }
@@ -466,7 +481,7 @@ fn worker_poll_activity_task(mut cx: FunctionContext) -> JsResult<JsUndefined> {
         callback: callback.root(&mut cx),
     };
     if let Err(err) = worker.sender.blocking_send(request) {
-        callback_with_error(&mut cx, callback, |cx| UNEXPECTED_ERROR.from_error(cx, err))?;
+        callback_with_unexpected_error(&mut cx, callback, err)?;
     }
     Ok(cx.undefined())
 }
@@ -511,7 +526,7 @@ fn worker_complete_activity_task(mut cx: FunctionContext) -> JsResult<JsUndefine
                 callback: callback.root(&mut cx),
             };
             if let Err(err) = worker.sender.blocking_send(request) {
-                callback_with_error(&mut cx, callback, |cx| UNEXPECTED_ERROR.from_error(cx, err))?;
+                callback_with_unexpected_error(&mut cx, callback, err)?;
             };
         }
         Err(_) => callback_with_error(&mut cx, callback, |cx| {
@@ -536,7 +551,7 @@ fn worker_record_activity_heartbeat(mut cx: FunctionContext) -> JsResult<JsUndef
                 callback: callback.root(&mut cx),
             };
             if let Err(err) = worker.sender.blocking_send(request) {
-                callback_with_error(&mut cx, callback, |cx| UNEXPECTED_ERROR.from_error(cx, err))?;
+                callback_with_unexpected_error(&mut cx, callback, err)?;
             };
         }
         Err(_) => callback_with_error(&mut cx, callback, |cx| {

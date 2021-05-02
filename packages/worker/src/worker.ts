@@ -791,6 +791,7 @@ export class Worker {
       } catch (err) {
         // Transform a Workflow error into an activation with a single removeFromCache job
         if (err instanceof errors.WorkflowError) {
+          this.log.warn('Poll resulted in WorkflowError, converting to a removeFromCache job', { runId: err.runId });
           return coresdk.workflow_activation.WFActivation.create({
             runId: err.runId,
             jobs: [{ removeFromCache: true }],
@@ -819,7 +820,7 @@ export class Worker {
       throw new TypeError('Worker taskQueue not defined');
     }
 
-    // Comsume activations from Core and the feedback subject
+    // Consume activations from Core and the feedback subject
     return merge(
       this.workflowPoll$(),
       // We can stop subscribing to this when we're in DRAINING state,
@@ -871,11 +872,11 @@ export class Worker {
     return takeUntil(this.stateSubject.pipe(filter((value) => value === state)));
   }
 
-  protected takeUntilIdle<T>(numInFlightTasksSubject: Observable<number>): MonoTypeOperatorFunction<T> {
+  protected takeUntilIdle<T>(numInFlightActivitiesSubject: Observable<number>): MonoTypeOperatorFunction<T> {
     return takeUntil(
       merge(
         this.stateSubject.pipe(map((state) => ({ state }))),
-        numInFlightTasksSubject.pipe(map((numInFlightActivations) => ({ numInFlightActivations })))
+        numInFlightActivitiesSubject.pipe(map((numInFlightActivations) => ({ numInFlightActivations })))
       ).pipe(
         scan(
           (acc: { state?: State; numInFlightActivations?: number }, curr) => ({
