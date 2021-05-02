@@ -14,25 +14,9 @@
  * ### Examples
  *
  * #### An Activity that fakes progress and can be cancelled
- * ```ts
- * import { Context, CancellationError } from '@temporalio/activity';
  *
- * export async function fakeProgress(): Promise<void> {
- *   try {
- *     for (let progress = 1; progress <= 100; ++progress) {
- *       const timer = new Promise((resolve) => setTimeout(resolve, 1000));
- *       // sleep for 1 second or throw if Activity is cancelled
- *       await Promise.race([Context.current().cancelled, timer]);
- *       Context.current().heartbeat(progress);
- *     }
- *   } catch (err) {
- *     if (err instanceof CancellationError) {
- *       // Cleanup
- *     }
- *     throw err;
- *   }
- * }
- * ```
+ * <!--SNIPSTART nodejs-activity-fake-progress-->
+ * <!--SNIPEND-->
  *
  * #### An Activity that makes a cancellable HTTP request
  * ```ts
@@ -195,5 +179,15 @@ export class Context {
       throw new Error('Activity context not initialized');
     }
     return store;
+  }
+
+  /**
+   * Helper function for sleeping in an Activity.
+   * @param ms duration in milliseconds
+   * @returns a Promise that either resolves when deadline is reached or rejects when the Context is cancelled
+   */
+  public sleep(ms: number): Promise<void> {
+    const timer = new Promise<void>((resolve) => setTimeout(resolve, ms));
+    return Promise.race([this.cancelled, timer]);
   }
 }
