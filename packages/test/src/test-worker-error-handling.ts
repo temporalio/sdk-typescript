@@ -4,6 +4,7 @@ import { Subject } from 'rxjs';
 import { first, take, toArray } from 'rxjs/operators';
 import { v4 as uuid4 } from 'uuid';
 import { errors } from '@temporalio/worker';
+import { ActivationWithContext } from '@temporalio/worker/lib/worker';
 import { coresdk } from '@temporalio/proto';
 import { msToTs } from '@temporalio/workflow/commonjs/time';
 import { ResolvablePromise } from '@temporalio/workflow/commonjs/common';
@@ -13,7 +14,7 @@ import { Worker, makeDefaultWorker } from './mock-native-worker';
 
 export interface Context {
   worker: Worker;
-  feedbackSubject: Subject<coresdk.workflow_activation.WFActivation>;
+  feedbackSubject: Subject<ActivationWithContext>;
 }
 
 export const test = anyTest as TestInterface<Context>;

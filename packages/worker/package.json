@@ -21,6 +21,7 @@
   "license": "MIT",
   "dependencies": {
     "@babel/core": "^7.13.10",
+    "@opentelemetry/api": "^1.0.0-rc.0",
     "@temporalio/activity": "file:../activity",
     "@temporalio/proto": "file:../proto",
     "@temporalio/workflow": "file:../workflow",

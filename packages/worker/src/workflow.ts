@@ -1,4 +1,5 @@
 import ivm from 'isolated-vm';
+import * as otel from '@opentelemetry/api';
 import Long from 'long';
 import dedent from 'dedent';
 import { coresdk } from '@temporalio/proto';
@@ -6,6 +7,7 @@ import * as internals from '@temporalio/workflow/commonjs/internals';
 import * as init from '@temporalio/workflow/commonjs/init';
 import { ActivityOptions, validateActivityOptions } from '@temporalio/workflow';
 import { Loader } from './loader';
+import { tracer } from './tracing';
 
 export enum ApplyMode {
   ASYNC = 'apply',
@@ -36,7 +38,8 @@ export class Workflow {
     id: string,
     randomnessSeed: Long,
     taskQueue: string,
-    activityDefaults: ActivityOptions
+    activityDefaults: ActivityOptions,
+    span?: otel.Span
   ): Promise<Workflow> {
     const isolate = new ivm.Isolate();
     const context = await isolate.createContext();
@@ -49,7 +52,15 @@ export class Workflow {
     const loader = new Loader(isolate, context);
     const protobufModule = await loader.loadModule(require.resolve('@temporalio/proto/es2020/protobuf.js'));
     loader.overrideModule('protobufjs/minimal', protobufModule);
+    let child: otel.Span | undefined = undefined;
+    if (span) {
+      const context = otel.setSpan(otel.context.active(), span);
+      child = tracer.startSpan('load.protos.module', undefined, context);
+    }
     const protosModule = await loader.loadModule(require.resolve('@temporalio/proto/es2020/index.js'));
+    if (child) {
+      child.end();
+    }
     loader.overrideModule('@temporalio/proto', protosModule);
     const workflowInternals = await loader.loadModule(require.resolve('@temporalio/workflow/es2020/internals.js'));
     const workflowModule = await loader.loadModule(require.resolve('@temporalio/workflow/es2020/index.js'));
