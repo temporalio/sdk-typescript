@@ -1,6 +1,7 @@
 import fetch from 'node-fetch';
-import { Context } from '@temporalio/activity';
+import { Context, CancellationError } from '@temporalio/activity';
 import { Connection } from '@temporalio/client';
+import { fakeProgress as fakeProgressInner } from './fake-progress';
 
 async function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -26,6 +27,25 @@ async function signalSchedulingWorkflow(signalName: string) {
     workflowExecution: Context.current().info.workflowExecution,
     signalName,
   });
+}
+
+export async function fakeProgress(sleepIntervalMs = 1000): Promise<void> {
+  await signalSchedulingWorkflow('activityStarted');
+  try {
+    await fakeProgressInner(sleepIntervalMs);
+  } catch (err) {
+    if (err instanceof CancellationError) {
+      try {
+        await signalSchedulingWorkflow('activityCancelled');
+      } catch (signalErr) {
+        if (signalErr.details !== 'workflow execution already completed') {
+          // Throw to avoid calling /finish
+          throw signalErr;
+        }
+      }
+    }
+    throw err;
+  }
 }
 
 export async function cancellableFetch(url: string, signalWorkflowOnCheckpoint = false): Promise<Uint8Array> {
