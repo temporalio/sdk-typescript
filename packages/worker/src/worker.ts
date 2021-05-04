@@ -22,12 +22,14 @@ import {
   delay,
   filter,
   first,
+  groupBy,
   ignoreElements,
   map,
   mapTo,
   mergeMap,
   repeat,
   takeUntil,
+  takeWhile,
   tap,
   scan,
 } from 'rxjs/operators';
@@ -671,6 +673,7 @@ export class Worker {
         return merge(
           group$,
           this.workflowsIdle$().pipe(
+            first(),
             map(
               (): ContextAware<{ activation: coresdk.workflow_activation.WFActivation; span: otel.Span }> => {
                 const parentSpan = tracer.startSpan('workflow.shutdown.evict');
@@ -795,7 +798,8 @@ export class Worker {
               group$.close();
               this.numRunningWorkflowInstancesSubject.next(this.numRunningWorkflowInstancesSubject.value - 1);
             }
-          })
+          }),
+          takeWhile(({ close }) => !close, true /* inclusive */)
         );
       }),
       tap(() => {
