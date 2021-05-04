@@ -7,7 +7,7 @@ import * as internals from '@temporalio/workflow/commonjs/internals';
 import * as init from '@temporalio/workflow/commonjs/init';
 import { ActivityOptions, validateActivityOptions } from '@temporalio/workflow';
 import { Loader } from './loader';
-import { tracer } from './tracing';
+import { tracer, childSpan } from './tracing';
 
 export enum ApplyMode {
   ASYNC = 'apply',
@@ -54,8 +54,7 @@ export class Workflow {
     loader.overrideModule('protobufjs/minimal', protobufModule);
     let child: otel.Span | undefined = undefined;
     if (span) {
-      const context = otel.setSpan(otel.context.active(), span);
-      child = tracer.startSpan('load.protos.module', undefined, context);
+      child = childSpan(span, 'load.protos.module');
     }
     const protosModule = await loader.loadModule(require.resolve('@temporalio/proto/es2020/index.js'));
     if (child) {

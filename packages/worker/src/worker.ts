@@ -888,8 +888,7 @@ export class Worker {
     ).pipe(
       this.workflowOperator(),
       mergeMap(async ({ completion, parentSpan: root }) => {
-        const context = otel.setSpan(otel.context.active(), root);
-        const span = tracer.startSpan('complete', undefined, context);
+        const span = childSpan(root, 'complete');
         try {
           await this.nativeWorker.completeWorkflowActivation(completion.buffer.slice(completion.byteOffset));
           span.setStatus({ code: otel.SpanStatusCode.OK });
