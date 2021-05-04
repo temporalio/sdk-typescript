@@ -747,15 +747,9 @@ export class Worker {
                   workflow = createdWF;
                   // TODO: this probably shouldn't be here, consider alternative implementation
                   await instrument(span, 'workflow.inject.console', () => createdWF.inject('console.log', console.log));
-                  await instrument(span, 'workflow.register.activities', () =>
-                    createdWF.registerActivities(this.resolvedActivities, this.options.activityDefaults)
-                  );
-                  const scriptName = await instrument(span, 'workflow.resolve.script', () =>
-                    resolver(this.options.workflowsPath, this.workflowOverrides)(workflowType)
-                  );
-                  await instrument(span, 'workflow.register.implementation', () =>
-                    createdWF.registerImplementation(scriptName)
-                  );
+                  // await instrument(span, 'workflow.register.activities', () =>
+                  //   createdWF.registerActivities(this.resolvedActivities, this.options.activityDefaults)
+                  // );
                 } else {
                   throw new IllegalStateError(
                     'Received workflow activation for an untracked workflow with no start workflow job'

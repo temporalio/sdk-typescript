@@ -1,5 +1,6 @@
 import ivm from 'isolated-vm';
 import * as otel from '@opentelemetry/api';
+import { readFile } from 'fs-extra';
 import Long from 'long';
 import dedent from 'dedent';
 import { coresdk } from '@temporalio/proto';
@@ -42,32 +43,26 @@ export class Workflow {
     randomnessSeed: Long,
     taskQueue: string,
     activityDefaults: ActivityOptions,
-    span?: otel.Span
+    _span?: otel.Span
   ): Promise<Workflow> {
     const isolate = new ivm.Isolate();
     const context = await isolate.createContext();
 
     const runtime = await runtimeModule.create(context);
 
-    const loader = new Loader(isolate, context);
-    const protobufModule = await loader.loadModule(require.resolve('@temporalio/proto/es2020/protobuf.js'));
-    loader.overrideModule('protobufjs/minimal', protobufModule);
-    let child: otel.Span | undefined = undefined;
-    if (span) {
-      child = childSpan(span, 'load.protos.module');
-    }
-    const protosModule = await loader.loadModule(require.resolve('@temporalio/proto/es2020/index.js'));
-    if (child) {
-      child.end();
-    }
-    loader.overrideModule('@temporalio/proto', protosModule);
-    const workflowInternals = await loader.loadModule(require.resolve('@temporalio/workflow/es2020/internals.js'));
-    const workflowModule = await loader.loadModule(require.resolve('@temporalio/workflow/es2020/index.js'));
-    const initModule = await loader.loadModule(require.resolve('@temporalio/workflow/es2020/init.js'));
-    const activate = await workflowInternals.namespace.get('activate');
-    const concludeActivation = await workflowInternals.namespace.get('concludeActivation');
-    const initWorkflow: ivm.Reference<typeof init.initWorkflow> = await initModule.namespace.get('initWorkflow');
-    loader.overrideModule('@temporalio/workflow', workflowModule);
+    const code = await readFile(`${__dirname}/../../../dist/main.js`, 'utf8');
+
+    await context.eval(code);
+    const activate: WorkflowModule['activate'] = await context.eval(`__temporal__.internals.activate`, {
+      reference: true,
+    });
+    const concludeActivation: WorkflowModule['concludeActivation'] = await context.eval(
+      `__temporal__.internals.concludeActivation`,
+      { reference: true }
+    );
+    const initWorkflow: ivm.Reference<typeof init.initWorkflow> = await context.eval(`__temporal__.initWorkflow`, {
+      reference: true,
+    });
 
     await initWorkflow.apply(
       undefined,
@@ -76,39 +71,16 @@ export class Workflow {
         arguments: { copy: true },
       }
     );
+    await context.eval(`__temporal__.registerWorkflow(lib.workflow || lib)`);
 
+    const loader = new Loader(isolate, context);
     return new Workflow(id, isolate, context, loader, { activate, concludeActivation });
   }
 
   public async registerActivities(
     activities: Map<string, Record<string, any>>,
     options: ActivityOptions
-  ): Promise<void> {
-    validateActivityOptions(options);
-    const serializedOptions = JSON.stringify(options);
-    for (const [specifier, module] of activities.entries()) {
-      let code = dedent`
-        import { scheduleActivity } from '@temporalio/workflow';
-      `;
-      for (const [k, v] of Object.entries(module)) {
-        if (v instanceof Function) {
-          // Activities are identified by their module specifier and name.
-          // We double stringify below to generate a string containing a JSON array.
-          const type = JSON.stringify(JSON.stringify([specifier, k]));
-          // TODO: Validate k against pattern
-          code += dedent`
-            export function ${k}(...args) {
-              return scheduleActivity(${type}, args, ${serializedOptions});
-            }
-            ${k}.type = ${type};
-            ${k}.options = ${serializedOptions};
-          `;
-        }
-      }
-      const compiled = await this.loader.loadModuleFromSource(code, { path: specifier, type: 'esmodule' });
-      this.loader.overrideModule(specifier, compiled);
-    }
-  }
+  ): Promise<void> {}
 
   public async inject(
     path: string,

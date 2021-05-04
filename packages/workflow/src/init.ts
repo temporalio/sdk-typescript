@@ -121,3 +121,8 @@ export function initWorkflow(
 export function registerWorkflow(workflow: Workflow): void {
   state.workflow = workflow;
 }
+
+(globalThis as any).__temporal__ = Object.assign((globalThis as any).__temporal__ || {}, {
+  initWorkflow,
+  registerWorkflow,
+});
