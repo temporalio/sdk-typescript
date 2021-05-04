@@ -357,7 +357,6 @@ export class Worker {
     taskToken: Uint8Array;
     details?: any;
   }>();
-  protected readonly activityFeedbackSubject = new Subject<coresdk.activity_task.ActivityTask>();
   protected readonly stateSubject = new BehaviorSubject<State>('INITIALIZED');
   protected readonly numInFlightActivationsSubject = new BehaviorSubject<number>(0);
   protected readonly numRunningWorkflowInstancesSubject = new BehaviorSubject<number>(0);
@@ -828,23 +827,9 @@ export class Worker {
           taskToken,
           details: [payload],
         }).finish();
-        try {
-          await this.nativeWorker.recordActivityHeartbeat(
-            arr.buffer.slice(arr.byteOffset, arr.byteLength + arr.byteOffset)
-          );
-        } catch (err) {
-          if (err instanceof errors.ShutdownError) {
-            throw err;
-          }
-          // We assume any error here means we should cancel the offending Activity
-          this.activityFeedbackSubject.next(
-            coresdk.activity_task.ActivityTask.create({
-              taskToken,
-              // TODO: activityId,
-              cancel: {},
-            })
-          );
-        }
+        await this.nativeWorker.recordActivityHeartbeat(
+          arr.buffer.slice(arr.byteOffset, arr.byteLength + arr.byteOffset)
+        );
       }),
       catchError((err) => (err instanceof errors.ShutdownError ? EMPTY : throwError(err)))
     );
@@ -943,7 +928,7 @@ export class Worker {
   }
 
   protected activity$(): Observable<void> {
-    return merge(this.activityPoll$(), this.activityFeedbackSubject.pipe(this.takeUntilState('DRAINING'))).pipe(
+    return this.activityPoll$().pipe(
       this.activityOperator(),
       mergeMap((arr) => this.nativeWorker.completeActivityTask(arr.buffer.slice(arr.byteOffset))),
       tap({ complete: () => this.log.debug('Activities complete') })

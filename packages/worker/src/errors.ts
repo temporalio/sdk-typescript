@@ -32,13 +32,6 @@ export class UnexpectedError extends Error {
 }
 
 /**
- * Activity heartbeat can not be sent, the activity should be cancelled
- */
-export class ActivityHeartbeatError extends Error {
-  public readonly name = 'ActivityHeartbeatError';
-}
-
-/**
  * Thrown from JS if Worker does not shutdown in configured period
  */
 export class GracefulShutdownPeriodExpiredError extends Error {

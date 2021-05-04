@@ -7,8 +7,8 @@ use std::{fmt::Display, future::Future, sync::Arc, time::Duration};
 use temporal_sdk_core::{
     init, protos::coresdk::workflow_completion::WfActivationCompletion,
     protos::coresdk::ActivityHeartbeat, protos::coresdk::ActivityTaskCompletion, tracing_init,
-    ActivityHeartbeatError, CompleteActivityError, CompleteWfError, Core, CoreInitError,
-    CoreInitOptions, PollActivityError, PollWfError, ServerGatewayOptions, Url,
+    CompleteActivityError, CompleteWfError, Core, CoreInitError, CoreInitOptions,
+    PollActivityError, PollWfError, ServerGatewayOptions, Url,
 };
 use tokio::sync::mpsc::{channel, Sender};
 
@@ -274,20 +274,16 @@ fn start_bridge_loop(
                                 tokio::spawn(void_future_to_js(
                                     queue,
                                     callback,
-                                    async move { core.record_activity_heartbeat(heartbeat).await },
-                                    |cx, err| match err {
-                                        ActivityHeartbeatError::ShuttingDown => {
-                                            SHUTDOWN_ERROR.from_error(cx, err)
-                                        }
-                                        ActivityHeartbeatError::HeartbeatTimeoutNotSet
-                                        | ActivityHeartbeatError::UnknownActivity => {
-                                            ACTIVITY_HEARTBEAT_ERROR.from_error(cx, err)
-                                        }
-                                        ActivityHeartbeatError::InvalidHeartbeatTimeout => {
-                                            Ok(JsError::type_error(cx, format!("{}", err))?
-                                                .upcast())
+                                    async move {
+                                        match core.record_activity_heartbeat(heartbeat).await {
+                                            Ok(_) => Ok(()),
+                                            // record_activity_heartbeat returns Result<(), ()>
+                                            // where () does not implement display, translate to
+                                            // a displayable error.
+                                            Err(_) => Err("Unexpected error during heartbeat"),
                                         }
                                     },
+                                    |cx, err| UNEXPECTED_ERROR.from_error(cx, err),
                                 ));
                             }
                         }
