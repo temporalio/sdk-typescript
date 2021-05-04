@@ -704,7 +704,7 @@ export class Worker {
             const close = jobs.length < activation.jobs.length;
             activation.jobs = jobs;
             if (jobs.length === 0) {
-              workflow?.isolate.dispose();
+              workflow?.dispose();
               if (!close) {
                 const message = 'Got a Workflow activation with no jobs';
                 span.setStatus({ code: otel.SpanStatusCode.ERROR, message });
@@ -780,7 +780,7 @@ export class Worker {
                     },
                   }).finish();
                 }
-                workflow?.isolate.dispose();
+                workflow?.dispose();
                 span.setStatus({ code: otel.SpanStatusCode.ERROR, message: error.message });
                 return { state: undefined, output: { close: true, completion, span, parentSpan: root } };
               }
