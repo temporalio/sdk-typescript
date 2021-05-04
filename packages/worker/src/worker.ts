@@ -22,7 +22,6 @@ import {
   delay,
   filter,
   first,
-  groupBy,
   ignoreElements,
   map,
   mapTo,

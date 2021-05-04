@@ -7,7 +7,7 @@ import * as internals from '@temporalio/workflow/commonjs/internals';
 import * as init from '@temporalio/workflow/commonjs/init';
 import { ActivityOptions, validateActivityOptions } from '@temporalio/workflow';
 import { Loader } from './loader';
-import { tracer, childSpan } from './tracing';
+import { childSpan } from './tracing';
 
 export enum ApplyMode {
   ASYNC = 'apply',
