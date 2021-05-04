@@ -4,6 +4,8 @@
     "doc": "docs"
   },
   "devDependencies": {
+    "@opentelemetry/exporter-jaeger": "^0.19.0",
+    "@opentelemetry/sdk-node": "^0.19.0",
     "@tsconfig/node12": "^1.0.7",
     "@types/babel__core": "^7.1.14",
     "@types/dedent": "^0.7.0",
@@ -23,6 +25,7 @@
     "fs-extra": "^9.1.0",
     "json5": "^2.2.0",
     "lerna": "^4.0.0",
+    "long": "^4.0.0",
     "prettier": "^2.2.1",
     "tail": "^2.2.1",
     "ts-node": "^9.1.1",

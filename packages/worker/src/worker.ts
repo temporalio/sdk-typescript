@@ -2,6 +2,7 @@ import { basename, extname, resolve } from 'path';
 import os from 'os';
 import { readdirSync } from 'fs';
 import { promisify } from 'util';
+import * as otel from '@opentelemetry/api';
 import {
   BehaviorSubject,
   EMPTY,
@@ -21,11 +22,14 @@ import {
   delay,
   filter,
   first,
+  groupBy,
   ignoreElements,
   map,
+  mapTo,
   mergeMap,
   repeat,
   takeUntil,
+  takeWhile,
   tap,
   scan,
 } from 'rxjs/operators';
@@ -48,6 +52,7 @@ import { Workflow } from './workflow';
 import { Activity } from './activity';
 import { DefaultLogger, Logger } from './logger';
 import * as errors from './errors';
+import { tracer, instrument, childSpan } from './tracing';
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
 import pkg from '../package.json';
@@ -290,6 +295,14 @@ type OmitFirstParam<T> = T extends (...args: any[]) => any
 type Promisify<T> = T extends (...args: any[]) => void
   ? (...args: OmitLast<Parameters<T>>) => ExtractToPromise<LastParameter<T>>
   : never;
+
+type ContextAware<T> = T & {
+  parentSpan: otel.Span;
+};
+
+export type ActivationWithContext = ContextAware<{
+  activation: coresdk.workflow_activation.WFActivation;
+}>;
 
 export interface NativeWorkerLike {
   shutdown: Promisify<OmitFirstParam<typeof native.workerShutdown>>;
@@ -641,38 +654,72 @@ export class Worker {
   /**
    * Process workflow activations
    */
-  protected workflowOperator(): OperatorFunction<coresdk.workflow_activation.WFActivation, Uint8Array> {
+  protected workflowOperator(): OperatorFunction<ActivationWithContext, ContextAware<{ completion: Uint8Array }>> {
     return pipe(
       tap(() => {
         this.numInFlightActivationsSubject.next(this.numInFlightActivationsSubject.value + 1);
       }),
-      closeableGroupBy((task) => task.runId),
+      map((awc) => ({
+        ...awc,
+        span: childSpan(awc.parentSpan, 'process', {
+          attributes: {
+            numInFlightActivations: this.numInFlightActivationsSubject.value,
+            numRunningWorkflowInstances: this.numRunningWorkflowInstancesSubject.value,
+          },
+        }),
+      })),
+      closeableGroupBy(({ activation }) => activation.runId),
       mergeMap((group$) => {
-        return group$.pipe(
-          // TODO: We close the Observable here but we should make sure to dispose of the isolate
-          this.takeUntilWorkflowsIdle(),
-          mergeMapWithState(async (workflow: Workflow | undefined, task): Promise<{
+        return merge(
+          group$,
+          this.workflowsIdle$().pipe(
+            first(),
+            map(
+              (): ContextAware<{ activation: coresdk.workflow_activation.WFActivation; span: otel.Span }> => {
+                const parentSpan = tracer.startSpan('workflow.shutdown.evict');
+                return {
+                  parentSpan,
+                  span: childSpan(parentSpan, 'process', {
+                    attributes: {
+                      numInFlightActivations: this.numInFlightActivationsSubject.value,
+                      numRunningWorkflowInstances: this.numRunningWorkflowInstancesSubject.value,
+                    },
+                  }),
+                  activation: coresdk.workflow_activation.WFActivation.create({
+                    taskToken: new Uint8Array([]),
+                    runId: group$.key,
+                    jobs: [{ removeFromCache: true }],
+                  }),
+                };
+              }
+            )
+          )
+        ).pipe(
+          mergeMapWithState(async (workflow: Workflow | undefined, { activation, span, parentSpan: root }): Promise<{
             state: Workflow | undefined;
-            output: { arr?: Uint8Array; close: boolean };
+            output: ContextAware<{ completion?: Uint8Array; close: boolean; span: otel.Span }>;
           }> => {
-            const taskToken = formatTaskToken(task.taskToken);
-            const jobs = task.jobs.filter(({ removeFromCache }) => !removeFromCache);
+            const taskToken = formatTaskToken(activation.taskToken);
+            const jobs = activation.jobs.filter(({ removeFromCache }) => !removeFromCache);
             // Found a removeFromCache job
-            const close = jobs.length < task.jobs.length;
-            task.jobs = jobs;
+            const close = jobs.length < activation.jobs.length;
+            activation.jobs = jobs;
             if (jobs.length === 0) {
               workflow?.isolate.dispose();
               if (!close) {
-                throw new IllegalStateError('Got a Workflow activation with no jobs');
+                const message = 'Got a Workflow activation with no jobs';
+                span.setStatus({ code: otel.SpanStatusCode.ERROR, message });
+                throw new IllegalStateError(message);
               }
-              return { state: undefined, output: { close, arr: undefined } };
+              span.setStatus({ code: otel.SpanStatusCode.OK });
+              return { state: undefined, output: { close, completion: undefined, span, parentSpan: root } };
             }
 
             if (workflow === undefined) {
               try {
                 // Find a workflow start job in the activation jobs list
                 // TODO: should this always be the first job in the list?
-                const maybeStartWorkflow = task.jobs.find((j) => j.startWorkflow);
+                const maybeStartWorkflow = activation.jobs.find((j) => j.startWorkflow);
                 if (maybeStartWorkflow !== undefined) {
                   const attrs = maybeStartWorkflow.startWorkflow;
                   if (!(attrs && attrs.workflowId && attrs.workflowType && attrs.randomnessSeed)) {
@@ -682,71 +729,84 @@ export class Worker {
                       )}`
                     );
                   }
+                  const { workflowId, randomnessSeed, workflowType } = attrs;
                   this.log.debug('Creating workflow', {
                     taskToken,
                     workflowId: attrs.workflowId,
-                    runId: task.runId,
+                    runId: activation.runId,
                   });
-                  workflow = await Workflow.create(
-                    attrs.workflowId,
-                    attrs.randomnessSeed,
-                    this.options.taskQueue,
-                    this.options.activityDefaults
-                  );
-                  // TODO: this probably shouldn't be here, consider alternative implementation
-                  await workflow.inject('console.log', console.log);
-                  await workflow.registerActivities(this.resolvedActivities, this.options.activityDefaults);
-                  const scriptName = await resolver(
-                    this.options.workflowsPath,
-                    this.workflowOverrides
-                  )(attrs.workflowType);
-                  await workflow.registerImplementation(scriptName);
                   this.numRunningWorkflowInstancesSubject.next(this.numRunningWorkflowInstancesSubject.value + 1);
+                  // workflow type is Workflow | undefined which doesn't work in the instrumented closures, create add local variable with type Workflow.
+                  const createdWF = await instrument(span, 'workflow.create', (childSpan) =>
+                    Workflow.create(
+                      workflowId,
+                      randomnessSeed,
+                      this.options.taskQueue,
+                      this.options.activityDefaults,
+                      childSpan
+                    )
+                  );
+                  workflow = createdWF;
+                  // TODO: this probably shouldn't be here, consider alternative implementation
+                  await instrument(span, 'workflow.inject.console', () => createdWF.inject('console.log', console.log));
+                  await instrument(span, 'workflow.register.activities', () =>
+                    createdWF.registerActivities(this.resolvedActivities, this.options.activityDefaults)
+                  );
+                  const scriptName = await instrument(span, 'workflow.resolve.script', () =>
+                    resolver(this.options.workflowsPath, this.workflowOverrides)(workflowType)
+                  );
+                  await instrument(span, 'workflow.register.implementation', () =>
+                    createdWF.registerImplementation(scriptName)
+                  );
                 } else {
                   throw new IllegalStateError(
                     'Received workflow activation for an untracked workflow with no start workflow job'
                   );
                 }
               } catch (error) {
-                this.log.error('Failed to create a workflow', { taskToken, runId: task.runId, error });
-                let arr: Uint8Array;
+                this.log.error('Failed to create a workflow', { taskToken, runId: activation.runId, error });
+                let completion: Uint8Array;
                 if (error instanceof LoaderError) {
-                  arr = coresdk.workflow_completion.WFActivationCompletion.encodeDelimited({
-                    taskToken: task.taskToken,
+                  completion = coresdk.workflow_completion.WFActivationCompletion.encodeDelimited({
+                    taskToken: activation.taskToken,
                     successful: {
                       commands: [{ failWorkflowExecution: { failure: errorToUserCodeFailure(error) } }],
                     },
                   }).finish();
                 } else {
-                  arr = coresdk.workflow_completion.WFActivationCompletion.encodeDelimited({
-                    taskToken: task.taskToken,
+                  completion = coresdk.workflow_completion.WFActivationCompletion.encodeDelimited({
+                    taskToken: activation.taskToken,
                     failed: {
                       failure: errorToUserCodeFailure(error),
                     },
                   }).finish();
                 }
                 workflow?.isolate.dispose();
-                return { state: undefined, output: { close: true, arr } };
+                span.setStatus({ code: otel.SpanStatusCode.ERROR, message: error.message });
+                return { state: undefined, output: { close: true, completion, span, parentSpan: root } };
               }
             }
 
-            const arr = await workflow.activate(task.taskToken, task);
+            const completion = await workflow.activate(activation.taskToken, activation);
 
-            return { state: workflow, output: { close, arr } };
+            span.setStatus({ code: otel.SpanStatusCode.OK });
+            return { state: workflow, output: { close, completion, span, parentSpan: root } };
           }, undefined),
-          tap(({ close }) => {
+          tap(({ close, span }) => {
+            span.setAttribute('close', close).end();
             if (close) {
               group$.close();
               this.numRunningWorkflowInstancesSubject.next(this.numRunningWorkflowInstancesSubject.value - 1);
             }
-          })
+          }),
+          takeWhile(({ close }) => !close, true /* inclusive */)
         );
       }),
-      map(({ arr }) => arr),
       tap(() => {
         this.numInFlightActivationsSubject.next(this.numInFlightActivationsSubject.value - 1);
       }),
-      filter((arr): arr is Uint8Array => arr !== undefined)
+      map(({ completion, parentSpan }) => ({ completion, parentSpan })),
+      filter((result): result is ContextAware<{ completion: Uint8Array }> => result.completion !== undefined)
     );
   }
 
@@ -793,23 +853,31 @@ export class Worker {
   /**
    * Poll core for `WFActivation`s while respecting worker state
    */
-  protected workflowPoll$(): Observable<coresdk.workflow_activation.WFActivation> {
+  protected workflowPoll$(): Observable<ActivationWithContext> {
     return this.pollLoop$(async () => {
+      const parentSpan = tracer.startSpan('workflow.activation');
       try {
-        const buffer = await this.nativeWorker.pollWorkflowActivation();
-        const task = coresdk.workflow_activation.WFActivation.decode(new Uint8Array(buffer));
-        const { taskToken, ...rest } = task;
-        this.log.debug('Got workflow activation', { taskToken: formatTaskToken(taskToken), ...rest });
-        return task;
+        return await instrument(parentSpan, 'poll', async (span) => {
+          const buffer = await this.nativeWorker.pollWorkflowActivation();
+          const activation = coresdk.workflow_activation.WFActivation.decode(new Uint8Array(buffer));
+          const { taskToken, ...rest } = activation;
+          this.log.debug('Got workflow activation', { taskToken: formatTaskToken(taskToken), ...rest });
+          span.setAttribute('runId', rest.runId).setAttribute('numJobs', rest.jobs.length);
+          return { activation, parentSpan };
+        });
       } catch (err) {
         // Transform a Workflow error into an activation with a single removeFromCache job
         if (err instanceof errors.WorkflowError) {
           this.log.warn('Poll resulted in WorkflowError, converting to a removeFromCache job', { runId: err.runId });
-          return coresdk.workflow_activation.WFActivation.create({
-            runId: err.runId,
-            jobs: [{ removeFromCache: true }],
-          });
+          return {
+            parentSpan,
+            activation: coresdk.workflow_activation.WFActivation.create({
+              runId: err.runId,
+              jobs: [{ removeFromCache: true }],
+            }),
+          };
         } else {
+          parentSpan.end();
           throw err;
         }
       }
@@ -821,9 +889,7 @@ export class Worker {
    *
    * @param workflowCompletionFeedbackSubject used to send back cache evictions when completing an activation with a WorkflowError
    */
-  protected workflow$(
-    workflowCompletionFeedbackSubject = new Subject<coresdk.workflow_activation.WFActivation>()
-  ): Observable<void> {
+  protected workflow$(workflowCompletionFeedbackSubject = new Subject<ActivationWithContext>()): Observable<void> {
     if (this.options.taskQueue === undefined) {
       throw new TypeError('Worker taskQueue not defined');
     }
@@ -836,20 +902,28 @@ export class Worker {
       workflowCompletionFeedbackSubject.pipe(this.takeUntilState('DRAINING'))
     ).pipe(
       this.workflowOperator(),
-      mergeMap(async (arr) => {
+      mergeMap(async ({ completion, parentSpan: root }) => {
+        const context = otel.setSpan(otel.context.active(), root);
+        const span = tracer.startSpan('complete', undefined, context);
         try {
-          return await this.nativeWorker.completeWorkflowActivation(arr.buffer.slice(arr.byteOffset));
+          await this.nativeWorker.completeWorkflowActivation(completion.buffer.slice(completion.byteOffset));
+          span.setStatus({ code: otel.SpanStatusCode.OK });
         } catch (err) {
+          span.setStatus({ code: otel.SpanStatusCode.ERROR, message: err.message });
           if (err instanceof errors.WorkflowError) {
-            workflowCompletionFeedbackSubject.next(
-              coresdk.workflow_activation.WFActivation.create({
+            workflowCompletionFeedbackSubject.next({
+              parentSpan: root,
+              activation: coresdk.workflow_activation.WFActivation.create({
                 runId: err.runId,
                 jobs: [{ removeFromCache: true }],
-              })
-            );
+              }),
+            });
           } else {
             throw err;
           }
+        } finally {
+          span.end();
+          root.end();
         }
       }),
       tap({ complete: () => this.log.debug('Workflows complete') })
@@ -880,21 +954,20 @@ export class Worker {
     return takeUntil(this.stateSubject.pipe(filter((value) => value === state)));
   }
 
-  protected takeUntilWorkflowsIdle<T>(): MonoTypeOperatorFunction<T> {
-    return takeUntil(
-      merge(
-        this.stateSubject.pipe(map((state) => ({ state }))),
-        this.numInFlightActivationsSubject.pipe(map((numInFlightActivations) => ({ numInFlightActivations })))
-      ).pipe(
-        scan(
-          (acc: { state?: State; numInFlightActivations?: number }, curr) => ({
-            ...acc,
-            ...curr,
-          }),
-          {}
-        ),
-        filter(({ state, numInFlightActivations }) => state === 'DRAINING' && numInFlightActivations === 0)
-      )
+  protected workflowsIdle$(): Observable<void> {
+    return merge(
+      this.stateSubject.pipe(map((state) => ({ state }))),
+      this.numInFlightActivationsSubject.pipe(map((numInFlightActivations) => ({ numInFlightActivations })))
+    ).pipe(
+      scan(
+        (acc: { state?: State; numInFlightActivations?: number }, curr) => ({
+          ...acc,
+          ...curr,
+        }),
+        {}
+      ),
+      filter(({ state, numInFlightActivations }) => state === 'DRAINING' && numInFlightActivations === 0),
+      mapTo(undefined)
     );
   }
 
