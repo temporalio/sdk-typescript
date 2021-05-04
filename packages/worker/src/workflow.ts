@@ -25,6 +25,9 @@ interface WorkflowModule {
   concludeActivation: ivm.Reference<typeof internals.concludeActivation>;
 }
 
+// Shared runtime module for all isolates, needs to be created in context.
+const runtimeModule = new ivm.NativeModule(require.resolve('../build/Release/temporalio-workflow-isolate-extension'));
+
 export class Workflow {
   private constructor(
     public readonly id: string,
@@ -44,9 +47,6 @@ export class Workflow {
     const isolate = new ivm.Isolate();
     const context = await isolate.createContext();
 
-    const runtimeModule = new ivm.NativeModule(
-      require.resolve('../build/Release/temporalio-workflow-isolate-extension')
-    );
     const runtime = await runtimeModule.create(context);
 
     const loader = new Loader(isolate, context);
