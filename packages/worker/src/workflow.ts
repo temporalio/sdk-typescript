@@ -1,6 +1,6 @@
 import ivm from 'isolated-vm';
 import * as otel from '@opentelemetry/api';
-import { readFile } from 'fs-extra';
+import { readFileSync } from 'fs-extra';
 import Long from 'long';
 import dedent from 'dedent';
 import { coresdk } from '@temporalio/proto';
@@ -28,6 +28,9 @@ interface WorkflowModule {
 
 // Shared runtime module for all isolates, needs to be created in context.
 const runtimeModule = new ivm.NativeModule(require.resolve('../build/Release/temporalio-workflow-isolate-extension'));
+const code = readFileSync(`${__dirname}/../../../dist/main.js`, 'utf8');
+const snapshot = ivm.Isolate.createSnapshot([{ code }]);
+const globalIsolate = new ivm.Isolate({ snapshot });
 
 export class Workflow {
   private constructor(
@@ -45,14 +48,11 @@ export class Workflow {
     activityDefaults: ActivityOptions,
     _span?: otel.Span
   ): Promise<Workflow> {
-    const isolate = new ivm.Isolate();
+    const isolate = globalIsolate;
     const context = await isolate.createContext();
 
     const runtime = await runtimeModule.create(context);
 
-    const code = await readFile(`${__dirname}/../../../dist/main.js`, 'utf8');
-
-    await context.eval(code);
     const activate: WorkflowModule['activate'] = await context.eval(`__temporal__.internals.activate`, {
       reference: true,
     });
@@ -153,11 +153,12 @@ export class Workflow {
   }
 
   /**
-   * Dispose of the isolate and context.
+   * Dispose of the isolate's context.
    * Do not use this Workflow instance after this method has been called.
    */
   public dispose(): void {
+    this.workflowModule.concludeActivation.release();
+    this.workflowModule.activate.release();
     this.context.release();
-    this.isolate.dispose();
   }
 }
