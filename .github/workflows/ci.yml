@@ -23,8 +23,6 @@ jobs:
       - name: Print build information
         run: 'echo head_ref: ${{ github.head_ref }}, ref: ${{ github.ref }}, os: ${{ matrix.os }}, node: ${{ matrix.node }}, docsTarget: ${{ toJson(matrix.docsTarget) }}'
       - uses: actions/checkout@v2
-        with:
-          submodules: recursive
       - uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
@@ -66,8 +64,6 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v2
-        with:
-          submodules: recursive
       - uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
@@ -104,7 +100,6 @@ jobs:
     runs-on: ${{ matrix.os }}
     needs: cross-compile
     steps:
-      # We don't need the core submodule here since bridge since we don't build the project
       - uses: actions/checkout@v2
       - uses: actions/setup-node@v1
         with:

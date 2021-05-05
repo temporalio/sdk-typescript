@@ -1,3 +1,0 @@
-[submodule "sdk-core"]
-	path = packages/worker/native/sdk-core
-	url = git@github.com:temporalio/sdk-core.git

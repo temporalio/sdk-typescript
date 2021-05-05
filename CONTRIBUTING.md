@@ -14,11 +14,6 @@ You will need to submit a CLA before we can accept your contribution. You only h
 
 - Install system dependencies including the rust toolchain by follow the instructions [here](https://docs.temporal.io/docs/node/getting-started#install-system-dependencies)
 - Clone the [sdk-node](https://github.com/temporalio/sdk-node) repo
-- Initialize the Core SDK submodule
-  ```sh
-  git submodule init
-  git submodule update
-  ```
 - Install the dependencies
   ```sh
   npm ci
