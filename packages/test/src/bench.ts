@@ -1,5 +1,6 @@
 import path from 'path';
 import arg from 'arg';
+import { URL } from 'url';
 import { range } from 'rxjs';
 import { mergeMap, take, tap, withLatestFrom } from 'rxjs/operators';
 import { Worker, DefaultLogger } from '@temporalio/worker';
@@ -72,6 +73,7 @@ async function main() {
     '--max-concurrent-wft-executions': Number,
     '--concurrent-wf-clients': Number,
     '--log-level': String,
+    '--server-address': String,
   });
   const workflowName = args['--workflow'] || 'cancel-fake-progress';
   const iterations = args['--iterations'] || 1000;
@@ -79,6 +81,8 @@ async function main() {
   const maxConcurrentWorkflowTaskExecutions = args['--max-concurrent-wft-executions'] || 10;
   const concurrentWFClients = args['--concurrent-wf-clients'] || 100;
   const logLevel = (args['--log-level'] || 'INFO').toUpperCase();
+  const serverAddress = args['--server-address'] || 'http://localhost:7233';
+  const serverUrl = new URL(serverAddress);
 
   // In order for JaegerExporter to transmit packets correctly, increase net.inet.udp.maxdgram to 65536.
   // See: https://github.com/jaegertracing/jaeger-client-node/issues/124#issuecomment-324222456
@@ -91,7 +95,7 @@ async function main() {
   await otel.start();
   const namespace = `bench-${new Date().toISOString()}`;
   const taskQueue = 'bench';
-  const connection = new Connection(undefined, { namespace });
+  const connection = new Connection({ address: serverUrl.host }, { namespace });
 
   await connection.service.registerNamespace({ namespace, workflowExecutionRetentionPeriod: msStrToTs('1 day') });
   console.log('Registered namespace', { namespace });
@@ -107,6 +111,7 @@ async function main() {
     logger: new DefaultLogger(logLevel as any),
     serverOptions: {
       namespace,
+      url: serverAddress,
     },
   });
   console.log('Created worker');
