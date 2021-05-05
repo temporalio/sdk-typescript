@@ -21,9 +21,11 @@ export async function runWorker(t: ExecutionContext<Context>, fn: () => Promise<
   await promise;
 }
 
-test.beforeEach((t) => {
+test.beforeEach(async (t) => {
+  const worker = makeDefaultWorker();
+  await worker.resolveActivities();
   t.context = {
-    worker: makeDefaultWorker(),
+    worker,
   };
 });
 

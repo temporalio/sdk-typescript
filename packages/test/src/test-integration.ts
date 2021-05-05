@@ -1,5 +1,5 @@
 /* eslint @typescript-eslint/no-non-null-assertion: 0 */
-import anyTest, { TestInterface, ExecutionContext } from 'ava';
+import anyTest, { TestInterface } from 'ava';
 import { v4 as uuid4 } from 'uuid';
 import { Connection } from '@temporalio/client';
 import { tsToMs } from '@temporalio/workflow/commonjs/time';
@@ -66,7 +66,7 @@ if (RUN_INTEGRATION_TESTS) {
     const client = new Connection();
     const workflow = client.workflow<Empty>('not-found', { taskQueue: 'test' });
     await t.throwsAsync(() => workflow.start(), {
-      message: /^Could not find file: \S+\/not-found.js$/,
+      message: 'Workflow not found',
       instanceOf: WorkflowExecutionFailedError,
     });
   });

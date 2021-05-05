@@ -368,7 +368,3 @@ export function childScope<T>(
   state.scopeStack.pop();
   return promise;
 }
-
-(globalThis as any).__temporal__ = Object.assign((globalThis as any).__temporal__ || {}, {
-  internals: { activate, concludeActivation },
-});

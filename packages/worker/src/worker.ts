@@ -1,7 +1,7 @@
 import { basename, extname, resolve } from 'path';
 import os from 'os';
-import { readdirSync } from 'fs';
 import { promisify } from 'util';
+import { readdir } from 'fs-extra';
 import * as otel from '@opentelemetry/api';
 import {
   BehaviorSubject,
@@ -32,6 +32,7 @@ import {
   tap,
   scan,
 } from 'rxjs/operators';
+import ivm from 'isolated-vm';
 import ms from 'ms';
 import { coresdk } from '@temporalio/proto';
 import { ActivityOptions } from '@temporalio/workflow';
@@ -46,10 +47,10 @@ import {
 } from '@temporalio/workflow/commonjs/converter/data-converter';
 import * as native from '../native';
 import { closeableGroupBy, mergeMapWithState } from './rxutils';
-import { LoaderError, resolveFilename } from './loader';
 import { Workflow } from './workflow';
 import { Activity } from './activity';
 import { DefaultLogger, Logger } from './logger';
+import { WorkflowIsolateBuilder } from './loader';
 import * as errors from './errors';
 import { tracer, instrument, childSpan } from './tracing';
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
@@ -202,18 +203,6 @@ export interface CompiledWorkerOptionsWithDefaults extends Omit<WorkerOptionsWit
   serverOptions: CompiledServerOptions;
 }
 
-export const resolver = (baseDir: string | undefined, overrides: Map<string, string>) => async (
-  lookupName: string
-): Promise<string> => {
-  const resolved = overrides.get(lookupName);
-  if (resolved !== undefined) return resolved;
-  if (baseDir === undefined) {
-    throw new LoaderError(`Could not find ${lookupName} in overrides and no baseDir provided`);
-  }
-
-  return resolveFilename(resolve(baseDir, lookupName));
-};
-
 export function getDefaultServerOptions(): Required<ServerOptions> {
   return {
     url: 'http://localhost:7233',
@@ -360,6 +349,7 @@ export class Worker {
   protected readonly numInFlightActivationsSubject = new BehaviorSubject<number>(0);
   protected readonly numRunningWorkflowInstancesSubject = new BehaviorSubject<number>(0);
   protected readonly nativeWorker: NativeWorkerLike;
+  protected isolate?: ivm.Isolate;
 
   protected static nativeWorkerCtor: WorkerConstructor = NativeWorker;
 
@@ -371,7 +361,9 @@ export class Worker {
     const nativeWorkerCtor: WorkerConstructor = this.nativeWorkerCtor;
     const compiledOptions = compileWorkerOptions(addDefaults(options));
     const nativeWorker = await nativeWorkerCtor.create(compiledOptions);
-    return new this(nativeWorker, compiledOptions);
+    const worker = new this(nativeWorker, compiledOptions);
+    await worker.prepare();
+    return worker;
   }
 
   /**
@@ -380,25 +372,51 @@ export class Worker {
    */
   protected constructor(nativeWorker: NativeWorkerLike, public readonly options: CompiledWorkerOptionsWithDefaults) {
     this.nativeWorker = nativeWorker;
-
     this.resolvedActivities = new Map();
-    if (this.options.activitiesPath !== undefined) {
-      const files = readdirSync(this.options.activitiesPath, { encoding: 'utf8' });
-      for (const file of files) {
-        const ext = extname(file);
-        if (ext === '.js') {
-          const fullPath = resolve(this.options.activitiesPath, file);
-          // eslint-disable-next-line @typescript-eslint/no-var-requires
-          const module = require(fullPath);
-          const functions = Object.fromEntries(
-            Object.entries(module).filter((entry): entry is [string, () => any] => entry[1] instanceof Function)
-          );
-          const importName = basename(file, ext);
-          this.log.debug('Loaded activity', { importName, fullPath });
-          this.resolvedActivities.set(`@activities/${importName}`, functions);
-          if (importName === 'index') {
-            this.resolvedActivities.set('@activities', functions);
-          }
+  }
+
+  /**
+   * @internal
+   */
+  public async prepare() {
+    if (this.isolate !== undefined) {
+      this.log.warn('Worker isolate has already been prepared');
+      return;
+    }
+    await this.resolveActivities();
+    if (this.options.workflowsPath) {
+      const builder = await WorkflowIsolateBuilder.create(
+        this.options.workflowsPath,
+        this.options.activityDefaults,
+        this.options.logger
+      );
+      await builder.registerActivities(this.resolvedActivities, this.options.activityDefaults);
+      this.isolate = await builder.build();
+    }
+  }
+
+  /**
+   * @internal
+   */
+  public async resolveActivities() {
+    if (this.options.activitiesPath === undefined) {
+      return;
+    }
+    const files = await readdir(this.options.activitiesPath, { encoding: 'utf8' });
+    for (const file of files) {
+      const ext = extname(file);
+      if (ext === '.js') {
+        const fullPath = resolve(this.options.activitiesPath, file);
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        const module = require(fullPath);
+        const functions = Object.fromEntries(
+          Object.entries(module).filter((entry): entry is [string, () => any] => entry[1] instanceof Function)
+        );
+        const importName = basename(file, ext);
+        this.log.debug('Loaded activity', { importName, fullPath });
+        this.resolvedActivities.set(`@activities/${importName}`, functions);
+        if (importName === 'index') {
+          this.resolvedActivities.set('@activities', functions);
         }
       }
     }
@@ -735,21 +753,21 @@ export class Worker {
                   });
                   this.numRunningWorkflowInstancesSubject.next(this.numRunningWorkflowInstancesSubject.value + 1);
                   // workflow type is Workflow | undefined which doesn't work in the instrumented closures, create add local variable with type Workflow.
-                  const createdWF = await instrument(span, 'workflow.create', (childSpan) =>
-                    Workflow.create(
+                  const createdWF = await instrument(span, 'workflow.create', () => {
+                    if (this.isolate === undefined) {
+                      throw new IllegalStateError('Worker isolate not initialized');
+                    }
+                    return Workflow.create(
+                      this.isolate,
+                      workflowType,
                       workflowId,
                       randomnessSeed,
-                      this.options.taskQueue,
-                      this.options.activityDefaults,
-                      childSpan
-                    )
-                  );
+                      this.options.taskQueue
+                    );
+                  });
                   workflow = createdWF;
                   // TODO: this probably shouldn't be here, consider alternative implementation
                   await instrument(span, 'workflow.inject.console', () => createdWF.inject('console.log', console.log));
-                  // await instrument(span, 'workflow.register.activities', () =>
-                  //   createdWF.registerActivities(this.resolvedActivities, this.options.activityDefaults)
-                  // );
                 } else {
                   throw new IllegalStateError(
                     'Received workflow activation for an untracked workflow with no start workflow job'
@@ -758,7 +776,7 @@ export class Worker {
               } catch (error) {
                 this.log.error('Failed to create a workflow', { taskToken, runId: activation.runId, error });
                 let completion: Uint8Array;
-                if (error instanceof LoaderError) {
+                if (error instanceof ReferenceError) {
                   completion = coresdk.workflow_completion.WFActivationCompletion.encodeDelimited({
                     taskToken: activation.taskToken,
                     successful: {

@@ -59,18 +59,11 @@ export function overrideGlobals(randomnessSeed: number[]): void {
   };
 }
 
-export function initWorkflow(
-  workflowId: string,
-  randomnessSeed: number[],
-  taskQueue: string,
-  activityDefaults: ActivityOptions,
-  runtime: Runtime
-): void {
+export function initWorkflow(workflowId: string, randomnessSeed: number[], taskQueue: string, runtime: Runtime): void {
   overrideGlobals(randomnessSeed);
 
   state.workflowId = workflowId;
   state.taskQueue = taskQueue;
-  state.activityDefaults = activityDefaults;
   state.runtime = runtime;
   state.activator = new Activator();
   runtime.registerPromiseHook((t, p, pp) => {
@@ -121,8 +114,3 @@ export function initWorkflow(
 export function registerWorkflow(workflow: Workflow): void {
   state.workflow = workflow;
 }
-
-(globalThis as any).__temporal__ = Object.assign((globalThis as any).__temporal__ || {}, {
-  initWorkflow,
-  registerWorkflow,
-});

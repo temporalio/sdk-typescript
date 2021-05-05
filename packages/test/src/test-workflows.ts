@@ -1,14 +1,19 @@
 import anyTest, { TestInterface, ExecutionContext } from 'ava';
+import path from 'path';
+import ivm from 'isolated-vm';
 import Long from 'long';
 import dedent from 'dedent';
-import path from 'path';
 import { coresdk } from '@temporalio/proto';
 import { defaultDataConverter } from '@temporalio/workflow/commonjs/converter/data-converter';
 import { msToTs, msStrToTs } from '@temporalio/workflow/commonjs/time';
+import { ActivityOptions } from '@temporalio/worker';
 import { Workflow } from '@temporalio/worker/lib/workflow';
+import { WorkflowIsolateBuilder } from '@temporalio/worker/lib/loader';
+import { DefaultLogger } from '@temporalio/worker/lib/logger';
 import { u8 } from './helpers';
 
 export interface Context {
+  isolate: ivm.Isolate;
   workflow: Workflow;
   logs: unknown[][];
   script: string;
@@ -20,20 +25,28 @@ function getWorkflow(name: string) {
   return path.join(__dirname, '../../test-workflows/lib', name);
 }
 
+test.before(async (t) => {
+  const logger = new DefaultLogger('INFO');
+  const workflowsPath = path.join(__dirname, '../../test-workflows/lib');
+  const activityDefaults: ActivityOptions = { type: 'remote', startToCloseTimeout: '10m' };
+  const builder = await WorkflowIsolateBuilder.create(workflowsPath, activityDefaults, logger);
+  const voidFn = () => undefined;
+  const activities = new Map([
+    ['@activities', { cancellableFetch: voidFn, httpGet: voidFn, fakeProgress: voidFn, throwAnError: voidFn }],
+  ]);
+  await builder.registerActivities(activities, activityDefaults);
+  t.context.isolate = await builder.build();
+});
+
 test.beforeEach(async (t) => {
-  const workflow = await Workflow.create('test-workflowId', Long.fromInt(1337), 'test', {
-    type: 'remote',
-    startToCloseTimeout: '10m',
-  });
-  const logs: unknown[][] = [];
-  await workflow.inject('console.log', (...args: unknown[]) => void logs.push(args));
-  const activities = new Map([['@activities', { httpGet: () => undefined }]]);
-  await workflow.registerActivities(activities, { type: 'remote', startToCloseTimeout: '10m' });
+  const { isolate } = t.context;
   // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
   const testName = t.title.match(/\S+$/)![0];
+  const workflow = await Workflow.create(isolate, testName, 'test-workflowId', Long.fromInt(1337), 'test');
+  const logs: unknown[][] = [];
+  await workflow.inject('console.log', (...args: unknown[]) => void logs.push(args));
   const script = getWorkflow(`${testName}.js`);
-  await workflow.registerImplementation(script);
-  t.context = { workflow, logs, script };
+  t.context = { isolate, workflow, logs, script };
 });
 
 async function activate(t: ExecutionContext<Context>, activation: coresdk.workflow_activation.IWFActivation) {
