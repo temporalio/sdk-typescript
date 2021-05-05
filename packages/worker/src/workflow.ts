@@ -185,6 +185,7 @@ export class Workflow {
    * Do not use this Workflow instance after this method has been called.
    */
   public dispose(): void {
+    this.context.release();
     this.isolate.dispose();
   }
 }
