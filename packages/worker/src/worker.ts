@@ -165,7 +165,7 @@ export interface WorkerOptions {
   /**
    * Maximum number of Activities to execute concurrently.
    * Adjust this to improve Worker resource consumption.
-   * @default 200
+   * @default 10
    */
   maxConcurrentActivityExecutions?: number;
   /**
@@ -176,10 +176,10 @@ export interface WorkerOptions {
   maxConcurrentWorkflowTaskExecutions?: number;
 
   // TODO: implement all of these
-  maxConcurrentLocalActivityExecutions?: number; // defaults to 200
-  maxTaskQueueActivitiesPerSecond?: number;
-  maxWorkerActivitiesPerSecond?: number;
-  isLocalActivityWorkerOnly?: boolean; // defaults to false
+  // maxConcurrentLocalActivityExecutions?: number; // defaults to 200
+  // maxTaskQueueActivitiesPerSecond?: number;
+  // maxWorkerActivitiesPerSecond?: number;
+  // isLocalActivityWorkerOnly?: boolean; // defaults to false
 }
 
 export type WorkerOptionsWithDefaults = Omit<WorkerOptions, 'serverOptions'> & {
@@ -241,7 +241,7 @@ export function addDefaults(options: WorkerOptions): WorkerOptionsWithDefaults {
     activityDefaults: { type: 'remote', startToCloseTimeout: '10m' },
     serverOptions: { ...getDefaultServerOptions(), ...serverOptions },
     maxConcurrentActivityExecutions: 200,
-    maxConcurrentWorkflowTaskExecutions: 200,
+    maxConcurrentWorkflowTaskExecutions: 10,
     ...rest,
   };
 }
