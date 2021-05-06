@@ -1,6 +1,6 @@
 {
   "name": "@temporalio/workflow",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Temporal.io SDK Workflow sub-package",
   "main": "./commonjs/index.js",
   "types": "./commonjs/index.d.ts",
