@@ -143,6 +143,13 @@ export interface WorkerOptions {
   workflowsPath?: string;
 
   /**
+   * Path for webpack to look up modules in for bundling the Workflow code.
+   * Automatically discovered if {@link workDir} is provided.
+   * @default ${workDir}/../node_modules
+   */
+  nodeModulesPath?: string;
+
+  /**
    * Time to wait for pending tasks to drain after shutdown was requested.
    *
    * @format {@link https://www.npmjs.com/package/ms | ms} formatted string
@@ -223,6 +230,7 @@ export function addDefaults(options: WorkerOptions): WorkerOptionsWithDefaults {
   return {
     activitiesPath: workDir ? resolve(workDir, '../activities') : undefined,
     workflowsPath: workDir ? resolve(workDir, '../workflows') : undefined,
+    nodeModulesPath: workDir ? resolve(workDir, '../node_modules') : undefined,
     shutdownGraceTime: '5s',
     shutdownSignals: ['SIGINT', 'SIGTERM', 'SIGQUIT'],
     dataConverter: defaultDataConverter,
@@ -384,9 +392,10 @@ export class Worker {
       return;
     }
     await this.resolveActivities();
-    if (this.options.workflowsPath) {
+    if (this.options.workflowsPath && this.options.nodeModulesPath) {
       const builder = await WorkflowIsolateBuilder.create(
         this.options.workflowsPath,
+        this.options.nodeModulesPath,
         this.options.activityDefaults,
         this.options.logger
       );

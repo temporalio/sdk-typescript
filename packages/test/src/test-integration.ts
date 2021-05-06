@@ -46,6 +46,7 @@ if (RUN_INTEGRATION_TESTS) {
     const worker = await Worker.create({
       workflowsPath: `${__dirname}/../../test-workflows/lib`,
       activitiesPath: `${__dirname}/../../test-activities/lib`,
+      nodeModulesPath: `${__dirname}/../../../node_modules`,
       logger: new DefaultLogger('DEBUG'),
       taskQueue: 'test',
     });

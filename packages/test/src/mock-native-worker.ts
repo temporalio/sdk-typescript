@@ -165,6 +165,7 @@ export function makeDefaultWorker(): Worker {
   return new Worker({
     workflowsPath: `${__dirname}/../../test-workflows/lib`,
     activitiesPath: `${__dirname}/../../test-activities/lib`,
+    nodeModulesPath: `${__dirname}/../../../node_modules`,
     taskQueue: 'test',
     logger: new DefaultLogger('DEBUG'),
   });

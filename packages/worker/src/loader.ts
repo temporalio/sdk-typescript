@@ -14,17 +14,19 @@ export class WorkflowIsolateBuilder {
     public readonly logger: Logger,
     public readonly distDir: string,
     public readonly workflowsPath: string,
+    public readonly nodeModulesPath: string,
     public readonly activityDefaults: ActivityOptions
   ) {}
 
   public static async create(
     workflowsPath: string,
+    nodeModulesPath: string,
     activityDefaults: ActivityOptions,
     logger: Logger
   ): Promise<WorkflowIsolateBuilder> {
     const distDir = await fs.mkdtemp(path.join(os.tmpdir(), 'temporal-bundler-out-'));
     logger.info('Created Isolate builder dist dir', { distDir });
-    return new this(logger, distDir, workflowsPath, activityDefaults);
+    return new this(logger, distDir, workflowsPath, nodeModulesPath, activityDefaults);
   }
 
   public async build(): Promise<ivm.Isolate> {
@@ -64,7 +66,7 @@ export class WorkflowIsolateBuilder {
       webpack(
         {
           resolve: {
-            modules: ['/Users/bergundy/temporal/sdk-node/node_modules'], // TODO
+            modules: [this.nodeModulesPath],
             extensions: ['.js'],
             alias: Object.fromEntries(
               [...this.activities].map((spec) => [spec, path.resolve(this.distDir, 'prebuild', spec)])
@@ -128,58 +130,3 @@ export class WorkflowIsolateBuilder {
     }
   }
 }
-
-//
-// function registerActivities(activities, options) {
-//   // validateActivityOptions(options);
-//   const serializedOptions = JSON.stringify(options);
-//   for (const [specifier, module] of activities.entries()) {
-//     let code = dedent`
-//         import { scheduleActivity } from '@temporalio/workflow';
-//       `;
-//     for (const [k, v] of Object.entries(module)) {
-//       if (v instanceof Function) {
-//         // Activities are identified by their module specifier and name.
-//         // We double stringify below to generate a string containing a JSON array.
-//         const type = JSON.stringify(JSON.stringify([specifier, k]));
-//         // TODO: Validate k against pattern
-//         code += dedent`
-//             export function ${k}(...args) {
-//               return scheduleActivity(${type}, args, ${serializedOptions});
-//             }
-//             ${k}.type = ${type};
-//             ${k}.options = ${serializedOptions};
-//           `;
-//       }
-//     }
-//
-//     const modulePath = path.resolve(__dirname, 'dist/prebuild', `${specifier}.js`);
-//     try {
-//       fs.mkdirSync(path.dirname(modulePath));
-//     } catch (err) {
-//       if (err.code !== 'EEXIST') throw err;
-//     }
-//     fs.writeFileSync(modulePath, code);
-//   }
-// }
-//
-// registerActivities(resolvedActivities, { type: 'remote', startToCloseTimeout: '10s' });
-//
-// module.exports = [
-//   {
-//     resolve: {
-//       alias: {
-//         '@activities': path.resolve(__dirname, 'dist/prebuild/@activities'),
-//       },
-//     },
-//     entry: {
-//       workflows: ['./dist/prebuild/workflows.js'],
-//     },
-//     mode: 'development',
-//     output: {
-//       path: path.join(__dirname, 'dist'),
-//       filename: 'main.js',
-//       library: 'lib',
-//     },
-//   },
-// ];

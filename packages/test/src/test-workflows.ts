@@ -28,8 +28,9 @@ function getWorkflow(name: string) {
 test.before(async (t) => {
   const logger = new DefaultLogger('INFO');
   const workflowsPath = path.join(__dirname, '../../test-workflows/lib');
+  const nodeModulesPath = path.join(__dirname, '../../../node_modules');
   const activityDefaults: ActivityOptions = { type: 'remote', startToCloseTimeout: '10m' };
-  const builder = await WorkflowIsolateBuilder.create(workflowsPath, activityDefaults, logger);
+  const builder = await WorkflowIsolateBuilder.create(workflowsPath, nodeModulesPath, activityDefaults, logger);
   const voidFn = () => undefined;
   const activities = new Map([
     ['@activities', { cancellableFetch: voidFn, httpGet: voidFn, fakeProgress: voidFn, throwAnError: voidFn }],
