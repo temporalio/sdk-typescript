@@ -8,8 +8,9 @@ import { defaultDataConverter } from '@temporalio/workflow/commonjs/converter/da
 import { msToTs, msStrToTs } from '@temporalio/workflow/commonjs/time';
 import { ActivityOptions } from '@temporalio/worker';
 import { Workflow } from '@temporalio/worker/lib/workflow';
-import { WorkflowIsolateBuilder } from '@temporalio/worker/lib/loader';
+import { WorkflowIsolateBuilder } from '@temporalio/worker/lib/isolate-builder';
 import { DefaultLogger } from '@temporalio/worker/lib/logger';
+import * as activityFunctions from '@temporalio/test-activities/lib';
 import { u8 } from './helpers';
 
 export interface Context {
@@ -30,12 +31,8 @@ test.before(async (t) => {
   const workflowsPath = path.join(__dirname, '../../test-workflows/lib');
   const nodeModulesPath = path.join(__dirname, '../../../node_modules');
   const activityDefaults: ActivityOptions = { type: 'remote', startToCloseTimeout: '10m' };
-  const builder = await WorkflowIsolateBuilder.create(workflowsPath, nodeModulesPath, activityDefaults, logger);
-  const voidFn = () => undefined;
-  const activities = new Map([
-    ['@activities', { cancellableFetch: voidFn, httpGet: voidFn, fakeProgress: voidFn, throwAnError: voidFn }],
-  ]);
-  await builder.registerActivities(activities, activityDefaults);
+  const activities = new Map([['@activities', activityFunctions]]);
+  const builder = new WorkflowIsolateBuilder(logger, nodeModulesPath, workflowsPath, activities, activityDefaults);
   t.context.isolate = await builder.build();
 });
 

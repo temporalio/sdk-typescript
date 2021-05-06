@@ -1,7 +1,6 @@
-import { basename, extname, resolve } from 'path';
+import { resolve } from 'path';
 import os from 'os';
 import { promisify } from 'util';
-import { readdir } from 'fs-extra';
 import * as otel from '@opentelemetry/api';
 import {
   BehaviorSubject,
@@ -50,7 +49,7 @@ import { closeableGroupBy, mergeMapWithState } from './rxutils';
 import { Workflow } from './workflow';
 import { Activity } from './activity';
 import { DefaultLogger, Logger } from './logger';
-import { WorkflowIsolateBuilder } from './loader';
+import { WorkflowIsolateBuilder } from './isolate-builder';
 import * as errors from './errors';
 import { tracer, instrument, childSpan } from './tracing';
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
@@ -124,7 +123,7 @@ export interface WorkerOptions {
   /**
    * If provided, automatically discover Workflows and Activities relative to path.
    *
-   * @see {@link activitiesPath} and {@link workflowsPath}
+   * @see {@link activitiesPath}, {@link workflowsPath}, and {@link nodeModulesPath}
    */
   workDir?: string;
 
@@ -179,7 +178,7 @@ export interface WorkerOptions {
   /**
    * Maximum number of Workflow tasks to execute concurrently.
    * Adjust this to improve Worker resource consumption.
-   * @default 10
+   * @default 100
    */
   maxConcurrentWorkflowTaskExecutions?: number;
 
@@ -238,7 +237,7 @@ export function addDefaults(options: WorkerOptions): WorkerOptionsWithDefaults {
     activityDefaults: { type: 'remote', startToCloseTimeout: '10m' },
     serverOptions: { ...getDefaultServerOptions(), ...serverOptions },
     maxConcurrentActivityExecutions: 100,
-    maxConcurrentWorkflowTaskExecutions: 10,
+    maxConcurrentWorkflowTaskExecutions: 100,
     ...rest,
   };
 }
@@ -260,7 +259,7 @@ export function compileNativeWorkerOptions(
 
 /**
  * The worker's possible states
- * * `INITIALIZED` - The initial state of the Worker after calling create() and successful connection to the server
+ * * `INITIALIZED` - The initial state of the Worker after calling {@link Worker.create} and successful connection to the server
  * * `RUNNING` - {@link Worker.run} was called, polling task queues
  * * `SUSPENDED` - {@link Worker.suspendPolling} was called, not polling for new tasks
  * * `STOPPING` - {@link Worker.shutdown} was called or received shutdown signal
@@ -348,7 +347,6 @@ function formatTaskToken(taskToken: Uint8Array) {
  */
 export class Worker {
   protected readonly workflowOverrides: Map<string, string> = new Map();
-  protected readonly resolvedActivities: Map<string, Record<string, () => any>>;
   protected readonly activityHeartbeatSubject = new Subject<{
     taskToken: Uint8Array;
     details?: any;
@@ -357,7 +355,6 @@ export class Worker {
   protected readonly numInFlightActivationsSubject = new BehaviorSubject<number>(0);
   protected readonly numRunningWorkflowInstancesSubject = new BehaviorSubject<number>(0);
   protected readonly nativeWorker: NativeWorkerLike;
-  protected isolate?: ivm.Isolate;
 
   protected static nativeWorkerCtor: WorkerConstructor = NativeWorker;
 
@@ -369,66 +366,43 @@ export class Worker {
     const nativeWorkerCtor: WorkerConstructor = this.nativeWorkerCtor;
     const compiledOptions = compileWorkerOptions(addDefaults(options));
     const nativeWorker = await nativeWorkerCtor.create(compiledOptions);
-    const worker = new this(nativeWorker, compiledOptions);
-    await worker.prepare();
-    return worker;
+    const resolvedActivities = compiledOptions.activitiesPath
+      ? await WorkflowIsolateBuilder.resolveActivities(compiledOptions.logger, compiledOptions.activitiesPath)
+      : new Map();
+
+    let isolate: ivm.Isolate | undefined = undefined;
+
+    if (compiledOptions.workflowsPath && compiledOptions.nodeModulesPath) {
+      const builder = new WorkflowIsolateBuilder(
+        compiledOptions.logger,
+        compiledOptions.nodeModulesPath,
+        compiledOptions.workflowsPath,
+        resolvedActivities,
+        compiledOptions.activityDefaults
+      );
+      isolate = await builder.build();
+    }
+    // TODO: Provide another way of supplying the isolate to the Worker
+    // } else if (compiledOptions.isolate) {
+    //   isolate = compiledOptions.isolate;
+    // }
+
+    if (isolate === undefined) {
+      throw new TypeError('Could not build an isolate for the worker due to missing WorkerOptions');
+    }
+    return new this(nativeWorker, isolate, resolvedActivities, compiledOptions);
   }
 
   /**
    * Create a new Worker from nativeWorker.
-   * @param pwd - Used to resolve relative paths for locating and importing activities and workflows.
    */
-  protected constructor(nativeWorker: NativeWorkerLike, public readonly options: CompiledWorkerOptionsWithDefaults) {
+  protected constructor(
+    nativeWorker: NativeWorkerLike,
+    protected readonly isolate: ivm.Isolate,
+    protected readonly resolvedActivities: Map<string, Record<string, (...args: any[]) => any>>,
+    public readonly options: CompiledWorkerOptionsWithDefaults
+  ) {
     this.nativeWorker = nativeWorker;
-    this.resolvedActivities = new Map();
-  }
-
-  /**
-   * @internal
-   */
-  public async prepare() {
-    if (this.isolate !== undefined) {
-      this.log.warn('Worker isolate has already been prepared');
-      return;
-    }
-    await this.resolveActivities();
-    if (this.options.workflowsPath && this.options.nodeModulesPath) {
-      const builder = await WorkflowIsolateBuilder.create(
-        this.options.workflowsPath,
-        this.options.nodeModulesPath,
-        this.options.activityDefaults,
-        this.options.logger
-      );
-      await builder.registerActivities(this.resolvedActivities, this.options.activityDefaults);
-      this.isolate = await builder.build();
-    }
-  }
-
-  /**
-   * @internal
-   */
-  public async resolveActivities() {
-    if (this.options.activitiesPath === undefined) {
-      return;
-    }
-    const files = await readdir(this.options.activitiesPath, { encoding: 'utf8' });
-    for (const file of files) {
-      const ext = extname(file);
-      if (ext === '.js') {
-        const fullPath = resolve(this.options.activitiesPath, file);
-        // eslint-disable-next-line @typescript-eslint/no-var-requires
-        const module = require(fullPath);
-        const functions = Object.fromEntries(
-          Object.entries(module).filter((entry): entry is [string, () => any] => entry[1] instanceof Function)
-        );
-        const importName = basename(file, ext);
-        this.log.debug('Loaded activity', { importName, fullPath });
-        this.resolvedActivities.set(`@activities/${importName}`, functions);
-        if (importName === 'index') {
-          this.resolvedActivities.set('@activities', functions);
-        }
-      }
-    }
   }
 
   /**
@@ -464,29 +438,6 @@ export class Worker {
   protected set state(state: State) {
     this.log.info('Worker state changed', { state });
     this.stateSubject.next(state);
-  }
-
-  /**
-   * Manually register workflows, e.g. for when using a non-standard directory structure.
-   */
-  public async registerWorkflows(nameToPath: Record<string, string>): Promise<void> {
-    for (const [name, path] of Object.entries(nameToPath)) {
-      this.log.info('Registering workflow override', { name, path });
-      this.workflowOverrides.set(name, path);
-    }
-  }
-
-  /**
-   * Manually register activities, e.g. for when using a non-standard directory structure.
-   */
-  public async registerActivities(
-    importPathToImplementation: Record<string, Record<string, () => any>>
-  ): Promise<void> {
-    for (const [name, functions] of Object.entries(importPathToImplementation)) {
-      // TODO: check that functions are actually functions
-      this.log.info('Registering activities', { name, functions: Object.keys(functions) });
-      this.resolvedActivities.set(name, functions);
-    }
   }
 
   /**

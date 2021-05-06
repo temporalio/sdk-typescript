@@ -16,9 +16,9 @@ export interface Context {
 
 export const test = anyTest as TestInterface<Context>;
 
-test.beforeEach((t) => {
+test.beforeEach(async (t) => {
   t.context = {
-    worker: makeDefaultWorker(),
+    worker: await makeDefaultWorker(),
     feedbackSubject: new Subject(),
   };
 });

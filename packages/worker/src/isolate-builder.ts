@@ -8,44 +8,34 @@ import { ActivityOptions, validateActivityOptions } from '@temporalio/workflow';
 import { Logger } from './logger';
 
 export class WorkflowIsolateBuilder {
-  public readonly activities = new Set<string>();
-
-  protected constructor(
+  constructor(
     public readonly logger: Logger,
-    public readonly distDir: string,
-    public readonly workflowsPath: string,
     public readonly nodeModulesPath: string,
+    public readonly workflowsPath: string,
+    public readonly activities: Map<string, Record<string, any>>,
     public readonly activityDefaults: ActivityOptions
   ) {}
 
-  public static async create(
-    workflowsPath: string,
-    nodeModulesPath: string,
-    activityDefaults: ActivityOptions,
-    logger: Logger
-  ): Promise<WorkflowIsolateBuilder> {
-    const distDir = await fs.mkdtemp(path.join(os.tmpdir(), 'temporal-bundler-out-'));
-    logger.info('Created Isolate builder dist dir', { distDir });
-    return new this(logger, distDir, workflowsPath, nodeModulesPath, activityDefaults);
-  }
-
   public async build(): Promise<ivm.Isolate> {
+    const distDir = await fs.mkdtemp(path.join(os.tmpdir(), 'temporal-bundler-out-'));
+    this.logger.info('Created Isolate builder dist dir', { distDir });
     try {
-      const prebuildDir = path.join(this.distDir, 'prebuild');
+      const prebuildDir = path.join(distDir, 'prebuild');
       await fs.mkdir(prebuildDir, { recursive: true });
+      await this.registerActivities(prebuildDir);
       const entrypointPath = path.join(prebuildDir, 'main.js');
       const workflows = await this.findWorkflows();
       await this.genEntrypoint(entrypointPath, workflows);
-      await this.bundle(entrypointPath);
-      const code = await fs.readFile(path.join(this.distDir, 'main.js'), 'utf8');
+      await this.bundle(entrypointPath, distDir);
+      const code = await fs.readFile(path.join(distDir, 'main.js'), 'utf8');
       const snapshot = ivm.Isolate.createSnapshot([{ code }]);
       return new ivm.Isolate({ snapshot });
     } finally {
-      await fs.remove(this.distDir);
+      await fs.remove(distDir);
     }
   }
 
-  async findWorkflows(): Promise<string[]> {
+  protected async findWorkflows(): Promise<string[]> {
     const files = await fs.readdir(this.workflowsPath);
     return files.filter((f) => path.extname(f) === '.js').map((f) => path.basename(f, path.extname(f)));
   }
@@ -65,7 +55,7 @@ export class WorkflowIsolateBuilder {
     await fs.writeFile(target, code);
   }
 
-  public async bundle(entry: string): Promise<void> {
+  protected async bundle(entry: string, distDir: string): Promise<void> {
     await new Promise<void>((resolve, reject) =>
       webpack(
         {
@@ -73,13 +63,13 @@ export class WorkflowIsolateBuilder {
             modules: [this.nodeModulesPath],
             extensions: ['.js'],
             alias: Object.fromEntries(
-              [...this.activities].map((spec) => [spec, path.resolve(this.distDir, 'prebuild', spec)])
+              [...this.activities.keys()].map((spec) => [spec, path.resolve(distDir, 'prebuild', spec)])
             ),
           },
           entry: [entry],
           mode: 'development',
           output: {
-            path: this.distDir,
+            path: distDir,
             filename: 'main.js',
             library: 'lib',
           },
@@ -98,14 +88,10 @@ export class WorkflowIsolateBuilder {
     );
   }
 
-  public async registerActivities(
-    activities: Map<string, Record<string, any>>,
-    options: ActivityOptions
-  ): Promise<void> {
-    validateActivityOptions(options);
-    const serializedOptions = JSON.stringify(options);
-    for (const [specifier, module] of activities.entries()) {
-      this.activities.add(specifier);
+  public async registerActivities(prebuildDir: string): Promise<void> {
+    validateActivityOptions(this.activityDefaults);
+    const serializedOptions = JSON.stringify(this.activityDefaults);
+    for (const [specifier, module] of this.activities.entries()) {
       let code = dedent`
         import { scheduleActivity } from '@temporalio/workflow';
       `;
@@ -124,7 +110,7 @@ export class WorkflowIsolateBuilder {
           `;
         }
       }
-      const modulePath = path.resolve(this.distDir, 'prebuild', `${specifier}.js`);
+      const modulePath = path.resolve(prebuildDir, `${specifier}.js`);
       try {
         await fs.mkdir(path.dirname(modulePath), { recursive: true });
       } catch (err) {
@@ -132,5 +118,31 @@ export class WorkflowIsolateBuilder {
       }
       await fs.writeFile(modulePath, code);
     }
+  }
+
+  public static async resolveActivities(
+    logger: Logger,
+    activitiesPath: string
+  ): Promise<Map<string, Record<string, (...args: any[]) => any>>> {
+    const resolvedActivities = new Map<string, Record<string, (...args: any[]) => any>>();
+    const files = await fs.readdir(activitiesPath, { encoding: 'utf8' });
+    for (const file of files) {
+      const ext = path.extname(file);
+      if (ext === '.js') {
+        const fullPath = path.resolve(activitiesPath, file);
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        const module = require(fullPath);
+        const functions = Object.fromEntries(
+          Object.entries(module).filter((entry): entry is [string, () => any] => entry[1] instanceof Function)
+        );
+        const importName = path.basename(file, ext);
+        logger.debug('Loaded activity', { importName, fullPath });
+        resolvedActivities.set(`@activities/${importName}`, functions);
+        if (importName === 'index') {
+          resolvedActivities.set('@activities', functions);
+        }
+      }
+    }
+    return resolvedActivities;
   }
 }

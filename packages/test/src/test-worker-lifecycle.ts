@@ -6,12 +6,13 @@ import test from 'ava';
 import Long from 'long';
 import { Worker, DefaultLogger } from '@temporalio/worker';
 import { sleep } from '@temporalio/worker/lib/utils';
-import { Worker as MockedWorker } from './mock-native-worker';
+import { isolateFreeWorker, defaultOptions } from './mock-native-worker';
 import { RUN_INTEGRATION_TESTS } from './helpers';
 
 if (RUN_INTEGRATION_TESTS) {
   test.serial('run shuts down gracefully', async (t) => {
     const worker = await Worker.create({
+      ...defaultOptions,
       shutdownGraceTime: '500ms',
       taskQueue: 'shutdown-test',
     });
@@ -27,7 +28,7 @@ if (RUN_INTEGRATION_TESTS) {
 }
 
 test.serial('Mocked run shuts down gracefully', async (t) => {
-  const worker = new MockedWorker({
+  const worker = isolateFreeWorker({
     shutdownGraceTime: '500ms',
     taskQueue: 'shutdown-test',
   });
@@ -42,7 +43,7 @@ test.serial('Mocked run shuts down gracefully', async (t) => {
 });
 
 test('Mocked run throws if not shut down gracefully', async (t) => {
-  const worker = new MockedWorker({
+  const worker = isolateFreeWorker({
     shutdownGraceTime: '5ms',
     taskQueue: 'shutdown-test',
   });
@@ -60,7 +61,7 @@ test('Mocked run throws if not shut down gracefully', async (t) => {
 });
 
 test('Mocked worker suspends and resumes', async (t) => {
-  const worker = new MockedWorker({
+  const worker = isolateFreeWorker({
     shutdownGraceTime: '5ms',
     taskQueue: 'suspend-test',
     logger: new DefaultLogger('DEBUG'),
