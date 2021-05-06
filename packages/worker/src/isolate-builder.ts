@@ -42,8 +42,8 @@ export class WorkflowIsolateBuilder {
 
   protected async genEntrypoint(target: string, workflows: string[]): Promise<void> {
     let code = dedent`
-      const init = require('@temporalio/workflow/es2020/init');
-      const internals = require('@temporalio/workflow/es2020/internals');
+      const init = require('@temporalio/workflow/lib/init');
+      const internals = require('@temporalio/workflow/lib/internals');
       internals.state.activityDefaults = ${JSON.stringify(this.activityDefaults)};
 
       const workflows = {};

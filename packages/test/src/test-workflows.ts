@@ -831,7 +831,7 @@ test('cancellation-error-is-propagated', async (t) => {
         'Cancelled',
         dedent`
         CancellationError: Cancelled
-            at Module.cancel
+            at Object.cancel
             at Object.main
             at Activator.startWorkflow
             at activate
