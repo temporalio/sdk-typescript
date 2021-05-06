@@ -165,13 +165,13 @@ export interface WorkerOptions {
   /**
    * Maximum number of Activities to execute concurrently.
    * Adjust this to improve Worker resource consumption.
-   * @default 10
+   * @default 100
    */
   maxConcurrentActivityExecutions?: number;
   /**
    * Maximum number of Workflow tasks to execute concurrently.
    * Adjust this to improve Worker resource consumption.
-   * @default 200
+   * @default 10
    */
   maxConcurrentWorkflowTaskExecutions?: number;
 
@@ -240,7 +240,7 @@ export function addDefaults(options: WorkerOptions): WorkerOptionsWithDefaults {
     logger: new DefaultLogger(),
     activityDefaults: { type: 'remote', startToCloseTimeout: '10m' },
     serverOptions: { ...getDefaultServerOptions(), ...serverOptions },
-    maxConcurrentActivityExecutions: 200,
+    maxConcurrentActivityExecutions: 100,
     maxConcurrentWorkflowTaskExecutions: 10,
     ...rest,
   };
