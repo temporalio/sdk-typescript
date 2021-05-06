@@ -44,7 +44,7 @@ const tsConfigBase = {
     ...tsConfigSharedBase,
 };
 const workflowsTsConfig = {
-    ...tsConfigSharedBase,
+    ...tsConfigBase,
     compilerOptions: {
         ...tsConfigSharedBase.compilerOptions,
         lib: [
@@ -65,11 +65,6 @@ const workflowsTsConfig = {
             'es2017.string',
             'es2017.typedarrays',
         ],
-        target: 'es2017',
-        module: 'es2020',
-        moduleResolution: 'node',
-        esModuleInterop: true,
-        strict: true,
         typeRoots: ['.'],
         outDir: '../../lib/workflows',
         paths: {
@@ -124,14 +119,6 @@ async function createProject(projectPath, useYarn, temporalVersion) {
         compilerOptions: {
             ...tsConfigBase.compilerOptions,
             outDir: '../../lib/worker',
-            paths: {
-                '@workflows': ['../workflows'],
-                '@workflows/*': ['../workflows/*'],
-                '@activities': ['../activities'],
-                '@activities/*': ['../activities/*'],
-                '@interfaces': ['../interfaces'],
-                '@interfaces/*': ['../interfaces/*'],
-            },
         },
         references: [
             { path: '../interfaces/tsconfig.json' },
