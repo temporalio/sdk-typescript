@@ -119,6 +119,10 @@ async function createProject(projectPath, useYarn, temporalVersion) {
         compilerOptions: {
             ...tsConfigBase.compilerOptions,
             outDir: '../../lib/worker',
+            paths: {
+                '@interfaces': ['../interfaces'],
+                '@interfaces/*': ['../interfaces/*'],
+            },
         },
         references: [
             { path: '../interfaces/tsconfig.json' },
