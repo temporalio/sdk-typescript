@@ -1,7 +1,7 @@
 {
   "name": "@temporalio/worker",
   "version": "0.1.4",
-  "description": "Temporal.io Worker SDK",
+  "description": "Temporal.io SDK Worker sub-package",
   "main": "lib/index.js",
   "types": "./lib/index.d.ts",
   "gypfile": true,
@@ -40,7 +40,7 @@
   "bugs": {
     "url": "https://github.com/temporalio/sdk-node/issues"
   },
-  "homepage": "https://github.com/temporalio/sdk-node#readme",
+  "homepage": "https://github.com/temporalio/sdk-node/tree/main/packages/worker",
   "files": [
     "lib",
     "scripts",

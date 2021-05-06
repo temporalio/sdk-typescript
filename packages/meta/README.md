@@ -8,7 +8,7 @@ Temporal is a microservice orchestration platform which enables developers to bu
 
 Temporal is a mature technology, a fork of Uber's Cadence. Temporal is being developed by [Temporal Technologies](https://temporal.io), a startup by the creators of Cadence.
 
-Learn how to use Temporal on the [docs site](https://docs.temporal.io/docs/node/hello-world).
+Learn how to use Temporal on the [docs site](https://docs.temporal.io/docs/node/introduction).
 
 ### This SDK is in alpha stage
 
@@ -45,7 +45,7 @@ See the [getting started](https://docs.temporal.io/docs/node/getting-started) gu
 
 You can find the project's documentation as well as general documentation for Temporal on our [docs site](https://docs.temporal.io).
 
-The API reference for this SDK can be found [here](https://docs.temporal.io/docs/node/reference/modules).
+The API reference for this SDK can be found [here](https://nodejs.temporal.io/).
 
 ### Contributing
 
