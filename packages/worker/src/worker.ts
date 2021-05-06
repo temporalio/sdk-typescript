@@ -144,7 +144,7 @@ export interface WorkerOptions {
   /**
    * Path for webpack to look up modules in for bundling the Workflow code.
    * Automatically discovered if {@link workDir} is provided.
-   * @default ${workDir}/../node_modules
+   * @default ${workDir}/../../node_modules
    */
   nodeModulesPath?: string;
 
@@ -229,7 +229,7 @@ export function addDefaults(options: WorkerOptions): WorkerOptionsWithDefaults {
   return {
     activitiesPath: workDir ? resolve(workDir, '../activities') : undefined,
     workflowsPath: workDir ? resolve(workDir, '../workflows') : undefined,
-    nodeModulesPath: workDir ? resolve(workDir, '../node_modules') : undefined,
+    nodeModulesPath: workDir ? resolve(workDir, '../../node_modules') : undefined,
     shutdownGraceTime: '5s',
     shutdownSignals: ['SIGINT', 'SIGTERM', 'SIGQUIT'],
     dataConverter: defaultDataConverter,

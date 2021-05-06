@@ -75,13 +75,15 @@ export class WorkflowIsolateBuilder {
           },
         },
         (err, stats) => {
-          const lines = stats.toString({ chunks: false, colors: true }).split('\n');
-          for (const line of lines) {
-            this.logger.info(line);
+          if (stats !== undefined) {
+            const lines = stats.toString({ chunks: false, colors: true }).split('\n');
+            for (const line of lines) {
+              this.logger.info(line);
+            }
           }
           if (err) {
             reject(err);
-          } else if (stats.hasErrors()) {
+          } else if (stats?.hasErrors()) {
             reject(new Error('Webpack stats has errors'));
           } else {
             resolve();
