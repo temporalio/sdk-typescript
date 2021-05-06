@@ -1,8 +1,12 @@
 # Temporal NodeJS SDK
 
-![CI](https://github.com/temporalio/sdk-node/actions/workflows/ci.yml/badge.svg)
-[![NPM](https://img.shields.io/npm/v/temporalio.svg?style=flat)](https://www.npmjs.com/package/temporalio)
-![LICENSE](https://img.shields.io/npm/l/temporalio)
+<p align="center">
+  <img src="https://img.shields.io/github/workflow/status/temporalio/sdk-node/ci?style=for-the-badge" alt="CI" />
+  <a href="https://www.npmjs.com/package/temporalio">
+    <img src="https://img.shields.io/npm/v/temporalio.svg?style=for-the-badge" alt="NPM" />
+  </a>
+  <img src="https://img.shields.io/npm/l/temporalio?style=for-the-badge" alt="LICENSE" />
+</div>
 
 Temporal is a microservice orchestration platform which enables developers to build scalable applications without sacrificing productivity or reliability. Temporal server executes units of application logic, Workflows, in a resilient manner that automatically handles intermittent failures, and retries failed operations.
 

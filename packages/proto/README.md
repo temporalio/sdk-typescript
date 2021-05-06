@@ -1,6 +1,6 @@
 # `@temporalio/proto`
 
-[![NPM](https://img.shields.io/npm/v/@temporalio/proto)](https://www.npmjs.com/package/@temporalio/proto)
+[![NPM](https://img.shields.io/npm/v/@temporalio/proto?style=for-the-badge)](https://www.npmjs.com/package/@temporalio/proto)
 
 Part of the [Temporal](https://temporal.io) [NodeJS SDK](https://www.npmjs.com/package/temporalio).
 

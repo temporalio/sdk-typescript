@@ -1,6 +1,6 @@
 # `@temporalio/workflow`
 
-[![NPM](https://img.shields.io/npm/v/@temporalio/workflow)](https://www.npmjs.com/package/@temporalio/workflow)
+[![NPM](https://img.shields.io/npm/v/@temporalio/workflow?style=for-the-badge)](https://www.npmjs.com/package/@temporalio/workflow)
 
 Part of the [Temporal](https://temporal.io) [NodeJS SDK](https://www.npmjs.com/package/temporalio).
 
