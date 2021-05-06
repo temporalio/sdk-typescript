@@ -2,8 +2,8 @@
 import { v4 as uuid4 } from 'uuid';
 import ivm from 'isolated-vm';
 import { coresdk } from '@temporalio/proto';
-import { msStrToTs } from '@temporalio/workflow/commonjs/time';
-import { defaultDataConverter } from '@temporalio/workflow/commonjs/converter/data-converter';
+import { msStrToTs } from '@temporalio/workflow/lib/time';
+import { defaultDataConverter } from '@temporalio/workflow/lib/converter/data-converter';
 import {
   Worker as RealWorker,
   NativeWorkerLike,

@@ -2,8 +2,8 @@ import ivm from 'isolated-vm';
 import Long from 'long';
 import dedent from 'dedent';
 import { coresdk } from '@temporalio/proto';
-import * as internals from '@temporalio/workflow/commonjs/internals';
-import * as init from '@temporalio/workflow/commonjs/init';
+import * as internals from '@temporalio/workflow/lib/internals';
+import * as init from '@temporalio/workflow/lib/init';
 
 export enum ApplyMode {
   ASYNC = 'apply',

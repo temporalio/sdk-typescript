@@ -36,14 +36,14 @@ import ms from 'ms';
 import { coresdk } from '@temporalio/proto';
 import { ActivityOptions } from '@temporalio/workflow';
 import { Info as ActivityInfo } from '@temporalio/activity';
-import { errorToUserCodeFailure } from '@temporalio/workflow/commonjs/common';
-import { tsToMs } from '@temporalio/workflow/commonjs/time';
-import { IllegalStateError } from '@temporalio/workflow/commonjs/errors';
+import { errorToUserCodeFailure } from '@temporalio/workflow/lib/common';
+import { tsToMs } from '@temporalio/workflow/lib/time';
+import { IllegalStateError } from '@temporalio/workflow/lib/errors';
 import {
   arrayFromPayloads,
   DataConverter,
   defaultDataConverter,
-} from '@temporalio/workflow/commonjs/converter/data-converter';
+} from '@temporalio/workflow/lib/converter/data-converter';
 import * as native from '../native';
 import { closeableGroupBy, mergeMapWithState } from './rxutils';
 import { Workflow } from './workflow';

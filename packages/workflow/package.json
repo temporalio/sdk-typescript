@@ -2,9 +2,8 @@
   "name": "@temporalio/workflow",
   "version": "0.1.5",
   "description": "Temporal.io SDK Workflow sub-package",
-  "main": "./commonjs/index.js",
-  "types": "./commonjs/index.d.ts",
-  "module": "./es2020/index.js",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
   "scripts": {},
   "keywords": [
     "temporal",
@@ -21,8 +20,7 @@
   },
   "homepage": "https://github.com/temporalio/sdk-node/tree/main/packages/workflow",
   "files": [
-    "es2020",
-    "commonjs"
+    "lib"
   ],
   "publishConfig": {
     "access": "public"

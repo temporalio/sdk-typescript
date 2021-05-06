@@ -2,15 +2,15 @@
 import anyTest, { TestInterface } from 'ava';
 import { v4 as uuid4 } from 'uuid';
 import { Connection } from '@temporalio/client';
-import { tsToMs } from '@temporalio/workflow/commonjs/time';
+import { tsToMs } from '@temporalio/workflow/lib/time';
 import { Worker, DefaultLogger } from '@temporalio/worker';
 import * as iface from '@temporalio/proto';
 import {
   WorkflowExecutionFailedError,
   WorkflowExecutionTimedOutError,
   WorkflowExecutionTerminatedError,
-} from '@temporalio/workflow/commonjs/errors';
-import { defaultDataConverter } from '@temporalio/workflow/commonjs/converter/data-converter';
+} from '@temporalio/workflow/lib/errors';
+import { defaultDataConverter } from '@temporalio/workflow/lib/converter/data-converter';
 import {
   ArgsAndReturn,
   HTTP,
