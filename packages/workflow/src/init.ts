@@ -1,4 +1,4 @@
-import { ActivityOptions, Scope, Workflow } from './interfaces';
+import { Scope, Workflow } from './interfaces';
 import { state, currentScope, Runtime, Activator } from './internals';
 import { msToTs } from './time';
 import { alea } from './alea';
