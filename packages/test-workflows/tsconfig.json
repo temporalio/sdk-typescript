@@ -1,7 +1,6 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "module": "es2020",
     "lib": [
       // es2015.collection excluded because it defines WeakMap and WeakSet
       "es5",
@@ -32,7 +31,7 @@
   },
   "references": [
     { "path": "../test-activities/" },
-    { "path": "../workflow/tsconfig.es2020.json" },
+    { "path": "../workflow/tsconfig.json" },
     { "path": "../test-interfaces/" }
   ],
   "include": ["./src/**/*.ts"],

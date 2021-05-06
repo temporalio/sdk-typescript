@@ -4,7 +4,7 @@
     "outDir": "./lib",
     "rootDir": "./src"
   },
-  "references": [{ "path": "../workflow/tsconfig.commonjs.json" }],
+  "references": [{ "path": "../workflow/tsconfig.json" }],
   "include": ["./src/**/*.ts"],
   "exclude": ["node_modules"]
 }

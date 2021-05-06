@@ -3,6 +3,7 @@
   "compilerOptions": {
     "composite": true,
     "incremental": true,
+    "module": "commonjs",
     "moduleResolution": "node"
   }
 }
