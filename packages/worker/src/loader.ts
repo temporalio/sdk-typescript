@@ -30,15 +30,19 @@ export class WorkflowIsolateBuilder {
   }
 
   public async build(): Promise<ivm.Isolate> {
-    const prebuildDir = path.join(this.distDir, 'prebuild');
-    await fs.mkdir(prebuildDir, { recursive: true });
-    const entrypointPath = path.join(prebuildDir, 'main.js');
-    const workflows = await this.findWorkflows();
-    await this.genEntrypoint(entrypointPath, workflows);
-    await this.bundle(entrypointPath);
-    const code = await fs.readFile(path.join(this.distDir, 'main.js'), 'utf8');
-    const snapshot = ivm.Isolate.createSnapshot([{ code }]);
-    return new ivm.Isolate({ snapshot });
+    try {
+      const prebuildDir = path.join(this.distDir, 'prebuild');
+      await fs.mkdir(prebuildDir, { recursive: true });
+      const entrypointPath = path.join(prebuildDir, 'main.js');
+      const workflows = await this.findWorkflows();
+      await this.genEntrypoint(entrypointPath, workflows);
+      await this.bundle(entrypointPath);
+      const code = await fs.readFile(path.join(this.distDir, 'main.js'), 'utf8');
+      const snapshot = ivm.Isolate.createSnapshot([{ code }]);
+      return new ivm.Isolate({ snapshot });
+    } finally {
+      await fs.remove(this.distDir);
+    }
   }
 
   async findWorkflows(): Promise<string[]> {
