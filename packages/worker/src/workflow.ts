@@ -7,7 +7,7 @@ import * as internals from '@temporalio/workflow/commonjs/internals';
 import * as init from '@temporalio/workflow/commonjs/init';
 import { ActivityOptions, validateActivityOptions } from '@temporalio/workflow';
 import { Loader } from './loader';
-import { tracer } from './tracing';
+import { childSpan } from './tracing';
 
 export enum ApplyMode {
   ASYNC = 'apply',
@@ -24,6 +24,9 @@ interface WorkflowModule {
   activate: ivm.Reference<typeof internals.activate>;
   concludeActivation: ivm.Reference<typeof internals.concludeActivation>;
 }
+
+// Shared runtime module for all isolates, needs to be created in context.
+const runtimeModule = new ivm.NativeModule(require.resolve('../build/Release/temporalio-workflow-isolate-extension'));
 
 export class Workflow {
   private constructor(
@@ -44,9 +47,6 @@ export class Workflow {
     const isolate = new ivm.Isolate();
     const context = await isolate.createContext();
 
-    const runtimeModule = new ivm.NativeModule(
-      require.resolve('../build/Release/temporalio-workflow-isolate-extension')
-    );
     const runtime = await runtimeModule.create(context);
 
     const loader = new Loader(isolate, context);
@@ -54,8 +54,7 @@ export class Workflow {
     loader.overrideModule('protobufjs/minimal', protobufModule);
     let child: otel.Span | undefined = undefined;
     if (span) {
-      const context = otel.setSpan(otel.context.active(), span);
-      child = tracer.startSpan('load.protos.module', undefined, context);
+      child = childSpan(span, 'load.protos.module');
     }
     const protosModule = await loader.loadModule(require.resolve('@temporalio/proto/es2020/index.js'));
     if (child) {
@@ -179,5 +178,14 @@ export class Workflow {
     );
     const run = await registerWorkflow.namespace.get('run');
     await run.apply(undefined, [], {});
+  }
+
+  /**
+   * Dispose of the isolate and context.
+   * Do not use this Workflow instance after this method has been called.
+   */
+  public dispose(): void {
+    this.context.release();
+    this.isolate.dispose();
   }
 }

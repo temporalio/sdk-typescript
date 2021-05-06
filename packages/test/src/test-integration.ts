@@ -78,22 +78,25 @@ if (RUN_INTEGRATION_TESTS) {
     t.is(res, 'Hello, world!');
   });
 
-  const testCancelHTTPRequest = async (t: ExecutionContext<Context>, waitForActivityCancelled: boolean) => {
+  test('cancel-fake-progress', async (t) => {
+    const client = new Connection();
+    const workflow = client.workflow<Empty>('cancel-fake-progress', { taskQueue: 'test' });
+    await workflow.start();
+    t.pass();
+  });
+
+  test("cancel-http-request don't waitForActivityCancelled", async (t) => {
     await withZeroesHTTPServer(async (port, finished) => {
       const client = new Connection();
       const url = `http://127.0.0.1:${port}`;
       const workflow = client.workflow<CancellableHTTPRequest>('cancel-http-request', { taskQueue: 'test' });
-      await t.throwsAsync(() => workflow.start(url, waitForActivityCancelled), {
+      await t.throwsAsync(() => workflow.start(url, false), {
         message: 'Activity cancelled',
         instanceOf: WorkflowExecutionFailedError,
       });
       await finished;
     });
-  };
-
-  test('cancel-http-request waitForActivityCancelled', (t) => testCancelHTTPRequest(t, true));
-
-  test("cancel-http-request don't waitForActivityCancelled", (t) => testCancelHTTPRequest(t, false));
+  });
 
   test('activity-failure', async (t) => {
     const client = new Connection();
