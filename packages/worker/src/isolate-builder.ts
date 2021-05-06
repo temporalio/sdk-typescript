@@ -18,7 +18,7 @@ export class WorkflowIsolateBuilder {
 
   public async build(): Promise<ivm.Isolate> {
     const distDir = await fs.mkdtemp(path.join(os.tmpdir(), 'temporal-bundler-out-'));
-    this.logger.info('Created Isolate builder dist dir', { distDir });
+    this.logger.info('Building Workflow code for Worker isolate', { distDir });
     try {
       const prebuildDir = path.join(distDir, 'prebuild');
       await fs.mkdir(prebuildDir, { recursive: true });
@@ -75,7 +75,10 @@ export class WorkflowIsolateBuilder {
           },
         },
         (err, stats) => {
-          this.logger.info(stats.toString({ chunks: false, colors: true }));
+          const lines = stats.toString({ chunks: false, colors: true }).split('\n');
+          for (const line of lines) {
+            this.logger.info(line);
+          }
           if (err) {
             reject(err);
           } else if (stats.hasErrors()) {
