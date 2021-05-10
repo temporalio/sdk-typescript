@@ -12,12 +12,8 @@ jobs:
     strategy:
       fail-fast: true
       matrix:
-        node: [12, 14]
-        os: [ubuntu-latest, macos-latest] # TODO: support windows
-        include:
-          - os: ubuntu-latest
-            node: 14
-            docsTarget: true
+        node: [14]
+        os: [macos-latest] # TODO: support windows
     runs-on: ${{ matrix.os }}
     steps:
       - name: Print build information
