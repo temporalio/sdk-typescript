@@ -1,12 +1,10 @@
 import path from 'path';
 import util from 'util';
+import os from 'os';
 import fs from 'fs-extra';
 import dedent from 'dedent';
 import ivm from 'isolated-vm';
 import webpack from 'webpack';
-import * as realFS from 'fs';
-import * as memfs from 'memfs';
-import * as unionfs from 'unionfs';
 import { ActivityOptions, validateActivityOptions } from '@temporalio/workflow';
 import { Logger } from './logger';
 
@@ -32,20 +30,22 @@ export class WorkflowIsolateBuilder {
    * Bundle Workflows with dependencies and return an Isolate pre-loaded with bundle.
    */
   public async build(): Promise<ivm.Isolate> {
-    const vol = new memfs.Volume();
-    const ufs = new unionfs.Union();
-    // We cast to any because of inacurate types
-    ufs.use(memfs.createFsFromVolume(vol) as any).use(realFS);
-    const distDir = '/dist';
-    const sourceDir = '/src';
-    await this.registerActivities(vol, sourceDir);
-    const entrypointPath = path.join(sourceDir, 'main.js');
-    const workflows = await this.findWorkflows();
-    await this.genEntrypoint(vol, entrypointPath, workflows);
-    await this.bundle(ufs, entrypointPath, sourceDir, distDir);
-    const code = ufs.readFileSync(path.join(distDir, 'main.js'), 'utf8');
-    const snapshot = ivm.Isolate.createSnapshot([{ code }]);
-    return new ivm.Isolate({ snapshot });
+    const distDir = await fs.mkdtemp(path.join(os.tmpdir(), 'temporal-bundler-out-'));
+    this.logger.info('Building Workflow code for Worker isolate', { distDir });
+    try {
+      const prebuildDir = path.join(distDir, 'prebuild');
+      await fs.mkdir(prebuildDir, { recursive: true });
+      await this.registerActivities(prebuildDir);
+      const entrypointPath = path.join(prebuildDir, 'main.js');
+      const workflows = await this.findWorkflows();
+      await this.genEntrypoint(entrypointPath, workflows);
+      await this.bundle(entrypointPath, distDir);
+      const code = await fs.readFile(path.join(distDir, 'main.js'), 'utf8');
+      const snapshot = ivm.Isolate.createSnapshot([{ code }]);
+      return new ivm.Isolate({ snapshot });
+    } finally {
+      await fs.remove(distDir);
+    }
   }
 
   /**
@@ -61,7 +61,7 @@ export class WorkflowIsolateBuilder {
    *
    * Exports all detected Workflow implementations and some workflow libraries to be used by the Worker.
    */
-  protected async genEntrypoint(vol: typeof memfs.vol, target: string, workflows: string[]): Promise<void> {
+  protected async genEntrypoint(target: string, workflows: string[]): Promise<void> {
     let code = dedent`
       const init = require('@temporalio/workflow/lib/init');
       const internals = require('@temporalio/workflow/lib/internals');
@@ -73,23 +73,20 @@ export class WorkflowIsolateBuilder {
     for (const wf of workflows) {
       code += `workflows[${JSON.stringify(wf)}] = require(${JSON.stringify(path.join(this.workflowsPath, wf))});\n`;
     }
-    vol.writeFileSync(target, code);
+    await fs.writeFile(target, code);
   }
 
   /**
    * Run webpack
    */
-  protected async bundle(
-    filesystem: typeof unionfs.ufs,
-    entry: string,
-    sourceDir: string,
-    distDir: string
-  ): Promise<void> {
+  protected async bundle(entry: string, distDir: string): Promise<void> {
     const compiler = webpack({
       resolve: {
         modules: [this.nodeModulesPath],
         extensions: ['.js'],
-        alias: Object.fromEntries([...this.activities.keys()].map((spec) => [spec, path.resolve(sourceDir, spec)])),
+        alias: Object.fromEntries(
+          [...this.activities.keys()].map((spec) => [spec, path.resolve(distDir, 'prebuild', spec)])
+        ),
       },
       entry: [entry],
       // TODO: production build?
@@ -100,10 +97,6 @@ export class WorkflowIsolateBuilder {
         library: 'lib',
       },
     });
-
-    // We cast to any because the type declarations are inacurate
-    compiler.inputFileSystem = filesystem as any;
-    compiler.outputFileSystem = filesystem as any;
 
     try {
       await new Promise<void>((resolve, reject) => {
@@ -128,7 +121,7 @@ export class WorkflowIsolateBuilder {
     }
   }
 
-  public async registerActivities(vol: typeof memfs.vol, sourceDir: string): Promise<void> {
+  public async registerActivities(prebuildDir: string): Promise<void> {
     validateActivityOptions(this.activityDefaults);
     const serializedOptions = JSON.stringify(this.activityDefaults);
     for (const [specifier, module] of this.activities.entries()) {
@@ -150,13 +143,13 @@ export class WorkflowIsolateBuilder {
           `;
         }
       }
-      const modulePath = path.resolve(sourceDir, `${specifier}.js`);
+      const modulePath = path.resolve(prebuildDir, `${specifier}.js`);
       try {
-        vol.mkdirSync(path.dirname(modulePath), { recursive: true });
+        await fs.mkdir(path.dirname(modulePath), { recursive: true });
       } catch (err) {
         if (err.code !== 'EEXIST') throw err;
       }
-      vol.writeFileSync(modulePath, code);
+      await fs.writeFile(modulePath, code);
     }
   }
 
