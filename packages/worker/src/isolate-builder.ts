@@ -7,6 +7,15 @@ import webpack from 'webpack';
 import { ActivityOptions, validateActivityOptions } from '@temporalio/workflow';
 import { Logger } from './logger';
 
+/**
+ * Builds a V8 Isolate by bundling provided Workflows using webpack.
+ * Activities are replaced with stubs.
+ *
+ * @param nodeModulesPath node_modules path with required Workflow dependencies
+ * @param workflowsPath all Workflows found in path will be put in the bundle
+ * @param activities mapping of module name to module exports, exported functions will be replaced with stubs and the rest ignored
+ * @param activityDefaults used to inject Activity options into the Activity stubs
+ */
 export class WorkflowIsolateBuilder {
   constructor(
     public readonly logger: Logger,
@@ -16,6 +25,9 @@ export class WorkflowIsolateBuilder {
     public readonly activityDefaults: ActivityOptions
   ) {}
 
+  /**
+   * Bundle Workflows with dependencies and return an Isolate pre-loaded with bundle.
+   */
   public async build(): Promise<ivm.Isolate> {
     const distDir = await fs.mkdtemp(path.join(os.tmpdir(), 'temporal-bundler-out-'));
     this.logger.info('Building Workflow code for Worker isolate', { distDir });
@@ -35,11 +47,19 @@ export class WorkflowIsolateBuilder {
     }
   }
 
+  /**
+   * Shallow lookup of all js files in workflowsPath
+   */
   protected async findWorkflows(): Promise<string[]> {
     const files = await fs.readdir(this.workflowsPath);
     return files.filter((f) => path.extname(f) === '.js').map((f) => path.basename(f, path.extname(f)));
   }
 
+  /**
+   * Creates the main entrypoint for the generated webpack library.
+   *
+   * Exports all detected Workflow implementations and some workflow libraries to be used by the Worker.
+   */
   protected async genEntrypoint(target: string, workflows: string[]): Promise<void> {
     let code = dedent`
       const init = require('@temporalio/workflow/lib/init');
@@ -55,6 +75,9 @@ export class WorkflowIsolateBuilder {
     await fs.writeFile(target, code);
   }
 
+  /**
+   * Run webpack
+   */
   protected async bundle(entry: string, distDir: string): Promise<void> {
     await new Promise<void>((resolve, reject) =>
       webpack(
@@ -125,6 +148,9 @@ export class WorkflowIsolateBuilder {
     }
   }
 
+  /**
+   * Resolve activities by perfoming a shallow lookup all JS files in `activitiesPath`.
+   */
   public static async resolveActivities(
     logger: Logger,
     activitiesPath: string
