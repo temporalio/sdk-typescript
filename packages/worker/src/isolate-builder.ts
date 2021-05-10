@@ -92,6 +92,7 @@ export class WorkflowIsolateBuilder {
         alias: Object.fromEntries([...this.activities.keys()].map((spec) => [spec, path.resolve(sourceDir, spec)])),
       },
       entry: [entry],
+      // TODO: production build?
       mode: 'development',
       output: {
         path: distDir,
