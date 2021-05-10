@@ -1,4 +1,5 @@
 import path from 'path';
+import util from 'util';
 import fs from 'fs-extra';
 import dedent from 'dedent';
 import ivm from 'isolated-vm';
@@ -84,41 +85,46 @@ export class WorkflowIsolateBuilder {
     sourceDir: string,
     distDir: string
   ): Promise<void> {
-    await new Promise<void>((resolve, reject) => {
-      const compiler = webpack({
-        resolve: {
-          modules: [this.nodeModulesPath],
-          extensions: ['.js'],
-          alias: Object.fromEntries([...this.activities.keys()].map((spec) => [spec, path.resolve(sourceDir, spec)])),
-        },
-        entry: [entry],
-        mode: 'development',
-        output: {
-          path: distDir,
-          filename: 'main.js',
-          library: 'lib',
-        },
-      });
-      // We cast to any because the type declarations are inacurate
-      compiler.inputFileSystem = filesystem as any;
-      compiler.outputFileSystem = filesystem as any;
-
-      compiler.run((err, stats) => {
-        if (stats !== undefined) {
-          const lines = stats.toString({ chunks: false, colors: true }).split('\n');
-          for (const line of lines) {
-            this.logger.info(line);
-          }
-        }
-        if (err) {
-          reject(err);
-        } else if (stats?.hasErrors()) {
-          reject(new Error('Webpack stats has errors'));
-        } else {
-          resolve();
-        }
-      });
+    const compiler = webpack({
+      resolve: {
+        modules: [this.nodeModulesPath],
+        extensions: ['.js'],
+        alias: Object.fromEntries([...this.activities.keys()].map((spec) => [spec, path.resolve(sourceDir, spec)])),
+      },
+      entry: [entry],
+      mode: 'development',
+      output: {
+        path: distDir,
+        filename: 'main.js',
+        library: 'lib',
+      },
     });
+
+    // We cast to any because the type declarations are inacurate
+    compiler.inputFileSystem = filesystem as any;
+    compiler.outputFileSystem = filesystem as any;
+
+    try {
+      await new Promise<void>((resolve, reject) => {
+        compiler.run((err, stats) => {
+          if (stats !== undefined) {
+            const lines = stats.toString({ chunks: false, colors: true }).split('\n');
+            for (const line of lines) {
+              this.logger.info(line);
+            }
+          }
+          if (err) {
+            reject(err);
+          } else if (stats?.hasErrors()) {
+            reject(new Error('Webpack stats has errors'));
+          } else {
+            resolve();
+          }
+        });
+      });
+    } finally {
+      await util.promisify(compiler.close).bind(compiler)();
+    }
   }
 
   public async registerActivities(vol: typeof memfs.vol, sourceDir: string): Promise<void> {
