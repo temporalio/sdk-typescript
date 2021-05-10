@@ -2,7 +2,7 @@ import { AbortController } from 'abort-controller';
 import { ActivityFunction } from '@temporalio/workflow';
 import { DataConverter } from '@temporalio/workflow/lib/converter/data-converter';
 import { coresdk } from '@temporalio/proto';
-import { asyncLocalStorage } from '@temporalio/activity/lib/internals';
+import { asyncLocalStorage } from '@temporalio/activity';
 import { Context, CancellationError, Info } from '@temporalio/activity';
 
 export class Activity {

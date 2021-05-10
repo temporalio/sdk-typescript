@@ -6,11 +6,11 @@
   "devDependencies": {
     "@opentelemetry/exporter-jaeger": "^0.19.0",
     "@opentelemetry/sdk-node": "^0.19.0",
-    "@tsconfig/node12": "^1.0.7",
+    "@tsconfig/node14": "^1.0.0",
     "@types/dedent": "^0.7.0",
     "@types/fs-extra": "^9.0.8",
     "@types/ms": "^0.7.31",
-    "@types/node": "^12.20.6",
+    "@types/node": "^15.0.2",
     "@types/node-fetch": "^2.5.8",
     "@types/ramda": "^0.27.39",
     "@types/uuid": "^8.3.0",

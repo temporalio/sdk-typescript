@@ -22,7 +22,7 @@ const packageJsonBase = {
     },
     devDependencies: {
         typescript: `^${typescriptVersion}`,
-        '@tsconfig/node12': '^1.0.7',
+        '@tsconfig/node14': '^1.0.0',
     },
 };
 const tsConfigSharedBase = {
@@ -40,7 +40,7 @@ const tsConfigSharedBase = {
     include: ['./**/*.ts'],
 };
 const tsConfigBase = {
-    extends: '@tsconfig/node12/tsconfig.json',
+    extends: '@tsconfig/node14/tsconfig.json',
     ...tsConfigSharedBase,
 };
 const workflowsTsConfig = {
