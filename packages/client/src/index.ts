@@ -27,9 +27,12 @@ import * as errors from '@temporalio/workflow/lib/errors';
 
 type StartWorkflowExecutionRequest = iface.temporal.api.workflowservice.v1.IStartWorkflowExecutionRequest;
 type GetWorkflowExecutionHistoryRequest = iface.temporal.api.workflowservice.v1.IGetWorkflowExecutionHistoryRequest;
-export type DescribeWorkflowExecutionResponse = iface.temporal.api.workflowservice.v1.IDescribeWorkflowExecutionResponse;
-export type TerminateWorkflowExecutionResponse = iface.temporal.api.workflowservice.v1.ITerminateWorkflowExecutionResponse;
-export type RequestCancelWorkflowExecutionResponse = iface.temporal.api.workflowservice.v1.IRequestCancelWorkflowExecutionResponse;
+export type DescribeWorkflowExecutionResponse =
+  iface.temporal.api.workflowservice.v1.IDescribeWorkflowExecutionResponse;
+export type TerminateWorkflowExecutionResponse =
+  iface.temporal.api.workflowservice.v1.ITerminateWorkflowExecutionResponse;
+export type RequestCancelWorkflowExecutionResponse =
+  iface.temporal.api.workflowservice.v1.IRequestCancelWorkflowExecutionResponse;
 
 export type WorkflowService = iface.temporal.api.workflowservice.v1.WorkflowService;
 export const { WorkflowService } = iface.temporal.api.workflowservice.v1;

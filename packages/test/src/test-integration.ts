@@ -26,11 +26,8 @@ import { httpGet } from '../../test-activities/lib';
 import { u8, RUN_INTEGRATION_TESTS } from './helpers';
 import { withZeroesHTTPServer } from './zeroes-http-server';
 
-const {
-  EVENT_TYPE_TIMER_STARTED,
-  EVENT_TYPE_TIMER_FIRED,
-  EVENT_TYPE_TIMER_CANCELED,
-} = iface.temporal.api.enums.v1.EventType;
+const { EVENT_TYPE_TIMER_STARTED, EVENT_TYPE_TIMER_FIRED, EVENT_TYPE_TIMER_CANCELED } =
+  iface.temporal.api.enums.v1.EventType;
 
 const timerEventTypes = new Set([EVENT_TYPE_TIMER_STARTED, EVENT_TYPE_TIMER_FIRED, EVENT_TYPE_TIMER_CANCELED]);
 

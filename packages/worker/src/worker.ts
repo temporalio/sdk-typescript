@@ -650,25 +650,23 @@ export class Worker {
           group$,
           this.workflowsIdle$().pipe(
             first(),
-            map(
-              (): ContextAware<{ activation: coresdk.workflow_activation.WFActivation; span: otel.Span }> => {
-                const parentSpan = tracer.startSpan('workflow.shutdown.evict');
-                return {
-                  parentSpan,
-                  span: childSpan(parentSpan, 'process', {
-                    attributes: {
-                      numInFlightActivations: this.numInFlightActivationsSubject.value,
-                      numRunningWorkflowInstances: this.numRunningWorkflowInstancesSubject.value,
-                    },
-                  }),
-                  activation: coresdk.workflow_activation.WFActivation.create({
-                    taskToken: new Uint8Array([]),
-                    runId: group$.key,
-                    jobs: [{ removeFromCache: true }],
-                  }),
-                };
-              }
-            )
+            map((): ContextAware<{ activation: coresdk.workflow_activation.WFActivation; span: otel.Span }> => {
+              const parentSpan = tracer.startSpan('workflow.shutdown.evict');
+              return {
+                parentSpan,
+                span: childSpan(parentSpan, 'process', {
+                  attributes: {
+                    numInFlightActivations: this.numInFlightActivationsSubject.value,
+                    numRunningWorkflowInstances: this.numRunningWorkflowInstancesSubject.value,
+                  },
+                }),
+                activation: coresdk.workflow_activation.WFActivation.create({
+                  taskToken: new Uint8Array([]),
+                  runId: group$.key,
+                  jobs: [{ removeFromCache: true }],
+                }),
+              };
+            })
           )
         ).pipe(
           mergeMapWithState(async (workflow: Workflow | undefined, { activation, span, parentSpan: root }): Promise<{

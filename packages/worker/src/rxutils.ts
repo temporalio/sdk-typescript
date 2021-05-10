@@ -56,17 +56,15 @@ export function closeableGroupBy<K extends string | number | undefined, T>(
       keyToSubject.set(group$.key, subject);
       return subject;
     }),
-    map(
-      (group$: GroupedObservable<K, T>): CloseableGroupedObservable<K, T> => {
-        (group$ as CloseableGroupedObservable<K, T>).close = () => {
-          const subject = keyToSubject.get(group$.key);
-          if (subject !== undefined) {
-            subject.next();
-            keyToSubject.delete(group$.key);
-          }
-        };
-        return group$ as CloseableGroupedObservable<K, T>;
-      }
-    )
+    map((group$: GroupedObservable<K, T>): CloseableGroupedObservable<K, T> => {
+      (group$ as CloseableGroupedObservable<K, T>).close = () => {
+        const subject = keyToSubject.get(group$.key);
+        if (subject !== undefined) {
+          subject.next();
+          keyToSubject.delete(group$.key);
+        }
+      };
+      return group$ as CloseableGroupedObservable<K, T>;
+    })
   );
 }
