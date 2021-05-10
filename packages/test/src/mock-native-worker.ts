@@ -194,6 +194,9 @@ export async function makeDefaultWorker(): Promise<Worker> {
   return new Worker(isolate, resolvedActivities, options);
 }
 
-export function isolateFreeWorker(options: WorkerOptions): Worker {
-  return new Worker(new ivm.Isolate(), new Map(), compileWorkerOptions(addDefaults(options)));
+export function isolateFreeWorker(
+  options: WorkerOptions = defaultOptions,
+  resolvedActivities: Map<string, Record<string, any>> = new Map()
+): Worker {
+  return new Worker(new ivm.Isolate(), resolvedActivities, compileWorkerOptions(addDefaults(options)));
 }
