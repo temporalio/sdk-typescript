@@ -120,7 +120,7 @@ module.exports = {
             files: ['../*/src/*.ts', '../create-project/samples/*.ts'],
           },
         ],
-        target: 'docs',
+        targets: ['docs'],
         features: {
           enable_source_link: false,
         },
