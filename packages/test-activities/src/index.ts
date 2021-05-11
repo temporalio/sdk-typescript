@@ -21,7 +21,7 @@ export async function waitForCancellation(): Promise<void> {
 
 async function signalSchedulingWorkflow(signalName: string) {
   const { info } = Context.current();
-  const connection = new Connection(undefined, { namespace: info.workflowNamespace });
+  const connection = new Connection({ namespace: info.workflowNamespace });
   await connection.service.signalWorkflowExecution({
     namespace: info.workflowNamespace,
     workflowExecution: Context.current().info.workflowExecution,
