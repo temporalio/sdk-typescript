@@ -76,6 +76,14 @@ const workflowsTsConfig = {
     },
     references: [{ path: '../activities/tsconfig.json' }, { path: '../interfaces/tsconfig.json' }],
 };
+/**
+ * Copy sample from `source` to `target` stripping away snipsync comments
+ */
+async function copySample(source, target) {
+    const code = await fs_extra_1.readFile(source, 'utf8');
+    const stripped = code.replace(/.*@@@SNIP(START|END).*\n/gm, '');
+    await fs_extra_1.writeFile(target, stripped);
+}
 async function writePrettyJson(path, obj) {
     await fs_extra_1.writeFile(path, JSON.stringify(obj, null, 2) + os_1.default.EOL);
 }
@@ -131,11 +139,11 @@ async function createProject(projectPath, useYarn, temporalVersion) {
         ],
     });
     const sampleDir = path_1.default.join(__dirname, '../samples');
-    await fs_extra_1.copyFile(path_1.default.join(sampleDir, 'worker.ts'), path_1.default.join(src, 'worker', 'index.ts'));
-    await fs_extra_1.copyFile(path_1.default.join(sampleDir, 'client.ts'), path_1.default.join(src, 'worker', 'schedule-workflow.ts'));
-    await fs_extra_1.copyFile(path_1.default.join(sampleDir, 'activity.ts'), path_1.default.join(src, 'activities', 'greeter.ts'));
-    await fs_extra_1.copyFile(path_1.default.join(sampleDir, 'workflow.ts'), path_1.default.join(src, 'workflows', 'example.ts'));
-    await fs_extra_1.copyFile(path_1.default.join(sampleDir, 'interface.ts'), path_1.default.join(src, 'interfaces', 'workflows.ts'));
+    await copySample(path_1.default.join(sampleDir, 'worker.ts'), path_1.default.join(src, 'worker', 'index.ts'));
+    await copySample(path_1.default.join(sampleDir, 'client.ts'), path_1.default.join(src, 'worker', 'schedule-workflow.ts'));
+    await copySample(path_1.default.join(sampleDir, 'activity.ts'), path_1.default.join(src, 'activities', 'greeter.ts'));
+    await copySample(path_1.default.join(sampleDir, 'workflow.ts'), path_1.default.join(src, 'workflows', 'example.ts'));
+    await copySample(path_1.default.join(sampleDir, 'interface.ts'), path_1.default.join(src, 'interfaces', 'workflows.ts'));
     if (useYarn) {
         await subprocess_1.spawn('yarn', ['install'], { cwd: root, stdio: 'inherit' });
         await subprocess_1.spawn('yarn', ['add', `temporalio@${temporalVersion}`], { cwd: root, stdio: 'inherit' });
