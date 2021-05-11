@@ -95,7 +95,7 @@ async function main() {
   await otel.start();
   const namespace = `bench-${new Date().toISOString()}`;
   const taskQueue = 'bench';
-  const connection = new Connection({ address: serverUrl.host }, { namespace });
+  const connection = new Connection({ address: serverUrl.host, namespace });
 
   await connection.service.registerNamespace({ namespace, workflowExecutionRetentionPeriod: msStrToTs('1 day') });
   console.log('Registered namespace', { namespace });

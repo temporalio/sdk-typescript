@@ -10,7 +10,7 @@
  */
 
 import os from 'os';
-import * as grpc from '@grpc/grpc-js';
+import * as grpc from 'grpc';
 import { v4 as uuid4 } from 'uuid';
 import ms from 'ms';
 import * as iface from '@temporalio/proto';
@@ -147,35 +147,54 @@ export interface WorkflowClient<T extends Workflow> {
   readonly connection: Connection;
 }
 
-export interface ServiceOptions {
-  address?: string;
-  credentials?: grpc.ChannelCredentials;
-}
-
-export type ServiceOptionsWithDefaults = Required<ServiceOptions>;
-
-export function defaultServiceOptions(): ServiceOptionsWithDefaults {
-  return {
-    // LOCAL_DOCKER_TARGET
-    address: '127.0.0.1:7233',
-    credentials: grpc.credentials.createInsecure(),
-  };
-}
-
+/**
+ * GRPC + Temporal server connection options
+ */
 export interface ConnectionOptions {
+  /**
+   * Server address and port
+   */
+  address?: string;
+  /**
+   * Channel credentials, create using the factory methods defined {@link https://grpc.github.io/grpc/node/grpc.credentials.html | here}
+   */
+  credentials?: grpc.ChannelCredentials;
+  /**
+   * Namespace to use in {@link Connection} methods
+   *
+   * @default default
+   */
   namespace?: string;
+  /**
+   * Identity to report to the server
+   *
+   * @default `${process.pid}@${os.hostname()}`
+   */
   identity?: string;
+  /**
+   * {@link DataConverter} to use for serializing and deserializing payloads
+   */
   dataConverter?: DataConverter;
+  /**
+   * GRPC Channel arguments
+   *
+   * @see options {@link https://grpc.github.io/grpc/core/group__grpc__arg__keys.html | here}
+   */
+  channelArgs?: Record<string, any>;
 }
 
 export type ConnectionOptionsWithDefaults = Required<ConnectionOptions>;
 
 export function defaultConnectionOpts(): ConnectionOptionsWithDefaults {
   return {
+    // LOCAL_DOCKER_TARGET
+    address: '127.0.0.1:7233',
+    credentials: grpc.credentials.createInsecure(),
     namespace: 'default',
     dataConverter: defaultDataConverter,
     // ManagementFactory.getRuntimeMXBean().getName()
     identity: `${process.pid}@${os.hostname()}`,
+    channelArgs: {},
   };
 }
 
@@ -311,10 +330,9 @@ export class Connection {
   public readonly client: grpc.Client;
   public readonly service: WorkflowService;
 
-  constructor(svcOpts?: ServiceOptions, connOpts?: ConnectionOptions) {
-    this.options = { ...defaultConnectionOpts(), ...connOpts };
-    const serviceOptions = { ...defaultServiceOptions(), ...svcOpts };
-    this.client = new Connection.Client(serviceOptions.address, serviceOptions.credentials, {});
+  constructor(options?: ConnectionOptions) {
+    this.options = { ...defaultConnectionOpts(), ...options };
+    this.client = new Connection.Client(this.options.address, this.options.credentials, this.options.channelArgs);
     const rpcImpl = (method: { name: string }, requestData: any, callback: grpc.requestCallback<any>) => {
       return this.client.makeUnaryRequest(
         `/temporal.api.workflowservice.v1.WorkflowService/${method.name}`,
@@ -328,6 +346,25 @@ export class Connection {
       );
     };
     this.service = WorkflowService.create(rpcImpl, false, false);
+  }
+
+  /**
+   * Wait for successful connection to the server.
+   *
+   * @param waitTimeMs milliseconds to wait before giving up.
+   *
+   * @see https://grpc.github.io/grpc/node/grpc.Client.html#waitForReady__anchor
+   */
+  public async untilReady(waitTimeMs = 5000): Promise<void> {
+    new Promise<void>((resolve, reject) => {
+      this.client.waitForReady(Date.now() + waitTimeMs, (err) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve();
+        }
+      });
+    });
   }
 
   public async startWorkflowExecution(
