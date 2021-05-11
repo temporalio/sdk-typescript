@@ -19,7 +19,7 @@ const packageJsonBase = {
   },
   devDependencies: {
     typescript: `^${typescriptVersion}`,
-    '@tsconfig/node12': '^1.0.7',
+    '@tsconfig/node14': '^1.0.0',
   },
 };
 
@@ -39,12 +39,12 @@ const tsConfigSharedBase = {
 };
 
 const tsConfigBase = {
-  extends: '@tsconfig/node12/tsconfig.json',
+  extends: '@tsconfig/node14/tsconfig.json',
   ...tsConfigSharedBase,
 };
 
 const workflowsTsConfig = {
-  ...tsConfigSharedBase,
+  ...tsConfigBase,
   compilerOptions: {
     ...tsConfigSharedBase.compilerOptions,
     lib: [
@@ -65,11 +65,6 @@ const workflowsTsConfig = {
       'es2017.string',
       'es2017.typedarrays',
     ],
-    target: 'es2017',
-    module: 'es2020',
-    moduleResolution: 'node',
-    esModuleInterop: true,
-    strict: true,
     typeRoots: ['.'],
     outDir: '../../lib/workflows',
     paths: {
@@ -125,10 +120,6 @@ async function createProject(projectPath: string, useYarn: boolean, temporalVers
       ...tsConfigBase.compilerOptions,
       outDir: '../../lib/worker',
       paths: {
-        '@workflows': ['../workflows'],
-        '@workflows/*': ['../workflows/*'],
-        '@activities': ['../activities'],
-        '@activities/*': ['../activities/*'],
         '@interfaces': ['../interfaces'],
         '@interfaces/*': ['../interfaces/*'],
       },

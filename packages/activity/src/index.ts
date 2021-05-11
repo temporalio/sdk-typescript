@@ -47,8 +47,11 @@
  * @module
  */
 
+import { AsyncLocalStorage } from 'async_hooks';
 import { AbortSignal } from 'abort-controller';
-import { asyncLocalStorage } from './internals';
+
+/** @ignore */
+export const asyncLocalStorage = new AsyncLocalStorage<Context>();
 
 /**
  * Thrown in an Activity when the Activity is cancelled while awaiting {@link Context.cancelled}.

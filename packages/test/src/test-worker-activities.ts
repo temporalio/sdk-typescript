@@ -2,9 +2,11 @@
 import anyTest, { TestInterface, ExecutionContext } from 'ava';
 import { v4 as uuid4 } from 'uuid';
 import { coresdk } from '@temporalio/proto';
-import { defaultDataConverter } from '@temporalio/workflow/commonjs/converter/data-converter';
+import { defaultDataConverter } from '@temporalio/workflow/lib/converter/data-converter';
+import { WorkflowIsolateBuilder } from '@temporalio/worker/lib/isolate-builder';
+import { DefaultLogger } from '@temporalio/worker/lib/logger';
 import { httpGet } from '../../test-activities/lib';
-import { Worker, makeDefaultWorker } from './mock-native-worker';
+import { Worker, isolateFreeWorker, defaultOptions } from './mock-native-worker';
 import { withZeroesHTTPServer } from './zeroes-http-server';
 
 export interface Context {
@@ -21,9 +23,15 @@ export async function runWorker(t: ExecutionContext<Context>, fn: () => Promise<
   await promise;
 }
 
-test.beforeEach((t) => {
+test.beforeEach(async (t) => {
+  const resolvedActivities = await WorkflowIsolateBuilder.resolveActivities(
+    new DefaultLogger('ERROR'),
+    defaultOptions.activitiesPath!
+  );
+  const worker = isolateFreeWorker(defaultOptions, resolvedActivities);
+
   t.context = {
-    worker: makeDefaultWorker(),
+    worker,
   };
 });
 

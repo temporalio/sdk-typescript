@@ -25,5 +25,8 @@
   "homepage": "https://github.com/temporalio/sdk-node#readme",
   "publishConfig": {
     "access": "public"
+  },
+  "engines": {
+    "node": ">=14.0.0"
   }
 }

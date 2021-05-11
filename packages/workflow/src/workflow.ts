@@ -168,11 +168,11 @@ export class ContextImpl {
     activity: string | [string, string] | ActivityFunction<P, R>,
     options: ActivityOptions | undefined = state.activityDefaults
   ): ActivityFunction<P, R> {
-    const { name, type } = activityInfo(activity);
     if (options === undefined) {
       throw new TypeError('options must be defined');
     }
     validateActivityOptions(options);
+    const { name, type } = activityInfo(activity);
     // Wrap the function in an object so it gets the original function name
     const { [name]: fn } = {
       [name](...args: P) {

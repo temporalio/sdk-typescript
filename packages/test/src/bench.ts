@@ -5,7 +5,7 @@ import { range } from 'rxjs';
 import { mergeMap, take, tap, withLatestFrom } from 'rxjs/operators';
 import { Worker, DefaultLogger } from '@temporalio/worker';
 import { Connection } from '@temporalio/client';
-import { msStrToTs } from '@temporalio/workflow/commonjs/time';
+import { msStrToTs } from '@temporalio/workflow/lib/time';
 import * as opentelemetry from '@opentelemetry/sdk-node';
 import { JaegerExporter } from '@opentelemetry/exporter-jaeger';
 

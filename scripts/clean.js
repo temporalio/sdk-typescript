@@ -29,13 +29,9 @@ function cleanTsGeneratedFiles() {
 }
 
 function cleanProtoGeneratedFiles() {
-  const protosOutputDir = resolve(packagesPath, 'proto');
-  const commonjsOutputDir = resolve(protosOutputDir, 'commonjs');
-  const es2020OutputDir = resolve(protosOutputDir, 'es2020');
-  console.log(`Removing ${commonjsOutputDir}`);
-  removeSync(commonjsOutputDir);
-  console.log(`Removing ${es2020OutputDir}`);
-  removeSync(es2020OutputDir);
+  const protosOutputDir = resolve(packagesPath, 'proto/lib');
+  console.log(`Removing ${protosOutputDir}`);
+  removeSync(protosOutputDir);
 }
 
 function cleanCompiledRustFiles() {

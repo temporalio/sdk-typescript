@@ -14,22 +14,25 @@ import * as grpc from '@grpc/grpc-js';
 import { v4 as uuid4 } from 'uuid';
 import ms from 'ms';
 import * as iface from '@temporalio/proto';
-import { Workflow, WorkflowSignalType, WorkflowQueryType } from '@temporalio/workflow/commonjs/interfaces';
-import { msToTs, nullToUndefined } from '@temporalio/workflow/commonjs/time';
-import { ResolvablePromise } from '@temporalio/workflow/commonjs/common';
+import { Workflow, WorkflowSignalType, WorkflowQueryType } from '@temporalio/workflow/lib/interfaces';
+import { msToTs, nullToUndefined } from '@temporalio/workflow/lib/time';
+import { ResolvablePromise } from '@temporalio/workflow/lib/common';
 import {
   arrayFromPayloads,
   DataConverter,
   defaultDataConverter,
   mapToPayloads,
-} from '@temporalio/workflow/commonjs/converter/data-converter';
-import * as errors from '@temporalio/workflow/commonjs/errors';
+} from '@temporalio/workflow/lib/converter/data-converter';
+import * as errors from '@temporalio/workflow/lib/errors';
 
 type StartWorkflowExecutionRequest = iface.temporal.api.workflowservice.v1.IStartWorkflowExecutionRequest;
 type GetWorkflowExecutionHistoryRequest = iface.temporal.api.workflowservice.v1.IGetWorkflowExecutionHistoryRequest;
-export type DescribeWorkflowExecutionResponse = iface.temporal.api.workflowservice.v1.IDescribeWorkflowExecutionResponse;
-export type TerminateWorkflowExecutionResponse = iface.temporal.api.workflowservice.v1.ITerminateWorkflowExecutionResponse;
-export type RequestCancelWorkflowExecutionResponse = iface.temporal.api.workflowservice.v1.IRequestCancelWorkflowExecutionResponse;
+export type DescribeWorkflowExecutionResponse =
+  iface.temporal.api.workflowservice.v1.IDescribeWorkflowExecutionResponse;
+export type TerminateWorkflowExecutionResponse =
+  iface.temporal.api.workflowservice.v1.ITerminateWorkflowExecutionResponse;
+export type RequestCancelWorkflowExecutionResponse =
+  iface.temporal.api.workflowservice.v1.IRequestCancelWorkflowExecutionResponse;
 
 export type WorkflowService = iface.temporal.api.workflowservice.v1.WorkflowService;
 export const { WorkflowService } = iface.temporal.api.workflowservice.v1;

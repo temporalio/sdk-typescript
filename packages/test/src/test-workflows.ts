@@ -1,14 +1,20 @@
 import anyTest, { TestInterface, ExecutionContext } from 'ava';
+import path from 'path';
+import ivm from 'isolated-vm';
 import Long from 'long';
 import dedent from 'dedent';
-import path from 'path';
 import { coresdk } from '@temporalio/proto';
-import { defaultDataConverter } from '@temporalio/workflow/commonjs/converter/data-converter';
-import { msToTs, msStrToTs } from '@temporalio/workflow/commonjs/time';
+import { defaultDataConverter } from '@temporalio/workflow/lib/converter/data-converter';
+import { msToTs, msStrToTs } from '@temporalio/workflow/lib/time';
+import { ActivityOptions } from '@temporalio/worker';
 import { Workflow } from '@temporalio/worker/lib/workflow';
+import { WorkflowIsolateBuilder } from '@temporalio/worker/lib/isolate-builder';
+import { DefaultLogger } from '@temporalio/worker/lib/logger';
+import * as activityFunctions from '@temporalio/test-activities/lib';
 import { u8 } from './helpers';
 
 export interface Context {
+  isolate: ivm.Isolate;
   workflow: Workflow;
   logs: unknown[][];
   script: string;
@@ -20,20 +26,25 @@ function getWorkflow(name: string) {
   return path.join(__dirname, '../../test-workflows/lib', name);
 }
 
+test.before(async (t) => {
+  const logger = new DefaultLogger('INFO');
+  const workflowsPath = path.join(__dirname, '../../test-workflows/lib');
+  const nodeModulesPath = path.join(__dirname, '../../../node_modules');
+  const activityDefaults: ActivityOptions = { type: 'remote', startToCloseTimeout: '10m' };
+  const activities = new Map([['@activities', activityFunctions]]);
+  const builder = new WorkflowIsolateBuilder(logger, nodeModulesPath, workflowsPath, activities, activityDefaults);
+  t.context.isolate = await builder.build();
+});
+
 test.beforeEach(async (t) => {
-  const workflow = await Workflow.create('test-workflowId', Long.fromInt(1337), 'test', {
-    type: 'remote',
-    startToCloseTimeout: '10m',
-  });
-  const logs: unknown[][] = [];
-  await workflow.inject('console.log', (...args: unknown[]) => void logs.push(args));
-  const activities = new Map([['@activities', { httpGet: () => undefined }]]);
-  await workflow.registerActivities(activities, { type: 'remote', startToCloseTimeout: '10m' });
+  const { isolate } = t.context;
   // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
   const testName = t.title.match(/\S+$/)![0];
+  const workflow = await Workflow.create(isolate, testName, 'test-workflowId', Long.fromInt(1337), 'test');
+  const logs: unknown[][] = [];
+  await workflow.inject('console.log', (...args: unknown[]) => void logs.push(args));
   const script = getWorkflow(`${testName}.js`);
-  await workflow.registerImplementation(script);
-  t.context = { workflow, logs, script };
+  t.context = { isolate, workflow, logs, script };
 });
 
 async function activate(t: ExecutionContext<Context>, activation: coresdk.workflow_activation.IWFActivation) {
@@ -253,7 +264,7 @@ test('throw-sync', async (t) => {
         'failure',
         dedent`
         Error: failure
-            at Module.main
+            at Object.main
             at Activator.startWorkflow
             at activate
         `
@@ -273,7 +284,7 @@ test('throw-async', async (t) => {
         'failure',
         dedent`
         Error: failure
-            at Module.main
+            at Object.main
             at Activator.startWorkflow
             at activate
         `
@@ -820,8 +831,8 @@ test('cancellation-error-is-propagated', async (t) => {
         'Cancelled',
         dedent`
         CancellationError: Cancelled
-            at cancel
-            at Module.main
+            at Object.cancel
+            at Object.main
             at Activator.startWorkflow
             at activate
         `,

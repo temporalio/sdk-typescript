@@ -1,16 +1,16 @@
 /* eslint @typescript-eslint/no-non-null-assertion: 0 */
-import anyTest, { TestInterface, ExecutionContext } from 'ava';
+import anyTest, { TestInterface } from 'ava';
 import { v4 as uuid4 } from 'uuid';
 import { Connection } from '@temporalio/client';
-import { tsToMs } from '@temporalio/workflow/commonjs/time';
+import { tsToMs } from '@temporalio/workflow/lib/time';
 import { Worker, DefaultLogger } from '@temporalio/worker';
 import * as iface from '@temporalio/proto';
 import {
   WorkflowExecutionFailedError,
   WorkflowExecutionTimedOutError,
   WorkflowExecutionTerminatedError,
-} from '@temporalio/workflow/commonjs/errors';
-import { defaultDataConverter } from '@temporalio/workflow/commonjs/converter/data-converter';
+} from '@temporalio/workflow/lib/errors';
+import { defaultDataConverter } from '@temporalio/workflow/lib/converter/data-converter';
 import {
   ArgsAndReturn,
   HTTP,
@@ -26,11 +26,8 @@ import { httpGet } from '../../test-activities/lib';
 import { u8, RUN_INTEGRATION_TESTS } from './helpers';
 import { withZeroesHTTPServer } from './zeroes-http-server';
 
-const {
-  EVENT_TYPE_TIMER_STARTED,
-  EVENT_TYPE_TIMER_FIRED,
-  EVENT_TYPE_TIMER_CANCELED,
-} = iface.temporal.api.enums.v1.EventType;
+const { EVENT_TYPE_TIMER_STARTED, EVENT_TYPE_TIMER_FIRED, EVENT_TYPE_TIMER_CANCELED } =
+  iface.temporal.api.enums.v1.EventType;
 
 const timerEventTypes = new Set([EVENT_TYPE_TIMER_STARTED, EVENT_TYPE_TIMER_FIRED, EVENT_TYPE_TIMER_CANCELED]);
 
@@ -46,6 +43,7 @@ if (RUN_INTEGRATION_TESTS) {
     const worker = await Worker.create({
       workflowsPath: `${__dirname}/../../test-workflows/lib`,
       activitiesPath: `${__dirname}/../../test-activities/lib`,
+      nodeModulesPath: `${__dirname}/../../../node_modules`,
       logger: new DefaultLogger('DEBUG'),
       taskQueue: 'test',
     });
@@ -66,7 +64,7 @@ if (RUN_INTEGRATION_TESTS) {
     const client = new Connection();
     const workflow = client.workflow<Empty>('not-found', { taskQueue: 'test' });
     await t.throwsAsync(() => workflow.start(), {
-      message: /^Could not find file: \S+\/not-found.js$/,
+      message: 'Workflow not found',
       instanceOf: WorkflowExecutionFailedError,
     });
   });

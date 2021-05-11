@@ -1,4 +1,4 @@
-import { ActivityOptions, Scope, Workflow } from './interfaces';
+import { Scope, Workflow } from './interfaces';
 import { state, currentScope, Runtime, Activator } from './internals';
 import { msToTs } from './time';
 import { alea } from './alea';
@@ -59,18 +59,11 @@ export function overrideGlobals(randomnessSeed: number[]): void {
   };
 }
 
-export function initWorkflow(
-  workflowId: string,
-  randomnessSeed: number[],
-  taskQueue: string,
-  activityDefaults: ActivityOptions,
-  runtime: Runtime
-): void {
+export function initWorkflow(workflowId: string, randomnessSeed: number[], taskQueue: string, runtime: Runtime): void {
   overrideGlobals(randomnessSeed);
 
   state.workflowId = workflowId;
   state.taskQueue = taskQueue;
-  state.activityDefaults = activityDefaults;
   state.runtime = runtime;
   state.activator = new Activator();
   runtime.registerPromiseHook((t, p, pp) => {

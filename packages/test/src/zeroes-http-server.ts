@@ -1,6 +1,6 @@
 import http from 'http';
 import { sleep } from './helpers';
-import { ResolvablePromise } from '@temporalio/workflow/commonjs/common';
+import { ResolvablePromise } from '@temporalio/workflow/lib/common';
 
 /**
  * Creates an HTTP server which responds with zeroes on /zeroes.

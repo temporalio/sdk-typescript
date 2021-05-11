@@ -1,16 +1,19 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
 import { v4 as uuid4 } from 'uuid';
+import ivm from 'isolated-vm';
 import { coresdk } from '@temporalio/proto';
-import { msStrToTs } from '@temporalio/workflow/commonjs/time';
-import { defaultDataConverter } from '@temporalio/workflow/commonjs/converter/data-converter';
+import { msStrToTs } from '@temporalio/workflow/lib/time';
+import { defaultDataConverter } from '@temporalio/workflow/lib/converter/data-converter';
 import {
   Worker as RealWorker,
   NativeWorkerLike,
-  WorkerOptions,
   compileWorkerOptions,
+  CompiledWorkerOptionsWithDefaults,
+  WorkerOptions,
   addDefaults,
   errors,
 } from '@temporalio/worker/lib/worker';
+import { WorkflowIsolateBuilder } from '@temporalio/worker/lib/isolate-builder';
 import { DefaultLogger } from '@temporalio/worker';
 import { sleep } from '@temporalio/worker/lib/utils';
 
@@ -150,9 +153,13 @@ export class Worker extends RealWorker {
     return this.nativeWorker as MockNativeWorker;
   }
 
-  public constructor(opts: WorkerOptions) {
+  public constructor(
+    isolate: ivm.Isolate,
+    resolvedActivities: Map<string, Record<string, (...args: any[]) => any>>,
+    opts: CompiledWorkerOptionsWithDefaults
+  ) {
     const nativeWorker = new MockNativeWorker();
-    super(nativeWorker, compileWorkerOptions(addDefaults(opts)));
+    super(nativeWorker, isolate, resolvedActivities, opts);
   }
 
   public runWorkflows(...args: Parameters<Worker['workflow$']>): Promise<void> {
@@ -161,11 +168,35 @@ export class Worker extends RealWorker {
   }
 }
 
-export function makeDefaultWorker(): Worker {
-  return new Worker({
-    workflowsPath: `${__dirname}/../../test-workflows/lib`,
-    activitiesPath: `${__dirname}/../../test-activities/lib`,
-    taskQueue: 'test',
-    logger: new DefaultLogger('DEBUG'),
-  });
+export const defaultOptions: WorkerOptions = {
+  workflowsPath: `${__dirname}/../../test-workflows/lib`,
+  activitiesPath: `${__dirname}/../../test-activities/lib`,
+  nodeModulesPath: `${__dirname}/../../../node_modules`,
+  taskQueue: 'test',
+};
+
+export async function makeDefaultWorker(): Promise<Worker> {
+  const options = compileWorkerOptions(
+    addDefaults({
+      ...defaultOptions,
+      logger: new DefaultLogger('DEBUG'),
+    })
+  );
+  const resolvedActivities = await WorkflowIsolateBuilder.resolveActivities(options.logger, options.activitiesPath!);
+  const builder = new WorkflowIsolateBuilder(
+    options.logger,
+    options.nodeModulesPath!,
+    options.workflowsPath!,
+    resolvedActivities,
+    options.activityDefaults
+  );
+  const isolate = await builder.build();
+  return new Worker(isolate, resolvedActivities, options);
+}
+
+export function isolateFreeWorker(
+  options: WorkerOptions = defaultOptions,
+  resolvedActivities: Map<string, Record<string, any>> = new Map()
+): Worker {
+  return new Worker(new ivm.Isolate(), resolvedActivities, compileWorkerOptions(addDefaults(options)));
 }
