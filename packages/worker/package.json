@@ -36,7 +36,7 @@
     "rxjs": "^6.6.3",
     "unionfs": "^4.4.0",
     "uuid": "^8.3.2",
-    "webpack": "^4.44.1"
+    "webpack": "^5.36.2"
   },
   "bugs": {
     "url": "https://github.com/temporalio/sdk-node/issues"
