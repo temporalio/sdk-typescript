@@ -13,7 +13,7 @@
   "author": "Roey Berman <roey@temporal.io>",
   "license": "MIT",
   "dependencies": {
-    "@grpc/grpc-js": "^1.2.12",
+    "grpc": "^1.24.9",
     "@temporalio/proto": "file:../proto",
     "@temporalio/workflow": "file:../workflow",
     "ms": "^2.1.3",

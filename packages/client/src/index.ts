@@ -10,7 +10,7 @@
  */
 
 import os from 'os';
-import * as grpc from '@grpc/grpc-js';
+import * as grpc from 'grpc';
 import { v4 as uuid4 } from 'uuid';
 import ms from 'ms';
 import * as iface from '@temporalio/proto';
