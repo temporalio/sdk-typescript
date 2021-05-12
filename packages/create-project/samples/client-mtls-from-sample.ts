@@ -1,7 +1,6 @@
 // @@@SNIPSTART nodejs-mtls-client
 import fs from 'fs';
 import path from 'path';
-import * as grpc from 'grpc';
 import { Connection } from '@temporalio/client';
 
 async function run() {
@@ -11,16 +10,15 @@ async function run() {
   if (certsDir === undefined) {
     throw new Error('Please pass certs dir as single argument');
   }
-  const credentials = grpc.credentials.createSsl(
-    fs.readFileSync(path.join(certsDir, 'cluster/ca/server-intermediate-ca.pem')),
-    fs.readFileSync(path.join(certsDir, 'client/development/client-development-namespace.key')),
-    fs.readFileSync(path.join(certsDir, 'client/development/client-development-namespace.pem'))
-  );
   // Connect to localhost and use the "default" namespace
   const connection = new Connection({
-    credentials,
-    channelArgs: {
-      'grpc.ssl_target_name_override': 'development.cluster-x.contoso.com',
+    tls: {
+      serverNameOverride: 'development.cluster-x.contoso.com',
+      serverRootCACertificate: fs.readFileSync(path.join(certsDir, 'cluster/ca/server-intermediate-ca.pem')),
+      clientCertPair: {
+        crt: fs.readFileSync(path.join(certsDir, 'client/development/client-development-namespace.pem')),
+        key: fs.readFileSync(path.join(certsDir, 'client/development/client-development-namespace.key')),
+      },
     },
   });
   await connection.untilReady();
