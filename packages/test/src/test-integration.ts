@@ -151,7 +151,7 @@ if (RUN_INTEGRATION_TESTS) {
     const res = await workflow.start();
     t.is(res, undefined);
     const execution = await client.service.getWorkflowExecutionHistory({
-      namespace: client.options.namespace,
+      namespace: workflow.options.namespace,
       execution: { workflowId: workflow.workflowId, runId: workflow.runId },
     });
     const timerEvents = execution.history!.events!.filter(({ eventType }) => timerEventTypes.has(eventType!));
@@ -167,7 +167,7 @@ if (RUN_INTEGRATION_TESTS) {
     const res = await workflow.start();
     t.is(res, undefined);
     const execution = await client.service.getWorkflowExecutionHistory({
-      namespace: client.options.namespace,
+      namespace: workflow.options.namespace,
       execution: { workflowId: workflow.workflowId, runId: workflow.runId },
     });
     const timerEvents = execution.history!.events!.filter(({ eventType }) => timerEventTypes.has(eventType!));
@@ -181,7 +181,7 @@ if (RUN_INTEGRATION_TESTS) {
     const res = await workflow.start();
     t.is(res, undefined);
     const execution = await client.service.getWorkflowExecutionHistory({
-      namespace: client.options.namespace,
+      namespace: workflow.options.namespace,
       execution: { workflowId: workflow.workflowId, runId: workflow.runId },
     });
     const timerEvents = execution.history!.events!.filter(({ eventType }) => timerEventTypes.has(eventType!));
@@ -199,7 +199,7 @@ if (RUN_INTEGRATION_TESTS) {
     const workflow = client.workflow<ArgsAndReturn>('args-and-return', { taskQueue: 'test' });
     await workflow.start('hey', undefined, Buffer.from('abc'));
     const execution = await client.service.getWorkflowExecutionHistory({
-      namespace: client.options.namespace,
+      namespace: workflow.options.namespace,
       execution: { workflowId: workflow.workflowId, runId: workflow.runId },
     });
     const events = execution.history!.events!.filter(
