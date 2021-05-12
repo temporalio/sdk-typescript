@@ -59,6 +59,9 @@ import pkg from '../package.json';
 export { RetryOptions, RemoteActivityOptions, LocalActivityOptions } from '@temporalio/workflow';
 export { ActivityOptions, DataConverter, errors };
 
+type TLSConfig = native.TLSConfig;
+export { TLSConfig };
+
 native.registerErrors(errors);
 
 export interface ServerOptions {
@@ -88,9 +91,20 @@ export interface ServerOptions {
    * @format {@link https://www.npmjs.com/package/ms | ms} formatted string
    */
   longPollTimeout?: string;
+
+  /**
+   * TLS configuration options.
+   *
+   * If undefined will not connect using TLS, to connect with TLS without any customization, pass an empty object
+   */
+  tls?: TLSConfig;
 }
 
-export type CompiledServerOptions = Omit<Required<ServerOptions>, 'longPollTimeout'> & {
+export type RequiredServerOptions = Omit<Required<ServerOptions>, 'tls'> & {
+  tls?: TLSConfig;
+};
+
+export type CompiledServerOptions = Omit<RequiredServerOptions, 'longPollTimeout'> & {
   longPollTimeoutMs: number;
 };
 
@@ -207,7 +221,7 @@ export interface WorkerOptions {
 }
 
 export type WorkerOptionsWithDefaults = Omit<WorkerOptions, 'serverOptions'> & {
-  serverOptions: Required<ServerOptions>;
+  serverOptions: RequiredServerOptions;
 } & Required<
     Pick<
       WorkerOptions,
@@ -228,7 +242,7 @@ export interface CompiledWorkerOptionsWithDefaults extends Omit<WorkerOptionsWit
   serverOptions: CompiledServerOptions;
 }
 
-export function getDefaultServerOptions(): Required<ServerOptions> {
+export function getDefaultServerOptions(): RequiredServerOptions {
   return {
     url: 'http://localhost:7233',
     identity: `${process.pid}@${os.hostname()}`,
@@ -238,7 +252,7 @@ export function getDefaultServerOptions(): Required<ServerOptions> {
   };
 }
 
-export function compileServerOptions(options: Required<ServerOptions>): native.ServerOptions {
+export function compileServerOptions(options: RequiredServerOptions): native.ServerOptions {
   const { longPollTimeout, ...rest } = options;
   return { ...rest, longPollTimeoutMs: ms(longPollTimeout) };
 }

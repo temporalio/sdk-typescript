@@ -7,8 +7,8 @@ use std::{fmt::Display, future::Future, sync::Arc, time::Duration};
 use temporal_sdk_core::{
     init, protos::coresdk::workflow_completion::WfActivationCompletion,
     protos::coresdk::ActivityHeartbeat, protos::coresdk::ActivityTaskCompletion, tracing_init,
-    CompleteActivityError, CompleteWfError, Core, CoreInitError, CoreInitOptions,
-    PollActivityError, PollWfError, ServerGatewayOptions, Url,
+    ClientTlsConfig, CompleteActivityError, CompleteWfError, Core, CoreInitError, CoreInitOptions,
+    PollActivityError, PollWfError, ServerGatewayOptions, TlsConfig, Url,
 };
 use tokio::sync::mpsc::{channel, Sender};
 
@@ -353,6 +353,42 @@ async fn handle_poll_activity_task_request(
     }
 }
 
+/// Helper for extracting an optional attribute from [obj].
+/// If [obj].[attr] is undefined or not present, None is returned
+fn get_optional<'a, C, K>(cx: &mut C, obj: Handle<JsObject>, attr: K) -> Option<Handle<'a, JsValue>>
+where
+    K: neon::object::PropertyKey,
+    C: Context<'a>,
+{
+    match obj.get(cx, attr) {
+        Err(_) => None,
+        Ok(val) => match val.downcast::<JsUndefined, C>(cx) {
+            Ok(_) => None,
+            Err(_) => Some(val),
+        },
+    }
+}
+
+/// Helper for extracting a Vec<u8> from optional Buffer at [obj].[attr]
+fn get_vec<'a, C, K>(
+    cx: &mut C,
+    obj: Handle<JsObject>,
+    attr: K,
+) -> Result<Vec<u8>, neon::result::Throw>
+where
+    K: neon::object::PropertyKey + Display,
+    C: Context<'a>,
+{
+    // Create the error here because we can't use attr in the else statement
+    let error_str = format!("{} is not a Buffer", attr);
+    if let Some(val) = get_optional(cx, obj, attr) {
+        let buf = val.downcast_or_throw::<JsBuffer, C>(cx)?;
+        Ok(cx.borrow(&buf, |data| data.as_slice::<u8>().to_vec()))
+    } else {
+        cx.throw_type_error(error_str)
+    }
+}
+
 // Below are functions exported to JS
 
 /// Create a new worker asynchronously.
@@ -368,6 +404,39 @@ fn worker_new(mut cx: FunctionContext) -> JsResult<JsUndefined> {
         .downcast_or_throw::<JsString, FunctionContext>(&mut cx)?
         .value(&mut cx);
     let callback = cx.argument::<JsFunction>(1)?.root(&mut cx);
+
+    let tls_cfg = match get_optional(&mut cx, server_options, "tls") {
+        None => None,
+        Some(val) => {
+            let tls = val.downcast_or_throw::<JsObject, FunctionContext>(&mut cx)?;
+            let domain = match get_optional(&mut cx, tls, "serverNameOverride") {
+                None => None,
+                Some(val) => Some(
+                    val.downcast_or_throw::<JsString, FunctionContext>(&mut cx)?
+                        .value(&mut cx),
+                ),
+            };
+
+            let server_root_ca_cert = get_vec(&mut cx, tls, "serverRootCACertificate").ok();
+            let client_tls_config = match tls.get(&mut cx, "clientCertPair") {
+                Err(_) => None,
+                Ok(val) => {
+                    let client_tls_obj =
+                        val.downcast_or_throw::<JsObject, FunctionContext>(&mut cx)?;
+                    Some(ClientTlsConfig {
+                        client_cert: get_vec(&mut cx, client_tls_obj, "crt")?,
+                        client_private_key: get_vec(&mut cx, client_tls_obj, "key")?,
+                    })
+                }
+            };
+
+            Some(TlsConfig {
+                server_root_ca_cert,
+                domain,
+                client_tls_config,
+            })
+        }
+    };
 
     let gateway_opts = ServerGatewayOptions {
         target_url: Url::parse(&url).unwrap(),
@@ -393,7 +462,7 @@ fn worker_new(mut cx: FunctionContext) -> JsResult<JsUndefined> {
                 .downcast_or_throw::<JsNumber, FunctionContext>(&mut cx)?
                 .value(&mut cx) as u64,
         ),
-        tls_cfg: None,
+        tls_cfg,
     };
 
     let max_outstanding_activities = worker_options

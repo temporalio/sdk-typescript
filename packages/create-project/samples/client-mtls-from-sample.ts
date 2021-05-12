@@ -5,7 +5,8 @@ import * as grpc from 'grpc';
 import { Connection } from '@temporalio/client';
 
 async function run() {
-  // certsDir should be the directory created by the generate-certs.sh script from https://github.com/temporalio/customization-samples/tree/master/tls/tls-full#steps-to-run-this-sample
+  // certsDir should be the directory created by the generate-certs.sh script from
+  // https://github.com/temporalio/customization-samples/tree/master/tls/tls-full#steps-to-run-this-sample
   const [certsDir] = process.argv.slice(2);
   if (certsDir === undefined) {
     throw new Error('Please pass certs dir as single argument');
@@ -23,7 +24,7 @@ async function run() {
     },
   });
   await connection.untilReady();
-  console.log('connection succesfully established');
+  console.log('Client connection succesfully established');
 }
 
 run().catch((err) => {

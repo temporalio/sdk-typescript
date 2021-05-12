@@ -1,3 +1,25 @@
+/** TLS configuration options. */
+export interface TLSConfig {
+  /**
+   * Overrides the target name used for SSL host name checking.
+   * If this attribute is not specified, the name used for SSL host name checking will be the host from {@link ServerOptions.url}.
+   * This _should_ be used for testing only.
+   */
+  serverNameOverride?: string;
+  /**
+   * Root CA certificate used by the server. If not set, and the server's
+   * cert is issued by someone the operating system trusts, verification will still work (ex: Cloud offering).
+   */
+  serverRootCACertificate?: Buffer;
+  /** Sets the client certificate and key for connecting with mTLS */
+  clientCertPair?: {
+    /** The certificate for this client */
+    crt: Buffer;
+    /** The private key for this client */
+    key: Buffer;
+  };
+}
+
 export interface ServerOptions {
   /**
    * The URL of the Temporal server to connect to
@@ -20,6 +42,13 @@ export interface ServerOptions {
    * Timeout for long polls (polling of task queues)
    */
   longPollTimeoutMs: number;
+
+  /**
+   * TLS configuration options.
+   *
+   * If undefined will not connect using TLS, to connect with TLS without any customization, pass an empty object
+   */
+  tls?: TLSConfig;
 }
 
 export interface WorkerOptions {

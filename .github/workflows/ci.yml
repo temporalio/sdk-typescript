@@ -96,6 +96,7 @@ jobs:
           # aarch64 build fails on GH actions, skip it since we can't test it anyways
           # windows build temporarily disabled due to brew issues
           TEMPORAL_WORKER_BUILD_TARGETS: 'x86_64-apple-darwin:x86_64-unknown-linux-gnu'
+          CC_x86_64_unknown_linux_gnu: x86_64-unknown-linux-gnu-gcc
       - run: node scripts/publish-to-verdaccio.js --registry-dir /tmp/registry
       - uses: actions/upload-artifact@v2
         with:
