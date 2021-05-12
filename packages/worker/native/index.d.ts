@@ -1,3 +1,5 @@
+// NOTE: this interface is duplicated in the client module `packages/client/src/index.ts`
+
 /** TLS configuration options. */
 export interface TLSConfig {
   /**
@@ -46,7 +48,8 @@ export interface ServerOptions {
   /**
    * TLS configuration options.
    *
-   * If undefined will not connect using TLS, to connect with TLS without any customization, pass an empty object
+   * Pass undefined to use a non-encrypted connection or an empty object to
+   * connect with TLS without any customization.
    */
   tls?: TLSConfig;
 }

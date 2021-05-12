@@ -42,6 +42,30 @@ type EnsurePromise<T> = T extends Promise<any> ? T : Promise<T>;
 /// Takes a function type F and converts it to an async version if it isn't one already
 type AsyncOnly<F extends (...args: any[]) => any> = (...args: Parameters<F>) => EnsurePromise<ReturnType<F>>;
 
+// NOTE: this interface is duplicated in the native worker  declarations file `packages/worker/native/index.d.ts`
+
+/** TLS configuration options. */
+export interface TLSConfig {
+  /**
+   * Overrides the target name used for SSL host name checking.
+   * If this attribute is not specified, the name used for SSL host name checking will be the host from {@link ServerOptions.url}.
+   * This _should_ be used for testing only.
+   */
+  serverNameOverride?: string;
+  /**
+   * Root CA certificate used by the server. If not set, and the server's
+   * cert is issued by someone the operating system trusts, verification will still work (ex: Cloud offering).
+   */
+  serverRootCACertificate?: Buffer;
+  /** Sets the client certificate and key for connecting with mTLS */
+  clientCertPair?: {
+    /** The certificate for this client */
+    crt: Buffer;
+    /** The private key for this client */
+    key: Buffer;
+  };
+}
+
 /**
  * Transforms a workflow interface `T` into a client interface
  *
@@ -155,8 +179,20 @@ export interface ConnectionOptions {
    * Server address and port
    */
   address?: string;
+
+  /**
+   * TLS configuration.
+   * Pass undefined to use a non-encrypted connection or an empty object to
+   * connect with TLS without any customization.
+   *
+   * Either {@link credentials} or this may be specified for configuring TLS
+   */
+  tls?: TLSConfig;
+
   /**
    * Channel credentials, create using the factory methods defined {@link https://grpc.github.io/grpc/node/grpc.credentials.html | here}
+   *
+   * Either {@link tls} or this may be specified for configuring TLS
    */
   credentials?: grpc.ChannelCredentials;
   /**
@@ -183,7 +219,7 @@ export interface ConnectionOptions {
   channelArgs?: Record<string, any>;
 }
 
-export type ConnectionOptionsWithDefaults = Required<ConnectionOptions>;
+export type ConnectionOptionsWithDefaults = Required<Omit<ConnectionOptions, 'tls'>>;
 
 export function defaultConnectionOpts(): ConnectionOptionsWithDefaults {
   return {
@@ -322,6 +358,33 @@ export function compileWorkflowOptions({
 }
 
 /**
+ * Convert {@link ConnectionOptions.tls} to {@link grpc.ChannelCredentials} and
+ * add the grpc.ssl_target_name_override GRPC {@link ConnectionOptions.channelArgs}
+ */
+function normalizeGRPCConfig(options?: ConnectionOptions): ConnectionOptions {
+  const { tls, credentials, ...rest } = options || {};
+  if (tls) {
+    if (credentials) {
+      throw new TypeError('Both `tls` and `credentials` ConnectionOptions were provided');
+    }
+    return {
+      ...rest,
+      credentials: grpc.credentials.createSsl(
+        tls.serverRootCACertificate,
+        tls.clientCertPair?.key,
+        tls.clientCertPair?.crt
+      ),
+      channelArgs: {
+        ...rest.channelArgs,
+        ...(tls.serverNameOverride ? { 'grpc.ssl_target_name_override': tls.serverNameOverride } : undefined),
+      },
+    };
+  } else {
+    return rest;
+  }
+}
+
+/**
  * Client connection to the Temporal Service
  */
 export class Connection {
@@ -331,7 +394,10 @@ export class Connection {
   public readonly service: WorkflowService;
 
   constructor(options?: ConnectionOptions) {
-    this.options = { ...defaultConnectionOpts(), ...options };
+    this.options = {
+      ...defaultConnectionOpts(),
+      ...normalizeGRPCConfig(options),
+    };
     this.client = new Connection.Client(this.options.address, this.options.credentials, this.options.channelArgs);
     const rpcImpl = (method: { name: string }, requestData: any, callback: grpc.requestCallback<any>) => {
       return this.client.makeUnaryRequest(
