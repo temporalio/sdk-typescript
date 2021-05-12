@@ -33,8 +33,10 @@ export interface WorkerOptions {
    */
   taskQueue: string;
 
-  maxConcurrentActivityExecutions: number;
+  maxConcurrentActivityTaskExecutions: number;
   maxConcurrentWorkflowTaskExecutions: number;
+  maxConcurrentWorkflowTaskPolls: number;
+  maxConcurrentActivityTaskPolls: number;
 }
 
 export interface Worker {}
@@ -56,8 +58,4 @@ export declare function workerCompleteWorkflowActivation(
 ): void;
 export declare function workerPollActivityTask(worker: Worker, callback: PollCallback): void;
 export declare function workerCompleteActivityTask(worker: Worker, result: ArrayBuffer, callback: VoidCallback): void;
-export declare function workerRecordActivityHeartbeat(
-  worker: Worker,
-  heartbeat: ArrayBuffer,
-  callback: VoidCallback
-): void;
+export declare function workerRecordActivityHeartbeat(worker: Worker, heartbeat: ArrayBuffer): void;

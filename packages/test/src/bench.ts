@@ -69,7 +69,7 @@ async function main() {
   const args = arg({
     '--iterations': Number,
     '--workflow': String,
-    '--max-concurrent-activity-executions': Number,
+    '--max-concurrent-at-executions': Number,
     '--max-concurrent-wft-executions': Number,
     '--concurrent-wf-clients': Number,
     '--log-level': String,
@@ -77,7 +77,7 @@ async function main() {
   });
   const workflowName = args['--workflow'] || 'cancel-fake-progress';
   const iterations = args['--iterations'] || 1000;
-  const maxConcurrentActivityExecutions = args['--max-concurrent-activity-executions'] || 100;
+  const maxConcurrentActivityTaskExecutions = args['--max-concurrent-at-executions'] || 100;
   const maxConcurrentWorkflowTaskExecutions = args['--max-concurrent-wft-executions'] || 10;
   const concurrentWFClients = args['--concurrent-wf-clients'] || 100;
   const logLevel = (args['--log-level'] || 'INFO').toUpperCase();
@@ -106,7 +106,7 @@ async function main() {
     workflowsPath: path.join(__dirname, '../../test-workflows/lib'),
     activitiesPath: path.join(__dirname, '../../test-activities/lib'),
     taskQueue,
-    maxConcurrentActivityExecutions,
+    maxConcurrentActivityTaskExecutions,
     maxConcurrentWorkflowTaskExecutions,
     logger: new DefaultLogger(logLevel as any),
     serverOptions: {

@@ -129,7 +129,7 @@ export class MockNativeWorker implements NativeWorkerLike {
     return coresdk.ActivityTaskCompletion.decodeDelimited(new Uint8Array(result));
   }
 
-  public async recordActivityHeartbeat(buffer: ArrayBuffer): Promise<void> {
+  public recordActivityHeartbeat(buffer: ArrayBuffer): void {
     const { taskToken, details } = coresdk.ActivityHeartbeat.decodeDelimited(new Uint8Array(buffer));
     const arg = defaultDataConverter.fromPayloads(0, details);
     this.activityHeartbeatCallback!(taskToken, arg);

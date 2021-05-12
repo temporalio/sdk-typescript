@@ -170,17 +170,34 @@ export interface WorkerOptions {
   dataConverter?: DataConverter;
 
   /**
-   * Maximum number of Activities to execute concurrently.
+   * Maximum number of Activity tasks to execute concurrently.
    * Adjust this to improve Worker resource consumption.
    * @default 100
    */
-  maxConcurrentActivityExecutions?: number;
+  maxConcurrentActivityTaskExecutions?: number;
   /**
    * Maximum number of Workflow tasks to execute concurrently.
    * Adjust this to improve Worker resource consumption.
    * @default 100
    */
   maxConcurrentWorkflowTaskExecutions?: number;
+
+  /**
+   * Maximum number of concurrent poll Workflow task requests to perform at a time.
+   * Higher values will result in higher throughput and load on the Worker.
+   * If your Worker is overloaded, tasks might start timing out in which case, reduce this value.
+   *
+   * @default 5
+   */
+  maxConcurrentWorkflowTaskPolls?: number;
+  /**
+   * Maximum number of concurrent poll Activity task requests to perform at a time.
+   * Higher values will result in higher throughput and load on the Worker.
+   * If your Worker is overloaded, tasks might start timing out in which case, reduce this value.
+   *
+   * @default 5
+   */
+  maxConcurrentActivityTaskPolls?: number;
 
   // TODO: implement all of these
   // maxConcurrentLocalActivityExecutions?: number; // defaults to 200
@@ -199,8 +216,10 @@ export type WorkerOptionsWithDefaults = Omit<WorkerOptions, 'serverOptions'> & {
       | 'dataConverter'
       | 'logger'
       | 'activityDefaults'
-      | 'maxConcurrentActivityExecutions'
+      | 'maxConcurrentActivityTaskExecutions'
       | 'maxConcurrentWorkflowTaskExecutions'
+      | 'maxConcurrentActivityTaskPolls'
+      | 'maxConcurrentWorkflowTaskPolls'
     >
   >;
 
@@ -236,8 +255,10 @@ export function addDefaults(options: WorkerOptions): WorkerOptionsWithDefaults {
     logger: new DefaultLogger(),
     activityDefaults: { type: 'remote', startToCloseTimeout: '10m' },
     serverOptions: { ...getDefaultServerOptions(), ...serverOptions },
-    maxConcurrentActivityExecutions: 100,
+    maxConcurrentActivityTaskExecutions: 100,
     maxConcurrentWorkflowTaskExecutions: 100,
+    maxConcurrentActivityTaskPolls: 5,
+    maxConcurrentWorkflowTaskPolls: 5,
     ...rest,
   };
 }
@@ -306,7 +327,7 @@ export interface NativeWorkerLike {
   pollActivityTask: Promisify<OmitFirstParam<typeof native.workerPollActivityTask>>;
   completeWorkflowActivation: Promisify<OmitFirstParam<typeof native.workerCompleteWorkflowActivation>>;
   completeActivityTask: Promisify<OmitFirstParam<typeof native.workerCompleteActivityTask>>;
-  recordActivityHeartbeat: Promisify<OmitFirstParam<typeof native.workerRecordActivityHeartbeat>>;
+  recordActivityHeartbeat: OmitFirstParam<typeof native.workerRecordActivityHeartbeat>;
 }
 
 export interface WorkerConstructor {
@@ -318,7 +339,7 @@ export class NativeWorker implements NativeWorkerLike {
   public readonly pollActivityTask: Promisify<OmitFirstParam<typeof native.workerPollActivityTask>>;
   public readonly completeWorkflowActivation: Promisify<OmitFirstParam<typeof native.workerCompleteWorkflowActivation>>;
   public readonly completeActivityTask: Promisify<OmitFirstParam<typeof native.workerCompleteActivityTask>>;
-  public readonly recordActivityHeartbeat: Promisify<OmitFirstParam<typeof native.workerRecordActivityHeartbeat>>;
+  public readonly recordActivityHeartbeat: OmitFirstParam<typeof native.workerRecordActivityHeartbeat>;
   public readonly breakLoop: Promisify<OmitFirstParam<typeof native.workerBreakLoop>>;
   public readonly shutdown: Promisify<OmitFirstParam<typeof native.workerShutdown>>;
 
@@ -332,7 +353,7 @@ export class NativeWorker implements NativeWorkerLike {
     this.pollActivityTask = promisify(native.workerPollActivityTask).bind(undefined, nativeWorker);
     this.completeWorkflowActivation = promisify(native.workerCompleteWorkflowActivation).bind(undefined, nativeWorker);
     this.completeActivityTask = promisify(native.workerCompleteActivityTask).bind(undefined, nativeWorker);
-    this.recordActivityHeartbeat = promisify(native.workerRecordActivityHeartbeat).bind(undefined, nativeWorker);
+    this.recordActivityHeartbeat = native.workerRecordActivityHeartbeat.bind(undefined, nativeWorker);
     this.breakLoop = promisify(native.workerBreakLoop).bind(undefined, nativeWorker);
     this.shutdown = promisify(native.workerShutdown).bind(undefined, nativeWorker);
   }
@@ -784,7 +805,7 @@ export class Worker {
    */
   protected activityHeartbeat$(): Observable<void> {
     return this.activityHeartbeatSubject.pipe(
-      // Close this observable in case we're not sending anymore heartbeats and thus don't get notified of shutdown
+      // The only way for this observable to be closed is by state changing to DRAINED meaning that all in-flight activities have been resolved and thus there should not be any heartbeats to send.
       this.takeUntilState('DRAINED'),
       tap({
         next: ({ taskToken }) => this.log.debug('Got activity heartbeat', { taskToken: formatTaskToken(taskToken) }),
@@ -796,11 +817,8 @@ export class Worker {
           taskToken,
           details: [payload],
         }).finish();
-        await this.nativeWorker.recordActivityHeartbeat(
-          arr.buffer.slice(arr.byteOffset, arr.byteLength + arr.byteOffset)
-        );
-      }),
-      catchError((err) => (err instanceof errors.ShutdownError ? EMPTY : throwError(err)))
+        this.nativeWorker.recordActivityHeartbeat(arr.buffer.slice(arr.byteOffset, arr.byteLength + arr.byteOffset));
+      })
     );
   }
 
