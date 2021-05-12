@@ -356,7 +356,7 @@ export class Connection {
    * @see https://grpc.github.io/grpc/node/grpc.Client.html#waitForReady__anchor
    */
   public async untilReady(waitTimeMs = 5000): Promise<void> {
-    new Promise<void>((resolve, reject) => {
+    return new Promise<void>((resolve, reject) => {
       this.client.waitForReady(Date.now() + waitTimeMs, (err) => {
         if (err) {
           reject(err);
