@@ -196,12 +196,6 @@ export interface ConnectionOptions {
    */
   credentials?: grpc.ChannelCredentials;
   /**
-   * Namespace to use in {@link Connection} methods
-   *
-   * @default default
-   */
-  namespace?: string;
-  /**
    * Identity to report to the server
    *
    * @default `${process.pid}@${os.hostname()}`
@@ -226,7 +220,6 @@ export function defaultConnectionOpts(): ConnectionOptionsWithDefaults {
     // LOCAL_DOCKER_TARGET
     address: '127.0.0.1:7233',
     credentials: grpc.credentials.createInsecure(),
-    namespace: 'default',
     dataConverter: defaultDataConverter,
     // ManagementFactory.getRuntimeMXBean().getName()
     identity: `${process.pid}@${os.hostname()}`,
@@ -236,6 +229,13 @@ export function defaultConnectionOpts(): ConnectionOptionsWithDefaults {
 
 // Copied from https://github.com/temporalio/sdk-java/blob/master/temporal-sdk/src/main/java/io/temporal/client/WorkflowOptions.java
 export interface BaseWorkflowOptions {
+  /**
+   * Workflow namespace
+   *
+   * @default default
+   */
+  namespace?: string;
+
   /**
    * Workflow id to use when starting. If not specified a UUID is generated. Note that it is
    * dangerous as in case of client side retries no deduplication will happen based on the
@@ -319,7 +319,7 @@ export interface WorkflowDurationOptions {
 export type WorkflowOptions = BaseWorkflowOptions & WorkflowDurationOptions;
 
 export type RequiredWorkflowOptions = Required<
-  Pick<BaseWorkflowOptions, 'workflowId' | 'workflowIdReusePolicy' | 'taskQueue'>
+  Pick<BaseWorkflowOptions, 'workflowId' | 'workflowIdReusePolicy' | 'taskQueue' | 'namespace'>
 >;
 
 export type WorkflowOptionsWithDefaults = WorkflowOptions & RequiredWorkflowOptions;
@@ -337,6 +337,7 @@ export type CompiledWorkflowOptionsWithDefaults = BaseWorkflowOptions &
 export function addDefaults(opts: WorkflowOptions): WorkflowOptionsWithDefaults {
   return {
     workflowId: uuid4(),
+    namespace: 'default',
     workflowIdReusePolicy:
       iface.temporal.api.enums.v1.WorkflowIdReusePolicy.WORKFLOW_ID_REUSE_POLICY_ALLOW_DUPLICATE_FAILED_ONLY,
     ...opts,
@@ -438,9 +439,9 @@ export class Connection {
     name: string,
     ...args: any[]
   ): Promise<string> {
-    const { namespace, identity, dataConverter } = this.options;
+    const { identity, dataConverter } = this.options;
     const req: StartWorkflowExecutionRequest = {
-      namespace,
+      namespace: opts.namespace,
       identity,
       requestId: uuid4(),
       workflowId: opts.workflowId,
@@ -467,9 +468,9 @@ export class Connection {
     return res.runId;
   }
 
-  public async untilComplete(workflowId: string, runId: string): Promise<unknown> {
+  public async untilComplete(workflowId: string, runId: string, namespace = 'default'): Promise<unknown> {
     const req: GetWorkflowExecutionHistoryRequest = {
-      namespace: this.options.namespace,
+      namespace,
       execution: { workflowId, runId },
       skipArchival: true,
       waitNewEvent: true,
@@ -572,7 +573,7 @@ export class Connection {
           throw new errors.IllegalStateError('Cannot describe a workflow before it has been started');
         }
         return this.connection.service.terminateWorkflowExecution({
-          namespace: this.connection.options.namespace,
+          namespace: compiledOptions.namespace,
           identity: this.connection.options.identity,
           workflowExecution: {
             runId: this.runId,
@@ -587,7 +588,7 @@ export class Connection {
           throw new errors.IllegalStateError('Cannot describe a workflow before it has been started');
         }
         return this.connection.service.requestCancelWorkflowExecution({
-          namespace: this.connection.options.namespace,
+          namespace: compiledOptions.namespace,
           identity: this.connection.options.identity,
           requestId: uuid4(),
           workflowExecution: {
@@ -602,7 +603,7 @@ export class Connection {
           throw new errors.IllegalStateError('Cannot describe a workflow before it has been started');
         }
         return this.connection.service.describeWorkflowExecution({
-          namespace: this.connection.options.namespace,
+          namespace: compiledOptions.namespace,
           execution: {
             runId: this.runId,
             workflowId: compiledOptions.workflowId,
@@ -620,7 +621,7 @@ export class Connection {
             return async (...args: any[]) => {
               this.service.signalWorkflowExecution({
                 identity: this.options.identity,
-                namespace: this.options.namespace,
+                namespace: compiledOptions.namespace,
                 workflowExecution: { runId: workflow.runId, workflowId: compiledOptions.workflowId },
                 requestId: uuid4(),
                 // control is unused,
@@ -641,7 +642,7 @@ export class Connection {
             return async (...args: any[]) => {
               const response = await this.service.queryWorkflow({
                 // TODO: queryRejectCondition
-                namespace: this.options.namespace,
+                namespace: compiledOptions.namespace,
                 execution: { runId: workflow.runId, workflowId: compiledOptions.workflowId },
                 query: { queryType, queryArgs: { payloads: this.options.dataConverter.toPayloads(...args) } },
               });

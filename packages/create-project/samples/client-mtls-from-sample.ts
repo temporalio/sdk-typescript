@@ -10,7 +10,7 @@ async function run() {
   if (certsDir === undefined) {
     throw new Error('Please pass certs dir as single argument');
   }
-  // Connect to localhost and use the "default" namespace
+  // Connect to localhost with TLS
   const connection = new Connection({
     tls: {
       serverNameOverride: 'development.cluster-x.contoso.com',

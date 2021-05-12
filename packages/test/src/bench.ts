@@ -28,8 +28,8 @@ async function waitOnNamespace(connection: Connection, namespace: string, maxAtt
   }
 }
 
-async function runCancelTestWorkflow(connection: Connection, name: string, taskQueue: string) {
-  const workflow = connection.workflow<any>(name, { taskQueue });
+async function runWorkflow(connection: Connection, namespace: string, name: string, taskQueue: string) {
+  const workflow = connection.workflow<any>(name, { namespace, taskQueue });
   await workflow.start();
 }
 
@@ -37,20 +37,32 @@ function toMB(bytes: number, fractionDigits = 2) {
   return (bytes / 1024 / 1024).toFixed(fractionDigits);
 }
 
-async function runWorkflows(
-  worker: Worker,
-  connection: Connection,
-  name: string,
-  taskQueue: string,
-  numWorkflows: number,
-  concurrency: number,
-  heapSampleIteration = 20
-) {
+interface RunWorkflowOptions {
+  namespace: string;
+  worker: Worker;
+  connection: Connection;
+  workflowName: string;
+  taskQueue: string;
+  numWorkflows: number;
+  concurrency: number;
+  heapSampleIteration: number;
+}
+
+async function runWorkflows({
+  namespace,
+  worker,
+  connection,
+  workflowName: name,
+  taskQueue,
+  numWorkflows,
+  concurrency,
+  heapSampleIteration,
+}: RunWorkflowOptions) {
   let numComplete = 0;
   await range(0, numWorkflows)
     .pipe(
       take(numWorkflows),
-      mergeMap(() => runCancelTestWorkflow(connection, name, taskQueue), concurrency),
+      mergeMap(() => runWorkflow(connection, namespace, name, taskQueue), concurrency),
       withLatestFrom(worker.numInFlightActivations$, worker.numRunningWorkflowInstances$),
       tap(([_, numInFlightActivations, numRunningWorkflowInstances]) => {
         ++numComplete;
@@ -100,7 +112,7 @@ async function main() {
   });
   await otel.start();
   const taskQueue = 'bench';
-  const connection = new Connection({ address: serverUrl.host, namespace });
+  const connection = new Connection({ address: serverUrl.host });
 
   try {
     await connection.service.registerNamespace({ namespace, workflowExecutionRetentionPeriod: msStrToTs('1 day') });
@@ -136,7 +148,16 @@ async function main() {
       await otel.shutdown();
     })(),
     (async () => {
-      await runWorkflows(worker, connection, workflowName, taskQueue, iterations, concurrentWFClients);
+      await runWorkflows({
+        worker,
+        connection,
+        namespace,
+        workflowName,
+        taskQueue,
+        numWorkflows: iterations,
+        heapSampleIteration: 20,
+        concurrency: concurrentWFClients,
+      });
       worker.shutdown();
     })(),
   ]);
