@@ -47,11 +47,7 @@ pub enum Request {
         callback: Root<JsFunction>,
     },
     /// A request to send a heartbeat from a running activity
-    RecordActivityHeartbeat {
-        heartbeat: ActivityHeartbeat,
-        /// Used to send the result back into JS
-        callback: Root<JsFunction>,
-    },
+    RecordActivityHeartbeat { heartbeat: ActivityHeartbeat },
 }
 
 /// Worker struct, hold a reference for the channel sender responsible for sending requests from
@@ -267,24 +263,8 @@ fn start_bridge_loop(
                                     },
                                 ));
                             }
-                            Request::RecordActivityHeartbeat {
-                                heartbeat,
-                                callback,
-                            } => {
-                                tokio::spawn(void_future_to_js(
-                                    queue,
-                                    callback,
-                                    async move {
-                                        match core.record_activity_heartbeat(heartbeat).await {
-                                            Ok(_) => Ok(()),
-                                            // record_activity_heartbeat returns Result<(), ()>
-                                            // where () does not implement display, translate to
-                                            // a displayable error.
-                                            Err(_) => Err("Unexpected error during heartbeat"),
-                                        }
-                                    },
-                                    |cx, err| UNEXPECTED_ERROR.from_error(cx, err),
-                                ));
+                            Request::RecordActivityHeartbeat { heartbeat } => {
+                                core.record_activity_heartbeat(heartbeat)
                             }
                         }
                     }
@@ -413,14 +393,23 @@ fn worker_new(mut cx: FunctionContext) -> JsResult<JsUndefined> {
                 .downcast_or_throw::<JsNumber, FunctionContext>(&mut cx)?
                 .value(&mut cx) as u64,
         ),
+        tls_cfg: None,
     };
 
     let max_outstanding_activities = worker_options
-        .get(&mut cx, "maxConcurrentActivityExecutions")?
+        .get(&mut cx, "maxConcurrentActivityTaskExecutions")?
         .downcast_or_throw::<JsNumber, FunctionContext>(&mut cx)?
         .value(&mut cx) as usize;
     let max_outstanding_workflow_tasks = worker_options
         .get(&mut cx, "maxConcurrentWorkflowTaskExecutions")?
+        .downcast_or_throw::<JsNumber, FunctionContext>(&mut cx)?
+        .value(&mut cx) as usize;
+    let max_concurrent_wft_polls = worker_options
+        .get(&mut cx, "maxConcurrentWorkflowTaskPolls")?
+        .downcast_or_throw::<JsNumber, FunctionContext>(&mut cx)?
+        .value(&mut cx) as usize;
+    let max_concurrent_at_polls = worker_options
+        .get(&mut cx, "maxConcurrentActivityTaskPolls")?
         .downcast_or_throw::<JsNumber, FunctionContext>(&mut cx)?
         .value(&mut cx) as usize;
 
@@ -432,6 +421,8 @@ fn worker_new(mut cx: FunctionContext) -> JsResult<JsUndefined> {
                 evict_after_pending_cleared: true,
                 max_outstanding_workflow_tasks,
                 max_outstanding_activities,
+                max_concurrent_at_polls,
+                max_concurrent_wft_polls,
             },
             queue,
             callback,
@@ -536,25 +527,21 @@ fn worker_complete_activity_task(mut cx: FunctionContext) -> JsResult<JsUndefine
 fn worker_record_activity_heartbeat(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     let worker = cx.argument::<BoxedWorker>(0)?;
     let heartbeat = cx.argument::<JsArrayBuffer>(1)?;
-    let callback = cx.argument::<JsFunction>(2)?;
     let heartbeat = cx.borrow(&heartbeat, |data| {
         ActivityHeartbeat::decode_length_delimited(data.as_slice::<u8>())
     });
     match heartbeat {
         Ok(heartbeat) => {
-            let request = Request::RecordActivityHeartbeat {
-                heartbeat,
-                callback: callback.root(&mut cx),
-            };
-            if let Err(err) = worker.sender.blocking_send(request) {
-                callback_with_unexpected_error(&mut cx, callback, err)?;
-            };
+            let request = Request::RecordActivityHeartbeat { heartbeat };
+            match worker.sender.blocking_send(request) {
+                Err(err) => UNEXPECTED_ERROR
+                    .from_error(&mut cx, err)
+                    .and_then(|err| cx.throw(err)),
+                _ => Ok(cx.undefined()),
+            }
         }
-        Err(_) => callback_with_error(&mut cx, callback, |cx| {
-            JsError::type_error(cx, "Cannot decode ActivityHeartbeat from buffer")
-        })?,
-    };
-    Ok(cx.undefined())
+        Err(_) => cx.throw_type_error("Cannot decode ActivityHeartbeat from buffer"),
+    }
 }
 
 /// Request shutdown of the worker.
