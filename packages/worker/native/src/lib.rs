@@ -362,30 +362,28 @@ where
 {
     match obj.get(cx, attr) {
         Err(_) => None,
-        Ok(val) => match val.downcast::<JsUndefined, C>(cx) {
-            Ok(_) => None,
-            Err(_) => Some(val),
+        Ok(val) => match val.is_a::<JsUndefined, _>(cx) {
+            true => None,
+            false => Some(val),
         },
     }
 }
 
 /// Helper for extracting a Vec<u8> from optional Buffer at [obj].[attr]
-fn get_vec<'a, C, K>(
+fn get_optional_vec<'a, C, K>(
     cx: &mut C,
     obj: Handle<JsObject>,
     attr: K,
-) -> Result<Vec<u8>, neon::result::Throw>
+) -> Result<Option<Vec<u8>>, neon::result::Throw>
 where
     K: neon::object::PropertyKey + Display,
     C: Context<'a>,
 {
-    // Create the error here because we can't use attr in the else statement
-    let error_str = format!("{} is not a Buffer", attr);
     if let Some(val) = get_optional(cx, obj, attr) {
         let buf = val.downcast_or_throw::<JsBuffer, C>(cx)?;
-        Ok(cx.borrow(&buf, |data| data.as_slice::<u8>().to_vec()))
+        Ok(Some(cx.borrow(&buf, |data| data.as_slice::<u8>().to_vec())))
     } else {
-        cx.throw_type_error(error_str)
+        Ok(None)
     }
 }
 
@@ -398,34 +396,33 @@ fn worker_new(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     let worker_options = cx.argument::<JsObject>(0)?;
     let server_options = worker_options
         .get(&mut cx, "serverOptions")?
-        .downcast_or_throw::<JsObject, FunctionContext>(&mut cx)?;
+        .downcast_or_throw::<JsObject, _>(&mut cx)?;
     let url = server_options
         .get(&mut cx, "url")?
-        .downcast_or_throw::<JsString, FunctionContext>(&mut cx)?
+        .downcast_or_throw::<JsString, _>(&mut cx)?
         .value(&mut cx);
-    let callback = cx.argument::<JsFunction>(1)?.root(&mut cx);
 
     let tls_cfg = match get_optional(&mut cx, server_options, "tls") {
         None => None,
         Some(val) => {
-            let tls = val.downcast_or_throw::<JsObject, FunctionContext>(&mut cx)?;
+            let tls = val.downcast_or_throw::<JsObject, _>(&mut cx)?;
             let domain = match get_optional(&mut cx, tls, "serverNameOverride") {
                 None => None,
                 Some(val) => Some(
-                    val.downcast_or_throw::<JsString, FunctionContext>(&mut cx)?
+                    val.downcast_or_throw::<JsString, _>(&mut cx)?
                         .value(&mut cx),
                 ),
             };
 
-            let server_root_ca_cert = get_vec(&mut cx, tls, "serverRootCACertificate").ok();
-            let client_tls_config = match tls.get(&mut cx, "clientCertPair") {
-                Err(_) => None,
-                Ok(val) => {
-                    let client_tls_obj =
-                        val.downcast_or_throw::<JsObject, FunctionContext>(&mut cx)?;
+            let server_root_ca_cert = get_optional_vec(&mut cx, tls, "serverRootCACertificate")?;
+            let client_tls_config = match get_optional(&mut cx, tls, "clientCertPair") {
+                None => None,
+                Some(val) => {
+                    let client_tls_obj = val.downcast_or_throw::<JsObject, _>(&mut cx)?;
                     Some(ClientTlsConfig {
-                        client_cert: get_vec(&mut cx, client_tls_obj, "crt")?,
-                        client_private_key: get_vec(&mut cx, client_tls_obj, "key")?,
+                        client_cert: get_optional_vec(&mut cx, client_tls_obj, "crt")?.unwrap(),
+                        client_private_key: get_optional_vec(&mut cx, client_tls_obj, "key")?
+                            .unwrap(),
                     })
                 }
             };
@@ -442,24 +439,24 @@ fn worker_new(mut cx: FunctionContext) -> JsResult<JsUndefined> {
         target_url: Url::parse(&url).unwrap(),
         namespace: server_options
             .get(&mut cx, "namespace")?
-            .downcast_or_throw::<JsString, FunctionContext>(&mut cx)?
+            .downcast_or_throw::<JsString, _>(&mut cx)?
             .value(&mut cx),
         task_queue: worker_options
             .get(&mut cx, "taskQueue")?
-            .downcast_or_throw::<JsString, FunctionContext>(&mut cx)?
+            .downcast_or_throw::<JsString, _>(&mut cx)?
             .value(&mut cx),
         identity: server_options
             .get(&mut cx, "identity")?
-            .downcast_or_throw::<JsString, FunctionContext>(&mut cx)?
+            .downcast_or_throw::<JsString, _>(&mut cx)?
             .value(&mut cx),
         worker_binary_id: server_options
             .get(&mut cx, "workerBinaryId")?
-            .downcast_or_throw::<JsString, FunctionContext>(&mut cx)?
+            .downcast_or_throw::<JsString, _>(&mut cx)?
             .value(&mut cx),
         long_poll_timeout: Duration::from_millis(
             server_options
                 .get(&mut cx, "longPollTimeoutMs")?
-                .downcast_or_throw::<JsNumber, FunctionContext>(&mut cx)?
+                .downcast_or_throw::<JsNumber, _>(&mut cx)?
                 .value(&mut cx) as u64,
         ),
         tls_cfg,
@@ -467,21 +464,22 @@ fn worker_new(mut cx: FunctionContext) -> JsResult<JsUndefined> {
 
     let max_outstanding_activities = worker_options
         .get(&mut cx, "maxConcurrentActivityTaskExecutions")?
-        .downcast_or_throw::<JsNumber, FunctionContext>(&mut cx)?
+        .downcast_or_throw::<JsNumber, _>(&mut cx)?
         .value(&mut cx) as usize;
     let max_outstanding_workflow_tasks = worker_options
         .get(&mut cx, "maxConcurrentWorkflowTaskExecutions")?
-        .downcast_or_throw::<JsNumber, FunctionContext>(&mut cx)?
+        .downcast_or_throw::<JsNumber, _>(&mut cx)?
         .value(&mut cx) as usize;
     let max_concurrent_wft_polls = worker_options
         .get(&mut cx, "maxConcurrentWorkflowTaskPolls")?
-        .downcast_or_throw::<JsNumber, FunctionContext>(&mut cx)?
+        .downcast_or_throw::<JsNumber, _>(&mut cx)?
         .value(&mut cx) as usize;
     let max_concurrent_at_polls = worker_options
         .get(&mut cx, "maxConcurrentActivityTaskPolls")?
-        .downcast_or_throw::<JsNumber, FunctionContext>(&mut cx)?
+        .downcast_or_throw::<JsNumber, _>(&mut cx)?
         .value(&mut cx) as usize;
 
+    let callback = cx.argument::<JsFunction>(1)?.root(&mut cx);
     let queue = Arc::new(cx.queue());
     std::thread::spawn(move || {
         start_bridge_loop(
