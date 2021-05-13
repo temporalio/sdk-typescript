@@ -14,7 +14,7 @@ async function run() {
   const connection = new Connection({
     tls: {
       serverNameOverride: 'development.cluster-x.contoso.com',
-      serverRootCACertificate: fs.readFileSync(path.join(certsDir, 'cluster/ca/server-intermediate-ca.pem')),
+      serverRootCACertificate: fs.readFileSync(path.join(certsDir, 'cluster/ca/server-root-ca.pem')),
       clientCertPair: {
         crt: fs.readFileSync(path.join(certsDir, 'client/development/client-development-namespace.pem')),
         key: fs.readFileSync(path.join(certsDir, 'client/development/client-development-namespace.key')),
