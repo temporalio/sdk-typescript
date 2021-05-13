@@ -584,7 +584,11 @@ export class Connection {
           started.reject(err);
           throw err;
         }
-        return (await this.connection.untilComplete(compiledOptions.workflowId, runId)) as any;
+        return (await this.connection.untilComplete(
+          compiledOptions.workflowId,
+          runId,
+          compiledOptions.namespace
+        )) as any;
       },
       async terminate(reason?: string) {
         // TODO: should we help our users out and wait for runId to be returned instead of throwing?
