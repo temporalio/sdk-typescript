@@ -23,10 +23,6 @@ async function run() {
         },
       },
     },
-    // TODO: remove me
-    workflowsPath: path.join(__dirname, '../../test-workflows/lib'),
-    activitiesPath: path.join(__dirname, '../../test-activities/lib'),
-    nodeModulesPath: path.join(__dirname, '../../../node_modules'),
   });
   console.log('Worker connection succesfully established');
 }
