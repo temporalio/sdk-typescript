@@ -42,7 +42,7 @@ type EnsurePromise<T> = T extends Promise<any> ? T : Promise<T>;
 /// Takes a function type F and converts it to an async version if it isn't one already
 type AsyncOnly<F extends (...args: any[]) => any> = (...args: Parameters<F>) => EnsurePromise<ReturnType<F>>;
 
-// NOTE: this interface is duplicated in the native worker  declarations file `packages/worker/native/index.d.ts`
+// NOTE: this interface is duplicated in the native worker  declarations file `packages/worker/native/index.d.ts` for lack of a shared library
 
 /** TLS configuration options. */
 export interface TLSConfig {
@@ -176,18 +176,21 @@ export interface WorkflowClient<T extends Workflow> {
  */
 export interface ConnectionOptions {
   /**
-   * Server address and port
+   * Server hostname and optional port.
+   * Port defaults to 7233 if address contains only host.
+   *
+   * @default localhost:7233
    */
   address?: string;
 
   /**
    * TLS configuration.
-   * Pass undefined to use a non-encrypted connection or an empty object to
+   * Pass a falsy value to use a non-encrypted connection or `true` or `{}` to
    * connect with TLS without any customization.
    *
    * Either {@link credentials} or this may be specified for configuring TLS
    */
-  tls?: TLSConfig;
+  tls?: TLSConfig | boolean | null;
 
   /**
    * Channel credentials, create using the factory methods defined {@link https://grpc.github.io/grpc/node/grpc.credentials.html | here}
@@ -359,11 +362,27 @@ export function compileWorkflowOptions({
 }
 
 /**
- * Convert {@link ConnectionOptions.tls} to {@link grpc.ChannelCredentials} and
- * add the grpc.ssl_target_name_override GRPC {@link ConnectionOptions.channelArgs}
+ * Normalize {@link ConnectionOptions.tls} by turning false and null to undefined and true to and empty object
+ * NOTE: this function is duplicated in `packages/worker/src/worker.ts` for lack of a shared library
+ */
+function normalizeTlsConfig(tls?: ConnectionOptions['tls']): TLSConfig | undefined {
+  return typeof tls === 'object' ? (tls === null ? undefined : tls) : tls ? {} : undefined;
+}
+
+/**
+ * - Convert {@link ConnectionOptions.tls} to {@link grpc.ChannelCredentials}
+ * - Add the grpc.ssl_target_name_override GRPC {@link ConnectionOptions.channelArgs | channel arg}
+ * - Add default port to address if port not specified
  */
 function normalizeGRPCConfig(options?: ConnectionOptions): ConnectionOptions {
-  const { tls, credentials, ...rest } = options || {};
+  const { tls: tlsFromConfig, credentials, ...rest } = options || {};
+  if (rest.address) {
+    // eslint-disable-next-line prefer-const
+    let [host, port] = rest.address.split(':', 2);
+    port = port || '7233';
+    rest.address = `${host}:${port}`;
+  }
+  const tls = normalizeTlsConfig(tlsFromConfig);
   if (tls) {
     if (credentials) {
       throw new TypeError('Both `tls` and `credentials` ConnectionOptions were provided');

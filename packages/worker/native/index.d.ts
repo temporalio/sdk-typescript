@@ -1,4 +1,4 @@
-// NOTE: this interface is duplicated in the client module `packages/client/src/index.ts`
+// NOTE: this interface is duplicated in the client module `packages/client/src/index.ts` for lack of a shared library
 
 /** TLS configuration options. */
 export interface TLSConfig {

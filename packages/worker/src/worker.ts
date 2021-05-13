@@ -66,10 +66,12 @@ native.registerErrors(errors);
 
 export interface ServerOptions {
   /**
-   * The URL of the Temporal server to connect to
-   * @default http://localhost:7233
+   * The host and optional port of the Temporal server to connect to.
+   * Port defaults to 7233 if address contains only host.
+   *
+   * @default localhost:7233
    */
-  url?: string;
+  address?: string;
   /**
    * What namespace will we operate under
    * @default default
@@ -95,13 +97,14 @@ export interface ServerOptions {
   /**
    * TLS configuration options.
    *
-   * If undefined will not connect using TLS, to connect with TLS without any customization, pass an empty object
+   * Pass a falsy value to use a non-encrypted connection or `true` or `{}` to
+   * connect with TLS without any customization.
    */
-  tls?: TLSConfig;
+  tls?: TLSConfig | boolean | null;
 }
 
 export type RequiredServerOptions = Omit<Required<ServerOptions>, 'tls'> & {
-  tls?: TLSConfig;
+  tls?: ServerOptions['tls'];
 };
 
 export type CompiledServerOptions = Omit<RequiredServerOptions, 'longPollTimeout'> & {
@@ -244,7 +247,7 @@ export interface CompiledWorkerOptionsWithDefaults extends Omit<WorkerOptionsWit
 
 export function getDefaultServerOptions(): RequiredServerOptions {
   return {
-    url: 'http://localhost:7233',
+    address: 'localhost:7233',
     identity: `${process.pid}@${os.hostname()}`,
     namespace: 'default',
     workerBinaryId: `${pkg.name}@${pkg.version}`,
@@ -252,9 +255,12 @@ export function getDefaultServerOptions(): RequiredServerOptions {
   };
 }
 
-export function compileServerOptions(options: RequiredServerOptions): native.ServerOptions {
-  const { longPollTimeout, ...rest } = options;
-  return { ...rest, longPollTimeoutMs: ms(longPollTimeout) };
+export function compileServerOptions(options: RequiredServerOptions): CompiledServerOptions {
+  const { longPollTimeout, address, ...rest } = options;
+  // eslint-disable-next-line prefer-const
+  let [host, port] = address.split(':', 2);
+  port = port || '7233';
+  return { ...rest, address: `${host}:${port}`, longPollTimeoutMs: ms(longPollTimeout) };
 }
 
 export function addDefaults(options: WorkerOptions): WorkerOptionsWithDefaults {
@@ -283,13 +289,6 @@ export function compileWorkerOptions(opts: WorkerOptionsWithDefaults): CompiledW
     shutdownGraceTimeMs: ms(opts.shutdownGraceTime),
     serverOptions: compileServerOptions(opts.serverOptions),
   };
-}
-
-export function compileNativeWorkerOptions(
-  opts: WorkerOptionsWithDefaults,
-  serverOptions: Required<ServerOptions>
-): native.WorkerOptions {
-  return { ...opts, serverOptions: compileServerOptions(serverOptions) };
 }
 
 /**
@@ -348,6 +347,14 @@ export interface WorkerConstructor {
   create(options: CompiledWorkerOptionsWithDefaults): Promise<NativeWorkerLike>;
 }
 
+/**
+ * Normalize {@link ConnectionOptions.tls} by turning false and null to undefined and true to and empty object
+ * NOTE: this function is duplicated in `packages/client/src/index.ts` for lack of a shared library
+ */
+export function normalizeTlsConfig(tls: ServerOptions['tls']): TLSConfig | undefined {
+  return typeof tls === 'object' ? (tls === null ? undefined : tls) : tls ? {} : undefined;
+}
+
 export class NativeWorker implements NativeWorkerLike {
   public readonly pollWorkflowActivation: Promisify<OmitFirstParam<typeof native.workerPollWorkflowActivation>>;
   public readonly pollActivityTask: Promisify<OmitFirstParam<typeof native.workerPollActivityTask>>;
@@ -358,7 +365,16 @@ export class NativeWorker implements NativeWorkerLike {
   public readonly shutdown: Promisify<OmitFirstParam<typeof native.workerShutdown>>;
 
   public static async create(options: CompiledWorkerOptionsWithDefaults): Promise<NativeWorkerLike> {
-    const nativeWorker = await promisify(native.newWorker)(options);
+    const nativeWorker = await promisify(native.newWorker)({
+      ...options,
+      serverOptions: {
+        ...options.serverOptions,
+        tls: normalizeTlsConfig(options.serverOptions.tls),
+        url: options.serverOptions.tls
+          ? `https://${options.serverOptions.address}`
+          : `http://${options.serverOptions.address}`,
+      },
+    });
     return new NativeWorker(nativeWorker);
   }
 
