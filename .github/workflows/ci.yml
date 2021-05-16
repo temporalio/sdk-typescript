@@ -110,6 +110,11 @@ jobs:
       matrix:
         node: [14, 16]
         os: [ubuntu-latest] # TODO: add windows and macos-latest
+        server: [local]
+        include:
+          - os: macos-latest
+            node: 16
+            server: cloud
     runs-on: ${{ matrix.os }}
     needs: cross-compile
     steps:
@@ -125,19 +130,42 @@ jobs:
         with:
           name: packages
           path: /tmp/registry/storage
-      # This runs npm init @temporalio from a local registry
+      # The 2 steps below run npm init @temporalio from a local registry with different samples
       - run: node scripts/init-from-verdaccio.js --registry-dir /tmp/registry
+        if: ${{ matrix.server == 'local' }}
+      - run: node scripts/init-from-verdaccio.js --registry-dir /tmp/registry --sample hello-world-mtls
+        if: ${{ matrix.server == 'cloud' }}
       - name: Compile Typescript in example project
         run: npm run build
         working-directory: /tmp/registry/example
       - name: Get Temporal docker-compose.yml
         run: wget https://raw.githubusercontent.com/temporalio/docker-compose/main/docker-compose.yml
+        if: ${{ matrix.server == 'local' }}
       - name: Start Temporal Server
         run: docker-compose up -d
+        if: ${{ matrix.server == 'local' }}
       # Copy wait-on-temporal script to the example project where the built client package is installed
       - run: cp scripts/wait-on-temporal.js /tmp/registry/example
+        if: ${{ matrix.server == 'local' }}
       - name: Wait for Temporal Server
         run: node wait-on-temporal.js
         working-directory: /tmp/registry/example
+        if: ${{ matrix.server == 'local' }}
+      - name: Create certs dir
+        # We write the certs to disk because it serves the sample
+        run: node scripts/create-certs-dir.js
+        env:
+          TEMPORAL_CLIENT_CERT: ${{ secrets.TEMPORAL_CLIENT_CERT }}
+          TEMPORAL_CLIENT_KEY: ${{ secrets.TEMPORAL_CLIENT_KEY }}
+        if: ${{ matrix.server == 'cloud' }}
       - name: Test run a workflow
         run: node scripts/test-example.js --work-dir /tmp/registry/example
+        env:
+          # TODO: get a permanent cloud namespace for CI
+          # These env vars are ignored by the local server example
+          TEMPORAL_ADDRESS: roey.temporal-dev.tmprl.cloud
+          TEMPORAL_NAMESPACE: roey.temporal-dev
+          TEMPORAL_CLIENT_CERT_PATH: /tmp/temporal-certs/client.pem
+          TEMPORAL_CLIENT_KEY_PATH: /tmp/temporal-certs/client.key
+          TEMPORAL_TASK_QUEUE: ${{ format('{0}-{1}', matrix.os, matrix.node) }}
+      - run: rm -rf /tmp/temporal-certs

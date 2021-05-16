@@ -10,7 +10,7 @@ async function run() {
   // Workflow will be started in the "default" namespace unless specified otherwise.
   const example = connection.workflow<Example>('example', { taskQueue: 'tutorial' });
   const result = await example.start('Temporal');
-  console.log(result); // Hello, Temporal
+  console.log(result); // Hello, Temporal!
 }
 
 run().catch((err) => {
