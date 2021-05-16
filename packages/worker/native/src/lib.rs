@@ -184,8 +184,12 @@ fn start_bridge_loop(
                     let core = Arc::new(result);
                     tracing_init();
                     loop {
-                        // TODO: handle this error
-                        let request = receiver.recv().await.unwrap();
+                        let request_option = receiver.recv().await;
+                        if request_option.is_none() {
+                            // All senders are dropped, nothing to do here anymore
+                            break;
+                        }
+                        let request = request_option.unwrap();
                         let core = core.clone();
                         let queue = queue.clone();
 
