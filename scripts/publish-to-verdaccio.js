@@ -1,8 +1,8 @@
 const { spawnSync } = require('child_process');
-const { withRegistry, getRegistryDirFromArgs } = require('./registry');
+const { withRegistry, getArgs } = require('./registry');
 
 async function main() {
-  const registryDir = await getRegistryDirFromArgs();
+  const { registryDir } = await getArgs();
   await withRegistry(registryDir, async () => {
     const { status } = spawnSync(
       'npx',

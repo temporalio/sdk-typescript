@@ -94,7 +94,39 @@ class UsageError extends Error {
   public readonly name: string = 'UsageError';
 }
 
-async function createProject(projectPath: string, useYarn: boolean, temporalVersion: string) {
+interface Template {
+  copySources(sampleDir: string, targetDir: string): Promise<void>;
+}
+
+class HelloWorld implements Template {
+  constructor(public connectionVariant: 'default' | 'mtls') {}
+
+  async copySources(sampleDir: string, targetDir: string): Promise<void> {
+    if (this.connectionVariant === 'default') {
+      await copySample(path.join(sampleDir, 'worker.ts'), path.join(targetDir, 'worker', 'index.ts'));
+      await copySample(path.join(sampleDir, 'client.ts'), path.join(targetDir, 'worker', 'schedule-workflow.ts'));
+    } else if (this.connectionVariant === 'mtls') {
+      await copySample(path.join(sampleDir, 'mtls-env.ts'), path.join(targetDir, 'worker', 'mtls-env.ts'));
+      await copySample(path.join(sampleDir, 'worker-mtls.ts'), path.join(targetDir, 'worker', 'index.ts'));
+      await copySample(path.join(sampleDir, 'client-mtls.ts'), path.join(targetDir, 'worker', 'schedule-workflow.ts'));
+    }
+    await copySample(path.join(sampleDir, 'activity.ts'), path.join(targetDir, 'activities', 'greeter.ts'));
+    await copySample(path.join(sampleDir, 'workflow.ts'), path.join(targetDir, 'workflows', 'example.ts'));
+    await copySample(path.join(sampleDir, 'interface.ts'), path.join(targetDir, 'interfaces', 'workflows.ts'));
+  }
+}
+
+function getTemplate(sampleName: string): Template {
+  switch (sampleName) {
+    case 'hello-world':
+      return new HelloWorld('default');
+    case 'hello-world-mtls':
+      return new HelloWorld('mtls');
+  }
+  throw new TypeError(`Invalid sample name ${sampleName}`);
+}
+
+async function createProject(projectPath: string, useYarn: boolean, temporalVersion: string, sample: string) {
   const root = path.resolve(projectPath);
   const src = path.resolve(root, 'src');
   const name = path.basename(root);
@@ -140,11 +172,8 @@ async function createProject(projectPath: string, useYarn: boolean, temporalVers
     ],
   });
   const sampleDir = path.join(__dirname, '../samples');
-  await copySample(path.join(sampleDir, 'worker.ts'), path.join(src, 'worker', 'index.ts'));
-  await copySample(path.join(sampleDir, 'client.ts'), path.join(src, 'worker', 'schedule-workflow.ts'));
-  await copySample(path.join(sampleDir, 'activity.ts'), path.join(src, 'activities', 'greeter.ts'));
-  await copySample(path.join(sampleDir, 'workflow.ts'), path.join(src, 'workflows', 'example.ts'));
-  await copySample(path.join(sampleDir, 'interface.ts'), path.join(src, 'interfaces', 'workflows.ts'));
+  const template = getTemplate(sample);
+  await template.copySources(sampleDir, src);
   if (useYarn) {
     await spawn('yarn', ['install'], { cwd: root, stdio: 'inherit' });
     await spawn('yarn', ['add', `temporalio@${temporalVersion}`], { cwd: root, stdio: 'inherit' });
@@ -158,18 +187,22 @@ async function init() {
   const { _: args, ...opts } = arg({
     '--use-yarn': Boolean,
     '--temporal-version': String,
+    '--sample': String,
   });
   if (args.length !== 1) {
     throw new UsageError();
   }
-  await createProject(args[0], !!opts['--use-yarn'], opts['--temporal-version'] || 'latest');
+  const sample = opts['--sample'] || 'hello-world';
+  await createProject(args[0], !!opts['--use-yarn'], opts['--temporal-version'] || 'latest', sample);
 }
 
 init()
   .then(() => process.exit(0))
   .catch((err) => {
     if (err instanceof UsageError) {
-      console.error(`Usage: ${command} <packagePath>`);
+      console.error(
+        `Usage: ${command} [--use-yarn] [--temporal-version VERSION] [--sample hello-world|hello-world-mtls] <packagePath>`
+      );
     } else {
       console.error(err);
     }

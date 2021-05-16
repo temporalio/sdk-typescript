@@ -88,11 +88,18 @@ async function createTempRegistryDir() {
   return dir;
 }
 
-async function getRegistryDirFromArgs() {
-  const opts = arg({
-    '--registry-dir': String,
-  });
-  return opts['--registry-dir'] || (await createTempRegistryDir());
+/**
+ * Parse and return command line arguments
+ */
+async function getArgs() {
+  const opts = arg(
+    {
+      '--registry-dir': String,
+    },
+    { permissive: true }
+  );
+  const registryDir = opts['--registry-dir'] || (await createTempRegistryDir());
+  return { registryDir, initArgs: opts._.length > 0 ? ['--', ...opts._] : [] };
 }
 
-module.exports = { getRegistryDirFromArgs, withRegistry };
+module.exports = { getArgs, withRegistry };

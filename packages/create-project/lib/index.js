@@ -93,7 +93,35 @@ class UsageError extends Error {
         this.name = 'UsageError';
     }
 }
-async function createProject(projectPath, useYarn, temporalVersion) {
+class HelloWorld {
+    constructor(connectionVariant) {
+        this.connectionVariant = connectionVariant;
+    }
+    async copySources(sampleDir, targetDir) {
+        if (this.connectionVariant === 'default') {
+            await copySample(path_1.default.join(sampleDir, 'worker.ts'), path_1.default.join(targetDir, 'worker', 'index.ts'));
+            await copySample(path_1.default.join(sampleDir, 'client.ts'), path_1.default.join(targetDir, 'worker', 'schedule-workflow.ts'));
+        }
+        else if (this.connectionVariant === 'mtls') {
+            await copySample(path_1.default.join(sampleDir, 'mtls-env.ts'), path_1.default.join(targetDir, 'worker', 'mtls-env.ts'));
+            await copySample(path_1.default.join(sampleDir, 'worker-mtls.ts'), path_1.default.join(targetDir, 'worker', 'index.ts'));
+            await copySample(path_1.default.join(sampleDir, 'client-mtls.ts'), path_1.default.join(targetDir, 'worker', 'schedule-workflow.ts'));
+        }
+        await copySample(path_1.default.join(sampleDir, 'activity.ts'), path_1.default.join(targetDir, 'activities', 'greeter.ts'));
+        await copySample(path_1.default.join(sampleDir, 'workflow.ts'), path_1.default.join(targetDir, 'workflows', 'example.ts'));
+        await copySample(path_1.default.join(sampleDir, 'interface.ts'), path_1.default.join(targetDir, 'interfaces', 'workflows.ts'));
+    }
+}
+function getTemplate(sampleName) {
+    switch (sampleName) {
+        case 'hello-world':
+            return new HelloWorld('default');
+        case 'hello-world-mtls':
+            return new HelloWorld('mtls');
+    }
+    throw new TypeError(`Invalid sample name ${sampleName}`);
+}
+async function createProject(projectPath, useYarn, temporalVersion, sample) {
     const root = path_1.default.resolve(projectPath);
     const src = path_1.default.resolve(root, 'src');
     const name = path_1.default.basename(root);
@@ -139,11 +167,8 @@ async function createProject(projectPath, useYarn, temporalVersion) {
         ],
     });
     const sampleDir = path_1.default.join(__dirname, '../samples');
-    await copySample(path_1.default.join(sampleDir, 'worker.ts'), path_1.default.join(src, 'worker', 'index.ts'));
-    await copySample(path_1.default.join(sampleDir, 'client.ts'), path_1.default.join(src, 'worker', 'schedule-workflow.ts'));
-    await copySample(path_1.default.join(sampleDir, 'activity.ts'), path_1.default.join(src, 'activities', 'greeter.ts'));
-    await copySample(path_1.default.join(sampleDir, 'workflow.ts'), path_1.default.join(src, 'workflows', 'example.ts'));
-    await copySample(path_1.default.join(sampleDir, 'interface.ts'), path_1.default.join(src, 'interfaces', 'workflows.ts'));
+    const template = getTemplate(sample);
+    await template.copySources(sampleDir, src);
     if (useYarn) {
         await subprocess_1.spawn('yarn', ['install'], { cwd: root, stdio: 'inherit' });
         await subprocess_1.spawn('yarn', ['add', `temporalio@${temporalVersion}`], { cwd: root, stdio: 'inherit' });
@@ -157,17 +182,19 @@ async function init() {
     const { _: args, ...opts } = arg_1.default({
         '--use-yarn': Boolean,
         '--temporal-version': String,
+        '--sample': String,
     });
     if (args.length !== 1) {
         throw new UsageError();
     }
-    await createProject(args[0], !!opts['--use-yarn'], opts['--temporal-version'] || 'latest');
+    const sample = opts['--sample'] || 'hello-world';
+    await createProject(args[0], !!opts['--use-yarn'], opts['--temporal-version'] || 'latest', sample);
 }
 init()
     .then(() => process.exit(0))
     .catch((err) => {
     if (err instanceof UsageError) {
-        console.error(`Usage: ${command} <packagePath>`);
+        console.error(`Usage: ${command} [--use-yarn] [--temporal-version VERSION] [--sample hello-world|hello-world-mtls] <packagePath>`);
     }
     else {
         console.error(err);
