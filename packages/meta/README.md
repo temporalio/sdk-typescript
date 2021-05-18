@@ -36,6 +36,18 @@ Partial implementation of all components that make up a Temporal SDK - Worker, C
   - Basic logging and tracing capabilities
   - Polling on a single non-sticky task queue
 
+Notably these features are missing:
+
+- WF History pagination (only short Workflows are supported ATM)
+- Sticky queues (meaning Workflows are not cached and are replayed from the beginning each time a new event comes in)
+- Telemetry
+- Workflow versioning
+- Workflow cancellation
+- Query support
+- Local activities
+- Side effects
+- Windows support
+
 > NOTE: The API is considered unstable and may change at any time.
 > While in alpha we are gathering feedback from developers about the usability and ergonomics of the API.
 > To provide feedback please [open an issue](https://github.com/temporalio/sdk-node/issues) and feel free to
