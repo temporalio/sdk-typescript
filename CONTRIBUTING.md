@@ -44,3 +44,9 @@ In order to run integration tests:
 
 1. Run the temporal server using [docker-compose](https://github.com/temporalio/docker-compose).
 1. Export `RUN_INTEGRATION_TESTS=true`
+
+### Style Guide
+
+- Typescript code is linted with [eslint](https://eslint.org/)
+- Files in this repo are formatted with [prettier](https://prettier.io/)
+- All pull requests SHOULD adhere to the [Conventional Commits specification](https://conventionalcommits.org/)
