@@ -26,6 +26,7 @@
     "@temporalio/proto": "file:../proto",
     "@temporalio/worker": "file:../worker",
     "@temporalio/workflow": "file:../workflow",
+    "ramda": "^0.27.1",
     "uuid": "^8.3.2"
   },
   "bugs": {

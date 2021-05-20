@@ -169,8 +169,8 @@ export class Worker extends RealWorker {
 }
 
 export const defaultOptions: WorkerOptions = {
-  workflowsPath: `${__dirname}/../../test-workflows/lib`,
-  activitiesPath: `${__dirname}/../../test-activities/lib`,
+  workflowsPath: `${__dirname}/workflows`,
+  activitiesPath: `${__dirname}/activities`,
   nodeModulesPath: `${__dirname}/../../../node_modules`,
   taskQueue: 'test',
 };

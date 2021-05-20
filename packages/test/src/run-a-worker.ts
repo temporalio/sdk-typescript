@@ -2,8 +2,8 @@ import { Worker } from '@temporalio/worker';
 
 async function main() {
   const worker = await Worker.create({
-    workflowsPath: `${__dirname}/../../test-workflows/lib`,
-    activitiesPath: `${__dirname}/../../test-activities/lib`,
+    workflowsPath: `${__dirname}/workflows`,
+    activitiesPath: `${__dirname}/activities`,
     nodeModulesPath: `${__dirname}/../../../node_modules`,
     taskQueue: 'test',
   });

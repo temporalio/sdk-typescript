@@ -2,14 +2,15 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "outDir": "./lib",
-    "rootDir": "./src"
+    "rootDir": "./src",
+    "paths": {
+      "@activities": ["./src/activities"],
+      "@activities/*": ["./src/activities/*"],
+      "@interfaces": ["./src/interfaces"],
+      "@interfaces/*": ["./src/interfaces/*"]
+    }
   },
-  "references": [
-    { "path": "../client" },
-    { "path": "../worker" },
-    { "path": "../test-activities" },
-    { "path": "../test-workflows" }
-  ],
+  "references": [{ "path": "../client" }, { "path": "../worker" }],
   "include": ["./src/**/*.ts"],
   "exclude": ["node_modules"]
 }

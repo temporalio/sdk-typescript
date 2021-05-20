@@ -5,7 +5,7 @@ import { coresdk } from '@temporalio/proto';
 import { defaultDataConverter } from '@temporalio/workflow/lib/converter/data-converter';
 import { WorkflowIsolateBuilder } from '@temporalio/worker/lib/isolate-builder';
 import { DefaultLogger } from '@temporalio/worker/lib/logger';
-import { httpGet } from '../../test-activities/lib';
+import { httpGet } from './activities';
 import { Worker, isolateFreeWorker, defaultOptions } from './mock-native-worker';
 import { withZeroesHTTPServer } from './zeroes-http-server';
 

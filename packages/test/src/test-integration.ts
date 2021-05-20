@@ -21,8 +21,8 @@ import {
   AsyncFailable,
   Failable,
   CancellableHTTPRequest,
-} from '../../test-interfaces/lib';
-import { httpGet } from '../../test-activities/lib';
+} from './interfaces';
+import { httpGet } from './activities';
 import { u8, RUN_INTEGRATION_TESTS } from './helpers';
 import { withZeroesHTTPServer } from './zeroes-http-server';
 
@@ -41,8 +41,8 @@ const test = anyTest as TestInterface<Context>;
 if (RUN_INTEGRATION_TESTS) {
   test.before(async (t) => {
     const worker = await Worker.create({
-      workflowsPath: `${__dirname}/../../test-workflows/lib`,
-      activitiesPath: `${__dirname}/../../test-activities/lib`,
+      workflowsPath: `${__dirname}/workflows`,
+      activitiesPath: `${__dirname}/activities`,
       nodeModulesPath: `${__dirname}/../../../node_modules`,
       logger: new DefaultLogger('DEBUG'),
       taskQueue: 'test',
