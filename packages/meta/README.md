@@ -1,7 +1,7 @@
 # Temporal NodeJS SDK
 
 <p align="center">
-  <img src="https://img.shields.io/github/workflow/status/temporalio/sdk-node/ci?style=for-the-badge" alt="CI" />
+  <img src="https://img.shields.io/github/workflow/status/temporalio/sdk-node/Continuous%20Integration?style=for-the-badge" alt="CI" />
   <a href="https://www.npmjs.com/package/temporalio">
     <img src="https://img.shields.io/npm/v/temporalio.svg?style=for-the-badge" alt="NPM" />
   </a>
