@@ -1,5 +1,5 @@
 import { CancellationError, cancel, sleep } from '@temporalio/workflow';
-import { Empty } from '@interfaces';
+import { Empty } from '../interfaces';
 
 async function main(): Promise<void> {
   const timer = sleep(3);

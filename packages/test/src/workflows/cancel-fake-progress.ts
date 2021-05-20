@@ -1,5 +1,5 @@
 import { Context, CancellationError, cancel, sleep } from '@temporalio/workflow';
-import { ActivitySignalHandler } from '@interfaces';
+import { ActivitySignalHandler } from '../interfaces';
 import * as activities from '@activities';
 import { ResolvablePromise } from './resolvable-promise';
 

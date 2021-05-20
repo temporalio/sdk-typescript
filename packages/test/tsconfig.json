@@ -5,9 +5,7 @@
     "rootDir": "./src",
     "paths": {
       "@activities": ["./src/activities"],
-      "@activities/*": ["./src/activities/*"],
-      "@interfaces": ["./src/interfaces"],
-      "@interfaces/*": ["./src/interfaces/*"]
+      "@activities/*": ["./src/activities/*"]
     }
   },
   "references": [{ "path": "../client" }, { "path": "../worker" }],

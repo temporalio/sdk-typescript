@@ -1,5 +1,5 @@
 import { Context } from '@temporalio/workflow';
-import { HTTP } from '@interfaces';
+import { HTTP } from '../interfaces';
 
 const httpGetFromString = Context.configure<[string], string>(JSON.stringify(['@activities', 'httpGet']));
 

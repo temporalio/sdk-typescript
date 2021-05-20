@@ -1,7 +1,7 @@
 // @@@SNIPSTART nodejs-schedule-activity-workflow
 import { Context } from '@temporalio/workflow';
 import { httpGet } from '@activities';
-import { HTTP } from '@interfaces';
+import { HTTP } from '../interfaces';
 
 const httpGetWithCustomTimeout = Context.configure(httpGet, {
   type: 'remote',

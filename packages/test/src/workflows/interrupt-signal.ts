@@ -1,5 +1,5 @@
 // @@@SNIPSTART nodejs-workflow-signal-implementation
-import { Interruptable } from '@interfaces';
+import { Interruptable } from '../interfaces';
 
 let interrupt: (reason?: any) => void | undefined;
 
