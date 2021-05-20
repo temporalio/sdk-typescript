@@ -391,6 +391,15 @@ where
     }
 }
 
+macro_rules! js_value_getter {
+    ($js_cx:ident, $js_obj:ident, $prop_name:expr, $js_type:ty) => {
+        $js_obj
+            .get(&mut $js_cx, $prop_name)?
+            .downcast_or_throw::<$js_type, _>(&mut $js_cx)?
+            .value(&mut $js_cx)
+    };
+}
+
 // Below are functions exported to JS
 
 /// Create a new worker asynchronously.
@@ -401,10 +410,7 @@ fn worker_new(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     let server_options = worker_options
         .get(&mut cx, "serverOptions")?
         .downcast_or_throw::<JsObject, _>(&mut cx)?;
-    let url = server_options
-        .get(&mut cx, "url")?
-        .downcast_or_throw::<JsString, _>(&mut cx)?
-        .value(&mut cx);
+    let url = js_value_getter!(cx, server_options, "url", JsString);
 
     let tls_cfg = match get_optional(&mut cx, server_options, "tls") {
         None => None,
@@ -441,47 +447,43 @@ fn worker_new(mut cx: FunctionContext) -> JsResult<JsUndefined> {
 
     let gateway_opts = ServerGatewayOptions {
         target_url: Url::parse(&url).unwrap(),
-        namespace: server_options
-            .get(&mut cx, "namespace")?
-            .downcast_or_throw::<JsString, _>(&mut cx)?
-            .value(&mut cx),
-        task_queue: worker_options
-            .get(&mut cx, "taskQueue")?
-            .downcast_or_throw::<JsString, _>(&mut cx)?
-            .value(&mut cx),
-        identity: server_options
-            .get(&mut cx, "identity")?
-            .downcast_or_throw::<JsString, _>(&mut cx)?
-            .value(&mut cx),
-        worker_binary_id: server_options
-            .get(&mut cx, "workerBinaryId")?
-            .downcast_or_throw::<JsString, _>(&mut cx)?
-            .value(&mut cx),
-        long_poll_timeout: Duration::from_millis(
-            server_options
-                .get(&mut cx, "longPollTimeoutMs")?
-                .downcast_or_throw::<JsNumber, _>(&mut cx)?
-                .value(&mut cx) as u64,
-        ),
+        namespace: js_value_getter!(cx, server_options, "namespace", JsString),
+        task_queue: js_value_getter!(cx, worker_options, "taskQueue", JsString),
+        identity: js_value_getter!(cx, server_options, "identity", JsString),
+        worker_binary_id: js_value_getter!(cx, server_options, "workerBinaryId", JsString),
+        long_poll_timeout: Duration::from_millis(js_value_getter!(
+            cx,
+            server_options,
+            "longPollTimeoutMs",
+            JsNumber
+        ) as u64),
         tls_cfg,
     };
 
-    let max_outstanding_activities = worker_options
-        .get(&mut cx, "maxConcurrentActivityTaskExecutions")?
-        .downcast_or_throw::<JsNumber, _>(&mut cx)?
-        .value(&mut cx) as usize;
-    let max_outstanding_workflow_tasks = worker_options
-        .get(&mut cx, "maxConcurrentWorkflowTaskExecutions")?
-        .downcast_or_throw::<JsNumber, _>(&mut cx)?
-        .value(&mut cx) as usize;
-    let max_concurrent_wft_polls = worker_options
-        .get(&mut cx, "maxConcurrentWorkflowTaskPolls")?
-        .downcast_or_throw::<JsNumber, _>(&mut cx)?
-        .value(&mut cx) as usize;
-    let max_concurrent_at_polls = worker_options
-        .get(&mut cx, "maxConcurrentActivityTaskPolls")?
-        .downcast_or_throw::<JsNumber, _>(&mut cx)?
-        .value(&mut cx) as usize;
+    let max_outstanding_activities = js_value_getter!(
+        cx,
+        worker_options,
+        "maxConcurrentActivityTaskExecutions",
+        JsNumber
+    ) as usize;
+    let max_outstanding_workflow_tasks = js_value_getter!(
+        cx,
+        worker_options,
+        "maxConcurrentWorkflowTaskExecutions",
+        JsNumber
+    ) as usize;
+    let max_concurrent_wft_polls = js_value_getter!(
+        cx,
+        worker_options,
+        "maxConcurrentWorkflowTaskPolls",
+        JsNumber
+    ) as usize;
+    let max_concurrent_at_polls = js_value_getter!(
+        cx,
+        worker_options,
+        "maxConcurrentActivityTaskPolls",
+        JsNumber
+    ) as usize;
 
     let callback = cx.argument::<JsFunction>(1)?.root(&mut cx);
     let queue = Arc::new(cx.queue());
