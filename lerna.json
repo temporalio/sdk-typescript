@@ -3,8 +3,11 @@
   "npmClient": "npm",
   "command": {
     "publish": {
-      "message": "chore(release): publish",
+      "message": "chore(release): Publish",
       "registry": "https://registry.npmjs.org/"
+    },
+    "version": {
+      "message": "chore(release): Publish"
     },
     "bootstrap": {
       "npmClientArgs": ["--no-package-lock"]
