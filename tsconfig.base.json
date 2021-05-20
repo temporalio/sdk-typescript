@@ -4,6 +4,7 @@
     "composite": true,
     "incremental": true,
     "module": "commonjs",
-    "moduleResolution": "node"
+    "moduleResolution": "node",
+    "sourceMap": true
   }
 }

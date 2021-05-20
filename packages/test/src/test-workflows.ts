@@ -1025,8 +1025,13 @@ test('global-overrides', async (t) => {
   }
   t.deepEqual(
     logs,
-    ['WeakMap', 'WeakSet', 'WeakRef'].map((type) => [
-      `DeterminismViolationError: ${type} cannot be used in workflows because v8 GC is non-deterministic`,
-    ])
+    [
+      ['IllegalStateError: Tried to get Date before Workflow has been initialized'],
+      ['IllegalStateError: Tried to use Math.random before Workflow has been initialized'],
+    ].concat(
+      ['WeakMap' /* First error happens on startup */, 'WeakMap', 'WeakSet', 'WeakRef'].map((type) => [
+        `DeterminismViolationError: ${type} cannot be used in workflows because v8 GC is non-deterministic`,
+      ])
+    )
   );
 });

@@ -3,7 +3,6 @@ import Long from 'long';
 import dedent from 'dedent';
 import { coresdk } from '@temporalio/proto';
 import * as internals from '@temporalio/workflow/lib/internals';
-import * as init from '@temporalio/workflow/lib/init';
 
 export enum ApplyMode {
   ASYNC = 'apply',
@@ -21,8 +20,10 @@ interface WorkflowModule {
   concludeActivation: ivm.Reference<typeof internals.concludeActivation>;
 }
 
-// Shared runtime module for all isolates, needs to be created in context.
-const runtimeModule = new ivm.NativeModule(require.resolve('../build/Release/temporalio-workflow-isolate-extension'));
+// Shared native isolate extension module for all isolates, needs to be injected into each Workflow's V8 context.
+const isolateExtensionModule = new ivm.NativeModule(
+  require.resolve('../build/Release/temporalio-workflow-isolate-extension')
+);
 
 export class Workflow {
   private constructor(
@@ -41,7 +42,7 @@ export class Workflow {
   ): Promise<Workflow> {
     const context = await isolate.createContext();
 
-    const runtime = await runtimeModule.create(context);
+    const isolateExtension = await isolateExtensionModule.create(context);
 
     const activate: WorkflowModule['activate'] = await context.eval(`lib.internals.activate`, {
       reference: true,
@@ -50,21 +51,17 @@ export class Workflow {
       `lib.internals.concludeActivation`,
       { reference: true }
     );
-    const initWorkflow: ivm.Reference<typeof init.initWorkflow> = await context.eval(`lib.init.initWorkflow`, {
-      reference: true,
-    });
 
-    await initWorkflow.apply(undefined, [id, randomnessSeed.toBytes(), taskQueue, runtime.derefInto()], {
-      arguments: { copy: true },
-    });
-    await context.eval(
+    await context.evalClosure(
       dedent`
       const mod = lib.workflows[${JSON.stringify(name)}];
       if (mod === undefined) {
         throw new ReferenceError('Workflow not found');
       }
-      lib.init.registerWorkflow(mod.workflow || mod);
-      `
+      lib.init.initWorkflow(mod.workflow || mod, $0, $1, $2, $3);
+      `,
+      [id, randomnessSeed.toBytes(), taskQueue, isolateExtension.derefInto()],
+      { arguments: { copy: true } }
     );
 
     return new Workflow(id, isolate, context, { activate, concludeActivation });
