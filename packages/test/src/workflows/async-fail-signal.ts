@@ -1,5 +1,5 @@
 import { sleep } from '@temporalio/workflow';
-import { AsyncFailable } from '@interfaces';
+import { AsyncFailable } from '../interfaces';
 
 const signals = {
   // Throw an error directly in the signal handler, this should be translated to a failWorkflowExecution command

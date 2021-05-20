@@ -1,6 +1,6 @@
 // @@@SNIPSTART nodejs-sleep-workflow
 import { sleep } from '@temporalio/workflow';
-import { Sleeper } from '@interfaces';
+import { Sleeper } from '../interfaces';
 
 async function main(ms = 100): Promise<void> {
   await sleep(ms);

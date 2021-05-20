@@ -1,5 +1,5 @@
 import { sleep } from '@temporalio/workflow';
-import { SimpleQuery } from '@interfaces';
+import { SimpleQuery } from '../interfaces';
 
 let slept = false;
 

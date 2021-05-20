@@ -70,8 +70,6 @@ const workflowsTsConfig = {
     paths: {
       '@activities': ['../activities'],
       '@activities/*': ['../activities/*'],
-      '@interfaces': ['../interfaces'],
-      '@interfaces/*': ['../interfaces/*'],
     },
   },
   references: [{ path: '../activities/tsconfig.json' }, { path: '../interfaces/tsconfig.json' }],
@@ -148,10 +146,6 @@ async function createProject(projectPath: string, useYarn: boolean, temporalVers
     compilerOptions: {
       ...tsConfigBase.compilerOptions,
       outDir: '../../lib/activities',
-      paths: {
-        '@interfaces': ['../interfaces'],
-        '@interfaces/*': ['../interfaces/*'],
-      },
     },
     references: [{ path: '../interfaces/tsconfig.json' }],
   });
@@ -160,10 +154,6 @@ async function createProject(projectPath: string, useYarn: boolean, temporalVers
     compilerOptions: {
       ...tsConfigBase.compilerOptions,
       outDir: '../../lib/worker',
-      paths: {
-        '@interfaces': ['../interfaces'],
-        '@interfaces/*': ['../interfaces/*'],
-      },
     },
     references: [
       { path: '../interfaces/tsconfig.json' },

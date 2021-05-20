@@ -1,5 +1,5 @@
 import '@temporalio/workflow';
-import { ArgsAndReturn } from '@interfaces';
+import { ArgsAndReturn } from '../interfaces';
 
 export function str(a: Uint8Array): string {
   let out = '';

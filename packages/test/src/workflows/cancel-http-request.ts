@@ -1,5 +1,5 @@
 import { Context, CancellationError, cancel, sleep } from '@temporalio/workflow';
-import { CancellableHTTPRequest } from '@interfaces';
+import { CancellableHTTPRequest } from '../interfaces';
 import { cancellableFetch } from '@activities';
 import { ResolvablePromise } from './resolvable-promise';
 

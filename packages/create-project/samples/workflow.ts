@@ -1,5 +1,5 @@
 // @@@SNIPSTART nodejs-hello-workflow
-import { Example } from '@interfaces/workflows';
+import { Example } from '../interfaces/workflows';
 import { greet } from '@activities/greeter';
 
 // A workflow that simply calls an activity
