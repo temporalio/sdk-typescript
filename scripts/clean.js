@@ -2,6 +2,7 @@ const { resolve } = require('path');
 const { readdirSync } = require('fs');
 const { spawnSync } = require('child_process');
 const { removeSync, readFileSync } = require('fs-extra');
+const arg = require('arg');
 const JSON5 = require('json5');
 
 const packagesPath = resolve(__dirname, '../packages');
@@ -46,7 +47,9 @@ function cleanCompiledCppFiles() {
   spawnSync('node-gyp', ['clean'], { cwd: workerDir, stdio: 'inherit' });
 }
 
-cleanTsGeneratedFiles();
-cleanProtoGeneratedFiles();
-cleanCompiledRustFiles();
-cleanCompiledCppFiles();
+const { '--only': only } = arg({ '--only': [String] });
+const components = new Set(only.length === 0 ? ['ts', 'proto', 'rust', 'cpp'] : only);
+if (components.has('ts')) cleanTsGeneratedFiles();
+if (components.has('proto')) cleanProtoGeneratedFiles();
+if (components.has('rust')) cleanCompiledRustFiles();
+if (components.has('cpp')) cleanCompiledCppFiles();
