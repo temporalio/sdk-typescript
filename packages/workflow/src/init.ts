@@ -1,14 +1,13 @@
 import { Scope, Workflow } from './interfaces';
-import { state, currentScope, Runtime, Activator } from './internals';
+import { state, currentScope, IsolateExtension } from './internals';
 import { msToTs } from './time';
 import { alea } from './alea';
 import { DeterminismViolationError } from './errors';
 
-export function overrideGlobals(randomnessSeed: number[]): void {
+export function overrideGlobals(): void {
   const global = globalThis as any;
-  Math.random = alea(randomnessSeed);
   // Mock any weak reference holding structures because GC is non-deterministic.
-  // WeakRef is implemented in V8 8.4 which is embedded in node >=14.6.0, delete it just in case.
+  // WeakRef is implemented in V8 8.4 which is embedded in node >=14.6.0.
   // Workflow developer will get a meaningful exception if they try to use these.
   global.WeakMap = function () {
     throw new DeterminismViolationError('WeakMap cannot be used in workflows because v8 GC is non-deterministic');
@@ -57,39 +56,53 @@ export function overrideGlobals(randomnessSeed: number[]): void {
       },
     });
   };
+
+  // state.random is mutable, don't hardcode its reference
+  Math.random = () => state.random();
 }
 
-export function initWorkflow(workflowId: string, randomnessSeed: number[], taskQueue: string, runtime: Runtime): void {
-  overrideGlobals(randomnessSeed);
+export function initWorkflow(
+  workflow: Workflow,
+  workflowId: string,
+  randomnessSeed: number[],
+  taskQueue: string,
+  isolateExtension: IsolateExtension
+): void {
+  // Globals are overridden while building the isolate before loading user code.
+  // For some reason the `WeakRef` mock is not restored properly when creating an isolate from snapshot in node 14 (at least on ubuntu), override again.
+  (globalThis as any).WeakRef = function () {
+    throw new DeterminismViolationError('WeakRef cannot be used in workflows because v8 GC is non-deterministic');
+  };
 
+  state.workflow = workflow;
   state.workflowId = workflowId;
+  state.random = alea(randomnessSeed);
   state.taskQueue = taskQueue;
-  state.runtime = runtime;
-  state.activator = new Activator();
-  runtime.registerPromiseHook((t, p, pp) => {
+  state.isolateExtension = isolateExtension;
+  isolateExtension.registerPromiseHook((t, p, pp) => {
     switch (t) {
       case 'init': {
         const scope = currentScope();
         const cancellable = !scope.associated;
         if (pp === undefined) {
-          runtime.setPromiseData(p, { scope, cancellable });
+          isolateExtension.setPromiseData(p, { scope, cancellable });
         } else {
           let parentScope: Scope;
-          let parentData = runtime.getPromiseData(pp);
+          let parentData = isolateExtension.getPromiseData(pp);
           if (parentData === undefined) {
             parentScope = scope;
             parentData = { scope: parentScope, cancellable: false };
-            runtime.setPromiseData(pp, parentData);
+            isolateExtension.setPromiseData(pp, parentData);
           } else {
             parentScope = parentData.scope;
           }
-          runtime.setPromiseData(p, { scope: parentScope, cancellable });
+          isolateExtension.setPromiseData(p, { scope: parentScope, cancellable });
         }
         scope.associated = true;
         break;
       }
       case 'resolve': {
-        const data = runtime.getPromiseData(p);
+        const data = isolateExtension.getPromiseData(p);
         if (data === undefined) {
           throw new Error('Expected promise to have an associated scope');
         }
@@ -109,8 +122,4 @@ export function initWorkflow(workflowId: string, randomnessSeed: number[], taskQ
       }
     }
   });
-}
-
-export function registerWorkflow(workflow: Workflow): void {
-  state.workflow = workflow;
 }

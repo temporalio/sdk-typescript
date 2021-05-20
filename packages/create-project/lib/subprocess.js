@@ -39,3 +39,4 @@ async function waitOnChild(child) {
     });
 }
 exports.waitOnChild = waitOnChild;
+//# sourceMappingURL=subprocess.js.map

@@ -65,6 +65,7 @@ export class WorkflowIsolateBuilder {
     let code = dedent`
       const init = require('@temporalio/workflow/lib/init');
       const internals = require('@temporalio/workflow/lib/internals');
+      init.overrideGlobals();
       internals.state.activityDefaults = ${JSON.stringify(this.activityDefaults)};
 
       const workflows = {};

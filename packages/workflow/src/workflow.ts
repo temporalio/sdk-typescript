@@ -234,11 +234,11 @@ export function shield<T>(fn: () => Promise<T>, throwOnCancellation = true): Pro
  * @see {@link https://docs.temporal.io/docs/node/workflow-scopes-and-cancellation | Workflow scopes and cancellation}
  */
 export function cancel(promise: Promise<any>, reason = 'Cancelled'): void {
-  if (state.runtime === undefined) {
+  if (state.isolateExtension === undefined) {
     // This shouldn't happen
     throw new Error('Uninitialized workflow');
   }
-  const data = state.runtime.getPromiseData(promise);
+  const data = state.isolateExtension.getPromiseData(promise);
   if (data === undefined) {
     throw new Error('Expected to find promise scope, got undefined');
   }
