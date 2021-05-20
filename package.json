@@ -67,8 +67,6 @@
     "@temporalio/create": "file:packages/create-project",
     "@temporalio/proto": "file:packages/proto",
     "@temporalio/test": "file:packages/test",
-    "@temporalio/test-activities": "file:packages/test-activities",
-    "@temporalio/test-workflows": "file:packages/test-workflows",
     "@temporalio/worker": "file:packages/worker",
     "@temporalio/workflow": "file:packages/workflow",
     "arg": "^4.1.3",

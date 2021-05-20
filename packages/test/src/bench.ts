@@ -124,8 +124,8 @@ async function main() {
   console.log('Wait complete on namespace', { namespace });
 
   const worker = await Worker.create({
-    workflowsPath: path.join(__dirname, '../../test-workflows/lib'),
-    activitiesPath: path.join(__dirname, '../../test-activities/lib'),
+    workflowsPath: path.join(__dirname, 'workflows'),
+    activitiesPath: path.join(__dirname, 'activities'),
     nodeModulesPath: path.join(__dirname, '../../../node_modules'),
     taskQueue,
     maxConcurrentActivityTaskExecutions,

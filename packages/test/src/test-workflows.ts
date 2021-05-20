@@ -10,7 +10,7 @@ import { ActivityOptions } from '@temporalio/worker';
 import { Workflow } from '@temporalio/worker/lib/workflow';
 import { WorkflowIsolateBuilder } from '@temporalio/worker/lib/isolate-builder';
 import { DefaultLogger } from '@temporalio/worker/lib/logger';
-import * as activityFunctions from '@temporalio/test-activities/lib';
+import * as activityFunctions from './activities';
 import { u8 } from './helpers';
 
 export interface Context {
@@ -22,13 +22,9 @@ export interface Context {
 
 const test = anyTest as TestInterface<Context>;
 
-function getWorkflow(name: string) {
-  return path.join(__dirname, '../../test-workflows/lib', name);
-}
-
 test.before(async (t) => {
   const logger = new DefaultLogger('INFO');
-  const workflowsPath = path.join(__dirname, '../../test-workflows/lib');
+  const workflowsPath = path.join(__dirname, 'workflows');
   const nodeModulesPath = path.join(__dirname, '../../../node_modules');
   const activityDefaults: ActivityOptions = { type: 'remote', startToCloseTimeout: '10m' };
   const activities = new Map([['@activities', activityFunctions]]);
@@ -43,8 +39,7 @@ test.beforeEach(async (t) => {
   const workflow = await Workflow.create(isolate, testName, 'test-workflowId', Long.fromInt(1337), 'test');
   const logs: unknown[][] = [];
   await workflow.inject('console.log', (...args: unknown[]) => void logs.push(args));
-  const script = getWorkflow(`${testName}.js`);
-  t.context = { isolate, workflow, logs, script };
+  t.context = { isolate, workflow, logs, script: testName };
 });
 
 async function activate(t: ExecutionContext<Context>, activation: coresdk.workflow_activation.IWFActivation) {
