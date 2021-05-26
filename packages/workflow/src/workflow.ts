@@ -1,7 +1,14 @@
-import { ActivityFunction, ActivityOptions, CancellationFunctionFactory, RemoteActivityOptions } from './interfaces';
+import {
+  ActivityFunction,
+  ActivityOptions,
+  CancellationFunctionFactory,
+  Dependencies,
+  RemoteActivityOptions,
+  WorkflowInfo,
+} from './interfaces';
 import { state, currentScope, childScope, propagateCancellation } from './internals';
 import { defaultDataConverter } from './converter/data-converter';
-import { CancellationError } from './errors';
+import { CancellationError, IllegalStateError } from './errors';
 import { msToTs, msOptionalStrToTs } from './time';
 
 /**
@@ -103,7 +110,7 @@ export function scheduleActivity<R>(activityType: string, args: any[], options: 
                   // TODO: nonRetryableErrorTypes
                 }
               : undefined,
-            taskQueue: options.taskQueue || state.taskQueue,
+            taskQueue: options.taskQueue || state.info?.taskQueue,
             heartbeatTimeout: msOptionalStrToTs(options.heartbeatTimeout),
             scheduleToCloseTimeout: msOptionalStrToTs(options.scheduleToCloseTimeout),
             startToCloseTimeout: msOptionalStrToTs(options.startToCloseTimeout),
@@ -191,6 +198,59 @@ export class ContextImpl {
    */
   public get cancelled(): boolean {
     return state.cancelled;
+  }
+
+  /**
+   * Get information about the current Workflow
+   */
+  public get info(): WorkflowInfo {
+    if (state.info === undefined) {
+      throw new IllegalStateError('Workflow uninitialized');
+    }
+    return state.info;
+  }
+
+  /**
+   * Get a reference to injected external dependencies.
+   *
+   * **IMPOTANT**: dependencies may not be called at the top level because they require the Workflow to be initialized.
+   * You may reference them as demonstrated below but trying to call them at the top level will throw an `IllegalStateError`.
+   *
+   * @example
+   * ```ts
+   * import { Context } from '@temporalio/workflow';
+   * import { MyDependencies } from '../interfaces';
+   *
+   * const { logger } = Context.dependencies<MyDependencies>();
+   * logger.info('...'); // <-- IllegalStateError
+   *
+   * export function main(): void {
+   *  logger.info('hey ho');   // <-- OK
+   *  logger.error('lets go'); // <-- OK
+   * }
+   * ```
+   */
+  public dependencies<T extends Dependencies>(): T {
+    return new Proxy(
+      {},
+      {
+        get(_, ifaceName) {
+          return new Proxy(
+            {},
+            {
+              get(_, fnName) {
+                return (...args: any[]) => {
+                  if (state.info === undefined) {
+                    throw new IllegalStateError('Workflow uninitialized');
+                  }
+                  return state.dependencies[ifaceName as string][fnName as string](...args);
+                };
+              },
+            }
+          );
+        },
+      }
+    ) as any;
   }
 }
 

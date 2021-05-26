@@ -4,6 +4,7 @@ import ivm from 'isolated-vm';
 import Long from 'long';
 import dedent from 'dedent';
 import { coresdk } from '@temporalio/proto';
+import { ApplyMode } from '@temporalio/workflow';
 import { defaultDataConverter } from '@temporalio/workflow/lib/converter/data-converter';
 import { msToTs, msStrToTs } from '@temporalio/workflow/lib/time';
 import { ActivityOptions } from '@temporalio/worker';
@@ -38,21 +39,26 @@ test.beforeEach(async (t) => {
   const testName = t.title.match(/\S+$/)![0];
   const workflow = await Workflow.create(
     isolate,
-    testName,
-    'test-workflowId',
-    'test-runId',
+    {
+      filename: testName,
+      runId: 'test-runId',
+      workflowId: 'test-workflowId',
+      namespace: 'default',
+      taskQueue: 'test',
+      isReplaying: false,
+    },
     Long.fromInt(1337),
-    'test'
+    100
   );
   const logs: unknown[][] = [];
-  await workflow.inject('console.log', (...args: unknown[]) => void logs.push(args));
+  await workflow.injectGlobal('console.log', (...args: unknown[]) => void logs.push(args), ApplyMode.SYNC);
   t.context = { isolate, workflow, logs, script: testName };
 });
 
 async function activate(t: ExecutionContext<Context>, activation: coresdk.workflow_activation.IWFActivation) {
   const arr = await t.context.workflow.activate(activation);
   const completion = coresdk.workflow_completion.WFActivationCompletion.decodeDelimited(arr);
-  t.deepEqual(completion.runId, t.context.workflow.runId);
+  t.deepEqual(completion.runId, t.context.workflow.info.runId);
   return completion;
 }
 
@@ -63,7 +69,10 @@ function compareCompletion(
 ) {
   t.deepEqual(
     req.toJSON(),
-    coresdk.workflow_completion.WFActivationCompletion.create({ ...expected, runId: t.context.workflow.runId }).toJSON()
+    coresdk.workflow_completion.WFActivationCompletion.create({
+      ...expected,
+      runId: t.context.workflow.info.runId,
+    }).toJSON()
   );
 }
 
@@ -1035,4 +1044,21 @@ test('global-overrides', async (t) => {
       ])
     )
   );
+});
+
+test('top-level-dependencies', async (t) => {
+  const { script, logs } = t.context;
+  {
+    const req = await activate(t, makeStartWorkflow(script));
+    compareCompletion(t, req, makeSuccess());
+  }
+  t.deepEqual(logs, [[['IllegalStateError: Workflow uninitialized']]]);
+});
+
+test('log-before-timing-out', async (t) => {
+  const { script, workflow } = t.context;
+  const logs: string[] = [];
+  await workflow.injectDependency('logger', 'info', (message: string) => logs.push(message), ApplyMode.ASYNC_IGNORED);
+  await t.throwsAsync(activate(t, makeStartWorkflow(script)), { message: 'Script execution timed out.' });
+  t.deepEqual(logs, ['logging before getting stuck']);
 });

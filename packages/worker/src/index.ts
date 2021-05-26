@@ -12,6 +12,9 @@ export {
   State,
   Worker,
   WorkerOptions,
+  WorkerSpec,
+  WorkerSpecOptions,
+  CompiledWorkerOptions,
   ActivityOptions,
   LocalActivityOptions,
   RemoteActivityOptions,
@@ -21,3 +24,4 @@ export {
   errors,
 } from './worker';
 export * from './logger';
+export * from './dependencies';

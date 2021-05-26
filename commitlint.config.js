@@ -8,6 +8,7 @@ module.exports = {
       ['activity', 'bench', 'client', 'docs', 'core', 'release', 'samples', 'worker', 'workflow'],
     ],
     'header-max-length': [2, 'always', 120],
+    'body-max-line-length': [1, 'always', 120],
     'footer-max-line-length': [2, 'always', 120],
   },
 };
