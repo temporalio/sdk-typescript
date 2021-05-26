@@ -38,6 +38,7 @@ export class WorkflowIsolateBuilder {
     ufs.use(memfs.createFsFromVolume(vol) as any).use(realFS);
     const distDir = '/dist';
     const sourceDir = '/src';
+
     await this.registerActivities(vol, sourceDir);
     const entrypointPath = path.join(sourceDir, 'main.js');
     const workflows = await this.findWorkflows();
@@ -73,6 +74,11 @@ export class WorkflowIsolateBuilder {
     `;
     for (const wf of workflows) {
       code += `workflows[${JSON.stringify(wf)}] = require(${JSON.stringify(path.join(this.workflowsPath, wf))});\n`;
+    }
+    try {
+      vol.mkdirSync(path.dirname(target), { recursive: true });
+    } catch (err) {
+      if (err.code !== 'EEXIST') throw err;
     }
     vol.writeFileSync(target, code);
   }
@@ -169,7 +175,13 @@ export class WorkflowIsolateBuilder {
     activitiesPath: string
   ): Promise<Map<string, Record<string, (...args: any[]) => any>>> {
     const resolvedActivities = new Map<string, Record<string, (...args: any[]) => any>>();
-    const files = await fs.readdir(activitiesPath, { encoding: 'utf8' });
+    let files: string[] | undefined = undefined;
+    try {
+      files = await fs.readdir(activitiesPath, { encoding: 'utf8' });
+    } catch (err) {
+      if (err.code !== 'ENOENT') throw err;
+      return resolvedActivities;
+    }
     for (const file of files) {
       const ext = path.extname(file);
       if (ext === '.js') {
