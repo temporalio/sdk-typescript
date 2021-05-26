@@ -47,12 +47,17 @@
 import './global-overrides';
 
 export {
-  Workflow,
-  ActivityOptions,
-  RemoteActivityOptions,
-  LocalActivityOptions,
   ActivityFunction,
+  ActivityOptions,
+  ApplyMode,
+  DependencyFunction,
+  Dependency,
+  Dependencies,
+  LocalActivityOptions,
+  RemoteActivityOptions,
   RetryOptions,
+  Workflow,
+  WorkflowInfo,
 } from './interfaces';
 export { CancellationError, CancellationSource, DeterminismViolationError } from './errors';
 export {

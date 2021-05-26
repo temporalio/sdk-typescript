@@ -1,4 +1,4 @@
-import { Scope, Workflow } from './interfaces';
+import { Scope, Workflow, WorkflowInfo } from './interfaces';
 import { state, currentScope, IsolateExtension } from './internals';
 import { msToTs } from './time';
 import { alea } from './alea';
@@ -63,10 +63,8 @@ export function overrideGlobals(): void {
 
 export function initWorkflow(
   workflow: Workflow,
-  workflowId: string,
-  runId: string,
+  info: WorkflowInfo,
   randomnessSeed: number[],
-  taskQueue: string,
   isolateExtension: IsolateExtension
 ): void {
   // Globals are overridden while building the isolate before loading user code.
@@ -76,10 +74,8 @@ export function initWorkflow(
   };
 
   state.workflow = workflow;
-  state.workflowId = workflowId;
-  state.runId = runId;
+  state.info = info;
   state.random = alea(randomnessSeed);
-  state.taskQueue = taskQueue;
   state.isolateExtension = isolateExtension;
   isolateExtension.registerPromiseHook((t, p, pp) => {
     switch (t) {

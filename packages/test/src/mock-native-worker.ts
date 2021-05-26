@@ -1,5 +1,4 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
-import { v4 as uuid4 } from 'uuid';
 import ivm from 'isolated-vm';
 import { coresdk } from '@temporalio/proto';
 import { msStrToTs } from '@temporalio/workflow/lib/time';
@@ -8,7 +7,7 @@ import {
   Worker as RealWorker,
   NativeWorkerLike,
   compileWorkerOptions,
-  CompiledWorkerOptionsWithDefaults,
+  CompiledWorkerOptions,
   WorkerOptions,
   addDefaults,
   errors,
@@ -155,7 +154,7 @@ export class Worker extends RealWorker {
   public constructor(
     isolate: ivm.Isolate,
     resolvedActivities: Map<string, Record<string, (...args: any[]) => any>>,
-    opts: CompiledWorkerOptionsWithDefaults
+    opts: CompiledWorkerOptions
   ) {
     const nativeWorker = new MockNativeWorker();
     super(nativeWorker, isolate, resolvedActivities, opts);

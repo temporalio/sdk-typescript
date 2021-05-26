@@ -137,3 +137,94 @@ export interface Workflow {
   signals?: Record<string, WorkflowSignalType>;
   queries?: Record<string, WorkflowQueryType>;
 }
+
+/**
+ * Workflow execution information
+ */
+export interface WorkflowInfo {
+  /**
+   * ID of the Workflow, this can be set by the client during Workflow creation.
+   * A single Workflow may run multiple times e.g. when scheduled with cron.
+   */
+  workflowId: string;
+  /**
+   * ID of a single Workflow run
+   */
+  runId: string;
+
+  /**
+   * Filename containing the Workflow code
+   */
+  filename: string;
+
+  /**
+   * Namespace this Workflow is scheduled in
+   */
+  namespace: string;
+
+  /**
+   * Task queue this Workflow is scheduled in
+   */
+  taskQueue: string;
+
+  /**
+   * Whether a Workflow is replaying history or processing new events
+   */
+  isReplaying: boolean;
+}
+
+/**
+ * Any function signature can be used for dependency functions.
+ *
+ * Depending on the implementation's and transfer options,
+ * When calling a dependency function, arguments and return value are transferred between the Workflow isolate and the NodeJS isolate.
+ * - `SYNC*` {@link ApplyMode} variants allow configuring how those are transferred between isolates
+ * - `ASYNC*` {@link ApplyMode} variants always copy the arguments and return value
+ */
+export type DependencyFunction = (...args: any[]) => any;
+/** A mapping of name to function */
+export type Dependency = Record<string, DependencyFunction>;
+/**
+ * Workflow dependencies are a mapping of name to {@link Dependency}
+ */
+export type Dependencies = Record<string, Dependency>;
+
+/**
+ * Controls how an external dependency function is executed.
+ * - `ASYNC*` variants run at the end of an activation and do **not** block the isolate.
+ * - `SYNC*` variants run during Workflow activation and block the isolate,
+ *   they're passed into the isolate using an {@link https://github.com/laverdet/isolated-vm#referenceapplyreceiver-arguments-options-promise | isolated-vm Reference}
+ * The Worker will log if an error occurs in one of ignored variants.
+ */
+export enum ApplyMode {
+  /**
+   * Injected function will be called at the end of an activation.
+   * Isolate enqueues function to be called during activation and registers a callback to await its completion.
+   * Use if exposing an async function to the isolate for which the result should be returned to the isolate.
+   */
+  ASYNC = 'async',
+  /**
+   * Injected function will be called at the end of an activation.
+   * Isolate enqueues function to be called during activation and does **not** register a callback to await its completion.
+   * This is the safest async `ApplyMode` because it can not break Workflow code determinism.
+   * Can only be used when the injected function returns `void` and the implementation returns `void` or `Promise<void>`.
+   */
+  ASYNC_IGNORED = 'asyncIgnored',
+  /**
+   * Injected function is called synchronously, implementation must be a synchronous function.
+   * Injection is done using an `isolated-vm` reference, function called with `applySync`.
+   */
+  SYNC = 'applySync',
+  /**
+   * Injected function is called synchronously, implementation must return a promise.
+   * Injection is done using an `isolated-vm` reference, function called with `applySyncPromise`.
+   * This is the safest sync `ApplyMode` because it can not break Workflow code determinism.
+   */
+  SYNC_PROMISE = 'applySyncPromise',
+  /**
+   * Injected function is called in the background not blocking the isolate.
+   * Implementation can be either synchronous or asynchronous.
+   * Injection is done using an `isolated-vm` reference, function called with `applyIgnored`.
+   */
+  SYNC_IGNORED = 'applyIgnored',
+}
