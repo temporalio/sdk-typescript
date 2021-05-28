@@ -99,7 +99,7 @@ export interface WorkflowClient<T extends Workflow> {
   start(...args: Parameters<T['main']>): EnsurePromise<ReturnType<T['main']>>;
 
   /**
-   * A mapping of the different signals defined by workflow interface `T` to callbable functions.
+   * A mapping of the different signals defined by workflow interface `T` to callable functions.
    * Call to signal a running workflow.
    * @throws IllegalStateError if workflow has not been started
    * @example
@@ -115,7 +115,7 @@ export interface WorkflowClient<T extends Workflow> {
     : undefined;
 
   /**
-   * A mapping of the different queries defined by workflow interface `T` to callbable functions.
+   * A mapping of the different queries defined by workflow interface `T` to callable functions.
    * Call to query a workflow after it's been started even if it has already completed.
    * @throws IllegalStateError if workflow has not been started
    * @example
