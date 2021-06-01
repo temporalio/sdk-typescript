@@ -64,6 +64,7 @@ export function overrideGlobals(): void {
 export function initWorkflow(
   workflow: Workflow,
   workflowId: string,
+  runId: string,
   randomnessSeed: number[],
   taskQueue: string,
   isolateExtension: IsolateExtension
@@ -76,6 +77,7 @@ export function initWorkflow(
 
   state.workflow = workflow;
   state.workflowId = workflowId;
+  state.runId = runId;
   state.random = alea(randomnessSeed);
   state.taskQueue = taskQueue;
   state.isolateExtension = isolateExtension;

@@ -36,18 +36,24 @@ test.beforeEach(async (t) => {
   const { isolate } = t.context;
   // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
   const testName = t.title.match(/\S+$/)![0];
-  const workflow = await Workflow.create(isolate, testName, 'test-workflowId', Long.fromInt(1337), 'test');
+  const workflow = await Workflow.create(
+    isolate,
+    testName,
+    'test-workflowId',
+    'test-runId',
+    Long.fromInt(1337),
+    'test'
+  );
   const logs: unknown[][] = [];
   await workflow.inject('console.log', (...args: unknown[]) => void logs.push(args));
   t.context = { isolate, workflow, logs, script: testName };
 });
 
 async function activate(t: ExecutionContext<Context>, activation: coresdk.workflow_activation.IWFActivation) {
-  const taskToken = u8(`${Math.random()}`);
-  const arr = await t.context.workflow.activate(taskToken, activation);
-  const req = coresdk.workflow_completion.WFActivationCompletion.decodeDelimited(arr);
-  t.deepEqual(req.taskToken, taskToken);
-  return req;
+  const arr = await t.context.workflow.activate(activation);
+  const completion = coresdk.workflow_completion.WFActivationCompletion.decodeDelimited(arr);
+  t.deepEqual(completion.runId, t.context.workflow.runId);
+  return completion;
 }
 
 function compareCompletion(
@@ -57,7 +63,7 @@ function compareCompletion(
 ) {
   t.deepEqual(
     req.toJSON(),
-    coresdk.workflow_completion.WFActivationCompletion.create({ ...expected, taskToken: req.taskToken }).toJSON()
+    coresdk.workflow_completion.WFActivationCompletion.create({ ...expected, runId: t.context.workflow.runId }).toJSON()
   );
 }
 

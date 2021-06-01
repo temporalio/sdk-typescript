@@ -108,7 +108,6 @@ export class MockNativeWorker implements NativeWorkerLike {
   public async runWorkflowActivation(
     activation: coresdk.workflow_activation.IWFActivation
   ): Promise<coresdk.workflow_completion.WFActivationCompletion> {
-    activation = { ...activation, taskToken: activation.taskToken ?? Buffer.from(uuid4()) };
     const arr = coresdk.workflow_activation.WFActivation.encode(activation).finish();
     const buffer = arr.buffer.slice(arr.byteOffset, arr.byteOffset + arr.byteLength);
     const result = await new Promise<ArrayBuffer>((resolve) => {
