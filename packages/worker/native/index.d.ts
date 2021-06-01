@@ -54,12 +54,21 @@ export interface ServerOptions {
   tls?: TLSConfig;
 }
 
-export interface WorkerOptions {
+/**
+ * Configure a Core instance
+ */
+export interface CoreOptions {
   /**
    * Options for communicating with the Temporal server
    */
   serverOptions: ServerOptions;
+  /**
+   * Maximum number of Workflow instances to cache before automatic eviction
+   */
+  maxCachedWorkflows: number;
+}
 
+export interface WorkerOptions {
   /**
    * The task queue the worker will pull from
    */
@@ -72,14 +81,17 @@ export interface WorkerOptions {
 }
 
 export interface Worker {}
+export interface Core {}
 
 export declare type PollCallback = (err: Error, result: ArrayBuffer) => void;
 export declare type WorkerCallback = (err: Error, result: Worker) => void;
+export declare type CoreCallback = (err: Error, result: Core) => void;
 export declare type VoidCallback = (err: Error, result: void) => void;
 
 // TODO: improve type, for some reason Error is not accepted here
 export declare function registerErrors(errors: Record<string, any>): void;
-export declare function newWorker(workerOptions: WorkerOptions, callback: WorkerCallback): void;
+export declare function newCore(coreOptions: CoreOptions, callback: CoreCallback): void;
+export declare function newWorker(core: Core, workerOptions: WorkerOptions, callback: WorkerCallback): void;
 export declare function workerShutdown(worker: Worker, callback: VoidCallback): void;
 export declare function workerBreakLoop(worker: Worker, callback: VoidCallback): void;
 export declare function workerPollWorkflowActivation(worker: Worker, callback: PollCallback): void;

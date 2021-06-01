@@ -27,7 +27,8 @@ const isolateExtensionModule = new ivm.NativeModule(
 
 export class Workflow {
   private constructor(
-    public readonly id: string,
+    public readonly workflowId: string,
+    public readonly runId: string,
     readonly isolate: ivm.Isolate,
     readonly context: ivm.Context,
     readonly workflowModule: WorkflowModule
@@ -36,7 +37,8 @@ export class Workflow {
   public static async create(
     isolate: ivm.Isolate,
     name: string,
-    id: string,
+    workflowId: string,
+    runId: string,
     randomnessSeed: Long,
     taskQueue: string
   ): Promise<Workflow> {
@@ -58,13 +60,13 @@ export class Workflow {
       if (mod === undefined) {
         throw new ReferenceError('Workflow not found');
       }
-      lib.init.initWorkflow(mod.workflow || mod, $0, $1, $2, $3);
+      lib.init.initWorkflow(mod.workflow || mod, $0, $1, $2, $3, $4);
       `,
-      [id, randomnessSeed.toBytes(), taskQueue, isolateExtension.derefInto()],
+      [workflowId, runId, randomnessSeed.toBytes(), taskQueue, isolateExtension.derefInto()],
       { arguments: { copy: true } }
     );
 
-    return new Workflow(id, isolate, context, { activate, concludeActivation });
+    return new Workflow(workflowId, runId, isolate, context, { activate, concludeActivation });
   }
 
   public async inject(
@@ -100,10 +102,7 @@ export class Workflow {
     );
   }
 
-  public async activate(
-    taskToken: Uint8Array,
-    activation: coresdk.workflow_activation.IWFActivation
-  ): Promise<Uint8Array> {
+  public async activate(activation: coresdk.workflow_activation.IWFActivation): Promise<Uint8Array> {
     if (!activation.jobs) {
       throw new Error('Expected workflow activation jobs to be defined');
     }
@@ -121,7 +120,7 @@ export class Workflow {
         // TODO: Log?
       }
     }
-    return this.workflowModule.concludeActivation.apply(undefined, [taskToken], {
+    return this.workflowModule.concludeActivation.apply(undefined, [], {
       arguments: { copy: true },
       result: { copy: true },
     }) as Promise<Uint8Array>;

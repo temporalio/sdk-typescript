@@ -272,6 +272,10 @@ export class State {
    */
   public workflowId?: string;
   /**
+   * The run ID of the current Workflow
+   */
+  public runId?: string;
+  /**
    * The task queue of the current executing Workflow, used as a default when scheudling activities
    */
   public taskQueue?: string;
@@ -335,11 +339,11 @@ function idToSeq(id: string | undefined | null) {
   return parseInt(id);
 }
 
-export function concludeActivation(taskToken: Uint8Array): Uint8Array {
-  const { commands } = state;
+export function concludeActivation(): Uint8Array {
+  const { commands, runId } = state;
   // TODO: activation failed (should this be done in main node isolate?)
   const encoded = coresdk.workflow_completion.WFActivationCompletion.encodeDelimited({
-    taskToken,
+    runId,
     successful: { commands },
   }).finish();
   state.commands = [];

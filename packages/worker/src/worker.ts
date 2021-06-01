@@ -365,8 +365,8 @@ export class NativeWorker implements NativeWorkerLike {
   public readonly shutdown: Promisify<OmitFirstParam<typeof native.workerShutdown>>;
 
   public static async create(options: CompiledWorkerOptionsWithDefaults): Promise<NativeWorkerLike> {
-    const nativeWorker = await promisify(native.newWorker)({
-      ...options,
+    const core = await promisify(native.newCore)({
+      maxCachedWorkflows: 0,
       serverOptions: {
         ...options.serverOptions,
         tls: normalizeTlsConfig(options.serverOptions.tls),
@@ -375,6 +375,7 @@ export class NativeWorker implements NativeWorkerLike {
           : `http://${options.serverOptions.address}`,
       },
     });
+    const nativeWorker = await promisify(native.newWorker)(core, options);
     return new NativeWorker(nativeWorker);
   }
 
@@ -714,7 +715,6 @@ export class Worker {
                   },
                 }),
                 activation: coresdk.workflow_activation.WFActivation.create({
-                  taskToken: new Uint8Array([]),
                   runId: group$.key,
                   jobs: [{ removeFromCache: true }],
                 }),
@@ -726,7 +726,6 @@ export class Worker {
             state: Workflow | undefined;
             output: ContextAware<{ completion?: Uint8Array; close: boolean; span: otel.Span }>;
           }> => {
-            const taskToken = formatTaskToken(activation.taskToken);
             const jobs = activation.jobs.filter(({ removeFromCache }) => !removeFromCache);
             // Found a removeFromCache job
             const close = jobs.length < activation.jobs.length;
@@ -758,7 +757,6 @@ export class Worker {
                   }
                   const { workflowId, randomnessSeed, workflowType } = attrs;
                   this.log.debug('Creating workflow', {
-                    taskToken,
                     workflowId: attrs.workflowId,
                     runId: activation.runId,
                   });
@@ -772,6 +770,7 @@ export class Worker {
                       this.isolate,
                       workflowType,
                       workflowId,
+                      activation.runId,
                       randomnessSeed,
                       this.options.taskQueue
                     );
@@ -785,18 +784,18 @@ export class Worker {
                   );
                 }
               } catch (error) {
-                this.log.error('Failed to create a workflow', { taskToken, runId: activation.runId, error });
+                this.log.error('Failed to create a workflow', { runId: activation.runId, error });
                 let completion: Uint8Array;
                 if (error instanceof ReferenceError) {
                   completion = coresdk.workflow_completion.WFActivationCompletion.encodeDelimited({
-                    taskToken: activation.taskToken,
+                    runId: activation.runId,
                     successful: {
                       commands: [{ failWorkflowExecution: { failure: errorToUserCodeFailure(error) } }],
                     },
                   }).finish();
                 } else {
                   completion = coresdk.workflow_completion.WFActivationCompletion.encodeDelimited({
-                    taskToken: activation.taskToken,
+                    runId: activation.runId,
                     failed: {
                       failure: errorToUserCodeFailure(error),
                     },
@@ -808,7 +807,7 @@ export class Worker {
               }
             }
 
-            const completion = await workflow.activate(activation.taskToken, activation);
+            const completion = await workflow.activate(activation);
 
             span.setStatus({ code: otel.SpanStatusCode.OK });
             return { state: workflow, output: { close, completion, span, parentSpan: root } };
@@ -864,9 +863,9 @@ export class Worker {
         return await instrument(parentSpan, 'poll', async (span) => {
           const buffer = await this.nativeWorker.pollWorkflowActivation();
           const activation = coresdk.workflow_activation.WFActivation.decode(new Uint8Array(buffer));
-          const { taskToken, ...rest } = activation;
-          this.log.debug('Got workflow activation', { taskToken: formatTaskToken(taskToken), ...rest });
-          span.setAttribute('runId', rest.runId).setAttribute('numJobs', rest.jobs.length);
+          const { runId, ...rest } = activation;
+          this.log.debug('Got workflow activation', { runId, ...rest });
+          span.setAttribute('runId', runId).setAttribute('numJobs', rest.jobs.length);
           return { activation, parentSpan };
         });
       } catch (err) {
