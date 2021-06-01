@@ -439,7 +439,9 @@ export class Worker {
     // }
 
     if (isolate === undefined) {
-      throw new TypeError('Could not build an isolate for the worker due to missing WorkerOptions');
+      throw new TypeError(
+        'Could not build an isolate for the worker due to missing WorkerOptions. Make sure you specify the `workDir` option, or both the `workflowsPath` and `nodeModulesPath` options.'
+      );
     }
     return new this(nativeWorker, isolate, resolvedActivities, compiledOptions);
   }
