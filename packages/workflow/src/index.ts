@@ -41,6 +41,11 @@
  * - {@link cancel}
  * - {@link shield}
  * - {@link cancellationScope}
+ *
+ * ### [External dependencies](https://docs.temporal.io/docs/node/workflow-external-dependencies)
+ * - {@link ExternalDependencies}
+ * - {@link ApplyMode}
+ *
  * @module
  */
 
@@ -50,9 +55,9 @@ export {
   ActivityFunction,
   ActivityOptions,
   ApplyMode,
-  DependencyFunction,
-  Dependency,
-  Dependencies,
+  ExternalDependencyFunction,
+  ExternalDependency,
+  ExternalDependencies,
   LocalActivityOptions,
   RemoteActivityOptions,
   RetryOptions,

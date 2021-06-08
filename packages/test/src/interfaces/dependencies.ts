@@ -1,6 +1,6 @@
-import { Dependencies } from '@temporalio/workflow';
+import { ExternalDependencies } from '@temporalio/workflow';
 
-export interface TestDependencies extends Dependencies {
+export interface TestDependencies extends ExternalDependencies {
   syncVoid: {
     promise(counter: number): void;
     ignoredAsyncImpl(counter: number): void;
@@ -26,7 +26,7 @@ export interface TestDependencies extends Dependencies {
   };
 }
 
-export interface IgnoredTestDependencies extends Dependencies {
+export interface IgnoredTestDependencies extends ExternalDependencies {
   syncIgnored: {
     syncImpl(counter: number): void;
     asyncImpl(counter: number): void;
@@ -37,8 +37,10 @@ export interface IgnoredTestDependencies extends Dependencies {
   };
 }
 
-export interface LoggerDependencies extends Dependencies {
+// @@@SNIPSTART nodejs-external-dependencies-logger-interface
+export interface LoggerDependencies extends ExternalDependencies {
   logger: {
     info(message: string): void;
   };
 }
+// @@@SNIPEND

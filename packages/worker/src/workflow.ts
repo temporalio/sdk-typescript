@@ -3,7 +3,7 @@ import Long from 'long';
 import dedent from 'dedent';
 import { coresdk } from '@temporalio/proto';
 import * as internals from '@temporalio/workflow/lib/internals';
-import { DependencyFunction, WorkflowInfo } from '@temporalio/workflow';
+import { ExternalDependencyFunction, WorkflowInfo } from '@temporalio/workflow';
 import { ApplyMode } from './dependencies';
 
 interface WorkflowModule {
@@ -26,7 +26,7 @@ export class Workflow {
     readonly context: ivm.Context,
     readonly workflowModule: WorkflowModule,
     public readonly isolateExecutionTimeoutMs: number,
-    readonly dependencies: Record<string, Record<string, DependencyFunction>> = {}
+    readonly dependencies: Record<string, Record<string, ExternalDependencyFunction>> = {}
   ) {}
 
   public static async create(

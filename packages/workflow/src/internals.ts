@@ -9,8 +9,8 @@ import {
   ApplyMode,
   CancellationFunction,
   CancellationFunctionFactory,
-  DependencyFunction,
-  Dependencies,
+  ExternalDependencyFunction,
+  ExternalDependencies,
   Scope,
   Workflow,
   WorkflowInfo,
@@ -314,7 +314,7 @@ export class State {
     throw new IllegalStateError('Tried to use Math.random before Workflow has been initialized');
   };
 
-  public dependencies: Dependencies = {};
+  public dependencies: ExternalDependencies = {};
 
   public getAndResetPendingExternalCalls(): ExternalCall[] {
     if (this.pendingExternalCalls.length > 0) {
@@ -410,7 +410,7 @@ export function getAndResetPendingExternalCalls(): ExternalCall[] {
 export function inject(
   ifaceName: string,
   fnName: string,
-  dependency: ivm.Reference<DependencyFunction>,
+  dependency: ivm.Reference<ExternalDependencyFunction>,
   applyMode: ApplyMode,
   transferOptions: ivm.TransferOptionsBidirectional
 ): void {
