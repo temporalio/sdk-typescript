@@ -7,6 +7,6 @@ const { logger } = Context.dependencies<LoggerDependencies>();
 // Wait for Workflow to start (main called) before calling injected dependencies.
 
 export async function main(): Promise<void> {
-  logger.info('logging before getting stuck');
+  logger.info('Workflow execution started');
 }
 // @@@SNIPEND
