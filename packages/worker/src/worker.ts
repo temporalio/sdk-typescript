@@ -34,7 +34,7 @@ import {
 import ivm from 'isolated-vm';
 import ms from 'ms';
 import { coresdk } from '@temporalio/proto';
-import { ActivityOptions, ApplyMode, Dependencies, WorkflowInfo } from '@temporalio/workflow';
+import { ActivityOptions, ApplyMode, ExternalDependencies, WorkflowInfo } from '@temporalio/workflow';
 import { Info as ActivityInfo } from '@temporalio/activity';
 import { errorToUserCodeFailure } from '@temporalio/workflow/lib/common';
 import { tsToMs } from '@temporalio/workflow/lib/time';
@@ -118,7 +118,7 @@ export type CompiledServerOptions = Omit<RequiredServerOptions, 'longPollTimeout
  * Pass as a type parameter to {@link Worker.create} to alter the accepted {@link WorkerSpecOptions}
  */
 export interface WorkerSpec {
-  dependencies?: Dependencies;
+  dependencies?: ExternalDependencies;
 }
 
 export interface DefaultWorkerSpec extends WorkerSpec {
@@ -128,7 +128,7 @@ export interface DefaultWorkerSpec extends WorkerSpec {
 /**
  * Same as {@link WorkerOptions} with {@link WorkerSpec} applied
  */
-export type WorkerSpecOptions<T extends WorkerSpec> = T extends { dependencies: Dependencies }
+export type WorkerSpecOptions<T extends WorkerSpec> = T extends { dependencies: ExternalDependencies }
   ? { dependencies: InjectedDependencies<T['dependencies']> } & WorkerOptions
   : WorkerOptions;
 
@@ -262,7 +262,7 @@ export type WorkerOptionsWithDefaults<T extends WorkerSpec = DefaultWorkerSpec> 
   'serverOptions'
 > & {
   serverOptions: RequiredServerOptions;
-  dependencies: T['dependencies'] extends Dependencies ? InjectedDependencies<T['dependencies']> : undefined;
+  dependencies: T['dependencies'] extends ExternalDependencies ? InjectedDependencies<T['dependencies']> : undefined;
 } & Required<
     Pick<
       WorkerOptions,
@@ -312,8 +312,8 @@ export function compileServerOptions(options: RequiredServerOptions): CompiledSe
  */
 function includesDeps<T extends WorkerSpec>(
   options: WorkerSpecOptions<T>
-): options is WorkerSpecOptions<T & { dependencies: Dependencies }> {
-  return (options as WorkerSpecOptions<{ dependencies: Dependencies }>).dependencies !== undefined;
+): options is WorkerSpecOptions<T & { dependencies: ExternalDependencies }> {
+  return (options as WorkerSpecOptions<{ dependencies: ExternalDependencies }>).dependencies !== undefined;
 }
 
 export function addDefaults<T extends WorkerSpec>(options: WorkerSpecOptions<T>): WorkerOptionsWithDefaults<T> {
@@ -373,7 +373,6 @@ export type State =
   | 'SUSPENDED';
 
 type ExtractToPromise<T> = T extends (err: any, result: infer R) => void ? Promise<R> : never;
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 type Last<T extends any[]> = T extends [...infer _I, infer L] ? L : never;
 type LastParameter<F extends (...args: any) => any> = Last<Parameters<F>>;
 type OmitFirst<T> = T extends [any, ...infer REST] ? REST : never;
@@ -844,46 +843,7 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
                     );
                   });
                   workflow = createdWF;
-                  await instrument(span, 'workflow.inject.dependencies', async () => {
-                    await createdWF.injectGlobal(
-                      'console.log',
-                      (...args: any[]) => {
-                        if (createdWF.info.isReplaying) return;
-                        console.log(
-                          `${createdWF.info.filename} (${createdWF.info.workflowId}-${createdWF.info.runId}) >`,
-                          ...args
-                        );
-                      },
-                      ApplyMode.SYNC
-                    );
-
-                    if (includesDeps(this.options)) {
-                      for (const [ifaceName, dep] of Object.entries(this.options.dependencies)) {
-                        for (const [fnName, impl] of Object.entries(dep)) {
-                          await createdWF.injectDependency(
-                            ifaceName,
-                            fnName,
-                            (...args) => {
-                              if (!impl.callDuringReplay && createdWF.info.isReplaying) return;
-                              try {
-                                const ret = impl.fn(createdWF.info, ...args);
-                                if (ret instanceof Promise) {
-                                  return ret.catch((error) =>
-                                    this.handleExternalDependencyError(createdWF.info, impl.applyMode, error)
-                                  );
-                                }
-                                return ret;
-                              } catch (error) {
-                                this.handleExternalDependencyError(createdWF.info, impl.applyMode, error);
-                              }
-                            },
-                            impl.applyMode,
-                            getIvmTransferOptions(impl)
-                          );
-                        }
-                      }
-                    }
-                  });
+                  await instrument(span, 'workflow.inject.dependencies', () => this.injectDependencies(createdWF));
                 } else {
                   throw new IllegalStateError(
                     'Received workflow activation for an untracked workflow with no start workflow job'
@@ -937,6 +897,45 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
       map(({ completion, parentSpan }) => ({ completion, parentSpan })),
       filter((result): result is ContextAware<{ completion: Uint8Array }> => result.completion !== undefined)
     );
+  }
+
+  /**
+   * Inject default console log and user provided external dependencies into a Workflow isolate
+   */
+  protected async injectDependencies(workflow: Workflow) {
+    await workflow.injectGlobal(
+      'console.log',
+      (...args: any[]) => {
+        if (workflow.info.isReplaying) return;
+        console.log(`${workflow.info.filename} ${workflow.info.runId} >`, ...args);
+      },
+      ApplyMode.SYNC
+    );
+
+    if (includesDeps(this.options)) {
+      for (const [ifaceName, dep] of Object.entries(this.options.dependencies)) {
+        for (const [fnName, impl] of Object.entries(dep)) {
+          await workflow.injectDependency(
+            ifaceName,
+            fnName,
+            (...args) => {
+              if (!impl.callDuringReplay && workflow.info.isReplaying) return;
+              try {
+                const ret = impl.fn(workflow.info, ...args);
+                if (ret instanceof Promise) {
+                  return ret.catch((error) => this.handleExternalDependencyError(workflow.info, impl.applyMode, error));
+                }
+                return ret;
+              } catch (error) {
+                this.handleExternalDependencyError(workflow.info, impl.applyMode, error);
+              }
+            },
+            impl.applyMode,
+            getIvmTransferOptions(impl)
+          );
+        }
+      }
+    }
   }
 
   /**

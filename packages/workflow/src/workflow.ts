@@ -2,7 +2,7 @@ import {
   ActivityFunction,
   ActivityOptions,
   CancellationFunctionFactory,
-  Dependencies,
+  ExternalDependencies,
   RemoteActivityOptions,
   WorkflowInfo,
 } from './interfaces';
@@ -230,7 +230,7 @@ export class ContextImpl {
    * }
    * ```
    */
-  public dependencies<T extends Dependencies>(): T {
+  public dependencies<T extends ExternalDependencies>(): T {
     return new Proxy(
       {},
       {
