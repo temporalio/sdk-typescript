@@ -7,6 +7,7 @@
 import { Next, Headers } from '@temporalio/workflow';
 import { temporal } from '@temporalio/proto';
 import { CompiledWorkflowOptions } from './workflow-options';
+import { TerminateWorkflowExecutionResponse } from './types';
 
 /** Input for WorkflowClientCallsInterceptor.start */
 export interface WorkflowStartInput {
@@ -25,12 +26,22 @@ export interface WorkflowSignalInput {
   readonly workflowExecution: temporal.api.common.v1.IWorkflowExecution;
 }
 
+/** Input for WorkflowClientCallsInterceptor.signal */
+export interface WorkflowTerminateInput {
+  readonly workflowExecution: temporal.api.common.v1.IWorkflowExecution;
+  readonly reason?: string;
+  readonly details?: unknown[];
+}
 /**
  * Implement any of these methods to intercept WorkflowClient outbound calls
  */
 export interface WorkflowClientCallsInterceptor {
   start?: (input: WorkflowStartInput, next: Next<WorkflowClientCallsInterceptor, 'start'>) => Promise<unknown>;
   signal?: (input: WorkflowSignalInput, next: Next<WorkflowClientCallsInterceptor, 'signal'>) => Promise<void>;
+  terminate?: (
+    input: WorkflowTerminateInput,
+    next: Next<WorkflowClientCallsInterceptor, 'terminate'>
+  ) => Promise<TerminateWorkflowExecutionResponse>;
 }
 
 /**
