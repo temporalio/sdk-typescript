@@ -378,6 +378,8 @@ export type State =
   | 'SUSPENDED';
 
 type ExtractToPromise<T> = T extends (err: any, result: infer R) => void ? Promise<R> : never;
+// For some reason the lint rule doesn't realize that _I should be ignored
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 type Last<T extends any[]> = T extends [...infer _I, infer L] ? L : never;
 type LastParameter<F extends (...args: any) => any> = Last<Parameters<F>>;
 type OmitFirst<T> = T extends [any, ...infer REST] ? REST : never;
@@ -918,7 +920,7 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
   /**
    * Inject default console log and user provided external dependencies into a Workflow isolate
    */
-  protected async injectDependencies(workflow: Workflow) {
+  protected async injectDependencies(workflow: Workflow): Promise<void> {
     await workflow.injectGlobal(
       'console.log',
       (...args: any[]) => {
