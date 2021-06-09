@@ -31,18 +31,17 @@ import {
   addDefaults,
   compileWorkflowOptions,
 } from './workflow-options';
-import { ConnectionInterceptors, WorkflowSignalInput } from './interceptors';
+import { ConnectionInterceptors, WorkflowSignalInput, WorkflowTerminateInput } from './interceptors';
+import {
+  StartWorkflowExecutionRequest,
+  GetWorkflowExecutionHistoryRequest,
+  DescribeWorkflowExecutionResponse,
+  TerminateWorkflowExecutionResponse,
+  RequestCancelWorkflowExecutionResponse,
+} from './types';
 
+export * from './types';
 export * from './workflow-options';
-
-type StartWorkflowExecutionRequest = iface.temporal.api.workflowservice.v1.IStartWorkflowExecutionRequest;
-type GetWorkflowExecutionHistoryRequest = iface.temporal.api.workflowservice.v1.IGetWorkflowExecutionHistoryRequest;
-export type DescribeWorkflowExecutionResponse =
-  iface.temporal.api.workflowservice.v1.IDescribeWorkflowExecutionResponse;
-export type TerminateWorkflowExecutionResponse =
-  iface.temporal.api.workflowservice.v1.ITerminateWorkflowExecutionResponse;
-export type RequestCancelWorkflowExecutionResponse =
-  iface.temporal.api.workflowservice.v1.IRequestCancelWorkflowExecutionResponse;
 
 export type WorkflowService = iface.temporal.api.workflowservice.v1.WorkflowService;
 export const { WorkflowService } = iface.temporal.api.workflowservice.v1;
@@ -459,6 +458,23 @@ export class Connection {
     });
   }
 
+  /**
+   * Uses given input to make terminateWorkflowExecution call to the service
+   *
+   * Used as the final function of the signal interceptor chain
+   */
+  protected async _terminateWorkflowHandler(
+    namespace: string,
+    input: WorkflowTerminateInput
+  ): Promise<TerminateWorkflowExecutionResponse> {
+    return this.service.terminateWorkflowExecution({
+      namespace,
+      identity: this.options.identity,
+      ...input,
+      details: { payloads: this.options.dataConverter.toPayloads(input.details) },
+    });
+  }
+
   public workflow<T extends Workflow>(name: string, options: WorkflowOptions): WorkflowClient<T> {
     // eslint-disable-next-line @typescript-eslint/no-this-alias
     const optionsWithDefaults = addDefaults(options);
@@ -500,13 +516,10 @@ export class Connection {
         if (this.runId === undefined) {
           throw new errors.IllegalStateError('Cannot describe a workflow before it has been started');
         }
-        return this.connection.service.terminateWorkflowExecution({
-          namespace: compiledOptions.namespace,
-          identity: this.connection.options.identity,
-          workflowExecution: {
-            runId: this.runId,
-            workflowId: compiledOptions.workflowId,
-          },
+        const next = this.connection._terminateWorkflowHandler.bind(this.connection, this.options.namespace);
+        const fn = interceptors.length ? composeInterceptors(interceptors, 'terminate', next) : next;
+        return await fn({
+          workflowExecution: { runId: workflow.runId, workflowId: workflow.workflowId },
           reason,
         });
       },
