@@ -10,7 +10,26 @@ import { state, currentScope, childScope, propagateCancellation } from './intern
 import { defaultDataConverter } from './converter/data-converter';
 import { CancellationError, IllegalStateError } from './errors';
 import { msToTs, msOptionalStrToTs } from './time';
-import { ActivityInput, composeInterceptors } from './interceptors';
+import { ActivityInput, TimerInput, composeInterceptors } from './interceptors';
+
+/**
+ * Push a startTimer command into state accumulator and register completion
+ */
+function timerNextHandler(input: TimerInput) {
+  return new Promise<void>((resolve, reject) => {
+    state.completions.set(input.seq, {
+      resolve,
+      reject,
+      scope: currentScope(),
+    });
+    state.commands.push({
+      startTimer: {
+        timerId: `${input.seq}`,
+        startToFireTimeout: msToTs(input.durationMs),
+      },
+    });
+  });
+}
 
 /**
  * Asynchronous sleep.
@@ -34,25 +53,14 @@ export function sleep(ms: number): Promise<void> {
     reject(err);
   };
 
-  return childScope(
-    'timer',
-    cancellation,
-    cancellation,
-    () =>
-      new Promise((resolve, reject) => {
-        state.completions.set(seq, {
-          resolve,
-          reject,
-          scope: currentScope(),
-        });
-        state.commands.push({
-          startTimer: {
-            timerId: `${seq}`,
-            startToFireTimeout: msToTs(ms),
-          },
-        });
-      })
-  );
+  return childScope('timer', cancellation, cancellation, () => {
+    const execute = composeInterceptors(state.interceptors.outbound, 'startTimer', timerNextHandler);
+
+    return execute({
+      durationMs: ms,
+      seq,
+    });
+  });
 }
 
 export interface ActivityInfo {
