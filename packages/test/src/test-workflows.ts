@@ -853,6 +853,62 @@ test('cancellation-error-is-propagated', async (t) => {
   t.deepEqual(logs, []);
 });
 
+test('cancel-activity-after-first-completion', async (t) => {
+  const url = 'https://temporal.io';
+  const { script, logs } = t.context;
+  {
+    const req = await activate(t, makeStartWorkflow(script, defaultDataConverter.toPayloads(url)));
+    compareCompletion(
+      t,
+      req,
+      makeSuccess([
+        makeScheduleActivityCommand({
+          activityId: '0',
+          activityType: JSON.stringify(['@activities', 'httpGet']),
+          arguments: defaultDataConverter.toPayloads(url),
+          startToCloseTimeout: msStrToTs('10m'),
+          taskQueue: 'test',
+        }),
+      ])
+    );
+  }
+  {
+    const req = await activate(
+      t,
+      makeResolveActivity('0', { completed: { result: defaultDataConverter.toPayload('response1') } })
+    );
+    compareCompletion(
+      t,
+      req,
+      makeSuccess([
+        makeScheduleActivityCommand({
+          activityId: '1',
+          activityType: JSON.stringify(['@activities', 'httpGet']),
+          arguments: defaultDataConverter.toPayloads(url),
+          startToCloseTimeout: msStrToTs('10m'),
+          taskQueue: 'test',
+        }),
+      ])
+    );
+  }
+  {
+    const req = await activate(t, makeActivation(undefined, { cancelWorkflow: {} }));
+    compareCompletion(t, req, makeSuccess([]));
+  }
+  {
+    const req = await activate(
+      t,
+      makeResolveActivity('1', { completed: { result: defaultDataConverter.toPayload('response2') } })
+    );
+    compareCompletion(
+      t,
+      req,
+      makeSuccess([makeCompleteWorkflowExecution(defaultDataConverter.toPayload(['response1', 'response2']))])
+    );
+  }
+  t.deepEqual(logs, [['Workflow cancelled while waiting on shielded scope']]);
+});
+
 test('http', async (t) => {
   const { script, logs } = t.context;
   {

@@ -207,6 +207,8 @@ export function activate(encodedActivation: Uint8Array, jobIndex: number): Activ
 }
 
 const rootScope: Scope = {
+  type: 'scope',
+  idx: 0,
   associated: true,
   requestCancel: () => {
     throw new Error('Root scope cannot be cancelled from within a workflow');
@@ -273,6 +275,11 @@ export class State {
    * The next (incremental) sequence to assign when generating completable commands
    */
   public nextSeq = 0;
+
+  /**
+   * An incremental sequence assigned to each created scope for tracking purposes
+   */
+  public nextScopeIdx = rootScope.idx + 1;
 
   /**
    * This is set every time the workflow executes an activation
@@ -467,7 +474,7 @@ export function currentScope(): Scope {
 export function pushScope(scope: Scope): Scope {
   state.scopeStack.push(scope);
   if (scope.parent === undefined) {
-    throw new Error('Tried to push a parentless scope');
+    return scope;
   }
   let children = state.childScopes.get(scope.parent);
   if (children === undefined) {
@@ -476,6 +483,10 @@ export function pushScope(scope: Scope): Scope {
   }
   children.add(scope);
   return scope;
+}
+
+export function popScope(): void {
+  state.scopeStack.pop();
 }
 
 export function propagateCancellation(method: 'requestCancel' | 'completeCancel'): CancellationFunctionFactory {
@@ -504,6 +515,7 @@ function cancellationNotSet() {
 }
 
 export function childScope<T>(
+  type: Scope['type'],
   makeRequestCancellation: CancellationFunctionFactory,
   makeCompleteCancellation: CancellationFunctionFactory,
   fn: () => Promise<T>
@@ -512,6 +524,8 @@ export function childScope<T>(
   let completeCancel: CancellationFunction = cancellationNotSet;
 
   const scope = pushScope({
+    type,
+    idx: state.nextScopeIdx++,
     parent: currentScope(),
     requestCancel: (err) => requestCancel(err),
     completeCancel: (err) => completeCancel(err),
@@ -529,6 +543,6 @@ export function childScope<T>(
       reject(e);
     }
   });
-  state.scopeStack.pop();
+  popScope();
   return promise;
 }

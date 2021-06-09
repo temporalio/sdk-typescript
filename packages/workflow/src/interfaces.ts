@@ -118,10 +118,12 @@ export interface ActivityFunction<P extends any[], R> {
 }
 
 export interface Scope {
+  idx: number;
   parent?: Scope;
   requestCancel: CancellationFunction;
   completeCancel: CancellationFunction;
   associated: boolean;
+  type: 'activity' | 'timer' | 'scope';
 }
 
 export type CancellationFunction = (err: any) => void;
