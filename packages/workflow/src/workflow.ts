@@ -10,6 +10,7 @@ import { state, currentScope, childScope, propagateCancellation } from './intern
 import { defaultDataConverter } from './converter/data-converter';
 import { CancellationError, IllegalStateError } from './errors';
 import { msToTs, msOptionalStrToTs } from './time';
+import { ActivityInput, composeInterceptors } from './interceptors';
 
 /**
  * Asynchronous sleep.
@@ -75,10 +76,48 @@ export function validateActivityOptions(options: ActivityOptions): asserts optio
 }
 
 /**
+ * Push a scheduleActivity command into state accumulator and register completion
+ */
+function scheduleActivityNextHandler({ options, args, headers, seq, activityType }: ActivityInput): Promise<unknown> {
+  // let next: Next<WorkflowOutboundCallsInterceptor, 'scheduleActivity'> = (input) =>{
+  validateActivityOptions(options);
+  return new Promise((resolve, reject) => {
+    state.completions.set(seq, {
+      resolve,
+      reject,
+      scope: currentScope(),
+    });
+    state.commands.push({
+      scheduleActivity: {
+        activityId: `${seq}`,
+        activityType,
+        arguments: defaultDataConverter.toPayloads(...args),
+        retryPolicy: options.retry
+          ? {
+              maximumAttempts: options.retry.maximumAttempts,
+              initialInterval: msOptionalStrToTs(options.retry.initialInterval),
+              maximumInterval: msOptionalStrToTs(options.retry.maximumInterval),
+              backoffCoefficient: options.retry.backoffCoefficient,
+              // TODO: nonRetryableErrorTypes
+            }
+          : undefined,
+        taskQueue: options.taskQueue || state.info?.taskQueue,
+        heartbeatTimeout: msOptionalStrToTs(options.heartbeatTimeout),
+        scheduleToCloseTimeout: msOptionalStrToTs(options.scheduleToCloseTimeout),
+        startToCloseTimeout: msOptionalStrToTs(options.startToCloseTimeout),
+        scheduleToStartTimeout: msOptionalStrToTs(options.scheduleToStartTimeout),
+        namespace: options.namespace,
+        headerFields: Object.fromEntries(headers.entries()),
+      },
+    });
+  });
+}
+
+/**
+ * Schedule an activity and run outbound interceptors
  * @hidden
  */
 export function scheduleActivity<R>(activityType: string, args: any[], options: ActivityOptions): Promise<R> {
-  validateActivityOptions(options);
   const seq = state.nextSeq++;
   return childScope(
     'activity',
@@ -91,37 +130,17 @@ export function scheduleActivity<R>(activityType: string, args: any[], options: 
       });
     },
     (reject) => reject,
-    () =>
-      new Promise((resolve, reject) => {
-        state.completions.set(seq, {
-          resolve,
-          reject,
-          scope: currentScope(),
-        });
-        state.commands.push({
-          scheduleActivity: {
-            activityId: `${seq}`,
-            activityType,
-            arguments: defaultDataConverter.toPayloads(...args),
-            retryPolicy: options.retry
-              ? {
-                  maximumAttempts: options.retry.maximumAttempts,
-                  initialInterval: msOptionalStrToTs(options.retry.initialInterval),
-                  maximumInterval: msOptionalStrToTs(options.retry.maximumInterval),
-                  backoffCoefficient: options.retry.backoffCoefficient,
-                  // TODO: nonRetryableErrorTypes
-                }
-              : undefined,
-            taskQueue: options.taskQueue || state.info?.taskQueue,
-            heartbeatTimeout: msOptionalStrToTs(options.heartbeatTimeout),
-            scheduleToCloseTimeout: msOptionalStrToTs(options.scheduleToCloseTimeout),
-            startToCloseTimeout: msOptionalStrToTs(options.startToCloseTimeout),
-            scheduleToStartTimeout: msOptionalStrToTs(options.scheduleToStartTimeout),
-            namespace: options.namespace,
-            // TODO: add header with interceptors
-          },
-        });
-      })
+    () => {
+      const execute = composeInterceptors(state.interceptors.outbound, 'scheduleActivity', scheduleActivityNextHandler);
+
+      return execute({
+        activityType: activityType,
+        headers: new Map(),
+        options,
+        args,
+        seq,
+      }) as Promise<R>;
+    }
   );
 }
 

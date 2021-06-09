@@ -25,7 +25,8 @@ export class WorkflowIsolateBuilder {
     public readonly nodeModulesPath: string,
     public readonly workflowsPath: string,
     public readonly activities: Map<string, Record<string, any>>,
-    public readonly activityDefaults: ActivityOptions
+    public readonly activityDefaults: ActivityOptions,
+    public readonly workflowInterceptorModules: string[] = []
   ) {}
 
   /**
@@ -66,14 +67,22 @@ export class WorkflowIsolateBuilder {
     let code = dedent`
       const init = require('@temporalio/workflow/lib/init');
       const internals = require('@temporalio/workflow/lib/internals');
-      init.overrideGlobals();
       internals.state.activityDefaults = ${JSON.stringify(this.activityDefaults)};
-
+      init.overrideGlobals();
       const workflows = {};
-      export { init, internals, workflows };
+      const interceptors = { inbound: [], outbound: [] };
+
+      function addInterceptors({ inbound, outbound }) {
+        interceptors.inbound.push(...inbound);
+        interceptors.outbound.push(...outbound);
+      }
+      export { init, internals, workflows, interceptors };
     `;
     for (const wf of workflows) {
       code += `workflows[${JSON.stringify(wf)}] = require(${JSON.stringify(path.join(this.workflowsPath, wf))});\n`;
+    }
+    for (const interceptor of this.workflowInterceptorModules) {
+      code += `addInterceptors(require(${JSON.stringify(path.join(this.workflowsPath, interceptor))}).interceptors);\n`;
     }
     try {
       vol.mkdirSync(path.dirname(target), { recursive: true });

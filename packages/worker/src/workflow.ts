@@ -61,7 +61,7 @@ export class Workflow {
       if (mod === undefined) {
         throw new ReferenceError('Workflow not found');
       }
-      lib.init.initWorkflow(mod.workflow || mod, $0, $1, $2);
+      lib.init.initWorkflow(mod.workflow || mod, $0, $1, $2, lib.interceptors);
       `,
       [info, randomnessSeed.toBytes(), isolateExtension.derefInto()],
       { arguments: { copy: true }, timeout: isolateExecutionTimeoutMs }

@@ -15,6 +15,7 @@ import {
   Workflow,
   WorkflowInfo,
 } from './interfaces';
+import { composeInterceptors, WorkflowInterceptors } from './interceptors';
 import { CancellationError, IllegalStateError } from './errors';
 import { errorToUserCodeFailure } from './common';
 import { tsToMs, nullToUndefined } from './time';
@@ -57,20 +58,19 @@ export type ActivationHandler = {
 
 export class Activator implements ActivationHandler {
   public startWorkflow(activation: coresdk.workflow_activation.IStartWorkflow): void {
-    if (state.workflow === undefined) {
-      throw new Error('state.workflow is not defined');
-    }
-    // TODO: support custom converter
-    try {
-      const retOrPromise = state.workflow.main(...arrayFromPayloads(defaultDataConverter, activation.arguments));
-      if (retOrPromise instanceof Promise) {
-        retOrPromise.then(completeWorkflow).catch(failWorkflow);
-      } else {
-        completeWorkflow(retOrPromise);
+    const execute = composeInterceptors(state.interceptors.inbound, 'execute', async (input) => {
+      if (state.workflow === undefined) {
+        throw new IllegalStateError('state.workflow is not defined');
       }
-    } catch (err) {
-      failWorkflow(err);
-    }
+      return state.workflow.main(...input.args);
+    });
+    execute({
+      headers: new Map(Object.entries(activation.headers ?? {})),
+      // TODO: support custom converter
+      args: arrayFromPayloads(defaultDataConverter, activation.arguments),
+    })
+      .then(completeWorkflow)
+      .catch(failWorkflow);
   }
 
   public cancelWorkflow(_activation: coresdk.workflow_activation.ICancelWorkflow): void {
@@ -255,6 +255,7 @@ export class State {
    */
   public readonly childScopes: Map<Scope, Set<Scope>> = new Map();
 
+  public interceptors: WorkflowInterceptors = { inbound: [], outbound: [] };
   /**
    * Buffer that stores all generated commands, reset after each activation
    */

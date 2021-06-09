@@ -1,5 +1,6 @@
 import { Scope, Workflow, WorkflowInfo } from './interfaces';
 import { state, currentScope, popScope, pushScope, IsolateExtension } from './internals';
+import { WorkflowInterceptors } from './interceptors';
 import { msToTs } from './time';
 import { alea } from './alea';
 import { DeterminismViolationError, IllegalStateError } from './errors';
@@ -65,7 +66,8 @@ export function initWorkflow(
   workflow: Workflow,
   info: WorkflowInfo,
   randomnessSeed: number[],
-  isolateExtension: IsolateExtension
+  isolateExtension: IsolateExtension,
+  interceptors: WorkflowInterceptors
 ): void {
   // Globals are overridden while building the isolate before loading user code.
   // For some reason the `WeakRef` mock is not restored properly when creating an isolate from snapshot in node 14 (at least on ubuntu), override again.
@@ -74,6 +76,7 @@ export function initWorkflow(
   };
 
   state.workflow = workflow;
+  state.interceptors = interceptors;
   state.info = info;
   state.random = alea(randomnessSeed);
   state.isolateExtension = isolateExtension;
