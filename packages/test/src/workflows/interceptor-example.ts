@@ -1,8 +1,22 @@
 /* eslint-disable @typescript-eslint/explicit-module-boundary-types */
 import { WorkflowInterceptors, defaultDataConverter, Headers, sleep } from '@temporalio/workflow';
+import { ResolvablePromise } from './resolvable-promise';
 import { echo } from '@activities';
 
 class InvalidTimerDurationError extends Error {}
+
+const unblocked = new ResolvablePromise<void>();
+
+export const signals = {
+  unblock(secret: string) {
+    // Note that 5 is appended by the inbound interceptor
+    if (secret !== '12345') {
+      // Workflow execution should fail
+      throw new Error('Wrong unblock secret');
+    }
+    unblocked.resolve();
+  },
+};
 
 export async function main(): Promise<string> {
   try {
@@ -14,6 +28,7 @@ export async function main(): Promise<string> {
     }
   }
   await sleep(2);
+  await unblocked;
   return await echo(); // Do not pass message in, done in Activity interceptor
 }
 
@@ -26,6 +41,10 @@ export const interceptors: WorkflowInterceptors = {
         const encoded = input.headers.get('message');
         receivedMessage = encoded ? defaultDataConverter.fromPayload(encoded) : '';
         return next(input);
+      },
+      async handleSignal(input, next) {
+        const [encoded] = input.args;
+        return next({ ...input, args: [encoded + '5'] });
       },
     },
   ],

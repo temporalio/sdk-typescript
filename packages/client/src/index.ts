@@ -31,7 +31,7 @@ import {
   addDefaults,
   compileWorkflowOptions,
 } from './workflow-options';
-import { ConnectionInterceptors } from './interceptors';
+import { ConnectionInterceptors, WorkflowSignalInput } from './interceptors';
 
 export * from './workflow-options';
 
@@ -442,6 +442,23 @@ export class Connection {
     }
   }
 
+  /**
+   * Uses given input to make a signalWorkflowExecution call to the service
+   *
+   * Used as the final function of the signal interceptor chain
+   */
+  protected async _signalWorkflowHandler(input: WorkflowSignalInput): Promise<void> {
+    await this.service.signalWorkflowExecution({
+      identity: this.options.identity,
+      namespace: input.namespace,
+      workflowExecution: input.workflowExecution,
+      requestId: uuid4(),
+      // control is unused,
+      signalName: input.signalName,
+      input: { payloads: this.options.dataConverter.toPayloads(...input.args) },
+    });
+  }
+
   public workflow<T extends Workflow>(name: string, options: WorkflowOptions): WorkflowClient<T> {
     // eslint-disable-next-line @typescript-eslint/no-this-alias
     const optionsWithDefaults = addDefaults(options);
@@ -530,14 +547,13 @@ export class Connection {
             }
             // TODO: Is it OK to signal without runId, should we wait for a runId here?
             return async (...args: any[]) => {
-              this.service.signalWorkflowExecution({
-                identity: this.options.identity,
+              const next = this._signalWorkflowHandler.bind(this);
+              const fn = interceptors.length ? composeInterceptors(interceptors, 'signal', next) : next;
+              await fn({
                 namespace: compiledOptions.namespace,
-                workflowExecution: { runId: workflow.runId, workflowId: compiledOptions.workflowId },
-                requestId: uuid4(),
-                // control is unused,
+                workflowExecution: { runId: workflow.runId, workflowId: workflow.workflowId },
                 signalName,
-                input: { payloads: this.options.dataConverter.toPayloads(...args) },
+                args,
               });
             };
           },

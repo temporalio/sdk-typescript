@@ -570,6 +570,7 @@ test('interrupt-signal', async (t) => {
           dedent`
           Error: just because
               at interrupt
+              at eval
               at Activator.signalWorkflow
               at activate`,
           'Error'
@@ -600,6 +601,7 @@ test('fail-signal', async (t) => {
           dedent`
           Error: Signal failed
               at fail
+              at eval
               at Activator.signalWorkflow
               at activate`,
           'Error'

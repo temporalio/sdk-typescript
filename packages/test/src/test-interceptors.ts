@@ -29,7 +29,7 @@ if (RUN_INTEGRATION_TESTS) {
         workflowModules: ['interceptor-example'],
       },
     });
-    const p = worker.run();
+    const workerDrained = worker.run();
     const conn = new Connection({
       interceptors: {
         workflowClient: [
@@ -38,14 +38,22 @@ if (RUN_INTEGRATION_TESTS) {
               input.headers.set('message', defaultDataConverter.toPayload(message));
               return next(input);
             },
+            async signal(input, next) {
+              return next({ ...input, args: ['1234'] });
+            },
           }),
         ],
       },
     });
-    const wf = conn.workflow<{ main(): string }>('interceptor-example', { taskQueue });
-    const result = await wf.start();
+    const wf = conn.workflow<{ main(): string; signals: { unblock(secret: string): void } }>('interceptor-example', {
+      taskQueue,
+    });
+    const resultPromise = wf.start();
+    await wf.started;
+    await wf.signal.unblock('wrong-secret-to-be-replaced-by-interceptor');
+    const result = await resultPromise;
     worker.shutdown();
-    await p;
+    await workerDrained;
     t.is(result, message);
   });
 }
