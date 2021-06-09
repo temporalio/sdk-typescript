@@ -102,9 +102,7 @@ async function main() {
 
   // In order for JaegerExporter to transmit packets correctly, increase net.inet.udp.maxdgram to 65536.
   // See: https://github.com/jaegertracing/jaeger-client-node/issues/124#issuecomment-324222456
-  const jaegerExporter = new JaegerExporter({
-    serviceName: 'bench',
-  });
+  const jaegerExporter = new JaegerExporter();
   const otel = new opentelemetry.NodeSDK({
     traceExporter: jaegerExporter,
   });

@@ -20,7 +20,7 @@
   "author": "Roey Berman <roey@temporal.io>",
   "license": "MIT",
   "dependencies": {
-    "@opentelemetry/api": "^1.0.0-rc.0",
+    "@opentelemetry/api": "^0.20.0",
     "@temporalio/activity": "file:../activity",
     "@temporalio/proto": "file:../proto",
     "@temporalio/workflow": "file:../workflow",

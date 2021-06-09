@@ -11,7 +11,7 @@ export const tracer = otel.trace.getTracer(pkg.name, pkg.version);
  * Conveience function for creating a child span from an existing span
  */
 export function childSpan(parent: otel.Span, name: string, options?: otel.SpanOptions): otel.Span {
-  const context = otel.setSpan(otel.context.active(), parent);
+  const context = otel.trace.setSpan(otel.context.active(), parent);
   return tracer.startSpan(name, options, context);
 }
 
@@ -19,7 +19,7 @@ export function childSpan(parent: otel.Span, name: string, options?: otel.SpanOp
  * Wraps `fn` in a span which ends when function returns or throws
  */
 export async function instrument<T>(parent: otel.Span, name: string, fn: (span: otel.Span) => Promise<T>): Promise<T> {
-  const context = otel.setSpan(otel.context.active(), parent);
+  const context = otel.trace.setSpan(otel.context.active(), parent);
   return otel.context.with(context, async () => {
     const span = tracer.startSpan(name, undefined);
     try {
