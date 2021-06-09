@@ -87,6 +87,7 @@ export interface ActivityInput {
 /** Input for WorkflowOutboundCallsInterceptor.startTimer */
 export interface TimerInput {
   readonly durationMs: number;
+  readonly seq: number;
 }
 
 /**
