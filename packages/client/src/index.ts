@@ -45,6 +45,8 @@ export * from './workflow-options';
 
 export type WorkflowService = iface.temporal.api.workflowservice.v1.WorkflowService;
 export const { WorkflowService } = iface.temporal.api.workflowservice.v1;
+export { DataConverter, defaultDataConverter };
+export * from './interceptors';
 
 type EnsurePromise<T> = T extends Promise<any> ? T : Promise<T>;
 

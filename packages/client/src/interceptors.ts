@@ -9,6 +9,8 @@ import { temporal } from '@temporalio/proto';
 import { CompiledWorkflowOptions } from './workflow-options';
 import { TerminateWorkflowExecutionResponse } from './types';
 
+export { Next, Headers };
+
 /** Input for WorkflowClientCallsInterceptor.start */
 export interface WorkflowStartInput {
   /** Name of Workflow to start */
