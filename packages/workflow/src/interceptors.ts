@@ -47,11 +47,12 @@ export interface SignalInput {
   readonly args: unknown[];
 }
 
-/** Input for WorkflowInboundCallsInterceptor.handleQuery */
-export interface QueryInput {
-  readonly queryName: string;
-  readonly args: unknown[];
-}
+// TODO: uncomment this once queries are supported
+// /** Input for WorkflowInboundCallsInterceptor.handleQuery */
+// export interface QueryInput {
+//   readonly queryName: string;
+//   readonly args: unknown[];
+// }
 
 /**
  * Implement any of these methods to intercept Workflow inbound calls like execution, and signal and query handling.
@@ -67,12 +68,13 @@ export interface WorkflowInboundCallsInterceptor {
   /** Called when signal is delivered to a Workflow execution */
   handleSignal?: (input: SignalInput, next: Next<WorkflowInboundCallsInterceptor, 'handleSignal'>) => Promise<void>;
 
-  /**
-   * Called when a Workflow is queried
-   *
-   * @return result of the query
-   */
-  handleQuery?: (input: QueryInput, next: Next<WorkflowInboundCallsInterceptor, 'handleQuery'>) => Promise<unknown>;
+  // TODO: uncomment this once queries are supported
+  // /**
+  //  * Called when a Workflow is queried
+  //  *
+  //  * @return result of the query
+  //  */
+  // handleQuery?: (input: QueryInput, next: Next<WorkflowInboundCallsInterceptor, 'handleQuery'>) => Promise<unknown>;
 }
 
 /** Input for WorkflowOutboundCallsInterceptor.scheduleActivity */
