@@ -7,6 +7,17 @@ async function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+/**
+ * Used in order to check Activity interceptor,
+ * message should be injected by interceptor according to received header.
+ */
+export async function echo(message?: string): Promise<string> {
+  if (message === undefined) {
+    throw new Error('Expected message argument to be defined');
+  }
+  return message;
+}
+
 export async function httpGet(url: string): Promise<string> {
   return `<html><body>hello from ${url}</body></html>`;
 }

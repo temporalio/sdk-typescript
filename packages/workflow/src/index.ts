@@ -77,3 +77,4 @@ export {
   scheduleActivity,
 } from './workflow';
 export * from './interceptors';
+export { defaultDataConverter, DataConverter } from './converter/data-converter';
