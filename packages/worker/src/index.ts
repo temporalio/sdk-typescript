@@ -25,3 +25,4 @@ export {
 } from './worker';
 export * from './logger';
 export * from './dependencies';
+export * from './interceptors';

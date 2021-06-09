@@ -76,3 +76,4 @@ export {
   validateActivityOptions,
   scheduleActivity,
 } from './workflow';
+export * from './interceptors';

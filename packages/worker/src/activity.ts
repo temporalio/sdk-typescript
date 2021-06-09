@@ -1,23 +1,32 @@
 import { AbortController } from 'abort-controller';
-import { ActivityFunction } from '@temporalio/workflow';
+import { ActivityFunction, composeInterceptors } from '@temporalio/workflow';
 import { DataConverter } from '@temporalio/workflow/lib/converter/data-converter';
 import { coresdk } from '@temporalio/proto';
 import { asyncLocalStorage } from '@temporalio/activity';
 import { Context, CancellationError, Info } from '@temporalio/activity';
+import {
+  ActivityExecuteInput,
+  ActivityInboundCallsInterceptor,
+  ActivityInboundCallsInterceptorFactory,
+} from './interceptors';
 
 export class Activity {
   protected cancelRequested = false;
   public readonly context: Context;
   public cancel: (reason?: any) => void = () => undefined;
   public readonly abortController: AbortController = new AbortController();
+  public readonly interceptors: {
+    inbound: ActivityInboundCallsInterceptor[];
+  };
 
-  // TODO: get all of the atributes required for setting the ActivityContext
   constructor(
     public readonly info: Info,
-    protected readonly fn: ActivityFunction<any[], any>,
-    protected readonly args: any[],
+    public readonly fn: ActivityFunction<any[], any>,
     public readonly dataConverter: DataConverter,
-    public readonly heartbeatCallback: Context['heartbeat']
+    public readonly heartbeatCallback: Context['heartbeat'],
+    interceptors?: {
+      inbound?: ActivityInboundCallsInterceptorFactory[];
+    }
   ) {
     const promise = new Promise<never>((_, reject) => {
       this.cancel = (reason?: any) => {
@@ -27,13 +36,18 @@ export class Activity {
       };
     });
     this.context = new Context(info, promise, this.abortController.signal, this.heartbeatCallback);
+    // Prevent unhandled rejection
     promise.catch(() => undefined);
+    this.interceptors = {
+      inbound: (interceptors?.inbound ?? []).map((factory) => factory(this.context)),
+    };
   }
 
-  public run(): Promise<coresdk.activity_result.IActivityResult> {
+  public run(input: ActivityExecuteInput): Promise<coresdk.activity_result.IActivityResult> {
     return asyncLocalStorage.run(this.context, async (): Promise<coresdk.activity_result.IActivityResult> => {
       try {
-        const result = await this.fn(...this.args);
+        const execute = composeInterceptors(this.interceptors.inbound, 'execute', ({ args }) => this.fn(...args));
+        const result = await execute(input);
         if (this.cancelRequested) {
           return { canceled: {} };
         }

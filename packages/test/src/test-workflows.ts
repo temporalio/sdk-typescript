@@ -275,6 +275,7 @@ test('throw-sync', async (t) => {
         dedent`
         Error: failure
             at Object.main
+            at eval
             at Activator.startWorkflow
             at activate
         `
@@ -295,6 +296,7 @@ test('throw-async', async (t) => {
         dedent`
         Error: failure
             at Object.main
+            at eval
             at Activator.startWorkflow
             at activate
         `
@@ -843,6 +845,7 @@ test('cancellation-error-is-propagated', async (t) => {
         CancellationError: Cancelled
             at Object.cancel
             at Object.main
+            at eval
             at Activator.startWorkflow
             at activate
         `,
