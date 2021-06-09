@@ -34,6 +34,7 @@ export function sleep(ms: number): Promise<void> {
   };
 
   return childScope(
+    'timer',
     cancellation,
     cancellation,
     () =>
@@ -80,6 +81,7 @@ export function scheduleActivity<R>(activityType: string, args: any[], options: 
   validateActivityOptions(options);
   const seq = state.nextSeq++;
   return childScope(
+    'activity',
     () => (_err) => {
       state.commands.push({
         requestCancelActivity: {
@@ -267,7 +269,7 @@ export const Context = new ContextImpl();
  * @see {@link https://docs.temporal.io/docs/node/workflow-scopes-and-cancellation | Workflow scopes and cancellation}
  */
 export function cancellationScope<T>(fn: () => Promise<T>): Promise<T> {
-  return childScope(propagateCancellation('requestCancel'), propagateCancellation('completeCancel'), fn);
+  return childScope('scope', propagateCancellation('requestCancel'), propagateCancellation('completeCancel'), fn);
 }
 
 const ignoreCancellation = () => () => undefined;
@@ -285,7 +287,7 @@ export function shield<T>(fn: () => Promise<T>, throwOnCancellation = true): Pro
   const cancellationFunction: CancellationFunctionFactory = throwOnCancellation
     ? (cancel) => cancel
     : ignoreCancellation;
-  return childScope(cancellationFunction, cancellationFunction, fn);
+  return childScope('scope', cancellationFunction, cancellationFunction, fn);
 }
 
 /**
