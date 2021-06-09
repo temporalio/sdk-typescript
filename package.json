@@ -65,6 +65,7 @@
   "dependencies": {
     "@temporalio/client": "file:packages/client",
     "@temporalio/create": "file:packages/create-project",
+    "@temporalio/interceptors-opentelemetry": "file:packages/interceptors-opentelemetry",
     "@temporalio/proto": "file:packages/proto",
     "@temporalio/test": "file:packages/test",
     "@temporalio/worker": "file:packages/worker",

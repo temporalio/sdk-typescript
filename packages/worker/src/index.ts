@@ -19,6 +19,7 @@ export {
   LocalActivityOptions,
   RemoteActivityOptions,
   DataConverter,
+  defaultDataConverter,
   RetryOptions,
   errors,
 } from './worker';

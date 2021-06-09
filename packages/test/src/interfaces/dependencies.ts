@@ -1,4 +1,12 @@
+// @@@SNIPSTART nodejs-external-dependencies-logger-interface
 import { ExternalDependencies } from '@temporalio/workflow';
+
+export interface LoggerDependencies extends ExternalDependencies {
+  logger: {
+    info(message: string): void;
+  };
+}
+// @@@SNIPEND
 
 export interface TestDependencies extends ExternalDependencies {
   syncVoid: {
@@ -36,11 +44,3 @@ export interface IgnoredTestDependencies extends ExternalDependencies {
     asyncImpl(counter: number): void;
   };
 }
-
-// @@@SNIPSTART nodejs-external-dependencies-logger-interface
-export interface LoggerDependencies extends ExternalDependencies {
-  logger: {
-    info(message: string): void;
-  };
-}
-// @@@SNIPEND
