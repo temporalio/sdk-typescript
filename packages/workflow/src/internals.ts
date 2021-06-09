@@ -150,15 +150,17 @@ export class Activator implements ActivationHandler {
     if (fn === undefined) {
       throw new Error(`Workflow did not register a signal named ${activation.signalName}`);
     }
-    try {
-      // TODO: support custom converter
-      const retOrPromise = fn(...arrayFromPayloads(defaultDataConverter, activation.input));
-      if (retOrPromise instanceof Promise) {
-        retOrPromise.catch(failWorkflow);
+    const execute = composeInterceptors(state.interceptors.inbound, 'handleSignal', async (input) => {
+      if (state.workflow === undefined) {
+        throw new IllegalStateError('state.workflow is not defined');
       }
-    } catch (err) {
-      failWorkflow(err);
-    }
+      return fn(...input.args);
+    });
+    execute({
+      // TODO: support custom converter
+      args: arrayFromPayloads(defaultDataConverter, activation.input),
+      signalName: activation.signalName,
+    }).catch(failWorkflow);
   }
 
   public updateRandomSeed(activation: coresdk.workflow_activation.IUpdateRandomSeed): void {
