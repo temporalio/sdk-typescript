@@ -87,7 +87,6 @@ export function validateActivityOptions(options: ActivityOptions): asserts optio
  * Push a scheduleActivity command into state accumulator and register completion
  */
 function scheduleActivityNextHandler({ options, args, headers, seq, activityType }: ActivityInput): Promise<unknown> {
-  // let next: Next<WorkflowOutboundCallsInterceptor, 'scheduleActivity'> = (input) =>{
   validateActivityOptions(options);
   return new Promise((resolve, reject) => {
     state.completions.set(seq, {
