@@ -1,7 +1,9 @@
-import { cancel, sleep } from '@temporalio/workflow';
+import { CancellationScope, sleep } from '@temporalio/workflow';
 
 export async function main(): Promise<void> {
-  const promise = sleep(0);
-  cancel(promise);
-  await promise;
+  await CancellationScope.cancellable(async () => {
+    const promise = sleep(0);
+    CancellationScope.current().cancel();
+    await promise;
+  });
 }

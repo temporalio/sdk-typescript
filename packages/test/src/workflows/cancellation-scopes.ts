@@ -1,4 +1,4 @@
-import { CancellationError, cancellationScope, cancel, sleep } from '@temporalio/workflow';
+import { CancellationError, CancellationScope, sleep } from '@temporalio/workflow';
 
 function sleepAndLogCancellation(cancellationExpected: boolean) {
   return async () => {
@@ -16,26 +16,28 @@ function sleepAndLogCancellation(cancellationExpected: boolean) {
 
 export async function main(): Promise<void> {
   // First without cancellation
-  await cancellationScope(sleepAndLogCancellation(false));
+  await CancellationScope.cancellable(sleepAndLogCancellation(false));
 
   // Test cancellation from workflow
-  const scope1 = cancellationScope(sleepAndLogCancellation(true));
-  const scope2 = cancellationScope(sleepAndLogCancellation(false));
-  cancel(scope1);
+  const scope1 = new CancellationScope();
+  const p1 = scope1.run(sleepAndLogCancellation(true));
+  const scope2 = new CancellationScope();
+  const p2 = scope2.run(sleepAndLogCancellation(false));
+  scope1.cancel();
   try {
-    await scope1;
+    await p1;
     console.log('Exception was not propagated 👎');
   } catch (e) {
     if (e instanceof CancellationError) {
       console.log('Exception was propagated 👍');
     }
   }
-  await scope2;
+  await p2;
   console.log('Scope 2 was not cancelled 👍');
 
   // Test workflow cancellation propagates
   try {
-    await cancellationScope(sleepAndLogCancellation(true));
+    await CancellationScope.cancellable(sleepAndLogCancellation(true));
     console.log('Exception was not propagated 👎');
   } catch (e) {
     if (e instanceof CancellationError) {
