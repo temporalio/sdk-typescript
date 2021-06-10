@@ -1,18 +1,23 @@
-import { CancellationError, cancel, sleep } from '@temporalio/workflow';
+// @@@SNIPSTART nodejs-cancel-a-timer-from-workflow
+import { CancellationError, CancellationScope, sleep } from '@temporalio/workflow';
 import { Empty } from '../interfaces';
 
 async function main(): Promise<void> {
-  const timer = sleep(3);
-  cancel(timer);
+  // Timers and Activities are automatically cancelled when their containing scope is cancelled.
   try {
-    await timer;
+    await CancellationScope.cancellable(async () => {
+      const promise = sleep(1); // <-- Will be cancelled because it is attached to `scope`
+      CancellationScope.current().cancel();
+      await promise; // <-- Promise must be awaited in order for `cancellable` to throw
+    });
   } catch (e) {
     if (e instanceof CancellationError) {
       console.log('Timer cancelled 👍');
     } else {
-      throw e;
+      throw e; // <-- Fail the workflow
     }
   }
 }
 
 export const workflow: Empty = { main };
+// @@@SNIPEND

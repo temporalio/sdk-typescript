@@ -1,11 +1,10 @@
 /* eslint-disable @typescript-eslint/explicit-module-boundary-types */
-import { WorkflowInterceptors, defaultDataConverter, Headers, sleep } from '@temporalio/workflow';
-import { ResolvablePromise } from './resolvable-promise';
+import { WorkflowInterceptors, defaultDataConverter, Headers, sleep, Trigger } from '@temporalio/workflow';
 import { echo } from '@activities';
 
 class InvalidTimerDurationError extends Error {}
 
-const unblocked = new ResolvablePromise<void>();
+const unblocked = new Trigger<void>();
 
 export const signals = {
   unblock(secret: string) {

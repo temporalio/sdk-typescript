@@ -4,18 +4,23 @@
  * @module
  */
 
-import { Context, shield } from '@temporalio/workflow';
+import { CancellationScope, CancellationError } from '@temporalio/workflow';
 import { httpGet } from '@activities';
 
-export async function main(url: string): Promise<any> {
-  const result = await shield(async () => {
+export async function main(url: string): Promise<string[]> {
+  const promise = CancellationScope.nonCancellable(async () => {
     return [
       await httpGet(url),
       await httpGet(url), // <-- This activity should still be shielded
     ];
-  }, false /* Don't throw on cancellation */);
-  if (Context.cancelled) {
-    console.log('Workflow cancelled while waiting on shielded scope');
+  });
+  try {
+    return await Promise.race([promise, CancellationScope.current().cancelRequested]);
+  } catch (err) {
+    if (!(err instanceof CancellationError)) {
+      throw err;
+    }
+    console.log('Workflow cancelled while waiting on non cancellable scope');
+    return promise;
   }
-  return result;
 }

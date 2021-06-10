@@ -64,3 +64,12 @@ export interface CancellableHTTPRequest extends Workflow {
     activityCancelled(): void;
   };
 }
+
+// @@@SNIPSTART nodejs-blocked-interface
+export interface Blocked extends Workflow {
+  main(): Promise<void>;
+  signals: {
+    unblock(): void;
+  };
+}
+// @@@SNIPEND

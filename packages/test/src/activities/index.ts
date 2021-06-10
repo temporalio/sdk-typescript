@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-empty-function */
+/* eslint-disable @typescript-eslint/explicit-module-boundary-types */
 import fetch from 'node-fetch';
 import { Context, CancellationError } from '@temporalio/activity';
 import { Connection } from '@temporalio/client';
@@ -21,6 +23,28 @@ export async function echo(message?: string): Promise<string> {
 export async function httpGet(url: string): Promise<string> {
   return `<html><body>hello from ${url}</body></html>`;
 }
+
+/**
+ * Just a mock, used in Workflow samples
+ */
+export async function httpGetJSON(url: string): Promise<any> {
+  return { url };
+}
+
+/**
+ * Just a mock, used in Workflow samples as an example of an activity that creates a side-effect
+ */
+export async function httpPostJSON(_url: string, _data: any): Promise<void> {}
+
+/**
+ * Mock for Workflow samples
+ */
+export async function setup(): Promise<void> {}
+
+/**
+ * Mock for Workflow samples, used to demo cleanup (e.g. after cancellation)
+ */
+export async function cleanup(_url: string): Promise<void> {}
 
 export async function throwAnError(message: string): Promise<void> {
   throw new Error(message);

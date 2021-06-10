@@ -7,11 +7,8 @@ import { alea, RNG } from './alea';
 import {
   ActivityOptions,
   ApplyMode,
-  CancellationFunction,
-  CancellationFunctionFactory,
   ExternalDependencyFunction,
   ExternalDependencies,
-  Scope,
   Workflow,
   WorkflowInfo,
 } from './interfaces';
@@ -19,6 +16,7 @@ import { composeInterceptors, WorkflowInterceptors } from './interceptors';
 import { CancellationError, IllegalStateError } from './errors';
 import { errorToUserCodeFailure } from './common';
 import { tsToMs, nullToUndefined } from './time';
+import { ROOT_SCOPE } from './cancellation-scope';
 
 export type ResolveFunction<T = any> = (val: T) => any;
 export type RejectFunction<E = any> = (val: E) => any;
@@ -26,23 +24,6 @@ export type RejectFunction<E = any> = (val: E) => any;
 export interface Completion {
   resolve: ResolveFunction;
   reject: RejectFunction;
-  scope: Scope;
-}
-
-export type HookType = 'init' | 'resolve' | 'before' | 'after';
-export type PromiseHook = (t: HookType, p: Promise<any>, pp?: Promise<any>) => void;
-export interface PromiseData {
-  scope: Scope;
-  cancellable: boolean;
-}
-
-/**
- * Interface for the native (c++) isolate extension, exposes method for working with the v8 Promise hook and custom Promise data
- */
-export interface IsolateExtension {
-  registerPromiseHook(hook: PromiseHook): void;
-  setPromiseData(p: Promise<any>, s: PromiseData): void;
-  getPromiseData(p: Promise<any>): PromiseData | undefined;
 }
 
 protobufjs.util.Long = Long;
@@ -75,7 +56,7 @@ export class Activator implements ActivationHandler {
 
   public cancelWorkflow(_activation: coresdk.workflow_activation.ICancelWorkflow): void {
     state.cancelled = true;
-    rootScopeCancel(new CancellationError('Workflow cancelled', 'external'));
+    ROOT_SCOPE.cancel();
   }
 
   public fireTimer(activation: coresdk.workflow_activation.IFireTimer): void {
@@ -87,23 +68,15 @@ export class Activator implements ActivationHandler {
     if (!activation.result) {
       throw new Error('Got CompleteActivity activation with no result');
     }
-    const { resolve, reject, scope } = consumeCompletion(idToSeq(activation.activityId));
+    const { resolve, reject } = consumeCompletion(idToSeq(activation.activityId));
     if (activation.result.completed) {
       const completed = activation.result.completed;
       const result = completed.result ? defaultDataConverter.fromPayload(completed.result) : undefined;
-      if (result === undefined) {
-        reject(new Error('Failed to convert from payload'));
-      } else {
-        resolve(result);
-      }
+      resolve(result);
     } else if (activation.result.failed) {
       reject(new Error(nullToUndefined(activation.result.failed.failure?.message)));
     } else if (activation.result.canceled) {
-      try {
-        scope.completeCancel(new CancellationError('Activity cancelled', 'internal'));
-      } catch (e) {
-        if (!(e instanceof CancellationError)) throw e;
-      }
+      reject(new CancellationError('Activity cancelled'));
     }
   }
 
@@ -208,20 +181,6 @@ export function activate(encodedActivation: Uint8Array, jobIndex: number): Activ
   return { processed: true, pendingExternalCalls: state.getAndResetPendingExternalCalls() };
 }
 
-const rootScope: Scope = {
-  type: 'scope',
-  idx: 0,
-  associated: true,
-  requestCancel: () => {
-    throw new Error('Root scope cannot be cancelled from within a workflow');
-  },
-  completeCancel: (err) => {
-    rootScopeCancel(err);
-  },
-};
-
-const rootScopeCancel = propagateCancellation('completeCancel')(() => undefined, rootScope);
-
 export interface ExternalCall {
   ifaceName: string;
   fnName: string;
@@ -244,18 +203,6 @@ export class State {
    * Map of task sequence to a Completion
    */
   public readonly completions: Map<number, Completion> = new Map();
-  /**
-   * A reference to the root scope object
-   */
-  public readonly rootScope: Scope = rootScope;
-  /**
-   * A stack for keeping track of the chain of scopes
-   */
-  public readonly scopeStack: Scope[] = [rootScope];
-  /**
-   * Mapping of parent to child scopes
-   */
-  public readonly childScopes: Map<Scope, Set<Scope>> = new Map();
 
   public interceptors: WorkflowInterceptors = { inbound: [], outbound: [] };
   /**
@@ -280,11 +227,6 @@ export class State {
   public nextSeq = 0;
 
   /**
-   * An incremental sequence assigned to each created scope for tracking purposes
-   */
-  public nextScopeIdx = rootScope.idx + 1;
-
-  /**
    * This is set every time the workflow executes an activation
    */
   #now: number | undefined;
@@ -304,10 +246,6 @@ export class State {
    * Reference to the current Workflow, initialized when a Workflow is started
    */
   public workflow?: Workflow;
-  /**
-   * Reference to the native isolate extension
-   */
-  public isolateExtension?: IsolateExtension;
 
   /**
    * Information about the current Workflow
@@ -434,7 +372,6 @@ export function inject(
         state.completions.set(seq, {
           resolve,
           reject,
-          scope: currentScope(),
         });
         state.pendingExternalCalls.push({ ifaceName, fnName, args, seq });
       });
@@ -464,88 +401,4 @@ export function resolveExternalDependencies(results: ExternalDependencyResult[])
       completion.resolve(result);
     }
   }
-}
-
-export function currentScope(): Scope {
-  const scope = state.scopeStack[state.scopeStack.length - 1];
-  if (scope === undefined) {
-    throw new Error('No scopes in stack');
-  }
-  return scope;
-}
-
-export function pushScope(scope: Scope): Scope {
-  state.scopeStack.push(scope);
-  if (scope.parent === undefined) {
-    return scope;
-  }
-  let children = state.childScopes.get(scope.parent);
-  if (children === undefined) {
-    children = new Set();
-    state.childScopes.set(scope.parent, children);
-  }
-  children.add(scope);
-  return scope;
-}
-
-export function popScope(): void {
-  state.scopeStack.pop();
-}
-
-export function propagateCancellation(method: 'requestCancel' | 'completeCancel'): CancellationFunctionFactory {
-  return (reject: CancellationFunction, scope: Scope): CancellationFunction => {
-    return (err: CancellationError) => {
-      const children = state.childScopes.get(scope);
-      if (children === undefined) {
-        throw new Error('Expected to find child scope mapping, got undefined');
-      }
-      for (const child of children) {
-        try {
-          child[method](err);
-        } catch (e) {
-          // TODO: aggregate errors?
-          if (e !== err) reject(e);
-        }
-      }
-      // If no children throw, make sure to reject this promise
-      reject(err);
-    };
-  };
-}
-
-function cancellationNotSet() {
-  throw new Error('Cancellation function not set');
-}
-
-export function childScope<T>(
-  type: Scope['type'],
-  makeRequestCancellation: CancellationFunctionFactory,
-  makeCompleteCancellation: CancellationFunctionFactory,
-  fn: () => Promise<T>
-): Promise<T> {
-  let requestCancel: CancellationFunction = cancellationNotSet;
-  let completeCancel: CancellationFunction = cancellationNotSet;
-
-  const scope = pushScope({
-    type,
-    idx: state.nextScopeIdx++,
-    parent: currentScope(),
-    requestCancel: (err) => requestCancel(err),
-    completeCancel: (err) => completeCancel(err),
-    associated: false,
-  });
-  // eslint-disable-next-line no-async-promise-executor
-  const promise = new Promise<T>(async (resolve, reject) => {
-    try {
-      requestCancel = makeRequestCancellation(reject, scope);
-      completeCancel = makeCompleteCancellation(reject, scope);
-      const promise = fn();
-      const result = await promise;
-      resolve(result);
-    } catch (e) {
-      reject(e);
-    }
-  });
-  popScope();
-  return promise;
 }
