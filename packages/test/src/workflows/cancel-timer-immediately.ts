@@ -1,5 +1,5 @@
 // @@@SNIPSTART nodejs-cancel-a-timer-from-workflow
-import { CancellationError, CancellationScope, sleep } from '@temporalio/workflow';
+import { CancelledError, CancellationScope, sleep } from '@temporalio/workflow';
 import { Empty } from '../interfaces';
 
 async function main(): Promise<void> {
@@ -11,7 +11,7 @@ async function main(): Promise<void> {
       await promise; // <-- Promise must be awaited in order for `cancellable` to throw
     });
   } catch (e) {
-    if (e instanceof CancellationError) {
+    if (e instanceof CancelledError) {
       console.log('Timer cancelled 👍');
     } else {
       throw e; // <-- Fail the workflow

@@ -58,8 +58,8 @@ export const asyncLocalStorage = new AsyncLocalStorage<Context>();
  *
  * The Activity must {@link Context.heartbeat | send heartbeats} in order to be cancellable.
  */
-export class CancellationError extends Error {
-  public readonly name: string = 'CancellationError';
+export class CancelledError extends Error {
+  public readonly name: string = 'CancelledError';
 }
 
 /**
@@ -138,7 +138,7 @@ export class Context {
   /**
    * Await this promise in an Activity to get notified of cancellation.
    *
-   * This promise will never be resolved, it will only be rejected with a {@link CancellationError}.
+   * This promise will never be resolved, it will only be rejected with a {@link CancelledError}.
    */
   public readonly cancelled: Promise<never>;
   /**

@@ -1,4 +1,4 @@
-import { CancellationError, CancellationScope, sleep } from '@temporalio/workflow';
+import { CancelledError, CancellationScope, sleep } from '@temporalio/workflow';
 import { Empty } from '../interfaces';
 
 async function main(): Promise<void> {
@@ -8,7 +8,7 @@ async function main(): Promise<void> {
   try {
     await promise;
   } catch (e) {
-    if (e instanceof CancellationError) {
+    if (e instanceof CancelledError) {
       console.log('Timer cancelled 👍');
     } else {
       throw e;

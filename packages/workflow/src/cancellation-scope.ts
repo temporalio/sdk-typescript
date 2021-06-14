@@ -1,4 +1,4 @@
-import { CancellationError, IllegalStateError } from './errors';
+import { CancelledError, IllegalStateError } from './errors';
 
 /** Magic symbol used to create the root scope - intentionally not exported */
 const NO_PARENT = Symbol('NO_PARENT');
@@ -14,7 +14,7 @@ export interface CancellationScopeOptions {
 
   /**
    * If false, prevent outer cancellation from propagating to inner scopes, Activities, timers, and Triggers, defaults to true.
-   * (Scope still propagates CancellationErrors thrown from within).
+   * (Scope still propagates CancelledErrors thrown from within).
    */
   cancellable: boolean;
   /**
@@ -26,7 +26,7 @@ export interface CancellationScopeOptions {
 
 /**
  * In the SDK, Workflows are represented internally by a tree of scopes where the main function runs in the root scope.
- * Cancellation propagates from outer scopes to inner ones and is handled by catching {@link CancellationError}s
+ * Cancellation propagates from outer scopes to inner ones and is handled by catching {@link CancelledError}s
  * thrown by cancellable operations (see below).
  *
  * Scopes are created using the `CancellationScope` constructor or the static helper methods
@@ -45,7 +45,7 @@ export interface CancellationScopeOptions {
  * await CancellationScope.cancellable(async () => {
  *   const promise = someActivity();
  *   CancellationScope.current().cancel(); // Cancels the activity
- *   await promise; // Throws CancellationError
+ *   await promise; // Throws CancelledError
  * });
  * ```
  *
@@ -55,7 +55,7 @@ export interface CancellationScopeOptions {
  * const scope = new CancellationScope();
  * const promise = scope.run(someActivity);
  * scope.cancel(); // Cancels the activity
- * await promise; // Throws CancellationError
+ * await promise; // Throws CancelledError
  * ```
  */
 export class CancellationScope {
@@ -66,7 +66,7 @@ export class CancellationScope {
 
   /**
    * If false, prevent outer cancellation from propagating to inner scopes, Activities, timers, and Triggers, defaults to true.
-   * (Scope still propagates CancellationErrors thrown from within)
+   * (Scope still propagates CancelledErrors thrown from within)
    */
   public readonly cancellable: boolean;
   /**
@@ -134,7 +134,7 @@ export class CancellationScope {
    * Request to cancel the scope and linked children
    */
   cancel(): void {
-    this.reject(new CancellationError('Cancelled'));
+    this.reject(new CancelledError('Cancelled'));
   }
 
   /**

@@ -3,7 +3,7 @@ import { ActivityFunction, composeInterceptors } from '@temporalio/workflow';
 import { DataConverter } from '@temporalio/workflow/lib/converter/data-converter';
 import { coresdk } from '@temporalio/proto';
 import { asyncLocalStorage } from '@temporalio/activity';
-import { Context, CancellationError, Info } from '@temporalio/activity';
+import { Context, CancelledError, Info } from '@temporalio/activity';
 import {
   ActivityExecuteInput,
   ActivityInboundCallsInterceptor,
@@ -32,7 +32,7 @@ export class Activity {
       this.cancel = (reason?: any) => {
         this.cancelRequested = true;
         this.abortController.abort();
-        reject(new CancellationError(reason));
+        reject(new CancelledError(reason));
       };
     });
     this.context = new Context(info, promise, this.abortController.signal, this.heartbeatCallback);

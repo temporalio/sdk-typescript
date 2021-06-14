@@ -63,7 +63,7 @@ export {
   Workflow,
   WorkflowInfo,
 } from './interfaces';
-export { CancellationError, DeterminismViolationError, IllegalStateError } from './errors';
+export { CancelledError, DeterminismViolationError, IllegalStateError } from './errors';
 export { Context, ContextImpl, sleep, uuid4, validateActivityOptions, scheduleActivity } from './workflow';
 export * from './interceptors';
 export { CancellationScope, CancellationScopeOptions } from './cancellation-scope';

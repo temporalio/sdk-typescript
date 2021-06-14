@@ -1,4 +1,4 @@
-import { Context, CancellationError, CancellationScope, sleep, Trigger } from '@temporalio/workflow';
+import { Context, CancelledError, CancellationScope, sleep, Trigger } from '@temporalio/workflow';
 import { ActivitySignalHandler } from '../interfaces';
 import * as activities from '@activities';
 
@@ -30,7 +30,7 @@ async function main(): Promise<void> {
     });
     throw new Error('Activity completed instead of being cancelled');
   } catch (err) {
-    if (err instanceof CancellationError) {
+    if (err instanceof CancelledError) {
       await Promise.race([
         activityCancelled,
         CancellationScope.nonCancellable(async () => {
