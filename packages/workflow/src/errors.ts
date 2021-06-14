@@ -37,8 +37,8 @@ export class WorkflowExecutionContinuedAsNewError extends Error {
  *
  * @see {@link CancellationSource}
  */
-export class CancellationError extends Error {
-  public readonly name: string = 'CancellationError';
+export class CancelledError extends Error {
+  public readonly name: string = 'CancelledError';
   public constructor(message: string) {
     super(message);
   }

@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-empty-function */
 /* eslint-disable @typescript-eslint/explicit-module-boundary-types */
 import fetch from 'node-fetch';
-import { Context, CancellationError } from '@temporalio/activity';
+import { Context, CancelledError } from '@temporalio/activity';
 import { Connection } from '@temporalio/client';
 import { fakeProgress as fakeProgressInner } from './fake-progress';
 
@@ -69,7 +69,7 @@ export async function fakeProgress(sleepIntervalMs = 1000): Promise<void> {
   try {
     await fakeProgressInner(sleepIntervalMs);
   } catch (err) {
-    if (err instanceof CancellationError) {
+    if (err instanceof CancelledError) {
       try {
         await signalSchedulingWorkflow('activityCancelled');
       } catch (signalErr) {

@@ -853,11 +853,11 @@ test('handle-external-workflow-cancellation-while-activity-running', async (t) =
         makeFailWorkflowExecution(
           'Activity cancelled',
           dedent`
-          CancellationError: Activity cancelled
+          CancelledError: Activity cancelled
               at Activator.resolveActivity
               at activate
         `,
-          'CancellationError'
+          'CancelledError'
         ),
       ])
     );
@@ -936,11 +936,11 @@ test('nested-cancellation', async (t) => {
         makeFailWorkflowExecution(
           'Activity cancelled',
           dedent`
-          CancellationError: Activity cancelled
+          CancelledError: Activity cancelled
               at Activator.resolveActivity
               at activate
           `,
-          'CancellationError'
+          'CancelledError'
         ),
       ])
     );
@@ -1038,12 +1038,12 @@ test('cancellation-scopes-with-callbacks', async (t) => {
         makeFailWorkflowExecution(
           'Cancelled',
           dedent`
-          CancellationError: Cancelled
+          CancelledError: Cancelled
               at CancellationScope.cancel
               at Activator.cancelWorkflow
               at activate
         `,
-          'CancellationError'
+          'CancelledError'
         ),
       ])
     );
@@ -1172,7 +1172,7 @@ test('cancellation-error-is-propagated', async (t) => {
       makeFailWorkflowExecution(
         'Cancelled',
         dedent`
-        CancellationError: Cancelled
+        CancelledError: Cancelled
             at CancellationScope.cancel
             at eval
             at CancellationScope.run
@@ -1182,7 +1182,7 @@ test('cancellation-error-is-propagated', async (t) => {
             at Activator.startWorkflow
             at activate
         `,
-        'CancellationError'
+        'CancelledError'
       ),
     ])
   );
@@ -1287,11 +1287,11 @@ test('multiple-activities-single-timeout', async (t) => {
         makeFailWorkflowExecution(
           'Activity cancelled',
           dedent`
-          CancellationError: Activity cancelled
+          CancelledError: Activity cancelled
               at Activator.resolveActivity
               at activate
       `,
-          'CancellationError'
+          'CancelledError'
         ),
       ])
     );

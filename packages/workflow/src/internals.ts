@@ -13,7 +13,7 @@ import {
   WorkflowInfo,
 } from './interfaces';
 import { composeInterceptors, WorkflowInterceptors } from './interceptors';
-import { CancellationError, IllegalStateError } from './errors';
+import { CancelledError, IllegalStateError } from './errors';
 import { errorToUserCodeFailure } from './common';
 import { tsToMs, nullToUndefined } from './time';
 import { ROOT_SCOPE } from './cancellation-scope';
@@ -76,7 +76,7 @@ export class Activator implements ActivationHandler {
     } else if (activation.result.failed) {
       reject(new Error(nullToUndefined(activation.result.failed.failure?.message)));
     } else if (activation.result.canceled) {
-      reject(new CancellationError('Activity cancelled'));
+      reject(new CancelledError('Activity cancelled'));
     }
   }
 
