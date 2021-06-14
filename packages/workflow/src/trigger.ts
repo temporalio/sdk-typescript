@@ -9,6 +9,9 @@ import { CancellationScope } from './cancellation-scope';
  * Useful for e.g. waiting for a signal from Workflow main
  * @example
  * <!--SNIPSTART nodejs-blocked-interface-->
+ * <!--SNIPEND-->
+ *
+ * <!--SNIPSTART nodejs-blocked-workflow-->
  * ```ts
  * const unblocked = new Trigger<void>();
  * export const signals = {

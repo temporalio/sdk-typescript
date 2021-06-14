@@ -122,7 +122,7 @@ module.exports = {
             {
               origins: [
                 {
-                  files: ['../*/src/*.ts', '../create-project/samples/*.ts'],
+                  files: ['../*/src/**/*.ts', '../create-project/samples/*.ts'],
                 },
               ],
               targets: ['docs'],
