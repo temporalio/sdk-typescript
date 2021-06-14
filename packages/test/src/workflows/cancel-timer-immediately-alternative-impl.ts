@@ -1,4 +1,4 @@
-// @@@SNIPSTART nodejs-multiple-activities-single-timeout-workflow-alternative-impl
+// @@@SNIPSTART nodejs-cancel-a-timer-from-workflow-alternative-impl
 import { CancelledError, CancellationScope, sleep } from '@temporalio/workflow';
 
 export async function main(): Promise<void> {
