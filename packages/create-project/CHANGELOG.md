@@ -3,6 +3,17 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+## [0.3.1](https://github.com/temporalio/sdk-node/compare/@temporalio/create@0.3.0...@temporalio/create@0.3.1) (2021-06-16)
+
+
+### Bug Fixes
+
+* **workflow:** Workflow overrides do not take effect before starting a Workflow ([d59051c](https://github.com/temporalio/sdk-node/commit/d59051c732e961100ba75fdc431b742a489cfebb))
+
+
+
+
+
 # [0.3.0](https://github.com/temporalio/sdk-node/compare/@temporalio/create@0.2.0...@temporalio/create@0.3.0) (2021-05-17)
 
 

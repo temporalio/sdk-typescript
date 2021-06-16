@@ -3,6 +3,25 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+# [0.4.0](https://github.com/temporalio/sdk-node/compare/@temporalio/worker@0.3.0...@temporalio/worker@0.4.0) (2021-06-16)
+
+
+### Bug Fixes
+
+* **worker:** Avoid error caused by non-existent activities directory ([ad88671](https://github.com/temporalio/sdk-node/commit/ad8867189d134ef31b03899e35db0b4610215d76))
+* **worker:** Make isolate error message suggest a fix ([d7d4b66](https://github.com/temporalio/sdk-node/commit/d7d4b660a0fbe393136547fb415bda928fc7f36e))
+* **workflow:** Workflow overrides do not take effect before starting a Workflow ([d59051c](https://github.com/temporalio/sdk-node/commit/d59051c732e961100ba75fdc431b742a489cfebb))
+
+
+### Features
+
+* Implement Workflow and Activity interceptors ([8da2300](https://github.com/temporalio/sdk-node/commit/8da230004031d1759b94b7bdb6a7b797e133a4a9))
+* Support injecting external dependencies into the Workflow isolate ([ac163b3](https://github.com/temporalio/sdk-node/commit/ac163b3ea48487fe3d31a17e0dee0530e322efee))
+
+
+
+
+
 # [0.3.0](https://github.com/temporalio/sdk-node/compare/@temporalio/worker@0.2.0...@temporalio/worker@0.3.0) (2021-05-17)
 
 
