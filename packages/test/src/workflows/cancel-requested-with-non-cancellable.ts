@@ -1,3 +1,7 @@
+/**
+ * Demonstrates how to make Workflow aware of cancellation while waiting on nonCancellable scope.
+ * Used in the documentation site.
+ */
 // @@@SNIPSTART nodejs-cancel-requested-with-non-cancellable
 import { CancelledError, CancellationScope } from '@temporalio/workflow';
 import { httpGetJSON } from '@activities';

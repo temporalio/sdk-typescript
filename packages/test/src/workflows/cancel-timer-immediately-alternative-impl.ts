@@ -1,3 +1,8 @@
+/**
+ * Demonstrates the basics of cancellation scopes.
+ * Alternative implementation with cancellation from an outer scope.
+ * Used in the documentation site.
+ */
 // @@@SNIPSTART nodejs-cancel-a-timer-from-workflow-alternative-impl
 import { CancelledError, CancellationScope, sleep } from '@temporalio/workflow';
 
