@@ -1,3 +1,7 @@
+/**
+ * Demonstrates how to use cancellation scopes with callbacks.
+ * Used in the documentation site.
+ */
 // @@@SNIPSTART nodejs-cancellation-scopes-with-callbacks
 import { CancellationScope } from '@temporalio/workflow';
 
