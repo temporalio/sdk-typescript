@@ -78,6 +78,19 @@ export interface WorkerOptions {
   maxConcurrentWorkflowTaskExecutions: number;
   maxConcurrentWorkflowTaskPolls: number;
   maxConcurrentActivityTaskPolls: number;
+  /**
+   * `maxConcurrentWorkflowTaskPolls` * this number = the number of max pollers that will
+   * be allowed for the nonsticky queue when sticky tasks are enabled. If both defaults are used,
+   * the sticky queue will allow 4 max pollers while the nonsticky queue will allow one. The
+   * minimum for either poller is 1, so if `max_concurrent_wft_polls` is 1 and sticky queues are
+   * enabled, there will be 2 concurrent polls.
+   */
+  nonStickyToStickyPollRatio: number;
+  /**
+   * How long a workflow task is allowed to sit on the sticky queue before it is timed out
+   * and moved to the non-sticky queue where it may be picked up by any worker.
+   */
+  stickyQueueScheduleToStartTimeoutMs: number;
 }
 
 export interface Worker {}
