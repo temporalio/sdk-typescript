@@ -242,6 +242,24 @@ export interface WorkerOptions {
   maxConcurrentActivityTaskPolls?: number;
 
   /**
+   * `maxConcurrentWorkflowTaskPolls` * this number = the number of max pollers that will
+   * be allowed for the nonsticky queue when sticky tasks are enabled. If both defaults are used,
+   * the sticky queue will allow 4 max pollers while the nonsticky queue will allow one. The
+   * minimum for either poller is 1, so if `max_concurrent_wft_polls` is 1 and sticky queues are
+   * enabled, there will be 2 concurrent polls.
+   * @default 0.2
+   */
+  nonStickyToStickyPollRatio?: number;
+
+  /**
+   * How long a workflow task is allowed to sit on the sticky queue before it is timed out
+   * and moved to the non-sticky queue where it may be picked up by any worker.
+   * @format {@link https://www.npmjs.com/package/ms | ms} formatted string
+   * @default 10s
+   */
+  stickyQueueScheduleToStartTimeout?: string;
+
+  /**
    * Time to wait for result when calling a Workflow isolate function.
    * @format {@link https://www.npmjs.com/package/ms | ms} formatted string
    * @default 1s
@@ -280,6 +298,8 @@ export type WorkerOptionsWithDefaults<T extends WorkerSpec = DefaultWorkerSpec> 
       | 'maxConcurrentWorkflowTaskExecutions'
       | 'maxConcurrentActivityTaskPolls'
       | 'maxConcurrentWorkflowTaskPolls'
+      | 'nonStickyToStickyPollRatio'
+      | 'stickyQueueScheduleToStartTimeout'
       | 'isolateExecutionTimeout'
     >
   >;
@@ -291,6 +311,7 @@ export interface CompiledWorkerOptions<T extends WorkerSpec = DefaultWorkerSpec>
   extends Omit<WorkerOptionsWithDefaults<T>, 'serverOptions'> {
   shutdownGraceTimeMs: number;
   isolateExecutionTimeoutMs: number;
+  stickyQueueScheduleToStartTimeoutMs: number;
   serverOptions: CompiledServerOptions;
 }
 
@@ -339,6 +360,8 @@ export function addDefaults<T extends WorkerSpec>(options: WorkerSpecOptions<T>)
     maxConcurrentWorkflowTaskExecutions: 100,
     maxConcurrentActivityTaskPolls: 5,
     maxConcurrentWorkflowTaskPolls: 5,
+    nonStickyToStickyPollRatio: 0.2,
+    stickyQueueScheduleToStartTimeout: '10s',
     isolateExecutionTimeout: '1s',
     ...rest,
   };
@@ -351,6 +374,7 @@ export function compileWorkerOptions<T extends WorkerSpec>(
   return {
     ...opts,
     shutdownGraceTimeMs: ms(opts.shutdownGraceTime),
+    stickyQueueScheduleToStartTimeoutMs: ms(opts.stickyQueueScheduleToStartTimeout),
     isolateExecutionTimeoutMs: ms(opts.isolateExecutionTimeout),
     serverOptions: compileServerOptions(opts.serverOptions),
   };

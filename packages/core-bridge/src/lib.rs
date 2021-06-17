@@ -240,13 +240,19 @@ fn start_bridge_loop(
                                 let task_queue = config.clone().task_queue;
                                 let core_handle = core_handle.clone();
                                 tokio::spawn(async move {
-                                    core.register_worker(config).await;
-                                    send_result(event_queue.clone(), callback, |cx| {
-                                        Ok(cx.boxed(Worker {
-                                            core: core_handle,
-                                            queue: task_queue,
-                                        }))
-                                    });
+                                    match core.register_worker(config).await {
+                                        Ok(_) => send_result(event_queue.clone(), callback, |cx| {
+                                            Ok(cx.boxed(Worker {
+                                                core: core_handle,
+                                                queue: task_queue,
+                                            }))
+                                        }),
+                                        Err(err) => {
+                                            send_error(event_queue.clone(), callback, |cx| {
+                                                UNEXPECTED_ERROR.from_error(cx, err)
+                                            })
+                                        }
+                                    };
                                 });
                             }
                             Request::PollWorkflowActivation {
@@ -287,6 +293,15 @@ fn start_bridge_loop(
                                                 cx.string(format!("{}", source)).upcast(),
                                             ];
                                             WORKFLOW_ERROR.construct(cx, args)
+                                        }
+                                        CompleteWfError::NoWorkerForQueue(queue_name) => {
+                                            UNEXPECTED_ERROR.from_error(
+                                                cx,
+                                                format!(
+                                                    "No worker registered for queue {}",
+                                                    queue_name
+                                                ),
+                                            )
                                         }
                                         CompleteWfError::TonicError(_) => {
                                             TRANSPORT_ERROR.from_error(cx, err)
@@ -363,7 +378,8 @@ async fn handle_poll_workflow_activation_request(
                     ];
                     WORKFLOW_ERROR.construct(cx, args)
                 }
-                PollWfError::NoWorkerForQueue(_) => UNEXPECTED_ERROR
+                PollWfError::AutocompleteError(CompleteWfError::NoWorkerForQueue(_))
+                | PollWfError::NoWorkerForQueue(_) => UNEXPECTED_ERROR
                     .from_error(cx, format!("No worker registered for queue {}", queue_name)),
                 PollWfError::BadPollResponseFromServer(_) => {
                     UNEXPECTED_ERROR.from_error(cx, "Bad poll response from server")
@@ -565,6 +581,14 @@ fn worker_new(mut cx: FunctionContext) -> JsResult<JsUndefined> {
         "maxConcurrentActivityTaskPolls",
         JsNumber
     ) as usize;
+    let nonsticky_to_sticky_poll_ratio =
+        js_value_getter!(cx, worker_options, "nonStickyToStickyPollRatio", JsNumber) as f32;
+    let sticky_queue_schedule_to_start_timeout = Duration::from_millis(js_value_getter!(
+        cx,
+        worker_options,
+        "stickyQueueScheduleToStartTimeoutMs",
+        JsNumber
+    ) as u64);
 
     let callback = cx.argument::<JsFunction>(2)?;
 
@@ -575,6 +599,8 @@ fn worker_new(mut cx: FunctionContext) -> JsResult<JsUndefined> {
             max_concurrent_wft_polls,
             max_outstanding_workflow_tasks,
             max_outstanding_activities,
+            nonsticky_to_sticky_poll_ratio,
+            sticky_queue_schedule_to_start_timeout,
             task_queue,
         },
         callback: callback.root(&mut cx),
