@@ -106,7 +106,7 @@ export declare function registerErrors(errors: Record<string, any>): void;
 export declare function newCore(coreOptions: CoreOptions, callback: CoreCallback): void;
 export declare function newWorker(core: Core, workerOptions: WorkerOptions, callback: WorkerCallback): void;
 export declare function workerShutdown(worker: Worker, callback: VoidCallback): void;
-export declare function workerBreakLoop(worker: Worker, callback: VoidCallback): void;
+export declare function coreShutdown(core: Core, callback: VoidCallback): void;
 export declare function workerPollWorkflowActivation(worker: Worker, callback: PollCallback): void;
 export declare function workerCompleteWorkflowActivation(
   worker: Worker,

@@ -18,6 +18,8 @@ import { Logger } from './logger';
  * @param workflowsPath all Workflows found in path will be put in the bundle
  * @param activities mapping of module name to module exports, exported functions will be replaced with stubs and the rest ignored
  * @param activityDefaults used to inject Activity options into the Activity stubs
+ * @param maxIsolateMemoryMB used to limit the memory consumption of the created isolate
+ * @param workflowInterceptorModules list of interceptor modules to register on Workflow creation
  */
 export class WorkflowIsolateBuilder {
   constructor(
@@ -26,6 +28,7 @@ export class WorkflowIsolateBuilder {
     public readonly workflowsPath: string,
     public readonly activities: Map<string, Record<string, any>>,
     public readonly activityDefaults: ActivityOptions,
+    public readonly maxIsolateMemoryMB: number,
     public readonly workflowInterceptorModules: string[] = []
   ) {}
 
@@ -47,7 +50,7 @@ export class WorkflowIsolateBuilder {
     await this.bundle(ufs, entrypointPath, sourceDir, distDir);
     const code = ufs.readFileSync(path.join(distDir, 'main.js'), 'utf8');
     const snapshot = ivm.Isolate.createSnapshot([{ code }]);
-    return new ivm.Isolate({ snapshot });
+    return new ivm.Isolate({ snapshot, memoryLimit: 1024 });
   }
 
   /**

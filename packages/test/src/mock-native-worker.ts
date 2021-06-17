@@ -43,13 +43,14 @@ export class MockNativeWorker implements NativeWorkerLike {
   workflowCompletionCallback?: (arr: ArrayBuffer) => void;
   activityHeartbeatCallback?: (taskToken: Uint8Array, details: any) => void;
   reject?: (err: Error) => void;
+  namespace = 'mock';
 
   public static async create(): Promise<NativeWorkerLike> {
     return new this();
   }
 
-  public async breakLoop(): Promise<void> {
-    // Nothing to break from
+  public async completeShutdown(): Promise<void> {
+    // Nothing to do here
   }
 
   public async shutdown(): Promise<void> {
@@ -186,7 +187,8 @@ export async function makeDefaultWorker(): Promise<Worker> {
     options.nodeModulesPath!,
     options.workflowsPath!,
     resolvedActivities,
-    options.activityDefaults
+    options.activityDefaults,
+    Infinity
   );
   const isolate = await builder.build();
   return new Worker(isolate, resolvedActivities, options);
