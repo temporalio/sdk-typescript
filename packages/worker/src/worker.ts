@@ -1,5 +1,4 @@
 import { resolve } from 'path';
-import os from 'os';
 import { promisify } from 'util';
 import * as otel from '@opentelemetry/api';
 import {
@@ -54,64 +53,11 @@ import * as errors from './errors';
 import { tracer, instrument, childSpan } from './tracing';
 import { InjectedDependencies, getIvmTransferOptions } from './dependencies';
 import { ActivityExecuteInput, WorkerInterceptors } from './interceptors';
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-ignore
-import pkg from '../package.json';
-
 export { RetryOptions, RemoteActivityOptions, LocalActivityOptions } from '@temporalio/workflow';
 export { ActivityOptions, DataConverter, errors };
-
-type TLSConfig = native.TLSConfig;
-export { TLSConfig };
+import { Core } from './core';
 
 native.registerErrors(errors);
-
-export interface ServerOptions {
-  /**
-   * The host and optional port of the Temporal server to connect to.
-   * Port defaults to 7233 if address contains only host.
-   *
-   * @default localhost:7233
-   */
-  address?: string;
-  /**
-   * What namespace will we operate under
-   * @default default
-   */
-  namespace?: string;
-
-  /**
-   * A human-readable string that can identify your worker
-   * @default `${process.pid}@${os.hostname()}`
-   */
-  identity?: string;
-  /**
-   * A string that should be unique to the exact worker code/binary being executed
-   * @default `@temporal/worker` package name and version
-   */
-  workerBinaryId?: string;
-  /**
-   * Timeout for long polls (polling of task queues)
-   * @format {@link https://www.npmjs.com/package/ms | ms} formatted string
-   */
-  longPollTimeout?: string;
-
-  /**
-   * TLS configuration options.
-   *
-   * Pass a falsy value to use a non-encrypted connection or `true` or `{}` to
-   * connect with TLS without any customization.
-   */
-  tls?: TLSConfig | boolean | null;
-}
-
-export type RequiredServerOptions = Omit<Required<ServerOptions>, 'tls'> & {
-  tls?: ServerOptions['tls'];
-};
-
-export type CompiledServerOptions = Omit<RequiredServerOptions, 'longPollTimeout'> & {
-  longPollTimeoutMs: number;
-};
 
 /**
  * Customize the Worker according to spec.
@@ -137,11 +83,6 @@ export type WorkerSpecOptions<T extends WorkerSpec> = T extends { dependencies: 
  * Options to configure the {@link Worker}
  */
 export interface WorkerOptions {
-  /**
-   * Options for communicating with the Temporal server
-   */
-  serverOptions?: ServerOptions;
-
   /**
    * The task queue the worker will pull from
    */
@@ -267,6 +208,15 @@ export interface WorkerOptions {
   isolateExecutionTimeout?: string;
 
   /**
+   * Memory limit in MB for the Workflow v8 isolate.
+   *
+   * If this limit is exceeded the isolate will be disposed and the worker will crash.
+   *
+   * @default Infinity
+   */
+  maxIsolateMemoryMB?: number;
+
+  /**
    * A mapping of interceptor type to a list of factories or module paths
    */
   interceptors?: WorkerInterceptors;
@@ -280,11 +230,7 @@ export interface WorkerOptions {
 /**
  * WorkerOptions with all of the Worker required attributes
  */
-export type WorkerOptionsWithDefaults<T extends WorkerSpec = DefaultWorkerSpec> = Omit<
-  WorkerOptions,
-  'serverOptions'
-> & {
-  serverOptions: RequiredServerOptions;
+export type WorkerOptionsWithDefaults<T extends WorkerSpec = DefaultWorkerSpec> = WorkerOptions & {
   dependencies: T['dependencies'] extends ExternalDependencies ? InjectedDependencies<T['dependencies']> : undefined;
 } & Required<
     Pick<
@@ -301,6 +247,7 @@ export type WorkerOptionsWithDefaults<T extends WorkerSpec = DefaultWorkerSpec> 
       | 'nonStickyToStickyPollRatio'
       | 'stickyQueueScheduleToStartTimeout'
       | 'isolateExecutionTimeout'
+      | 'maxIsolateMemoryMB'
     >
   >;
 
@@ -312,25 +259,6 @@ export interface CompiledWorkerOptions<T extends WorkerSpec = DefaultWorkerSpec>
   shutdownGraceTimeMs: number;
   isolateExecutionTimeoutMs: number;
   stickyQueueScheduleToStartTimeoutMs: number;
-  serverOptions: CompiledServerOptions;
-}
-
-export function getDefaultServerOptions(): RequiredServerOptions {
-  return {
-    address: 'localhost:7233',
-    identity: `${process.pid}@${os.hostname()}`,
-    namespace: 'default',
-    workerBinaryId: `${pkg.name}@${pkg.version}`,
-    longPollTimeout: '30s',
-  };
-}
-
-export function compileServerOptions(options: RequiredServerOptions): CompiledServerOptions {
-  const { longPollTimeout, address, ...rest } = options;
-  // eslint-disable-next-line prefer-const
-  let [host, port] = address.split(':', 2);
-  port = port || '7233';
-  return { ...rest, address: `${host}:${port}`, longPollTimeoutMs: ms(longPollTimeout) };
 }
 
 /**
@@ -343,7 +271,7 @@ function includesDeps<T extends WorkerSpec>(
 }
 
 export function addDefaults<T extends WorkerSpec>(options: WorkerSpecOptions<T>): WorkerOptionsWithDefaults<T> {
-  const { serverOptions, workDir, ...rest } = options;
+  const { workDir, ...rest } = options;
   // Typescript is really struggling with the conditional exisitence of the dependencies attribute.
   // Help it out without sacrificing type safety of the other attributes.
   const ret: Omit<WorkerOptionsWithDefaults<T>, 'dependencies'> = {
@@ -355,7 +283,6 @@ export function addDefaults<T extends WorkerSpec>(options: WorkerSpecOptions<T>)
     dataConverter: defaultDataConverter,
     logger: new DefaultLogger(),
     activityDefaults: { type: 'remote', startToCloseTimeout: '10m' },
-    serverOptions: { ...getDefaultServerOptions(), ...serverOptions },
     maxConcurrentActivityTaskExecutions: 100,
     maxConcurrentWorkflowTaskExecutions: 100,
     maxConcurrentActivityTaskPolls: 5,
@@ -363,6 +290,7 @@ export function addDefaults<T extends WorkerSpec>(options: WorkerSpecOptions<T>)
     nonStickyToStickyPollRatio: 0.2,
     stickyQueueScheduleToStartTimeout: '10s',
     isolateExecutionTimeout: '1s',
+    maxIsolateMemoryMB: Infinity,
     ...rest,
   };
   return ret as WorkerOptionsWithDefaults<T>;
@@ -376,7 +304,6 @@ export function compileWorkerOptions<T extends WorkerSpec>(
     shutdownGraceTimeMs: ms(opts.shutdownGraceTime),
     stickyQueueScheduleToStartTimeoutMs: ms(opts.stickyQueueScheduleToStartTimeout),
     isolateExecutionTimeoutMs: ms(opts.isolateExecutionTimeout),
-    serverOptions: compileServerOptions(opts.serverOptions),
   };
 }
 
@@ -425,24 +352,17 @@ export type ActivationWithContext = ContextAware<{
 
 export interface NativeWorkerLike {
   shutdown: Promisify<OmitFirstParam<typeof native.workerShutdown>>;
-  breakLoop: Promisify<OmitFirstParam<typeof native.workerBreakLoop>>;
+  completeShutdown(): Promise<void>;
   pollWorkflowActivation: Promisify<OmitFirstParam<typeof native.workerPollWorkflowActivation>>;
   pollActivityTask: Promisify<OmitFirstParam<typeof native.workerPollActivityTask>>;
   completeWorkflowActivation: Promisify<OmitFirstParam<typeof native.workerCompleteWorkflowActivation>>;
   completeActivityTask: Promisify<OmitFirstParam<typeof native.workerCompleteActivityTask>>;
   recordActivityHeartbeat: OmitFirstParam<typeof native.workerRecordActivityHeartbeat>;
+  namespace: string;
 }
 
 export interface WorkerConstructor {
   create(options: CompiledWorkerOptions): Promise<NativeWorkerLike>;
-}
-
-/**
- * Normalize {@link ConnectionOptions.tls} by turning false and null to undefined and true to and empty object
- * NOTE: this function is duplicated in `packages/client/src/index.ts` for lack of a shared library
- */
-export function normalizeTlsConfig(tls: ServerOptions['tls']): TLSConfig | undefined {
-  return typeof tls === 'object' ? (tls === null ? undefined : tls) : tls ? {} : undefined;
 }
 
 export class NativeWorker implements NativeWorkerLike {
@@ -451,32 +371,29 @@ export class NativeWorker implements NativeWorkerLike {
   public readonly completeWorkflowActivation: Promisify<OmitFirstParam<typeof native.workerCompleteWorkflowActivation>>;
   public readonly completeActivityTask: Promisify<OmitFirstParam<typeof native.workerCompleteActivityTask>>;
   public readonly recordActivityHeartbeat: OmitFirstParam<typeof native.workerRecordActivityHeartbeat>;
-  public readonly breakLoop: Promisify<OmitFirstParam<typeof native.workerBreakLoop>>;
   public readonly shutdown: Promisify<OmitFirstParam<typeof native.workerShutdown>>;
 
   public static async create(options: CompiledWorkerOptions): Promise<NativeWorkerLike> {
-    const core = await promisify(native.newCore)({
-      maxCachedWorkflows: 0,
-      serverOptions: {
-        ...options.serverOptions,
-        tls: normalizeTlsConfig(options.serverOptions.tls),
-        url: options.serverOptions.tls
-          ? `https://${options.serverOptions.address}`
-          : `http://${options.serverOptions.address}`,
-      },
-    });
-    const nativeWorker = await promisify(native.newWorker)(core, options);
-    return new NativeWorker(nativeWorker);
+    const core = await Core.instance();
+    const nativeWorker = await core.registerWorker(options);
+    return new NativeWorker(core, nativeWorker);
   }
 
-  protected constructor(nativeWorker: native.Worker) {
+  protected constructor(protected readonly core: Core, protected readonly nativeWorker: native.Worker) {
     this.pollWorkflowActivation = promisify(native.workerPollWorkflowActivation).bind(undefined, nativeWorker);
     this.pollActivityTask = promisify(native.workerPollActivityTask).bind(undefined, nativeWorker);
     this.completeWorkflowActivation = promisify(native.workerCompleteWorkflowActivation).bind(undefined, nativeWorker);
     this.completeActivityTask = promisify(native.workerCompleteActivityTask).bind(undefined, nativeWorker);
     this.recordActivityHeartbeat = native.workerRecordActivityHeartbeat.bind(undefined, nativeWorker);
-    this.breakLoop = promisify(native.workerBreakLoop).bind(undefined, nativeWorker);
     this.shutdown = promisify(native.workerShutdown).bind(undefined, nativeWorker);
+  }
+
+  public async completeShutdown(): Promise<void> {
+    await this.core.deregisterWorker(this.nativeWorker);
+  }
+
+  public get namespace(): string {
+    return this.core.options.serverOptions.namespace;
   }
 }
 
@@ -524,6 +441,7 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
         compiledOptions.workflowsPath,
         resolvedActivities,
         compiledOptions.activityDefaults,
+        compiledOptions.maxIsolateMemoryMB,
         compiledOptions.interceptors?.workflowModules
       );
       isolate = await builder.build();
@@ -701,12 +619,7 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
 
             switch (variant) {
               case 'start': {
-                const info = extractActivityInfo(
-                  task,
-                  false,
-                  this.options.dataConverter,
-                  this.options.serverOptions.namespace
-                );
+                const info = extractActivityInfo(task, false, this.options.dataConverter, this.nativeWorker.namespace);
                 const [path, fnName] = info.activityType;
                 const module = this.resolvedActivities.get(path);
                 if (module === undefined) {
@@ -876,7 +789,7 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
                         filename: workflowType,
                         runId: activation.runId,
                         workflowId,
-                        namespace: this.options.serverOptions.namespace,
+                        namespace: this.nativeWorker.namespace,
                         taskQueue: this.options.taskQueue,
                         isReplaying: activation.isReplaying,
                       },
@@ -1175,7 +1088,7 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
         )
         .toPromise();
     } finally {
-      await this.nativeWorker.breakLoop();
+      await this.nativeWorker.completeShutdown();
     }
   }
 

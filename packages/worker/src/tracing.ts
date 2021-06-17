@@ -1,9 +1,5 @@
 import * as otel from '@opentelemetry/api';
-// ../package.json is outside of the TS project rootDir which causes TS to complain about this import.
-// We do not want to change the rootDir because it messes up the output structure.
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-ignore
-import pkg from '../package.json';
+import pkg from './pkg';
 
 export const tracer = otel.trace.getTracer(pkg.name, pkg.version);
 

@@ -29,7 +29,14 @@ test.before(async (t) => {
   const nodeModulesPath = path.join(__dirname, '../../../node_modules');
   const activityDefaults: ActivityOptions = { type: 'remote', startToCloseTimeout: '10m' };
   const activities = new Map([['@activities', activityFunctions]]);
-  const builder = new WorkflowIsolateBuilder(logger, nodeModulesPath, workflowsPath, activities, activityDefaults);
+  const builder = new WorkflowIsolateBuilder(
+    logger,
+    nodeModulesPath,
+    workflowsPath,
+    activities,
+    activityDefaults,
+    Infinity
+  );
   t.context.isolate = await builder.build();
 });
 
