@@ -33,6 +33,7 @@ import {
 } from 'rxjs/operators';
 import ivm from 'isolated-vm';
 import ms from 'ms';
+import * as native from '@temporalio/core-bridge';
 import { coresdk } from '@temporalio/proto';
 import { ActivityOptions, ApplyMode, ExternalDependencies, WorkflowInfo } from '@temporalio/workflow';
 import { Info as ActivityInfo } from '@temporalio/activity';
@@ -44,7 +45,6 @@ import {
   DataConverter,
   defaultDataConverter,
 } from '@temporalio/workflow/lib/converter/data-converter';
-import * as native from '../native';
 import { closeableGroupBy, mergeMapWithState } from './rxutils';
 import { Workflow } from './workflow';
 import { Activity } from './activity';

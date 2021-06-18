@@ -15,6 +15,7 @@
   "author": "Roey Berman <roey@temporal.io>",
   "license": "MIT",
   "dependencies": {
+    "@temporalio/core-bridge": "file:../core-bridge",
     "@types/long": "^4.0.1",
     "glob": "^7.1.6",
     "long": "^4.0.0",
