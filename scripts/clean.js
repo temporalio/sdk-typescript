@@ -7,6 +7,7 @@ const JSON5 = require('json5');
 
 const packagesPath = resolve(__dirname, '../packages');
 const workerDir = resolve(packagesPath, 'worker');
+const bridgeDir = resolve(packagesPath, 'core-bridge');
 
 function cleanTsGeneratedFiles() {
   for (const package of readdirSync(packagesPath)) {
@@ -37,9 +38,9 @@ function cleanProtoGeneratedFiles() {
 
 function cleanCompiledRustFiles() {
   console.log('Cleaning compiled rust files');
-  removeSync(resolve(workerDir, 'native/releases'));
-  removeSync(resolve(workerDir, 'native/index.node'));
-  spawnSync('cargo', ['clean'], { cwd: resolve(workerDir, 'native'), stdio: 'inherit' });
+  removeSync(resolve(bridgeDir, 'releases'));
+  removeSync(resolve(bridgeDir, 'index.node'));
+  spawnSync('cargo', ['clean'], { cwd: bridgeDir, stdio: 'inherit' });
 }
 
 function cleanCompiledCppFiles() {

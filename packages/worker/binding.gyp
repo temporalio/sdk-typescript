@@ -18,7 +18,7 @@
         'VCCLCompilerTool': { 'ExceptionHandling': 1 },
       },
       'sources': [
-        'native/workflow-isolate-extension.cc',
+        'workflow-isolate-extension.cc',
       ],
     },
   ],

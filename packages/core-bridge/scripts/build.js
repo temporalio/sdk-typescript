@@ -3,7 +3,7 @@ const os = require('os');
 const fs = require('fs');
 const { spawnSync } = require('child_process');
 
-process.chdir(path.resolve(__dirname, '../native'));
+process.chdir(path.resolve(__dirname, '..'));
 
 const targets = ['x86_64-apple-darwin', 'aarch64-apple-darwin', 'x86_64-unknown-linux-gnu', 'x86_64-pc-windows-gnu'];
 
@@ -73,8 +73,8 @@ function usePrebuilt() {
   if (arch === undefined) {
     throw new PrebuildError(`No prebuilt module for platform ${os.platform()}`);
   }
-  const source = path.resolve(__dirname, '../native/releases', `${arch}-${platform}`, 'index.node');
-  const target = path.resolve(__dirname, '../native', 'index.node');
+  const source = path.resolve(__dirname, '../releases', `${arch}-${platform}`, 'index.node');
+  const target = path.resolve(__dirname, '..', 'index.node');
   try {
     fs.copyFileSync(source, target);
     console.log('Copied prebuilt bridge module', { source, target });

@@ -9,7 +9,7 @@ const pbts = require('protobufjs/cli/pbts');
 const outputDir = resolve(__dirname, '../lib');
 const jsOutputFile = resolve(outputDir, 'index.js');
 const dtsOutputFile = resolve(outputDir, 'index.d.ts');
-const protoBaseDir = resolve(__dirname, '../../worker/native/sdk-core/protos');
+const protoBaseDir = resolve(__dirname, '../../core-bridge/sdk-core/protos');
 mkdirsSync(outputDir);
 
 const coreProtoPath = resolve(protoBaseDir, 'local/core_interface.proto');
