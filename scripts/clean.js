@@ -48,7 +48,7 @@ function cleanCompiledCppFiles() {
 }
 
 const { '--only': only } = arg({ '--only': [String] });
-const components = new Set(only.length === 0 ? ['ts', 'proto', 'rust', 'cpp'] : only);
+const components = new Set(only === undefined || only.length === 0 ? ['ts', 'proto', 'rust', 'cpp'] : only);
 if (components.has('ts')) cleanTsGeneratedFiles();
 if (components.has('proto')) cleanProtoGeneratedFiles();
 if (components.has('rust')) cleanCompiledRustFiles();
