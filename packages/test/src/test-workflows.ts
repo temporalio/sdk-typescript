@@ -1182,6 +1182,8 @@ test('cancellation-error-is-propagated', async (t) => {
         CancelledError: Cancelled
             at CancellationScope.cancel
             at eval
+            at eval
+            at AsyncLocalStorage.run
             at CancellationScope.run
             at Function.cancellable
             at Object.main

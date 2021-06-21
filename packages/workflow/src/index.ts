@@ -66,6 +66,7 @@ export {
 export { CancelledError, DeterminismViolationError, IllegalStateError } from './errors';
 export { Context, ContextImpl, sleep, uuid4, validateActivityOptions, scheduleActivity } from './workflow';
 export * from './interceptors';
+export { AsyncLocalStorage } from './async-local-storage';
 export { CancellationScope, CancellationScopeOptions } from './cancellation-scope';
 export { Trigger } from './trigger';
 export { defaultDataConverter, DataConverter } from './converter/data-converter';

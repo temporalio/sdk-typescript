@@ -3,7 +3,7 @@ import { state } from './internals';
 import { WorkflowInterceptors } from './interceptors';
 import { msToTs } from './time';
 import { alea } from './alea';
-import { IsolateExtension, ScopeHookManager } from './promise-hooks';
+import { IsolateExtension, HookManager } from './promise-hooks';
 import { DeterminismViolationError } from './errors';
 
 export function overrideGlobals(): void {
@@ -79,5 +79,5 @@ export function initWorkflow(
   state.interceptors = interceptors;
   state.info = info;
   state.random = alea(randomnessSeed);
-  new ScopeHookManager(isolateExtension);
+  HookManager.instance.setIsolateExtension(isolateExtension);
 }
