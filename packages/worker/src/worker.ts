@@ -33,6 +33,7 @@ import {
 } from 'rxjs/operators';
 import ivm from 'isolated-vm';
 import ms from 'ms';
+import * as native from '@temporalio/core-bridge';
 import { coresdk } from '@temporalio/proto';
 import { ActivityOptions, ApplyMode, ExternalDependencies, WorkflowInfo } from '@temporalio/workflow';
 import { Info as ActivityInfo } from '@temporalio/activity';
@@ -44,7 +45,6 @@ import {
   DataConverter,
   defaultDataConverter,
 } from '@temporalio/workflow/lib/converter/data-converter';
-import * as native from '../native';
 import { closeableGroupBy, mergeMapWithState } from './rxutils';
 import { Workflow } from './workflow';
 import { Activity } from './activity';
@@ -53,6 +53,7 @@ import { WorkflowIsolateBuilder } from './isolate-builder';
 import * as errors from './errors';
 import { tracer, instrument, childSpan } from './tracing';
 import { InjectedDependencies, getIvmTransferOptions } from './dependencies';
+import { ActivityExecuteInput, WorkerInterceptors } from './interceptors';
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
 import pkg from '../package.json';
@@ -247,6 +248,10 @@ export interface WorkerOptions {
    */
   isolateExecutionTimeout?: string;
 
+  /**
+   * A mapping of interceptor type to a list of factories or module paths
+   */
+  interceptors?: WorkerInterceptors;
   // TODO: implement all of these
   // maxConcurrentLocalActivityExecutions?: number; // defaults to 200
   // maxTaskQueueActivitiesPerSecond?: number;
@@ -373,6 +378,8 @@ export type State =
   | 'SUSPENDED';
 
 type ExtractToPromise<T> = T extends (err: any, result: infer R) => void ? Promise<R> : never;
+// For some reason the lint rule doesn't realize that _I should be ignored
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 type Last<T extends any[]> = T extends [...infer _I, infer L] ? L : never;
 type LastParameter<F extends (...args: any) => any> = Last<Parameters<F>>;
 type OmitFirst<T> = T extends [any, ...infer REST] ? REST : never;
@@ -492,7 +499,8 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
         compiledOptions.nodeModulesPath,
         compiledOptions.workflowsPath,
         resolvedActivities,
-        compiledOptions.activityDefaults
+        compiledOptions.activityDefaults,
+        compiledOptions.interceptors?.workflowModules
       );
       isolate = await builder.build();
     }
@@ -661,7 +669,7 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
             // so it can be cancelled if requested
             let output:
               | { type: 'result'; result: coresdk.activity_result.IActivityResult }
-              | { type: 'run'; activity: Activity };
+              | { type: 'run'; activity: Activity; input: ActivityExecuteInput };
             const { taskToken, variant, activityId } = task;
             if (!variant) {
               throw new TypeError('Got an activity task without a "variant" attribute');
@@ -692,16 +700,26 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
                   };
                   break;
                 }
-                const args = arrayFromPayloads(this.options.dataConverter, task?.start?.input);
+                const args = arrayFromPayloads(this.options.dataConverter, task.start?.input);
+                const headers = new Map(Object.entries(task.start?.headerFields ?? {}));
+                const input = {
+                  args,
+                  headers,
+                };
                 this.log.debug('Starting activity', { activityId, path, fnName });
 
-                activity = new Activity(info, fn, args, this.options.dataConverter, (details) =>
-                  this.activityHeartbeatSubject.next({
-                    taskToken,
-                    details,
-                  })
+                activity = new Activity(
+                  info,
+                  fn,
+                  this.options.dataConverter,
+                  (details) =>
+                    this.activityHeartbeatSubject.next({
+                      taskToken,
+                      details,
+                    }),
+                  { inbound: this.options.interceptors?.activityInbound }
                 );
-                output = { type: 'run', activity };
+                output = { type: 'run', activity, input };
                 break;
               }
               case 'cancel': {
@@ -727,7 +745,7 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
             if (output.type === 'result') {
               return { taskToken, result: output.result };
             }
-            const result = await output.activity.run();
+            const result = await output.activity.run(output.input);
             const status = result.failed ? 'failed' : result.completed ? 'completed' : 'cancelled';
             this.log.debug('Activity resolved', { activityId: output.activity.info.activityId, status });
             if (result.canceled) {
@@ -902,7 +920,7 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
   /**
    * Inject default console log and user provided external dependencies into a Workflow isolate
    */
-  protected async injectDependencies(workflow: Workflow) {
+  protected async injectDependencies(workflow: Workflow): Promise<void> {
     await workflow.injectGlobal(
       'console.log',
       (...args: any[]) => {

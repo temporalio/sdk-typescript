@@ -1,15 +1,13 @@
 {
   "name": "@temporalio/worker",
-  "version": "0.3.0",
+  "version": "0.4.2",
   "description": "Temporal.io SDK Worker sub-package",
   "main": "lib/index.js",
   "types": "./lib/index.d.ts",
   "gypfile": true,
   "scripts": {
-    "build-rust": "node ./scripts/build-rust.js",
-    "build-cpp": "node-gyp rebuild --release",
-    "build": "npm run build-cpp && TEMPORAL_WORKER_FORCE_BUILD=true npm run build-rust",
-    "install": "npm run build-cpp && npm run build-rust"
+    "build": "node-gyp rebuild --release",
+    "install": "npm run build"
   },
   "keywords": [
     "temporal",
@@ -20,8 +18,9 @@
   "author": "Roey Berman <roey@temporal.io>",
   "license": "MIT",
   "dependencies": {
-    "@opentelemetry/api": "^1.0.0-rc.0",
+    "@opentelemetry/api": "^0.20.0",
     "@temporalio/activity": "file:../activity",
+    "@temporalio/core-bridge": "file:../core-bridge",
     "@temporalio/proto": "file:../proto",
     "@temporalio/workflow": "file:../workflow",
     "abort-controller": "^3.0.0",
@@ -44,14 +43,7 @@
   "homepage": "https://github.com/temporalio/sdk-node/tree/main/packages/worker",
   "files": [
     "lib",
-    "scripts",
-    "native/src",
-    "native/releases",
-    "native/build.rs",
-    "native/sdk-core",
-    "native/Cargo.toml",
-    "native/Cargo.lock",
-    "native/workflow-isolate-extension.cc",
+    "workflow-isolate-extension.cc",
     "binding.gyp"
   ],
   "publishConfig": {

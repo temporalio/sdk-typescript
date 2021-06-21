@@ -117,16 +117,6 @@ export interface ActivityFunction<P extends any[], R> {
   (...args: P): Promise<R>;
 }
 
-export interface Scope {
-  parent?: Scope;
-  requestCancel: CancellationFunction;
-  completeCancel: CancellationFunction;
-  associated: boolean;
-}
-
-export type CancellationFunction = (err: any) => void;
-export type CancellationFunctionFactory = (reject: CancellationFunction, scope: Scope) => CancellationFunction;
-
 export type WorkflowReturnType = any;
 export type WorkflowSignalType = (...args: any[]) => Promise<void> | void;
 export type WorkflowQueryType = (...args: any[]) => any;

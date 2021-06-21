@@ -1,15 +1,55 @@
 import {
   ActivityFunction,
   ActivityOptions,
-  CancellationFunctionFactory,
   ExternalDependencies,
   RemoteActivityOptions,
   WorkflowInfo,
 } from './interfaces';
-import { state, currentScope, childScope, propagateCancellation } from './internals';
+import { state } from './internals';
 import { defaultDataConverter } from './converter/data-converter';
-import { CancellationError, IllegalStateError } from './errors';
+import { IllegalStateError } from './errors';
 import { msToTs, msOptionalStrToTs } from './time';
+import { ActivityInput, TimerInput, composeInterceptors } from './interceptors';
+import { CancellationScope, registerSleepImplementation } from './cancellation-scope';
+
+// Avoid a circular dependency
+registerSleepImplementation(sleep);
+
+/**
+ * Push a startTimer command into state accumulator and register completion
+ */
+function timerNextHandler(input: TimerInput) {
+  return new Promise<void>((resolve, reject) => {
+    const scope = CancellationScope.current();
+    if (scope.consideredCancelled) {
+      scope.cancelRequested.catch(reject);
+      return;
+    }
+    if (scope.cancellable) {
+      scope.cancelRequested.catch((err) => {
+        if (!state.completions.delete(input.seq)) {
+          return; // Already resolved
+        }
+        state.commands.push({
+          cancelTimer: {
+            timerId: `${input.seq}`,
+          },
+        });
+        reject(err);
+      });
+    }
+    state.completions.set(input.seq, {
+      resolve,
+      reject,
+    });
+    state.commands.push({
+      startTimer: {
+        timerId: `${input.seq}`,
+        startToFireTimeout: msToTs(input.durationMs),
+      },
+    });
+  });
+}
 
 /**
  * Asynchronous sleep.
@@ -21,36 +61,13 @@ import { msToTs, msOptionalStrToTs } from './time';
  */
 export function sleep(ms: number): Promise<void> {
   const seq = state.nextSeq++;
-  const cancellation: CancellationFunctionFactory = (reject) => (err) => {
-    if (!state.completions.delete(seq)) {
-      return; // Already resolved
-    }
-    state.commands.push({
-      cancelTimer: {
-        timerId: `${seq}`,
-      },
-    });
-    reject(err);
-  };
 
-  return childScope(
-    cancellation,
-    cancellation,
-    () =>
-      new Promise((resolve, reject) => {
-        state.completions.set(seq, {
-          resolve,
-          reject,
-          scope: currentScope(),
-        });
-        state.commands.push({
-          startTimer: {
-            timerId: `${seq}`,
-            startToFireTimeout: msToTs(ms),
-          },
-        });
-      })
-  );
+  const execute = composeInterceptors(state.interceptors.outbound, 'startTimer', timerNextHandler);
+
+  return execute({
+    durationMs: ms,
+    seq,
+  });
 }
 
 export interface ActivityInfo {
@@ -74,53 +91,70 @@ export function validateActivityOptions(options: ActivityOptions): asserts optio
 }
 
 /**
+ * Push a scheduleActivity command into state accumulator and register completion
+ */
+function scheduleActivityNextHandler({ options, args, headers, seq, activityType }: ActivityInput): Promise<unknown> {
+  validateActivityOptions(options);
+  return new Promise((resolve, reject) => {
+    const scope = CancellationScope.current();
+    if (scope.consideredCancelled) {
+      scope.cancelRequested.catch(reject);
+      return;
+    }
+    if (scope.cancellable) {
+      scope.cancelRequested.catch(() => {
+        state.commands.push({
+          requestCancelActivity: {
+            activityId: `${seq}`,
+          },
+        });
+      });
+    }
+    state.completions.set(seq, {
+      resolve,
+      reject,
+    });
+    state.commands.push({
+      scheduleActivity: {
+        activityId: `${seq}`,
+        activityType,
+        arguments: defaultDataConverter.toPayloads(...args),
+        retryPolicy: options.retry
+          ? {
+              maximumAttempts: options.retry.maximumAttempts,
+              initialInterval: msOptionalStrToTs(options.retry.initialInterval),
+              maximumInterval: msOptionalStrToTs(options.retry.maximumInterval),
+              backoffCoefficient: options.retry.backoffCoefficient,
+              // TODO: nonRetryableErrorTypes
+            }
+          : undefined,
+        taskQueue: options.taskQueue || state.info?.taskQueue,
+        heartbeatTimeout: msOptionalStrToTs(options.heartbeatTimeout),
+        scheduleToCloseTimeout: msOptionalStrToTs(options.scheduleToCloseTimeout),
+        startToCloseTimeout: msOptionalStrToTs(options.startToCloseTimeout),
+        scheduleToStartTimeout: msOptionalStrToTs(options.scheduleToStartTimeout),
+        namespace: options.namespace,
+        headerFields: Object.fromEntries(headers.entries()),
+      },
+    });
+  });
+}
+
+/**
+ * Schedule an activity and run outbound interceptors
  * @hidden
  */
 export function scheduleActivity<R>(activityType: string, args: any[], options: ActivityOptions): Promise<R> {
-  validateActivityOptions(options);
   const seq = state.nextSeq++;
-  return childScope(
-    () => (_err) => {
-      state.commands.push({
-        requestCancelActivity: {
-          activityId: `${seq}`,
-          // TODO: reason: err instanceof Error ? err.message : undefined,
-        },
-      });
-    },
-    (reject) => reject,
-    () =>
-      new Promise((resolve, reject) => {
-        state.completions.set(seq, {
-          resolve,
-          reject,
-          scope: currentScope(),
-        });
-        state.commands.push({
-          scheduleActivity: {
-            activityId: `${seq}`,
-            activityType,
-            arguments: defaultDataConverter.toPayloads(...args),
-            retryPolicy: options.retry
-              ? {
-                  maximumAttempts: options.retry.maximumAttempts,
-                  initialInterval: msOptionalStrToTs(options.retry.initialInterval),
-                  maximumInterval: msOptionalStrToTs(options.retry.maximumInterval),
-                  backoffCoefficient: options.retry.backoffCoefficient,
-                  // TODO: nonRetryableErrorTypes
-                }
-              : undefined,
-            taskQueue: options.taskQueue || state.info?.taskQueue,
-            heartbeatTimeout: msOptionalStrToTs(options.heartbeatTimeout),
-            scheduleToCloseTimeout: msOptionalStrToTs(options.scheduleToCloseTimeout),
-            startToCloseTimeout: msOptionalStrToTs(options.startToCloseTimeout),
-            scheduleToStartTimeout: msOptionalStrToTs(options.scheduleToStartTimeout),
-            namespace: options.namespace,
-            // TODO: add header with interceptors
-          },
-        });
-      })
-  );
+  const execute = composeInterceptors(state.interceptors.outbound, 'scheduleActivity', scheduleActivityNextHandler);
+
+  return execute({
+    activityType: activityType,
+    headers: new Map(),
+    options,
+    args,
+    seq,
+  }) as Promise<R>;
 }
 
 function activityInfo(activity: string | [string, string] | ActivityFunction<any, any>): ActivityInfo {
@@ -194,7 +228,7 @@ export class ContextImpl {
   /**
    * Returns whether or not this workflow received a cancellation request.
    *
-   * The workflow might still be running in case {@link CancellationError}s were caught.
+   * The workflow might still be running in case {@link CancelledError}s were caught.
    */
   public get cancelled(): boolean {
     return state.cancelled;
@@ -258,60 +292,6 @@ export class ContextImpl {
  * Holds context of current running workflow
  */
 export const Context = new ContextImpl();
-
-/**
- * Wraps Promise returned from `fn` with a cancellation scope.
- * The returned Promise may be be cancelled with `cancel()` and will be cancelled
- * if a parent scope is cancelled, e.g. when the entire workflow is cancelled.
- *
- * @see {@link https://docs.temporal.io/docs/node/workflow-scopes-and-cancellation | Workflow scopes and cancellation}
- */
-export function cancellationScope<T>(fn: () => Promise<T>): Promise<T> {
-  return childScope(propagateCancellation('requestCancel'), propagateCancellation('completeCancel'), fn);
-}
-
-const ignoreCancellation = () => () => undefined;
-
-/**
- * Wraps the Promise returned from `fn` with a shielded scope.
- * Any child scopes of this scope will *not* be cancelled if `shield` is cancelled.
- * By default `shield` throws the original {@link CancellationError} in order for any awaiter
- * to immediately be notified of the cancellation.
- * @param throwOnCancellation - Pass false in case the result of the shielded `Promise` is needed
- * despite cancellation. To see if the workflow was cancelled while waiting, check `Context.cancelled`.
- * @see {@link https://docs.temporal.io/docs/node/workflow-scopes-and-cancellation | Workflow scopes and cancellation}
- */
-export function shield<T>(fn: () => Promise<T>, throwOnCancellation = true): Promise<T> {
-  const cancellationFunction: CancellationFunctionFactory = throwOnCancellation
-    ? (cancel) => cancel
-    : ignoreCancellation;
-  return childScope(cancellationFunction, cancellationFunction, fn);
-}
-
-/**
- * Cancel a scope created by an activity, timer or cancellationScope.
- *
- * @see {@link https://docs.temporal.io/docs/node/workflow-scopes-and-cancellation | Workflow scopes and cancellation}
- */
-export function cancel(promise: Promise<any>, reason = 'Cancelled'): void {
-  if (state.isolateExtension === undefined) {
-    // This shouldn't happen
-    throw new Error('Uninitialized workflow');
-  }
-  const data = state.isolateExtension.getPromiseData(promise);
-  if (data === undefined) {
-    throw new Error('Expected to find promise scope, got undefined');
-  }
-  if (!data.cancellable) {
-    throw new Error('Promise is not cancellable');
-  }
-
-  try {
-    data.scope.requestCancel(new CancellationError(reason, 'internal'));
-  } catch (e) {
-    if (!(e instanceof CancellationError)) throw e;
-  }
-}
 
 /**
  * Generate an RFC compliant V4 uuid.

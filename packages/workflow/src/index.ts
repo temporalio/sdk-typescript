@@ -38,9 +38,8 @@
  * It is safe to call `Math.random()` and `Date()` in workflow code as they are replaced with deterministic versions. We also provide a deterministic {@link uuid4} function for convenience.
  *
  * ### [Cancellation and scopes](https://docs.temporal.io/docs/node/workflow-scopes-and-cancellation)
- * - {@link cancel}
- * - {@link shield}
- * - {@link cancellationScope}
+ * - {@link CancellationScope}
+ * - {@link Trigger}
  *
  * ### [External dependencies](https://docs.temporal.io/docs/node/workflow-external-dependencies)
  * - {@link ExternalDependencies}
@@ -64,15 +63,9 @@ export {
   Workflow,
   WorkflowInfo,
 } from './interfaces';
-export { CancellationError, CancellationSource, DeterminismViolationError } from './errors';
-export {
-  Context,
-  ContextImpl,
-  sleep,
-  cancel,
-  cancellationScope,
-  shield,
-  uuid4,
-  validateActivityOptions,
-  scheduleActivity,
-} from './workflow';
+export { CancelledError, DeterminismViolationError, IllegalStateError } from './errors';
+export { Context, ContextImpl, sleep, uuid4, validateActivityOptions, scheduleActivity } from './workflow';
+export * from './interceptors';
+export { CancellationScope, CancellationScopeOptions } from './cancellation-scope';
+export { Trigger } from './trigger';
+export { defaultDataConverter, DataConverter } from './converter/data-converter';

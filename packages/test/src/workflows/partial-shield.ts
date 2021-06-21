@@ -1,9 +1,9 @@
-import { CancellationError, shield, sleep } from '@temporalio/workflow';
+import { CancelledError, CancellationScope, sleep } from '@temporalio/workflow';
 
 export async function main(): Promise<void> {
   try {
     await Promise.all([
-      shield(async () => {
+      CancellationScope.nonCancellable(async () => {
         await sleep(5);
         await sleep(1);
       }),
@@ -13,10 +13,10 @@ export async function main(): Promise<void> {
       })(),
     ]);
   } catch (e) {
-    if (e instanceof CancellationError) {
+    if (e instanceof CancelledError) {
       console.log('Workflow cancelled');
     }
     // Let the shielded sleep be triggered before completion
-    await sleep(10);
+    await CancellationScope.nonCancellable(() => sleep(10));
   }
 }

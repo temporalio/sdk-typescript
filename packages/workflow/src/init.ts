@@ -1,7 +1,9 @@
-import { Scope, Workflow, WorkflowInfo } from './interfaces';
-import { state, currentScope, IsolateExtension } from './internals';
+import { Workflow, WorkflowInfo } from './interfaces';
+import { state } from './internals';
+import { WorkflowInterceptors } from './interceptors';
 import { msToTs } from './time';
 import { alea } from './alea';
+import { IsolateExtension, ScopeHookManager } from './promise-hooks';
 import { DeterminismViolationError } from './errors';
 
 export function overrideGlobals(): void {
@@ -36,7 +38,6 @@ export function overrideGlobals(): void {
     state.completions.set(seq, {
       resolve: () => cb(...args),
       reject: () => undefined /* ignore cancellation */,
-      scope: currentScope(),
     });
     state.commands.push({
       startTimer: {
@@ -65,7 +66,8 @@ export function initWorkflow(
   workflow: Workflow,
   info: WorkflowInfo,
   randomnessSeed: number[],
-  isolateExtension: IsolateExtension
+  isolateExtension: IsolateExtension,
+  interceptors: WorkflowInterceptors
 ): void {
   // Globals are overridden while building the isolate before loading user code.
   // For some reason the `WeakRef` mock is not restored properly when creating an isolate from snapshot in node 14 (at least on ubuntu), override again.
@@ -74,50 +76,8 @@ export function initWorkflow(
   };
 
   state.workflow = workflow;
+  state.interceptors = interceptors;
   state.info = info;
   state.random = alea(randomnessSeed);
-  state.isolateExtension = isolateExtension;
-  isolateExtension.registerPromiseHook((t, p, pp) => {
-    switch (t) {
-      case 'init': {
-        const scope = currentScope();
-        const cancellable = !scope.associated;
-        if (pp === undefined) {
-          isolateExtension.setPromiseData(p, { scope, cancellable });
-        } else {
-          let parentScope: Scope;
-          let parentData = isolateExtension.getPromiseData(pp);
-          if (parentData === undefined) {
-            parentScope = scope;
-            parentData = { scope: parentScope, cancellable: false };
-            isolateExtension.setPromiseData(pp, parentData);
-          } else {
-            parentScope = parentData.scope;
-          }
-          isolateExtension.setPromiseData(p, { scope: parentScope, cancellable });
-        }
-        scope.associated = true;
-        break;
-      }
-      case 'resolve': {
-        const data = isolateExtension.getPromiseData(p);
-        if (data === undefined) {
-          throw new Error('Expected promise to have an associated scope');
-        }
-        if (data.cancellable) {
-          if (data.scope.parent === undefined) {
-            throw new Error('Resolved promise for orphan scope');
-          }
-          const scopes = state.childScopes.get(data.scope.parent);
-          if (scopes === undefined) {
-            throw new Error('Expected promise to have an associated scope');
-          }
-          scopes.delete(data.scope);
-          if (scopes.size === 0) {
-            state.childScopes.delete(data.scope.parent);
-          }
-        }
-      }
-    }
-  });
+  new ScopeHookManager(isolateExtension);
 }

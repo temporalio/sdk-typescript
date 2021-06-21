@@ -12,10 +12,10 @@
 import os from 'os';
 import * as grpc from '@grpc/grpc-js';
 import { v4 as uuid4 } from 'uuid';
-import ms from 'ms';
 import * as iface from '@temporalio/proto';
+import { composeInterceptors } from '@temporalio/workflow';
 import { Workflow, WorkflowSignalType, WorkflowQueryType } from '@temporalio/workflow/lib/interfaces';
-import { msToTs, nullToUndefined } from '@temporalio/workflow/lib/time';
+import { nullToUndefined } from '@temporalio/workflow/lib/time';
 import { ResolvablePromise } from '@temporalio/workflow/lib/common';
 import {
   arrayFromPayloads,
@@ -24,15 +24,24 @@ import {
   mapToPayloads,
 } from '@temporalio/workflow/lib/converter/data-converter';
 import * as errors from '@temporalio/workflow/lib/errors';
+import {
+  WorkflowOptions,
+  WorkflowOptionsWithDefaults,
+  CompiledWorkflowOptions,
+  addDefaults,
+  compileWorkflowOptions,
+} from './workflow-options';
+import { ConnectionInterceptors, WorkflowSignalInput, WorkflowTerminateInput } from './interceptors';
+import {
+  StartWorkflowExecutionRequest,
+  GetWorkflowExecutionHistoryRequest,
+  DescribeWorkflowExecutionResponse,
+  TerminateWorkflowExecutionResponse,
+  RequestCancelWorkflowExecutionResponse,
+} from './types';
 
-type StartWorkflowExecutionRequest = iface.temporal.api.workflowservice.v1.IStartWorkflowExecutionRequest;
-type GetWorkflowExecutionHistoryRequest = iface.temporal.api.workflowservice.v1.IGetWorkflowExecutionHistoryRequest;
-export type DescribeWorkflowExecutionResponse =
-  iface.temporal.api.workflowservice.v1.IDescribeWorkflowExecutionResponse;
-export type TerminateWorkflowExecutionResponse =
-  iface.temporal.api.workflowservice.v1.ITerminateWorkflowExecutionResponse;
-export type RequestCancelWorkflowExecutionResponse =
-  iface.temporal.api.workflowservice.v1.IRequestCancelWorkflowExecutionResponse;
+export * from './types';
+export * from './workflow-options';
 
 export type WorkflowService = iface.temporal.api.workflowservice.v1.WorkflowService;
 export const { WorkflowService } = iface.temporal.api.workflowservice.v1;
@@ -167,7 +176,7 @@ export interface WorkflowClient<T extends Workflow> {
   /**
    * Readonly accessor to the compiled workflow options (with ms strings converted to numbers)
    */
-  readonly compiledOptions: CompiledWorkflowOptionsWithDefaults;
+  readonly compiledOptions: CompiledWorkflowOptions;
   readonly connection: Connection;
 }
 
@@ -214,6 +223,13 @@ export interface ConnectionOptions {
    * @see options {@link https://grpc.github.io/grpc/core/group__grpc__arg__keys.html | here}
    */
   channelArgs?: Record<string, any>;
+
+  /**
+   * Used to override and extend default Connection functionality
+   *
+   * Useful for injecting auth headers and tracing Workflow executions
+   */
+  interceptors?: ConnectionInterceptors;
 }
 
 export type ConnectionOptionsWithDefaults = Required<Omit<ConnectionOptions, 'tls'>>;
@@ -227,137 +243,7 @@ export function defaultConnectionOpts(): ConnectionOptionsWithDefaults {
     // ManagementFactory.getRuntimeMXBean().getName()
     identity: `${process.pid}@${os.hostname()}`,
     channelArgs: {},
-  };
-}
-
-// Copied from https://github.com/temporalio/sdk-java/blob/master/temporal-sdk/src/main/java/io/temporal/client/WorkflowOptions.java
-export interface BaseWorkflowOptions {
-  /**
-   * Workflow namespace
-   *
-   * @default default
-   */
-  namespace?: string;
-
-  /**
-   * Workflow id to use when starting. If not specified a UUID is generated. Note that it is
-   * dangerous as in case of client side retries no deduplication will happen based on the
-   * generated id. So prefer assigning business meaningful ids if possible.
-   */
-  workflowId?: string;
-
-  /**
-   * Specifies server behavior if a completed workflow with the same id exists. Note that under no
-   * conditions Temporal allows two workflows with the same namespace and workflow id run
-   * simultaneously.
-   *   ALLOW_DUPLICATE_FAILED_ONLY is a default value. It means that workflow can start if
-   *   previous run failed or was canceled or terminated.
-   *   ALLOW_DUPLICATE allows new run independently of the previous run closure status.
-   *   REJECT_DUPLICATE doesn't allow new run independently of the previous run closure status.
-   */
-  workflowIdReusePolicy?: iface.temporal.api.enums.v1.WorkflowIdReusePolicy;
-
-  /**
-   * Task queue to use for workflow tasks. It should match a task queue specified when creating a
-   * `Worker` that hosts the workflow code.
-   */
-  taskQueue: string;
-
-  retryPolicy?: iface.temporal.api.common.v1.IRetryPolicy;
-
-  /**
-   * Optional cron schedule for Workflow. If a cron schedule is specified, the Workflow will run
-   * as a cron based on the schedule. The scheduling will be based on UTC time. The schedule for the next run only happens
-   * after the current run is completed/failed/timeout. If a RetryPolicy is also supplied, and the Workflow failed
-   * or timed out, the Workflow will be retried based on the retry policy. While the Workflow is retrying, it won't
-   * schedule its next run. If the next schedule is due while the Workflow is running (or retrying), then it will skip that
-   * schedule. Cron Workflow will not stop until it is terminated or cancelled (by returning temporal.CanceledError).
-   * https://crontab.guru/ is useful for testing your cron expressions.
-   */
-  cronSchedule?: string;
-
-  /**
-   * Specifies additional non-indexed information in result of list workflow. The type of value
-   * can be any object that are serializable by `DataConverter`.
-   */
-  memo?: Record<string, any>;
-
-  /**
-   * Specifies additional indexed information in result of list workflow. The type of value should
-   * be a primitive (e.g. string, number, boolean), for dates use Date.toISOString();
-   */
-  searchAttributes?: Record<string, string | number | boolean>;
-
-  // TODO: Support interceptors
-}
-
-export interface WorkflowDurationOptions {
-  /**
-   * The time after which workflow run is automatically terminated by Temporal service. Do not
-   * rely on run timeout for business level timeouts. It is preferred to use in workflow timers
-   * for this purpose.
-   *
-   * @format {@link https://www.npmjs.com/package/ms | ms} formatted string
-   */
-  workflowRunTimeout?: string;
-
-  /**
-   *
-   * The time after which workflow execution (which includes run retries and continue as new) is
-   * automatically terminated by Temporal service. Do not rely on execution timeout for business
-   * level timeouts. It is preferred to use in workflow timers for this purpose.
-   *
-   * @format {@link https://www.npmjs.com/package/ms | ms} formatted string
-   */
-  workflowExecutionTimeout?: string;
-
-  /**
-   * Maximum execution time of a single workflow task. Default is 10 seconds.
-   *
-   * @format {@link https://www.npmjs.com/package/ms | ms} formatted string
-   */
-  workflowTaskTimeout?: string;
-}
-
-export type WorkflowOptions = BaseWorkflowOptions & WorkflowDurationOptions;
-
-export type RequiredWorkflowOptions = Required<
-  Pick<BaseWorkflowOptions, 'workflowId' | 'workflowIdReusePolicy' | 'taskQueue' | 'namespace'>
->;
-
-export type WorkflowOptionsWithDefaults = WorkflowOptions & RequiredWorkflowOptions;
-
-export type CompiledWorkflowOptionsWithDefaults = BaseWorkflowOptions &
-  RequiredWorkflowOptions & {
-    workflowExecutionTimeout?: iface.google.protobuf.IDuration;
-    workflowRunTimeout?: iface.google.protobuf.IDuration;
-    workflowTaskTimeout?: iface.google.protobuf.IDuration;
-  };
-
-/**
- * Adds default values to `workflowId` and `workflowIdReusePolicy` to given workflow options.
- */
-export function addDefaults(opts: WorkflowOptions): WorkflowOptionsWithDefaults {
-  return {
-    workflowId: uuid4(),
-    namespace: 'default',
-    workflowIdReusePolicy:
-      iface.temporal.api.enums.v1.WorkflowIdReusePolicy.WORKFLOW_ID_REUSE_POLICY_ALLOW_DUPLICATE_FAILED_ONLY,
-    ...opts,
-  };
-}
-
-export function compileWorkflowOptions({
-  workflowExecutionTimeout,
-  workflowRunTimeout,
-  workflowTaskTimeout,
-  ...rest
-}: WorkflowOptionsWithDefaults): CompiledWorkflowOptionsWithDefaults {
-  return {
-    ...rest,
-    workflowExecutionTimeout: workflowExecutionTimeout ? msToTs(ms(workflowExecutionTimeout)) : undefined,
-    workflowRunTimeout: workflowRunTimeout ? msToTs(ms(workflowRunTimeout)) : undefined,
-    workflowTaskTimeout: workflowTaskTimeout ? msToTs(ms(workflowTaskTimeout)) : undefined,
+    interceptors: {},
   };
 }
 
@@ -453,11 +339,7 @@ export class Connection {
     });
   }
 
-  public async startWorkflowExecution(
-    opts: CompiledWorkflowOptionsWithDefaults,
-    name: string,
-    ...args: any[]
-  ): Promise<string> {
+  public async startWorkflowExecution(opts: CompiledWorkflowOptions, name: string, ...args: any[]): Promise<string> {
     const { identity, dataConverter } = this.options;
     const req: StartWorkflowExecutionRequest = {
       namespace: opts.namespace,
@@ -482,6 +364,7 @@ export class Connection {
           }
         : undefined,
       cronSchedule: opts.cronSchedule,
+      header: { fields: Object.fromEntries(opts.headers.entries()) },
     };
     const res = await this.service.startWorkflowExecution(req);
     return res.runId;
@@ -558,12 +441,60 @@ export class Connection {
     }
   }
 
+  /**
+   * Uses given input to make a signalWorkflowExecution call to the service
+   *
+   * Used as the final function of the signal interceptor chain
+   */
+  protected async _signalWorkflowHandler(input: WorkflowSignalInput): Promise<void> {
+    await this.service.signalWorkflowExecution({
+      identity: this.options.identity,
+      namespace: input.namespace,
+      workflowExecution: input.workflowExecution,
+      requestId: uuid4(),
+      // control is unused,
+      signalName: input.signalName,
+      input: { payloads: this.options.dataConverter.toPayloads(...input.args) },
+    });
+  }
+
+  /**
+   * Uses given input to make terminateWorkflowExecution call to the service
+   *
+   * Used as the final function of the signal interceptor chain
+   */
+  protected async _terminateWorkflowHandler(
+    namespace: string,
+    input: WorkflowTerminateInput
+  ): Promise<TerminateWorkflowExecutionResponse> {
+    return this.service.terminateWorkflowExecution({
+      namespace,
+      identity: this.options.identity,
+      ...input,
+      details: { payloads: this.options.dataConverter.toPayloads(input.details) },
+    });
+  }
+
   public workflow<T extends Workflow>(name: string, options: WorkflowOptions): WorkflowClient<T> {
     // eslint-disable-next-line @typescript-eslint/no-this-alias
     const optionsWithDefaults = addDefaults(options);
     const compiledOptions = compileWorkflowOptions(optionsWithDefaults);
     const started = new ResolvablePromise<string>();
 
+    const interceptors = (this.options.interceptors.workflowClient ?? []).map((ctor) => ctor(compiledOptions));
+    const start = composeInterceptors(interceptors, 'start', async ({ args, name, headers }) => {
+      let runId: string;
+      try {
+        runId = await this.startWorkflowExecution({ ...compiledOptions, headers }, name, ...args);
+        // runId is readonly in public interface
+        (workflow as { runId?: string }).runId = runId;
+        started.resolve(runId);
+      } catch (err) {
+        started.reject(err);
+        throw err;
+      }
+      return this.untilComplete(compiledOptions.workflowId, runId, compiledOptions.namespace);
+    });
     const workflow = {
       connection: this,
       runId: undefined,
@@ -574,34 +505,21 @@ export class Connection {
       // eslint-disable-next-line @typescript-eslint/ban-ts-comment
       // @ts-ignore
       async start(...args: Parameters<T['main']>): EnsurePromise<ReturnType<T['main']>> {
-        let runId: string;
-        try {
-          runId = await this.connection.startWorkflowExecution(compiledOptions, name, ...args);
-          // runId is readonly in public interface
-          (this as { runId?: string }).runId = runId;
-          started.resolve(runId);
-        } catch (err) {
-          started.reject(err);
-          throw err;
-        }
-        return (await this.connection.untilComplete(
-          compiledOptions.workflowId,
-          runId,
-          compiledOptions.namespace
-        )) as any;
+        return (await start({
+          headers: new Map(),
+          args,
+          name,
+        })) as any;
       },
       async terminate(reason?: string) {
         // TODO: should we help our users out and wait for runId to be returned instead of throwing?
         if (this.runId === undefined) {
           throw new errors.IllegalStateError('Cannot describe a workflow before it has been started');
         }
-        return this.connection.service.terminateWorkflowExecution({
-          namespace: compiledOptions.namespace,
-          identity: this.connection.options.identity,
-          workflowExecution: {
-            runId: this.runId,
-            workflowId: compiledOptions.workflowId,
-          },
+        const next = this.connection._terminateWorkflowHandler.bind(this.connection, this.options.namespace);
+        const fn = interceptors.length ? composeInterceptors(interceptors, 'terminate', next) : next;
+        return await fn({
+          workflowExecution: { runId: workflow.runId, workflowId: workflow.workflowId },
           reason,
         });
       },
@@ -642,14 +560,13 @@ export class Connection {
             }
             // TODO: Is it OK to signal without runId, should we wait for a runId here?
             return async (...args: any[]) => {
-              this.service.signalWorkflowExecution({
-                identity: this.options.identity,
+              const next = this._signalWorkflowHandler.bind(this);
+              const fn = interceptors.length ? composeInterceptors(interceptors, 'signal', next) : next;
+              await fn({
                 namespace: compiledOptions.namespace,
-                workflowExecution: { runId: workflow.runId, workflowId: compiledOptions.workflowId },
-                requestId: uuid4(),
-                // control is unused,
+                workflowExecution: { runId: workflow.runId, workflowId: workflow.workflowId },
                 signalName,
-                input: { payloads: this.options.dataConverter.toPayloads(...args) },
+                args,
               });
             };
           },
