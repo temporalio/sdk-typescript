@@ -3,6 +3,33 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+## [0.4.2](https://github.com/temporalio/sdk-node/compare/@temporalio/client@0.4.1...@temporalio/client@0.4.2) (2021-06-18)
+
+**Note:** Version bump only for package @temporalio/client
+
+
+
+
+
+## [0.4.1](https://github.com/temporalio/sdk-node/compare/@temporalio/client@0.4.0...@temporalio/client@0.4.1) (2021-06-18)
+
+**Note:** Version bump only for package @temporalio/client
+
+
+
+
+
+# [0.4.0](https://github.com/temporalio/sdk-node/compare/@temporalio/client@0.3.0...@temporalio/client@0.4.0) (2021-06-16)
+
+
+### Features
+
+* **client:** Implement Connection interceptors ([b8795e4](https://github.com/temporalio/sdk-node/commit/b8795e49172b8d127807f00d569d40ce69ffba9d))
+
+
+
+
+
 # [0.3.0](https://github.com/temporalio/sdk-node/compare/@temporalio/client@0.2.0...@temporalio/client@0.3.0) (2021-05-17)
 
 

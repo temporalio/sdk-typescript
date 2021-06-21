@@ -1,13 +1,14 @@
-import { CancellationError, cancel, sleep } from '@temporalio/workflow';
+import { CancelledError, CancellationScope, sleep } from '@temporalio/workflow';
 import { Empty } from '../interfaces';
 
 async function main(): Promise<void> {
-  const timer = sleep(10000);
-  await sleep(1).then(() => cancel(timer));
+  const scope = new CancellationScope();
+  const promise = scope.run(() => sleep(10000));
+  await sleep(1).then(() => scope.cancel());
   try {
-    await timer;
+    await promise;
   } catch (e) {
-    if (e instanceof CancellationError) {
+    if (e instanceof CancelledError) {
       console.log('Timer cancelled 👍');
     } else {
       throw e;

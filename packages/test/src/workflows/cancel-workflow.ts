@@ -1,43 +1,24 @@
-import { Context, CancellationError, shield, sleep } from '@temporalio/workflow';
-// import { httpGetJSON } from '@activities';
+import { CancellationScope, CancelledError } from '@temporalio/workflow';
+import { httpGet } from '@activities';
 
-// TODO: replace with activity function once implemented
-async function httpGetJSON(url: string): Promise<any> {
-  await sleep(1);
-  return { url };
-}
-
-export async function main(url: string): Promise<any> {
-  let result: any = undefined;
-
+export async function main(url: string): Promise<string> {
   // By default timers and activities are automatically cancelled when the workflow is cancelled
-  // and will throw the original CancellationError
+  // and will throw the original CancelledError
   try {
-    result = await httpGetJSON(url);
+    return await httpGet(url);
   } catch (e) {
-    if (e instanceof CancellationError) {
-      console.log('Workflow cancelled');
-    } else {
+    if (!(e instanceof CancelledError)) {
       throw e;
     }
-  }
-
-  // Shield and await completion unless cancelled
-  try {
-    result = await shield(async () => httpGetJSON(url));
-  } catch (e) {
-    // We still want to know the workflow was cancelled
-    if (e instanceof CancellationError) {
-      console.log('Workflow cancelled');
-    } else {
-      throw e;
+    try {
+      // Activity throws because Workflow has been cancelled
+      return await httpGet(url);
+    } catch (e) {
+      if (!(e instanceof CancelledError)) {
+        throw e;
+      }
+      // Activity is allowed to complete because it's in a non cancellable scope
+      return await CancellationScope.nonCancellable(async () => httpGet(url));
     }
   }
-
-  // Shield and await completion after cancelled
-  result = await shield(async () => httpGetJSON(url), false);
-  if (Context.cancelled) {
-    console.log('Workflow cancelled');
-  }
-  return result;
 }

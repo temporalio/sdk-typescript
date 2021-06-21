@@ -15,6 +15,10 @@ export function errorToUserCodeFailure(err: unknown, nonRetryable?: boolean): co
 
 /**
  * Helper for creating promises which can be manually resolved
+ *
+ * TODO: Move this to a shared library for node packages
+ *
+ * Do not use this in Workflow code, use {@link Trigger} instead
  */
 export class ResolvablePromise<T> implements PromiseLike<T> {
   public readonly then: <TResult1 = T, TResult2 = never>(

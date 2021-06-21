@@ -1,9 +1,10 @@
-import { Scope, Workflow, WorkflowInfo } from './interfaces';
-import { state, currentScope, popScope, pushScope, IsolateExtension } from './internals';
+import { Workflow, WorkflowInfo } from './interfaces';
+import { state } from './internals';
 import { WorkflowInterceptors } from './interceptors';
 import { msToTs } from './time';
 import { alea } from './alea';
-import { DeterminismViolationError, IllegalStateError } from './errors';
+import { IsolateExtension, ScopeHookManager } from './promise-hooks';
+import { DeterminismViolationError } from './errors';
 
 export function overrideGlobals(): void {
   const global = globalThis as any;
@@ -37,7 +38,6 @@ export function overrideGlobals(): void {
     state.completions.set(seq, {
       resolve: () => cb(...args),
       reject: () => undefined /* ignore cancellation */,
-      scope: currentScope(),
     });
     state.commands.push({
       startTimer: {
@@ -79,75 +79,5 @@ export function initWorkflow(
   state.interceptors = interceptors;
   state.info = info;
   state.random = alea(randomnessSeed);
-  state.isolateExtension = isolateExtension;
-  isolateExtension.registerPromiseHook((t, p, pp) => {
-    switch (t) {
-      case 'init': {
-        const scope = currentScope();
-        const cancellable = !scope.associated;
-        if (pp === undefined) {
-          isolateExtension.setPromiseData(p, { scope, cancellable });
-        } else {
-          let parentScope: Scope;
-          let parentData = isolateExtension.getPromiseData(pp);
-          if (parentData === undefined) {
-            parentScope = scope;
-            parentData = { scope: parentScope, cancellable: false };
-            isolateExtension.setPromiseData(pp, parentData);
-          } else {
-            parentScope = parentData.scope;
-          }
-          isolateExtension.setPromiseData(p, { scope: parentScope, cancellable });
-        }
-        scope.associated = true;
-        break;
-      }
-      case 'resolve': {
-        const data = isolateExtension.getPromiseData(p);
-        if (data === undefined) {
-          throw new IllegalStateError('Expected promise to have an associated scope');
-        }
-        if (data.cancellable) {
-          if (data.scope.parent === undefined) {
-            throw new IllegalStateError('Resolved promise for orphan scope');
-          }
-          const scopes = state.childScopes.get(data.scope.parent);
-          if (scopes === undefined) {
-            break;
-          }
-          scopes.delete(data.scope);
-          if (scopes.size === 0) {
-            state.childScopes.delete(data.scope.parent);
-          }
-        }
-        break;
-      }
-      case 'before': {
-        const data = isolateExtension.getPromiseData(p);
-        if (data === undefined) {
-          throw new IllegalStateError('Expected promise to have an associated scope');
-        }
-        // TODO: All promises should have a scope attached to them,
-        // there's a bug where top level promises are not associated with the root scope
-        let scope: Scope | undefined = data.scope || state.rootScope;
-        // If scope represents an Activity or Timer, push their parent onto the stack
-        while (scope.type !== 'scope') {
-          scope = scope.parent;
-          if (scope === undefined) {
-            throw new IllegalStateError('Found parentless scope');
-          }
-        }
-        pushScope(scope);
-        break;
-      }
-      case 'after': {
-        const data = isolateExtension.getPromiseData(p);
-        if (data === undefined) {
-          throw new IllegalStateError('Expected promise to have an associated scope');
-        }
-        popScope();
-        break;
-      }
-    }
-  });
+  new ScopeHookManager(isolateExtension);
 }

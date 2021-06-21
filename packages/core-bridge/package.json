@@ -1,0 +1,37 @@
+{
+  "name": "@temporalio/core-bridge",
+  "version": "0.0.1",
+  "description": "Temporal.io SDK Core<>Node bridge",
+  "main": "index.node",
+  "types": "index.d.ts",
+  "scripts": {
+    "build": "TEMPORAL_WORKER_FORCE_BUILD=true node ./scripts/build.js",
+    "install": "node ./scripts/build.js"
+  },
+  "keywords": [
+    "temporal",
+    "workflow",
+    "core",
+    "worker"
+  ],
+  "author": "Roey Berman <roey@temporal.io>",
+  "license": "MIT",
+  "dependencies": {
+    "cargo-cp-artifact": "^0.1.4"
+  },
+  "bugs": {
+    "url": "https://github.com/temporalio/sdk-node/issues"
+  },
+  "homepage": "https://github.com/temporalio/sdk-node/tree/main/packages/core-bridge",
+  "files": [
+    "scripts",
+    "src",
+    "releases",
+    "sdk-core",
+    "Cargo.toml",
+    "Cargo.lock"
+  ],
+  "publishConfig": {
+    "access": "public"
+  }
+}

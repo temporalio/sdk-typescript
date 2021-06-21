@@ -1,4 +1,6 @@
 /** @type {import('@docusaurus/types').DocusaurusConfig} */
+const watch = ['y', 'yes', 't', 'true', '1'].includes(process.env.TYPEDOC_WATCH);
+
 module.exports = {
   title: 'Temporal NodeJS SDK API Reference',
   tagline: 'Build invincible applications',
@@ -109,22 +111,26 @@ module.exports = {
         disableSources: true,
         hideBreadcrumbs: true,
         readme: 'none',
-        watch: ['y', 'yes', 't', 'true', '1'].includes(process.env.TYPEDOC_WATCH),
+        watch,
       },
     ],
-    [
-      'docusaurus-plugin-snipsync',
-      {
-        origins: [
-          {
-            files: ['../*/src/*.ts', '../create-project/samples/*.ts'],
-          },
-        ],
-        targets: ['docs'],
-        features: {
-          enable_source_link: false,
-        },
-      },
-    ],
+    ...(watch
+      ? []
+      : [
+          [
+            'docusaurus-plugin-snipsync',
+            {
+              origins: [
+                {
+                  files: ['../*/src/**/*.ts', '../create-project/samples/*.ts'],
+                },
+              ],
+              targets: ['docs'],
+              features: {
+                enable_source_link: false,
+              },
+            },
+          ],
+        ]),
   ],
 };

@@ -1,4 +1,10 @@
 /* eslint @typescript-eslint/no-non-null-assertion: 0 */
+/**
+ * E2E Tests for the various SDK interceptors.
+ * Tests run serially to improve CI reliability..
+ * @module
+ */
+
 import test from 'ava';
 import { v4 as uuid4 } from 'uuid';
 import { Worker, DefaultLogger } from '@temporalio/worker';
@@ -10,7 +16,7 @@ import { Sleeper } from './interfaces';
 import { RUN_INTEGRATION_TESTS } from './helpers';
 
 if (RUN_INTEGRATION_TESTS) {
-  test('Tracing can be implemented using interceptors', async (t) => {
+  test.serial('Tracing can be implemented using interceptors', async (t) => {
     const taskQueue = 'test-interceptors';
     const message = uuid4();
 
@@ -59,7 +65,7 @@ if (RUN_INTEGRATION_TESTS) {
     t.is(result, message);
   });
 
-  test('WorkflowClientCallsInterceptor intercepts terminate and cancel', async (t) => {
+  test.serial('WorkflowClientCallsInterceptor intercepts terminate and cancel', async (t) => {
     const taskQueue = 'test-interceptor-term-and-cancel';
     const message = uuid4();
 

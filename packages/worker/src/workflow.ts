@@ -59,7 +59,7 @@ export class Workflow {
       dedent`
       const mod = lib.workflows[${JSON.stringify(info.filename)}];
       if (mod === undefined) {
-        throw new ReferenceError('Workflow not found');
+        throw new ReferenceError('Workflow not found: ${JSON.stringify(info.filename)}');
       }
       lib.init.initWorkflow(mod.workflow || mod, $0, $1, $2, lib.interceptors);
       `,

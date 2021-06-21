@@ -47,7 +47,7 @@ export class UndefinedPayloadConverter implements PayloadConverter {
   }
 
   public fromData<T>(_content: Payload): T {
-    return undefined as any; // Just return undeinfed
+    return undefined as any; // Just return undefined
   }
 }
 

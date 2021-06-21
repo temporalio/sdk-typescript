@@ -7,6 +7,7 @@ const JSON5 = require('json5');
 
 const packagesPath = resolve(__dirname, '../packages');
 const workerDir = resolve(packagesPath, 'worker');
+const bridgeDir = resolve(packagesPath, 'core-bridge');
 
 function cleanTsGeneratedFiles() {
   for (const package of readdirSync(packagesPath)) {
@@ -37,9 +38,9 @@ function cleanProtoGeneratedFiles() {
 
 function cleanCompiledRustFiles() {
   console.log('Cleaning compiled rust files');
-  removeSync(resolve(workerDir, 'native/releases'));
-  removeSync(resolve(workerDir, 'native/index.node'));
-  spawnSync('cargo', ['clean'], { cwd: resolve(workerDir, 'native'), stdio: 'inherit' });
+  removeSync(resolve(bridgeDir, 'releases'));
+  removeSync(resolve(bridgeDir, 'index.node'));
+  spawnSync('cargo', ['clean'], { cwd: bridgeDir, stdio: 'inherit' });
 }
 
 function cleanCompiledCppFiles() {
@@ -48,7 +49,7 @@ function cleanCompiledCppFiles() {
 }
 
 const { '--only': only } = arg({ '--only': [String] });
-const components = new Set(only.length === 0 ? ['ts', 'proto', 'rust', 'cpp'] : only);
+const components = new Set(only === undefined || only.length === 0 ? ['ts', 'proto', 'rust', 'cpp'] : only);
 if (components.has('ts')) cleanTsGeneratedFiles();
 if (components.has('proto')) cleanProtoGeneratedFiles();
 if (components.has('rust')) cleanCompiledRustFiles();
