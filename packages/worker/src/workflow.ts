@@ -2,8 +2,8 @@ import ivm from 'isolated-vm';
 import Long from 'long';
 import dedent from 'dedent';
 import { coresdk } from '@temporalio/proto';
-import * as internals from '@temporalio/workflow/lib/internals';
-import { ExternalDependencyFunction, WorkflowInfo } from '@temporalio/workflow';
+import * as internals from '@temporalio/workflow/lib/worker-interface';
+import { ActivityOptions, ExternalDependencyFunction, WorkflowInfo } from '@temporalio/workflow';
 import { ApplyMode } from './dependencies';
 
 interface WorkflowModule {
@@ -32,6 +32,8 @@ export class Workflow {
   public static async create(
     isolate: ivm.Isolate,
     info: WorkflowInfo,
+    activityDefaults: ActivityOptions,
+    interceptorModules: string[],
     randomnessSeed: Long,
     isolateExecutionTimeoutMs: number
   ): Promise<Workflow> {
@@ -47,7 +49,7 @@ export class Workflow {
     ] = await Promise.all(
       ['activate', 'concludeActivation', 'inject', 'resolveExternalDependencies', 'getAndResetPendingExternalCalls']
         .map((fn) =>
-          context.eval(`lib.internals.${fn}`, {
+          context.eval(`lib.${fn}`, {
             reference: true,
             timeout: isolateExecutionTimeoutMs,
           })
@@ -56,14 +58,8 @@ export class Workflow {
     );
 
     await context.evalClosure(
-      dedent`
-      const mod = lib.workflows[${JSON.stringify(info.filename)}];
-      if (mod === undefined) {
-        throw new ReferenceError('Workflow not found: ${JSON.stringify(info.filename)}');
-      }
-      lib.init.initWorkflow(mod.workflow || mod, $0, $1, $2, lib.interceptors);
-      `,
-      [info, randomnessSeed.toBytes(), isolateExtension.derefInto()],
+      'lib.initRuntime($0, $1, $2, $3, $4)',
+      [info, activityDefaults, interceptorModules, randomnessSeed.toBytes(), isolateExtension.derefInto()],
       { arguments: { copy: true }, timeout: isolateExecutionTimeoutMs }
     );
 

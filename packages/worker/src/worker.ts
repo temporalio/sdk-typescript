@@ -440,7 +440,6 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
         compiledOptions.nodeModulesPath,
         compiledOptions.workflowsPath,
         resolvedActivities,
-        compiledOptions.activityDefaults,
         compiledOptions.maxIsolateMemoryMB,
         compiledOptions.interceptors?.workflowModules
       );
@@ -793,6 +792,8 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
                         taskQueue: this.options.taskQueue,
                         isReplaying: activation.isReplaying,
                       },
+                      this.options.activityDefaults,
+                      this.options.interceptors?.workflowModules ?? [],
                       randomnessSeed,
                       this.options.isolateExecutionTimeoutMs
                     );
