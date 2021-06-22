@@ -10,6 +10,7 @@ import {
 } from './server-options';
 import * as native from '@temporalio/core-bridge';
 import { newCore, coreShutdown } from '@temporalio/core-bridge';
+import { GiB } from './utils';
 
 export interface CoreOptions {
   /** Options for communicating with the Temporal server */
@@ -26,7 +27,7 @@ export interface CoreOptions {
    *
    * This number is impacted by the the Worker's {@link maxIsolateMemoryMB} option.
    *
-   * @default `max(os.totalmem() / 1GB - 1, 1) * 500`
+   * @default `max(os.totalmem() / 1GiB - 1, 1) * 500`
    */
   maxCachedWorkflows?: native.CoreOptions['maxCachedWorkflows'];
 }
@@ -59,7 +60,7 @@ export class Core {
   protected static async create(options: CoreOptions): Promise<Core> {
     const compiledServerOptions = compileServerOptions({ ...getDefaultServerOptions(), ...options.serverOptions });
     const compiledOptions = {
-      maxCachedWorkflows: options.maxCachedWorkflows || Math.max(os.totalmem() / 1024 ** 3 - 1, 1) * 500,
+      maxCachedWorkflows: options.maxCachedWorkflows || Math.max(os.totalmem() / GiB - 1, 1) * 500,
       serverOptions: {
         ...compiledServerOptions,
         tls: normalizeTlsConfig(compiledServerOptions.tls),

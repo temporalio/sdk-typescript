@@ -1,3 +1,4 @@
+import os from 'os';
 import { resolve } from 'path';
 import { promisify } from 'util';
 import * as otel from '@opentelemetry/api';
@@ -45,6 +46,7 @@ import {
   defaultDataConverter,
 } from '@temporalio/workflow/lib/converter/data-converter';
 import { closeableGroupBy, mergeMapWithState } from './rxutils';
+import { GiB, MiB } from './utils';
 import { Workflow } from './workflow';
 import { Activity } from './activity';
 import { DefaultLogger, Logger } from './logger';
@@ -212,7 +214,7 @@ export interface WorkerOptions {
    *
    * If this limit is exceeded the isolate will be disposed and the worker will crash.
    *
-   * @default Infinity
+   * @default `max(os.totalmem() - 1GiB, 1GiB)`
    */
   maxIsolateMemoryMB?: number;
 
@@ -290,7 +292,7 @@ export function addDefaults<T extends WorkerSpec>(options: WorkerSpecOptions<T>)
     nonStickyToStickyPollRatio: 0.2,
     stickyQueueScheduleToStartTimeout: '10s',
     isolateExecutionTimeout: '1s',
-    maxIsolateMemoryMB: Infinity,
+    maxIsolateMemoryMB: Math.max(os.totalmem() - GiB, GiB) / MiB,
     ...rest,
   };
   return ret as WorkerOptionsWithDefaults<T>;
