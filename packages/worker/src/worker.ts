@@ -700,7 +700,20 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
                   };
                   break;
                 }
-                const args = arrayFromPayloads(this.options.dataConverter, task.start?.input);
+                let args: any[];
+                try {
+                  args = arrayFromPayloads(this.options.dataConverter, task.start?.input);
+                } catch (err) {
+                  output = {
+                    type: 'result',
+                    result: {
+                      failed: {
+                        failure: { message: `Failed to parse activity args for activity ${fnName}: ${err.message}` },
+                      },
+                    },
+                  };
+                  break;
+                }
                 const headers = new Map(Object.entries(task.start?.headerFields ?? {}));
                 const input = {
                   args,
