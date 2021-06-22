@@ -48,7 +48,7 @@ export class WorkflowIsolateBuilder {
     await this.bundle(ufs, entrypointPath, sourceDir, distDir);
     const code = ufs.readFileSync(path.join(distDir, 'main.js'), 'utf8');
     const snapshot = ivm.Isolate.createSnapshot([{ code }]);
-    return new ivm.Isolate({ snapshot, memoryLimit: 1024 });
+    return new ivm.Isolate({ snapshot, memoryLimit: this.maxIsolateMemoryMB });
   }
 
   /**
