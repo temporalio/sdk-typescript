@@ -187,7 +187,6 @@ export async function makeDefaultWorker(): Promise<Worker> {
     options.nodeModulesPath!,
     options.workflowsPath!,
     resolvedActivities,
-    options.activityDefaults,
     Infinity
   );
   const isolate = await builder.build();
