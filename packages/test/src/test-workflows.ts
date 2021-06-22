@@ -27,7 +27,7 @@ test.before(async (t) => {
   const workflowsPath = path.join(__dirname, 'workflows');
   const nodeModulesPath = path.join(__dirname, '../../../node_modules');
   const activities = new Map([['@activities', activityFunctions]]);
-  const builder = new WorkflowIsolateBuilder(logger, nodeModulesPath, workflowsPath, activities, Infinity);
+  const builder = new WorkflowIsolateBuilder(logger, nodeModulesPath, workflowsPath, activities, 1024);
   t.context.isolate = await builder.build();
 });
 
