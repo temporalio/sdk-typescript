@@ -7,7 +7,6 @@ import webpack from 'webpack';
 import * as realFS from 'fs';
 import * as memfs from 'memfs';
 import * as unionfs from 'unionfs';
-import { ActivityOptions, validateActivityOptions } from '@temporalio/workflow';
 import { Logger } from './logger';
 
 /**
@@ -27,7 +26,6 @@ export class WorkflowIsolateBuilder {
     public readonly nodeModulesPath: string,
     public readonly workflowsPath: string,
     public readonly activities: Map<string, Record<string, any>>,
-    public readonly activityDefaults: ActivityOptions,
     public readonly maxIsolateMemoryMB: number,
     public readonly workflowInterceptorModules: string[] = []
   ) {}
@@ -46,7 +44,7 @@ export class WorkflowIsolateBuilder {
     await this.registerActivities(vol, sourceDir);
     const entrypointPath = path.join(sourceDir, 'main.js');
     const workflows = await this.findWorkflows();
-    await this.genEntrypoint(vol, entrypointPath, workflows);
+    this.genEntrypoint(vol, entrypointPath, workflows);
     await this.bundle(ufs, entrypointPath, sourceDir, distDir);
     const code = ufs.readFileSync(path.join(distDir, 'main.js'), 'utf8');
     const snapshot = ivm.Isolate.createSnapshot([{ code }]);
@@ -66,32 +64,26 @@ export class WorkflowIsolateBuilder {
    *
    * Exports all detected Workflow implementations and some workflow libraries to be used by the Worker.
    */
-  protected async genEntrypoint(vol: typeof memfs.vol, target: string, workflows: string[]): Promise<void> {
-    let code = dedent`
-      const init = require('@temporalio/workflow/lib/init');
-      const internals = require('@temporalio/workflow/lib/internals');
-      internals.state.activityDefaults = ${JSON.stringify(this.activityDefaults)};
-      init.overrideGlobals();
-      const workflows = {};
-      const interceptors = { inbound: [], outbound: [] };
+  protected genEntrypoint(vol: typeof memfs.vol, target: string, workflows: string[]): void {
+    const bundlePaths = [...new Set(workflows.concat(this.workflowInterceptorModules))].map((wf) =>
+      JSON.stringify(path.join(this.workflowsPath, `${wf}.js`))
+    );
+    const code = dedent`
+      const api = require('@temporalio/workflow/lib/worker-interface');
 
-      function addInterceptors({ inbound, outbound }) {
-        interceptors.inbound.push(...inbound);
-        interceptors.outbound.push(...outbound);
-      }
-      export { init, internals, workflows, interceptors };
+      // Bundle all Workflows and interceptor modules for lazy evaluation
+      globalThis.document = api.mockBrowserDocumentForWebpack();
+      // See https://webpack.js.org/api/module-methods/#requireensure
+      require.ensure([${bundlePaths.join(', ')}], function () {});
+      delete globalThis.document;
+
+      api.overrideGlobals();
+      api.setRequireFunc(
+        (name) => require(${JSON.stringify(this.workflowsPath)} + '${path.sep}' + name + '.js')
+      );
+
+      module.exports = api;
     `;
-    for (const wf of workflows) {
-      code += `workflows[${JSON.stringify(wf)}] = require(${JSON.stringify(path.join(this.workflowsPath, wf))});\n`;
-    }
-    for (const interceptor of this.workflowInterceptorModules) {
-      code += `addInterceptors(require(${JSON.stringify(path.join(this.workflowsPath, interceptor))}).interceptors);\n`;
-    }
-    try {
-      vol.mkdirSync(path.dirname(target), { recursive: true });
-    } catch (err) {
-      if (err.code !== 'EEXIST') throw err;
-    }
     vol.writeFileSync(target, code);
   }
 
@@ -148,8 +140,6 @@ export class WorkflowIsolateBuilder {
   }
 
   public async registerActivities(vol: typeof memfs.vol, sourceDir: string): Promise<void> {
-    validateActivityOptions(this.activityDefaults);
-    const serializedOptions = JSON.stringify(this.activityDefaults);
     for (const [specifier, module] of this.activities.entries()) {
       let code = dedent`
         import { scheduleActivity } from '@temporalio/workflow';
@@ -162,10 +152,9 @@ export class WorkflowIsolateBuilder {
           // TODO: Validate k against pattern
           code += dedent`
             export function ${k}(...args) {
-              return scheduleActivity(${type}, args, ${serializedOptions});
+              return scheduleActivity(${type}, args);
             }
             ${k}.type = ${type};
-            ${k}.options = ${serializedOptions};
           `;
         }
       }
