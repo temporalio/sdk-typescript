@@ -700,7 +700,7 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
                   };
                   break;
                 }
-                let args: any[];
+                let args: unknown[];
                 try {
                   args = arrayFromPayloads(this.options.dataConverter, task.start?.input);
                 } catch (err) {
