@@ -26,7 +26,7 @@ You will need to submit a CLA before we can accept your contribution. You only h
 
 > For cross compilation on MacOS follow [these](https://github.com/temporalio/sdk-node/blob/main/docs/building.md) instructions.
 
-To update your environment, run `git submodule update` to update to the latest version of the Core SDK, followed by `npm ci` to recompile.
+To update your environment, run `git submodule update` to update to the latest version of the Core SDK, followed by `npm run build` to recompile.
 
 ### Development Workflow
 
