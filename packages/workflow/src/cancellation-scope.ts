@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from './async-local-storage';
 import { CancelledError, IllegalStateError } from './errors';
 
 /** Magic symbol used to create the root scope - intentionally not exported */
@@ -121,13 +122,12 @@ export class CancellationScope {
    * @return the result of `fn`
    */
   run<T>(fn: () => Promise<T>): Promise<T> {
-    pushScope(this);
-    if (this.timeout) {
-      sleep(this.timeout).then(() => this.cancel());
-    }
-    const promise = fn();
-    popScope();
-    return promise;
+    return storage.run(this, async () => {
+      if (this.timeout) {
+        sleep(this.timeout).then(() => this.cancel());
+      }
+      return await fn();
+    });
   }
 
   /**
@@ -141,11 +141,7 @@ export class CancellationScope {
    * Get the current "active" scope
    */
   static current(): CancellationScope {
-    const scope = scopeStack[scopeStack.length - 1];
-    if (scope === undefined) {
-      throw new IllegalStateError('No scopes in stack');
-    }
-    return scope;
+    return storage.getStore() ?? ROOT_SCOPE;
   }
 
   /** Alias to `new CancellationScope({ cancellable: true }).run(fn)` */
@@ -164,20 +160,10 @@ export class CancellationScope {
   }
 }
 
+const storage = new AsyncLocalStorage<CancellationScope>();
+
 /** There can only be one of these */
-export const ROOT_SCOPE = new CancellationScope({ cancellable: true, parent: NO_PARENT as any });
-/** Used by CancellationScope.run and PromiseHooks to track the current scope */
-const scopeStack: CancellationScope[] = [ROOT_SCOPE];
-
-/** Push a scope onto the scope stack */
-export function pushScope(scope: CancellationScope): void {
-  scopeStack.push(scope);
-}
-
-/** Pop the last scope off the scope stack */
-export function popScope(): void {
-  scopeStack.pop();
-}
+export const ROOT_SCOPE = new CancellationScope({ cancellable: true, parent: NO_PARENT });
 
 /** This function is here to avoid a circular dependency between this module and workflow.ts */
 let sleep = (_: number): Promise<void> => {

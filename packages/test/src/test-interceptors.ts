@@ -7,7 +7,7 @@
 
 import test from 'ava';
 import { v4 as uuid4 } from 'uuid';
-import { Worker, DefaultLogger } from '@temporalio/worker';
+import { Worker, DefaultLogger, errors as workerErrors } from '@temporalio/worker';
 import { Connection, WorkflowClient } from '@temporalio/client';
 import * as errors from '@temporalio/workflow/lib/errors';
 import { defaultDataConverter } from '@temporalio/workflow';
@@ -82,9 +82,6 @@ if (RUN_INTEGRATION_TESTS) {
             async terminate(input, next) {
               return next({ ...input, reason: message });
             },
-            async signal(input, next) {
-              return next({ ...input, args: ['1234'] });
-            },
           }),
         ],
       },
@@ -113,6 +110,14 @@ if (RUN_INTEGRATION_TESTS) {
     //   });
     // });
     worker.shutdown();
-    await workerDrained;
+    try {
+      await workerDrained;
+    } catch (err) {
+      // There seems to be a race in Core when trying to complete a WF task for the terminated WF
+      // see here: https://github.com/temporalio/sdk-node/pull/132/checks?check_run_id=2880955637
+      if (!(err instanceof workerErrors.TransportError)) {
+        throw err;
+      }
+    }
   });
 }

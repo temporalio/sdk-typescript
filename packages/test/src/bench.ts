@@ -2,7 +2,7 @@ import path from 'path';
 import arg from 'arg';
 import { range } from 'rxjs';
 import { mergeMap, take, tap, withLatestFrom } from 'rxjs/operators';
-import { Worker, DefaultLogger } from '@temporalio/worker';
+import { Core, Worker, DefaultLogger } from '@temporalio/worker';
 import { Connection } from '@temporalio/client';
 import { msStrToTs } from '@temporalio/workflow/lib/time';
 import * as opentelemetry from '@opentelemetry/sdk-node';
@@ -121,6 +121,13 @@ async function main() {
   await waitOnNamespace(connection, namespace);
   console.log('Wait complete on namespace', { namespace });
 
+  await Core.install({
+    serverOptions: {
+      namespace,
+      address: serverAddress,
+    },
+  });
+
   const worker = await Worker.create({
     workflowsPath: path.join(__dirname, 'workflows'),
     activitiesPath: path.join(__dirname, 'activities'),
@@ -131,10 +138,6 @@ async function main() {
     maxConcurrentActivityTaskPolls,
     maxConcurrentWorkflowTaskPolls,
     logger: new DefaultLogger(logLevel as any),
-    serverOptions: {
-      namespace,
-      address: serverAddress,
-    },
   });
   console.log('Created worker');
 

@@ -14,13 +14,16 @@ use tokio::sync::mpsc::{channel, Sender};
 
 /// A request from JS to bridge to core
 pub enum Request {
-    /// A request to break from the thread loop, should be sent from JS when it
-    /// encounters when core shutdown() resolves and there are no outstanding
-    /// completions
-    BreakLoop { callback: Root<JsFunction> },
-    /// A request to shutdown core, the core instance will remain active to
-    /// allow draining of pending tasks
+    /// A request to shutdown Core, any registered workers will be shutdown as well.
+    /// Breaks from the thread loop.
     Shutdown {
+        /// Used to send the result back into JS
+        callback: Root<JsFunction>,
+    },
+    /// A request to shutdown a worker, the worker instance will remain active to
+    /// allow draining of pending tasks
+    ShutdownWorker {
+        task_queue: String,
         /// Used to send the result back into JS
         callback: Root<JsFunction>,
     },
@@ -208,6 +211,7 @@ fn start_bridge_loop(
                         Ok(cx.boxed(cloned_core_handle))
                     });
                     tracing_init();
+
                     loop {
                         let request_option = receiver.recv().await;
                         if request_option.is_none() {
@@ -220,7 +224,7 @@ fn start_bridge_loop(
 
                         match request {
                             Request::Shutdown { callback } => {
-                                tokio::spawn(void_future_to_js(
+                                void_future_to_js(
                                     event_queue,
                                     callback,
                                     async move {
@@ -230,23 +234,43 @@ fn start_bridge_loop(
                                         result
                                     },
                                     |cx, err| UNEXPECTED_ERROR.from_error(cx, err),
-                                ));
-                            }
-                            Request::BreakLoop { callback } => {
-                                send_result(event_queue, callback, |cx| Ok(cx.undefined()));
+                                )
+                                .await;
                                 break;
+                            }
+                            Request::ShutdownWorker {
+                                task_queue,
+                                callback,
+                            } => {
+                                tokio::spawn(void_future_to_js(
+                                    event_queue,
+                                    callback,
+                                    async move {
+                                        core.shutdown_worker(&task_queue).await;
+                                        // Wrap the empty result in a valid Result object
+                                        let result: Result<(), String> = Ok(());
+                                        result
+                                    },
+                                    |cx, err| UNEXPECTED_ERROR.from_error(cx, err),
+                                ));
                             }
                             Request::RegisterWorker { config, callback } => {
                                 let task_queue = config.clone().task_queue;
                                 let core_handle = core_handle.clone();
                                 tokio::spawn(async move {
-                                    core.register_worker(config).await;
-                                    send_result(event_queue.clone(), callback, |cx| {
-                                        Ok(cx.boxed(Worker {
-                                            core: core_handle,
-                                            queue: task_queue,
-                                        }))
-                                    });
+                                    match core.register_worker(config).await {
+                                        Ok(_) => send_result(event_queue.clone(), callback, |cx| {
+                                            Ok(cx.boxed(Worker {
+                                                core: core_handle,
+                                                queue: task_queue,
+                                            }))
+                                        }),
+                                        Err(err) => {
+                                            send_error(event_queue.clone(), callback, |cx| {
+                                                UNEXPECTED_ERROR.from_error(cx, err)
+                                            })
+                                        }
+                                    };
                                 });
                             }
                             Request::PollWorkflowActivation {
@@ -287,6 +311,15 @@ fn start_bridge_loop(
                                                 cx.string(format!("{}", source)).upcast(),
                                             ];
                                             WORKFLOW_ERROR.construct(cx, args)
+                                        }
+                                        CompleteWfError::NoWorkerForQueue(queue_name) => {
+                                            UNEXPECTED_ERROR.from_error(
+                                                cx,
+                                                format!(
+                                                    "No worker registered for queue {}",
+                                                    queue_name
+                                                ),
+                                            )
                                         }
                                         CompleteWfError::TonicError(_) => {
                                             TRANSPORT_ERROR.from_error(cx, err)
@@ -363,7 +396,8 @@ async fn handle_poll_workflow_activation_request(
                     ];
                     WORKFLOW_ERROR.construct(cx, args)
                 }
-                PollWfError::NoWorkerForQueue(_) => UNEXPECTED_ERROR
+                PollWfError::AutocompleteError(CompleteWfError::NoWorkerForQueue(_))
+                | PollWfError::NoWorkerForQueue(_) => UNEXPECTED_ERROR
                     .from_error(cx, format!("No worker registered for queue {}", queue_name)),
                 PollWfError::BadPollResponseFromServer(_) => {
                     UNEXPECTED_ERROR.from_error(cx, "Bad poll response from server")
@@ -565,6 +599,14 @@ fn worker_new(mut cx: FunctionContext) -> JsResult<JsUndefined> {
         "maxConcurrentActivityTaskPolls",
         JsNumber
     ) as usize;
+    let nonsticky_to_sticky_poll_ratio =
+        js_value_getter!(cx, worker_options, "nonStickyToStickyPollRatio", JsNumber) as f32;
+    let sticky_queue_schedule_to_start_timeout = Duration::from_millis(js_value_getter!(
+        cx,
+        worker_options,
+        "stickyQueueScheduleToStartTimeoutMs",
+        JsNumber
+    ) as u64);
 
     let callback = cx.argument::<JsFunction>(2)?;
 
@@ -575,6 +617,8 @@ fn worker_new(mut cx: FunctionContext) -> JsResult<JsUndefined> {
             max_concurrent_wft_polls,
             max_outstanding_workflow_tasks,
             max_outstanding_activities,
+            nonsticky_to_sticky_poll_ratio,
+            sticky_queue_schedule_to_start_timeout,
             task_queue,
         },
         callback: callback.root(&mut cx),
@@ -586,14 +630,14 @@ fn worker_new(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     Ok(cx.undefined())
 }
 
-/// Cause the bridge loop to break, freeing up the thread
-fn worker_break_loop(mut cx: FunctionContext) -> JsResult<JsUndefined> {
-    let worker = cx.argument::<BoxedWorker>(0)?;
+/// Shutdown the Core instance and break out of the thread loop
+fn core_shutdown(mut cx: FunctionContext) -> JsResult<JsUndefined> {
+    let core = cx.argument::<BoxedCore>(0)?;
     let callback = cx.argument::<JsFunction>(1)?;
-    let request = Request::BreakLoop {
+    let request = Request::Shutdown {
         callback: callback.root(&mut cx),
     };
-    if let Err(err) = worker.core.sender.blocking_send(request) {
+    if let Err(err) = core.sender.blocking_send(request) {
         callback_with_unexpected_error(&mut cx, callback, err)?;
     };
     Ok(cx.undefined())
@@ -701,13 +745,14 @@ fn worker_record_activity_heartbeat(mut cx: FunctionContext) -> JsResult<JsUndef
 }
 
 /// Request shutdown of the worker.
-/// Once complete Core will stop polling on new tasks and activations.
+/// Once complete Core will stop polling on new tasks and activations on worker's task queue.
 /// Caller should drain any pending tasks and activations before breaking from
 /// the loop to ensure graceful shutdown.
 fn worker_shutdown(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     let worker = cx.argument::<BoxedWorker>(0)?;
     let callback = cx.argument::<JsFunction>(1)?;
-    match worker.core.sender.blocking_send(Request::Shutdown {
+    match worker.core.sender.blocking_send(Request::ShutdownWorker {
+        task_queue: worker.queue.clone(),
         callback: callback.root(&mut cx),
     }) {
         Err(err) => cx.throw_error(format!("{}", err)),
@@ -721,7 +766,7 @@ fn main(mut cx: ModuleContext) -> NeonResult<()> {
     cx.export_function("newCore", core_new)?;
     cx.export_function("newWorker", worker_new)?;
     cx.export_function("workerShutdown", worker_shutdown)?;
-    cx.export_function("workerBreakLoop", worker_break_loop)?;
+    cx.export_function("coreShutdown", core_shutdown)?;
     cx.export_function(
         "workerPollWorkflowActivation",
         worker_poll_workflow_activation,
