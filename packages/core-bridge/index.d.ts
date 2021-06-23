@@ -78,6 +78,19 @@ export interface WorkerOptions {
   maxConcurrentWorkflowTaskExecutions: number;
   maxConcurrentWorkflowTaskPolls: number;
   maxConcurrentActivityTaskPolls: number;
+  /**
+   * `maxConcurrentWorkflowTaskPolls` * this number = the number of max pollers that will
+   * be allowed for the nonsticky queue when sticky tasks are enabled. If both defaults are used,
+   * the sticky queue will allow 4 max pollers while the nonsticky queue will allow one. The
+   * minimum for either poller is 1, so if `max_concurrent_wft_polls` is 1 and sticky queues are
+   * enabled, there will be 2 concurrent polls.
+   */
+  nonStickyToStickyPollRatio: number;
+  /**
+   * How long a workflow task is allowed to sit on the sticky queue before it is timed out
+   * and moved to the non-sticky queue where it may be picked up by any worker.
+   */
+  stickyQueueScheduleToStartTimeoutMs: number;
 }
 
 export interface Worker {}
@@ -93,7 +106,7 @@ export declare function registerErrors(errors: Record<string, any>): void;
 export declare function newCore(coreOptions: CoreOptions, callback: CoreCallback): void;
 export declare function newWorker(core: Core, workerOptions: WorkerOptions, callback: WorkerCallback): void;
 export declare function workerShutdown(worker: Worker, callback: VoidCallback): void;
-export declare function workerBreakLoop(worker: Worker, callback: VoidCallback): void;
+export declare function coreShutdown(core: Core, callback: VoidCallback): void;
 export declare function workerPollWorkflowActivation(worker: Worker, callback: PollCallback): void;
 export declare function workerCompleteWorkflowActivation(
   worker: Worker,

@@ -1,21 +1,13 @@
 import Long from 'long';
-import ivm from 'isolated-vm';
 import * as protobufjs from 'protobufjs/minimal';
 import { coresdk } from '@temporalio/proto';
 import { defaultDataConverter, arrayFromPayloads } from './converter/data-converter';
 import { alea, RNG } from './alea';
-import {
-  ActivityOptions,
-  ApplyMode,
-  ExternalDependencyFunction,
-  ExternalDependencies,
-  Workflow,
-  WorkflowInfo,
-} from './interfaces';
+import { ActivityOptions, ExternalDependencies, Workflow, WorkflowInfo } from './interfaces';
 import { composeInterceptors, WorkflowInterceptors } from './interceptors';
 import { CancelledError, IllegalStateError } from './errors';
 import { errorToUserCodeFailure } from './common';
-import { tsToMs, nullToUndefined } from './time';
+import { nullToUndefined } from './time';
 import { ROOT_SCOPE } from './cancellation-scope';
 
 export type ResolveFunction<T = any> = (val: T) => any;
@@ -39,10 +31,19 @@ export type ActivationHandler = {
 
 export class Activator implements ActivationHandler {
   public startWorkflow(activation: coresdk.workflow_activation.IStartWorkflow): void {
+    const { require: req, info } = state;
+    if (req === undefined || info === undefined) {
+      throw new IllegalStateError('Workflow has not been initialized');
+    }
+    for (const mod of state.interceptorModules) {
+      const { interceptors } = req(mod) as { interceptors: WorkflowInterceptors };
+      state.interceptors.inbound.push(...interceptors.inbound);
+      state.interceptors.outbound.push(...interceptors.outbound);
+    }
+
     const execute = composeInterceptors(state.interceptors.inbound, 'execute', async (input) => {
-      if (state.workflow === undefined) {
-        throw new IllegalStateError('state.workflow is not defined');
-      }
+      const mod = req(info.filename);
+      state.workflow = (mod.workflow ?? mod) as Workflow;
       return state.workflow.main(...input.args);
     });
     execute({
@@ -148,39 +149,6 @@ export class Activator implements ActivationHandler {
   }
 }
 
-type ActivationJobResult = { pendingExternalCalls: ExternalCall[]; processed: boolean };
-
-/**
- * Run a single activation job.
- * @param jobIndex index of job to process in the activation's job array.
- * @returns a boolean indicating whether the job was processed or ignored
- */
-export function activate(encodedActivation: Uint8Array, jobIndex: number): ActivationJobResult {
-  const activation = coresdk.workflow_activation.WFActivation.decodeDelimited(encodedActivation);
-  // job's type is IWFActivationJob which doesn't have the `attributes` property.
-  const job = activation.jobs[jobIndex] as coresdk.workflow_activation.WFActivationJob;
-  state.now = tsToMs(activation.timestamp);
-  if (state.info === undefined) {
-    throw new IllegalStateError('Workflow has not been initialized');
-  }
-  state.info.isReplaying = activation.isReplaying ?? false;
-  if (job.variant === undefined) {
-    throw new TypeError('Expected job.variant to be defined');
-  }
-  const variant = job[job.variant];
-  if (!variant) {
-    throw new TypeError(`Expected job.${job.variant} to be set`);
-  }
-  // The only job that can be executed on a completed workflow is a query.
-  // We might get other jobs after completion for instance when a single
-  // activation contains multiple jobs and the first one completes the workflow.
-  if (state.completed && job.variant !== 'queryWorkflow') {
-    return { processed: false, pendingExternalCalls: state.getAndResetPendingExternalCalls() };
-  }
-  state.activator[job.variant](variant);
-  return { processed: true, pendingExternalCalls: state.getAndResetPendingExternalCalls() };
-}
-
 export interface ExternalCall {
   ifaceName: string;
   fnName: string;
@@ -204,6 +172,13 @@ export class State {
    */
   public readonly completions: Map<number, Completion> = new Map();
 
+  /**
+   * Overridden on WF initialization
+   */
+  public interceptorModules: string[] = [];
+  /**
+   * Loaded from `interceptorModules`
+   */
   public interceptors: WorkflowInterceptors = { inbound: [], outbound: [] };
   /**
    * Buffer that stores all generated commands, reset after each activation
@@ -272,6 +247,13 @@ export class State {
     }
     return [];
   }
+
+  /**
+   * Used to require user code
+   *
+   * Injected on isolate startup
+   */
+  public require?: (filename: string) => Record<string, unknown>;
 }
 
 export const state = new State();
@@ -306,7 +288,7 @@ function failQuery(error: any) {
   });
 }
 
-function consumeCompletion(taskSeq: number) {
+export function consumeCompletion(taskSeq: number): Completion {
   const completion = state.completions.get(taskSeq);
   if (completion === undefined) {
     throw new Error(`No completion for taskSeq ${taskSeq}`);
@@ -320,85 +302,4 @@ function idToSeq(id: string | undefined | null) {
     throw new Error('Got activation with no timerId');
   }
   return parseInt(id);
-}
-
-type ActivationConclusion =
-  | { type: 'pending'; pendingExternalCalls: ExternalCall[] }
-  | { type: 'complete'; encoded: Uint8Array };
-
-/**
- * Conclude a single activation.
- * Should be called after processing all activation jobs and queued microtasks.
- *
- * Activation may be in either `complete` or `pending` state according to pending external dependency calls.
- * Activation failures are handled in the main NodeJS isolate.
- */
-export function concludeActivation(): ActivationConclusion {
-  const pendingExternalCalls = state.getAndResetPendingExternalCalls();
-  if (pendingExternalCalls.length > 0) {
-    return { type: 'pending', pendingExternalCalls };
-  }
-  const { commands, info } = state;
-  const encoded = coresdk.workflow_completion.WFActivationCompletion.encodeDelimited({
-    runId: info?.runId,
-    successful: { commands },
-  }).finish();
-  state.commands = [];
-  return { type: 'complete', encoded };
-}
-
-export function getAndResetPendingExternalCalls(): ExternalCall[] {
-  return state.getAndResetPendingExternalCalls();
-}
-
-/**
- * Inject an external dependency function into the Workflow via global state.
- * The injected function is available via {@link Context.dependencies}.
- */
-export function inject(
-  ifaceName: string,
-  fnName: string,
-  dependency: ivm.Reference<ExternalDependencyFunction>,
-  applyMode: ApplyMode,
-  transferOptions: ivm.TransferOptionsBidirectional
-): void {
-  if (state.dependencies[ifaceName] === undefined) {
-    state.dependencies[ifaceName] = {};
-  }
-  if (applyMode === ApplyMode.ASYNC) {
-    state.dependencies[ifaceName][fnName] = (...args: any[]) =>
-      new Promise((resolve, reject) => {
-        const seq = state.nextSeq++;
-        state.completions.set(seq, {
-          resolve,
-          reject,
-        });
-        state.pendingExternalCalls.push({ ifaceName, fnName, args, seq });
-      });
-  } else if (applyMode === ApplyMode.ASYNC_IGNORED) {
-    state.dependencies[ifaceName][fnName] = (...args: any[]) =>
-      state.pendingExternalCalls.push({ ifaceName, fnName, args });
-  } else {
-    state.dependencies[ifaceName][fnName] = (...args: any[]) => dependency[applyMode](undefined, args, transferOptions);
-  }
-}
-
-export interface ExternalDependencyResult {
-  seq: number;
-  result: any;
-  error: any;
-}
-
-/**
- * Resolve external dependency function calls with given results.
- */
-export function resolveExternalDependencies(results: ExternalDependencyResult[]): void {
-  for (const { seq, result, error } of results) {
-    const completion = consumeCompletion(seq);
-    if (error) {
-      completion.reject(error);
-    } else {
-      completion.resolve(result);
-    }
-  }
 }

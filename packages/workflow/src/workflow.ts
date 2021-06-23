@@ -144,9 +144,16 @@ function scheduleActivityNextHandler({ options, args, headers, seq, activityType
  * Schedule an activity and run outbound interceptors
  * @hidden
  */
-export function scheduleActivity<R>(activityType: string, args: any[], options: ActivityOptions): Promise<R> {
+export function scheduleActivity<R>(
+  activityType: string,
+  args: any[],
+  options: ActivityOptions | undefined = state.activityDefaults
+): Promise<R> {
   const seq = state.nextSeq++;
   const execute = composeInterceptors(state.interceptors.outbound, 'scheduleActivity', scheduleActivityNextHandler);
+  if (options === undefined) {
+    throw new TypeError('Got empty activity options');
+  }
 
   return execute({
     activityType: activityType,
@@ -247,20 +254,17 @@ export class ContextImpl {
   /**
    * Get a reference to injected external dependencies.
    *
-   * **IMPOTANT**: dependencies may not be called at the top level because they require the Workflow to be initialized.
-   * You may reference them as demonstrated below but trying to call them at the top level will throw an `IllegalStateError`.
-   *
    * @example
    * ```ts
    * import { Context } from '@temporalio/workflow';
    * import { MyDependencies } from '../interfaces';
    *
    * const { logger } = Context.dependencies<MyDependencies>();
-   * logger.info('...'); // <-- IllegalStateError
+   * logger.info('setting up');
    *
    * export function main(): void {
-   *  logger.info('hey ho');   // <-- OK
-   *  logger.error('lets go'); // <-- OK
+   *  logger.info('hey ho');
+   *  logger.error('lets go');
    * }
    * ```
    */
