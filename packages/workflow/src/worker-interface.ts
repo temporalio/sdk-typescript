@@ -144,7 +144,10 @@ export function activate(encodedActivation: Uint8Array, jobIndex: number): Activ
   const activation = coresdk.workflow_activation.WFActivation.decodeDelimited(encodedActivation);
   // job's type is IWFActivationJob which doesn't have the `attributes` property.
   const job = activation.jobs[jobIndex] as coresdk.workflow_activation.WFActivationJob;
-  state.now = tsToMs(activation.timestamp);
+  // We only accept time not progressing when processing a query
+  if (!(job.variant === 'queryWorkflow' && activation.timestamp === null)) {
+    state.now = tsToMs(activation.timestamp);
+  }
   if (state.info === undefined) {
     throw new IllegalStateError('Workflow has not been initialized');
   }

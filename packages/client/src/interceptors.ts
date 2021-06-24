@@ -28,6 +28,14 @@ export interface WorkflowSignalInput {
   readonly workflowExecution: temporal.api.common.v1.IWorkflowExecution;
 }
 
+/** Input for WorkflowClientCallsInterceptor.query */
+export interface WorkflowQueryInput {
+  readonly queryType: string;
+  readonly args: unknown[];
+  readonly namespace: string;
+  readonly workflowExecution: temporal.api.common.v1.IWorkflowExecution;
+}
+
 /** Input for WorkflowClientCallsInterceptor.signal */
 export interface WorkflowTerminateInput {
   readonly workflowExecution: temporal.api.common.v1.IWorkflowExecution;
@@ -40,6 +48,7 @@ export interface WorkflowTerminateInput {
 export interface WorkflowClientCallsInterceptor {
   start?: (input: WorkflowStartInput, next: Next<WorkflowClientCallsInterceptor, 'start'>) => Promise<unknown>;
   signal?: (input: WorkflowSignalInput, next: Next<WorkflowClientCallsInterceptor, 'signal'>) => Promise<void>;
+  query?: (input: WorkflowQueryInput, next: Next<WorkflowClientCallsInterceptor, 'query'>) => Promise<unknown>;
   terminate?: (
     input: WorkflowTerminateInput,
     next: Next<WorkflowClientCallsInterceptor, 'terminate'>

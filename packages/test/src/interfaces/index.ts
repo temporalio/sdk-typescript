@@ -3,10 +3,13 @@ import { Workflow } from '@temporalio/workflow';
 export interface SimpleQuery extends Workflow {
   main(): void;
   queries: {
-    hasSlept(): boolean;
-    hasSleptAsync(): Promise<boolean>;
+    isBlocked(): boolean;
+    isBlockedAsync(): Promise<boolean>;
     // Used to fail the query
     fail(): never;
+  };
+  signals: {
+    unblock(): void;
   };
 }
 

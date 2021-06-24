@@ -31,7 +31,12 @@ import {
   addDefaults,
   compileWorkflowOptions,
 } from './workflow-options';
-import { ConnectionInterceptors, WorkflowSignalInput, WorkflowTerminateInput } from './interceptors';
+import {
+  ConnectionInterceptors,
+  WorkflowQueryInput,
+  WorkflowSignalInput,
+  WorkflowTerminateInput,
+} from './interceptors';
 import {
   StartWorkflowExecutionRequest,
   GetWorkflowExecutionHistoryRequest,
@@ -444,6 +449,34 @@ export class Connection {
   }
 
   /**
+   * Uses given input to make a queryWorkflow call to the service
+   *
+   * Used as the final function of the query interceptor chain
+   */
+  protected async _queryWorkflowHandler(input: WorkflowQueryInput): Promise<unknown> {
+    const response = await this.service.queryWorkflow({
+      // TODO: queryRejectCondition
+      namespace: input.namespace,
+      execution: input.workflowExecution,
+      query: {
+        queryType: input.queryType,
+        queryArgs: { payloads: this.options.dataConverter.toPayloads(...input.args) },
+      },
+    });
+    if (response.queryRejected) {
+      if (response.queryRejected.status === undefined || response.queryRejected.status === null) {
+        throw new TypeError('Received queryRejected from server with no status');
+      }
+      throw new QueryRejectedError(response.queryRejected.status);
+    }
+    if (!response.queryResult) {
+      throw new TypeError('Invalid response from server');
+    }
+    // We ignore anything but the first result
+    return this.options.dataConverter.fromPayloads(0, response.queryResult?.payloads);
+  }
+
+  /**
    * Uses given input to make a signalWorkflowExecution call to the service
    *
    * Used as the final function of the signal interceptor chain
@@ -582,23 +615,14 @@ export class Connection {
               throw new TypeError('queryType can only be a string');
             }
             return async (...args: any[]) => {
-              const response = await this.service.queryWorkflow({
-                // TODO: queryRejectCondition
+              const next = this._queryWorkflowHandler.bind(this);
+              const fn = interceptors.length ? composeInterceptors(interceptors, 'query', next) : next;
+              return fn({
                 namespace: compiledOptions.namespace,
-                execution: { runId: workflow.runId, workflowId: compiledOptions.workflowId },
-                query: { queryType, queryArgs: { payloads: this.options.dataConverter.toPayloads(...args) } },
+                workflowExecution: { runId: workflow.runId, workflowId: compiledOptions.workflowId },
+                queryType,
+                args,
               });
-              if (response.queryRejected) {
-                if (response.queryRejected.status === undefined || response.queryRejected.status === null) {
-                  throw new TypeError('Received queryRejected from server with no status');
-                }
-                throw new QueryRejectedError(response.queryRejected.status);
-              }
-              if (!response.queryResult) {
-                throw new TypeError('Invalid response from server');
-              }
-              // We ignore anything but the first result
-              return this.options.dataConverter.fromPayloads(0, response.queryResult?.payloads);
             };
           },
         }
