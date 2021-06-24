@@ -102,13 +102,15 @@ if (RUN_INTEGRATION_TESTS) {
     await t.throwsAsync(workflow.start(), { message: 'Fail me', instanceOf: WorkflowExecutionFailedError });
   });
 
-  // Queries not yet properly implemented
-  test.skip('simple-query', async (t) => {
+  test('simple-query', async (t) => {
     const client = new Connection();
     const workflow = client.workflow<SimpleQuery>('simple-query', { taskQueue: 'test' });
-    const res = await workflow.start();
-    await workflow.query.hasSlept();
-    t.is(res, undefined);
+    const promise = workflow.start();
+    await workflow.started;
+    t.true(await workflow.query.isBlocked());
+    await workflow.signal.unblock();
+    await promise;
+    t.false(await workflow.query.isBlocked());
   });
 
   test('interrupt-signal', async (t) => {

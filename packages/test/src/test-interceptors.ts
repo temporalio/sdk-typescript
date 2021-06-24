@@ -47,18 +47,29 @@ if (RUN_INTEGRATION_TESTS) {
               return next(input);
             },
             async signal(input, next) {
-              return next({ ...input, args: ['1234'] });
+              const [decoded] = input.args;
+              const encoded = [...(decoded as any as string)].reverse().join('');
+              return next({ ...input, args: [encoded] });
+            },
+            async query(input, next) {
+              const result: string = (await next(input)) as any;
+              return [...result].reverse().join('');
             },
           }),
         ],
       },
     });
-    const wf = conn.workflow<{ main(): string; signals: { unblock(secret: string): void } }>('interceptor-example', {
+    const wf = conn.workflow<{
+      main(): string;
+      signals: { unblock(secret: string): void };
+      queries: { getSecret(): string };
+    }>('interceptor-example', {
       taskQueue,
     });
     const resultPromise = wf.start();
     await wf.started;
-    await wf.signal.unblock('wrong-secret-to-be-replaced-by-interceptor');
+    await wf.signal.unblock('12345');
+    t.is(await wf.query.getSecret(), '12345');
     const result = await resultPromise;
     worker.shutdown();
     await workerDrained;

@@ -133,16 +133,22 @@ function makeResolveActivity(
 }
 
 function makeQueryWorkflow(
+  queryId: string,
   queryType: string,
   queryArgs: any[],
   timestamp: number = Date.now()
 ): coresdk.workflow_activation.IWFActivation {
-  return makeActivation(timestamp, makeQueryWorkflowJob(queryType, ...queryArgs));
+  return makeActivation(timestamp, makeQueryWorkflowJob(queryId, queryType, ...queryArgs));
 }
 
-function makeQueryWorkflowJob(queryType: string, ...queryArgs: any[]): coresdk.workflow_activation.IWFActivationJob {
+function makeQueryWorkflowJob(
+  queryId: string,
+  queryType: string,
+  ...queryArgs: any[]
+): coresdk.workflow_activation.IWFActivationJob {
   return {
     queryWorkflow: {
+      queryId,
       queryType,
       arguments: defaultDataConverter.toPayloads(...queryArgs),
     },
@@ -259,6 +265,18 @@ function cleanWorkflowFailureStackTrace(req: coresdk.workflow_completion.WFActiv
   req.successful!.commands![commandIndex].failWorkflowExecution!.failure!.stackTrace = cleanStackTrace(
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     req.successful!.commands![commandIndex].failWorkflowExecution!.failure!.stackTrace!
+  );
+  return req;
+}
+
+function cleanWorkflowQueryFailureStackTrace(
+  req: coresdk.workflow_completion.WFActivationCompletion,
+  commandIndex = 0
+) {
+  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+  req.successful!.commands![commandIndex].respondToQuery!.failed!.stackTrace = cleanStackTrace(
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    req.successful!.commands![commandIndex].respondToQuery!.failed!.stackTrace!
   );
   return req;
 }
@@ -506,45 +524,58 @@ test('args-and-return', async (t) => {
 test('simple-query', async (t) => {
   const { script } = t.context;
   {
-    const req = await activate(t, makeStartWorkflow(script));
-    compareCompletion(t, req, makeSuccess([makeStartTimerCommand({ timerId: '0', startToFireTimeout: msToTs(10) })]));
+    const completion = await activate(t, makeStartWorkflow(script));
+    compareCompletion(t, completion, makeSuccess([]));
   }
   {
-    const req = await activate(t, makeQueryWorkflow('hasSlept', []));
+    const completion = await activate(t, makeQueryWorkflow('1', 'isBlocked', []));
     compareCompletion(
       t,
-      req,
+      completion,
       makeSuccess([
         makeRespondToQueryCommand({
-          succeeded: { response: defaultDataConverter.toPayload(false) },
-        }),
-      ])
-    );
-  }
-  {
-    const req = await activate(t, makeFireTimer('0'));
-    compareCompletion(t, req, makeSuccess());
-  }
-  {
-    const req = await activate(t, makeQueryWorkflow('hasSleptAsync', []));
-    compareCompletion(
-      t,
-      req,
-      makeSuccess([
-        makeRespondToQueryCommand({
+          queryId: '1',
           succeeded: { response: defaultDataConverter.toPayload(true) },
         }),
       ])
     );
   }
   {
-    const req = await activate(t, makeQueryWorkflow('fail', []));
+    const completion = await activate(t, makeSignalWorkflow('unblock', []));
+    compareCompletion(t, completion, makeSuccess());
+  }
+  {
+    const completion = await activate(t, makeQueryWorkflow('2', 'isBlockedAsync', []));
     compareCompletion(
       t,
-      req,
+      completion,
       makeSuccess([
         makeRespondToQueryCommand({
-          failedWithMessage: 'Query failed',
+          queryId: '2',
+          succeeded: { response: defaultDataConverter.toPayload(false) },
+        }),
+      ])
+    );
+  }
+  {
+    const completion = cleanWorkflowQueryFailureStackTrace(await activate(t, makeQueryWorkflow('3', 'fail', [])));
+    compareCompletion(
+      t,
+      completion,
+      makeSuccess([
+        makeRespondToQueryCommand({
+          queryId: '3',
+          failed: {
+            type: 'Error',
+            message: 'Query failed',
+            stackTrace: dedent`
+              Error: Query failed
+                  at fail
+                  at workflow-isolate
+                  at Activator.queryWorkflow
+                  at activate
+            `,
+          },
         }),
       ])
     );

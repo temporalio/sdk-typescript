@@ -82,47 +82,38 @@ export class Activator implements ActivationHandler {
   }
 
   public queryWorkflow(activation: coresdk.workflow_activation.IQueryWorkflow): void {
-    if (state.workflow === undefined) {
-      throw new Error('state.workflow is not defined');
+    if (!(activation.queryType && activation.queryId)) {
+      throw new TypeError('Missing query activation attributes');
     }
-    // TODO: support custom converter
-    try {
-      const { queries } = state.workflow;
-      if (queries === undefined) {
-        throw new Error('Workflow did not define any queries');
+    const { queryId } = activation;
+    const execute = composeInterceptors(state.interceptors.inbound, 'handleQuery', async (input) => {
+      const fn = state.workflow?.queries?.[input.queryName];
+      if (fn === undefined) {
+        // Fail the query
+        throw new ReferenceError(`Workflow did not register a handler for ${input.queryName}`);
       }
-      if (!activation.queryType) {
-        throw new Error('Missing query type');
-      }
-
-      const fn = queries[activation.queryType];
-      const retOrPromise = fn(...arrayFromPayloads(defaultDataConverter, activation.arguments));
-      if (retOrPromise instanceof Promise) {
-        retOrPromise.then(completeQuery).catch(failQuery);
-      } else {
-        completeQuery(retOrPromise);
-      }
-    } catch (err) {
-      failQuery(err);
-    }
+      return fn(...input.args);
+    });
+    execute({
+      queryName: activation.queryType,
+      // TODO: support custom converter
+      args: arrayFromPayloads(defaultDataConverter, activation.arguments),
+      queryId: activation.queryId,
+    }).then(
+      (result) => completeQuery(queryId, result),
+      (reason) => failQuery(queryId, reason)
+    );
   }
 
   public signalWorkflow(activation: coresdk.workflow_activation.ISignalWorkflow): void {
-    if (state.workflow === undefined) {
-      throw new Error('state.workflow is not defined');
-    }
-    const { signals } = state.workflow;
-    if (signals === undefined) {
-      throw new Error('Workflow did not define any signals');
-    }
-
     if (!activation.signalName) {
-      throw new Error('Missing activation signalName');
+      throw new TypeError('Missing activation signalName');
     }
 
-    const fn = signals[activation.signalName];
+    const fn = state.workflow?.signals?.[activation.signalName];
     if (fn === undefined) {
-      throw new Error(`Workflow did not register a signal named ${activation.signalName}`);
+      // Fail the activation
+      throw new ReferenceError(`Workflow did not register a signal handler for ${activation.signalName}`);
     }
     const execute = composeInterceptors(state.interceptors.inbound, 'handleSignal', async (input) => {
       if (state.workflow === undefined) {
@@ -276,15 +267,15 @@ function failWorkflow(error: any) {
   state.completed = true;
 }
 
-function completeQuery(result: any) {
+function completeQuery(queryId: string, result: unknown) {
   state.commands.push({
-    respondToQuery: { succeeded: { response: defaultDataConverter.toPayload(result) } },
+    respondToQuery: { queryId, succeeded: { response: defaultDataConverter.toPayload(result) } },
   });
 }
 
-function failQuery(error: any) {
+function failQuery(queryId: string, error: any) {
   state.commands.push({
-    respondToQuery: { failedWithMessage: error.message },
+    respondToQuery: { queryId, failed: errorToUserCodeFailure(error) },
   });
 }
 

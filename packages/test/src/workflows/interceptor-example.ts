@@ -8,12 +8,17 @@ const unblocked = new Trigger<void>();
 
 export const signals = {
   unblock(secret: string) {
-    // Note that 5 is appended by the inbound interceptor
     if (secret !== '12345') {
       // Workflow execution should fail
       throw new Error('Wrong unblock secret');
     }
     unblocked.resolve();
+  },
+};
+
+export const queries = {
+  getSecret() {
+    return '12345';
   },
 };
 
@@ -43,7 +48,12 @@ export const interceptors: WorkflowInterceptors = {
       },
       async handleSignal(input, next) {
         const [encoded] = input.args;
-        return next({ ...input, args: [encoded + '5'] });
+        const decoded = [...(encoded as any as string)].reverse().join('');
+        return next({ ...input, args: [decoded] });
+      },
+      async handleQuery(input, next) {
+        const secret: string = (await next(input)) as any;
+        return [...secret].reverse().join('');
       },
     },
   ],
