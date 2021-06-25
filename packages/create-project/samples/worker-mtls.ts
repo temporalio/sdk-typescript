@@ -1,6 +1,6 @@
 // @@@SNIPSTART nodejs-mtls-worker
 import fs from 'fs';
-import { Worker } from '@temporalio/worker';
+import { Worker, Core } from '@temporalio/worker';
 import { getEnv, Env } from './mtls-env';
 
 /**
@@ -20,9 +20,8 @@ async function run({
   if (serverRootCACertificatePath) {
     serverRootCACertificate = fs.readFileSync(serverRootCACertificatePath);
   }
-  const worker = await Worker.create({
-    workDir: __dirname,
-    taskQueue,
+
+  await Core.install({
     serverOptions: {
       address,
       namespace,
@@ -36,6 +35,11 @@ async function run({
         },
       },
     },
+  });
+
+  const worker = await Worker.create({
+    workDir: __dirname,
+    taskQueue,
   });
   console.log('Worker connection succesfully established');
   // Start accepting tasks on the `tutorial` queue

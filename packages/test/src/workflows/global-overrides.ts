@@ -8,18 +8,6 @@
 const startupErrors: string[] = [];
 
 try {
-  new Date();
-} catch (err) {
-  startupErrors.push(err.toString());
-}
-
-try {
-  Math.random();
-} catch (err) {
-  startupErrors.push(err.toString());
-}
-
-try {
   // @ts-ignore
   new WeakMap();
 } catch (err) {

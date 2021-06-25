@@ -18,11 +18,12 @@ export {
   ActivityOptions,
   LocalActivityOptions,
   RemoteActivityOptions,
-  ServerOptions,
   DataConverter,
   RetryOptions,
   errors,
 } from './worker';
+export { ServerOptions, TLSConfig } from './server-options';
+export { Core } from './core';
 export * from './logger';
 export * from './dependencies';
 export * from './interceptors';

@@ -1,11 +1,12 @@
 {
   "name": "@temporalio/core-bridge",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "Temporal.io SDK Core<>Node bridge",
   "main": "index.node",
   "types": "index.d.ts",
   "scripts": {
-    "build": "TEMPORAL_WORKER_FORCE_BUILD=true node ./scripts/build.js",
+    "build-rust": "TEMPORAL_WORKER_FORCE_BUILD=true node ./scripts/build.js",
+    "build": "npm run build-rust",
     "install": "node ./scripts/build.js"
   },
   "keywords": [
