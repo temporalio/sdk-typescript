@@ -3,6 +3,25 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+# [0.5.0](https://github.com/temporalio/sdk-node/compare/@temporalio/worker@0.4.2...@temporalio/worker@0.5.0) (2021-06-25)
+
+
+### Bug Fixes
+
+* **workflow:** Pass max isolate memory limit option to isolate ([8d6d3d2](https://github.com/temporalio/sdk-node/commit/8d6d3d204ca4a6734dcbe84248e47e074debfa49))
+* **workflow:** Report filename when reporting workflow not found ([#121](https://github.com/temporalio/sdk-node/issues/121)) ([f6af189](https://github.com/temporalio/sdk-node/commit/f6af189b2f38b1d3989b9982b6cb1a47204c3dec))
+* **Workflow:** Avoid bubbling up "Unknown encoding" error to user ([#133](https://github.com/temporalio/sdk-node/issues/133)) ([0a831f7](https://github.com/temporalio/sdk-node/commit/0a831f77d6c0ae464639e97ac3f25a3d28069502))
+
+
+### Features
+
+* **core:** Update core to support sticky execution ([78730a4](https://github.com/temporalio/sdk-node/commit/78730a4d1f9e631429de5073ba4e7865bf22d596))
+* **workflow:** Lazily load user code into Workflow isolate ([990cc1f](https://github.com/temporalio/sdk-node/commit/990cc1fb4347bb8e102c1d8e1b628d5766144a5d))
+
+
+
+
+
 ## [0.4.2](https://github.com/temporalio/sdk-node/compare/@temporalio/worker@0.4.1...@temporalio/worker@0.4.2) (2021-06-18)
 
 

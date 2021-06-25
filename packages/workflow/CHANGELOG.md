@@ -3,6 +3,18 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+# [0.4.0](https://github.com/temporalio/sdk-node/compare/@temporalio/workflow@0.3.2...@temporalio/workflow@0.4.0) (2021-06-25)
+
+
+### Features
+
+* **workflow:** Lazily load user code into Workflow isolate ([990cc1f](https://github.com/temporalio/sdk-node/commit/990cc1fb4347bb8e102c1d8e1b628d5766144a5d))
+* Add Workflow AsyncLocalStorage ([5ce2233](https://github.com/temporalio/sdk-node/commit/5ce2233fd7d5a19e6b33e2f30c535fba44fa8ed3))
+
+
+
+
+
 ## [0.3.2](https://github.com/temporalio/sdk-node/compare/@temporalio/workflow@0.3.1...@temporalio/workflow@0.3.2) (2021-06-18)
 
 **Note:** Version bump only for package @temporalio/workflow
