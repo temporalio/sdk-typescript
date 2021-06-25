@@ -53,14 +53,14 @@ Note that the Temporal Server doesn't detect Worker process failures directly. I
    * Either this option or {@link scheduleToCloseTimeout} is required.
    * @format {@link https://www.npmjs.com/package/ms | ms} formatted string
    */
-  startToCloseTimeout?: string;
+  startToCloseTimeout?: string | number;
   /**
    * Time that the Activity Task can stay in the Task Queue before it is picked up by a Worker. Do not specify this timeout unless using host specific Task Queues for Activity Tasks are being used for routing.
    * `scheduleToStartTimeout` is always non-retryable. Retrying after this timeout doesn't make sense as it would just put the Activity Task back into the same Task Queue.
    * @default unlimited
    * @format {@link https://www.npmjs.com/package/ms | ms} formatted string
    */
-  scheduleToStartTimeout?: string;
+  scheduleToStartTimeout?: string | number;
 
   /**
    * Total time that a workflow is willing to wait for Activity to complete.
@@ -70,7 +70,7 @@ Note that the Temporal Server doesn't detect Worker process failures directly. I
    * @default unlimited
    * @format {@link https://www.npmjs.com/package/ms | ms} formatted string
    */
-  scheduleToCloseTimeout?: string;
+  scheduleToCloseTimeout?: string | number;
 }
 
 /**

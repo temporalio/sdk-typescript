@@ -1,6 +1,7 @@
 import Long from 'long';
 import ms from 'ms';
 import * as iface from '@temporalio/proto';
+import { ValueError } from './converter/types';
 
 // NOTE: these are the same interface in JS
 // iface.google.protobuf.IDuration;
@@ -26,15 +27,24 @@ export function tsToMs(ts: Timestamp | null | undefined): number {
 export function msToTs(millis: number): Timestamp {
   const seconds = Math.floor(millis / 1000);
   const nanos = (millis % 1000) * 1000000;
+  if (Number.isNaN(seconds) || Number.isNaN(nanos)) {
+    throw new ValueError(`Invalid millis ${millis}`);
+  }
   return { seconds: Long.fromNumber(seconds), nanos };
 }
 
-export function msStrToTs(str: string): Timestamp {
+export function msStrToTs(str: string | number): Timestamp {
+  if (typeof str === 'number') {
+    return msToTs(str);
+  }
   return msToTs(ms(str));
 }
 
-export function msOptionalStrToTs(str: string | undefined): Timestamp | undefined {
+export function msOptionalStrToTs(str: string | number | undefined): Timestamp | undefined {
   if (str === undefined) return undefined;
+  if (typeof str === 'number') {
+    return msToTs(str);
+  }
   return msToTs(ms(str));
 }
 
