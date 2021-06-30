@@ -251,7 +251,7 @@ test('sync', async (t) => {
  * Replace path specifics from stack trace
  */
 function cleanStackTrace(stack: string) {
-  return stack.replace(/\bat (\S+) \(.*\)/g, (_, m0) => `at ${m0}`);
+  return stack.replace(/\bat (\S+)(:\d+:\d+| \(.*\))/g, (_, m0) => `at ${m0}`);
 }
 
 function cleanWorkflowFailureStackTrace(req: coresdk.workflow_completion.WFActivationCompletion, commandIndex = 0) {
@@ -275,7 +275,7 @@ test('throw-sync', async (t) => {
         dedent`
         Error: failure
             at Object.main
-            at eval
+            at workflow-isolate
             at Activator.startWorkflow
             at activate
         `
@@ -296,7 +296,7 @@ test('throw-async', async (t) => {
         dedent`
         Error: failure
             at Object.main
-            at eval
+            at workflow-isolate
             at Activator.startWorkflow
             at activate
         `
@@ -570,7 +570,7 @@ test('interrupt-signal', async (t) => {
           dedent`
           Error: just because
               at interrupt
-              at eval
+              at workflow-isolate
               at Activator.signalWorkflow
               at activate`,
           'Error'
@@ -601,7 +601,7 @@ test('fail-signal', async (t) => {
           dedent`
           Error: Signal failed
               at fail
-              at eval
+              at workflow-isolate
               at Activator.signalWorkflow
               at activate`,
           'Error'
@@ -1174,13 +1174,13 @@ test('cancellation-error-is-propagated', async (t) => {
         dedent`
         CancelledError: Cancelled
             at CancellationScope.cancel
-            at eval
-            at eval
+            at workflow-isolate
+            at workflow-isolate
             at AsyncLocalStorage.run
             at CancellationScope.run
             at Function.cancellable
             at Object.main
-            at eval
+            at workflow-isolate
             at Activator.startWorkflow
             at activate
         `,
