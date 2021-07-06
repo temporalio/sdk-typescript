@@ -4,12 +4,19 @@ export interface SimpleQuery extends Workflow {
   main(): void;
   queries: {
     isBlocked(): boolean;
-    isBlockedAsync(): Promise<boolean>;
     // Used to fail the query
     fail(): never;
   };
   signals: {
     unblock(): void;
+  };
+}
+
+/** Used to test SDK check of query handler returning a Promise */
+export interface AsyncQuery extends Workflow {
+  main(): void;
+  queries: {
+    invalidAsyncMethod(): Promise<boolean>;
   };
 }
 

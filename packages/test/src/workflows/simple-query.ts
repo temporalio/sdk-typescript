@@ -8,9 +8,6 @@ const queries = {
   isBlocked(): boolean {
     return blocked;
   },
-  async isBlockedAsync(): Promise<boolean> {
-    return blocked;
-  },
   fail(): never {
     throw new Error('Query failed');
   },
