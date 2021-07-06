@@ -545,7 +545,7 @@ test('simple-query', async (t) => {
     compareCompletion(t, completion, makeSuccess());
   }
   {
-    const completion = await activate(t, makeQueryWorkflow('2', 'isBlockedAsync', []));
+    const completion = await activate(t, makeQueryWorkflow('2', 'isBlocked', []));
     compareCompletion(
       t,
       completion,
@@ -571,6 +571,38 @@ test('simple-query', async (t) => {
             stackTrace: dedent`
               Error: Query failed
                   at fail
+                  at workflow-isolate
+                  at Activator.queryWorkflow
+                  at activate
+            `,
+          },
+        }),
+      ])
+    );
+  }
+});
+
+test('invalid-async-query-handler', async (t) => {
+  const { script } = t.context;
+  {
+    const completion = await activate(t, makeStartWorkflow(script));
+    compareCompletion(t, completion, makeSuccess());
+  }
+  {
+    const completion = cleanWorkflowQueryFailureStackTrace(
+      await activate(t, makeQueryWorkflow('3', 'invalidAsyncMethod', []))
+    );
+    compareCompletion(
+      t,
+      completion,
+      makeSuccess([
+        makeRespondToQueryCommand({
+          queryId: '3',
+          failed: {
+            type: 'DeterminismViolationError',
+            message: 'Query handlers should not return a Promise',
+            stackTrace: dedent`
+              DeterminismViolationError: Query handlers should not return a Promise
                   at workflow-isolate
                   at Activator.queryWorkflow
                   at activate

@@ -5,7 +5,7 @@ import { defaultDataConverter, arrayFromPayloads } from './converter/data-conver
 import { alea, RNG } from './alea';
 import { ActivityOptions, ExternalDependencies, Workflow, WorkflowInfo } from './interfaces';
 import { composeInterceptors, WorkflowInterceptors } from './interceptors';
-import { CancelledError, IllegalStateError } from './errors';
+import { CancelledError, DeterminismViolationError, IllegalStateError } from './errors';
 import { errorToUserCodeFailure } from './common';
 import { nullToUndefined } from './time';
 import { ROOT_SCOPE } from './cancellation-scope';
@@ -92,7 +92,11 @@ export class Activator implements ActivationHandler {
         // Fail the query
         throw new ReferenceError(`Workflow did not register a handler for ${input.queryName}`);
       }
-      return fn(...input.args);
+      const ret = fn(...input.args);
+      if (ret instanceof Promise) {
+        throw new DeterminismViolationError('Query handlers should not return a Promise');
+      }
+      return ret;
     });
     execute({
       queryName: activation.queryType,
