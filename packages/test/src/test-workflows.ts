@@ -1518,3 +1518,25 @@ test('log-before-timing-out', async (t) => {
   await t.throwsAsync(activate(t, makeStartWorkflow(script)), { message: 'Script execution timed out.' });
   t.deepEqual(logs, ['logging before getting stuck']);
 });
+
+test('continue-as-new-same-workflow', async (t) => {
+  const { script } = t.context;
+  {
+    const req = await activate(t, makeStartWorkflow(script));
+    compareCompletion(
+      t,
+      req,
+      makeSuccess([
+        {
+          continueAsNewWorkflowExecution: {
+            workflowType: script,
+            taskQueue: 'test',
+            arguments: defaultDataConverter.toPayloads('signal'),
+          },
+        },
+      ])
+    );
+  }
+});
+
+test.todo('no-commands-can-be-issued-once-workflow-completes');

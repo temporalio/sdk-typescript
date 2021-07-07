@@ -1,8 +1,11 @@
 import {
   ActivityFunction,
   ActivityOptions,
+  ContinueAsNew,
+  ContinueAsNewOptions,
   ExternalDependencies,
   RemoteActivityOptions,
+  Workflow,
   WorkflowInfo,
 } from './interfaces';
 import { state } from './internals';
@@ -290,12 +293,64 @@ export class ContextImpl {
       }
     ) as any;
   }
+
+  /**
+   * Returns a function `f` that will cause the current Workflow to ContinueAsNew when called.
+   *
+   * `f` takes the same arguments as the Workflow main function supplied to typeparam `F`.
+   *
+   * Once `f` is called, Workflow execution immediately completes.
+   */
+  public makeContinueAsNewFunc<F extends Workflow['main']>(
+    options?: ContinueAsNewOptions
+  ): (...args: Parameters<F>) => Promise<never> {
+    const nonOptionalOptions = { workflowType: state.info?.filename, taskQueue: state.info?.taskQueue, ...options };
+
+    return (...args: Parameters<F>): Promise<never> => {
+      const fn = composeInterceptors(state.interceptors.outbound, 'continueAsNew', (input) => {
+        const { headers, args, options } = input;
+        throw new ContinueAsNew({
+          workflowType: options.workflowType,
+          arguments: state.dataConverter.toPayloads(...args),
+          header: Object.fromEntries(headers.entries()),
+          taskQueue: options.taskQueue,
+          memo: options.memo,
+          searchAttributes: options.searchAttributes,
+          workflowRunTimeout: msOptionalStrToTs(options.workflowRunTimeout),
+          workflowTaskTimeout: msOptionalStrToTs(options.workflowTaskTimeout),
+        });
+      });
+      return fn({
+        args,
+        headers: new Map(),
+        options: nonOptionalOptions,
+      });
+    };
+  }
+
+  /**
+   * Continues current Workflow execution as new with default options.
+   *
+   * Shorthand for `Context.makeContinueAsNewFunc<F>()(...args)`.
+   *
+   * @example
+   *
+   * ```ts
+   * async function main(n: number) {
+   *   // ... Workflow logic
+   *   await Context.continueAsNew<typeof main>(n + 1);
+   * }
+   * ```
+   */
+  public continueAsNew<F extends Workflow['main']>(...args: Parameters<F>): Promise<never> {
+    return this.makeContinueAsNewFunc()(...args);
+  }
 }
 
 /**
  * Holds context of current running workflow
  */
-export const Context = new ContextImpl();
+export const Context: ContextImpl = new ContextImpl();
 
 /**
  * Generate an RFC compliant V4 uuid.
