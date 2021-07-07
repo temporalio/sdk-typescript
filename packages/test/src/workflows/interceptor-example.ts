@@ -70,6 +70,13 @@ export const interceptors: WorkflowInterceptors = {
         }
         return next(input);
       },
+      async continueAsNew(input, next) {
+        // Used to test interception of continue-as-new-to-different-workflow
+        if (input.args[0] === 1) {
+          throw new InvalidTimerDurationError('Expected anything other than 1');
+        }
+        return next(input);
+      },
     },
   ],
 };

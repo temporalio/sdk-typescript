@@ -1,9 +1,9 @@
 import Long from 'long';
 import * as protobufjs from 'protobufjs/minimal';
 import { coresdk } from '@temporalio/proto';
-import { defaultDataConverter, arrayFromPayloads } from './converter/data-converter';
+import { arrayFromPayloads, DataConverter, defaultDataConverter } from './converter/data-converter';
 import { alea, RNG } from './alea';
-import { ActivityOptions, ExternalDependencies, Workflow, WorkflowInfo } from './interfaces';
+import { ActivityOptions, ContinueAsNew, ExternalDependencies, Workflow, WorkflowInfo } from './interfaces';
 import { composeInterceptors, WorkflowInterceptors } from './interceptors';
 import { CancelledError, DeterminismViolationError, IllegalStateError } from './errors';
 import { errorToUserCodeFailure } from './common';
@@ -48,11 +48,10 @@ export class Activator implements ActivationHandler {
     });
     execute({
       headers: new Map(Object.entries(activation.headers ?? {})),
-      // TODO: support custom converter
-      args: arrayFromPayloads(defaultDataConverter, activation.arguments),
+      args: arrayFromPayloads(state.dataConverter, activation.arguments),
     })
       .then(completeWorkflow)
-      .catch(failWorkflow);
+      .catch(handleWorkflowFailure);
   }
 
   public cancelWorkflow(_activation: coresdk.workflow_activation.ICancelWorkflow): void {
@@ -61,7 +60,7 @@ export class Activator implements ActivationHandler {
   }
 
   public fireTimer(activation: coresdk.workflow_activation.IFireTimer): void {
-    const { resolve } = consumeCompletion(idToSeq(activation.timerId));
+    const { resolve } = consumeCompletion(idToSeq(activation, 'timerId'));
     resolve(undefined);
   }
 
@@ -69,10 +68,10 @@ export class Activator implements ActivationHandler {
     if (!activation.result) {
       throw new Error('Got CompleteActivity activation with no result');
     }
-    const { resolve, reject } = consumeCompletion(idToSeq(activation.activityId));
+    const { resolve, reject } = consumeCompletion(idToSeq(activation, 'activityId'));
     if (activation.result.completed) {
       const completed = activation.result.completed;
-      const result = completed.result ? defaultDataConverter.fromPayload(completed.result) : undefined;
+      const result = completed.result ? state.dataConverter.fromPayload(completed.result) : undefined;
       resolve(result);
     } else if (activation.result.failed) {
       reject(new Error(nullToUndefined(activation.result.failed.failure?.message)));
@@ -100,8 +99,7 @@ export class Activator implements ActivationHandler {
     });
     execute({
       queryName: activation.queryType,
-      // TODO: support custom converter
-      args: arrayFromPayloads(defaultDataConverter, activation.arguments),
+      args: arrayFromPayloads(state.dataConverter, activation.arguments),
       queryId: activation.queryId,
     }).then(
       (result) => completeQuery(queryId, result),
@@ -126,10 +124,9 @@ export class Activator implements ActivationHandler {
       return fn(...input.args);
     });
     execute({
-      // TODO: support custom converter
-      args: arrayFromPayloads(defaultDataConverter, activation.input),
+      args: arrayFromPayloads(state.dataConverter, activation.input),
       signalName: activation.signalName,
-    }).catch(failWorkflow);
+    }).catch(handleWorkflowFailure);
   }
 
   public updateRandomSeed(activation: coresdk.workflow_activation.IUpdateRandomSeed): void {
@@ -249,6 +246,9 @@ export class State {
    * Injected on isolate startup
    */
   public require?: (filename: string) => Record<string, unknown>;
+
+  // TODO: support custom converter
+  public dataConverter: DataConverter = defaultDataConverter;
 }
 
 export const state = new State();
@@ -262,12 +262,16 @@ function completeWorkflow(result: any) {
   state.completed = true;
 }
 
-function failWorkflow(error: any) {
-  state.commands.push({
-    failWorkflowExecution: {
-      failure: errorToUserCodeFailure(error),
-    },
-  });
+function handleWorkflowFailure(error: any) {
+  if (error instanceof ContinueAsNew) {
+    state.commands.push({ continueAsNewWorkflowExecution: error.command });
+  } else {
+    state.commands.push({
+      failWorkflowExecution: {
+        failure: errorToUserCodeFailure(error),
+      },
+    });
+  }
   state.completed = true;
 }
 
@@ -286,15 +290,16 @@ function failQuery(queryId: string, error: any) {
 export function consumeCompletion(taskSeq: number): Completion {
   const completion = state.completions.get(taskSeq);
   if (completion === undefined) {
-    throw new Error(`No completion for taskSeq ${taskSeq}`);
+    throw new IllegalStateError(`No completion for taskSeq ${taskSeq}`);
   }
   state.completions.delete(taskSeq);
   return completion;
 }
 
-function idToSeq(id: string | undefined | null) {
+function idToSeq<T extends Record<string, any>>(activation: T, attr: keyof T) {
+  const id = activation[attr];
   if (!id) {
-    throw new Error('Got activation with no timerId');
+    throw new TypeError(`Got activation with no ${attr}`);
   }
   return parseInt(id);
 }

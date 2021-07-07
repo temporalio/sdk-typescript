@@ -18,13 +18,16 @@ Learn how to use Temporal on the [docs site](https://docs.temporal.io/docs/node/
 
 #### Features
 
-Partial implementation of all components that make up a Temporal SDK - Worker, Client, Workflows, and Activities
+Mostly complete implementation of all components that make up a Temporal SDK - Worker, Client, Workflows, and Activities
 
+- General
+  - Interceptors
 - Workflows
   - Scheduling timers
   - Scheduling (non-local) Activities
   - Cancelling timers and Activities
   - Signals
+  - Queries
 - Activities
   - Heartbeats
   - Cancellation
@@ -34,19 +37,17 @@ Partial implementation of all components that make up a Temporal SDK - Worker, C
   - Service client (for administration)
 - Worker
   - Basic logging and tracing capabilities
-  - Polling on a single non-sticky task queue
 
 Notably these features are missing:
 
 - WF History pagination (only short Workflows are supported ATM)
-- Sticky queues (meaning Workflows are not cached and are replayed from the beginning each time a new event comes in)
 - Telemetry
 - Workflow versioning
 - Workflow cancellation
-- Query support
 - Local activities
 - Side effects
 - Windows support
+- Search attributes
 
 > NOTE: The API is considered unstable and may change at any time.
 > While in alpha we are gathering feedback from developers about the usability and ergonomics of the API.
