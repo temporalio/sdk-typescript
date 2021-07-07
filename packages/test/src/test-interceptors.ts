@@ -12,7 +12,7 @@ import { Connection, WorkflowClient, WorkflowStub } from '@temporalio/client';
 import * as errors from '@temporalio/workflow/lib/errors';
 import { defaultDataConverter } from '@temporalio/workflow';
 import { defaultOptions } from './mock-native-worker';
-import { Sleeper } from './interfaces';
+import { Sleeper, Empty } from './interfaces';
 import { RUN_INTEGRATION_TESTS } from './helpers';
 
 if (RUN_INTEGRATION_TESTS) {
@@ -130,5 +130,29 @@ if (RUN_INTEGRATION_TESTS) {
         throw err;
       }
     }
+  });
+
+  test.serial('Workflow continueAsNew can be intercepted', async (t) => {
+    const taskQueue = 'test-continue-as-new-interceptor';
+    const worker = await Worker.create({
+      ...defaultOptions,
+      taskQueue,
+      logger: new DefaultLogger('DEBUG'),
+      interceptors: {
+        // Includes an interceptor for ContinueAsNew that will throw an error when used with the workflow below
+        workflowModules: ['interceptor-example'],
+      },
+    });
+    const client = new WorkflowClient();
+    const workerDrained = worker.run();
+    const workflow = client.stub<Empty>('continue-as-new-to-different-workflow', {
+      taskQueue,
+    });
+    await t.throwsAsync(workflow.execute(), {
+      instanceOf: errors.WorkflowExecutionFailedError,
+      message: 'Expected anything other than 1',
+    });
+    worker.shutdown();
+    await workerDrained;
   });
 }

@@ -7,6 +7,7 @@ import { tsToMs } from '@temporalio/workflow/lib/time';
 import { Worker, DefaultLogger } from '@temporalio/worker';
 import * as iface from '@temporalio/proto';
 import {
+  WorkflowExecutionContinuedAsNewError,
   WorkflowExecutionFailedError,
   WorkflowExecutionTerminatedError,
   WorkflowExecutionTimedOutError,
@@ -22,6 +23,7 @@ import {
   AsyncFailable,
   Failable,
   CancellableHTTPRequest,
+  ContinueAsNewFromMainAndSignal,
 } from './interfaces';
 import { httpGet } from './activities';
 import { u8, RUN_INTEGRATION_TESTS } from './helpers';
@@ -294,5 +296,44 @@ if (RUN_INTEGRATION_TESTS) {
     await t.throwsAsync(workflow.result(), { instanceOf: WorkflowExecutionTerminatedError, message: 'check 1 2' });
   });
 
-  test.todo('untilComplete throws if continued as new');
+  test('untilComplete throws if continued as new', async (t) => {
+    const client = new WorkflowClient();
+    let workflow = client.stub<ContinueAsNewFromMainAndSignal>('continue-as-new-same-workflow', {
+      taskQueue: 'test',
+    });
+    let err = await t.throwsAsync(workflow.execute(), { instanceOf: WorkflowExecutionContinuedAsNewError });
+    if (!(err instanceof WorkflowExecutionContinuedAsNewError)) return; // Type assertion
+    workflow = client.stub<ContinueAsNewFromMainAndSignal>(workflow.workflowId, err.newExecutionRunId);
+
+    await workflow.signal.continueAsNew();
+    err = await t.throwsAsync(workflow.result(), {
+      instanceOf: WorkflowExecutionContinuedAsNewError,
+    });
+    if (!(err instanceof WorkflowExecutionContinuedAsNewError)) return; // Type assertion
+
+    workflow = client.stub<ContinueAsNewFromMainAndSignal>(workflow.workflowId, err.newExecutionRunId);
+    await workflow.result();
+  });
+
+  test('continue-as-new-to-different-workflow', async (t) => {
+    const client = new WorkflowClient();
+    let workflow = client.stub<Empty>('continue-as-new-to-different-workflow', {
+      taskQueue: 'test',
+    });
+    const err = await t.throwsAsync(workflow.execute(), { instanceOf: WorkflowExecutionContinuedAsNewError });
+    if (!(err instanceof WorkflowExecutionContinuedAsNewError)) return; // Type assertion
+    workflow = client.stub<Sleeper>(workflow.workflowId, err.newExecutionRunId);
+    await workflow.result();
+    const info = await workflow.describe();
+    t.is(info.workflowExecutionInfo?.type?.name, 'sleep');
+    const { history } = await client.service.getWorkflowExecutionHistory({
+      namespace,
+      execution: { workflowId: workflow.workflowId, runId: err.newExecutionRunId },
+    });
+    const timeSlept = defaultDataConverter.fromPayloads(
+      0,
+      history?.events?.[0].workflowExecutionStartedEventAttributes?.input?.payloads
+    );
+    t.is(timeSlept, 1);
+  });
 }

@@ -7,7 +7,7 @@
  */
 
 import { coresdk } from '@temporalio/proto';
-import { ActivityOptions } from './interfaces';
+import { ActivityOptions, ContinueAsNewOptions } from './interfaces';
 import { AnyFunc, OmitLastParam } from './type-helpers';
 
 /**
@@ -96,6 +96,13 @@ export interface TimerInput {
   readonly seq: number;
 }
 
+/** Input for WorkflowOutboundCallsInterceptor.continueAsNew */
+export interface ContinueAsNewInput {
+  args: unknown[];
+  headers: Headers;
+  options: ContinueAsNewOptions;
+}
+
 /**
  * Implement any of these methods to intercept Workflow code calls to the Temporal APIs, like scheduling an activity and starting a timer
  */
@@ -105,15 +112,16 @@ export interface WorkflowOutboundCallsInterceptor {
    *
    * @return result of the activity execution
    */
-  scheduleActivity?: (
-    input: ActivityInput,
-    next: Next<WorkflowOutboundCallsInterceptor, 'scheduleActivity'>
-  ) => Promise<unknown>;
+  scheduleActivity?: (input: ActivityInput, next: Next<this, 'scheduleActivity'>) => Promise<unknown>;
 
   /**
    * Called when Workflow starts a timer
    */
-  startTimer?: (input: TimerInput, next: Next<WorkflowOutboundCallsInterceptor, 'startTimer'>) => Promise<void>;
+  startTimer?: (input: TimerInput, next: Next<this, 'startTimer'>) => Promise<void>;
+  /**
+   * Called when Workflow calls continueAsNew
+   */
+  continueAsNew?: (input: ContinueAsNewInput, next: Next<this, 'continueAsNew'>) => Promise<never>;
 }
 
 /**
