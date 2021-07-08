@@ -27,13 +27,14 @@ export class OpenTelemetryWorkflowClientCallsInterceptor implements WorkflowClie
     this.tracer = options?.tracer ?? otel.trace.getTracer('client');
   }
 
-  async start(input: WorkflowStartInput, next: Next<WorkflowClientCallsInterceptor, 'start'>): Promise<unknown> {
+  async start(input: WorkflowStartInput, next: Next<WorkflowClientCallsInterceptor, 'start'>): Promise<string> {
     const span = this.tracer.startSpan(SpanName.WORKFLOW_SCHEDULE);
     input.headers.set(TRACE_HEADER, this.dataConverter.toPayload(span.spanContext()));
     try {
       return await next(input);
     } catch (error) {
       span.recordException(error);
+      throw error;
     } finally {
       span.end();
     }
