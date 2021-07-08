@@ -75,6 +75,13 @@ export interface CancellableHTTPRequest extends Workflow {
   };
 }
 
+export interface ContinueAsNewFromMainAndSignal extends Workflow {
+  main(continueFrom?: 'main' | 'signal' | 'none'): Promise<void>;
+  signals: {
+    continueAsNew(): void;
+  };
+}
+
 // @@@SNIPSTART nodejs-blocked-interface
 export interface Blocked extends Workflow {
   main(): Promise<void>;

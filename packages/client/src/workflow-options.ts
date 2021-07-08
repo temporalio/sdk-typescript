@@ -7,13 +7,6 @@ import * as iface from '@temporalio/proto';
 // Copied from https://github.com/temporalio/sdk-java/blob/master/temporal-sdk/src/main/java/io/temporal/client/WorkflowOptions.java
 export interface BaseWorkflowOptions {
   /**
-   * Workflow namespace
-   *
-   * @default default
-   */
-  namespace?: string;
-
-  /**
    * Workflow id to use when starting. If not specified a UUID is generated. Note that it is
    * dangerous as in case of client side retries no deduplication will happen based on the
    * generated id. So prefer assigning business meaningful ids if possible.
@@ -94,7 +87,7 @@ export interface WorkflowDurationOptions {
 export type WorkflowOptions = BaseWorkflowOptions & WorkflowDurationOptions;
 
 export type RequiredWorkflowOptions = Required<
-  Pick<BaseWorkflowOptions, 'workflowId' | 'workflowIdReusePolicy' | 'taskQueue' | 'namespace'>
+  Pick<BaseWorkflowOptions, 'workflowId' | 'workflowIdReusePolicy' | 'taskQueue'>
 >;
 
 export type WorkflowOptionsWithDefaults = WorkflowOptions & RequiredWorkflowOptions;
@@ -114,7 +107,6 @@ export type CompiledWorkflowOptions = BaseWorkflowOptions &
 export function addDefaults(opts: WorkflowOptions): WorkflowOptionsWithDefaults {
   return {
     workflowId: uuid4(),
-    namespace: 'default',
     workflowIdReusePolicy:
       iface.temporal.api.enums.v1.WorkflowIdReusePolicy.WORKFLOW_ID_REUSE_POLICY_ALLOW_DUPLICATE_FAILED_ONLY,
     ...opts,

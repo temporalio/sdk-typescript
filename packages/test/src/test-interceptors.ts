@@ -8,7 +8,7 @@
 import test from 'ava';
 import { v4 as uuid4 } from 'uuid';
 import { Worker, DefaultLogger, errors as workerErrors } from '@temporalio/worker';
-import { Connection, WorkflowClient } from '@temporalio/client';
+import { Connection, WorkflowClient, WorkflowStub } from '@temporalio/client';
 import * as errors from '@temporalio/workflow/lib/errors';
 import { defaultDataConverter } from '@temporalio/workflow';
 import { defaultOptions } from './mock-native-worker';
@@ -38,9 +38,10 @@ if (RUN_INTEGRATION_TESTS) {
       },
     });
     const workerDrained = worker.run();
-    const conn = new Connection({
+    const conn = new Connection();
+    const client = new WorkflowClient(conn.service, {
       interceptors: {
-        workflowClient: [
+        calls: [
           () => ({
             async start(input, next) {
               input.headers.set('message', defaultDataConverter.toPayload(message));
@@ -59,18 +60,17 @@ if (RUN_INTEGRATION_TESTS) {
         ],
       },
     });
-    const wf = conn.workflow<{
+    const wf = client.stub<{
       main(): string;
       signals: { unblock(secret: string): void };
       queries: { getSecret(): string };
     }>('interceptor-example', {
       taskQueue,
     });
-    const resultPromise = wf.start();
-    await wf.started;
+    await wf.start();
     await wf.signal.unblock('12345');
     t.is(await wf.query.getSecret(), '12345');
-    const result = await resultPromise;
+    const result = await wf.result();
     worker.shutdown();
     await workerDrained;
     t.is(result, message);
@@ -86,9 +86,10 @@ if (RUN_INTEGRATION_TESTS) {
       logger: new DefaultLogger('DEBUG'),
     });
     const workerDrained = worker.run();
-    const conn = new Connection({
+    const conn = new Connection();
+    const client = new WorkflowClient(conn.service, {
       interceptors: {
-        workflowClient: [
+        calls: [
           () => ({
             async terminate(input, next) {
               return next({ ...input, reason: message });
@@ -97,13 +98,12 @@ if (RUN_INTEGRATION_TESTS) {
         ],
       },
     });
-    const run = async (cb: (wf: WorkflowClient<Sleeper>, resultPromise: Promise<any>) => Promise<void>) => {
-      const wf = conn.workflow<Sleeper>('sleep', {
+    const run = async (cb: (wf: WorkflowStub<Sleeper>, resultPromise: Promise<any>) => Promise<void>) => {
+      const wf = client.stub<Sleeper>('sleep', {
         taskQueue,
       });
-      const resultPromise = wf.start(999_999_999); // sleep until cancelled or terminated
-      await wf.started;
-      await cb(wf, resultPromise);
+      await wf.start(999_999_999); // sleep until cancelled or terminated
+      await cb(wf, wf.result());
     };
     await run(async (wf, resultPromise) => {
       await wf.terminate();

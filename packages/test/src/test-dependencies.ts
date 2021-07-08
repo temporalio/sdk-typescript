@@ -4,7 +4,7 @@ import { WorkflowInfo } from '@temporalio/workflow';
 import { Worker, ApplyMode, DefaultLogger } from '@temporalio/worker';
 import { IgnoredTestDependencies, TestDependencies } from './interfaces/dependencies';
 import { defaultOptions } from './mock-native-worker';
-import { Connection } from '@temporalio/client';
+import { WorkflowClient } from '@temporalio/client';
 import { RUN_INTEGRATION_TESTS } from './helpers';
 
 interface RecordedCall {
@@ -130,16 +130,17 @@ if (RUN_INTEGRATION_TESTS) {
       },
     });
     const p = worker.run();
-    const conn = new Connection();
-    const wf = conn.workflow<{ main(): number }>('dependencies', { taskQueue });
-    const result = await wf.start();
+    const conn = new WorkflowClient();
+    const wf = conn.stub<{ main(): number }>('dependencies', { taskQueue });
+    const runId = await wf.start();
+    const result = await wf.result();
     worker.shutdown();
     await p;
     const info: WorkflowInfo = {
       namespace: 'default',
       taskQueue,
       workflowId: wf.workflowId,
-      runId: wf.runId!,
+      runId,
       filename: 'dependencies',
       isReplaying: false,
     };
@@ -215,9 +216,10 @@ if (RUN_INTEGRATION_TESTS) {
       },
     });
     const p = worker.run();
-    const conn = new Connection();
-    const wf = conn.workflow<{ main(): number }>('ignored-dependencies', { taskQueue });
-    const result = await wf.start();
+    const conn = new WorkflowClient();
+    const wf = conn.stub<{ main(): number }>('ignored-dependencies', { taskQueue });
+    const runId = await wf.start();
+    const result = await wf.result();
     worker.shutdown();
     await p;
 
@@ -225,7 +227,7 @@ if (RUN_INTEGRATION_TESTS) {
       namespace: 'default',
       taskQueue,
       workflowId: wf.workflowId,
-      runId: wf.runId!,
+      runId,
       filename: 'ignored-dependencies',
       isReplaying: false,
     };
