@@ -200,11 +200,11 @@ export interface ContinueAsNewOptions {
    */
   workflowTaskTimeout?: string;
   /**
-   * TODO: document
+   * Non-searchable attributes to attach to next Workflow run
    */
   memo?: Record<string, any>;
   /**
-   * TODO: document
+   * Searchable attributes to attach to next Workflow run
    */
   searchAttributes?: Record<string, any>;
 }
