@@ -165,7 +165,7 @@ export function activate(encodedActivation: Uint8Array, jobIndex: number): Activ
   if (state.completed && job.variant !== 'queryWorkflow') {
     return { processed: false, pendingExternalCalls: state.getAndResetPendingExternalCalls() };
   }
-  state.activator[job.variant](variant);
+  state.activator[job.variant](variant as any /* TODO: TS is struggling with `true` and `{}` */);
   return { processed: true, pendingExternalCalls: state.getAndResetPendingExternalCalls() };
 }
 

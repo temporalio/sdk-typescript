@@ -1,5 +1,5 @@
 import { AsyncLocalStorage } from './async-local-storage';
-import { CancelledError, IllegalStateError } from './errors';
+import { CancelledError, IllegalStateError, WorkflowCancelledError } from './errors';
 
 /** Magic symbol used to create the root scope - intentionally not exported */
 const NO_PARENT = Symbol('NO_PARENT');
@@ -162,8 +162,14 @@ export class CancellationScope {
 
 const storage = new AsyncLocalStorage<CancellationScope>();
 
+export class RootCancellationScope extends CancellationScope {
+  cancel(): void {
+    this.reject(new WorkflowCancelledError('Workflow cancelled'));
+  }
+}
+
 /** There can only be one of these */
-export const ROOT_SCOPE = new CancellationScope({ cancellable: true, parent: NO_PARENT });
+export const ROOT_SCOPE = new RootCancellationScope({ cancellable: true, parent: NO_PARENT });
 
 /** This function is here to avoid a circular dependency between this module and workflow.ts */
 let sleep = (_: number): Promise<void> => {

@@ -5,7 +5,7 @@ import { arrayFromPayloads, DataConverter, defaultDataConverter } from './conver
 import { alea, RNG } from './alea';
 import { ActivityOptions, ContinueAsNew, ExternalDependencies, Workflow, WorkflowInfo } from './interfaces';
 import { composeInterceptors, WorkflowInterceptors } from './interceptors';
-import { CancelledError, DeterminismViolationError, IllegalStateError } from './errors';
+import { CancelledError, DeterminismViolationError, IllegalStateError, WorkflowCancelledError } from './errors';
 import { errorToUserCodeFailure } from './common';
 import { nullToUndefined } from './time';
 import { ROOT_SCOPE } from './cancellation-scope';
@@ -263,7 +263,9 @@ function completeWorkflow(result: any) {
 }
 
 function handleWorkflowFailure(error: any) {
-  if (error instanceof ContinueAsNew) {
+  if (error instanceof WorkflowCancelledError) {
+    state.commands.push({ cancelWorkflowExecution: {} });
+  } else if (error instanceof ContinueAsNew) {
     state.commands.push({ continueAsNewWorkflowExecution: error.command });
   } else {
     state.commands.push({

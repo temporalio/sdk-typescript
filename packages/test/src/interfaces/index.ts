@@ -82,6 +82,13 @@ export interface ContinueAsNewFromMainAndSignal extends Workflow {
   };
 }
 
+export type WorkflowCancellationScenarioOutcome = 'complete' | 'cancel' | 'fail';
+export type WorkflowCancellationScenarioTiming = 'immediately' | 'after-cleanup';
+
+export interface WorkflowCancellationScenarios extends Workflow {
+  main(outcome: WorkflowCancellationScenarioOutcome, when: WorkflowCancellationScenarioTiming): Promise<void>;
+}
+
 // @@@SNIPSTART nodejs-blocked-interface
 export interface Blocked extends Workflow {
   main(): Promise<void>;

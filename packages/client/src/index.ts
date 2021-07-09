@@ -12,6 +12,7 @@
 export * from './workflow-client';
 export * from './connection';
 export * from './types';
+export * from './errors';
 export * from './workflow-options';
 export * from './interceptors';
 

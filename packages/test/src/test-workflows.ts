@@ -1092,24 +1092,8 @@ test('cancellation-scopes-with-callbacks', async (t) => {
     );
   }
   {
-    // Workflow ignores cancellation
     const completion = await activate(t, makeActivation(undefined, { cancelWorkflow: {} }));
-    compareCompletion(
-      t,
-      cleanWorkflowFailureStackTrace(completion),
-      makeSuccess([
-        makeFailWorkflowExecution(
-          'Cancelled',
-          dedent`
-          CancelledError: Cancelled
-              at CancellationScope.cancel
-              at Activator.cancelWorkflow
-              at activate
-        `,
-          'CancelledError'
-        ),
-      ])
-    );
+    compareCompletion(t, completion, makeSuccess([{ cancelWorkflowExecution: {} }]));
   }
 });
 
