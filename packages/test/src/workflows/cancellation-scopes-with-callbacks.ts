@@ -11,10 +11,8 @@ function doSomehing(callback: () => any) {
 
 export async function main(): Promise<void> {
   await new Promise<void>((resolve, reject) => {
-    CancellationScope.cancellable(async () => {
-      doSomehing(resolve);
-      CancellationScope.current().cancelRequested.catch(reject);
-    });
+    doSomehing(resolve);
+    CancellationScope.current().cancelRequested.catch(reject);
   });
 }
 // @@@SNIPEND

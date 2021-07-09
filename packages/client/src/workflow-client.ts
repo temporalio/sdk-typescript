@@ -4,12 +4,12 @@ import { DataConverter, defaultDataConverter, Workflow } from '@temporalio/workf
 import { WorkflowSignalType, WorkflowQueryType } from '@temporalio/workflow/lib/interfaces';
 import { WorkflowClientInterceptors } from './interceptors';
 import { v4 as uuid4 } from 'uuid';
-import { composeInterceptors } from '@temporalio/workflow';
+import { composeInterceptors, IllegalStateError } from '@temporalio/workflow';
 import { nullToUndefined } from '@temporalio/workflow/lib/time';
 import { arrayFromPayloads, mapToPayloads } from '@temporalio/workflow/lib/converter/data-converter';
-import * as errors from '@temporalio/workflow/lib/errors';
 import { WorkflowOptions, CompiledWorkflowOptions, addDefaults, compileWorkflowOptions } from './workflow-options';
 import {
+  WorkflowCancelInput,
   WorkflowClientCallsInterceptor,
   WorkflowQueryInput,
   WorkflowSignalInput,
@@ -22,6 +22,7 @@ import {
   TerminateWorkflowExecutionResponse,
   RequestCancelWorkflowExecutionResponse,
 } from './types';
+import * as errors from './errors';
 import { Connection, WorkflowService } from './connection';
 
 type EnsurePromise<T> = T extends Promise<any> ? T : Promise<T>;
@@ -394,6 +395,19 @@ export class WorkflowClient {
   }
 
   /**
+   * Uses given input to make requestCancelWorkflowExecution call to the service
+   *
+   * Used as the final function of the cancel interceptor chain
+   */
+  protected async _cancelWorkflowHandler(input: WorkflowCancelInput): Promise<RequestCancelWorkflowExecutionResponse> {
+    return this.service.requestCancelWorkflowExecution({
+      namespace: this.options.namespace,
+      identity: this.options.identity,
+      requestId: uuid4(),
+      workflowExecution: input.workflowExecution,
+    });
+  }
+  /**
    * Create a {@link WorkflowStub} for a new Workflow execution
    *
    * @param name workflow type name (the filename in the Node.js SDK)
@@ -462,25 +476,21 @@ export class WorkflowClient {
         return runId;
       },
       result() {
-        return this.client.result(this.workflowId, runId) as EnsurePromise<ReturnType<T['main']>>;
+        return this.client.result(workflowId, runId) as EnsurePromise<ReturnType<T['main']>>;
       },
       async terminate(reason?: string) {
         const next = this.client._terminateWorkflowHandler.bind(this.client);
         const fn = interceptors.length ? composeInterceptors(interceptors, 'terminate', next) : next;
         return await fn({
-          workflowExecution: { runId, workflowId: workflow.workflowId },
+          workflowExecution: { workflowId, runId },
           reason,
         });
       },
       async cancel() {
-        return this.client.service.requestCancelWorkflowExecution({
-          namespace,
-          identity: this.client.options.identity,
-          requestId: uuid4(),
-          workflowExecution: {
-            runId,
-            workflowId,
-          },
+        const next = this.client._cancelWorkflowHandler.bind(this.client);
+        const fn = interceptors.length ? composeInterceptors(interceptors, 'cancel', next) : next;
+        return await fn({
+          workflowExecution: { workflowId, runId },
         });
       },
       async describe() {
@@ -543,7 +553,7 @@ export class WorkflowClient {
     const interceptors = (this.options.interceptors.calls ?? []).map((ctor) => ctor({ workflowId, runId }));
 
     return this.createWorkflowStub(workflowId, runId, interceptors, () => {
-      throw new errors.IllegalStateError('Workflow created with no WorkflowOptions cannot be started');
+      throw new IllegalStateError('Workflow created with no WorkflowOptions cannot be started');
     });
   }
 

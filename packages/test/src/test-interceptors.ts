@@ -7,9 +7,13 @@
 
 import test from 'ava';
 import { v4 as uuid4 } from 'uuid';
-import { Worker, DefaultLogger, errors as workerErrors } from '@temporalio/worker';
-import { Connection, WorkflowClient, WorkflowStub } from '@temporalio/client';
-import * as errors from '@temporalio/workflow/lib/errors';
+import { Worker, DefaultLogger } from '@temporalio/worker';
+import {
+  Connection,
+  WorkflowClient,
+  WorkflowExecutionFailedError,
+  WorkflowExecutionTerminatedError,
+} from '@temporalio/client';
 import { defaultDataConverter } from '@temporalio/workflow';
 import { defaultOptions } from './mock-native-worker';
 import { Sleeper, Empty } from './interfaces';
@@ -94,42 +98,30 @@ if (RUN_INTEGRATION_TESTS) {
             async terminate(input, next) {
               return next({ ...input, reason: message });
             },
+            async cancel(_input, _next) {
+              throw new Error('nope');
+            },
           }),
         ],
       },
     });
-    const run = async (cb: (wf: WorkflowStub<Sleeper>, resultPromise: Promise<any>) => Promise<void>) => {
-      const wf = client.stub<Sleeper>('sleep', {
-        taskQueue,
-      });
-      await wf.start(999_999_999); // sleep until cancelled or terminated
-      await cb(wf, wf.result());
-    };
-    await run(async (wf, resultPromise) => {
-      await wf.terminate();
-      await t.throwsAsync(resultPromise, {
-        instanceOf: errors.WorkflowExecutionTerminatedError,
-        message,
-      });
+
+    const wf = client.stub<Sleeper>('sleep', {
+      taskQueue,
     });
-    // TODO: Finish once Workflow cancellation is implemented
-    // await run(async (wf, resultPromise) => {
-    //   await wf.cancel();
-    //   await t.throwsAsync(resultPromise, {
-    //     instanceOf: errors.WorkflowExecutionCancelledError,
-    //     message,
-    //   });
-    // });
+    await wf.start(999_999_999); // sleep until cancelled or terminated
+    await t.throwsAsync(wf.cancel(), {
+      instanceOf: Error,
+      message: 'nope',
+    });
+    await wf.terminate();
+    await t.throwsAsync(wf.result(), {
+      instanceOf: WorkflowExecutionTerminatedError,
+      message,
+    });
+
     worker.shutdown();
-    try {
-      await workerDrained;
-    } catch (err) {
-      // There seems to be a race in Core when trying to complete a WF task for the terminated WF
-      // see here: https://github.com/temporalio/sdk-node/pull/132/checks?check_run_id=2880955637
-      if (!(err instanceof workerErrors.TransportError)) {
-        throw err;
-      }
-    }
+    await workerDrained;
   });
 
   test.serial('Workflow continueAsNew can be intercepted', async (t) => {
@@ -149,7 +141,7 @@ if (RUN_INTEGRATION_TESTS) {
       taskQueue,
     });
     await t.throwsAsync(workflow.execute(), {
-      instanceOf: errors.WorkflowExecutionFailedError,
+      instanceOf: WorkflowExecutionFailedError,
       message: 'Expected anything other than 1',
     });
     worker.shutdown();

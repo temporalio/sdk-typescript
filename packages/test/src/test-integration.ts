@@ -11,7 +11,7 @@ import {
   WorkflowExecutionFailedError,
   WorkflowExecutionTerminatedError,
   WorkflowExecutionTimedOutError,
-} from '@temporalio/workflow/lib/errors';
+} from '@temporalio/client';
 import { defaultDataConverter } from '@temporalio/workflow/lib/converter/data-converter';
 import {
   ArgsAndReturn,
@@ -286,14 +286,6 @@ if (RUN_INTEGRATION_TESTS) {
       instanceOf: WorkflowExecutionTerminatedError,
       message: 'hasta la vista baby',
     });
-  });
-
-  test.skip('untilComplete throws if workflow cancelled', async (t) => {
-    const client = new WorkflowClient();
-    const workflow = client.stub<Sleeper>('sleep', { taskQueue: 'test' });
-    await workflow.start(1000000);
-    await workflow.cancel();
-    await t.throwsAsync(workflow.result(), { instanceOf: WorkflowExecutionTerminatedError, message: 'check 1 2' });
   });
 
   test('untilComplete throws if continued as new', async (t) => {

@@ -21,6 +21,7 @@ Learn how to use Temporal on the [docs site](https://docs.temporal.io/docs/node/
 Mostly complete implementation of all components that make up a Temporal SDK - Worker, Client, Workflows, and Activities
 
 - General
+  - Cancellation
   - Interceptors
 - Workflows
   - Scheduling timers
@@ -28,14 +29,11 @@ Mostly complete implementation of all components that make up a Temporal SDK - W
   - Cancelling timers and Activities
   - Signals
   - Queries
-- Activities
-  - Heartbeats
-  - Cancellation
-  - Context
-- Client
+- Activities (complete)
+- Client (complete)
   - Workflow client
   - Service client (for administration)
-- Worker
+- Worker (mostly complete)
   - Basic logging and tracing capabilities
 
 Notably these features are missing:
@@ -43,7 +41,6 @@ Notably these features are missing:
 - WF History pagination (only short Workflows are supported ATM)
 - Telemetry
 - Workflow versioning
-- Workflow cancellation
 - Local activities
 - Side effects
 - Windows support
