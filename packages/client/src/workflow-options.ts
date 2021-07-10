@@ -1,7 +1,6 @@
 import ms from 'ms';
 import { v4 as uuid4 } from 'uuid';
 import { msToTs } from '@temporalio/workflow/lib/time';
-import { Headers } from '@temporalio/workflow';
 import * as iface from '@temporalio/proto';
 
 // Copied from https://github.com/temporalio/sdk-java/blob/master/temporal-sdk/src/main/java/io/temporal/client/WorkflowOptions.java
@@ -97,8 +96,6 @@ export type CompiledWorkflowOptions = BaseWorkflowOptions &
     workflowExecutionTimeout?: iface.google.protobuf.IDuration;
     workflowRunTimeout?: iface.google.protobuf.IDuration;
     workflowTaskTimeout?: iface.google.protobuf.IDuration;
-    /** headers are only added to CompiledWorkflowOptions because they're supposed to be injected by interceptors */
-    headers: Headers;
   };
 
 /**
@@ -124,6 +121,5 @@ export function compileWorkflowOptions({
     workflowExecutionTimeout: workflowExecutionTimeout ? msToTs(ms(workflowExecutionTimeout)) : undefined,
     workflowRunTimeout: workflowRunTimeout ? msToTs(ms(workflowRunTimeout)) : undefined,
     workflowTaskTimeout: workflowTaskTimeout ? msToTs(ms(workflowTaskTimeout)) : undefined,
-    headers: new Map(),
   };
 }
