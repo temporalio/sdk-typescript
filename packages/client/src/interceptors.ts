@@ -28,6 +28,16 @@ export interface WorkflowSignalInput {
   readonly workflowExecution: WorkflowExecution;
 }
 
+/** Input for WorkflowClientCallsInterceptor.signalWithStart */
+export interface WorkflowSignalWithStartInput {
+  readonly workflowName: string;
+  readonly workflowArgs: unknown[];
+  readonly signalName: string;
+  readonly signalArgs: unknown[];
+  readonly headers: Headers;
+  readonly options: CompiledWorkflowOptions;
+}
+
 /** Input for WorkflowClientCallsInterceptor.query */
 export interface WorkflowQueryInput {
   readonly queryType: string;
@@ -52,13 +62,38 @@ export interface WorkflowCancelInput {
  * Implement any of these methods to intercept WorkflowClient outbound calls
  */
 export interface WorkflowClientCallsInterceptor {
+  /**
+   * Intercept a service call to startWorkflowExecution
+   *
+   * If you implement this method,
+   * {@link signalWithStart} most likely needs to be implemented too
+   */
   start?: (input: WorkflowStartInput, next: Next<this, 'start'>) => Promise<string /* runId */>;
+  /**
+   * Intercept a service call to signalWorkflowExecution
+   *
+   * If you implement this method,
+   * {@link signalWithStart} most likely needs to be implemented too
+   */
   signal?: (input: WorkflowSignalInput, next: Next<this, 'signal'>) => Promise<void>;
+  /**
+   * Intercept a service call to signalWithStartWorkflowExecution
+   */
+  signalWithStart?: (input: WorkflowSignalWithStartInput, next: Next<this, 'signalWithStart'>) => Promise<string>;
+  /**
+   * Intercept a service call to queryWorkflow
+   */
   query?: (input: WorkflowQueryInput, next: Next<this, 'query'>) => Promise<unknown>;
+  /**
+   * Intercept a service call to terminateWorkflowExecution
+   */
   terminate?: (
     input: WorkflowTerminateInput,
     next: Next<this, 'terminate'>
   ) => Promise<TerminateWorkflowExecutionResponse>;
+  /**
+   * Intercept a service call to requestCancelWorkflowExecution
+   */
   cancel?: (input: WorkflowCancelInput, next: Next<this, 'cancel'>) => Promise<RequestCancelWorkflowExecutionResponse>;
 }
 

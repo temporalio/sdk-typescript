@@ -7,20 +7,22 @@ import { v4 as uuid4 } from 'uuid';
 import { composeInterceptors, IllegalStateError } from '@temporalio/workflow';
 import { nullToUndefined } from '@temporalio/workflow/lib/time';
 import { arrayFromPayloads, mapToPayloads } from '@temporalio/workflow/lib/converter/data-converter';
-import { WorkflowOptions, CompiledWorkflowOptions, addDefaults, compileWorkflowOptions } from './workflow-options';
+import { WorkflowOptions, addDefaults, compileWorkflowOptions } from './workflow-options';
 import {
   WorkflowCancelInput,
   WorkflowClientCallsInterceptor,
   WorkflowQueryInput,
   WorkflowSignalInput,
+  WorkflowSignalWithStartInput,
+  WorkflowStartInput,
   WorkflowTerminateInput,
 } from './interceptors';
 import {
-  StartWorkflowExecutionRequest,
   GetWorkflowExecutionHistoryRequest,
   DescribeWorkflowExecutionResponse,
-  TerminateWorkflowExecutionResponse,
   RequestCancelWorkflowExecutionResponse,
+  StartWorkflowExecutionRequest,
+  TerminateWorkflowExecutionResponse,
 } from './types';
 import * as errors from './errors';
 import { Connection, WorkflowService } from './connection';
@@ -166,6 +168,14 @@ export interface WorkflowStub<T extends Workflow> {
    */
   readonly workflowId: string;
   readonly client: WorkflowClient;
+
+  signalWithStart: T extends Record<'signals', Record<string, WorkflowSignalType>>
+    ? <S extends keyof T['signals']>(
+        signalName: S,
+        signalArgs: Parameters<T['signals'][S]>,
+        workflowArgs: Parameters<T['main']>
+      ) => Promise<string>
+    : never;
 }
 
 /**
@@ -192,9 +202,7 @@ export class WorkflowClient {
       ctor({ workflowId: compiledOptions.workflowId })
     );
 
-    const next = composeInterceptors(interceptors, 'start', async ({ args, name, headers, options }) => {
-      return this.startWorkflowExecution({ ...options, headers }, name, ...args);
-    });
+    const next = composeInterceptors(interceptors, 'start', this._startWorkflowHandler.bind(this));
 
     const start = (...args: Parameters<T['main']>) =>
       next({
@@ -216,47 +224,9 @@ export class WorkflowClient {
   ): // eslint-disable-next-line @typescript-eslint/ban-ts-comment
   // @ts-ignore
   EnsurePromise<ReturnType<T['main']>> {
-    const compiledOptions = compileWorkflowOptions(addDefaults(opts));
-    const runId = await this.startWorkflowExecution(compiledOptions, name, ...args);
-    return this.result(compiledOptions.workflowId, runId);
-  }
-
-  /**
-   * Starts a new Workflow execution with compiled options
-   */
-  protected async startWorkflowExecution(
-    opts: CompiledWorkflowOptions,
-    name: string,
-    ...args: unknown[]
-  ): Promise<string> {
-    const { identity, dataConverter } = this.options;
-    const req: StartWorkflowExecutionRequest = {
-      namespace: this.options.namespace,
-      identity,
-      requestId: uuid4(),
-      workflowId: opts.workflowId,
-      workflowIdReusePolicy: opts.workflowIdReusePolicy,
-      workflowType: { name },
-      input: { payloads: dataConverter.toPayloads(...args) },
-      taskQueue: {
-        kind: temporal.api.enums.v1.TaskQueueKind.TASK_QUEUE_KIND_UNSPECIFIED,
-        name: opts.taskQueue,
-      },
-      workflowExecutionTimeout: opts.workflowExecutionTimeout,
-      workflowRunTimeout: opts.workflowRunTimeout,
-      workflowTaskTimeout: opts.workflowTaskTimeout,
-      retryPolicy: opts.retryPolicy,
-      memo: opts.memo ? { fields: mapToPayloads(dataConverter, opts.memo) } : undefined,
-      searchAttributes: opts.searchAttributes
-        ? {
-            indexedFields: mapToPayloads(dataConverter, opts.searchAttributes),
-          }
-        : undefined,
-      cronSchedule: opts.cronSchedule,
-      header: { fields: Object.fromEntries(opts.headers.entries()) },
-    };
-    const res = await this.service.startWorkflowExecution(req);
-    return res.runId;
+    const workflowId = opts.workflowId ?? uuid4();
+    const runId = await this.start({ ...opts, workflowId }, name, ...args);
+    return this.result(workflowId, runId);
   }
 
   /**
@@ -365,8 +335,7 @@ export class WorkflowClient {
    * Used as the final function of the signal interceptor chain
    */
   protected async _signalWorkflowHandler(input: WorkflowSignalInput): Promise<void> {
-    console.log('signalWorkflowExecution', input.workflowExecution);
-    const resp = await this.service.signalWorkflowExecution({
+    await this.service.signalWorkflowExecution({
       identity: this.options.identity,
       namespace: this.options.namespace,
       workflowExecution: input.workflowExecution,
@@ -375,7 +344,81 @@ export class WorkflowClient {
       signalName: input.signalName,
       input: { payloads: this.options.dataConverter.toPayloads(...input.args) },
     });
-    console.log({ resp });
+  }
+
+  /**
+   * Uses given input to make a signalWithStartWorkflowExecution call to the service
+   *
+   * Used as the final function of the signalWithStart interceptor chain
+   */
+  protected async _signalWithStartWorkflowHandler(input: WorkflowSignalWithStartInput): Promise<string> {
+    const { identity, dataConverter } = this.options;
+    const { options, workflowName, workflowArgs, signalName, signalArgs, headers } = input;
+    const { runId } = await this.service.signalWithStartWorkflowExecution({
+      namespace: this.options.namespace,
+      identity,
+      requestId: uuid4(),
+      workflowId: options.workflowId,
+      workflowIdReusePolicy: options.workflowIdReusePolicy,
+      workflowType: { name: workflowName },
+      input: { payloads: dataConverter.toPayloads(...workflowArgs) },
+      signalName,
+      signalInput: { payloads: dataConverter.toPayloads(...signalArgs) },
+      taskQueue: {
+        kind: temporal.api.enums.v1.TaskQueueKind.TASK_QUEUE_KIND_UNSPECIFIED,
+        name: options.taskQueue,
+      },
+      workflowExecutionTimeout: options.workflowExecutionTimeout,
+      workflowRunTimeout: options.workflowRunTimeout,
+      workflowTaskTimeout: options.workflowTaskTimeout,
+      retryPolicy: options.retryPolicy,
+      memo: options.memo ? { fields: mapToPayloads(dataConverter, options.memo) } : undefined,
+      searchAttributes: options.searchAttributes
+        ? {
+            indexedFields: mapToPayloads(dataConverter, options.searchAttributes),
+          }
+        : undefined,
+      cronSchedule: options.cronSchedule,
+      header: { fields: Object.fromEntries(headers.entries()) },
+    });
+    return runId;
+  }
+
+  /**
+   * Uses given input to make startWorkflowExecution call to the service
+   *
+   * Used as the final function of the start interceptor chain
+   */
+  protected async _startWorkflowHandler(input: WorkflowStartInput): Promise<string> {
+    const { options: opts, name, args, headers } = input;
+    const { identity, dataConverter } = this.options;
+    const req: StartWorkflowExecutionRequest = {
+      namespace: this.options.namespace,
+      identity,
+      requestId: uuid4(),
+      workflowId: opts.workflowId,
+      workflowIdReusePolicy: opts.workflowIdReusePolicy,
+      workflowType: { name },
+      input: { payloads: dataConverter.toPayloads(...args) },
+      taskQueue: {
+        kind: temporal.api.enums.v1.TaskQueueKind.TASK_QUEUE_KIND_UNSPECIFIED,
+        name: opts.taskQueue,
+      },
+      workflowExecutionTimeout: opts.workflowExecutionTimeout,
+      workflowRunTimeout: opts.workflowRunTimeout,
+      workflowTaskTimeout: opts.workflowTaskTimeout,
+      retryPolicy: opts.retryPolicy,
+      memo: opts.memo ? { fields: mapToPayloads(dataConverter, opts.memo) } : undefined,
+      searchAttributes: opts.searchAttributes
+        ? {
+            indexedFields: mapToPayloads(dataConverter, opts.searchAttributes),
+          }
+        : undefined,
+      cronSchedule: opts.cronSchedule,
+      header: { fields: Object.fromEntries(headers.entries()) },
+    };
+    const res = await this.service.startWorkflowExecution(req);
+    return res.runId;
   }
 
   /**
@@ -459,7 +502,8 @@ export class WorkflowClient {
     workflowId: string,
     runId: string | undefined,
     interceptors: WorkflowClientCallsInterceptor[],
-    start: WorkflowStub<T>['start']
+    start: WorkflowStub<T>['start'],
+    signalWithStart: WorkflowStub<T>['signalWithStart']
   ): WorkflowStub<T> {
     const namespace = this.options.namespace;
 
@@ -541,6 +585,7 @@ export class WorkflowClient {
           },
         }
       ) as any,
+      signalWithStart,
     };
 
     return workflow;
@@ -552,9 +597,17 @@ export class WorkflowClient {
   protected connectToExistingWorkflow<T extends Workflow>(workflowId: string, runId?: string): WorkflowStub<T> {
     const interceptors = (this.options.interceptors.calls ?? []).map((ctor) => ctor({ workflowId, runId }));
 
-    return this.createWorkflowStub(workflowId, runId, interceptors, () => {
+    const startCallback = () => {
       throw new IllegalStateError('Workflow created with no WorkflowOptions cannot be started');
-    });
+    };
+    return this.createWorkflowStub(
+      workflowId,
+      runId,
+      interceptors,
+      startCallback,
+      // Requires cast because workflow signals are optional which complicate the type
+      startCallback as any
+    );
   }
 
   /**
@@ -567,18 +620,42 @@ export class WorkflowClient {
       ctor({ workflowId: compiledOptions.workflowId })
     );
 
-    const next = composeInterceptors(interceptors, 'start', async ({ args, name, headers, options }) => {
-      return this.startWorkflowExecution({ ...options, headers }, name, ...args);
-    });
+    const start = (...args: Parameters<T['main']>) => {
+      const next = composeInterceptors(interceptors, 'start', this._startWorkflowHandler.bind(this));
 
-    const start = (...args: Parameters<T['main']>) =>
-      next({
+      return next({
         options: compiledOptions,
         headers: new Map(),
         args,
         name,
       });
-    return this.createWorkflowStub(compiledOptions.workflowId, undefined, interceptors, start);
+    };
+
+    const signalWithStart = (signalName: string, signalArgs: unknown[], workflowArgs: Parameters<T['main']>) => {
+      const next = composeInterceptors(
+        interceptors,
+        'signalWithStart',
+        this._signalWithStartWorkflowHandler.bind(this)
+      );
+
+      return next({
+        options: compiledOptions,
+        headers: new Map(),
+        workflowArgs,
+        workflowName: name,
+        signalName,
+        signalArgs,
+      });
+    };
+
+    return this.createWorkflowStub(
+      compiledOptions.workflowId,
+      undefined,
+      interceptors,
+      start,
+      // Requires cast because workflow signals are optional which complicate the type
+      signalWithStart as any
+    );
   }
 }
 

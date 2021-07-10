@@ -277,7 +277,7 @@ if (RUN_INTEGRATION_TESTS) {
     t.is(tsToMs(execution.executionConfig!.defaultWorkflowTaskTimeout!), ms(options.workflowTaskTimeout));
   });
 
-  test('untilComplete throws if terminated', async (t) => {
+  test('WorkflowStub.result() throws if terminated', async (t) => {
     const client = new WorkflowClient();
     const workflow = client.stub<Sleeper>('sleep', { taskQueue: 'test' });
     await workflow.start(1000000);
@@ -288,7 +288,7 @@ if (RUN_INTEGRATION_TESTS) {
     });
   });
 
-  test('untilComplete throws if continued as new', async (t) => {
+  test('WorkflowStub.result() throws if continued as new', async (t) => {
     const client = new WorkflowClient();
     let workflow = client.stub<ContinueAsNewFromMainAndSignal>('continue-as-new-same-workflow', {
       taskQueue: 'test',
@@ -327,5 +327,23 @@ if (RUN_INTEGRATION_TESTS) {
       history?.events?.[0].workflowExecutionStartedEventAttributes?.input?.payloads
     );
     t.is(timeSlept, 1);
+  });
+
+  test('signalWithStart works as intended and returns correct runId', async (t) => {
+    const client = new WorkflowClient();
+    let workflow = client.stub<Interruptable>('interrupt-signal', {
+      taskQueue: 'test',
+    });
+    const runId = await workflow.signalWithStart('interrupt', ['interrupted from signalWithStart'], []);
+    await t.throwsAsync(workflow.result(), {
+      message: /interrupted from signalWithStart/,
+      instanceOf: WorkflowExecutionFailedError,
+    });
+    // Test returned runId
+    workflow = client.stub<Interruptable>(workflow.workflowId, runId);
+    await t.throwsAsync(workflow.result(), {
+      message: /interrupted from signalWithStart/,
+      instanceOf: WorkflowExecutionFailedError,
+    });
   });
 }

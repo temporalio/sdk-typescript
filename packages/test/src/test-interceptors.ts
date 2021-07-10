@@ -56,6 +56,12 @@ if (RUN_INTEGRATION_TESTS) {
               const encoded = [...(decoded as any as string)].reverse().join('');
               return next({ ...input, args: [encoded] });
             },
+            async signalWithStart(input, next) {
+              input.headers.set('message', defaultDataConverter.toPayload(message));
+              const [decoded] = input.signalArgs;
+              const encoded = [...(decoded as any as string)].reverse().join('');
+              return next({ ...input, signalArgs: [encoded] });
+            },
             async query(input, next) {
               const result: string = (await next(input)) as any;
               return [...result].reverse().join('');
@@ -64,20 +70,33 @@ if (RUN_INTEGRATION_TESTS) {
         ],
       },
     });
-    const wf = client.stub<{
-      main(): string;
-      signals: { unblock(secret: string): void };
-      queries: { getSecret(): string };
-    }>('interceptor-example', {
-      taskQueue,
-    });
-    await wf.start();
-    await wf.signal.unblock('12345');
-    t.is(await wf.query.getSecret(), '12345');
-    const result = await wf.result();
+    {
+      const wf = client.stub<{
+        main(): string;
+        signals: { unblock(secret: string): void };
+        queries: { getSecret(): string };
+      }>('interceptor-example', {
+        taskQueue,
+      });
+      await wf.start();
+      await wf.signal.unblock('12345');
+      t.is(await wf.query.getSecret(), '12345');
+      const result = await wf.result();
+      t.is(result, message);
+    }
+    {
+      const wf = client.stub<{
+        main(): string;
+        signals: { unblock(secret: string): void };
+      }>('interceptor-example', {
+        taskQueue,
+      });
+      await wf.signalWithStart('unblock', ['12345'], []);
+      const result = await wf.result();
+      t.is(result, message);
+    }
     worker.shutdown();
     await workerDrained;
-    t.is(result, message);
   });
 
   test.serial('WorkflowClientCallsInterceptor intercepts terminate and cancel', async (t) => {
