@@ -399,7 +399,7 @@ export class NativeWorker implements NativeWorkerLike {
 }
 
 function formatTaskToken(taskToken: Uint8Array) {
-  return Buffer.from(taskToken.slice(0, 8)).toString('base64');
+  return Buffer.from(taskToken).toString('base64');
 }
 
 /**
@@ -413,6 +413,7 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
   }>();
   protected readonly stateSubject = new BehaviorSubject<State>('INITIALIZED');
   protected readonly numInFlightActivationsSubject = new BehaviorSubject<number>(0);
+  protected readonly numInFlightActivitiesSubject = new BehaviorSubject<number>(0);
   protected readonly numRunningWorkflowInstancesSubject = new BehaviorSubject<number>(0);
   protected readonly nativeWorker: NativeWorkerLike;
 
@@ -476,6 +477,13 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
    */
   public get numInFlightActivations$(): Observable<number> {
     return this.numInFlightActivationsSubject;
+  }
+
+  /**
+   * An Observable which emits each time the number of in flight activity tasks changes
+   */
+  public get numInFlightActivities$(): Observable<number> {
+    return this.numInFlightActivitiesSubject;
   }
 
   /**
@@ -619,6 +627,7 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
 
             switch (variant) {
               case 'start': {
+                this.numInFlightActivitiesSubject.next(this.numInFlightActivitiesSubject.value + 1);
                 const info = extractActivityInfo(task, false, this.options.dataConverter, this.nativeWorker.namespace);
                 const [path, fnName] = info.activityType;
                 const module = this.resolvedActivities.get(path);
@@ -705,7 +714,8 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
           }),
           filter(<T>(result: T): result is Exclude<T, undefined> => result !== undefined),
           map((result) => coresdk.ActivityTaskCompletion.encodeDelimited(result).finish()),
-          tap(group$.close) // Close the group after activity task completion
+          tap(group$.close), // Close the group after activity task completion
+          tap(() => void this.numInFlightActivitiesSubject.next(this.numInFlightActivitiesSubject.value - 1))
         );
       })
     );
@@ -716,18 +726,6 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
    */
   protected workflowOperator(): OperatorFunction<ActivationWithContext, ContextAware<{ completion: Uint8Array }>> {
     return pipe(
-      tap(() => {
-        this.numInFlightActivationsSubject.next(this.numInFlightActivationsSubject.value + 1);
-      }),
-      map((awc) => ({
-        ...awc,
-        span: childSpan(awc.parentSpan, 'process', {
-          attributes: {
-            numInFlightActivations: this.numInFlightActivationsSubject.value,
-            numRunningWorkflowInstances: this.numRunningWorkflowInstancesSubject.value,
-          },
-        }),
-      })),
       closeableGroupBy(({ activation }) => activation.runId),
       mergeMap((group$) => {
         return merge(
@@ -752,6 +750,18 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
             })
           )
         ).pipe(
+          tap(() => {
+            this.numInFlightActivationsSubject.next(this.numInFlightActivationsSubject.value + 1);
+          }),
+          map((awc) => ({
+            ...awc,
+            span: childSpan(awc.parentSpan, 'workflow.process', {
+              attributes: {
+                numInFlightActivations: this.numInFlightActivationsSubject.value,
+                numRunningWorkflowInstances: this.numRunningWorkflowInstancesSubject.value,
+              },
+            }),
+          })),
           mergeMapWithState(async (workflow: Workflow | undefined, { activation, span, parentSpan: root }): Promise<{
             state: Workflow | undefined;
             output: ContextAware<{ completion?: Uint8Array; close: boolean; span: otel.Span }>;
@@ -767,6 +777,7 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
                 span.setStatus({ code: otel.SpanStatusCode.ERROR, message });
                 throw new IllegalStateError(message);
               }
+              this.log.debug('Disposing workflow', { runId: activation.runId });
               span.setStatus({ code: otel.SpanStatusCode.OK });
               return { state: undefined, output: { close, completion: undefined, span, parentSpan: root } };
             }
@@ -843,13 +854,24 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
               }
             }
 
-            const completion = await workflow.activate(activation);
-            this.log.debug('Completed activation', {
-              runId: activation.runId,
-            });
+            try {
+              const completion = await workflow.activate(activation);
+              this.log.debug('Completed activation', {
+                runId: activation.runId,
+              });
 
-            span.setStatus({ code: otel.SpanStatusCode.OK });
-            return { state: workflow, output: { close, completion, span, parentSpan: root } };
+              span.setStatus({ code: otel.SpanStatusCode.OK });
+              return { state: workflow, output: { close, completion, span, parentSpan: root } };
+            } catch (error) {
+              const completion = coresdk.workflow_completion.WFActivationCompletion.encodeDelimited({
+                runId: activation.runId,
+                failed: {
+                  failure: errorToUserCodeFailure(error),
+                },
+              }).finish();
+              workflow.dispose();
+              return { state: undefined, output: { close: true, completion, span, parentSpan: root } };
+            }
           }, undefined),
           tap(({ close, span }) => {
             span.setAttribute('close', close).end();
