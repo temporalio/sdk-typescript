@@ -45,7 +45,7 @@ async function waitOnNamespace(connection: Connection, namespace: string, maxAtt
 
 async function runWorkflow(client: WorkflowClient, name: string, taskQueue: string) {
   const workflow = client.stub<any>(name, { taskQueue });
-  await workflow.start();
+  await workflow.execute();
 }
 
 function toMB(bytes: number, fractionDigits = 2) {
@@ -76,11 +76,15 @@ async function runWorkflows({
     .pipe(
       take(numWorkflows),
       mergeMap(() => runWorkflow(client, name, taskQueue), concurrency),
-      withLatestFrom(worker.numInFlightActivations$, worker.numRunningWorkflowInstances$),
-      tap(([_, numInFlightActivations, numRunningWorkflowInstances]) => {
+      withLatestFrom(
+        worker.numInFlightActivations$,
+        worker.numInFlightActivities$,
+        worker.numRunningWorkflowInstances$
+      ),
+      tap(([_, numInFlightActivations, numInFlightActivities, numRunningWorkflowInstances]) => {
         ++numComplete;
         console.log(
-          `Workflow complete (${numComplete}/${numWorkflows}) (in flight - WFs: ${numRunningWorkflowInstances}, activations: ${numInFlightActivations})`
+          `Workflow complete (${numComplete}/${numWorkflows}) (in flight - WFs: ${numRunningWorkflowInstances}, activations: ${numInFlightActivations}, activities: ${numInFlightActivities})`
         );
         if (numComplete % heapSampleIteration === 0) {
           const { heapUsed, heapTotal } = process.memoryUsage();
@@ -95,6 +99,7 @@ async function main() {
     '--iterations': Number,
     '--workflow': String,
     '--ns': String,
+    '--max-cached-wfs': Number,
     '--max-concurrent-at-executions': Number,
     '--max-concurrent-wft-executions': Number,
     '--max-concurrent-at-polls': Number,
@@ -110,6 +115,7 @@ async function main() {
   const maxConcurrentActivityTaskPolls = args['--max-concurrent-at-polls'] || 20;
   const maxConcurrentWorkflowTaskPolls = args['--max-concurrent-wft-polls'] || 20;
   const concurrentWFClients = args['--concurrent-wf-clients'] || 100;
+  const maxCachedWorkflows = args['--max-cached-wfs'] || 200;
   const logLevel = (args['--log-level'] || 'INFO').toUpperCase();
   const serverAddress = args['--server-address'] || 'localhost:7233';
   const namespace = args['--ns'] || `bench-${new Date().toISOString()}`;
@@ -130,6 +136,7 @@ async function main() {
   console.log('Wait complete on namespace', { namespace });
 
   await Core.install({
+    maxCachedWorkflows,
     serverOptions: {
       namespace,
       address: serverAddress,
