@@ -1,9 +1,9 @@
 ## Building `temporal_sdk_node_bridge`
 
-`temporal_sdk_node_bridge` is a native NodeJS module written in Rust using [neon](https://neon-bindings.com/).
+`temporal_sdk_node_bridge` is a native Node.js module written in Rust using [neon](https://neon-bindings.com/).
 One of the advantages of using Rust is that it's easy to cross compile to various platforms and architectures.
 
-By using NodeJS' `n-api` we get a binary which _should_ work on all supported Node versions thanks to `n-api`'s [ABI stability](https://nodejs.org/en/docs/guides/abi-stability/).
+By using Node.js' `n-api` we get a binary which _should_ work on all supported Node versions thanks to `n-api`'s [ABI stability](https://nodejs.org/en/docs/guides/abi-stability/).
 
 ### Prerequisites for M1 Macs
 

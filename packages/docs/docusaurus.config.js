@@ -2,7 +2,7 @@
 const watch = ['y', 'yes', 't', 'true', '1'].includes(process.env.TYPEDOC_WATCH);
 
 module.exports = {
-  title: 'Temporal NodeJS SDK API Reference',
+  title: 'Temporal Node.js SDK API Reference',
   tagline: 'Build invincible applications',
   url: 'https://nodejs.temporal.io',
   baseUrl: '/',
