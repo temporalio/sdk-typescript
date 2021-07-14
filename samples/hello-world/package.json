@@ -1,0 +1,19 @@
+{
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "build": "tsc --build src/worker/tsconfig.json",
+    "build.watch": "tsc --build --watch src/worker/tsconfig.json",
+    "start": "node lib/worker"
+  },
+  "dependencies": {
+    "@temporalio/client": "file:../../packages/client",
+    "@temporalio/proto": "file:../../packages/proto",
+    "@temporalio/worker": "file:../../packages/worker",
+    "@temporalio/workflow": "file:../../packages/workflow"
+  },
+  "devDependencies": {
+    "typescript": "^4.2.2"
+  },
+  "name": "hello-world-example"
+}
