@@ -267,11 +267,11 @@ export class WorkflowClient {
     if (ev.workflowExecutionCompletedEventAttributes) {
       // Note that we can only return one value from our workflow function in JS.
       // Ignore any other payloads in result
-      const [result] = arrayFromPayloads(
+      const [result] = await arrayFromPayloads(
         this.options.dataConverter,
         ev.workflowExecutionCompletedEventAttributes.result?.payloads
       );
-      return result;
+      return result as any;
     } else if (ev.workflowExecutionFailedEventAttributes) {
       throw new errors.WorkflowExecutionFailedError(
         ev.workflowExecutionFailedEventAttributes.failure?.message || 'Workflow failed without failure message'
@@ -279,12 +279,18 @@ export class WorkflowClient {
     } else if (ev.workflowExecutionCanceledEventAttributes) {
       throw new errors.WorkflowExecutionCancelledError(
         'Workflow execution cancelled',
-        arrayFromPayloads(this.options.dataConverter, ev.workflowExecutionCanceledEventAttributes.details?.payloads)
+        await arrayFromPayloads(
+          this.options.dataConverter,
+          ev.workflowExecutionCanceledEventAttributes.details?.payloads
+        )
       );
     } else if (ev.workflowExecutionTerminatedEventAttributes) {
       throw new errors.WorkflowExecutionTerminatedError(
         ev.workflowExecutionTerminatedEventAttributes.reason || 'Workflow execution terminated',
-        arrayFromPayloads(this.options.dataConverter, ev.workflowExecutionTerminatedEventAttributes.details?.payloads),
+        await arrayFromPayloads(
+          this.options.dataConverter,
+          ev.workflowExecutionTerminatedEventAttributes.details?.payloads
+        ),
         nullToUndefined(ev.workflowExecutionTerminatedEventAttributes.identity)
       );
     } else if (ev.workflowExecutionTimedOutEventAttributes) {
@@ -313,7 +319,7 @@ export class WorkflowClient {
       execution: input.workflowExecution,
       query: {
         queryType: input.queryType,
-        queryArgs: { payloads: this.options.dataConverter.toPayloads(...input.args) },
+        queryArgs: { payloads: await this.options.dataConverter.toPayloads(...input.args) },
       },
     });
     if (response.queryRejected) {
@@ -342,7 +348,7 @@ export class WorkflowClient {
       requestId: uuid4(),
       // control is unused,
       signalName: input.signalName,
-      input: { payloads: this.options.dataConverter.toPayloads(...input.args) },
+      input: { payloads: await this.options.dataConverter.toPayloads(...input.args) },
     });
   }
 
@@ -361,9 +367,9 @@ export class WorkflowClient {
       workflowId: options.workflowId,
       workflowIdReusePolicy: options.workflowIdReusePolicy,
       workflowType: { name: workflowName },
-      input: { payloads: dataConverter.toPayloads(...workflowArgs) },
+      input: { payloads: await dataConverter.toPayloads(...workflowArgs) },
       signalName,
-      signalInput: { payloads: dataConverter.toPayloads(...signalArgs) },
+      signalInput: { payloads: await dataConverter.toPayloads(...signalArgs) },
       taskQueue: {
         kind: temporal.api.enums.v1.TaskQueueKind.TASK_QUEUE_KIND_UNSPECIFIED,
         name: options.taskQueue,
@@ -372,10 +378,10 @@ export class WorkflowClient {
       workflowRunTimeout: options.workflowRunTimeout,
       workflowTaskTimeout: options.workflowTaskTimeout,
       retryPolicy: options.retryPolicy,
-      memo: options.memo ? { fields: mapToPayloads(dataConverter, options.memo) } : undefined,
+      memo: options.memo ? { fields: await mapToPayloads(dataConverter, options.memo) } : undefined,
       searchAttributes: options.searchAttributes
         ? {
-            indexedFields: mapToPayloads(dataConverter, options.searchAttributes),
+            indexedFields: await mapToPayloads(dataConverter, options.searchAttributes),
           }
         : undefined,
       cronSchedule: options.cronSchedule,
@@ -399,7 +405,7 @@ export class WorkflowClient {
       workflowId: opts.workflowId,
       workflowIdReusePolicy: opts.workflowIdReusePolicy,
       workflowType: { name },
-      input: { payloads: dataConverter.toPayloads(...args) },
+      input: { payloads: await dataConverter.toPayloads(...args) },
       taskQueue: {
         kind: temporal.api.enums.v1.TaskQueueKind.TASK_QUEUE_KIND_UNSPECIFIED,
         name: opts.taskQueue,
@@ -408,10 +414,10 @@ export class WorkflowClient {
       workflowRunTimeout: opts.workflowRunTimeout,
       workflowTaskTimeout: opts.workflowTaskTimeout,
       retryPolicy: opts.retryPolicy,
-      memo: opts.memo ? { fields: mapToPayloads(dataConverter, opts.memo) } : undefined,
+      memo: opts.memo ? { fields: await mapToPayloads(dataConverter, opts.memo) } : undefined,
       searchAttributes: opts.searchAttributes
         ? {
-            indexedFields: mapToPayloads(dataConverter, opts.searchAttributes),
+            indexedFields: await mapToPayloads(dataConverter, opts.searchAttributes),
           }
         : undefined,
       cronSchedule: opts.cronSchedule,
@@ -433,7 +439,7 @@ export class WorkflowClient {
       namespace: this.options.namespace,
       identity: this.options.identity,
       ...input,
-      details: { payloads: this.options.dataConverter.toPayloads(input.details) },
+      details: { payloads: await this.options.dataConverter.toPayloads(input.details) },
     });
   }
 

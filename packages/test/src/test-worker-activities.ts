@@ -56,11 +56,11 @@ test('Worker runs an activity and reports completion', async (t) => {
       activityId: 'abc',
       start: {
         activityType: JSON.stringify(['@activities', 'httpGet']),
-        input: defaultDataConverter.toPayloads(url),
+        input: await defaultDataConverter.toPayloads(url),
       },
     });
     compareCompletion(t, completion.result, {
-      completed: { result: defaultDataConverter.toPayload(await httpGet(url)) },
+      completed: { result: await defaultDataConverter.toPayload(await httpGet(url)) },
     });
   });
 });
@@ -75,7 +75,7 @@ test('Worker runs an activity and reports failure', async (t) => {
       activityId: 'abc',
       start: {
         activityType: JSON.stringify(['@activities', 'throwAnError']),
-        input: defaultDataConverter.toPayloads(message),
+        input: await defaultDataConverter.toPayloads(message),
       },
     });
     compareCompletion(t, completion.result, {
@@ -94,7 +94,7 @@ test('Worker cancels activity and reports cancellation', async (t) => {
         activityId: 'abc',
         start: {
           activityType: JSON.stringify(['@activities', 'waitForCancellation']),
-          input: defaultDataConverter.toPayloads(),
+          input: await defaultDataConverter.toPayloads(),
         },
       },
     });
@@ -120,7 +120,7 @@ test('Activity Context AbortSignal cancels a fetch request', async (t) => {
           activityId: 'abc',
           start: {
             activityType: JSON.stringify(['@activities', 'cancellableFetch']),
-            input: defaultDataConverter.toPayloads(`http://127.0.0.1:${port}`, false),
+            input: await defaultDataConverter.toPayloads(`http://127.0.0.1:${port}`, false),
           },
         },
       });
@@ -146,7 +146,7 @@ test('Activity Context heartbeat is sent to core', async (t) => {
       activityId: 'abc',
       start: {
         activityType: JSON.stringify(['@activities', 'progressiveSleep']),
-        input: defaultDataConverter.toPayloads(),
+        input: await defaultDataConverter.toPayloads(),
       },
     });
     console.log('waiting heartbeat 1');
@@ -156,7 +156,7 @@ test('Activity Context heartbeat is sent to core', async (t) => {
     t.is(await worker.native.untilHeartbeat(taskToken), 3);
     console.log('waiting completion');
     compareCompletion(t, (await completionPromise).result, {
-      completed: { result: defaultDataConverter.toPayload(undefined) },
+      completed: { result: await defaultDataConverter.toPayload(undefined) },
     });
   });
 });

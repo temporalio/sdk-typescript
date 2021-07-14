@@ -43,7 +43,7 @@ export const interceptors: WorkflowInterceptors = {
     {
       async execute(input, next) {
         const encoded = input.headers.get('message');
-        receivedMessage = encoded ? defaultDataConverter.fromPayload(encoded) : '';
+        receivedMessage = encoded ? await defaultDataConverter.fromPayload(encoded) : '';
         return next(input);
       },
       async handleSignal(input, next) {
@@ -61,7 +61,7 @@ export const interceptors: WorkflowInterceptors = {
     {
       async scheduleActivity(input, next) {
         const headers: Headers = new Map();
-        headers.set('message', defaultDataConverter.toPayload(receivedMessage));
+        headers.set('message', await defaultDataConverter.toPayload(receivedMessage));
         return next({ ...input, headers });
       },
       async startTimer(input, next) {

@@ -13,9 +13,9 @@ import {
  * Implement this in order to customize worker data serialization or use the default data converter which supports `Uint8Array` and JSON serializables.
  */
 export interface DataConverter {
-  toPayload<T>(value: T): Payload;
+  toPayload<T>(value: T): Promise<Payload>;
 
-  fromPayload<T>(payload: Payload): T;
+  fromPayload<T>(payload: Payload): Promise<T>;
   /**
    * Implements conversion of a list of values.
    *
@@ -24,7 +24,7 @@ export interface DataConverter {
    * @throws DataConverterError if conversion of the value passed as parameter failed for any
    *     reason.
    */
-  toPayloads(...values: any[]): Payload[] | undefined;
+  toPayloads(...values: unknown[]): Promise<Payload[] | undefined>;
 
   /**
    * Implements conversion of an array of values of different types. Useful for deserializing
@@ -36,7 +36,7 @@ export interface DataConverter {
    * @throws DataConverterError if conversion of the data passed as parameter failed for any
    *     reason.
    */
-  fromPayloads<T>(index: number, content?: Payload[] | null): T;
+  fromPayloads<T>(index: number, content?: Payload[] | null): Promise<T>;
 }
 
 export class CompositeDataConverter implements DataConverter {
@@ -50,15 +50,15 @@ export class CompositeDataConverter implements DataConverter {
     }
   }
 
-  public toPayload<T>(value: T): Payload {
+  public async toPayload<T>(value: T): Promise<Payload> {
     for (const converter of this.converters) {
-      const result = converter.toData(value);
+      const result = await converter.toData(value);
       if (result !== undefined) return result;
     }
     throw new ValueError(`Cannot serialize ${value}`);
   }
 
-  public fromPayload<T>(payload: Payload): T {
+  public async fromPayload<T>(payload: Payload): Promise<T> {
     if (payload.metadata === undefined || payload.metadata === null) {
       throw new ValueError('Missing payload metadata');
     }
@@ -67,37 +67,40 @@ export class CompositeDataConverter implements DataConverter {
     if (converter === undefined) {
       throw new ValueError(`Unknown encoding: ${encoding}`);
     }
-    return converter.fromData(payload);
+    return await converter.fromData(payload);
   }
 
-  public toPayloads(...values: any[]): Payload[] | undefined {
+  public async toPayloads(...values: unknown[]): Promise<Payload[] | undefined> {
     if (values.length === 0) {
       return undefined;
     }
-    // TODO: From Java: Payload.getDefaultInstance()
-    return values.map((value) => this.toPayload(value));
+    return await Promise.all(values.map((value) => this.toPayload(value)));
   }
 
-  public fromPayloads<T>(index: number, payloads?: Payload[] | null): T {
+  public async fromPayloads<T>(index: number, payloads?: Payload[] | null): Promise<T> {
     // To make adding arguments a backwards compatible change
     if (payloads === undefined || payloads === null || index >= payloads.length) {
-      // TODO: undefined might not be the right return value here
       return undefined as any;
     }
-    return this.fromPayload(payloads[index]);
+    return await this.fromPayload(payloads[index]);
   }
 }
 
-export function arrayFromPayloads(converter: DataConverter, content?: Payload[] | null): any[] {
+export async function arrayFromPayloads(converter: DataConverter, content?: Payload[] | null): Promise<unknown[]> {
   if (!content) {
     return [];
   }
-  return content.map((payload: Payload) => converter.fromPayload(payload));
+  return await Promise.all(content.map((payload: Payload) => converter.fromPayload(payload)));
 }
 
-export function mapToPayloads<K extends string>(converter: DataConverter, source: Record<K, any>): Record<K, Payload> {
+export async function mapToPayloads<K extends string>(
+  converter: DataConverter,
+  source: Record<K, any>
+): Promise<Record<K, Payload>> {
   return Object.fromEntries(
-    Object.entries(source).map(([k, v]): [K, Payload] => [k as K, converter.toPayload(v)])
+    await Promise.all(
+      Object.entries(source).map(async ([k, v]): Promise<[K, Payload]> => [k as K, await converter.toPayload(v)])
+    )
   ) as Record<K, Payload>;
 }
 

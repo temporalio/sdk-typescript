@@ -48,7 +48,7 @@ if (RUN_INTEGRATION_TESTS) {
         calls: [
           () => ({
             async start(input, next) {
-              input.headers.set('message', defaultDataConverter.toPayload(message));
+              input.headers.set('message', await defaultDataConverter.toPayload(message));
               return next(input);
             },
             async signal(input, next) {
@@ -57,7 +57,7 @@ if (RUN_INTEGRATION_TESTS) {
               return next({ ...input, args: [encoded] });
             },
             async signalWithStart(input, next) {
-              input.headers.set('message', defaultDataConverter.toPayload(message));
+              input.headers.set('message', await defaultDataConverter.toPayload(message));
               const [decoded] = input.signalArgs;
               const encoded = [...(decoded as any as string)].reverse().join('');
               return next({ ...input, signalArgs: [encoded] });

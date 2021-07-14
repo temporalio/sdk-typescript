@@ -18,7 +18,7 @@ export interface PayloadConverter {
    * @throws DataConverterException if conversion of the value passed as parameter failed for any
    *     reason.
    */
-  toData(value: unknown): Payload | undefined;
+  toData(value: unknown): Promise<Payload | undefined>;
 
   /**
    * Implements conversion of payload to value.
@@ -28,7 +28,7 @@ export interface PayloadConverter {
    * @throws DataConverterException if conversion of the data passed as parameter failed for any
    *     reason.
    */
-  fromData<T>(content: Payload): T;
+  fromData<T>(content: Payload): Promise<T>;
 }
 
 /**
@@ -37,7 +37,7 @@ export interface PayloadConverter {
 export class UndefinedPayloadConverter implements PayloadConverter {
   public encodingType = encodingTypes.METADATA_ENCODING_NULL;
 
-  public toData(value: unknown): Payload | undefined {
+  public async toData(value: unknown): Promise<Payload | undefined> {
     if (value !== undefined) return undefined; // Can't encode
     return {
       metadata: {
@@ -46,7 +46,7 @@ export class UndefinedPayloadConverter implements PayloadConverter {
     };
   }
 
-  public fromData<T>(_content: Payload): T {
+  public async fromData<T>(_content: Payload): Promise<T> {
     return undefined as any; // Just return undefined
   }
 }
@@ -57,7 +57,7 @@ export class UndefinedPayloadConverter implements PayloadConverter {
 export class JsonPayloadConverter implements PayloadConverter {
   public encodingType = encodingTypes.METADATA_ENCODING_JSON;
 
-  public toData(value: unknown): Payload | undefined {
+  public async toData(value: unknown): Promise<Payload | undefined> {
     if (value === undefined) return undefined; // Should be encoded with the UndefinedPayloadConverter
     return {
       metadata: {
@@ -67,7 +67,7 @@ export class JsonPayloadConverter implements PayloadConverter {
     };
   }
 
-  public fromData<T>(content: Payload): T {
+  public async fromData<T>(content: Payload): Promise<T> {
     if (content.data === undefined || content.data === null) {
       throw new ValueError('Got payload with no data');
     }
@@ -81,7 +81,7 @@ export class JsonPayloadConverter implements PayloadConverter {
 export class BinaryPayloadConverter implements PayloadConverter {
   public encodingType = encodingTypes.METADATA_ENCODING_RAW;
 
-  public toData(value: unknown): Payload | undefined {
+  public async toData(value: unknown): Promise<Payload | undefined> {
     // TODO: support any DataView or ArrayBuffer?
     if (!(value instanceof Uint8Array)) {
       return undefined;
@@ -94,7 +94,7 @@ export class BinaryPayloadConverter implements PayloadConverter {
     };
   }
 
-  public fromData<T>(content: Payload): T {
+  public async fromData<T>(content: Payload): Promise<T> {
     // TODO: support any DataView or ArrayBuffer?
     return content.data as any;
   }

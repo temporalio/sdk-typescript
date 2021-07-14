@@ -51,7 +51,7 @@ export class Activity {
         if (this.cancelRequested) {
           return { canceled: {} };
         }
-        return { completed: { result: this.dataConverter.toPayload(result) } };
+        return { completed: { result: await this.dataConverter.toPayload(result) } };
       } catch (err) {
         if (this.cancelRequested) {
           return { canceled: {} };

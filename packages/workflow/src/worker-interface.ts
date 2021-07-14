@@ -140,7 +140,7 @@ type ActivationJobResult = { pendingExternalCalls: ExternalCall[]; processed: bo
  * @param jobIndex index of job to process in the activation's job array.
  * @returns a boolean indicating whether the job was processed or ignored
  */
-export function activate(encodedActivation: Uint8Array, jobIndex: number): ActivationJobResult {
+export async function activate(encodedActivation: Uint8Array, jobIndex: number): Promise<ActivationJobResult> {
   const activation = coresdk.workflow_activation.WFActivation.decodeDelimited(encodedActivation);
   // job's type is IWFActivationJob which doesn't have the `attributes` property.
   const job = activation.jobs[jobIndex] as coresdk.workflow_activation.WFActivationJob;
@@ -165,7 +165,7 @@ export function activate(encodedActivation: Uint8Array, jobIndex: number): Activ
   if (state.completed && job.variant !== 'queryWorkflow') {
     return { processed: false, pendingExternalCalls: state.getAndResetPendingExternalCalls() };
   }
-  state.activator[job.variant](variant as any /* TODO: TS is struggling with `true` and `{}` */);
+  await state.activator[job.variant](variant as any /* TODO: TS is struggling with `true` and `{}` */);
   return { processed: true, pendingExternalCalls: state.getAndResetPendingExternalCalls() };
 }
 
