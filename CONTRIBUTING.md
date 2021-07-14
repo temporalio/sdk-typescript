@@ -1,6 +1,6 @@
 # How to Contribute
 
-The NodeJS SDK, as well as the rest of the Temporal codebase is open sourced under the MIT license.
+The Node.js SDK, as well as the rest of the Temporal codebase is open sourced under the MIT license.
 
 We welcome contributions from the community. To contribute please start by opening an [issue](https://github.com/temporalio/sdk-node/issues) and dicussing the proposed change, once a change has been agreed upon development may start and submitted via a [pull request](https://github.com/temporalio/sdk-node/pulls).
 

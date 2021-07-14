@@ -1,4 +1,4 @@
-# Temporal NodeJS SDK
+# Temporal Node.js SDK
 
 <p align="center">
   <img src="https://img.shields.io/github/workflow/status/temporalio/sdk-node/Continuous%20Integration?style=for-the-badge" alt="CI" />

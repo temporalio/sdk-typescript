@@ -178,7 +178,7 @@ type ActivationConclusion =
  * Should be called after processing all activation jobs and queued microtasks.
  *
  * Activation may be in either `complete` or `pending` state according to pending external dependency calls.
- * Activation failures are handled in the main NodeJS isolate.
+ * Activation failures are handled in the main Node.js isolate.
  */
 export function concludeActivation(): ActivationConclusion {
   const pendingExternalCalls = state.getAndResetPendingExternalCalls();

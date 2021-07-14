@@ -139,7 +139,7 @@ export class Workflow {
   }
 
   /**
-   * Call external dependency functions in the NodeJS isolate as requested by the Workflow isolate.
+   * Call external dependency functions in the Node.js isolate as requested by the Workflow isolate.
    */
   protected async processExternalCalls(
     externalCalls: internals.ExternalCall[],
