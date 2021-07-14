@@ -183,7 +183,7 @@ export class Workflow {
       for (let idx = 0; idx < activation.jobs.length; ++idx) {
         const { processed, pendingExternalCalls } = await this.workflowModule.activate.apply(undefined, [arr, idx], {
           arguments: { copy: true },
-          result: { copy: true },
+          result: { copy: true, promise: true },
           timeout: this.isolateExecutionTimeoutMs,
         });
         // Microtasks will already have run at this point

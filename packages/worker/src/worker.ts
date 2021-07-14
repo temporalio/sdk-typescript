@@ -640,7 +640,7 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
                 }
                 let args: unknown[];
                 try {
-                  args = arrayFromPayloads(this.options.dataConverter, task.start?.input);
+                  args = await arrayFromPayloads(this.options.dataConverter, task.start?.input);
                 } catch (err) {
                   output = {
                     type: 'result',
@@ -922,7 +922,7 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
         complete: () => this.log.debug('Heartbeats complete'),
       }),
       mergeMap(async ({ taskToken, details }) => {
-        const payload = this.options.dataConverter.toPayload(details);
+        const payload = await this.options.dataConverter.toPayload(details);
         const arr = coresdk.ActivityHeartbeat.encodeDelimited({
           taskToken,
           details: [payload],
