@@ -3,10 +3,20 @@ import { Workflow } from '@temporalio/workflow';
 export interface SimpleQuery extends Workflow {
   main(): void;
   queries: {
-    hasSlept(): boolean;
-    hasSleptAsync(): Promise<boolean>;
+    isBlocked(): boolean;
     // Used to fail the query
     fail(): never;
+  };
+  signals: {
+    unblock(): void;
+  };
+}
+
+/** Used to test SDK check of query handler returning a Promise */
+export interface AsyncQuery extends Workflow {
+  main(): void;
+  queries: {
+    invalidAsyncMethod(): Promise<boolean>;
   };
 }
 
@@ -63,6 +73,20 @@ export interface CancellableHTTPRequest extends Workflow {
     activityStarted(): void;
     activityCancelled(): void;
   };
+}
+
+export interface ContinueAsNewFromMainAndSignal extends Workflow {
+  main(continueFrom?: 'main' | 'signal' | 'none'): Promise<void>;
+  signals: {
+    continueAsNew(): void;
+  };
+}
+
+export type WorkflowCancellationScenarioOutcome = 'complete' | 'cancel' | 'fail';
+export type WorkflowCancellationScenarioTiming = 'immediately' | 'after-cleanup';
+
+export interface WorkflowCancellationScenarios extends Workflow {
+  main(outcome: WorkflowCancellationScenarioOutcome, when: WorkflowCancellationScenarioTiming): Promise<void>;
 }
 
 // @@@SNIPSTART nodejs-blocked-interface

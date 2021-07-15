@@ -1,4 +1,4 @@
-Temporal NodeJS SDK
+Temporal Node.js SDK
 
 MIT License
 

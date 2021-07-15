@@ -1,47 +1,15 @@
-import * as iface from '@temporalio/proto';
-
-export class WorkflowExecutionTerminatedError extends Error {
-  public readonly name: string = 'WorkflowExecutionTerminatedError';
-  public constructor(message: string, public readonly details: any[], public readonly identity?: string) {
-    super(message);
-  }
-}
-
-export class WorkflowExecutionTimedOutError extends Error {
-  public readonly name: string = 'WorkflowExecutionTimedOutError';
-  public constructor(message: string, public readonly retryState: iface.temporal.api.enums.v1.RetryState) {
-    super(message);
-  }
-}
-
-export class WorkflowExecutionFailedError extends Error {
-  public readonly name: string = 'WorkflowExecutionFailedError';
-}
-
-export class WorkflowExecutionCancelledError extends Error {
-  public readonly name: string = 'WorkflowExecutionCancelledError';
-  public constructor(message: string, public readonly details: any[]) {
-    super(message);
-  }
-}
-
-export class WorkflowExecutionContinuedAsNewError extends Error {
-  public readonly name: string = 'WorkflowExecutionContinuedAsNewError';
-  public constructor(message: string, public readonly newExecutionRunId: string) {
-    super(message);
-  }
-}
-
 /**
- * Thrown in workflow when it is requested to be cancelled either externally or internally.
- *
- * @see {@link CancellationSource}
+ * Thrown in workflow when it is requested to be cancelled either externally or internally
  */
 export class CancelledError extends Error {
   public readonly name: string = 'CancelledError';
-  public constructor(message: string) {
-    super(message);
-  }
+}
+
+/**
+ * Thrown in workflow when it receives a client cancellation request
+ */
+export class WorkflowCancelledError extends CancelledError {
+  public readonly name: string = 'WorkflowCancelledError';
 }
 
 /**

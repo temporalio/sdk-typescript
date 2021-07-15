@@ -47,7 +47,7 @@ export class WorkflowIsolateBuilder {
     this.genEntrypoint(vol, entrypointPath, workflows);
     await this.bundle(ufs, entrypointPath, sourceDir, distDir);
     const code = ufs.readFileSync(path.join(distDir, 'main.js'), 'utf8');
-    const snapshot = ivm.Isolate.createSnapshot([{ code }]);
+    const snapshot = ivm.Isolate.createSnapshot([{ code, filename: 'workflow-isolate' }]);
     return new ivm.Isolate({ snapshot, memoryLimit: this.maxIsolateMemoryMB });
   }
 
@@ -105,6 +105,9 @@ export class WorkflowIsolateBuilder {
       entry: [entry],
       // TODO: production build?
       mode: 'development',
+      // Explicitly set the devtool.
+      // See https://github.com/temporalio/sdk-node/issues/139
+      devtool: 'cheap-source-map',
       output: {
         path: distDir,
         filename: 'main.js',

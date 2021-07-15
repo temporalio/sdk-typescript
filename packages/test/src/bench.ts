@@ -3,7 +3,7 @@ import arg from 'arg';
 import { range } from 'rxjs';
 import { mergeMap, take, tap, withLatestFrom } from 'rxjs/operators';
 import { Core, Worker, DefaultLogger } from '@temporalio/worker';
-import { Connection } from '@temporalio/client';
+import { Connection, WorkflowClient } from '@temporalio/client';
 import { msToTs } from '@temporalio/workflow/lib/time';
 import * as opentelemetry from '@opentelemetry/sdk-node';
 import { JaegerExporter } from '@opentelemetry/exporter-jaeger';
@@ -27,8 +27,8 @@ async function waitOnNamespace(connection: Connection, namespace: string, maxAtt
   }
 }
 
-async function runWorkflow(connection: Connection, namespace: string, name: string, taskQueue: string) {
-  const workflow = connection.workflow<any>(name, { namespace, taskQueue });
+async function runWorkflow(client: WorkflowClient, name: string, taskQueue: string) {
+  const workflow = client.stub<any>(name, { taskQueue });
   await workflow.start();
 }
 
@@ -37,9 +37,8 @@ function toMB(bytes: number, fractionDigits = 2) {
 }
 
 interface RunWorkflowOptions {
-  namespace: string;
   worker: Worker;
-  connection: Connection;
+  client: WorkflowClient;
   workflowName: string;
   taskQueue: string;
   numWorkflows: number;
@@ -48,9 +47,8 @@ interface RunWorkflowOptions {
 }
 
 async function runWorkflows({
-  namespace,
   worker,
-  connection,
+  client,
   workflowName: name,
   taskQueue,
   numWorkflows,
@@ -61,7 +59,7 @@ async function runWorkflows({
   await range(0, numWorkflows)
     .pipe(
       take(numWorkflows),
-      mergeMap(() => runWorkflow(connection, namespace, name, taskQueue), concurrency),
+      mergeMap(() => runWorkflow(client, name, taskQueue), concurrency),
       withLatestFrom(worker.numInFlightActivations$, worker.numRunningWorkflowInstances$),
       tap(([_, numInFlightActivations, numRunningWorkflowInstances]) => {
         ++numComplete;
@@ -141,6 +139,8 @@ async function main() {
   });
   console.log('Created worker');
 
+  const client = new WorkflowClient(connection.service, { namespace });
+
   await Promise.all([
     (async () => {
       await worker.run();
@@ -149,8 +149,7 @@ async function main() {
     (async () => {
       await runWorkflows({
         worker,
-        connection,
-        namespace,
+        client,
         workflowName,
         taskQueue,
         numWorkflows: iterations,

@@ -1,4 +1,4 @@
-# Temporal NodeJS SDK
+# Temporal Node.js SDK
 
 <p align="center">
   <img src="https://img.shields.io/github/workflow/status/temporalio/sdk-node/Continuous%20Integration?style=for-the-badge" alt="CI" />
@@ -18,35 +18,33 @@ Learn how to use Temporal on the [docs site](https://docs.temporal.io/docs/node/
 
 #### Features
 
-Partial implementation of all components that make up a Temporal SDK - Worker, Client, Workflows, and Activities
+Mostly complete implementation of all components that make up a Temporal SDK - Worker, Client, Workflows, and Activities
 
+- General
+  - Cancellation
+  - Interceptors
 - Workflows
   - Scheduling timers
   - Scheduling (non-local) Activities
   - Cancelling timers and Activities
   - Signals
-- Activities
-  - Heartbeats
-  - Cancellation
-  - Context
-- Client
+  - Queries
+- Activities (complete)
+- Client (complete)
   - Workflow client
   - Service client (for administration)
-- Worker
+- Worker (mostly complete)
   - Basic logging and tracing capabilities
-  - Polling on a single non-sticky task queue
 
 Notably these features are missing:
 
 - WF History pagination (only short Workflows are supported ATM)
-- Sticky queues (meaning Workflows are not cached and are replayed from the beginning each time a new event comes in)
 - Telemetry
 - Workflow versioning
-- Workflow cancellation
-- Query support
 - Local activities
 - Side effects
 - Windows support
+- Search attributes
 
 > NOTE: The API is considered unstable and may change at any time.
 > While in alpha we are gathering feedback from developers about the usability and ergonomics of the API.

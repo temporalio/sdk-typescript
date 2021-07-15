@@ -1,7 +1,7 @@
 /**
  * Type definitions for the Worker end of the external dependencies mechanism.
  *
- * External dependencies are functions injected into a Workflow isolate from the main NodeJS isolate.
+ * External dependencies are functions injected into a Workflow isolate from the main Node.js isolate.
  * They are an advanced feature and should be used with care.
  *
  * @see proposal at https://github.com/temporalio/proposals/blob/master/node/logging-and-metrics-for-user-code.md

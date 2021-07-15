@@ -1,12 +1,14 @@
 import {
   ActivityFunction,
   ActivityOptions,
+  ContinueAsNew,
+  ContinueAsNewOptions,
   ExternalDependencies,
   RemoteActivityOptions,
+  Workflow,
   WorkflowInfo,
 } from './interfaces';
 import { state } from './internals';
-import { defaultDataConverter } from './converter/data-converter';
 import { IllegalStateError } from './errors';
 import { msToTs, msOptionalToTs } from './time';
 import { ActivityInput, TimerInput, composeInterceptors } from './interceptors';
@@ -93,8 +95,15 @@ export function validateActivityOptions(options: ActivityOptions): asserts optio
 /**
  * Push a scheduleActivity command into state accumulator and register completion
  */
-function scheduleActivityNextHandler({ options, args, headers, seq, activityType }: ActivityInput): Promise<unknown> {
+async function scheduleActivityNextHandler({
+  options,
+  args,
+  headers,
+  seq,
+  activityType,
+}: ActivityInput): Promise<unknown> {
   validateActivityOptions(options);
+  const argsAsPayloads = await state.dataConverter.toPayloads(...args);
   return new Promise((resolve, reject) => {
     const scope = CancellationScope.current();
     if (scope.consideredCancelled) {
@@ -118,7 +127,7 @@ function scheduleActivityNextHandler({ options, args, headers, seq, activityType
       scheduleActivity: {
         activityId: `${seq}`,
         activityType,
-        arguments: defaultDataConverter.toPayloads(...args),
+        arguments: argsAsPayloads,
         retryPolicy: options.retry
           ? {
               maximumAttempts: options.retry.maximumAttempts,
@@ -149,11 +158,11 @@ export function scheduleActivity<R>(
   args: any[],
   options: ActivityOptions | undefined = state.activityDefaults
 ): Promise<R> {
-  const seq = state.nextSeq++;
-  const execute = composeInterceptors(state.interceptors.outbound, 'scheduleActivity', scheduleActivityNextHandler);
   if (options === undefined) {
     throw new TypeError('Got empty activity options');
   }
+  const seq = state.nextSeq++;
+  const execute = composeInterceptors(state.interceptors.outbound, 'scheduleActivity', scheduleActivityNextHandler);
 
   return execute({
     activityType: activityType,
@@ -290,12 +299,64 @@ export class ContextImpl {
       }
     ) as any;
   }
+
+  /**
+   * Returns a function `f` that will cause the current Workflow to ContinueAsNew when called.
+   *
+   * `f` takes the same arguments as the Workflow main function supplied to typeparam `F`.
+   *
+   * Once `f` is called, Workflow execution immediately completes.
+   */
+  public makeContinueAsNewFunc<F extends Workflow['main']>(
+    options?: ContinueAsNewOptions
+  ): (...args: Parameters<F>) => Promise<never> {
+    const nonOptionalOptions = { workflowType: state.info?.filename, taskQueue: state.info?.taskQueue, ...options };
+
+    return (...args: Parameters<F>): Promise<never> => {
+      const fn = composeInterceptors(state.interceptors.outbound, 'continueAsNew', async (input) => {
+        const { headers, args, options } = input;
+        throw new ContinueAsNew({
+          workflowType: options.workflowType,
+          arguments: await state.dataConverter.toPayloads(...args),
+          header: Object.fromEntries(headers.entries()),
+          taskQueue: options.taskQueue,
+          memo: options.memo,
+          searchAttributes: options.searchAttributes,
+          workflowRunTimeout: msOptionalToTs(options.workflowRunTimeout),
+          workflowTaskTimeout: msOptionalToTs(options.workflowTaskTimeout),
+        });
+      });
+      return fn({
+        args,
+        headers: new Map(),
+        options: nonOptionalOptions,
+      });
+    };
+  }
+
+  /**
+   * Continues current Workflow execution as new with default options.
+   *
+   * Shorthand for `Context.makeContinueAsNewFunc<F>()(...args)`.
+   *
+   * @example
+   *
+   * ```ts
+   * async function main(n: number) {
+   *   // ... Workflow logic
+   *   await Context.continueAsNew<typeof main>(n + 1);
+   * }
+   * ```
+   */
+  public continueAsNew<F extends Workflow['main']>(...args: Parameters<F>): Promise<never> {
+    return this.makeContinueAsNewFunc()(...args);
+  }
 }
 
 /**
  * Holds context of current running workflow
  */
-export const Context = new ContextImpl();
+export const Context: ContextImpl = new ContextImpl();
 
 /**
  * Generate an RFC compliant V4 uuid.

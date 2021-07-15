@@ -9,6 +9,8 @@
 import { Next, Headers } from '@temporalio/workflow';
 import { Context as ActivityContext } from '@temporalio/activity';
 
+export { Next, Headers };
+
 /** Input for ActivityInboundCallsInterceptor.execute */
 export interface ActivityExecuteInput {
   readonly args: unknown[];

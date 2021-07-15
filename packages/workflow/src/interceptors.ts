@@ -7,7 +7,7 @@
  */
 
 import { coresdk } from '@temporalio/proto';
-import { ActivityOptions } from './interfaces';
+import { ActivityOptions, ContinueAsNewOptions } from './interfaces';
 import { AnyFunc, OmitLastParam } from './type-helpers';
 
 /**
@@ -52,12 +52,12 @@ export interface SignalInput {
   readonly args: unknown[];
 }
 
-// TODO: uncomment this once queries are supported
-// /** Input for WorkflowInboundCallsInterceptor.handleQuery */
-// export interface QueryInput {
-//   readonly queryName: string;
-//   readonly args: unknown[];
-// }
+/** Input for WorkflowInboundCallsInterceptor.handleQuery */
+export interface QueryInput {
+  readonly queryId: string;
+  readonly queryName: string;
+  readonly args: unknown[];
+}
 
 /**
  * Implement any of these methods to intercept Workflow inbound calls like execution, and signal and query handling.
@@ -73,13 +73,12 @@ export interface WorkflowInboundCallsInterceptor {
   /** Called when signal is delivered to a Workflow execution */
   handleSignal?: (input: SignalInput, next: Next<WorkflowInboundCallsInterceptor, 'handleSignal'>) => Promise<void>;
 
-  // TODO: uncomment this once queries are supported
-  // /**
-  //  * Called when a Workflow is queried
-  //  *
-  //  * @return result of the query
-  //  */
-  // handleQuery?: (input: QueryInput, next: Next<WorkflowInboundCallsInterceptor, 'handleQuery'>) => Promise<unknown>;
+  /**
+   * Called when a Workflow is queried
+   *
+   * @return result of the query
+   */
+  handleQuery?: (input: QueryInput, next: Next<WorkflowInboundCallsInterceptor, 'handleQuery'>) => Promise<unknown>;
 }
 
 /** Input for WorkflowOutboundCallsInterceptor.scheduleActivity */
@@ -97,6 +96,13 @@ export interface TimerInput {
   readonly seq: number;
 }
 
+/** Input for WorkflowOutboundCallsInterceptor.continueAsNew */
+export interface ContinueAsNewInput {
+  args: unknown[];
+  headers: Headers;
+  options: ContinueAsNewOptions;
+}
+
 /**
  * Implement any of these methods to intercept Workflow code calls to the Temporal APIs, like scheduling an activity and starting a timer
  */
@@ -106,15 +112,16 @@ export interface WorkflowOutboundCallsInterceptor {
    *
    * @return result of the activity execution
    */
-  scheduleActivity?: (
-    input: ActivityInput,
-    next: Next<WorkflowOutboundCallsInterceptor, 'scheduleActivity'>
-  ) => Promise<unknown>;
+  scheduleActivity?: (input: ActivityInput, next: Next<this, 'scheduleActivity'>) => Promise<unknown>;
 
   /**
    * Called when Workflow starts a timer
    */
-  startTimer?: (input: TimerInput, next: Next<WorkflowOutboundCallsInterceptor, 'startTimer'>) => Promise<void>;
+  startTimer?: (input: TimerInput, next: Next<this, 'startTimer'>) => Promise<void>;
+  /**
+   * Called when Workflow calls continueAsNew
+   */
+  continueAsNew?: (input: ContinueAsNewInput, next: Next<this, 'continueAsNew'>) => Promise<never>;
 }
 
 /**

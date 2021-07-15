@@ -140,11 +140,14 @@ type ActivationJobResult = { pendingExternalCalls: ExternalCall[]; processed: bo
  * @param jobIndex index of job to process in the activation's job array.
  * @returns a boolean indicating whether the job was processed or ignored
  */
-export function activate(encodedActivation: Uint8Array, jobIndex: number): ActivationJobResult {
+export async function activate(encodedActivation: Uint8Array, jobIndex: number): Promise<ActivationJobResult> {
   const activation = coresdk.workflow_activation.WFActivation.decodeDelimited(encodedActivation);
   // job's type is IWFActivationJob which doesn't have the `attributes` property.
   const job = activation.jobs[jobIndex] as coresdk.workflow_activation.WFActivationJob;
-  state.now = tsToMs(activation.timestamp);
+  // We only accept time not progressing when processing a query
+  if (!(job.variant === 'queryWorkflow' && activation.timestamp === null)) {
+    state.now = tsToMs(activation.timestamp);
+  }
   if (state.info === undefined) {
     throw new IllegalStateError('Workflow has not been initialized');
   }
@@ -162,7 +165,7 @@ export function activate(encodedActivation: Uint8Array, jobIndex: number): Activ
   if (state.completed && job.variant !== 'queryWorkflow') {
     return { processed: false, pendingExternalCalls: state.getAndResetPendingExternalCalls() };
   }
-  state.activator[job.variant](variant);
+  await state.activator[job.variant](variant as any /* TODO: TS is struggling with `true` and `{}` */);
   return { processed: true, pendingExternalCalls: state.getAndResetPendingExternalCalls() };
 }
 
@@ -175,7 +178,7 @@ type ActivationConclusion =
  * Should be called after processing all activation jobs and queued microtasks.
  *
  * Activation may be in either `complete` or `pending` state according to pending external dependency calls.
- * Activation failures are handled in the main NodeJS isolate.
+ * Activation failures are handled in the main Node.js isolate.
  */
 export function concludeActivation(): ActivationConclusion {
   const pendingExternalCalls = state.getAndResetPendingExternalCalls();

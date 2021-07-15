@@ -55,7 +55,7 @@ import { tracer, instrument, childSpan } from './tracing';
 import { InjectedDependencies, getIvmTransferOptions } from './dependencies';
 import { ActivityExecuteInput, WorkerInterceptors } from './interceptors';
 export { RetryOptions, RemoteActivityOptions, LocalActivityOptions } from '@temporalio/workflow';
-export { ActivityOptions, DataConverter, errors };
+export { ActivityOptions, DataConverter, defaultDataConverter, errors };
 import { Core } from './core';
 
 native.registerErrors(errors);
@@ -639,7 +639,7 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
                 }
                 let args: unknown[];
                 try {
-                  args = arrayFromPayloads(this.options.dataConverter, task.start?.input);
+                  args = await arrayFromPayloads(this.options.dataConverter, task.start?.input);
                 } catch (err) {
                   output = {
                     type: 'result',
@@ -921,7 +921,7 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
         complete: () => this.log.debug('Heartbeats complete'),
       }),
       mergeMap(async ({ taskToken, details }) => {
-        const payload = this.options.dataConverter.toPayload(details);
+        const payload = await this.options.dataConverter.toPayload(details);
         const arr = coresdk.ActivityHeartbeat.encodeDelimited({
           taskToken,
           details: [payload],

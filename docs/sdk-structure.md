@@ -1,6 +1,6 @@
 # SDK Structure
 
-The NodeJS SDK is developed in a mono-repo consisting of several packages managed with [`lerna`](https://lerna.js.org/), the public packages are listed below.
+The Node.js SDK is developed in a mono-repo consisting of several packages managed with [`lerna`](https://lerna.js.org/), the public packages are listed below.
 
 - [`temporalio`](../packages/meta) - Meta package, bundles the common packages for ease of installation.
 - [`@temporalio/worker`](../packages/worker) - Communicates with the Temporal service and runs workflows and activities

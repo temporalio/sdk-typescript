@@ -8,12 +8,17 @@ const unblocked = new Trigger<void>();
 
 export const signals = {
   unblock(secret: string) {
-    // Note that 5 is appended by the inbound interceptor
     if (secret !== '12345') {
       // Workflow execution should fail
       throw new Error('Wrong unblock secret');
     }
     unblocked.resolve();
+  },
+};
+
+export const queries = {
+  getSecret() {
+    return '12345';
   },
 };
 
@@ -38,12 +43,17 @@ export const interceptors: WorkflowInterceptors = {
     {
       async execute(input, next) {
         const encoded = input.headers.get('message');
-        receivedMessage = encoded ? defaultDataConverter.fromPayload(encoded) : '';
+        receivedMessage = encoded ? await defaultDataConverter.fromPayload(encoded) : '';
         return next(input);
       },
       async handleSignal(input, next) {
         const [encoded] = input.args;
-        return next({ ...input, args: [encoded + '5'] });
+        const decoded = [...(encoded as any as string)].reverse().join('');
+        return next({ ...input, args: [decoded] });
+      },
+      async handleQuery(input, next) {
+        const secret: string = (await next(input)) as any;
+        return [...secret].reverse().join('');
       },
     },
   ],
@@ -51,11 +61,18 @@ export const interceptors: WorkflowInterceptors = {
     {
       async scheduleActivity(input, next) {
         const headers: Headers = new Map();
-        headers.set('message', defaultDataConverter.toPayload(receivedMessage));
+        headers.set('message', await defaultDataConverter.toPayload(receivedMessage));
         return next({ ...input, headers });
       },
       async startTimer(input, next) {
         if (input.durationMs === 1) {
+          throw new InvalidTimerDurationError('Expected anything other than 1');
+        }
+        return next(input);
+      },
+      async continueAsNew(input, next) {
+        // Used to test interception of continue-as-new-to-different-workflow
+        if (input.args[0] === 1) {
           throw new InvalidTimerDurationError('Expected anything other than 1');
         }
         return next(input);
