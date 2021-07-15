@@ -7,7 +7,6 @@ import { coresdk } from '@temporalio/proto';
 import { ApplyMode } from '@temporalio/workflow';
 import { defaultDataConverter } from '@temporalio/workflow/lib/converter/data-converter';
 import { msToTs } from '@temporalio/workflow/lib/time';
-import { ActivityOptions } from '@temporalio/worker';
 import { Workflow } from '@temporalio/worker/lib/workflow';
 import { WorkflowIsolateBuilder } from '@temporalio/worker/lib/isolate-builder';
 import { DefaultLogger } from '@temporalio/worker/lib/logger';
@@ -27,9 +26,8 @@ test.before(async (t) => {
   const logger = new DefaultLogger('INFO');
   const workflowsPath = path.join(__dirname, 'workflows');
   const nodeModulesPath = path.join(__dirname, '../../../node_modules');
-  const activityDefaults: ActivityOptions = { type: 'remote', startToCloseTimeout: '10m' };
   const activities = new Map([['@activities', activityFunctions]]);
-  const builder = new WorkflowIsolateBuilder(logger, nodeModulesPath, workflowsPath, activities, activityDefaults);
+  const builder = new WorkflowIsolateBuilder(logger, nodeModulesPath, workflowsPath, activities, 1024);
   t.context.isolate = await builder.build();
 });
 
@@ -47,6 +45,8 @@ test.beforeEach(async (t) => {
       taskQueue: 'test',
       isReplaying: false,
     },
+    { type: 'remote', startToCloseTimeout: '10m' },
+    [],
     Long.fromInt(1337),
     100
   );
@@ -1175,6 +1175,8 @@ test('cancellation-error-is-propagated', async (t) => {
         CancelledError: Cancelled
             at CancellationScope.cancel
             at eval
+            at eval
+            at AsyncLocalStorage.run
             at CancellationScope.run
             at Function.cancellable
             at Object.main
@@ -1440,24 +1442,10 @@ test('global-overrides', async (t) => {
   }
   t.deepEqual(
     logs,
-    [
-      ['IllegalStateError: Tried to get Date before Workflow has been initialized'],
-      ['IllegalStateError: Tried to use Math.random before Workflow has been initialized'],
-    ].concat(
-      ['WeakMap' /* First error happens on startup */, 'WeakMap', 'WeakSet', 'WeakRef'].map((type) => [
-        `DeterminismViolationError: ${type} cannot be used in workflows because v8 GC is non-deterministic`,
-      ])
-    )
+    ['WeakMap' /* First error happens on startup */, 'WeakMap', 'WeakSet', 'WeakRef'].map((type) => [
+      `DeterminismViolationError: ${type} cannot be used in workflows because v8 GC is non-deterministic`,
+    ])
   );
-});
-
-test('top-level-dependencies', async (t) => {
-  const { script, logs } = t.context;
-  {
-    const req = await activate(t, makeStartWorkflow(script));
-    compareCompletion(t, req, makeSuccess());
-  }
-  t.deepEqual(logs, [[['IllegalStateError: Workflow uninitialized']]]);
 });
 
 test('log-before-timing-out', async (t) => {

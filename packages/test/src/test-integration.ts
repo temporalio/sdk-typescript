@@ -64,7 +64,7 @@ if (RUN_INTEGRATION_TESTS) {
     const client = new Connection();
     const workflow = client.workflow<Empty>('not-found', { taskQueue: 'test' });
     await t.throwsAsync(() => workflow.start(), {
-      message: 'Workflow not found: "not-found"',
+      message: "Cannot find module './not-found.js'",
       instanceOf: WorkflowExecutionFailedError,
     });
   });
