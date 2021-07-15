@@ -32,13 +32,12 @@ import {
   scan,
 } from 'rxjs/operators';
 import ivm from 'isolated-vm';
-import ms from 'ms';
 import * as native from '@temporalio/core-bridge';
 import { coresdk } from '@temporalio/proto';
 import { ActivityOptions, ApplyMode, ExternalDependencies, WorkflowInfo } from '@temporalio/workflow';
 import { Info as ActivityInfo } from '@temporalio/activity';
 import { errorToUserCodeFailure } from '@temporalio/workflow/lib/common';
-import { tsToMs } from '@temporalio/workflow/lib/time';
+import { msToNumber, tsToMs } from '@temporalio/workflow/lib/time';
 import { IllegalStateError } from '@temporalio/workflow/lib/errors';
 import {
   arrayFromPayloads,
@@ -136,9 +135,9 @@ export interface WorkerOptions {
   /**
    * Time to wait for pending tasks to drain after shutdown was requested.
    *
-   * @format {@link https://www.npmjs.com/package/ms | ms} formatted string
+   * @format {@link https://www.npmjs.com/package/ms | ms} formatted string or number of milliseconds
    */
-  shutdownGraceTime?: string;
+  shutdownGraceTime?: string | number;
 
   /**
    * Automatically shut down worker on any of these signals.
@@ -204,10 +203,10 @@ export interface WorkerOptions {
 
   /**
    * Time to wait for result when calling a Workflow isolate function.
-   * @format {@link https://www.npmjs.com/package/ms | ms} formatted string
+   * @format {@link https://www.npmjs.com/package/ms | ms} formatted string or number of milliseconds
    * @default 1s
    */
-  isolateExecutionTimeout?: string;
+  isolateExecutionTimeout?: string | number;
 
   /**
    * Memory limit in MB for the Workflow v8 isolate.
@@ -303,9 +302,9 @@ export function compileWorkerOptions<T extends WorkerSpec>(
 ): CompiledWorkerOptions<T> {
   return {
     ...opts,
-    shutdownGraceTimeMs: ms(opts.shutdownGraceTime),
-    stickyQueueScheduleToStartTimeoutMs: ms(opts.stickyQueueScheduleToStartTimeout),
-    isolateExecutionTimeoutMs: ms(opts.isolateExecutionTimeout),
+    shutdownGraceTimeMs: msToNumber(opts.shutdownGraceTime),
+    stickyQueueScheduleToStartTimeoutMs: msToNumber(opts.stickyQueueScheduleToStartTimeout),
+    isolateExecutionTimeoutMs: msToNumber(opts.isolateExecutionTimeout),
   };
 }
 

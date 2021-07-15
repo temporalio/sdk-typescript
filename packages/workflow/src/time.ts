@@ -1,6 +1,7 @@
 import Long from 'long';
 import ms from 'ms';
 import * as iface from '@temporalio/proto';
+import { ValueError } from './converter/types';
 
 // NOTE: these are the same interface in JS
 // iface.google.protobuf.IDuration;
@@ -23,19 +24,35 @@ export function tsToMs(ts: Timestamp | null | undefined): number {
     .toNumber();
 }
 
-export function msToTs(millis: number): Timestamp {
+export function msNumberToTs(millis: number): Timestamp {
   const seconds = Math.floor(millis / 1000);
   const nanos = (millis % 1000) * 1000000;
+  if (Number.isNaN(seconds) || Number.isNaN(nanos)) {
+    throw new ValueError(`Invalid millis ${millis}`);
+  }
   return { seconds: Long.fromNumber(seconds), nanos };
 }
 
-export function msStrToTs(str: string): Timestamp {
-  return msToTs(ms(str));
+export function msToTs(str: string | number): Timestamp {
+  if (typeof str === 'number') {
+    return msNumberToTs(str);
+  }
+  return msNumberToTs(ms(str));
 }
 
-export function msOptionalStrToTs(str: string | undefined): Timestamp | undefined {
+export function msOptionalToTs(str: string | number | undefined): Timestamp | undefined {
   if (str === undefined) return undefined;
-  return msToTs(ms(str));
+  if (typeof str === 'number') {
+    return msNumberToTs(str);
+  }
+  return msNumberToTs(ms(str));
+}
+
+export function msToNumber(val: string | number): number {
+  if (typeof val === 'number') {
+    return val;
+  }
+  return ms(val);
 }
 
 export function nullToUndefined<T extends any | null | undefined>(x: T): Exclude<T, null> {

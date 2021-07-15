@@ -6,7 +6,7 @@ import dedent from 'dedent';
 import { coresdk } from '@temporalio/proto';
 import { ApplyMode } from '@temporalio/workflow';
 import { defaultDataConverter } from '@temporalio/workflow/lib/converter/data-converter';
-import { msToTs, msStrToTs } from '@temporalio/workflow/lib/time';
+import { msToTs } from '@temporalio/workflow/lib/time';
 import { Workflow } from '@temporalio/worker/lib/workflow';
 import { WorkflowIsolateBuilder } from '@temporalio/worker/lib/isolate-builder';
 import { DefaultLogger } from '@temporalio/worker/lib/logger';
@@ -727,7 +727,7 @@ test('cancel-workflow', async (t) => {
           activityId: '0',
           activityType: JSON.stringify(['@activities', 'httpGet']),
           arguments: await defaultDataConverter.toPayloads(url),
-          startToCloseTimeout: msStrToTs('10m'),
+          startToCloseTimeout: msToTs('10m'),
           taskQueue: 'test',
         }),
       ])
@@ -750,7 +750,7 @@ test('cancel-workflow', async (t) => {
           activityId: '2',
           activityType: JSON.stringify(['@activities', 'httpGet']),
           arguments: await defaultDataConverter.toPayloads(url),
-          startToCloseTimeout: msStrToTs('10m'),
+          startToCloseTimeout: msToTs('10m'),
           taskQueue: 'test',
         }),
       ])
@@ -828,7 +828,7 @@ test('non-cancellable-shields-children', async (t) => {
           activityId: '0',
           activityType: JSON.stringify(['@activities', 'httpGetJSON']),
           arguments: await defaultDataConverter.toPayloads(url),
-          startToCloseTimeout: msStrToTs('10m'),
+          startToCloseTimeout: msToTs('10m'),
           taskQueue: 'test',
         }),
       ])
@@ -854,7 +854,7 @@ test('cancel-requested-with-non-cancellable', async (t) => {
           activityId: '0',
           activityType: JSON.stringify(['@activities', 'httpGetJSON']),
           arguments: await defaultDataConverter.toPayloads(url),
-          startToCloseTimeout: msStrToTs('10m'),
+          startToCloseTimeout: msToTs('10m'),
           taskQueue: 'test',
         }),
       ])
@@ -886,7 +886,7 @@ test('handle-external-workflow-cancellation-while-activity-running', async (t) =
           activityId: '0',
           activityType: JSON.stringify(['@activities', 'httpPostJSON']),
           arguments: await defaultDataConverter.toPayloads(url, data),
-          startToCloseTimeout: msStrToTs('10m'),
+          startToCloseTimeout: msToTs('10m'),
           taskQueue: 'test',
         }),
       ])
@@ -906,7 +906,7 @@ test('handle-external-workflow-cancellation-while-activity-running', async (t) =
           activityId: '1',
           activityType: JSON.stringify(['@activities', 'cleanup']),
           arguments: await defaultDataConverter.toPayloads(url),
-          startToCloseTimeout: msStrToTs('10m'),
+          startToCloseTimeout: msToTs('10m'),
           taskQueue: 'test',
         }),
       ])
@@ -948,7 +948,7 @@ test('nested-cancellation', async (t) => {
         makeScheduleActivityCommand({
           activityId: '0',
           activityType: JSON.stringify(['@activities', 'setup']),
-          startToCloseTimeout: msStrToTs('10m'),
+          startToCloseTimeout: msToTs('10m'),
           taskQueue: 'test',
         }),
       ])
@@ -969,7 +969,7 @@ test('nested-cancellation', async (t) => {
           activityId: '2',
           activityType: JSON.stringify(['@activities', 'httpPostJSON']),
           arguments: await defaultDataConverter.toPayloads(url, { some: 'data' }),
-          startToCloseTimeout: msStrToTs('10m'),
+          startToCloseTimeout: msToTs('10m'),
           taskQueue: 'test',
         }),
       ])
@@ -989,7 +989,7 @@ test('nested-cancellation', async (t) => {
           activityId: '3',
           activityType: JSON.stringify(['@activities', 'cleanup']),
           arguments: await defaultDataConverter.toPayloads(url),
-          startToCloseTimeout: msStrToTs('10m'),
+          startToCloseTimeout: msToTs('10m'),
           taskQueue: 'test',
         }),
       ])
@@ -1033,7 +1033,7 @@ test('shared-promise-scopes', async (t) => {
               activityId: `${idx}`,
               activityType: JSON.stringify(['@activities', 'httpGetJSON']),
               arguments: await defaultDataConverter.toPayloads(`http://url${idx + 1}.ninja`),
-              startToCloseTimeout: msStrToTs('10m'),
+              startToCloseTimeout: msToTs('10m'),
               taskQueue: 'test',
             })
           )
@@ -1067,7 +1067,7 @@ test('shield-awaited-in-root-scope', async (t) => {
           activityId: '0',
           activityType: JSON.stringify(['@activities', 'httpGetJSON']),
           arguments: await defaultDataConverter.toPayloads(`http://example.com`),
-          startToCloseTimeout: msStrToTs('10m'),
+          startToCloseTimeout: msToTs('10m'),
           taskQueue: 'test',
         }),
       ])
@@ -1261,7 +1261,7 @@ test('cancel-activity-after-first-completion', async (t) => {
           activityId: '0',
           activityType: JSON.stringify(['@activities', 'httpGet']),
           arguments: await defaultDataConverter.toPayloads(url),
-          startToCloseTimeout: msStrToTs('10m'),
+          startToCloseTimeout: msToTs('10m'),
           taskQueue: 'test',
         }),
       ])
@@ -1280,7 +1280,7 @@ test('cancel-activity-after-first-completion', async (t) => {
           activityId: '1',
           activityType: JSON.stringify(['@activities', 'httpGet']),
           arguments: await defaultDataConverter.toPayloads(url),
-          startToCloseTimeout: msStrToTs('10m'),
+          startToCloseTimeout: msToTs('10m'),
           taskQueue: 'test',
         }),
       ])
@@ -1320,7 +1320,7 @@ test('multiple-activities-single-timeout', async (t) => {
               activityId: `${index + 1}`, // sequence 0 is taken by the timer
               activityType: JSON.stringify(['@activities', 'httpGetJSON']),
               arguments: await defaultDataConverter.toPayloads(url),
-              startToCloseTimeout: msStrToTs('10m'),
+              startToCloseTimeout: msToTs('10m'),
               taskQueue: 'test',
             })
           )
@@ -1371,7 +1371,7 @@ test('http', async (t) => {
           activityId: '0',
           activityType: JSON.stringify(['@activities', 'httpGet']),
           arguments: await defaultDataConverter.toPayloads('https://google.com'),
-          startToCloseTimeout: msStrToTs('10 minutes'),
+          startToCloseTimeout: msToTs('10 minutes'),
           taskQueue: 'test',
         }),
       ])
@@ -1391,7 +1391,7 @@ test('http', async (t) => {
           activityId: '1',
           activityType: JSON.stringify(['@activities', 'httpGet']),
           arguments: await defaultDataConverter.toPayloads('http://example.com'),
-          scheduleToCloseTimeout: msStrToTs('30 minutes'),
+          scheduleToCloseTimeout: msToTs('30 minutes'),
           taskQueue: 'test',
         }),
       ])
@@ -1432,7 +1432,7 @@ test('activity-configure', async (t) => {
           activityId: '0',
           activityType: JSON.stringify(['@activities', 'httpGet']),
           arguments: await defaultDataConverter.toPayloads('http://example.com'),
-          startToCloseTimeout: msStrToTs('10 minutes'),
+          startToCloseTimeout: msToTs('10 minutes'),
           taskQueue: 'test',
         }),
       ])
@@ -1451,8 +1451,8 @@ test('activity-configure', async (t) => {
           activityId: '1',
           activityType: JSON.stringify(['@activities', 'httpGet']),
           arguments: await defaultDataConverter.toPayloads('http://example.com'),
-          heartbeatTimeout: msStrToTs('3s'),
-          scheduleToCloseTimeout: msStrToTs('30 minutes'),
+          heartbeatTimeout: msToTs('3s'),
+          scheduleToCloseTimeout: msToTs('30 minutes'),
           taskQueue: 'test',
         }),
       ])
@@ -1471,8 +1471,8 @@ test('activity-configure', async (t) => {
           activityId: '2',
           activityType: JSON.stringify(['@activities', 'httpGet']),
           arguments: await defaultDataConverter.toPayloads('http://example.com'),
-          scheduleToStartTimeout: msStrToTs('20 minutes'),
-          startToCloseTimeout: msStrToTs('10 minutes'),
+          scheduleToStartTimeout: msToTs('20 minutes'),
+          startToCloseTimeout: msToTs('10 minutes'),
           taskQueue: 'test',
         }),
       ])

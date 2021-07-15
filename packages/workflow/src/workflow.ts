@@ -10,7 +10,7 @@ import {
 } from './interfaces';
 import { state } from './internals';
 import { IllegalStateError } from './errors';
-import { msToTs, msOptionalStrToTs } from './time';
+import { msToTs, msOptionalToTs } from './time';
 import { ActivityInput, TimerInput, composeInterceptors } from './interceptors';
 import { CancellationScope, registerSleepImplementation } from './cancellation-scope';
 
@@ -131,17 +131,17 @@ async function scheduleActivityNextHandler({
         retryPolicy: options.retry
           ? {
               maximumAttempts: options.retry.maximumAttempts,
-              initialInterval: msOptionalStrToTs(options.retry.initialInterval),
-              maximumInterval: msOptionalStrToTs(options.retry.maximumInterval),
+              initialInterval: msOptionalToTs(options.retry.initialInterval),
+              maximumInterval: msOptionalToTs(options.retry.maximumInterval),
               backoffCoefficient: options.retry.backoffCoefficient,
               // TODO: nonRetryableErrorTypes
             }
           : undefined,
         taskQueue: options.taskQueue || state.info?.taskQueue,
-        heartbeatTimeout: msOptionalStrToTs(options.heartbeatTimeout),
-        scheduleToCloseTimeout: msOptionalStrToTs(options.scheduleToCloseTimeout),
-        startToCloseTimeout: msOptionalStrToTs(options.startToCloseTimeout),
-        scheduleToStartTimeout: msOptionalStrToTs(options.scheduleToStartTimeout),
+        heartbeatTimeout: msOptionalToTs(options.heartbeatTimeout),
+        scheduleToCloseTimeout: msOptionalToTs(options.scheduleToCloseTimeout),
+        startToCloseTimeout: msOptionalToTs(options.startToCloseTimeout),
+        scheduleToStartTimeout: msOptionalToTs(options.scheduleToStartTimeout),
         namespace: options.namespace,
         headerFields: Object.fromEntries(headers.entries()),
       },
@@ -322,8 +322,8 @@ export class ContextImpl {
           taskQueue: options.taskQueue,
           memo: options.memo,
           searchAttributes: options.searchAttributes,
-          workflowRunTimeout: msOptionalStrToTs(options.workflowRunTimeout),
-          workflowTaskTimeout: msOptionalStrToTs(options.workflowTaskTimeout),
+          workflowRunTimeout: msOptionalToTs(options.workflowRunTimeout),
+          workflowTaskTimeout: msOptionalToTs(options.workflowTaskTimeout),
         });
       });
       return fn({

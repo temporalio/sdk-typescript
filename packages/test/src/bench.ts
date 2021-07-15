@@ -4,7 +4,7 @@ import { range } from 'rxjs';
 import { mergeMap, take, tap, withLatestFrom } from 'rxjs/operators';
 import { Core, Worker, DefaultLogger } from '@temporalio/worker';
 import { Connection, WorkflowClient } from '@temporalio/client';
-import { msStrToTs } from '@temporalio/workflow/lib/time';
+import { msToTs } from '@temporalio/workflow/lib/time';
 import * as opentelemetry from '@opentelemetry/sdk-node';
 import { JaegerExporter } from '@opentelemetry/exporter-jaeger';
 
@@ -109,7 +109,7 @@ async function main() {
   const connection = new Connection({ address: serverAddress });
 
   try {
-    await connection.service.registerNamespace({ namespace, workflowExecutionRetentionPeriod: msStrToTs('1 day') });
+    await connection.service.registerNamespace({ namespace, workflowExecutionRetentionPeriod: msToTs('1 day') });
   } catch (err) {
     if (!(err.details === 'Namespace already exists.')) {
       throw err;
