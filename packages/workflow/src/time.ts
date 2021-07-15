@@ -24,7 +24,7 @@ export function tsToMs(ts: Timestamp | null | undefined): number {
     .toNumber();
 }
 
-export function msToTs(millis: number): Timestamp {
+export function msNumberToTs(millis: number): Timestamp {
   const seconds = Math.floor(millis / 1000);
   const nanos = (millis % 1000) * 1000000;
   if (Number.isNaN(seconds) || Number.isNaN(nanos)) {
@@ -33,19 +33,26 @@ export function msToTs(millis: number): Timestamp {
   return { seconds: Long.fromNumber(seconds), nanos };
 }
 
-export function msStrToTs(str: string | number): Timestamp {
+export function msToTs(str: string | number): Timestamp {
   if (typeof str === 'number') {
-    return msToTs(str);
+    return msNumberToTs(str);
   }
-  return msToTs(ms(str));
+  return msNumberToTs(ms(str));
 }
 
-export function msOptionalStrToTs(str: string | number | undefined): Timestamp | undefined {
+export function msOptionalToTs(str: string | number | undefined): Timestamp | undefined {
   if (str === undefined) return undefined;
   if (typeof str === 'number') {
-    return msToTs(str);
+    return msNumberToTs(str);
   }
-  return msToTs(ms(str));
+  return msNumberToTs(ms(str));
+}
+
+export function msToNumber(val: string | number): number {
+  if (typeof val === 'number') {
+    return val;
+  }
+  return ms(val);
 }
 
 export function nullToUndefined<T extends any | null | undefined>(x: T): Exclude<T, null> {

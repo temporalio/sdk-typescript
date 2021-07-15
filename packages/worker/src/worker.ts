@@ -32,13 +32,12 @@ import {
   scan,
 } from 'rxjs/operators';
 import ivm from 'isolated-vm';
-import ms from 'ms';
 import * as native from '@temporalio/core-bridge';
 import { coresdk } from '@temporalio/proto';
 import { ActivityOptions, ApplyMode, ExternalDependencies, WorkflowInfo } from '@temporalio/workflow';
 import { Info as ActivityInfo } from '@temporalio/activity';
 import { errorToUserCodeFailure } from '@temporalio/workflow/lib/common';
-import { tsToMs } from '@temporalio/workflow/lib/time';
+import { msToNumber, tsToMs } from '@temporalio/workflow/lib/time';
 import { IllegalStateError } from '@temporalio/workflow/lib/errors';
 import {
   arrayFromPayloads,
@@ -92,9 +91,9 @@ export interface ServerOptions {
   workerBinaryId?: string;
   /**
    * Timeout for long polls (polling of task queues)
-   * @format {@link https://www.npmjs.com/package/ms | ms} formatted string
+   * @format {@link https://www.npmjs.com/package/ms | ms} formatted string or number of milliseconds
    */
-  longPollTimeout?: string;
+  longPollTimeout?: string | number;
 
   /**
    * TLS configuration options.
@@ -193,9 +192,9 @@ export interface WorkerOptions {
   /**
    * Time to wait for pending tasks to drain after shutdown was requested.
    *
-   * @format {@link https://www.npmjs.com/package/ms | ms} formatted string
+   * @format {@link https://www.npmjs.com/package/ms | ms} formatted string or number of milliseconds
    */
-  shutdownGraceTime?: string;
+  shutdownGraceTime?: string | number;
 
   /**
    * Automatically shut down worker on any of these signals.
@@ -243,10 +242,10 @@ export interface WorkerOptions {
 
   /**
    * Time to wait for result when calling a Workflow isolate function.
-   * @format {@link https://www.npmjs.com/package/ms | ms} formatted string
+   * @format {@link https://www.npmjs.com/package/ms | ms} formatted string or number of milliseconds
    * @default 1s
    */
-  isolateExecutionTimeout?: string;
+  isolateExecutionTimeout?: string | number;
 
   /**
    * A mapping of interceptor type to a list of factories or module paths
@@ -309,7 +308,7 @@ export function compileServerOptions(options: RequiredServerOptions): CompiledSe
   // eslint-disable-next-line prefer-const
   let [host, port] = address.split(':', 2);
   port = port || '7233';
-  return { ...rest, address: `${host}:${port}`, longPollTimeoutMs: ms(longPollTimeout) };
+  return { ...rest, address: `${host}:${port}`, longPollTimeoutMs: msToNumber(longPollTimeout) };
 }
 
 /**
@@ -350,8 +349,8 @@ export function compileWorkerOptions<T extends WorkerSpec>(
 ): CompiledWorkerOptions<T> {
   return {
     ...opts,
-    shutdownGraceTimeMs: ms(opts.shutdownGraceTime),
-    isolateExecutionTimeoutMs: ms(opts.isolateExecutionTimeout),
+    shutdownGraceTimeMs: msToNumber(opts.shutdownGraceTime),
+    isolateExecutionTimeoutMs: msToNumber(opts.isolateExecutionTimeout),
     serverOptions: compileServerOptions(opts.serverOptions),
   };
 }

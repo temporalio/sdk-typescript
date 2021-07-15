@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
 import ivm from 'isolated-vm';
 import { coresdk } from '@temporalio/proto';
-import { msStrToTs } from '@temporalio/workflow/lib/time';
+import { msToTs } from '@temporalio/workflow/lib/time';
 import { defaultDataConverter } from '@temporalio/workflow/lib/converter/data-converter';
 import {
   Worker as RealWorker,
@@ -21,12 +21,12 @@ function addActivityStartDefaults(task: coresdk.activity_task.IActivityTask) {
   if (task.start) {
     task.start = {
       attempt: 1,
-      startedTime: msStrToTs('0 seconds'),
-      currentAttemptScheduledTime: msStrToTs('0 seconds'),
-      startToCloseTimeout: msStrToTs('1 minute'),
-      scheduleToCloseTimeout: msStrToTs('1 minute'),
-      heartbeatTimeout: msStrToTs('1 minute'),
-      scheduledTime: msStrToTs('0 seconds'),
+      startedTime: msToTs('0 seconds'),
+      currentAttemptScheduledTime: msToTs('0 seconds'),
+      startToCloseTimeout: msToTs('1 minute'),
+      scheduleToCloseTimeout: msToTs('1 minute'),
+      heartbeatTimeout: msToTs('1 minute'),
+      scheduledTime: msToTs('0 seconds'),
       ...task.start,
     };
   }

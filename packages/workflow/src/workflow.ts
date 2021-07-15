@@ -8,7 +8,7 @@ import {
 import { state } from './internals';
 import { defaultDataConverter } from './converter/data-converter';
 import { IllegalStateError } from './errors';
-import { msToTs, msOptionalStrToTs } from './time';
+import { msToTs, msOptionalToTs } from './time';
 import { ActivityInput, TimerInput, composeInterceptors } from './interceptors';
 import { CancellationScope, registerSleepImplementation } from './cancellation-scope';
 
@@ -122,17 +122,17 @@ function scheduleActivityNextHandler({ options, args, headers, seq, activityType
         retryPolicy: options.retry
           ? {
               maximumAttempts: options.retry.maximumAttempts,
-              initialInterval: msOptionalStrToTs(options.retry.initialInterval),
-              maximumInterval: msOptionalStrToTs(options.retry.maximumInterval),
+              initialInterval: msOptionalToTs(options.retry.initialInterval),
+              maximumInterval: msOptionalToTs(options.retry.maximumInterval),
               backoffCoefficient: options.retry.backoffCoefficient,
               // TODO: nonRetryableErrorTypes
             }
           : undefined,
         taskQueue: options.taskQueue || state.info?.taskQueue,
-        heartbeatTimeout: msOptionalStrToTs(options.heartbeatTimeout),
-        scheduleToCloseTimeout: msOptionalStrToTs(options.scheduleToCloseTimeout),
-        startToCloseTimeout: msOptionalStrToTs(options.startToCloseTimeout),
-        scheduleToStartTimeout: msOptionalStrToTs(options.scheduleToStartTimeout),
+        heartbeatTimeout: msOptionalToTs(options.heartbeatTimeout),
+        scheduleToCloseTimeout: msOptionalToTs(options.scheduleToCloseTimeout),
+        startToCloseTimeout: msOptionalToTs(options.startToCloseTimeout),
+        scheduleToStartTimeout: msOptionalToTs(options.scheduleToStartTimeout),
         namespace: options.namespace,
         headerFields: Object.fromEntries(headers.entries()),
       },

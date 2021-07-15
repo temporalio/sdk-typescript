@@ -1,4 +1,3 @@
-import ms from 'ms';
 import { v4 as uuid4 } from 'uuid';
 import { msToTs } from '@temporalio/workflow/lib/time';
 import { Headers } from '@temporalio/workflow';
@@ -69,9 +68,9 @@ export interface WorkflowDurationOptions {
    * rely on run timeout for business level timeouts. It is preferred to use in workflow timers
    * for this purpose.
    *
-   * @format {@link https://www.npmjs.com/package/ms | ms} formatted string
+   * @format {@link https://www.npmjs.com/package/ms | ms} formatted string or number of milliseconds
    */
-  workflowRunTimeout?: string;
+  workflowRunTimeout?: string | number;
 
   /**
    *
@@ -79,16 +78,16 @@ export interface WorkflowDurationOptions {
    * automatically terminated by Temporal service. Do not rely on execution timeout for business
    * level timeouts. It is preferred to use in workflow timers for this purpose.
    *
-   * @format {@link https://www.npmjs.com/package/ms | ms} formatted string
+   * @format {@link https://www.npmjs.com/package/ms | ms} formatted string or number of milliseconds
    */
-  workflowExecutionTimeout?: string;
+  workflowExecutionTimeout?: string | number;
 
   /**
    * Maximum execution time of a single workflow task. Default is 10 seconds.
    *
-   * @format {@link https://www.npmjs.com/package/ms | ms} formatted string
+   * @format {@link https://www.npmjs.com/package/ms | ms} formatted string or number of milliseconds
    */
-  workflowTaskTimeout?: string;
+  workflowTaskTimeout?: string | number;
 }
 
 export type WorkflowOptions = BaseWorkflowOptions & WorkflowDurationOptions;
@@ -129,9 +128,9 @@ export function compileWorkflowOptions({
 }: WorkflowOptionsWithDefaults): CompiledWorkflowOptions {
   return {
     ...rest,
-    workflowExecutionTimeout: workflowExecutionTimeout ? msToTs(ms(workflowExecutionTimeout)) : undefined,
-    workflowRunTimeout: workflowRunTimeout ? msToTs(ms(workflowRunTimeout)) : undefined,
-    workflowTaskTimeout: workflowTaskTimeout ? msToTs(ms(workflowTaskTimeout)) : undefined,
+    workflowExecutionTimeout: workflowExecutionTimeout ? msToTs(workflowExecutionTimeout) : undefined,
+    workflowRunTimeout: workflowRunTimeout ? msToTs(workflowRunTimeout) : undefined,
+    workflowTaskTimeout: workflowTaskTimeout ? msToTs(workflowTaskTimeout) : undefined,
     headers: new Map(),
   };
 }
