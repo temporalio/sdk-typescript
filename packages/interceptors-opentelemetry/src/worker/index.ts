@@ -36,7 +36,7 @@ export class OpenTelemetryActivityInboundInterceptor implements ActivityInboundC
   async execute(input: ActivityExecuteInput, next: Next<ActivityInboundCallsInterceptor, 'execute'>): Promise<unknown> {
     const encodedSpanContext = input.headers.get(TRACE_HEADER);
     const spanContext: otel.SpanContext | undefined = encodedSpanContext
-      ? this.dataConverter.fromPayload(encodedSpanContext)
+      ? await this.dataConverter.fromPayload(encodedSpanContext)
       : undefined;
     if (spanContext === undefined) {
       return await next(input);

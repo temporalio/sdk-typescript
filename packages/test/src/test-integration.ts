@@ -229,7 +229,7 @@ if (RUN_INTEGRATION_TESTS) {
     t.deepEqual(execution.workflowExecutionInfo?.memo, iface.temporal.api.common.v1.Memo.create({ fields: {} }));
     t.deepEqual(Object.keys(execution.workflowExecutionInfo!.searchAttributes!.indexedFields!), ['BinaryChecksums']);
 
-    const checksums = defaultDataConverter.fromPayload(
+    const checksums = await defaultDataConverter.fromPayload(
       execution.workflowExecutionInfo!.searchAttributes!.indexedFields!.BinaryChecksums!
     );
     t.true(checksums instanceof Array && checksums.length === 1);
@@ -262,9 +262,9 @@ if (RUN_INTEGRATION_TESTS) {
       execution.workflowExecutionInfo?.type,
       iface.temporal.api.common.v1.WorkflowType.create({ name: 'sleep' })
     );
-    t.deepEqual(defaultDataConverter.fromPayload(execution.workflowExecutionInfo!.memo!.fields!.a!), 'b');
+    t.deepEqual(await defaultDataConverter.fromPayload(execution.workflowExecutionInfo!.memo!.fields!.a!), 'b');
     t.deepEqual(
-      defaultDataConverter.fromPayload(
+      await defaultDataConverter.fromPayload(
         execution.workflowExecutionInfo!.searchAttributes!.indexedFields!.CustomIntField!
       ),
       3
@@ -322,7 +322,7 @@ if (RUN_INTEGRATION_TESTS) {
       namespace,
       execution: { workflowId: workflow.workflowId, runId: err.newExecutionRunId },
     });
-    const timeSlept = defaultDataConverter.fromPayloads(
+    const timeSlept = await defaultDataConverter.fromPayloads(
       0,
       history?.events?.[0].workflowExecutionStartedEventAttributes?.input?.payloads
     );

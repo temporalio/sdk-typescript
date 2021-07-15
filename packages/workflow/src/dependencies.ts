@@ -1,7 +1,7 @@
 /**
  * Type definitions for the Workflow end of the external dependencies mechanism.
  *
- * External dependencies are functions injected into a Workflow isolate from the main NodeJS isolate.
+ * External dependencies are functions injected into a Workflow isolate from the main Node.js isolate.
  * They are an advanced feature and should be used with care.
  *
  * @see proposal at https://github.com/temporalio/proposals/blob/master/node/logging-and-metrics-for-user-code.md
@@ -13,7 +13,7 @@
  * Any function signature can be used for dependency functions.
  *
  * Depending on the implementation's and transfer options,
- * when calling a dependency function, arguments and return value are transferred between the Workflow isolate and the NodeJS isolate.
+ * when calling a dependency function, arguments and return value are transferred between the Workflow isolate and the Node.js isolate.
  * - `SYNC*` {@link ApplyMode} variants allow configuring how those are transferred between isolates
  * - `ASYNC*` {@link ApplyMode} variants always copy the arguments and return value
  */
