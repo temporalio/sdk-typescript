@@ -8,6 +8,22 @@ import { msToTs } from '@temporalio/workflow/lib/time';
 import * as opentelemetry from '@opentelemetry/sdk-node';
 import { JaegerExporter } from '@opentelemetry/exporter-jaeger';
 
+async function createNamespace(connection: Connection, namespace: string, maxAttempts = 100, retryIntervalSecs = 1) {
+  for (let attempt = 1; attempt <= maxAttempts; ++attempt) {
+    try {
+      await connection.service.registerNamespace({ namespace, workflowExecutionRetentionPeriod: msToTs('1 day') });
+    } catch (err) {
+      if (err.details === 'Namespace already exists.') {
+        break;
+      }
+      if (attempt === maxAttempts) {
+        throw err;
+      }
+      await new Promise((resolve) => setTimeout(resolve, retryIntervalSecs * 1000));
+    }
+  }
+}
+
 async function waitOnNamespace(connection: Connection, namespace: string, maxAttempts = 100, retryIntervalSecs = 1) {
   for (let attempt = 1; attempt <= maxAttempts; ++attempt) {
     try {
@@ -108,13 +124,7 @@ async function main() {
   const taskQueue = 'bench';
   const connection = new Connection({ address: serverAddress });
 
-  try {
-    await connection.service.registerNamespace({ namespace, workflowExecutionRetentionPeriod: msToTs('1 day') });
-  } catch (err) {
-    if (!(err.details === 'Namespace already exists.')) {
-      throw err;
-    }
-  }
+  await createNamespace(connection, namespace);
   console.log('Registered namespace', { namespace });
   await waitOnNamespace(connection, namespace);
   console.log('Wait complete on namespace', { namespace });
