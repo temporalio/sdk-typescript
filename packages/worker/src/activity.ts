@@ -53,9 +53,12 @@ export class Activity {
         }
         return { completed: { result: await this.dataConverter.toPayload(result) } };
       } catch (err) {
-        // TODO: should we only allow CancelledError to count as valid cancellation?
         if (this.cancelRequested) {
-          return { canceled: {} };
+          // Either a CancelledError that we threw or AbortError from AbortController
+          if (err instanceof CancelledError || (err.name === 'AbortError' && err.type === 'aborted')) {
+            // TODO: should we only allow CancelledError to count as valid cancellation?
+            return { canceled: {} };
+          }
         }
         return { failed: { failure: err?.message ? { message: err.message } : undefined } };
       }
