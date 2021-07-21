@@ -53,6 +53,7 @@ export class Activity {
         }
         return { completed: { result: await this.dataConverter.toPayload(result) } };
       } catch (err) {
+        // TODO: should we only allow CancelledError to count as valid cancellation?
         if (this.cancelRequested) {
           return { canceled: {} };
         }

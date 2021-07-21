@@ -51,7 +51,7 @@ import { Activity } from './activity';
 import { DefaultLogger, Logger } from './logger';
 import { WorkflowIsolateBuilder } from './isolate-builder';
 import * as errors from './errors';
-import { tracer, instrument, childSpan } from './tracing';
+import { childSpan, instrument, tracer } from './tracing';
 import { InjectedDependencies, getIvmTransferOptions } from './dependencies';
 import { ActivityExecuteInput, WorkerInterceptors } from './interceptors';
 export { RetryOptions, RemoteActivityOptions, LocalActivityOptions } from '@temporalio/workflow';
@@ -350,6 +350,10 @@ type ContextAware<T> = T & {
 export type ActivationWithContext = ContextAware<{
   activation: coresdk.workflow_activation.WFActivation;
 }>;
+export type ActivityTaskWithContext = ContextAware<{
+  task: coresdk.activity_task.ActivityTask;
+  formattedTaskToken: string;
+}>;
 
 export interface NativeWorkerLike {
   shutdown: Promisify<OmitFirstParam<typeof native.workerShutdown>>;
@@ -608,112 +612,135 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
   /**
    * Process activity tasks
    */
-  protected activityOperator(): OperatorFunction<coresdk.activity_task.ActivityTask, Uint8Array> {
+  protected activityOperator(): OperatorFunction<ActivityTaskWithContext, ContextAware<{ completion: Uint8Array }>> {
     return pipe(
-      closeableGroupBy((task) => task.taskToken.toString()),
+      closeableGroupBy(({ formattedTaskToken }) => formattedTaskToken),
       mergeMap((group$) => {
         return group$.pipe(
-          mergeMapWithState(async (activity: Activity | undefined, task) => {
-            // We either want to return an activity result or pass on the activity for running at a later stage
-            // We don't run the activity directly in this operator because we need to return the activity in the state
-            // so it can be cancelled if requested
-            let output:
-              | { type: 'result'; result: coresdk.activity_result.IActivityResult }
-              | { type: 'run'; activity: Activity; input: ActivityExecuteInput };
-            const { taskToken, variant, activityId } = task;
-            if (!variant) {
-              throw new TypeError('Got an activity task without a "variant" attribute');
-            }
-
-            switch (variant) {
-              case 'start': {
-                this.numInFlightActivitiesSubject.next(this.numInFlightActivitiesSubject.value + 1);
-                const info = extractActivityInfo(task, false, this.options.dataConverter, this.nativeWorker.namespace);
-                const [path, fnName] = info.activityType;
-                const module = this.resolvedActivities.get(path);
-                if (module === undefined) {
-                  output = {
-                    type: 'result',
-                    result: { failed: { failure: { message: `Activity module not found: ${path}` } } },
-                  };
-                  break;
-                }
-                const fn = module[fnName];
-                if (!(fn instanceof Function)) {
-                  output = {
-                    type: 'result',
-                    result: { failed: { failure: { message: `Activity function ${fnName} not found in: ${path}` } } },
-                  };
-                  break;
-                }
-                let args: unknown[];
-                try {
-                  args = await arrayFromPayloads(this.options.dataConverter, task.start?.input);
-                } catch (err) {
-                  output = {
-                    type: 'result',
-                    result: {
-                      failed: {
-                        failure: { message: `Failed to parse activity args for activity ${fnName}: ${err.message}` },
-                      },
-                    },
-                  };
-                  break;
-                }
-                const headers = new Map(Object.entries(task.start?.headerFields ?? {}));
-                const input = {
-                  args,
-                  headers,
-                };
-                this.log.debug('Starting activity', { activityId, path, fnName });
-
-                activity = new Activity(
-                  info,
-                  fn,
-                  this.options.dataConverter,
-                  (details) =>
-                    this.activityHeartbeatSubject.next({
-                      taskToken,
-                      details,
-                    }),
-                  { inbound: this.options.interceptors?.activityInbound }
-                );
-                output = { type: 'run', activity, input };
-                break;
+          mergeMapWithState(
+            async (activity: Activity | undefined, { task, parentSpan }) => {
+              const { taskToken, variant, activityId } = task;
+              if (!variant) {
+                throw new TypeError('Got an activity task without a "variant" attribute');
               }
-              case 'cancel': {
-                if (activity === undefined) {
-                  this.log.error('Tried to cancel a non-existing activity', { activityId });
-                  output = { type: 'result', result: { failed: { failure: { message: 'Activity not found' } } } };
-                  break;
+
+              return await instrument(parentSpan, `activity.${variant}`, async (span) => {
+                // We either want to return an activity result (for failures) or pass on the activity for running at a later stage
+                // If cancel is requested we ignore the result of this function
+                // We don't run the activity directly in this operator because we need to return the activity in the state
+                // so it can be cancelled if requested
+                let output:
+                  | { type: 'result'; result: coresdk.activity_result.IActivityResult; parentSpan: otel.Span }
+                  | { type: 'run'; activity: Activity; input: ActivityExecuteInput; parentSpan: otel.Span }
+                  | { type: 'ignore'; parentSpan: otel.Span };
+                switch (variant) {
+                  case 'start': {
+                    const info = extractActivityInfo(
+                      task,
+                      false,
+                      this.options.dataConverter,
+                      this.nativeWorker.namespace
+                    );
+                    const [path, fnName] = info.activityType;
+                    const module = this.resolvedActivities.get(path);
+                    if (module === undefined) {
+                      output = {
+                        type: 'result',
+                        result: { failed: { failure: { message: `Activity module not found: ${path}` } } },
+                        parentSpan,
+                      };
+                      break;
+                    }
+                    const fn = module[fnName];
+                    if (!(fn instanceof Function)) {
+                      output = {
+                        type: 'result',
+                        result: {
+                          failed: { failure: { message: `Activity function ${fnName} not found in: ${path}` } },
+                        },
+                        parentSpan,
+                      };
+                      break;
+                    }
+                    let args: unknown[];
+                    try {
+                      args = await arrayFromPayloads(this.options.dataConverter, task.start?.input);
+                    } catch (err) {
+                      output = {
+                        type: 'result',
+                        result: {
+                          failed: {
+                            failure: {
+                              message: `Failed to parse activity args for activity ${fnName}: ${err.message}`,
+                            },
+                          },
+                        },
+                        parentSpan,
+                      };
+                      break;
+                    }
+                    const headers = new Map(Object.entries(task.start?.headerFields ?? {}));
+                    const input = {
+                      args,
+                      headers,
+                    };
+                    this.log.debug('Starting activity', { activityId, path, fnName });
+
+                    activity = new Activity(
+                      info,
+                      fn,
+                      this.options.dataConverter,
+                      (details) =>
+                        this.activityHeartbeatSubject.next({
+                          taskToken,
+                          details,
+                        }),
+                      { inbound: this.options.interceptors?.activityInbound }
+                    );
+                    this.numInFlightActivitiesSubject.next(this.numInFlightActivitiesSubject.value + 1);
+                    output = { type: 'run', activity, input, parentSpan };
+                    break;
+                  }
+                  case 'cancel': {
+                    output = { type: 'ignore', parentSpan };
+                    if (activity === undefined) {
+                      this.log.error('Tried to cancel a non-existing activity', { activityId });
+                      span.setAttribute('found', false);
+                      break;
+                    }
+                    // NOTE: activity will not be considered cancelled until it confirms cancellation
+                    this.log.debug('Cancelling activity', { activityId });
+                    span.setAttribute('found', true);
+                    activity.cancel();
+                    break;
+                  }
                 }
-                this.log.debug('Cancelling activity', { activityId });
-                activity.cancel();
-                output = {
-                  type: 'result',
-                  result: {
-                    canceled: {},
-                  },
-                };
-                break;
-              }
-            }
-            return { state: activity, output: { taskToken, output } };
-          }, undefined),
+                return { state: activity, output: { taskToken, output } };
+              });
+            },
+            undefined // initial value
+          ),
           mergeMap(async ({ output, taskToken }) => {
+            if (output.type === 'ignore') {
+              output.parentSpan.end();
+              return undefined;
+            }
             if (output.type === 'result') {
-              return { taskToken, result: output.result };
+              return { taskToken, result: output.result, parentSpan: output.parentSpan };
             }
-            const result = await output.activity.run(output.input);
-            const status = result.failed ? 'failed' : result.completed ? 'completed' : 'cancelled';
-            this.log.debug('Activity resolved', { activityId: output.activity.info.activityId, status });
-            if (result.canceled) {
-              return undefined; // Cancelled emitted on cancellation request, ignored in activity run result
-            }
-            return { taskToken, result };
+            return await instrument(output.parentSpan, 'activity.run', async (span) => {
+              const result = await output.activity.run(output.input);
+              const status = result.failed ? 'failed' : result.completed ? 'completed' : 'cancelled';
+              span.setAttributes({ status });
+              this.log.debug('Activity resolved', { activityId: output.activity.info.activityId, status });
+              return { taskToken, result, parentSpan: output.parentSpan };
+            });
           }),
           filter(<T>(result: T): result is Exclude<T, undefined> => result !== undefined),
-          map((result) => coresdk.ActivityTaskCompletion.encodeDelimited(result).finish()),
+          map(({ parentSpan, ...rest }) => ({
+            completion: coresdk.ActivityTaskCompletion.encodeDelimited(rest).finish(),
+            parentSpan,
+          })),
           tap(group$.close), // Close the group after activity task completion
           tap(() => void this.numInFlightActivitiesSubject.next(this.numInFlightActivitiesSubject.value - 1))
         );
@@ -736,7 +763,7 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
               const parentSpan = tracer.startSpan('workflow.shutdown.evict');
               return {
                 parentSpan,
-                span: childSpan(parentSpan, 'process', {
+                span: childSpan(parentSpan, 'workflow.process', {
                   attributes: {
                     numInFlightActivations: this.numInFlightActivationsSubject.value,
                     numRunningWorkflowInstances: this.numRunningWorkflowInstancesSubject.value,
@@ -960,7 +987,7 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
     return this.pollLoop$(async () => {
       const parentSpan = tracer.startSpan('workflow.activation');
       try {
-        return await instrument(parentSpan, 'poll', async (span) => {
+        return await instrument(parentSpan, 'workflow.poll', async (span) => {
           const buffer = await this.nativeWorker.pollWorkflowActivation();
           const activation = coresdk.workflow_activation.WFActivation.decode(new Uint8Array(buffer));
           const { runId, ...rest } = activation;
@@ -980,7 +1007,7 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
             }),
           };
         } else {
-          parentSpan.end();
+          parentSpan.setStatus({ code: otel.SpanStatusCode.ERROR }).end();
           throw err;
         }
       }
@@ -1006,7 +1033,7 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
     ).pipe(
       this.workflowOperator(),
       mergeMap(async ({ completion, parentSpan: root }) => {
-        const span = childSpan(root, 'complete');
+        const span = childSpan(root, 'workflow.complete');
         try {
           await this.nativeWorker.completeWorkflowActivation(completion.buffer.slice(completion.byteOffset));
           span.setStatus({ code: otel.SpanStatusCode.OK });
@@ -1034,20 +1061,42 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
   /**
    * Poll core for `ActivityTask`s while respecting worker state
    */
-  protected activityPoll$(): Observable<coresdk.activity_task.ActivityTask> {
+  protected activityPoll$(): Observable<ActivityTaskWithContext> {
     return this.pollLoop$(async () => {
-      const buffer = await this.nativeWorker.pollActivityTask();
-      const task = coresdk.activity_task.ActivityTask.decode(new Uint8Array(buffer));
-      const { taskToken, ...rest } = task;
-      this.log.debug('Got activity task', { taskToken: formatTaskToken(taskToken), ...rest });
-      return task;
+      const parentSpan = tracer.startSpan('activity.task');
+      try {
+        return await instrument(parentSpan, 'activity.poll', async () => {
+          const buffer = await this.nativeWorker.pollActivityTask();
+          const task = coresdk.activity_task.ActivityTask.decode(new Uint8Array(buffer));
+          const { taskToken, ...rest } = task;
+          const formattedTaskToken = formatTaskToken(taskToken);
+          this.log.debug('Got activity task', { taskToken: formattedTaskToken, ...rest });
+          const { variant } = task;
+          if (variant === undefined) {
+            throw new TypeError('Got an activity task without a "variant" attribute');
+          }
+          parentSpan.setAttribute('taskToken', formattedTaskToken).setAttribute('variant', variant);
+          return { task, parentSpan, formattedTaskToken };
+        });
+      } catch (err) {
+        parentSpan.setStatus({ code: otel.SpanStatusCode.ERROR }).end();
+        throw err;
+      }
     });
   }
 
   protected activity$(): Observable<void> {
     return this.activityPoll$().pipe(
       this.activityOperator(),
-      mergeMap((arr) => this.nativeWorker.completeActivityTask(arr.buffer.slice(arr.byteOffset))),
+      mergeMap(async ({ completion, parentSpan }) => {
+        try {
+          await instrument(parentSpan, 'activity.complete', () =>
+            this.nativeWorker.completeActivityTask(completion.buffer.slice(completion.byteOffset))
+          );
+        } finally {
+          parentSpan.end();
+        }
+      }),
       tap({ complete: () => this.log.debug('Activities complete') })
     );
   }
