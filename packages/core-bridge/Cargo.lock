@@ -1326,6 +1326,7 @@ dependencies = [
  "slotmap",
  "thiserror",
  "tokio",
+ "tokio-stream",
  "tonic",
  "tonic-build",
  "tracing",
