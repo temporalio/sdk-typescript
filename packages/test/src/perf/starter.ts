@@ -1,6 +1,6 @@
 import arg from 'arg';
 import { range } from 'rxjs';
-import { mergeMap, take, tap } from 'rxjs/operators';
+import { bufferTime, mergeMap, take, tap } from 'rxjs/operators';
 import { Connection, WorkflowClient } from '@temporalio/client';
 import { StarterArgSpec, starterArgSpec, getRequired } from './args';
 
@@ -19,29 +19,36 @@ interface RunWorkflowOptions {
   taskQueue: string;
   numWorkflows: number;
   concurrency: number;
-  heapSampleIteration: number;
 }
 
-async function runWorkflows({
-  client,
-  workflowName: name,
-  taskQueue,
-  numWorkflows,
-  concurrency,
-  heapSampleIteration,
-}: RunWorkflowOptions) {
+async function runWorkflows({ client, workflowName: name, taskQueue, numWorkflows, concurrency }: RunWorkflowOptions) {
+  let prevIterationTime = process.hrtime.bigint();
+  let totalTime = 0;
   let numComplete = 0;
+  let numCompletePrevIteration = 0;
   await range(0, numWorkflows)
     .pipe(
       take(numWorkflows),
       mergeMap(() => runWorkflow(client, name, taskQueue), concurrency),
+      tap(() => void ++numComplete),
+      bufferTime(1000),
       tap(() => {
-        ++numComplete;
-        console.log(`Workflow complete (${numComplete}/${numWorkflows})`);
-        if (numComplete % heapSampleIteration === 0) {
-          const { heapUsed, heapTotal } = process.memoryUsage();
-          console.log(`🔵 heap used / total MB: ${toMB(heapUsed)} / ${toMB(heapTotal)})`);
-        }
+        const numCompleteThisIteration = numComplete - numCompletePrevIteration;
+        const now = process.hrtime.bigint();
+        // delta time in seconds
+        const dt = Number(now - prevIterationTime) / 1_000_000_000;
+        totalTime += dt;
+        prevIterationTime = now;
+        const wfsPerSecond = (numCompleteThisIteration / dt).toFixed(1);
+
+        const overallWfsPerSecond = (numComplete / totalTime).toFixed(1);
+        const { heapUsed, heapTotal } = process.memoryUsage();
+        process.stderr.write(
+          `\rWFs complete (${numComplete}/${numWorkflows}), WFs/s ${wfsPerSecond} (${overallWfsPerSecond}), heap used / total MB: ${toMB(
+            heapUsed
+          )} / ${toMB(heapTotal)})  `
+        );
+        numCompletePrevIteration = numComplete;
       })
     )
     .toPromise();
@@ -65,7 +72,6 @@ async function main() {
     workflowName,
     taskQueue,
     numWorkflows: iterations,
-    heapSampleIteration: 20,
     concurrency: concurrentWFClients,
   });
 }
