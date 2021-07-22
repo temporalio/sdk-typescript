@@ -51,6 +51,7 @@
 import './global-overrides';
 
 export {
+  ActivityCancellationType,
   ActivityFunction,
   ActivityOptions,
   ApplyMode,

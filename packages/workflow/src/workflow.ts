@@ -144,6 +144,7 @@ async function scheduleActivityNextHandler({
         scheduleToStartTimeout: msOptionalToTs(options.scheduleToStartTimeout),
         namespace: options.namespace,
         headerFields: Object.fromEntries(headers.entries()),
+        cancellationType: options.cancellationType,
       },
     });
   });

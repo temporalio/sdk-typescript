@@ -72,6 +72,16 @@ Note that the Temporal Server doesn't detect Worker process failures directly. I
    * @format {@link https://www.npmjs.com/package/ms | ms} formatted string or number of milliseconds
    */
   scheduleToCloseTimeout?: string | number;
+
+  /**
+   * Determines what the SDK does when the Activity is cancelled.
+   * - `TRY_CANCEL` - Initiate a cancellation request and immediately report cancellation to the workflow.
+   * - `WAIT_CANCELLATION_COMPLETED` - Wait for activity cancellation completion. Note that activity must heartbeat to receive a
+   *   cancellation notification. This can block the cancellation for a long time if activity doesn't
+   *   heartbeat or chooses to ignore the cancellation request.
+   * - `ABANDON` - Do not request cancellation of the activity and immediately report cancellation to the workflow.
+   */
+  cancellationType?: coresdk.workflow_commands.ActivityCancellationType;
 }
 
 /**
@@ -208,3 +218,5 @@ export interface ContinueAsNewOptions {
    */
   searchAttributes?: Record<string, any>;
 }
+
+export const ActivityCancellationType = coresdk.workflow_commands.ActivityCancellationType;
