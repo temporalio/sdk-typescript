@@ -801,130 +801,108 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
           tap(() => {
             this.numInFlightActivationsSubject.next(this.numInFlightActivationsSubject.value + 1);
           }),
-          map((awc) => ({
-            ...awc,
-            span: childSpan(awc.parentSpan, 'workflow.process', {
-              attributes: {
-                numInFlightActivations: this.numInFlightActivationsSubject.value,
-                numRunningWorkflowInstances: this.numRunningWorkflowInstancesSubject.value,
-              },
-            }),
-          })),
-          mergeMapWithState(async (workflow: Workflow | undefined, { activation, span, parentSpan: root }): Promise<{
+          mergeMapWithState(async (workflow: Workflow | undefined, { activation, parentSpan }): Promise<{
             state: Workflow | undefined;
-            output: ContextAware<{ completion?: Uint8Array; close: boolean; span: otel.Span }>;
+            output: ContextAware<{ completion?: Uint8Array; close: boolean }>;
           }> => {
-            const jobs = activation.jobs.filter(({ removeFromCache }) => !removeFromCache);
-            // Found a removeFromCache job
-            const close = jobs.length < activation.jobs.length;
-            activation.jobs = jobs;
-            if (jobs.length === 0) {
-              workflow?.dispose();
-              if (!close) {
-                const message = 'Got a Workflow activation with no jobs';
-                span.setStatus({ code: otel.SpanStatusCode.ERROR, message });
-                throw new IllegalStateError(message);
-              }
-              this.log.debug('Disposing workflow', { runId: activation.runId });
-              span.setStatus({ code: otel.SpanStatusCode.OK });
-              return { state: undefined, output: { close, completion: undefined, span, parentSpan: root } };
-            }
+            try {
+              return await instrument(parentSpan, 'workflow.process', async (span) => {
+                span.setAttributes({
+                  numInFlightActivations: this.numInFlightActivationsSubject.value,
+                  numRunningWorkflowInstances: this.numRunningWorkflowInstancesSubject.value,
+                });
+                const jobs = activation.jobs.filter(({ removeFromCache }) => !removeFromCache);
+                // Found a removeFromCache job
+                const close = jobs.length < activation.jobs.length;
+                activation.jobs = jobs;
+                if (jobs.length === 0) {
+                  workflow?.dispose();
+                  if (!close) {
+                    const message = 'Got a Workflow activation with no jobs';
+                    throw new IllegalStateError(message);
+                  }
+                  this.log.debug('Disposing workflow', { runId: activation.runId });
+                  return { state: undefined, output: { close, completion: undefined, parentSpan } };
+                }
 
-            if (workflow === undefined) {
-              try {
-                // Find a workflow start job in the activation jobs list
-                // TODO: should this always be the first job in the list?
-                const maybeStartWorkflow = activation.jobs.find((j) => j.startWorkflow);
-                if (maybeStartWorkflow !== undefined) {
-                  const attrs = maybeStartWorkflow.startWorkflow;
-                  if (!(attrs && attrs.workflowId && attrs.workflowType && attrs.randomnessSeed)) {
-                    throw new TypeError(
-                      `Expected StartWorkflow with workflowId, workflowType and randomnessSeed, got ${JSON.stringify(
-                        maybeStartWorkflow
-                      )}`
+                if (workflow === undefined) {
+                  // Find a workflow start job in the activation jobs list
+                  // TODO: should this always be the first job in the list?
+                  const maybeStartWorkflow = activation.jobs.find((j) => j.startWorkflow);
+                  if (maybeStartWorkflow !== undefined) {
+                    const attrs = maybeStartWorkflow.startWorkflow;
+                    if (!(attrs && attrs.workflowId && attrs.workflowType && attrs.randomnessSeed)) {
+                      throw new TypeError(
+                        `Expected StartWorkflow with workflowId, workflowType and randomnessSeed, got ${JSON.stringify(
+                          maybeStartWorkflow
+                        )}`
+                      );
+                    }
+                    const { workflowId, randomnessSeed, workflowType } = attrs;
+                    this.log.debug('Creating workflow', {
+                      workflowId: attrs.workflowId,
+                      runId: activation.runId,
+                    });
+                    this.numRunningWorkflowInstancesSubject.next(this.numRunningWorkflowInstancesSubject.value + 1);
+                    // workflow type is Workflow | undefined which doesn't work in the instrumented closures, create add local variable with type Workflow.
+                    const createdWF = await instrument(span, 'workflow.create', () => {
+                      if (this.isolates === undefined) {
+                        throw new IllegalStateError('Worker isolate not initialized');
+                      }
+                      const isolateIdx = this.nextIsolateIdx;
+                      this.nextIsolateIdx = (this.nextIsolateIdx + 1) % this.options.isolatePoolSize;
+                      return Workflow.create(
+                        this.isolates[isolateIdx],
+                        {
+                          filename: workflowType,
+                          runId: activation.runId,
+                          workflowId,
+                          namespace: this.nativeWorker.namespace,
+                          taskQueue: this.options.taskQueue,
+                          isReplaying: activation.isReplaying,
+                        },
+                        this.options.activityDefaults,
+                        this.options.interceptors?.workflowModules ?? [],
+                        randomnessSeed,
+                        this.options.isolateExecutionTimeoutMs
+                      );
+                    });
+                    workflow = createdWF;
+                    await instrument(span, 'workflow.inject.dependencies', () => this.injectDependencies(createdWF));
+                  } else {
+                    throw new IllegalStateError(
+                      'Received workflow activation for an untracked workflow with no start workflow job'
                     );
                   }
-                  const { workflowId, randomnessSeed, workflowType } = attrs;
-                  this.log.debug('Creating workflow', {
-                    workflowId: attrs.workflowId,
-                    runId: activation.runId,
-                  });
-                  this.numRunningWorkflowInstancesSubject.next(this.numRunningWorkflowInstancesSubject.value + 1);
-                  // workflow type is Workflow | undefined which doesn't work in the instrumented closures, create add local variable with type Workflow.
-                  const createdWF = await instrument(span, 'workflow.create', () => {
-                    if (this.isolates === undefined) {
-                      throw new IllegalStateError('Worker isolate not initialized');
-                    }
-                    const isolateIdx = this.nextIsolateIdx;
-                    this.nextIsolateIdx = (this.nextIsolateIdx + 1) % this.options.isolatePoolSize;
-                    return Workflow.create(
-                      this.isolates[isolateIdx],
-                      {
-                        filename: workflowType,
-                        runId: activation.runId,
-                        workflowId,
-                        namespace: this.nativeWorker.namespace,
-                        taskQueue: this.options.taskQueue,
-                        isReplaying: activation.isReplaying,
-                      },
-                      this.options.activityDefaults,
-                      this.options.interceptors?.workflowModules ?? [],
-                      randomnessSeed,
-                      this.options.isolateExecutionTimeoutMs
-                    );
-                  });
-                  workflow = createdWF;
-                  await instrument(span, 'workflow.inject.dependencies', () => this.injectDependencies(createdWF));
-                } else {
-                  throw new IllegalStateError(
-                    'Received workflow activation for an untracked workflow with no start workflow job'
-                  );
                 }
-              } catch (error) {
-                this.log.error('Failed to create a workflow', { runId: activation.runId, error });
-                let completion: Uint8Array;
-                if (error instanceof ReferenceError) {
-                  completion = coresdk.workflow_completion.WFActivationCompletion.encodeDelimited({
-                    runId: activation.runId,
-                    successful: {
-                      commands: [{ failWorkflowExecution: { failure: errorToUserCodeFailure(error) } }],
-                    },
-                  }).finish();
-                } else {
-                  completion = coresdk.workflow_completion.WFActivationCompletion.encodeDelimited({
-                    runId: activation.runId,
-                    failed: {
-                      failure: errorToUserCodeFailure(error),
-                    },
-                  }).finish();
-                }
-                workflow?.dispose();
-                span.setStatus({ code: otel.SpanStatusCode.ERROR, message: error.message });
-                return { state: undefined, output: { close: true, completion, span, parentSpan: root } };
-              }
-            }
 
-            try {
-              const completion = await workflow.activate(activation);
-              this.log.debug('Completed activation', {
-                runId: activation.runId,
+                const completion = await workflow.activate(activation);
+                this.log.debug('Completed activation', {
+                  runId: activation.runId,
+                });
+
+                span.setAttribute('close', close).end();
+                return { state: workflow, output: { close, completion, parentSpan } };
               });
-
-              span.setStatus({ code: otel.SpanStatusCode.OK });
-              return { state: workflow, output: { close, completion, span, parentSpan: root } };
             } catch (error) {
+              this.log.error('Failed to activate workflow', {
+                runId: activation.runId,
+                error,
+                workflowExists: workflow !== undefined,
+              });
               const completion = coresdk.workflow_completion.WFActivationCompletion.encodeDelimited({
                 runId: activation.runId,
                 failed: {
                   failure: errorToUserCodeFailure(error),
                 },
               }).finish();
-              workflow.dispose();
-              return { state: undefined, output: { close: true, completion, span, parentSpan: root } };
+              // TODO: should we wait to be evicted from core?
+              workflow?.dispose();
+              return { state: undefined, output: { close: true, completion, parentSpan } };
             }
           }, undefined),
-          tap(({ close, span }) => {
-            span.setAttribute('close', close).end();
+          tap(({ close }) => {
+            this.numInFlightActivationsSubject.next(this.numInFlightActivationsSubject.value - 1);
             if (close) {
               group$.close();
               this.numRunningWorkflowInstancesSubject.next(this.numRunningWorkflowInstancesSubject.value - 1);
@@ -932,9 +910,6 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
           }),
           takeWhile(({ close }) => !close, true /* inclusive */)
         );
-      }),
-      tap(() => {
-        this.numInFlightActivationsSubject.next(this.numInFlightActivationsSubject.value - 1);
       }),
       map(({ completion, parentSpan }) => ({ completion, parentSpan })),
       filter((result): result is ContextAware<{ completion: Uint8Array }> => result.completion !== undefined)
