@@ -656,7 +656,7 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
                         `Got start event for an already running activity: ${formattedTaskToken}`
                       );
                     }
-                    const info = extractActivityInfo(
+                    const info = await extractActivityInfo(
                       task,
                       false,
                       this.options.dataConverter,
@@ -1222,12 +1222,12 @@ type NonNullableObject<T> = { [P in keyof T]-?: NonNullable<T[P]> };
 /**
  * Transform an ActivityTask into ActivityInfo to pass on into an Activity
  */
-function extractActivityInfo(
+async function extractActivityInfo(
   task: coresdk.activity_task.IActivityTask,
   isLocal: boolean,
   dataConverter: DataConverter,
   activityNamespace: string
-): ActivityInfo {
+): Promise<ActivityInfo> {
   // NOTE: We trust core to supply all of these fields instead of checking for null and undefined everywhere
   const { taskToken, activityId } = task as NonNullableObject<coresdk.activity_task.IActivityTask>;
   const start = task.start as NonNullableObject<coresdk.activity_task.IStart>;
@@ -1240,7 +1240,7 @@ function extractActivityInfo(
     isLocal,
     activityType,
     workflowType: start.workflowType,
-    heartbeatDetails: dataConverter.fromPayloads(0, start.heartbeatDetails),
+    heartbeatDetails: await dataConverter.fromPayloads(0, start.heartbeatDetails),
     activityNamespace,
     workflowNamespace: start.workflowNamespace,
     scheduledTimestampMs: tsToMs(start.scheduledTime),
