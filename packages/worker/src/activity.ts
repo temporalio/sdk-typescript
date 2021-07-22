@@ -56,7 +56,6 @@ export class Activity {
         if (this.cancelRequested) {
           // Either a CancelledError that we threw or AbortError from AbortController
           if (err instanceof CancelledError || (err.name === 'AbortError' && err.type === 'aborted')) {
-            // TODO: should we only allow CancelledError to count as valid cancellation?
             return { canceled: {} };
           }
         }
