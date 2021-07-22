@@ -10,7 +10,7 @@ use temporal_sdk_core::{
     ClientTlsConfig, CompleteActivityError, CompleteWfError, Core, CoreInitError, CoreInitOptions,
     PollActivityError, PollWfError, ServerGatewayOptions, TlsConfig, Url, WorkerConfig,
 };
-use tokio::sync::mpsc::{channel, Sender};
+use tokio::sync::mpsc::{unbounded_channel, UnboundedSender};
 
 /// A request from JS to bridge to core
 pub enum Request {
@@ -66,7 +66,7 @@ pub enum Request {
 
 #[derive(Clone)]
 pub struct CoreHandle {
-    sender: Sender<Request>,
+    sender: UnboundedSender<Request>,
 }
 
 /// Box it so we can use Core from JS
@@ -181,8 +181,7 @@ fn start_bridge_loop(
     event_queue: Arc<EventQueue>,
     callback: Root<JsFunction>,
 ) {
-    // TODO: make capacity configurable
-    let (sender, mut receiver) = channel::<Request>(1000);
+    let (sender, mut receiver) = unbounded_channel::<Request>();
 
     tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -623,7 +622,7 @@ fn worker_new(mut cx: FunctionContext) -> JsResult<JsUndefined> {
         },
         callback: callback.root(&mut cx),
     };
-    if let Err(err) = core.sender.blocking_send(request) {
+    if let Err(err) = core.sender.send(request) {
         callback_with_unexpected_error(&mut cx, callback, err)?;
     };
 
@@ -637,7 +636,7 @@ fn core_shutdown(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     let request = Request::Shutdown {
         callback: callback.root(&mut cx),
     };
-    if let Err(err) = core.sender.blocking_send(request) {
+    if let Err(err) = core.sender.send(request) {
         callback_with_unexpected_error(&mut cx, callback, err)?;
     };
     Ok(cx.undefined())
@@ -652,7 +651,7 @@ fn worker_poll_workflow_activation(mut cx: FunctionContext) -> JsResult<JsUndefi
         queue_name: worker.queue.clone(),
         callback: callback.root(&mut cx),
     };
-    if let Err(err) = worker.core.sender.blocking_send(request) {
+    if let Err(err) = worker.core.sender.send(request) {
         callback_with_unexpected_error(&mut cx, callback, err)?;
     }
     Ok(cx.undefined())
@@ -667,7 +666,7 @@ fn worker_poll_activity_task(mut cx: FunctionContext) -> JsResult<JsUndefined> {
         queue_name: worker.queue.clone(),
         callback: callback.root(&mut cx),
     };
-    if let Err(err) = worker.core.sender.blocking_send(request) {
+    if let Err(err) = worker.core.sender.send(request) {
         callback_with_unexpected_error(&mut cx, callback, err)?;
     }
     Ok(cx.undefined())
@@ -687,7 +686,7 @@ fn worker_complete_workflow_activation(mut cx: FunctionContext) -> JsResult<JsUn
                 completion,
                 callback: callback.root(&mut cx),
             };
-            if let Err(err) = worker.core.sender.blocking_send(request) {
+            if let Err(err) = worker.core.sender.send(request) {
                 callback_with_error(&mut cx, callback, |cx| UNEXPECTED_ERROR.from_error(cx, err))?;
             };
         }
@@ -712,7 +711,7 @@ fn worker_complete_activity_task(mut cx: FunctionContext) -> JsResult<JsUndefine
                 completion,
                 callback: callback.root(&mut cx),
             };
-            if let Err(err) = worker.core.sender.blocking_send(request) {
+            if let Err(err) = worker.core.sender.send(request) {
                 callback_with_unexpected_error(&mut cx, callback, err)?;
             };
         }
@@ -733,7 +732,7 @@ fn worker_record_activity_heartbeat(mut cx: FunctionContext) -> JsResult<JsUndef
     match heartbeat {
         Ok(heartbeat) => {
             let request = Request::RecordActivityHeartbeat { heartbeat };
-            match worker.core.sender.blocking_send(request) {
+            match worker.core.sender.send(request) {
                 Err(err) => UNEXPECTED_ERROR
                     .from_error(&mut cx, err)
                     .and_then(|err| cx.throw(err)),
@@ -751,7 +750,7 @@ fn worker_record_activity_heartbeat(mut cx: FunctionContext) -> JsResult<JsUndef
 fn worker_shutdown(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     let worker = cx.argument::<BoxedWorker>(0)?;
     let callback = cx.argument::<JsFunction>(1)?;
-    match worker.core.sender.blocking_send(Request::ShutdownWorker {
+    match worker.core.sender.send(Request::ShutdownWorker {
         task_queue: worker.queue.clone(),
         callback: callback.root(&mut cx),
     }) {
