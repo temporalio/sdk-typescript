@@ -30,10 +30,7 @@ export class WorkflowIsolateBuilder {
     public readonly workflowInterceptorModules: string[] = []
   ) {}
 
-  /**
-   * Bundle Workflows with dependencies and return an Isolate pre-loaded with bundle.
-   */
-  public async build(): Promise<ivm.Isolate> {
+  public async buildSnapshot(): Promise<ivm.ExternalCopy<ArrayBuffer>> {
     const vol = new memfs.Volume();
     const ufs = new unionfs.Union();
     // We cast to any because of inacurate types
@@ -47,7 +44,13 @@ export class WorkflowIsolateBuilder {
     this.genEntrypoint(vol, entrypointPath, workflows);
     await this.bundle(ufs, entrypointPath, sourceDir, distDir);
     const code = ufs.readFileSync(path.join(distDir, 'main.js'), 'utf8');
-    const snapshot = ivm.Isolate.createSnapshot([{ code, filename: 'workflow-isolate' }]);
+    return ivm.Isolate.createSnapshot([{ code, filename: 'workflow-isolate' }]);
+  }
+  /**
+   * Bundle Workflows with dependencies and return an Isolate pre-loaded with bundle.
+   */
+  public async build(): Promise<ivm.Isolate> {
+    const snapshot = await this.buildSnapshot();
     return new ivm.Isolate({ snapshot, memoryLimit: this.maxIsolateMemoryMB });
   }
 

@@ -218,6 +218,15 @@ export interface WorkerOptions {
   maxIsolateMemoryMB?: number;
 
   /**
+   * Controls number of v8 isolates the Worker should create.
+   *
+   * New Workflows are created on this pool in a round-robin fashion.
+   *
+   * @default 8
+   */
+  isolatePoolSize?: number;
+
+  /**
    * A mapping of interceptor type to a list of factories or module paths
    */
   interceptors?: WorkerInterceptors;
@@ -249,6 +258,7 @@ export type WorkerOptionsWithDefaults<T extends WorkerSpec = DefaultWorkerSpec> 
       | 'stickyQueueScheduleToStartTimeout'
       | 'isolateExecutionTimeout'
       | 'maxIsolateMemoryMB'
+      | 'isolatePoolSize'
     >
   >;
 
@@ -292,6 +302,7 @@ export function addDefaults<T extends WorkerSpec>(options: WorkerSpecOptions<T>)
     stickyQueueScheduleToStartTimeout: '10s',
     isolateExecutionTimeout: '1s',
     maxIsolateMemoryMB: Math.max(os.totalmem() - GiB, GiB) / MiB,
+    isolatePoolSize: 8,
     ...rest,
   };
   return ret as WorkerOptionsWithDefaults<T>;
@@ -422,6 +433,7 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
   protected readonly nativeWorker: NativeWorkerLike;
 
   protected static nativeWorkerCtor: WorkerConstructor = NativeWorker;
+  protected nextIsolateIdx = 0;
 
   /**
    * Create a new Worker.
@@ -438,7 +450,7 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
       ? await WorkflowIsolateBuilder.resolveActivities(compiledOptions.logger, compiledOptions.activitiesPath)
       : new Map();
 
-    let isolate: ivm.Isolate | undefined = undefined;
+    let isolates: ivm.Isolate[] | undefined = undefined;
 
     if (compiledOptions.workflowsPath && compiledOptions.nodeModulesPath) {
       const builder = new WorkflowIsolateBuilder(
@@ -449,19 +461,23 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
         compiledOptions.maxIsolateMemoryMB,
         compiledOptions.interceptors?.workflowModules
       );
-      isolate = await builder.build();
+      const snapshot = await builder.buildSnapshot();
+      isolates = Array(compiledOptions.isolatePoolSize);
+      for (let i = 0; i < compiledOptions.isolatePoolSize; ++i) {
+        isolates[i] = new ivm.Isolate({ snapshot, memoryLimit: compiledOptions.maxIsolateMemoryMB });
+      }
     }
     // TODO: Provide another way of supplying the isolate to the Worker
     // } else if (compiledOptions.isolate) {
     //   isolate = compiledOptions.isolate;
     // }
 
-    if (isolate === undefined) {
+    if (isolates === undefined) {
       throw new TypeError(
-        'Could not build an isolate for the worker due to missing WorkerOptions. Make sure you specify the `workDir` option, or both the `workflowsPath` and `nodeModulesPath` options.'
+        'Could not build isolates for the worker due to missing WorkerOptions. Make sure you specify the `workDir` option, or both the `workflowsPath` and `nodeModulesPath` options.'
       );
     }
-    return new this(nativeWorker, isolate, resolvedActivities, compiledOptions);
+    return new this(nativeWorker, isolates, resolvedActivities, compiledOptions);
   }
 
   /**
@@ -469,7 +485,7 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
    */
   protected constructor(
     nativeWorker: NativeWorkerLike,
-    protected readonly isolate: ivm.Isolate,
+    protected readonly isolates: ivm.Isolate[],
     protected readonly resolvedActivities: Map<string, Record<string, (...args: any[]) => any>>,
     public readonly options: CompiledWorkerOptions<T>
   ) {
@@ -618,7 +634,7 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
       mergeMap((group$) => {
         return group$.pipe(
           mergeMapWithState(
-            async (activity: Activity | undefined, { task, parentSpan }) => {
+            async (activity: Activity | undefined, { task, parentSpan, formattedTaskToken }) => {
               const { taskToken, variant, activityId } = task;
               if (!variant) {
                 throw new TypeError('Got an activity task without a "variant" attribute');
@@ -635,6 +651,11 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
                   | { type: 'ignore'; parentSpan: otel.Span };
                 switch (variant) {
                   case 'start': {
+                    if (activity !== undefined) {
+                      throw new IllegalStateError(
+                        `Got start event for an already running activity: ${formattedTaskToken}`
+                      );
+                    }
                     const info = extractActivityInfo(
                       task,
                       false,
@@ -831,11 +852,13 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
                   this.numRunningWorkflowInstancesSubject.next(this.numRunningWorkflowInstancesSubject.value + 1);
                   // workflow type is Workflow | undefined which doesn't work in the instrumented closures, create add local variable with type Workflow.
                   const createdWF = await instrument(span, 'workflow.create', () => {
-                    if (this.isolate === undefined) {
+                    if (this.isolates === undefined) {
                       throw new IllegalStateError('Worker isolate not initialized');
                     }
+                    const isolateIdx = this.nextIsolateIdx;
+                    this.nextIsolateIdx = (this.nextIsolateIdx + 1) % this.options.isolatePoolSize;
                     return Workflow.create(
-                      this.isolate,
+                      this.isolates[isolateIdx],
                       {
                         filename: workflowType,
                         runId: activation.runId,
