@@ -158,7 +158,7 @@ export class Worker extends RealWorker {
     opts: CompiledWorkerOptions
   ) {
     const nativeWorker = new MockNativeWorker();
-    super(nativeWorker, isolate, resolvedActivities, opts);
+    super(nativeWorker, [isolate], resolvedActivities, opts);
   }
 
   public runWorkflows(...args: Parameters<Worker['workflow$']>): Promise<void> {
