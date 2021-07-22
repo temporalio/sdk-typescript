@@ -66,21 +66,7 @@ async function signalSchedulingWorkflow(signalName: string) {
 
 export async function fakeProgress(sleepIntervalMs = 1000): Promise<void> {
   await signalSchedulingWorkflow('activityStarted');
-  try {
-    await fakeProgressInner(sleepIntervalMs);
-  } catch (err) {
-    if (err instanceof CancelledError) {
-      try {
-        await signalSchedulingWorkflow('activityCancelled');
-      } catch (signalErr) {
-        if (signalErr.details !== 'workflow execution already completed') {
-          // Throw to avoid calling /finish
-          throw signalErr;
-        }
-      }
-    }
-    throw err;
-  }
+  await fakeProgressInner(sleepIntervalMs);
 }
 
 export async function cancellableFetch(url: string, signalWorkflowOnCheckpoint = false): Promise<Uint8Array> {
@@ -108,16 +94,6 @@ export async function cancellableFetch(url: string, signalWorkflowOnCheckpoint =
     return Buffer.concat(chunks);
   } catch (err) {
     if (err.name === 'AbortError' && err.type === 'aborted') {
-      if (signalWorkflowOnCheckpoint) {
-        try {
-          await signalSchedulingWorkflow('activityCancelled');
-        } catch (signalErr) {
-          if (signalErr.details !== 'workflow execution already completed') {
-            // Throw to avoid calling /finish
-            throw signalErr;
-          }
-        }
-      }
       await fetch(`${url}/finish`);
     }
     throw err;

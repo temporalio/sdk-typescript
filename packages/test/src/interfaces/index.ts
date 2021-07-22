@@ -63,15 +63,13 @@ export interface ActivitySignalHandler extends Workflow {
   main(): Promise<void>;
   signals: {
     activityStarted(): void;
-    activityCancelled(): void;
   };
 }
 
 export interface CancellableHTTPRequest extends Workflow {
-  main(url: string, completeOnActivityCancellation: boolean): Promise<void>;
+  main(url: string): Promise<void>;
   signals: {
     activityStarted(): void;
-    activityCancelled(): void;
   };
 }
 
