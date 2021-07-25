@@ -582,7 +582,7 @@ test('simple-query', async (t) => {
                   at fail
                   at workflow-isolate
                   at Activator.queryWorkflow
-                  at async activate
+                  at activate
             `,
             applicationFailureInfo: {
               type: 'Error',
@@ -618,7 +618,7 @@ test('invalid-async-query-handler', async (t) => {
               DeterminismViolationError: Query handlers should not return a Promise
                   at workflow-isolate
                   at Activator.queryWorkflow
-                  at async activate
+                  at activate
             `,
             applicationFailureInfo: {
               type: 'DeterminismViolationError',

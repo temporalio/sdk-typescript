@@ -6,19 +6,25 @@ import {
   composeInterceptors,
   errorToFailure,
   ensureTemporalFailure,
+  failureToError,
   optionalFailureToOptionalError,
   IllegalStateError,
   Workflow,
-  arrayFromPayloads,
+  WorkflowSignalType,
   DataConverter,
   defaultDataConverter,
-  WorkflowSignalType,
+  arrayFromPayloadsSync,
 } from '@temporalio/common';
 import { coresdk } from '@temporalio/proto/lib/coresdk';
 import { alea, RNG } from './alea';
 import { ContinueAsNew, ExternalDependencies, WorkflowInfo } from './interfaces';
 import { SignalInput, WorkflowInput, WorkflowInterceptors } from './interceptors';
-import { CancelledError, DeterminismViolationError, WorkflowCancelledError } from './errors';
+import {
+  CancelledError,
+  DeterminismViolationError,
+  WorkflowCancelledError,
+  WorkflowExecutionAlreadyStartedError,
+} from './errors';
 import { ROOT_SCOPE } from './cancellation-scope';
 
 export type ResolveFunction<T = any> = (val: T) => any;
@@ -51,10 +57,10 @@ export class Activator implements ActivationHandler {
       throw failure;
     }
     state.workflow = (mod.workflow ?? mod) as Workflow;
-    return state.workflow.main(...input.args);
+    return await state.workflow.main(...input.args);
   }
 
-  public async startWorkflow(activation: coresdk.workflow_activation.IStartWorkflow): Promise<void> {
+  public startWorkflow(activation: coresdk.workflow_activation.IStartWorkflow): void {
     const { require: req, info } = state;
     if (req === undefined || info === undefined) {
       throw new IllegalStateError('Workflow has not been initialized');
@@ -72,7 +78,7 @@ export class Activator implements ActivationHandler {
     );
     execute({
       headers: new Map(Object.entries(activation.headers ?? {})),
-      args: await arrayFromPayloads(state.dataConverter, activation.arguments),
+      args: arrayFromPayloadsSync(state.dataConverter, activation.arguments),
     })
       .then(completeWorkflow)
       .catch(handleWorkflowFailure);
@@ -90,12 +96,12 @@ export class Activator implements ActivationHandler {
 
   public async resolveActivity(activation: coresdk.workflow_activation.IResolveActivity): Promise<void> {
     if (!activation.result) {
-      throw new Error('Got CompleteActivity activation with no result');
+      throw new TypeError('Got ResolveActivity activation with no result');
     }
     const { resolve, reject } = consumeCompletion(idToSeq(activation, 'activityId'));
     if (activation.result.completed) {
       const completed = activation.result.completed;
-      const result = completed.result ? await state.dataConverter.fromPayload(completed.result) : undefined;
+      const result = completed.result ? state.dataConverter.fromPayloadSync(completed.result) : undefined;
       resolve(result);
     } else if (activation.result.failed) {
       const { failure } = activation.result.failed;
@@ -107,7 +113,61 @@ export class Activator implements ActivationHandler {
     }
   }
 
-  public async queryWorkflow(activation: coresdk.workflow_activation.IQueryWorkflow): Promise<void> {
+  public async resolveChildWorkflowExecutionStart(
+    activation: coresdk.workflow_activation.IResolveChildWorkflowExecutionStart
+  ): Promise<void> {
+    const { resolve, reject } = consumeCompletion(`start-${idToSeq(activation, 'workflowId')}`);
+    if (activation.succeeded) {
+      resolve(activation.succeeded.runId);
+    } else if (activation.failed) {
+      if (
+        activation.failed.cause !==
+        coresdk.child_workflow.StartChildWorkflowExecutionFailedCause
+          .START_CHILD_WORKFLOW_EXECUTION_FAILED_CAUSE_WORKFLOW_ALREADY_EXISTS
+      ) {
+        throw new IllegalStateError('Got unknown StartChildWorkflowExecutionFailedCause');
+      }
+      if (!(activation.workflowId && activation.failed?.workflowType)) {
+        throw new TypeError('Missing attributes in activation job');
+      }
+      reject(
+        new WorkflowExecutionAlreadyStartedError(
+          'Workflow execution already started',
+          activation.workflowId,
+          activation.failed.workflowType
+        )
+      );
+    } else if (activation.cancelled) {
+      if (!activation.cancelled.failure) {
+        throw new TypeError('Got no failure in cancelled variant');
+      }
+      reject(await failureToError(activation.cancelled.failure, state.dataConverter));
+    } else {
+      throw new TypeError('Got ResolveChildWorkflowExecutionStart with no status');
+    }
+  }
+
+  public async resolveChildWorkflowExecution(
+    activation: coresdk.workflow_activation.IResolveChildWorkflowExecution
+  ): Promise<void> {
+    if (!activation.result) {
+      throw new TypeError('Got ResolveChildWorkflowExecution activation with no result');
+    }
+    const { resolve, reject } = consumeCompletion(`complete-${idToSeq(activation, 'workflowId')}`);
+    if (activation.result.completed) {
+      const completed = activation.result.completed;
+      const result = completed.result ? await state.dataConverter.fromPayload(completed.result) : undefined;
+      resolve(result);
+    } else if (activation.result.failed) {
+      const { failure } = activation.result.failed;
+      if (failure === undefined || failure === null) {
+        throw new TypeError('Got failed result with no failure attribute');
+      }
+      reject(await failureToError(failure, state.dataConverter));
+    }
+  }
+
+  public queryWorkflow(activation: coresdk.workflow_activation.IQueryWorkflow): void {
     const { queryType, queryId } = activation;
     if (!(queryType && queryId)) {
       throw new TypeError('Missing query activation attributes');
@@ -126,7 +186,7 @@ export class Activator implements ActivationHandler {
     });
     execute({
       queryName: queryType,
-      args: await arrayFromPayloads(state.dataConverter, activation.arguments),
+      args: arrayFromPayloadsSync(state.dataConverter, activation.arguments),
       queryId,
     }).then(
       (result) => completeQuery(queryId, result),
@@ -138,7 +198,7 @@ export class Activator implements ActivationHandler {
     return fn(...input.args);
   }
 
-  public async signalWorkflow(activation: coresdk.workflow_activation.ISignalWorkflow): Promise<void> {
+  public signalWorkflow(activation: coresdk.workflow_activation.ISignalWorkflow): void {
     const { signalName } = activation;
     if (!signalName) {
       throw new TypeError('Missing activation signalName');
@@ -155,14 +215,14 @@ export class Activator implements ActivationHandler {
       this.signalWorkflowNextHandler.bind(this, fn)
     );
     execute({
-      args: await arrayFromPayloads(state.dataConverter, activation.input),
+      args: arrayFromPayloadsSync(state.dataConverter, activation.input),
       signalName,
     }).catch(handleWorkflowFailure);
   }
 
   public updateRandomSeed(activation: coresdk.workflow_activation.IUpdateRandomSeed): void {
     if (!activation.randomnessSeed) {
-      throw new Error('Expected activation with randomnessSeed attribute');
+      throw new TypeError('Expected activation with randomnessSeed attribute');
     }
     state.random = alea(activation.randomnessSeed.toBytes());
   }
@@ -181,7 +241,7 @@ export interface ExternalCall {
   fnName: string;
   args: any[];
   /** Optional in case applyMode is ASYNC_IGNORED */
-  seq?: number;
+  seq?: string;
 }
 
 /**
@@ -197,7 +257,7 @@ export class State {
   /**
    * Map of task sequence to a Completion
    */
-  public readonly completions: Map<number, Completion> = new Map();
+  public readonly completions: Map<string, Completion> = new Map();
 
   /**
    * Overridden on WF initialization
@@ -282,16 +342,15 @@ export class State {
    */
   public require?: (filename: string) => Record<string, unknown>;
 
-  // TODO: support custom converter
   public dataConverter: DataConverter = defaultDataConverter;
 }
 
 export const state = new State();
 
-async function completeWorkflow(result: any) {
+function completeWorkflow(result: any) {
   state.commands.push({
     completeWorkflowExecution: {
-      result: await state.dataConverter.toPayload(result),
+      result: state.dataConverter.toPayloadSync(result),
     },
   });
   state.completed = true;
@@ -315,9 +374,9 @@ async function handleWorkflowFailure(error: any) {
   state.completed = true;
 }
 
-async function completeQuery(queryId: string, result: unknown) {
+function completeQuery(queryId: string, result: unknown) {
   state.commands.push({
-    respondToQuery: { queryId, succeeded: { response: await state.dataConverter.toPayload(result) } },
+    respondToQuery: { queryId, succeeded: { response: state.dataConverter.toPayloadSync(result) } },
   });
 }
 
@@ -327,19 +386,19 @@ async function failQuery(queryId: string, error: any) {
   });
 }
 
-export function consumeCompletion(taskSeq: number): Completion {
-  const completion = state.completions.get(taskSeq);
+export function consumeCompletion(taskId: string): Completion {
+  const completion = state.completions.get(taskId);
   if (completion === undefined) {
-    throw new IllegalStateError(`No completion for taskSeq ${taskSeq}`);
+    throw new IllegalStateError(`No completion for taskId ${taskId}`);
   }
-  state.completions.delete(taskSeq);
+  state.completions.delete(taskId);
   return completion;
 }
 
-function idToSeq<T extends Record<string, any>>(activation: T, attr: keyof T) {
+function idToSeq<T extends Record<string, any>>(activation: T, attr: keyof T): string {
   const id = activation[attr];
   if (!id) {
     throw new TypeError(`Got activation with no ${attr}`);
   }
-  return parseInt(id);
+  return id;
 }

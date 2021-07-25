@@ -1,7 +1,19 @@
 import { v4 as uuid4 } from 'uuid';
-import { WorkflowOptions, WorkflowOptionsWithDefaults } from '@temporalio/common/lib/workflow-options';
-export * from '@temporalio/common/lib/workflow-options';
+import {
+  WorkflowOptions as BaseWorkflowOptions,
+  WorkflowOptionsWithDefaults,
+} from '@temporalio/common/lib/workflow-options';
 import * as iface from '@temporalio/proto';
+
+export {
+  WorkflowOptionsWithDefaults,
+  CompiledWorkflowOptions,
+  compileWorkflowOptions,
+} from '@temporalio/common/lib/workflow-options';
+
+export interface WorkflowOptions extends BaseWorkflowOptions {
+  taskQueue: string;
+}
 
 /**
  * Adds default values to `workflowId` and `workflowIdReusePolicy` to given workflow options.
