@@ -7,14 +7,40 @@ import {
   msOptionalToTs,
   Workflow,
   composeInterceptors,
+  WorkflowStub,
+  mapToPayloadsSync,
 } from '@temporalio/common';
-import { ContinueAsNew, ContinueAsNewOptions, ExternalDependencies, WorkflowInfo } from './interfaces';
+import { coresdk } from '@temporalio/proto/lib/coresdk';
+import { EnsurePromise } from '@temporalio/common/lib/type-helpers';
+import {
+  ChildWorkflowCancellationType,
+  ChildWorkflowOptions,
+  ChildWorkflowOptionsWithDefaults,
+  ContinueAsNew,
+  ContinueAsNewOptions,
+  ExternalDependencies,
+  WorkflowInfo,
+} from './interfaces';
 import { state } from './internals';
-import { ActivityInput, TimerInput } from './interceptors';
+import { WorkflowExecutionAlreadyStartedError } from './errors';
+import { ActivityInput, StartChildWorkflowExecutionInput, TimerInput } from './interceptors';
 import { CancellationScope, registerSleepImplementation } from './cancellation-scope';
 
 // Avoid a circular dependency
 registerSleepImplementation(sleep);
+
+/**
+ * Adds default values to `workflowId` and `workflowIdReusePolicy` to given workflow options.
+ */
+export function addDefaultWorkflowOptions(opts: ChildWorkflowOptions): ChildWorkflowOptionsWithDefaults {
+  return {
+    taskQueue: Context.info.taskQueue,
+    workflowId: uuid4(),
+    workflowIdReusePolicy: coresdk.common.WorkflowIdReusePolicy.WORKFLOW_ID_REUSE_POLICY_ALLOW_DUPLICATE_FAILED_ONLY,
+    cancellationType: ChildWorkflowCancellationType.WAIT_CANCELLATION_COMPLETED,
+    ...opts,
+  };
+}
 
 /**
  * Push a startTimer command into state accumulator and register completion
@@ -28,7 +54,7 @@ function timerNextHandler(input: TimerInput) {
     }
     if (scope.cancellable) {
       scope.cancelRequested.catch((err) => {
-        if (!state.completions.delete(input.seq)) {
+        if (!state.completions.delete(`${input.seq}`)) {
           return; // Already resolved
         }
         state.commands.push({
@@ -39,7 +65,7 @@ function timerNextHandler(input: TimerInput) {
         reject(err);
       });
     }
-    state.completions.set(input.seq, {
+    state.completions.set(`${input.seq}`, {
       resolve,
       reject,
     });
@@ -102,7 +128,6 @@ async function scheduleActivityNextHandler({
   activityType,
 }: ActivityInput): Promise<unknown> {
   validateActivityOptions(options);
-  const argsAsPayloads = await state.dataConverter.toPayloads(...args);
   return new Promise((resolve, reject) => {
     const scope = CancellationScope.current();
     if (scope.consideredCancelled) {
@@ -118,7 +143,7 @@ async function scheduleActivityNextHandler({
         });
       });
     }
-    state.completions.set(seq, {
+    state.completions.set(`${seq}`, {
       resolve,
       reject,
     });
@@ -126,7 +151,7 @@ async function scheduleActivityNextHandler({
       scheduleActivity: {
         activityId: `${seq}`,
         activityType,
-        arguments: argsAsPayloads,
+        arguments: state.dataConverter.toPayloadsSync(...args),
         retryPolicy: options.retry
           ? {
               maximumAttempts: options.retry.maximumAttempts,
@@ -171,6 +196,78 @@ export function scheduleActivity<R>(
     args,
     seq,
   }) as Promise<R>;
+}
+
+async function startChildWorkflowExecutionNextHandler({
+  options,
+  args,
+  headers,
+  workflowType,
+}: StartChildWorkflowExecutionInput): Promise<[Promise<string>, Promise<unknown>]> {
+  const workflowId = options.workflowId ?? uuid4();
+
+  const startPromise = new Promise<string>((resolve, reject) => {
+    const scope = CancellationScope.current();
+    if (scope.consideredCancelled) {
+      scope.cancelRequested.catch(reject);
+      return;
+    }
+    if (scope.cancellable) {
+      scope.cancelRequested.catch(() => {
+        state.commands.push({
+          requestCancelExternalWorkflowExecution: {
+            workflowId, // TODO: runId?
+          },
+        });
+      });
+    }
+    state.completions.set(`start-${workflowId}`, {
+      resolve,
+      reject,
+    });
+    state.commands.push({
+      startChildWorkflowExecution: {
+        workflowId,
+        workflowType,
+        input: state.dataConverter.toPayloadsSync(...args),
+        retryPolicy: options.retryPolicy
+          ? {
+              maximumAttempts: options.retryPolicy.maximumAttempts,
+              initialInterval: options.retryPolicy.initialInterval,
+              maximumInterval: options.retryPolicy.maximumInterval,
+              backoffCoefficient: options.retryPolicy.backoffCoefficient,
+              nonRetryableErrorTypes: options.retryPolicy.nonRetryableErrorTypes,
+            }
+          : undefined,
+        taskQueue: options.taskQueue || state.info?.taskQueue,
+        workflowExecutionTimeout: msOptionalToTs(options.workflowExecutionTimeout),
+        workflowRunTimeout: msOptionalToTs(options.workflowRunTimeout),
+        workflowTaskTimeout: msOptionalToTs(options.workflowTaskTimeout),
+        namespace: Context.info.namespace, // Not configurable
+        header: Object.fromEntries(headers.entries()),
+        cancellationType: options.cancellationType,
+        workflowIdReusePolicy: options.workflowIdReusePolicy,
+        parentClosePolicy: options.parentClosePolicy,
+        cronSchedule: options.cronSchedule,
+        searchAttributes: options.searchAttributes
+          ? {
+              indexedFields: mapToPayloadsSync(state.dataConverter, options.searchAttributes),
+            }
+          : undefined,
+        memo: options.memo && mapToPayloadsSync(state.dataConverter, options.memo),
+      },
+    });
+  });
+  const completePromise = new Promise((resolve, reject) => {
+    startPromise.catch(reject);
+    state.completions.set(`complete-${workflowId}`, {
+      resolve,
+      reject,
+    });
+  });
+  // Prevent unhandled rejection because the completion might not be awaited
+  completePromise.catch(() => undefined);
+  return [startPromise, completePromise];
 }
 
 function activityInfo(activity: string | [string, string] | ActivityFunction<any, any>): ActivityInfo {
@@ -228,6 +325,7 @@ export class ContextImpl {
     if (options === undefined) {
       throw new TypeError('options must be defined');
     }
+    // Validate as early as possible for immediate user feedback
     validateActivityOptions(options);
     const { name, type } = activityInfo(activity);
     // Wrap the function in an object so it gets the original function name
@@ -239,6 +337,50 @@ export class ContextImpl {
     const configured = fn as InternalActivityFunction<P, R>;
     Object.assign(configured, { type, options });
     return configured;
+  }
+
+  public child<T extends Workflow>(workflowType: string, options?: ChildWorkflowOptions): WorkflowStub<T> {
+    const optionsWithDefaults = addDefaultWorkflowOptions(options ?? {});
+    let started: Promise<string> | undefined = undefined;
+    let completed: Promise<unknown> | undefined = undefined;
+
+    return {
+      workflowId: optionsWithDefaults.workflowId,
+      async start(...args: Parameters<T['main']>): Promise<string> {
+        if (started !== undefined) {
+          throw new WorkflowExecutionAlreadyStartedError(
+            'Workflow execution already started',
+            optionsWithDefaults.workflowId,
+            workflowType
+          );
+        }
+        const execute = composeInterceptors(
+          state.interceptors.outbound,
+          'startChildWorkflowExecution',
+          startChildWorkflowExecutionNextHandler
+        );
+        [started, completed] = await execute({
+          options: optionsWithDefaults,
+          args,
+          headers: new Map(),
+          workflowType,
+        });
+        return await started;
+      },
+      async execute(...args: Parameters<T['main']>): // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+      // @ts-ignore
+      EnsurePromise<ReturnType<T['main']>> {
+        await this.start(...args);
+        return this.result();
+      },
+      result(): EnsurePromise<ReturnType<T['main']>> {
+        if (completed === undefined) {
+          throw new IllegalStateError('Child Workflow was not started');
+        }
+        return completed as any;
+      },
+      signal: {} as any, // TODO,
+    };
   }
 
   /**

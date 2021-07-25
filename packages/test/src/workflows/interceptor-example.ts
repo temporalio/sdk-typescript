@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/explicit-module-boundary-types */
-import { WorkflowInterceptors, defaultDataConverter, Headers, sleep, Trigger } from '@temporalio/workflow';
+import { Context, WorkflowInterceptors, defaultDataConverter, Headers, sleep, Trigger } from '@temporalio/workflow';
 import { echo } from '@activities';
 
 class InvalidTimerDurationError extends Error {}
@@ -33,6 +33,10 @@ export async function main(): Promise<string> {
   }
   await sleep(2);
   await unblocked;
+  const result = await Context.child('sync').execute();
+  if (result !== 3) {
+    throw new Error('expected interceptor to change child workflow result');
+  }
   return await echo(); // Do not pass message in, done in Activity interceptor
 }
 
@@ -76,6 +80,10 @@ export const interceptors: WorkflowInterceptors = {
           throw new InvalidTimerDurationError('Expected anything other than 1');
         }
         return next(input);
+      },
+      async startChildWorkflowExecution(input, next) {
+        const [started, completed] = await next(input);
+        return [started, completed.then(() => 3)];
       },
     },
   ],

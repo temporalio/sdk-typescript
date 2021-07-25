@@ -47,7 +47,7 @@ export function overrideGlobals(): void {
 
   global.setTimeout = function (cb: (...args: any[]) => any, ms: number, ...args: any[]): number {
     const seq = state.nextSeq++;
-    state.completions.set(seq, {
+    state.completions.set(`${seq}`, {
       resolve: () => cb(...args),
       reject: () => undefined /* ignore cancellation */,
     });
@@ -62,7 +62,7 @@ export function overrideGlobals(): void {
 
   global.clearTimeout = function (handle: number): void {
     state.nextSeq++;
-    state.completions.delete(handle);
+    state.completions.delete(`${handle}`);
     state.commands.push({
       cancelTimer: {
         timerId: `${handle}`,
@@ -216,11 +216,11 @@ export function inject(
     state.dependencies[ifaceName][fnName] = (...args: any[]) =>
       new Promise((resolve, reject) => {
         const seq = state.nextSeq++;
-        state.completions.set(seq, {
+        state.completions.set(`${seq}`, {
           resolve,
           reject,
         });
-        state.pendingExternalCalls.push({ ifaceName, fnName, args, seq });
+        state.pendingExternalCalls.push({ ifaceName, fnName, args, seq: `${seq}` });
       });
   } else if (applyMode === ApplyMode.ASYNC_IGNORED) {
     state.dependencies[ifaceName][fnName] = (...args: any[]) =>
@@ -231,7 +231,7 @@ export function inject(
 }
 
 export interface ExternalDependencyResult {
-  seq: number;
+  seq: string;
   result: any;
   error: any;
 }

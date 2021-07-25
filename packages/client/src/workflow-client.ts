@@ -9,11 +9,13 @@ import {
   defaultDataConverter,
   composeInterceptors,
   IllegalStateError,
+  optionalFailureToOptionalError,
   Workflow,
   WorkflowSignalType,
   WorkflowQueryType,
-  optionalFailureToOptionalError,
+  WorkflowStub as BaseWorkflowStub,
 } from '@temporalio/common';
+import { EnsurePromise } from '@temporalio/common/lib/type-helpers';
 import { WorkflowOptions, addDefaults, compileWorkflowOptions } from './workflow-options';
 import {
   WorkflowCancelInput,
@@ -27,17 +29,86 @@ import {
 import {
   GetWorkflowExecutionHistoryRequest,
   DescribeWorkflowExecutionResponse,
-  RequestCancelWorkflowExecutionResponse,
   StartWorkflowExecutionRequest,
   TerminateWorkflowExecutionResponse,
+  RequestCancelWorkflowExecutionResponse,
 } from './types';
 import * as errors from './errors';
 import { Connection, WorkflowService } from './connection';
 
-type EnsurePromise<T> = T extends Promise<any> ? T : Promise<T>;
+/**
+ * Transforms a workflow interface `T` into a client interface
+ *
+ * Given a workflow interface such as:
+ * ```ts
+ * export interface Counter {
+ *   main(initialValue?: number): number;
+ *   signals: {
+ *     increment(amount?: number): void;
+ *   };
+ *   queries: {
+ *     get(): number;
+ *   };
+ * }
+ * ```
+ *
+ * Create a workflow client for running and interacting with a single workflow
+ * ```ts
+ * const client = new WorkflowClient();
+ * // `counter` is a registered workflow file, typically found at
+ * // `lib/workflows/counter.js` after building the typescript project
+ * const workflow = connection.stub<Counter>('counter', { taskQueue: 'tutorial' });
+ * // start workflow main function with initialValue of 2
+ * await workflow.start(2);
+ * ```
+ */
+export interface WorkflowStub<T extends Workflow> extends BaseWorkflowStub<T> {
+  /**
+   * A mapping of the different queries defined by Workflow interface `T` to callable functions.
+   * Call to query a Workflow after it's been started even if it has already completed.
+   * @example
+   * ```ts
+   * const value = await workflow.query.get();
+   * ```
+   */
+  query: T extends Record<'queries', Record<string, WorkflowQueryType>>
+    ? {
+        [P in keyof T['queries']]: (...args: Parameters<T['queries'][P]>) => Promise<ReturnType<T['queries'][P]>>;
+      }
+    : undefined;
 
-/// Takes a function type F and converts it to an async version if it isn't one already
-type AsyncOnly<F extends (...args: any[]) => any> = (...args: Parameters<F>) => EnsurePromise<ReturnType<F>>;
+  /**
+   * Sends a signal to a running Workflow or starts a new one if not already running and immediately signals it.
+   * Useful when you're unsure of the run state.
+   */
+  signalWithStart: T extends Record<'signals', Record<string, WorkflowSignalType>>
+    ? <S extends keyof T['signals']>(
+        signalName: S,
+        signalArgs: Parameters<T['signals'][S]>,
+        workflowArgs: Parameters<T['main']>
+      ) => Promise<string>
+    : never;
+
+  /**
+   * Terminate a running Workflow
+   */
+  terminate(reason?: string): Promise<TerminateWorkflowExecutionResponse>;
+
+  /**
+   * Cancel a running Workflow
+   */
+  cancel(): Promise<RequestCancelWorkflowExecutionResponse>;
+
+  /**
+   * Describe the current workflow execution
+   */
+  describe(): Promise<DescribeWorkflowExecutionResponse>;
+
+  /**
+   * Readonly accessor to the underlying WorkflowClient
+   */
+  readonly client: WorkflowClient;
+}
 
 export interface WorkflowClientOptions {
   /**
@@ -85,104 +156,6 @@ export function defaultWorkflowClientOptions(): WorkflowClientOptionsWithDefault
     namespace: 'default',
     queryRejectCondition: temporal.api.enums.v1.QueryRejectCondition.QUERY_REJECT_CONDITION_UNSPECIFIED,
   };
-}
-
-/**
- * Transforms a workflow interface `T` into a client interface
- *
- * Given a workflow interface such as:
- * ```ts
- * export interface Counter {
- *   main(initialValue?: number): number;
- *   signals: {
- *     increment(amount?: number): void;
- *   };
- *   queries: {
- *     get(): number;
- *   };
- * }
- * ```
- *
- * Create a workflow client for running and interacting with a single workflow
- * ```ts
- * const client = new WorkflowClient();
- * // `counter` is a registered workflow file, typically found at
- * // `lib/workflows/counter.js` after building the typescript project
- * const workflow = connection.stub<Counter>('counter', { taskQueue: 'tutorial' });
- * // start workflow main function with initialValue of 2
- * await workflow.start(2);
- * ```
- */
-export interface WorkflowStub<T extends Workflow> {
-  /**
-   * Start the Workflow with arguments, returns a Promise that resolves when the Workflow execution completes
-   */
-  execute(...args: Parameters<T['main']>): EnsurePromise<ReturnType<T['main']>>;
-
-  /**
-   * Start the Workflow with arguments, returns a Promise that resolves with the execution runId
-   */
-  start(...args: Parameters<T['main']>): Promise<string /* runId */>;
-
-  /**
-   * Promise that resolves when Workflow execution completes
-   */
-  result(): EnsurePromise<ReturnType<T['main']>>;
-
-  /**
-   * A mapping of the different signals defined by Workflow interface `T` to callable functions.
-   * Call to signal a running Workflow.
-   *
-   * @example
-   * ```ts
-   * await workflow.signal.increment(3);
-   * ```
-   */
-  signal: T extends Record<'signals', Record<string, WorkflowSignalType>>
-    ? {
-        [P in keyof T['signals']]: AsyncOnly<T['signals'][P]>;
-      }
-    : undefined;
-
-  /**
-   * A mapping of the different queries defined by Workflow interface `T` to callable functions.
-   * Call to query a Workflow after it's been started even if it has already completed.
-   * @example
-   * ```ts
-   * const value = await workflow.query.get();
-   * ```
-   */
-  query: T extends Record<'queries', Record<string, WorkflowQueryType>>
-    ? {
-        [P in keyof T['queries']]: AsyncOnly<T['queries'][P]>;
-      }
-    : undefined;
-
-  /**
-   * Describe the current workflow execution
-   */
-  describe(): Promise<DescribeWorkflowExecutionResponse>;
-  /**
-   * Terminate a running Workflow
-   */
-  terminate(reason?: string): Promise<TerminateWorkflowExecutionResponse>;
-  /**
-   * Cancel a running Workflow
-   */
-  cancel(): Promise<RequestCancelWorkflowExecutionResponse>;
-  /**
-   * The workflowId of the current Workflow
-   */
-  readonly workflowId: string;
-  readonly client: WorkflowClient;
-
-  signalWithStart: T extends Record<'signals', Record<string, WorkflowSignalType>>
-    ? <S extends keyof T['signals']>(
-        signalName: S,
-        signalArgs: Parameters<T['signals'][S]>,
-        workflowArgs: Parameters<T['main']>
-      ) => Promise<string>
-    : never;
 }
 
 /**
@@ -444,7 +417,7 @@ export class WorkflowClient {
   protected async _terminateWorkflowHandler(
     input: WorkflowTerminateInput
   ): Promise<TerminateWorkflowExecutionResponse> {
-    return this.service.terminateWorkflowExecution({
+    return await this.service.terminateWorkflowExecution({
       namespace: this.options.namespace,
       identity: this.options.identity,
       ...input,
@@ -458,7 +431,7 @@ export class WorkflowClient {
    * Used as the final function of the cancel interceptor chain
    */
   protected async _cancelWorkflowHandler(input: WorkflowCancelInput): Promise<RequestCancelWorkflowExecutionResponse> {
-    return this.service.requestCancelWorkflowExecution({
+    return await this.service.requestCancelWorkflowExecution({
       namespace: this.options.namespace,
       identity: this.options.identity,
       requestId: uuid4(),

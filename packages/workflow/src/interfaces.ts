@@ -1,4 +1,5 @@
 import { coresdk } from '@temporalio/proto/lib/coresdk';
+import { WorkflowOptions } from '@temporalio/common';
 export * from './dependencies';
 
 /**
@@ -78,3 +79,27 @@ export interface ContinueAsNewOptions {
    */
   searchAttributes?: Record<string, any>;
 }
+
+export type ChildWorkflowCancellationType = coresdk.child_workflow.ChildWorkflowCancellationType;
+export const ChildWorkflowCancellationType = coresdk.child_workflow.ChildWorkflowCancellationType;
+export type ParentClosePolicy = coresdk.child_workflow.ParentClosePolicy;
+export const ParentClosePolicy = coresdk.child_workflow.ParentClosePolicy;
+
+export interface ChildWorkflowOptions extends WorkflowOptions {
+  /**
+   * In case of a child workflow cancellation it fails with a CanceledFailure.
+   * The type defines at which point the exception is thrown.
+   * @default ChildWorkflowCancellationType.WAIT_CANCELLATION_COMPLETED
+   */
+  cancellationType?: ChildWorkflowCancellationType;
+  /**
+   * Specifies how this workflow reacts to the death of the parent workflow.
+   */
+  parentClosePolicy?: ParentClosePolicy;
+}
+
+export type RequiredChildWorkflowOptions = Required<
+  Pick<ChildWorkflowOptions, 'workflowId' | 'workflowIdReusePolicy' | 'cancellationType' | 'taskQueue'>
+>;
+
+export type ChildWorkflowOptionsWithDefaults = ChildWorkflowOptions & RequiredChildWorkflowOptions;

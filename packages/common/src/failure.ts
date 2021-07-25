@@ -7,6 +7,7 @@ export type TimeoutType = temporal.api.enums.v1.TimeoutType;
 export const TimeoutType = temporal.api.enums.v1.TimeoutType;
 export type RetryState = temporal.api.enums.v1.RetryState;
 export const RetryState = temporal.api.enums.v1.RetryState;
+export type WorkflowExecution = temporal.api.common.v1.IWorkflowExecution;
 
 /**
  * Represents failures that can cross Workflow and Activity boundaries.
@@ -195,6 +196,27 @@ export class ActivityFailure extends TemporalFailure {
   }
 }
 
+export class ChildWorkflowFailure extends TemporalFailure {
+  public constructor(
+    public readonly namespace: string | undefined,
+    public readonly execution: WorkflowExecution,
+    public readonly workflowType: string,
+    public readonly retryState: RetryState,
+    cause?: Error
+  ) {
+    super(ChildWorkflowFailure.getMessage(namespace, execution, workflowType, retryState), undefined, cause);
+  }
+
+  public static getMessage(
+    namespace: string | undefined,
+    execution: WorkflowExecution,
+    workflowType: string,
+    retryState: RetryState
+  ): string {
+    return `namespace='${namespace}', ${execution}, workflowType='${workflowType}', retryState='${retryState}'`;
+  }
+}
+
 /**
  * Converts an error to a Failure proto message if defined or returns undefined
  */
@@ -247,6 +269,16 @@ export async function errorToFailure(err: unknown, dataConverter: DataConverter)
         activityFailureInfo: {
           ...err,
           activityType: { name: err.activityType },
+        },
+      };
+    }
+    if (err instanceof ChildWorkflowFailure) {
+      return {
+        ...base,
+        childWorkflowExecutionFailureInfo: {
+          ...err,
+          workflowExecution: err.execution,
+          workflowType: { name: err.workflowType },
         },
       };
     }
@@ -395,6 +427,19 @@ export async function failureToErrorInner(
       'ResetWorkflow',
       false,
       await arrayFromPayloads(dataConverter, failure.resetWorkflowFailureInfo.lastHeartbeatDetails?.payloads),
+      await optionalFailureToOptionalError(failure.cause, dataConverter)
+    );
+  }
+  if (failure.childWorkflowExecutionFailureInfo) {
+    const { namespace, workflowType, workflowExecution, retryState } = failure.childWorkflowExecutionFailureInfo;
+    if (!(workflowType?.name && workflowExecution)) {
+      throw new TypeError('Missing attributes on childWorkflowExecutionFailureInfo');
+    }
+    return new ChildWorkflowFailure(
+      namespace ?? undefined,
+      workflowExecution,
+      workflowType.name,
+      retryState ?? RetryState.RETRY_STATE_UNSPECIFIED,
       await optionalFailureToOptionalError(failure.cause, dataConverter)
     );
   }

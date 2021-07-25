@@ -6,7 +6,7 @@
  * @module
  */
 
-import { ContinueAsNewOptions } from './interfaces';
+import { ChildWorkflowOptions, ContinueAsNewOptions } from './interfaces';
 import { ActivityOptions, Headers, Next } from '@temporalio/common';
 
 export { Next, Headers };
@@ -61,6 +61,14 @@ export interface ActivityInput {
   readonly seq: number;
 }
 
+/** Input for WorkflowOutboundCallsInterceptor.startChildWorkflowExecution */
+export interface StartChildWorkflowExecutionInput {
+  readonly workflowType: string;
+  readonly args: unknown[];
+  readonly options: ChildWorkflowOptions;
+  readonly headers: Headers;
+}
+
 /** Input for WorkflowOutboundCallsInterceptor.startTimer */
 export interface TimerInput {
   readonly durationMs: number;
@@ -93,6 +101,17 @@ export interface WorkflowOutboundCallsInterceptor {
    * Called when Workflow calls continueAsNew
    */
   continueAsNew?: (input: ContinueAsNewInput, next: Next<this, 'continueAsNew'>) => Promise<never>;
+
+  /**
+   * Called when Workflow starts a child workflow execution, the interceptor function returns 2 promises:
+   *
+   * - The first resolves with the `runId` when the child workflow has started or rejects if failed to start.
+   * - The second resolves with the workflow result when the child workflow completes or rejects on failure.
+   */
+  startChildWorkflowExecution?: (
+    input: StartChildWorkflowExecutionInput,
+    next: Next<this, 'startChildWorkflowExecution'>
+  ) => Promise<[Promise<string>, Promise<unknown>]>;
 }
 
 /**
