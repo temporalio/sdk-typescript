@@ -35,16 +35,16 @@ Mostly complete implementation of all components that make up a Temporal SDK - W
   - Service client (for administration)
 - Worker (mostly complete)
   - Basic logging and tracing capabilities
+  - Sticky Workflow execution
 
 Notably these features are missing:
 
-- WF History pagination (only short Workflows are supported ATM)
 - Telemetry
 - Workflow versioning
 - Local activities
 - Side effects
-- Windows support
 - Search attributes
+- Windows support
 
 > NOTE: The API is considered unstable and may change at any time.
 > While in alpha we are gathering feedback from developers about the usability and ergonomics of the API.
