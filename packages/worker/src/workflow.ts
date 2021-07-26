@@ -222,8 +222,9 @@ export class Workflow {
    * Do not use this Workflow instance after this method has been called.
    */
   public dispose(): void {
-    this.workflowModule.concludeActivation.release();
-    this.workflowModule.activate.release();
+    for (const v of Object.values(this.workflowModule)) {
+      v.release();
+    }
     this.context.release();
   }
 }
