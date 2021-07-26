@@ -9,10 +9,6 @@ async function runWorkflow(client: WorkflowClient, name: string, taskQueue: stri
   await workflow.execute();
 }
 
-function toMB(bytes: number, fractionDigits = 2) {
-  return (bytes / 1024 / 1024).toFixed(fractionDigits);
-}
-
 interface RunWorkflowOptions {
   client: WorkflowClient;
   workflowName: string;
@@ -42,11 +38,8 @@ async function runWorkflows({ client, workflowName: name, taskQueue, numWorkflow
         const wfsPerSecond = (numCompleteThisIteration / dt).toFixed(1);
 
         const overallWfsPerSecond = (numComplete / totalTime).toFixed(1);
-        const { heapUsed, heapTotal } = process.memoryUsage();
         process.stderr.write(
-          `\rWFs complete (${numComplete}/${numWorkflows}), WFs/s ${wfsPerSecond} (${overallWfsPerSecond}), heap used / total MB: ${toMB(
-            heapUsed
-          )} / ${toMB(heapTotal)})  `
+          `\rWFs complete (${numComplete}/${numWorkflows}), WFs/s curr ${wfsPerSecond} (acc ${overallWfsPerSecond})  `
         );
         numCompletePrevIteration = numComplete;
       })
