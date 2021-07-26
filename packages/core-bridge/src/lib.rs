@@ -346,6 +346,9 @@ fn start_bridge_loop(
                                         CompleteActivityError::TonicError(_) => {
                                             TRANSPORT_ERROR.from_error(cx, err)
                                         }
+                                        CompleteActivityError::NoWorkerForQueue(_) => {
+                                            UNEXPECTED_ERROR.from_error(cx, err)
+                                        }
                                     },
                                 ));
                             }
@@ -707,6 +710,11 @@ fn worker_complete_activity_task(mut cx: FunctionContext) -> JsResult<JsUndefine
     });
     match result {
         Ok(completion) => {
+            // Add the task queue from our Worker
+            let completion = ActivityTaskCompletion {
+                task_queue: worker.queue.clone(),
+                ..completion
+            };
             let request = Request::CompleteActivityTask {
                 completion,
                 callback: callback.root(&mut cx),
@@ -731,6 +739,11 @@ fn worker_record_activity_heartbeat(mut cx: FunctionContext) -> JsResult<JsUndef
     });
     match heartbeat {
         Ok(heartbeat) => {
+            // Add the task queue from our Worker
+            let heartbeat = ActivityHeartbeat {
+                task_queue: worker.queue.clone(),
+                ..heartbeat
+            };
             let request = Request::RecordActivityHeartbeat { heartbeat };
             match worker.core.sender.send(request) {
                 Err(err) => UNEXPECTED_ERROR
