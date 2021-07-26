@@ -13,7 +13,8 @@ async function main() {
   const maxConcurrentWorkflowTaskExecutions = args['--max-concurrent-wft-executions'] ?? 100;
   const maxConcurrentActivityTaskPolls = args['--max-concurrent-at-polls'] ?? 20;
   const maxConcurrentWorkflowTaskPolls = args['--max-concurrent-wft-polls'] ?? 20;
-  const maxCachedWorkflows = args['--max-cached-wfs'] ?? 200;
+  const isolatePoolSize = args['--isolate-pool-size'] ?? 16;
+  const maxCachedWorkflows = args['--max-cached-wfs'] ?? 2500;
   const logLevel = (args['--log-level'] || 'INFO').toUpperCase();
   const serverAddress = getRequired(args, '--server-address');
   const namespace = getRequired(args, '--ns');
@@ -43,6 +44,7 @@ async function main() {
     maxConcurrentWorkflowTaskExecutions,
     maxConcurrentActivityTaskPolls,
     maxConcurrentWorkflowTaskPolls,
+    isolatePoolSize,
     logger: new DefaultLogger(logLevel as any),
   });
   console.log('Created worker');
