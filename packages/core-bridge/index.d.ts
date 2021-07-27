@@ -1,26 +1,6 @@
-// NOTE: this interface is duplicated in the client module `packages/client/src/index.ts` for lack of a shared library
+import { TLSConfig } from '@temporalio/common';
 
-/** TLS configuration options. */
-export interface TLSConfig {
-  /**
-   * Overrides the target name used for SSL host name checking.
-   * If this attribute is not specified, the name used for SSL host name checking will be the host from {@link ServerOptions.url}.
-   * This _should_ be used for testing only.
-   */
-  serverNameOverride?: string;
-  /**
-   * Root CA certificate used by the server. If not set, and the server's
-   * cert is issued by someone the operating system trusts, verification will still work (ex: Cloud offering).
-   */
-  serverRootCACertificate?: Buffer;
-  /** Sets the client certificate and key for connecting with mTLS */
-  clientCertPair?: {
-    /** The certificate for this client */
-    crt: Buffer;
-    /** The private key for this client */
-    key: Buffer;
-  };
-}
+export { TLSConfig };
 
 export interface ServerOptions {
   /**

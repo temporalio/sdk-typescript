@@ -1,6 +1,5 @@
 import { AbortController } from 'abort-controller';
-import { ActivityFunction, composeInterceptors } from '@temporalio/workflow';
-import { DataConverter } from '@temporalio/workflow/lib/converter/data-converter';
+import { ActivityFunction, composeInterceptors, DataConverter } from '@temporalio/common';
 import { coresdk } from '@temporalio/proto';
 import { asyncLocalStorage } from '@temporalio/activity';
 import { Context, CancelledError, Info } from '@temporalio/activity';

@@ -4,6 +4,11 @@
     "rootDir": "./src",
     "outDir": "./lib"
   },
+  "references": [
+    {
+      "path": "../common/tsconfig.json"
+    }
+  ],
   "include": ["./src/**/*.ts"],
   "exclude": ["node_modules"]
 }

@@ -34,16 +34,18 @@ import {
 import ivm from 'isolated-vm';
 import * as native from '@temporalio/core-bridge';
 import { coresdk } from '@temporalio/proto';
-import { ActivityOptions, ApplyMode, ExternalDependencies, WorkflowInfo } from '@temporalio/workflow';
+import { ApplyMode, ExternalDependencies, WorkflowInfo } from '@temporalio/workflow';
 import { Info as ActivityInfo } from '@temporalio/activity';
-import { errorToUserCodeFailure } from '@temporalio/workflow/lib/common';
-import { msToNumber, tsToMs } from '@temporalio/workflow/lib/time';
-import { IllegalStateError } from '@temporalio/workflow/lib/errors';
 import {
+  ActivityOptions,
+  IllegalStateError,
+  msToNumber,
+  tsToMs,
+  errorToUserCodeFailure,
   arrayFromPayloads,
   DataConverter,
   defaultDataConverter,
-} from '@temporalio/workflow/lib/converter/data-converter';
+} from '@temporalio/common';
 import { closeableGroupBy, mergeMapWithState } from './rxutils';
 import { GiB, MiB } from './utils';
 import { Workflow } from './workflow';
@@ -54,7 +56,7 @@ import * as errors from './errors';
 import { childSpan, instrument, tracer } from './tracing';
 import { InjectedDependencies, getIvmTransferOptions } from './dependencies';
 import { ActivityExecuteInput, WorkerInterceptors } from './interceptors';
-export { RetryOptions, RemoteActivityOptions, LocalActivityOptions } from '@temporalio/workflow';
+export { RetryOptions, RemoteActivityOptions, IllegalStateError, LocalActivityOptions } from '@temporalio/common';
 export { ActivityOptions, DataConverter, defaultDataConverter, errors };
 import { Core } from './core';
 

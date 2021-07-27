@@ -8,7 +8,7 @@ import {
   WorkflowOutboundCallsInterceptor,
   WorkflowInput,
 } from '@temporalio/workflow';
-import { defaultDataConverter } from '@temporalio/workflow/lib/converter/data-converter';
+import { defaultDataConverter } from '@temporalio/common';
 import { instrument, instrumentFromSpanContext } from '../instrumentation';
 import { ContextManager } from './context-manager';
 import { SpanExporter } from './span-exporter';

@@ -6,7 +6,7 @@ import { v4 as uuid4 } from 'uuid';
 import { errors } from '@temporalio/worker';
 import { ActivationWithContext } from '@temporalio/worker/lib/worker';
 import { coresdk } from '@temporalio/proto';
-import { msToTs } from '@temporalio/workflow/lib/time';
+import { msToTs } from '@temporalio/common';
 import { Worker, makeDefaultWorker } from './mock-native-worker';
 
 export interface Context {

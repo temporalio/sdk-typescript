@@ -13,13 +13,6 @@ export class WorkflowCancelledError extends CancelledError {
 }
 
 /**
- * Used in different parts of the project to signal that something unexpected has happened
- */
-export class IllegalStateError extends Error {
-  public readonly name: string = 'IllegalStateError';
-}
-
-/**
  * Thrown in workflow when it trys to do something that non-deterministic such as construct a WeakMap()
  */
 export class DeterminismViolationError extends Error {

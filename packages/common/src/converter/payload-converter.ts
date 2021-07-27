@@ -1,4 +1,5 @@
-import { u8, str, Payload, encodingTypes, encodingKeys, METADATA_ENCODING_KEY, ValueError } from './types';
+import { ValueError } from '../errors';
+import { u8, str, Payload, encodingTypes, encodingKeys, METADATA_ENCODING_KEY } from './types';
 
 /**
  * Used by the framework to serialize/deserialize method parameters that need to be sent over the

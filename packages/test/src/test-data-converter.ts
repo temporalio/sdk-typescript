@@ -1,12 +1,12 @@
 /* eslint @typescript-eslint/no-non-null-assertion: 0 */
 import test from 'ava';
-import { ValueError, METADATA_ENCODING_KEY, encodingKeys, u8 } from '@temporalio/workflow/lib/converter/types';
+import { defaultDataConverter, ValueError } from '@temporalio/common';
+import { METADATA_ENCODING_KEY, encodingKeys, u8 } from '@temporalio/common/lib/converter/types';
 import {
   UndefinedPayloadConverter,
   BinaryPayloadConverter,
   JsonPayloadConverter,
-} from '@temporalio/workflow/lib/converter/payload-converter';
-import { defaultDataConverter } from '@temporalio/workflow/lib/converter/data-converter';
+} from '@temporalio/common/lib/converter/payload-converter';
 
 test('UndefinedPayloadConverter converts from undefined only', async (t) => {
   const converter = new UndefinedPayloadConverter();

@@ -18,6 +18,7 @@
   "author": "Roey Berman <roey@temporal.io>",
   "license": "MIT",
   "dependencies": {
+    "@temporalio/common": "file:../common",
     "cargo-cp-artifact": "^0.1.4"
   },
   "bugs": {

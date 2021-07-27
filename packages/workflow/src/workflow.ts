@@ -1,17 +1,16 @@
 import {
   ActivityFunction,
   ActivityOptions,
-  ContinueAsNew,
-  ContinueAsNewOptions,
-  ExternalDependencies,
+  IllegalStateError,
   RemoteActivityOptions,
+  msToTs,
+  msOptionalToTs,
   Workflow,
-  WorkflowInfo,
-} from './interfaces';
+  composeInterceptors,
+} from '@temporalio/common';
+import { ContinueAsNew, ContinueAsNewOptions, ExternalDependencies, WorkflowInfo } from './interfaces';
 import { state } from './internals';
-import { IllegalStateError } from './errors';
-import { msToTs, msOptionalToTs } from './time';
-import { ActivityInput, TimerInput, composeInterceptors } from './interceptors';
+import { ActivityInput, TimerInput } from './interceptors';
 import { CancellationScope, registerSleepImplementation } from './cancellation-scope';
 
 // Avoid a circular dependency

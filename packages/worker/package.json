@@ -20,6 +20,7 @@
   "dependencies": {
     "@opentelemetry/api": "^0.20.0",
     "@temporalio/activity": "file:../activity",
+    "@temporalio/common": "file:../common",
     "@temporalio/core-bridge": "file:../core-bridge",
     "@temporalio/proto": "file:../proto",
     "@temporalio/workflow": "file:../workflow",

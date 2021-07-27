@@ -3,7 +3,8 @@ import Long from 'long';
 import dedent from 'dedent';
 import { coresdk } from '@temporalio/proto';
 import * as internals from '@temporalio/workflow/lib/worker-interface';
-import { ActivityOptions, ExternalDependencyFunction, WorkflowInfo } from '@temporalio/workflow';
+import { ActivityOptions } from '@temporalio/common';
+import { ExternalDependencyFunction, WorkflowInfo } from '@temporalio/workflow';
 import { ApplyMode } from './dependencies';
 
 interface WorkflowModule {

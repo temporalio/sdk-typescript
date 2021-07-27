@@ -1,4 +1,4 @@
-import { IllegalStateError } from './errors';
+import { IllegalStateError } from '@temporalio/common';
 
 /** v8 hook types */
 export type HookType = 'init' | 'resolve' | 'before' | 'after';

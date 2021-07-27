@@ -4,13 +4,13 @@
  * @module
  */
 import ivm from 'isolated-vm';
+import { ActivityOptions, IllegalStateError, msToTs, tsToMs } from '@temporalio/common';
 import { coresdk } from '@temporalio/proto';
-import { ActivityOptions, ApplyMode, ExternalDependencyFunction, WorkflowInfo } from './interfaces';
+import { ApplyMode, ExternalDependencyFunction, WorkflowInfo } from './interfaces';
 import { consumeCompletion, ExternalCall, state } from './internals';
-import { tsToMs, msToTs } from './time';
 import { alea } from './alea';
 import { IsolateExtension, HookManager } from './promise-hooks';
-import { DeterminismViolationError, IllegalStateError } from './errors';
+import { DeterminismViolationError } from './errors';
 
 export { ExternalCall };
 

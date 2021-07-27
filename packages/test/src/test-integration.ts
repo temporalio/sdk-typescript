@@ -3,7 +3,7 @@ import anyTest, { TestInterface } from 'ava';
 import ms from 'ms';
 import { v4 as uuid4 } from 'uuid';
 import { WorkflowClient } from '@temporalio/client';
-import { tsToMs } from '@temporalio/workflow/lib/time';
+import { defaultDataConverter, tsToMs } from '@temporalio/common';
 import { Worker, DefaultLogger } from '@temporalio/worker';
 import * as iface from '@temporalio/proto';
 import {
@@ -12,7 +12,6 @@ import {
   WorkflowExecutionTerminatedError,
   WorkflowExecutionTimedOutError,
 } from '@temporalio/client';
-import { defaultDataConverter } from '@temporalio/workflow/lib/converter/data-converter';
 import {
   ArgsAndReturn,
   HTTP,

@@ -3,14 +3,6 @@ import * as iface from '@temporalio/proto';
 
 export type Payload = iface.coresdk.common.IPayload;
 
-export class ValueError extends Error {
-  public readonly name: string = 'ValueError';
-}
-
-export class DataConverterError extends Error {
-  public readonly name: string = 'DataConverterError';
-}
-
 /**
  * Transform an *ascii* string into a Uint8Array
  */
