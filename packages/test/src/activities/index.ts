@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-empty-function */
 /* eslint-disable @typescript-eslint/explicit-module-boundary-types */
 import fetch from 'node-fetch';
-import { Context, CancelledError } from '@temporalio/activity';
+import { Context } from '@temporalio/activity';
 import { Connection } from '@temporalio/client';
 import { fakeProgress as fakeProgressInner } from './fake-progress';
 
