@@ -3,6 +3,18 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+# [0.3.0](https://github.com/temporalio/sdk-node/compare/temporalio@0.2.5...temporalio@0.3.0) (2021-07-27)
+
+
+### Features
+
+* **workflow:** Implement continueAsNew ([d743cdf](https://github.com/temporalio/sdk-node/commit/d743cdfe49ecb6511c8cefbfaf6fd2870e5de670))
+* **workflow:** Implement Workflow cancellation ([f489b3a](https://github.com/temporalio/sdk-node/commit/f489b3a55556de8d1e5d42070f97f056767c5ff4))
+
+
+
+
+
 ## [0.2.5](https://github.com/temporalio/sdk-node/compare/temporalio@0.2.4...temporalio@0.2.5) (2021-06-25)
 
 **Note:** Version bump only for package temporalio

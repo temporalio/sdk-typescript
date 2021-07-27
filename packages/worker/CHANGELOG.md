@@ -3,6 +3,26 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+# [0.6.0](https://github.com/temporalio/sdk-node/compare/@temporalio/worker@0.5.0...@temporalio/worker@0.6.0) (2021-07-27)
+
+
+### Bug Fixes
+
+* **worker:** Fix ActivityInfo.heartbeatDetails was a Promise ([6b0d87c](https://github.com/temporalio/sdk-node/commit/6b0d87cd5edad7b14f91c5f618bcc8a8f426d596))
+* **worker:** Fix isolate reference leak ([9e59f7a](https://github.com/temporalio/sdk-node/commit/9e59f7a5e2ebd9a50cfada24d19a1ed5eeb389d6))
+* **workflow:** Allow passing number to ActivityOption timeouts ([#138](https://github.com/temporalio/sdk-node/issues/138)) ([42d9642](https://github.com/temporalio/sdk-node/commit/42d964203a23b9ef3021e8224eaf6808f28b4849))
+* Explicitly set isolate devtool to cheap-source-map ([5a4388b](https://github.com/temporalio/sdk-node/commit/5a4388bf69f20ca4dfed9b8b35573d9725c1a86f))
+
+
+### Features
+
+* **worker:** Use a pool of isolates ([233902f](https://github.com/temporalio/sdk-node/commit/233902f9a72109d3ee35bbe16c9b0a46067480a5))
+* Add opentelemetry interceptors package and sample ([5101e67](https://github.com/temporalio/sdk-node/commit/5101e67273cd4fdb92d2e6696e836999d9596db1))
+
+
+
+
+
 # [0.5.0](https://github.com/temporalio/sdk-node/compare/@temporalio/worker@0.4.2...@temporalio/worker@0.5.0) (2021-06-25)
 
 

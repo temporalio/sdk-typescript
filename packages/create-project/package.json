@@ -1,6 +1,6 @@
 {
   "name": "@temporalio/create",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "description": "Create a Temporal project from template",
   "main": "lib/index.js",
   "bin": "lib/index.js",

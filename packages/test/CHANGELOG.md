@@ -3,6 +3,30 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+# [0.6.0](https://github.com/temporalio/sdk-node/compare/@temporalio/test@0.5.0...@temporalio/test@0.6.0) (2021-07-27)
+
+
+### Bug Fixes
+
+* **workflow:** Allow passing number to ActivityOption timeouts ([#138](https://github.com/temporalio/sdk-node/issues/138)) ([42d9642](https://github.com/temporalio/sdk-node/commit/42d964203a23b9ef3021e8224eaf6808f28b4849))
+* Explicitly set isolate devtool to cheap-source-map ([5a4388b](https://github.com/temporalio/sdk-node/commit/5a4388bf69f20ca4dfed9b8b35573d9725c1a86f))
+* Throw DeterminismViolationError when a query handler returns a Promise ([0febe2f](https://github.com/temporalio/sdk-node/commit/0febe2f4177c460866ee7bb0c1e1b4dd43e025d8))
+
+
+### Features
+
+* **client:** Implement signalWithStart ([7211342](https://github.com/temporalio/sdk-node/commit/72113425dc187586688b77cc24b4179d52f7320f))
+* **worker:** Use a pool of isolates ([233902f](https://github.com/temporalio/sdk-node/commit/233902f9a72109d3ee35bbe16c9b0a46067480a5))
+* **workflow:** Expose ActivityCancellationType ([45cc42d](https://github.com/temporalio/sdk-node/commit/45cc42d332d9e45a2587d366a1db123c7c6aa9d0))
+* **workflow:** Implement continueAsNew ([d743cdf](https://github.com/temporalio/sdk-node/commit/d743cdfe49ecb6511c8cefbfaf6fd2870e5de670))
+* **workflow:** Implement queries ([9ba6424](https://github.com/temporalio/sdk-node/commit/9ba6424b9cc2c17f7b4125bb2324798327c7073f))
+* **workflow:** Implement Workflow cancellation ([f489b3a](https://github.com/temporalio/sdk-node/commit/f489b3a55556de8d1e5d42070f97f056767c5ff4))
+* Add opentelemetry interceptors package and sample ([5101e67](https://github.com/temporalio/sdk-node/commit/5101e67273cd4fdb92d2e6696e836999d9596db1))
+
+
+
+
+
 # [0.5.0](https://github.com/temporalio/sdk-node/compare/@temporalio/test@0.4.2...@temporalio/test@0.5.0) (2021-06-25)
 
 

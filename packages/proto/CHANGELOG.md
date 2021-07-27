@@ -3,6 +3,14 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+## [0.2.4](https://github.com/temporalio/sdk-node/compare/@temporalio/proto@0.2.3...@temporalio/proto@0.2.4) (2021-07-27)
+
+**Note:** Version bump only for package @temporalio/proto
+
+
+
+
+
 ## [0.2.3](https://github.com/temporalio/sdk-node/compare/@temporalio/proto@0.2.2...@temporalio/proto@0.2.3) (2021-06-25)
 
 **Note:** Version bump only for package @temporalio/proto
