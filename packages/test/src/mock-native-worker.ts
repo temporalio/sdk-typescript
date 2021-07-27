@@ -1,8 +1,7 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
 import ivm from 'isolated-vm';
 import { coresdk } from '@temporalio/proto';
-import { msToTs } from '@temporalio/workflow/lib/time';
-import { defaultDataConverter } from '@temporalio/workflow/lib/converter/data-converter';
+import { defaultDataConverter, msToTs } from '@temporalio/common';
 import {
   Worker as RealWorker,
   NativeWorkerLike,

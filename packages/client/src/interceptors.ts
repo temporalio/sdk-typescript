@@ -4,7 +4,7 @@
  * @module
  */
 
-import { Next, Headers } from '@temporalio/workflow';
+import { Next, Headers } from '@temporalio/common';
 import { temporal } from '@temporalio/proto';
 import { CompiledWorkflowOptions } from './workflow-options';
 import { RequestCancelWorkflowExecutionResponse, TerminateWorkflowExecutionResponse, WorkflowExecution } from './types';

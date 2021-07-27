@@ -1,13 +1,21 @@
 import Long from 'long';
 import * as protobufjs from 'protobufjs/minimal';
+import {
+  ActivityOptions,
+  composeInterceptors,
+  errorToUserCodeFailure,
+  IllegalStateError,
+  nullToUndefined,
+  Workflow,
+  arrayFromPayloads,
+  DataConverter,
+  defaultDataConverter,
+} from '@temporalio/common';
 import { coresdk } from '@temporalio/proto';
-import { arrayFromPayloads, DataConverter, defaultDataConverter } from './converter/data-converter';
 import { alea, RNG } from './alea';
-import { ActivityOptions, ContinueAsNew, ExternalDependencies, Workflow, WorkflowInfo } from './interfaces';
-import { composeInterceptors, WorkflowInterceptors } from './interceptors';
-import { CancelledError, DeterminismViolationError, IllegalStateError, WorkflowCancelledError } from './errors';
-import { errorToUserCodeFailure } from './common';
-import { nullToUndefined } from './time';
+import { ContinueAsNew, ExternalDependencies, WorkflowInfo } from './interfaces';
+import { WorkflowInterceptors } from './interceptors';
+import { CancelledError, DeterminismViolationError, WorkflowCancelledError } from './errors';
 import { ROOT_SCOPE } from './cancellation-scope';
 
 export type ResolveFunction<T = any> = (val: T) => any;

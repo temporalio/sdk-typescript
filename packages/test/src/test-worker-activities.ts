@@ -2,7 +2,7 @@
 import anyTest, { TestInterface, ExecutionContext } from 'ava';
 import { v4 as uuid4 } from 'uuid';
 import { coresdk } from '@temporalio/proto';
-import { defaultDataConverter } from '@temporalio/workflow/lib/converter/data-converter';
+import { defaultDataConverter } from '@temporalio/common';
 import { WorkflowIsolateBuilder } from '@temporalio/worker/lib/isolate-builder';
 import { DefaultLogger } from '@temporalio/worker/lib/logger';
 import { httpGet } from './activities';

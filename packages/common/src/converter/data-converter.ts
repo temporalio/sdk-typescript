@@ -1,4 +1,5 @@
-import { str, METADATA_ENCODING_KEY, Payload, ValueError } from './types';
+import { ValueError } from '../errors';
+import { str, METADATA_ENCODING_KEY, Payload } from './types';
 import {
   PayloadConverter,
   UndefinedPayloadConverter,

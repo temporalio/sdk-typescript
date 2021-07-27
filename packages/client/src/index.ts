@@ -16,4 +16,4 @@ export * from './errors';
 export * from './workflow-options';
 export * from './interceptors';
 
-export { DataConverter, defaultDataConverter } from '@temporalio/workflow';
+export { DataConverter, defaultDataConverter } from '@temporalio/common';

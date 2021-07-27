@@ -1,12 +1,19 @@
 import os from 'os';
 import { temporal } from '@temporalio/proto';
-import { DataConverter, defaultDataConverter, Workflow } from '@temporalio/workflow';
-import { WorkflowSignalType, WorkflowQueryType } from '@temporalio/workflow/lib/interfaces';
 import { WorkflowClientInterceptors } from './interceptors';
 import { v4 as uuid4 } from 'uuid';
-import { composeInterceptors, IllegalStateError } from '@temporalio/workflow';
-import { nullToUndefined } from '@temporalio/workflow/lib/time';
-import { arrayFromPayloads, mapToPayloads } from '@temporalio/workflow/lib/converter/data-converter';
+import {
+  arrayFromPayloads,
+  mapToPayloads,
+  DataConverter,
+  defaultDataConverter,
+  composeInterceptors,
+  IllegalStateError,
+  nullToUndefined,
+  Workflow,
+  WorkflowSignalType,
+  WorkflowQueryType,
+} from '@temporalio/common';
 import { WorkflowOptions, addDefaults, compileWorkflowOptions } from './workflow-options';
 import {
   WorkflowCancelInput,

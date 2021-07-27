@@ -1,6 +1,6 @@
 import os from 'os';
 import { promisify } from 'util';
-import { IllegalStateError } from '@temporalio/workflow';
+import { IllegalStateError } from '@temporalio/common';
 import {
   ServerOptions,
   CompiledServerOptions,

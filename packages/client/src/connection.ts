@@ -1,32 +1,9 @@
 import * as grpc from '@grpc/grpc-js';
 import { temporal } from '@temporalio/proto';
+import { TLSConfig, normalizeTlsConfig } from '@temporalio/common';
 
 export type WorkflowService = temporal.api.workflowservice.v1.WorkflowService;
 export const { WorkflowService } = temporal.api.workflowservice.v1;
-
-// NOTE: this interface is duplicated in the native worker  declarations file `packages/worker/native/index.d.ts` for lack of a shared library
-
-/** TLS configuration options. */
-export interface TLSConfig {
-  /**
-   * Overrides the target name used for SSL host name checking.
-   * If this attribute is not specified, the name used for SSL host name checking will be the host from {@link ServerOptions.url}.
-   * This _should_ be used for testing only.
-   */
-  serverNameOverride?: string;
-  /**
-   * Root CA certificate used by the server. If not set, and the server's
-   * cert is issued by someone the operating system trusts, verification will still work (ex: Cloud offering).
-   */
-  serverRootCACertificate?: Buffer;
-  /** Sets the client certificate and key for connecting with mTLS */
-  clientCertPair?: {
-    /** The certificate for this client */
-    crt: Buffer;
-    /** The private key for this client */
-    key: Buffer;
-  };
-}
 
 /**
  * GRPC + Temporal server connection options
@@ -74,14 +51,6 @@ export function defaultConnectionOpts(): ConnectionOptionsWithDefaults {
     credentials: grpc.credentials.createInsecure(),
     channelArgs: {},
   };
-}
-
-/**
- * Normalize {@link ConnectionOptions.tls} by turning false and null to undefined and true to and empty object
- * NOTE: this function is duplicated in `packages/worker/src/worker.ts` for lack of a shared library
- */
-function normalizeTlsConfig(tls?: ConnectionOptions['tls']): TLSConfig | undefined {
-  return typeof tls === 'object' ? (tls === null ? undefined : tls) : tls ? {} : undefined;
 }
 
 /**

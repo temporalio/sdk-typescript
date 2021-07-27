@@ -51,23 +51,27 @@
 import './global-overrides';
 
 export {
+  Workflow,
   ActivityCancellationType,
   ActivityFunction,
   ActivityOptions,
+  LocalActivityOptions,
+  RemoteActivityOptions,
+  RetryOptions,
+  IllegalStateError,
+  defaultDataConverter,
+  DataConverter,
+} from '@temporalio/common';
+export {
   ApplyMode,
   ExternalDependencyFunction,
   ExternalDependency,
   ExternalDependencies,
-  LocalActivityOptions,
-  RemoteActivityOptions,
-  RetryOptions,
-  Workflow,
   WorkflowInfo,
 } from './interfaces';
-export { CancelledError, DeterminismViolationError, IllegalStateError } from './errors';
+export { WorkflowCancelledError, CancelledError, DeterminismViolationError } from './errors';
 export { Context, ContextImpl, sleep, uuid4, validateActivityOptions, scheduleActivity } from './workflow';
 export * from './interceptors';
 export { AsyncLocalStorage } from './async-local-storage';
 export { CancellationScope, CancellationScopeOptions } from './cancellation-scope';
 export { Trigger } from './trigger';
-export { defaultDataConverter, DataConverter } from './converter/data-converter';

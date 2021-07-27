@@ -1,0 +1,26 @@
+{
+  "name": "@temporalio/common",
+  "version": "0.0.0",
+  "description": "Temporal.io SDK common library for use in Workflow and normal code",
+  "main": "lib/index.js",
+  "types": "./lib/index.d.ts",
+  "keywords": [
+    "temporal",
+    "workflow",
+    "worker",
+    "common"
+  ],
+  "author": "Roey Berman <roey@temporal.io>",
+  "license": "MIT",
+  "dependencies": {
+    "@temporalio/proto": "file:../proto",
+    "ms": "^2.1.3"
+  },
+  "bugs": {
+    "url": "https://github.com/temporalio/sdk-node/issues"
+  },
+  "homepage": "https://github.com/temporalio/sdk-node/tree/main/packages/common",
+  "publishConfig": {
+    "access": "public"
+  }
+}

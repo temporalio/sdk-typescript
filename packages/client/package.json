@@ -14,8 +14,8 @@
   "license": "MIT",
   "dependencies": {
     "@grpc/grpc-js": "^1.3.1",
+    "@temporalio/common": "file:../common",
     "@temporalio/proto": "file:../proto",
-    "@temporalio/workflow": "file:../workflow",
     "ms": "^2.1.3",
     "protobufjs": "^6.10.2",
     "uuid": "^8.3.2"

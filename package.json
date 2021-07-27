@@ -64,6 +64,7 @@
   "name": "typescript-sdk",
   "dependencies": {
     "@temporalio/client": "file:packages/client",
+    "@temporalio/common": "file:packages/common",
     "@temporalio/create": "file:packages/create-project",
     "@temporalio/interceptors-opentelemetry": "file:packages/interceptors-opentelemetry",
     "@temporalio/proto": "file:packages/proto",

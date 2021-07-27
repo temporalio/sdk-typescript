@@ -1,5 +1,6 @@
+import { IllegalStateError } from '@temporalio/common';
 import { AsyncLocalStorage } from './async-local-storage';
-import { CancelledError, IllegalStateError, WorkflowCancelledError } from './errors';
+import { CancelledError, WorkflowCancelledError } from './errors';
 
 /** Magic symbol used to create the root scope - intentionally not exported */
 const NO_PARENT = Symbol('NO_PARENT');

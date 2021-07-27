@@ -1,5 +1,6 @@
 import os from 'os';
 import ms from 'ms';
+export { normalizeTlsConfig } from '@temporalio/common';
 import * as native from '@temporalio/core-bridge';
 import pkg from './pkg';
 
@@ -70,12 +71,4 @@ export function compileServerOptions(options: RequiredServerOptions): CompiledSe
   let [host, port] = address.split(':', 2);
   port = port || '7233';
   return { ...rest, address: `${host}:${port}`, longPollTimeoutMs: ms(longPollTimeout) };
-}
-
-/**
- * Normalize {@link ConnectionOptions.tls} by turning false and null to undefined and true to and empty object
- * NOTE: this function is duplicated in `packages/client/src/index.ts` for lack of a shared library
- */
-export function normalizeTlsConfig(tls: ServerOptions['tls']): TLSConfig | undefined {
-  return typeof tls === 'object' ? (tls === null ? undefined : tls) : tls ? {} : undefined;
 }
