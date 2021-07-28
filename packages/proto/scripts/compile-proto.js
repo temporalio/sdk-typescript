@@ -77,7 +77,13 @@ async function main() {
     return;
   }
 
-  await compileProtos(coreProtoPath, coresdkJsOutputFile, resolve(outputDir, 'coresdk.d.ts'));
+  await compileProtos(
+    coreProtoPath,
+    coresdkJsOutputFile,
+    resolve(outputDir, 'coresdk.d.ts'),
+    '--path',
+    resolve(protoBaseDir, 'api_upstream')
+  );
   await compileProtos(
     serviceProtoPath,
     serviceJsOutputFile,

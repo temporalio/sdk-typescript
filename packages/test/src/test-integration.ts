@@ -2,6 +2,7 @@
 import anyTest, { TestInterface } from 'ava';
 import ms from 'ms';
 import { v4 as uuid4 } from 'uuid';
+import dedent from 'dedent';
 import { WorkflowClient } from '@temporalio/client';
 import { defaultDataConverter, tsToMs } from '@temporalio/common';
 import { Worker, DefaultLogger } from '@temporalio/worker';
@@ -11,6 +12,8 @@ import {
   WorkflowExecutionFailedError,
   WorkflowExecutionTerminatedError,
   WorkflowExecutionTimedOutError,
+  ActivityFailure,
+  ApplicationFailure,
 } from '@temporalio/client';
 import {
   ArgsAndReturn,
@@ -25,7 +28,7 @@ import {
   ContinueAsNewFromMainAndSignal,
 } from './interfaces';
 import { httpGet } from './activities';
-import { u8, RUN_INTEGRATION_TESTS } from './helpers';
+import { u8, RUN_INTEGRATION_TESTS, cleanStackTrace } from './helpers';
 import { withZeroesHTTPServer } from './zeroes-http-server';
 
 const { EVENT_TYPE_TIMER_STARTED, EVENT_TYPE_TIMER_FIRED, EVENT_TYPE_TIMER_CANCELED } =
@@ -66,10 +69,20 @@ if (RUN_INTEGRATION_TESTS) {
   test('Workflow not found results in failure', async (t) => {
     const client = new WorkflowClient();
     const promise = client.execute<Empty>({ taskQueue: 'test' }, 'not-found');
-    await t.throwsAsync(() => promise, {
-      message: "Cannot find module './not-found.js'",
+    const err: WorkflowExecutionFailedError = await t.throwsAsync(() => promise, {
       instanceOf: WorkflowExecutionFailedError,
     });
+    if (!(err.cause instanceof ApplicationFailure)) {
+      t.fail('Expected err.cause to be an instance of ApplicationFailure');
+      return;
+    }
+    t.is(err.cause.type, 'ReferenceError');
+    t.is(err.cause.originalMessage, "Cannot find module './not-found.js'");
+    t.true(err.cause.nonRetryable);
+    t.is(
+      err.cause.stack,
+      "ApplicationFailure: message='Cannot find module './not-found.js'', type='ReferenceError', nonRetryable=true"
+    );
   });
 
   test('args-and-return', async (t) => {
@@ -100,7 +113,26 @@ if (RUN_INTEGRATION_TESTS) {
   test('activity-failure', async (t) => {
     const client = new WorkflowClient();
     const workflow = client.stub<Empty>('activity-failure', { taskQueue: 'test' });
-    await t.throwsAsync(workflow.execute(), { message: 'Fail me', instanceOf: WorkflowExecutionFailedError });
+    const err: WorkflowExecutionFailedError = await t.throwsAsync(workflow.execute(), {
+      instanceOf: WorkflowExecutionFailedError,
+    });
+    t.is(err.message, 'Workflow execution failed');
+    if (!(err.cause instanceof ActivityFailure)) {
+      t.fail('Expected err.cause to be an instance of ActivityFailure');
+      return;
+    }
+    if (!(err.cause.cause instanceof ApplicationFailure)) {
+      t.fail('Expected err.cause.cause to be an instance of ApplicationFailure');
+      return;
+    }
+    t.is(err.cause.cause.originalMessage, 'Fail me');
+    t.is(
+      cleanStackTrace(err.cause.cause.stack),
+      dedent`
+      Error: Fail me
+          at Activity.throwAnError [as fn]
+      `
+    );
   });
 
   test('simple-query', async (t) => {
@@ -118,7 +150,13 @@ if (RUN_INTEGRATION_TESTS) {
     const workflow = client.stub<Interruptable>('interrupt-signal', { taskQueue: 'test' });
     await workflow.start();
     await workflow.signal.interrupt('just because');
-    await t.throwsAsync(workflow.result(), { message: /just because/, instanceOf: WorkflowExecutionFailedError });
+    const err: WorkflowExecutionFailedError = await t.throwsAsync(workflow.result(), {
+      instanceOf: WorkflowExecutionFailedError,
+    });
+    if (!(err.cause instanceof ApplicationFailure)) {
+      return t.fail('Expected err.cause to be an instance of ApplicationFailure');
+    }
+    t.is(err.cause.originalMessage, 'just because');
   });
 
   test('fail-signal', async (t) => {
@@ -126,7 +164,13 @@ if (RUN_INTEGRATION_TESTS) {
     const workflow = client.stub<Failable>('fail-signal', { taskQueue: 'test' });
     await workflow.start();
     await workflow.signal.fail();
-    await t.throwsAsync(workflow.result(), { message: /Signal failed/, instanceOf: WorkflowExecutionFailedError });
+    const err: WorkflowExecutionFailedError = await t.throwsAsync(workflow.result(), {
+      instanceOf: WorkflowExecutionFailedError,
+    });
+    if (!(err.cause instanceof ApplicationFailure)) {
+      return t.fail('Expected err.cause to be an instance of ApplicationFailure');
+    }
+    t.is(err.cause.originalMessage, 'Signal failed');
   });
 
   test('async-fail-signal', async (t) => {
@@ -134,7 +178,13 @@ if (RUN_INTEGRATION_TESTS) {
     const workflow = client.stub<AsyncFailable>('async-fail-signal', { taskQueue: 'test' });
     await workflow.start();
     await workflow.signal.fail();
-    await t.throwsAsync(workflow.result(), { message: /Signal failed/, instanceOf: WorkflowExecutionFailedError });
+    const err: WorkflowExecutionFailedError = await t.throwsAsync(workflow.result(), {
+      instanceOf: WorkflowExecutionFailedError,
+    });
+    if (!(err.cause instanceof ApplicationFailure)) {
+      return t.fail('Expected err.cause to be an instance of ApplicationFailure');
+    }
+    t.is(err.cause.originalMessage, 'Signal failed');
   });
 
   test('http', async (t) => {
@@ -332,15 +382,33 @@ if (RUN_INTEGRATION_TESTS) {
       taskQueue: 'test',
     });
     const runId = await workflow.signalWithStart('interrupt', ['interrupted from signalWithStart'], []);
-    await t.throwsAsync(workflow.result(), {
-      message: /interrupted from signalWithStart/,
-      instanceOf: WorkflowExecutionFailedError,
-    });
+    {
+      const err: WorkflowExecutionFailedError = await t.throwsAsync(workflow.result(), {
+        instanceOf: WorkflowExecutionFailedError,
+      });
+      if (!(err.cause instanceof ApplicationFailure)) {
+        return t.fail('Expected err.cause to be an instance of ApplicationFailure');
+      }
+      t.is(err.cause.originalMessage, 'interrupted from signalWithStart');
+    }
     // Test returned runId
     workflow = client.stub<Interruptable>(workflow.workflowId, runId);
-    await t.throwsAsync(workflow.result(), {
-      message: /interrupted from signalWithStart/,
-      instanceOf: WorkflowExecutionFailedError,
-    });
+    {
+      const err: WorkflowExecutionFailedError = await t.throwsAsync(workflow.result(), {
+        instanceOf: WorkflowExecutionFailedError,
+      });
+      if (!(err.cause instanceof ApplicationFailure)) {
+        return t.fail('Expected err.cause to be an instance of ApplicationFailure');
+      }
+      t.is(err.cause.originalMessage, 'interrupted from signalWithStart');
+    }
   });
+
+  test('activity-failures', async (t) => {
+    const client = new WorkflowClient();
+    await client.execute({ taskQueue: 'test' }, 'activity-failures');
+    t.pass();
+  });
+
+  test.todo('default retryPolicy is filled in ActivityInfo');
 }

@@ -44,4 +44,9 @@ export interface RetryOptions {
    * @format {@link https://www.npmjs.com/package/ms | ms} formatted string or number of milliseconds
    */
   maximumInterval?: string | number;
+
+  /**
+   * List of application failures types to not retry.
+   */
+  nonRetryableErrorTypes?: string[];
 }

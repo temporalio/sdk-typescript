@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
 import anyTest, { TestInterface, ExecutionContext } from 'ava';
 import { v4 as uuid4 } from 'uuid';
+import dedent from 'dedent';
 import { coresdk } from '@temporalio/proto';
 import { defaultDataConverter } from '@temporalio/common';
 import { WorkflowIsolateBuilder } from '@temporalio/worker/lib/isolate-builder';
@@ -8,6 +9,7 @@ import { DefaultLogger } from '@temporalio/worker/lib/logger';
 import { httpGet } from './activities';
 import { Worker, isolateFreeWorker, defaultOptions } from './mock-native-worker';
 import { withZeroesHTTPServer } from './zeroes-http-server';
+import { cleanStackTrace } from './helpers';
 
 export interface Context {
   worker: Worker;
@@ -40,8 +42,12 @@ function compareCompletion(
   actual: coresdk.activity_result.IActivityResult | null | undefined,
   expected: coresdk.activity_result.IActivityResult
 ) {
+  if (actual?.failed?.failure) {
+    const { stackTrace, ...rest } = actual.failed.failure;
+    actual = { failed: { failure: { stackTrace: cleanStackTrace(stackTrace), ...rest } } };
+  }
   t.deepEqual(
-    new coresdk.activity_result.ActivityResult(actual || undefined).toJSON(),
+    new coresdk.activity_result.ActivityResult(actual ?? undefined).toJSON(),
     new coresdk.activity_result.ActivityResult(expected).toJSON()
   );
 }
@@ -79,7 +85,17 @@ test('Worker runs an activity and reports failure', async (t) => {
       },
     });
     compareCompletion(t, completion.result, {
-      failed: { failure: { message } },
+      failed: {
+        failure: {
+          message,
+          source: 'NodeSDK',
+          stackTrace: dedent`
+            Error: :(
+                at Activity.throwAnError [as fn]
+          `,
+          applicationFailureInfo: { type: 'Error', nonRetryable: false },
+        },
+      },
     });
   });
 });

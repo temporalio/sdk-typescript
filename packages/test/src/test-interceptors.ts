@@ -7,7 +7,9 @@
 
 import test from 'ava';
 import { v4 as uuid4 } from 'uuid';
+import dedent from 'dedent';
 import { Worker, DefaultLogger } from '@temporalio/worker';
+import { ApplicationFailure } from '@temporalio/common';
 import {
   Connection,
   WorkflowClient,
@@ -17,7 +19,7 @@ import {
 import { defaultDataConverter } from '@temporalio/workflow';
 import { defaultOptions } from './mock-native-worker';
 import { Sleeper, Empty } from './interfaces';
-import { RUN_INTEGRATION_TESTS } from './helpers';
+import { cleanStackTrace, RUN_INTEGRATION_TESTS } from './helpers';
 
 if (RUN_INTEGRATION_TESTS) {
   test.serial('Tracing can be implemented using interceptors', async (t) => {
@@ -159,10 +161,26 @@ if (RUN_INTEGRATION_TESTS) {
     const workflow = client.stub<Empty>('continue-as-new-to-different-workflow', {
       taskQueue,
     });
-    await t.throwsAsync(workflow.execute(), {
+    const err: WorkflowExecutionFailedError = await t.throwsAsync(workflow.execute(), {
       instanceOf: WorkflowExecutionFailedError,
-      message: 'Expected anything other than 1',
+      message: 'Workflow execution failed',
     });
+    if (!(err.cause instanceof ApplicationFailure)) {
+      t.fail(`Expected err.cause to be an ApplicationFailure, got ${err.cause}`);
+      return;
+    }
+    t.deepEqual(err.cause.originalMessage, 'Expected anything other than 1');
+    t.is(
+      cleanStackTrace(err.cause.stack),
+      dedent`
+      Error: Expected anything other than 1
+          at Object.continueAsNew
+          at next
+          at workflow
+          at Object.main
+    `
+    );
+    t.is(err.cause.cause, undefined);
     worker.shutdown();
     await workerDrained;
   });

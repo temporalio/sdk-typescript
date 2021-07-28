@@ -40,7 +40,7 @@ import {
   IllegalStateError,
   msToNumber,
   tsToMs,
-  errorToUserCodeFailure,
+  errorToFailure,
   arrayFromPayloads,
   DataConverter,
   defaultDataConverter,
@@ -886,7 +886,7 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
                 const completion = coresdk.workflow_completion.WFActivationCompletion.encodeDelimited({
                   runId: activation.runId,
                   failed: {
-                    failure: errorToUserCodeFailure(error),
+                    failure: await errorToFailure(error, this.options.dataConverter),
                   },
                 }).finish();
                 // TODO: should we wait to be evicted from core?

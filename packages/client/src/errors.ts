@@ -25,6 +25,9 @@ export class WorkflowExecutionTimedOutError extends Error {
  */
 export class WorkflowExecutionFailedError extends Error {
   public readonly name: string = 'WorkflowExecutionFailedError';
+  public constructor(message: string, public readonly cause: Error | undefined) {
+    super(message);
+  }
 }
 
 /**
