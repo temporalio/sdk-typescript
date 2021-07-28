@@ -133,7 +133,7 @@ async function scheduleActivityNextHandler({
               initialInterval: msOptionalToTs(options.retry.initialInterval),
               maximumInterval: msOptionalToTs(options.retry.maximumInterval),
               backoffCoefficient: options.retry.backoffCoefficient,
-              // TODO: nonRetryableErrorTypes
+              nonRetryableErrorTypes: options.retry.nonRetryableErrorTypes,
             }
           : undefined,
         taskQueue: options.taskQueue || state.info?.taskQueue,

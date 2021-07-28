@@ -1,5 +1,11 @@
 import { AbortController } from 'abort-controller';
-import { ActivityFunction, composeInterceptors, DataConverter } from '@temporalio/common';
+import {
+  ActivityFunction,
+  composeInterceptors,
+  DataConverter,
+  ensureTemporalFailure,
+  errorToFailure,
+} from '@temporalio/common';
 import { coresdk } from '@temporalio/proto';
 import { asyncLocalStorage } from '@temporalio/activity';
 import { Context, CancelledError, Info } from '@temporalio/activity';
@@ -42,14 +48,20 @@ export class Activity {
     };
   }
 
+  /**
+   * Actually executes the function.
+   *
+   * Exist mostly for cutting it out of the stack trace for failures.
+   */
+  protected async execute({ args }: ActivityExecuteInput): Promise<coresdk.activity_result.IActivityResult> {
+    return await this.fn(...args);
+  }
+
   public run(input: ActivityExecuteInput): Promise<coresdk.activity_result.IActivityResult> {
     return asyncLocalStorage.run(this.context, async (): Promise<coresdk.activity_result.IActivityResult> => {
       try {
-        const execute = composeInterceptors(this.interceptors.inbound, 'execute', ({ args }) => this.fn(...args));
+        const execute = composeInterceptors(this.interceptors.inbound, 'execute', (inp) => this.execute(inp));
         const result = await execute(input);
-        if (this.cancelRequested) {
-          return { canceled: {} };
-        }
         return { completed: { result: await this.dataConverter.toPayload(result) } };
       } catch (err) {
         if (this.cancelRequested) {
@@ -58,7 +70,11 @@ export class Activity {
             return { canceled: {} };
           }
         }
-        return { failed: { failure: err?.message ? { message: err.message } : undefined } };
+        return {
+          failed: {
+            failure: await errorToFailure(ensureTemporalFailure(err), this.dataConverter),
+          },
+        };
       }
     });
   }

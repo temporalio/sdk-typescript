@@ -1,3 +1,6 @@
+/**
+ * Tests that ActivityFailure is propagated correctly to client
+ */
 import { Context } from '@temporalio/workflow';
 import { throwAnError } from '@activities';
 

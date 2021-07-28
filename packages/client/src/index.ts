@@ -15,5 +15,15 @@ export * from './types';
 export * from './errors';
 export * from './workflow-options';
 export * from './interceptors';
-
-export { DataConverter, defaultDataConverter } from '@temporalio/common';
+export {
+  DataConverter,
+  defaultDataConverter,
+  ActivityFailure,
+  ApplicationFailure,
+  CancelledFailure,
+  ServerFailure,
+  TemporalFailure,
+  TerminatedFailure,
+  TimeoutFailure,
+  ProtoFailure,
+} from '@temporalio/common';

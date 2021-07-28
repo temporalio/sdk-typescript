@@ -4,11 +4,13 @@ use errors::*;
 use neon::prelude::*;
 use prost::Message;
 use std::{fmt::Display, future::Future, sync::Arc, time::Duration};
+use temporal_sdk_core::errors::{
+    CompleteActivityError, CompleteWfError, CoreInitError, PollActivityError, PollWfError,
+};
 use temporal_sdk_core::{
     init, protos::coresdk::workflow_completion::WfActivationCompletion,
     protos::coresdk::ActivityHeartbeat, protos::coresdk::ActivityTaskCompletion, tracing_init,
-    ClientTlsConfig, CompleteActivityError, CompleteWfError, Core, CoreInitError, CoreInitOptions,
-    PollActivityError, PollWfError, ServerGatewayOptions, TlsConfig, Url, WorkerConfig,
+    ClientTlsConfig, Core, CoreInitOptions, ServerGatewayOptions, TlsConfig, Url, WorkerConfig,
 };
 use tokio::sync::mpsc::{unbounded_channel, UnboundedSender};
 

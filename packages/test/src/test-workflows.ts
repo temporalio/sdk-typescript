@@ -4,12 +4,13 @@ import Long from 'long';
 import dedent from 'dedent';
 import { coresdk } from '@temporalio/proto';
 import { ApplyMode } from '@temporalio/workflow';
-import { defaultDataConverter, msToTs } from '@temporalio/common';
+import { defaultDataConverter, ApplicationFailure, errorToFailure, msToTs } from '@temporalio/common';
 import { Workflow } from '@temporalio/worker/lib/workflow';
 import { WorkflowIsolateBuilder } from '@temporalio/worker/lib/isolate-builder';
 import { RoundRobinIsolateContextProvider } from '@temporalio/worker/lib/isolate-context-provider';
 import { DefaultLogger } from '@temporalio/worker/lib/logger';
 import * as activityFunctions from './activities';
+import * as failureTesterActivityFunctions from './activities/failure-tester';
 import { u8 } from './helpers';
 
 export interface Context {
@@ -25,7 +26,10 @@ test.before(async (t) => {
   const logger = new DefaultLogger('INFO');
   const workflowsPath = path.join(__dirname, 'workflows');
   const nodeModulesPath = path.join(__dirname, '../../../node_modules');
-  const activities = new Map([['@activities', activityFunctions]]);
+  const activities = new Map<string, Record<string, any>>([
+    ['@activities', activityFunctions],
+    ['@activities/failure-tester', failureTesterActivityFunctions],
+  ]);
   const builder = new WorkflowIsolateBuilder(logger, nodeModulesPath, workflowsPath, activities);
   t.context.contextProvider = await RoundRobinIsolateContextProvider.create(builder, 2, 1024);
 });
@@ -177,7 +181,9 @@ function makeFailWorkflowExecution(
   type = 'Error'
 ): coresdk.workflow_commands.IWorkflowCommand {
   return {
-    failWorkflowExecution: { failure: { message, stackTrace, type } },
+    failWorkflowExecution: {
+      failure: { message, stackTrace, applicationFailureInfo: { type, nonRetryable: false }, source: 'NodeSDK' },
+    },
   };
 }
 
@@ -294,9 +300,6 @@ test('throw-sync', async (t) => {
         dedent`
         Error: failure
             at Object.main
-            at workflow-isolate
-            at Activator.startWorkflow
-            at async activate
         `
       ),
     ])
@@ -315,9 +318,6 @@ test('throw-async', async (t) => {
         dedent`
         Error: failure
             at Object.main
-            at workflow-isolate
-            at Activator.startWorkflow
-            at async activate
         `
       ),
     ])
@@ -571,7 +571,7 @@ test('simple-query', async (t) => {
         makeRespondToQueryCommand({
           queryId: '3',
           failed: {
-            type: 'Error',
+            source: 'NodeSDK',
             message: 'Query failed',
             stackTrace: dedent`
               Error: Query failed
@@ -580,6 +580,10 @@ test('simple-query', async (t) => {
                   at Activator.queryWorkflow
                   at async activate
             `,
+            applicationFailureInfo: {
+              type: 'Error',
+              nonRetryable: false,
+            },
           },
         }),
       ])
@@ -604,14 +608,18 @@ test('invalid-async-query-handler', async (t) => {
         makeRespondToQueryCommand({
           queryId: '3',
           failed: {
-            type: 'DeterminismViolationError',
             message: 'Query handlers should not return a Promise',
+            source: 'NodeSDK',
             stackTrace: dedent`
               DeterminismViolationError: Query handlers should not return a Promise
                   at workflow-isolate
                   at Activator.queryWorkflow
                   at async activate
             `,
+            applicationFailureInfo: {
+              type: 'DeterminismViolationError',
+              nonRetryable: false,
+            },
           },
         }),
       ])
@@ -640,9 +648,7 @@ test('interrupt-signal', async (t) => {
           dedent`
           Error: just because
               at interrupt
-              at workflow-isolate
-              at Activator.signalWorkflow
-              at async activate`,
+          `,
           'Error'
         ),
       ])
@@ -671,9 +677,7 @@ test('fail-signal', async (t) => {
           dedent`
           Error: Signal failed
               at fail
-              at workflow-isolate
-              at Activator.signalWorkflow
-              at async activate`,
+          `,
           'Error'
         ),
       ])
@@ -1236,9 +1240,6 @@ test('cancellation-error-is-propagated', async (t) => {
             at CancellationScope.run
             at Function.cancellable
             at Object.main
-            at workflow-isolate
-            at Activator.startWorkflow
-            at async activate
         `,
         'CancelledError'
       ),
@@ -1396,9 +1397,17 @@ test('http', async (t) => {
       ])
     );
   }
+  const failure = ApplicationFailure.retryable('Connection timeout', 'MockError');
+  failure.stack = failure.stack?.split('\n')[0];
+
   {
-    const req = cleanWorkflowFailureStackTrace(
-      await activate(t, makeResolveActivity('1', { failed: { failure: { message: 'Connection timeout' } } }))
+    const req = await activate(
+      t,
+      makeResolveActivity('1', {
+        failed: {
+          failure: await errorToFailure(failure, defaultDataConverter),
+        },
+      })
     );
     compareCompletion(
       t,
@@ -1406,11 +1415,8 @@ test('http', async (t) => {
       makeSuccess([
         makeFailWorkflowExecution(
           'Connection timeout',
-          dedent`
-          Error: Connection timeout
-              at Activator.resolveActivity
-              at activate
-          `
+          "ApplicationFailure: message='Connection timeout', type='MockError', nonRetryable=false",
+          'MockError'
         ),
       ])
     );

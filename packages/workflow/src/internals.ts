@@ -2,19 +2,22 @@ import Long from 'long';
 import * as protobufjs from 'protobufjs/minimal';
 import {
   ActivityOptions,
+  ApplicationFailure,
   composeInterceptors,
-  errorToUserCodeFailure,
+  errorToFailure,
+  ensureTemporalFailure,
+  optionalFailureToOptionalError,
   IllegalStateError,
-  nullToUndefined,
   Workflow,
   arrayFromPayloads,
   DataConverter,
   defaultDataConverter,
+  WorkflowSignalType,
 } from '@temporalio/common';
 import { coresdk } from '@temporalio/proto/lib/coresdk';
 import { alea, RNG } from './alea';
 import { ContinueAsNew, ExternalDependencies, WorkflowInfo } from './interfaces';
-import { WorkflowInterceptors } from './interceptors';
+import { SignalInput, WorkflowInput, WorkflowInterceptors } from './interceptors';
 import { CancelledError, DeterminismViolationError, WorkflowCancelledError } from './errors';
 import { ROOT_SCOPE } from './cancellation-scope';
 
@@ -38,6 +41,19 @@ export type ActivationHandler = {
 };
 
 export class Activator implements ActivationHandler {
+  public async startWorkflowNextHandler(req: () => Record<string, unknown>, input: WorkflowInput): Promise<any> {
+    let mod: Record<string, unknown>;
+    try {
+      mod = req();
+    } catch (err) {
+      const failure = ApplicationFailure.nonRetryable(err.message, 'ReferenceError');
+      failure.stack = failure.stack?.split('\n')[0];
+      throw failure;
+    }
+    state.workflow = (mod.workflow ?? mod) as Workflow;
+    return state.workflow.main(...input.args);
+  }
+
   public async startWorkflow(activation: coresdk.workflow_activation.IStartWorkflow): Promise<void> {
     const { require: req, info } = state;
     if (req === undefined || info === undefined) {
@@ -49,11 +65,11 @@ export class Activator implements ActivationHandler {
       state.interceptors.outbound.push(...interceptors.outbound);
     }
 
-    const execute = composeInterceptors(state.interceptors.inbound, 'execute', async (input) => {
-      const mod = req(info.filename);
-      state.workflow = (mod.workflow ?? mod) as Workflow;
-      return state.workflow.main(...input.args);
-    });
+    const execute = composeInterceptors(
+      state.interceptors.inbound,
+      'execute',
+      this.startWorkflowNextHandler.bind(this, req.bind(undefined, info.filename))
+    );
     execute({
       headers: new Map(Object.entries(activation.headers ?? {})),
       args: await arrayFromPayloads(state.dataConverter, activation.arguments),
@@ -82,8 +98,11 @@ export class Activator implements ActivationHandler {
       const result = completed.result ? await state.dataConverter.fromPayload(completed.result) : undefined;
       resolve(result);
     } else if (activation.result.failed) {
-      reject(new Error(nullToUndefined(activation.result.failed.failure?.message)));
+      const { failure } = activation.result.failed;
+      const err = await optionalFailureToOptionalError(failure, state.dataConverter);
+      reject(err);
     } else if (activation.result.canceled) {
+      // TODO: Use `ActivityFailure` instead
       reject(new CancelledError('Activity cancelled'));
     }
   }
@@ -115,6 +134,10 @@ export class Activator implements ActivationHandler {
     );
   }
 
+  public async signalWorkflowNextHandler(fn: WorkflowSignalType, input: SignalInput): Promise<void> {
+    return fn(...input.args);
+  }
+
   public async signalWorkflow(activation: coresdk.workflow_activation.ISignalWorkflow): Promise<void> {
     const { signalName } = activation;
     if (!signalName) {
@@ -126,12 +149,11 @@ export class Activator implements ActivationHandler {
       // Fail the activation
       throw new ReferenceError(`Workflow did not register a signal handler for ${signalName}`);
     }
-    const execute = composeInterceptors(state.interceptors.inbound, 'handleSignal', async (input) => {
-      if (state.workflow === undefined) {
-        throw new IllegalStateError('state.workflow is not defined');
-      }
-      return fn(...input.args);
-    });
+    const execute = composeInterceptors(
+      state.interceptors.inbound,
+      'handleSignal',
+      this.signalWorkflowNextHandler.bind(this, fn)
+    );
     execute({
       args: await arrayFromPayloads(state.dataConverter, activation.input),
       signalName,
@@ -143,6 +165,10 @@ export class Activator implements ActivationHandler {
       throw new Error('Expected activation with randomnessSeed attribute');
     }
     state.random = alea(activation.randomnessSeed.toBytes());
+  }
+
+  public notifyHasChange(): void {
+    throw new Error('Not implemented');
   }
 
   public removeFromCache(): void {
@@ -271,7 +297,10 @@ async function completeWorkflow(result: any) {
   state.completed = true;
 }
 
-function handleWorkflowFailure(error: any) {
+async function handleWorkflowFailure(error: any) {
+  // TODO: When an activity is cancelled it throws CancelledError because it
+  // could be cancelled by WF cancel or CancellationScope.cancel.
+  // Rethink cancelWorkflowExecution conditions.
   if (error instanceof WorkflowCancelledError) {
     state.commands.push({ cancelWorkflowExecution: {} });
   } else if (error instanceof ContinueAsNew) {
@@ -279,7 +308,7 @@ function handleWorkflowFailure(error: any) {
   } else {
     state.commands.push({
       failWorkflowExecution: {
-        failure: errorToUserCodeFailure(error),
+        failure: await errorToFailure(ensureTemporalFailure(error), state.dataConverter),
       },
     });
   }
@@ -288,13 +317,13 @@ function handleWorkflowFailure(error: any) {
 
 async function completeQuery(queryId: string, result: unknown) {
   state.commands.push({
-    respondToQuery: { queryId, succeeded: { response: await defaultDataConverter.toPayload(result) } },
+    respondToQuery: { queryId, succeeded: { response: await state.dataConverter.toPayload(result) } },
   });
 }
 
-function failQuery(queryId: string, error: any) {
+async function failQuery(queryId: string, error: any) {
   state.commands.push({
-    respondToQuery: { queryId, failed: errorToUserCodeFailure(error) },
+    respondToQuery: { queryId, failed: await errorToFailure(ensureTemporalFailure(error), state.dataConverter) },
   });
 }
 

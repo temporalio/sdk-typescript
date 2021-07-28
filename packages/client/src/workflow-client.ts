@@ -9,10 +9,10 @@ import {
   defaultDataConverter,
   composeInterceptors,
   IllegalStateError,
-  nullToUndefined,
   Workflow,
   WorkflowSignalType,
   WorkflowQueryType,
+  optionalFailureToOptionalError,
 } from '@temporalio/common';
 import { WorkflowOptions, addDefaults, compileWorkflowOptions } from './workflow-options';
 import {
@@ -280,8 +280,10 @@ export class WorkflowClient {
       );
       return result as any;
     } else if (ev.workflowExecutionFailedEventAttributes) {
+      const { failure } = ev.workflowExecutionFailedEventAttributes;
       throw new errors.WorkflowExecutionFailedError(
-        ev.workflowExecutionFailedEventAttributes.failure?.message || 'Workflow failed without failure message'
+        'Workflow execution failed',
+        await optionalFailureToOptionalError(failure, this.options.dataConverter)
       );
     } else if (ev.workflowExecutionCanceledEventAttributes) {
       throw new errors.WorkflowExecutionCancelledError(
@@ -298,7 +300,7 @@ export class WorkflowClient {
           this.options.dataConverter,
           ev.workflowExecutionTerminatedEventAttributes.details?.payloads
         ),
-        nullToUndefined(ev.workflowExecutionTerminatedEventAttributes.identity)
+        ev.workflowExecutionTerminatedEventAttributes.identity ?? undefined
       );
     } else if (ev.workflowExecutionTimedOutEventAttributes) {
       throw new errors.WorkflowExecutionTimedOutError(

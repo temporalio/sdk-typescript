@@ -11,6 +11,17 @@ import { ValueError } from './errors';
 export type Timestamp = iface.google.protobuf.ITimestamp;
 
 /**
+ * Lossy conversion function from Timestamp to number due to possible overflow.
+ * If ts is null or undefined returns undefined.
+ */
+export function optionalTsToMs(ts: Timestamp | null | undefined): number | undefined {
+  if (ts === undefined || ts === null) {
+    return undefined;
+  }
+  return tsToMs(ts);
+}
+
+/**
  * Lossy conversion function from Timestamp to number due to possible overflow
  */
 export function tsToMs(ts: Timestamp | null | undefined): number {
@@ -53,9 +64,4 @@ export function msToNumber(val: string | number): number {
     return val;
   }
   return ms(val);
-}
-
-export function nullToUndefined<T extends any | null | undefined>(x: T): Exclude<T, null> {
-  if (x === null) return undefined as any;
-  return x as any;
 }
