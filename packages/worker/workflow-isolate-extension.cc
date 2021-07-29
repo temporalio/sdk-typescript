@@ -25,8 +25,12 @@ void custom_promise_hook(
     PromiseHookType type,
     Local<Promise> promise,
     Local<Value> parent
-) {  
+) {
+#if V8_AT_LEAST(9, 0, 0)
+    Local<Context> context = promise->GetCreationContext().ToLocalChecked();
+#else
     Local<Context> context = promise->CreationContext();
+#endif
     Local<Function> fn = Local<Function>::Cast(context->GetEmbedderData(EMBEDDER_DATA_IDX));
 
     const unsigned argc = 3;
