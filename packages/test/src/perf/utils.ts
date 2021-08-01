@@ -23,6 +23,9 @@ export async function waitOnChild(child: ChildProcess): Promise<void> {
 }
 
 export async function kill(child: ChildProcess, signal: NodeJS.Signals = 'SIGINT'): Promise<void> {
+  if (child.pid === undefined) {
+    throw new TypeError('Expected child with pid');
+  }
   process.kill(child.pid, signal);
   try {
     await waitOnChild(child);
