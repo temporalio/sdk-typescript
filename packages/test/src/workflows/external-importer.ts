@@ -1,8 +1,8 @@
 import '@temporalio/workflow';
-import * as R from 'ramda';
+import fromPairs from 'ramda/es/fromPairs';
 
 export async function main(): Promise<void> {
-  const obj = R.fromPairs([
+  const obj = fromPairs([
     ['a', 1],
     ['b', 2],
   ]);
