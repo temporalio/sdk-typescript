@@ -608,6 +608,7 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
         switch (state) {
           case 'RUNNING':
           case 'STOPPING':
+          case 'DRAINING':
             return pollFn();
           case 'SUSPENDED':
             // Completes once we're out of SUSPENDED state
@@ -617,7 +618,7 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
               ignoreElements()
             );
           default:
-            // transition to DRAINING | FAILED happens only when an error occurs
+            // transition to DRAINED | FAILED happens only when an error occurs
             // in which case this observable would be closed
             throw new IllegalStateError(`Unexpected state ${state}`);
         }
