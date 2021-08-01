@@ -41,8 +41,8 @@ function compareCompletion(
   expected: coresdk.activity_result.IActivityResult
 ) {
   t.deepEqual(
-    coresdk.activity_result.ActivityResult.create(actual || undefined).toJSON(),
-    coresdk.activity_result.ActivityResult.create(expected).toJSON()
+    new coresdk.activity_result.ActivityResult(actual || undefined).toJSON(),
+    new coresdk.activity_result.ActivityResult(expected).toJSON()
   );
 }
 

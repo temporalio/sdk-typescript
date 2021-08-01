@@ -68,7 +68,7 @@ function compareCompletion(
 ) {
   t.deepEqual(
     req.toJSON(),
-    coresdk.workflow_completion.WFActivationCompletion.create({
+    new coresdk.workflow_completion.WFActivationCompletion({
       ...expected,
       runId: t.context.workflow.info.runId,
     }).toJSON()

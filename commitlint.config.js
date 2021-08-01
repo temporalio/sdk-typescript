@@ -5,7 +5,7 @@ module.exports = {
     'scope-enum': [
       2,
       'always',
-      ['activity', 'perf', 'client', 'docs', 'core', 'release', 'samples', 'worker', 'workflow'],
+      ['activity', 'perf', 'client', 'docs', 'core', 'release', 'samples', 'worker', 'workflow', 'proto'],
     ],
     'header-max-length': [2, 'always', 120],
     'body-max-line-length': [1, 'always', 100],

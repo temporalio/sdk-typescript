@@ -1,4 +1,4 @@
-import * as iface from '@temporalio/proto';
+import * as iface from '@temporalio/proto/lib/temporal';
 import { msToTs } from './time';
 
 // Copied from https://github.com/temporalio/sdk-java/blob/master/temporal-sdk/src/main/java/io/temporal/client/WorkflowOptions.java

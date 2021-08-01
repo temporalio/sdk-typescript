@@ -1,4 +1,4 @@
-import { coresdk } from '@temporalio/proto';
+import { coresdk } from '@temporalio/proto/lib/coresdk';
 
 export class ValueError extends Error {
   public readonly name: string = 'ValueError';

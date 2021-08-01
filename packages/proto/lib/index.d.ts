@@ -22,3 +22,6 @@
  * ```
  * @module
  */
+
+export * from './temporal';
+export { coresdk } from './coresdk';

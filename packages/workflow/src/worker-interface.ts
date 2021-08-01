@@ -5,7 +5,7 @@
  */
 import ivm from 'isolated-vm';
 import { ActivityOptions, IllegalStateError, msToTs, tsToMs } from '@temporalio/common';
-import { coresdk } from '@temporalio/proto';
+import { coresdk } from '@temporalio/proto/lib/coresdk';
 import { ApplyMode, ExternalDependencyFunction, WorkflowInfo } from './interfaces';
 import { consumeCompletion, ExternalCall, state } from './internals';
 import { alea } from './alea';
