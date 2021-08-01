@@ -1,5 +1,5 @@
+import * as iface from '@temporalio/proto/lib/coresdk';
 import { TextEncoder, TextDecoder } from '../encoding';
-import * as iface from '@temporalio/proto';
 
 export type Payload = iface.coresdk.common.IPayload;
 

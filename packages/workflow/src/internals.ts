@@ -11,7 +11,7 @@ import {
   DataConverter,
   defaultDataConverter,
 } from '@temporalio/common';
-import { coresdk } from '@temporalio/proto';
+import { coresdk } from '@temporalio/proto/lib/coresdk';
 import { alea, RNG } from './alea';
 import { ContinueAsNew, ExternalDependencies, WorkflowInfo } from './interfaces';
 import { WorkflowInterceptors } from './interceptors';

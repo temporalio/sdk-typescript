@@ -221,9 +221,9 @@ if (RUN_INTEGRATION_TESTS) {
     const execution = await workflow.describe();
     t.deepEqual(
       execution.workflowExecutionInfo?.type,
-      iface.temporal.api.common.v1.WorkflowType.create({ name: 'args-and-return' })
+      new iface.temporal.api.common.v1.WorkflowType({ name: 'args-and-return' })
     );
-    t.deepEqual(execution.workflowExecutionInfo?.memo, iface.temporal.api.common.v1.Memo.create({ fields: {} }));
+    t.deepEqual(execution.workflowExecutionInfo?.memo, new iface.temporal.api.common.v1.Memo({ fields: {} }));
     t.deepEqual(Object.keys(execution.workflowExecutionInfo!.searchAttributes!.indexedFields!), ['BinaryChecksums']);
 
     const checksums = await defaultDataConverter.fromPayload(
@@ -257,7 +257,7 @@ if (RUN_INTEGRATION_TESTS) {
     const execution = await workflow.describe();
     t.deepEqual(
       execution.workflowExecutionInfo?.type,
-      iface.temporal.api.common.v1.WorkflowType.create({ name: 'sleep' })
+      new iface.temporal.api.common.v1.WorkflowType({ name: 'sleep' })
     );
     t.deepEqual(await defaultDataConverter.fromPayload(execution.workflowExecutionInfo!.memo!.fields!.a!), 'b');
     t.deepEqual(

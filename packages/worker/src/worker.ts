@@ -793,7 +793,7 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
                     numRunningWorkflowInstances: this.numRunningWorkflowInstancesSubject.value,
                   },
                 }),
-                activation: coresdk.workflow_activation.WFActivation.create({
+                activation: new coresdk.workflow_activation.WFActivation({
                   runId: group$.key,
                   jobs: [{ removeFromCache: true }],
                 }),
@@ -1002,7 +1002,7 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
           this.log.warn('Poll resulted in WorkflowError, converting to a removeFromCache job', { runId: err.runId });
           return {
             parentSpan,
-            activation: coresdk.workflow_activation.WFActivation.create({
+            activation: new coresdk.workflow_activation.WFActivation({
               runId: err.runId,
               jobs: [{ removeFromCache: true }],
             }),
@@ -1043,7 +1043,7 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
           if (err instanceof errors.WorkflowError) {
             workflowCompletionFeedbackSubject.next({
               parentSpan: root,
-              activation: coresdk.workflow_activation.WFActivation.create({
+              activation: new coresdk.workflow_activation.WFActivation({
                 runId: err.runId,
                 jobs: [{ removeFromCache: true }],
               }),

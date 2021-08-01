@@ -7,27 +7,12 @@ const pbjs = require('protobufjs/cli/pbjs');
 const pbts = require('protobufjs/cli/pbts');
 
 const outputDir = resolve(__dirname, '../lib');
-const jsOutputFile = resolve(outputDir, 'index.js');
-const dtsOutputFile = resolve(outputDir, 'index.d.ts');
+const coresdkJsOutputFile = resolve(outputDir, 'coresdk.js');
+const serviceJsOutputFile = resolve(outputDir, 'temporal.js');
 const protoBaseDir = resolve(__dirname, '../../core-bridge/sdk-core/protos');
-mkdirsSync(outputDir);
 
 const coreProtoPath = resolve(protoBaseDir, 'local/core_interface.proto');
 const serviceProtoPath = resolve(protoBaseDir, 'api_upstream/temporal/api/workflowservice/v1/service.proto');
-
-const pbjsArgs = [
-  '--path',
-  resolve(protoBaseDir, 'api_upstream'),
-  '--wrap',
-  'commonjs',
-  '--target',
-  'static-module',
-  '--force-long',
-  '--out',
-  jsOutputFile,
-  coreProtoPath,
-  serviceProtoPath,
-];
 
 function mtime(path) {
   try {
@@ -40,31 +25,65 @@ function mtime(path) {
   }
 }
 
-async function main() {
-  const protoFiles = glob.sync(resolve(protoBaseDir, '**/*.proto'));
-  const protosMTime = Math.max(...protoFiles.map(mtime));
+async function compileProtos(protoPath, jsOutputFile, dtsOutputFile, ...args) {
+  console.log(`Creating protobuf JS definitions from ${protoPath}`);
 
-  if (protosMTime < mtime(jsOutputFile)) {
-    console.log('Asuming protos are up to date');
-    return;
-  }
-
-  console.log('Creating protobuf JS definitions');
+  const pbjsArgs = [
+    ...args,
+    '--wrap',
+    'commonjs',
+    '--target',
+    'static-module',
+    '--force-long',
+    '--no-verify',
+    '--no-create',
+    '--out',
+    jsOutputFile,
+    protoPath,
+  ];
   await promisify(pbjs.main)(pbjsArgs);
 
-  console.log('Creating protobuf TS definitions');
+  console.log(`Creating protobuf TS definitions from ${protoPath}`);
   await promisify(pbts.main)(['--out', dtsOutputFile, jsOutputFile]);
 
-  const moduleHeader = readFileSync(resolve(__dirname, 'module-header.txt'), 'utf8');
-  // Prepend module docs and fix issue where Long is not found in TS definitions (https://github.com/protobufjs/protobuf.js/issues/1533)
+  // Fix issue where Long is not found in TS definitions (https://github.com/protobufjs/protobuf.js/issues/1533)
   const pbtsOutput = readFileSync(dtsOutputFile, 'utf8');
   writeFileSync(
     dtsOutputFile,
     dedent`
-  ${moduleHeader}
   import Long from "long";
   ${pbtsOutput}
   `
+  );
+
+  // Get rid of most comments in file (cuts size in half)
+  const pbjsOutput = readFileSync(jsOutputFile, 'utf8');
+  const sanitizedOutput = pbjsOutput
+    .split('\n')
+    .filter((l) => !/^\s*(\*|\/\*\*)/.test(l))
+    .join('\n');
+  writeFileSync(jsOutputFile, sanitizedOutput);
+}
+
+async function main() {
+  mkdirsSync(outputDir);
+
+  const protoFiles = glob.sync(resolve(protoBaseDir, '**/*.proto'));
+  const protosMTime = Math.max(...protoFiles.map(mtime));
+  const genMTime = Math.min(mtime(coresdkJsOutputFile), mtime(serviceJsOutputFile));
+
+  if (protosMTime < genMTime) {
+    console.log('Asuming protos are up to date');
+    return;
+  }
+
+  await compileProtos(coreProtoPath, coresdkJsOutputFile, resolve(outputDir, 'coresdk.d.ts'));
+  await compileProtos(
+    serviceProtoPath,
+    serviceJsOutputFile,
+    resolve(outputDir, 'temporal.d.ts'),
+    '--path',
+    resolve(protoBaseDir, 'api_upstream')
   );
 
   console.log('Done');

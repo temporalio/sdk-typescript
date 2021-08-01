@@ -32,8 +32,11 @@ function cleanTsGeneratedFiles() {
 
 function cleanProtoGeneratedFiles() {
   const protosOutputDir = resolve(packagesPath, 'proto/lib');
-  console.log(`Removing ${protosOutputDir}`);
-  removeSync(protosOutputDir);
+  console.log(`Removing generated files in ${protosOutputDir}`);
+  removeSync(resolve(protosOutputDir, 'coresdk.js'));
+  removeSync(resolve(protosOutputDir, 'coresdk.d.ts'));
+  removeSync(resolve(protosOutputDir, 'temporal.js'));
+  removeSync(resolve(protosOutputDir, 'temporal.d.ts'));
 }
 
 function cleanCompiledRustFiles() {

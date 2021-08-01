@@ -120,7 +120,7 @@ export class Connection {
         callback
       );
     };
-    this.service = WorkflowService.create(rpcImpl, false, false);
+    this.service = new WorkflowService(rpcImpl, false, false);
   }
 
   /**

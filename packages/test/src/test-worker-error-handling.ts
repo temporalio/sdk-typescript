@@ -29,7 +29,7 @@ function makeStartWorkflowActivation(runId: string) {
     runId,
     timestamp: msToTs(10),
     jobs: [
-      coresdk.workflow_activation.WFActivationJob.create({
+      new coresdk.workflow_activation.WFActivationJob({
         startWorkflow: {
           workflowId: 'wfid',
           arguments: [],

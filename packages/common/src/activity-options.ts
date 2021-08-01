@@ -1,4 +1,4 @@
-import { coresdk } from '@temporalio/proto';
+import { coresdk } from '@temporalio/proto/lib/coresdk';
 import { RetryOptions } from './interfaces';
 
 export const ActivityCancellationType = coresdk.workflow_commands.ActivityCancellationType;
