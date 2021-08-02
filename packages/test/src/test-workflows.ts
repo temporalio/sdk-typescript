@@ -1,6 +1,5 @@
 import anyTest, { TestInterface, ExecutionContext } from 'ava';
 import path from 'path';
-import ivm from 'isolated-vm';
 import Long from 'long';
 import dedent from 'dedent';
 import { coresdk } from '@temporalio/proto';
@@ -8,15 +7,16 @@ import { ApplyMode } from '@temporalio/workflow';
 import { defaultDataConverter, msToTs } from '@temporalio/common';
 import { Workflow } from '@temporalio/worker/lib/workflow';
 import { WorkflowIsolateBuilder } from '@temporalio/worker/lib/isolate-builder';
+import { RoundRobinIsolateContextProvider } from '@temporalio/worker/lib/isolate-context-provider';
 import { DefaultLogger } from '@temporalio/worker/lib/logger';
 import * as activityFunctions from './activities';
 import { u8 } from './helpers';
 
 export interface Context {
-  isolate: ivm.Isolate;
   workflow: Workflow;
   logs: unknown[][];
   script: string;
+  contextProvider: RoundRobinIsolateContextProvider;
 }
 
 const test = anyTest as TestInterface<Context>;
@@ -26,16 +26,16 @@ test.before(async (t) => {
   const workflowsPath = path.join(__dirname, 'workflows');
   const nodeModulesPath = path.join(__dirname, '../../../node_modules');
   const activities = new Map([['@activities', activityFunctions]]);
-  const builder = new WorkflowIsolateBuilder(logger, nodeModulesPath, workflowsPath, activities, 1024);
-  t.context.isolate = await builder.build();
+  const builder = new WorkflowIsolateBuilder(logger, nodeModulesPath, workflowsPath, activities);
+  t.context.contextProvider = await RoundRobinIsolateContextProvider.create(builder, 2, 1024);
 });
 
 test.beforeEach(async (t) => {
-  const { isolate } = t.context;
+  const { contextProvider } = t.context;
   // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
   const testName = t.title.match(/\S+$/)![0];
   const workflow = await Workflow.create(
-    isolate,
+    await contextProvider.getContext(),
     {
       filename: testName,
       runId: 'test-runId',
@@ -51,7 +51,7 @@ test.beforeEach(async (t) => {
   );
   const logs: unknown[][] = [];
   await workflow.injectGlobal('console.log', (...args: unknown[]) => void logs.push(args), ApplyMode.SYNC);
-  t.context = { isolate, workflow, logs, script: testName };
+  t.context = { workflow, logs, script: testName, contextProvider };
 });
 
 async function activate(t: ExecutionContext<Context>, activation: coresdk.workflow_activation.IWFActivation) {

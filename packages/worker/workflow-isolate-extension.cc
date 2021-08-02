@@ -27,11 +27,18 @@ void custom_promise_hook(
     Local<Value> parent
 ) {
 #if V8_AT_LEAST(9, 0, 0)
-    Local<Context> context = promise->GetCreationContext().ToLocalChecked();
+    Local<Context> context;
+    bool valid = promise->GetCreationContext().ToLocal(&context);
+    if (!valid) return;
 #else
     Local<Context> context = promise->CreationContext();
 #endif
+    // This may happen when creating a promise before registering the promise hook for a context
+    // (e.g. when creating the root scope)
     Local<Function> fn = Local<Function>::Cast(context->GetEmbedderData(EMBEDDER_DATA_IDX));
+    if (!fn->IsFunction()) {
+        return;
+    }
 
     const unsigned argc = 3;
     auto hook_type_str = promise_hook_type_to_str(type);
@@ -43,8 +50,9 @@ void custom_promise_hook(
 NAN_METHOD(register_promise_hook) {
     auto isolate = Isolate::GetCurrent();
     auto ctx = isolate->GetCurrentContext();
-    ctx->SetEmbedderData(EMBEDDER_DATA_IDX, info[0]);
+    // Set the promise hook on the isolate, overridden once per context (Workflow)
     isolate->SetPromiseHook(custom_promise_hook);
+    ctx->SetEmbedderData(EMBEDDER_DATA_IDX, info[0]);
     info.GetReturnValue().Set(Nan::Undefined());
 }
 

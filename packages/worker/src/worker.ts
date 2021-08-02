@@ -31,7 +31,6 @@ import {
   tap,
   scan,
 } from 'rxjs/operators';
-import ivm from 'isolated-vm';
 import * as native from '@temporalio/core-bridge';
 import { coresdk } from '@temporalio/proto';
 import { ApplyMode, ExternalDependencies, WorkflowInfo } from '@temporalio/workflow';
@@ -52,6 +51,7 @@ import { Workflow } from './workflow';
 import { Activity } from './activity';
 import { DefaultLogger, Logger } from './logger';
 import { WorkflowIsolateBuilder } from './isolate-builder';
+import { IsolateContextProvider, RoundRobinIsolateContextProvider } from './isolate-context-provider';
 import * as errors from './errors';
 import { childSpan, instrument, tracer } from './tracing';
 import { InjectedDependencies, getIvmTransferOptions } from './dependencies';
@@ -432,7 +432,6 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
   protected readonly numInFlightActivationsSubject = new BehaviorSubject<number>(0);
   protected readonly numInFlightActivitiesSubject = new BehaviorSubject<number>(0);
   protected readonly numRunningWorkflowInstancesSubject = new BehaviorSubject<number>(0);
-  protected readonly nativeWorker: NativeWorkerLike;
 
   protected static nativeWorkerCtor: WorkerConstructor = NativeWorker;
   protected nextIsolateIdx = 0;
@@ -452,47 +451,37 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
       ? await WorkflowIsolateBuilder.resolveActivities(compiledOptions.logger, compiledOptions.activitiesPath)
       : new Map();
 
-    let isolates: ivm.Isolate[] | undefined = undefined;
-
-    if (compiledOptions.workflowsPath && compiledOptions.nodeModulesPath) {
-      const builder = new WorkflowIsolateBuilder(
-        compiledOptions.logger,
-        compiledOptions.nodeModulesPath,
-        compiledOptions.workflowsPath,
-        resolvedActivities,
-        compiledOptions.maxIsolateMemoryMB,
-        compiledOptions.interceptors?.workflowModules
-      );
-      const snapshot = await builder.buildSnapshot();
-      isolates = Array(compiledOptions.isolatePoolSize);
-      for (let i = 0; i < compiledOptions.isolatePoolSize; ++i) {
-        isolates[i] = new ivm.Isolate({ snapshot, memoryLimit: compiledOptions.maxIsolateMemoryMB });
-      }
-    }
-    // TODO: Provide another way of supplying the isolate to the Worker
-    // } else if (compiledOptions.isolate) {
-    //   isolate = compiledOptions.isolate;
-    // }
-
-    if (isolates === undefined) {
+    if (!(compiledOptions.workflowsPath && compiledOptions.nodeModulesPath)) {
       throw new TypeError(
         'Could not build isolates for the worker due to missing WorkerOptions. Make sure you specify the `workDir` option, or both the `workflowsPath` and `nodeModulesPath` options.'
       );
     }
-    return new this(nativeWorker, isolates, resolvedActivities, compiledOptions);
+
+    const builder = new WorkflowIsolateBuilder(
+      compiledOptions.logger,
+      compiledOptions.nodeModulesPath,
+      compiledOptions.workflowsPath,
+      resolvedActivities,
+      compiledOptions.interceptors?.workflowModules
+    );
+    const contextProvider = await RoundRobinIsolateContextProvider.create(
+      builder,
+      compiledOptions.isolatePoolSize,
+      compiledOptions.maxIsolateMemoryMB
+    );
+
+    return new this(nativeWorker, contextProvider, resolvedActivities, compiledOptions);
   }
 
   /**
    * Create a new Worker from nativeWorker.
    */
   protected constructor(
-    nativeWorker: NativeWorkerLike,
-    protected readonly isolates: ivm.Isolate[],
+    protected readonly nativeWorker: NativeWorkerLike,
+    protected readonly isolateContextProvider: IsolateContextProvider,
     protected readonly resolvedActivities: Map<string, Record<string, (...args: any[]) => any>>,
     public readonly options: CompiledWorkerOptions<T>
-  ) {
-    this.nativeWorker = nativeWorker;
-  }
+  ) {}
 
   /**
    * An Observable which emits each time the number of in flight activations changes
@@ -852,14 +841,11 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
                       });
                       this.numRunningWorkflowInstancesSubject.next(this.numRunningWorkflowInstancesSubject.value + 1);
                       // workflow type is Workflow | undefined which doesn't work in the instrumented closures, create add local variable with type Workflow.
-                      const createdWF = await instrument(span, 'workflow.create', () => {
-                        if (this.isolates === undefined) {
-                          throw new IllegalStateError('Worker isolate not initialized');
-                        }
-                        const isolateIdx = this.nextIsolateIdx;
-                        this.nextIsolateIdx = (this.nextIsolateIdx + 1) % this.options.isolatePoolSize;
-                        return Workflow.create(
-                          this.isolates[isolateIdx],
+                      const createdWF = await instrument(span, 'workflow.create', async () => {
+                        const context = await this.isolateContextProvider.getContext();
+
+                        return await Workflow.create(
+                          context,
                           {
                             filename: workflowType,
                             runId: activation.runId,

@@ -1,5 +1,4 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
-import ivm from 'isolated-vm';
 import { coresdk } from '@temporalio/proto';
 import { defaultDataConverter, msToTs } from '@temporalio/common';
 import {
@@ -12,6 +11,10 @@ import {
   errors,
 } from '@temporalio/worker/lib/worker';
 import { WorkflowIsolateBuilder } from '@temporalio/worker/lib/isolate-builder';
+import {
+  IsolateContextProvider,
+  RoundRobinIsolateContextProvider,
+} from '@temporalio/worker/lib/isolate-context-provider';
 import { DefaultLogger } from '@temporalio/worker';
 import { sleep } from '@temporalio/worker/lib/utils';
 
@@ -152,12 +155,12 @@ export class Worker extends RealWorker {
   }
 
   public constructor(
-    isolate: ivm.Isolate,
+    isolateContextProvider: IsolateContextProvider,
     resolvedActivities: Map<string, Record<string, (...args: any[]) => any>>,
     opts: CompiledWorkerOptions
   ) {
     const nativeWorker = new MockNativeWorker();
-    super(nativeWorker, [isolate], resolvedActivities, opts);
+    super(nativeWorker, isolateContextProvider, resolvedActivities, opts);
   }
 
   public runWorkflows(...args: Parameters<Worker['workflow$']>): Promise<void> {
@@ -185,16 +188,23 @@ export async function makeDefaultWorker(): Promise<Worker> {
     options.logger,
     options.nodeModulesPath!,
     options.workflowsPath!,
-    resolvedActivities,
-    1024
+    resolvedActivities
   );
-  const isolate = await builder.build();
-  return new Worker(isolate, resolvedActivities, options);
+  const provider = await RoundRobinIsolateContextProvider.create(builder, 1, 1024);
+  return new Worker(provider, resolvedActivities, options);
 }
 
 export function isolateFreeWorker(
   options: WorkerOptions = defaultOptions,
   resolvedActivities: Map<string, Record<string, any>> = new Map()
 ): Worker {
-  return new Worker(new ivm.Isolate(), resolvedActivities, compileWorkerOptions(addDefaults(options)));
+  return new Worker(
+    {
+      getContext() {
+        throw new Error('Not implemented');
+      },
+    },
+    resolvedActivities,
+    compileWorkerOptions(addDefaults(options))
+  );
 }
