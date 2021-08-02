@@ -17,7 +17,6 @@ import { Logger } from './logger';
  * @param workflowsPath all Workflows found in path will be put in the bundle
  * @param activities mapping of module name to module exports, exported functions will be replaced with stubs and the rest ignored
  * @param activityDefaults used to inject Activity options into the Activity stubs
- * @param maxIsolateMemoryMB used to limit the memory consumption of the created isolate
  * @param workflowInterceptorModules list of interceptor modules to register on Workflow creation
  */
 export class WorkflowIsolateBuilder {
@@ -26,11 +25,13 @@ export class WorkflowIsolateBuilder {
     public readonly nodeModulesPath: string,
     public readonly workflowsPath: string,
     public readonly activities: Map<string, Record<string, any>>,
-    public readonly maxIsolateMemoryMB: number,
     public readonly workflowInterceptorModules: string[] = []
   ) {}
 
-  public async buildSnapshot(): Promise<ivm.ExternalCopy<ArrayBuffer>> {
+  /**
+   * @return a string representation of the bundled Workflow code
+   */
+  public async createBundle(): Promise<string> {
     const vol = new memfs.Volume();
     const ufs = new unionfs.Union();
     // We cast to any because of inacurate types
@@ -43,15 +44,25 @@ export class WorkflowIsolateBuilder {
     const workflows = await this.findWorkflows();
     this.genEntrypoint(vol, entrypointPath, workflows);
     await this.bundle(ufs, entrypointPath, sourceDir, distDir);
-    const code = ufs.readFileSync(path.join(distDir, 'main.js'), 'utf8');
+    return ufs.readFileSync(path.join(distDir, 'main.js'), 'utf8');
+  }
+
+  /**
+   * @return a V8 snapshot which can be used to create isolates
+   */
+  public async buildSnapshot(): Promise<ivm.ExternalCopy<ArrayBuffer>> {
+    const code = await this.createBundle();
     return ivm.Isolate.createSnapshot([{ code, filename: 'workflow-isolate' }]);
   }
+
   /**
-   * Bundle Workflows with dependencies and return an Isolate pre-loaded with bundle.
+   * Bundle Workflows with dependencies and return an Isolate pre-loaded with the bundle.
+   *
+   * @param maxIsolateMemoryMB used to limit the memory consumption of the created isolate
    */
-  public async build(): Promise<ivm.Isolate> {
+  public async buildIsolate(maxIsolateMemoryMB: number): Promise<ivm.Isolate> {
     const snapshot = await this.buildSnapshot();
-    return new ivm.Isolate({ snapshot, memoryLimit: this.maxIsolateMemoryMB });
+    return new ivm.Isolate({ snapshot, memoryLimit: maxIsolateMemoryMB });
   }
 
   /**

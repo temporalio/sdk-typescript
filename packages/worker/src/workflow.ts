@@ -23,7 +23,6 @@ const isolateExtensionModule = new ivm.NativeModule(
 export class Workflow {
   private constructor(
     public readonly info: WorkflowInfo,
-    readonly isolate: ivm.Isolate,
     readonly context: ivm.Context,
     readonly workflowModule: WorkflowModule,
     public readonly isolateExecutionTimeoutMs: number,
@@ -31,15 +30,13 @@ export class Workflow {
   ) {}
 
   public static async create(
-    isolate: ivm.Isolate,
+    context: ivm.Context,
     info: WorkflowInfo,
     activityDefaults: ActivityOptions,
     interceptorModules: string[],
     randomnessSeed: Long,
     isolateExecutionTimeoutMs: number
   ): Promise<Workflow> {
-    const context = await isolate.createContext();
-
     const [
       activate,
       concludeActivation,
@@ -55,7 +52,7 @@ export class Workflow {
             timeout: isolateExecutionTimeoutMs,
           })
         )
-        .concat([isolateExtensionModule.create(context)])
+        .concat(isolateExtensionModule.create(context))
     );
 
     await context.evalClosure(
@@ -66,7 +63,6 @@ export class Workflow {
 
     return new Workflow(
       info,
-      isolate,
       context,
       { activate, concludeActivation, inject, resolveExternalDependencies, getAndResetPendingExternalCalls },
       isolateExecutionTimeoutMs
