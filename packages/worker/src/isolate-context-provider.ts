@@ -9,6 +9,11 @@ export interface IsolateContextProvider {
    * Get an isolate context for running a Workflow
    */
   getContext(): Promise<ivm.Context>;
+
+  /**
+   * Destroy and cleanup any resources
+   */
+  destroy(): void;
 }
 
 /**
@@ -51,5 +56,14 @@ export class RoundRobinIsolateContextProvider implements IsolateContextProvider 
       scripts[i] = await isolate.compileScript(code, { filename: 'workflow-isolate' });
     }
     return new this(poolSize, isolates, scripts);
+  }
+
+  public destroy(): void {
+    for (const script of this.scripts) {
+      script.release();
+    }
+    for (const isolate of this.isolates) {
+      isolate.dispose();
+    }
   }
 }

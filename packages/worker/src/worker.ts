@@ -1168,6 +1168,7 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
         .toPromise();
     } finally {
       await this.nativeWorker.completeShutdown();
+      this.isolateContextProvider.destroy();
     }
   }
 

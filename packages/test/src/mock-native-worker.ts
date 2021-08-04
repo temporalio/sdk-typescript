@@ -203,6 +203,9 @@ export function isolateFreeWorker(
       getContext() {
         throw new Error('Not implemented');
       },
+      destroy() {
+        /* Nothing to destroy */
+      },
     },
     resolvedActivities,
     compileWorkerOptions(addDefaults(options))
