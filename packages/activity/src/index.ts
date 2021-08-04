@@ -190,7 +190,10 @@ export class Context {
    * @returns a Promise that either resolves when deadline is reached or rejects when the Context is cancelled
    */
   public sleep(ms: number): Promise<void> {
-    const timer = new Promise<void>((resolve) => setTimeout(resolve, ms));
-    return Promise.race([this.cancelled, timer]);
+    let handle: NodeJS.Timeout;
+    const timer = new Promise<void>((resolve) => {
+      handle = setTimeout(resolve, ms);
+    });
+    return Promise.race([this.cancelled.finally(() => clearTimeout(handle)), timer]);
   }
 }
