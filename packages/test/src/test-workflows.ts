@@ -31,7 +31,11 @@ test.before(async (t) => {
     ['@activities/failure-tester', failureTesterActivityFunctions],
   ]);
   const builder = new WorkflowIsolateBuilder(logger, nodeModulesPath, workflowsPath, activities);
-  t.context.contextProvider = await RoundRobinIsolateContextProvider.create(builder, 2, 1024);
+  t.context.contextProvider = await RoundRobinIsolateContextProvider.create(builder, 1, 1024);
+});
+
+test.after.always((t) => {
+  t.context.contextProvider.destroy();
 });
 
 test.beforeEach(async (t) => {
