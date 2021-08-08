@@ -14,8 +14,8 @@ export async function main(): Promise<any> {
     return first;
   });
   return await scopePromise;
-  // The Activity that did not complete will effectivly be cancelled when
-  // Workflow completes unless explicitly awaited upon:
+  // The Activity that did not complete will effectively be cancelled when
+  // Workflow completes unless the Activity is awaited:
   // await Promise.all([p1, p2]);
 }
 // @@@SNIPEND
