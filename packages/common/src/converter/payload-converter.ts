@@ -30,15 +30,55 @@ export interface PayloadConverter {
    *     reason.
    */
   fromData<T>(content: Payload): Promise<T>;
+
+  /**
+   * Synchronous version of {@link toData}, used in the Workflow runtime because
+   * the async version limits the functionality of the runtime.
+   *
+   * Implements conversion of value to payload
+   *
+   * @param value JS value to convert.
+   * @return converted value
+   * @throws DataConverterException if conversion of the value passed as parameter failed for any
+   *     reason.
+   */
+  toDataSync(value: unknown): Payload | undefined;
+
+  /**
+   * Synchronous version of {@link fromData}, used in the Workflow runtime because
+   * the async version limits the functionality of the runtime.
+   *
+   * Implements conversion of payload to value.
+   *
+   * @param content Serialized value to convert to a JS value.
+   * @return converted JS value
+   * @throws DataConverterException if conversion of the data passed as parameter failed for any
+   *     reason.
+   */
+  fromDataSync<T>(content: Payload): T;
+}
+
+export abstract class AsyncFacadePayloadConverter implements PayloadConverter {
+  abstract encodingType: string;
+  abstract toDataSync(value: unknown): Payload | undefined;
+  abstract fromDataSync<T>(content: Payload): T;
+
+  public async toData(value: unknown): Promise<Payload | undefined> {
+    return this.toDataSync(value);
+  }
+
+  public async fromData<T>(content: Payload): Promise<T> {
+    return this.fromDataSync(content);
+  }
 }
 
 /**
  * Converts between JS undefined and NULL Payload
  */
-export class UndefinedPayloadConverter implements PayloadConverter {
+export class UndefinedPayloadConverter extends AsyncFacadePayloadConverter {
   public encodingType = encodingTypes.METADATA_ENCODING_NULL;
 
-  public async toData(value: unknown): Promise<Payload | undefined> {
+  public toDataSync(value: unknown): Payload | undefined {
     if (value !== undefined) return undefined; // Can't encode
     return {
       metadata: {
@@ -47,7 +87,7 @@ export class UndefinedPayloadConverter implements PayloadConverter {
     };
   }
 
-  public async fromData<T>(_content: Payload): Promise<T> {
+  public fromDataSync<T>(_content: Payload): T {
     return undefined as any; // Just return undefined
   }
 }
@@ -55,10 +95,10 @@ export class UndefinedPayloadConverter implements PayloadConverter {
 /**
  * Converts between non-undefined values and serialized JSON Payload
  */
-export class JsonPayloadConverter implements PayloadConverter {
+export class JsonPayloadConverter extends AsyncFacadePayloadConverter {
   public encodingType = encodingTypes.METADATA_ENCODING_JSON;
 
-  public async toData(value: unknown): Promise<Payload | undefined> {
+  public toDataSync(value: unknown): Payload | undefined {
     if (value === undefined) return undefined; // Should be encoded with the UndefinedPayloadConverter
     return {
       metadata: {
@@ -68,7 +108,7 @@ export class JsonPayloadConverter implements PayloadConverter {
     };
   }
 
-  public async fromData<T>(content: Payload): Promise<T> {
+  public fromDataSync<T>(content: Payload): T {
     if (content.data === undefined || content.data === null) {
       throw new ValueError('Got payload with no data');
     }
@@ -79,10 +119,10 @@ export class JsonPayloadConverter implements PayloadConverter {
 /**
  * Converts between binary data types and RAW Payload
  */
-export class BinaryPayloadConverter implements PayloadConverter {
+export class BinaryPayloadConverter extends AsyncFacadePayloadConverter {
   public encodingType = encodingTypes.METADATA_ENCODING_RAW;
 
-  public async toData(value: unknown): Promise<Payload | undefined> {
+  public toDataSync(value: unknown): Payload | undefined {
     // TODO: support any DataView or ArrayBuffer?
     if (!(value instanceof Uint8Array)) {
       return undefined;
@@ -95,7 +135,7 @@ export class BinaryPayloadConverter implements PayloadConverter {
     };
   }
 
-  public async fromData<T>(content: Payload): Promise<T> {
+  public fromDataSync<T>(content: Payload): T {
     // TODO: support any DataView or ArrayBuffer?
     return content.data as any;
   }

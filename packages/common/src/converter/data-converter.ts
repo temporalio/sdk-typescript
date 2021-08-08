@@ -38,6 +38,32 @@ export interface DataConverter {
    *     reason.
    */
   fromPayloads<T>(index: number, content?: Payload[] | null): Promise<T>;
+
+  /**
+   * Sync conversion of single payload, used in the Workflow runtime
+   */
+  toPayloadSync<T>(value: T): Payload;
+
+  /**
+   * Sync conversion from a single payload, used in the Workflow runtime
+   */
+  fromPayloadSync<T>(payload: Payload): T;
+  /**
+   * Sync conversion of all arguments, used in the Workflow runtime
+   *
+   * Implements conversion of a list of values.
+   *
+   * @param values JS values to convert to Payloads.
+   * @return converted value
+   * @throws DataConverterError if conversion of the value passed as parameter failed for any
+   *     reason.
+   */
+  toPayloadsSync(...values: unknown[]): Payload[] | undefined;
+
+  /**
+   * Sync version of {@link fromPayloads}
+   */
+  fromPayloadsSync<T>(index: number, content?: Payload[] | null): T;
 }
 
 export class CompositeDataConverter implements DataConverter {
@@ -59,6 +85,14 @@ export class CompositeDataConverter implements DataConverter {
     throw new ValueError(`Cannot serialize ${value}`);
   }
 
+  public toPayloadSync<T>(value: T): Payload {
+    for (const converter of this.converters) {
+      const result = converter.toDataSync(value);
+      if (result !== undefined) return result;
+    }
+    throw new ValueError(`Cannot serialize ${value}`);
+  }
+
   public async fromPayload<T>(payload: Payload): Promise<T> {
     if (payload.metadata === undefined || payload.metadata === null) {
       throw new ValueError('Missing payload metadata');
@@ -71,11 +105,30 @@ export class CompositeDataConverter implements DataConverter {
     return await converter.fromData(payload);
   }
 
+  public fromPayloadSync<T>(payload: Payload): T {
+    if (payload.metadata === undefined || payload.metadata === null) {
+      throw new ValueError('Missing payload metadata');
+    }
+    const encoding = str(payload.metadata[METADATA_ENCODING_KEY]);
+    const converter = this.converterByEncoding.get(encoding);
+    if (converter === undefined) {
+      throw new ValueError(`Unknown encoding: ${encoding}`);
+    }
+    return converter.fromDataSync(payload);
+  }
+
   public async toPayloads(...values: unknown[]): Promise<Payload[] | undefined> {
     if (values.length === 0) {
       return undefined;
     }
     return await Promise.all(values.map((value) => this.toPayload(value)));
+  }
+
+  public toPayloadsSync(...values: unknown[]): Payload[] | undefined {
+    if (values.length === 0) {
+      return undefined;
+    }
+    return values.map((value) => this.toPayloadSync(value));
   }
 
   public async fromPayloads<T>(index: number, payloads?: Payload[] | null): Promise<T> {
@@ -84,6 +137,14 @@ export class CompositeDataConverter implements DataConverter {
       return undefined as any;
     }
     return await this.fromPayload(payloads[index]);
+  }
+
+  public fromPayloadsSync<T>(index: number, payloads?: Payload[] | null): T {
+    // To make adding arguments a backwards compatible change
+    if (payloads === undefined || payloads === null || index >= payloads.length) {
+      return undefined as any;
+    }
+    return this.fromPayloadSync(payloads[index]);
   }
 }
 
@@ -102,6 +163,22 @@ export async function mapToPayloads<K extends string>(
     await Promise.all(
       Object.entries(source).map(async ([k, v]): Promise<[K, Payload]> => [k as K, await converter.toPayload(v)])
     )
+  ) as Record<K, Payload>;
+}
+
+export function arrayFromPayloadsSync(converter: DataConverter, content?: Payload[] | null): unknown[] {
+  if (!content) {
+    return [];
+  }
+  return content.map((payload: Payload) => converter.fromPayloadSync(payload));
+}
+
+export function mapToPayloadsSync<K extends string>(
+  converter: DataConverter,
+  source: Record<K, any>
+): Record<K, Payload> {
+  return Object.fromEntries(
+    Object.entries(source).map(([k, v]): [K, Payload] => [k as K, converter.toPayloadSync(v)])
   ) as Record<K, Payload>;
 }
 
