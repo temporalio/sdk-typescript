@@ -8,15 +8,21 @@
   <img src="https://img.shields.io/npm/l/temporalio?style=for-the-badge" alt="LICENSE" />
 </div>
 
-[Node SDK docs](https://docs.temporal.io/docs/node/introduction)
-
-[Node SDK API reference](https://nodejs.temporal.io/)
-
-[General Temporal docs](https://docs.temporal.io)
-
 Temporal is a microservice orchestration platform which enables developers to build scalable applications without sacrificing productivity or reliability. Temporal server executes units of application logic—Workflows—in a resilient manner that automatically handles intermittent failures and retries failed operations.
 
 Temporal is a mature technology—it's a fork of Uber's Cadence. Temporal is being developed by [Temporal Technologies](https://temporal.io), a startup by the creators of Cadence.
+
+## Documentation
+
+Check out the [Getting started](https://docs.temporal.io/docs/node/getting-started) page for a quick overview.
+
+The documentation is divided into several sections:
+
+- [Node SDK docs](https://docs.temporal.io/docs/node/introduction)
+- [Node SDK API reference](https://nodejs.temporal.io/)
+- [General Temporal docs](https://docs.temporal.io)
+
+You can improve it by sending pull requests to this repository (for the API reference) or to the [documentation repository](https://github.com/temporalio/documentation).
 
 ## This SDK is in alpha
 
