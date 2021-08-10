@@ -51,4 +51,4 @@ In order to run integration tests:
 
 - Typescript code is linted with [eslint](https://eslint.org/)
 - Files in this repo are formatted with [prettier](https://prettier.io/)
-- All pull requests SHOULD adhere to the [Conventional Commits specification](https://conventionalcommits.org/)
+- All pull requests SHOULD adhere to the [Conventional Commits specification](https://conventionalcommits.org/) with sentence case descriptions. For example: `feat(workflow): Implement continueAsNew`
