@@ -130,7 +130,7 @@ export class ApplicationFailure extends TemporalFailure {
 export class CancelledFailure extends TemporalFailure {
   public readonly name: string = 'CancelledFailure';
 
-  constructor(message: string | undefined, public readonly details: unknown[], cause?: Error) {
+  constructor(message: string | undefined, public readonly details: unknown[] = [], cause?: Error) {
     super(message, message, cause);
   }
 }
@@ -196,6 +196,12 @@ export class ActivityFailure extends TemporalFailure {
   }
 }
 
+/**
+ * Contains information about an child workflow failure. Always contains the original reason for the
+ * failure as its cause. For example if a child workflow was terminated the cause is {@link TerminatedFailure}.
+ *
+ * This exception is expected to be thrown only by the framework code.
+ */
 export class ChildWorkflowFailure extends TemporalFailure {
   public constructor(
     public readonly namespace: string | undefined,
@@ -257,6 +263,8 @@ export function cutoffStackTrace(stack?: string): string {
  */
 export async function errorToFailure(err: unknown, dataConverter: DataConverter): Promise<ProtoFailure> {
   if (err instanceof TemporalFailure) {
+    if (err.failure) return err.failure;
+
     const base = {
       message: err.originalMessage,
       stackTrace: cutoffStackTrace(err.stack),
@@ -299,7 +307,10 @@ export async function errorToFailure(err: unknown, dataConverter: DataConverter)
       return {
         ...base,
         canceledFailureInfo: {
-          details: err.details ? { payloads: await dataConverter.toPayloads(...err.details) } : undefined,
+          details:
+            err.details && err.details.length
+              ? { payloads: await dataConverter.toPayloads(...err.details) }
+              : undefined,
         },
       };
     }

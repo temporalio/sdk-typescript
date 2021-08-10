@@ -120,7 +120,7 @@ test('Worker cancels activity and reports cancellation', async (t) => {
       cancel: {},
     });
     compareCompletion(t, completion.result, {
-      canceled: {},
+      cancelled: { failure: { source: 'NodeSDK', canceledFailureInfo: {} } },
     });
   });
 });
@@ -146,7 +146,7 @@ test('Activity Context AbortSignal cancels a fetch request', async (t) => {
         cancel: {},
       });
       compareCompletion(t, completion.result, {
-        canceled: {},
+        cancelled: { failure: { source: 'NodeSDK', canceledFailureInfo: {} } },
       });
       await finished;
     });

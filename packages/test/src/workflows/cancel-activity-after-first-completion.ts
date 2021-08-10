@@ -4,7 +4,7 @@
  * @module
  */
 
-import { CancellationScope, CancelledError } from '@temporalio/workflow';
+import { CancellationScope, CancelledFailure } from '@temporalio/workflow';
 import { httpGet } from '@activities';
 
 export async function main(url: string): Promise<string[]> {
@@ -17,10 +17,10 @@ export async function main(url: string): Promise<string[]> {
   try {
     return await Promise.race([promise, CancellationScope.current().cancelRequested]);
   } catch (err) {
-    if (!(err instanceof CancelledError)) {
+    if (!(err instanceof CancelledFailure)) {
       throw err;
     }
     console.log('Workflow cancelled while waiting on non cancellable scope');
-    return promise;
+    return await promise;
   }
 }

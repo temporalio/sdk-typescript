@@ -19,12 +19,7 @@ import { coresdk } from '@temporalio/proto/lib/coresdk';
 import { alea, RNG } from './alea';
 import { ContinueAsNew, ExternalDependencies, WorkflowInfo } from './interfaces';
 import { SignalInput, WorkflowInput, WorkflowInterceptors } from './interceptors';
-import {
-  CancelledError,
-  DeterminismViolationError,
-  WorkflowCancelledError,
-  WorkflowExecutionAlreadyStartedError,
-} from './errors';
+import { DeterminismViolationError, WorkflowExecutionAlreadyStartedError, isCancellation } from './errors';
 import { ROOT_SCOPE } from './cancellation-scope';
 
 export type ResolveFunction<T = any> = (val: T) => any;
@@ -107,9 +102,10 @@ export class Activator implements ActivationHandler {
       const { failure } = activation.result.failed;
       const err = await optionalFailureToOptionalError(failure, state.dataConverter);
       reject(err);
-    } else if (activation.result.canceled) {
-      // TODO: Use `ActivityFailure` instead
-      reject(new CancelledError('Activity cancelled'));
+    } else if (activation.result.cancelled) {
+      const { failure } = activation.result.cancelled;
+      const err = await optionalFailureToOptionalError(failure, state.dataConverter);
+      reject(err);
     }
   }
 
@@ -162,6 +158,12 @@ export class Activator implements ActivationHandler {
       const { failure } = activation.result.failed;
       if (failure === undefined || failure === null) {
         throw new TypeError('Got failed result with no failure attribute');
+      }
+      reject(await failureToError(failure, state.dataConverter));
+    } else if (activation.result.cancelled) {
+      const { failure } = activation.result.cancelled;
+      if (failure === undefined || failure === null) {
+        throw new TypeError('Got cancelled result with no failure attribute');
       }
       reject(await failureToError(failure, state.dataConverter));
     }
@@ -357,10 +359,7 @@ function completeWorkflow(result: any) {
 }
 
 async function handleWorkflowFailure(error: any) {
-  // TODO: When an activity is cancelled it throws CancelledError because it
-  // could be cancelled by WF cancel or CancellationScope.cancel.
-  // Rethink cancelWorkflowExecution conditions.
-  if (error instanceof WorkflowCancelledError) {
+  if (state.cancelled && isCancellation(error)) {
     state.commands.push({ cancelWorkflowExecution: {} });
   } else if (error instanceof ContinueAsNew) {
     state.commands.push({ continueAsNewWorkflowExecution: error.command });

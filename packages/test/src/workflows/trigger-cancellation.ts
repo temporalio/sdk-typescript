@@ -1,5 +1,5 @@
 // @@@SNIPSTART nodejs-blocked-workflow
-import { Trigger, CancelledError } from '@temporalio/workflow';
+import { Trigger, CancelledFailure } from '@temporalio/workflow';
 import { Blocked } from '../interfaces';
 
 const unblocked = new Trigger<void>();
@@ -16,7 +16,7 @@ async function main(): Promise<void> {
     await unblocked;
     console.log('Unblocked');
   } catch (err) {
-    if (!(err instanceof CancelledError)) {
+    if (!(err instanceof CancelledFailure)) {
       throw err;
     }
     console.log('Cancelled');

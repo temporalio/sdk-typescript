@@ -1,22 +1,10 @@
+import { CancelledFailure, ActivityFailure, ChildWorkflowFailure } from '@temporalio/common';
+
 /**
  * Base class for all workflow errors
  */
 export class WorkflowError extends Error {
   public readonly name: string = 'WorkflowError';
-}
-
-/**
- * Thrown in workflow when it is requested to be cancelled either externally or internally
- */
-export class CancelledError extends WorkflowError {
-  public readonly name: string = 'CancelledError';
-}
-
-/**
- * Thrown in workflow when it receives a client cancellation request
- */
-export class WorkflowCancelledError extends CancelledError {
-  public readonly name: string = 'WorkflowCancelledError';
 }
 
 /**
@@ -42,4 +30,14 @@ export class WorkflowExecutionAlreadyStartedError extends WorkflowError {
   constructor(message: string, public readonly workflowId: string, public readonly workflowType: string) {
     super(message);
   }
+}
+
+/**
+ * Returns whether provided `err` is caused by cancellation
+ */
+export function isCancellation(err: unknown): boolean {
+  return (
+    err instanceof CancelledFailure ||
+    ((err instanceof ActivityFailure || err instanceof ChildWorkflowFailure) && err.cause instanceof CancelledFailure)
+  );
 }
