@@ -1,11 +1,11 @@
-import { CancellationScope, CancelledError, sleep } from '@temporalio/workflow';
+import { CancellationScope, CancelledFailure, sleep } from '@temporalio/workflow';
 import { WorkflowCancellationScenarios } from '../interfaces';
 
 async function main(outcome: 'complete' | 'cancel' | 'fail', when: 'immediately' | 'after-cleanup'): Promise<void> {
   try {
     await CancellationScope.current().cancelRequested;
   } catch (e) {
-    if (!(e instanceof CancelledError)) {
+    if (!(e instanceof CancelledFailure)) {
       throw e;
     }
     if (when === 'after-cleanup') {

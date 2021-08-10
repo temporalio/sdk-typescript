@@ -54,15 +54,6 @@ import { AbortSignal } from 'abort-controller';
 export const asyncLocalStorage = new AsyncLocalStorage<Context>();
 
 /**
- * Thrown in an Activity when the Activity is cancelled while awaiting {@link Context.cancelled}.
- *
- * The Activity must {@link Context.heartbeat | send heartbeats} in order to be cancellable.
- */
-export class CancelledError extends Error {
-  public readonly name: string = 'CancelledError';
-}
-
-/**
  * Holds information about the current executing Activity
  */
 export interface Info {
@@ -138,7 +129,7 @@ export class Context {
   /**
    * Await this promise in an Activity to get notified of cancellation.
    *
-   * This promise will never be resolved, it will only be rejected with a {@link CancelledError}.
+   * This promise will never be resolved, it will only be rejected with a {@link CancelledFailure}.
    */
   public readonly cancelled: Promise<never>;
   /**
@@ -151,6 +142,8 @@ export class Context {
    * Send a heartbeat from an Activity.
    *
    * If an Activity times out, the last value of details is included in the ActivityTimeoutException delivered to a Workflow. Then the Workflow can pass the details to the next Activity invocation. This acts as a periodic checkpoint mechanism for the progress of an Activity.
+   *
+   * The Activity must heartbeat in order to receive cancellation.
    */
   public readonly heartbeat: (details?: any) => void;
 
