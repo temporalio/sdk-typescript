@@ -44,6 +44,7 @@ const { EVENT_TYPE_TIMER_STARTED, EVENT_TYPE_TIMER_FIRED, EVENT_TYPE_TIMER_CANCE
   iface.temporal.api.enums.v1.EventType;
 
 const timerEventTypes = new Set([EVENT_TYPE_TIMER_STARTED, EVENT_TYPE_TIMER_FIRED, EVENT_TYPE_TIMER_CANCELED]);
+const CHANGE_MARKER_NAME = 'core_patch';
 
 export interface Context {
   worker: Worker;
@@ -346,6 +347,42 @@ if (RUN_INTEGRATION_TESTS) {
     t.is(tsToMs(timerEvents[1].timerStartedEventAttributes!.startToFireTimeout), 1);
     t.is(timerEvents[2].timerFiredEventAttributes!.timerId, '2');
     t.is(timerEvents[3].timerCanceledEventAttributes!.timerId, '1');
+  });
+
+  test('patched', async (t) => {
+    const client = new WorkflowClient();
+    const workflow = client.stub<Empty>('patched', { taskQueue: 'test' });
+    const runId = await workflow.start();
+    const res = await workflow.result();
+    t.is(res, undefined);
+    const execution = await client.service.getWorkflowExecutionHistory({
+      namespace,
+      execution: { workflowId: workflow.workflowId, runId },
+    });
+    const hasChangeEvents = execution.history!.events!.filter(
+      ({ eventType }) => eventType === iface.temporal.api.enums.v1.EventType.EVENT_TYPE_MARKER_RECORDED
+    );
+    // There will only be one marker despite there being 2 hasChange calls because they have the
+    // same ID and core will only record one marker per id.
+    t.is(hasChangeEvents.length, 1);
+    t.is(hasChangeEvents[0].markerRecordedEventAttributes!.markerName, CHANGE_MARKER_NAME);
+  });
+
+  test('deprecate-patch', async (t) => {
+    const client = new WorkflowClient();
+    const workflow = client.stub<Empty>('deprecate-patch', { taskQueue: 'test' });
+    const runId = await workflow.start();
+    const res = await workflow.result();
+    t.is(res, undefined);
+    const execution = await client.service.getWorkflowExecutionHistory({
+      namespace,
+      execution: { workflowId: workflow.workflowId, runId },
+    });
+    const hasChangeEvents = execution.history!.events!.filter(
+      ({ eventType }) => eventType === iface.temporal.api.enums.v1.EventType.EVENT_TYPE_MARKER_RECORDED
+    );
+    t.is(hasChangeEvents.length, 1);
+    t.is(hasChangeEvents[0].markerRecordedEventAttributes!.markerName, CHANGE_MARKER_NAME);
   });
 
   test('Worker default ServerOptions are generated correctly', async (t) => {

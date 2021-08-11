@@ -9,6 +9,7 @@
     "prettier"
   ],
   "rules": {
+    "object-shorthand": ["error", "always"],
     "@typescript-eslint/no-explicit-any": 0,
     "@typescript-eslint/explicit-module-boundary-types": 2,
     "@typescript-eslint/no-unused-vars": [

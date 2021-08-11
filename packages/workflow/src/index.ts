@@ -81,7 +81,16 @@ export {
   WorkflowInfo,
 } from './interfaces';
 export * from './errors';
-export { Context, ContextImpl, sleep, uuid4, validateActivityOptions, scheduleActivity } from './workflow';
+export {
+  Context,
+  ContextImpl,
+  sleep,
+  uuid4,
+  validateActivityOptions,
+  scheduleActivity,
+  patched,
+  deprecatePatch,
+} from './workflow';
 export * from './interceptors';
 export { AsyncLocalStorage } from './async-local-storage';
 export { CancellationScope, CancellationScopeOptions } from './cancellation-scope';

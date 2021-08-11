@@ -149,7 +149,7 @@ async function scheduleActivityNextHandler({
     });
     state.commands.push({
       scheduleActivity: {
-        seq: seq,
+        seq,
         activityId: options.activityId ?? `${seq}`,
         activityType,
         arguments: state.dataConverter.toPayloadsSync(...args),
@@ -191,7 +191,7 @@ export function scheduleActivity<R>(
   const execute = composeInterceptors(state.interceptors.outbound, 'scheduleActivity', scheduleActivityNextHandler);
 
   return execute({
-    activityType: activityType,
+    activityType,
     headers: new Map(),
     options,
     args,
@@ -538,4 +538,66 @@ export function uuid4(): string {
     view.getUint16(8),
     4
   )}-${ho(view.getUint32(10), 8)}${ho(view.getUint16(14), 4)}`;
+}
+
+/**
+ * Patch or upgrade workflow code by checking or stating that this workflow has a certain patch.
+ *
+ * TODO: See docs page for info
+ *
+ * If the workflow is replaying an existing history, then this function returns true if that
+ * history was produced by a worker which also had a `patched` call with the same `patchId`.
+ * If the history was produced by a worker *without* such a call, then it will return false.
+ *
+ * If the workflow is not currently replaying, then this call *always* returns true.
+ *
+ * Your workflow code should run the "new" code if this returns true, if it returns false, you
+ * should run the "old" code. By doing this, you can maintain determinism.
+ *
+ * @param patchId An identifier that should be unique to this patch. It is OK to use multiple
+ * calls with the same ID, which means all such calls will always return the same value.
+ */
+export function patched(patchId: string): boolean {
+  return patchInternal(patchId, false);
+}
+
+/**
+ * Indicate that a patch is being phased out.
+ *
+ * TODO: See docs page, how to run queries, etc.
+ *
+ * Workflows with this call may be deployed alongside workflows with a {@link patched} call, but
+ * they must *not* be deployed while any workers still exist running old code without a
+ * {@link patched} call, or any runs with histories produced by such workers exist. If either kind
+ * of worker encounters a history produced by the other, their behavior is undefined.
+ *
+ * Once all live workflow runs have been produced by workers with this call, you can deploy workers
+ * which are free of either kind of patch call for this ID. Workers with and without this call
+ * may coexist, as long as they are both running the "new" code.
+ *
+ * @param patchId An identifier that should be unique to this patch. It is OK to use multiple
+ * calls with the same ID, which means all such calls will always return the same value.
+ */
+export function deprecatePatch(patchId: string): void {
+  patchInternal(patchId, true);
+}
+
+function patchInternal(patchId: string, deprecated: boolean): boolean {
+  if (state.info === undefined) {
+    throw new IllegalStateError('Workflow info must be set when calling patch functions');
+  }
+  // Patch operation does not support interception at the moment, if it did,
+  // this would be the place to start the interception chain
+
+  const { isReplaying } = state.info;
+  const usePatch = !isReplaying || state.knownPresentPatches.has(patchId);
+  // Avoid sending commands for patches core already knows about.
+  // This optimization enables development of automatic patching tools.
+  if (usePatch && !state.sentPatches.has(patchId)) {
+    state.commands.push({
+      setPatchMarker: { patchId, deprecated },
+    });
+    state.sentPatches.add(patchId);
+  }
+  return usePatch;
 }

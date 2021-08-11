@@ -1,10 +1,10 @@
-import anyTest, { TestInterface, ExecutionContext } from 'ava';
+import anyTest, { ExecutionContext, TestInterface } from 'ava';
 import path from 'path';
 import Long from 'long';
 import dedent from 'dedent';
 import { coresdk } from '@temporalio/proto';
 import { ApplyMode } from '@temporalio/workflow';
-import { defaultDataConverter, ApplicationFailure, errorToFailure, msToTs, RetryState } from '@temporalio/common';
+import { ApplicationFailure, defaultDataConverter, errorToFailure, msToTs, RetryState } from '@temporalio/common';
 import { Workflow } from '@temporalio/worker/lib/workflow';
 import { WorkflowIsolateBuilder } from '@temporalio/worker/lib/isolate-builder';
 import { RoundRobinIsolateContextProvider } from '@temporalio/worker/lib/isolate-context-provider';
@@ -94,10 +94,15 @@ function makeStartWorkflow(
   args?: coresdk.common.IPayload[],
   timestamp: number = Date.now()
 ): coresdk.workflow_activation.IWFActivation {
+  return makeActivation(timestamp, makeStartWorkflowJob(script, args));
+}
+
+function makeStartWorkflowJob(
+  script: string,
+  args?: coresdk.common.IPayload[]
+): coresdk.workflow_activation.IWFActivationJob {
   return {
-    runId: 'test-runId',
-    timestamp: msToTs(timestamp),
-    jobs: [{ startWorkflow: { workflowId: 'test-workflowId', workflowType: script, arguments: args } }],
+    startWorkflow: { workflowId: 'test-workflowId', workflowType: script, arguments: args },
   };
 }
 
@@ -153,6 +158,12 @@ function makeResolveActivity(
   timestamp: number = Date.now()
 ): coresdk.workflow_activation.IWFActivation {
   return makeActivation(timestamp, makeResolveActivityJob(seq, result));
+}
+
+function makeNotifyHasPatchJob(patchId: string): coresdk.workflow_activation.IWFActivationJob {
+  return {
+    notifyHasPatch: { patchId },
+  };
 }
 
 async function makeQueryWorkflow(
@@ -242,6 +253,15 @@ function makeRespondToQueryCommand(
 ): coresdk.workflow_commands.IWorkflowCommand {
   return {
     respondToQuery,
+  };
+}
+
+function makeSetPatchMarker(myPatchId: string, deprecated: boolean): coresdk.workflow_commands.IWorkflowCommand {
+  return {
+    setPatchMarker: {
+      patchId: myPatchId,
+      deprecated,
+    },
   };
 }
 
@@ -1551,6 +1571,114 @@ test('continue-as-new-same-workflow', async (t) => {
       ])
     );
   }
+});
+
+test('not-replay patched', async (t) => {
+  const { logs, script } = t.context;
+  {
+    const req = await activate(t, makeStartWorkflow(script));
+    compareCompletion(
+      t,
+      req,
+      makeSuccess([
+        makeSetPatchMarker('my-change-id', false),
+        makeStartTimerCommand({ seq: 1, startToFireTimeout: msToTs(100) }),
+      ])
+    );
+  }
+  {
+    const req = await activate(t, makeFireTimer(1));
+    compareCompletion(t, req, makeSuccess([makeCompleteWorkflowExecution()]));
+  }
+  t.deepEqual(logs, [['has change'], ['has change 2']]);
+});
+
+test('replay-no-marker patched', async (t) => {
+  const { logs, script } = t.context;
+  {
+    const act: coresdk.workflow_activation.IWFActivation = {
+      runId: 'test-runId',
+      timestamp: msToTs(Date.now()),
+      isReplaying: true,
+      jobs: [makeStartWorkflowJob(script)],
+    };
+    const completion = await activate(t, act);
+    compareCompletion(t, completion, makeSuccess([makeStartTimerCommand({ seq: 1, startToFireTimeout: msToTs(100) })]));
+  }
+  {
+    const act: coresdk.workflow_activation.IWFActivation = {
+      runId: 'test-runId',
+      timestamp: msToTs(Date.now()),
+      isReplaying: true,
+      jobs: [makeFireTimerJob(1)],
+    };
+    const completion = await activate(t, act);
+    compareCompletion(t, completion, makeSuccess([makeCompleteWorkflowExecution()]));
+  }
+  t.deepEqual(logs, [['no change'], ['no change 2']]);
+});
+
+test('replay-no-marker-then-not-replay patched', async (t) => {
+  const { logs, script } = t.context;
+  {
+    const act: coresdk.workflow_activation.IWFActivation = {
+      runId: 'test-runId',
+      timestamp: msToTs(Date.now()),
+      isReplaying: true,
+      jobs: [makeStartWorkflowJob(script)],
+    };
+    const completion = await activate(t, act);
+    compareCompletion(t, completion, makeSuccess([makeStartTimerCommand({ seq: 1, startToFireTimeout: msToTs(100) })]));
+  }
+  // For this second activation we are no longer replaying, let core know we have the marker
+  {
+    const completion = await activate(t, makeFireTimer(1));
+    compareCompletion(
+      t,
+      completion,
+      makeSuccess([makeSetPatchMarker('my-change-id', false), makeCompleteWorkflowExecution()])
+    );
+  }
+  t.deepEqual(logs, [['no change'], ['has change 2']]);
+});
+
+test('replay-with-marker patched', async (t) => {
+  const { logs, script } = t.context;
+  {
+    const act: coresdk.workflow_activation.IWFActivation = {
+      runId: 'test-runId',
+      timestamp: msToTs(Date.now()),
+      isReplaying: true,
+      jobs: [makeStartWorkflowJob(script), makeNotifyHasPatchJob('my-change-id')],
+    };
+    const completion = await activate(t, act);
+    compareCompletion(
+      t,
+      completion,
+      makeSuccess([
+        makeSetPatchMarker('my-change-id', false),
+        makeStartTimerCommand({ seq: 1, startToFireTimeout: msToTs(100) }),
+      ])
+    );
+  }
+  {
+    const completion = await activate(t, makeFireTimer(1));
+    compareCompletion(t, completion, makeSuccess([makeCompleteWorkflowExecution()]));
+  }
+  t.deepEqual(logs, [['has change'], ['has change 2']]);
+});
+
+test('deprecate-patch', async (t) => {
+  const { logs, script } = t.context;
+  {
+    const completion = await activate(t, makeStartWorkflow(script));
+    compareCompletion(
+      t,
+      completion,
+      makeSuccess([makeSetPatchMarker('my-change-id', true), makeCompleteWorkflowExecution()])
+    );
+  }
+  t.deepEqual(logs, [['has change']]);
 });
 
 test.todo('no-commands-can-be-issued-once-workflow-completes');
