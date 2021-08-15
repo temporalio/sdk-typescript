@@ -19,31 +19,10 @@
  * <!--SNIPEND-->
  *
  * #### An Activity that makes a cancellable HTTP request
- * ```ts
- * import fetch from 'node-fetch';
- * import { Context } from '@temporalio/activity';
  *
- * export async function cancellableFetch(url: string): Promise<Uint8Array> {
- *   const response = await fetch(url, { signal: Context.current().cancellationSignal });
- *   const contentLengthHeader = response.headers.get('Content-Length');
- *   if (contentLengthHeader === null) {
- *     throw new Error('expected Content-Length header to be set');
- *   }
- *   const contentLength = parseInt(contentLengthHeader);
- *   let bytesRead = 0;
- *   const chunks: Buffer[] = [];
-
- *   for await (const chunk of response.body) {
- *     if (!(chunk instanceof Buffer)) {
- *       throw new TypeError('Expected Buffer');
- *     }
- *     bytesRead += chunk.length;
- *     chunks.push(chunk);
- *     Context.current().heartbeat(bytesRead / contentLength);
- *   }
- *   return Buffer.concat(chunks);
- * }
- * ```
+ * <!--SNIPSTART nodejs-activity-cancellable-fetch-->
+ * <!--SNIPEND-->
+ *
  * @module
  */
 
@@ -141,7 +120,7 @@ export class Context {
   /**
    * Send a heartbeat from an Activity.
    *
-   * If an Activity times out, the last value of details is included in the ActivityTimeoutException delivered to a Workflow. Then the Workflow can pass the details to the next Activity invocation. This acts as a periodic checkpoint mechanism for the progress of an Activity.
+   * If an Activity times out, the last value of details is included in the {@link ActivityFailure} delivered to a Workflow in the `cause` attribute which will be set to {@link TimeoutFailure}. Then the Workflow can pass the details to the next Activity invocation. This acts as a periodic checkpoint mechanism for the progress of an Activity.
    *
    * The Activity must heartbeat in order to receive cancellation.
    */
