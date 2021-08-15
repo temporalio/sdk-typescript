@@ -73,14 +73,7 @@ export async function cancellableFetch(url: string, signalWorkflowOnCheckpoint =
   if (signalWorkflowOnCheckpoint) {
     await signalSchedulingWorkflow('activityStarted');
   }
-  try {
-    return await cancellableFetchInner(`${url}/zeroes`);
-  } catch (err) {
-    if (err.name === 'AbortError' && err.type === 'aborted') {
-      await fetch(`${url}/finish`);
-    }
-    throw err;
-  }
+  return await cancellableFetchInner(url);
 }
 
 export async function progressiveSleep(): Promise<void> {
