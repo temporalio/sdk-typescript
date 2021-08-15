@@ -46,14 +46,14 @@ export function overrideGlobals(): void {
   global.Date.prototype = OriginalDate.prototype;
 
   global.setTimeout = function (cb: (...args: any[]) => any, ms: number, ...args: any[]): number {
-    const seq = state.nextSeq++;
-    state.completions.set(`${seq}`, {
+    const seq = state.nextSeqs.timer++;
+    state.completions.timer.set(seq, {
       resolve: () => cb(...args),
       reject: () => undefined /* ignore cancellation */,
     });
     state.commands.push({
       startTimer: {
-        timerId: `${seq}`,
+        seq,
         startToFireTimeout: msToTs(ms),
       },
     });
@@ -61,11 +61,11 @@ export function overrideGlobals(): void {
   };
 
   global.clearTimeout = function (handle: number): void {
-    state.nextSeq++;
-    state.completions.delete(`${handle}`);
+    state.nextSeqs.timer++;
+    state.completions.timer.delete(handle);
     state.commands.push({
       cancelTimer: {
-        timerId: `${handle}`,
+        seq: handle,
       },
     });
   };
@@ -215,12 +215,12 @@ export function inject(
   if (applyMode === ApplyMode.ASYNC) {
     state.dependencies[ifaceName][fnName] = (...args: any[]) =>
       new Promise((resolve, reject) => {
-        const seq = state.nextSeq++;
-        state.completions.set(`${seq}`, {
+        const seq = state.nextSeqs.dependency++;
+        state.completions.dependency.set(seq, {
           resolve,
           reject,
         });
-        state.pendingExternalCalls.push({ ifaceName, fnName, args, seq: `${seq}` });
+        state.pendingExternalCalls.push({ ifaceName, fnName, args, seq });
       });
   } else if (applyMode === ApplyMode.ASYNC_IGNORED) {
     state.dependencies[ifaceName][fnName] = (...args: any[]) =>
@@ -231,7 +231,7 @@ export function inject(
 }
 
 export interface ExternalDependencyResult {
-  seq: string;
+  seq: number;
   result: any;
   error: any;
 }
@@ -241,7 +241,7 @@ export interface ExternalDependencyResult {
  */
 export function resolveExternalDependencies(results: ExternalDependencyResult[]): void {
   for (const { seq, result, error } of results) {
-    const completion = consumeCompletion(seq);
+    const completion = consumeCompletion('dependency', seq);
     if (error) {
       completion.reject(error);
     } else {

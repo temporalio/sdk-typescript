@@ -54,24 +54,24 @@ function timerNextHandler(input: TimerInput) {
     }
     if (scope.cancellable) {
       scope.cancelRequested.catch((err) => {
-        if (!state.completions.delete(`${input.seq}`)) {
+        if (!state.completions.timer.delete(input.seq)) {
           return; // Already resolved
         }
         state.commands.push({
           cancelTimer: {
-            timerId: `${input.seq}`,
+            seq: input.seq,
           },
         });
         reject(err);
       });
     }
-    state.completions.set(`${input.seq}`, {
+    state.completions.timer.set(input.seq, {
       resolve,
       reject,
     });
     state.commands.push({
       startTimer: {
-        timerId: `${input.seq}`,
+        seq: input.seq,
         startToFireTimeout: msToTs(input.durationMs),
       },
     });
@@ -87,7 +87,7 @@ function timerNextHandler(input: TimerInput) {
  * @param ms milliseconds to sleep for
  */
 export function sleep(ms: number): Promise<void> {
-  const seq = state.nextSeq++;
+  const seq = state.nextSeqs.timer++;
 
   const execute = composeInterceptors(state.interceptors.outbound, 'startTimer', timerNextHandler);
 
@@ -138,18 +138,19 @@ async function scheduleActivityNextHandler({
       scope.cancelRequested.catch(() => {
         state.commands.push({
           requestCancelActivity: {
-            activityId: `${seq}`,
+            seq,
           },
         });
       });
     }
-    state.completions.set(`${seq}`, {
+    state.completions.activity.set(seq, {
       resolve,
       reject,
     });
     state.commands.push({
       scheduleActivity: {
-        activityId: `${seq}`,
+        seq: seq,
+        activityId: options.activityId ?? `${seq}`,
         activityType,
         arguments: state.dataConverter.toPayloadsSync(...args),
         retryPolicy: options.retry
@@ -186,7 +187,7 @@ export function scheduleActivity<R>(
   if (options === undefined) {
     throw new TypeError('Got empty activity options');
   }
-  const seq = state.nextSeq++;
+  const seq = state.nextSeqs.activity++;
   const execute = composeInterceptors(state.interceptors.outbound, 'scheduleActivity', scheduleActivityNextHandler);
 
   return execute({
@@ -203,8 +204,11 @@ async function startChildWorkflowExecutionNextHandler({
   args,
   headers,
   workflowType,
+  seq,
 }: StartChildWorkflowExecutionInput): Promise<[Promise<string>, Promise<unknown>]> {
   const workflowId = options.workflowId ?? uuid4();
+  // May be set once workflow execution has started
+  let runId: string | undefined = undefined;
 
   const startPromise = new Promise<string>((resolve, reject) => {
     const scope = CancellationScope.current();
@@ -216,17 +220,21 @@ async function startChildWorkflowExecutionNextHandler({
       scope.cancelRequested.catch(() => {
         state.commands.push({
           requestCancelExternalWorkflowExecution: {
-            workflowId, // TODO: runId?
+            seq,
+            workflowId,
+            runId,
+            namespace: Context.info.namespace, // Not configurable
           },
         });
       });
     }
-    state.completions.set(`start-${workflowId}`, {
+    state.completions.childWorkflowStart.set(seq, {
       resolve,
       reject,
     });
     state.commands.push({
       startChildWorkflowExecution: {
+        seq,
         workflowId,
         workflowType,
         input: state.dataConverter.toPayloadsSync(...args),
@@ -258,9 +266,13 @@ async function startChildWorkflowExecutionNextHandler({
       },
     });
   });
+  // We construct a Promise for the completion of the child Workflow before we know
+  // if the Workflow code will await it to capture the result in case it does.
   const completePromise = new Promise((resolve, reject) => {
-    startPromise.catch(reject);
-    state.completions.set(`complete-${workflowId}`, {
+    // Set the local runId variable to use in cancellation requests
+    // and chain start Promise rejection to the complete Promise.
+    startPromise.then((val) => void (runId = val)).catch(reject);
+    state.completions.childWorkflowComplete.set(seq, {
       resolve,
       reject,
     });
@@ -360,6 +372,7 @@ export class ContextImpl {
           startChildWorkflowExecutionNextHandler
         );
         [started, completed] = await execute({
+          seq: state.nextSeqs.childWorkflow++,
           options: optionsWithDefaults,
           args,
           headers: new Map(),

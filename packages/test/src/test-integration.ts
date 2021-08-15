@@ -308,9 +308,9 @@ if (RUN_INTEGRATION_TESTS) {
     });
     const timerEvents = execution.history!.events!.filter(({ eventType }) => timerEventTypes.has(eventType!));
     t.is(timerEvents.length, 2);
-    t.is(timerEvents[0].timerStartedEventAttributes!.timerId, '0');
+    t.is(timerEvents[0].timerStartedEventAttributes!.timerId, '1');
     t.is(tsToMs(timerEvents[0].timerStartedEventAttributes!.startToFireTimeout), 100);
-    t.is(timerEvents[1].timerFiredEventAttributes!.timerId, '0');
+    t.is(timerEvents[1].timerFiredEventAttributes!.timerId, '1');
   });
 
   test('cancel-timer-immediately', async (t) => {
@@ -340,12 +340,12 @@ if (RUN_INTEGRATION_TESTS) {
     });
     const timerEvents = execution.history!.events!.filter(({ eventType }) => timerEventTypes.has(eventType!));
     t.is(timerEvents.length, 4);
-    t.is(timerEvents[0].timerStartedEventAttributes!.timerId, '0');
+    t.is(timerEvents[0].timerStartedEventAttributes!.timerId, '1');
     t.is(tsToMs(timerEvents[0].timerStartedEventAttributes!.startToFireTimeout), 10000);
-    t.is(timerEvents[1].timerStartedEventAttributes!.timerId, '1');
+    t.is(timerEvents[1].timerStartedEventAttributes!.timerId, '2');
     t.is(tsToMs(timerEvents[1].timerStartedEventAttributes!.startToFireTimeout), 1);
-    t.is(timerEvents[2].timerFiredEventAttributes!.timerId, '1');
-    t.is(timerEvents[3].timerCanceledEventAttributes!.timerId, '0');
+    t.is(timerEvents[2].timerFiredEventAttributes!.timerId, '2');
+    t.is(timerEvents[3].timerCanceledEventAttributes!.timerId, '1');
   });
 
   test('Worker default ServerOptions are generated correctly', async (t) => {
