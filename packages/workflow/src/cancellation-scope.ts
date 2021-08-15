@@ -1,6 +1,5 @@
-import { IllegalStateError } from '@temporalio/common';
+import { CancelledFailure, IllegalStateError } from '@temporalio/common';
 import { AsyncLocalStorage } from './async-local-storage';
-import { CancelledError, WorkflowCancelledError } from './errors';
 
 /** Magic symbol used to create the root scope - intentionally not exported */
 const NO_PARENT = Symbol('NO_PARENT');
@@ -16,7 +15,7 @@ export interface CancellationScopeOptions {
 
   /**
    * If false, prevent outer cancellation from propagating to inner scopes, Activities, timers, and Triggers, defaults to true.
-   * (Scope still propagates CancelledErrors thrown from within).
+   * (Scope still propagates CancelledFailure thrown from within).
    */
   cancellable: boolean;
   /**
@@ -28,7 +27,7 @@ export interface CancellationScopeOptions {
 
 /**
  * In the SDK, Workflows are represented internally by a tree of scopes where the main function runs in the root scope.
- * Cancellation propagates from outer scopes to inner ones and is handled by catching {@link CancelledError}s
+ * Cancellation propagates from outer scopes to inner ones and is handled by catching {@link CancelledFailure}s
  * thrown by cancellable operations (see below).
  *
  * Scopes are created using the `CancellationScope` constructor or the static helper methods
@@ -47,7 +46,7 @@ export interface CancellationScopeOptions {
  * await CancellationScope.cancellable(async () => {
  *   const promise = someActivity();
  *   CancellationScope.current().cancel(); // Cancels the activity
- *   await promise; // Throws CancelledError
+ *   await promise; // Throws CancelledFailure
  * });
  * ```
  *
@@ -57,7 +56,7 @@ export interface CancellationScopeOptions {
  * const scope = new CancellationScope();
  * const promise = scope.run(someActivity);
  * scope.cancel(); // Cancels the activity
- * await promise; // Throws CancelledError
+ * await promise; // Throws CancelledFailure
  * ```
  */
 export class CancellationScope {
@@ -68,7 +67,7 @@ export class CancellationScope {
 
   /**
    * If false, prevent outer cancellation from propagating to inner scopes, Activities, timers, and Triggers, defaults to true.
-   * (Scope still propagates CancelledErrors thrown from within)
+   * (Scope still propagates CancelledFailure thrown from within)
    */
   public readonly cancellable: boolean;
   /**
@@ -135,7 +134,7 @@ export class CancellationScope {
    * Request to cancel the scope and linked children
    */
   cancel(): void {
-    this.reject(new CancelledError('Cancelled'));
+    this.reject(new CancelledFailure('Cancellation scope cancelled'));
   }
 
   /**
@@ -165,7 +164,7 @@ const storage = new AsyncLocalStorage<CancellationScope>();
 
 export class RootCancellationScope extends CancellationScope {
   cancel(): void {
-    this.reject(new WorkflowCancelledError('Workflow cancelled'));
+    this.reject(new CancelledFailure('Workflow cancelled'));
   }
 }
 

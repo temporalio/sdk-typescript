@@ -62,6 +62,14 @@ export {
   defaultDataConverter,
   DataConverter,
   WorkflowIdReusePolicy,
+  ActivityFailure,
+  ApplicationFailure,
+  CancelledFailure,
+  ChildWorkflowFailure,
+  ServerFailure,
+  TemporalFailure,
+  TerminatedFailure,
+  TimeoutFailure,
 } from '@temporalio/common';
 export {
   ApplyMode,

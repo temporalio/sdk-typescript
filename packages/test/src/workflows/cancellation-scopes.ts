@@ -1,4 +1,4 @@
-import { CancelledError, CancellationScope, sleep } from '@temporalio/workflow';
+import { CancelledFailure, CancellationScope, sleep } from '@temporalio/workflow';
 
 function sleepAndLogCancellation(cancellationExpected: boolean) {
   return async () => {
@@ -6,7 +6,7 @@ function sleepAndLogCancellation(cancellationExpected: boolean) {
       await sleep(3);
     } catch (e) {
       // We still want to know the workflow was cancelled
-      if (e instanceof CancelledError) {
+      if (e instanceof CancelledFailure) {
         console.log(`Scope cancelled ${cancellationExpected ? '👍' : '👎'}`);
       }
       throw e;
@@ -28,7 +28,7 @@ export async function main(): Promise<void> {
     await p1;
     console.log('Exception was not propagated 👎');
   } catch (e) {
-    if (e instanceof CancelledError) {
+    if (e instanceof CancelledFailure) {
       console.log('Exception was propagated 👍');
     }
   }
@@ -40,7 +40,7 @@ export async function main(): Promise<void> {
     await CancellationScope.cancellable(sleepAndLogCancellation(true));
     console.log('Exception was not propagated 👎');
   } catch (e) {
-    if (e instanceof CancelledError) {
+    if (e instanceof CancelledFailure) {
       console.log('Exception was propagated 👍');
     }
   }

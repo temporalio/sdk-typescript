@@ -20,6 +20,7 @@ export {
   defaultDataConverter,
   ActivityFailure,
   ApplicationFailure,
+  ChildWorkflowFailure,
   CancelledFailure,
   ServerFailure,
   TemporalFailure,
