@@ -5,7 +5,11 @@
     "outDir": "./lib",
     "rootDir": "./src"
   },
-  "references": [{ "path": "../workflow/tsconfig.json" }, { "path": "../activity/tsconfig.json" }],
+  "references": [
+    { "path": "../activity/tsconfig.json" },
+    { "path": "../worker/tsconfig.json" },
+    { "path": "../workflow/tsconfig.json" }
+  ],
   "include": ["./src/**/*.ts"],
   "exclude": ["node_modules"]
 }

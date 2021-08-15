@@ -1,5 +1,6 @@
 // @@@SNIPSTART nodejs-activity-fake-progress
-import { Context, CancelledError } from '@temporalio/activity';
+import { Context } from '@temporalio/activity';
+import { CancelledFailure } from '@temporalio/common';
 
 export async function fakeProgress(sleepIntervalMs = 1000): Promise<void> {
   try {
@@ -9,7 +10,7 @@ export async function fakeProgress(sleepIntervalMs = 1000): Promise<void> {
       Context.current().heartbeat(progress);
     }
   } catch (err) {
-    if (err instanceof CancelledError) {
+    if (err instanceof CancelledFailure) {
       // Cleanup
     }
     throw err;
