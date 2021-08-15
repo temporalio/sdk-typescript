@@ -85,7 +85,7 @@ export class Activator implements ActivationHandler {
   }
 
   public fireTimer(activation: coresdk.workflow_activation.IFireTimer): void {
-    const { resolve } = consumeCompletion(idToSeq(activation, 'timerId'));
+    const { resolve } = consumeCompletion('timer', getSeq(activation));
     resolve(undefined);
   }
 
@@ -93,7 +93,7 @@ export class Activator implements ActivationHandler {
     if (!activation.result) {
       throw new TypeError('Got ResolveActivity activation with no result');
     }
-    const { resolve, reject } = consumeCompletion(idToSeq(activation, 'activityId'));
+    const { resolve, reject } = consumeCompletion('activity', getSeq(activation));
     if (activation.result.completed) {
       const completed = activation.result.completed;
       const result = completed.result ? state.dataConverter.fromPayloadSync(completed.result) : undefined;
@@ -112,7 +112,7 @@ export class Activator implements ActivationHandler {
   public async resolveChildWorkflowExecutionStart(
     activation: coresdk.workflow_activation.IResolveChildWorkflowExecutionStart
   ): Promise<void> {
-    const { resolve, reject } = consumeCompletion(`start-${idToSeq(activation, 'workflowId')}`);
+    const { resolve, reject } = consumeCompletion('childWorkflowStart', getSeq(activation));
     if (activation.succeeded) {
       resolve(activation.succeeded.runId);
     } else if (activation.failed) {
@@ -123,13 +123,13 @@ export class Activator implements ActivationHandler {
       ) {
         throw new IllegalStateError('Got unknown StartChildWorkflowExecutionFailedCause');
       }
-      if (!(activation.workflowId && activation.failed?.workflowType)) {
+      if (!(activation.seq && activation.failed?.workflowType)) {
         throw new TypeError('Missing attributes in activation job');
       }
       reject(
         new WorkflowExecutionAlreadyStartedError(
           'Workflow execution already started',
-          activation.workflowId,
+          'TODO: activation.workflowId',
           activation.failed.workflowType
         )
       );
@@ -149,7 +149,7 @@ export class Activator implements ActivationHandler {
     if (!activation.result) {
       throw new TypeError('Got ResolveChildWorkflowExecution activation with no result');
     }
-    const { resolve, reject } = consumeCompletion(`complete-${idToSeq(activation, 'workflowId')}`);
+    const { resolve, reject } = consumeCompletion('childWorkflowComplete', getSeq(activation));
     if (activation.result.completed) {
       const completed = activation.result.completed;
       const result = completed.result ? await state.dataConverter.fromPayload(completed.result) : undefined;
@@ -243,7 +243,7 @@ export interface ExternalCall {
   fnName: string;
   args: any[];
   /** Optional in case applyMode is ASYNC_IGNORED */
-  seq?: string;
+  seq?: number;
 }
 
 /**
@@ -259,7 +259,13 @@ export class State {
   /**
    * Map of task sequence to a Completion
    */
-  public readonly completions: Map<string, Completion> = new Map();
+  public readonly completions = {
+    timer: new Map<number, Completion>(),
+    activity: new Map<number, Completion>(),
+    childWorkflowStart: new Map<number, Completion>(),
+    childWorkflowComplete: new Map<number, Completion>(),
+    dependency: new Map<number, Completion>(),
+  };
 
   /**
    * Overridden on WF initialization
@@ -285,10 +291,16 @@ export class State {
    * Was this Workflow cancelled
    */
   public cancelled = false;
+
   /**
    * The next (incremental) sequence to assign when generating completable commands
    */
-  public nextSeq = 0;
+  public nextSeqs = {
+    timer: 1,
+    activity: 1,
+    childWorkflow: 1,
+    dependency: 1,
+  };
 
   /**
    * This is set every time the workflow executes an activation
@@ -385,19 +397,19 @@ async function failQuery(queryId: string, error: any) {
   });
 }
 
-export function consumeCompletion(taskId: string): Completion {
-  const completion = state.completions.get(taskId);
+export function consumeCompletion(type: keyof State['completions'], taskSeq: number): Completion {
+  const completion = state.completions[type].get(taskSeq);
   if (completion === undefined) {
-    throw new IllegalStateError(`No completion for taskId ${taskId}`);
+    throw new IllegalStateError(`No completion for taskSeq ${taskSeq}`);
   }
-  state.completions.delete(taskId);
+  state.completions[type].delete(taskSeq);
   return completion;
 }
 
-function idToSeq<T extends Record<string, any>>(activation: T, attr: keyof T): string {
-  const id = activation[attr];
-  if (!id) {
-    throw new TypeError(`Got activation with no ${attr}`);
+function getSeq<T extends { seq?: number | null }>(activation: T): number {
+  const seq = activation.seq;
+  if (seq === undefined || seq === null) {
+    throw new TypeError(`Got activation with no seq attribute`);
   }
-  return id;
+  return seq;
 }

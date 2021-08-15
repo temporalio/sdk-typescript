@@ -128,31 +128,31 @@ function makeActivation(
   };
 }
 
-function makeFireTimer(timerId: string, timestamp: number = Date.now()): coresdk.workflow_activation.IWFActivation {
-  return makeActivation(timestamp, makeFireTimerJob(timerId));
+function makeFireTimer(seq: number, timestamp: number = Date.now()): coresdk.workflow_activation.IWFActivation {
+  return makeActivation(timestamp, makeFireTimerJob(seq));
 }
 
-function makeFireTimerJob(timerId: string): coresdk.workflow_activation.IWFActivationJob {
+function makeFireTimerJob(seq: number): coresdk.workflow_activation.IWFActivationJob {
   return {
-    fireTimer: { timerId },
+    fireTimer: { seq },
   };
 }
 
 function makeResolveActivityJob(
-  activityId: string,
+  seq: number,
   result: coresdk.activity_result.IActivityResult
 ): coresdk.workflow_activation.IWFActivationJob {
   return {
-    resolveActivity: { activityId, result },
+    resolveActivity: { seq, result },
   };
 }
 
 function makeResolveActivity(
-  activityId: string,
+  seq: number,
   result: coresdk.activity_result.IActivityResult,
   timestamp: number = Date.now()
 ): coresdk.workflow_activation.IWFActivation {
-  return makeActivation(timestamp, makeResolveActivityJob(activityId, result));
+  return makeActivation(timestamp, makeResolveActivityJob(seq, result));
 }
 
 async function makeQueryWorkflow(
@@ -215,9 +215,9 @@ function makeScheduleActivityCommand(
   };
 }
 
-function makeCancelActivityCommand(activityId: string, _reason?: string): coresdk.workflow_commands.IWorkflowCommand {
+function makeCancelActivityCommand(seq: number, _reason?: string): coresdk.workflow_commands.IWorkflowCommand {
   return {
-    requestCancelActivity: { activityId },
+    requestCancelActivity: { seq },
   };
 }
 
@@ -249,7 +249,7 @@ test('random', async (t) => {
   const { logs, script } = t.context;
   {
     const req = await activate(t, makeStartWorkflow(script));
-    compareCompletion(t, req, makeSuccess([makeStartTimerCommand({ timerId: '0', startToFireTimeout: msToTs(1) })]));
+    compareCompletion(t, req, makeSuccess([makeStartTimerCommand({ seq: 1, startToFireTimeout: msToTs(1) })]));
   }
   {
     const req = await activate(
@@ -257,7 +257,7 @@ test('random', async (t) => {
       makeActivation(
         undefined,
         { updateRandomSeed: { randomnessSeed: Long.fromNumber(7331) } },
-        { fireTimer: { timerId: '0' } }
+        { fireTimer: { seq: 1 } }
       )
     );
     compareCompletion(t, req, makeSuccess());
@@ -370,10 +370,10 @@ test('sleep', async (t) => {
   const { logs, script } = t.context;
   {
     const req = await activate(t, makeStartWorkflow(script));
-    compareCompletion(t, req, makeSuccess([makeStartTimerCommand({ timerId: '0', startToFireTimeout: msToTs(100) })]));
+    compareCompletion(t, req, makeSuccess([makeStartTimerCommand({ seq: 1, startToFireTimeout: msToTs(100) })]));
   }
   {
-    const req = await activate(t, makeFireTimer('0'));
+    const req = await activate(t, makeFireTimer(1));
     compareCompletion(t, req, makeSuccess());
   }
   t.deepEqual(logs, [['slept']]);
@@ -383,10 +383,10 @@ test('set-timeout-after-microtasks', async (t) => {
   const { logs, script } = t.context;
   {
     const req = await activate(t, makeStartWorkflow(script));
-    compareCompletion(t, req, makeSuccess([makeStartTimerCommand({ timerId: '0', startToFireTimeout: msToTs(100) })]));
+    compareCompletion(t, req, makeSuccess([makeStartTimerCommand({ seq: 1, startToFireTimeout: msToTs(100) })]));
   }
   {
-    const req = await activate(t, makeFireTimer('0'));
+    const req = await activate(t, makeFireTimer(1));
     compareCompletion(t, req, makeSuccess());
   }
   t.deepEqual(logs, [['slept']]);
@@ -417,10 +417,10 @@ test('tasks-and-microtasks', async (t) => {
   const { logs, script } = t.context;
   {
     const req = await activate(t, makeStartWorkflow(script));
-    compareCompletion(t, req, makeSuccess([makeStartTimerCommand({ timerId: '0', startToFireTimeout: msToTs(0) })]));
+    compareCompletion(t, req, makeSuccess([makeStartTimerCommand({ seq: 1, startToFireTimeout: msToTs(0) })]));
   }
   {
-    const req = await activate(t, makeFireTimer('0'));
+    const req = await activate(t, makeFireTimer(1));
     compareCompletion(t, req, makeSuccess());
   }
   t.deepEqual(logs, [['script start'], ['script end'], ['promise1'], ['promise2'], ['setTimeout']]);
@@ -434,13 +434,13 @@ test('trailing-timer', async (t) => {
       t,
       req,
       makeSuccess([
-        makeStartTimerCommand({ timerId: '0', startToFireTimeout: msToTs(1) }),
-        makeStartTimerCommand({ timerId: '1', startToFireTimeout: msToTs(1) }),
+        makeStartTimerCommand({ seq: 1, startToFireTimeout: msToTs(1) }),
+        makeStartTimerCommand({ seq: 2, startToFireTimeout: msToTs(1) }),
       ])
     );
   }
   {
-    const req = await activate(t, makeActivation(undefined, makeFireTimerJob('0'), makeFireTimerJob('1')));
+    const req = await activate(t, makeActivation(undefined, makeFireTimerJob(1), makeFireTimerJob(2)));
     // Note that the trailing timer does not get scheduled since the workflow completes
     // after the first timer is triggered causing the second one to be dropped.
     compareCompletion(
@@ -460,13 +460,13 @@ test('promise-race', async (t) => {
       t,
       req,
       makeSuccess([
-        makeStartTimerCommand({ timerId: '0', startToFireTimeout: msToTs(20) }),
-        makeStartTimerCommand({ timerId: '1', startToFireTimeout: msToTs(30) }),
+        makeStartTimerCommand({ seq: 1, startToFireTimeout: msToTs(20) }),
+        makeStartTimerCommand({ seq: 2, startToFireTimeout: msToTs(30) }),
       ])
     );
   }
   {
-    const req = await activate(t, makeActivation(undefined, makeFireTimerJob('0'), makeFireTimerJob('1')));
+    const req = await activate(t, makeActivation(undefined, makeFireTimerJob(1), makeFireTimerJob(2)));
     compareCompletion(t, req, makeSuccess());
   }
   t.deepEqual(logs, [[1], [1], [1], [1], [20], ['wow']]);
@@ -480,17 +480,17 @@ test('race', async (t) => {
       t,
       req,
       makeSuccess([
-        makeStartTimerCommand({ timerId: '0', startToFireTimeout: msToTs(10) }),
-        makeStartTimerCommand({ timerId: '1', startToFireTimeout: msToTs(11) }),
+        makeStartTimerCommand({ seq: 1, startToFireTimeout: msToTs(10) }),
+        makeStartTimerCommand({ seq: 2, startToFireTimeout: msToTs(11) }),
       ])
     );
   }
   {
-    const req = await activate(t, makeFireTimer('0'));
+    const req = await activate(t, makeFireTimer(1));
     compareCompletion(t, req, makeSuccess([]));
   }
   {
-    const req = await activate(t, makeFireTimer('1'));
+    const req = await activate(t, makeFireTimer(2));
     compareCompletion(t, req, makeSuccess());
   }
   t.deepEqual(logs, [[1], [2], [3]]);
@@ -500,10 +500,10 @@ test('importer', async (t) => {
   const { logs, script } = t.context;
   {
     const req = await activate(t, makeStartWorkflow(script));
-    compareCompletion(t, req, makeSuccess([makeStartTimerCommand({ timerId: '0', startToFireTimeout: msToTs(10) })]));
+    compareCompletion(t, req, makeSuccess([makeStartTimerCommand({ seq: 1, startToFireTimeout: msToTs(10) })]));
   }
   {
-    const req = await activate(t, makeFireTimer('0'));
+    const req = await activate(t, makeFireTimer(1));
     compareCompletion(t, req, makeSuccess());
   }
   t.deepEqual(logs, [['slept']]);
@@ -680,11 +680,7 @@ test('fail-signal', async (t) => {
   const { script } = t.context;
   {
     const req = await activate(t, makeStartWorkflow(script));
-    compareCompletion(
-      t,
-      req,
-      makeSuccess([makeStartTimerCommand({ timerId: '0', startToFireTimeout: msToTs(100000) })])
-    );
+    compareCompletion(t, req, makeSuccess([makeStartTimerCommand({ seq: 1, startToFireTimeout: msToTs(100000) })]));
   }
   {
     const req = cleanWorkflowFailureStackTrace(await activate(t, await makeSignalWorkflow('fail', [])));
@@ -709,18 +705,14 @@ test('async-fail-signal', async (t) => {
   const { script } = t.context;
   {
     const req = await activate(t, makeStartWorkflow(script));
-    compareCompletion(
-      t,
-      req,
-      makeSuccess([makeStartTimerCommand({ timerId: '0', startToFireTimeout: msToTs(100000) })])
-    );
+    compareCompletion(t, req, makeSuccess([makeStartTimerCommand({ seq: 1, startToFireTimeout: msToTs(100000) })]));
   }
   {
     const req = await activate(t, await makeSignalWorkflow('fail', []));
-    compareCompletion(t, req, makeSuccess([makeStartTimerCommand({ timerId: '1', startToFireTimeout: msToTs(100) })]));
+    compareCompletion(t, req, makeSuccess([makeStartTimerCommand({ seq: 2, startToFireTimeout: msToTs(100) })]));
   }
   {
-    const req = cleanWorkflowFailureStackTrace(await activate(t, makeFireTimer('1')));
+    const req = cleanWorkflowFailureStackTrace(await activate(t, makeFireTimer(2)));
     compareCompletion(
       t,
       req,
@@ -747,7 +739,8 @@ test('cancel-workflow', async (t) => {
       req,
       makeSuccess([
         makeScheduleActivityCommand({
-          activityId: '0',
+          seq: 1,
+          activityId: '1',
           activityType: JSON.stringify(['@activities', 'httpGet']),
           arguments: await defaultDataConverter.toPayloads(url),
           startToCloseTimeout: msToTs('10m'),
@@ -758,17 +751,17 @@ test('cancel-workflow', async (t) => {
   }
   {
     const req = await activate(t, makeActivation(undefined, { cancelWorkflow: {} }));
-    compareCompletion(t, req, makeSuccess([makeCancelActivityCommand('0')]));
+    compareCompletion(t, req, makeSuccess([makeCancelActivityCommand(1)]));
   }
   {
     const req = await activate(
       t,
       makeActivation(undefined, {
         resolveActivity: {
-          activityId: '0',
+          seq: 1,
           result: {
             cancelled: {
-              failure: makeActivityCancelledFailure('0', ['@activities', 'httpGet']),
+              failure: makeActivityCancelledFailure('1', ['@activities', 'httpGet']),
             },
           },
         },
@@ -779,7 +772,8 @@ test('cancel-workflow', async (t) => {
       req,
       makeSuccess([
         makeScheduleActivityCommand({
-          activityId: '2',
+          seq: 3,
+          activityId: '3',
           activityType: JSON.stringify(['@activities', 'httpGet']),
           arguments: await defaultDataConverter.toPayloads(url),
           startToCloseTimeout: msToTs('10m'),
@@ -794,7 +788,7 @@ test('cancel-workflow', async (t) => {
       t,
       makeActivation(undefined, {
         resolveActivity: {
-          activityId: '2',
+          seq: 3,
           result: { completed: { result } },
         },
       })
@@ -823,8 +817,8 @@ test('cancel-timer-immediately', async (t) => {
     t,
     req,
     makeSuccess([
-      makeStartTimerCommand({ timerId: '0', startToFireTimeout: msToTs(1) }),
-      makeCancelTimerCommand({ timerId: '0' }),
+      makeStartTimerCommand({ seq: 1, startToFireTimeout: msToTs(1) }),
+      makeCancelTimerCommand({ seq: 1 }),
       makeCompleteWorkflowExecution(),
     ])
   );
@@ -838,8 +832,8 @@ test('cancel-timer-immediately-alternative-impl', async (t) => {
     t,
     req,
     makeSuccess([
-      makeStartTimerCommand({ timerId: '0', startToFireTimeout: msToTs(1) }),
-      makeCancelTimerCommand({ timerId: '0' }),
+      makeStartTimerCommand({ seq: 1, startToFireTimeout: msToTs(1) }),
+      makeCancelTimerCommand({ seq: 1 }),
       makeCompleteWorkflowExecution(),
     ])
   );
@@ -857,7 +851,8 @@ test('non-cancellable-shields-children', async (t) => {
       completion,
       makeSuccess([
         makeScheduleActivityCommand({
-          activityId: '0',
+          seq: 1,
+          activityId: '1',
           activityType: JSON.stringify(['@activities', 'httpGetJSON']),
           arguments: await defaultDataConverter.toPayloads(url),
           startToCloseTimeout: msToTs('10m'),
@@ -867,7 +862,7 @@ test('non-cancellable-shields-children', async (t) => {
     );
   }
   {
-    const completion = await activate(t, makeResolveActivity('0', { completed: { result } }));
+    const completion = await activate(t, makeResolveActivity(1, { completed: { result } }));
     compareCompletion(t, completion, makeSuccess([makeCompleteWorkflowExecution(result)]));
   }
 });
@@ -883,7 +878,8 @@ test('cancel-requested-with-non-cancellable', async (t) => {
       completion,
       makeSuccess([
         makeScheduleActivityCommand({
-          activityId: '0',
+          seq: 1,
+          activityId: '1',
           activityType: JSON.stringify(['@activities', 'httpGetJSON']),
           arguments: await defaultDataConverter.toPayloads(url),
           startToCloseTimeout: msToTs('10m'),
@@ -897,7 +893,7 @@ test('cancel-requested-with-non-cancellable', async (t) => {
     compareCompletion(t, completion, makeSuccess([]));
   }
   {
-    const completion = await activate(t, makeResolveActivity('0', { completed: { result } }));
+    const completion = await activate(t, makeResolveActivity(1, { completed: { result } }));
     compareCompletion(t, completion, makeSuccess([makeCompleteWorkflowExecution(result)]));
   }
 });
@@ -915,7 +911,8 @@ test('handle-external-workflow-cancellation-while-activity-running', async (t) =
       completion,
       makeSuccess([
         makeScheduleActivityCommand({
-          activityId: '0',
+          seq: 1,
+          activityId: '1',
           activityType: JSON.stringify(['@activities', 'httpPostJSON']),
           arguments: await defaultDataConverter.toPayloads(url, data),
           startToCloseTimeout: msToTs('10m'),
@@ -926,19 +923,20 @@ test('handle-external-workflow-cancellation-while-activity-running', async (t) =
   }
   {
     const completion = await activate(t, makeActivation(undefined, { cancelWorkflow: {} }));
-    compareCompletion(t, completion, makeSuccess([makeCancelActivityCommand('0')]));
+    compareCompletion(t, completion, makeSuccess([makeCancelActivityCommand(1)]));
   }
   {
     const completion = await activate(
       t,
-      makeResolveActivity('0', { cancelled: { failure: { canceledFailureInfo: {} } } })
+      makeResolveActivity(1, { cancelled: { failure: { canceledFailureInfo: {} } } })
     );
     compareCompletion(
       t,
       completion,
       makeSuccess([
         makeScheduleActivityCommand({
-          activityId: '1',
+          seq: 2,
+          activityId: '2',
           activityType: JSON.stringify(['@activities', 'cleanup']),
           arguments: await defaultDataConverter.toPayloads(url),
           startToCloseTimeout: msToTs('10m'),
@@ -950,7 +948,7 @@ test('handle-external-workflow-cancellation-while-activity-running', async (t) =
   {
     const completion = await activate(
       t,
-      makeResolveActivity('1', { completed: { result: await defaultDataConverter.toPayload(undefined) } })
+      makeResolveActivity(2, { completed: { result: await defaultDataConverter.toPayload(undefined) } })
     );
     compareCompletion(t, completion, makeSuccess([{ cancelWorkflowExecution: {} }]));
   }
@@ -967,7 +965,8 @@ test('nested-cancellation', async (t) => {
       completion,
       makeSuccess([
         makeScheduleActivityCommand({
-          activityId: '0',
+          seq: 1,
+          activityId: '1',
           activityType: JSON.stringify(['@activities', 'setup']),
           startToCloseTimeout: msToTs('10m'),
           taskQueue: 'test',
@@ -978,15 +977,16 @@ test('nested-cancellation', async (t) => {
   {
     const completion = await activate(
       t,
-      makeResolveActivity('0', { completed: { result: await defaultDataConverter.toPayload(undefined) } })
+      makeResolveActivity(1, { completed: { result: await defaultDataConverter.toPayload(undefined) } })
     );
 
     compareCompletion(
       t,
       completion,
       makeSuccess([
-        makeStartTimerCommand({ timerId: '1', startToFireTimeout: msToTs(1000) }),
+        makeStartTimerCommand({ seq: 1, startToFireTimeout: msToTs(1000) }),
         makeScheduleActivityCommand({
+          seq: 2,
           activityId: '2',
           activityType: JSON.stringify(['@activities', 'httpPostJSON']),
           arguments: await defaultDataConverter.toPayloads(url, { some: 'data' }),
@@ -997,18 +997,19 @@ test('nested-cancellation', async (t) => {
     );
   }
   {
-    const completion = await activate(t, makeFireTimer('1'));
-    compareCompletion(t, completion, makeSuccess([makeCancelActivityCommand('2')]));
+    const completion = await activate(t, makeFireTimer(1));
+    compareCompletion(t, completion, makeSuccess([makeCancelActivityCommand(2)]));
   }
   const failure = makeActivityCancelledFailure('2', ['@activities', 'httpPostJSON']);
   {
-    const completion = await activate(t, makeResolveActivity('2', { cancelled: { failure } }));
+    const completion = await activate(t, makeResolveActivity(2, { cancelled: { failure } }));
     compareCompletion(
       t,
       completion,
       makeSuccess([
         makeScheduleActivityCommand({
           activityId: '3',
+          seq: 3,
           activityType: JSON.stringify(['@activities', 'cleanup']),
           arguments: await defaultDataConverter.toPayloads(url),
           startToCloseTimeout: msToTs('10m'),
@@ -1020,7 +1021,7 @@ test('nested-cancellation', async (t) => {
   {
     const completion = await activate(
       t,
-      makeResolveActivity('3', { completed: { result: await defaultDataConverter.toPayload(undefined) } })
+      makeResolveActivity(3, { completed: { result: await defaultDataConverter.toPayload(undefined) } })
     );
     compareCompletion(
       t,
@@ -1044,11 +1045,12 @@ test('shared-promise-scopes', async (t) => {
       completion,
       makeSuccess(
         await Promise.all(
-          [0, 1].map(async (idx) =>
+          [1, 2].map(async (idx) =>
             makeScheduleActivityCommand({
+              seq: idx,
               activityId: `${idx}`,
               activityType: JSON.stringify(['@activities', 'httpGetJSON']),
-              arguments: await defaultDataConverter.toPayloads(`http://url${idx + 1}.ninja`),
+              arguments: await defaultDataConverter.toPayloads(`http://url${idx}.ninja`),
               startToCloseTimeout: msToTs('10m'),
               taskQueue: 'test',
             })
@@ -1060,7 +1062,7 @@ test('shared-promise-scopes', async (t) => {
   {
     const completion = await activate(
       t,
-      makeResolveActivity('1', { completed: { result: await defaultDataConverter.toPayload(result) } })
+      makeResolveActivity(2, { completed: { result: await defaultDataConverter.toPayload(result) } })
     );
     compareCompletion(
       t,
@@ -1080,7 +1082,8 @@ test('shield-awaited-in-root-scope', async (t) => {
       completion,
       makeSuccess([
         makeScheduleActivityCommand({
-          activityId: '0',
+          seq: 1,
+          activityId: '1',
           activityType: JSON.stringify(['@activities', 'httpGetJSON']),
           arguments: await defaultDataConverter.toPayloads(`http://example.com`),
           startToCloseTimeout: msToTs('10m'),
@@ -1097,7 +1100,7 @@ test('shield-awaited-in-root-scope', async (t) => {
   {
     const completion = await activate(
       t,
-      makeResolveActivity('0', { completed: { result: await defaultDataConverter.toPayload(result) } })
+      makeResolveActivity(1, { completed: { result: await defaultDataConverter.toPayload(result) } })
     );
     compareCompletion(
       t,
@@ -1111,11 +1114,7 @@ test('cancellation-scopes-with-callbacks', async (t) => {
   const { script } = t.context;
   {
     const completion = await activate(t, makeStartWorkflow(script));
-    compareCompletion(
-      t,
-      completion,
-      makeSuccess([makeStartTimerCommand({ timerId: '0', startToFireTimeout: msToTs(10) })])
-    );
+    compareCompletion(t, completion, makeSuccess([makeStartTimerCommand({ seq: 1, startToFireTimeout: msToTs(10) })]));
   }
   {
     const completion = await activate(t, makeActivation(undefined, { cancelWorkflow: {} }));
@@ -1127,27 +1126,27 @@ test('cancellation-scopes', async (t) => {
   const { script, logs } = t.context;
   {
     const req = await activate(t, makeStartWorkflow(script));
-    compareCompletion(t, req, makeSuccess([makeStartTimerCommand({ timerId: '0', startToFireTimeout: msToTs(3) })]));
+    compareCompletion(t, req, makeSuccess([makeStartTimerCommand({ seq: 1, startToFireTimeout: msToTs(3) })]));
   }
   {
-    const req = await activate(t, makeFireTimer('0'));
+    const req = await activate(t, makeFireTimer(1));
     compareCompletion(
       t,
       req,
       makeSuccess([
-        makeStartTimerCommand({ timerId: '1', startToFireTimeout: msToTs(3) }),
-        makeStartTimerCommand({ timerId: '2', startToFireTimeout: msToTs(3) }),
-        makeCancelTimerCommand({ timerId: '1' }),
+        makeStartTimerCommand({ seq: 2, startToFireTimeout: msToTs(3) }),
+        makeStartTimerCommand({ seq: 3, startToFireTimeout: msToTs(3) }),
+        makeCancelTimerCommand({ seq: 2 }),
       ])
     );
   }
   {
-    const req = await activate(t, makeFireTimer('2'));
-    compareCompletion(t, req, makeSuccess([makeStartTimerCommand({ timerId: '3', startToFireTimeout: msToTs(3) })]));
+    const req = await activate(t, makeFireTimer(3));
+    compareCompletion(t, req, makeSuccess([makeStartTimerCommand({ seq: 4, startToFireTimeout: msToTs(3) })]));
   }
   {
     const req = await activate(t, makeActivation(undefined, { cancelWorkflow: {} }));
-    compareCompletion(t, req, makeSuccess([makeCancelTimerCommand({ timerId: '3' }), makeCompleteWorkflowExecution()]));
+    compareCompletion(t, req, makeSuccess([makeCancelTimerCommand({ seq: 4 }), makeCompleteWorkflowExecution()]));
   }
   t.deepEqual(logs, [
     ['Scope cancelled 👍'],
@@ -1162,10 +1161,10 @@ test('child-and-shield', async (t) => {
   const { script } = t.context;
   {
     const req = await activate(t, makeStartWorkflow(script));
-    compareCompletion(t, req, makeSuccess([makeStartTimerCommand({ timerId: '0', startToFireTimeout: msToTs(5) })]));
+    compareCompletion(t, req, makeSuccess([makeStartTimerCommand({ seq: 1, startToFireTimeout: msToTs(5) })]));
   }
   {
-    const req = await activate(t, makeFireTimer('0'));
+    const req = await activate(t, makeFireTimer(1));
     compareCompletion(t, req, makeSuccess());
   }
 });
@@ -1178,14 +1177,14 @@ test('partial-shield', async (t) => {
       t,
       req,
       makeSuccess([
-        makeStartTimerCommand({ timerId: '0', startToFireTimeout: msToTs(5) }),
-        makeStartTimerCommand({ timerId: '1', startToFireTimeout: msToTs(3) }),
+        makeStartTimerCommand({ seq: 1, startToFireTimeout: msToTs(5) }),
+        makeStartTimerCommand({ seq: 2, startToFireTimeout: msToTs(3) }),
       ])
     );
   }
   {
-    const req = await activate(t, makeFireTimer('1'));
-    compareCompletion(t, req, makeSuccess([makeStartTimerCommand({ timerId: '2', startToFireTimeout: msToTs(2) })]));
+    const req = await activate(t, makeFireTimer(2));
+    compareCompletion(t, req, makeSuccess([makeStartTimerCommand({ seq: 3, startToFireTimeout: msToTs(2) })]));
   }
   {
     const req = await activate(t, makeActivation(undefined, { cancelWorkflow: {} }));
@@ -1193,17 +1192,17 @@ test('partial-shield', async (t) => {
       t,
       req,
       makeSuccess([
-        makeCancelTimerCommand({ timerId: '2' }),
-        makeStartTimerCommand({ timerId: '3', startToFireTimeout: msToTs(10) }),
+        makeCancelTimerCommand({ seq: 3 }),
+        makeStartTimerCommand({ seq: 4, startToFireTimeout: msToTs(10) }),
       ])
     );
   }
   {
-    const req = await activate(t, makeFireTimer('0'));
-    compareCompletion(t, req, makeSuccess([makeStartTimerCommand({ timerId: '4', startToFireTimeout: msToTs(1) })]));
+    const req = await activate(t, makeFireTimer(1));
+    compareCompletion(t, req, makeSuccess([makeStartTimerCommand({ seq: 5, startToFireTimeout: msToTs(1) })]));
   }
   {
-    const req = await activate(t, makeFireTimer('3'));
+    const req = await activate(t, makeFireTimer(4));
     compareCompletion(t, req, makeSuccess());
   }
   t.deepEqual(logs, [['Workflow cancelled']]);
@@ -1217,17 +1216,17 @@ test('shield-in-shield', async (t) => {
       t,
       req,
       makeSuccess([
-        makeStartTimerCommand({ timerId: '0', startToFireTimeout: msToTs(2) }),
-        makeStartTimerCommand({ timerId: '1', startToFireTimeout: msToTs(1) }),
+        makeStartTimerCommand({ seq: 1, startToFireTimeout: msToTs(2) }),
+        makeStartTimerCommand({ seq: 2, startToFireTimeout: msToTs(1) }),
       ])
     );
   }
   {
-    const req = await activate(t, makeFireTimer('1'));
+    const req = await activate(t, makeFireTimer(2));
     compareCompletion(t, req, makeSuccess([]));
   }
   {
-    const req = await activate(t, makeFireTimer('0'));
+    const req = await activate(t, makeFireTimer(1));
     compareCompletion(t, req, makeSuccess());
   }
   t.deepEqual(logs, [['Timer 1 finished 👍'], ['Timer 0 finished 👍']]);
@@ -1240,8 +1239,8 @@ test('cancellation-error-is-propagated', async (t) => {
     t,
     req,
     makeSuccess([
-      makeStartTimerCommand({ timerId: '0', startToFireTimeout: msToTs(0) }),
-      makeCancelTimerCommand({ timerId: '0' }),
+      makeStartTimerCommand({ seq: 1, startToFireTimeout: msToTs(0) }),
+      makeCancelTimerCommand({ seq: 1 }),
       {
         failWorkflowExecution: {
           failure: {
@@ -1276,7 +1275,8 @@ test('cancel-activity-after-first-completion', async (t) => {
       req,
       makeSuccess([
         makeScheduleActivityCommand({
-          activityId: '0',
+          seq: 1,
+          activityId: '1',
           activityType: JSON.stringify(['@activities', 'httpGet']),
           arguments: await defaultDataConverter.toPayloads(url),
           startToCloseTimeout: msToTs('10m'),
@@ -1288,14 +1288,15 @@ test('cancel-activity-after-first-completion', async (t) => {
   {
     const req = await activate(
       t,
-      makeResolveActivity('0', { completed: { result: await defaultDataConverter.toPayload('response1') } })
+      makeResolveActivity(1, { completed: { result: await defaultDataConverter.toPayload('response1') } })
     );
     compareCompletion(
       t,
       req,
       makeSuccess([
         makeScheduleActivityCommand({
-          activityId: '1',
+          seq: 2,
+          activityId: '2',
           activityType: JSON.stringify(['@activities', 'httpGet']),
           arguments: await defaultDataConverter.toPayloads(url),
           startToCloseTimeout: msToTs('10m'),
@@ -1311,7 +1312,7 @@ test('cancel-activity-after-first-completion', async (t) => {
   {
     const req = await activate(
       t,
-      makeResolveActivity('1', { completed: { result: await defaultDataConverter.toPayload('response2') } })
+      makeResolveActivity(2, { completed: { result: await defaultDataConverter.toPayload('response2') } })
     );
     compareCompletion(
       t,
@@ -1331,11 +1332,12 @@ test('multiple-activities-single-timeout', async (t) => {
       t,
       completion,
       makeSuccess([
-        makeStartTimerCommand({ timerId: '0', startToFireTimeout: msToTs(1000) }),
+        makeStartTimerCommand({ seq: 1, startToFireTimeout: msToTs(1000) }),
         ...(await Promise.all(
           urls.map(async (url, index) =>
             makeScheduleActivityCommand({
-              activityId: `${index + 1}`, // sequence 0 is taken by the timer
+              seq: index + 1,
+              activityId: `${index + 1}`,
               activityType: JSON.stringify(['@activities', 'httpGetJSON']),
               arguments: await defaultDataConverter.toPayloads(url),
               startToCloseTimeout: msToTs('10m'),
@@ -1347,8 +1349,8 @@ test('multiple-activities-single-timeout', async (t) => {
     );
   }
   {
-    const completion = await activate(t, makeFireTimer('0'));
-    compareCompletion(t, completion, makeSuccess([makeCancelActivityCommand('1'), makeCancelActivityCommand('2')]));
+    const completion = await activate(t, makeFireTimer(1));
+    compareCompletion(t, completion, makeSuccess([makeCancelActivityCommand(1), makeCancelActivityCommand(2)]));
   }
   const failure1 = makeActivityCancelledFailure('1', ['@activities', 'httpGetJSON']);
   const failure2 = makeActivityCancelledFailure('2', ['@activities', 'httpGetJSON']);
@@ -1357,8 +1359,8 @@ test('multiple-activities-single-timeout', async (t) => {
       t,
       makeActivation(
         undefined,
-        { resolveActivity: { activityId: '1', result: { cancelled: { failure: failure1 } } } },
-        { resolveActivity: { activityId: '2', result: { cancelled: { failure: failure2 } } } }
+        { resolveActivity: { seq: 1, result: { cancelled: { failure: failure1 } } } },
+        { resolveActivity: { seq: 2, result: { cancelled: { failure: failure2 } } } }
       )
     );
     compareCompletion(t, completion, makeSuccess([{ failWorkflowExecution: { failure: failure1 } }]));
@@ -1374,7 +1376,8 @@ test('http', async (t) => {
       req,
       makeSuccess([
         makeScheduleActivityCommand({
-          activityId: '0',
+          seq: 1,
+          activityId: '1',
           activityType: JSON.stringify(['@activities', 'httpGet']),
           arguments: await defaultDataConverter.toPayloads('https://google.com'),
           startToCloseTimeout: msToTs('10 minutes'),
@@ -1387,14 +1390,15 @@ test('http', async (t) => {
   {
     const req = await activate(
       t,
-      makeResolveActivity('0', { completed: { result: await defaultDataConverter.toPayload(result) } })
+      makeResolveActivity(1, { completed: { result: await defaultDataConverter.toPayload(result) } })
     );
     compareCompletion(
       t,
       req,
       makeSuccess([
         makeScheduleActivityCommand({
-          activityId: '1',
+          seq: 2,
+          activityId: '2',
           activityType: JSON.stringify(['@activities', 'httpGet']),
           arguments: await defaultDataConverter.toPayloads('http://example.com'),
           scheduleToCloseTimeout: msToTs('30 minutes'),
@@ -1409,7 +1413,7 @@ test('http', async (t) => {
   {
     const req = await activate(
       t,
-      makeResolveActivity('1', {
+      makeResolveActivity(2, {
         failed: {
           failure: await errorToFailure(failure, defaultDataConverter),
         },
@@ -1440,7 +1444,8 @@ test('activity-configure', async (t) => {
       req,
       makeSuccess([
         makeScheduleActivityCommand({
-          activityId: '0',
+          seq: 1,
+          activityId: '1',
           activityType: JSON.stringify(['@activities', 'httpGet']),
           arguments: await defaultDataConverter.toPayloads('http://example.com'),
           startToCloseTimeout: msToTs('10 minutes'),
@@ -1452,14 +1457,15 @@ test('activity-configure', async (t) => {
   {
     const req = await activate(
       t,
-      makeResolveActivity('0', { completed: { result: await defaultDataConverter.toPayload(result) } })
+      makeResolveActivity(1, { completed: { result: await defaultDataConverter.toPayload(result) } })
     );
     compareCompletion(
       t,
       req,
       makeSuccess([
         makeScheduleActivityCommand({
-          activityId: '1',
+          seq: 2,
+          activityId: '2',
           activityType: JSON.stringify(['@activities', 'httpGet']),
           arguments: await defaultDataConverter.toPayloads('http://example.com'),
           heartbeatTimeout: msToTs('3s'),
@@ -1472,14 +1478,15 @@ test('activity-configure', async (t) => {
   {
     const req = await activate(
       t,
-      makeResolveActivity('1', { completed: { result: await defaultDataConverter.toPayload(result) } })
+      makeResolveActivity(2, { completed: { result: await defaultDataConverter.toPayload(result) } })
     );
     compareCompletion(
       t,
       req,
       makeSuccess([
         makeScheduleActivityCommand({
-          activityId: '2',
+          seq: 3,
+          activityId: '3',
           activityType: JSON.stringify(['@activities', 'httpGet']),
           arguments: await defaultDataConverter.toPayloads('http://example.com'),
           scheduleToStartTimeout: msToTs('20 minutes'),
@@ -1492,7 +1499,7 @@ test('activity-configure', async (t) => {
   {
     const req = await activate(
       t,
-      makeResolveActivity('2', { completed: { result: await defaultDataConverter.toPayload(result) } })
+      makeResolveActivity(3, { completed: { result: await defaultDataConverter.toPayload(result) } })
     );
     compareCompletion(
       t,

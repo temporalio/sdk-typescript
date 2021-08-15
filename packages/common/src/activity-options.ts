@@ -26,6 +26,15 @@ export interface RemoteActivityOptions {
   type: 'remote';
 
   /**
+   * Identifier to use for tracking the activity in Workflow history.
+   * The `activityId` can be accessed by the activity function.
+   * Does not need to be unique.
+   *
+   * @default an incremental sequence number
+   */
+  activityId?: string;
+
+  /**
    * Namespace to schedule this activity in.
    * @default current worker namespace
    */
