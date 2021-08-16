@@ -98,6 +98,11 @@ export class WorkflowIsolateBuilder {
 
       module.exports = api;
     `;
+    try {
+      vol.mkdirSync(path.dirname(target), { recursive: true });
+    } catch (err) {
+      if (err.code !== 'EEXIST') throw err;
+    }
     vol.writeFileSync(target, code);
   }
 
