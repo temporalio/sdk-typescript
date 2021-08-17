@@ -4,7 +4,16 @@ import ms from 'ms';
 import { v4 as uuid4 } from 'uuid';
 import dedent from 'dedent';
 import { WorkflowClient } from '@temporalio/client';
-import { defaultDataConverter, tsToMs } from '@temporalio/common';
+import {
+  ChildWorkflowFailure,
+  defaultDataConverter,
+  RetryState,
+  TerminatedFailure,
+  TimeoutFailure,
+  TimeoutType,
+  tsToMs,
+  WorkflowExecution,
+} from '@temporalio/common';
 import { Worker, DefaultLogger } from '@temporalio/worker';
 import * as iface from '@temporalio/proto';
 import {
@@ -100,12 +109,11 @@ if (RUN_INTEGRATION_TESTS) {
   });
 
   test('cancel-http-request', async (t) => {
-    await withZeroesHTTPServer(async (port, finished) => {
+    await withZeroesHTTPServer(async (port) => {
       const client = new WorkflowClient();
       const url = `http://127.0.0.1:${port}`;
       const workflow = client.stub<CancellableHTTPRequest>('cancel-http-request', { taskQueue: 'test' });
       await workflow.execute(url);
-      await finished;
     });
     t.pass();
   });
@@ -133,6 +141,100 @@ if (RUN_INTEGRATION_TESTS) {
           at Activity.throwAnError [as fn]
       `
     );
+  });
+
+  test('child-workflow-invoke', async (t) => {
+    const client = new WorkflowClient();
+    const workflow = client.stub<{ main(): { workflowId: string; runId: string; execResult: string; result: string } }>(
+      'child-workflow-invoke',
+      { taskQueue: 'test' }
+    );
+    const { workflowId, runId, execResult, result } = await workflow.execute();
+    t.is(execResult, 'success');
+    t.is(result, 'success');
+    const child = client.stub(workflowId, runId);
+    t.is(await child.result(), 'success');
+  });
+
+  test('child-workflow-failure', async (t) => {
+    const client = new WorkflowClient();
+    const workflow = client.stub<Empty>('child-workflow-failure', { taskQueue: 'test' });
+    const err: WorkflowExecutionFailedError = await t.throwsAsync(workflow.execute(), {
+      instanceOf: WorkflowExecutionFailedError,
+    });
+    if (!(err.cause instanceof ChildWorkflowFailure)) {
+      return t.fail('Expected err.cause to be an instance of ChildWorkflowFailure');
+    }
+    if (!(err.cause.cause instanceof ApplicationFailure)) {
+      return t.fail('Expected err.cause.cause to be an instance of ApplicationFailure');
+    }
+    t.is(err.cause.cause.originalMessage, 'failure');
+    t.is(
+      cleanStackTrace(err.cause.cause.stack),
+      dedent`
+        Error: failure
+            at Object.main
+      `
+    );
+  });
+
+  test('child-workflow-termination', async (t) => {
+    const client = new WorkflowClient();
+    const workflow = client.stub<{ main(): void; queries: { childExecution(): WorkflowExecution | undefined } }>(
+      'child-workflow-termination',
+      { taskQueue: 'test' }
+    );
+    await workflow.start();
+
+    let childExecution: WorkflowExecution | undefined = undefined;
+
+    while (childExecution === undefined) {
+      childExecution = await workflow.query.childExecution();
+    }
+    const child = client.stub(childExecution.workflowId!, childExecution.runId!);
+    await child.terminate();
+    const err: WorkflowExecutionFailedError = await t.throwsAsync(workflow.result(), {
+      instanceOf: WorkflowExecutionFailedError,
+    });
+    if (!(err.cause instanceof ChildWorkflowFailure)) {
+      return t.fail('Expected err.cause to be an instance of ChildWorkflowFailure');
+    }
+    t.is(err.cause.retryState, RetryState.RETRY_STATE_NON_RETRYABLE_FAILURE);
+    if (!(err.cause.cause instanceof TerminatedFailure)) {
+      return t.fail('Expected err.cause.cause to be an instance of TerminatedFailure');
+    }
+  });
+
+  test('child-workflow-timeout', async (t) => {
+    const client = new WorkflowClient();
+    const workflow = client.stub<Empty>('child-workflow-timeout', { taskQueue: 'test' });
+    const err: WorkflowExecutionFailedError = await t.throwsAsync(workflow.execute(), {
+      instanceOf: WorkflowExecutionFailedError,
+    });
+    if (!(err.cause instanceof ChildWorkflowFailure)) {
+      return t.fail('Expected err.cause to be an instance of ChildWorkflowFailure');
+    }
+    t.is(err.cause.retryState, RetryState.RETRY_STATE_TIMEOUT);
+    if (!(err.cause.cause instanceof TimeoutFailure)) {
+      return t.fail('Expected err.cause.cause to be an instance of TimeoutFailure');
+    }
+    t.is(err.cause.cause.timeoutType, TimeoutType.TIMEOUT_TYPE_START_TO_CLOSE);
+  });
+
+  test('child-workflow-start-fail', async (t) => {
+    const client = new WorkflowClient();
+    const workflow = client.stub<Empty>('child-workflow-start-fail', { taskQueue: 'test' });
+    await workflow.execute();
+    // Assertions in workflow code
+    t.pass();
+  });
+
+  test('child-workflow-cancel', async (t) => {
+    const client = new WorkflowClient();
+    const workflow = client.stub<Empty>('child-workflow-cancel', { taskQueue: 'test' });
+    await workflow.execute();
+    // Assertions in workflow code
+    t.pass();
   });
 
   test('simple-query', async (t) => {

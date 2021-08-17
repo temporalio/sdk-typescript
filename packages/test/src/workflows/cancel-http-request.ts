@@ -1,4 +1,4 @@
-import { ActivityCancellationType, Context, CancellationScope, CancelledError, Trigger } from '@temporalio/workflow';
+import { ActivityCancellationType, Context, CancellationScope, isCancellation, Trigger } from '@temporalio/workflow';
 import { CancellableHTTPRequest } from '../interfaces';
 import { cancellableFetch } from '@activities';
 
@@ -26,7 +26,7 @@ async function main(url: string): Promise<void> {
       await promise;
     });
   } catch (err) {
-    if (!(err instanceof CancelledError)) {
+    if (!isCancellation(err)) {
       throw err;
     }
   }

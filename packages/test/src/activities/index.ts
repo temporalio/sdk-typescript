@@ -1,9 +1,9 @@
 /* eslint-disable @typescript-eslint/no-empty-function */
 /* eslint-disable @typescript-eslint/explicit-module-boundary-types */
-import fetch from 'node-fetch';
 import { Context } from '@temporalio/activity';
 import { Connection } from '@temporalio/client';
 import { fakeProgress as fakeProgressInner } from './fake-progress';
+import { cancellableFetch as cancellableFetchInner } from './cancellable-fetch';
 
 async function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -73,31 +73,7 @@ export async function cancellableFetch(url: string, signalWorkflowOnCheckpoint =
   if (signalWorkflowOnCheckpoint) {
     await signalSchedulingWorkflow('activityStarted');
   }
-  try {
-    const response = await fetch(`${url}/zeroes`, { signal: Context.current().cancellationSignal });
-    const contentLengthHeader = response.headers.get('Content-Length');
-    if (contentLengthHeader === null) {
-      throw new Error('expected Content-Length header to be set');
-    }
-    const contentLength = parseInt(contentLengthHeader);
-    let bytesRead = 0;
-    const chunks: Buffer[] = [];
-
-    for await (const chunk of response.body) {
-      if (!(chunk instanceof Buffer)) {
-        throw new TypeError('Expected Buffer');
-      }
-      bytesRead += chunk.length;
-      chunks.push(chunk);
-      Context.current().heartbeat(bytesRead / contentLength);
-    }
-    return Buffer.concat(chunks);
-  } catch (err) {
-    if (err.name === 'AbortError' && err.type === 'aborted') {
-      await fetch(`${url}/finish`);
-    }
-    throw err;
-  }
+  return await cancellableFetchInner(url);
 }
 
 export async function progressiveSleep(): Promise<void> {

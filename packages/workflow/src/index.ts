@@ -61,15 +61,26 @@ export {
   IllegalStateError,
   defaultDataConverter,
   DataConverter,
+  WorkflowIdReusePolicy,
+  ActivityFailure,
+  ApplicationFailure,
+  CancelledFailure,
+  ChildWorkflowFailure,
+  ServerFailure,
+  TemporalFailure,
+  TerminatedFailure,
+  TimeoutFailure,
 } from '@temporalio/common';
 export {
   ApplyMode,
+  ChildWorkflowOptions,
+  ChildWorkflowCancellationType,
   ExternalDependencyFunction,
   ExternalDependency,
   ExternalDependencies,
   WorkflowInfo,
 } from './interfaces';
-export { WorkflowCancelledError, CancelledError, DeterminismViolationError } from './errors';
+export * from './errors';
 export { Context, ContextImpl, sleep, uuid4, validateActivityOptions, scheduleActivity } from './workflow';
 export * from './interceptors';
 export { AsyncLocalStorage } from './async-local-storage';
