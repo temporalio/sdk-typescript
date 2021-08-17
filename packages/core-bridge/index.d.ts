@@ -42,10 +42,6 @@ export interface CoreOptions {
    * Options for communicating with the Temporal server
    */
   serverOptions: ServerOptions;
-  /**
-   * Maximum number of Workflow instances to cache before automatic eviction
-   */
-  maxCachedWorkflows: number;
 }
 
 export interface WorkerOptions {
@@ -71,6 +67,11 @@ export interface WorkerOptions {
    * and moved to the non-sticky queue where it may be picked up by any worker.
    */
   stickyQueueScheduleToStartTimeoutMs: number;
+
+  /**
+   * Maximum number of Workflow instances to cache before automatic eviction
+   */
+  maxCachedWorkflows: number;
 }
 
 export interface Worker {}
