@@ -22,17 +22,15 @@ async function run({
   }
 
   await Core.install({
-    serverOptions: {
-      address,
-      namespace,
-      tls: {
-        serverNameOverride,
-        serverRootCACertificate,
-        // See docs for other TLS options
-        clientCertPair: {
-          crt: fs.readFileSync(clientCertPath),
-          key: fs.readFileSync(clientKeyPath),
-        },
+    address,
+    namespace,
+    tls: {
+      serverNameOverride,
+      serverRootCACertificate,
+      // See docs for other TLS options
+      clientCertPair: {
+        crt: fs.readFileSync(clientCertPath),
+        key: fs.readFileSync(clientKeyPath),
       },
     },
   });

@@ -2,7 +2,10 @@ import { TLSConfig } from '@temporalio/common';
 
 export { TLSConfig };
 
-export interface ServerOptions {
+/**
+ * Configure a Core instance
+ */
+export interface CoreOptions {
   /**
    * The URL of the Temporal server to connect to
    */
@@ -34,20 +37,6 @@ export interface ServerOptions {
   tls?: TLSConfig;
 }
 
-/**
- * Configure a Core instance
- */
-export interface CoreOptions {
-  /**
-   * Options for communicating with the Temporal server
-   */
-  serverOptions: ServerOptions;
-  /**
-   * Maximum number of Workflow instances to cache before automatic eviction
-   */
-  maxCachedWorkflows: number;
-}
-
 export interface WorkerOptions {
   /**
    * The task queue the worker will pull from
@@ -71,6 +60,11 @@ export interface WorkerOptions {
    * and moved to the non-sticky queue where it may be picked up by any worker.
    */
   stickyQueueScheduleToStartTimeoutMs: number;
+
+  /**
+   * Maximum number of Workflow instances to cache before automatic eviction
+   */
+  maxCachedWorkflows: number;
 }
 
 export interface Worker {}

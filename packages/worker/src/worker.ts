@@ -229,6 +229,22 @@ export interface WorkerOptions {
   isolatePoolSize?: number;
 
   /**
+   * The number of Workflow isolates to keep in cached in memory
+   *
+   * Cached Workflows continue execution from their last stopping point.
+   * If the Worker is asked to run an uncached Workflow, it will need to replay the entire Workflow history.
+   * Use as a dial for trading memory for CPU time.
+   *
+   * You should be able to fit about 500 Workflows per GB of memory dependening on your Workflow bundle size.
+   * For the SDK test Workflows, we managed to fit 750 Workflows per GB.
+   *
+   * This number is impacted by the the Worker's {@link maxIsolateMemoryMB} option.
+   *
+   * @default `max(os.totalmem() / 1GiB - 1, 1) * 500`
+   */
+  maxCachedWorkflows?: number;
+
+  /**
    * A mapping of interceptor type to a list of factories or module paths
    */
   interceptors?: WorkerInterceptors;
@@ -261,6 +277,7 @@ export type WorkerOptionsWithDefaults<T extends WorkerSpec = DefaultWorkerSpec> 
       | 'isolateExecutionTimeout'
       | 'maxIsolateMemoryMB'
       | 'isolatePoolSize'
+      | 'maxCachedWorkflows'
     >
   >;
 
@@ -305,6 +322,7 @@ export function addDefaults<T extends WorkerSpec>(options: WorkerSpecOptions<T>)
     isolateExecutionTimeout: '1s',
     maxIsolateMemoryMB: Math.max(os.totalmem() - GiB, GiB) / MiB,
     isolatePoolSize: 8,
+    maxCachedWorkflows: options.maxCachedWorkflows || Math.max(os.totalmem() / GiB - 1, 1) * 500,
     ...rest,
   };
   return ret as WorkerOptionsWithDefaults<T>;
@@ -411,7 +429,7 @@ export class NativeWorker implements NativeWorkerLike {
   }
 
   public get namespace(): string {
-    return this.core.options.serverOptions.namespace;
+    return this.core.options.namespace;
   }
 }
 

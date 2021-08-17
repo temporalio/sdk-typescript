@@ -8,9 +8,11 @@ use temporal_sdk_core::errors::{
     CompleteActivityError, CompleteWfError, CoreInitError, PollActivityError, PollWfError,
 };
 use temporal_sdk_core::{
-    init, protos::coresdk::workflow_completion::WfActivationCompletion,
-    protos::coresdk::ActivityHeartbeat, protos::coresdk::ActivityTaskCompletion, tracing_init,
-    ClientTlsConfig, Core, CoreInitOptions, ServerGatewayOptions, TlsConfig, Url, WorkerConfig,
+    init,
+    protos::coresdk::workflow_completion::WfActivationCompletion,
+    protos::coresdk::{ActivityHeartbeat, ActivityTaskCompletion},
+    tracing_init, ClientTlsConfig, Core, CoreInitOptions, ServerGatewayOptions, TlsConfig, Url,
+    WorkerConfig,
 };
 use tokio::sync::mpsc::{unbounded_channel, UnboundedSender};
 
@@ -303,7 +305,7 @@ fn start_bridge_loop(
                                 tokio::spawn(void_future_to_js(
                                     event_queue,
                                     callback,
-                                    async move { core.complete_workflow_task(completion).await },
+                                    async move { core.complete_workflow_activation(completion).await },
                                     |cx, err| match err {
                                         CompleteWfError::WorkflowUpdateError { run_id, source } => {
                                             let args = vec![
@@ -371,7 +373,7 @@ async fn handle_poll_workflow_activation_request(
     event_queue: Arc<EventQueue>,
     callback: Root<JsFunction>,
 ) {
-    match core.poll_workflow_task(queue_name.as_str()).await {
+    match core.poll_workflow_activation(queue_name.as_str()).await {
         Ok(task) => {
             send_result(event_queue, callback, move |cx| {
                 let len = task.encoded_len();
@@ -501,12 +503,9 @@ macro_rules! js_value_getter {
 /// Core is returned to JS using supplied callback
 fn core_new(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     let core_options = cx.argument::<JsObject>(0)?;
-    let server_options = core_options
-        .get(&mut cx, "serverOptions")?
-        .downcast_or_throw::<JsObject, _>(&mut cx)?;
-    let url = js_value_getter!(cx, server_options, "url", JsString);
+    let url = js_value_getter!(cx, core_options, "url", JsString);
 
-    let tls_cfg = match get_optional(&mut cx, server_options, "tls") {
+    let tls_cfg = match get_optional(&mut cx, core_options, "tls") {
         None => None,
         Some(val) => {
             let tls = val.downcast_or_throw::<JsObject, _>(&mut cx)?;
@@ -541,32 +540,22 @@ fn core_new(mut cx: FunctionContext) -> JsResult<JsUndefined> {
 
     let gateway_opts = ServerGatewayOptions {
         target_url: Url::parse(&url).unwrap(),
-        namespace: js_value_getter!(cx, server_options, "namespace", JsString),
-        identity: js_value_getter!(cx, server_options, "identity", JsString),
-        worker_binary_id: js_value_getter!(cx, server_options, "workerBinaryId", JsString),
+        namespace: js_value_getter!(cx, core_options, "namespace", JsString),
+        identity: js_value_getter!(cx, core_options, "identity", JsString),
+        worker_binary_id: js_value_getter!(cx, core_options, "workerBinaryId", JsString),
         long_poll_timeout: Duration::from_millis(js_value_getter!(
             cx,
-            server_options,
+            core_options,
             "longPollTimeoutMs",
             JsNumber
         ) as u64),
         tls_cfg,
     };
 
-    let max_cached_workflows =
-        js_value_getter!(cx, core_options, "maxCachedWorkflows", JsNumber) as usize;
-
     let callback = cx.argument::<JsFunction>(1)?.root(&mut cx);
     let queue = Arc::new(cx.queue());
     std::thread::spawn(move || {
-        start_bridge_loop(
-            CoreInitOptions {
-                gateway_opts,
-                max_cached_workflows,
-            },
-            queue,
-            callback,
-        )
+        start_bridge_loop(CoreInitOptions { gateway_opts }, queue, callback)
     });
 
     Ok(cx.undefined())
@@ -611,6 +600,8 @@ fn worker_new(mut cx: FunctionContext) -> JsResult<JsUndefined> {
         "stickyQueueScheduleToStartTimeoutMs",
         JsNumber
     ) as u64);
+    let max_cached_workflows =
+        js_value_getter!(cx, worker_options, "maxCachedWorkflows", JsNumber) as usize;
 
     let callback = cx.argument::<JsFunction>(2)?;
 
@@ -621,6 +612,7 @@ fn worker_new(mut cx: FunctionContext) -> JsResult<JsUndefined> {
             max_concurrent_wft_polls,
             max_outstanding_workflow_tasks,
             max_outstanding_activities,
+            max_cached_workflows,
             nonsticky_to_sticky_poll_ratio,
             sticky_queue_schedule_to_start_timeout,
             task_queue,
@@ -687,6 +679,11 @@ fn worker_complete_workflow_activation(mut cx: FunctionContext) -> JsResult<JsUn
     });
     match result {
         Ok(completion) => {
+            // Add the task queue from our Worker
+            let completion = WfActivationCompletion {
+                task_queue: worker.queue.clone(),
+                ..completion
+            };
             let request = Request::CompleteWorkflowActivation {
                 completion,
                 callback: callback.root(&mut cx),
