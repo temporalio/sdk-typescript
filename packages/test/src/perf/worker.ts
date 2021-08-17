@@ -29,7 +29,6 @@ async function main() {
   await otel.start();
 
   await Core.install({
-    maxCachedWorkflows,
     serverOptions: {
       namespace,
       address: serverAddress,
@@ -44,6 +43,7 @@ async function main() {
     maxConcurrentWorkflowTaskExecutions,
     maxConcurrentActivityTaskPolls,
     maxConcurrentWorkflowTaskPolls,
+    maxCachedWorkflows,
     isolatePoolSize,
     logger: new DefaultLogger(logLevel as any),
   });

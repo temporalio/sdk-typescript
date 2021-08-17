@@ -229,7 +229,7 @@ export class Activator implements ActivationHandler {
     state.random = alea(activation.randomnessSeed.toBytes());
   }
 
-  public notifyHasChange(): void {
+  public notifyHasPatch(): void {
     throw new Error('Not implemented');
   }
 

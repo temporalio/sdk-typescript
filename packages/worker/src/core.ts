@@ -1,4 +1,3 @@
-import os from 'os';
 import { promisify } from 'util';
 import { IllegalStateError } from '@temporalio/common';
 import {
@@ -10,32 +9,15 @@ import {
 } from './server-options';
 import * as native from '@temporalio/core-bridge';
 import { newCore, coreShutdown } from '@temporalio/core-bridge';
-import { GiB } from './utils';
 
 export interface CoreOptions {
   /** Options for communicating with the Temporal server */
   serverOptions?: ServerOptions;
-  /**
-   * The number of Workflow isolates to keep in cached in memory
-   *
-   * Cached Workflows continue execution from their last stopping point.
-   * If the Worker is asked to run an uncached Workflow, it will need to replay the entire Workflow history.
-   * Use as a dial for trading memory for CPU time.
-   *
-   * You should be able to fit about 500 Workflows per GB of memory dependening on your Workflow bundle size.
-   * For the SDK test Workflows, we managed to fit 750 Workflows per GB.
-   *
-   * This number is impacted by the the Worker's {@link maxIsolateMemoryMB} option.
-   *
-   * @default `max(os.totalmem() / 1GiB - 1, 1) * 500`
-   */
-  maxCachedWorkflows?: native.CoreOptions['maxCachedWorkflows'];
 }
 
 export interface CompiledCoreOptions extends CoreOptions {
   /** Options for communicating with the Temporal server */
   serverOptions: CompiledServerOptions;
-  maxCachedWorkflows: native.CoreOptions['maxCachedWorkflows'];
 }
 
 /**
@@ -60,7 +42,6 @@ export class Core {
   protected static async create(options: CoreOptions): Promise<Core> {
     const compiledServerOptions = compileServerOptions({ ...getDefaultServerOptions(), ...options.serverOptions });
     const compiledOptions = {
-      maxCachedWorkflows: options.maxCachedWorkflows || Math.max(os.totalmem() / GiB - 1, 1) * 500,
       serverOptions: {
         ...compiledServerOptions,
         tls: normalizeTlsConfig(compiledServerOptions.tls),
