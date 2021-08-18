@@ -8,15 +8,25 @@
   <img src="https://img.shields.io/npm/l/temporalio?style=for-the-badge" alt="LICENSE" />
 </div>
 
-Temporal is a microservice orchestration platform which enables developers to build scalable applications without sacrificing productivity or reliability. Temporal server executes units of application logic, Workflows, in a resilient manner that automatically handles intermittent failures, and retries failed operations.
+Temporal is a microservice orchestration platform which enables developers to build scalable applications without sacrificing productivity or reliability. Temporal server executes units of application logic—Workflows—in a resilient manner that automatically handles intermittent failures and retries failed operations.
 
-Temporal is a mature technology, a fork of Uber's Cadence. Temporal is being developed by [Temporal Technologies](https://temporal.io), a startup by the creators of Cadence.
+Temporal is a mature technology—it's a fork of Uber's Cadence. Temporal is being developed by [Temporal Technologies](https://temporal.io), a startup by the creators of Cadence.
 
-Learn how to use Temporal on the [docs site](https://docs.temporal.io/docs/node/introduction).
+## Documentation
 
-### This SDK is in alpha stage
+Check out the [Getting started](https://docs.temporal.io/docs/node/getting-started) page for a quick overview.
 
-#### Features
+The documentation is divided into several sections:
+
+- [Node SDK docs](https://docs.temporal.io/docs/node/introduction)
+- [Node SDK API reference](https://nodejs.temporal.io/)
+- [General Temporal docs](https://docs.temporal.io)
+
+You can improve it by sending pull requests to this repository (for the API reference) or to the [documentation repository](https://github.com/temporalio/documentation).
+
+## This SDK is in alpha
+
+### Features
 
 Mostly complete implementation of all components that make up a Temporal SDK - Worker, Client, Workflows, and Activities
 
@@ -51,16 +61,10 @@ Notably these features are missing:
 > To provide feedback please [open an issue](https://github.com/temporalio/sdk-node/issues) and feel free to
 > talk to us on the [community slack channel](https://slack.com/app_redirect?app=TNWA8QCGZ&channel=nodejs-sdk).
 
-### Installation
+## Installation
 
 See the [getting started](https://docs.temporal.io/docs/node/getting-started) guide for setting up a project on your laptop.
 
-### Documentation
-
-You can find the project's documentation as well as general documentation for Temporal on our [docs site](https://docs.temporal.io).
-
-The API reference for this SDK can be found [here](https://nodejs.temporal.io/).
-
-### Contributing
+## Contributing
 
 Read our [contributing guide](https://github.com/temporalio/sdk-node/blob/main/CONTRIBUTING.md) to learn about our development process, how to propose bugfixes and improvements, and how to build and test your changes to the SDK.

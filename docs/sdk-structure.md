@@ -9,3 +9,5 @@ The Node.js SDK is developed in a mono-repo consisting of several packages manag
 - [`@temporalio/client`](../packages/client) - Communicate with the Temporal service for things like administration and scheduling workflows
 - [`@temporalio/proto`](../packages/proto) - Compiled protobuf definitions
 - [`@temporalio/create`](../packages/create-project) - NPM package initializer
+
+[Repo visualization](https://octo-repo-visualization.vercel.app/?repo=temporalio%2Fsdk-node)
