@@ -45,7 +45,7 @@ if (RUN_INTEGRATION_TESTS) {
     {
       // Run a simple workflow
       const wf = connection.stub<Sleeper>('sleep', { taskQueue: 'q1' });
-      await wf.start(1);
+      await wf.execute(1);
     }
     worker3.shutdown();
     await worker3Drained;
