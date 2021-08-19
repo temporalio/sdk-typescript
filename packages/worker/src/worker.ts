@@ -788,9 +788,11 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
       mergeMap((group$) => {
         return merge(
           group$,
-          this.workflowsIdle$().pipe(
+          this.stateSubject.pipe(
+            filter((state) => state === 'DRAINING'),
             first(),
             map((): ContextAware<{ activation: coresdk.workflow_activation.WFActivation; span: otel.Span }> => {
+              // TODO: request eviction from core
               const parentSpan = tracer.startSpan('workflow.shutdown.evict');
               return {
                 parentSpan,
@@ -836,7 +838,11 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
                       throw new IllegalStateError(message);
                     }
                     this.log.debug('Disposing workflow', { runId: activation.runId });
-                    return { state: undefined, output: { close, completion: undefined, parentSpan } };
+                    const completion = coresdk.workflow_completion.WFActivationCompletion.encodeDelimited({
+                      runId: activation.runId,
+                      successful: {},
+                    }).finish();
+                    return { state: undefined, output: { close, completion, parentSpan } };
                   }
 
                   if (workflow === undefined) {
