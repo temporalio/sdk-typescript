@@ -1,14 +1,30 @@
 # How to Contribute
 
-The Node.js SDK, as well as the rest of the Temporal codebase is open sourced under the MIT license.
+The Node.js SDK (as well as the rest of the Temporal codebase) is open sourced under the MIT license.
 
-We welcome contributions from the community. To contribute please start by opening an [issue](https://github.com/temporalio/sdk-node/issues) and dicussing the proposed change, once a change has been agreed upon development may start and submitted via a [pull request](https://github.com/temporalio/sdk-node/pulls).
+We welcome contributions from the community. To contribute please start by opening an [issue](https://github.com/temporalio/sdk-node/issues) and discussing the proposed change. Once a change has been agreed upon, development may start and be submitted via a [pull request](https://github.com/temporalio/sdk-node/pulls).
+
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+
+**Contents:**
+
+- [Contributor License Agreement (CLA)](#contributor-license-agreement-cla)
+- [SDK Structure](#sdk-structure)
+- [Environment set up](#environment-set-up)
+- [Development Workflow](#development-workflow)
+  - [Integration tests](#integration-tests)
+- [Style Guide](#style-guide)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
 ### Contributor License Agreement (CLA)
 
-You will need to submit a CLA before we can accept your contribution. You only have to do this once. Follow [this link](https://cla-assistant.io/temporalio/sdk-node) and sign in with your GitHub account.
+Contributors must agree to the CLA before their PR can be merged. You only have to do this once. Follow [this link](https://cla-assistant.io/temporalio/sdk-node) and sign in with your GitHub account.
 
-### [SDK Structure](./docs/sdk-structure.md)
+### SDK Structure
+
+See [sdk-structure.md](./docs/sdk-structure.md)
 
 ### Environment setup
 
@@ -47,7 +63,7 @@ After your environment is set up, you can run these commands:
 - `npm run format` formats code with prettier.
 - `npm run lint` verifies code style with prettier and ES lint.
 
-##### Integration tests
+#### Integration tests
 
 In order to run integration tests:
 

@@ -19,6 +19,7 @@ const packageJsonBase = {
         build: 'tsc --build src/worker/tsconfig.json',
         'build.watch': 'tsc --build --watch src/worker/tsconfig.json',
         start: 'node lib/worker',
+        'start-workflow': 'node lib/worker/schedule-workflow.js',
     },
     devDependencies: {
         typescript: `^${typescriptVersion}`,

@@ -169,7 +169,7 @@ export class WorkflowClient {
   }
 
   /**
-   * Starts a new Workflow execution
+   * Start a new Workflow execution. Resolves with the execution `runId`.
    */
   public async start<T extends Workflow>(
     opts: WorkflowOptions,
