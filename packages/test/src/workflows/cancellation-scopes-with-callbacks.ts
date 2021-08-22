@@ -6,14 +6,14 @@
 import { CancellationScope } from '@temporalio/workflow';
 import { Empty } from '../interfaces';
 
-function doSomehing(callback: () => any) {
+function doSomething(callback: () => any) {
   setTimeout(callback, 10);
 }
 
 export const cancellationScopesWithCallbacks: Empty = () => ({
   async execute() {
     await new Promise<void>((resolve, reject) => {
-      doSomehing(resolve);
+      doSomething(resolve);
       CancellationScope.current().cancelRequested.catch(reject);
     });
   },
