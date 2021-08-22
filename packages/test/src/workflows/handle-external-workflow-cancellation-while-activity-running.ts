@@ -4,14 +4,14 @@
  * Used in the documentation site.
  */
 // @@@SNIPSTART nodejs-handle-external-workflow-cancellation-while-activity-running
-import { CancelledError, CancellationScope } from '@temporalio/workflow';
+import { CancellationScope, isCancellation } from '@temporalio/workflow';
 import { httpPostJSON, cleanup } from '@activities';
 
 export async function main(url: string, data: any): Promise<void> {
   try {
     await httpPostJSON(url, data);
   } catch (err) {
-    if (err instanceof CancelledError) {
+    if (isCancellation(err)) {
       console.log('Workflow cancelled');
       // Cleanup logic must be in a nonCancellable scope
       // If we'd run cleanup outside of a nonCancellable scope it would've been cancelled

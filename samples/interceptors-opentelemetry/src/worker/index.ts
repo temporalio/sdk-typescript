@@ -19,7 +19,7 @@ async function main() {
   // use the Core.install() method to configure the Rust Core SDK singleton.
   const worker = await Worker.create<{ dependencies: OpenTelemetryDependencies }>({
     workDir: __dirname,
-    // Slience the Worker logs to better see the span output
+    // Silence the Worker logs to better see the span output
     logger: new DefaultLogger('WARNING'),
     taskQueue: 'interceptors-opentelemetry-example',
     dependencies: {

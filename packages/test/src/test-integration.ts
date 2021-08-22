@@ -109,12 +109,11 @@ if (RUN_INTEGRATION_TESTS) {
   });
 
   test('cancel-http-request', async (t) => {
-    await withZeroesHTTPServer(async (port, finished) => {
+    await withZeroesHTTPServer(async (port) => {
       const client = new WorkflowClient();
       const url = `http://127.0.0.1:${port}`;
       const workflow = client.stub<CancellableHTTPRequest>('cancel-http-request', { taskQueue: 'test' });
       await workflow.execute(url);
-      await finished;
     });
     t.pass();
   });

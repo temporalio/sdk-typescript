@@ -3,7 +3,7 @@
  * Used in the documentation site.
  */
 // @@@SNIPSTART nodejs-cancel-requested-with-non-cancellable
-import { CancelledError, CancellationScope } from '@temporalio/workflow';
+import { CancelledFailure, CancellationScope } from '@temporalio/workflow';
 import { httpGetJSON } from '@activities';
 
 export async function main(url: string): Promise<any> {
@@ -13,7 +13,7 @@ export async function main(url: string): Promise<any> {
   try {
     result = await Promise.race([scope.cancelRequested, promise]);
   } catch (err) {
-    if (!(err instanceof CancelledError)) {
+    if (!(err instanceof CancelledFailure)) {
       throw err;
     }
     // Prevent Workflow from completing so Activity can complete

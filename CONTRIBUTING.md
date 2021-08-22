@@ -10,23 +10,30 @@ You will need to submit a CLA before we can accept your contribution. You only h
 
 ### [SDK Structure](./docs/sdk-structure.md)
 
-### Environment set up
+### Environment setup
 
-- Install system dependencies including the rust toolchain by follow the instructions [here](https://docs.temporal.io/docs/node/getting-started#install-system-dependencies)
-- Clone the [sdk-node](https://github.com/temporalio/sdk-node) repo
-- Initialize the Core SDK submodule
+- Install the system dependencies listed in [Getting started > Step 0: Prerequisites](https://docs.temporal.io/docs/node/getting-started/#step-0-prerequisites)
+- Install the [Rust toolchain](https://rustup.rs/)
+- Clone the [sdk-node](https://github.com/temporalio/sdk-node) repo:
+  ```sh
+  git clone https://github.com/temporalio/sdk-node.git
+  cd sdk-node
+  ```
+- Initialize the Core SDK submodule:
   ```sh
   git submodule init
   git submodule update
   ```
-- Install the dependencies
+- Install the dependencies:
   ```sh
   npm ci
   ```
 
-> For cross compilation on MacOS follow [these](https://github.com/temporalio/sdk-node/blob/main/docs/building.md) instructions.
+You should now be able to successfully do `npm run build`. If this fails, resetting your environment may help: `npx lerna clean -- -f && npm ci`.
 
 To update your environment, run `git submodule update` to update to the latest version of the Core SDK, followed by `npm run build` to recompile.
+
+> For cross compilation on MacOS follow [these instructions](https://github.com/temporalio/sdk-node/blob/main/docs/building.md) (only required for publishing packages).
 
 ### Development Workflow
 

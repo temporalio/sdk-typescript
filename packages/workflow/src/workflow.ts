@@ -386,7 +386,7 @@ export class ContextImpl {
   /**
    * Returns whether or not this workflow received a cancellation request.
    *
-   * The workflow might still be running in case {@link CancelledError}s were caught.
+   * The workflow might still be running in case cancellation was handled.
    */
   public get cancelled(): boolean {
     return state.cancelled;

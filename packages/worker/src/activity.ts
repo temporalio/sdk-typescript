@@ -5,10 +5,12 @@ import {
   DataConverter,
   ensureTemporalFailure,
   errorToFailure,
+  CancelledFailure,
+  FAILURE_SOURCE,
 } from '@temporalio/common';
 import { coresdk } from '@temporalio/proto';
 import { asyncLocalStorage } from '@temporalio/activity';
-import { Context, CancelledError, Info } from '@temporalio/activity';
+import { Context, Info } from '@temporalio/activity';
 import {
   ActivityExecuteInput,
   ActivityInboundCallsInterceptor,
@@ -37,7 +39,7 @@ export class Activity {
       this.cancel = (reason?: any) => {
         this.cancelRequested = true;
         this.abortController.abort();
-        reject(new CancelledError(reason));
+        reject(new CancelledFailure(reason));
       };
     });
     this.context = new Context(info, promise, this.abortController.signal, this.heartbeatCallback);
@@ -65,9 +67,13 @@ export class Activity {
         return { completed: { result: await this.dataConverter.toPayload(result) } };
       } catch (err) {
         if (this.cancelRequested) {
-          // Either a CancelledError that we threw or AbortError from AbortController
-          if (err instanceof CancelledError || (err.name === 'AbortError' && err.type === 'aborted')) {
-            return { canceled: {} };
+          // Either a CancelledFailure that we threw or AbortError from AbortController
+          if (err instanceof CancelledFailure) {
+            const failure = await errorToFailure(err, this.dataConverter);
+            failure.stackTrace = undefined;
+            return { cancelled: { failure } };
+          } else if (err.name === 'AbortError' && err.type === 'aborted') {
+            return { cancelled: { failure: { source: FAILURE_SOURCE, canceledFailureInfo: {} } } };
           }
         }
         return {

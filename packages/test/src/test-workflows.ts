@@ -4,7 +4,7 @@ import Long from 'long';
 import dedent from 'dedent';
 import { coresdk } from '@temporalio/proto';
 import { ApplyMode } from '@temporalio/workflow';
-import { defaultDataConverter, ApplicationFailure, errorToFailure, msToTs } from '@temporalio/common';
+import { defaultDataConverter, ApplicationFailure, errorToFailure, msToTs, RetryState } from '@temporalio/common';
 import { Workflow } from '@temporalio/worker/lib/workflow';
 import { WorkflowIsolateBuilder } from '@temporalio/worker/lib/isolate-builder';
 import { RoundRobinIsolateContextProvider } from '@temporalio/worker/lib/isolate-context-provider';
@@ -101,6 +101,22 @@ function makeStartWorkflow(
   };
 }
 
+/**
+ * Creates a Failure object for a cancelled activity
+ */
+function makeActivityCancelledFailure(activityId: string, activityType: [string, string]) {
+  return {
+    cause: {
+      canceledFailureInfo: {},
+    },
+    activityFailureInfo: {
+      activityId,
+      identity: 'test',
+      activityType: { name: JSON.stringify(activityType) },
+      retryState: RetryState.RETRY_STATE_CANCEL_REQUESTED,
+    },
+  };
+}
 function makeActivation(
   timestamp: number = Date.now(),
   ...jobs: coresdk.workflow_activation.IWFActivationJob[]
@@ -747,7 +763,16 @@ test('cancel-workflow', async (t) => {
   {
     const req = await activate(
       t,
-      makeActivation(undefined, { resolveActivity: { activityId: '0', result: { canceled: {} } } })
+      makeActivation(undefined, {
+        resolveActivity: {
+          activityId: '0',
+          result: {
+            cancelled: {
+              failure: makeActivityCancelledFailure('0', ['@activities', 'httpGet']),
+            },
+          },
+        },
+      })
     );
     compareCompletion(
       t,
@@ -904,7 +929,10 @@ test('handle-external-workflow-cancellation-while-activity-running', async (t) =
     compareCompletion(t, completion, makeSuccess([makeCancelActivityCommand('0')]));
   }
   {
-    const completion = await activate(t, makeResolveActivity('0', { canceled: {} }));
+    const completion = await activate(
+      t,
+      makeResolveActivity('0', { cancelled: { failure: { canceledFailureInfo: {} } } })
+    );
     compareCompletion(
       t,
       completion,
@@ -924,21 +952,7 @@ test('handle-external-workflow-cancellation-while-activity-running', async (t) =
       t,
       makeResolveActivity('1', { completed: { result: await defaultDataConverter.toPayload(undefined) } })
     );
-    compareCompletion(
-      t,
-      cleanWorkflowFailureStackTrace(completion),
-      makeSuccess([
-        makeFailWorkflowExecution(
-          'Activity cancelled',
-          dedent`
-          CancelledError: Activity cancelled
-              at Activator.resolveActivity
-              at activate
-        `,
-          'CancelledError'
-        ),
-      ])
-    );
+    compareCompletion(t, completion, makeSuccess([{ cancelWorkflowExecution: {} }]));
   }
 });
 
@@ -986,8 +1000,9 @@ test('nested-cancellation', async (t) => {
     const completion = await activate(t, makeFireTimer('1'));
     compareCompletion(t, completion, makeSuccess([makeCancelActivityCommand('2')]));
   }
+  const failure = makeActivityCancelledFailure('2', ['@activities', 'httpPostJSON']);
   {
-    const completion = await activate(t, makeResolveActivity('2', { canceled: {} }));
+    const completion = await activate(t, makeResolveActivity('2', { cancelled: { failure } }));
     compareCompletion(
       t,
       completion,
@@ -1009,17 +1024,11 @@ test('nested-cancellation', async (t) => {
     );
     compareCompletion(
       t,
-      cleanWorkflowFailureStackTrace(completion),
+      completion,
       makeSuccess([
-        makeFailWorkflowExecution(
-          'Activity cancelled',
-          dedent`
-          CancelledError: Activity cancelled
-              at Activator.resolveActivity
-              at activate
-          `,
-          'CancelledError'
-        ),
+        {
+          failWorkflowExecution: { failure },
+        },
       ])
     );
   }
@@ -1233,10 +1242,12 @@ test('cancellation-error-is-propagated', async (t) => {
     makeSuccess([
       makeStartTimerCommand({ timerId: '0', startToFireTimeout: msToTs(0) }),
       makeCancelTimerCommand({ timerId: '0' }),
-      makeFailWorkflowExecution(
-        'Cancelled',
-        dedent`
-        CancelledError: Cancelled
+      {
+        failWorkflowExecution: {
+          failure: {
+            message: 'Cancellation scope cancelled',
+            stackTrace: dedent`
+        CancelledFailure: Cancellation scope cancelled
             at CancellationScope.cancel
             at workflow-isolate
             at workflow-isolate
@@ -1245,8 +1256,11 @@ test('cancellation-error-is-propagated', async (t) => {
             at Function.cancellable
             at Object.main
         `,
-        'CancelledError'
-      ),
+            canceledFailureInfo: {},
+            source: 'NodeSDK',
+          },
+        },
+      },
     ])
   );
   t.deepEqual(logs, []);
@@ -1336,30 +1350,18 @@ test('multiple-activities-single-timeout', async (t) => {
     const completion = await activate(t, makeFireTimer('0'));
     compareCompletion(t, completion, makeSuccess([makeCancelActivityCommand('1'), makeCancelActivityCommand('2')]));
   }
+  const failure1 = makeActivityCancelledFailure('1', ['@activities', 'httpGetJSON']);
+  const failure2 = makeActivityCancelledFailure('2', ['@activities', 'httpGetJSON']);
   {
     const completion = await activate(
       t,
       makeActivation(
         undefined,
-        { resolveActivity: { activityId: '1', result: { canceled: {} } } },
-        { resolveActivity: { activityId: '2', result: { canceled: {} } } }
+        { resolveActivity: { activityId: '1', result: { cancelled: { failure: failure1 } } } },
+        { resolveActivity: { activityId: '2', result: { cancelled: { failure: failure2 } } } }
       )
     );
-    compareCompletion(
-      t,
-      cleanWorkflowFailureStackTrace(completion),
-      makeSuccess([
-        makeFailWorkflowExecution(
-          'Activity cancelled',
-          dedent`
-          CancelledError: Activity cancelled
-              at Activator.resolveActivity
-              at activate
-      `,
-          'CancelledError'
-        ),
-      ])
-    );
+    compareCompletion(t, completion, makeSuccess([{ failWorkflowExecution: { failure: failure1 } }]));
   }
 });
 
