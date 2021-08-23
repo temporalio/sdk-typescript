@@ -11,8 +11,8 @@ use temporal_sdk_core::{
     init,
     protos::coresdk::workflow_completion::WfActivationCompletion,
     protos::coresdk::{ActivityHeartbeat, ActivityTaskCompletion},
-    tracing_init, ClientTlsConfig, Core, CoreInitOptions, ServerGatewayOptions, TlsConfig, Url,
-    WorkerConfig,
+    tracing_init, ClientTlsConfig, Core, CoreInitOptions, RetryConfig, ServerGatewayOptions,
+    TlsConfig, Url, WorkerConfig,
 };
 use tokio::sync::mpsc::{unbounded_channel, UnboundedSender};
 
@@ -542,6 +542,42 @@ fn core_new(mut cx: FunctionContext) -> JsResult<JsUndefined> {
         }
     };
 
+    let retry_config = match get_optional(&mut cx, server_options, "retry") {
+        None => RetryConfig::default(),
+        Some(val) => {
+            let retry_config = val.downcast_or_throw::<JsObject, _>(&mut cx)?;
+            RetryConfig {
+                initial_interval: Duration::from_millis(js_value_getter!(
+                    cx,
+                    retry_config,
+                    "initialInterval",
+                    JsNumber
+                ) as u64),
+                randomization_factor: js_value_getter!(
+                    cx,
+                    retry_config,
+                    "randomizationFactor",
+                    JsNumber
+                ),
+                multiplier: js_value_getter!(cx, retry_config, "multiplier", JsNumber),
+                max_interval: Duration::from_millis(js_value_getter!(
+                    cx,
+                    retry_config,
+                    "maxInterval",
+                    JsNumber
+                ) as u64),
+                max_elapsed_time: match get_optional(&mut cx, retry_config, "maxElapsedTime") {
+                    None => None,
+                    Some(val) => {
+                        let val = val.downcast_or_throw::<JsNumber, _>(&mut cx)?;
+                        Some(Duration::from_millis(val.value(&mut cx) as u64))
+                    }
+                },
+                max_retries: js_value_getter!(cx, retry_config, "maxRetries", JsNumber) as usize,
+            }
+        }
+    };
+
     let gateway_opts = ServerGatewayOptions {
         target_url: Url::parse(&url).unwrap(),
         namespace: js_value_getter!(cx, server_options, "namespace", JsString),
@@ -554,6 +590,7 @@ fn core_new(mut cx: FunctionContext) -> JsResult<JsUndefined> {
             JsNumber
         ) as u64),
         tls_cfg,
+        retry_config,
     };
 
     let callback = cx.argument::<JsFunction>(1)?.root(&mut cx);
