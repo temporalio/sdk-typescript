@@ -23,13 +23,11 @@ import {
   first,
   ignoreElements,
   map,
-  mapTo,
   mergeMap,
   repeat,
   takeUntil,
   takeWhile,
   tap,
-  scan,
 } from 'rxjs/operators';
 import * as native from '@temporalio/core-bridge';
 import { coresdk } from '@temporalio/proto';
@@ -344,9 +342,9 @@ export function compileWorkerOptions<T extends WorkerSpec>(
  * * `INITIALIZED` - The initial state of the Worker after calling {@link Worker.create} and successful connection to the server
  * * `RUNNING` - {@link Worker.run} was called, polling task queues
  * * `SUSPENDED` - {@link Worker.suspendPolling} was called, not polling for new tasks
- * * `STOPPING` - {@link Worker.shutdown} was called or received shutdown signal
- * * `DRAINING` - Core has indicated that shutdown is complete, allow activations and tasks to complete with respect to {@link WorkerOptions.shutdownGraceTime | shutdownGraceTime}
- * * `DRAINED` - Draining complete, completing shutdown
+ * * `STOPPING` - {@link Worker.shutdown} was called or received shutdown signal, worker will forcefully shutdown in {@link WorkerOptions.shutdownGraceTime | shutdownGraceTime}
+ * * `DRAINING` - Core has indicated that shutdown is complete and all Workflow tasks have been drained, waiting for activities and cached workflows eviction
+ * * `DRAINED` - All activities and workflows have completed, ready to shutdown
  * * `STOPPED` - Shutdown complete, {@link Worker.run} resolves
  * * `FAILED` - Worker encountered an unrecoverable error, {@link Worker.run} should reject with the error
  */
@@ -570,7 +568,8 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
   /**
    * Start shutting down the Worker.
    * Immediately transitions state to STOPPING and asks Core to shut down.
-   * Once Core has confirmed that it's shutting down the Worker enters DRAINING state.
+   * Once Core has confirmed that it's shutting down the Worker enters DRAINING state
+   * unless the Worker has already been DRAINED.
    * {@see State}.
    */
   shutdown(): void {
@@ -579,7 +578,11 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
     }
     this.state = 'STOPPING';
     this.nativeWorker.shutdown().then(() => {
-      this.state = 'DRAINING';
+      // Core may have already returned a ShutdownError to our pollers in which
+      // case the state would transition to DRAINED
+      if (this.state === 'STOPPING') {
+        this.state = 'DRAINING';
+      }
     });
   }
 
@@ -787,25 +790,19 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
       closeableGroupBy(({ activation }) => activation.runId),
       mergeMap((group$) => {
         return merge(
-          group$,
+          group$.pipe(map((act) => ({ ...act, synthetic: false }))),
           this.stateSubject.pipe(
+            // Core has indicated that it will not return any more poll results, evict all cached WFs
             filter((state) => state === 'DRAINING'),
             first(),
-            map((): ContextAware<{ activation: coresdk.workflow_activation.WFActivation; span: otel.Span }> => {
-              // TODO: request eviction from core
-              const parentSpan = tracer.startSpan('workflow.shutdown.evict');
+            map((): ContextAware<{ activation: coresdk.workflow_activation.WFActivation; synthetic: true }> => {
               return {
-                parentSpan,
-                span: childSpan(parentSpan, 'workflow.process', {
-                  attributes: {
-                    numInFlightActivations: this.numInFlightActivationsSubject.value,
-                    numRunningWorkflowInstances: this.numRunningWorkflowInstancesSubject.value,
-                  },
-                }),
+                parentSpan: tracer.startSpan('workflow.shutdown.evict'),
                 activation: new coresdk.workflow_activation.WFActivation({
                   runId: group$.key,
                   jobs: [{ removeFromCache: true }],
                 }),
+                synthetic: true,
               };
             })
           )
@@ -816,7 +813,7 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
           mergeMapWithState(
             async (
               workflow: Workflow | undefined,
-              { activation, parentSpan }
+              { activation, parentSpan, synthetic }
             ): Promise<{
               state: Workflow | undefined;
               output: ContextAware<{ completion?: Uint8Array; close: boolean }>;
@@ -838,10 +835,12 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
                       throw new IllegalStateError(message);
                     }
                     this.log.debug('Disposing workflow', { runId: activation.runId });
-                    const completion = coresdk.workflow_completion.WFActivationCompletion.encodeDelimited({
-                      runId: activation.runId,
-                      successful: {},
-                    }).finish();
+                    const completion = synthetic
+                      ? undefined
+                      : coresdk.workflow_completion.WFActivationCompletion.encodeDelimited({
+                          runId: activation.runId,
+                          successful: {},
+                        }).finish();
                     return { state: undefined, output: { close, completion, parentSpan } };
                   }
 
@@ -1036,18 +1035,12 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
    *
    * @param workflowCompletionFeedbackSubject used to send back cache evictions when completing an activation with a WorkflowError
    */
-  protected workflow$(workflowCompletionFeedbackSubject = new Subject<ActivationWithContext>()): Observable<void> {
+  protected workflow$(): Observable<void> {
     if (this.options.taskQueue === undefined) {
       throw new TypeError('Worker taskQueue not defined');
     }
 
-    // Consume activations from Core and the feedback subject
-    return merge(
-      this.workflowPoll$(),
-      // We can stop subscribing to this when we're in DRAINING state,
-      // workflows will eventually be evicted when numInFlightActivations is 0
-      workflowCompletionFeedbackSubject.pipe(this.takeUntilState('DRAINING'))
-    ).pipe(
+    return this.workflowPoll$().pipe(
       this.workflowOperator(),
       mergeMap(async ({ completion, parentSpan: root }) => {
         const span = childSpan(root, 'workflow.complete');
@@ -1056,15 +1049,8 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
           span.setStatus({ code: otel.SpanStatusCode.OK });
         } catch (err) {
           span.setStatus({ code: otel.SpanStatusCode.ERROR, message: err.message });
-          if (err instanceof errors.WorkflowError) {
-            workflowCompletionFeedbackSubject.next({
-              parentSpan: root,
-              activation: new coresdk.workflow_activation.WFActivation({
-                runId: err.runId,
-                jobs: [{ removeFromCache: true }],
-              }),
-            });
-          } else {
+          // Expect Core to issue an eviction in this case
+          if (!(err instanceof errors.WorkflowError)) {
             throw err;
           }
         } finally {
@@ -1120,23 +1106,6 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
 
   protected takeUntilState<T>(state: State): MonoTypeOperatorFunction<T> {
     return takeUntil(this.stateSubject.pipe(filter((value) => value === state)));
-  }
-
-  protected workflowsIdle$(): Observable<void> {
-    return merge(
-      this.stateSubject.pipe(map((state) => ({ state }))),
-      this.numInFlightActivationsSubject.pipe(map((numInFlightActivations) => ({ numInFlightActivations })))
-    ).pipe(
-      scan(
-        (acc: { state?: State; numInFlightActivations?: number }, curr) => ({
-          ...acc,
-          ...curr,
-        }),
-        {}
-      ),
-      filter(({ state, numInFlightActivations }) => state === 'DRAINING' && numInFlightActivations === 0),
-      mapTo(undefined)
-    );
   }
 
   protected setupShutdownHook(): void {
