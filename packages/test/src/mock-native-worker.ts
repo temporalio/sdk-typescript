@@ -17,6 +17,8 @@ import {
 } from '@temporalio/worker/lib/isolate-context-provider';
 import { DefaultLogger } from '@temporalio/worker';
 import { sleep } from '@temporalio/worker/lib/utils';
+// We import from the worker's version of rxjs because inquirer (transitive dependency) uses an older rxjs version
+import { lastValueFrom } from '@temporalio/worker/node_modules/rxjs';
 
 function addActivityStartDefaults(task: coresdk.activity_task.IActivityTask) {
   // Add some defaults for convenience
@@ -165,7 +167,7 @@ export class Worker extends RealWorker {
 
   public runWorkflows(...args: Parameters<Worker['workflow$']>): Promise<void> {
     this.state = 'RUNNING';
-    return this.workflow$(...args).toPromise();
+    return lastValueFrom(this.workflow$(...args), { defaultValue: undefined });
   }
 }
 

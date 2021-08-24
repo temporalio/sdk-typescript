@@ -18,10 +18,10 @@
     "@temporalio/core-bridge": "file:../core-bridge",
     "@types/long": "^4.0.1",
     "long": "^4.0.0",
-    "protobufjs": "^6.10.2"
+    "protobufjs": "^6.11.2"
   },
   "devDependencies": {
-    "glob": "^7.1.6"
+    "glob": "^7.1.7"
   },
   "bugs": {
     "url": "https://github.com/temporalio/sdk-node/issues"

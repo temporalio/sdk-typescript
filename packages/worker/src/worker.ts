@@ -12,6 +12,7 @@ import {
   pipe,
   race,
   Subject,
+  lastValueFrom,
 } from 'rxjs';
 import { delay, filter, first, ignoreElements, map, mergeMap, takeUntil, takeWhile, tap } from 'rxjs/operators';
 import * as native from '@temporalio/core-bridge';
@@ -1078,18 +1079,18 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
     this.setupShutdownHook();
 
     try {
-      await merge(
-        this.gracefulShutdown$(),
-        this.activityHeartbeat$(),
-        merge(this.workflow$(), this.activity$()).pipe(
-          tap({
-            complete: () => {
-              this.state = 'DRAINED';
-            },
-          })
-        )
-      )
-        .pipe(
+      await lastValueFrom(
+        merge(
+          this.gracefulShutdown$(),
+          this.activityHeartbeat$(),
+          merge(this.workflow$(), this.activity$()).pipe(
+            tap({
+              complete: () => {
+                this.state = 'DRAINED';
+              },
+            })
+          )
+        ).pipe(
           tap({
             complete: () => {
               this.state = 'STOPPED';
@@ -1099,8 +1100,9 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
               this.state = 'FAILED';
             },
           })
-        )
-        .toPromise();
+        ),
+        { defaultValue: undefined }
+      );
     } finally {
       await this.nativeWorker.completeShutdown();
       this.isolateContextProvider.destroy();
