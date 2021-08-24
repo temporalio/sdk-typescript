@@ -4,14 +4,14 @@ The Node.js SDK (as well as the rest of the Temporal codebase) is open sourced u
 
 We welcome contributions from the community. To contribute please start by opening an [issue](https://github.com/temporalio/sdk-node/issues) and discussing the proposed change. Once a change has been agreed upon, development may start and be submitted via a [pull request](https://github.com/temporalio/sdk-node/pulls).
 
+**Contents**:
+
 <!-- START doctoc generated TOC please keep comment here to allow auto update -->
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 
-**Contents:**
-
 - [Contributor License Agreement (CLA)](#contributor-license-agreement-cla)
 - [SDK Structure](#sdk-structure)
-- [Environment set up](#environment-set-up)
+- [Environment setup](#environment-setup)
 - [Development Workflow](#development-workflow)
   - [Integration tests](#integration-tests)
 - [Style Guide](#style-guide)

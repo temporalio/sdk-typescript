@@ -20,6 +20,7 @@
     "@typescript-eslint/parser": "^4.19.0",
     "ava": "^3.15.0",
     "dedent": "^0.7.0",
+    "doctoc": "^2.0.1",
     "eslint": "^7.22.0",
     "eslint-config-prettier": "^8.1.0",
     "eslint-plugin-deprecation": "^1.2.1",
@@ -42,7 +43,8 @@
     "lint": "eslint packages/*/src --ext .ts --no-error-on-unmatched-pattern && prettier --check .",
     "format": "prettier --write .",
     "clean": "node ./scripts/clean.js",
-    "docs": "lerna run --stream build-docs"
+    "docs": "lerna run --stream build-docs",
+    "doctoc": "doctoc README.md CONTRIBUTING.md"
   },
   "repository": {
     "type": "git",
