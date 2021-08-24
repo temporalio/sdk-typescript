@@ -4,31 +4,16 @@ import { promisify } from 'util';
 import * as otel from '@opentelemetry/api';
 import {
   BehaviorSubject,
-  EMPTY,
+  from,
   merge,
   MonoTypeOperatorFunction,
   Observable,
-  of,
   OperatorFunction,
   pipe,
   race,
   Subject,
-  throwError,
 } from 'rxjs';
-import {
-  catchError,
-  concatMap,
-  delay,
-  filter,
-  first,
-  ignoreElements,
-  map,
-  mergeMap,
-  repeat,
-  takeUntil,
-  takeWhile,
-  tap,
-} from 'rxjs/operators';
+import { delay, filter, first, ignoreElements, map, mergeMap, takeUntil, takeWhile, tap } from 'rxjs/operators';
 import * as native from '@temporalio/core-bridge';
 import { coresdk } from '@temporalio/proto';
 import { ApplyMode, ExternalDependencies, WorkflowInfo } from '@temporalio/workflow';
@@ -341,22 +326,13 @@ export function compileWorkerOptions<T extends WorkerSpec>(
  * The worker's possible states
  * * `INITIALIZED` - The initial state of the Worker after calling {@link Worker.create} and successful connection to the server
  * * `RUNNING` - {@link Worker.run} was called, polling task queues
- * * `SUSPENDED` - {@link Worker.suspendPolling} was called, not polling for new tasks
  * * `STOPPING` - {@link Worker.shutdown} was called or received shutdown signal, worker will forcefully shutdown in {@link WorkerOptions.shutdownGraceTime | shutdownGraceTime}
  * * `DRAINING` - Core has indicated that shutdown is complete and all Workflow tasks have been drained, waiting for activities and cached workflows eviction
  * * `DRAINED` - All activities and workflows have completed, ready to shutdown
  * * `STOPPED` - Shutdown complete, {@link Worker.run} resolves
  * * `FAILED` - Worker encountered an unrecoverable error, {@link Worker.run} should reject with the error
  */
-export type State =
-  | 'INITIALIZED'
-  | 'RUNNING'
-  | 'STOPPED'
-  | 'STOPPING'
-  | 'DRAINING'
-  | 'DRAINED'
-  | 'FAILED'
-  | 'SUSPENDED';
+export type State = 'INITIALIZED' | 'RUNNING' | 'STOPPED' | 'STOPPING' | 'DRAINING' | 'DRAINED' | 'FAILED';
 
 type ExtractToPromise<T> = T extends (err: any, result: infer R) => void ? Promise<R> : never;
 // For some reason the lint rule doesn't realize that _I should be ignored
@@ -542,30 +518,6 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
   }
 
   /**
-   * Do not make new poll requests, current poll request is not cancelled and may complete.
-   */
-  public suspendPolling(): void {
-    if (this.state !== 'RUNNING') {
-      throw new IllegalStateError('Not running');
-    }
-    this.state = 'SUSPENDED';
-  }
-
-  /**
-   * Allow new poll requests.
-   */
-  public resumePolling(): void {
-    if (this.state !== 'SUSPENDED') {
-      throw new IllegalStateError('Not suspended');
-    }
-    this.state = 'RUNNING';
-  }
-
-  public isSuspended(): boolean {
-    return this.state === 'SUSPENDED';
-  }
-
-  /**
    * Start shutting down the Worker.
    * Immediately transitions state to STOPPING and asks Core to shut down.
    * Once Core has confirmed that it's shutting down the Worker enters DRAINING state
@@ -573,8 +525,8 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
    * {@see State}.
    */
   shutdown(): void {
-    if (this.state !== 'RUNNING' && this.state !== 'SUSPENDED') {
-      throw new IllegalStateError('Not running and not suspended');
+    if (this.state !== 'RUNNING') {
+      throw new IllegalStateError('Not running');
     }
     this.state = 'STOPPING';
     this.nativeWorker.shutdown().then(() => {
@@ -612,29 +564,19 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
    * The observable stops emitting once core is shutting down.
    */
   protected pollLoop$<T>(pollFn: () => Promise<T>): Observable<T> {
-    return of(this.stateSubject).pipe(
-      map((state) => state.getValue()),
-      concatMap((state) => {
-        switch (state) {
-          case 'RUNNING':
-          case 'STOPPING':
-          case 'DRAINING':
-            return pollFn();
-          case 'SUSPENDED':
-            // Completes once we're out of SUSPENDED state
-            return this.stateSubject.pipe(
-              filter((st) => st !== 'SUSPENDED'),
-              first(),
-              ignoreElements()
-            );
-          default:
-            // transition to DRAINED | FAILED happens only when an error occurs
-            // in which case this observable would be closed
-            throw new IllegalStateError(`Unexpected state ${state}`);
+    return from(
+      (async function* () {
+        for (;;) {
+          try {
+            yield await pollFn();
+          } catch (err) {
+            if (err instanceof errors.ShutdownError) {
+              break;
+            }
+            throw err;
+          }
         }
-      }),
-      repeat(),
-      catchError((err) => (err instanceof errors.ShutdownError ? EMPTY : throwError(err)))
+      })()
     );
   }
 
