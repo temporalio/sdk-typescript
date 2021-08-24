@@ -50,11 +50,13 @@ export function closeableGroupBy<K extends string | number | undefined, T>(
 ): OperatorFunction<T, CloseableGroupedObservable<K, T>> {
   const keyToSubject = new Map<K, Subject<void>>();
   return pipe(
-    groupBy(keyFunc, undefined, (group$) => {
-      // Duration selector function, the group will close when this subject emits a value
-      const subject = new Subject<void>();
-      keyToSubject.set(group$.key, subject);
-      return subject;
+    groupBy(keyFunc, {
+      duration: (group$) => {
+        // Duration selector function, the group will close when this subject emits a value
+        const subject = new Subject<void>();
+        keyToSubject.set(group$.key, subject);
+        return subject;
+      },
     }),
     map((group$: GroupedObservable<K, T>): CloseableGroupedObservable<K, T> => {
       (group$ as CloseableGroupedObservable<K, T>).close = () => {
