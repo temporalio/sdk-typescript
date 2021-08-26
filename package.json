@@ -44,7 +44,7 @@
     "format": "prettier --write .",
     "clean": "node ./scripts/clean.js",
     "docs": "lerna run --stream build-docs",
-    "doctoc": "doctoc README.md CONTRIBUTING.md"
+    "doctoc": "doctoc CONTRIBUTING.md"
   },
   "repository": {
     "type": "git",
