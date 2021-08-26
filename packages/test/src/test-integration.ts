@@ -235,6 +235,14 @@ if (RUN_INTEGRATION_TESTS) {
     t.pass();
   });
 
+  test('child-workflow-signals', async (t) => {
+    const client = new WorkflowClient();
+    const workflow = client.stub<Empty>('child-workflow-signals', { taskQueue: 'test' });
+    await workflow.execute();
+    // Assertions in workflow code
+    t.pass();
+  });
+
   test('simple-query', async (t) => {
     const client = new WorkflowClient();
     const workflow = client.stub<SimpleQuery>('simple-query', { taskQueue: 'test' });

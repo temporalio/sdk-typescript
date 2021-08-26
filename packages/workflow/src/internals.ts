@@ -222,6 +222,28 @@ export class Activator implements ActivationHandler {
     }).catch(handleWorkflowFailure);
   }
 
+  public async resolveSignalExternalWorkflow(
+    activation: coresdk.workflow_activation.IResolveSignalExternalWorkflow
+  ): Promise<void> {
+    const { resolve, reject } = consumeCompletion('signalWorkflow', getSeq(activation));
+    if (activation.failure) {
+      reject(await failureToError(activation.failure, state.dataConverter));
+    } else {
+      resolve(undefined);
+    }
+  }
+
+  public async resolveRequestCancelExternalWorkflow(
+    activation: coresdk.workflow_activation.IResolveRequestCancelExternalWorkflow
+  ): Promise<void> {
+    const { resolve, reject } = consumeCompletion('cancelWorkflow', getSeq(activation));
+    if (activation.failure) {
+      reject(await failureToError(activation.failure, state.dataConverter));
+    } else {
+      resolve(undefined);
+    }
+  }
+
   public updateRandomSeed(activation: coresdk.workflow_activation.IUpdateRandomSeed): void {
     if (!activation.randomnessSeed) {
       throw new TypeError('Expected activation with randomnessSeed attribute');
@@ -268,6 +290,8 @@ export class State {
     childWorkflowStart: new Map<number, Completion>(),
     childWorkflowComplete: new Map<number, Completion>(),
     dependency: new Map<number, Completion>(),
+    signalWorkflow: new Map<number, Completion>(),
+    cancelWorkflow: new Map<number, Completion>(),
   };
 
   /**
@@ -303,6 +327,8 @@ export class State {
     activity: 1,
     childWorkflow: 1,
     dependency: 1,
+    signalWorkflow: 1,
+    cancelWorkflow: 1,
   };
 
   /**

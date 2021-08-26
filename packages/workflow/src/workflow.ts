@@ -7,7 +7,6 @@ import {
   msOptionalToTs,
   Workflow,
   composeInterceptors,
-  WorkflowStub,
   mapToPayloadsSync,
 } from '@temporalio/common';
 import { coresdk } from '@temporalio/proto/lib/coresdk';
@@ -23,8 +22,9 @@ import {
 } from './interfaces';
 import { state } from './internals';
 import { WorkflowExecutionAlreadyStartedError } from './errors';
-import { ActivityInput, StartChildWorkflowExecutionInput, TimerInput } from './interceptors';
+import { ActivityInput, StartChildWorkflowExecutionInput, SignalWorkflowInput, TimerInput } from './interceptors';
 import { CancellationScope, registerSleepImplementation } from './cancellation-scope';
+import { ExternalWorkflowStub, ChildWorkflowStub } from './workflow-stub';
 
 // Avoid a circular dependency
 registerSleepImplementation(sleep);
@@ -136,6 +136,9 @@ async function scheduleActivityNextHandler({
     }
     if (scope.cancellable) {
       scope.cancelRequested.catch(() => {
+        if (!state.completions.activity.has(seq)) {
+          return; // Already resolved
+        }
         state.commands.push({
           requestCancelActivity: {
             seq,
@@ -207,9 +210,6 @@ async function startChildWorkflowExecutionNextHandler({
   seq,
 }: StartChildWorkflowExecutionInput): Promise<[Promise<string>, Promise<unknown>]> {
   const workflowId = options.workflowId ?? uuid4();
-  // May be set once workflow execution has started
-  let runId: string | undefined = undefined;
-
   const startPromise = new Promise<string>((resolve, reject) => {
     const scope = CancellationScope.current();
     if (scope.consideredCancelled) {
@@ -218,14 +218,25 @@ async function startChildWorkflowExecutionNextHandler({
     }
     if (scope.cancellable) {
       scope.cancelRequested.catch(() => {
-        state.commands.push({
-          requestCancelExternalWorkflowExecution: {
-            seq,
-            workflowId,
-            runId,
-            namespace: Context.info.namespace, // Not configurable
-          },
-        });
+        const complete = !state.completions.childWorkflowComplete.has(seq);
+        const started = !state.completions.childWorkflowStart.has(seq);
+
+        if (started && !complete) {
+          const cancelSeq = state.nextSeqs.cancelWorkflow++;
+          state.commands.push({
+            requestCancelExternalWorkflowExecution: {
+              seq: cancelSeq,
+              childWorkflowId: workflowId,
+            },
+          });
+          // Not interested in this completion
+          state.completions.cancelWorkflow.set(cancelSeq, { resolve: () => undefined, reject: () => undefined });
+        } else if (!started) {
+          state.commands.push({
+            cancelUnstartedChildWorkflowExecution: { childWorkflowSeq: seq },
+          });
+        }
+        // Nothing to cancel otherwise
       });
     }
     state.completions.childWorkflowStart.set(seq, {
@@ -266,12 +277,12 @@ async function startChildWorkflowExecutionNextHandler({
       },
     });
   });
+
   // We construct a Promise for the completion of the child Workflow before we know
   // if the Workflow code will await it to capture the result in case it does.
   const completePromise = new Promise((resolve, reject) => {
-    // Set the local runId variable to use in cancellation requests
-    // and chain start Promise rejection to the complete Promise.
-    startPromise.then((val) => void (runId = val)).catch(reject);
+    // Chain start Promise rejection to the complete Promise.
+    startPromise.catch(reject);
     state.completions.childWorkflowComplete.set(seq, {
       resolve,
       reject,
@@ -280,6 +291,47 @@ async function startChildWorkflowExecutionNextHandler({
   // Prevent unhandled rejection because the completion might not be awaited
   completePromise.catch(() => undefined);
   return [startPromise, completePromise];
+}
+
+function signalWorkflowNextHandler({ seq, signalName, args, target }: SignalWorkflowInput) {
+  return new Promise<any>((resolve, reject) => {
+    if (state.info === undefined) {
+      throw new IllegalStateError('Workflow uninitialized');
+    }
+    const scope = CancellationScope.current();
+    if (scope.consideredCancelled) {
+      scope.cancelRequested.catch(reject);
+      return;
+    }
+
+    if (scope.cancellable) {
+      scope.cancelRequested.catch(() => {
+        if (!state.completions.signalWorkflow.has(seq)) {
+          return;
+        }
+        state.commands.push({ cancelSignalWorkflow: { seq } });
+      });
+    }
+    state.commands.push({
+      signalExternalWorkflowExecution: {
+        seq,
+        args: state.dataConverter.toPayloadsSync(args),
+        signalName,
+        ...(target.type === 'external'
+          ? {
+              workflowExecution: {
+                namespace: state.info.namespace,
+                ...target.workflowExecution,
+              },
+            }
+          : {
+              childWorkflowId: target.childWorkflowId,
+            }),
+      },
+    });
+
+    state.completions.signalWorkflow.set(seq, { resolve, reject });
+  });
 }
 
 function activityInfo(activity: string | [string, string] | ActivityFunction<any, any>): ActivityInfo {
@@ -351,7 +403,71 @@ export class ContextImpl {
     return configured;
   }
 
-  public child<T extends Workflow>(workflowType: string, options?: ChildWorkflowOptions): WorkflowStub<T> {
+  /**
+   * Returns a client-side stub that can be used to signal and cancel an existing Workflow execution.
+   * It takes a Workflow ID and optional run ID.
+   */
+  public external<T extends Workflow>(workflowId: string, runId?: string): ExternalWorkflowStub<T> {
+    return {
+      workflowId,
+      runId,
+      cancel() {
+        return new Promise<void>((resolve, reject) => {
+          if (state.info === undefined) {
+            throw new IllegalStateError('Uninitialized workflow');
+          }
+          const seq = state.nextSeqs.cancelWorkflow++;
+          state.commands.push({
+            requestCancelExternalWorkflowExecution: {
+              seq,
+              workflowExecution: {
+                namespace: state.info.namespace,
+                workflowId,
+                runId,
+              },
+            },
+          });
+          state.completions.cancelWorkflow.set(seq, { resolve, reject });
+        });
+      },
+      signal: new Proxy(
+        {},
+        {
+          get(_, signalName) {
+            if (typeof signalName !== 'string') {
+              throw new TypeError(`Invalid signal type, expected string got: ${typeof signalName}`);
+            }
+
+            return (...args: any[]) => {
+              return composeInterceptors(
+                state.interceptors.outbound,
+                'signalWorkflow',
+                signalWorkflowNextHandler
+              )({
+                seq: state.nextSeqs.signalWorkflow++,
+                signalName,
+                args,
+                target: {
+                  type: 'external',
+                  workflowExecution: { workflowId, runId },
+                },
+              });
+            };
+          },
+        }
+      ) as any,
+    };
+  }
+
+  /**
+   * Returns a client-side stub that implements a child Workflow interface.
+   * It takes a child Workflow type and optional child Workflow options as arguments.
+   * Workflow options may be needed to override the timeouts and task queue if they differ from the parent Workflow.
+   *
+   * A child Workflow supports starting, awaiting completion, signaling and cancellation via {@link CancellationScope}s.
+   * In order to query the child, use a WorkflowClient from an Activity.
+   */
+  public child<T extends Workflow>(workflowType: string, options?: ChildWorkflowOptions): ChildWorkflowStub<T> {
     const optionsWithDefaults = addDefaultWorkflowOptions(options ?? {});
     let started: Promise<string> | undefined = undefined;
     let completed: Promise<unknown> | undefined = undefined;
@@ -392,7 +508,31 @@ export class ContextImpl {
         }
         return completed as any;
       },
-      signal: {} as any, // TODO,
+      signal: new Proxy(
+        {},
+        {
+          get(_, signalName) {
+            if (typeof signalName !== 'string') {
+              throw new TypeError(`Invalid signal type, expected string got: ${typeof signalName}`);
+            }
+            return (...args: any[]) => {
+              return composeInterceptors(
+                state.interceptors.outbound,
+                'signalWorkflow',
+                signalWorkflowNextHandler
+              )({
+                seq: state.nextSeqs.signalWorkflow++,
+                signalName,
+                args,
+                target: {
+                  type: 'child',
+                  childWorkflowId: optionsWithDefaults.workflowId,
+                },
+              });
+            };
+          },
+        }
+      ) as any,
     };
   }
 
