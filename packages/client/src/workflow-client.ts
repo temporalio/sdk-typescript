@@ -13,7 +13,7 @@ import {
   Workflow,
   WorkflowSignalType,
   WorkflowQueryType,
-  WorkflowStub as BaseWorkflowStub,
+  BaseWorkflowStub,
 } from '@temporalio/common';
 import { EnsurePromise } from '@temporalio/common/lib/type-helpers';
 import { WorkflowOptions, addDefaults, compileWorkflowOptions } from './workflow-options';
@@ -58,8 +58,8 @@ import { Connection, WorkflowService } from './connection';
  * // `counter` is a registered workflow file, typically found at
  * // `lib/workflows/counter.js` after building the typescript project
  * const workflow = connection.stub<Counter>('counter', { taskQueue: 'tutorial' });
- * // start workflow main function with initialValue of 2
- * await workflow.start(2);
+ * // start workflow main function with initialValue of 2 and await its completion
+ * await workflow.execute(2);
  * ```
  */
 export interface WorkflowStub<T extends Workflow> extends BaseWorkflowStub<T> {

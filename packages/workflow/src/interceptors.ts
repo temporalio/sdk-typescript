@@ -7,7 +7,7 @@
  */
 
 import { ChildWorkflowOptions, ContinueAsNewOptions } from './interfaces';
-import { ActivityOptions, Headers, Next } from '@temporalio/common';
+import { ActivityOptions, WorkflowExecution, Headers, Next } from '@temporalio/common';
 
 export { Next, Headers };
 
@@ -83,6 +83,22 @@ export interface ContinueAsNewInput {
   options: ContinueAsNewOptions;
 }
 
+/** Input for WorkflowOutboundCallsInterceptor.signalWorkflow */
+export interface SignalWorkflowInput {
+  seq: number;
+  signalName: string;
+  args: unknown[];
+  target:
+    | {
+        type: 'external';
+        workflowExecution: WorkflowExecution;
+      }
+    | {
+        type: 'child';
+        childWorkflowId: string;
+      };
+}
+
 /**
  * Implement any of these methods to intercept Workflow code calls to the Temporal APIs, like scheduling an activity and starting a timer
  */
@@ -98,10 +114,16 @@ export interface WorkflowOutboundCallsInterceptor {
    * Called when Workflow starts a timer
    */
   startTimer?: (input: TimerInput, next: Next<this, 'startTimer'>) => Promise<void>;
+
   /**
    * Called when Workflow calls continueAsNew
    */
   continueAsNew?: (input: ContinueAsNewInput, next: Next<this, 'continueAsNew'>) => Promise<never>;
+
+  /**
+   * Called when Workflow signals a child or external Workflow
+   */
+  signalWorkflow?: (input: SignalWorkflowInput, next: Next<this, 'signalWorkflow'>) => Promise<void>;
 
   /**
    * Called when Workflow starts a child workflow execution, the interceptor function returns 2 promises:

@@ -1,12 +1,18 @@
 import { Workflow, WorkflowSignalType } from './interfaces';
 import { AsyncOnly, EnsurePromise } from './type-helpers';
 
+export type WorkflowStubSignals<T extends Workflow> = T extends Record<'signals', Record<string, WorkflowSignalType>>
+  ? {
+      [P in keyof T['signals']]: AsyncOnly<T['signals'][P]>;
+    }
+  : undefined;
+
 /**
  * Base WorkflowStub interface, extended in workflow and client libs.
  *
  * Transforms a workflow interface `T` into a client interface.
  */
-export interface WorkflowStub<T extends Workflow> {
+export interface BaseWorkflowStub<T extends Workflow> {
   /**
    * Start the Workflow with arguments, returns a Promise that resolves when the Workflow execution completes
    */
@@ -31,11 +37,7 @@ export interface WorkflowStub<T extends Workflow> {
    * await workflow.signal.increment(3);
    * ```
    */
-  signal: T extends Record<'signals', Record<string, WorkflowSignalType>>
-    ? {
-        [P in keyof T['signals']]: AsyncOnly<T['signals'][P]>;
-      }
-    : undefined;
+  signal: WorkflowStubSignals<T>;
 
   /**
    * The workflowId of the current Workflow
