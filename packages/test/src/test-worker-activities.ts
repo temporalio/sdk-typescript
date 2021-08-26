@@ -120,7 +120,7 @@ test('Worker cancels activity and reports cancellation', async (t) => {
       cancel: {},
     });
     compareCompletion(t, completion.result, {
-      cancelled: { failure: { source: 'NodeSDK', canceledFailureInfo: {} } },
+      cancelled: { failure: { source: 'NodeSDK', message: '', canceledFailureInfo: {} } },
     });
   });
 });

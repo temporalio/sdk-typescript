@@ -58,6 +58,7 @@ export {
   LocalActivityOptions,
   RemoteActivityOptions,
   RetryOptions,
+  rootCause,
   IllegalStateError,
   defaultDataConverter,
   DataConverter,

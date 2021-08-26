@@ -38,6 +38,6 @@ export class WorkflowExecutionAlreadyStartedError extends WorkflowError {
 export function isCancellation(err: unknown): boolean {
   return (
     err instanceof CancelledFailure ||
-    ((err instanceof ActivityFailure || err instanceof ChildWorkflowFailure) && err.cause instanceof CancelledFailure)
+    ((err instanceof ActivityFailure || err instanceof ChildWorkflowFailure) && isCancellation(err.cause))
   );
 }
