@@ -192,7 +192,7 @@ if (RUN_INTEGRATION_TESTS) {
       t.fail(`Expected err.cause to be an ApplicationFailure, got ${err.cause}`);
       return;
     }
-    t.deepEqual(err.cause.originalMessage, 'Expected anything other than 1');
+    t.deepEqual(err.cause.message, 'Expected anything other than 1');
     t.is(
       cleanStackTrace(err.cause.stack),
       dedent`

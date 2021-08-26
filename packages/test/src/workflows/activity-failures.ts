@@ -42,7 +42,7 @@ export function assertApplicationFailure(
   if (!(err instanceof ApplicationFailure)) {
     throw new Error(`Expected ApplicationFailure, got ${err}`);
   }
-  if (err.type !== type || err.nonRetryable != nonRetryable || err.originalMessage !== originalMessage) {
+  if (err.type !== type || err.nonRetryable != nonRetryable || err.message !== originalMessage) {
     throw new Error(
       `Expected ${type} with nonRetryable=${nonRetryable} originalMessage=${originalMessage}, got ${err}`
     );

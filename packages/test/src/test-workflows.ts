@@ -1443,11 +1443,7 @@ test('http', async (t) => {
       t,
       req,
       makeSuccess([
-        makeFailWorkflowExecution(
-          'Connection timeout',
-          "ApplicationFailure: message='Connection timeout', type='MockError', nonRetryable=false",
-          'MockError'
-        ),
+        makeFailWorkflowExecution('Connection timeout', 'ApplicationFailure: Connection timeout', 'MockError'),
       ])
     );
   }

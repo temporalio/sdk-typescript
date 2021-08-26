@@ -30,11 +30,7 @@ export class TemporalFailure extends Error {
    */
   public failure?: ProtoFailure;
 
-  constructor(
-    message: string | undefined,
-    public readonly originalMessage: string | undefined,
-    public readonly cause?: Error
-  ) {
+  constructor(message: string | undefined, public readonly cause?: Error) {
     super(message ?? undefined);
   }
 }
@@ -44,7 +40,7 @@ export class ServerFailure extends TemporalFailure {
   public readonly name: string = 'ServerFailure';
 
   constructor(message: string | undefined, public readonly nonRetryable: boolean, cause?: Error) {
-    super(message, message, cause);
+    super(message, cause);
   }
 }
 
@@ -74,16 +70,6 @@ export class ServerFailure extends TemporalFailure {
 export class ApplicationFailure extends TemporalFailure {
   public readonly name: string = 'ApplicationFailure';
 
-  private static getMessage(
-    message: string | undefined,
-    type: string | undefined | null,
-    nonRetryable: boolean
-  ): string {
-    return (
-      (message ? "message='" + message + "', " : '') + (type ? `type='${type}', ` : '') + `nonRetryable=${nonRetryable}`
-    );
-  }
-
   constructor(
     message: string | undefined,
     public readonly type: string | undefined | null,
@@ -91,7 +77,7 @@ export class ApplicationFailure extends TemporalFailure {
     public readonly details?: unknown[],
     cause?: Error
   ) {
-    super(ApplicationFailure.getMessage(message, type, nonRetryable), message, cause);
+    super(message, cause);
   }
 
   /**
@@ -131,7 +117,7 @@ export class CancelledFailure extends TemporalFailure {
   public readonly name: string = 'CancelledFailure';
 
   constructor(message: string | undefined, public readonly details: unknown[] = [], cause?: Error) {
-    super(message, message, cause);
+    super(message, cause);
   }
 }
 
@@ -142,7 +128,7 @@ export class TerminatedFailure extends TemporalFailure {
   public readonly name: string = 'TerminatedFailure';
 
   constructor(message: string | undefined, cause?: Error) {
-    super(message, message, cause);
+    super(message, cause);
   }
 }
 
@@ -152,16 +138,12 @@ export class TerminatedFailure extends TemporalFailure {
 export class TimeoutFailure extends TemporalFailure {
   public readonly name: string = 'TimeoutFailure';
 
-  private static getMessage(message: string | undefined | null, timeoutType: TimeoutType): string {
-    return (message ? "message='" + message + "', " : '') + 'timeoutType=' + timeoutType;
-  }
-
   constructor(
     message: string | undefined,
     public readonly lastHeartbeatDetails: unknown,
     public readonly timeoutType: TimeoutType
   ) {
-    super(TimeoutFailure.getMessage(message, timeoutType), message);
+    super(message);
   }
 }
 
@@ -179,20 +161,7 @@ export class ActivityFailure extends TemporalFailure {
     public readonly identity: string | undefined,
     cause?: Error
   ) {
-    super(ActivityFailure.getMessage(activityType, activityId, retryState, identity), undefined, cause);
-  }
-
-  public static getMessage(
-    activityType: string,
-    activityId: string | undefined,
-    retryState: RetryState,
-    identity: string | undefined
-  ): string {
-    return (
-      `activityType='${activityType}', ` +
-      (activityId ? `activityId='${activityId}', ` : '') +
-      `identity='${identity}', retryState='${retryState}'`
-    );
+    super('Activity execution failed', cause);
   }
 }
 
@@ -210,16 +179,7 @@ export class ChildWorkflowFailure extends TemporalFailure {
     public readonly retryState: RetryState,
     cause?: Error
   ) {
-    super(ChildWorkflowFailure.getMessage(namespace, execution, workflowType, retryState), undefined, cause);
-  }
-
-  public static getMessage(
-    namespace: string | undefined,
-    execution: WorkflowExecution,
-    workflowType: string,
-    retryState: RetryState
-  ): string {
-    return `namespace='${namespace}', ${execution}, workflowType='${workflowType}', retryState='${retryState}'`;
+    super('Child Workflow execution failed', cause);
   }
 }
 
@@ -266,7 +226,7 @@ export async function errorToFailure(err: unknown, dataConverter: DataConverter)
     if (err.failure) return err.failure;
 
     const base = {
-      message: err.originalMessage,
+      message: err.message,
       stackTrace: cutoffStackTrace(err.stack),
       cause: await optionalErrorToOptionalFailure(err.cause, dataConverter),
       source: FAILURE_SOURCE,
@@ -468,7 +428,6 @@ export async function failureToErrorInner(
   }
   return new TemporalFailure(
     failure.message ?? undefined,
-    undefined,
     await optionalFailureToOptionalError(failure.cause, dataConverter)
   );
 }
@@ -481,4 +440,23 @@ export async function failureToError(failure: ProtoFailure, dataConverter: DataC
   err.stack = failure.stackTrace ?? '';
   err.failure = failure;
   return err;
+}
+
+/**
+ * Get the root cause (string) of given error `err`.
+ *
+ * In case `err` is a {@link TemporalFailure}, recurse the cause chain and return the root's message.
+ * Otherwise, return `err.message`.
+ */
+export function rootCause(err: unknown): string | undefined {
+  if (err instanceof TemporalFailure) {
+    return err.cause ? rootCause(err.cause) : err.message;
+  }
+  if (err instanceof Error) {
+    return err.message;
+  }
+  if (typeof err === 'string') {
+    return err;
+  }
+  return undefined;
 }

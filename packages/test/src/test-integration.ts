@@ -87,12 +87,9 @@ if (RUN_INTEGRATION_TESTS) {
       return;
     }
     t.is(err.cause.type, 'ReferenceError');
-    t.is(err.cause.originalMessage, "Cannot find module './not-found.js'");
+    t.is(err.cause.message, "Cannot find module './not-found.js'");
     t.true(err.cause.nonRetryable);
-    t.is(
-      err.cause.stack,
-      "ApplicationFailure: message='Cannot find module './not-found.js'', type='ReferenceError', nonRetryable=true"
-    );
+    t.is(err.cause.stack, "ApplicationFailure: Cannot find module './not-found.js'");
   });
 
   test('args-and-return', async (t) => {
@@ -134,7 +131,7 @@ if (RUN_INTEGRATION_TESTS) {
       t.fail('Expected err.cause.cause to be an instance of ApplicationFailure');
       return;
     }
-    t.is(err.cause.cause.originalMessage, 'Fail me');
+    t.is(err.cause.cause.message, 'Fail me');
     t.is(
       cleanStackTrace(err.cause.cause.stack),
       dedent`
@@ -169,7 +166,7 @@ if (RUN_INTEGRATION_TESTS) {
     if (!(err.cause.cause instanceof ApplicationFailure)) {
       return t.fail('Expected err.cause.cause to be an instance of ApplicationFailure');
     }
-    t.is(err.cause.cause.originalMessage, 'failure');
+    t.is(err.cause.cause.message, 'failure');
     t.is(
       cleanStackTrace(err.cause.cause.stack),
       dedent`
@@ -259,7 +256,7 @@ if (RUN_INTEGRATION_TESTS) {
     if (!(err.cause instanceof ApplicationFailure)) {
       return t.fail('Expected err.cause to be an instance of ApplicationFailure');
     }
-    t.is(err.cause.originalMessage, 'just because');
+    t.is(err.cause.message, 'just because');
   });
 
   test('fail-signal', async (t) => {
@@ -273,7 +270,7 @@ if (RUN_INTEGRATION_TESTS) {
     if (!(err.cause instanceof ApplicationFailure)) {
       return t.fail('Expected err.cause to be an instance of ApplicationFailure');
     }
-    t.is(err.cause.originalMessage, 'Signal failed');
+    t.is(err.cause.message, 'Signal failed');
   });
 
   test('async-fail-signal', async (t) => {
@@ -287,7 +284,7 @@ if (RUN_INTEGRATION_TESTS) {
     if (!(err.cause instanceof ApplicationFailure)) {
       return t.fail('Expected err.cause to be an instance of ApplicationFailure');
     }
-    t.is(err.cause.originalMessage, 'Signal failed');
+    t.is(err.cause.message, 'Signal failed');
   });
 
   test('http', async (t) => {
@@ -528,7 +525,7 @@ if (RUN_INTEGRATION_TESTS) {
       if (!(err.cause instanceof ApplicationFailure)) {
         return t.fail('Expected err.cause to be an instance of ApplicationFailure');
       }
-      t.is(err.cause.originalMessage, 'interrupted from signalWithStart');
+      t.is(err.cause.message, 'interrupted from signalWithStart');
     }
     // Test returned runId
     workflow = client.stub<Interruptable>(workflow.workflowId, runId);
@@ -539,7 +536,7 @@ if (RUN_INTEGRATION_TESTS) {
       if (!(err.cause instanceof ApplicationFailure)) {
         return t.fail('Expected err.cause to be an instance of ApplicationFailure');
       }
-      t.is(err.cause.originalMessage, 'interrupted from signalWithStart');
+      t.is(err.cause.message, 'interrupted from signalWithStart');
     }
   });
 
