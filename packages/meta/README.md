@@ -36,9 +36,11 @@ Mostly complete implementation of all components that make up a Temporal SDK - W
 - Workflows
   - Scheduling timers
   - Scheduling (non-local) Activities
+  - Child and external Workflows
   - Cancelling timers and Activities
   - Signals
   - Queries
+  - Versioning
 - Activities (complete)
 - Client (complete)
   - Workflow client
@@ -50,7 +52,6 @@ Mostly complete implementation of all components that make up a Temporal SDK - W
 Notably these features are missing:
 
 - Telemetry
-- Workflow versioning
 - Local activities
 - Side effects
 - Search attributes
