@@ -59,7 +59,7 @@ Notably these features are missing:
 > NOTE: The API is considered unstable and may change at any time.
 > While in alpha we are gathering feedback from developers about the usability and ergonomics of the API.
 > To provide feedback please [open an issue](https://github.com/temporalio/sdk-node/issues) and feel free to
-> talk to us on the [community slack channel](https://slack.com/app_redirect?app=TNWA8QCGZ&channel=nodejs-sdk).
+> talk to us on the [#nodejs-sdk community slack channel](https://temporal.io/slack) or post on our [discourse support forum](https://community.temporal.io/).
 
 ## Installation
 
