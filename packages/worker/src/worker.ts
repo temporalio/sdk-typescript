@@ -13,6 +13,7 @@ import {
   race,
   Subject,
   lastValueFrom,
+  EMPTY,
 } from 'rxjs';
 import { delay, filter, first, ignoreElements, map, mergeMap, takeUntil, takeWhile, tap } from 'rxjs/operators';
 import * as native from '@temporalio/core-bridge';
@@ -444,24 +445,27 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
       ? await WorkflowIsolateBuilder.resolveActivities(compiledOptions.logger, compiledOptions.activitiesPath)
       : new Map();
 
-    if (!(compiledOptions.workflowsPath && compiledOptions.nodeModulesPath)) {
+    let contextProvider: IsolateContextProvider | undefined = undefined;
+    // Allow only both or none to be provided
+    if (Boolean(compiledOptions.workflowsPath) !== Boolean(compiledOptions.nodeModulesPath)) {
       throw new TypeError(
         'Could not build isolates for the worker due to missing WorkerOptions. Make sure you specify the `workDir` option, or both the `workflowsPath` and `nodeModulesPath` options.'
       );
     }
-
-    const builder = new WorkflowIsolateBuilder(
-      compiledOptions.logger,
-      compiledOptions.nodeModulesPath,
-      compiledOptions.workflowsPath,
-      resolvedActivities,
-      compiledOptions.interceptors?.workflowModules
-    );
-    const contextProvider = await RoundRobinIsolateContextProvider.create(
-      builder,
-      compiledOptions.isolatePoolSize,
-      compiledOptions.maxIsolateMemoryMB
-    );
+    if (compiledOptions.workflowsPath && compiledOptions.nodeModulesPath) {
+      const builder = new WorkflowIsolateBuilder(
+        compiledOptions.logger,
+        compiledOptions.nodeModulesPath,
+        compiledOptions.workflowsPath,
+        resolvedActivities,
+        compiledOptions.interceptors?.workflowModules
+      );
+      contextProvider = await RoundRobinIsolateContextProvider.create(
+        builder,
+        compiledOptions.isolatePoolSize,
+        compiledOptions.maxIsolateMemoryMB
+      );
+    }
 
     return new this(nativeWorker, contextProvider, resolvedActivities, compiledOptions);
   }
@@ -471,7 +475,10 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
    */
   protected constructor(
     protected readonly nativeWorker: NativeWorkerLike,
-    protected readonly isolateContextProvider: IsolateContextProvider,
+    /**
+     * Optional IsolateContextProvider - if not provided, Worker will not poll on workflows
+     */
+    protected readonly isolateContextProvider: IsolateContextProvider | undefined,
     protected readonly resolvedActivities: Map<string, Record<string, (...args: any[]) => any>>,
     public readonly options: CompiledWorkerOptions<T>
   ) {}
@@ -729,6 +736,10 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
    * Process workflow activations
    */
   protected workflowOperator(): OperatorFunction<ActivationWithContext, ContextAware<{ completion: Uint8Array }>> {
+    const { isolateContextProvider } = this;
+    if (isolateContextProvider === undefined) {
+      throw new IllegalStateError('Cannot process workflows without an IsolateContextProvider');
+    }
     return pipe(
       closeableGroupBy(({ activation }) => activation.runId),
       mergeMap((group$) => {
@@ -808,7 +819,7 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
                       this.numRunningWorkflowInstancesSubject.next(this.numRunningWorkflowInstancesSubject.value + 1);
                       // workflow type is Workflow | undefined which doesn't work in the instrumented closures, create add local variable with type Workflow.
                       const createdWF = await instrument(span, 'workflow.create', async () => {
-                        const context = await this.isolateContextProvider.getContext();
+                        const context = await isolateContextProvider.getContext();
 
                         return await Workflow.create(
                           context,
@@ -975,10 +986,11 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
 
   /**
    * Poll for Workflow activations, handle them, and report completions.
-   *
-   * @param workflowCompletionFeedbackSubject used to send back cache evictions when completing an activation with a WorkflowError
    */
   protected workflow$(): Observable<void> {
+    if (this.isolateContextProvider === undefined) {
+      return EMPTY;
+    }
     if (this.options.taskQueue === undefined) {
       throw new TypeError('Worker taskQueue not defined');
     }
@@ -1105,7 +1117,7 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
       );
     } finally {
       await this.nativeWorker.completeShutdown();
-      this.isolateContextProvider.destroy();
+      this.isolateContextProvider?.destroy();
     }
   }
 
