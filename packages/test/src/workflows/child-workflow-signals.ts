@@ -40,6 +40,18 @@ export async function main(): Promise<void> {
     // child would have failed instead of completing successfully
     await Promise.all([child.signal.unblock(), child.result()]);
   }
+  {
+    // Signal before start
+    const child = Context.child<typeof unblockable>('signal-target');
+    try {
+      await child.signal.unblock();
+      throw new Error('Signal did not throw');
+    } catch (err) {
+      if (err.name !== 'IllegalStateError' || err.message !== 'Workflow execution not started') {
+        throw err;
+      }
+    }
+  }
 
   /// Signal external WF tests
   {

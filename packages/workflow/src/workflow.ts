@@ -515,7 +515,10 @@ export class ContextImpl {
             if (typeof signalName !== 'string') {
               throw new TypeError(`Invalid signal type, expected string got: ${typeof signalName}`);
             }
-            return (...args: any[]) => {
+            return async (...args: any[]) => {
+              if (started === undefined) {
+                throw new IllegalStateError('Workflow execution not started');
+              }
               return composeInterceptors(
                 state.interceptors.outbound,
                 'signalWorkflow',
