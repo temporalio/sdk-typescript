@@ -35,6 +35,12 @@ async function main() {
   try {
     const starterArgs = argsToForward(starterArgSpec, args);
     const starter = spawn('node', [path.resolve(__dirname, 'starter.js'), ...starterArgs], { shell, stdio: 'inherit' });
+    worker.on('exit', (code) => {
+      // If worker dies unceremoniously then also make sure we can exit and not hang
+      if (code !== 0) {
+        kill(starter, 'SIGINT');
+      }
+    });
     await waitOnChild(starter);
   } finally {
     await kill(worker);

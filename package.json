@@ -33,12 +33,13 @@
     "typescript": "^4.4.2"
   },
   "scripts": {
-    "install": "cd packages/docs && npm ci",
+    "install": "test -n $SKIP_DOCS_INSTALL || (cd packages/docs && npm ci)",
     "rebuild": "npm run clean && npm run build",
     "build": "lerna run --stream build",
     "build.watch": "lerna run --stream build.watch",
     "test": "lerna run --stream test",
     "test.watch": "lerna run --stream test.watch",
+    "ci-load": "node ./packages/test/lib/perf/all-in-one.js --server-address temporal:7233",
     "lint": "eslint packages/*/src --ext .ts --no-error-on-unmatched-pattern && prettier --check .",
     "format": "prettier --write .",
     "clean": "node ./scripts/clean.js",
