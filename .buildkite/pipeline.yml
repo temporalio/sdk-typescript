@@ -5,6 +5,6 @@ steps:
       docker: '*'
     timeout_in_minutes: 15
     plugins:
-      - docker-compose#v3.0.0:
+      - docker-compose#v3.8.0:
           run: load-test
           config: .buildkite/docker/docker-compose.yaml
