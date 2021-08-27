@@ -24,7 +24,7 @@ async function main() {
   // See: https://github.com/jaegertracing/jaeger-client-node/issues/124#issuecomment-324222456
   const otel = new opentelemetry.NodeSDK({
     resource: new opentelemetry.resources.Resource({
-      [SemanticResourceAttributes.SERVICE_NAME]: 'perf-worker',
+      [SemanticResourceAttributes.SERVICE_NAME]: 'load-worker',
       taskQueue,
     }),
     traceExporter: new JaegerExporter(),
