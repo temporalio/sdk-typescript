@@ -1,8 +1,8 @@
 import { ActivityCancellationType, Context, CancellationScope, isCancellation, Trigger } from '@temporalio/workflow';
 import { ActivitySignalHandler } from '../interfaces';
-import * as activities from '@activities';
+import * as activities from '../activities';
 
-const fakeProgress = Context.configure(activities.fakeProgress, {
+const { fakeProgress } = Context.configureActivities<typeof activities>({
   type: 'remote',
   startToCloseTimeout: '200s',
   heartbeatTimeout: '2s',

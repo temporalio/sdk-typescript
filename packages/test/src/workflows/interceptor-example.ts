@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/explicit-module-boundary-types */
 import { Context, WorkflowInterceptors, defaultDataConverter, Headers, sleep, Trigger } from '@temporalio/workflow';
-import { echo } from '@activities';
+import { echo } from './configured-activities';
 
 class InvalidTimerDurationError extends Error {}
 

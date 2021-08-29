@@ -27,7 +27,7 @@ import {
 import {
   ArgsAndReturn,
   HTTP,
-  SimpleQuery,
+  Blocked,
   Sleeper,
   Empty,
   Interruptable,
@@ -36,7 +36,7 @@ import {
   CancellableHTTPRequest,
   ContinueAsNewFromMainAndSignal,
 } from './interfaces';
-import { httpGet } from './activities';
+import * as activities from './activities';
 import { u8, RUN_INTEGRATION_TESTS, cleanStackTrace } from './helpers';
 import { withZeroesHTTPServer } from './zeroes-http-server';
 
@@ -58,7 +58,7 @@ if (RUN_INTEGRATION_TESTS) {
   test.before(async (t) => {
     const worker = await Worker.create({
       workflowsPath: `${__dirname}/workflows`,
-      activitiesPath: `${__dirname}/activities`,
+      activities,
       nodeModulesPath: `${__dirname}/../../../node_modules`,
       logger: new DefaultLogger('DEBUG'),
       taskQueue: 'test',
@@ -243,9 +243,9 @@ if (RUN_INTEGRATION_TESTS) {
     t.pass();
   });
 
-  test('simple-query', async (t) => {
+  test('query and unblock', async (t) => {
     const client = new WorkflowClient();
-    const workflow = client.stub<SimpleQuery>('simple-query', { taskQueue: 'test' });
+    const workflow = client.stub<Blocked>('unblock-or-cancel', { taskQueue: 'test' });
     await workflow.start();
     t.true(await workflow.query.isBlocked());
     await workflow.signal.unblock();
@@ -299,7 +299,7 @@ if (RUN_INTEGRATION_TESTS) {
     const client = new WorkflowClient();
     const workflow = client.stub<HTTP>('http', { taskQueue: 'test' });
     const res = await workflow.execute();
-    t.deepEqual(res, [await httpGet('https://google.com'), await httpGet('http://example.com')]);
+    t.deepEqual(res, await activities.httpGet('https://temporal.io'));
   });
 
   test('sleep', async (t) => {

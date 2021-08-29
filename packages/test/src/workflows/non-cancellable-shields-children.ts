@@ -1,6 +1,8 @@
 // @@@SNIPSTART nodejs-non-cancellable-shields-children
-import { CancellationScope } from '@temporalio/workflow';
-import { httpGetJSON } from '@activities';
+import { CancellationScope, Context } from '@temporalio/workflow';
+import * as activities from '../activities';
+
+const { httpGetJSON } = Context.configureActivities<typeof activities>({ type: 'remote', startToCloseTimeout: '10m' });
 
 export async function main(url: string): Promise<any> {
   // Prevent Activity from being cancelled and await completion.

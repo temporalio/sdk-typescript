@@ -25,7 +25,7 @@ async function withWorker(workdir, fn) {
 }
 
 async function test(workdir) {
-  const { status, output } = spawnSync('node', [path.join(workdir, 'lib/worker/schedule-workflow.js')], {
+  const { status, output } = spawnSync('node', [path.join(workdir, 'lib/exec-workflow.js')], {
     cwd: workdir,
     shell,
     encoding: 'utf8',

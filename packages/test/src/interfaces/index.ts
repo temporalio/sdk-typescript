@@ -1,25 +1,5 @@
 import { Workflow } from '@temporalio/workflow';
 
-export interface SimpleQuery extends Workflow {
-  main(): void;
-  queries: {
-    isBlocked(): boolean;
-    // Used to fail the query
-    fail(): never;
-  };
-  signals: {
-    unblock(): void;
-  };
-}
-
-/** Used to test SDK check of query handler returning a Promise */
-export interface AsyncQuery extends Workflow {
-  main(): void;
-  queries: {
-    invalidAsyncMethod(): Promise<boolean>;
-  };
-}
-
 // @@@SNIPSTART nodejs-workflow-signal-interface
 export interface Interruptable extends Workflow {
   main(): void;
@@ -48,7 +28,7 @@ export interface ArgsAndReturn extends Workflow {
 }
 
 export interface HTTP extends Workflow {
-  main(): Promise<string[]>;
+  main(): Promise<string>;
 }
 
 export interface Empty extends Workflow {
@@ -90,6 +70,9 @@ export interface WorkflowCancellationScenarios extends Workflow {
 // @@@SNIPSTART nodejs-blocked-interface
 export interface Blocked extends Workflow {
   main(): Promise<void>;
+  queries: {
+    isBlocked(): boolean;
+  };
   signals: {
     unblock(): void;
   };

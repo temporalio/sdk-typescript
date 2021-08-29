@@ -1,12 +1,17 @@
 // @@@SNIPSTART nodejs-hello-workflow
+import { Context } from '@temporalio/workflow';
 import { Example } from '../interfaces/workflows';
-import { greet } from '@activities/greeter';
+import * as activities from '../activities';
+
+const { greet } = Context.configureActivities<typeof activities>({
+  type: 'remote',
+  startToCloseTimeout: '30 minutes',
+});
 
 // A workflow that simply calls an activity
 async function main(name: string): Promise<string> {
   return greet(name);
 }
 
-// Declare the workflow's type to be checked by the Typescript compiler
-export const workflow: Example = { main };
+export const workflow = { main };
 // @@@SNIPEND

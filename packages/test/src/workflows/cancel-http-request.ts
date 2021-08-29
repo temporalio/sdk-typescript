@@ -1,8 +1,8 @@
 import { ActivityCancellationType, Context, CancellationScope, isCancellation, Trigger } from '@temporalio/workflow';
 import { CancellableHTTPRequest } from '../interfaces';
-import { cancellableFetch } from '@activities';
+import * as activities from '../activities';
 
-const fetch = Context.configure(cancellableFetch, {
+const { cancellableFetch } = Context.configureActivities<typeof activities>({
   type: 'remote',
   startToCloseTimeout: '20s',
   heartbeatTimeout: '3s',
@@ -20,7 +20,7 @@ const signals = {
 async function main(url: string): Promise<void> {
   try {
     await CancellationScope.cancellable(async () => {
-      const promise = fetch(url, true);
+      const promise = cancellableFetch(url, true);
       await activityStarted;
       CancellationScope.current().cancel();
       await promise;

@@ -39,9 +39,9 @@ export interface Info {
   taskToken: Uint8Array;
   activityId: string;
   /**
-   * Tuple containing the Activity module name and function name
+   * Exposed Activity function name
    */
-  activityType: [string, string];
+  activityType: string;
   /**
    * The namespace this Activity is running in
    */

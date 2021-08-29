@@ -8,6 +8,7 @@ import {
   WorkflowCancellationScenarios,
 } from './interfaces';
 import { RUN_INTEGRATION_TESTS } from './helpers';
+import * as activities from './activities';
 
 export interface Context {
   worker: Worker;
@@ -42,7 +43,7 @@ if (RUN_INTEGRATION_TESTS) {
   test.before(async (t) => {
     const worker = await Worker.create({
       workflowsPath: `${__dirname}/workflows`,
-      activitiesPath: `${__dirname}/activities`,
+      activities,
       nodeModulesPath: `${__dirname}/../../../node_modules`,
       taskQueue,
     });

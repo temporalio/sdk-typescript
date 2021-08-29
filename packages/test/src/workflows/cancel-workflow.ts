@@ -1,5 +1,5 @@
 import { ActivityFailure, CancellationScope, CancelledFailure } from '@temporalio/workflow';
-import { httpGet } from '@activities';
+import { httpGet } from './configured-activities';
 
 export async function main(url: string): Promise<string> {
   // By default timers and activities are automatically cancelled when the workflow is cancelled

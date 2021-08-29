@@ -5,7 +5,7 @@
  */
 
 import { CancellationScope, CancelledFailure } from '@temporalio/workflow';
-import { httpGet } from '@activities';
+import { httpGet } from './configured-activities';
 
 export async function main(url: string): Promise<string[]> {
   const promise = CancellationScope.nonCancellable(async () => {

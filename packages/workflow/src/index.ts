@@ -14,23 +14,26 @@
  *
  * ### Activities
  *
- * To schedule activities in the system, simply import an activity function from any registered activity file and call it like a normal function, the Temporal workflow runtime will replace the imported function with a stub which will schedules an activity.
- *
- * Activities run with the worker's configured {@link WorkerOptions.activityDefaults | activityDefaults}, use {@link ContextImpl.configure | Context.configure} in order to customize the {@link ActivityOptions | activity options}.
+ * To schedule Activities, use {@link ContextImpl.configureActivities | Context.configureActivities} to obtain an Activity function and call.
  *
  * <!--SNIPSTART nodejs-schedule-activity-workflow-->
  * <!--SNIPEND-->
  *
- * ### Signals
+ * ### Signals and Queries
  *
- * To add signal handlers to a workflow, add a signals property to the exported workflow object.
+ * To add signal handlers to a Workflow, add a signals property to the exported `workflow` object.
  * Signal handlers can return either `void` or `Promise<void>`, you may schedule activities and timers from a signal handler.
  *
+ * To add query handlers to a Workflow, add a queries property to the exported `workflow` object.
+ * Query handlers must **not** mutate any variables or generate any commands (like Activities or Timers), they run synchronously and thus **must** return a `Promise`.
+ *
  * #### Interface
+ *
  * <!--SNIPSTART nodejs-workflow-signal-interface-->
  * <!--SNIPEND-->
  *
  * #### Implementation
+ *
  * <!--SNIPSTART nodejs-workflow-signal-implementation-->
  * <!--SNIPEND-->
  *
@@ -54,6 +57,7 @@ export {
   Workflow,
   ActivityCancellationType,
   ActivityFunction,
+  ActivityInterface,
   ActivityOptions,
   LocalActivityOptions,
   RemoteActivityOptions,

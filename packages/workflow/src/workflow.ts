@@ -182,11 +182,7 @@ async function scheduleActivityNextHandler({
  * Schedule an activity and run outbound interceptors
  * @hidden
  */
-export function scheduleActivity<R>(
-  activityType: string,
-  args: any[],
-  options: ActivityOptions | undefined = state.activityDefaults
-): Promise<R> {
+export function scheduleActivity<R>(activityType: string, args: any[], options: ActivityOptions): Promise<R> {
   if (options === undefined) {
     throw new TypeError('Got empty activity options');
   }
@@ -334,17 +330,6 @@ function signalWorkflowNextHandler({ seq, signalName, args, target }: SignalWork
   });
 }
 
-function activityInfo(activity: string | [string, string] | ActivityFunction<any, any>): ActivityInfo {
-  if (typeof activity === 'string') {
-    return { name: activity, type: activity };
-  }
-  if (activity instanceof Array) {
-    return { name: activity[1], type: JSON.stringify(activity) };
-  } else {
-    return activity as InternalActivityFunction<any, any>;
-  }
-}
-
 export class ContextImpl {
   /**
    * @protected
@@ -352,55 +337,68 @@ export class ContextImpl {
   constructor() {
     // Does nothing just marks this as protected for documentation
   }
+
   /**
-   * Configure an activity function with given {@link ActivityOptions}
-   * Activities use the worker options's {@link WorkerOptions.activityDefaults | activityDefaults} unless configured otherwise.
+   * Configure Activity functions with given {@link ActivityOptions}.
    *
-   * @typeparam P type of parameters of activity function, e.g `[string, string]` for `(a: string, b: string) => Promise<number>`
-   * @typeparam R return type of activity function, e.g `number` for `(a: string, b: string) => Promise<number>`
+   * This method may be called multiple times to setup Activities with different options.
    *
-   * @param activity either an activity name if triggering an activity in another language, a tuple of [module, name] for untyped activities (e.g. ['@activities', 'greet']) or an imported activity function.
-   * @param options partial {@link ActivityOptions} object, any attributes provided here override the provided activity's options
+   * @return a [Proxy](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Proxy)
+   *         for which each attribute is a callable Activity function
+   *
+   * @typeparam A An {@link ActivityInterface} - mapping of name to function
    *
    * @example
    * ```ts
-   * import { Context } from '@temporalio/workflow';
-   * import { httpGet } from '@activities';
+   * import { Context, ActivityInterface } from '@temporalio/workflow';
+   * import * as activities from '../activities';
    *
-   * const httpGetWithCustomTimeout = Context.configure(httpGet, {
+   * // Setup Activities from module exports
+   * const { httpGet, otherActivity } = Context.configureActivities<typeof activities>({
    *   type: 'remote',
-   *   scheduleToCloseTimeout: '30 minutes',
+   *   startToCloseTimeout: '30 minutes',
    * });
    *
-   * // Example of creating an activity from string
-   * // Passing type parameters is optional, configured function will be untyped unless provided
-   * const httpGetFromJava = Context.configure<[string, number], number>('SomeJavaMethod'); // Use worker activityDefaults when 2nd parameter is omitted
+   * // Setup Activities from an explicit interface (e.g. when defined by another SDK)
+   * interface JavaActivities extends ActivityInterface {
+   *   httpGetFromJava(url: string): Promise<string>
+   *   someOtherJavaActivity(arg1: number, arg2: string): Promise<string>;
+   * }
+   *
+   * const {
+   *   httpGetFromJava,
+   *   someOtherJavaActivity
+   * } = Context.configureActivities<JavaActivities>({
+   *   type: 'remote',
+   *   taskQueue: 'java-worker-taskQueue',
+   *   startToCloseTimeout: '5m',
+   * });
    *
    * export function main(): Promise<void> {
-   *   const response = await httpGetWithCustomTimeout('http://example.com');
+   *   const response = await httpGet('http://example.com');
    *   // ...
    * }
    * ```
    */
-  public configure<P extends any[], R>(
-    activity: string | [string, string] | ActivityFunction<P, R>,
-    options: ActivityOptions | undefined = state.activityDefaults
-  ): ActivityFunction<P, R> {
+  public configureActivities<A extends Record<string, ActivityFunction<any, any>>>(options: ActivityOptions): A {
     if (options === undefined) {
       throw new TypeError('options must be defined');
     }
     // Validate as early as possible for immediate user feedback
     validateActivityOptions(options);
-    const { name, type } = activityInfo(activity);
-    // Wrap the function in an object so it gets the original function name
-    const { [name]: fn } = {
-      [name](...args: P) {
-        return scheduleActivity<R>(type, args, options);
-      },
-    };
-    const configured = fn as InternalActivityFunction<P, R>;
-    Object.assign(configured, { type, options });
-    return configured;
+    return new Proxy(
+      {},
+      {
+        get(_, activityType) {
+          if (typeof activityType !== 'string') {
+            throw new TypeError(`Only strings are supported for Activity types, got: ${String(activityType)}`);
+          }
+          return (...args: unknown[]) => {
+            return scheduleActivity(activityType, args, options);
+          };
+        },
+      }
+    ) as any;
   }
 
   /**

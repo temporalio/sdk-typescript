@@ -13,7 +13,7 @@ export async function main(): Promise<void> {
   /// Signal child WF tests
   {
     // Happy path
-    const child = Context.child<typeof unblockable>('simple-query');
+    const child = Context.child<typeof unblockable>('signal-target');
     await child.start();
     await child.signal.unblock();
     await child.result();
