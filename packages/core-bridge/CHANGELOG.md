@@ -3,6 +3,44 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+# [0.3.0](https://github.com/temporalio/sdk-node/compare/@temporalio/core-bridge@0.2.0...@temporalio/core-bridge@0.3.0) (2021-08-29)
+
+
+### Bug Fixes
+
+* **worker:** Adapt worker to sdk-core shutdown sequence ([8fc981b](https://github.com/temporalio/sdk-node/commit/8fc981bb3d5bb14d0f082d2ef1b282b66d97fe10))
+* **workflow:** Use sequence number for correlation IDs ([c527d57](https://github.com/temporalio/sdk-node/commit/c527d5765018343a6aab4e57cd42da31ef55a279))
+
+
+* feat(worker)!: Move maxCachedWorkflows to WorkerOptions ([913a78b](https://github.com/temporalio/sdk-node/commit/913a78b1c77b50cce27544ef078a2c3d61a2be6e))
+* feat!: Use CancelledFailure everywhere for cancellation ([1f6fee4](https://github.com/temporalio/sdk-node/commit/1f6fee4ad1d045adc904079a57c6bea741d8bc38))
+* feat!: Port Failure classes from Java SDK ([d1bb4ef](https://github.com/temporalio/sdk-node/commit/d1bb4ef59caa6ea3b0c4fc6108a78e46e4ed2b42))
+
+
+### Features
+
+* Add gRPC retries for Worker->server requests ([8db7c67](https://github.com/temporalio/sdk-node/commit/8db7c673d2e9a4f05afb2a887b603172c8ad3e33))
+* Complete child / external workflow implementation ([1825a03](https://github.com/temporalio/sdk-node/commit/1825a0335130ea928de403652432c95444fb635e))
+* Implement child workflows start and complete ([ca6f4ee](https://github.com/temporalio/sdk-node/commit/ca6f4ee0868081e0c115ff05bda6a5e47c13493d))
+
+
+### BREAKING CHANGES
+
+* Core.install and Worker.create options interfaces
+were restructured.
+* use `isCancellation(err)` instead of catching `CancelledError` for
+handling cancellations, cancelled activities and child workflows now throw
+`ActivityFailure` and `ChildWorkflowFailure` respectively with cause set
+to `CancelledFailure`.
+* Activities functions now throw `ActivityFailure` in Workflow.
+WorkflowClient and WorkflowStub now chain the Workflow error as `cause`
+of `WorkflowExecutionFailedError` instead of setting the `message`
+property.
+
+
+
+
+
 # [0.2.0](https://github.com/temporalio/sdk-node/compare/@temporalio/core-bridge@0.1.0...@temporalio/core-bridge@0.2.0) (2021-07-27)
 
 

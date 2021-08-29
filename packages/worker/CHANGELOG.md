@@ -3,6 +3,48 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+# [0.7.0](https://github.com/temporalio/sdk-node/compare/@temporalio/worker@0.6.0...@temporalio/worker@0.7.0) (2021-08-29)
+
+
+### Bug Fixes
+
+* Destroy isolates and scripts in tests and when Worker completes ([df31ade](https://github.com/temporalio/sdk-node/commit/df31adeeb7631ec128f23da9480d2fd21a7aa9c2))
+* **worker:** Acknowledge eviction only activations ([250640a](https://github.com/temporalio/sdk-node/commit/250640a9a2028dca2a298408ffd4ec21fd2210dd))
+* **worker:** Adapt worker to sdk-core shutdown sequence ([8fc981b](https://github.com/temporalio/sdk-node/commit/8fc981bb3d5bb14d0f082d2ef1b282b66d97fe10))
+* **worker:** Allow creating a Worker with no workflows ([66859a9](https://github.com/temporalio/sdk-node/commit/66859a9e76a8921b79cb3b3d031fa8bfbcf7adfb))
+* **worker:** Avoid throwing error when there's no activities directory ([bd89e50](https://github.com/temporalio/sdk-node/commit/bd89e5002f1258145bc039ec439a63b453e7d53d))
+* **worker:** Fix Worker could be in DRAINING state when asked to poll ([fb5825e](https://github.com/temporalio/sdk-node/commit/fb5825e1dd027244b6f86bd040a72886d5d07569))
+
+
+* feat(worker)!: Move maxCachedWorkflows to WorkerOptions ([913a78b](https://github.com/temporalio/sdk-node/commit/913a78b1c77b50cce27544ef078a2c3d61a2be6e))
+* feat!: Use CancelledFailure everywhere for cancellation ([1f6fee4](https://github.com/temporalio/sdk-node/commit/1f6fee4ad1d045adc904079a57c6bea741d8bc38))
+* feat!: Port Failure classes from Java SDK ([d1bb4ef](https://github.com/temporalio/sdk-node/commit/d1bb4ef59caa6ea3b0c4fc6108a78e46e4ed2b42))
+
+
+### Features
+
+* `patched` api ([91b5312](https://github.com/temporalio/sdk-node/commit/91b5312f550f6512dcaa5a07374abe34b622bab1))
+* **proto:** Split generated protos into coresdk and temporal ([10a4fb2](https://github.com/temporalio/sdk-node/commit/10a4fb2e16736bd05e31b560a77f861b9a574aa0))
+* Use ivm.Script instead of snapshots ([961bd7b](https://github.com/temporalio/sdk-node/commit/961bd7bf9f2ed1b9937973c3a3e67abe7a615654))
+
+
+### BREAKING CHANGES
+
+* Core.install and Worker.create options interfaces
+were restructured.
+* use `isCancellation(err)` instead of catching `CancelledError` for
+handling cancellations, cancelled activities and child workflows now throw
+`ActivityFailure` and `ChildWorkflowFailure` respectively with cause set
+to `CancelledFailure`.
+* Activities functions now throw `ActivityFailure` in Workflow.
+WorkflowClient and WorkflowStub now chain the Workflow error as `cause`
+of `WorkflowExecutionFailedError` instead of setting the `message`
+property.
+
+
+
+
+
 # [0.6.0](https://github.com/temporalio/sdk-node/compare/@temporalio/worker@0.5.0...@temporalio/worker@0.6.0) (2021-07-27)
 
 

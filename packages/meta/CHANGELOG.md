@@ -3,6 +3,23 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+# [0.4.0](https://github.com/temporalio/sdk-node/compare/temporalio@0.3.0...temporalio@0.4.0) (2021-08-29)
+
+
+* feat!: Use CancelledFailure everywhere for cancellation ([1f6fee4](https://github.com/temporalio/sdk-node/commit/1f6fee4ad1d045adc904079a57c6bea741d8bc38))
+
+
+### BREAKING CHANGES
+
+* use `isCancellation(err)` instead of catching `CancelledError` for
+handling cancellations, cancelled activities and child workflows now throw
+`ActivityFailure` and `ChildWorkflowFailure` respectively with cause set
+to `CancelledFailure`.
+
+
+
+
+
 # [0.3.0](https://github.com/temporalio/sdk-node/compare/temporalio@0.2.5...temporalio@0.3.0) (2021-07-27)
 
 
