@@ -4,7 +4,7 @@
  * @module
  */
 import ivm from 'isolated-vm';
-import { ActivityOptions, IllegalStateError, msToTs, tsToMs } from '@temporalio/common';
+import { IllegalStateError, msToTs, tsToMs } from '@temporalio/common';
 import { coresdk } from '@temporalio/proto/lib/coresdk';
 import { ApplyMode, ExternalDependencyFunction, WorkflowInfo } from './interfaces';
 import { consumeCompletion, ExternalCall, state } from './internals';
@@ -116,7 +116,6 @@ export function mockBrowserDocumentForWebpack(): MockDocument {
 
 export function initRuntime(
   info: WorkflowInfo,
-  activityDefaults: ActivityOptions,
   interceptorModules: string[],
   randomnessSeed: number[],
   isolateExtension: IsolateExtension
@@ -128,7 +127,6 @@ export function initRuntime(
   };
   state.interceptorModules = interceptorModules;
   state.info = info;
-  state.activityDefaults = activityDefaults;
   state.random = alea(randomnessSeed);
   HookManager.instance.setIsolateExtension(isolateExtension);
 }

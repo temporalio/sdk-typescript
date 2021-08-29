@@ -29,6 +29,7 @@ import {
   arrayFromPayloads,
   DataConverter,
   defaultDataConverter,
+  ActivityInterface,
 } from '@temporalio/common';
 import { closeableGroupBy, mergeMapWithState } from './rxutils';
 import { GiB, MiB } from './utils';
@@ -82,40 +83,30 @@ export interface WorkerOptions {
   logger?: Logger;
 
   /**
-   * Activities created in workflows will default to having these options
-   *
-   * @default
-   * ```ts
-   * { type: 'remote', startToCloseTimeout: '10m' }
-   * ```
-   */
-  activityDefaults?: ActivityOptions;
-
-  /**
    * If provided, automatically discover Workflows and Activities relative to path.
    *
-   * @see {@link activitiesPath}, {@link workflowsPath}, and {@link nodeModulesPath}
+   * @see {@link activities}, {@link workflowsPath}, and {@link nodeModulesPath}
    */
   workDir?: string;
 
   /**
-   * Path to look up activities in.
-   * Automatically discovered if {@link workDir} is provided.
-   * @default ${workDir}/../activities
+   * Mapping of activity name to implementation.
+   *
+   * Automatically discovered from `${workDir}/activities` if {@link workDir} is provided.
    */
-  activitiesPath?: string;
+  activities?: ActivityInterface;
 
   /**
    * Path to look up workflows in.
    * Automatically discovered if {@link workDir} is provided.
-   * @default ${workDir}/../workflows
+   * @default ${workDir}/workflows
    */
   workflowsPath?: string;
 
   /**
    * Path for webpack to look up modules in for bundling the Workflow code.
    * Automatically discovered if {@link workDir} is provided.
-   * @default ${workDir}/../../node_modules
+   * @default ${workDir}/../node_modules
    */
   nodeModulesPath?: string;
 
@@ -252,7 +243,6 @@ export type WorkerOptionsWithDefaults<T extends WorkerSpec = DefaultWorkerSpec> 
       | 'shutdownSignals'
       | 'dataConverter'
       | 'logger'
-      | 'activityDefaults'
       | 'maxConcurrentActivityTaskExecutions'
       | 'maxConcurrentWorkflowTaskExecutions'
       | 'maxConcurrentActivityTaskPolls'
@@ -290,14 +280,13 @@ export function addDefaults<T extends WorkerSpec>(options: WorkerSpecOptions<T>)
   // Typescript is really struggling with the conditional exisitence of the dependencies attribute.
   // Help it out without sacrificing type safety of the other attributes.
   const ret: Omit<WorkerOptionsWithDefaults<T>, 'dependencies'> = {
-    activitiesPath: workDir ? resolve(workDir, '../activities') : undefined,
-    workflowsPath: workDir ? resolve(workDir, '../workflows') : undefined,
-    nodeModulesPath: workDir ? resolve(workDir, '../../node_modules') : undefined,
+    activities: workDir ? require(resolve(workDir, 'activities')) : undefined,
+    workflowsPath: workDir ? resolve(workDir, 'workflows') : undefined,
+    nodeModulesPath: workDir ? resolve(workDir, '../node_modules') : undefined,
     shutdownGraceTime: '5s',
     shutdownSignals: ['SIGINT', 'SIGTERM', 'SIGQUIT'],
     dataConverter: defaultDataConverter,
     logger: new DefaultLogger(),
-    activityDefaults: { type: 'remote', startToCloseTimeout: '10m' },
     maxConcurrentActivityTaskExecutions: 100,
     maxConcurrentWorkflowTaskExecutions: 100,
     maxConcurrentActivityTaskPolls: 5,
@@ -441,10 +430,6 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
     const compiledOptions = compileWorkerOptions(addDefaults(options));
     // Pass dependencies as undefined to please the type checker
     const nativeWorker = await nativeWorkerCtor.create({ ...compiledOptions, dependencies: undefined });
-    const resolvedActivities = compiledOptions.activitiesPath
-      ? await WorkflowIsolateBuilder.resolveActivities(compiledOptions.logger, compiledOptions.activitiesPath)
-      : new Map();
-
     let contextProvider: IsolateContextProvider | undefined = undefined;
     // Allow only both or none to be provided
     if (Boolean(compiledOptions.workflowsPath) !== Boolean(compiledOptions.nodeModulesPath)) {
@@ -457,7 +442,6 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
         compiledOptions.logger,
         compiledOptions.nodeModulesPath,
         compiledOptions.workflowsPath,
-        resolvedActivities,
         compiledOptions.interceptors?.workflowModules
       );
       contextProvider = await RoundRobinIsolateContextProvider.create(
@@ -467,7 +451,7 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
       );
     }
 
-    return new this(nativeWorker, contextProvider, resolvedActivities, compiledOptions);
+    return new this(nativeWorker, contextProvider, compiledOptions);
   }
 
   /**
@@ -479,7 +463,6 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
      * Optional IsolateContextProvider - if not provided, Worker will not poll on workflows
      */
     protected readonly isolateContextProvider: IsolateContextProvider | undefined,
-    protected readonly resolvedActivities: Map<string, Record<string, (...args: any[]) => any>>,
     public readonly options: CompiledWorkerOptions<T>
   ) {}
 
@@ -625,22 +608,18 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
                       this.options.dataConverter,
                       this.nativeWorker.namespace
                     );
-                    const [path, fnName] = info.activityType;
-                    const module = this.resolvedActivities.get(path);
-                    if (module === undefined) {
-                      output = {
-                        type: 'result',
-                        result: { failed: { failure: { message: `Activity module not found: ${path}` } } },
-                        parentSpan,
-                      };
-                      break;
-                    }
-                    const fn = module[fnName];
+                    const { activityType } = info;
+                    const fn = this.options.activities?.[activityType];
                     if (!(fn instanceof Function)) {
                       output = {
                         type: 'result',
                         result: {
-                          failed: { failure: { message: `Activity function ${fnName} not found in: ${path}` } },
+                          failed: {
+                            failure: {
+                              message: `Activity function ${activityType} is not registered in this worker`,
+                              applicationFailureInfo: { type: 'NotFoundError', nonRetryable: true },
+                            },
+                          },
                         },
                         parentSpan,
                       };
@@ -655,7 +634,8 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
                         result: {
                           failed: {
                             failure: {
-                              message: `Failed to parse activity args for activity ${fnName}: ${err.message}`,
+                              message: `Failed to parse activity args for activity ${activityType}: ${err.message}`,
+                              applicationFailureInfo: { type: err.name, nonRetryable: true },
                             },
                           },
                         },
@@ -668,7 +648,7 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
                       args,
                       headers,
                     };
-                    this.log.debug('Starting activity', { activityId, path, fnName });
+                    this.log.debug('Starting activity', { activityId, activityType });
 
                     activity = new Activity(
                       info,
@@ -831,7 +811,6 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
                             taskQueue: this.options.taskQueue,
                             isReplaying: activation.isReplaying,
                           },
-                          this.options.activityDefaults,
                           this.options.interceptors?.workflowModules ?? [],
                           randomnessSeed,
                           this.options.isolateExecutionTimeoutMs
@@ -1044,6 +1023,11 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
   }
 
   protected activity$(): Observable<void> {
+    // TODO: Let core know that we're not interested in polling on activities
+    // Don't even bother polling if no activities have been registered
+    if (this.options.activities === undefined || Object.keys(this.options.activities).length === 0) {
+      return EMPTY;
+    }
     return this.activityPoll$().pipe(
       this.activityOperator(),
       mergeMap(async ({ completion, parentSpan }) => {
@@ -1151,14 +1135,13 @@ async function extractActivityInfo(
   // NOTE: We trust core to supply all of these fields instead of checking for null and undefined everywhere
   const { taskToken, activityId } = task as NonNullableObject<coresdk.activity_task.IActivityTask>;
   const start = task.start as NonNullableObject<coresdk.activity_task.IStart>;
-  const activityType = JSON.parse(start.activityType);
   return {
     taskToken,
     activityId,
     workflowExecution: start.workflowExecution as NonNullableObject<coresdk.common.WorkflowExecution>,
     attempt: start.attempt,
     isLocal,
-    activityType,
+    activityType: start.activityType,
     workflowType: start.workflowType,
     heartbeatDetails: await dataConverter.fromPayloads(0, start.heartbeatDetails),
     activityNamespace,

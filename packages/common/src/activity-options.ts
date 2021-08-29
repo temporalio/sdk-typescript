@@ -103,3 +103,8 @@ export type ActivityOptions = RemoteActivityOptions | LocalActivityOptions;
 export interface ActivityFunction<P extends any[], R> {
   (...args: P): Promise<R>;
 }
+
+/**
+ * Mapping of Activity name to function
+ */
+export type ActivityInterface = Record<string, ActivityFunction<any[], any>>;

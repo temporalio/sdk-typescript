@@ -5,6 +5,8 @@ import { Connection } from '@temporalio/client';
 import { fakeProgress as fakeProgressInner } from './fake-progress';
 import { cancellableFetch as cancellableFetchInner } from './cancellable-fetch';
 
+export { throwSpecificError } from './failure-tester';
+
 async function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }

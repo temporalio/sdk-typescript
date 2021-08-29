@@ -15,8 +15,6 @@ import { Logger } from './logger';
  *
  * @param nodeModulesPath node_modules path with required Workflow dependencies
  * @param workflowsPath all Workflows found in path will be put in the bundle
- * @param activities mapping of module name to module exports, exported functions will be replaced with stubs and the rest ignored
- * @param activityDefaults used to inject Activity options into the Activity stubs
  * @param workflowInterceptorModules list of interceptor modules to register on Workflow creation
  */
 export class WorkflowIsolateBuilder {
@@ -24,7 +22,6 @@ export class WorkflowIsolateBuilder {
     public readonly logger: Logger,
     public readonly nodeModulesPath: string,
     public readonly workflowsPath: string,
-    public readonly activities: Map<string, Record<string, any>>,
     public readonly workflowInterceptorModules: string[] = []
   ) {}
 
@@ -39,11 +36,10 @@ export class WorkflowIsolateBuilder {
     const distDir = '/dist';
     const sourceDir = '/src';
 
-    await this.registerActivities(vol, sourceDir);
     const entrypointPath = path.join(sourceDir, 'main.js');
     const workflows = await this.findWorkflows();
     this.genEntrypoint(vol, entrypointPath, workflows);
-    await this.bundle(ufs, entrypointPath, sourceDir, distDir);
+    await this.bundle(ufs, entrypointPath, distDir);
     return ufs.readFileSync(path.join(distDir, 'main.js'), 'utf8');
   }
 
@@ -109,17 +105,11 @@ export class WorkflowIsolateBuilder {
   /**
    * Run webpack
    */
-  protected async bundle(
-    filesystem: typeof unionfs.ufs,
-    entry: string,
-    sourceDir: string,
-    distDir: string
-  ): Promise<void> {
+  protected async bundle(filesystem: typeof unionfs.ufs, entry: string, distDir: string): Promise<void> {
     const compiler = webpack({
       resolve: {
         modules: [this.nodeModulesPath],
         extensions: ['.js'],
-        alias: Object.fromEntries([...this.activities.keys()].map((spec) => [spec, path.resolve(sourceDir, spec)])),
       },
       entry: [entry],
       // TODO: production build?
@@ -159,69 +149,5 @@ export class WorkflowIsolateBuilder {
     } finally {
       await util.promisify(compiler.close).bind(compiler)();
     }
-  }
-
-  public async registerActivities(vol: typeof memfs.vol, sourceDir: string): Promise<void> {
-    for (const [specifier, module] of this.activities.entries()) {
-      let code = dedent`
-        import { scheduleActivity } from '@temporalio/workflow';
-      `;
-      for (const [k, v] of Object.entries(module)) {
-        if (v instanceof Function) {
-          // Activities are identified by their module specifier and name.
-          // We double stringify below to generate a string containing a JSON array.
-          const type = JSON.stringify(JSON.stringify([specifier, k]));
-          // TODO: Validate k against pattern
-          code += dedent`
-            export function ${k}(...args) {
-              return scheduleActivity(${type}, args);
-            }
-            ${k}.type = ${type};
-          `;
-        }
-      }
-      const modulePath = path.resolve(sourceDir, `${specifier}.js`);
-      try {
-        vol.mkdirSync(path.dirname(modulePath), { recursive: true });
-      } catch (err) {
-        if (err.code !== 'EEXIST') throw err;
-      }
-      vol.writeFileSync(modulePath, code);
-    }
-  }
-
-  /**
-   * Resolve activities by perfoming a shallow lookup all JS files in `activitiesPath`.
-   */
-  public static async resolveActivities(
-    logger: Logger,
-    activitiesPath: string
-  ): Promise<Map<string, Record<string, (...args: any[]) => any>>> {
-    const resolvedActivities = new Map<string, Record<string, (...args: any[]) => any>>();
-    let files: string[] | undefined = undefined;
-    try {
-      files = await fs.readdir(activitiesPath, { encoding: 'utf8' });
-    } catch (err) {
-      if (err.code !== 'ENOENT') throw err;
-      return resolvedActivities;
-    }
-    for (const file of files) {
-      const ext = path.extname(file);
-      if (ext === '.js') {
-        const fullPath = path.resolve(activitiesPath, file);
-        // eslint-disable-next-line @typescript-eslint/no-var-requires
-        const module = require(fullPath);
-        const functions = Object.fromEntries(
-          Object.entries(module).filter((entry): entry is [string, () => any] => entry[1] instanceof Function)
-        );
-        const importName = path.basename(file, ext);
-        logger.debug('Loaded activity', { importName, fullPath });
-        resolvedActivities.set(`@activities/${importName}`, functions);
-        if (importName === 'index') {
-          resolvedActivities.set('@activities', functions);
-        }
-      }
-    }
-    return resolvedActivities;
   }
 }

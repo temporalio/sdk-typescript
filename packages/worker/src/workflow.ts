@@ -3,7 +3,6 @@ import Long from 'long';
 import dedent from 'dedent';
 import { coresdk } from '@temporalio/proto';
 import * as internals from '@temporalio/workflow/lib/worker-interface';
-import { ActivityOptions } from '@temporalio/common';
 import { ExternalDependencyFunction, WorkflowInfo } from '@temporalio/workflow';
 import { ApplyMode } from './dependencies';
 
@@ -32,7 +31,6 @@ export class Workflow {
   public static async create(
     context: ivm.Context,
     info: WorkflowInfo,
-    activityDefaults: ActivityOptions,
     interceptorModules: string[],
     randomnessSeed: Long,
     isolateExecutionTimeoutMs: number
@@ -56,8 +54,8 @@ export class Workflow {
     );
 
     await context.evalClosure(
-      'lib.initRuntime($0, $1, $2, $3, $4)',
-      [info, activityDefaults, interceptorModules, randomnessSeed.toBytes(), isolateExtension.derefInto()],
+      'lib.initRuntime($0, $1, $2, $3)',
+      [info, interceptorModules, randomnessSeed.toBytes(), isolateExtension.derefInto()],
       { arguments: { copy: true }, timeout: isolateExecutionTimeoutMs }
     );
 

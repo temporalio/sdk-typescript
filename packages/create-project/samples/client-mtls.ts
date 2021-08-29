@@ -1,7 +1,7 @@
 // @@@SNIPSTART nodejs-mtls-client
 import fs from 'fs';
 import { Connection, WorkflowClient } from '@temporalio/client';
-import { Example } from '../interfaces/workflows';
+import { Example } from './interfaces/workflows';
 import { getEnv, Env } from './mtls-env';
 
 /**

@@ -1,7 +1,6 @@
 import Long from 'long';
 import * as protobufjs from 'protobufjs/minimal';
 import {
-  ActivityOptions,
   ApplicationFailure,
   composeInterceptors,
   errorToFailure,
@@ -356,10 +355,6 @@ export class State {
    * Information about the current Workflow
    */
   public info?: WorkflowInfo;
-  /**
-   * Default ActivityOptions to set in `Context.configure`
-   */
-  public activityDefaults?: ActivityOptions;
   /**
    * A deterministic RNG, used by the isolate's overridden Math.random
    */
