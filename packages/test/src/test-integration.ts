@@ -87,9 +87,9 @@ if (RUN_INTEGRATION_TESTS) {
       return;
     }
     t.is(err.cause.type, 'ReferenceError');
-    t.is(err.cause.message, "Cannot find module './not-found.js'");
+    t.is(err.cause.message, "Cannot find module './not-found'");
     t.true(err.cause.nonRetryable);
-    t.is(err.cause.stack, "ApplicationFailure: Cannot find module './not-found.js'");
+    t.is(err.cause.stack, "ApplicationFailure: Cannot find module './not-found'");
   });
 
   test('args-and-return', async (t) => {

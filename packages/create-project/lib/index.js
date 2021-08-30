@@ -19,12 +19,22 @@ const packageJsonBase = {
     scripts: {
         build: 'tsc --build',
         'build.watch': 'tsc --build --watch',
-        start: 'node lib/worker.js',
-        workflow: 'node lib/exec-workflow.js',
+        start: 'ts-node src/worker.ts',
+        'start.watch': 'nodemon src/worker.ts',
+        workflow: 'ts-node src/exec-workflow.ts',
     },
     devDependencies: {
         typescript: `^${typescriptVersion}`,
         [`@tsconfig/node${nodeMajorVersion}`]: '^1.0.0',
+        'ts-node': '^10.2.1',
+        nodemon: '^2.0.12',
+    },
+    nodemonConfig: {
+        watch: ['src'],
+        ext: 'ts',
+        execMap: {
+            ts: 'ts-node',
+        },
     },
 };
 const tsConfig = {
@@ -98,7 +108,6 @@ async function createProject(projectPath, useYarn, temporalVersion, sample) {
     await (0, fs_extra_1.mkdir)(src);
     await (0, fs_extra_1.mkdir)(path_1.default.join(src, 'interfaces'));
     await (0, fs_extra_1.mkdir)(path_1.default.join(src, 'workflows'));
-    await (0, fs_extra_1.mkdir)(path_1.default.join(src, 'worker'));
     await writePrettyJson(path_1.default.join(root, 'tsconfig.json'), tsConfig);
     const sampleDir = path_1.default.join(__dirname, '../samples');
     const template = getTemplate(sample);
