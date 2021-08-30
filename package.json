@@ -6,6 +6,7 @@
   "devDependencies": {
     "@commitlint/cli": "^13.1.0",
     "@commitlint/config-conventional": "^13.1.0",
+    "@opentelemetry/api": "^1.0.1",
     "@opentelemetry/exporter-jaeger": "^0.24.0",
     "@opentelemetry/sdk-node": "^0.24.0",
     "@tsconfig/node14": "^1.0.1",
@@ -39,7 +40,7 @@
     "build.watch": "lerna run --stream build.watch",
     "test": "lerna run --stream test",
     "test.watch": "lerna run --stream test.watch",
-    "ci-load": "node ./packages/test/lib/load/all-in-one.js --server-address $TEMPORAL_TESTING_SERVER_URL",
+    "ci-load": "node ./packages/test/lib/load/all-in-one.js --server-address $TEMPORAL_TESTING_SERVER_URL --iterations 10000",
     "lint": "eslint packages/*/src --ext .ts --no-error-on-unmatched-pattern && prettier --check .",
     "format": "prettier --write .",
     "clean": "node ./scripts/clean.js",
