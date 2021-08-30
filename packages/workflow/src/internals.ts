@@ -13,6 +13,7 @@ import {
   DataConverter,
   defaultDataConverter,
   arrayFromPayloadsSync,
+  errorMessage,
 } from '@temporalio/common';
 import { coresdk } from '@temporalio/proto/lib/coresdk';
 import { alea, RNG } from './alea';
@@ -46,7 +47,7 @@ export class Activator implements ActivationHandler {
     try {
       mod = req();
     } catch (err) {
-      const failure = ApplicationFailure.nonRetryable(err.message, 'ReferenceError');
+      const failure = ApplicationFailure.nonRetryable(errorMessage(err), 'ReferenceError');
       failure.stack = failure.stack?.split('\n')[0];
       throw failure;
     }

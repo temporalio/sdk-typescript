@@ -29,7 +29,7 @@ export async function kill(child: ChildProcess, signal: NodeJS.Signals = 'SIGINT
   process.kill(child.pid, signal);
   try {
     await waitOnChild(child);
-  } catch (err) {
+  } catch (err: any) {
     if (!(err.name === 'ChildProcessError' && err.signal === signal)) {
       throw err;
     }

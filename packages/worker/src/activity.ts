@@ -72,7 +72,7 @@ export class Activity {
             const failure = await errorToFailure(err, this.dataConverter);
             failure.stackTrace = undefined;
             return { cancelled: { failure } };
-          } else if (err.name === 'AbortError' && err.type === 'aborted') {
+          } else if (err instanceof Error && err.name === 'AbortError') {
             return { cancelled: { failure: { source: FAILURE_SOURCE, canceledFailureInfo: {} } } };
           }
         }

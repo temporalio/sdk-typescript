@@ -6,7 +6,7 @@ const { syncVoid, asyncIgnored, sync, async, error } = Context.dependencies<Test
 function convertErrorToIntResult(fn: (x: number) => any, x: number): number {
   try {
     return fn(x);
-  } catch (err) {
+  } catch (err: any) {
     return parseInt(err.message);
   }
 }

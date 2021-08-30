@@ -3,7 +3,7 @@
  *
  * @module
  */
-import { CancelledFailure, ChildWorkflowFailure } from '@temporalio/common';
+import { CancelledFailure, ChildWorkflowFailure, errorMessage } from '@temporalio/common';
 import { Context, CancellationScope, uuid4 } from '@temporalio/workflow';
 import { workflow as unblockable } from './signal-target';
 
@@ -60,7 +60,7 @@ export async function main(): Promise<void> {
     await external.cancel();
     throw new Error('Cancel did not throw');
   } catch (err) {
-    if (err.message !== 'Unable to cancel external workflow because not found') {
+    if (errorMessage(err) !== 'Unable to cancel external workflow because not found') {
       throw err;
     }
   }

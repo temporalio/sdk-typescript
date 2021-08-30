@@ -30,6 +30,7 @@ import {
   DataConverter,
   defaultDataConverter,
   ActivityInterface,
+  errorMessage,
 } from '@temporalio/common';
 import { closeableGroupBy, mergeMapWithState } from './rxutils';
 import { GiB, MiB } from './utils';
@@ -634,8 +635,13 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
                         result: {
                           failed: {
                             failure: {
-                              message: `Failed to parse activity args for activity ${activityType}: ${err.message}`,
-                              applicationFailureInfo: { type: err.name, nonRetryable: true },
+                              message: `Failed to parse activity args for activity ${activityType}: ${errorMessage(
+                                err
+                              )}`,
+                              applicationFailureInfo: {
+                                type: err instanceof Error ? err.name : undefined,
+                                nonRetryable: true,
+                              },
                             },
                           },
                         },
@@ -982,7 +988,7 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
           await this.nativeWorker.completeWorkflowActivation(completion.buffer.slice(completion.byteOffset));
           span.setStatus({ code: otel.SpanStatusCode.OK });
         } catch (err) {
-          span.setStatus({ code: otel.SpanStatusCode.ERROR, message: err.message });
+          span.setStatus({ code: otel.SpanStatusCode.ERROR, message: errorMessage(err) });
           // Expect Core to issue an eviction in this case
           if (!(err instanceof errors.WorkflowError)) {
             throw err;
@@ -1108,7 +1114,7 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
   /**
    * Log when an external dependency function throws an error in IGNORED mode and throw otherwise
    */
-  protected handleExternalDependencyError(workflowInfo: WorkflowInfo, applyMode: ApplyMode, error: Error): void {
+  protected handleExternalDependencyError(workflowInfo: WorkflowInfo, applyMode: ApplyMode, error: unknown): void {
     if (applyMode === ApplyMode.SYNC_IGNORED || applyMode === ApplyMode.ASYNC_IGNORED) {
       this.log.error('External dependency function threw an error', {
         workflowInfo,

@@ -3,6 +3,7 @@
  * @module
  */
 import * as otel from '@opentelemetry/api';
+import { errorMessage } from '@temporalio/common';
 
 /**
  * Wraps `fn` in a span which ends when function returns or throws
@@ -22,7 +23,7 @@ export async function instrument<T>(
       span.setStatus({ code: otel.SpanStatusCode.OK });
       return ret;
     } catch (err) {
-      span.setStatus({ code: otel.SpanStatusCode.ERROR, message: err.message });
+      span.setStatus({ code: otel.SpanStatusCode.ERROR, message: errorMessage(err) });
       throw err;
     } finally {
       span.end();
