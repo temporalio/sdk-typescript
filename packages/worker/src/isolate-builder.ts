@@ -96,7 +96,7 @@ export class WorkflowIsolateBuilder {
     `;
     try {
       vol.mkdirSync(path.dirname(target), { recursive: true });
-    } catch (err) {
+    } catch (err: any) {
       if (err.code !== 'EEXIST') throw err;
     }
     vol.writeFileSync(target, code);

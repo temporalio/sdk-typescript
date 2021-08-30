@@ -8,9 +8,8 @@
 const startupErrors: string[] = [];
 
 try {
-  // @ts-ignore
   new WeakMap();
-} catch (err) {
+} catch (err: any) {
   startupErrors.push(err.toString());
 }
 
@@ -19,21 +18,19 @@ export async function main(): Promise<void> {
     console.log(err);
   }
   try {
-    // @ts-ignore
     new WeakMap();
-  } catch (err) {
+  } catch (err: any) {
     console.log(err.toString());
   }
   try {
-    // @ts-ignore
     new WeakSet();
-  } catch (err) {
+  } catch (err: any) {
     console.log(err.toString());
   }
   try {
     // @ts-ignore
     new WeakRef();
-  } catch (err) {
+  } catch (err: any) {
     console.log(err.toString());
   }
 }

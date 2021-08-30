@@ -46,7 +46,7 @@ export async function main(): Promise<void> {
     try {
       await child.signal.unblock();
       throw new Error('Signal did not throw');
-    } catch (err) {
+    } catch (err: any) {
       if (err.name !== 'IllegalStateError' || err.message !== 'Workflow execution not started') {
         throw err;
       }

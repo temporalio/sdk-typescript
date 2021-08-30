@@ -14,7 +14,7 @@ exports.ChildProcessError = ChildProcessError;
 async function spawn(command, args, options) {
     try {
         // Workaround @types/node - avoid choosing overloads per options.stdio variants
-        await waitOnChild(options === undefined ? child_process_1.spawn(command, args) : child_process_1.spawn(command, args || [], options));
+        await waitOnChild(options === undefined ? (0, child_process_1.spawn)(command, args) : (0, child_process_1.spawn)(command, args || [], options));
     }
     catch (err) {
         if (err instanceof ChildProcessError) {

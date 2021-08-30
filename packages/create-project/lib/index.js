@@ -47,12 +47,12 @@ const tsConfig = {
  * Copy sample from `source` to `target` stripping away snipsync comments
  */
 async function copySample(source, target) {
-    const code = await fs_extra_1.readFile(source, 'utf8');
+    const code = await (0, fs_extra_1.readFile)(source, 'utf8');
     const stripped = code.replace(/.*@@@SNIP(START|END).*\n/gm, '');
-    await fs_extra_1.writeFile(target, stripped);
+    await (0, fs_extra_1.writeFile)(target, stripped);
 }
 async function writePrettyJson(path, obj) {
-    await fs_extra_1.writeFile(path, JSON.stringify(obj, null, 2) + os_1.default.EOL);
+    await (0, fs_extra_1.writeFile)(path, JSON.stringify(obj, null, 2) + os_1.default.EOL);
 }
 class UsageError extends Error {
     constructor() {
@@ -92,28 +92,28 @@ async function createProject(projectPath, useYarn, temporalVersion, sample) {
     const root = path_1.default.resolve(projectPath);
     const src = path_1.default.resolve(root, 'src');
     const name = path_1.default.basename(root);
-    await fs_extra_1.mkdir(root);
+    await (0, fs_extra_1.mkdir)(root);
     const packageJson = { ...packageJsonBase, name };
     await writePrettyJson(path_1.default.join(root, 'package.json'), packageJson);
-    await fs_extra_1.mkdir(src);
-    await fs_extra_1.mkdir(path_1.default.join(src, 'interfaces'));
-    await fs_extra_1.mkdir(path_1.default.join(src, 'workflows'));
-    await fs_extra_1.mkdir(path_1.default.join(src, 'worker'));
+    await (0, fs_extra_1.mkdir)(src);
+    await (0, fs_extra_1.mkdir)(path_1.default.join(src, 'interfaces'));
+    await (0, fs_extra_1.mkdir)(path_1.default.join(src, 'workflows'));
+    await (0, fs_extra_1.mkdir)(path_1.default.join(src, 'worker'));
     await writePrettyJson(path_1.default.join(root, 'tsconfig.json'), tsConfig);
     const sampleDir = path_1.default.join(__dirname, '../samples');
     const template = getTemplate(sample);
     await template.copySources(sampleDir, src);
     if (useYarn) {
-        await subprocess_1.spawn('yarn', ['install'], { cwd: root, stdio: 'inherit' });
-        await subprocess_1.spawn('yarn', ['add', `temporalio@${temporalVersion}`], { cwd: root, stdio: 'inherit' });
+        await (0, subprocess_1.spawn)('yarn', ['install'], { cwd: root, stdio: 'inherit' });
+        await (0, subprocess_1.spawn)('yarn', ['add', `temporalio@${temporalVersion}`], { cwd: root, stdio: 'inherit' });
     }
     else {
-        await subprocess_1.spawn(npm, ['install'], { cwd: root, stdio: 'inherit' });
-        await subprocess_1.spawn(npm, ['install', `temporalio@${temporalVersion}`], { cwd: root, stdio: 'inherit' });
+        await (0, subprocess_1.spawn)(npm, ['install'], { cwd: root, stdio: 'inherit' });
+        await (0, subprocess_1.spawn)(npm, ['install', `temporalio@${temporalVersion}`], { cwd: root, stdio: 'inherit' });
     }
 }
 async function init() {
-    const { _: args, ...opts } = arg_1.default({
+    const { _: args, ...opts } = (0, arg_1.default)({
         '--use-yarn': Boolean,
         '--temporal-version': String,
         '--sample': String,

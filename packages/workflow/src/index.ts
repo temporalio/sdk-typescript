@@ -51,8 +51,6 @@
  * @module
  */
 
-import './global-overrides';
-
 export {
   Workflow,
   ActivityCancellationType,
