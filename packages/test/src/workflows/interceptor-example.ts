@@ -87,4 +87,5 @@ export const interceptors: WorkflowInterceptors = {
       },
     },
   ],
+  internals: [],
 };

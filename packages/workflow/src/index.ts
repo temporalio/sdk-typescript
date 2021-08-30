@@ -74,15 +74,7 @@ export {
   TerminatedFailure,
   TimeoutFailure,
 } from '@temporalio/common';
-export {
-  ApplyMode,
-  ChildWorkflowOptions,
-  ChildWorkflowCancellationType,
-  ExternalDependencyFunction,
-  ExternalDependency,
-  ExternalDependencies,
-  WorkflowInfo,
-} from './interfaces';
+export { ActivationJobResult, ChildWorkflowOptions, ChildWorkflowCancellationType, WorkflowInfo } from './interfaces';
 export * from './errors';
 export {
   Context,
@@ -98,3 +90,10 @@ export * from './interceptors';
 export { AsyncLocalStorage } from './async-local-storage';
 export { CancellationScope, CancellationScopeOptions } from './cancellation-scope';
 export { Trigger } from './trigger';
+export {
+  ApplyMode,
+  ExternalCall,
+  ExternalDependencyFunction,
+  ExternalDependency,
+  ExternalDependencies,
+} from './dependencies';

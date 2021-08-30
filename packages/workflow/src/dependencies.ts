@@ -70,3 +70,14 @@ export enum ApplyMode {
    */
   SYNC_IGNORED = 'applyIgnored',
 }
+
+/**
+ * Call information for async external dependencies
+ */
+export interface ExternalCall {
+  ifaceName: string;
+  fnName: string;
+  args: any[];
+  /** Optional in case applyMode is ASYNC_IGNORED */
+  seq?: number;
+}

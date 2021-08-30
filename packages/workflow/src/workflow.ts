@@ -17,12 +17,12 @@ import {
   ChildWorkflowOptionsWithDefaults,
   ContinueAsNew,
   ContinueAsNewOptions,
-  ExternalDependencies,
   WorkflowInfo,
 } from './interfaces';
 import { state } from './internals';
 import { WorkflowExecutionAlreadyStartedError } from './errors';
 import { ActivityInput, StartChildWorkflowExecutionInput, SignalWorkflowInput, TimerInput } from './interceptors';
+import { ExternalDependencies } from './dependencies';
 import { CancellationScope, registerSleepImplementation } from './cancellation-scope';
 import { ExternalWorkflowStub, ChildWorkflowStub } from './workflow-stub';
 

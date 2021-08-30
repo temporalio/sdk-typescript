@@ -16,11 +16,12 @@ import {
   WorkflowExecutionFailedError,
   WorkflowExecutionTerminatedError,
 } from '@temporalio/client';
-import { ApplyMode, defaultDataConverter } from '@temporalio/workflow';
+import { ApplyMode, defaultDataConverter, WorkflowInfo } from '@temporalio/workflow';
 import { defaultOptions } from './mock-native-worker';
 import { Empty } from './interfaces';
 import { cleanStackTrace, RUN_INTEGRATION_TESTS } from './helpers';
 import { Deps, workflow } from './workflows/block-with-dependencies';
+import { Dependencies as InternalsDeps } from './workflows/internals-interceptor-example';
 
 if (RUN_INTEGRATION_TESTS) {
   test.serial('Tracing can be implemented using interceptors', async (t) => {
@@ -206,5 +207,40 @@ if (RUN_INTEGRATION_TESTS) {
     t.is(err.cause.cause, undefined);
     worker.shutdown();
     await workerDrained;
+  });
+
+  test.serial('Internals can be intercepted for observing Workflow state changes', async (t) => {
+    const taskQueue = 'test-internals-interceptor';
+
+    const events = Array<string>();
+    const worker = await Worker.create<{ dependencies: InternalsDeps }>({
+      ...defaultOptions,
+      taskQueue,
+      interceptors: {
+        // Co-exists with the Workflow
+        workflowModules: ['internals-interceptor-example'],
+      },
+      dependencies: {
+        logger: {
+          log: {
+            fn: (_: WorkflowInfo, event: string): void => {
+              events.push(event);
+            },
+            applyMode: ApplyMode.SYNC_IGNORED,
+            arguments: 'copy',
+          },
+        },
+      },
+    });
+    const workerDrained = worker.run();
+    const client = new WorkflowClient();
+    const wf = client.stub<Empty>('internals-interceptor-example', {
+      taskQueue,
+    });
+    await wf.execute();
+
+    worker.shutdown();
+    await workerDrained;
+    t.deepEqual(events, ['activate: 0', 'concludeActivation: 1', 'activate: 0', 'concludeActivation: 1']);
   });
 }
