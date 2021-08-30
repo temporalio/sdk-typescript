@@ -112,11 +112,9 @@ export class WorkflowIsolateBuilder {
         extensions: ['.js'],
       },
       entry: [entry],
-      // TODO: production build?
       mode: 'development',
-      // Explicitly set the devtool.
-      // See https://github.com/temporalio/sdk-node/issues/139
-      devtool: 'cheap-source-map',
+      // Recommended choice for development builds with high quality SourceMaps
+      devtool: 'eval-source-map',
       output: {
         path: distDir,
         filename: 'main.js',

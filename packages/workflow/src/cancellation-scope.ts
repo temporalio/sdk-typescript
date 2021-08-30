@@ -122,12 +122,19 @@ export class CancellationScope {
    * @return the result of `fn`
    */
   run<T>(fn: () => Promise<T>): Promise<T> {
-    return storage.run(this, async () => {
-      if (this.timeout) {
-        sleep(this.timeout).then(() => this.cancel());
-      }
-      return await fn();
-    });
+    return storage.run(this, this.runInContext.bind(this, fn) as () => Promise<T>);
+  }
+
+  /**
+   * Method that runs a function in AsyncLocalStorage context.
+   *
+   * Could have been written as anonymous function, made into a method for improved stack traces.
+   */
+  protected async runInContext<T>(fn: () => Promise<T>): Promise<T> {
+    if (this.timeout) {
+      sleep(this.timeout).then(() => this.cancel());
+    }
+    return await fn();
   }
 
   /**

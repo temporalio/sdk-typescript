@@ -199,7 +199,7 @@ if (RUN_INTEGRATION_TESTS) {
       Error: Expected anything other than 1
           at Object.continueAsNew
           at next
-          at workflow
+          at eval
           at Object.main
     `
     );

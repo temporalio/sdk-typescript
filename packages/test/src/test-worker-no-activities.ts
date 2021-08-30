@@ -7,6 +7,7 @@ import * as workflow from './workflows/sync';
 
 if (RUN_INTEGRATION_TESTS) {
   test('Worker functions when asked not to run Activities', async (t) => {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { activities, taskQueue, ...rest } = defaultOptions;
     const worker = await Worker.create({ taskQueue: 'only-workflows', ...rest });
     const client = new WorkflowClient();

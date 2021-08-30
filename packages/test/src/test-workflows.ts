@@ -581,9 +581,6 @@ test('invalid-or-failed-queries', async (t) => {
             source: 'NodeSDK',
             stackTrace: dedent`
               DeterminismViolationError: Query handlers should not return a Promise
-                  at workflow-isolate
-                  at Activator.queryWorkflow
-                  at activate
             `,
             applicationFailureInfo: {
               type: 'DeterminismViolationError',
@@ -608,9 +605,6 @@ test('invalid-or-failed-queries', async (t) => {
             stackTrace: dedent`
               Error: fail
                   at fail
-                  at workflow-isolate
-                  at Activator.queryWorkflow
-                  at activate
             `,
             applicationFailureInfo: {
               type: 'Error',
@@ -1262,8 +1256,8 @@ test('cancellation-error-is-propagated', async (t) => {
             stackTrace: dedent`
         CancelledFailure: Cancellation scope cancelled
             at CancellationScope.cancel
-            at workflow-isolate
-            at workflow-isolate
+            at eval
+            at CancellationScope.runInContext
             at AsyncLocalStorage.run
             at CancellationScope.run
             at Function.cancellable

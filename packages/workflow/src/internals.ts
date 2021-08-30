@@ -17,7 +17,7 @@ import {
 import { coresdk } from '@temporalio/proto/lib/coresdk';
 import { alea, RNG } from './alea';
 import { ContinueAsNew, ExternalDependencies, WorkflowInfo } from './interfaces';
-import { SignalInput, WorkflowInput, WorkflowInterceptors } from './interceptors';
+import { QueryInput, SignalInput, WorkflowInput, WorkflowInterceptors } from './interceptors';
 import { DeterminismViolationError, WorkflowExecutionAlreadyStartedError, isCancellation } from './errors';
 import { ROOT_SCOPE } from './cancellation-scope';
 
@@ -168,23 +168,29 @@ export class Activator implements ActivationHandler {
     }
   }
 
+  protected async queryWorkflowNextHandler(input: QueryInput): Promise<unknown> {
+    const fn = state.workflow?.queries?.[input.queryName];
+    if (fn === undefined) {
+      // Fail the query
+      throw new ReferenceError(`Workflow did not register a handler for ${input.queryName}`);
+    }
+    const ret = fn(...input.args);
+    if (ret instanceof Promise) {
+      throw new DeterminismViolationError('Query handlers should not return a Promise');
+    }
+    return ret;
+  }
+
   public queryWorkflow(activation: coresdk.workflow_activation.IQueryWorkflow): void {
     const { queryType, queryId } = activation;
     if (!(queryType && queryId)) {
       throw new TypeError('Missing query activation attributes');
     }
-    const execute = composeInterceptors(state.interceptors.inbound, 'handleQuery', async (input) => {
-      const fn = state.workflow?.queries?.[input.queryName];
-      if (fn === undefined) {
-        // Fail the query
-        throw new ReferenceError(`Workflow did not register a handler for ${input.queryName}`);
-      }
-      const ret = fn(...input.args);
-      if (ret instanceof Promise) {
-        throw new DeterminismViolationError('Query handlers should not return a Promise');
-      }
-      return ret;
-    });
+    const execute = composeInterceptors(
+      state.interceptors.inbound,
+      'handleQuery',
+      this.queryWorkflowNextHandler.bind(this)
+    );
     execute({
       queryName: queryType,
       args: arrayFromPayloadsSync(state.dataConverter, activation.arguments),

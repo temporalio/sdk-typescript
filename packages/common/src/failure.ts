@@ -198,9 +198,9 @@ export async function optionalErrorToOptionalFailure(
  */
 const CUTTOFF_STACK_PATTERNS = [
   /** Activity execution */
-  /\s+at Activity\.execute \(.*\/worker\/(?:src|lib)\/activity.[jt]s:\d+:\d+\)/,
+  /\s+at Activity\.execute \(.*\/worker\/(?:src|lib)\/activity\.[jt]s:\d+:\d+\)/,
   /** Workflow activation */
-  /\s+at Activator\.\S+NextHandler \(workflow-isolate:\d+:\d+\)/,
+  /\s+at Activator\.\S+NextHandler \(webpack-internal:\/\/\/.*\/internals\.[jt]s:\d+:\d+\)/,
 ];
 
 /**
