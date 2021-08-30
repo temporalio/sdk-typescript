@@ -39,7 +39,7 @@ async function main() {
   });
 
   const worker = await Worker.create({
-    workDir: __dirname,
+    workDir: path.join(__dirname, '..'),
     nodeModulesPath: path.join(__dirname, '../../../../node_modules'),
     taskQueue,
     maxConcurrentActivityTaskExecutions,
