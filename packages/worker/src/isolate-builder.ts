@@ -31,12 +31,34 @@ export class WorkflowIsolateBuilder {
   public async createBundle(): Promise<string> {
     const vol = new memfs.Volume();
     const ufs = new unionfs.Union();
-    // We cast to any because of inacurate types
-    ufs.use(memfs.createFsFromVolume(vol) as any).use(realFS);
-    const distDir = '/dist';
-    const sourceDir = '/src';
 
-    const entrypointPath = path.join(sourceDir, 'main.js');
+    /**
+     * readdir and exclude sourcemaps and d.ts files
+     */
+    function readdir(...args: Parameters<typeof realFS.readdir>) {
+      // Help TS a bit because readdir has multiple signatures
+      const callback: (err: NodeJS.ErrnoException | null, files: string[]) => void = args.pop() as any;
+      const newArgs: Parameters<typeof realFS.readdir> = [
+        ...args,
+        (err: Error | null, files: string[]) => {
+          if (err !== null) {
+            callback(err, []);
+            return;
+          }
+          callback(
+            null,
+            files.filter((f) => /\.[jt]s$/.test(path.extname(f)) && !f.endsWith('.d.ts'))
+          );
+        },
+      ] as any;
+      return realFS.readdir(...newArgs);
+    }
+
+    // Cast because the type definitions are inaccurate
+    ufs.use(memfs.createFsFromVolume(vol) as any).use({ ...realFS, readdir: readdir as any });
+    const distDir = '/dist';
+    const entrypointPath = path.join('/src/main.js');
+
     const workflows = await this.findWorkflows();
     this.genEntrypoint(vol, entrypointPath, workflows);
     await this.bundle(ufs, entrypointPath, distDir);
@@ -62,11 +84,13 @@ export class WorkflowIsolateBuilder {
   }
 
   /**
-   * Shallow lookup of all js files in workflowsPath
+   * Shallow lookup of all ts and js files in workflowsPath
    */
   protected async findWorkflows(): Promise<string[]> {
     const files = await fs.readdir(this.workflowsPath);
-    return files.filter((f) => path.extname(f) === '.js').map((f) => path.basename(f, path.extname(f)));
+    return files
+      .filter((f) => /\.[jt]s$/.test(path.extname(f)) && !f.endsWith('.d.ts'))
+      .map((f) => path.basename(f, path.extname(f)));
   }
 
   /**
@@ -76,7 +100,7 @@ export class WorkflowIsolateBuilder {
    */
   protected genEntrypoint(vol: typeof memfs.vol, target: string, workflows: string[]): void {
     const bundlePaths = [...new Set(workflows.concat(this.workflowInterceptorModules))].map((wf) =>
-      JSON.stringify(path.join(this.workflowsPath, `${wf}.js`))
+      JSON.stringify(path.join(this.workflowsPath, wf))
     );
     const code = dedent`
       const api = require('@temporalio/workflow/lib/worker-interface');
@@ -89,7 +113,7 @@ export class WorkflowIsolateBuilder {
 
       api.overrideGlobals();
       api.setRequireFunc(
-        (name) => require(${JSON.stringify(this.workflowsPath)} + '${path.sep}' + name + '.js')
+        (name) => require(${JSON.stringify(this.workflowsPath)} + '${path.sep}' + name)
       );
 
       module.exports = api;
@@ -109,7 +133,16 @@ export class WorkflowIsolateBuilder {
     const compiler = webpack({
       resolve: {
         modules: [this.nodeModulesPath],
-        extensions: ['.js'],
+        extensions: ['.ts', '.js'],
+      },
+      module: {
+        rules: [
+          {
+            test: /\.ts$/,
+            loader: 'ts-loader',
+            exclude: /node_modules/,
+          },
+        ],
       },
       entry: [entry],
       mode: 'development',
@@ -122,7 +155,7 @@ export class WorkflowIsolateBuilder {
       },
     });
 
-    // We cast to any because the type declarations are inacurate
+    // Cast to any because the type declarations are inaccurate
     compiler.inputFileSystem = filesystem as any;
     compiler.outputFileSystem = filesystem as any;
 
