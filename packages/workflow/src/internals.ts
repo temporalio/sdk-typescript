@@ -17,9 +17,10 @@ import {
 } from '@temporalio/common';
 import { coresdk } from '@temporalio/proto/lib/coresdk';
 import { alea, RNG } from './alea';
-import { ContinueAsNew, ExternalDependencies, WorkflowInfo } from './interfaces';
+import { ContinueAsNew, WorkflowInfo } from './interfaces';
 import { QueryInput, SignalInput, WorkflowInput, WorkflowInterceptors } from './interceptors';
 import { DeterminismViolationError, WorkflowExecutionAlreadyStartedError, isCancellation } from './errors';
+import { ExternalCall, ExternalDependencies } from './dependencies';
 import { ROOT_SCOPE } from './cancellation-scope';
 
 export type ResolveFunction<T = any> = (val: T) => any;
@@ -60,12 +61,6 @@ export class Activator implements ActivationHandler {
     if (req === undefined || info === undefined) {
       throw new IllegalStateError('Workflow has not been initialized');
     }
-    for (const mod of state.interceptorModules) {
-      const { interceptors } = req(mod) as { interceptors: WorkflowInterceptors };
-      state.interceptors.inbound.push(...interceptors.inbound);
-      state.interceptors.outbound.push(...interceptors.outbound);
-    }
-
     const execute = composeInterceptors(
       state.interceptors.inbound,
       'execute',
@@ -269,14 +264,6 @@ export class Activator implements ActivationHandler {
   }
 }
 
-export interface ExternalCall {
-  ifaceName: string;
-  fnName: string;
-  args: any[];
-  /** Optional in case applyMode is ASYNC_IGNORED */
-  seq?: number;
-}
-
 /**
  * Keeps all of the Workflow runtime state like pending completions for activities and timers and the scope stack.
  *
@@ -301,13 +288,9 @@ export class State {
   };
 
   /**
-   * Overridden on WF initialization
+   * Loaded in {@link initRuntime}
    */
-  public interceptorModules: string[] = [];
-  /**
-   * Loaded from `interceptorModules`
-   */
-  public interceptors: WorkflowInterceptors = { inbound: [], outbound: [] };
+  public interceptors: WorkflowInterceptors = { inbound: [], outbound: [], internals: [] };
   /**
    * Buffer that stores all generated commands, reset after each activation
    */

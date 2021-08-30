@@ -3,7 +3,7 @@ import Long from 'long';
 import dedent from 'dedent';
 import { coresdk } from '@temporalio/proto';
 import * as internals from '@temporalio/workflow/lib/worker-interface';
-import { ExternalDependencyFunction, WorkflowInfo } from '@temporalio/workflow';
+import { ExternalDependencyFunction, WorkflowInfo, ExternalCall } from '@temporalio/workflow';
 import { ApplyMode } from './dependencies';
 
 interface WorkflowModule {
@@ -136,10 +136,7 @@ export class Workflow {
   /**
    * Call external dependency functions in the Node.js isolate as requested by the Workflow isolate.
    */
-  protected async processExternalCalls(
-    externalCalls: internals.ExternalCall[],
-    sendResultsBack: boolean
-  ): Promise<void> {
+  protected async processExternalCalls(externalCalls: ExternalCall[], sendResultsBack: boolean): Promise<void> {
     const results = await Promise.all(
       externalCalls.map(async ({ ifaceName, fnName, args, seq }) => {
         const fn = this.dependencies[ifaceName]?.[fnName];
