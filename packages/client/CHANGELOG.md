@@ -3,6 +3,14 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+## [0.6.1](https://github.com/temporalio/sdk-node/compare/@temporalio/client@0.6.0...@temporalio/client@0.6.1) (2021-08-31)
+
+**Note:** Version bump only for package @temporalio/client
+
+
+
+
+
 # [0.6.0](https://github.com/temporalio/sdk-node/compare/@temporalio/client@0.5.0...@temporalio/client@0.6.0) (2021-08-29)
 
 

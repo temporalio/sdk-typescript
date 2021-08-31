@@ -3,6 +3,27 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+# [0.2.0](https://github.com/temporalio/sdk-node/compare/@temporalio/common@0.1.0...@temporalio/common@0.2.0) (2021-08-31)
+
+
+* feat!: Revise Activity setup and registration, use single tsconfig in project skeleton ([b97dd21](https://github.com/temporalio/sdk-node/commit/b97dd21aff3f5d1e5beb1fc6f4e71a04d761ac02))
+
+
+### Features
+
+* Use eval-source-map devtool for improved stack traces ([c7d2361](https://github.com/temporalio/sdk-node/commit/c7d2361efb5cfaa626b5f2cd151d6c893ee1c248))
+
+
+### BREAKING CHANGES
+
+* `@activities` import does not work any more.
+Activities registration is either done automatically with the `workDir`
+option or by providing `activities` to `WorkerOptions`.
+
+
+
+
+
 # 0.1.0 (2021-08-29)
 
 
