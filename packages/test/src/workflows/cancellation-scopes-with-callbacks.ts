@@ -9,7 +9,7 @@ function doSomehing(callback: () => any) {
   setTimeout(callback, 10);
 }
 
-export async function main(): Promise<void> {
+export async function execute(): Promise<void> {
   await new Promise<void>((resolve, reject) => {
     doSomehing(resolve);
     CancellationScope.current().cancelRequested.catch(reject);

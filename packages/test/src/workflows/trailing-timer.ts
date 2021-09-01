@@ -1,6 +1,6 @@
 import { sleep } from '@temporalio/workflow';
 
-export async function main(): Promise<string> {
+export async function execute(): Promise<string> {
   return await Promise.race([
     sleep(1).then(() => 'first'),
     sleep(1).then(() => {

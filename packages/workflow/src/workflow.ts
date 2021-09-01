@@ -10,7 +10,6 @@ import {
   mapToPayloadsSync,
 } from '@temporalio/common';
 import { coresdk } from '@temporalio/proto/lib/coresdk';
-import { EnsurePromise } from '@temporalio/common/lib/type-helpers';
 import {
   ChildWorkflowCancellationType,
   ChildWorkflowOptions,
@@ -374,7 +373,7 @@ export class ContextImpl {
    *   startToCloseTimeout: '5m',
    * });
    *
-   * export function main(): Promise<void> {
+   * export function execute(): Promise<void> {
    *   const response = await httpGet('http://example.com');
    *   // ...
    * }
@@ -472,7 +471,7 @@ export class ContextImpl {
 
     return {
       workflowId: optionsWithDefaults.workflowId,
-      async start(...args: Parameters<T['main']>): Promise<string> {
+      async start(...args: Parameters<T['execute']>): Promise<string> {
         if (started !== undefined) {
           throw new WorkflowExecutionAlreadyStartedError(
             'Workflow execution already started',
@@ -494,13 +493,13 @@ export class ContextImpl {
         });
         return await started;
       },
-      async execute(...args: Parameters<T['main']>): // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+      async execute(...args: Parameters<T['execute']>): // eslint-disable-next-line @typescript-eslint/ban-ts-comment
       // @ts-ignore
-      EnsurePromise<ReturnType<T['main']>> {
+      ReturnType<T['execute']> {
         await this.start(...args);
         return this.result();
       },
-      result(): EnsurePromise<ReturnType<T['main']>> {
+      result(): ReturnType<T['execute']> {
         if (completed === undefined) {
           throw new IllegalStateError('Child Workflow was not started');
         }
@@ -567,7 +566,7 @@ export class ContextImpl {
    * const { logger } = Context.dependencies<MyDependencies>();
    * logger.info('setting up');
    *
-   * export function main(): void {
+   * export function execute(): void {
    *  logger.info('hey ho');
    *  logger.error('lets go');
    * }
@@ -599,11 +598,11 @@ export class ContextImpl {
   /**
    * Returns a function `f` that will cause the current Workflow to ContinueAsNew when called.
    *
-   * `f` takes the same arguments as the Workflow main function supplied to typeparam `F`.
+   * `f` takes the same arguments as the Workflow execute function supplied to typeparam `F`.
    *
    * Once `f` is called, Workflow execution immediately completes.
    */
-  public makeContinueAsNewFunc<F extends Workflow['main']>(
+  public makeContinueAsNewFunc<F extends Workflow['execute']>(
     options?: ContinueAsNewOptions
   ): (...args: Parameters<F>) => Promise<never> {
     const nonOptionalOptions = { workflowType: state.info?.workflowType, taskQueue: state.info?.taskQueue, ...options };
@@ -638,13 +637,13 @@ export class ContextImpl {
    * @example
    *
    * ```ts
-   * async function main(n: number) {
+   * async function execute(n: number) {
    *   // ... Workflow logic
-   *   await Context.continueAsNew<typeof main>(n + 1);
+   *   await Context.continueAsNew<typeof execute>(n + 1);
    * }
    * ```
    */
-  public continueAsNew<F extends Workflow['main']>(...args: Parameters<F>): Promise<never> {
+  public continueAsNew<F extends Workflow['execute']>(...args: Parameters<F>): Promise<never> {
     return this.makeContinueAsNewFunc()(...args);
   }
 }

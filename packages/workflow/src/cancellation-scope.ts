@@ -26,7 +26,7 @@ export interface CancellationScopeOptions {
 }
 
 /**
- * In the SDK, Workflows are represented internally by a tree of scopes where the main function runs in the root scope.
+ * In the SDK, Workflows are represented internally by a tree of scopes where the `execute` function runs in the root scope.
  * Cancellation propagates from outer scopes to inner ones and is handled by catching {@link CancelledFailure}s
  * thrown by cancellable operations (see below).
  *

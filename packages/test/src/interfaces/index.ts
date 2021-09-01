@@ -2,7 +2,7 @@ import { Workflow } from '@temporalio/workflow';
 
 // @@@SNIPSTART nodejs-workflow-signal-interface
 export interface Interruptable extends Workflow {
-  main(): void;
+  execute(): Promise<void>;
   signals: {
     interrupt(reason: string): void;
   };
@@ -10,51 +10,51 @@ export interface Interruptable extends Workflow {
 // @@@SNIPEND
 
 export interface Failable extends Workflow {
-  main(): void;
+  execute(): Promise<void>;
   signals: {
     fail(): void;
   };
 }
 
 export interface AsyncFailable extends Workflow {
-  main(): void;
+  execute(): Promise<void>;
   signals: {
     fail(): Promise<void>;
   };
 }
 
 export interface ArgsAndReturn extends Workflow {
-  main(greeting: string, _skip: undefined, arr: ArrayBuffer): Promise<string>;
+  execute(greeting: string, _skip: undefined, arr: ArrayBuffer): Promise<string>;
 }
 
 export interface HTTP extends Workflow {
-  main(): Promise<string>;
+  execute(): Promise<string>;
 }
 
 export interface Empty extends Workflow {
-  main(): Promise<void>;
+  execute(): Promise<void>;
 }
 
 export interface Sleeper extends Workflow {
-  main(ms?: number): Promise<void>;
+  execute(ms?: number): Promise<void>;
 }
 
 export interface ActivitySignalHandler extends Workflow {
-  main(): Promise<void>;
+  execute(): Promise<void>;
   signals: {
     activityStarted(): void;
   };
 }
 
 export interface CancellableHTTPRequest extends Workflow {
-  main(url: string): Promise<void>;
+  execute(url: string): Promise<void>;
   signals: {
     activityStarted(): void;
   };
 }
 
 export interface ContinueAsNewFromMainAndSignal extends Workflow {
-  main(continueFrom?: 'main' | 'signal' | 'none'): Promise<void>;
+  execute(continueFrom?: 'execute' | 'signal' | 'none'): Promise<void>;
   signals: {
     continueAsNew(): void;
   };
@@ -64,12 +64,12 @@ export type WorkflowCancellationScenarioOutcome = 'complete' | 'cancel' | 'fail'
 export type WorkflowCancellationScenarioTiming = 'immediately' | 'after-cleanup';
 
 export interface WorkflowCancellationScenarios extends Workflow {
-  main(outcome: WorkflowCancellationScenarioOutcome, when: WorkflowCancellationScenarioTiming): Promise<void>;
+  execute(outcome: WorkflowCancellationScenarioOutcome, when: WorkflowCancellationScenarioTiming): Promise<void>;
 }
 
 // @@@SNIPSTART nodejs-blocked-interface
 export interface Blocked extends Workflow {
-  main(): Promise<void>;
+  execute(): Promise<void>;
   queries: {
     isBlocked(): boolean;
   };

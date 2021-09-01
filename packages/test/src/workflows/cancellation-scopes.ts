@@ -14,7 +14,7 @@ function sleepAndLogCancellation(cancellationExpected: boolean) {
   };
 }
 
-export async function main(): Promise<void> {
+export async function execute(): Promise<void> {
   // First without cancellation
   await CancellationScope.cancellable(sleepAndLogCancellation(false));
 

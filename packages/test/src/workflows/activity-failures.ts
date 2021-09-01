@@ -55,7 +55,7 @@ function assertRetryState(err: ActivityFailure, retryState: RetryState) {
   }
 }
 
-export async function main(): Promise<void> {
+export async function execute(): Promise<void> {
   {
     const err = await assertThrows(throwSpecificError('RetryableError', '1'), ActivityFailure);
     assertRetryState(err, RetryState.RETRY_STATE_MAXIMUM_ATTEMPTS_REACHED);

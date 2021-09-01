@@ -7,7 +7,7 @@ import { CancelledFailure, ChildWorkflowFailure, errorMessage } from '@temporali
 import { Context, CancellationScope, uuid4 } from '@temporalio/workflow';
 import { workflow as unblockable } from './signal-target';
 
-export async function main(): Promise<void> {
+export async function execute(): Promise<void> {
   // Cancellation before sending to server
   try {
     await CancellationScope.cancellable(async () => {

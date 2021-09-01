@@ -39,7 +39,7 @@ export interface ExternalWorkflowStub<T extends Workflow> {
  * Given a workflow interface such as:
  * ```ts
  * export interface Counter {
- *   main(initialValue?: number): number;
+ *   execute(initialValue?: number): number;
  *   signals: {
  *     increment(amount?: number): void;
  *   };
@@ -51,7 +51,7 @@ export interface ExternalWorkflowStub<T extends Workflow> {
  * // `counter` is a registered workflow file, typically found at
  * // `lib/workflows/counter.js` after building the typescript project
  * const workflow = Context.child<Counter>('counter');
- * // start workflow main function with initialValue of 2 and await its completion
+ * // start workflow `execute` function with initialValue of 2 and await its completion
  * await workflow.execute(2);
  * ```
  */

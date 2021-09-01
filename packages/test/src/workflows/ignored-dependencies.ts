@@ -4,7 +4,7 @@ import { IgnoredTestDependencies } from '../interfaces/dependencies';
 
 const { syncIgnored, asyncIgnored } = Context.dependencies<IgnoredTestDependencies>();
 
-export async function main(): Promise<number> {
+export async function execute(): Promise<number> {
   let i = 0;
   syncIgnored.syncImpl(i++);
   syncIgnored.asyncImpl(i++);

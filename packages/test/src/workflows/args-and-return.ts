@@ -9,9 +9,9 @@ export function str(a: Uint8Array): string {
   return out;
 }
 
-async function main(greeting: string, _skip: undefined, arr: ArrayBuffer): Promise<string> {
+async function execute(greeting: string, _skip: undefined, arr: ArrayBuffer): Promise<string> {
   const name = str(new Uint8Array(arr));
   return `${greeting}, ${name}`;
 }
 
-export const workflow: ArgsAndReturn = { main };
+export const workflow: ArgsAndReturn = { execute };

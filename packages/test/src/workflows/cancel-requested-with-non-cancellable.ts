@@ -11,7 +11,7 @@ const { httpGetJSON } = Context.configureActivities<typeof activities>({
   startToCloseTimeout: '10m',
 });
 
-export async function main(url: string): Promise<any> {
+export async function execute(url: string): Promise<any> {
   let result: any = undefined;
   const scope = new CancellationScope({ cancellable: false });
   const promise = scope.run(() => httpGetJSON(url));

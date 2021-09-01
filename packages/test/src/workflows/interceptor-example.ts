@@ -22,7 +22,7 @@ export const queries = {
   },
 };
 
-export async function main(): Promise<string> {
+export async function execute(): Promise<string> {
   try {
     await sleep(1);
     throw new Error('timer did not fail');

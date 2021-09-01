@@ -14,6 +14,6 @@ export const queries = {
   },
 };
 
-export async function main(): Promise<void> {
+export async function execute(): Promise<void> {
   // Nothing to do here
 }

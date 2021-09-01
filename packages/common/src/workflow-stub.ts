@@ -1,5 +1,5 @@
 import { Workflow, WorkflowSignalType } from './interfaces';
-import { AsyncOnly, EnsurePromise } from './type-helpers';
+import { AsyncOnly } from './type-helpers';
 
 export type WorkflowStubSignals<T extends Workflow> = T extends Record<'signals', Record<string, WorkflowSignalType>>
   ? {
@@ -16,17 +16,17 @@ export interface BaseWorkflowStub<T extends Workflow> {
   /**
    * Start the Workflow with arguments, returns a Promise that resolves when the Workflow execution completes
    */
-  execute(...args: Parameters<T['main']>): EnsurePromise<ReturnType<T['main']>>;
+  execute(...args: Parameters<T['execute']>): ReturnType<T['execute']>;
 
   /**
    * Start the Workflow with arguments, returns a Promise that resolves with the execution runId
    */
-  start(...args: Parameters<T['main']>): Promise<string /* runId */>;
+  start(...args: Parameters<T['execute']>): Promise<string /* runId */>;
 
   /**
    * Promise that resolves when Workflow execution completes
    */
-  result(): EnsurePromise<ReturnType<T['main']>>;
+  result(): ReturnType<T['execute']>;
 
   /**
    * A mapping of the different signals defined by Workflow interface `T` to callable functions.

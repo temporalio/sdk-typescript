@@ -13,7 +13,7 @@ try {
   startupErrors.push(err.toString());
 }
 
-export async function main(): Promise<void> {
+export async function execute(): Promise<void> {
   for (const err of startupErrors) {
     console.log(err);
   }

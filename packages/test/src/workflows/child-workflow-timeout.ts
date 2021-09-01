@@ -6,7 +6,7 @@
 import { Context } from '@temporalio/workflow';
 import { workflow as blocked } from './unblock-or-cancel';
 
-export async function main(): Promise<void> {
+export async function execute(): Promise<void> {
   const child = Context.child<typeof blocked>('unblock-or-cancel', {
     taskQueue: 'test',
     workflowExecutionTimeout: '10ms',

@@ -1,7 +1,7 @@
 import { CancellationScope, CancelledFailure, sleep } from '@temporalio/workflow';
 import { WorkflowCancellationScenarios } from '../interfaces';
 
-async function main(outcome: 'complete' | 'cancel' | 'fail', when: 'immediately' | 'after-cleanup'): Promise<void> {
+async function execute(outcome: 'complete' | 'cancel' | 'fail', when: 'immediately' | 'after-cleanup'): Promise<void> {
   try {
     await CancellationScope.current().cancelRequested;
   } catch (e) {
@@ -22,4 +22,4 @@ async function main(outcome: 'complete' | 'cancel' | 'fail', when: 'immediately'
   }
 }
 
-export const workflow: WorkflowCancellationScenarios = { main };
+export const workflow: WorkflowCancellationScenarios = { execute };

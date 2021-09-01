@@ -4,7 +4,7 @@ import * as activities from '../activities';
 
 const { httpGetJSON } = Context.configureActivities<typeof activities>({ type: 'remote', startToCloseTimeout: '10m' });
 
-export async function main(): Promise<any> {
+export async function execute(): Promise<any> {
   // Start activities in the root scope
   const p1 = httpGetJSON('http://url1.ninja');
   const p2 = httpGetJSON('http://url2.ninja');

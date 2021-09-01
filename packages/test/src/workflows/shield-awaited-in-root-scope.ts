@@ -4,7 +4,7 @@ import * as activities from '../activities';
 
 const { httpGetJSON } = Context.configureActivities<typeof activities>({ type: 'remote', startToCloseTimeout: '10m' });
 
-export async function main(): Promise<any> {
+export async function execute(): Promise<any> {
   let p: Promise<any> | undefined = undefined;
 
   await CancellationScope.nonCancellable(async () => {

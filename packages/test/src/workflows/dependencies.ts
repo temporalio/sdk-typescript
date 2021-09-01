@@ -10,7 +10,7 @@ function convertErrorToIntResult(fn: (x: number) => any, x: number): number {
     return parseInt(err.message);
   }
 }
-export async function main(): Promise<number> {
+export async function execute(): Promise<number> {
   let i = 0;
   syncVoid.promise(i++);
   syncVoid.ignoredAsyncImpl(i++);

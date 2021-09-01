@@ -4,7 +4,7 @@ class CustomError extends Error {
   public readonly name: string = 'CustomError';
 }
 
-async function main(): Promise<void> {
+async function execute(): Promise<void> {
   try {
     await new Promise((_, reject) => reject(new CustomError('abc')));
   } catch (err) {
@@ -17,4 +17,4 @@ async function main(): Promise<void> {
   }
 }
 
-export const workflow = { main };
+export const workflow = { execute };

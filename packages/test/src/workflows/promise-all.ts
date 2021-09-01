@@ -1,6 +1,6 @@
 import '@temporalio/workflow';
 
-export async function main(): Promise<void> {
+export async function execute(): Promise<void> {
   // None promises
   console.log(...(await Promise.all([1, 2, 3])));
   // Normal promises

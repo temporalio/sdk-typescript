@@ -6,7 +6,7 @@
 import { Context, WorkflowExecutionAlreadyStartedError, WorkflowIdReusePolicy } from '@temporalio/workflow';
 import * as sync from './sync';
 
-export async function main(): Promise<void> {
+export async function execute(): Promise<void> {
   const child = Context.child<typeof sync>('sync', {
     taskQueue: 'test',
     workflowIdReusePolicy: WorkflowIdReusePolicy.WORKFLOW_ID_REUSE_POLICY_REJECT_DUPLICATE,

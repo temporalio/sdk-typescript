@@ -6,7 +6,7 @@
 import { CancelledFailure, CancellationScope, sleep } from '@temporalio/workflow';
 import { Empty } from '../interfaces';
 
-async function main(): Promise<void> {
+async function execute(): Promise<void> {
   // Timers and Activities are automatically cancelled when their containing scope is cancelled.
   try {
     await CancellationScope.cancellable(async () => {
@@ -23,5 +23,5 @@ async function main(): Promise<void> {
   }
 }
 
-export const workflow: Empty = { main };
+export const workflow: Empty = { execute };
 // @@@SNIPEND

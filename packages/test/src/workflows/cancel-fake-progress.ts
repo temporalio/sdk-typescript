@@ -17,7 +17,7 @@ const signals = {
   },
 };
 
-async function main(): Promise<void> {
+async function execute(): Promise<void> {
   try {
     await CancellationScope.cancellable(async () => {
       const promise = fakeProgress();
@@ -33,4 +33,4 @@ async function main(): Promise<void> {
   }
 }
 
-export const workflow: ActivitySignalHandler = { main, signals };
+export const workflow: ActivitySignalHandler = { execute, signals };

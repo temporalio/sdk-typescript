@@ -333,7 +333,7 @@ test('throw-sync', async (t) => {
         'failure',
         dedent`
         Error: failure
-            at Object.main
+            at Object.execute
         `
       ),
     ])
@@ -351,7 +351,7 @@ test('throw-async', async (t) => {
         'failure',
         dedent`
         Error: failure
-            at Object.main
+            at Object.execute
         `
       ),
     ])
@@ -1261,7 +1261,7 @@ test('cancellation-error-is-propagated', async (t) => {
             at AsyncLocalStorage.run
             at CancellationScope.run
             at Function.cancellable
-            at Object.main
+            at Object.execute
         `,
             canceledFailureInfo: {},
             source: 'NodeSDK',

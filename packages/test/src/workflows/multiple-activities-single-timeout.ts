@@ -4,7 +4,7 @@ import * as activities from '../activities';
 
 const { httpGetJSON } = Context.configureActivities<typeof activities>({ type: 'remote', startToCloseTimeout: '10m' });
 
-export async function main(urls: string[], timeoutMs: number): Promise<any[]> {
+export async function execute(urls: string[], timeoutMs: number): Promise<any[]> {
   // If timeout triggers before all activities complete
   // the Workflow will fail with a CancelledError.
   return CancellationScope.withTimeout(timeoutMs, () => Promise.all(urls.map((url) => httpGetJSON(url))));

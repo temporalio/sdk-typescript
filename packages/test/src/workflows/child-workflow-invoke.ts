@@ -6,7 +6,7 @@
 import { Context } from '@temporalio/workflow';
 import * as sync from './sync';
 
-export async function main(): Promise<{ workflowId: string; runId: string; execResult: string; result: string }> {
+export async function execute(): Promise<{ workflowId: string; runId: string; execResult: string; result: string }> {
   const child = Context.child<typeof sync>('sync', {
     taskQueue: 'test',
   });

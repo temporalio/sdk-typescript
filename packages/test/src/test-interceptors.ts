@@ -76,7 +76,7 @@ if (RUN_INTEGRATION_TESTS) {
     });
     {
       const wf = client.stub<{
-        main(): string;
+        execute(): Promise<string>;
         signals: { unblock(secret: string): void };
         queries: { getSecret(): string };
       }>('interceptor-example', {
@@ -90,7 +90,7 @@ if (RUN_INTEGRATION_TESTS) {
     }
     {
       const wf = client.stub<{
-        main(): string;
+        execute(): Promise<string>;
         signals: { unblock(secret: string): void };
       }>('interceptor-example', {
         taskQueue,
@@ -201,7 +201,7 @@ if (RUN_INTEGRATION_TESTS) {
           at Object.continueAsNew
           at next
           at eval
-          at Object.main
+          at Object.execute
     `
     );
     t.is(err.cause.cause, undefined);
