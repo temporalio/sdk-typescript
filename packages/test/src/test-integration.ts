@@ -143,10 +143,9 @@ if (RUN_INTEGRATION_TESTS) {
 
   test('child-workflow-invoke', async (t) => {
     const client = new WorkflowClient();
-    const workflow = client.stub<{ main(): { workflowId: string; runId: string; execResult: string; result: string } }>(
-      'child-workflow-invoke',
-      { taskQueue: 'test' }
-    );
+    const workflow = client.stub<{
+      execute(): Promise<{ workflowId: string; runId: string; execResult: string; result: string }>;
+    }>('child-workflow-invoke', { taskQueue: 'test' });
     const { workflowId, runId, execResult, result } = await workflow.execute();
     t.is(execResult, 'success');
     t.is(result, 'success');
@@ -171,17 +170,17 @@ if (RUN_INTEGRATION_TESTS) {
       cleanStackTrace(err.cause.cause.stack),
       dedent`
         Error: failure
-            at Object.main
+            at Object.execute
       `
     );
   });
 
   test('child-workflow-termination', async (t) => {
     const client = new WorkflowClient();
-    const workflow = client.stub<{ main(): void; queries: { childExecution(): WorkflowExecution | undefined } }>(
-      'child-workflow-termination',
-      { taskQueue: 'test' }
-    );
+    const workflow = client.stub<{
+      execute(): Promise<void>;
+      queries: { childExecution(): WorkflowExecution | undefined };
+    }>('child-workflow-termination', { taskQueue: 'test' });
     await workflow.start();
 
     let childExecution: WorkflowExecution | undefined = undefined;

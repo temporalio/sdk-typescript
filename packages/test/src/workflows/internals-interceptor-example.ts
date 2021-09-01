@@ -9,7 +9,7 @@ export interface Dependencies extends ExternalDependencies {
 
 const { logger } = Context.dependencies<Dependencies>();
 
-export async function main(): Promise<void> {
+export async function execute(): Promise<void> {
   await sleep(10);
 }
 

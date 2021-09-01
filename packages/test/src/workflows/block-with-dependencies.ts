@@ -6,7 +6,7 @@ export interface Deps extends ExternalDependencies {
   };
 }
 
-async function main(): Promise<void> {
+async function execute(): Promise<void> {
   console.log('blocking');
   const { blocker } = Context.dependencies<Deps>();
   await blocker.block();
@@ -14,4 +14,4 @@ async function main(): Promise<void> {
   await CancellationScope.current().cancelRequested;
 }
 
-export const workflow = { main };
+export const workflow = { execute };

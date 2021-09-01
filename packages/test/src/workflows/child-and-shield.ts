@@ -1,6 +1,6 @@
 import { CancellationScope, sleep } from '@temporalio/workflow';
 
-export async function main(): Promise<void> {
+export async function execute(): Promise<void> {
   const child = new CancellationScope();
   const promise = child.run(async () => {
     await CancellationScope.nonCancellable(async () => {

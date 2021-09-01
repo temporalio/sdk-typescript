@@ -36,7 +36,9 @@ export interface QueryInput {
  */
 export interface WorkflowInboundCallsInterceptor {
   /**
-   * Called when Workflow main method is called
+   * Called when Workflow execute method is called
+   *
+   * TODO: intercept creation too and move args there?
    *
    * @return result of the workflow execution
    */

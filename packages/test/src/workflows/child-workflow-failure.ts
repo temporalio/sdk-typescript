@@ -6,7 +6,7 @@
 import { Context } from '@temporalio/workflow';
 import * as throwAsync from './throw-async';
 
-export async function main(): Promise<void> {
+export async function execute(): Promise<void> {
   const child = Context.child<typeof throwAsync>('throw-async', {
     taskQueue: 'test',
   });

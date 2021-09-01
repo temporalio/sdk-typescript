@@ -17,8 +17,8 @@ const signals = {
   },
 };
 
-async function main(): Promise<void> {
+async function execute(): Promise<void> {
   await unblocked;
 }
 
-export const workflow = { main, signals };
+export const workflow = { execute, signals };

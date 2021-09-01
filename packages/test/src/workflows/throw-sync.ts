@@ -1,5 +1,5 @@
 import '@temporalio/workflow';
 
-export function main(): never {
+export function execute(): never {
   throw new Error('failure');
 }

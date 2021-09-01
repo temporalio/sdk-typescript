@@ -9,7 +9,7 @@ import { workflow as unblockable } from './signal-target';
 /**
  * If this workflow completes successfully, it should make the test pass
  */
-export async function main(): Promise<void> {
+export async function execute(): Promise<void> {
   /// Signal child WF tests
   {
     // Happy path

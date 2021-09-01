@@ -12,7 +12,7 @@ const { httpPostJSON, cleanup } = Context.configureActivities<typeof activities>
   startToCloseTimeout: '10m',
 });
 
-export async function main(url: string, data: any): Promise<void> {
+export async function execute(url: string, data: any): Promise<void> {
   try {
     await httpPostJSON(url, data);
   } catch (err) {

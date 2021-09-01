@@ -1,7 +1,7 @@
 import '@temporalio/workflow';
 
 // Taken from https://jakearchibald.com/2015/tasks-microtasks-queues-and-schedules/
-export async function main(): Promise<void> {
+export async function execute(): Promise<void> {
   console.log('script start');
 
   const p1 = new Promise((resolve) => {

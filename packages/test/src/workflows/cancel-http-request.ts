@@ -17,7 +17,7 @@ const signals = {
   },
 };
 
-async function main(url: string): Promise<void> {
+async function execute(url: string): Promise<void> {
   try {
     await CancellationScope.cancellable(async () => {
       const promise = cancellableFetch(url, true);
@@ -32,4 +32,4 @@ async function main(url: string): Promise<void> {
   }
 }
 
-export const workflow: CancellableHTTPRequest = { main, signals };
+export const workflow: CancellableHTTPRequest = { execute, signals };

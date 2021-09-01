@@ -53,7 +53,7 @@ export class Activator implements ActivationHandler {
       throw failure;
     }
     state.workflow = (mod.workflow ?? mod) as Workflow;
-    return await state.workflow.main(...input.args);
+    return await state.workflow.execute(...input.args);
   }
 
   public startWorkflow(activation: coresdk.workflow_activation.IStartWorkflow): void {

@@ -6,7 +6,7 @@
 // @@@SNIPSTART nodejs-cancel-a-timer-from-workflow-alternative-impl
 import { CancelledFailure, CancellationScope, sleep } from '@temporalio/workflow';
 
-export async function main(): Promise<void> {
+export async function execute(): Promise<void> {
   try {
     const scope = new CancellationScope();
     const promise = scope.run(() => sleep(1));

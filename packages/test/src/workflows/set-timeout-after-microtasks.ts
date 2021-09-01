@@ -5,7 +5,7 @@ async function delayedSleep(ms: number) {
   await sleep(ms);
 }
 
-export async function main(): Promise<void> {
+export async function execute(): Promise<void> {
   await delayedSleep(100);
   console.log('slept');
 }

@@ -21,7 +21,7 @@ const signals = {
   },
 };
 
-async function main(): Promise<void> {
+async function execute(): Promise<void> {
   try {
     console.log('Blocked');
     await unblocked;
@@ -35,5 +35,5 @@ async function main(): Promise<void> {
   }
 }
 
-export const workflow: Blocked = { main, signals, queries };
+export const workflow: Blocked = { execute, signals, queries };
 // @@@SNIPEND

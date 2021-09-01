@@ -8,7 +8,7 @@ const { setup, httpPostJSON, cleanup } = Context.configureActivities<typeof acti
   startToCloseTimeout: '10m',
 });
 
-export async function main(url: string): Promise<void> {
+export async function execute(url: string): Promise<void> {
   await CancellationScope.cancellable(async () => {
     await CancellationScope.nonCancellable(() => setup());
     try {

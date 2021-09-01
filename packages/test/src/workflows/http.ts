@@ -8,9 +8,9 @@ const { httpGet } = Context.configureActivities<typeof activities>({
   startToCloseTimeout: '1 minute',
 });
 
-async function main(): Promise<string> {
+async function execute(): Promise<string> {
   return await httpGet('https://temporal.io');
 }
 
-export const workflow: HTTP = { main };
+export const workflow: HTTP = { execute };
 // @@@SNIPEND

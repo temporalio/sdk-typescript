@@ -1,5 +1,5 @@
-import '@temporalio/workflow';
+// TODO: this used to test synchronous workflow `execute`, not relevant anymore
 
-export function main(): string {
+export async function execute(): Promise<string> {
   return 'success';
 }

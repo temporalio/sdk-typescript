@@ -10,6 +10,6 @@ const { throwAnError } = Context.configureActivities<typeof activities>({
   retry: { initialInterval: '1s', maximumAttempts: 1 },
 });
 
-export async function main(): Promise<void> {
+export async function execute(): Promise<void> {
   await throwAnError('Fail me');
 }
