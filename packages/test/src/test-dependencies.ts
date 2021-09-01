@@ -141,7 +141,7 @@ if (RUN_INTEGRATION_TESTS) {
       taskQueue,
       workflowId: wf.workflowId,
       runId,
-      filename: 'dependencies',
+      workflowType: 'dependencies',
       isReplaying: false,
     };
 
@@ -228,7 +228,7 @@ if (RUN_INTEGRATION_TESTS) {
       taskQueue,
       workflowId: wf.workflowId,
       runId,
-      filename: 'ignored-dependencies',
+      workflowType: 'ignored-dependencies',
       isReplaying: false,
     };
 

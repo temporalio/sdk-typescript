@@ -19,7 +19,7 @@ export interface WorkflowInfo {
   /**
    * Filename containing the Workflow code
    */
-  filename: string;
+  workflowType: string;
 
   /**
    * Namespace this Workflow is scheduled in

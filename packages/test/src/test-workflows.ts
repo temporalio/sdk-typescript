@@ -40,7 +40,7 @@ test.beforeEach(async (t) => {
   const workflow = await Workflow.create(
     await contextProvider.getContext(),
     {
-      filename: testName,
+      workflowType: testName,
       runId: 'test-runId',
       workflowId: 'test-workflowId',
       namespace: 'default',

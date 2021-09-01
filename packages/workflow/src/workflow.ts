@@ -606,7 +606,7 @@ export class ContextImpl {
   public makeContinueAsNewFunc<F extends Workflow['main']>(
     options?: ContinueAsNewOptions
   ): (...args: Parameters<F>) => Promise<never> {
-    const nonOptionalOptions = { workflowType: state.info?.filename, taskQueue: state.info?.taskQueue, ...options };
+    const nonOptionalOptions = { workflowType: state.info?.workflowType, taskQueue: state.info?.taskQueue, ...options };
 
     return (...args: Parameters<F>): Promise<never> => {
       const fn = composeInterceptors(state.interceptors.outbound, 'continueAsNew', async (input) => {
