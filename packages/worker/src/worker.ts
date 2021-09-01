@@ -810,7 +810,7 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
                         return await Workflow.create(
                           context,
                           {
-                            filename: workflowType,
+                            workflowType,
                             runId: activation.runId,
                             workflowId,
                             namespace: this.nativeWorker.namespace,
@@ -881,7 +881,7 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
       'console.log',
       (...args: any[]) => {
         if (workflow.info.isReplaying) return;
-        console.log(`${workflow.info.filename} ${workflow.info.runId} >`, ...args);
+        console.log(`${workflow.info.workflowType} ${workflow.info.runId} >`, ...args);
       },
       ApplyMode.SYNC
     );

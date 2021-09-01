@@ -64,7 +64,7 @@ export class Activator implements ActivationHandler {
     const execute = composeInterceptors(
       state.interceptors.inbound,
       'execute',
-      this.startWorkflowNextHandler.bind(this, req.bind(undefined, info.filename))
+      this.startWorkflowNextHandler.bind(this, req.bind(undefined, info.workflowType))
     );
     execute({
       headers: new Map(Object.entries(activation.headers ?? {})),
