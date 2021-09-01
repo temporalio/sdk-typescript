@@ -9,8 +9,11 @@ export { throwSpecificError } from './failure-tester';
 
 // TODO: Get rid of this by providing client via activity context
 function getTestConnection(): Connection {
-  const address = process.env.TEMPORAL_TESTING_SERVER_URL || undefined;
-  return new Connection({ address });
+  const address = process.env.TEMPORAL_TESTING_SERVER_URL;
+  if (address !== undefined) {
+    return new Connection({ address });
+  }
+  return new Connection();
 }
 
 async function sleep(ms: number) {

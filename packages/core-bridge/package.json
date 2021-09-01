@@ -19,6 +19,7 @@
   "license": "MIT",
   "dependencies": {
     "@temporalio/common": "file:../common",
+    "long": "^4.0.0",
     "cargo-cp-artifact": "^0.1.4"
   },
   "bugs": {

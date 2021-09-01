@@ -2,6 +2,7 @@ import * as otel from '@opentelemetry/api';
 import * as tracing from '@opentelemetry/tracing';
 import { InstrumentationLibrary } from '@opentelemetry/core';
 import { ExternalDependency, ExternalDependencies } from '@temporalio/workflow';
+import { Resource } from '@opentelemetry/resources';
 
 /**
  * Serializable version of the opentelemetry Span for cross isolate copying
@@ -19,7 +20,7 @@ export interface SerializableSpan {
   readonly events: tracing.TimedEvent[];
   readonly duration: otel.HrTime;
   readonly ended: boolean;
-  // readonly resource: Resource;
+  readonly resource: Resource;
   readonly instrumentationLibrary: InstrumentationLibrary;
 }
 

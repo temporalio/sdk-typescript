@@ -54,7 +54,6 @@ function extractReadableSpan(serializable: SerializableSpan): ReadableSpan {
     spanContext() {
       return spanContext;
     },
-    resource: Resource.EMPTY,
     ...rest,
   };
 }

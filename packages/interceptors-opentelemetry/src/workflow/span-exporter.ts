@@ -29,6 +29,7 @@ export class SpanExporter implements tracing.SpanExporter {
       events: span.events,
       duration: span.duration,
       ended: span.ended,
+      resource: span.resource,
       instrumentationLibrary: span.instrumentationLibrary,
     };
   }

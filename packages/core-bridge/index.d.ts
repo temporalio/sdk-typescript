@@ -65,6 +65,19 @@ export interface CoreOptions {
    * Options for communicating with the Temporal server
    */
   serverOptions: ServerOptions;
+
+  /**
+   * Telemetry options
+   */
+  telemetryOptions: TelemetryOptions;
+}
+
+/**
+ * Configure telemetry
+ */
+export interface TelemetryOptions {
+  /** Will be called every time a new batch of spans is exported from core */
+  spanBatchCallback: (err: Error, serializedSpanBatch: ArrayBuffer) => void;
 }
 
 export interface WorkerOptions {

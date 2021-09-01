@@ -4,16 +4,17 @@ use errors::*;
 use neon::prelude::*;
 use prost::Message;
 use std::{fmt::Display, future::Future, sync::Arc, time::Duration};
-use temporal_sdk_core::errors::{
-    CompleteActivityError, CompleteWfError, CoreInitError, PollActivityError, PollWfError,
-};
 use temporal_sdk_core::{
-    init,
-    protos::coresdk::workflow_completion::WfActivationCompletion,
-    protos::coresdk::{ActivityHeartbeat, ActivityTaskCompletion},
-    tracing_init, ClientTlsConfig, Core, CoreInitOptions, RetryConfig, ServerGatewayOptions,
-    TlsConfig, Url, WorkerConfig,
+    errors::{
+        CompleteActivityError, CompleteWfError, CoreInitError, PollActivityError, PollWfError,
+    },
+    init, telemetry_init, ClientTlsConfig, Core, CoreInitOptions, RetryConfig,
+    ServerGatewayOptions, TlsConfig, Url, WorkerConfig,
 };
+use temporal_sdk_core_protos::coresdk::{
+    workflow_completion::WfActivationCompletion, ActivityHeartbeat, ActivityTaskCompletion,
+};
+use tokio::runtime::Runtime;
 use tokio::sync::mpsc::{unbounded_channel, UnboundedSender};
 
 /// A request from JS to bridge to core
@@ -91,13 +92,30 @@ type BoxedWorker = JsBox<Worker>;
 impl Finalize for Worker {}
 
 /// Send a result to JS via callback using an [EventQueue]
-fn send_result<F, T>(queue: Arc<EventQueue>, callback: Root<JsFunction>, res_fn: F)
+fn send_result<F, T>(queue: &EventQueue, callback: Root<JsFunction>, res_fn: F)
 where
     F: for<'a> FnOnce(&mut TaskContext<'a>) -> NeonResult<Handle<'a, T>> + Send + 'static,
     T: Value,
 {
     queue.send(move |mut cx| {
         let callback = callback.into_inner(&mut cx);
+        let this = cx.undefined();
+        let error = cx.undefined();
+        let result = res_fn(&mut cx)?;
+        let args: Vec<Handle<JsValue>> = vec![error.upcast(), result.upcast()];
+        callback.call(&mut cx, this, args)?;
+        Ok(())
+    });
+}
+
+/// Send a result to JS via callback using an [EventQueue]
+fn send_result_multicall<F, T>(queue: &EventQueue, callback: Arc<Root<JsFunction>>, res_fn: F)
+where
+    F: for<'a> FnOnce(&mut TaskContext<'a>) -> NeonResult<Handle<'a, T>> + Send + 'static,
+    T: Value,
+{
+    queue.send(move |mut cx| {
+        let callback = callback.to_inner(&mut cx);
         let this = cx.undefined();
         let error = cx.undefined();
         let result = res_fn(&mut cx)?;
@@ -169,7 +187,7 @@ where
 {
     match f.await {
         Ok(()) => {
-            send_result(queue, callback, |cx| Ok(cx.undefined()));
+            send_result(&queue, callback, |cx| Ok(cx.undefined()));
         }
         Err(err) => {
             send_error(queue, callback, |cx| error_function(cx, err));
@@ -181,189 +199,182 @@ where
 /// Bridges requests from JS to core and sends responses back to JS using a neon::EventQueue.
 /// Blocks current thread until a [BreakPoller] request is received in channel.
 fn start_bridge_loop(
+    runtime: &Runtime,
     core_init_options: CoreInitOptions,
     event_queue: Arc<EventQueue>,
     callback: Root<JsFunction>,
 ) {
     let (sender, mut receiver) = unbounded_channel::<Request>();
 
-    tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()
-        .unwrap()
-        .block_on(async {
-            match init(core_init_options).await {
-                Err(err) => {
-                    send_error(event_queue.clone(), callback, |cx| match err {
-                        CoreInitError::InvalidUri(_) => {
-                            Ok(JsError::type_error(cx, "Invalid URI")?.upcast())
-                        }
-                        CoreInitError::TonicTransportError(err) => {
-                            TRANSPORT_ERROR.from_error(cx, err)
-                        }
-                    });
-                }
-                Ok(result) => {
-                    let core = Arc::new(result);
-                    let core_handle = CoreHandle {
-                        sender: sender.clone(),
-                    };
-                    // Clone once to send back to JS via event queue
-                    let cloned_core_handle = core_handle.clone();
-                    send_result(event_queue.clone(), callback, |cx| {
-                        Ok(cx.boxed(cloned_core_handle))
-                    });
-                    tracing_init();
+    runtime.block_on(async {
+        match init(core_init_options).await {
+            Err(err) => {
+                send_error(event_queue.clone(), callback, |cx| match err {
+                    CoreInitError::InvalidUri(_) => {
+                        Ok(JsError::type_error(cx, "Invalid URI")?.upcast())
+                    }
+                    CoreInitError::TonicTransportError(err) => TRANSPORT_ERROR.from_error(cx, err),
+                });
+            }
+            Ok(result) => {
+                let core = Arc::new(result);
+                let core_handle = CoreHandle {
+                    sender: sender.clone(),
+                };
+                // Clone once to send back to JS via event queue
+                let cloned_core_handle = core_handle.clone();
+                send_result(
+                    &event_queue,
+                    callback,
+                    |cx| Ok(cx.boxed(cloned_core_handle)),
+                );
 
-                    loop {
-                        let request_option = receiver.recv().await;
-                        if request_option.is_none() {
-                            // All senders are dropped, nothing to do here anymore
+                loop {
+                    let request_option = receiver.recv().await;
+                    if request_option.is_none() {
+                        // All senders are dropped, nothing to do here anymore
+                        break;
+                    }
+                    let request = request_option.unwrap();
+                    let core = core.clone();
+                    let event_queue = event_queue.clone();
+
+                    match request {
+                        Request::Shutdown { callback } => {
+                            void_future_to_js(
+                                event_queue,
+                                callback,
+                                async move {
+                                    core.shutdown().await;
+                                    // Wrap the empty result in a valid Result object
+                                    let result: Result<(), String> = Ok(());
+                                    result
+                                },
+                                |cx, err| UNEXPECTED_ERROR.from_error(cx, err),
+                            )
+                            .await;
                             break;
                         }
-                        let request = request_option.unwrap();
-                        let core = core.clone();
-                        let event_queue = event_queue.clone();
-
-                        match request {
-                            Request::Shutdown { callback } => {
-                                void_future_to_js(
-                                    event_queue,
-                                    callback,
-                                    async move {
-                                        core.shutdown().await;
-                                        // Wrap the empty result in a valid Result object
-                                        let result: Result<(), String> = Ok(());
-                                        result
-                                    },
-                                    |cx, err| UNEXPECTED_ERROR.from_error(cx, err),
-                                )
-                                .await;
-                                break;
-                            }
-                            Request::ShutdownWorker {
-                                task_queue,
+                        Request::ShutdownWorker {
+                            task_queue,
+                            callback,
+                        } => {
+                            tokio::spawn(void_future_to_js(
+                                event_queue,
                                 callback,
-                            } => {
-                                tokio::spawn(void_future_to_js(
-                                    event_queue,
-                                    callback,
-                                    async move {
-                                        core.shutdown_worker(&task_queue).await;
-                                        // Wrap the empty result in a valid Result object
-                                        let result: Result<(), String> = Ok(());
-                                        result
-                                    },
-                                    |cx, err| UNEXPECTED_ERROR.from_error(cx, err),
-                                ));
-                            }
-                            Request::RegisterWorker { config, callback } => {
-                                let task_queue = config.clone().task_queue;
-                                let core_handle = core_handle.clone();
-                                tokio::spawn(async move {
-                                    match core.register_worker(config).await {
-                                        Ok(_) => send_result(event_queue.clone(), callback, |cx| {
-                                            Ok(cx.boxed(Worker {
-                                                core: core_handle,
-                                                queue: task_queue,
-                                            }))
-                                        }),
-                                        Err(err) => {
-                                            send_error(event_queue.clone(), callback, |cx| {
-                                                UNEXPECTED_ERROR.from_error(cx, err)
-                                            })
-                                        }
-                                    };
-                                });
-                            }
-                            Request::PollWorkflowActivation {
+                                async move {
+                                    core.shutdown_worker(&task_queue).await;
+                                    // Wrap the empty result in a valid Result object
+                                    let result: Result<(), String> = Ok(());
+                                    result
+                                },
+                                |cx, err| UNEXPECTED_ERROR.from_error(cx, err),
+                            ));
+                        }
+                        Request::RegisterWorker { config, callback } => {
+                            let task_queue = config.clone().task_queue;
+                            let core_handle = core_handle.clone();
+                            tokio::spawn(async move {
+                                match core.register_worker(config).await {
+                                    Ok(_) => send_result(&event_queue, callback, |cx| {
+                                        Ok(cx.boxed(Worker {
+                                            core: core_handle,
+                                            queue: task_queue,
+                                        }))
+                                    }),
+                                    Err(err) => send_error(event_queue.clone(), callback, |cx| {
+                                        UNEXPECTED_ERROR.from_error(cx, err)
+                                    }),
+                                };
+                            });
+                        }
+                        Request::PollWorkflowActivation {
+                            queue_name,
+                            callback,
+                        } => {
+                            tokio::spawn(handle_poll_workflow_activation_request(
                                 queue_name,
+                                core,
+                                event_queue,
                                 callback,
-                            } => {
-                                tokio::spawn(handle_poll_workflow_activation_request(
-                                    queue_name,
-                                    core,
-                                    event_queue,
-                                    callback,
-                                ));
-                            }
-                            Request::PollActivityTask {
+                            ));
+                        }
+                        Request::PollActivityTask {
+                            queue_name,
+                            callback,
+                        } => {
+                            tokio::spawn(handle_poll_activity_task_request(
                                 queue_name,
+                                core,
+                                event_queue,
                                 callback,
-                            } => {
-                                tokio::spawn(handle_poll_activity_task_request(
-                                    queue_name,
-                                    core,
-                                    event_queue,
-                                    callback,
-                                ));
-                            }
-                            Request::CompleteWorkflowActivation {
-                                completion,
+                            ));
+                        }
+                        Request::CompleteWorkflowActivation {
+                            completion,
+                            callback,
+                        } => {
+                            tokio::spawn(void_future_to_js(
+                                event_queue,
                                 callback,
-                            } => {
-                                tokio::spawn(void_future_to_js(
-                                    event_queue,
-                                    callback,
-                                    async move { core.complete_workflow_activation(completion).await },
-                                    |cx, err| match err {
-                                        CompleteWfError::WorkflowUpdateError { run_id, source } => {
-                                            let args = vec![
-                                                cx.string("Workflow update error").upcast(),
-                                                cx.string(run_id).upcast(),
-                                                cx.string(format!("{}", source)).upcast(),
-                                            ];
-                                            WORKFLOW_ERROR.construct(cx, args)
-                                        }
-                                        CompleteWfError::NoWorkerForQueue(queue_name) => {
-                                            UNEXPECTED_ERROR.from_error(
-                                                cx,
-                                                format!(
-                                                    "No worker registered for queue {}",
-                                                    queue_name
-                                                ),
-                                            )
-                                        }
-                                        CompleteWfError::TonicError(_) => {
-                                            TRANSPORT_ERROR.from_error(cx, err)
-                                        }
-                                        CompleteWfError::MalformedWorkflowCompletion {
-                                            reason,
-                                            ..
-                                        } => Ok(JsError::type_error(cx, reason)?.upcast()),
-                                    },
-                                ));
-                            }
-                            Request::CompleteActivityTask {
-                                completion,
+                                async move { core.complete_workflow_activation(completion).await },
+                                |cx, err| match err {
+                                    CompleteWfError::WorkflowUpdateError { run_id, source } => {
+                                        let args = vec![
+                                            cx.string("Workflow update error").upcast(),
+                                            cx.string(run_id).upcast(),
+                                            cx.string(format!("{}", source)).upcast(),
+                                        ];
+                                        WORKFLOW_ERROR.construct(cx, args)
+                                    }
+                                    CompleteWfError::NoWorkerForQueue(queue_name) => {
+                                        UNEXPECTED_ERROR.from_error(
+                                            cx,
+                                            format!(
+                                                "No worker registered for queue {}",
+                                                queue_name
+                                            ),
+                                        )
+                                    }
+                                    CompleteWfError::TonicError(_) => {
+                                        TRANSPORT_ERROR.from_error(cx, err)
+                                    }
+                                    CompleteWfError::MalformedWorkflowCompletion {
+                                        reason, ..
+                                    } => Ok(JsError::type_error(cx, reason)?.upcast()),
+                                },
+                            ));
+                        }
+                        Request::CompleteActivityTask {
+                            completion,
+                            callback,
+                        } => {
+                            tokio::spawn(void_future_to_js(
+                                event_queue,
                                 callback,
-                            } => {
-                                tokio::spawn(void_future_to_js(
-                                    event_queue,
-                                    callback,
-                                    async move { core.complete_activity_task(completion).await },
-                                    |cx, err| match err {
-                                        CompleteActivityError::MalformedActivityCompletion {
-                                            reason,
-                                            ..
-                                        } => Ok(JsError::type_error(cx, reason)?.upcast()),
-                                        CompleteActivityError::TonicError(_) => {
-                                            TRANSPORT_ERROR.from_error(cx, err)
-                                        }
-                                        CompleteActivityError::NoWorkerForQueue(_) => {
-                                            UNEXPECTED_ERROR.from_error(cx, err)
-                                        }
-                                    },
-                                ));
-                            }
-                            Request::RecordActivityHeartbeat { heartbeat } => {
-                                core.record_activity_heartbeat(heartbeat)
-                            }
+                                async move { core.complete_activity_task(completion).await },
+                                |cx, err| match err {
+                                    CompleteActivityError::MalformedActivityCompletion {
+                                        reason,
+                                        ..
+                                    } => Ok(JsError::type_error(cx, reason)?.upcast()),
+                                    CompleteActivityError::TonicError(_) => {
+                                        TRANSPORT_ERROR.from_error(cx, err)
+                                    }
+                                    CompleteActivityError::NoWorkerForQueue(_) => {
+                                        UNEXPECTED_ERROR.from_error(cx, err)
+                                    }
+                                },
+                            ));
+                        }
+                        Request::RecordActivityHeartbeat { heartbeat } => {
+                            core.record_activity_heartbeat(heartbeat)
                         }
                     }
                 }
             }
-        })
+        }
+    })
 }
 
 /// Called within the poll loop thread, calls core and triggers JS callback with result
@@ -375,7 +386,7 @@ async fn handle_poll_workflow_activation_request(
 ) {
     match core.poll_workflow_activation(queue_name.as_str()).await {
         Ok(task) => {
-            send_result(event_queue, callback, move |cx| {
+            send_result(&event_queue, callback, move |cx| {
                 let len = task.encoded_len();
                 let mut result = JsArrayBuffer::new(cx, len as u32)?;
                 cx.borrow_mut(&mut result, |data| {
@@ -430,7 +441,7 @@ async fn handle_poll_activity_task_request(
 ) {
     match core.poll_activity_task(queue_name.as_str()).await {
         Ok(task) => {
-            send_result(event_queue, callback, move |cx| {
+            send_result(&event_queue, callback, move |cx| {
                 let len = task.encoded_len();
                 let mut result = JsArrayBuffer::new(cx, len as u32)?;
                 cx.borrow_mut(&mut result, |data| {
@@ -487,6 +498,40 @@ where
     }
 }
 
+/// Initialize telemetry and process incoming exports
+async fn telemetry_processor(event_queue: Arc<EventQueue>, spans_callback: Root<JsFunction>) {
+    let spans_callback = Arc::new(spans_callback);
+    match telemetry_init() {
+        Ok(rcvs) => {
+            if let Some(mut spans_rx) = rcvs.tracing {
+                tokio::spawn(async move {
+                    while let Some(batch) = spans_rx.recv().await {
+                        match serde_json::to_string(&batch) {
+                            Ok(serialized) => {
+                                let bytes = serialized.into_bytes();
+                                send_result_multicall(
+                                    &event_queue,
+                                    spans_callback.clone(),
+                                    move |cx| {
+                                        let result = JsArrayBuffer::external(cx, bytes);
+                                        Ok(result)
+                                    },
+                                );
+                            }
+                            Err(_) => {
+                                todo!("Handle serialization error");
+                            }
+                        }
+                    }
+                });
+            }
+        }
+        Err(e) => {
+            todo!("Handle errors: {:?}", e);
+        }
+    };
+}
+
 macro_rules! js_value_getter {
     ($js_cx:ident, $js_obj:ident, $prop_name:expr, $js_type:ty) => {
         $js_obj
@@ -506,6 +551,13 @@ fn core_new(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     let server_options = core_options
         .get(&mut cx, "serverOptions")?
         .downcast_or_throw::<JsObject, _>(&mut cx)?;
+    let telem_options = core_options
+        .get(&mut cx, "telemetryOptions")?
+        .downcast_or_throw::<JsObject, _>(&mut cx)?;
+    let spans_callback = telem_options
+        .get(&mut cx, "spanBatchCallback")?
+        .downcast_or_throw::<JsFunction, _>(&mut cx)?
+        .root(&mut cx);
 
     let url = js_value_getter!(cx, server_options, "url", JsString);
 
@@ -596,7 +648,14 @@ fn core_new(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     let callback = cx.argument::<JsFunction>(1)?.root(&mut cx);
     let queue = Arc::new(cx.queue());
     std::thread::spawn(move || {
-        start_bridge_loop(CoreInitOptions { gateway_opts }, queue, callback)
+        // TODO: May make sense to use multithread executor now, or at least give compile
+        //   time flag to core
+        let tokio_rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        tokio_rt.spawn(telemetry_processor(queue.clone(), spans_callback));
+        start_bridge_loop(&tokio_rt, CoreInitOptions { gateway_opts }, queue, callback)
     });
 
     Ok(cx.undefined())

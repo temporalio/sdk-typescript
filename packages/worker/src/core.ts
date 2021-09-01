@@ -1,4 +1,4 @@
-import { promisify } from 'util';
+import { promisify, TextDecoder } from 'util';
 import { IllegalStateError } from '@temporalio/common';
 import {
   ServerOptions,
@@ -8,11 +8,17 @@ import {
   normalizeTlsConfig,
 } from './server-options';
 import * as native from '@temporalio/core-bridge';
-import { newCore, coreShutdown } from '@temporalio/core-bridge';
+import { newCore, coreShutdown, TelemetryOptions } from '@temporalio/core-bridge';
+import { ReadableSpan, SpanExporter } from '@opentelemetry/tracing';
+import { convertRustSpan } from './otel_conversion';
+import { SerializedSpan } from '../../core-bridge/otel';
 
 export interface CoreOptions {
   /** Options for communicating with the Temporal server */
   serverOptions?: ServerOptions;
+
+  /** A user-registered span exporter that we will forward spans from core to if set */
+  spanExporter?: SpanExporter;
 }
 
 export interface CompiledCoreOptions extends CoreOptions {
@@ -31,7 +37,7 @@ export class Core {
   protected constructor(public readonly native: native.Core, public readonly options: CompiledCoreOptions) {}
 
   /**
-   * Default options get overriden when Core is installed and are remembered in case Core is
+   * Default options get overridden when Core is installed and are remembered in case Core is
    * reinstantiated after being shut down
    */
   protected static defaultOptions: CoreOptions = {};
@@ -41,6 +47,20 @@ export class Core {
    */
   protected static async create(options: CoreOptions): Promise<Core> {
     const compiledServerOptions = compileServerOptions({ ...getDefaultServerOptions(), ...options.serverOptions });
+    const dec = new TextDecoder('utf-8');
+    const telemetryOptions: TelemetryOptions = {
+      spanBatchCallback: (err, serializedSpanBatch) => {
+        try {
+          const jsonified: SerializedSpan[] = JSON.parse(dec.decode(serializedSpanBatch));
+          const readable: ReadableSpan[] = jsonified.map(convertRustSpan);
+          options.spanExporter?.export(readable, (r) => {
+            console.log('Exported spans!', r);
+          });
+        } catch (e) {
+          console.error(e);
+        }
+      },
+    };
     const compiledOptions = {
       serverOptions: {
         ...compiledServerOptions,
@@ -49,8 +69,10 @@ export class Core {
           ? `https://${compiledServerOptions.address}`
           : `http://${compiledServerOptions.address}`,
       },
+      telemetryOptions,
     };
     const native = await promisify(newCore)(compiledOptions);
+
     return new this(native, compiledOptions);
   }
 

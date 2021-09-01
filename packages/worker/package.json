@@ -19,6 +19,9 @@
   "license": "MIT",
   "dependencies": {
     "@opentelemetry/api": "^1.0.2",
+    "@opentelemetry/core": "^0.24.0",
+    "@opentelemetry/tracing": "^0.24.0",
+    "@opentelemetry/resources": "^0.24.0",
     "@temporalio/activity": "file:../activity",
     "@temporalio/common": "file:../common",
     "@temporalio/core-bridge": "file:../core-bridge",
