@@ -1,6 +1,6 @@
 // @@@SNIPSTART nodejs-schedule-activity-workflow
 import { Context } from '@temporalio/workflow';
-import * as activities from '../activities';
+import type * as activities from '../activities';
 import { HTTP } from '../interfaces';
 
 const { httpGet } = Context.configureActivities<typeof activities>({
@@ -12,5 +12,5 @@ async function execute(): Promise<string> {
   return await httpGet('https://temporal.io');
 }
 
-export const workflow: HTTP = { execute };
+export const http: HTTP = () => ({ execute });
 // @@@SNIPEND

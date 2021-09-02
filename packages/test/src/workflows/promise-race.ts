@@ -13,4 +13,4 @@ async function execute(): Promise<void> {
   }
 }
 
-export const workflow: Workflow = { execute };
+export const promiseRace: Workflow = () => ({ execute });

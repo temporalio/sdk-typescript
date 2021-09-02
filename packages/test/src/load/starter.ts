@@ -5,8 +5,7 @@ import { Connection, WorkflowClient } from '@temporalio/client';
 import { StarterArgSpec, starterArgSpec, getRequired } from './args';
 
 async function runWorkflow(client: WorkflowClient, name: string, taskQueue: string) {
-  const workflow = client.stub<any>(name, { taskQueue });
-  await workflow.execute();
+  await client.execute({ taskQueue }, name);
 }
 
 interface RunWorkflowOptions {

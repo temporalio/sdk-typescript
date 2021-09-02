@@ -11,8 +11,8 @@ import { consumeCompletion, state } from './internals';
 import { alea } from './alea';
 import { IsolateExtension, HookManager } from './promise-hooks';
 import { DeterminismViolationError } from './errors';
-import { WorkflowInterceptors } from './interceptors';
 import { ApplyMode, ExternalDependencyFunction, ExternalCall } from './dependencies';
+import { WorkflowInterceptorsFactory } from './interceptors';
 
 export function setRequireFunc(fn: Exclude<typeof state['require'], undefined>): void {
   state.require = fn;
@@ -133,11 +133,18 @@ export function initRuntime(
   if (req === undefined) {
     throw new IllegalStateError('Workflow has not been initialized');
   }
+
   for (const mod of interceptorModules) {
-    const { interceptors } = req(mod) as { interceptors: WorkflowInterceptors };
-    state.interceptors.inbound.push(...interceptors.inbound);
-    state.interceptors.outbound.push(...interceptors.outbound);
-    state.interceptors.internals.push(...interceptors.internals);
+    const factory: WorkflowInterceptorsFactory = req(mod, 'interceptors');
+    if (factory !== undefined) {
+      if (typeof factory !== 'function') {
+        throw new TypeError(`interceptors must be a function, got: ${factory}`);
+      }
+      const interceptors = factory();
+      state.interceptors.inbound.push(...(interceptors.inbound ?? []));
+      state.interceptors.outbound.push(...(interceptors.outbound ?? []));
+      state.interceptors.internals.push(...(interceptors.internals ?? []));
+    }
   }
 }
 

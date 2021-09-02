@@ -1,4 +1,4 @@
-import '@temporalio/workflow';
+import { Empty } from '../interfaces';
 
 class CustomError extends Error {
   public readonly name: string = 'CustomError';
@@ -17,4 +17,4 @@ async function execute(): Promise<void> {
   }
 }
 
-export const workflow = { execute };
+export const rejectPromise: Empty = () => ({ execute });

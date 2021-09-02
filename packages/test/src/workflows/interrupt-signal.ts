@@ -19,5 +19,5 @@ async function execute(): Promise<void> {
   });
 }
 
-export const workflow: Interruptable = { execute, signals };
+export const interruptSignal: Interruptable = () => ({ execute, signals });
 // @@@SNIPEND

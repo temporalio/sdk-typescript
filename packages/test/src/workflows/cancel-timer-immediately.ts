@@ -23,5 +23,5 @@ async function execute(): Promise<void> {
   }
 }
 
-export const workflow: Empty = { execute };
+export const cancelTimer: Empty = () => ({ execute });
 // @@@SNIPEND

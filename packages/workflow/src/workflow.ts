@@ -8,6 +8,7 @@ import {
   Workflow,
   composeInterceptors,
   mapToPayloadsSync,
+  WorkflowResultType,
 } from '@temporalio/common';
 import { coresdk } from '@temporalio/proto/lib/coresdk';
 import {
@@ -456,6 +457,9 @@ export class ContextImpl {
     };
   }
 
+  child<T extends Workflow>(workflowType: string, options?: ChildWorkflowOptions): ChildWorkflowStub<T>;
+  child<T extends Workflow>(workflowFunc: T, options?: ChildWorkflowOptions): ChildWorkflowStub<T>;
+
   /**
    * Returns a client-side stub that implements a child Workflow interface.
    * It takes a child Workflow type and optional child Workflow options as arguments.
@@ -464,14 +468,15 @@ export class ContextImpl {
    * A child Workflow supports starting, awaiting completion, signaling and cancellation via {@link CancellationScope}s.
    * In order to query the child, use a WorkflowClient from an Activity.
    */
-  public child<T extends Workflow>(workflowType: string, options?: ChildWorkflowOptions): ChildWorkflowStub<T> {
+  child<T extends Workflow>(workflowTypeOrFunc: string | T, options?: ChildWorkflowOptions): ChildWorkflowStub<T> {
     const optionsWithDefaults = addDefaultWorkflowOptions(options ?? {});
+    const workflowType = typeof workflowTypeOrFunc === 'string' ? workflowTypeOrFunc : workflowTypeOrFunc.name;
     let started: Promise<string> | undefined = undefined;
     let completed: Promise<unknown> | undefined = undefined;
 
     return {
       workflowId: optionsWithDefaults.workflowId,
-      async start(...args: Parameters<T['execute']>): Promise<string> {
+      async start(...args: Parameters<T>): Promise<string> {
         if (started !== undefined) {
           throw new WorkflowExecutionAlreadyStartedError(
             'Workflow execution already started',
@@ -493,13 +498,13 @@ export class ContextImpl {
         });
         return await started;
       },
-      async execute(...args: Parameters<T['execute']>): // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+      async execute(...args: Parameters<T>): // eslint-disable-next-line @typescript-eslint/ban-ts-comment
       // @ts-ignore
-      ReturnType<T['execute']> {
+      WorkflowResultType<T> {
         await this.start(...args);
         return this.result();
       },
-      result(): ReturnType<T['execute']> {
+      result(): WorkflowResultType<T> {
         if (completed === undefined) {
           throw new IllegalStateError('Child Workflow was not started');
         }
@@ -602,7 +607,7 @@ export class ContextImpl {
    *
    * Once `f` is called, Workflow execution immediately completes.
    */
-  public makeContinueAsNewFunc<F extends Workflow['execute']>(
+  public makeContinueAsNewFunc<F extends Workflow>(
     options?: ContinueAsNewOptions
   ): (...args: Parameters<F>) => Promise<never> {
     const nonOptionalOptions = { workflowType: state.info?.workflowType, taskQueue: state.info?.taskQueue, ...options };
@@ -643,7 +648,7 @@ export class ContextImpl {
    * }
    * ```
    */
-  public continueAsNew<F extends Workflow['execute']>(...args: Parameters<F>): Promise<never> {
+  public continueAsNew<F extends Workflow>(...args: Parameters<F>): Promise<never> {
     return this.makeContinueAsNewFunc()(...args);
   }
 }

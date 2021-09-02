@@ -18,10 +18,10 @@ import {
 } from '@temporalio/client';
 import { ApplyMode, defaultDataConverter, WorkflowInfo } from '@temporalio/workflow';
 import { defaultOptions } from './mock-native-worker';
-import { Empty } from './interfaces';
 import { cleanStackTrace, RUN_INTEGRATION_TESTS } from './helpers';
-import { Deps, workflow } from './workflows/block-with-dependencies';
+import { Deps } from './workflows/block-with-dependencies';
 import { Dependencies as InternalsDeps } from './workflows/internals-interceptor-example';
+import { interceptorExample, internalsInterceptorExample, continueAsNewToDifferentWorkflow } from './workflows';
 
 if (RUN_INTEGRATION_TESTS) {
   test.serial('Tracing can be implemented using interceptors', async (t) => {
@@ -75,11 +75,7 @@ if (RUN_INTEGRATION_TESTS) {
       },
     });
     {
-      const wf = client.stub<{
-        execute(): Promise<string>;
-        signals: { unblock(secret: string): void };
-        queries: { getSecret(): string };
-      }>('interceptor-example', {
+      const wf = client.stub(interceptorExample, {
         taskQueue,
       });
       await wf.start();
@@ -89,10 +85,7 @@ if (RUN_INTEGRATION_TESTS) {
       t.is(result, message);
     }
     {
-      const wf = client.stub<{
-        execute(): Promise<string>;
-        signals: { unblock(secret: string): void };
-      }>('interceptor-example', {
+      const wf = client.stub(interceptorExample, {
         taskQueue,
       });
       await wf.signalWithStart('unblock', ['12345'], []);
@@ -149,7 +142,7 @@ if (RUN_INTEGRATION_TESTS) {
       },
     });
 
-    const wf = client.stub<typeof workflow>('block-with-dependencies', {
+    const wf = client.stub('blockWithDependencies', {
       taskQueue,
     });
     await wf.start();
@@ -182,7 +175,7 @@ if (RUN_INTEGRATION_TESTS) {
     });
     const client = new WorkflowClient();
     const workerDrained = worker.run();
-    const workflow = client.stub<Empty>('continue-as-new-to-different-workflow', {
+    const workflow = client.stub(continueAsNewToDifferentWorkflow, {
       taskQueue,
     });
     const err: WorkflowExecutionFailedError = await t.throwsAsync(workflow.execute(), {
@@ -234,7 +227,7 @@ if (RUN_INTEGRATION_TESTS) {
     });
     const workerDrained = worker.run();
     const client = new WorkflowClient();
-    const wf = client.stub<Empty>('internals-interceptor-example', {
+    const wf = client.stub(internalsInterceptorExample, {
       taskQueue,
     });
     await wf.execute();

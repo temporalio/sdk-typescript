@@ -1,7 +1,7 @@
 // @@@SNIPSTART nodejs-mtls-client
 import fs from 'fs';
 import { Connection, WorkflowClient } from '@temporalio/client';
-import { Example } from './interfaces/workflows';
+import { example } from './workflows';
 import { getEnv, Env } from './mtls-env';
 
 /**
@@ -35,7 +35,7 @@ async function run({
   await connection.untilReady();
   const client = new WorkflowClient(connection.service, { namespace });
   // Create a typed client using the Example Workflow interface,
-  const workflow = client.stub<Example>('example', { taskQueue });
+  const workflow = client.stub(example, { taskQueue });
   const result = await workflow.execute('Temporal');
   console.log(result); // Hello, Temporal!
 }

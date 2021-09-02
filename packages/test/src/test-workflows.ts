@@ -279,18 +279,13 @@ test('random', async (t) => {
   t.deepEqual(logs, [[0.8380154962651432], ['a50eca73-ff3e-4445-a512-2330c2f4f86e'], [0.18803317612037063]]);
 });
 
-test('sync', async (t) => {
+test('successString', async (t) => {
   const { script } = t.context;
   const req = await activate(t, makeStartWorkflow(script));
   compareCompletion(
     t,
     req,
-    makeSuccess([
-      makeCompleteWorkflowExecution({
-        metadata: { encoding: u8('json/plain') },
-        data: u8(JSON.stringify('success')),
-      }),
-    ])
+    makeSuccess([makeCompleteWorkflowExecution(defaultDataConverter.toPayloadSync('success'))])
   );
 });
 
@@ -322,25 +317,7 @@ function cleanWorkflowQueryFailureStackTrace(
   return req;
 }
 
-test('throw-sync', async (t) => {
-  const { script } = t.context;
-  const req = cleanWorkflowFailureStackTrace(await activate(t, makeStartWorkflow(script)));
-  compareCompletion(
-    t,
-    req,
-    makeSuccess([
-      makeFailWorkflowExecution(
-        'failure',
-        dedent`
-        Error: failure
-            at Object.execute
-        `
-      ),
-    ])
-  );
-});
-
-test('throw-async', async (t) => {
+test('throwAsync', async (t) => {
   const { script } = t.context;
   const req = cleanWorkflowFailureStackTrace(await activate(t, makeStartWorkflow(script)));
   compareCompletion(
@@ -366,21 +343,20 @@ test('date', async (t) => {
   t.deepEqual(logs, [[now], [now], [true]]);
 });
 
-test('async-workflow', async (t) => {
-  const { logs, script } = t.context;
+test('asyncWorkflow', async (t) => {
+  const { script } = t.context;
   const req = await activate(t, makeStartWorkflow(script));
-  compareCompletion(t, req, makeSuccess());
-  t.deepEqual(logs, [['async']]);
+  compareCompletion(t, req, makeSuccess([makeCompleteWorkflowExecution(defaultDataConverter.toPayloadSync('async'))]));
 });
 
-test('deferred-resolve', async (t) => {
+test('deferredResolve', async (t) => {
   const { logs, script } = t.context;
   const req = await activate(t, makeStartWorkflow(script));
   compareCompletion(t, req, makeSuccess());
   t.deepEqual(logs, [[1], [2]]);
 });
 
-test('sleep', async (t) => {
+test('sleeper', async (t) => {
   const { logs, script } = t.context;
   {
     const req = await activate(t, makeStartWorkflow(script));
@@ -393,7 +369,7 @@ test('sleep', async (t) => {
   t.deepEqual(logs, [['slept']]);
 });
 
-test('set-timeout-after-microtasks', async (t) => {
+test('setTimeoutAfterMicroTasks', async (t) => {
   const { logs, script } = t.context;
   {
     const req = await activate(t, makeStartWorkflow(script));
@@ -406,28 +382,28 @@ test('set-timeout-after-microtasks', async (t) => {
   t.deepEqual(logs, [['slept']]);
 });
 
-test('promise-then-promise', async (t) => {
+test('promiseThenPromise', async (t) => {
   const { logs, script } = t.context;
   const req = await activate(t, makeStartWorkflow(script));
   compareCompletion(t, req, makeSuccess());
   t.deepEqual(logs, [[2]]);
 });
 
-test('reject-promise', async (t) => {
+test('rejectPromise', async (t) => {
   const { logs, script } = t.context;
   const req = await activate(t, makeStartWorkflow(script));
   compareCompletion(t, req, makeSuccess());
   t.deepEqual(logs, [[true], [true]]);
 });
 
-test('promise-all', async (t) => {
+test('promiseAll', async (t) => {
   const { logs, script } = t.context;
   const req = await activate(t, makeStartWorkflow(script));
   compareCompletion(t, req, makeSuccess());
   t.deepEqual(logs, [[1, 2, 3], [1, 2, 3], [1, 2, 3], ['wow']]);
 });
 
-test('tasks-and-microtasks', async (t) => {
+test('tasksAndMicrotasks', async (t) => {
   const { logs, script } = t.context;
   {
     const req = await activate(t, makeStartWorkflow(script));
@@ -440,7 +416,7 @@ test('tasks-and-microtasks', async (t) => {
   t.deepEqual(logs, [['script start'], ['script end'], ['promise1'], ['promise2'], ['setTimeout']]);
 });
 
-test('trailing-timer', async (t) => {
+test('trailingTimer', async (t) => {
   const { logs, script } = t.context;
   {
     const req = await activate(t, makeStartWorkflow(script));
@@ -466,7 +442,7 @@ test('trailing-timer', async (t) => {
   t.deepEqual(logs, []);
 });
 
-test('promise-race', async (t) => {
+test('promiseRace', async (t) => {
   const { logs, script } = t.context;
   {
     const req = await activate(t, makeStartWorkflow(script));
@@ -523,14 +499,14 @@ test('importer', async (t) => {
   t.deepEqual(logs, [['slept']]);
 });
 
-test('external-importer', async (t) => {
+test('externalImporter', async (t) => {
   const { logs, script } = t.context;
   const req = await activate(t, makeStartWorkflow(script));
   compareCompletion(t, req, makeSuccess());
   t.deepEqual(logs, [[{ a: 1, b: 2 }]]);
 });
 
-test('args-and-return', async (t) => {
+test('argsAndReturn', async (t) => {
   const { script } = t.context;
   const req = await activate(
     t,
@@ -560,7 +536,7 @@ test('args-and-return', async (t) => {
   );
 });
 
-test('invalid-or-failed-queries', async (t) => {
+test('invalidOrFailedQueries', async (t) => {
   const { script } = t.context;
   {
     const completion = await activate(t, makeStartWorkflow(script));
@@ -617,7 +593,7 @@ test('invalid-or-failed-queries', async (t) => {
   }
 });
 
-test('interrupt-signal', async (t) => {
+test('interruptSignal', async (t) => {
   const { script } = t.context;
   {
     const req = await activate(t, makeStartWorkflow(script));
@@ -646,7 +622,7 @@ test('interrupt-signal', async (t) => {
   }
 });
 
-test('fail-signal', async (t) => {
+test('failSignal', async (t) => {
   const { script } = t.context;
   {
     const req = await activate(t, makeStartWorkflow(script));
@@ -671,7 +647,7 @@ test('fail-signal', async (t) => {
   }
 });
 
-test('async-fail-signal', async (t) => {
+test('asyncFailSignal', async (t) => {
   const { script } = t.context;
   {
     const req = await activate(t, makeStartWorkflow(script));
@@ -699,7 +675,7 @@ test('async-fail-signal', async (t) => {
   }
 });
 
-test('cancel-workflow', async (t) => {
+test('cancelWorkflow', async (t) => {
   const url = 'https://temporal.io';
   const { script } = t.context;
   {
@@ -767,7 +743,7 @@ test('cancel-workflow', async (t) => {
   }
 });
 
-test('cancel - unblock-or-cancel', async (t) => {
+test('cancel - unblockOrCancel', async (t) => {
   const { script, logs } = t.context;
   {
     const completion = await activate(t, makeStartWorkflow(script));
@@ -780,7 +756,7 @@ test('cancel - unblock-or-cancel', async (t) => {
   t.deepEqual(logs, [['Blocked'], ['Cancelled']]);
 });
 
-test('unblock - unblock-or-cancel', async (t) => {
+test('unblock - unblockOrCancel', async (t) => {
   const { script } = t.context;
   {
     const completion = await activate(t, makeStartWorkflow(script));
@@ -818,7 +794,7 @@ test('unblock - unblock-or-cancel', async (t) => {
   }
 });
 
-test('cancel-timer-immediately', async (t) => {
+test('cancelTimer', async (t) => {
   const { script, logs } = t.context;
   const req = await activate(t, makeStartWorkflow(script));
   compareCompletion(
@@ -833,7 +809,7 @@ test('cancel-timer-immediately', async (t) => {
   t.deepEqual(logs, [['Timer cancelled 👍']]);
 });
 
-test('cancel-timer-immediately-alternative-impl', async (t) => {
+test('cancelTimerAltImpl', async (t) => {
   const { script, logs } = t.context;
   const req = await activate(t, makeStartWorkflow(script));
   compareCompletion(
@@ -848,7 +824,7 @@ test('cancel-timer-immediately-alternative-impl', async (t) => {
   t.deepEqual(logs, [['Timer cancelled 👍']]);
 });
 
-test('non-cancellable-shields-children', async (t) => {
+test('nonCancellable', async (t) => {
   const { script } = t.context;
   const url = 'https://temporal.io';
   const result = await defaultDataConverter.toPayload({ test: true });
@@ -875,7 +851,7 @@ test('non-cancellable-shields-children', async (t) => {
   }
 });
 
-test('cancel-requested-with-non-cancellable', async (t) => {
+test('resumeAfterCancellation', async (t) => {
   const { script } = t.context;
   const url = 'https://temporal.io';
   const result = await defaultDataConverter.toPayload({ test: true });
@@ -906,7 +882,7 @@ test('cancel-requested-with-non-cancellable', async (t) => {
   }
 });
 
-test('handle-external-workflow-cancellation-while-activity-running', async (t) => {
+test('handleExternalWorkflowCancellationWhileActivityRunning', async (t) => {
   const { script } = t.context;
   const url = 'https://temporal.io';
   const data = { content: 'new HTML content' };
@@ -962,7 +938,7 @@ test('handle-external-workflow-cancellation-while-activity-running', async (t) =
   }
 });
 
-test('nested-cancellation', async (t) => {
+test('nestedCancellation', async (t) => {
   const { script } = t.context;
   const url = 'https://temporal.io';
   {
@@ -1043,7 +1019,7 @@ test('nested-cancellation', async (t) => {
   }
 });
 
-test('shared-promise-scopes', async (t) => {
+test('sharedScopes', async (t) => {
   const { script } = t.context;
   const result = { some: 'data' };
   {
@@ -1080,7 +1056,7 @@ test('shared-promise-scopes', async (t) => {
   }
 });
 
-test('shield-awaited-in-root-scope', async (t) => {
+test('shieldAwaitedInRootScope', async (t) => {
   const { script } = t.context;
   const result = { some: 'data' };
   {
@@ -1118,7 +1094,7 @@ test('shield-awaited-in-root-scope', async (t) => {
   }
 });
 
-test('cancellation-scopes-with-callbacks', async (t) => {
+test('cancellationScopesWithCallbacks', async (t) => {
   const { script } = t.context;
   {
     const completion = await activate(t, makeStartWorkflow(script));
@@ -1130,7 +1106,7 @@ test('cancellation-scopes-with-callbacks', async (t) => {
   }
 });
 
-test('cancellation-scopes', async (t) => {
+test('cancellationScopes', async (t) => {
   const { script, logs } = t.context;
   {
     const req = await activate(t, makeStartWorkflow(script));
@@ -1165,7 +1141,7 @@ test('cancellation-scopes', async (t) => {
   ]);
 });
 
-test('child-and-shield', async (t) => {
+test('childAndShield', async (t) => {
   const { script } = t.context;
   {
     const req = await activate(t, makeStartWorkflow(script));
@@ -1177,7 +1153,7 @@ test('child-and-shield', async (t) => {
   }
 });
 
-test('partial-shield', async (t) => {
+test('partialShield', async (t) => {
   const { script, logs } = t.context;
   {
     const req = await activate(t, makeStartWorkflow(script));
@@ -1216,7 +1192,7 @@ test('partial-shield', async (t) => {
   t.deepEqual(logs, [['Workflow cancelled']]);
 });
 
-test('shield-in-shield', async (t) => {
+test('shieldInShield', async (t) => {
   const { script, logs } = t.context;
   {
     const req = await activate(t, makeStartWorkflow(script));
@@ -1240,7 +1216,7 @@ test('shield-in-shield', async (t) => {
   t.deepEqual(logs, [['Timer 1 finished 👍'], ['Timer 0 finished 👍']]);
 });
 
-test('cancellation-error-is-propagated', async (t) => {
+test('cancellationErrorIsPropagated', async (t) => {
   const { script, logs } = t.context;
   const req = cleanWorkflowFailureStackTrace(await activate(t, makeStartWorkflow(script)), 2);
   compareCompletion(
@@ -1273,7 +1249,7 @@ test('cancellation-error-is-propagated', async (t) => {
   t.deepEqual(logs, []);
 });
 
-test('cancel-activity-after-first-completion', async (t) => {
+test('cancelActivityAfterFirstCompletion', async (t) => {
   const url = 'https://temporal.io';
   const { script, logs } = t.context;
   {
@@ -1331,7 +1307,7 @@ test('cancel-activity-after-first-completion', async (t) => {
   t.deepEqual(logs, [['Workflow cancelled while waiting on non cancellable scope']]);
 });
 
-test('multiple-activities-single-timeout', async (t) => {
+test('multipleActivitiesSingleTimeout', async (t) => {
   const urls = ['https://slow-site.com/', 'https://slow-site.org/'];
   const { script } = t.context;
   {
@@ -1451,7 +1427,7 @@ test('resolve activity with failure - http', async (t) => {
   }
 });
 
-test('global-overrides', async (t) => {
+test('globalOverrides', async (t) => {
   const { script, logs } = t.context;
   {
     const completion = await activate(t, makeStartWorkflow(script));
@@ -1465,7 +1441,7 @@ test('global-overrides', async (t) => {
   );
 });
 
-test('log-before-timing-out', async (t) => {
+test('logAndTimeout', async (t) => {
   const { script, workflow } = t.context;
   const logs: string[] = [];
   await workflow.injectDependency('logger', 'info', (message: string) => logs.push(message), ApplyMode.ASYNC_IGNORED);
@@ -1473,7 +1449,7 @@ test('log-before-timing-out', async (t) => {
   t.deepEqual(logs, ['logging before getting stuck']);
 });
 
-test('continue-as-new-same-workflow', async (t) => {
+test('continueAsNewSameWorkflow', async (t) => {
   const { script } = t.context;
   {
     const req = await activate(t, makeStartWorkflow(script));
@@ -1493,7 +1469,7 @@ test('continue-as-new-same-workflow', async (t) => {
   }
 });
 
-test('not-replay patched', async (t) => {
+test('not-replay patchedWorkflow', async (t) => {
   const { logs, script } = t.context;
   {
     const req = await activate(t, makeStartWorkflow(script));
@@ -1513,7 +1489,7 @@ test('not-replay patched', async (t) => {
   t.deepEqual(logs, [['has change'], ['has change 2']]);
 });
 
-test('replay-no-marker patched', async (t) => {
+test('replay-no-marker patchedWorkflow', async (t) => {
   const { logs, script } = t.context;
   {
     const act: coresdk.workflow_activation.IWFActivation = {
@@ -1538,7 +1514,7 @@ test('replay-no-marker patched', async (t) => {
   t.deepEqual(logs, [['no change'], ['no change 2']]);
 });
 
-test('replay-no-marker-then-not-replay patched', async (t) => {
+test('replay-no-marker-then-not-replay patchedWorkflow', async (t) => {
   const { logs, script } = t.context;
   {
     const act: coresdk.workflow_activation.IWFActivation = {
@@ -1562,7 +1538,7 @@ test('replay-no-marker-then-not-replay patched', async (t) => {
   t.deepEqual(logs, [['no change'], ['has change 2']]);
 });
 
-test('replay-with-marker patched', async (t) => {
+test('replay-with-marker patchedWorkflow', async (t) => {
   const { logs, script } = t.context;
   {
     const act: coresdk.workflow_activation.IWFActivation = {
@@ -1588,7 +1564,7 @@ test('replay-with-marker patched', async (t) => {
   t.deepEqual(logs, [['has change'], ['has change 2']]);
 });
 
-test('deprecate-patch', async (t) => {
+test('deprecatePatchWorkflow', async (t) => {
   const { logs, script } = t.context;
   {
     const completion = await activate(t, makeStartWorkflow(script));

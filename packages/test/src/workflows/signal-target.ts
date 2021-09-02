@@ -5,20 +5,21 @@
  * @module
  */
 import { Trigger } from '@temporalio/workflow';
+import { SignalTarget } from '../interfaces';
 
 const unblocked = new Trigger<void>();
 
-const signals = {
-  fail(message: string): void {
-    throw new Error(message);
+export const signalTarget: SignalTarget = () => ({
+  signals: {
+    fail(message: string): void {
+      throw new Error(message);
+    },
+    unblock(): void {
+      unblocked.resolve();
+    },
   },
-  unblock(): void {
-    unblocked.resolve();
+
+  async execute(): Promise<void> {
+    await unblocked;
   },
-};
-
-async function execute(): Promise<void> {
-  await unblocked;
-}
-
-export const workflow = { execute, signals };
+});

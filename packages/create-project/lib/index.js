@@ -85,8 +85,8 @@ class HelloWorld {
             await copySample(path_1.default.join(sampleDir, 'client-mtls.ts'), path_1.default.join(targetDir, 'exec-workflow.ts'));
         }
         await copySample(path_1.default.join(sampleDir, 'activity.ts'), path_1.default.join(targetDir, 'activities.ts'));
-        await copySample(path_1.default.join(sampleDir, 'workflow.ts'), path_1.default.join(targetDir, 'workflows', 'example.ts'));
-        await copySample(path_1.default.join(sampleDir, 'interface.ts'), path_1.default.join(targetDir, 'interfaces', 'workflows.ts'));
+        await copySample(path_1.default.join(sampleDir, 'workflow.ts'), path_1.default.join(targetDir, 'workflows', 'index.ts'));
+        await copySample(path_1.default.join(sampleDir, 'interface.ts'), path_1.default.join(targetDir, 'interfaces.ts'));
     }
 }
 function getTemplate(sampleName) {
@@ -106,7 +106,6 @@ async function createProject(projectPath, useYarn, temporalVersion, sample) {
     const packageJson = { ...packageJsonBase, name };
     await writePrettyJson(path_1.default.join(root, 'package.json'), packageJson);
     await (0, fs_extra_1.mkdir)(src);
-    await (0, fs_extra_1.mkdir)(path_1.default.join(src, 'interfaces'));
     await (0, fs_extra_1.mkdir)(path_1.default.join(src, 'workflows'));
     await writePrettyJson(path_1.default.join(root, 'tsconfig.json'), tsConfig);
     const sampleDir = path_1.default.join(__dirname, '../samples');

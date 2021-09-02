@@ -1,6 +1,5 @@
 import path from 'path';
 import util from 'util';
-import fs from 'fs-extra';
 import dedent from 'dedent';
 import ivm from 'isolated-vm';
 import webpack from 'webpack';
@@ -59,8 +58,7 @@ export class WorkflowIsolateBuilder {
     const distDir = '/dist';
     const entrypointPath = path.join('/src/main.js');
 
-    const workflows = await this.findWorkflows();
-    this.genEntrypoint(vol, entrypointPath, workflows);
+    this.genEntrypoint(vol, entrypointPath);
     await this.bundle(ufs, entrypointPath, distDir);
     return ufs.readFileSync(path.join(distDir, 'main.js'), 'utf8');
   }
@@ -84,36 +82,36 @@ export class WorkflowIsolateBuilder {
   }
 
   /**
-   * Shallow lookup of all ts and js files in workflowsPath
-   */
-  protected async findWorkflows(): Promise<string[]> {
-    const files = await fs.readdir(this.workflowsPath);
-    return files
-      .filter((f) => /\.[jt]s$/.test(path.extname(f)) && !f.endsWith('.d.ts'))
-      .map((f) => path.basename(f, path.extname(f)));
-  }
-
-  /**
    * Creates the main entrypoint for the generated webpack library.
    *
    * Exports all detected Workflow implementations and some workflow libraries to be used by the Worker.
    */
-  protected genEntrypoint(vol: typeof memfs.vol, target: string, workflows: string[]): void {
-    const bundlePaths = [...new Set(workflows.concat(this.workflowInterceptorModules))].map((wf) =>
-      JSON.stringify(path.join(this.workflowsPath, wf))
-    );
+  protected genEntrypoint(vol: typeof memfs.vol, target: string): void {
+    const bundlePaths = [
+      ...new Set(
+        this.workflowInterceptorModules.map((wf) => path.join(this.workflowsPath, wf)).concat(this.workflowsPath)
+      ),
+    ]
+      .map((v) => JSON.stringify(v))
+      .join(', ');
+
     const code = dedent`
       const api = require('@temporalio/workflow/lib/worker-interface');
 
       // Bundle all Workflows and interceptor modules for lazy evaluation
       globalThis.document = api.mockBrowserDocumentForWebpack();
       // See https://webpack.js.org/api/module-methods/#requireensure
-      require.ensure([${bundlePaths.join(', ')}], function () {});
+      require.ensure([${bundlePaths}], function() {});
       delete globalThis.document;
 
       api.overrideGlobals();
       api.setRequireFunc(
-        (name) => require(${JSON.stringify(this.workflowsPath)} + '${path.sep}' + name)
+        (path, name) => {
+          if (path !== undefined) {
+            return require(${JSON.stringify(this.workflowsPath)} + '${path.sep}' + path)[name];
+          }
+          return require(${JSON.stringify(this.workflowsPath)})[name];
+        }
       );
 
       module.exports = api;

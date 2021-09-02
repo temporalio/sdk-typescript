@@ -1,9 +1,12 @@
-import { Workflow, WorkflowSignalType } from './interfaces';
+import { Workflow, WorkflowSignalType, WorkflowSignalHandlers, WorkflowResultType } from './interfaces';
 import { AsyncOnly } from './type-helpers';
 
-export type WorkflowStubSignals<T extends Workflow> = T extends Record<'signals', Record<string, WorkflowSignalType>>
+export type WorkflowStubSignals<T extends Workflow> = WorkflowSignalHandlers<T> extends Record<
+  string,
+  WorkflowSignalType
+>
   ? {
-      [P in keyof T['signals']]: AsyncOnly<T['signals'][P]>;
+      [P in keyof WorkflowSignalHandlers<T>]: AsyncOnly<WorkflowSignalHandlers<T>[P]>;
     }
   : undefined;
 
@@ -16,17 +19,17 @@ export interface BaseWorkflowStub<T extends Workflow> {
   /**
    * Start the Workflow with arguments, returns a Promise that resolves when the Workflow execution completes
    */
-  execute(...args: Parameters<T['execute']>): ReturnType<T['execute']>;
+  execute(...args: Parameters<T>): WorkflowResultType<T>;
 
   /**
    * Start the Workflow with arguments, returns a Promise that resolves with the execution runId
    */
-  start(...args: Parameters<T['execute']>): Promise<string /* runId */>;
+  start(...args: Parameters<T>): Promise<string /* runId */>;
 
   /**
    * Promise that resolves when Workflow execution completes
    */
-  result(): ReturnType<T['execute']>;
+  result(): WorkflowResultType<T>;
 
   /**
    * A mapping of the different signals defined by Workflow interface `T` to callable functions.

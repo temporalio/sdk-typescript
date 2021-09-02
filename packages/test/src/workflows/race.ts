@@ -11,4 +11,4 @@ async function execute(): Promise<void> {
   await Promise.all([p1, p2, p3]);
 }
 
-export const workflow: Workflow = { execute };
+export const race: Workflow = () => ({ execute });
