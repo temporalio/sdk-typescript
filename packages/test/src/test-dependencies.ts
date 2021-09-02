@@ -1,11 +1,12 @@
 /* eslint @typescript-eslint/no-non-null-assertion: 0 */
 import test from 'ava';
 import { WorkflowInfo } from '@temporalio/workflow';
+import { WorkflowClient } from '@temporalio/client';
 import { Worker, ApplyMode, DefaultLogger } from '@temporalio/worker';
 import { IgnoredTestDependencies, TestDependencies } from './interfaces/dependencies';
 import { defaultOptions } from './mock-native-worker';
-import { WorkflowClient } from '@temporalio/client';
 import { RUN_INTEGRATION_TESTS } from './helpers';
+import * as workflows from './workflows';
 
 interface RecordedCall {
   info: WorkflowInfo;
@@ -131,7 +132,7 @@ if (RUN_INTEGRATION_TESTS) {
     });
     const p = worker.run();
     const conn = new WorkflowClient();
-    const wf = conn.stub<{ execute(): Promise<number> }>('dependencies', { taskQueue });
+    const wf = conn.stub(workflows.dependenciesWorkflow, { taskQueue });
     const runId = await wf.start();
     const result = await wf.result();
     worker.shutdown();
@@ -141,7 +142,7 @@ if (RUN_INTEGRATION_TESTS) {
       taskQueue,
       workflowId: wf.workflowId,
       runId,
-      workflowType: 'dependencies',
+      workflowType: 'dependenciesWorkflow',
       isReplaying: false,
     };
 
@@ -217,7 +218,7 @@ if (RUN_INTEGRATION_TESTS) {
     });
     const p = worker.run();
     const conn = new WorkflowClient();
-    const wf = conn.stub<{ execute(): Promise<number> }>('ignored-dependencies', { taskQueue });
+    const wf = conn.stub(workflows.ignoredDependencies, { taskQueue });
     const runId = await wf.start();
     const result = await wf.result();
     worker.shutdown();
@@ -228,7 +229,7 @@ if (RUN_INTEGRATION_TESTS) {
       taskQueue,
       workflowId: wf.workflowId,
       runId,
-      workflowType: 'ignored-dependencies',
+      workflowType: 'ignoredDependencies',
       isReplaying: false,
     };
 

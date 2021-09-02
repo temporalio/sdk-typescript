@@ -53,6 +53,8 @@
 
 export {
   Workflow,
+  WorkflowHandlers,
+  WorkflowResultType,
   ActivityCancellationType,
   ActivityFunction,
   ActivityInterface,

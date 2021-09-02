@@ -3,7 +3,7 @@ import { Worker } from '@temporalio/worker';
 import { WorkflowClient } from '@temporalio/client';
 import { defaultOptions } from './mock-native-worker';
 import { RUN_INTEGRATION_TESTS } from './helpers';
-import * as workflow from './workflows/sync';
+import { successString } from './workflows';
 
 if (RUN_INTEGRATION_TESTS) {
   test('Worker functions when asked not to run Activities', async (t) => {
@@ -11,7 +11,7 @@ if (RUN_INTEGRATION_TESTS) {
     const { activities, taskQueue, ...rest } = defaultOptions;
     const worker = await Worker.create({ taskQueue: 'only-workflows', ...rest });
     const client = new WorkflowClient();
-    const runner = client.stub<typeof workflow>('sync', {
+    const runner = client.stub(successString, {
       taskQueue: 'only-workflows',
     });
     const runAndShutdown = async () => {

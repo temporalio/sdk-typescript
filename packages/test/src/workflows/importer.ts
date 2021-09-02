@@ -1,7 +1,9 @@
-import '@temporalio/workflow';
+import { Empty } from '../interfaces';
 import { sleep } from './sleep-impl';
 
-export async function execute(): Promise<void> {
+async function execute(): Promise<void> {
   await sleep(10);
   console.log('slept');
 }
+
+export const importer: Empty = () => ({ execute });

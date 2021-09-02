@@ -6,7 +6,7 @@ import test from 'ava';
 import { Worker, Core } from '@temporalio/worker';
 import { WorkflowClient } from '@temporalio/client';
 import { defaultOptions } from './mock-native-worker';
-import { Sleeper } from './interfaces';
+import * as workflows from './workflows';
 import { RUN_INTEGRATION_TESTS } from './helpers';
 
 if (RUN_INTEGRATION_TESTS) {
@@ -27,7 +27,7 @@ if (RUN_INTEGRATION_TESTS) {
     const connection = new WorkflowClient();
     {
       // Run a simple workflow
-      const wf = connection.stub<Sleeper>('sleep', { taskQueue: 'q2' });
+      const wf = connection.stub(workflows.sleeper, { taskQueue: 'q2' });
       await wf.start(1);
     }
     worker2.shutdown();
@@ -44,7 +44,7 @@ if (RUN_INTEGRATION_TESTS) {
     const worker3Drained = worker3.run();
     {
       // Run a simple workflow
-      const wf = connection.stub<Sleeper>('sleep', { taskQueue: 'q1' });
+      const wf = connection.stub('sleeper', { taskQueue: 'q1' });
       await wf.execute(1);
     }
     worker3.shutdown();

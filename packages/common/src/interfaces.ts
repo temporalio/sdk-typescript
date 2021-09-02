@@ -1,46 +1,30 @@
+/** Type that can be returned from a Workflow `execute` function */
 export type WorkflowReturnType = Promise<any>;
 export type WorkflowSignalType = (...args: any[]) => Promise<void> | void;
 export type WorkflowQueryType = (...args: any[]) => any;
 
 /**
- * Generic workflow interface, extend this in order to validate your workflow interface definitions
+ * Generic Workflow execute, signal, and query handlers
  */
-export interface Workflow {
-  execute(...args: any[]): WorkflowReturnType;
+export interface WorkflowHandlers {
+  execute(): WorkflowReturnType;
   signals?: Record<string, WorkflowSignalType>;
   queries?: Record<string, WorkflowQueryType>;
 }
 
 /**
- * Implementation of Workflow interface `I`, same as `I` but execute does not take any args
+ * Generic workflow interface, extend this in order to validate your workflow interface definitions
  */
-export type WorkflowImplementation<I extends Workflow> = {
-  execute(): ReturnType<I['execute']>;
-} & Pick<I, 'signals' | 'queries'>;
+export type Workflow = (...args: any[]) => WorkflowHandlers;
 
-/**
- * Constructor of a `WorkflowImplementation` for interface `I`
- */
-export interface WorkflowConstructor<I extends Workflow> {
-  new (...args: Parameters<I['execute']>): WorkflowImplementation<I>;
-}
-
-/**
- * Factory function of a `WorkflowImplementation` for interface `I`
- */
-export interface WorkflowFactory<I extends Workflow> {
-  (...args: Parameters<I['execute']>): WorkflowImplementation<I>;
-}
-
-/**
- * Turns a constructor into a factory.
- *
- * Note that this method must be provided the template type `I` or Typescript
- * will infer the generic `Workflow` interface.
- */
-export function workflowFactory<I extends Workflow>(ctor: WorkflowConstructor<I>): WorkflowFactory<I> {
-  return (...args) => new ctor(...args);
-}
+/** Get the execute handler from Workflow interface `W` */
+export type WorkflowExecuteHandler<W extends Workflow> = ReturnType<W>['execute'];
+/** Get the return type of the execute handler from Workflow interface `W` */
+export type WorkflowResultType<W extends Workflow> = ReturnType<WorkflowExecuteHandler<W>>;
+/** Get the signal handler definitions from Workflow interface `W` */
+export type WorkflowSignalHandlers<W extends Workflow> = ReturnType<W>['signals'];
+/** Get the query handler definitions from Workflow interface `W` */
+export type WorkflowQueryHandlers<W extends Workflow> = ReturnType<W>['queries'];
 
 /**
  * Defines options for activity retries

@@ -1,6 +1,7 @@
 import { sleep } from '@temporalio/workflow';
+import { Returner } from '../interfaces';
 
-export async function execute(): Promise<string> {
+async function execute(): Promise<string> {
   return await Promise.race([
     sleep(1).then(() => 'first'),
     sleep(1).then(() => {
@@ -11,3 +12,5 @@ export async function execute(): Promise<string> {
     }),
   ]);
 }
+
+export const trailingTimer: Returner<string> = () => ({ execute });

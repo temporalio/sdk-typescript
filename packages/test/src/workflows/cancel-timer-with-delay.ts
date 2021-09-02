@@ -16,4 +16,4 @@ async function execute(): Promise<void> {
   }
 }
 
-export const workflow: Empty = { execute };
+export const cancelTimerWithDelay: Empty = () => ({ execute });

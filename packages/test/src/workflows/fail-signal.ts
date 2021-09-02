@@ -13,4 +13,4 @@ async function execute(): Promise<void> {
   await sleep(100000);
 }
 
-export const workflow: Failable = { execute, signals };
+export const failSignal: Failable = () => ({ execute, signals });

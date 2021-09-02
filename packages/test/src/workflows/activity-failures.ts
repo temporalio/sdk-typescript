@@ -13,7 +13,8 @@
 
 import { Context } from '@temporalio/workflow';
 import { ActivityFailure, ApplicationFailure, RetryState } from '@temporalio/common';
-import * as activities from '../activities';
+import type * as activities from '../activities';
+import { Empty } from '../interfaces';
 
 const { throwSpecificError } = Context.configureActivities<typeof activities>({
   type: 'remote',
@@ -55,56 +56,61 @@ function assertRetryState(err: ActivityFailure, retryState: RetryState) {
   }
 }
 
-export async function execute(): Promise<void> {
-  {
-    const err = await assertThrows(throwSpecificError('RetryableError', '1'), ActivityFailure);
-    assertRetryState(err, RetryState.RETRY_STATE_MAXIMUM_ATTEMPTS_REACHED);
-    assertApplicationFailure(err.cause, 'RetryableError', false, '1');
-  }
-  {
-    const err = await assertThrows(throwSpecificError('NonRetryableError', '2'), ActivityFailure);
-    assertRetryState(err, RetryState.RETRY_STATE_NON_RETRYABLE_FAILURE);
-    assertApplicationFailure(err.cause, 'NonRetryableError', false, '2');
-  }
-  {
-    const err = await assertThrows(
-      throwSpecificError('RetryableApplicationFailureWithRetryableFlag', '3'),
-      ActivityFailure
-    );
-    assertRetryState(err, RetryState.RETRY_STATE_MAXIMUM_ATTEMPTS_REACHED);
-    assertApplicationFailure(err.cause, 'RetryableError', false, '3');
-  }
-  {
-    const err = await assertThrows(
-      throwSpecificError('RetryableApplicationFailureWithNonRetryableFlag', '4'),
-      ActivityFailure
-    );
-    assertRetryState(err, RetryState.RETRY_STATE_NON_RETRYABLE_FAILURE);
-    assertApplicationFailure(err.cause, 'RetryableError', true, '4');
-  }
-  {
-    const err = await assertThrows(
-      throwSpecificError('NonRetryableApplicationFailureWithRetryableFlag', '5'),
-      ActivityFailure
-    );
-    assertRetryState(err, RetryState.RETRY_STATE_NON_RETRYABLE_FAILURE);
-    assertApplicationFailure(err.cause, 'NonRetryableError', false, '5');
-  }
-  {
-    const err = await assertThrows(
-      throwSpecificError('NonRetryableApplicationFailureWithNonRetryableFlag', '6'),
-      ActivityFailure
-    );
-    assertRetryState(err, RetryState.RETRY_STATE_NON_RETRYABLE_FAILURE);
-    assertApplicationFailure(err.cause, 'NonRetryableError', true, '6');
-  }
-  {
-    const err = await assertThrows(throwSpecificError('RetryableApplicationFailureWithDetails', '7'), ActivityFailure);
-    assertRetryState(err, RetryState.RETRY_STATE_MAXIMUM_ATTEMPTS_REACHED);
-    assertApplicationFailure(err.cause, 'RetryableError', false, '7');
-    const [detail1, detail2] = err.cause.details as [string, string];
-    if (!(detail1 === 'detail1' && detail2 === 'detail2')) {
-      throw new Error(`Expected error details to be 'detail1,detail2', got: ${err.cause.details}`);
+export const activityFailures: Empty = () => ({
+  async execute(): Promise<void> {
+    {
+      const err = await assertThrows(throwSpecificError('RetryableError', '1'), ActivityFailure);
+      assertRetryState(err, RetryState.RETRY_STATE_MAXIMUM_ATTEMPTS_REACHED);
+      assertApplicationFailure(err.cause, 'RetryableError', false, '1');
     }
-  }
-}
+    {
+      const err = await assertThrows(throwSpecificError('NonRetryableError', '2'), ActivityFailure);
+      assertRetryState(err, RetryState.RETRY_STATE_NON_RETRYABLE_FAILURE);
+      assertApplicationFailure(err.cause, 'NonRetryableError', false, '2');
+    }
+    {
+      const err = await assertThrows(
+        throwSpecificError('RetryableApplicationFailureWithRetryableFlag', '3'),
+        ActivityFailure
+      );
+      assertRetryState(err, RetryState.RETRY_STATE_MAXIMUM_ATTEMPTS_REACHED);
+      assertApplicationFailure(err.cause, 'RetryableError', false, '3');
+    }
+    {
+      const err = await assertThrows(
+        throwSpecificError('RetryableApplicationFailureWithNonRetryableFlag', '4'),
+        ActivityFailure
+      );
+      assertRetryState(err, RetryState.RETRY_STATE_NON_RETRYABLE_FAILURE);
+      assertApplicationFailure(err.cause, 'RetryableError', true, '4');
+    }
+    {
+      const err = await assertThrows(
+        throwSpecificError('NonRetryableApplicationFailureWithRetryableFlag', '5'),
+        ActivityFailure
+      );
+      assertRetryState(err, RetryState.RETRY_STATE_NON_RETRYABLE_FAILURE);
+      assertApplicationFailure(err.cause, 'NonRetryableError', false, '5');
+    }
+    {
+      const err = await assertThrows(
+        throwSpecificError('NonRetryableApplicationFailureWithNonRetryableFlag', '6'),
+        ActivityFailure
+      );
+      assertRetryState(err, RetryState.RETRY_STATE_NON_RETRYABLE_FAILURE);
+      assertApplicationFailure(err.cause, 'NonRetryableError', true, '6');
+    }
+    {
+      const err = await assertThrows(
+        throwSpecificError('RetryableApplicationFailureWithDetails', '7'),
+        ActivityFailure
+      );
+      assertRetryState(err, RetryState.RETRY_STATE_MAXIMUM_ATTEMPTS_REACHED);
+      assertApplicationFailure(err.cause, 'RetryableError', false, '7');
+      const [detail1, detail2] = err.cause.details as [string, string];
+      if (!(detail1 === 'detail1' && detail2 === 'detail2')) {
+        throw new Error(`Expected error details to be 'detail1,detail2', got: ${err.cause.details}`);
+      }
+    }
+  },
+});

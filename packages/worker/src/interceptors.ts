@@ -26,7 +26,7 @@ export interface ActivityInboundCallsInterceptor {
    *
    * @return result of Activity function
    */
-  execute?: (input: ActivityExecuteInput, next: Next<ActivityInboundCallsInterceptor, 'execute'>) => Promise<unknown>;
+  execute?: (input: ActivityExecuteInput, next: Next<this, 'execute'>) => Promise<unknown>;
 }
 
 /**

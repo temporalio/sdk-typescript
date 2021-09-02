@@ -9,11 +9,15 @@ export interface Dependencies extends ExternalDependencies {
 
 const { logger } = Context.dependencies<Dependencies>();
 
-export async function execute(): Promise<void> {
-  await sleep(10);
+export function internalsInterceptorExample() {
+  return {
+    async execute(): Promise<void> {
+      await sleep(10);
+    },
+  };
 }
 
-export const interceptors: WorkflowInterceptors = {
+export const interceptors = (): WorkflowInterceptors => ({
   internals: [
     {
       activate(input, next) {
@@ -30,4 +34,4 @@ export const interceptors: WorkflowInterceptors = {
   ],
   inbound: [],
   outbound: [],
-};
+});

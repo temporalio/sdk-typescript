@@ -86,8 +86,8 @@ class HelloWorld implements Template {
       await copySample(path.join(sampleDir, 'client-mtls.ts'), path.join(targetDir, 'exec-workflow.ts'));
     }
     await copySample(path.join(sampleDir, 'activity.ts'), path.join(targetDir, 'activities.ts'));
-    await copySample(path.join(sampleDir, 'workflow.ts'), path.join(targetDir, 'workflows', 'example.ts'));
-    await copySample(path.join(sampleDir, 'interface.ts'), path.join(targetDir, 'interfaces', 'workflows.ts'));
+    await copySample(path.join(sampleDir, 'workflow.ts'), path.join(targetDir, 'workflows', 'index.ts'));
+    await copySample(path.join(sampleDir, 'interface.ts'), path.join(targetDir, 'interfaces.ts'));
   }
 }
 
@@ -109,7 +109,6 @@ async function createProject(projectPath: string, useYarn: boolean, temporalVers
   const packageJson = { ...packageJsonBase, name };
   await writePrettyJson(path.join(root, 'package.json'), packageJson);
   await mkdir(src);
-  await mkdir(path.join(src, 'interfaces'));
   await mkdir(path.join(src, 'workflows'));
   await writePrettyJson(path.join(root, 'tsconfig.json'), tsConfig);
   const sampleDir = path.join(__dirname, '../samples');

@@ -5,25 +5,27 @@
  */
 // @@@SNIPSTART nodejs-handle-external-workflow-cancellation-while-activity-running
 import { CancellationScope, Context, isCancellation } from '@temporalio/workflow';
-import * as activities from '../activities';
+import type * as activities from '../activities';
 
 const { httpPostJSON, cleanup } = Context.configureActivities<typeof activities>({
   type: 'remote',
   startToCloseTimeout: '10m',
 });
 
-export async function execute(url: string, data: any): Promise<void> {
-  try {
-    await httpPostJSON(url, data);
-  } catch (err) {
-    if (isCancellation(err)) {
-      console.log('Workflow cancelled');
-      // Cleanup logic must be in a nonCancellable scope
-      // If we'd run cleanup outside of a nonCancellable scope it would've been cancelled
-      // before being started because the Workflow's root scope is cancelled.
-      await CancellationScope.nonCancellable(() => cleanup(url));
+export const handleExternalWorkflowCancellationWhileActivityRunning = (url: string, data: any) => ({
+  async execute(): Promise<void> {
+    try {
+      await httpPostJSON(url, data);
+    } catch (err) {
+      if (isCancellation(err)) {
+        console.log('Workflow cancelled');
+        // Cleanup logic must be in a nonCancellable scope
+        // If we'd run cleanup outside of a nonCancellable scope it would've been cancelled
+        // before being started because the Workflow's root scope is cancelled.
+        await CancellationScope.nonCancellable(() => cleanup(url));
+      }
+      throw err; // <-- Fail the Workflow
     }
-    throw err; // <-- Fail the Workflow
-  }
-}
+  },
+});
 // @@@SNIPEND
