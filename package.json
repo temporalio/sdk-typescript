@@ -34,7 +34,6 @@
     "typescript": "^4.4.2"
   },
   "scripts": {
-    "install": "test -n $SKIP_DOCS_INSTALL || (cd packages/docs && npm ci)",
     "rebuild": "npm run clean && npm run build",
     "build": "lerna run --stream build",
     "build.watch": "lerna run --stream build.watch",
@@ -44,7 +43,7 @@
     "lint": "eslint packages/*/src --ext .ts --no-error-on-unmatched-pattern && prettier --check .",
     "format": "prettier --write .",
     "clean": "node ./scripts/clean.js",
-    "docs": "lerna run --stream build-docs"
+    "docs": "lerna run --stream maybe-install-deps-and-build-docs"
   },
   "repository": {
     "type": "git",
