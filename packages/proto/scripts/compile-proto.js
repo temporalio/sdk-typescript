@@ -9,7 +9,8 @@ const pbts = require('protobufjs/cli/pbts');
 const outputDir = resolve(__dirname, '../lib');
 const coresdkJsOutputFile = resolve(outputDir, 'coresdk.js');
 const serviceJsOutputFile = resolve(outputDir, 'temporal.js');
-const protoBaseDir = resolve(__dirname, '../../core-bridge/sdk-core/protos');
+// const protoBaseDir = resolve(__dirname, '../../core-bridge/sdk-core/protos');
+const protoBaseDir = resolve(__dirname, '../../../../sdk-core/protos');
 
 const coreProtoPath = resolve(protoBaseDir, 'local/core_interface.proto');
 const serviceProtoPath = resolve(protoBaseDir, 'api_upstream/temporal/api/workflowservice/v1/service.proto');
@@ -82,7 +83,9 @@ async function main() {
     coresdkJsOutputFile,
     resolve(outputDir, 'coresdk.d.ts'),
     '--path',
-    resolve(protoBaseDir, 'api_upstream')
+    resolve(protoBaseDir, 'api_upstream'),
+    '--path',
+    resolve(protoBaseDir, 'otel')
   );
   await compileProtos(
     serviceProtoPath,

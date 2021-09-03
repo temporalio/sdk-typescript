@@ -61,7 +61,6 @@ export interface KVValue {
   F64?: number;
   Bool?: boolean;
   String?: string;
-  // TODO: ugh
   Array?: any;
 }
 

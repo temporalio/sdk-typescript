@@ -78,6 +78,8 @@ export interface CoreOptions {
 export interface TelemetryOptions {
   /** Will be called every time a new batch of spans is exported from core */
   spanBatchCallback: (err: Error, serializedSpanBatch: ArrayBuffer) => void;
+  /** Will be called every time a new batch of metrics is exported from core */
+  metricBatchCallback: (err: Error, serializedMetricsBatch: ArrayBuffer) => void;
 }
 
 export interface WorkerOptions {

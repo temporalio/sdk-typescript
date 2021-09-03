@@ -43,7 +43,6 @@ function compile(target) {
       'cargo',
       'build',
       '--message-format=json-render-diagnostics',
-      '--release',
       ...(target ? ['--target', target] : []),
     ],
     { stdio: 'inherit' }

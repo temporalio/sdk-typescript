@@ -1,6 +1,8 @@
 mod errors;
 
 use errors::*;
+use futures::stream::FuturesUnordered;
+use futures::StreamExt;
 use neon::prelude::*;
 use prost::Message;
 use std::{fmt::Display, future::Future, sync::Arc, time::Duration};
@@ -499,18 +501,25 @@ where
 }
 
 /// Initialize telemetry and process incoming exports
-async fn telemetry_processor(event_queue: Arc<EventQueue>, spans_callback: Root<JsFunction>) {
+async fn telemetry_processor(
+    event_queue: Arc<EventQueue>,
+    spans_callback: Root<JsFunction>,
+    metrics_callback: Root<JsFunction>,
+) {
     let spans_callback = Arc::new(spans_callback);
+    let metrics_callback = Arc::new(metrics_callback);
+    let mut callback_futs = FuturesUnordered::new();
     match telemetry_init() {
         Ok(rcvs) => {
             if let Some(mut spans_rx) = rcvs.tracing {
-                tokio::spawn(async move {
+                let event_queue = event_queue.clone();
+                let jh = tokio::spawn(async move {
                     while let Some(batch) = spans_rx.recv().await {
                         match serde_json::to_string(&batch) {
                             Ok(serialized) => {
                                 let bytes = serialized.into_bytes();
                                 send_result_multicall(
-                                    &event_queue,
+                                    event_queue.as_ref(),
                                     spans_callback.clone(),
                                     move |cx| {
                                         let result = JsArrayBuffer::external(cx, bytes);
@@ -524,12 +533,35 @@ async fn telemetry_processor(event_queue: Arc<EventQueue>, spans_callback: Root<
                         }
                     }
                 });
+                callback_futs.push(jh);
+            }
+            if let Some(mut metrics_rx) = rcvs.metrics {
+                let event_queue = event_queue.clone();
+                let jh = tokio::spawn(async move {
+                    while let Some(batch) = metrics_rx.recv().await {
+                        let encoded: Vec<u8> = batch.encode_to_vec();
+                        send_result_multicall(
+                            event_queue.as_ref(),
+                            metrics_callback.clone(),
+                            move |cx| {
+                                let result = JsArrayBuffer::external(cx, encoded);
+                                Ok(result)
+                            },
+                        );
+                    }
+                    dbg!("Ahh quitting metrics loop!");
+                });
+                callback_futs.push(jh);
             }
         }
         Err(e) => {
             todo!("Handle errors: {:?}", e);
         }
     };
+    dbg!("Ahh exiting");
+    // Join the callback futures
+    while let Some(_) = callback_futs.next().await {}
+    dbg!("Ahh really done");
 }
 
 macro_rules! js_value_getter {
@@ -556,6 +588,10 @@ fn core_new(mut cx: FunctionContext) -> JsResult<JsUndefined> {
         .downcast_or_throw::<JsObject, _>(&mut cx)?;
     let spans_callback = telem_options
         .get(&mut cx, "spanBatchCallback")?
+        .downcast_or_throw::<JsFunction, _>(&mut cx)?
+        .root(&mut cx);
+    let metrics_callback = telem_options
+        .get(&mut cx, "metricBatchCallback")?
         .downcast_or_throw::<JsFunction, _>(&mut cx)?
         .root(&mut cx);
 
@@ -654,8 +690,17 @@ fn core_new(mut cx: FunctionContext) -> JsResult<JsUndefined> {
             .enable_all()
             .build()
             .unwrap();
-        tokio_rt.spawn(telemetry_processor(queue.clone(), spans_callback));
-        start_bridge_loop(&tokio_rt, CoreInitOptions { gateway_opts }, queue, callback)
+        let telproc_handle = tokio_rt.spawn(telemetry_processor(
+            queue.clone(),
+            spans_callback,
+            metrics_callback,
+        ));
+        start_bridge_loop(&tokio_rt, CoreInitOptions { gateway_opts }, queue, callback);
+        dbg!("Bridge loop over");
+        tokio_rt
+            .block_on(telproc_handle)
+            .expect("Telemetry processors join without error");
+        dbg!("Shut everything down");
     });
 
     Ok(cx.undefined())

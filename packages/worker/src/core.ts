@@ -10,8 +10,10 @@ import {
 import * as native from '@temporalio/core-bridge';
 import { newCore, coreShutdown, TelemetryOptions } from '@temporalio/core-bridge';
 import { ReadableSpan, SpanExporter } from '@opentelemetry/tracing';
-import { convertRustSpan } from './otel_conversion';
+import { convertRustMetric, convertRustSpan } from './otel_conversion';
 import { SerializedSpan } from '../../core-bridge/otel';
+import { MetricExporter, MetricRecord } from '@opentelemetry/metrics';
+import { coresdk } from '@temporalio/proto';
 
 export interface CoreOptions {
   /** Options for communicating with the Temporal server */
@@ -19,6 +21,8 @@ export interface CoreOptions {
 
   /** A user-registered span exporter that we will forward spans from core to if set */
   spanExporter?: SpanExporter;
+  /** A user-registered metric exporter that we will forward metrics from core to if set */
+  metricExporter?: MetricExporter;
 }
 
 export interface CompiledCoreOptions extends CoreOptions {
@@ -54,7 +58,26 @@ export class Core {
           const jsonified: SerializedSpan[] = JSON.parse(dec.decode(serializedSpanBatch));
           const readable: ReadableSpan[] = jsonified.map(convertRustSpan);
           options.spanExporter?.export(readable, (r) => {
-            console.log('Exported spans!', r);
+            // console.log('Exported spans!', r);
+          });
+        } catch (e) {
+          console.error(e);
+        }
+      },
+      metricBatchCallback: (err, serializedMetricBatch) => {
+        try {
+          const metricBatch = coresdk.otel.MetricsBatch.decode(new Uint8Array(serializedMetricBatch));
+          const readable: MetricRecord[] = [];
+          for (const mb of metricBatch.resourceMetrics) {
+            for (const ilb of mb.instrumentationLibraryMetrics || []) {
+              for (const m of ilb.metrics || []) {
+                readable.push(convertRustMetric(m, ilb.instrumentationLibrary || {}, mb.resource || {}));
+              }
+            }
+          }
+          console.log(readable);
+          options.metricExporter?.export(readable, (r) => {
+            console.log('Exported metrics!', r);
           });
         } catch (e) {
           console.error(e);

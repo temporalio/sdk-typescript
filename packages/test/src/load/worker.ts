@@ -2,6 +2,7 @@ import path from 'path';
 import arg from 'arg';
 import * as opentelemetry from '@opentelemetry/sdk-node';
 import { JaegerExporter } from '@opentelemetry/exporter-jaeger';
+import { PrometheusExporter } from '@opentelemetry/exporter-prometheus';
 import { SemanticResourceAttributes } from '@opentelemetry/semantic-conventions';
 import { Core, Worker, DefaultLogger } from '@temporalio/worker';
 import { WorkerArgSpec, workerArgSpec, getRequired } from './args';
@@ -22,12 +23,14 @@ async function main() {
   // In order for JaegerExporter to transmit packets correctly, increase net.inet.udp.maxdgram to 65536.
   // See: https://github.com/jaegertracing/jaeger-client-node/issues/124#issuecomment-324222456
   const jaegerTraceExport = new JaegerExporter();
+  const prometheusMetricExport = new PrometheusExporter({ port: 9464 });
   const otel = new opentelemetry.NodeSDK({
     resource: new opentelemetry.resources.Resource({
       [SemanticResourceAttributes.SERVICE_NAME]: 'load-worker',
       taskQueue,
     }),
     traceExporter: jaegerTraceExport,
+    metricExporter: prometheusMetricExport,
   });
   await otel.start();
 
@@ -37,6 +40,7 @@ async function main() {
       address: serverAddress,
     },
     spanExporter: jaegerTraceExport,
+    metricExporter: prometheusMetricExport,
   });
 
   const worker = await Worker.create({
