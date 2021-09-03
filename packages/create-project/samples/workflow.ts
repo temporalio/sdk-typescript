@@ -13,5 +13,5 @@ async function main(name: string): Promise<string> {
   return greet(name);
 }
 
-export const workflow = { main };
+export const workflow: Example = { main };
 // @@@SNIPEND
