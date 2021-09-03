@@ -8,11 +8,11 @@ use temporal_sdk_core::errors::{
     CompleteActivityError, CompleteWfError, CoreInitError, PollActivityError, PollWfError,
 };
 use temporal_sdk_core::{
-    init,
-    protos::coresdk::workflow_completion::WfActivationCompletion,
-    protos::coresdk::{ActivityHeartbeat, ActivityTaskCompletion},
-    tracing_init, ClientTlsConfig, Core, CoreInitOptions, RetryConfig, ServerGatewayOptions,
-    TlsConfig, Url, WorkerConfig,
+    init, ClientTlsConfig, Core, CoreInitOptions, RetryConfig, ServerGatewayOptions,
+    TelemetryOptions, TlsConfig, Url, WorkerConfig,
+};
+use temporal_sdk_core_protos::coresdk::{
+    workflow_completion::WfActivationCompletion, ActivityHeartbeat, ActivityTaskCompletion,
 };
 use tokio::sync::mpsc::{unbounded_channel, UnboundedSender};
 
@@ -187,7 +187,7 @@ fn start_bridge_loop(
 ) {
     let (sender, mut receiver) = unbounded_channel::<Request>();
 
-    tokio::runtime::Builder::new_current_thread()
+    tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()
         .unwrap()
@@ -201,6 +201,9 @@ fn start_bridge_loop(
                         CoreInitError::TonicTransportError(err) => {
                             TRANSPORT_ERROR.from_error(cx, err)
                         }
+                        CoreInitError::TelemetryInitError(err) => {
+                            Ok(JsError::error(cx, format!("Error initializing telemetry: {:?}", err))?.upcast())
+                        }
                     });
                 }
                 Ok(result) => {
@@ -213,7 +216,6 @@ fn start_bridge_loop(
                     send_result(event_queue.clone(), callback, |cx| {
                         Ok(cx.boxed(cloned_core_handle))
                     });
-                    tracing_init();
 
                     loop {
                         let request_option = receiver.recv().await;
@@ -238,7 +240,7 @@ fn start_bridge_loop(
                                     },
                                     |cx, err| UNEXPECTED_ERROR.from_error(cx, err),
                                 )
-                                .await;
+                                    .await;
                                 break;
                             }
                             Request::ShutdownWorker {
@@ -506,6 +508,9 @@ fn core_new(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     let server_options = core_options
         .get(&mut cx, "serverOptions")?
         .downcast_or_throw::<JsObject, _>(&mut cx)?;
+    let telem_options = core_options
+        .get(&mut cx, "telemetryOptions")?
+        .downcast_or_throw::<JsObject, _>(&mut cx)?;
 
     let url = js_value_getter!(cx, server_options, "url", JsString);
 
@@ -593,10 +598,29 @@ fn core_new(mut cx: FunctionContext) -> JsResult<JsUndefined> {
         retry_config,
     };
 
+    let telemetry_opts = TelemetryOptions {
+        otel_collector_url: get_optional(&mut cx, telem_options, "oTelCollectorUrl").map(|x| {
+            Url::parse(
+                &x.downcast_or_throw::<JsString, _>(&mut cx)
+                    .unwrap()
+                    .value(&mut cx),
+            )
+            .unwrap()
+        }),
+        tracing_filter: js_value_getter!(cx, telem_options, "tracingFilter", JsString),
+    };
+
     let callback = cx.argument::<JsFunction>(1)?.root(&mut cx);
     let queue = Arc::new(cx.queue());
     std::thread::spawn(move || {
-        start_bridge_loop(CoreInitOptions { gateway_opts }, queue, callback)
+        start_bridge_loop(
+            CoreInitOptions {
+                gateway_opts,
+                telemetry_opts,
+            },
+            queue,
+            callback,
+        )
     });
 
     Ok(cx.undefined())
