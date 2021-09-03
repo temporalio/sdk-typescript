@@ -8,11 +8,13 @@ import {
   normalizeTlsConfig,
 } from './server-options';
 import * as native from '@temporalio/core-bridge';
-import { newCore, coreShutdown } from '@temporalio/core-bridge';
+import { newCore, coreShutdown, TelemetryOptions } from "@temporalio/core-bridge";
 
 export interface CoreOptions {
   /** Options for communicating with the Temporal server */
   serverOptions?: ServerOptions;
+  /** Telemetry options for traces/metrics/logging */
+  telemetryOptions?: TelemetryOptions;
 }
 
 export interface CompiledCoreOptions extends CoreOptions {
@@ -49,6 +51,7 @@ export class Core {
           ? `https://${compiledServerOptions.address}`
           : `http://${compiledServerOptions.address}`,
       },
+      telemetryOptions: options.telemetryOptions || {}
     };
     const native = await promisify(newCore)(compiledOptions);
     return new this(native, compiledOptions);
