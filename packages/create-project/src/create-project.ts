@@ -18,26 +18,23 @@ import { tryGitInit } from './helpers/git';
 import { install } from './helpers/install';
 import { isFolderEmpty } from './helpers/is-folder-empty';
 import { getOnline } from './helpers/is-online';
-import { shouldUseYarn } from './helpers/should-use-yarn';
+// import { shouldUseYarn } from './helpers/should-use-yarn';
 import { isWriteable } from './helpers/is-writeable';
 
 export class DownloadError extends Error {}
 
 export async function createApp({
   appPath,
-  useNpm,
+  useYarn,
   example,
   examplePath,
-  typescript,
 }: {
   appPath: string;
-  useNpm: boolean;
-  example?: string;
+  useYarn: boolean;
+  example: string;
   examplePath?: string;
-  typescript?: boolean;
 }): Promise<void> {
   let repoInfo: RepoInfo | undefined;
-  const template = typescript ? 'typescript' : 'default';
 
   if (example) {
     let repoUrl: URL | undefined;
@@ -107,158 +104,63 @@ export async function createApp({
     process.exit(1);
   }
 
-  const useYarn = useNpm ? false : shouldUseYarn();
   const isOnline = !useYarn || (await getOnline());
   const originalDirectory = process.cwd();
 
   const displayedCommand = useYarn ? 'yarn' : 'npm';
-  console.log(`Creating a new Next.js app in ${chalk.green(root)}.`);
+  console.log(`Creating a new Temporal project in ${chalk.green(root)}/.`);
   console.log();
 
   await makeDir(root);
   process.chdir(root);
 
-  if (example) {
-    /**
-     * If an example repository is provided, clone it.
-     */
-    try {
-      if (repoInfo) {
-        const repoInfo2 = repoInfo;
-        console.log(`Downloading files from repo ${chalk.cyan(example)}. This might take a moment.`);
-        console.log();
-        await retry(() => downloadAndExtractRepo(root, repoInfo2), {
-          retries: 3,
-        });
-      } else {
-        console.log(`Downloading files for example ${chalk.cyan(example)}. This might take a moment.`);
-        console.log();
-        await retry(() => downloadAndExtractExample(root, example), {
-          retries: 3,
-        });
-      }
-    } catch (reason) {
-      let message = 'Unable to download';
-      if (reason instanceof Error) {
-        message = reason.message;
-      }
-
-      throw new DownloadError(message);
-    }
-    // Copy our default `.gitignore` if the application did not provide one
-    const ignorePath = path.join(root, '.gitignore');
-    if (!fs.existsSync(ignorePath)) {
-      fs.copyFileSync(path.join(__dirname, 'templates', template, 'gitignore'), ignorePath);
-    }
-
-    // Copy default `next-env.d.ts` to any example that is typescript
-    // const tsconfigPath = path.join(root, 'tsconfig.json');
-    // if (fs.existsSync(tsconfigPath)) {
-    //   fs.copyFileSync(
-    //     path.join(__dirname, 'templates', 'typescript', 'next-env.d.ts'),
-    //     path.join(root, 'next-env.d.ts')
-    //   );
-    // }
-
-    console.log('Installing packages. This might take a couple of minutes.');
-    console.log();
-
-    await install(root, null, { useYarn, isOnline });
-    console.log();
-  } else {
-    /**
-     * Otherwise, if an example repository is not provided for cloning, proceed
-     * by installing from a template.
-     */
-    console.log(chalk.bold(`Using ${displayedCommand}.`));
-    /**
-     * Create a package.json for the new project.
-     */
-    const packageJson = {
-      name: appName,
-      version: '0.1.0',
-      private: true,
-      scripts: {
-        dev: 'next dev',
-        build: 'next build',
-        start: 'next start',
-        lint: 'next lint',
-      },
-    };
-    /**
-     * Write it to disk.
-     */
-    fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify(packageJson, null, 2) + os.EOL);
-    /**
-     * These flags will be passed to `install()`.
-     */
-    const installFlags = { useYarn, isOnline };
-    /**
-     * Default dependencies.
-     */
-    const dependencies = ['react', 'react-dom', 'next'];
-    /**
-     * Default devDependencies.
-     */
-    const devDependencies = ['eslint', 'eslint-config-next'];
-    /**
-     * TypeScript projects will have type definitions and other devDependencies.
-     */
-    if (typescript) {
-      devDependencies.push('typescript', '@types/react', '@types/node');
-    }
-    /**
-     * Install package.json dependencies if they exist.
-     */
-    if (dependencies.length) {
+  /**
+   * If an example repository is provided, clone it.
+   */
+  try {
+    if (repoInfo) {
+      const repoInfo2 = repoInfo;
+      console.log(`Downloading files from repo ${chalk.cyan(example)}. This might take a moment.`);
       console.log();
-      console.log('Installing dependencies:');
-      for (const dependency of dependencies) {
-        console.log(`- ${chalk.cyan(dependency)}`);
-      }
+      await retry(() => downloadAndExtractRepo(root, repoInfo2), {
+        retries: 3,
+      });
+    } else {
+      console.log(`Downloading files for example ${chalk.cyan(example)}. This might take a moment.`);
       console.log();
-
-      await install(root, dependencies, installFlags);
+      await retry(() => downloadAndExtractExample(root, example), {
+        retries: 3,
+      });
     }
-    /**
-     * Install package.json devDependencies if they exist.
-     */
-    if (devDependencies.length) {
-      console.log();
-      console.log('Installing devDependencies:');
-      for (const devDependency of devDependencies) {
-        console.log(`- ${chalk.cyan(devDependency)}`);
-      }
-      console.log();
-
-      const devInstallFlags = { devDependencies: true, ...installFlags };
-      await install(root, devDependencies, devInstallFlags);
+  } catch (reason) {
+    let message = 'Unable to download';
+    if (reason instanceof Error) {
+      message = reason.message;
     }
-    console.log();
-    /**
-     * Copy the template files to the target directory.
-     */
-    await cpy('**', root, {
-      parents: true,
-      cwd: path.join(__dirname, 'templates', template),
-      rename: (name) => {
-        switch (name) {
-          case 'gitignore':
-          case 'eslintrc.json': {
-            return '.'.concat(name);
-          }
-          // README.md is ignored by webpack-asset-relocator-loader used by ncc:
-          // https://github.com/vercel/webpack-asset-relocator-loader/blob/e9308683d47ff507253e37c9bcbb99474603192b/src/asset-relocator.js#L227
-          case 'README-template.md': {
-            return 'README.md';
-          }
-          default: {
-            return name;
-          }
-        }
-      },
-    });
+
+    throw new DownloadError(message);
   }
+
+  // Copy our default `.gitignore` if the application did not provide one
+  // const ignorePath = path.join(root, '.gitignore');
+  // if (!fs.existsSync(ignorePath)) {
+  //   fs.copyFileSync(path.join(__dirname, 'templates', 'gitignore'), ignorePath);
+  // }
+
+  // Copy default `next-env.d.ts` to any example that is typescript
+  // const tsconfigPath = path.join(root, 'tsconfig.json');
+  // if (fs.existsSync(tsconfigPath)) {
+  //   fs.copyFileSync(
+  //     path.join(__dirname, 'templates', 'typescript', 'next-env.d.ts'),
+  //     path.join(root, 'next-env.d.ts')
+  //   );
+  // }
+
+  console.log('Installing packages. This might take a couple of minutes.');
+  console.log();
+
+  await install(root, null, { useYarn, isOnline });
+  console.log();
 
   if (tryGitInit(root)) {
     console.log('Initialized a git repository.');
@@ -272,21 +174,32 @@ export async function createApp({
     cdpath = appPath;
   }
 
-  console.log(`${chalk.green('Success!')} Created ${appName} at ${appPath}`);
+  console.log(`${chalk.green('Success!')} Created ${chalk.bold(appName)} at ${chalk.bold(appPath + '/')}`);
+  console.log();
   console.log('Inside that directory, you can run several commands:');
   console.log();
-  console.log(chalk.cyan(`  ${displayedCommand} ${useYarn ? '' : 'run '}dev`));
-  console.log('    Starts the development server.');
-  console.log();
   console.log(chalk.cyan(`  ${displayedCommand} ${useYarn ? '' : 'run '}build`));
-  console.log('    Builds the app for production.');
+  console.log('    Builds all the code.');
   console.log();
   console.log(chalk.cyan(`  ${displayedCommand} start`));
-  console.log('    Runs the built app in production mode.');
+  console.log('    Runs the built Worker.');
   console.log();
-  console.log('We suggest that you begin by typing:');
+  console.log(chalk.cyan(`  ${displayedCommand} ${useYarn ? '' : 'run '}workflow`));
+  console.log('    Starts a Workflow.');
   console.log();
-  console.log(chalk.cyan('  cd'), cdpath);
-  console.log(`  ${chalk.cyan(`${displayedCommand} ${useYarn ? '' : 'run '}dev`)}`);
+  console.log('To begin development, start Temporal Server:');
+  console.log();
+  console.log(chalk.cyan('  cd'), '~/path/to/temporal/docker-compose/');
+  console.log(`  ${chalk.cyan('docker-compose up')}`);
+  console.log();
+  console.log(
+    chalk.dim.italic('To get Temporal Server set up, visit https://docs.temporal.io/docs/node/getting-started/')
+  );
+  console.log();
+  console.log(`Then, in the ${chalk.bold(cdpath + '/')} directory, using three other shells, run these commands:`);
+  console.log();
+  console.log(`  ${chalk.cyan(`${displayedCommand} ${useYarn ? '' : 'run '}build.watch`)}`);
+  console.log(`  ${chalk.cyan(`${displayedCommand} ${useYarn ? '' : 'run '}start.watch`)}`);
+  console.log(`  ${chalk.cyan(`${displayedCommand} ${useYarn ? '' : 'run '}workflow`)}`);
   console.log();
 }

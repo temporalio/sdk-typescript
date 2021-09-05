@@ -5,7 +5,7 @@ import Commander from 'commander';
 import path from 'path';
 import prompts from 'prompts';
 import checkForUpdate from 'update-check';
-import { createApp, DownloadError } from './create-project';
+import { createApp } from './create-project';
 import { shouldUseYarn } from './helpers/should-use-yarn';
 import { validateNpmName } from './helpers/validate-pkg';
 import packageJson from '../package.json';
@@ -13,24 +13,17 @@ import packageJson from '../package.json';
 let projectPath: string = '';
 
 const program = new Commander.Command(packageJson.name)
-  .version(packageJson.version)
+  .version(packageJson.version, '-v, --version')
   .arguments('<project-directory>')
   .usage(`${chalk.green('<project-directory>')} [options]`)
   .action((name) => {
     projectPath = name;
   })
   .option(
-    '--ts, --typescript',
+    '--use-yarn',
     `
 
-  Initialize as a TypeScript project.
-`
-  )
-  .option(
-    '--use-npm',
-    `
-
-  Explicitly tell the CLI to bootstrap the app using npm
+  Use yarn instead of npm
 `
   )
   .option(
@@ -38,8 +31,8 @@ const program = new Commander.Command(packageJson.name)
     `
 
   An example to bootstrap the app with. You can use an example name
-  from the official Next.js repo or a GitHub URL. The URL can use
-  any branch and/or subdirectory
+  from https://github.com/temporalio/samples-node or a GitHub URL. 
+  The URL can use any branch and/or subdirectory
 `
   )
   .option(
@@ -105,44 +98,47 @@ async function run(): Promise<void> {
     process.exit(1);
   }
 
-  if (program.example === true) {
-    console.error('Please provide an example name or url, otherwise remove the example option.');
-    process.exit(1);
-    return;
-  }
+  let example = program.example;
 
-  const example = typeof program.example === 'string' && program.example.trim();
-  try {
-    await createApp({
-      appPath: resolvedProjectPath,
-      useNpm: !!program.useNpm,
-      example: example && example !== 'default' ? example : undefined,
-      examplePath: program.examplePath,
-      typescript: program.typescript,
-    });
-  } catch (reason) {
-    if (!(reason instanceof DownloadError)) {
-      throw reason;
-    }
-
+  // `example` is true when --example is used by itself
+  if (typeof example !== 'string') {
     const res = await prompts({
-      type: 'confirm',
-      name: 'builtin',
-      message:
-        `Could not download "${example}" because of a connectivity issue between your machine and GitHub.\n` +
-        `Do you want to use the default template instead?`,
-      initial: true,
+      type: 'text',
+      name: 'example',
+      message: 'Which template would you like to use?',
+      initial: 'hello-world',
+      // validate: (name) => {
+      //   const validation = validateNpmName(path.basename(path.resolve(name)));
+      //   if (validation.valid) {
+      //     return true;
+      //   }
+      //   return 'Invalid project name: ' + validation.problems![0];
+      // },
     });
-    if (!res.builtin) {
-      throw reason;
-    }
 
-    await createApp({
-      appPath: resolvedProjectPath,
-      useNpm: !!program.useNpm,
-      typescript: program.typescript,
-    });
+    if (typeof res.example === 'string') {
+      example = res.example;
+    }
   }
+
+  if (typeof example !== 'string') {
+    console.log();
+    console.log('Please specify which example:');
+    console.log(`  ${chalk.cyan(program.name())} --example ${chalk.green('[name]|[github-url]')}`);
+    console.log();
+    console.log('For example:');
+    console.log(`  ${chalk.cyan(program.name())} --example ${chalk.green('hello-world')}`);
+    console.log();
+    console.log(`Run ${chalk.cyan(`${program.name()} --help`)} to see all options.`);
+    process.exit(1);
+  }
+
+  await createApp({
+    appPath: resolvedProjectPath,
+    useYarn: !!program.useYarn,
+    example: example.trim(),
+    examplePath: typeof program.examplePath === 'string' ? program.examplePath.trim() : undefined,
+  });
 }
 
 const update = checkForUpdate(packageJson).catch(() => null);
