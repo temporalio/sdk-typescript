@@ -16,10 +16,12 @@ import {
   WorkflowExecutionFailedError,
   WorkflowExecutionTerminatedError,
 } from '@temporalio/client';
-import { defaultDataConverter } from '@temporalio/workflow';
+import { ApplyMode, defaultDataConverter, WorkflowInfo } from '@temporalio/workflow';
 import { defaultOptions } from './mock-native-worker';
-import { Sleeper, Empty } from './interfaces';
+import { Empty } from './interfaces';
 import { cleanStackTrace, RUN_INTEGRATION_TESTS } from './helpers';
+import { Deps, workflow } from './workflows/block-with-dependencies';
+import { Dependencies as InternalsDeps } from './workflows/internals-interceptor-example';
 
 if (RUN_INTEGRATION_TESTS) {
   test.serial('Tracing can be implemented using interceptors', async (t) => {
@@ -101,14 +103,34 @@ if (RUN_INTEGRATION_TESTS) {
     await workerDrained;
   });
 
+  /**
+   * This test also verifies that worker can shutdown when there are outstanding activations.
+   * Without blocking the activation as we do here there'd be a race between WF completion and termination.
+   */
   test.serial('WorkflowClientCallsInterceptor intercepts terminate and cancel', async (t) => {
     const taskQueue = 'test-interceptor-term-and-cancel';
     const message = uuid4();
+    // Use these to coordinate with workflow activation to complete only after terimnation
+    let unblockLang = (): void => undefined;
+    const unblockLangPromise = new Promise<void>((res) => void (unblockLang = res));
+    let setLangIsBlocked = (): void => undefined;
+    const langIsBlockedPromise = new Promise<void>((res) => void (setLangIsBlocked = res));
 
-    const worker = await Worker.create({
+    const worker = await Worker.create<{ dependencies: Deps }>({
       ...defaultOptions,
       taskQueue,
       logger: new DefaultLogger('DEBUG'),
+      dependencies: {
+        blocker: {
+          block: {
+            applyMode: ApplyMode.ASYNC,
+            fn: () => {
+              setLangIsBlocked();
+              return unblockLangPromise;
+            },
+          },
+        },
+      },
     });
     const workerDrained = worker.run();
     const conn = new Connection();
@@ -127,10 +149,11 @@ if (RUN_INTEGRATION_TESTS) {
       },
     });
 
-    const wf = client.stub<Sleeper>('sleep', {
+    const wf = client.stub<typeof workflow>('block-with-dependencies', {
       taskQueue,
     });
-    await wf.start(999_999_999); // sleep until cancelled or terminated
+    await wf.start();
+    await langIsBlockedPromise;
     await t.throwsAsync(wf.cancel(), {
       instanceOf: Error,
       message: 'nope',
@@ -140,6 +163,7 @@ if (RUN_INTEGRATION_TESTS) {
       instanceOf: WorkflowExecutionTerminatedError,
       message,
     });
+    if (unblockLang !== undefined) unblockLang();
 
     worker.shutdown();
     await workerDrained;
@@ -169,19 +193,54 @@ if (RUN_INTEGRATION_TESTS) {
       t.fail(`Expected err.cause to be an ApplicationFailure, got ${err.cause}`);
       return;
     }
-    t.deepEqual(err.cause.originalMessage, 'Expected anything other than 1');
+    t.deepEqual(err.cause.message, 'Expected anything other than 1');
     t.is(
       cleanStackTrace(err.cause.stack),
       dedent`
       Error: Expected anything other than 1
           at Object.continueAsNew
           at next
-          at workflow
+          at eval
           at Object.main
     `
     );
     t.is(err.cause.cause, undefined);
     worker.shutdown();
     await workerDrained;
+  });
+
+  test.serial('Internals can be intercepted for observing Workflow state changes', async (t) => {
+    const taskQueue = 'test-internals-interceptor';
+
+    const events = Array<string>();
+    const worker = await Worker.create<{ dependencies: InternalsDeps }>({
+      ...defaultOptions,
+      taskQueue,
+      interceptors: {
+        // Co-exists with the Workflow
+        workflowModules: ['internals-interceptor-example'],
+      },
+      dependencies: {
+        logger: {
+          log: {
+            fn: (_: WorkflowInfo, event: string): void => {
+              events.push(event);
+            },
+            applyMode: ApplyMode.SYNC_IGNORED,
+            arguments: 'copy',
+          },
+        },
+      },
+    });
+    const workerDrained = worker.run();
+    const client = new WorkflowClient();
+    const wf = client.stub<Empty>('internals-interceptor-example', {
+      taskQueue,
+    });
+    await wf.execute();
+
+    worker.shutdown();
+    await workerDrained;
+    t.deepEqual(events, ['activate: 0', 'concludeActivation: 1', 'activate: 0', 'concludeActivation: 1']);
   });
 }

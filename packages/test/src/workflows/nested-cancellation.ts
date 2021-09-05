@@ -1,6 +1,12 @@
 // @@@SNIPSTART nodejs-nested-cancellation-scopes
-import { CancellationScope, isCancellation } from '@temporalio/workflow';
-import { setup, httpPostJSON, cleanup } from '@activities';
+import { CancellationScope, Context, isCancellation } from '@temporalio/workflow';
+
+import * as activities from '../activities';
+
+const { setup, httpPostJSON, cleanup } = Context.configureActivities<typeof activities>({
+  type: 'remote',
+  startToCloseTimeout: '10m',
+});
 
 export async function main(url: string): Promise<void> {
   await CancellationScope.cancellable(async () => {

@@ -32,7 +32,7 @@ export class OpenTelemetryWorkflowClientCallsInterceptor implements WorkflowClie
     input.headers.set(TRACE_HEADER, await this.dataConverter.toPayload(span.spanContext()));
     try {
       return await next(input);
-    } catch (error) {
+    } catch (error: any) {
       span.recordException(error);
       throw error;
     } finally {

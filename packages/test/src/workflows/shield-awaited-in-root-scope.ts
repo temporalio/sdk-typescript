@@ -1,6 +1,8 @@
 // @@@SNIPSTART nodejs-shield-awaited-in-root-scope
-import { CancellationScope } from '@temporalio/workflow';
-import { httpGetJSON } from '@activities';
+import { Context, CancellationScope } from '@temporalio/workflow';
+import * as activities from '../activities';
+
+const { httpGetJSON } = Context.configureActivities<typeof activities>({ type: 'remote', startToCloseTimeout: '10m' });
 
 export async function main(): Promise<any> {
   let p: Promise<any> | undefined = undefined;

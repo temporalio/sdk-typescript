@@ -3,6 +3,35 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+# [0.4.0](https://github.com/temporalio/sdk-node/compare/@temporalio/create@0.3.4...@temporalio/create@0.4.0) (2021-08-31)
+
+
+* feat!: Revise Activity setup and registration, use single tsconfig in project skeleton ([b97dd21](https://github.com/temporalio/sdk-node/commit/b97dd21aff3f5d1e5beb1fc6f4e71a04d761ac02))
+
+
+### Features
+
+* Support bundling TS into isolate ([ca9806e](https://github.com/temporalio/sdk-node/commit/ca9806e3c7ebb33447f3413bf9a997c730f7f9ac))
+
+
+### BREAKING CHANGES
+
+* `@activities` import does not work any more.
+Activities registration is either done automatically with the `workDir`
+option or by providing `activities` to `WorkerOptions`.
+
+
+
+
+
+## [0.3.4](https://github.com/temporalio/sdk-node/compare/@temporalio/create@0.3.3...@temporalio/create@0.3.4) (2021-08-29)
+
+**Note:** Version bump only for package @temporalio/create
+
+
+
+
+
 ## [0.3.3](https://github.com/temporalio/sdk-node/compare/@temporalio/create@0.3.2...@temporalio/create@0.3.3) (2021-07-27)
 
 **Note:** Version bump only for package @temporalio/create

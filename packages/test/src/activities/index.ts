@@ -1,9 +1,17 @@
 /* eslint-disable @typescript-eslint/no-empty-function */
 /* eslint-disable @typescript-eslint/explicit-module-boundary-types */
 import { Context } from '@temporalio/activity';
-import { Connection } from '@temporalio/client';
+import { Connection, LOCAL_DOCKER_TARGET } from '@temporalio/client';
 import { fakeProgress as fakeProgressInner } from './fake-progress';
 import { cancellableFetch as cancellableFetchInner } from './cancellable-fetch';
+
+export { throwSpecificError } from './failure-tester';
+
+// TODO: Get rid of this by providing client via activity context
+function getTestConnection(): Connection {
+  const address = process.env.TEMPORAL_TESTING_SERVER_URL || LOCAL_DOCKER_TARGET;
+  return new Connection({ address });
+}
 
 async function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -56,7 +64,7 @@ export async function waitForCancellation(): Promise<void> {
 
 async function signalSchedulingWorkflow(signalName: string) {
   const { info } = Context.current();
-  const connection = new Connection();
+  const connection = getTestConnection();
   await connection.service.signalWorkflowExecution({
     namespace: info.workflowNamespace,
     workflowExecution: Context.current().info.workflowExecution,

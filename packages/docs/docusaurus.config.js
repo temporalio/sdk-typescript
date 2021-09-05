@@ -1,4 +1,7 @@
 /** @type {import('@docusaurus/types').DocusaurusConfig} */
+const lightCodeTheme = require('prism-react-renderer/themes/github');
+const darkCodeTheme = require('prism-react-renderer/themes/dracula');
+
 const watch = ['y', 'yes', 't', 'true', '1'].includes(process.env.TYPEDOC_WATCH);
 
 module.exports = {
@@ -13,7 +16,8 @@ module.exports = {
   projectName: 'sdk-node',
   themeConfig: {
     prism: {
-      theme: require('prism-react-renderer/themes/dracula'),
+      theme: lightCodeTheme,
+      darkTheme: darkCodeTheme,
     },
     navbar: {
       logo: {
@@ -128,6 +132,7 @@ module.exports = {
               targets: ['docs'],
               features: {
                 enable_source_link: false,
+                enable_code_block: true,
               },
             },
           ],

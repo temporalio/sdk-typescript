@@ -1,0 +1,10 @@
+steps:
+  - label: 'load-test'
+    agents:
+      queue: 'default'
+      docker: '*'
+    timeout_in_minutes: 15
+    plugins:
+      - docker-compose#v3.8.0:
+          run: load-test
+          config: .buildkite/docker/docker-compose.yaml

@@ -1,6 +1,8 @@
 // @@@SNIPSTART nodejs-shared-promise-scopes
-import { CancellationScope } from '@temporalio/workflow';
-import { httpGetJSON } from '@activities';
+import { CancellationScope, Context } from '@temporalio/workflow';
+import * as activities from '../activities';
+
+const { httpGetJSON } = Context.configureActivities<typeof activities>({ type: 'remote', startToCloseTimeout: '10m' });
 
 export async function main(): Promise<any> {
   // Start activities in the root scope

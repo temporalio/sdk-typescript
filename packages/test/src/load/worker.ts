@@ -2,7 +2,7 @@ import path from 'path';
 import arg from 'arg';
 import * as opentelemetry from '@opentelemetry/sdk-node';
 import { JaegerExporter } from '@opentelemetry/exporter-jaeger';
-import { ResourceAttributes } from '@opentelemetry/semantic-conventions';
+import { SemanticResourceAttributes } from '@opentelemetry/semantic-conventions';
 
 import { Core, Worker, DefaultLogger } from '@temporalio/worker';
 import { WorkerArgSpec, workerArgSpec, getRequired } from './args';
@@ -23,13 +23,15 @@ async function main() {
   // In order for JaegerExporter to transmit packets correctly, increase net.inet.udp.maxdgram to 65536.
   // See: https://github.com/jaegertracing/jaeger-client-node/issues/124#issuecomment-324222456
   const otel = new opentelemetry.NodeSDK({
-    resource: new opentelemetry.resources.Resource({ [ResourceAttributes.SERVICE_NAME]: 'perf-worker', taskQueue }),
+    resource: new opentelemetry.resources.Resource({
+      [SemanticResourceAttributes.SERVICE_NAME]: 'load-worker',
+      taskQueue,
+    }),
     traceExporter: new JaegerExporter(),
   });
   await otel.start();
 
   await Core.install({
-    maxCachedWorkflows,
     serverOptions: {
       namespace,
       address: serverAddress,
@@ -37,13 +39,14 @@ async function main() {
   });
 
   const worker = await Worker.create({
-    workDir: __dirname,
+    workDir: path.join(__dirname, '..'),
     nodeModulesPath: path.join(__dirname, '../../../../node_modules'),
     taskQueue,
     maxConcurrentActivityTaskExecutions,
     maxConcurrentWorkflowTaskExecutions,
     maxConcurrentActivityTaskPolls,
     maxConcurrentWorkflowTaskPolls,
+    maxCachedWorkflows,
     isolatePoolSize,
     logger: new DefaultLogger(logLevel as any),
   });

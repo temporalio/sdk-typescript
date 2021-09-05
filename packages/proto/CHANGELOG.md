@@ -3,6 +3,36 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+## [0.3.1](https://github.com/temporalio/sdk-node/compare/@temporalio/proto@0.3.0...@temporalio/proto@0.3.1) (2021-08-31)
+
+**Note:** Version bump only for package @temporalio/proto
+
+
+
+
+
+# [0.3.0](https://github.com/temporalio/sdk-node/compare/@temporalio/proto@0.2.4...@temporalio/proto@0.3.0) (2021-08-29)
+
+
+* feat!: Port Failure classes from Java SDK ([d1bb4ef](https://github.com/temporalio/sdk-node/commit/d1bb4ef59caa6ea3b0c4fc6108a78e46e4ed2b42))
+
+
+### Features
+
+* **proto:** Split generated protos into coresdk and temporal ([10a4fb2](https://github.com/temporalio/sdk-node/commit/10a4fb2e16736bd05e31b560a77f861b9a574aa0))
+
+
+### BREAKING CHANGES
+
+* Activities functions now throw `ActivityFailure` in Workflow.
+WorkflowClient and WorkflowStub now chain the Workflow error as `cause`
+of `WorkflowExecutionFailedError` instead of setting the `message`
+property.
+
+
+
+
+
 ## [0.2.4](https://github.com/temporalio/sdk-node/compare/@temporalio/proto@0.2.3...@temporalio/proto@0.2.4) (2021-07-27)
 
 **Note:** Version bump only for package @temporalio/proto

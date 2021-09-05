@@ -4,15 +4,15 @@
  * @module
  */
 import ivm from 'isolated-vm';
-import { ActivityOptions, IllegalStateError, msToTs, tsToMs } from '@temporalio/common';
+import { IllegalStateError, msToTs, tsToMs, composeInterceptors } from '@temporalio/common';
 import { coresdk } from '@temporalio/proto/lib/coresdk';
-import { ApplyMode, ExternalDependencyFunction, WorkflowInfo } from './interfaces';
-import { consumeCompletion, ExternalCall, state } from './internals';
+import { WorkflowInfo, ActivationJobResult } from './interfaces';
+import { consumeCompletion, state } from './internals';
 import { alea } from './alea';
 import { IsolateExtension, HookManager } from './promise-hooks';
 import { DeterminismViolationError } from './errors';
-
-export { ExternalCall };
+import { WorkflowInterceptors } from './interceptors';
+import { ApplyMode, ExternalDependencyFunction, ExternalCall } from './dependencies';
 
 export function setRequireFunc(fn: Exclude<typeof state['require'], undefined>): void {
   state.require = fn;
@@ -46,14 +46,14 @@ export function overrideGlobals(): void {
   global.Date.prototype = OriginalDate.prototype;
 
   global.setTimeout = function (cb: (...args: any[]) => any, ms: number, ...args: any[]): number {
-    const seq = state.nextSeq++;
-    state.completions.set(`${seq}`, {
+    const seq = state.nextSeqs.timer++;
+    state.completions.timer.set(seq, {
       resolve: () => cb(...args),
       reject: () => undefined /* ignore cancellation */,
     });
     state.commands.push({
       startTimer: {
-        timerId: `${seq}`,
+        seq,
         startToFireTimeout: msToTs(ms),
       },
     });
@@ -61,11 +61,11 @@ export function overrideGlobals(): void {
   };
 
   global.clearTimeout = function (handle: number): void {
-    state.nextSeq++;
-    state.completions.delete(`${handle}`);
+    state.nextSeqs.timer++;
+    state.completions.timer.delete(handle);
     state.commands.push({
       cancelTimer: {
-        timerId: `${handle}`,
+        seq: handle,
       },
     });
   };
@@ -116,7 +116,6 @@ export function mockBrowserDocumentForWebpack(): MockDocument {
 
 export function initRuntime(
   info: WorkflowInfo,
-  activityDefaults: ActivityOptions,
   interceptorModules: string[],
   randomnessSeed: number[],
   isolateExtension: IsolateExtension
@@ -126,14 +125,21 @@ export function initRuntime(
   (globalThis as any).WeakRef = function () {
     throw new DeterminismViolationError('WeakRef cannot be used in workflows because v8 GC is non-deterministic');
   };
-  state.interceptorModules = interceptorModules;
   state.info = info;
-  state.activityDefaults = activityDefaults;
   state.random = alea(randomnessSeed);
   HookManager.instance.setIsolateExtension(isolateExtension);
-}
 
-type ActivationJobResult = { pendingExternalCalls: ExternalCall[]; processed: boolean };
+  const { require: req } = state;
+  if (req === undefined) {
+    throw new IllegalStateError('Workflow has not been initialized');
+  }
+  for (const mod of interceptorModules) {
+    const { interceptors } = req(mod) as { interceptors: WorkflowInterceptors };
+    state.interceptors.inbound.push(...interceptors.inbound);
+    state.interceptors.outbound.push(...interceptors.outbound);
+    state.interceptors.internals.push(...interceptors.internals);
+  }
+}
 
 /**
  * Run a single activation job.
@@ -141,32 +147,40 @@ type ActivationJobResult = { pendingExternalCalls: ExternalCall[]; processed: bo
  * @returns a boolean indicating whether the job was processed or ignored
  */
 export async function activate(encodedActivation: Uint8Array, jobIndex: number): Promise<ActivationJobResult> {
-  const activation = coresdk.workflow_activation.WFActivation.decodeDelimited(encodedActivation);
-  // job's type is IWFActivationJob which doesn't have the `attributes` property.
-  const job = activation.jobs[jobIndex] as coresdk.workflow_activation.WFActivationJob;
-  // We only accept time not progressing when processing a query
-  if (!(job.variant === 'queryWorkflow' && activation.timestamp === null)) {
-    state.now = tsToMs(activation.timestamp);
-  }
-  if (state.info === undefined) {
-    throw new IllegalStateError('Workflow has not been initialized');
-  }
-  state.info.isReplaying = activation.isReplaying ?? false;
-  if (job.variant === undefined) {
-    throw new TypeError('Expected job.variant to be defined');
-  }
-  const variant = job[job.variant];
-  if (!variant) {
-    throw new TypeError(`Expected job.${job.variant} to be set`);
-  }
-  // The only job that can be executed on a completed workflow is a query.
-  // We might get other jobs after completion for instance when a single
-  // activation contains multiple jobs and the first one completes the workflow.
-  if (state.completed && job.variant !== 'queryWorkflow') {
-    return { processed: false, pendingExternalCalls: state.getAndResetPendingExternalCalls() };
-  }
-  await state.activator[job.variant](variant as any /* TODO: TS is struggling with `true` and `{}` */);
-  return { processed: true, pendingExternalCalls: state.getAndResetPendingExternalCalls() };
+  const intercept = composeInterceptors(state.interceptors.internals, 'activate', async ({ activation, jobIndex }) => {
+    const job = activation.jobs?.[jobIndex] as coresdk.workflow_activation.WFActivationJob;
+    // We only accept time not progressing when processing a query
+    if (!(job.variant === 'queryWorkflow' && activation.timestamp === null)) {
+      state.now = tsToMs(activation.timestamp);
+    }
+    if (state.info === undefined) {
+      throw new IllegalStateError('Workflow has not been initialized');
+    }
+    state.info.isReplaying = activation.isReplaying ?? false;
+    if (job.variant === undefined) {
+      throw new TypeError('Expected job.variant to be defined');
+    }
+    const variant = job[job.variant];
+    if (!variant) {
+      throw new TypeError(`Expected job.${job.variant} to be set`);
+    }
+    // The only job that can be executed on a completed workflow is a query.
+    // We might get other jobs after completion for instance when a single
+    // activation contains multiple jobs and the first one completes the workflow.
+    if (state.completed && job.variant !== 'queryWorkflow') {
+      return false;
+    }
+    await state.activator[job.variant](variant as any /* TODO: TS is struggling with `true` and `{}` */);
+    return true;
+  });
+
+  return {
+    processed: await intercept({
+      activation: coresdk.workflow_activation.WFActivation.decodeDelimited(encodedActivation),
+      jobIndex,
+    }),
+    pendingExternalCalls: state.getAndResetPendingExternalCalls(),
+  };
 }
 
 type ActivationConclusion =
@@ -185,7 +199,9 @@ export function concludeActivation(): ActivationConclusion {
   if (pendingExternalCalls.length > 0) {
     return { type: 'pending', pendingExternalCalls };
   }
-  const { commands, info } = state;
+  const intercept = composeInterceptors(state.interceptors.internals, 'concludeActivation', (input) => input);
+  const { info } = state;
+  const { commands } = intercept({ commands: state.commands });
   const encoded = coresdk.workflow_completion.WFActivationCompletion.encodeDelimited({
     runId: info?.runId,
     successful: { commands },
@@ -215,12 +231,12 @@ export function inject(
   if (applyMode === ApplyMode.ASYNC) {
     state.dependencies[ifaceName][fnName] = (...args: any[]) =>
       new Promise((resolve, reject) => {
-        const seq = state.nextSeq++;
-        state.completions.set(`${seq}`, {
+        const seq = state.nextSeqs.dependency++;
+        state.completions.dependency.set(seq, {
           resolve,
           reject,
         });
-        state.pendingExternalCalls.push({ ifaceName, fnName, args, seq: `${seq}` });
+        state.pendingExternalCalls.push({ ifaceName, fnName, args, seq });
       });
   } else if (applyMode === ApplyMode.ASYNC_IGNORED) {
     state.dependencies[ifaceName][fnName] = (...args: any[]) =>
@@ -231,7 +247,7 @@ export function inject(
 }
 
 export interface ExternalDependencyResult {
-  seq: string;
+  seq: number;
   result: any;
   error: any;
 }
@@ -241,7 +257,7 @@ export interface ExternalDependencyResult {
  */
 export function resolveExternalDependencies(results: ExternalDependencyResult[]): void {
   for (const { seq, result, error } of results) {
-    const completion = consumeCompletion(seq);
+    const completion = consumeCompletion('dependency', seq);
     if (error) {
       completion.reject(error);
     } else {

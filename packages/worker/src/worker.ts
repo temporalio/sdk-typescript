@@ -4,33 +4,18 @@ import { promisify } from 'util';
 import * as otel from '@opentelemetry/api';
 import {
   BehaviorSubject,
-  EMPTY,
+  from,
   merge,
   MonoTypeOperatorFunction,
   Observable,
-  of,
   OperatorFunction,
   pipe,
   race,
   Subject,
-  throwError,
+  lastValueFrom,
+  EMPTY,
 } from 'rxjs';
-import {
-  catchError,
-  concatMap,
-  delay,
-  filter,
-  first,
-  ignoreElements,
-  map,
-  mapTo,
-  mergeMap,
-  repeat,
-  takeUntil,
-  takeWhile,
-  tap,
-  scan,
-} from 'rxjs/operators';
+import { delay, filter, first, ignoreElements, map, mergeMap, takeUntil, takeWhile, tap } from 'rxjs/operators';
 import * as native from '@temporalio/core-bridge';
 import { coresdk } from '@temporalio/proto';
 import { ApplyMode, ExternalDependencies, WorkflowInfo } from '@temporalio/workflow';
@@ -44,6 +29,8 @@ import {
   arrayFromPayloads,
   DataConverter,
   defaultDataConverter,
+  ActivityInterface,
+  errorMessage,
 } from '@temporalio/common';
 import { closeableGroupBy, mergeMapWithState } from './rxutils';
 import { GiB, MiB } from './utils';
@@ -97,40 +84,30 @@ export interface WorkerOptions {
   logger?: Logger;
 
   /**
-   * Activities created in workflows will default to having these options
-   *
-   * @default
-   * ```ts
-   * { type: 'remote', startToCloseTimeout: '10m' }
-   * ```
-   */
-  activityDefaults?: ActivityOptions;
-
-  /**
    * If provided, automatically discover Workflows and Activities relative to path.
    *
-   * @see {@link activitiesPath}, {@link workflowsPath}, and {@link nodeModulesPath}
+   * @see {@link activities}, {@link workflowsPath}, and {@link nodeModulesPath}
    */
   workDir?: string;
 
   /**
-   * Path to look up activities in.
-   * Automatically discovered if {@link workDir} is provided.
-   * @default ${workDir}/../activities
+   * Mapping of activity name to implementation.
+   *
+   * Automatically discovered from `${workDir}/activities` if {@link workDir} is provided.
    */
-  activitiesPath?: string;
+  activities?: ActivityInterface;
 
   /**
    * Path to look up workflows in.
    * Automatically discovered if {@link workDir} is provided.
-   * @default ${workDir}/../workflows
+   * @default ${workDir}/workflows
    */
   workflowsPath?: string;
 
   /**
    * Path for webpack to look up modules in for bundling the Workflow code.
    * Automatically discovered if {@link workDir} is provided.
-   * @default ${workDir}/../../node_modules
+   * @default ${workDir}/../node_modules
    */
   nodeModulesPath?: string;
 
@@ -229,6 +206,22 @@ export interface WorkerOptions {
   isolatePoolSize?: number;
 
   /**
+   * The number of Workflow isolates to keep in cached in memory
+   *
+   * Cached Workflows continue execution from their last stopping point.
+   * If the Worker is asked to run an uncached Workflow, it will need to replay the entire Workflow history.
+   * Use as a dial for trading memory for CPU time.
+   *
+   * You should be able to fit about 500 Workflows per GB of memory dependening on your Workflow bundle size.
+   * For the SDK test Workflows, we managed to fit 750 Workflows per GB.
+   *
+   * This number is impacted by the the Worker's {@link maxIsolateMemoryMB} option.
+   *
+   * @default `max(os.totalmem() / 1GiB - 1, 1) * 500`
+   */
+  maxCachedWorkflows?: number;
+
+  /**
    * A mapping of interceptor type to a list of factories or module paths
    */
   interceptors?: WorkerInterceptors;
@@ -251,7 +244,6 @@ export type WorkerOptionsWithDefaults<T extends WorkerSpec = DefaultWorkerSpec> 
       | 'shutdownSignals'
       | 'dataConverter'
       | 'logger'
-      | 'activityDefaults'
       | 'maxConcurrentActivityTaskExecutions'
       | 'maxConcurrentWorkflowTaskExecutions'
       | 'maxConcurrentActivityTaskPolls'
@@ -261,6 +253,7 @@ export type WorkerOptionsWithDefaults<T extends WorkerSpec = DefaultWorkerSpec> 
       | 'isolateExecutionTimeout'
       | 'maxIsolateMemoryMB'
       | 'isolatePoolSize'
+      | 'maxCachedWorkflows'
     >
   >;
 
@@ -288,14 +281,13 @@ export function addDefaults<T extends WorkerSpec>(options: WorkerSpecOptions<T>)
   // Typescript is really struggling with the conditional exisitence of the dependencies attribute.
   // Help it out without sacrificing type safety of the other attributes.
   const ret: Omit<WorkerOptionsWithDefaults<T>, 'dependencies'> = {
-    activitiesPath: workDir ? resolve(workDir, '../activities') : undefined,
-    workflowsPath: workDir ? resolve(workDir, '../workflows') : undefined,
-    nodeModulesPath: workDir ? resolve(workDir, '../../node_modules') : undefined,
+    activities: workDir ? require(resolve(workDir, 'activities')) : undefined,
+    workflowsPath: workDir ? resolve(workDir, 'workflows') : undefined,
+    nodeModulesPath: workDir ? resolve(workDir, '../node_modules') : undefined,
     shutdownGraceTime: '5s',
     shutdownSignals: ['SIGINT', 'SIGTERM', 'SIGQUIT'],
     dataConverter: defaultDataConverter,
     logger: new DefaultLogger(),
-    activityDefaults: { type: 'remote', startToCloseTimeout: '10m' },
     maxConcurrentActivityTaskExecutions: 100,
     maxConcurrentWorkflowTaskExecutions: 100,
     maxConcurrentActivityTaskPolls: 5,
@@ -305,6 +297,7 @@ export function addDefaults<T extends WorkerSpec>(options: WorkerSpecOptions<T>)
     isolateExecutionTimeout: '1s',
     maxIsolateMemoryMB: Math.max(os.totalmem() - GiB, GiB) / MiB,
     isolatePoolSize: 8,
+    maxCachedWorkflows: options.maxCachedWorkflows || Math.max(os.totalmem() / GiB - 1, 1) * 500,
     ...rest,
   };
   return ret as WorkerOptionsWithDefaults<T>;
@@ -325,22 +318,13 @@ export function compileWorkerOptions<T extends WorkerSpec>(
  * The worker's possible states
  * * `INITIALIZED` - The initial state of the Worker after calling {@link Worker.create} and successful connection to the server
  * * `RUNNING` - {@link Worker.run} was called, polling task queues
- * * `SUSPENDED` - {@link Worker.suspendPolling} was called, not polling for new tasks
- * * `STOPPING` - {@link Worker.shutdown} was called or received shutdown signal
- * * `DRAINING` - Core has indicated that shutdown is complete, allow activations and tasks to complete with respect to {@link WorkerOptions.shutdownGraceTime | shutdownGraceTime}
- * * `DRAINED` - Draining complete, completing shutdown
+ * * `STOPPING` - {@link Worker.shutdown} was called or received shutdown signal, worker will forcefully shutdown in {@link WorkerOptions.shutdownGraceTime | shutdownGraceTime}
+ * * `DRAINING` - Core has indicated that shutdown is complete and all Workflow tasks have been drained, waiting for activities and cached workflows eviction
+ * * `DRAINED` - All activities and workflows have completed, ready to shutdown
  * * `STOPPED` - Shutdown complete, {@link Worker.run} resolves
  * * `FAILED` - Worker encountered an unrecoverable error, {@link Worker.run} should reject with the error
  */
-export type State =
-  | 'INITIALIZED'
-  | 'RUNNING'
-  | 'STOPPED'
-  | 'STOPPING'
-  | 'DRAINING'
-  | 'DRAINED'
-  | 'FAILED'
-  | 'SUSPENDED';
+export type State = 'INITIALIZED' | 'RUNNING' | 'STOPPED' | 'STOPPING' | 'DRAINING' | 'DRAINED' | 'FAILED';
 
 type ExtractToPromise<T> = T extends (err: any, result: infer R) => void ? Promise<R> : never;
 // For some reason the lint rule doesn't realize that _I should be ignored
@@ -447,30 +431,28 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
     const compiledOptions = compileWorkerOptions(addDefaults(options));
     // Pass dependencies as undefined to please the type checker
     const nativeWorker = await nativeWorkerCtor.create({ ...compiledOptions, dependencies: undefined });
-    const resolvedActivities = compiledOptions.activitiesPath
-      ? await WorkflowIsolateBuilder.resolveActivities(compiledOptions.logger, compiledOptions.activitiesPath)
-      : new Map();
-
-    if (!(compiledOptions.workflowsPath && compiledOptions.nodeModulesPath)) {
+    let contextProvider: IsolateContextProvider | undefined = undefined;
+    // Allow only both or none to be provided
+    if (Boolean(compiledOptions.workflowsPath) !== Boolean(compiledOptions.nodeModulesPath)) {
       throw new TypeError(
         'Could not build isolates for the worker due to missing WorkerOptions. Make sure you specify the `workDir` option, or both the `workflowsPath` and `nodeModulesPath` options.'
       );
     }
+    if (compiledOptions.workflowsPath && compiledOptions.nodeModulesPath) {
+      const builder = new WorkflowIsolateBuilder(
+        compiledOptions.logger,
+        compiledOptions.nodeModulesPath,
+        compiledOptions.workflowsPath,
+        compiledOptions.interceptors?.workflowModules
+      );
+      contextProvider = await RoundRobinIsolateContextProvider.create(
+        builder,
+        compiledOptions.isolatePoolSize,
+        compiledOptions.maxIsolateMemoryMB
+      );
+    }
 
-    const builder = new WorkflowIsolateBuilder(
-      compiledOptions.logger,
-      compiledOptions.nodeModulesPath,
-      compiledOptions.workflowsPath,
-      resolvedActivities,
-      compiledOptions.interceptors?.workflowModules
-    );
-    const contextProvider = await RoundRobinIsolateContextProvider.create(
-      builder,
-      compiledOptions.isolatePoolSize,
-      compiledOptions.maxIsolateMemoryMB
-    );
-
-    return new this(nativeWorker, contextProvider, resolvedActivities, compiledOptions);
+    return new this(nativeWorker, contextProvider, compiledOptions);
   }
 
   /**
@@ -478,8 +460,10 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
    */
   protected constructor(
     protected readonly nativeWorker: NativeWorkerLike,
-    protected readonly isolateContextProvider: IsolateContextProvider,
-    protected readonly resolvedActivities: Map<string, Record<string, (...args: any[]) => any>>,
+    /**
+     * Optional IsolateContextProvider - if not provided, Worker will not poll on workflows
+     */
+    protected readonly isolateContextProvider: IsolateContextProvider | undefined,
     public readonly options: CompiledWorkerOptions<T>
   ) {}
 
@@ -526,42 +510,23 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
   }
 
   /**
-   * Do not make new poll requests, current poll request is not cancelled and may complete.
-   */
-  public suspendPolling(): void {
-    if (this.state !== 'RUNNING') {
-      throw new IllegalStateError('Not running');
-    }
-    this.state = 'SUSPENDED';
-  }
-
-  /**
-   * Allow new poll requests.
-   */
-  public resumePolling(): void {
-    if (this.state !== 'SUSPENDED') {
-      throw new IllegalStateError('Not suspended');
-    }
-    this.state = 'RUNNING';
-  }
-
-  public isSuspended(): boolean {
-    return this.state === 'SUSPENDED';
-  }
-
-  /**
    * Start shutting down the Worker.
    * Immediately transitions state to STOPPING and asks Core to shut down.
-   * Once Core has confirmed that it's shutting down the Worker enters DRAINING state.
+   * Once Core has confirmed that it's shutting down the Worker enters DRAINING state
+   * unless the Worker has already been DRAINED.
    * {@see State}.
    */
   shutdown(): void {
-    if (this.state !== 'RUNNING' && this.state !== 'SUSPENDED') {
-      throw new IllegalStateError('Not running and not suspended');
+    if (this.state !== 'RUNNING') {
+      throw new IllegalStateError('Not running');
     }
     this.state = 'STOPPING';
     this.nativeWorker.shutdown().then(() => {
-      this.state = 'DRAINING';
+      // Core may have already returned a ShutdownError to our pollers in which
+      // case the state would transition to DRAINED
+      if (this.state === 'STOPPING') {
+        this.state = 'DRAINING';
+      }
     });
   }
 
@@ -591,29 +556,19 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
    * The observable stops emitting once core is shutting down.
    */
   protected pollLoop$<T>(pollFn: () => Promise<T>): Observable<T> {
-    return of(this.stateSubject).pipe(
-      map((state) => state.getValue()),
-      concatMap((state) => {
-        switch (state) {
-          case 'RUNNING':
-          case 'STOPPING':
-          case 'DRAINING':
-            return pollFn();
-          case 'SUSPENDED':
-            // Completes once we're out of SUSPENDED state
-            return this.stateSubject.pipe(
-              filter((st) => st !== 'SUSPENDED'),
-              first(),
-              ignoreElements()
-            );
-          default:
-            // transition to DRAINED | FAILED happens only when an error occurs
-            // in which case this observable would be closed
-            throw new IllegalStateError(`Unexpected state ${state}`);
+    return from(
+      (async function* () {
+        for (;;) {
+          try {
+            yield await pollFn();
+          } catch (err) {
+            if (err instanceof errors.ShutdownError) {
+              break;
+            }
+            throw err;
+          }
         }
-      }),
-      repeat(),
-      catchError((err) => (err instanceof errors.ShutdownError ? EMPTY : throwError(err)))
+      })()
     );
   }
 
@@ -654,22 +609,18 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
                       this.options.dataConverter,
                       this.nativeWorker.namespace
                     );
-                    const [path, fnName] = info.activityType;
-                    const module = this.resolvedActivities.get(path);
-                    if (module === undefined) {
-                      output = {
-                        type: 'result',
-                        result: { failed: { failure: { message: `Activity module not found: ${path}` } } },
-                        parentSpan,
-                      };
-                      break;
-                    }
-                    const fn = module[fnName];
+                    const { activityType } = info;
+                    const fn = this.options.activities?.[activityType];
                     if (!(fn instanceof Function)) {
                       output = {
                         type: 'result',
                         result: {
-                          failed: { failure: { message: `Activity function ${fnName} not found in: ${path}` } },
+                          failed: {
+                            failure: {
+                              message: `Activity function ${activityType} is not registered in this worker`,
+                              applicationFailureInfo: { type: 'NotFoundError', nonRetryable: true },
+                            },
+                          },
                         },
                         parentSpan,
                       };
@@ -684,7 +635,13 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
                         result: {
                           failed: {
                             failure: {
-                              message: `Failed to parse activity args for activity ${fnName}: ${err.message}`,
+                              message: `Failed to parse activity args for activity ${activityType}: ${errorMessage(
+                                err
+                              )}`,
+                              applicationFailureInfo: {
+                                type: err instanceof Error ? err.name : undefined,
+                                nonRetryable: true,
+                              },
                             },
                           },
                         },
@@ -697,7 +654,7 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
                       args,
                       headers,
                     };
-                    this.log.debug('Starting activity', { activityId, path, fnName });
+                    this.log.debug('Starting activity', { activityId, activityType });
 
                     activity = new Activity(
                       info,
@@ -765,27 +722,27 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
    * Process workflow activations
    */
   protected workflowOperator(): OperatorFunction<ActivationWithContext, ContextAware<{ completion: Uint8Array }>> {
+    const { isolateContextProvider } = this;
+    if (isolateContextProvider === undefined) {
+      throw new IllegalStateError('Cannot process workflows without an IsolateContextProvider');
+    }
     return pipe(
       closeableGroupBy(({ activation }) => activation.runId),
       mergeMap((group$) => {
         return merge(
-          group$,
-          this.workflowsIdle$().pipe(
+          group$.pipe(map((act) => ({ ...act, synthetic: false }))),
+          this.stateSubject.pipe(
+            // Core has indicated that it will not return any more poll results, evict all cached WFs
+            filter((state) => state === 'DRAINING'),
             first(),
-            map((): ContextAware<{ activation: coresdk.workflow_activation.WFActivation; span: otel.Span }> => {
-              const parentSpan = tracer.startSpan('workflow.shutdown.evict');
+            map((): ContextAware<{ activation: coresdk.workflow_activation.WFActivation; synthetic: true }> => {
               return {
-                parentSpan,
-                span: childSpan(parentSpan, 'workflow.process', {
-                  attributes: {
-                    numInFlightActivations: this.numInFlightActivationsSubject.value,
-                    numRunningWorkflowInstances: this.numRunningWorkflowInstancesSubject.value,
-                  },
-                }),
+                parentSpan: tracer.startSpan('workflow.shutdown.evict'),
                 activation: new coresdk.workflow_activation.WFActivation({
                   runId: group$.key,
                   jobs: [{ removeFromCache: true }],
                 }),
+                synthetic: true,
               };
             })
           )
@@ -796,7 +753,7 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
           mergeMapWithState(
             async (
               workflow: Workflow | undefined,
-              { activation, parentSpan }
+              { activation, parentSpan, synthetic }
             ): Promise<{
               state: Workflow | undefined;
               output: ContextAware<{ completion?: Uint8Array; close: boolean }>;
@@ -818,7 +775,13 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
                       throw new IllegalStateError(message);
                     }
                     this.log.debug('Disposing workflow', { runId: activation.runId });
-                    return { state: undefined, output: { close, completion: undefined, parentSpan } };
+                    const completion = synthetic
+                      ? undefined
+                      : coresdk.workflow_completion.WFActivationCompletion.encodeDelimited({
+                          runId: activation.runId,
+                          successful: {},
+                        }).finish();
+                    return { state: undefined, output: { close, completion, parentSpan } };
                   }
 
                   if (workflow === undefined) {
@@ -842,7 +805,7 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
                       this.numRunningWorkflowInstancesSubject.next(this.numRunningWorkflowInstancesSubject.value + 1);
                       // workflow type is Workflow | undefined which doesn't work in the instrumented closures, create add local variable with type Workflow.
                       const createdWF = await instrument(span, 'workflow.create', async () => {
-                        const context = await this.isolateContextProvider.getContext();
+                        const context = await isolateContextProvider.getContext();
 
                         return await Workflow.create(
                           context,
@@ -854,7 +817,6 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
                             taskQueue: this.options.taskQueue,
                             isReplaying: activation.isReplaying,
                           },
-                          this.options.activityDefaults,
                           this.options.interceptors?.workflowModules ?? [],
                           randomnessSeed,
                           this.options.isolateExecutionTimeoutMs
@@ -1009,21 +971,16 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
 
   /**
    * Poll for Workflow activations, handle them, and report completions.
-   *
-   * @param workflowCompletionFeedbackSubject used to send back cache evictions when completing an activation with a WorkflowError
    */
-  protected workflow$(workflowCompletionFeedbackSubject = new Subject<ActivationWithContext>()): Observable<void> {
+  protected workflow$(): Observable<void> {
+    if (this.isolateContextProvider === undefined) {
+      return EMPTY;
+    }
     if (this.options.taskQueue === undefined) {
       throw new TypeError('Worker taskQueue not defined');
     }
 
-    // Consume activations from Core and the feedback subject
-    return merge(
-      this.workflowPoll$(),
-      // We can stop subscribing to this when we're in DRAINING state,
-      // workflows will eventually be evicted when numInFlightActivations is 0
-      workflowCompletionFeedbackSubject.pipe(this.takeUntilState('DRAINING'))
-    ).pipe(
+    return this.workflowPoll$().pipe(
       this.workflowOperator(),
       mergeMap(async ({ completion, parentSpan: root }) => {
         const span = childSpan(root, 'workflow.complete');
@@ -1031,16 +988,9 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
           await this.nativeWorker.completeWorkflowActivation(completion.buffer.slice(completion.byteOffset));
           span.setStatus({ code: otel.SpanStatusCode.OK });
         } catch (err) {
-          span.setStatus({ code: otel.SpanStatusCode.ERROR, message: err.message });
-          if (err instanceof errors.WorkflowError) {
-            workflowCompletionFeedbackSubject.next({
-              parentSpan: root,
-              activation: new coresdk.workflow_activation.WFActivation({
-                runId: err.runId,
-                jobs: [{ removeFromCache: true }],
-              }),
-            });
-          } else {
+          span.setStatus({ code: otel.SpanStatusCode.ERROR, message: errorMessage(err) });
+          // Expect Core to issue an eviction in this case
+          if (!(err instanceof errors.WorkflowError)) {
             throw err;
           }
         } finally {
@@ -1079,6 +1029,11 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
   }
 
   protected activity$(): Observable<void> {
+    // TODO: Let core know that we're not interested in polling on activities
+    // Don't even bother polling if no activities have been registered
+    if (this.options.activities === undefined || Object.keys(this.options.activities).length === 0) {
+      return EMPTY;
+    }
     return this.activityPoll$().pipe(
       this.activityOperator(),
       mergeMap(async ({ completion, parentSpan }) => {
@@ -1096,23 +1051,6 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
 
   protected takeUntilState<T>(state: State): MonoTypeOperatorFunction<T> {
     return takeUntil(this.stateSubject.pipe(filter((value) => value === state)));
-  }
-
-  protected workflowsIdle$(): Observable<void> {
-    return merge(
-      this.stateSubject.pipe(map((state) => ({ state }))),
-      this.numInFlightActivationsSubject.pipe(map((numInFlightActivations) => ({ numInFlightActivations })))
-    ).pipe(
-      scan(
-        (acc: { state?: State; numInFlightActivations?: number }, curr) => ({
-          ...acc,
-          ...curr,
-        }),
-        {}
-      ),
-      filter(({ state, numInFlightActivations }) => state === 'DRAINING' && numInFlightActivations === 0),
-      mapTo(undefined)
-    );
   }
 
   protected setupShutdownHook(): void {
@@ -1143,18 +1081,18 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
     this.setupShutdownHook();
 
     try {
-      await merge(
-        this.gracefulShutdown$(),
-        this.activityHeartbeat$(),
-        merge(this.workflow$(), this.activity$()).pipe(
-          tap({
-            complete: () => {
-              this.state = 'DRAINED';
-            },
-          })
-        )
-      )
-        .pipe(
+      await lastValueFrom(
+        merge(
+          this.gracefulShutdown$(),
+          this.activityHeartbeat$(),
+          merge(this.workflow$(), this.activity$()).pipe(
+            tap({
+              complete: () => {
+                this.state = 'DRAINED';
+              },
+            })
+          )
+        ).pipe(
           tap({
             complete: () => {
               this.state = 'STOPPED';
@@ -1164,18 +1102,19 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
               this.state = 'FAILED';
             },
           })
-        )
-        .toPromise();
+        ),
+        { defaultValue: undefined }
+      );
     } finally {
       await this.nativeWorker.completeShutdown();
-      this.isolateContextProvider.destroy();
+      this.isolateContextProvider?.destroy();
     }
   }
 
   /**
    * Log when an external dependency function throws an error in IGNORED mode and throw otherwise
    */
-  protected handleExternalDependencyError(workflowInfo: WorkflowInfo, applyMode: ApplyMode, error: Error): void {
+  protected handleExternalDependencyError(workflowInfo: WorkflowInfo, applyMode: ApplyMode, error: unknown): void {
     if (applyMode === ApplyMode.SYNC_IGNORED || applyMode === ApplyMode.ASYNC_IGNORED) {
       this.log.error('External dependency function threw an error', {
         workflowInfo,
@@ -1202,14 +1141,13 @@ async function extractActivityInfo(
   // NOTE: We trust core to supply all of these fields instead of checking for null and undefined everywhere
   const { taskToken, activityId } = task as NonNullableObject<coresdk.activity_task.IActivityTask>;
   const start = task.start as NonNullableObject<coresdk.activity_task.IStart>;
-  const activityType = JSON.parse(start.activityType);
   return {
     taskToken,
     activityId,
     workflowExecution: start.workflowExecution as NonNullableObject<coresdk.common.WorkflowExecution>,
     attempt: start.attempt,
     isLocal,
-    activityType,
+    activityType: start.activityType,
     workflowType: start.workflowType,
     heartbeatDetails: await dataConverter.fromPayloads(0, start.heartbeatDetails),
     activityNamespace,

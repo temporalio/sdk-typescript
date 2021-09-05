@@ -2,6 +2,24 @@ import { TLSConfig } from '@temporalio/common';
 
 export { TLSConfig };
 
+export interface RetryOptions {
+  /** Initial wait time before the first retry. */
+  initialInterval: number;
+  /**
+   * Randomization jitter that is used as a multiplier for the current retry interval
+   * and is added or subtracted from the interval length.
+   */
+  randomizationFactor: number;
+  /** Rate at which retry time should be increased, until it reaches max_interval. */
+  multiplier: number;
+  /** Maximum amount of time to wait between retries. */
+  maxInterval: number;
+  /** Maximum total amount of time requests should be retried for, if None is set then no limit will be used. */
+  maxElapsedTime?: number;
+  /** Maximum number of retry attempts. */
+  maxRetries: number;
+}
+
 export interface ServerOptions {
   /**
    * The URL of the Temporal server to connect to
@@ -32,6 +50,11 @@ export interface ServerOptions {
    * connect with TLS without any customization.
    */
   tls?: TLSConfig;
+
+  /**
+   * Optional retry options for server requests.
+   */
+  retry?: RetryOptions;
 }
 
 /**
@@ -42,10 +65,6 @@ export interface CoreOptions {
    * Options for communicating with the Temporal server
    */
   serverOptions: ServerOptions;
-  /**
-   * Maximum number of Workflow instances to cache before automatic eviction
-   */
-  maxCachedWorkflows: number;
 }
 
 export interface WorkerOptions {
@@ -71,6 +90,11 @@ export interface WorkerOptions {
    * and moved to the non-sticky queue where it may be picked up by any worker.
    */
   stickyQueueScheduleToStartTimeoutMs: number;
+
+  /**
+   * Maximum number of Workflow instances to cache before automatic eviction
+   */
+  maxCachedWorkflows: number;
 }
 
 export interface Worker {}

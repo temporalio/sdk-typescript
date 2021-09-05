@@ -17,6 +17,9 @@ import {
 } from '@temporalio/worker/lib/isolate-context-provider';
 import { DefaultLogger } from '@temporalio/worker';
 import { sleep } from '@temporalio/worker/lib/utils';
+// We import from the worker's version of rxjs because inquirer (transitive dependency) uses an older rxjs version
+import { lastValueFrom } from '@temporalio/worker/node_modules/rxjs';
+import * as activities from './activities';
 
 function addActivityStartDefaults(task: coresdk.activity_task.IActivityTask) {
   // Add some defaults for convenience
@@ -56,8 +59,9 @@ export class MockNativeWorker implements NativeWorkerLike {
   }
 
   public async shutdown(): Promise<void> {
-    this.activityTasks.unshift(Promise.reject(new errors.ShutdownError('Core is shut down')));
-    this.workflowActivations.unshift(Promise.reject(new errors.ShutdownError('Core is shut down')));
+    const shutdownErrorPromise = Promise.reject(new errors.ShutdownError('Core is shut down'));
+    this.activityTasks.unshift(shutdownErrorPromise);
+    this.workflowActivations.unshift(shutdownErrorPromise);
   }
 
   public async pollWorkflowActivation(): Promise<ArrayBuffer> {
@@ -154,24 +158,20 @@ export class Worker extends RealWorker {
     return this.nativeWorker as MockNativeWorker;
   }
 
-  public constructor(
-    isolateContextProvider: IsolateContextProvider,
-    resolvedActivities: Map<string, Record<string, (...args: any[]) => any>>,
-    opts: CompiledWorkerOptions
-  ) {
+  public constructor(isolateContextProvider: IsolateContextProvider, opts: CompiledWorkerOptions) {
     const nativeWorker = new MockNativeWorker();
-    super(nativeWorker, isolateContextProvider, resolvedActivities, opts);
+    super(nativeWorker, isolateContextProvider, opts);
   }
 
   public runWorkflows(...args: Parameters<Worker['workflow$']>): Promise<void> {
     this.state = 'RUNNING';
-    return this.workflow$(...args).toPromise();
+    return lastValueFrom(this.workflow$(...args), { defaultValue: undefined });
   }
 }
 
 export const defaultOptions: WorkerOptions = {
   workflowsPath: `${__dirname}/workflows`,
-  activitiesPath: `${__dirname}/activities`,
+  activities,
   nodeModulesPath: `${__dirname}/../../../node_modules`,
   taskQueue: 'test',
 };
@@ -183,21 +183,12 @@ export async function makeDefaultWorker(): Promise<Worker> {
       logger: new DefaultLogger('DEBUG'),
     })
   );
-  const resolvedActivities = await WorkflowIsolateBuilder.resolveActivities(options.logger, options.activitiesPath!);
-  const builder = new WorkflowIsolateBuilder(
-    options.logger,
-    options.nodeModulesPath!,
-    options.workflowsPath!,
-    resolvedActivities
-  );
+  const builder = new WorkflowIsolateBuilder(options.logger, options.nodeModulesPath!, options.workflowsPath!);
   const provider = await RoundRobinIsolateContextProvider.create(builder, 1, 1024);
-  return new Worker(provider, resolvedActivities, options);
+  return new Worker(provider, options);
 }
 
-export function isolateFreeWorker(
-  options: WorkerOptions = defaultOptions,
-  resolvedActivities: Map<string, Record<string, any>> = new Map()
-): Worker {
+export function isolateFreeWorker(options: WorkerOptions = defaultOptions): Worker {
   return new Worker(
     {
       getContext() {
@@ -207,7 +198,6 @@ export function isolateFreeWorker(
         /* Nothing to destroy */
       },
     },
-    resolvedActivities,
     compileWorkerOptions(addDefaults(options))
   );
 }

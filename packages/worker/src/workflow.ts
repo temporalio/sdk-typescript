@@ -3,8 +3,7 @@ import Long from 'long';
 import dedent from 'dedent';
 import { coresdk } from '@temporalio/proto';
 import * as internals from '@temporalio/workflow/lib/worker-interface';
-import { ActivityOptions } from '@temporalio/common';
-import { ExternalDependencyFunction, WorkflowInfo } from '@temporalio/workflow';
+import { ExternalDependencyFunction, WorkflowInfo, ExternalCall } from '@temporalio/workflow';
 import { ApplyMode } from './dependencies';
 
 interface WorkflowModule {
@@ -32,7 +31,6 @@ export class Workflow {
   public static async create(
     context: ivm.Context,
     info: WorkflowInfo,
-    activityDefaults: ActivityOptions,
     interceptorModules: string[],
     randomnessSeed: Long,
     isolateExecutionTimeoutMs: number
@@ -56,8 +54,8 @@ export class Workflow {
     );
 
     await context.evalClosure(
-      'lib.initRuntime($0, $1, $2, $3, $4)',
-      [info, activityDefaults, interceptorModules, randomnessSeed.toBytes(), isolateExtension.derefInto()],
+      'lib.initRuntime($0, $1, $2, $3)',
+      [info, interceptorModules, randomnessSeed.toBytes(), isolateExtension.derefInto()],
       { arguments: { copy: true }, timeout: isolateExecutionTimeoutMs }
     );
 
@@ -138,10 +136,7 @@ export class Workflow {
   /**
    * Call external dependency functions in the Node.js isolate as requested by the Workflow isolate.
    */
-  protected async processExternalCalls(
-    externalCalls: internals.ExternalCall[],
-    sendResultsBack: boolean
-  ): Promise<void> {
+  protected async processExternalCalls(externalCalls: ExternalCall[], sendResultsBack: boolean): Promise<void> {
     const results = await Promise.all(
       externalCalls.map(async ({ ifaceName, fnName, args, seq }) => {
         const fn = this.dependencies[ifaceName]?.[fnName];
@@ -172,6 +167,24 @@ export class Workflow {
     if (!activation.jobs) {
       throw new Error('Expected workflow activation jobs to be defined');
     }
+
+    // Process notify change jobs first
+    // TODO: Only doing this b/c I need to prevent workflows that don't do anything else from
+    //   "completing" before they have a chance to run the notify change job. In general this
+    //   seems like a bit of a hole that would also apply to signals, as noted below.
+    activation.jobs.sort((a, b) => {
+      const aIsPatch = a.notifyHasPatch !== undefined;
+      const bIsPatch = b.notifyHasPatch !== undefined;
+
+      if (aIsPatch === bIsPatch) {
+        return 0;
+      } else if (aIsPatch) {
+        return -1;
+      } else {
+        return 1;
+      }
+    });
+
     const arr = coresdk.workflow_activation.WFActivation.encodeDelimited(activation).finish();
     try {
       // Loop and invoke each job with entire microtasks chain.

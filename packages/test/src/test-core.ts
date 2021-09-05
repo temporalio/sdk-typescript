@@ -57,10 +57,10 @@ if (RUN_INTEGRATION_TESTS) {
   // Core configuration was installed, creating a new Worker after Core shutdown we would fallback
   // to the default configuration (localhost) which is surprising behavior.
   test.serial('Core.instance() remembers installed options after it has been shut down', async (t) => {
-    await Core.install({ maxCachedWorkflows: 1 });
+    await Core.install({ serverOptions: { workerBinaryId: 'test-id' } });
     {
       const core = await Core.instance();
-      t.is(core.options.maxCachedWorkflows, 1);
+      t.is(core.options.serverOptions.workerBinaryId, 'test-id');
     }
     const worker = await Worker.create({
       ...defaultOptions,
@@ -71,7 +71,7 @@ if (RUN_INTEGRATION_TESTS) {
     await workerDrained;
     {
       const core = await Core.instance();
-      t.is(core.options.maxCachedWorkflows, 1);
+      t.is(core.options.serverOptions.workerBinaryId, 'test-id');
     }
   });
 }

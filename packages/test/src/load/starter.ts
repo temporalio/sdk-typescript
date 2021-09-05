@@ -15,9 +15,17 @@ interface RunWorkflowOptions {
   taskQueue: string;
   numWorkflows: number;
   concurrency: number;
+  minWFPS: number;
 }
 
-async function runWorkflows({ client, workflowName: name, taskQueue, numWorkflows, concurrency }: RunWorkflowOptions) {
+async function runWorkflows({
+  client,
+  workflowName: name,
+  taskQueue,
+  numWorkflows,
+  concurrency,
+  minWFPS,
+}: RunWorkflowOptions): Promise<boolean> {
   let prevIterationTime = process.hrtime.bigint();
   let totalTime = 0;
   let numComplete = 0;
@@ -45,6 +53,14 @@ async function runWorkflows({ client, workflowName: name, taskQueue, numWorkflow
       })
     )
     .toPromise();
+  const finalWfsPerSec = numComplete / totalTime;
+  if (finalWfsPerSec < minWFPS) {
+    console.error(
+      `Insufficient overall workflows per second upon test completion: ${finalWfsPerSec} less than ${minWFPS}`
+    );
+    return false;
+  }
+  return true;
 }
 
 async function main() {
@@ -52,6 +68,7 @@ async function main() {
   const workflowName = args['--workflow'] || 'cancel-fake-progress';
   const iterations = args['--iterations'] || 1000;
   const concurrentWFClients = args['--concurrent-wf-clients'] || 100;
+  const minWFPS = args['--min-wfs-per-sec'] || 35;
   const serverAddress = getRequired(args, '--server-address');
   const namespace = getRequired(args, '--ns');
   const taskQueue = getRequired(args, '--task-queue');
@@ -60,13 +77,17 @@ async function main() {
 
   const client = new WorkflowClient(connection.service, { namespace });
 
-  await runWorkflows({
+  const passed = await runWorkflows({
     client,
     workflowName,
     taskQueue,
     numWorkflows: iterations,
     concurrency: concurrentWFClients,
+    minWFPS,
   });
+  if (!passed) {
+    process.exit(1);
+  }
 }
 
 main().catch((err) => {

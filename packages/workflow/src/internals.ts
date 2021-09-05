@@ -1,7 +1,6 @@
 import Long from 'long';
 import * as protobufjs from 'protobufjs/minimal';
 import {
-  ActivityOptions,
   ApplicationFailure,
   composeInterceptors,
   errorToFailure,
@@ -14,12 +13,14 @@ import {
   DataConverter,
   defaultDataConverter,
   arrayFromPayloadsSync,
+  errorMessage,
 } from '@temporalio/common';
 import { coresdk } from '@temporalio/proto/lib/coresdk';
 import { alea, RNG } from './alea';
-import { ContinueAsNew, ExternalDependencies, WorkflowInfo } from './interfaces';
-import { SignalInput, WorkflowInput, WorkflowInterceptors } from './interceptors';
+import { ContinueAsNew, WorkflowInfo } from './interfaces';
+import { QueryInput, SignalInput, WorkflowInput, WorkflowInterceptors } from './interceptors';
 import { DeterminismViolationError, WorkflowExecutionAlreadyStartedError, isCancellation } from './errors';
+import { ExternalCall, ExternalDependencies } from './dependencies';
 import { ROOT_SCOPE } from './cancellation-scope';
 
 export type ResolveFunction<T = any> = (val: T) => any;
@@ -47,7 +48,7 @@ export class Activator implements ActivationHandler {
     try {
       mod = req();
     } catch (err) {
-      const failure = ApplicationFailure.nonRetryable(err.message, 'ReferenceError');
+      const failure = ApplicationFailure.nonRetryable(errorMessage(err), 'ReferenceError');
       failure.stack = failure.stack?.split('\n')[0];
       throw failure;
     }
@@ -60,12 +61,6 @@ export class Activator implements ActivationHandler {
     if (req === undefined || info === undefined) {
       throw new IllegalStateError('Workflow has not been initialized');
     }
-    for (const mod of state.interceptorModules) {
-      const { interceptors } = req(mod) as { interceptors: WorkflowInterceptors };
-      state.interceptors.inbound.push(...interceptors.inbound);
-      state.interceptors.outbound.push(...interceptors.outbound);
-    }
-
     const execute = composeInterceptors(
       state.interceptors.inbound,
       'execute',
@@ -85,7 +80,7 @@ export class Activator implements ActivationHandler {
   }
 
   public fireTimer(activation: coresdk.workflow_activation.IFireTimer): void {
-    const { resolve } = consumeCompletion(idToSeq(activation, 'timerId'));
+    const { resolve } = consumeCompletion('timer', getSeq(activation));
     resolve(undefined);
   }
 
@@ -93,7 +88,7 @@ export class Activator implements ActivationHandler {
     if (!activation.result) {
       throw new TypeError('Got ResolveActivity activation with no result');
     }
-    const { resolve, reject } = consumeCompletion(idToSeq(activation, 'activityId'));
+    const { resolve, reject } = consumeCompletion('activity', getSeq(activation));
     if (activation.result.completed) {
       const completed = activation.result.completed;
       const result = completed.result ? state.dataConverter.fromPayloadSync(completed.result) : undefined;
@@ -112,7 +107,7 @@ export class Activator implements ActivationHandler {
   public async resolveChildWorkflowExecutionStart(
     activation: coresdk.workflow_activation.IResolveChildWorkflowExecutionStart
   ): Promise<void> {
-    const { resolve, reject } = consumeCompletion(`start-${idToSeq(activation, 'workflowId')}`);
+    const { resolve, reject } = consumeCompletion('childWorkflowStart', getSeq(activation));
     if (activation.succeeded) {
       resolve(activation.succeeded.runId);
     } else if (activation.failed) {
@@ -123,13 +118,13 @@ export class Activator implements ActivationHandler {
       ) {
         throw new IllegalStateError('Got unknown StartChildWorkflowExecutionFailedCause');
       }
-      if (!(activation.workflowId && activation.failed?.workflowType)) {
+      if (!(activation.seq && activation.failed?.workflowType)) {
         throw new TypeError('Missing attributes in activation job');
       }
       reject(
         new WorkflowExecutionAlreadyStartedError(
           'Workflow execution already started',
-          activation.workflowId,
+          'TODO: activation.workflowId',
           activation.failed.workflowType
         )
       );
@@ -149,7 +144,7 @@ export class Activator implements ActivationHandler {
     if (!activation.result) {
       throw new TypeError('Got ResolveChildWorkflowExecution activation with no result');
     }
-    const { resolve, reject } = consumeCompletion(`complete-${idToSeq(activation, 'workflowId')}`);
+    const { resolve, reject } = consumeCompletion('childWorkflowComplete', getSeq(activation));
     if (activation.result.completed) {
       const completed = activation.result.completed;
       const result = completed.result ? await state.dataConverter.fromPayload(completed.result) : undefined;
@@ -169,23 +164,29 @@ export class Activator implements ActivationHandler {
     }
   }
 
+  protected async queryWorkflowNextHandler(input: QueryInput): Promise<unknown> {
+    const fn = state.workflow?.queries?.[input.queryName];
+    if (fn === undefined) {
+      // Fail the query
+      throw new ReferenceError(`Workflow did not register a handler for ${input.queryName}`);
+    }
+    const ret = fn(...input.args);
+    if (ret instanceof Promise) {
+      throw new DeterminismViolationError('Query handlers should not return a Promise');
+    }
+    return ret;
+  }
+
   public queryWorkflow(activation: coresdk.workflow_activation.IQueryWorkflow): void {
     const { queryType, queryId } = activation;
     if (!(queryType && queryId)) {
       throw new TypeError('Missing query activation attributes');
     }
-    const execute = composeInterceptors(state.interceptors.inbound, 'handleQuery', async (input) => {
-      const fn = state.workflow?.queries?.[input.queryName];
-      if (fn === undefined) {
-        // Fail the query
-        throw new ReferenceError(`Workflow did not register a handler for ${input.queryName}`);
-      }
-      const ret = fn(...input.args);
-      if (ret instanceof Promise) {
-        throw new DeterminismViolationError('Query handlers should not return a Promise');
-      }
-      return ret;
-    });
+    const execute = composeInterceptors(
+      state.interceptors.inbound,
+      'handleQuery',
+      this.queryWorkflowNextHandler.bind(this)
+    );
     execute({
       queryName: queryType,
       args: arrayFromPayloadsSync(state.dataConverter, activation.arguments),
@@ -222,6 +223,28 @@ export class Activator implements ActivationHandler {
     }).catch(handleWorkflowFailure);
   }
 
+  public async resolveSignalExternalWorkflow(
+    activation: coresdk.workflow_activation.IResolveSignalExternalWorkflow
+  ): Promise<void> {
+    const { resolve, reject } = consumeCompletion('signalWorkflow', getSeq(activation));
+    if (activation.failure) {
+      reject(await failureToError(activation.failure, state.dataConverter));
+    } else {
+      resolve(undefined);
+    }
+  }
+
+  public async resolveRequestCancelExternalWorkflow(
+    activation: coresdk.workflow_activation.IResolveRequestCancelExternalWorkflow
+  ): Promise<void> {
+    const { resolve, reject } = consumeCompletion('cancelWorkflow', getSeq(activation));
+    if (activation.failure) {
+      reject(await failureToError(activation.failure, state.dataConverter));
+    } else {
+      resolve(undefined);
+    }
+  }
+
   public updateRandomSeed(activation: coresdk.workflow_activation.IUpdateRandomSeed): void {
     if (!activation.randomnessSeed) {
       throw new TypeError('Expected activation with randomnessSeed attribute');
@@ -229,21 +252,16 @@ export class Activator implements ActivationHandler {
     state.random = alea(activation.randomnessSeed.toBytes());
   }
 
-  public notifyHasChange(): void {
-    throw new Error('Not implemented');
+  public notifyHasPatch(activation: coresdk.workflow_activation.INotifyHasPatch): void {
+    if (!activation.patchId) {
+      throw new TypeError('Notify has patch missing patch name');
+    }
+    state.knownPresentPatches.add(activation.patchId);
   }
 
   public removeFromCache(): void {
     throw new IllegalStateError('removeFromCache activation job should not reach workflow');
   }
-}
-
-export interface ExternalCall {
-  ifaceName: string;
-  fnName: string;
-  args: any[];
-  /** Optional in case applyMode is ASYNC_IGNORED */
-  seq?: string;
 }
 
 /**
@@ -259,16 +277,20 @@ export class State {
   /**
    * Map of task sequence to a Completion
    */
-  public readonly completions: Map<string, Completion> = new Map();
+  public readonly completions = {
+    timer: new Map<number, Completion>(),
+    activity: new Map<number, Completion>(),
+    childWorkflowStart: new Map<number, Completion>(),
+    childWorkflowComplete: new Map<number, Completion>(),
+    dependency: new Map<number, Completion>(),
+    signalWorkflow: new Map<number, Completion>(),
+    cancelWorkflow: new Map<number, Completion>(),
+  };
 
   /**
-   * Overridden on WF initialization
+   * Loaded in {@link initRuntime}
    */
-  public interceptorModules: string[] = [];
-  /**
-   * Loaded from `interceptorModules`
-   */
-  public interceptors: WorkflowInterceptors = { inbound: [], outbound: [] };
+  public interceptors: WorkflowInterceptors = { inbound: [], outbound: [], internals: [] };
   /**
    * Buffer that stores all generated commands, reset after each activation
    */
@@ -285,10 +307,18 @@ export class State {
    * Was this Workflow cancelled
    */
   public cancelled = false;
+
   /**
    * The next (incremental) sequence to assign when generating completable commands
    */
-  public nextSeq = 0;
+  public nextSeqs = {
+    timer: 1,
+    activity: 1,
+    childWorkflow: 1,
+    dependency: 1,
+    signalWorkflow: 1,
+    cancelWorkflow: 1,
+  };
 
   /**
    * This is set every time the workflow executes an activation
@@ -316,10 +346,6 @@ export class State {
    */
   public info?: WorkflowInfo;
   /**
-   * Default ActivityOptions to set in `Context.configure`
-   */
-  public activityDefaults?: ActivityOptions;
-  /**
    * A deterministic RNG, used by the isolate's overridden Math.random
    */
   public random: RNG = function () {
@@ -345,6 +371,16 @@ export class State {
   public require?: (filename: string) => Record<string, unknown>;
 
   public dataConverter: DataConverter = defaultDataConverter;
+
+  /**
+   * Patches we know the status of for this workflow, as in {@link patched}
+   */
+  public readonly knownPresentPatches = new Set<string>();
+
+  /**
+   * Patches we sent to core {@link patched}
+   */
+  public readonly sentPatches = new Set<string>();
 }
 
 export const state = new State();
@@ -385,19 +421,19 @@ async function failQuery(queryId: string, error: any) {
   });
 }
 
-export function consumeCompletion(taskId: string): Completion {
-  const completion = state.completions.get(taskId);
+export function consumeCompletion(type: keyof State['completions'], taskSeq: number): Completion {
+  const completion = state.completions[type].get(taskSeq);
   if (completion === undefined) {
-    throw new IllegalStateError(`No completion for taskId ${taskId}`);
+    throw new IllegalStateError(`No completion for taskSeq ${taskSeq}`);
   }
-  state.completions.delete(taskId);
+  state.completions[type].delete(taskSeq);
   return completion;
 }
 
-function idToSeq<T extends Record<string, any>>(activation: T, attr: keyof T): string {
-  const id = activation[attr];
-  if (!id) {
-    throw new TypeError(`Got activation with no ${attr}`);
+function getSeq<T extends { seq?: number | null }>(activation: T): number {
+  const seq = activation.seq;
+  if (seq === undefined || seq === null) {
+    throw new TypeError(`Got activation with no seq attribute`);
   }
-  return id;
+  return seq;
 }

@@ -7,7 +7,6 @@ import {
   msOptionalToTs,
   Workflow,
   composeInterceptors,
-  WorkflowStub,
   mapToPayloadsSync,
 } from '@temporalio/common';
 import { coresdk } from '@temporalio/proto/lib/coresdk';
@@ -18,13 +17,14 @@ import {
   ChildWorkflowOptionsWithDefaults,
   ContinueAsNew,
   ContinueAsNewOptions,
-  ExternalDependencies,
   WorkflowInfo,
 } from './interfaces';
 import { state } from './internals';
 import { WorkflowExecutionAlreadyStartedError } from './errors';
-import { ActivityInput, StartChildWorkflowExecutionInput, TimerInput } from './interceptors';
+import { ActivityInput, StartChildWorkflowExecutionInput, SignalWorkflowInput, TimerInput } from './interceptors';
+import { ExternalDependencies } from './dependencies';
 import { CancellationScope, registerSleepImplementation } from './cancellation-scope';
+import { ExternalWorkflowStub, ChildWorkflowStub } from './workflow-stub';
 
 // Avoid a circular dependency
 registerSleepImplementation(sleep);
@@ -54,24 +54,24 @@ function timerNextHandler(input: TimerInput) {
     }
     if (scope.cancellable) {
       scope.cancelRequested.catch((err) => {
-        if (!state.completions.delete(`${input.seq}`)) {
+        if (!state.completions.timer.delete(input.seq)) {
           return; // Already resolved
         }
         state.commands.push({
           cancelTimer: {
-            timerId: `${input.seq}`,
+            seq: input.seq,
           },
         });
         reject(err);
       });
     }
-    state.completions.set(`${input.seq}`, {
+    state.completions.timer.set(input.seq, {
       resolve,
       reject,
     });
     state.commands.push({
       startTimer: {
-        timerId: `${input.seq}`,
+        seq: input.seq,
         startToFireTimeout: msToTs(input.durationMs),
       },
     });
@@ -87,7 +87,7 @@ function timerNextHandler(input: TimerInput) {
  * @param ms milliseconds to sleep for
  */
 export function sleep(ms: number): Promise<void> {
-  const seq = state.nextSeq++;
+  const seq = state.nextSeqs.timer++;
 
   const execute = composeInterceptors(state.interceptors.outbound, 'startTimer', timerNextHandler);
 
@@ -136,20 +136,24 @@ async function scheduleActivityNextHandler({
     }
     if (scope.cancellable) {
       scope.cancelRequested.catch(() => {
+        if (!state.completions.activity.has(seq)) {
+          return; // Already resolved
+        }
         state.commands.push({
           requestCancelActivity: {
-            activityId: `${seq}`,
+            seq,
           },
         });
       });
     }
-    state.completions.set(`${seq}`, {
+    state.completions.activity.set(seq, {
       resolve,
       reject,
     });
     state.commands.push({
       scheduleActivity: {
-        activityId: `${seq}`,
+        seq,
+        activityId: options.activityId ?? `${seq}`,
         activityType,
         arguments: state.dataConverter.toPayloadsSync(...args),
         retryPolicy: options.retry
@@ -178,19 +182,15 @@ async function scheduleActivityNextHandler({
  * Schedule an activity and run outbound interceptors
  * @hidden
  */
-export function scheduleActivity<R>(
-  activityType: string,
-  args: any[],
-  options: ActivityOptions | undefined = state.activityDefaults
-): Promise<R> {
+export function scheduleActivity<R>(activityType: string, args: any[], options: ActivityOptions): Promise<R> {
   if (options === undefined) {
     throw new TypeError('Got empty activity options');
   }
-  const seq = state.nextSeq++;
+  const seq = state.nextSeqs.activity++;
   const execute = composeInterceptors(state.interceptors.outbound, 'scheduleActivity', scheduleActivityNextHandler);
 
   return execute({
-    activityType: activityType,
+    activityType,
     headers: new Map(),
     options,
     args,
@@ -203,9 +203,9 @@ async function startChildWorkflowExecutionNextHandler({
   args,
   headers,
   workflowType,
+  seq,
 }: StartChildWorkflowExecutionInput): Promise<[Promise<string>, Promise<unknown>]> {
   const workflowId = options.workflowId ?? uuid4();
-
   const startPromise = new Promise<string>((resolve, reject) => {
     const scope = CancellationScope.current();
     if (scope.consideredCancelled) {
@@ -214,19 +214,34 @@ async function startChildWorkflowExecutionNextHandler({
     }
     if (scope.cancellable) {
       scope.cancelRequested.catch(() => {
-        state.commands.push({
-          requestCancelExternalWorkflowExecution: {
-            workflowId, // TODO: runId?
-          },
-        });
+        const complete = !state.completions.childWorkflowComplete.has(seq);
+        const started = !state.completions.childWorkflowStart.has(seq);
+
+        if (started && !complete) {
+          const cancelSeq = state.nextSeqs.cancelWorkflow++;
+          state.commands.push({
+            requestCancelExternalWorkflowExecution: {
+              seq: cancelSeq,
+              childWorkflowId: workflowId,
+            },
+          });
+          // Not interested in this completion
+          state.completions.cancelWorkflow.set(cancelSeq, { resolve: () => undefined, reject: () => undefined });
+        } else if (!started) {
+          state.commands.push({
+            cancelUnstartedChildWorkflowExecution: { childWorkflowSeq: seq },
+          });
+        }
+        // Nothing to cancel otherwise
       });
     }
-    state.completions.set(`start-${workflowId}`, {
+    state.completions.childWorkflowStart.set(seq, {
       resolve,
       reject,
     });
     state.commands.push({
       startChildWorkflowExecution: {
+        seq,
         workflowId,
         workflowType,
         input: state.dataConverter.toPayloadsSync(...args),
@@ -258,9 +273,13 @@ async function startChildWorkflowExecutionNextHandler({
       },
     });
   });
+
+  // We construct a Promise for the completion of the child Workflow before we know
+  // if the Workflow code will await it to capture the result in case it does.
   const completePromise = new Promise((resolve, reject) => {
+    // Chain start Promise rejection to the complete Promise.
     startPromise.catch(reject);
-    state.completions.set(`complete-${workflowId}`, {
+    state.completions.childWorkflowComplete.set(seq, {
       resolve,
       reject,
     });
@@ -270,15 +289,45 @@ async function startChildWorkflowExecutionNextHandler({
   return [startPromise, completePromise];
 }
 
-function activityInfo(activity: string | [string, string] | ActivityFunction<any, any>): ActivityInfo {
-  if (typeof activity === 'string') {
-    return { name: activity, type: activity };
-  }
-  if (activity instanceof Array) {
-    return { name: activity[1], type: JSON.stringify(activity) };
-  } else {
-    return activity as InternalActivityFunction<any, any>;
-  }
+function signalWorkflowNextHandler({ seq, signalName, args, target }: SignalWorkflowInput) {
+  return new Promise<any>((resolve, reject) => {
+    if (state.info === undefined) {
+      throw new IllegalStateError('Workflow uninitialized');
+    }
+    const scope = CancellationScope.current();
+    if (scope.consideredCancelled) {
+      scope.cancelRequested.catch(reject);
+      return;
+    }
+
+    if (scope.cancellable) {
+      scope.cancelRequested.catch(() => {
+        if (!state.completions.signalWorkflow.has(seq)) {
+          return;
+        }
+        state.commands.push({ cancelSignalWorkflow: { seq } });
+      });
+    }
+    state.commands.push({
+      signalExternalWorkflowExecution: {
+        seq,
+        args: state.dataConverter.toPayloadsSync(args),
+        signalName,
+        ...(target.type === 'external'
+          ? {
+              workflowExecution: {
+                namespace: state.info.namespace,
+                ...target.workflowExecution,
+              },
+            }
+          : {
+              childWorkflowId: target.childWorkflowId,
+            }),
+      },
+    });
+
+    state.completions.signalWorkflow.set(seq, { resolve, reject });
+  });
 }
 
 export class ContextImpl {
@@ -288,58 +337,135 @@ export class ContextImpl {
   constructor() {
     // Does nothing just marks this as protected for documentation
   }
+
   /**
-   * Configure an activity function with given {@link ActivityOptions}
-   * Activities use the worker options's {@link WorkerOptions.activityDefaults | activityDefaults} unless configured otherwise.
+   * Configure Activity functions with given {@link ActivityOptions}.
    *
-   * @typeparam P type of parameters of activity function, e.g `[string, string]` for `(a: string, b: string) => Promise<number>`
-   * @typeparam R return type of activity function, e.g `number` for `(a: string, b: string) => Promise<number>`
+   * This method may be called multiple times to setup Activities with different options.
    *
-   * @param activity either an activity name if triggering an activity in another language, a tuple of [module, name] for untyped activities (e.g. ['@activities', 'greet']) or an imported activity function.
-   * @param options partial {@link ActivityOptions} object, any attributes provided here override the provided activity's options
+   * @return a [Proxy](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Proxy)
+   *         for which each attribute is a callable Activity function
+   *
+   * @typeparam A An {@link ActivityInterface} - mapping of name to function
    *
    * @example
    * ```ts
-   * import { Context } from '@temporalio/workflow';
-   * import { httpGet } from '@activities';
+   * import { Context, ActivityInterface } from '@temporalio/workflow';
+   * import * as activities from '../activities';
    *
-   * const httpGetWithCustomTimeout = Context.configure(httpGet, {
+   * // Setup Activities from module exports
+   * const { httpGet, otherActivity } = Context.configureActivities<typeof activities>({
    *   type: 'remote',
-   *   scheduleToCloseTimeout: '30 minutes',
+   *   startToCloseTimeout: '30 minutes',
    * });
    *
-   * // Example of creating an activity from string
-   * // Passing type parameters is optional, configured function will be untyped unless provided
-   * const httpGetFromJava = Context.configure<[string, number], number>('SomeJavaMethod'); // Use worker activityDefaults when 2nd parameter is omitted
+   * // Setup Activities from an explicit interface (e.g. when defined by another SDK)
+   * interface JavaActivities extends ActivityInterface {
+   *   httpGetFromJava(url: string): Promise<string>
+   *   someOtherJavaActivity(arg1: number, arg2: string): Promise<string>;
+   * }
+   *
+   * const {
+   *   httpGetFromJava,
+   *   someOtherJavaActivity
+   * } = Context.configureActivities<JavaActivities>({
+   *   type: 'remote',
+   *   taskQueue: 'java-worker-taskQueue',
+   *   startToCloseTimeout: '5m',
+   * });
    *
    * export function main(): Promise<void> {
-   *   const response = await httpGetWithCustomTimeout('http://example.com');
+   *   const response = await httpGet('http://example.com');
    *   // ...
    * }
    * ```
    */
-  public configure<P extends any[], R>(
-    activity: string | [string, string] | ActivityFunction<P, R>,
-    options: ActivityOptions | undefined = state.activityDefaults
-  ): ActivityFunction<P, R> {
+  public configureActivities<A extends Record<string, ActivityFunction<any, any>>>(options: ActivityOptions): A {
     if (options === undefined) {
       throw new TypeError('options must be defined');
     }
     // Validate as early as possible for immediate user feedback
     validateActivityOptions(options);
-    const { name, type } = activityInfo(activity);
-    // Wrap the function in an object so it gets the original function name
-    const { [name]: fn } = {
-      [name](...args: P) {
-        return scheduleActivity<R>(type, args, options);
-      },
-    };
-    const configured = fn as InternalActivityFunction<P, R>;
-    Object.assign(configured, { type, options });
-    return configured;
+    return new Proxy(
+      {},
+      {
+        get(_, activityType) {
+          if (typeof activityType !== 'string') {
+            throw new TypeError(`Only strings are supported for Activity types, got: ${String(activityType)}`);
+          }
+          return (...args: unknown[]) => {
+            return scheduleActivity(activityType, args, options);
+          };
+        },
+      }
+    ) as any;
   }
 
-  public child<T extends Workflow>(workflowType: string, options?: ChildWorkflowOptions): WorkflowStub<T> {
+  /**
+   * Returns a client-side stub that can be used to signal and cancel an existing Workflow execution.
+   * It takes a Workflow ID and optional run ID.
+   */
+  public external<T extends Workflow>(workflowId: string, runId?: string): ExternalWorkflowStub<T> {
+    return {
+      workflowId,
+      runId,
+      cancel() {
+        return new Promise<void>((resolve, reject) => {
+          if (state.info === undefined) {
+            throw new IllegalStateError('Uninitialized workflow');
+          }
+          const seq = state.nextSeqs.cancelWorkflow++;
+          state.commands.push({
+            requestCancelExternalWorkflowExecution: {
+              seq,
+              workflowExecution: {
+                namespace: state.info.namespace,
+                workflowId,
+                runId,
+              },
+            },
+          });
+          state.completions.cancelWorkflow.set(seq, { resolve, reject });
+        });
+      },
+      signal: new Proxy(
+        {},
+        {
+          get(_, signalName) {
+            if (typeof signalName !== 'string') {
+              throw new TypeError(`Invalid signal type, expected string got: ${typeof signalName}`);
+            }
+
+            return (...args: any[]) => {
+              return composeInterceptors(
+                state.interceptors.outbound,
+                'signalWorkflow',
+                signalWorkflowNextHandler
+              )({
+                seq: state.nextSeqs.signalWorkflow++,
+                signalName,
+                args,
+                target: {
+                  type: 'external',
+                  workflowExecution: { workflowId, runId },
+                },
+              });
+            };
+          },
+        }
+      ) as any,
+    };
+  }
+
+  /**
+   * Returns a client-side stub that implements a child Workflow interface.
+   * It takes a child Workflow type and optional child Workflow options as arguments.
+   * Workflow options may be needed to override the timeouts and task queue if they differ from the parent Workflow.
+   *
+   * A child Workflow supports starting, awaiting completion, signaling and cancellation via {@link CancellationScope}s.
+   * In order to query the child, use a WorkflowClient from an Activity.
+   */
+  public child<T extends Workflow>(workflowType: string, options?: ChildWorkflowOptions): ChildWorkflowStub<T> {
     const optionsWithDefaults = addDefaultWorkflowOptions(options ?? {});
     let started: Promise<string> | undefined = undefined;
     let completed: Promise<unknown> | undefined = undefined;
@@ -360,6 +486,7 @@ export class ContextImpl {
           startChildWorkflowExecutionNextHandler
         );
         [started, completed] = await execute({
+          seq: state.nextSeqs.childWorkflow++,
           options: optionsWithDefaults,
           args,
           headers: new Map(),
@@ -379,7 +506,34 @@ export class ContextImpl {
         }
         return completed as any;
       },
-      signal: {} as any, // TODO,
+      signal: new Proxy(
+        {},
+        {
+          get(_, signalName) {
+            if (typeof signalName !== 'string') {
+              throw new TypeError(`Invalid signal type, expected string got: ${typeof signalName}`);
+            }
+            return async (...args: any[]) => {
+              if (started === undefined) {
+                throw new IllegalStateError('Workflow execution not started');
+              }
+              return composeInterceptors(
+                state.interceptors.outbound,
+                'signalWorkflow',
+                signalWorkflowNextHandler
+              )({
+                seq: state.nextSeqs.signalWorkflow++,
+                signalName,
+                args,
+                target: {
+                  type: 'child',
+                  childWorkflowId: optionsWithDefaults.workflowId,
+                },
+              });
+            };
+          },
+        }
+      ) as any,
     };
   }
 
@@ -525,4 +679,66 @@ export function uuid4(): string {
     view.getUint16(8),
     4
   )}-${ho(view.getUint32(10), 8)}${ho(view.getUint16(14), 4)}`;
+}
+
+/**
+ * Patch or upgrade workflow code by checking or stating that this workflow has a certain patch.
+ *
+ * See [docs page](https://docs.temporal.io/docs/node/versioning) for info.
+ *
+ * If the workflow is replaying an existing history, then this function returns true if that
+ * history was produced by a worker which also had a `patched` call with the same `patchId`.
+ * If the history was produced by a worker *without* such a call, then it will return false.
+ *
+ * If the workflow is not currently replaying, then this call *always* returns true.
+ *
+ * Your workflow code should run the "new" code if this returns true, if it returns false, you
+ * should run the "old" code. By doing this, you can maintain determinism.
+ *
+ * @param patchId An identifier that should be unique to this patch. It is OK to use multiple
+ * calls with the same ID, which means all such calls will always return the same value.
+ */
+export function patched(patchId: string): boolean {
+  return patchInternal(patchId, false);
+}
+
+/**
+ * Indicate that a patch is being phased out.
+ *
+ * See [docs page](https://docs.temporal.io/docs/node/versioning) for info.
+ *
+ * Workflows with this call may be deployed alongside workflows with a {@link patched} call, but
+ * they must *not* be deployed while any workers still exist running old code without a
+ * {@link patched} call, or any runs with histories produced by such workers exist. If either kind
+ * of worker encounters a history produced by the other, their behavior is undefined.
+ *
+ * Once all live workflow runs have been produced by workers with this call, you can deploy workers
+ * which are free of either kind of patch call for this ID. Workers with and without this call
+ * may coexist, as long as they are both running the "new" code.
+ *
+ * @param patchId An identifier that should be unique to this patch. It is OK to use multiple
+ * calls with the same ID, which means all such calls will always return the same value.
+ */
+export function deprecatePatch(patchId: string): void {
+  patchInternal(patchId, true);
+}
+
+function patchInternal(patchId: string, deprecated: boolean): boolean {
+  if (state.info === undefined) {
+    throw new IllegalStateError('Workflow info must be set when calling patch functions');
+  }
+  // Patch operation does not support interception at the moment, if it did,
+  // this would be the place to start the interception chain
+
+  const { isReplaying } = state.info;
+  const usePatch = !isReplaying || state.knownPresentPatches.has(patchId);
+  // Avoid sending commands for patches core already knows about.
+  // This optimization enables development of automatic patching tools.
+  if (usePatch && !state.sentPatches.has(patchId)) {
+    state.commands.push({
+      setPatchMarker: { patchId, deprecated },
+    });
+    state.sentPatches.add(patchId);
+  }
+  return usePatch;
 }

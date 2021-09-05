@@ -8,8 +8,8 @@ export function addDefaults(args: arg.Result<any>): arg.Result<any> {
   const now = new Date().toISOString();
   return {
     '--server-address': 'localhost:7233',
-    '--ns': `perf-${now}`,
-    '--task-queue': `perf-${now}`,
+    '--ns': `load-${now}`,
+    '--task-queue': `load-${now}`,
     ...args,
   };
 }
@@ -35,6 +35,12 @@ async function main() {
   try {
     const starterArgs = argsToForward(starterArgSpec, args);
     const starter = spawn('node', [path.resolve(__dirname, 'starter.js'), ...starterArgs], { shell, stdio: 'inherit' });
+    worker.on('exit', async (code) => {
+      // If worker dies unceremoniously then also make sure we can exit and not hang
+      if (code !== 0) {
+        await kill(starter, 'SIGINT');
+      }
+    });
     await waitOnChild(starter);
   } finally {
     await kill(worker);

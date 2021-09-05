@@ -8,7 +8,7 @@ async function main(): Promise<void> {
   console.log(await Promise.race([sleep(20).then(() => 20), sleep(30).then(() => 30)]));
   try {
     await Promise.race([Promise.reject(new Error('wow')), 1, 2]);
-  } catch (err) {
+  } catch (err: any) {
     console.log(err.message);
   }
 }

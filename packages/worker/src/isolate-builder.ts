@@ -15,8 +15,6 @@ import { Logger } from './logger';
  *
  * @param nodeModulesPath node_modules path with required Workflow dependencies
  * @param workflowsPath all Workflows found in path will be put in the bundle
- * @param activities mapping of module name to module exports, exported functions will be replaced with stubs and the rest ignored
- * @param activityDefaults used to inject Activity options into the Activity stubs
  * @param workflowInterceptorModules list of interceptor modules to register on Workflow creation
  */
 export class WorkflowIsolateBuilder {
@@ -24,7 +22,6 @@ export class WorkflowIsolateBuilder {
     public readonly logger: Logger,
     public readonly nodeModulesPath: string,
     public readonly workflowsPath: string,
-    public readonly activities: Map<string, Record<string, any>>,
     public readonly workflowInterceptorModules: string[] = []
   ) {}
 
@@ -34,16 +31,37 @@ export class WorkflowIsolateBuilder {
   public async createBundle(): Promise<string> {
     const vol = new memfs.Volume();
     const ufs = new unionfs.Union();
-    // We cast to any because of inacurate types
-    ufs.use(memfs.createFsFromVolume(vol) as any).use(realFS);
-    const distDir = '/dist';
-    const sourceDir = '/src';
 
-    await this.registerActivities(vol, sourceDir);
-    const entrypointPath = path.join(sourceDir, 'main.js');
+    /**
+     * readdir and exclude sourcemaps and d.ts files
+     */
+    function readdir(...args: Parameters<typeof realFS.readdir>) {
+      // Help TS a bit because readdir has multiple signatures
+      const callback: (err: NodeJS.ErrnoException | null, files: string[]) => void = args.pop() as any;
+      const newArgs: Parameters<typeof realFS.readdir> = [
+        ...args,
+        (err: Error | null, files: string[]) => {
+          if (err !== null) {
+            callback(err, []);
+            return;
+          }
+          callback(
+            null,
+            files.filter((f) => /\.[jt]s$/.test(path.extname(f)) && !f.endsWith('.d.ts'))
+          );
+        },
+      ] as any;
+      return realFS.readdir(...newArgs);
+    }
+
+    // Cast because the type definitions are inaccurate
+    ufs.use(memfs.createFsFromVolume(vol) as any).use({ ...realFS, readdir: readdir as any });
+    const distDir = '/dist';
+    const entrypointPath = path.join('/src/main.js');
+
     const workflows = await this.findWorkflows();
     this.genEntrypoint(vol, entrypointPath, workflows);
-    await this.bundle(ufs, entrypointPath, sourceDir, distDir);
+    await this.bundle(ufs, entrypointPath, distDir);
     return ufs.readFileSync(path.join(distDir, 'main.js'), 'utf8');
   }
 
@@ -66,11 +84,13 @@ export class WorkflowIsolateBuilder {
   }
 
   /**
-   * Shallow lookup of all js files in workflowsPath
+   * Shallow lookup of all ts and js files in workflowsPath
    */
   protected async findWorkflows(): Promise<string[]> {
     const files = await fs.readdir(this.workflowsPath);
-    return files.filter((f) => path.extname(f) === '.js').map((f) => path.basename(f, path.extname(f)));
+    return files
+      .filter((f) => /\.[jt]s$/.test(path.extname(f)) && !f.endsWith('.d.ts'))
+      .map((f) => path.basename(f, path.extname(f)));
   }
 
   /**
@@ -80,7 +100,7 @@ export class WorkflowIsolateBuilder {
    */
   protected genEntrypoint(vol: typeof memfs.vol, target: string, workflows: string[]): void {
     const bundlePaths = [...new Set(workflows.concat(this.workflowInterceptorModules))].map((wf) =>
-      JSON.stringify(path.join(this.workflowsPath, `${wf}.js`))
+      JSON.stringify(path.join(this.workflowsPath, wf))
     );
     const code = dedent`
       const api = require('@temporalio/workflow/lib/worker-interface');
@@ -93,14 +113,14 @@ export class WorkflowIsolateBuilder {
 
       api.overrideGlobals();
       api.setRequireFunc(
-        (name) => require(${JSON.stringify(this.workflowsPath)} + '${path.sep}' + name + '.js')
+        (name) => require(${JSON.stringify(this.workflowsPath)} + '${path.sep}' + name)
       );
 
       module.exports = api;
     `;
     try {
       vol.mkdirSync(path.dirname(target), { recursive: true });
-    } catch (err) {
+    } catch (err: any) {
       if (err.code !== 'EEXIST') throw err;
     }
     vol.writeFileSync(target, code);
@@ -109,24 +129,25 @@ export class WorkflowIsolateBuilder {
   /**
    * Run webpack
    */
-  protected async bundle(
-    filesystem: typeof unionfs.ufs,
-    entry: string,
-    sourceDir: string,
-    distDir: string
-  ): Promise<void> {
+  protected async bundle(filesystem: typeof unionfs.ufs, entry: string, distDir: string): Promise<void> {
     const compiler = webpack({
       resolve: {
         modules: [this.nodeModulesPath],
-        extensions: ['.js'],
-        alias: Object.fromEntries([...this.activities.keys()].map((spec) => [spec, path.resolve(sourceDir, spec)])),
+        extensions: ['.ts', '.js'],
+      },
+      module: {
+        rules: [
+          {
+            test: /\.ts$/,
+            loader: 'ts-loader',
+            exclude: /node_modules/,
+          },
+        ],
       },
       entry: [entry],
-      // TODO: production build?
       mode: 'development',
-      // Explicitly set the devtool.
-      // See https://github.com/temporalio/sdk-node/issues/139
-      devtool: 'cheap-source-map',
+      // Recommended choice for development builds with high quality SourceMaps
+      devtool: 'eval-source-map',
       output: {
         path: distDir,
         filename: 'main.js',
@@ -134,7 +155,7 @@ export class WorkflowIsolateBuilder {
       },
     });
 
-    // We cast to any because the type declarations are inacurate
+    // Cast to any because the type declarations are inaccurate
     compiler.inputFileSystem = filesystem as any;
     compiler.outputFileSystem = filesystem as any;
 
@@ -159,69 +180,5 @@ export class WorkflowIsolateBuilder {
     } finally {
       await util.promisify(compiler.close).bind(compiler)();
     }
-  }
-
-  public async registerActivities(vol: typeof memfs.vol, sourceDir: string): Promise<void> {
-    for (const [specifier, module] of this.activities.entries()) {
-      let code = dedent`
-        import { scheduleActivity } from '@temporalio/workflow';
-      `;
-      for (const [k, v] of Object.entries(module)) {
-        if (v instanceof Function) {
-          // Activities are identified by their module specifier and name.
-          // We double stringify below to generate a string containing a JSON array.
-          const type = JSON.stringify(JSON.stringify([specifier, k]));
-          // TODO: Validate k against pattern
-          code += dedent`
-            export function ${k}(...args) {
-              return scheduleActivity(${type}, args);
-            }
-            ${k}.type = ${type};
-          `;
-        }
-      }
-      const modulePath = path.resolve(sourceDir, `${specifier}.js`);
-      try {
-        vol.mkdirSync(path.dirname(modulePath), { recursive: true });
-      } catch (err) {
-        if (err.code !== 'EEXIST') throw err;
-      }
-      vol.writeFileSync(modulePath, code);
-    }
-  }
-
-  /**
-   * Resolve activities by perfoming a shallow lookup all JS files in `activitiesPath`.
-   */
-  public static async resolveActivities(
-    logger: Logger,
-    activitiesPath: string
-  ): Promise<Map<string, Record<string, (...args: any[]) => any>>> {
-    const resolvedActivities = new Map<string, Record<string, (...args: any[]) => any>>();
-    let files: string[] | undefined = undefined;
-    try {
-      files = await fs.readdir(activitiesPath, { encoding: 'utf8' });
-    } catch (err) {
-      if (err.code !== 'ENOENT') throw err;
-      return resolvedActivities;
-    }
-    for (const file of files) {
-      const ext = path.extname(file);
-      if (ext === '.js') {
-        const fullPath = path.resolve(activitiesPath, file);
-        // eslint-disable-next-line @typescript-eslint/no-var-requires
-        const module = require(fullPath);
-        const functions = Object.fromEntries(
-          Object.entries(module).filter((entry): entry is [string, () => any] => entry[1] instanceof Function)
-        );
-        const importName = path.basename(file, ext);
-        logger.debug('Loaded activity', { importName, fullPath });
-        resolvedActivities.set(`@activities/${importName}`, functions);
-        if (importName === 'index') {
-          resolvedActivities.set('@activities', functions);
-        }
-      }
-    }
-    return resolvedActivities;
   }
 }

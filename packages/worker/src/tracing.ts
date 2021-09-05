@@ -1,4 +1,5 @@
 import * as otel from '@opentelemetry/api';
+import { errorMessage } from '@temporalio/common';
 import pkg from './pkg';
 
 export const tracer = otel.trace.getTracer(pkg.name, pkg.version);
@@ -23,7 +24,7 @@ export async function instrument<T>(parent: otel.Span, name: string, fn: (span: 
       span.setStatus({ code: otel.SpanStatusCode.OK });
       return ret;
     } catch (err) {
-      span.setStatus({ code: otel.SpanStatusCode.ERROR, message: err.message });
+      span.setStatus({ code: otel.SpanStatusCode.ERROR, message: errorMessage(err) });
       throw err;
     } finally {
       span.end();

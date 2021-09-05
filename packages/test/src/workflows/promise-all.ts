@@ -18,7 +18,7 @@ export async function main(): Promise<void> {
   try {
     // Rejection
     await Promise.all([Promise.reject(new Error('wow')), 1, 2]);
-  } catch (err) {
+  } catch (err: any) {
     console.log(err.message);
   }
 }

@@ -4,8 +4,6 @@ import { v4 as uuid4 } from 'uuid';
 import dedent from 'dedent';
 import { coresdk } from '@temporalio/proto';
 import { defaultDataConverter } from '@temporalio/common';
-import { WorkflowIsolateBuilder } from '@temporalio/worker/lib/isolate-builder';
-import { DefaultLogger } from '@temporalio/worker/lib/logger';
 import { httpGet } from './activities';
 import { Worker, isolateFreeWorker, defaultOptions } from './mock-native-worker';
 import { withZeroesHTTPServer } from './zeroes-http-server';
@@ -26,11 +24,7 @@ export async function runWorker(t: ExecutionContext<Context>, fn: () => Promise<
 }
 
 test.beforeEach(async (t) => {
-  const resolvedActivities = await WorkflowIsolateBuilder.resolveActivities(
-    new DefaultLogger('ERROR'),
-    defaultOptions.activitiesPath!
-  );
-  const worker = isolateFreeWorker(defaultOptions, resolvedActivities);
+  const worker = isolateFreeWorker(defaultOptions);
 
   t.context = {
     worker,
@@ -61,7 +55,7 @@ test('Worker runs an activity and reports completion', async (t) => {
       taskToken,
       activityId: 'abc',
       start: {
-        activityType: JSON.stringify(['@activities', 'httpGet']),
+        activityType: 'httpGet',
         input: await defaultDataConverter.toPayloads(url),
       },
     });
@@ -80,7 +74,7 @@ test('Worker runs an activity and reports failure', async (t) => {
       taskToken,
       activityId: 'abc',
       start: {
-        activityType: JSON.stringify(['@activities', 'throwAnError']),
+        activityType: 'throwAnError',
         input: await defaultDataConverter.toPayloads(message),
       },
     });
@@ -109,7 +103,7 @@ test('Worker cancels activity and reports cancellation', async (t) => {
         taskToken,
         activityId: 'abc',
         start: {
-          activityType: JSON.stringify(['@activities', 'waitForCancellation']),
+          activityType: 'waitForCancellation',
           input: await defaultDataConverter.toPayloads(),
         },
       },
@@ -120,7 +114,7 @@ test('Worker cancels activity and reports cancellation', async (t) => {
       cancel: {},
     });
     compareCompletion(t, completion.result, {
-      cancelled: { failure: { source: 'NodeSDK', canceledFailureInfo: {} } },
+      cancelled: { failure: { source: 'NodeSDK', message: '', canceledFailureInfo: {} } },
     });
   });
 });
@@ -135,7 +129,7 @@ test('Activity Context AbortSignal cancels a fetch request', async (t) => {
           taskToken,
           activityId: 'abc',
           start: {
-            activityType: JSON.stringify(['@activities', 'cancellableFetch']),
+            activityType: 'cancellableFetch',
             input: await defaultDataConverter.toPayloads(`http://127.0.0.1:${port}`, false),
           },
         },
@@ -160,7 +154,7 @@ test('Activity Context heartbeat is sent to core', async (t) => {
       taskToken,
       activityId: 'abc',
       start: {
-        activityType: JSON.stringify(['@activities', 'progressiveSleep']),
+        activityType: 'progressiveSleep',
         input: await defaultDataConverter.toPayloads(),
       },
     });

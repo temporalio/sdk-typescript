@@ -8,10 +8,7 @@ export class ContextManager implements otel.ContextManager {
     return this.storage.getStore() || otel.ROOT_CONTEXT;
   }
 
-  bind<T>(target: T, context?: otel.Context): T {
-    if (context === undefined) {
-      throw new TypeError('Expected context to be defined');
-    }
+  bind<T>(context: otel.Context, target: T): T {
     if (typeof target !== 'function') {
       throw new TypeError(`Only function binding is supported, got ${typeof target}`);
     }

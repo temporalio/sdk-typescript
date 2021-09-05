@@ -3,13 +3,13 @@
  *
  * Import this module from Activity code - must **not** be used in Workflows.
  *
- * Any function can be used as an Activity as long as its parameters and return value are serialiable using a [`DataConverter`](../interfaces/worker.dataconverter.md).
+ * Any function can be used as an Activity as long as its parameters and return value are serialiable using a [`DataConverter`](../interfaces/worker.DataConverter.md).
  *
  * ### Cancellation
- * Activities may be cancelled only if they [emit heartbeats](../classes/activity.context.md#heartbeat).<br/>
+ * Activities may be cancelled only if they [emit heartbeats](../classes/activity.Context.md#heartbeat).<br/>
  * There are 2 ways to handle Activity cancellation:
- * 1. await on [`Context.current().cancelled`](../classes/activity.context.md#cancelled)
- * 1. Pass the context's [abort signal](https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal) at [`Context.current().cancellationSignal`](../classes/activity.context.md#cancellationsignal) to a library that supports it
+ * 1. await on [`Context.current().cancelled`](../classes/activity.Context.md#cancelled)
+ * 1. Pass the context's [abort signal](https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal) at [`Context.current().cancellationSignal`](../classes/activity.Context.md#cancellationsignal) to a library that supports it
  *
  * ### Examples
  *
@@ -39,9 +39,9 @@ export interface Info {
   taskToken: Uint8Array;
   activityId: string;
   /**
-   * Tuple containing the Activity module name and function name
+   * Exposed Activity function name
    */
-  activityType: [string, string];
+  activityType: string;
   /**
    * The namespace this Activity is running in
    */

@@ -27,7 +27,7 @@ import {
 import {
   ArgsAndReturn,
   HTTP,
-  SimpleQuery,
+  Blocked,
   Sleeper,
   Empty,
   Interruptable,
@@ -36,7 +36,7 @@ import {
   CancellableHTTPRequest,
   ContinueAsNewFromMainAndSignal,
 } from './interfaces';
-import { httpGet } from './activities';
+import * as activities from './activities';
 import { u8, RUN_INTEGRATION_TESTS, cleanStackTrace } from './helpers';
 import { withZeroesHTTPServer } from './zeroes-http-server';
 
@@ -44,6 +44,7 @@ const { EVENT_TYPE_TIMER_STARTED, EVENT_TYPE_TIMER_FIRED, EVENT_TYPE_TIMER_CANCE
   iface.temporal.api.enums.v1.EventType;
 
 const timerEventTypes = new Set([EVENT_TYPE_TIMER_STARTED, EVENT_TYPE_TIMER_FIRED, EVENT_TYPE_TIMER_CANCELED]);
+const CHANGE_MARKER_NAME = 'core_patch';
 
 export interface Context {
   worker: Worker;
@@ -57,7 +58,7 @@ if (RUN_INTEGRATION_TESTS) {
   test.before(async (t) => {
     const worker = await Worker.create({
       workflowsPath: `${__dirname}/workflows`,
-      activitiesPath: `${__dirname}/activities`,
+      activities,
       nodeModulesPath: `${__dirname}/../../../node_modules`,
       logger: new DefaultLogger('DEBUG'),
       taskQueue: 'test',
@@ -86,12 +87,9 @@ if (RUN_INTEGRATION_TESTS) {
       return;
     }
     t.is(err.cause.type, 'ReferenceError');
-    t.is(err.cause.originalMessage, "Cannot find module './not-found.js'");
+    t.is(err.cause.message, "Cannot find module './not-found'");
     t.true(err.cause.nonRetryable);
-    t.is(
-      err.cause.stack,
-      "ApplicationFailure: message='Cannot find module './not-found.js'', type='ReferenceError', nonRetryable=true"
-    );
+    t.is(err.cause.stack, "ApplicationFailure: Cannot find module './not-found'");
   });
 
   test('args-and-return', async (t) => {
@@ -133,7 +131,7 @@ if (RUN_INTEGRATION_TESTS) {
       t.fail('Expected err.cause.cause to be an instance of ApplicationFailure');
       return;
     }
-    t.is(err.cause.cause.originalMessage, 'Fail me');
+    t.is(err.cause.cause.message, 'Fail me');
     t.is(
       cleanStackTrace(err.cause.cause.stack),
       dedent`
@@ -168,7 +166,7 @@ if (RUN_INTEGRATION_TESTS) {
     if (!(err.cause.cause instanceof ApplicationFailure)) {
       return t.fail('Expected err.cause.cause to be an instance of ApplicationFailure');
     }
-    t.is(err.cause.cause.originalMessage, 'failure');
+    t.is(err.cause.cause.message, 'failure');
     t.is(
       cleanStackTrace(err.cause.cause.stack),
       dedent`
@@ -237,9 +235,17 @@ if (RUN_INTEGRATION_TESTS) {
     t.pass();
   });
 
-  test('simple-query', async (t) => {
+  test('child-workflow-signals', async (t) => {
     const client = new WorkflowClient();
-    const workflow = client.stub<SimpleQuery>('simple-query', { taskQueue: 'test' });
+    const workflow = client.stub<Empty>('child-workflow-signals', { taskQueue: 'test' });
+    await workflow.execute();
+    // Assertions in workflow code
+    t.pass();
+  });
+
+  test('query and unblock', async (t) => {
+    const client = new WorkflowClient();
+    const workflow = client.stub<Blocked>('unblock-or-cancel', { taskQueue: 'test' });
     await workflow.start();
     t.true(await workflow.query.isBlocked());
     await workflow.signal.unblock();
@@ -258,7 +264,7 @@ if (RUN_INTEGRATION_TESTS) {
     if (!(err.cause instanceof ApplicationFailure)) {
       return t.fail('Expected err.cause to be an instance of ApplicationFailure');
     }
-    t.is(err.cause.originalMessage, 'just because');
+    t.is(err.cause.message, 'just because');
   });
 
   test('fail-signal', async (t) => {
@@ -272,7 +278,7 @@ if (RUN_INTEGRATION_TESTS) {
     if (!(err.cause instanceof ApplicationFailure)) {
       return t.fail('Expected err.cause to be an instance of ApplicationFailure');
     }
-    t.is(err.cause.originalMessage, 'Signal failed');
+    t.is(err.cause.message, 'Signal failed');
   });
 
   test('async-fail-signal', async (t) => {
@@ -286,14 +292,14 @@ if (RUN_INTEGRATION_TESTS) {
     if (!(err.cause instanceof ApplicationFailure)) {
       return t.fail('Expected err.cause to be an instance of ApplicationFailure');
     }
-    t.is(err.cause.originalMessage, 'Signal failed');
+    t.is(err.cause.message, 'Signal failed');
   });
 
   test('http', async (t) => {
     const client = new WorkflowClient();
     const workflow = client.stub<HTTP>('http', { taskQueue: 'test' });
     const res = await workflow.execute();
-    t.deepEqual(res, [await httpGet('https://google.com'), await httpGet('http://example.com')]);
+    t.deepEqual(res, await activities.httpGet('https://temporal.io'));
   });
 
   test('sleep', async (t) => {
@@ -308,9 +314,9 @@ if (RUN_INTEGRATION_TESTS) {
     });
     const timerEvents = execution.history!.events!.filter(({ eventType }) => timerEventTypes.has(eventType!));
     t.is(timerEvents.length, 2);
-    t.is(timerEvents[0].timerStartedEventAttributes!.timerId, '0');
+    t.is(timerEvents[0].timerStartedEventAttributes!.timerId, '1');
     t.is(tsToMs(timerEvents[0].timerStartedEventAttributes!.startToFireTimeout), 100);
-    t.is(timerEvents[1].timerFiredEventAttributes!.timerId, '0');
+    t.is(timerEvents[1].timerFiredEventAttributes!.timerId, '1');
   });
 
   test('cancel-timer-immediately', async (t) => {
@@ -340,12 +346,48 @@ if (RUN_INTEGRATION_TESTS) {
     });
     const timerEvents = execution.history!.events!.filter(({ eventType }) => timerEventTypes.has(eventType!));
     t.is(timerEvents.length, 4);
-    t.is(timerEvents[0].timerStartedEventAttributes!.timerId, '0');
+    t.is(timerEvents[0].timerStartedEventAttributes!.timerId, '1');
     t.is(tsToMs(timerEvents[0].timerStartedEventAttributes!.startToFireTimeout), 10000);
-    t.is(timerEvents[1].timerStartedEventAttributes!.timerId, '1');
+    t.is(timerEvents[1].timerStartedEventAttributes!.timerId, '2');
     t.is(tsToMs(timerEvents[1].timerStartedEventAttributes!.startToFireTimeout), 1);
-    t.is(timerEvents[2].timerFiredEventAttributes!.timerId, '1');
-    t.is(timerEvents[3].timerCanceledEventAttributes!.timerId, '0');
+    t.is(timerEvents[2].timerFiredEventAttributes!.timerId, '2');
+    t.is(timerEvents[3].timerCanceledEventAttributes!.timerId, '1');
+  });
+
+  test('patched', async (t) => {
+    const client = new WorkflowClient();
+    const workflow = client.stub<Empty>('patched', { taskQueue: 'test' });
+    const runId = await workflow.start();
+    const res = await workflow.result();
+    t.is(res, undefined);
+    const execution = await client.service.getWorkflowExecutionHistory({
+      namespace,
+      execution: { workflowId: workflow.workflowId, runId },
+    });
+    const hasChangeEvents = execution.history!.events!.filter(
+      ({ eventType }) => eventType === iface.temporal.api.enums.v1.EventType.EVENT_TYPE_MARKER_RECORDED
+    );
+    // There will only be one marker despite there being 2 hasChange calls because they have the
+    // same ID and core will only record one marker per id.
+    t.is(hasChangeEvents.length, 1);
+    t.is(hasChangeEvents[0].markerRecordedEventAttributes!.markerName, CHANGE_MARKER_NAME);
+  });
+
+  test('deprecate-patch', async (t) => {
+    const client = new WorkflowClient();
+    const workflow = client.stub<Empty>('deprecate-patch', { taskQueue: 'test' });
+    const runId = await workflow.start();
+    const res = await workflow.result();
+    t.is(res, undefined);
+    const execution = await client.service.getWorkflowExecutionHistory({
+      namespace,
+      execution: { workflowId: workflow.workflowId, runId },
+    });
+    const hasChangeEvents = execution.history!.events!.filter(
+      ({ eventType }) => eventType === iface.temporal.api.enums.v1.EventType.EVENT_TYPE_MARKER_RECORDED
+    );
+    t.is(hasChangeEvents.length, 1);
+    t.is(hasChangeEvents[0].markerRecordedEventAttributes!.markerName, CHANGE_MARKER_NAME);
   });
 
   test('Worker default ServerOptions are generated correctly', async (t) => {
@@ -491,7 +533,7 @@ if (RUN_INTEGRATION_TESTS) {
       if (!(err.cause instanceof ApplicationFailure)) {
         return t.fail('Expected err.cause to be an instance of ApplicationFailure');
       }
-      t.is(err.cause.originalMessage, 'interrupted from signalWithStart');
+      t.is(err.cause.message, 'interrupted from signalWithStart');
     }
     // Test returned runId
     workflow = client.stub<Interruptable>(workflow.workflowId, runId);
@@ -502,7 +544,7 @@ if (RUN_INTEGRATION_TESTS) {
       if (!(err.cause instanceof ApplicationFailure)) {
         return t.fail('Expected err.cause to be an instance of ApplicationFailure');
       }
-      t.is(err.cause.originalMessage, 'interrupted from signalWithStart');
+      t.is(err.cause.message, 'interrupted from signalWithStart');
     }
   });
 

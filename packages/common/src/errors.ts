@@ -12,3 +12,16 @@ export class DataConverterError extends Error {
 export class IllegalStateError extends Error {
   public readonly name: string = 'IllegalStateError';
 }
+
+/**
+ * Get error message from an Error or string or return undefined
+ */
+export function errorMessage(err: unknown): string | undefined {
+  if (typeof err === 'string') {
+    return err;
+  }
+  if (err instanceof Error) {
+    return err.message;
+  }
+  return undefined;
+}
