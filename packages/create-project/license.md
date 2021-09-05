@@ -1,3 +1,5 @@
+Some of the code in this directory is subject to the below license:
+
 The MIT License (MIT)
 
 Copyright (c) 2021 Vercel, Inc.
