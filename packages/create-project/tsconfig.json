@@ -2,8 +2,12 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "outDir": "./lib",
-    "rootDir": "./src"
+    "rootDir": "./",
+    "resolveJsonModule": true,
+    "lib": [
+      "dom"
+    ]
   },
-  "include": ["./src/**/*.ts"],
-  "exclude": ["node_modules"]
+  "include": ["./src/**/*.ts", "package.json"],
+  "exclude": ["node_modules", "./lib"]
 }

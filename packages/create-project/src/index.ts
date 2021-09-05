@@ -1,151 +1,186 @@
 #!/usr/bin/env node
-import os from 'os';
+/* eslint-disable import/no-extraneous-dependencies */
+import chalk from 'chalk';
+import Commander from 'commander';
 import path from 'path';
-import { mkdir, writeFile, readFile } from 'fs-extra';
-import arg from 'arg';
-import { spawn } from './subprocess';
+import prompts from 'prompts';
+import checkForUpdate from 'update-check';
+import { createApp, DownloadError } from './create-project';
+import { shouldUseYarn } from './helpers/should-use-yarn';
+import { validateNpmName } from './helpers/validate-pkg';
+import packageJson from '../package.json';
 
-const command = '@temporalio/create';
-const typescriptVersion = '4.4.2';
-const nodeMajorVersion = parseInt(process.versions.node, 10);
-const npm = /^win/.test(process.platform) ? 'npm.cmd' : 'npm';
+let projectPath: string = '';
 
-const packageJsonBase = {
-  version: '0.1.0',
-  private: true,
-  scripts: {
-    build: 'tsc --build',
-    'build.watch': 'tsc --build --watch',
-    start: 'ts-node src/worker.ts',
-    'start.watch': 'nodemon src/worker.ts',
-    workflow: 'ts-node src/exec-workflow.ts',
-  },
-  devDependencies: {
-    typescript: `^${typescriptVersion}`,
-    [`@tsconfig/node${nodeMajorVersion}`]: '^1.0.0',
-    'ts-node': '^10.2.1',
-    nodemon: '^2.0.12',
-  },
-  nodemonConfig: {
-    watch: ['src'],
-    ext: 'ts',
-    execMap: {
-      ts: 'ts-node',
-    },
-  },
-};
+const program = new Commander.Command(packageJson.name)
+  .version(packageJson.version)
+  .arguments('<project-directory>')
+  .usage(`${chalk.green('<project-directory>')} [options]`)
+  .action((name) => {
+    projectPath = name;
+  })
+  .option(
+    '--ts, --typescript',
+    `
 
-const tsConfig = {
-  extends: `@tsconfig/node${nodeMajorVersion}/tsconfig.json`,
-  version: typescriptVersion,
-  compilerOptions: {
-    emitDecoratorMetadata: false,
-    experimentalDecorators: false,
-    declaration: true,
-    declarationMap: true,
-    sourceMap: true,
-    composite: true,
-    rootDir: './src',
-    outDir: './lib',
-  },
-  include: ['src/**/*.ts'],
-  exclude: ['node_modules'],
-};
+  Initialize as a TypeScript project.
+`
+  )
+  .option(
+    '--use-npm',
+    `
 
-/**
- * Copy sample from `source` to `target` stripping away snipsync comments
- */
-async function copySample(source: string, target: string) {
-  const code = await readFile(source, 'utf8');
-  const stripped = code.replace(/.*@@@SNIP(START|END).*\n/gm, '');
-  await writeFile(target, stripped);
-}
+  Explicitly tell the CLI to bootstrap the app using npm
+`
+  )
+  .option(
+    '-e, --example [name]|[github-url]',
+    `
 
-async function writePrettyJson(path: string, obj: any) {
-  await writeFile(path, JSON.stringify(obj, null, 2) + os.EOL);
-}
+  An example to bootstrap the app with. You can use an example name
+  from the official Next.js repo or a GitHub URL. The URL can use
+  any branch and/or subdirectory
+`
+  )
+  .option(
+    '--example-path <path-to-example>',
+    `
 
-class UsageError extends Error {
-  public readonly name: string = 'UsageError';
-}
+  In a rare case, your GitHub URL might contain a branch name with
+  a slash (e.g. bug/fix-1) and the path to the example (e.g. foo/bar).
+  In this case, you must specify the path to the example separately:
+  --example-path foo/bar
+`
+  )
+  .allowUnknownOption()
+  .parse(process.argv);
 
-interface Template {
-  copySources(sampleDir: string, targetDir: string): Promise<void>;
-}
+async function run(): Promise<void> {
+  if (typeof projectPath === 'string') {
+    projectPath = projectPath.trim();
+  }
 
-class HelloWorld implements Template {
-  constructor(public connectionVariant: 'default' | 'mtls') {}
+  if (!projectPath) {
+    const res = await prompts({
+      type: 'text',
+      name: 'path',
+      message: 'What is your project named?',
+      initial: 'my-app',
+      validate: (name) => {
+        const validation = validateNpmName(path.basename(path.resolve(name)));
+        if (validation.valid) {
+          return true;
+        }
+        return 'Invalid project name: ' + validation.problems![0];
+      },
+    });
 
-  async copySources(sampleDir: string, targetDir: string): Promise<void> {
-    if (this.connectionVariant === 'default') {
-      await copySample(path.join(sampleDir, 'worker.ts'), path.join(targetDir, 'worker.ts'));
-      await copySample(path.join(sampleDir, 'client.ts'), path.join(targetDir, 'exec-workflow.ts'));
-    } else if (this.connectionVariant === 'mtls') {
-      await copySample(path.join(sampleDir, 'mtls-env.ts'), path.join(targetDir, 'mtls-env.ts'));
-      await copySample(path.join(sampleDir, 'worker-mtls.ts'), path.join(targetDir, 'worker.ts'));
-      await copySample(path.join(sampleDir, 'client-mtls.ts'), path.join(targetDir, 'exec-workflow.ts'));
+    if (typeof res.path === 'string') {
+      projectPath = res.path.trim();
     }
-    await copySample(path.join(sampleDir, 'activity.ts'), path.join(targetDir, 'activities.ts'));
-    await copySample(path.join(sampleDir, 'workflow.ts'), path.join(targetDir, 'workflows', 'example.ts'));
-    await copySample(path.join(sampleDir, 'interface.ts'), path.join(targetDir, 'interfaces', 'workflows.ts'));
+  }
+
+  if (!projectPath) {
+    console.log();
+    console.log('Please specify the project directory:');
+    console.log(`  ${chalk.cyan(program.name())} ${chalk.green('<project-directory>')}`);
+    console.log();
+    console.log('For example:');
+    console.log(`  ${chalk.cyan(program.name())} ${chalk.green('my-next-app')}`);
+    console.log();
+    console.log(`Run ${chalk.cyan(`${program.name()} --help`)} to see all options.`);
+    process.exit(1);
+  }
+
+  const resolvedProjectPath = path.resolve(projectPath);
+  const projectName = path.basename(resolvedProjectPath);
+
+  const { valid, problems } = validateNpmName(projectName);
+  if (!valid) {
+    console.error(
+      `Could not create a project called ${chalk.red(`"${projectName}"`)} because of npm naming restrictions:`
+    );
+
+    problems!.forEach((p) => console.error(`    ${chalk.red.bold('*')} ${p}`));
+    process.exit(1);
+  }
+
+  if (program.example === true) {
+    console.error('Please provide an example name or url, otherwise remove the example option.');
+    process.exit(1);
+    return;
+  }
+
+  const example = typeof program.example === 'string' && program.example.trim();
+  try {
+    await createApp({
+      appPath: resolvedProjectPath,
+      useNpm: !!program.useNpm,
+      example: example && example !== 'default' ? example : undefined,
+      examplePath: program.examplePath,
+      typescript: program.typescript,
+    });
+  } catch (reason) {
+    if (!(reason instanceof DownloadError)) {
+      throw reason;
+    }
+
+    const res = await prompts({
+      type: 'confirm',
+      name: 'builtin',
+      message:
+        `Could not download "${example}" because of a connectivity issue between your machine and GitHub.\n` +
+        `Do you want to use the default template instead?`,
+      initial: true,
+    });
+    if (!res.builtin) {
+      throw reason;
+    }
+
+    await createApp({
+      appPath: resolvedProjectPath,
+      useNpm: !!program.useNpm,
+      typescript: program.typescript,
+    });
   }
 }
 
-function getTemplate(sampleName: string): Template {
-  switch (sampleName) {
-    case 'hello-world':
-      return new HelloWorld('default');
-    case 'hello-world-mtls':
-      return new HelloWorld('mtls');
-  }
-  throw new TypeError(`Invalid sample name ${sampleName}`);
-}
+const update = checkForUpdate(packageJson).catch(() => null);
 
-async function createProject(projectPath: string, useYarn: boolean, temporalVersion: string, sample: string) {
-  const root = path.resolve(projectPath);
-  const src = path.resolve(root, 'src');
-  const name = path.basename(root);
-  await mkdir(root);
-  const packageJson = { ...packageJsonBase, name };
-  await writePrettyJson(path.join(root, 'package.json'), packageJson);
-  await mkdir(src);
-  await mkdir(path.join(src, 'interfaces'));
-  await mkdir(path.join(src, 'workflows'));
-  await writePrettyJson(path.join(root, 'tsconfig.json'), tsConfig);
-  const sampleDir = path.join(__dirname, '../samples');
-  const template = getTemplate(sample);
-  await template.copySources(sampleDir, src);
-  if (useYarn) {
-    await spawn('yarn', ['install'], { cwd: root, stdio: 'inherit' });
-    await spawn('yarn', ['add', `temporalio@${temporalVersion}`], { cwd: root, stdio: 'inherit' });
-  } else {
-    await spawn(npm, ['install'], { cwd: root, stdio: 'inherit' });
-    await spawn(npm, ['install', `temporalio@${temporalVersion}`], { cwd: root, stdio: 'inherit' });
-  }
-}
+async function notifyUpdate(): Promise<void> {
+  try {
+    const res = await update;
+    if (res?.latest) {
+      const isYarn = shouldUseYarn();
 
-async function init() {
-  const { _: args, ...opts } = arg({
-    '--use-yarn': Boolean,
-    '--temporal-version': String,
-    '--sample': String,
-  });
-  if (args.length !== 1) {
-    throw new UsageError();
-  }
-  const sample = opts['--sample'] || 'hello-world';
-  await createProject(args[0], !!opts['--use-yarn'], opts['--temporal-version'] || 'latest', sample);
-}
-
-init()
-  .then(() => process.exit(0))
-  .catch((err) => {
-    if (err instanceof UsageError) {
-      console.error(
-        `Usage: ${command} [--use-yarn] [--temporal-version VERSION] [--sample hello-world|hello-world-mtls] <packagePath>`
+      console.log();
+      console.log(chalk.yellow.bold('A new version of `create-next-app` is available!'));
+      console.log(
+        'You can update by running: ' +
+          chalk.cyan(isYarn ? 'yarn global add create-next-app' : 'npm i -g create-next-app')
       );
-    } else {
-      console.error(err);
+      console.log();
     }
+    process.exit();
+  } catch {
+    // ignore error
+  }
+}
+
+run()
+  .then(notifyUpdate)
+  .catch(async (reason) => {
+    console.log();
+    console.log('Aborting installation.');
+    if (reason.command) {
+      console.log(`  ${chalk.cyan(reason.command)} has failed.`);
+    } else {
+      console.log(chalk.red('Unexpected error. Please report it as a bug:'));
+      console.log(reason);
+    }
+    console.log();
+
+    await notifyUpdate();
+
     process.exit(1);
   });

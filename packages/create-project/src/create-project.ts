@@ -52,7 +52,7 @@ export async function createApp({
 
     try {
       repoUrl = new URL(example);
-    } catch (error) {
+    } catch (error: any) {
       if (error.code !== 'ERR_INVALID_URL') {
         console.error(error);
         process.exit(1);
@@ -146,7 +146,12 @@ export async function createApp({
         });
       }
     } catch (reason) {
-      throw new DownloadError(reason);
+      let message = 'Unable to download';
+      if (reason instanceof Error) {
+        message = reason.message;
+      }
+
+      throw new DownloadError(message);
     }
     // Copy our default `.gitignore` if the application did not provide one
     const ignorePath = path.join(root, '.gitignore');
@@ -155,13 +160,13 @@ export async function createApp({
     }
 
     // Copy default `next-env.d.ts` to any example that is typescript
-    const tsconfigPath = path.join(root, 'tsconfig.json');
-    if (fs.existsSync(tsconfigPath)) {
-      fs.copyFileSync(
-        path.join(__dirname, 'templates', 'typescript', 'next-env.d.ts'),
-        path.join(root, 'next-env.d.ts')
-      );
-    }
+    // const tsconfigPath = path.join(root, 'tsconfig.json');
+    // if (fs.existsSync(tsconfigPath)) {
+    //   fs.copyFileSync(
+    //     path.join(__dirname, 'templates', 'typescript', 'next-env.d.ts'),
+    //     path.join(root, 'next-env.d.ts')
+    //   );
+    // }
 
     console.log('Installing packages. This might take a couple of minutes.');
     console.log();
