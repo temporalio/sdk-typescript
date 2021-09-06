@@ -13,7 +13,12 @@ export type RepoInfo = {
 };
 
 export async function isUrlOk(url: string): Promise<boolean> {
-  const res = await got.head(url).catch((e) => e);
+  let res;
+  try {
+    res = await got.head(url);
+  } catch (e) {
+    return false;
+  }
   return res.statusCode === 200;
 }
 
@@ -24,10 +29,16 @@ export async function getRepoInfo(url: URL, examplePath?: string): Promise<RepoI
   // Support repos whose entire purpose is to be a Temporal example, e.g.
   // https://github.com/:username/:my-cool-temporal-example-repo
   if (t === undefined) {
-    const infoResponse = await got(`https://api.github.com/repos/${username}/${name}`).catch((e) => e);
+    let infoResponse;
+    try {
+      infoResponse = await got(`https://api.github.com/repos/${username}/${name}`);
+    } catch (e) {
+      return;
+    }
     if (infoResponse.statusCode !== 200) {
       return;
     }
+
     const info = JSON.parse(infoResponse.body);
     return { username, name, branch: info['default_branch'], filePath };
   }

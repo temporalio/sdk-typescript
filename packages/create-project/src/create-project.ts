@@ -13,9 +13,9 @@ import { makeDir } from './helpers/make-dir';
 import { tryGitInit } from './helpers/git';
 import { install } from './helpers/install';
 import { isFolderEmpty } from './helpers/is-folder-empty';
-import { getOnline } from './helpers/is-online';
-// import { shouldUseYarn } from './helpers/should-use-yarn';
+import { testIfThisComputerIsOnline } from './helpers/is-online';
 import { isWriteable } from './helpers/is-writeable';
+import { getErrorCode } from './helpers/get-error-code';
 
 export class DownloadError extends Error {}
 
@@ -31,57 +31,60 @@ export async function createApp({
   examplePath?: string;
 }): Promise<void> {
   let repoInfo: RepoInfo | undefined;
+  let repoUrl: URL | undefined;
 
-  if (example) {
-    let repoUrl: URL | undefined;
+  const isOnline = await testIfThisComputerIsOnline();
+  if (!isOnline) {
+    console.error(`Unable to reach ${chalk.bold(`github.com`)}. Perhaps you are not connected to the internet?`);
+    process.exit(1);
+  }
 
-    try {
-      repoUrl = new URL(example);
-    } catch (error: any) {
-      if (error.code !== 'ERR_INVALID_URL') {
-        console.error(error);
-        process.exit(1);
-      }
+  try {
+    repoUrl = new URL(example);
+  } catch (error) {
+    if (getErrorCode(error) !== 'ERR_INVALID_URL') {
+      console.error(error);
+      process.exit(1);
+    }
+  }
+
+  if (repoUrl) {
+    if (repoUrl.origin !== 'https://github.com') {
+      console.error(
+        `Invalid URL: ${chalk.red(
+          `"${example}"`
+        )}. Only GitHub repositories are supported. Please use a GitHub URL and try again.`
+      );
+      process.exit(1);
     }
 
-    if (repoUrl) {
-      if (repoUrl.origin !== 'https://github.com') {
-        console.error(
-          `Invalid URL: ${chalk.red(
-            `"${example}"`
-          )}. Only GitHub repositories are supported. Please use a GitHub URL and try again.`
-        );
-        process.exit(1);
-      }
+    repoInfo = await getRepoInfo(repoUrl, examplePath);
 
-      repoInfo = await getRepoInfo(repoUrl, examplePath);
+    if (!repoInfo) {
+      console.error(`Found invalid GitHub URL: ${chalk.red(`"${example}"`)}. Please fix the URL and try again.`);
+      process.exit(1);
+    }
 
-      if (!repoInfo) {
-        console.error(`Found invalid GitHub URL: ${chalk.red(`"${example}"`)}. Please fix the URL and try again.`);
-        process.exit(1);
-      }
+    const found = await hasRepo(repoInfo);
 
-      const found = await hasRepo(repoInfo);
+    if (!found) {
+      console.error(
+        `Could not locate the repository for ${chalk.red(
+          `"${example}"`
+        )}. Please check that the repository exists and try again.`
+      );
+      process.exit(1);
+    }
+  } else if (example !== '__internal-testing-retry') {
+    const found = await hasExample(example);
 
-      if (!found) {
-        console.error(
-          `Could not locate the repository for ${chalk.red(
-            `"${example}"`
-          )}. Please check that the repository exists and try again.`
-        );
-        process.exit(1);
-      }
-    } else if (example !== '__internal-testing-retry') {
-      const found = await hasExample(example);
-
-      if (!found) {
-        console.error(
-          `Could not locate an example named ${chalk.red(`"${example}"`)}. It could be due to the following:\n`,
-          `1. Your spelling of example ${chalk.red(`"${example}"`)} might be incorrect.\n`,
-          `2. You might not be connected to the internet.`
-        );
-        process.exit(1);
-      }
+    if (!found) {
+      console.error(
+        `Could not locate an example named ${chalk.red(`"${example}"`)}. It could be due to the following:\n`,
+        `1. Your spelling of example ${chalk.red(`"${example}"`)} might be incorrect.\n`,
+        `2. You might not be connected to the internet.`
+      );
+      process.exit(1);
     }
   }
 
@@ -100,7 +103,6 @@ export async function createApp({
     process.exit(1);
   }
 
-  const isOnline = !useYarn || (await getOnline());
   const originalDirectory = process.cwd();
 
   const displayedCommand = useYarn ? 'yarn' : 'npm';
