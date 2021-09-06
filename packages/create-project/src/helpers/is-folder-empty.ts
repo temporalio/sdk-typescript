@@ -26,9 +26,8 @@ export function isFolderEmpty(root: string, name: string): boolean {
 
   const conflicts = fs
     .readdirSync(root)
-    .filter((file) => !validFiles.includes(file))
-    // Support IntelliJ IDEA-based editors
-    .filter((file) => !/\.iml$/.test(file));
+    // .iml: Support IntelliJ IDEA-based editors
+    .filter((file) => !validFiles.includes(file) && !/\.iml$/.test(file));
 
   if (conflicts.length > 0) {
     console.log(`The directory ${chalk.green(name)} contains files that could conflict:`);
