@@ -109,8 +109,17 @@ export async function createApp({
   console.log(`Creating a new Temporal project in ${chalk.green(root)}/.`);
   console.log();
 
-  await makeDir(root);
-  process.chdir(root);
+  try {
+    await makeDir(root);
+    process.chdir(root);
+  } catch (error) {
+    if (getErrorCode(error) === 'EACCES') {
+      console.error(`Unable to cd into directory ${chalk.bold(root + '/')} (Error: permission denied)`);
+      process.exit(1);
+    } else {
+      throw error;
+    }
+  }
 
   /**
    * If an example repository is provided, clone it.
