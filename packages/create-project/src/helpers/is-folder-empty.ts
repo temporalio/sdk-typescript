@@ -1,3 +1,4 @@
+// Modified from: https://github.com/vercel/next.js/blob/2425f4703c4c6164cecfdb6aa8f80046213f0cc6/packages/create-next-app/helpers/is-folder-empty.ts
 import chalk from 'chalk';
 import fs from 'fs';
 import path from 'path';

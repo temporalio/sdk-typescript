@@ -1,3 +1,4 @@
+// Modified from: https://github.com/vercel/next.js/blob/2425f4703c4c6164cecfdb6aa8f80046213f0cc6/packages/create-next-app/helpers/should-use-yarn.ts
 import { execSync } from 'child_process';
 
 const COMMAND_NOT_FOUND_SH_CODE = 127;

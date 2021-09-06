@@ -1,3 +1,4 @@
+// Modified from: https://github.com/vercel/next.js/blob/2425f4703c4c6164cecfdb6aa8f80046213f0cc6/packages/create-next-app/helpers/is-writeable.ts
 import fs from 'fs';
 
 import { getErrorCode } from './get-error-code';
