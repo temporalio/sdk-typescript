@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-/* eslint-disable import/no-extraneous-dependencies */
 import chalk from 'chalk';
 import Commander from 'commander';
 import path from 'path';
@@ -10,7 +9,7 @@ import { shouldUseYarn } from './helpers/should-use-yarn';
 import { validateNpmName } from './helpers/validate-pkg';
 import packageJson from '../package.json';
 
-let projectPath: string = '';
+let projectPath = '';
 
 const program = new Commander.Command(packageJson.name)
   .version(packageJson.version, '-v, --version')
@@ -64,7 +63,7 @@ async function run(): Promise<void> {
         if (validation.valid) {
           return true;
         }
-        return 'Invalid project name: ' + validation.problems![0];
+        return 'Invalid project name: ' + validation.problems?.[0];
       },
     });
 
@@ -94,7 +93,7 @@ async function run(): Promise<void> {
       `Could not create a project called ${chalk.red(`"${projectName}"`)} because of npm naming restrictions:`
     );
 
-    problems!.forEach((p) => console.error(`    ${chalk.red.bold('*')} ${p}`));
+    problems?.forEach((p) => console.error(`    ${chalk.red.bold('*')} ${p}`));
     process.exit(1);
   }
 

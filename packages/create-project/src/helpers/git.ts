@@ -1,4 +1,4 @@
-/* eslint-disable import/no-extraneous-dependencies */
+/* eslint-disable no-empty */
 import { execSync } from 'child_process';
 import path from 'path';
 import rimraf from 'rimraf';

@@ -1,4 +1,3 @@
-/* eslint-disable import/no-extraneous-dependencies */
 import chalk from 'chalk';
 import fs from 'fs';
 import path from 'path';

@@ -1,4 +1,3 @@
-/* eslint-disable import/no-extraneous-dependencies */
 import chalk from 'chalk';
 import spawn from 'cross-spawn';
 
@@ -40,7 +39,7 @@ export function install(
    */
   return new Promise((resolve, reject) => {
     let args: string[];
-    let command: string = useYarn ? 'yarnpkg' : 'npm';
+    const command: string = useYarn ? 'yarnpkg' : 'npm';
 
     if (dependencies && dependencies.length) {
       /**

@@ -4,9 +4,7 @@
     "outDir": "./lib",
     "rootDir": "./",
     "resolveJsonModule": true,
-    "lib": [
-      "dom"
-    ]
+    "lib": ["dom"]
   },
   "include": ["./src/**/*.ts", "package.json"],
   "exclude": ["node_modules", "./lib"]
