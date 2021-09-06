@@ -22,8 +22,8 @@ export async function getRepoInfo(url: URL, examplePath?: string): Promise<RepoI
   const [, username, name, t, _branch, ...file] = url.pathname.split('/');
   const filePath = examplePath ? examplePath.replace(/^\//, '') : file.join('/');
 
-  // Support repos whose entire purpose is to be a NextJS example, e.g.
-  // https://github.com/:username/:my-cool-nextjs-example-repo-name.
+  // Support repos whose entire purpose is to be a Temporal example, e.g.
+  // https://github.com/:username/:my-cool-temporal-example-repo
   if (t === undefined) {
     const infoResponse = await got(`https://api.github.com/repos/${username}/${name}`).catch((e) => e);
     if (infoResponse.statusCode !== 200) {
@@ -50,7 +50,7 @@ export function hasRepo({ username, name, branch, filePath }: RepoInfo): Promise
 
 export function hasExample(name: string): Promise<boolean> {
   return isUrlOk(
-    `https://api.github.com/repos/vercel/next.js/contents/examples/${encodeURIComponent(name)}/package.json`
+    `https://api.github.com/repos/temporalio/samples-node/contents/${encodeURIComponent(name)}/package.json`
   );
 }
 
@@ -69,7 +69,7 @@ export function downloadAndExtractExample(root: string, name: string): Promise<v
   }
 
   return pipeline(
-    got.stream('https://codeload.github.com/vercel/next.js/tar.gz/canary'),
-    tar.extract({ cwd: root, strip: 3 }, [`next.js-canary/examples/${name}`])
+    got.stream('https://codeload.github.com/temporalio/samples-node/tar.gz/main'),
+    tar.extract({ cwd: root, strip: 2 }, [`samples-node-main/${name}`])
   );
 }

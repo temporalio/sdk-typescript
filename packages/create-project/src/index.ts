@@ -79,7 +79,7 @@ async function run(): Promise<void> {
     console.log(`  ${chalk.cyan(program.name())} ${chalk.green('<project-directory>')}`);
     console.log();
     console.log('For example:');
-    console.log(`  ${chalk.cyan(program.name())} ${chalk.green('my-next-app')}`);
+    console.log(`  ${chalk.cyan(program.name())} ${chalk.green('my-temporal-project')}`);
     console.log();
     console.log(`Run ${chalk.cyan(`${program.name()} --help`)} to see all options.`);
     process.exit(1);
@@ -150,10 +150,10 @@ async function notifyUpdate(): Promise<void> {
       const isYarn = shouldUseYarn();
 
       console.log();
-      console.log(chalk.yellow.bold('A new version of `create-next-app` is available!'));
+      console.log(chalk.yellow.bold('A new version of `@temporalio/create` is available!'));
       console.log(
         'You can update by running: ' +
-          chalk.cyan(isYarn ? 'yarn global add create-next-app' : 'npm i -g create-next-app')
+          chalk.cyan(isYarn ? 'yarn global add @temporalio/create' : 'npm i -g @temporalio/create')
       );
       console.log();
     }

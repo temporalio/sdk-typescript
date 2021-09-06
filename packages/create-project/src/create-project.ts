@@ -141,21 +141,6 @@ export async function createApp({
     throw new DownloadError(message);
   }
 
-  // Copy our default `.gitignore` if the application did not provide one
-  // const ignorePath = path.join(root, '.gitignore');
-  // if (!fs.existsSync(ignorePath)) {
-  //   fs.copyFileSync(path.join(__dirname, 'templates', 'gitignore'), ignorePath);
-  // }
-
-  // Copy default `next-env.d.ts` to any example that is typescript
-  // const tsconfigPath = path.join(root, 'tsconfig.json');
-  // if (fs.existsSync(tsconfigPath)) {
-  //   fs.copyFileSync(
-  //     path.join(__dirname, 'templates', 'typescript', 'next-env.d.ts'),
-  //     path.join(root, 'next-env.d.ts')
-  //   );
-  // }
-
   console.log('Installing packages. This might take a couple of minutes.');
   console.log();
 
@@ -193,7 +178,9 @@ export async function createApp({
   console.log(`  ${chalk.cyan('docker-compose up')}`);
   console.log();
   console.log(
-    chalk.dim.italic('To get Temporal Server set up, visit https://docs.temporal.io/docs/node/getting-started/')
+    chalk.dim.italic(
+      `If you haven't run Temporal Server before, visit:\nhttps://docs.temporal.io/docs/node/getting-started/`
+    )
   );
   console.log();
   console.log(`Then, in the ${chalk.bold(cdpath + '/')} directory, using three other shells, run these commands:`);

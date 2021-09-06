@@ -14,8 +14,7 @@
     "workflow"
   ],
   "files": [
-    "lib",
-    "samples"
+    "lib"
   ],
   "author": "Roey Berman <roey@temporal.io>",
   "license": "MIT",
@@ -43,5 +42,8 @@
   },
   "publishConfig": {
     "access": "public"
+  },
+  "engines": {
+    "node": ">=14.0.0"
   }
 }
