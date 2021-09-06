@@ -12,15 +12,10 @@ import { shouldUseYarn } from './helpers/should-use-yarn';
 import { validateNpmName } from './helpers/validate-pkg';
 import packageJson from '../package.json';
 
-let projectPath = '';
-
 const program = new Commander.Command(packageJson.name)
   .version(packageJson.version, '-v, --version')
   .arguments('<project-directory>')
   .usage(`${chalk.green('<project-directory>')} [options]`)
-  .action((name) => {
-    projectPath = name;
-  })
   .option(
     '--use-yarn',
     `
@@ -51,6 +46,8 @@ const program = new Commander.Command(packageJson.name)
   .parse(process.argv);
 
 async function run(): Promise<void> {
+  let projectPath = program.args[0];
+
   if (typeof projectPath === 'string') {
     projectPath = projectPath.trim();
   }
