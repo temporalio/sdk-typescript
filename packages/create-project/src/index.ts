@@ -73,14 +73,14 @@ async function run(): Promise<void> {
   }
 
   if (!projectPath) {
-    console.log();
-    console.log('Please specify the project directory:');
-    console.log(`  ${chalk.cyan(program.name())} ${chalk.green('<project-directory>')}`);
-    console.log();
-    console.log('For example:');
-    console.log(`  ${chalk.cyan(program.name())} ${chalk.green('my-temporal-project')}`);
-    console.log();
-    console.log(`Run ${chalk.cyan(`${program.name()} --help`)} to see all options.`);
+    console.error();
+    console.error('Please specify the project directory:');
+    console.error(`  ${chalk.cyan(program.name())} ${chalk.green('<project-directory>')}`);
+    console.error();
+    console.error('For example:');
+    console.error(`  ${chalk.cyan(program.name())} ${chalk.green('my-temporal-project')}`);
+    console.error();
+    console.error(`Run ${chalk.cyan(`${program.name()} --help`)} to see all options.`);
     process.exit(1);
   }
 
@@ -121,14 +121,14 @@ async function run(): Promise<void> {
   }
 
   if (typeof example !== 'string') {
-    console.log();
-    console.log('Please specify which example:');
-    console.log(`  ${chalk.cyan(program.name())} --example ${chalk.green('[name]|[github-url]')}`);
-    console.log();
-    console.log('For example:');
-    console.log(`  ${chalk.cyan(program.name())} --example ${chalk.green('hello-world')}`);
-    console.log();
-    console.log(`Run ${chalk.cyan(`${program.name()} --help`)} to see all options.`);
+    console.error();
+    console.error('Please specify which example:');
+    console.error(`  ${chalk.cyan(program.name())} --example ${chalk.green('[name]|[github-url]')}`);
+    console.error();
+    console.error('For example:');
+    console.error(`  ${chalk.cyan(program.name())} --example ${chalk.green('hello-world')}`);
+    console.error();
+    console.error(`Run ${chalk.cyan(`${program.name()} --help`)} to see all options.`);
     process.exit(1);
   }
 
