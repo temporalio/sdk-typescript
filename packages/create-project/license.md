@@ -1,6 +1,6 @@
-Some of the code in this directory is subject to the below license:
-
 The MIT License (MIT)
+
+Copyright (C) 2020 Temporal Technologies, Inc. All Rights Reserved.
 
 Copyright (c) 2021 Vercel, Inc.
 
