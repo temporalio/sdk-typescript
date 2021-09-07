@@ -1,6 +1,4 @@
 // Modified from: https://github.com/vercel/next.js/blob/2425f4703c4c6164cecfdb6aa8f80046213f0cc6/packages/create-next-app/helpers/install.ts
-import chalk from 'chalk';
-
 import { spawn } from './subprocess';
 
 interface InstallArgs {
@@ -8,14 +6,6 @@ interface InstallArgs {
    * Indicate whether to install packages using Yarn.
    */
   useYarn: boolean;
-  /**
-   * Indicate whether there is an active Internet connection.
-   */
-  isOnline: boolean;
-  /**
-   * Indicate whether the given dependencies are devDependencies.
-   */
-  devDependencies?: boolean;
 }
 
 /**
@@ -23,76 +13,10 @@ interface InstallArgs {
  *
  * @returns A Promise that resolves once the installation is finished.
  */
-export function install(
-  root: string,
-  dependencies: string[] | null,
-  { useYarn, isOnline, devDependencies }: InstallArgs
-): Promise<void> {
-  /**
-   * NPM-specific command-line flags.
-   */
-  const npmFlags: string[] = [];
-  /**
-   * Yarn-specific command-line flags.
-   */
-  const yarnFlags: string[] = [];
+export function install({ useYarn }: InstallArgs): Promise<void> {
+  const command: string = useYarn ? 'yarn' : 'npm';
 
-  let args: string[];
-  const command: string = useYarn ? 'yarnpkg' : 'npm';
-
-  if (dependencies && dependencies.length) {
-    /**
-     * If there are dependencies, run a variation of `{displayCommand} add`.
-     */
-    if (useYarn) {
-      /**
-       * Call `yarn add --exact (--offline)? (-D)? ...`.
-       */
-      args = ['add', '--exact'];
-      if (!isOnline) args.push('--offline');
-      args.push('--cwd', root);
-      if (devDependencies) args.push('--dev');
-      args.push(...dependencies);
-    } else {
-      /**
-       * Call `npm install [--save|--save-dev] ...`.
-       */
-      args = ['install', '--save-exact'];
-      args.push(devDependencies ? '--save-dev' : '--save');
-      args.push(...dependencies);
-    }
-  } else {
-    /**
-     * If there are no dependencies, run a variation of `{displayCommand}
-     * install`.
-     */
-    args = ['install'];
-    if (useYarn) {
-      if (!isOnline) {
-        console.log(chalk.yellow('You appear to be offline.'));
-        console.log(chalk.yellow('Falling back to the local Yarn cache.'));
-        console.log();
-        args.push('--offline');
-      }
-    } else {
-      if (!isOnline) {
-        console.log(chalk.yellow('You appear to be offline.'));
-        console.log();
-      }
-    }
-  }
-  /**
-   * Add any package manager-specific flags.
-   */
-  if (useYarn) {
-    args.push(...yarnFlags);
-  } else {
-    args.push(...npmFlags);
-  }
-  /**
-   * Spawn the installation process.
-   */
-  return spawn(command, args, {
+  return spawn(command, ['install'], {
     stdio: 'inherit',
     env: { ...process.env, ADBLOCK: '1', DISABLE_OPENCOLLECTIVE: '1' },
   });

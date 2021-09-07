@@ -152,7 +152,7 @@ export async function createApp({
   console.log('Installing packages. This might take a couple of minutes.');
   console.log();
 
-  await install(root, null, { useYarn, isOnline });
+  await install({ useYarn });
   console.log();
 
   if (tryGitInit(root)) {
