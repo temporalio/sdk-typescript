@@ -1,4 +1,5 @@
 // Modified from: https://github.com/vercel/next.js/blob/2425f4703c4c6164cecfdb6aa8f80046213f0cc6/packages/create-next-app/helpers/examples.ts
+import chalk from 'chalk';
 import got from 'got';
 import tar from 'tar';
 import { Stream } from 'stream';
@@ -28,21 +29,25 @@ function escapeRegex(s: string) {
   return s.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
 }
 
-export async function getRepoInfo(url: URL, examplePath?: string): Promise<RepoInfo | undefined> {
+export async function getRepoInfo(url: URL, examplePath?: string): Promise<RepoInfo> {
   const [, username, name, t, _branch, ...file] = url.pathname.split('/');
   const filePath = examplePath ? examplePath.replace(/^\//, '') : file.join('/');
 
   // Support repos whose entire purpose is to be a Temporal example, e.g.
   // https://github.com/:username/:my-cool-temporal-example-repo
   if (t === undefined) {
+    const repo = `https://api.github.com/repos/${username}/${name}`;
     let infoResponse;
+
     try {
-      infoResponse = await got(`https://api.github.com/repos/${username}/${name}`);
-    } catch (e) {
-      return;
+      // https://github.com/sindresorhus/got/blob/main/documentation/3-streams.md#response-1
+      infoResponse = await got(repo);
+    } catch (error) {
+      throw new Error(`Unable to fetch ${repo}`);
     }
+
     if (infoResponse.statusCode !== 200) {
-      return;
+      throw new Error(`Unable to fetch ${repo} — Code ${infoResponse.statusCode}: ${infoResponse.statusMessage}`);
     }
 
     const info = JSON.parse(infoResponse.body);
@@ -56,14 +61,24 @@ export async function getRepoInfo(url: URL, examplePath?: string): Promise<RepoI
 
   if (username && name && branch && t === 'tree') {
     return { username, name, branch, filePath };
+  } else {
+    throw new Error(`Unable to parse URL: ${url} and example path: ${examplePath}`);
   }
 }
 
-export function hasRepo({ username, name, branch, filePath }: RepoInfo): Promise<boolean> {
+export async function checkForPackageJson({ username, name, branch, filePath }: RepoInfo): Promise<void> {
   const contentsUrl = `https://api.github.com/repos/${username}/${name}/contents`;
   const packagePath = `${filePath ? `/${filePath}` : ''}/package.json`;
 
-  return isUrlOk(contentsUrl + packagePath + `?ref=${branch}`);
+  const fullUrl = contentsUrl + packagePath + `?ref=${branch}`;
+
+  if (!(await isUrlOk(fullUrl))) {
+    throw new Error(
+      `Could not locate a package.json at ${chalk.red(
+        `"${fullUrl}"`
+      )}.\nPlease check that the repository is a Temporal node-sdk template and try again.`
+    );
+  }
 }
 
 export function hasExample(name: string): Promise<boolean> {

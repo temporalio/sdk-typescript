@@ -7,7 +7,7 @@ import {
   downloadAndExtractRepo,
   getRepoInfo,
   hasExample,
-  hasRepo,
+  checkForPackageJson,
   RepoInfo,
 } from './helpers/examples';
 import { makeDir } from './helpers/make-dir';
@@ -59,21 +59,11 @@ export async function createApp({
       process.exit(1);
     }
 
-    repoInfo = await getRepoInfo(repoUrl, examplePath);
-
-    if (!repoInfo) {
-      console.error(`Found invalid GitHub URL: ${chalk.red(`"${example}"`)}. Please fix the URL and try again.`);
-      process.exit(1);
-    }
-
-    const found = await hasRepo(repoInfo);
-
-    if (!found) {
-      console.error(
-        `Could not locate the repository for ${chalk.red(
-          `"${example}"`
-        )}. Please check that the repository exists and try again.`
-      );
+    try {
+      repoInfo = await getRepoInfo(repoUrl, examplePath);
+      await checkForPackageJson(repoInfo);
+    } catch (e) {
+      console.error(e);
       process.exit(1);
     }
   } else if (example !== '__internal-testing-retry') {
