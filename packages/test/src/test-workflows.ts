@@ -1324,7 +1324,7 @@ test('multipleActivitiesSingleTimeout', async (t) => {
               activityId: `${index + 1}`,
               activityType: 'httpGetJSON',
               arguments: await defaultDataConverter.toPayloads(url),
-              startToCloseTimeout: msToTs('10m'),
+              startToCloseTimeout: msToTs('1s'),
               taskQueue: 'test',
             })
           )
