@@ -23,6 +23,11 @@ export async function isUrlOk(url: string): Promise<boolean> {
   return res.statusCode === 200;
 }
 
+// https://stackoverflow.com/a/3561711/627729
+function escapeRegex(s: string) {
+  return s.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+}
+
 export async function getRepoInfo(url: URL, examplePath?: string): Promise<RepoInfo | undefined> {
   const [, username, name, t, _branch, ...file] = url.pathname.split('/');
   const filePath = examplePath ? examplePath.replace(/^\//, '') : file.join('/');
@@ -45,7 +50,9 @@ export async function getRepoInfo(url: URL, examplePath?: string): Promise<RepoI
   }
 
   // If examplePath is available, the branch name takes the entire path
-  const branch = examplePath ? `${_branch}/${file.join('/')}`.replace(new RegExp(`/${filePath}|/$`), '') : _branch;
+  const branch = examplePath
+    ? `${_branch}/${file.join('/')}`.replace(new RegExp(`/${escapeRegex(filePath)}|/$`), '')
+    : _branch;
 
   if (username && name && branch && t === 'tree') {
     return { username, name, branch, filePath };
