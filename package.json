@@ -7,7 +7,6 @@
     "@commitlint/cli": "^13.1.0",
     "@commitlint/config-conventional": "^13.1.0",
     "@opentelemetry/api": "^1.0.1",
-    "@opentelemetry/exporter-jaeger": "^0.24.0",
     "@opentelemetry/sdk-node": "^0.24.0",
     "@tsconfig/node14": "^1.0.1",
     "@types/dedent": "^0.7.0",

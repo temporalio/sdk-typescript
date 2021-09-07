@@ -7,4 +7,6 @@ steps:
     plugins:
       - docker-compose#v3.8.0:
           run: load-test
-          config: .buildkite/docker/docker-compose.yaml
+          config:
+            - .buildkite/docker/docker-compose.yaml
+            - .buildkite/docker/docker-compose-load.yaml
