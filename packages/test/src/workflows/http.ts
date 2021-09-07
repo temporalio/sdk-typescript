@@ -1,9 +1,9 @@
 // @@@SNIPSTART nodejs-schedule-activity-workflow
-import { Context } from '@temporalio/workflow';
+import { configureActivities } from '@temporalio/workflow';
 import type * as activities from '../activities';
 import { HTTP } from '../interfaces';
 
-const { httpGet } = Context.configureActivities<typeof activities>({
+const { httpGet } = configureActivities<typeof activities>({
   type: 'remote',
   startToCloseTimeout: '1 minute',
 });

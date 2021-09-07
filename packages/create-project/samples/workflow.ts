@@ -1,9 +1,9 @@
 // @@@SNIPSTART nodejs-hello-workflow
-import { Context } from '@temporalio/workflow';
+import { configureActivities } from '@temporalio/workflow';
 import { Example } from '../interfaces';
 import * as activities from '../activities';
 
-const { greet } = Context.configureActivities<typeof activities>({
+const { greet } = configureActivities<typeof activities>({
   type: 'remote',
   startToCloseTimeout: '30 minutes',
 });

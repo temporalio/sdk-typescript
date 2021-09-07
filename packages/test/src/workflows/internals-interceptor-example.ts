@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/explicit-module-boundary-types */
-import { Context, WorkflowInterceptors, ExternalDependencies, sleep } from '@temporalio/workflow';
+import { dependencies, WorkflowInterceptors, ExternalDependencies, sleep } from '@temporalio/workflow';
 
 export interface Dependencies extends ExternalDependencies {
   logger: {
@@ -7,7 +7,7 @@ export interface Dependencies extends ExternalDependencies {
   };
 }
 
-const { logger } = Context.dependencies<Dependencies>();
+const { logger } = dependencies<Dependencies>();
 
 export function internalsInterceptorExample() {
   return {

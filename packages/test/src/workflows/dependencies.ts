@@ -1,8 +1,8 @@
-import { Context } from '@temporalio/workflow';
+import { dependencies } from '@temporalio/workflow';
 import { TestDependencies } from '../interfaces/dependencies';
 import { Returner } from '../interfaces';
 
-const { syncVoid, asyncIgnored, sync, async, error } = Context.dependencies<TestDependencies>();
+const { syncVoid, asyncIgnored, sync, async, error } = dependencies<TestDependencies>();
 
 function convertErrorToIntResult(fn: (x: number) => any, x: number): number {
   try {

@@ -4,7 +4,7 @@
  */
 
 import { WorkflowExecution } from '@temporalio/common';
-import { Context } from '@temporalio/workflow';
+import { childWorkflow } from '@temporalio/workflow';
 import { ChildTerminator } from '../interfaces';
 import { unblockOrCancel } from './unblock-or-cancel';
 
@@ -18,7 +18,7 @@ export const childWorkflowTermination: ChildTerminator = () => {
       },
     },
     async execute(): Promise<void> {
-      const child = Context.child(unblockOrCancel, {
+      const child = childWorkflow(unblockOrCancel, {
         taskQueue: 'test',
       });
       workflowExecution = { workflowId: child.workflowId, runId: await child.start() };
