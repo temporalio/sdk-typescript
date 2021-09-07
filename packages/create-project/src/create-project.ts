@@ -89,11 +89,6 @@ export async function createApp({
 
   const appName = path.basename(root);
 
-  await makeDir(root);
-  if (!isFolderEmpty(root, appName)) {
-    process.exit(1);
-  }
-
   const originalDirectory = process.cwd();
 
   const displayedCommand = useYarn ? 'yarn' : 'npm';
@@ -102,6 +97,10 @@ export async function createApp({
 
   try {
     await makeDir(root);
+    if (!isFolderEmpty(root, appName)) {
+      process.exit(1);
+    }
+
     process.chdir(root);
   } catch (error) {
     if (getErrorCode(error) === 'EACCES') {
