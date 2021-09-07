@@ -37,15 +37,3 @@ services:
       - 'TEMPORAL_GRPC_ENDPOINT=temporal:7233'
     depends_on:
       - temporal
-
-  load-test:
-    build:
-      context: ../../
-      dockerfile: .buildkite/docker/Dockerfile
-    command: /bin/sh -c ".buildkite/docker/build-and-run-load.sh"
-    environment:
-      - 'TEMPORAL_SERVICE_ADDRESS=http://temporal:7233'
-    depends_on:
-      - temporal
-    volumes:
-      - '../../:/sdk-node'
