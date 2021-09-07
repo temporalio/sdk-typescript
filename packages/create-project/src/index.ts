@@ -57,7 +57,7 @@ async function run(): Promise<void> {
       type: 'text',
       name: 'path',
       message: 'What is your project named?',
-      initial: 'my-app',
+      initial: 'my-temporal',
       validate: (name) => {
         const validation = validateNpmName(path.basename(path.resolve(name)));
         if (validation.valid) {
