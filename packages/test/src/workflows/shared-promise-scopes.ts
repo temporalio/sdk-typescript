@@ -1,9 +1,9 @@
 // @@@SNIPSTART nodejs-shared-promise-scopes
-import { CancellationScope, Context } from '@temporalio/workflow';
+import { CancellationScope, configureActivities } from '@temporalio/workflow';
 import type * as activities from '../activities';
 import { Returner } from '../interfaces';
 
-const { httpGetJSON } = Context.configureActivities<typeof activities>({ type: 'remote', startToCloseTimeout: '10m' });
+const { httpGetJSON } = configureActivities<typeof activities>({ type: 'remote', startToCloseTimeout: '10m' });
 
 export const sharedScopes: Returner<any> = () => ({
   async execute() {

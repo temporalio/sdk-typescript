@@ -3,11 +3,11 @@
  * Used in the documentation site.
  */
 // @@@SNIPSTART nodejs-cancel-requested-with-non-cancellable
-import { CancelledFailure, CancellationScope, Context } from '@temporalio/workflow';
+import { CancelledFailure, CancellationScope, configureActivities } from '@temporalio/workflow';
 import type * as activities from '../activities';
 import { HTTPGetter } from '../interfaces';
 
-const { httpGetJSON } = Context.configureActivities<typeof activities>({
+const { httpGetJSON } = configureActivities<typeof activities>({
   type: 'remote',
   startToCloseTimeout: '10m',
 });

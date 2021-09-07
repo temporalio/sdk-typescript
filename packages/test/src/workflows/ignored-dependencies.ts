@@ -1,9 +1,9 @@
 // Run all different kinds of ignored dependency functions to check that the Worker reports when they throw
-import { Context } from '@temporalio/workflow';
+import { dependencies } from '@temporalio/workflow';
 import { Returner } from '../interfaces';
 import { IgnoredTestDependencies } from '../interfaces/dependencies';
 
-const { syncIgnored, asyncIgnored } = Context.dependencies<IgnoredTestDependencies>();
+const { syncIgnored, asyncIgnored } = dependencies<IgnoredTestDependencies>();
 
 async function execute(): Promise<number> {
   let i = 0;

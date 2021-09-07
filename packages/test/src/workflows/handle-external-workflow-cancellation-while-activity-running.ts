@@ -4,10 +4,10 @@
  * Used in the documentation site.
  */
 // @@@SNIPSTART nodejs-handle-external-workflow-cancellation-while-activity-running
-import { CancellationScope, Context, isCancellation } from '@temporalio/workflow';
+import { CancellationScope, configureActivities, isCancellation } from '@temporalio/workflow';
 import type * as activities from '../activities';
 
-const { httpPostJSON, cleanup } = Context.configureActivities<typeof activities>({
+const { httpPostJSON, cleanup } = configureActivities<typeof activities>({
   type: 'remote',
   startToCloseTimeout: '10m',
 });

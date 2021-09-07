@@ -1,8 +1,14 @@
-import { ActivityCancellationType, Context, CancellationScope, isCancellation, Trigger } from '@temporalio/workflow';
+import {
+  ActivityCancellationType,
+  configureActivities,
+  CancellationScope,
+  isCancellation,
+  Trigger,
+} from '@temporalio/workflow';
 import { CancellableHTTPRequest } from '../interfaces';
 import type * as activities from '../activities';
 
-const { cancellableFetch } = Context.configureActivities<typeof activities>({
+const { cancellableFetch } = configureActivities<typeof activities>({
   type: 'remote',
   startToCloseTimeout: '20s',
   heartbeatTimeout: '3s',

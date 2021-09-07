@@ -11,12 +11,12 @@
  * @module
  */
 
-import { Context } from '@temporalio/workflow';
+import { configureActivities } from '@temporalio/workflow';
 import { ActivityFailure, ApplicationFailure, RetryState } from '@temporalio/common';
 import type * as activities from '../activities';
 import { Empty } from '../interfaces';
 
-const { throwSpecificError } = Context.configureActivities<typeof activities>({
+const { throwSpecificError } = configureActivities<typeof activities>({
   type: 'remote',
   startToCloseTimeout: '20s',
   retry: { initialInterval: 5, maximumAttempts: 1, nonRetryableErrorTypes: ['NonRetryableError'] },

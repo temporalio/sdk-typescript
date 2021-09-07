@@ -223,7 +223,7 @@ export function getAndResetPendingExternalCalls(): ExternalCall[] {
 
 /**
  * Inject an external dependency function into the Workflow via global state.
- * The injected function is available via {@link Context.dependencies}.
+ * The injected function is available via {@link dependencies}.
  */
 export function inject(
   ifaceName: string,

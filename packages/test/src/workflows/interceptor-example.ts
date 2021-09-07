@@ -1,5 +1,12 @@
 /* eslint-disable @typescript-eslint/explicit-module-boundary-types */
-import { Context, WorkflowInterceptors, defaultDataConverter, Headers, sleep, Trigger } from '@temporalio/workflow';
+import {
+  childWorkflow,
+  WorkflowInterceptors,
+  defaultDataConverter,
+  Headers,
+  sleep,
+  Trigger,
+} from '@temporalio/workflow';
 import { echo } from './configured-activities';
 
 class InvalidTimerDurationError extends Error {}
@@ -34,7 +41,7 @@ export const interceptorExample = () => {
       await sleep(2);
       await unblocked;
       // Untyped because we intercept the result
-      const result = await Context.child('successString').execute();
+      const result = await childWorkflow('successString').execute();
       if (result !== 3) {
         throw new Error('expected interceptor to change child workflow result');
       }

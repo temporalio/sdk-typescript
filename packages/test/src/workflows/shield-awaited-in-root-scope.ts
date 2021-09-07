@@ -1,9 +1,9 @@
 // @@@SNIPSTART nodejs-shield-awaited-in-root-scope
-import { Context, CancellationScope } from '@temporalio/workflow';
+import { CancellationScope, configureActivities } from '@temporalio/workflow';
 import { Returner } from '../interfaces';
 import type * as activities from '../activities';
 
-const { httpGetJSON } = Context.configureActivities<typeof activities>({ type: 'remote', startToCloseTimeout: '10m' });
+const { httpGetJSON } = configureActivities<typeof activities>({ type: 'remote', startToCloseTimeout: '10m' });
 
 export const shieldAwaitedInRootScope: Returner<any> = () => ({
   async execute(): Promise<any> {

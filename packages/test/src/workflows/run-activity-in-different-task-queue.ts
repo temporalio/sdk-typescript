@@ -1,8 +1,8 @@
-import { Context } from '@temporalio/workflow';
+import { configureActivities } from '@temporalio/workflow';
 import type * as activities from '../activities';
 
 export function runActivityInDifferentTaskQueue(taskQueue: string): { execute(): Promise<string> } {
-  const { echo } = Context.configureActivities<typeof activities>({
+  const { echo } = configureActivities<typeof activities>({
     type: 'remote',
     taskQueue,
     scheduleToCloseTimeout: '30 minutes',
