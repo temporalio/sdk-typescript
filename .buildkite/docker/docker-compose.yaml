@@ -5,8 +5,8 @@ services:
     image: cassandra:3.11
     logging:
       driver: none
-    ports:
-      - '9042:9042'
+  #    ports:
+  #      - '9042:9042'
 
   temporal:
     image: temporalio/auto-setup:1.11.0
@@ -15,12 +15,12 @@ services:
     ports:
       - '7233:7233'
       - '7234:7234'
-      - '7235:7235'
-      - '7239:7239'
-      - '6933:6933'
-      - '6934:6934'
-      - '6935:6935'
-      - '6939:6939'
+    #      - '7235:7235'
+    #      - '7239:7239'
+    #      - '6933:6933'
+    #      - '6934:6934'
+    #      - '6935:6935'
+    #      - '6939:6939'
     environment:
       - 'CASSANDRA_SEEDS=cassandra'
       - 'DYNAMIC_CONFIG_FILE_PATH=config/dynamicconfig/development.yaml'

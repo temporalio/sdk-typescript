@@ -44,6 +44,7 @@ export interface WorkerArgSpec extends arg.Spec {
   '--max-concurrent-wft-polls': typeof Number;
   '--log-level': typeof String;
   '--server-address': typeof String;
+  '--otel-url': typeof String;
 }
 
 export const workerArgSpec: WorkerArgSpec = {
@@ -59,6 +60,7 @@ export const workerArgSpec: WorkerArgSpec = {
   '--max-concurrent-wft-polls': Number,
   '--log-level': String,
   '--server-address': String,
+  '--otel-url': String,
 };
 
 export type AllInOneArgSpec = SetupArgSpec & StarterArgSpec & WorkerArgSpec;

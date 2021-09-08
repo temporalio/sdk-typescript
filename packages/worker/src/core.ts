@@ -8,7 +8,7 @@ import {
   normalizeTlsConfig,
 } from './server-options';
 import * as native from '@temporalio/core-bridge';
-import { newCore, coreShutdown, TelemetryOptions } from "@temporalio/core-bridge";
+import { newCore, coreShutdown, TelemetryOptions } from '@temporalio/core-bridge';
 
 export interface CoreOptions {
   /** Options for communicating with the Temporal server */
@@ -22,6 +22,10 @@ export interface CompiledCoreOptions extends CoreOptions {
   serverOptions: CompiledServerOptions;
 }
 
+function defaultTelemetryOptions(): TelemetryOptions {
+  return {};
+}
+
 /**
  * Core singleton representing an instance of the Rust Core SDK
  *
@@ -30,6 +34,7 @@ export interface CompiledCoreOptions extends CoreOptions {
 export class Core {
   /** Track the registered workers to automatically shutdown when all have been deregistered */
   protected registeredWorkers = new Set<native.Worker>();
+
   protected constructor(public readonly native: native.Core, public readonly options: CompiledCoreOptions) {}
 
   /**
@@ -43,6 +48,7 @@ export class Core {
    */
   protected static async create(options: CoreOptions): Promise<Core> {
     const compiledServerOptions = compileServerOptions({ ...getDefaultServerOptions(), ...options.serverOptions });
+    const telemetryOptions = { ...defaultTelemetryOptions(), ...options.telemetryOptions };
     const compiledOptions = {
       serverOptions: {
         ...compiledServerOptions,
@@ -51,7 +57,7 @@ export class Core {
           ? `https://${compiledServerOptions.address}`
           : `http://${compiledServerOptions.address}`,
       },
-      telemetryOptions: options.telemetryOptions || {}
+      telemetryOptions,
     };
     const native = await promisify(newCore)(compiledOptions);
     return new this(native, compiledOptions);

@@ -201,8 +201,8 @@ fn start_bridge_loop(
                         CoreInitError::TonicTransportError(err) => {
                             TRANSPORT_ERROR.from_error(cx, err)
                         }
-                        CoreInitError::TelemetryInitError(err) => {
-                            Ok(JsError::error(cx, format!("Error initializing telemetry: {:?}", err))?.upcast())
+                        e @ CoreInitError::TelemetryInitError(_) => {
+                            UNEXPECTED_ERROR.from_error(cx, e)
                         }
                     });
                 }
@@ -607,7 +607,13 @@ fn core_new(mut cx: FunctionContext) -> JsResult<JsUndefined> {
             )
             .unwrap()
         }),
-        tracing_filter: js_value_getter!(cx, telem_options, "tracingFilter", JsString),
+        tracing_filter: get_optional(&mut cx, telem_options, "tracingFilter")
+            .map(|x| {
+                x.downcast_or_throw::<JsString, _>(&mut cx)
+                    .unwrap()
+                    .value(&mut cx)
+            })
+            .unwrap_or("".to_string()),
     };
 
     let callback = cx.argument::<JsFunction>(1)?.root(&mut cx);
