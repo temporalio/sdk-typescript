@@ -20,7 +20,15 @@ async function main() {
   const namespace = getRequired(args, '--ns');
   const taskQueue = getRequired(args, '--task-queue');
 
-  const exporter = new CollectorTraceExporter({url: oTelUrl});
+  let exporter = undefined;
+  let telemetryOptions = undefined;
+  if (oTelUrl) {
+    exporter = new CollectorTraceExporter({ url: oTelUrl });
+    telemetryOptions = {
+      oTelCollectorUrl: oTelUrl,
+      tracingFilter: 'temporal_sdk_core=DEBUG',
+    };
+  }
   const otel = new opentelemetry.NodeSDK({
     resource: new opentelemetry.resources.Resource({
       [SemanticResourceAttributes.SERVICE_NAME]: 'load-worker',
@@ -35,10 +43,7 @@ async function main() {
       namespace,
       address: serverAddress,
     },
-    telemetryOptions: {
-      oTelCollectorUrl: oTelUrl,
-      tracingFilter: "temporal_sdk_core=DEBUG"
-    }
+    telemetryOptions,
   });
 
   const worker = await Worker.create({
@@ -56,7 +61,7 @@ async function main() {
   console.log('Created worker');
 
   await worker.run();
-  await otel.shutdown();
+  await otel.shutdown().catch(console.error);
 }
 
 main().catch((err) => {

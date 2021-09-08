@@ -76,14 +76,14 @@ export interface TelemetryOptions {
    * If set, telemetry is turned on and this URL must be the URL of a gRPC
    * OTel collector.
    */
-  oTelCollectorUrl?: string
+  oTelCollectorUrl?: string;
   /**
    * A string in the env filter format specified here:
    * https://docs.rs/tracing-subscriber/0.2.20/tracing_subscriber/struct.EnvFilter.html
    *
    * Which determines what tracing data is collected in the Core SDK
    */
-  tracingFilter?: string
+  tracingFilter?: string;
 }
 
 export interface WorkerOptions {

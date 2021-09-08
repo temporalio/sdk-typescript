@@ -5,7 +5,7 @@ receivers:
 
 exporters:
   prometheus:
-    endpoint: "0.0.0.0:8889"
+    endpoint: '0.0.0.0:8889'
     namespace: temporal_sdk
   logging:
 

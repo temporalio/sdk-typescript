@@ -47,6 +47,11 @@ After your environment is set up, you can run these commands:
 - `npm run format` formats code with prettier.
 - `npm run lint` verifies code style with prettier and ES lint.
 
+### Testing local changes to core
+
+Create a `.cargo/config.toml` file and override the path to sdk-core and/or sdk-core-protos as
+described [here](https://doc.rust-lang.org/cargo/reference/overriding-dependencies.html#paths-overrides)
+
 ##### Integration tests
 
 In order to run integration tests:
