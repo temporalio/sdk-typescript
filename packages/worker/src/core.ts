@@ -8,13 +8,19 @@ import {
   normalizeTlsConfig,
 } from './server-options';
 import * as native from '@temporalio/core-bridge';
-import { newCore, coreShutdown, TelemetryOptions } from '@temporalio/core-bridge';
+import { newCore, coreShutdown, TelemetryOptions, corePollLogs } from '@temporalio/core-bridge';
+import { Logger } from './logger';
+import { BehaviorSubject, interval } from 'rxjs';
+import { filter, takeUntil } from 'rxjs/operators';
 
 export interface CoreOptions {
   /** Options for communicating with the Temporal server */
   serverOptions?: ServerOptions;
   /** Telemetry options for traces/metrics/logging */
   telemetryOptions?: TelemetryOptions;
+  /** Forwarded logs from core will be emitted using this logger.
+   * If it is not set, logs will not be forwarded. */
+  logger?: Logger;
 }
 
 export interface CompiledCoreOptions extends CoreOptions {
@@ -23,7 +29,9 @@ export interface CompiledCoreOptions extends CoreOptions {
 }
 
 function defaultTelemetryOptions(): TelemetryOptions {
-  return {};
+  return {
+    logForwardingLevel: 'OFF'
+  };
 }
 
 /**
@@ -38,8 +46,8 @@ export class Core {
   protected constructor(public readonly native: native.Core, public readonly options: CompiledCoreOptions) {}
 
   /**
-   * Default options get overriden when Core is installed and are remembered in case Core is
-   * reinstantiated after being shut down
+   * Default options get overridden when Core is installed and are remembered in case Core is
+   * re-instantiated after being shut down
    */
   protected static defaultOptions: CoreOptions = {};
 
@@ -60,10 +68,37 @@ export class Core {
       telemetryOptions,
     };
     const native = await promisify(newCore)(compiledOptions);
+    this.initLogPolling(options, native);
+
     return new this(native, compiledOptions);
   }
 
+  private static initLogPolling(options: CoreOptions, native: native.Core) {
+    if (options.logger != null) {
+      interval(3)
+        .pipe(takeUntil(this.shouldPollForLogs.pipe(filter((v) => v === false))))
+        .subscribe((_) => {
+          corePollLogs(native, (_err, logs) => {
+            for (const log of logs) {
+              if (log.level === 'DEBUG') {
+                options.logger?.debug(log.message);
+              } else if (log.level === 'INFO') {
+                options.logger?.info(log.message);
+              } else if (log.level === 'WARN') {
+                options.logger?.warn(log.message);
+              } else if (log.level === 'ERROR') {
+                options.logger?.error(log.message);
+              } else {
+                options.logger?.info(log.message);
+              }
+            }
+          });
+        });
+    }
+  }
+
   protected static _instance?: Promise<Core>;
+  protected static shouldPollForLogs = new BehaviorSubject<boolean>(false);
   protected static instantiator?: 'install' | 'instance';
 
   /**
@@ -86,6 +121,7 @@ export class Core {
     }
     this.instantiator = 'install';
     this._instance = this.create(options);
+    this.shouldPollForLogs.next(true);
     return this._instance;
   }
 
@@ -125,6 +161,7 @@ export class Core {
   public async deregisterWorker(worker: native.Worker): Promise<void> {
     this.registeredWorkers.delete(worker);
     if (this.registeredWorkers.size === 0) {
+      Core.shouldPollForLogs.next(false);
       await promisify(coreShutdown)(this.native);
       delete Core._instance;
     }

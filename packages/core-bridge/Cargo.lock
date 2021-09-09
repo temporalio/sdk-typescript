@@ -1443,6 +1443,7 @@ name = "temporal-sdk-node-bridge"
 version = "0.1.0"
 dependencies = [
  "futures",
+ "log",
  "neon",
  "once_cell",
  "prost",

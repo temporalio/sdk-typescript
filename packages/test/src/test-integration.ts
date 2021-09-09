@@ -14,7 +14,7 @@ import {
   tsToMs,
   WorkflowExecution,
 } from '@temporalio/common';
-import { Worker, DefaultLogger } from '@temporalio/worker';
+import { Worker, DefaultLogger, Core } from '@temporalio/worker';
 import * as iface from '@temporalio/proto';
 import {
   WorkflowExecutionContinuedAsNewError,
@@ -46,11 +46,14 @@ const namespace = 'default';
 
 if (RUN_INTEGRATION_TESTS) {
   test.before(async (t) => {
+    const logger = new DefaultLogger('DEBUG');
+    // Use forwarded logging from core
+    await Core.install({ logger, telemetryOptions: { logForwardingLevel: 'INFO' } });
     const worker = await Worker.create({
       workflowsPath: `${__dirname}/workflows`,
       activities,
       nodeModulesPath: `${__dirname}/../../../node_modules`,
-      logger: new DefaultLogger('DEBUG'),
+      logger,
       taskQueue: 'test',
     });
 
