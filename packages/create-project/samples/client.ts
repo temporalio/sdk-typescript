@@ -9,7 +9,7 @@ async function run() {
   // Workflows will be started in the "default" namespace unless specified otherwise
   // via options passed the WorkflowClient constructor.
   const client = new WorkflowClient(connection.service);
-  // Create a typed client using the Example Workflow interface,
+  // Create a typed client for the example Workflow.
   const workflow = client.stub(example, { taskQueue: 'tutorial' });
   const result = await workflow.execute('Temporal');
   console.log(result); // Hello, Temporal!

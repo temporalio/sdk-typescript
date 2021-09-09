@@ -12,18 +12,6 @@ import { CancellationScope } from './cancellation-scope';
  * <!--SNIPEND-->
  *
  * <!--SNIPSTART nodejs-blocked-workflow-->
- * ```ts
- * const unblocked = new Trigger<void>();
- * export const signals = {
- *   unblock(): void {
- *     unblocked.resolve();
- *   },
- * };
- *
- * export async function execute() {
- *   await unblocked;
- * }
- * ```
  * <!--SNIPEND-->
  */
 export class Trigger<T> implements PromiseLike<T> {

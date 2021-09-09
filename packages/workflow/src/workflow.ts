@@ -572,9 +572,13 @@ export function workflowInfo(): WorkflowInfo {
  * const { logger } = dependencies<MyDependencies>();
  * logger.info('setting up');
  *
- * export function execute(): void {
- *  logger.info('hey ho');
- *  logger.error('lets go');
+ * export function myWorkflow() {
+ *   return {
+ *     async execute() {
+ *       logger.info('hey ho');
+ *       logger.error('lets go');
+ *     }
+ *   };
  * }
  * ```
  */
@@ -645,9 +649,13 @@ export function makeContinueAsNewFunc<F extends Workflow>(
  * ```ts
  * import { continueAsNew } from '@temporalio/workflow';
  *
- * async function execute(n: number) {
- *   // ... Workflow logic
- *   await continueAsNew<typeof execute>(n + 1);
+ * export function myWorkflow(n: number) {
+ *   return {
+ *     async execute() {
+ *       // ... Workflow logic
+ *       await continueAsNew<typeof myWorkflow>(n + 1);
+ *     }
+ *   };
  * }
  * ```
  */

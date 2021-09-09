@@ -37,6 +37,7 @@ export interface CancellationScopeOptions {
  * operations created within it, such as:
  *
  * - Activities
+ * - Child Workflows
  * - Timers (created with the {@link sleep} function)
  * - {@link Trigger}s
  *

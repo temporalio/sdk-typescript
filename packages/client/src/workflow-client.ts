@@ -43,7 +43,7 @@ import { Connection, WorkflowService } from './connection';
  *
  * Given a workflow interface such as:
  * ```ts
- * export interface Counter {
+ * export type Counter = () => {
  *   execute(initialValue?: number): number;
  *   signals: {
  *     increment(amount?: number): void;
