@@ -90,3 +90,4 @@ export {
   ExternalDependency,
   ExternalDependencies,
 } from './dependencies';
+export { ChildWorkflowStub, ExternalWorkflowStub } from './workflow-stub';

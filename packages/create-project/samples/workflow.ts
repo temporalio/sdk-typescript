@@ -1,7 +1,8 @@
 // @@@SNIPSTART nodejs-hello-workflow
 import { configureActivities } from '@temporalio/workflow';
 import { Example } from '../interfaces';
-import * as activities from '../activities';
+// Only import the activity types
+import type * as activities from '../activities';
 
 const { greet } = configureActivities<typeof activities>({
   type: 'remote',
