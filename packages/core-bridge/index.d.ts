@@ -84,6 +84,9 @@ export interface TelemetryOptions {
    * Which determines what tracing data is collected in the Core SDK
    */
   tracingFilter?: string;
+  /** What level, if any, logs should be forwarded from core at */
+  // These strings should match the log::LevelFilter enum in rust
+  logForwardingLevel: 'OFF' | 'ERROR' | 'WARN' | 'INFO' | 'DEBUG' | 'TRACE';
 }
 
 export interface WorkerOptions {
@@ -116,6 +119,17 @@ export interface WorkerOptions {
   maxCachedWorkflows: number;
 }
 
+export interface CoreLog {
+  /** Log message */
+  message: string;
+  /** Unix millis since epoch. Ideally would be bigint but Neon can't send those
+   */
+  // TODO: Not meaningfully usable until logger interface has a timestamp concept
+  timestamp_millis: number;
+  /** Log level */
+  level: string;
+}
+
 export interface Worker {}
 export interface Core {}
 
@@ -123,6 +137,7 @@ export declare type PollCallback = (err: Error, result: ArrayBuffer) => void;
 export declare type WorkerCallback = (err: Error, result: Worker) => void;
 export declare type CoreCallback = (err: Error, result: Core) => void;
 export declare type VoidCallback = (err: Error, result: void) => void;
+export declare type LogsCallback = (err: Error, result: CoreLog[]) => void;
 
 // TODO: improve type, for some reason Error is not accepted here
 export declare function registerErrors(errors: Record<string, any>): void;
@@ -130,6 +145,7 @@ export declare function newCore(coreOptions: CoreOptions, callback: CoreCallback
 export declare function newWorker(core: Core, workerOptions: WorkerOptions, callback: WorkerCallback): void;
 export declare function workerShutdown(worker: Worker, callback: VoidCallback): void;
 export declare function coreShutdown(core: Core, callback: VoidCallback): void;
+export declare function corePollLogs(core: Core, callback: LogsCallback): void;
 export declare function workerPollWorkflowActivation(worker: Worker, callback: PollCallback): void;
 export declare function workerCompleteWorkflowActivation(
   worker: Worker,
