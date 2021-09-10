@@ -252,29 +252,20 @@ fn start_bridge_loop(
                             }
                             Request::PollLogs { callback } => {
                                 let logs = core.fetch_buffered_logs();
-                                if !logs.is_empty() {
-                                    send_result(event_queue.clone(), callback, |cx| {
-                                        let logarr = cx.empty_array();
-                                        for (i, cl) in logs.into_iter().enumerate() {
-                                            let logobj = cx.empty_object();
-                                            let level = cx.string(cl.level.to_string());
-                                            logobj.set(cx, "level", level).unwrap();
-                                            // eww, time conversion. Use neon date if possible in napi-5
-                                            let ts = cx.number(cl.millis_since_epoch() as f64);
-                                            logobj.set(cx, "timestamp_nanos", ts).unwrap();
-                                            let msg = cx.string(cl.message);
-                                            logobj.set(cx, "message", msg).unwrap();
-                                            logarr.set(cx, i as u32, logobj).unwrap();
-                                        }
-                                        Ok(logarr)
-                                    });
-                                } else {
-                                    // Dispose of unused root
-                                    event_queue.send(move |mut cx| {
-                                        callback.drop(&mut cx);
-                                        Ok(())
-                                    });
-                                }
+                                send_result(event_queue.clone(), callback, |cx| {
+                                    let logarr = cx.empty_array();
+                                    for (i, cl) in logs.into_iter().enumerate() {
+                                        let logobj = cx.empty_object();
+                                        let level = cx.string(cl.level.to_string());
+                                        logobj.set(cx, "level", level).unwrap();
+                                        let ts = cx.number(cl.millis_since_epoch() as f64);
+                                        logobj.set(cx, "timestampMillis", ts).unwrap();
+                                        let msg = cx.string(cl.message);
+                                        logobj.set(cx, "message", msg).unwrap();
+                                        logarr.set(cx, i as u32, logobj).unwrap();
+                                    }
+                                    Ok(logarr)
+                                });
                             }
                             Request::ShutdownWorker {
                                 task_queue,
@@ -631,13 +622,11 @@ fn core_new(mut cx: FunctionContext) -> JsResult<JsUndefined> {
         retry_config,
     };
 
-    let log_forwarding_level = LevelFilter::from_str(&js_value_getter!(
-        cx,
-        telem_options,
-        "logForwardingLevel",
-        JsString
-    ))
-    .unwrap_or(LevelFilter::Off);
+    let log_forwarding_level_str =
+        js_value_getter!(cx, telem_options, "logForwardingLevel", JsString)
+            .replace("WARNING", "WARN");
+    let log_forwarding_level =
+        LevelFilter::from_str(&log_forwarding_level_str).unwrap_or(LevelFilter::Off);
     let telemetry_opts = TelemetryOptions {
         otel_collector_url: get_optional(&mut cx, telem_options, "oTelCollectorUrl").map(|x| {
             Url::parse(

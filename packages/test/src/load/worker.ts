@@ -5,7 +5,7 @@ import { SemanticResourceAttributes } from '@opentelemetry/semantic-conventions'
 import { Core, Worker, DefaultLogger } from '@temporalio/worker';
 import { CollectorTraceExporter } from '@opentelemetry/exporter-collector-grpc';
 import { WorkerArgSpec, workerArgSpec, getRequired } from './args';
-import { TelemetryOptions } from "@temporalio/core-bridge";
+import { TelemetryOptions } from '@temporalio/core-bridge';
 
 async function main() {
   const args = arg<WorkerArgSpec>(workerArgSpec);
@@ -28,7 +28,7 @@ async function main() {
     telemetryOptions = {
       oTelCollectorUrl: oTelUrl,
       tracingFilter: 'temporal_sdk_core=DEBUG',
-      logForwardingLevel: 'OFF'
+      logForwardingLevel: 'OFF',
     };
   }
   const otel = new opentelemetry.NodeSDK({
@@ -46,6 +46,7 @@ async function main() {
       address: serverAddress,
     },
     telemetryOptions,
+    logger: new DefaultLogger(logLevel as any),
   });
 
   const worker = await Worker.create({
@@ -58,7 +59,6 @@ async function main() {
     maxConcurrentWorkflowTaskPolls,
     maxCachedWorkflows,
     isolatePoolSize,
-    logger: new DefaultLogger(logLevel as any),
   });
   console.log('Created worker');
 
