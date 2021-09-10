@@ -26,6 +26,7 @@ export async function isUrlOk(url: string): Promise<boolean> {
 
 // https://stackoverflow.com/a/3561711/627729
 function escapeRegex(s: string) {
+  // eslint-disable-next-line no-useless-escape
   return s.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
 }
 
