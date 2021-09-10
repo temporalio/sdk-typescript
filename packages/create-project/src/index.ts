@@ -8,7 +8,6 @@ import path from 'path';
 import prompts from 'prompts';
 import checkForUpdate from 'update-check';
 import { createApp } from './create-project';
-import { shouldUseYarn } from './helpers/should-use-yarn';
 import { validateNpmName } from './helpers/validate-pkg';
 import packageJson from './pkg';
 
@@ -146,13 +145,11 @@ async function notifyUpdate(): Promise<void> {
   try {
     const res = await update;
     if (res?.latest) {
-      const isYarn = shouldUseYarn();
-
       console.log();
       console.log(chalk.yellow.bold('A new version of `@temporalio/create` is available!'));
       console.log(
         'You can update by running: ' +
-          chalk.cyan(isYarn ? 'yarn global add @temporalio/create' : 'npm i -g @temporalio/create')
+          chalk.cyan(!!program.useYarn ? 'yarn global add @temporalio/create' : 'npm i -g @temporalio/create')
       );
       console.log();
     }
