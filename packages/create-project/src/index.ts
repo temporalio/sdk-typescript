@@ -10,7 +10,7 @@ import checkForUpdate from 'update-check';
 import { createApp } from './create-project';
 import { shouldUseYarn } from './helpers/should-use-yarn';
 import { validateNpmName } from './helpers/validate-pkg';
-import packageJson from '../package.json';
+import packageJson from './pkg';
 
 const program = new Commander.Command(packageJson.name)
   .version(packageJson.version, '-v, --version')
