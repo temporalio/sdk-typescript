@@ -53,7 +53,6 @@ if (RUN_INTEGRATION_TESTS) {
       workflowsPath: `${__dirname}/workflows`,
       activities,
       nodeModulesPath: `${__dirname}/../../../node_modules`,
-      logger,
       taskQueue: 'test',
     });
 

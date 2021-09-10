@@ -1,4 +1,5 @@
 import { TLSConfig } from '@temporalio/common';
+import { LogLevel } from '@temporalio/worker';
 
 export { TLSConfig };
 
@@ -86,7 +87,7 @@ export interface TelemetryOptions {
   tracingFilter?: string;
   /** What level, if any, logs should be forwarded from core at */
   // These strings should match the log::LevelFilter enum in rust
-  logForwardingLevel: 'OFF' | 'ERROR' | 'WARN' | 'INFO' | 'DEBUG' | 'TRACE';
+  logForwardingLevel: 'OFF' | LogLevel;
 }
 
 export interface WorkerOptions {
@@ -125,9 +126,9 @@ export interface CoreLog {
   /** Unix millis since epoch. Ideally would be bigint but Neon can't send those
    */
   // TODO: Not meaningfully usable until logger interface has a timestamp concept
-  timestamp_millis: number;
-  /** Log level */
-  level: string;
+  timestampMillis: number;
+  /** Log level - must match rust log level names */
+  level: 'TRACE' | 'DEBUG' | 'INFO' | 'WARN' | 'ERROR';
 }
 
 export interface Worker {}

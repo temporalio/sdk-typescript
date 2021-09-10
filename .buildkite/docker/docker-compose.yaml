@@ -10,8 +10,6 @@ services:
 
   temporal:
     image: temporalio/auto-setup:1.11.0
-    logging:
-      driver: none
     ports:
       - '7233:7233'
       - '7234:7234'
