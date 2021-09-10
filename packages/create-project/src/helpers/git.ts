@@ -2,7 +2,7 @@
 // Modified from: https://github.com/vercel/next.js/blob/2425f4703c4c6164cecfdb6aa8f80046213f0cc6/packages/create-next-app/helpers/git.ts
 import { execSync } from 'child_process';
 import path from 'path';
-import rimraf from 'rimraf';
+import fs from 'fs-extra';
 
 const NOT_A_GIT_REPOSITORY_STATUS_CODE = 128;
 
@@ -58,7 +58,7 @@ export function tryGitInit(root: string): boolean {
   } catch (e) {
     if (didInit) {
       try {
-        rimraf.sync(path.join(root, '.git'));
+        fs.removeSync(path.join(root, '.git'));
       } catch (_) {}
     }
     return false;
