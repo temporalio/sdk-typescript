@@ -100,8 +100,6 @@ export async function createApp({
     if (!isFolderEmpty(root, appName)) {
       process.exit(1);
     }
-
-    process.chdir(root);
   } catch (error) {
     if (getErrorCode(error) === 'EACCES') {
       console.error(`Unable to cd into directory ${chalk.bold(root + '/')} (Error: permission denied)`);
@@ -141,7 +139,7 @@ export async function createApp({
   console.log('Installing packages. This might take a couple of minutes.');
   console.log();
 
-  await install({ useYarn });
+  await install({ root, useYarn });
   console.log();
 
   if (tryGitInit(root)) {

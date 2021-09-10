@@ -39,21 +39,21 @@ function isInMercurialRepository(): boolean {
 
 export function tryGitInit(root: string): boolean {
   let didInit = false;
+  const exec = (command: string) => execSync(command, { stdio: 'ignore', cwd: root });
+
   try {
-    execSync('git --version', { stdio: 'ignore' });
+    exec('git --version');
     if (isInGitRepository() || isInMercurialRepository()) {
       return false;
     }
 
-    execSync('git init', { stdio: 'ignore' });
+    exec('git init');
     didInit = true;
 
-    execSync('git checkout -b main', { stdio: 'ignore' });
+    exec('git checkout -b main');
 
-    execSync('git add -A', { stdio: 'ignore' });
-    execSync('git commit -m "Initial commit from @temporalio/create"', {
-      stdio: 'ignore',
-    });
+    exec('git add -A');
+    exec('git commit -m "Initial commit from @temporalio/create"');
     return true;
   } catch (e) {
     if (didInit) {

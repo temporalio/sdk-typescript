@@ -2,6 +2,8 @@
 import { spawn } from './subprocess';
 
 interface InstallArgs {
+  root: string;
+
   /**
    * Indicate whether to install packages using Yarn.
    */
@@ -13,10 +15,11 @@ interface InstallArgs {
  *
  * @returns A Promise that resolves once the installation is finished.
  */
-export function install({ useYarn }: InstallArgs): Promise<void> {
+export function install({ root, useYarn }: InstallArgs): Promise<void> {
   const command: string = useYarn ? 'yarn' : 'npm';
 
   return spawn(command, ['install'], {
+    cwd: root,
     stdio: 'inherit',
     env: { ...process.env, ADBLOCK: '1', DISABLE_OPENCOLLECTIVE: '1' },
   });
