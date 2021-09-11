@@ -19,8 +19,5 @@ export async function fetchExamples() {
 
   const files = JSON.parse(response.body) as File[];
 
-  return files
-    .filter((file) => file.type === 'dir')
-    .map(({ name }) => name)
-    .join('\n');
+  return files.filter((file) => file.type === 'dir').map(({ name }) => name);
 }

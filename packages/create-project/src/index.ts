@@ -59,7 +59,7 @@ async function run(): Promise<void> {
   opts = program.opts();
   if (opts.listExamples) {
     const examples = await fetchExamples();
-    console.log(`Available examples:\n\n${examples}\n`);
+    console.log(`Available examples:\n\n${examples.join('\n')}\n`);
     return;
   }
 
@@ -117,19 +117,14 @@ async function run(): Promise<void> {
   let example = opts.example;
   if (!example) {
     const examples = await fetchExamples();
+    const choices = examples.map((example) => ({ title: example, value: example }));
 
     const res = await prompts({
-      type: 'text',
+      type: 'select',
       name: 'example',
-      message: `Which example would you like to use?\n\n${examples}\n\n`,
-      initial: 'hello-world',
-      // validate: (name) => {
-      //   const validation = validateNpmName(path.basename(path.resolve(name)));
-      //   if (validation.valid) {
-      //     return true;
-      //   }
-      //   return 'Invalid project name: ' + validation.problems![0];
-      // },
+      message: `Which example would you like to use?`,
+      choices,
+      initial: examples.indexOf('hello-world'),
     });
 
     if (typeof res.example === 'string') {
