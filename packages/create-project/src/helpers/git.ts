@@ -2,6 +2,7 @@
 // Modified from: https://github.com/vercel/next.js/blob/2425f4703c4c6164cecfdb6aa8f80046213f0cc6/packages/create-next-app/helpers/git.ts
 import { execSync } from 'child_process';
 import path from 'path';
+import prompts from 'prompts';
 import fs from 'fs-extra';
 
 const NOT_A_GIT_REPOSITORY_STATUS_CODE = 128;
@@ -37,14 +38,21 @@ function isInMercurialRepository(): boolean {
   }
 }
 
-export function tryGitInit(root: string): boolean {
+export async function tryGitInit(root: string): Promise<boolean> {
   let didInit = false;
   const exec = (command: string) => execSync(command, { stdio: 'ignore', cwd: root });
 
   try {
-    exec('git --version');
     if (isInGitRepository() || isInMercurialRepository()) {
-      return false;
+      const res = await prompts({
+        type: 'confirm',
+        name: 'shouldInit',
+        message: `Would you like me to initialize a git repository for the project?`,
+      });
+
+      if (!res.shouldInit) {
+        return false;
+      }
     }
 
     exec('git init');

@@ -170,7 +170,7 @@ export async function createApp({
   await install({ root, useYarn });
   console.log();
 
-  if (tryGitInit(root)) {
+  if (await tryGitInit(root)) {
     console.log('Initialized a git repository.');
     console.log();
   }
