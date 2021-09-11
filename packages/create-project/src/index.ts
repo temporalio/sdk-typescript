@@ -10,6 +10,7 @@ import checkForUpdate from 'update-check';
 
 import { createApp } from './create-project';
 import { validateNpmName } from './helpers/validate-pkg';
+import { fetchExamples } from './helpers/fetch-examples';
 import packageJson from './pkg';
 
 const program = new Commander.Command(packageJson.name)
@@ -42,10 +43,23 @@ const program = new Commander.Command(packageJson.name)
   --example-path foo/bar
 `
   )
+  .option(
+    '--list-examples',
+    `
+
+  Print available example projects
+`
+  )
   .allowUnknownOption()
   .parse(process.argv);
 
 async function run(): Promise<void> {
+  if (program.listExamples) {
+    const examples = await fetchExamples();
+    console.log(`Available examples:\n\n${examples}\n`);
+    return;
+  }
+
   let projectPath = program.args[0];
 
   if (typeof projectPath === 'string') {
@@ -101,10 +115,12 @@ async function run(): Promise<void> {
 
   // `example` is true when --example is used by itself
   if (typeof example !== 'string') {
+    const examples = await fetchExamples();
+
     const res = await prompts({
       type: 'text',
       name: 'example',
-      message: 'Which template would you like to use?',
+      message: `Which example would you like to use?\n\n${examples}\n\n`,
       initial: 'hello-world',
       // validate: (name) => {
       //   const validation = validateNpmName(path.basename(path.resolve(name)));
