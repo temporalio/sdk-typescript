@@ -3,7 +3,7 @@
 // Modified from: https://github.com/vercel/next.js/blob/2425f4703c4c6164cecfdb6aa8f80046213f0cc6/packages/create-next-app/index.ts
 
 import chalk from 'chalk';
-import Commander from 'commander';
+import { Command, OptionValues } from 'commander';
 import path from 'path';
 import prompts from 'prompts';
 import checkForUpdate from 'update-check';
@@ -13,10 +13,10 @@ import { validateNpmName } from './helpers/validate-pkg';
 import { fetchExamples } from './helpers/fetch-examples';
 import packageJson from './pkg';
 
-const program = new Commander.Command(packageJson.name)
+const program = new Command(packageJson.name)
   .version(packageJson.version, '-v, --version')
-  .arguments('<project-directory>')
-  .usage(`${chalk.green('<project-directory>')} [options]`)
+  .arguments('[project-directory]')
+  .usage(`${chalk.green('[project-directory]')} [options]`)
   .option(
     '--use-yarn',
     `
@@ -25,7 +25,7 @@ const program = new Commander.Command(packageJson.name)
 `
   )
   .option(
-    '-e, --example [name]|[github-url]',
+    '-e, --example <name|github-url>',
     `
 
   An example to bootstrap the app with. You can use an example name
@@ -44,7 +44,7 @@ const program = new Commander.Command(packageJson.name)
 `
   )
   .option(
-    '--list-examples',
+    '-l, --list-examples',
     `
 
   Print available example projects
@@ -53,8 +53,11 @@ const program = new Commander.Command(packageJson.name)
   .allowUnknownOption()
   .parse(process.argv);
 
+let opts: OptionValues;
+
 async function run(): Promise<void> {
-  if (program.listExamples) {
+  opts = program.opts();
+  if (opts.listExamples) {
     const examples = await fetchExamples();
     console.log(`Available examples:\n\n${examples}\n`);
     return;
@@ -111,10 +114,8 @@ async function run(): Promise<void> {
     process.exit(1);
   }
 
-  let example = program.example;
-
-  // `example` is true when --example is used by itself
-  if (typeof example !== 'string') {
+  let example = opts.example;
+  if (!example) {
     const examples = await fetchExamples();
 
     const res = await prompts({
@@ -136,10 +137,10 @@ async function run(): Promise<void> {
     }
   }
 
-  if (typeof example !== 'string') {
+  if (!example) {
     console.error();
     console.error('Please specify which example:');
-    console.error(`  ${chalk.cyan(program.name())} --example ${chalk.green('[name]|[github-url]')}`);
+    console.error(`  ${chalk.cyan(program.name())} --example ${chalk.green('<name|github-url>')}`);
     console.error();
     console.error('For example:');
     console.error(`  ${chalk.cyan(program.name())} --example ${chalk.green('hello-world')}`);
@@ -150,9 +151,9 @@ async function run(): Promise<void> {
 
   await createApp({
     appPath: resolvedProjectPath,
-    useYarn: !!program.useYarn,
+    useYarn: !!opts.useYarn,
     example: example.trim(),
-    examplePath: typeof program.examplePath === 'string' ? program.examplePath.trim() : undefined,
+    examplePath: typeof opts.examplePath === 'string' ? opts.examplePath.trim() : undefined,
   });
 }
 
@@ -166,7 +167,7 @@ async function notifyUpdate(): Promise<void> {
       console.log(chalk.yellow.bold('A new version of `@temporalio/create` is available!'));
       console.log(
         'You can update by running: ' +
-          chalk.cyan(!!program.useYarn ? 'yarn global add @temporalio/create' : 'npm i -g @temporalio/create')
+          chalk.cyan(!!opts.useYarn ? 'yarn global add @temporalio/create' : 'npm i -g @temporalio/create')
       );
       console.log();
     }
