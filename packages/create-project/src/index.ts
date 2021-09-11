@@ -7,6 +7,7 @@ import Commander from 'commander';
 import path from 'path';
 import prompts from 'prompts';
 import checkForUpdate from 'update-check';
+
 import { createApp } from './create-project';
 import { validateNpmName } from './helpers/validate-pkg';
 import packageJson from './pkg';

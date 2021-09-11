@@ -2,6 +2,8 @@
 import retry from 'async-retry';
 import chalk from 'chalk';
 import path from 'path';
+import prompts from 'prompts';
+import { accessSync } from 'fs';
 import {
   downloadAndExtractExample,
   downloadAndExtractRepo,
@@ -13,7 +15,6 @@ import {
 import { makeDir } from './helpers/make-dir';
 import { tryGitInit } from './helpers/git';
 import { install } from './helpers/install';
-import { isFolderEmpty } from './helpers/is-folder-empty';
 import { testIfThisComputerIsOnline } from './helpers/is-online';
 import { isWriteable } from './helpers/is-writeable';
 import { getErrorCode } from './helpers/get-error-code';
@@ -95,11 +96,38 @@ export async function createApp({
   console.log(`Creating a new Temporal project in ${chalk.green(root)}/.`);
   console.log();
 
+  let directoryExists = true;
+
   try {
-    await makeDir(root);
-    if (!isFolderEmpty(root, appName)) {
+    accessSync(root);
+  } catch (error: any) {
+    const code = getErrorCode(error);
+
+    if (code === 'ENOENT') {
+      directoryExists = false;
+    } else if (code === 'EACCES') {
+      console.error(`Unable to access directory ${chalk.bold(root + '/')} (Error: permission denied)`);
+      process.exit(1);
+    } else {
+      throw error;
+    }
+  }
+
+  if (directoryExists) {
+    const res = await prompts({
+      type: 'confirm',
+      name: 'shouldReplace',
+      message: `Directory ${chalk.green(root + '/')} already exists. Would you like to replace it?`,
+    });
+
+    if (!res.shouldReplace) {
+      console.error('Exiting. You can re-run this command with a different project name.');
       process.exit(1);
     }
+  }
+
+  try {
+    await makeDir(root);
   } catch (error) {
     if (getErrorCode(error) === 'EACCES') {
       console.error(`Unable to cd into directory ${chalk.bold(root + '/')} (Error: permission denied)`);
