@@ -162,7 +162,7 @@ async function notifyUpdate(): Promise<void> {
       console.log(chalk.yellow.bold('A new version of `@temporalio/create` is available!'));
       console.log(
         'You can update by running: ' +
-          chalk.cyan(!!opts.useYarn ? 'yarn global add @temporalio/create' : 'npm i -g @temporalio/create')
+          chalk.cyan(opts.useYarn ? 'yarn global add @temporalio/create' : 'npm i -g @temporalio/create')
       );
       console.log();
     }
