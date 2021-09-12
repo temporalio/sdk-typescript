@@ -40,6 +40,7 @@
     "test.watch": "lerna run --stream test.watch",
     "ci-load": "node ./packages/test/lib/load/all-in-one.js --server-address $TEMPORAL_TESTING_SERVER_URL --iterations 10000 --otel-url=''",
     "lint": "eslint packages/*/src --ext .ts --no-error-on-unmatched-pattern && prettier --check .",
+    "commitlint": "commitlint --from origin/main",
     "format": "prettier --write .",
     "clean": "node ./scripts/clean.js",
     "docs": "lerna run --stream maybe-install-deps-and-build-docs"
