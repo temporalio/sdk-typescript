@@ -19,7 +19,8 @@ interface InstallArgs {
  * @returns A Promise that resolves once the installation is finished.
  */
 export function install({ root, useYarn }: InstallArgs): Promise<void> {
-  const command: string = useYarn ? 'yarn' : 'npm';
+  const npm = /^win/.test(process.platform) ? 'npm.cmd' : 'npm';
+  const command: string = useYarn ? 'yarn' : npm;
 
   return spawn(command, ['install'], {
     cwd: root,
