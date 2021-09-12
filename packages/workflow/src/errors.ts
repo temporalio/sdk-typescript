@@ -21,7 +21,7 @@ export class DeterminismViolationError extends WorkflowError {
  *    is `WORKFLOW_ID_REUSE_POLICY_REJECT_DUPLICATE`
  *  - There is successfully closed workflow with the same ID and the {@link WorkflowOptions.workflowIdReusePolicy}
  *    is `WORKFLOW_ID_REUSE_POLICY_ALLOW_DUPLICATE_FAILED_ONLY`
- *  - {@link Workflow.execute} is called *more than once* on a stub created through {@link childWorkflow} and the
+ *  - {@link Workflow.execute} is called *more than once* on a stub created through {@link newChildWorkflowStub} and the
  *    {@link WorkflowOptions.workflowIdReusePolicy} is `WORKFLOW_ID_REUSE_POLICY_ALLOW_DUPLICATE`
  */
 export class WorkflowExecutionAlreadyStartedError extends WorkflowError {

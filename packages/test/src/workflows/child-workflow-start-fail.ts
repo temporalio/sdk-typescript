@@ -3,14 +3,18 @@
  * @module
  */
 
-import { childWorkflow, WorkflowExecutionAlreadyStartedError, WorkflowIdReusePolicy } from '@temporalio/workflow';
+import {
+  newChildWorkflowStub,
+  WorkflowExecutionAlreadyStartedError,
+  WorkflowIdReusePolicy,
+} from '@temporalio/workflow';
 import { Empty } from '../interfaces';
 import { successString } from './success-string';
 
 export const childWorkflowStartFail: Empty = () => {
   return {
     async execute(): Promise<void> {
-      const child = childWorkflow(successString, {
+      const child = newChildWorkflowStub(successString, {
         taskQueue: 'test',
         workflowIdReusePolicy: WorkflowIdReusePolicy.WORKFLOW_ID_REUSE_POLICY_REJECT_DUPLICATE,
       });
@@ -26,7 +30,7 @@ export const childWorkflowStartFail: Empty = () => {
       await child.result();
 
       try {
-        const duplicate = childWorkflow(successString, {
+        const duplicate = newChildWorkflowStub(successString, {
           taskQueue: 'test',
           workflowId: child.workflowId,
           workflowIdReusePolicy: WorkflowIdReusePolicy.WORKFLOW_ID_REUSE_POLICY_REJECT_DUPLICATE,
