@@ -46,6 +46,7 @@ After your environment is set up, you can run these commands:
 - `npm run test.watch` runs the test suite on each change to Typescript files.
 - `npm run format` formats code with prettier.
 - `npm run lint` verifies code style with prettier and ES lint.
+- `npm run commitlint` validates [commit messages](#style-guide).
 
 ### Testing local changes to core
 
@@ -63,4 +64,12 @@ In order to run integration tests:
 
 - Typescript code is linted with [eslint](https://eslint.org/)
 - Files in this repo are formatted with [prettier](https://prettier.io/)
-- All pull requests SHOULD adhere to the [Conventional Commits specification](https://conventionalcommits.org/)
+- All commits SHOULD adhere to the [Conventional Commits specification](https://conventionalcommits.org/) with sentence case descriptions, for example:
+
+```
+<type>(optional scope): <description>
+
+chore(samples): Upgrade commander module
+```
+
+The `scope` options are listed in [commitlint.config.js](https://github.com/temporalio/sdk-node/blob/main/commitlint.config.js).
