@@ -59,7 +59,7 @@ import { Connection, WorkflowService } from './connection';
  * const client = new WorkflowClient();
  * // `counter` is a registered workflow file, typically found at
  * // `lib/workflows/counter.js` after building the typescript project
- * const workflow = connection.stub<Counter>('counter', { taskQueue: 'tutorial' });
+ * const workflow = connection.newWorkflowStub<Counter>('counter', { taskQueue: 'tutorial' });
  * // start workflow `execute` function with initialValue of 2 and await its completion
  * await workflow.execute(2);
  * ```
@@ -445,24 +445,24 @@ export class WorkflowClient {
    * @param name workflow type name (the filename in the Node.js SDK)
    * @param options used to start the Workflow
    */
-  public stub<T extends Workflow>(name: string, options: WorkflowOptions): WorkflowStub<T>;
+  public newWorkflowStub<T extends Workflow>(name: string, options: WorkflowOptions): WorkflowStub<T>;
 
   /**
    * TODO: doc
    */
-  public stub<T extends Workflow>(func: T, options: WorkflowOptions): WorkflowStub<T>;
+  public newWorkflowStub<T extends Workflow>(func: T, options: WorkflowOptions): WorkflowStub<T>;
 
   /**
    * Create a {@link WorkflowStub} for an existing Workflow execution
    */
-  public stub<T extends Workflow>(workflowId: string): WorkflowStub<T>;
+  public newWorkflowStub<T extends Workflow>(workflowId: string): WorkflowStub<T>;
 
   /**
    * Create a {@link WorkflowStub} for an existing Workflow run
    */
-  public stub<T extends Workflow>(workflowId: string, runId: string): WorkflowStub<T>;
+  public newWorkflowStub<T extends Workflow>(workflowId: string, runId: string): WorkflowStub<T>;
 
-  public stub<T extends Workflow>(
+  public newWorkflowStub<T extends Workflow>(
     nameOrWorkflowIdOrFunc: string | T,
     optionsOrRunId?: WorkflowOptions | string
   ): WorkflowStub<T> {

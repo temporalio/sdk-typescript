@@ -132,7 +132,7 @@ if (RUN_INTEGRATION_TESTS) {
     });
     const p = worker.run();
     const conn = new WorkflowClient();
-    const wf = conn.stub(workflows.dependenciesWorkflow, { taskQueue });
+    const wf = conn.newWorkflowStub(workflows.dependenciesWorkflow, { taskQueue });
     const runId = await wf.start();
     const result = await wf.result();
     worker.shutdown();
@@ -218,7 +218,7 @@ if (RUN_INTEGRATION_TESTS) {
     });
     const p = worker.run();
     const conn = new WorkflowClient();
-    const wf = conn.stub(workflows.ignoredDependencies, { taskQueue });
+    const wf = conn.newWorkflowStub(workflows.ignoredDependencies, { taskQueue });
     const runId = await wf.start();
     const result = await wf.result();
     worker.shutdown();

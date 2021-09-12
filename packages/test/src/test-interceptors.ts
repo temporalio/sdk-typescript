@@ -75,7 +75,7 @@ if (RUN_INTEGRATION_TESTS) {
       },
     });
     {
-      const wf = client.stub(interceptorExample, {
+      const wf = client.newWorkflowStub(interceptorExample, {
         taskQueue,
       });
       await wf.start();
@@ -85,7 +85,7 @@ if (RUN_INTEGRATION_TESTS) {
       t.is(result, message);
     }
     {
-      const wf = client.stub(interceptorExample, {
+      const wf = client.newWorkflowStub(interceptorExample, {
         taskQueue,
       });
       await wf.signalWithStart('unblock', ['12345'], []);
@@ -142,7 +142,7 @@ if (RUN_INTEGRATION_TESTS) {
       },
     });
 
-    const wf = client.stub('blockWithDependencies', {
+    const wf = client.newWorkflowStub('blockWithDependencies', {
       taskQueue,
     });
     await wf.start();
@@ -175,7 +175,7 @@ if (RUN_INTEGRATION_TESTS) {
     });
     const client = new WorkflowClient();
     const workerDrained = worker.run();
-    const workflow = client.stub(continueAsNewToDifferentWorkflow, {
+    const workflow = client.newWorkflowStub(continueAsNewToDifferentWorkflow, {
       taskQueue,
     });
     const err: WorkflowExecutionFailedError = await t.throwsAsync(workflow.execute(), {
@@ -227,7 +227,7 @@ if (RUN_INTEGRATION_TESTS) {
     });
     const workerDrained = worker.run();
     const client = new WorkflowClient();
-    const wf = client.stub(internalsInterceptorExample, {
+    const wf = client.newWorkflowStub(internalsInterceptorExample, {
       taskQueue,
     });
     await wf.execute();

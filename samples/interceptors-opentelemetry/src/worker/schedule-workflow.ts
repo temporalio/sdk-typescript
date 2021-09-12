@@ -16,7 +16,7 @@ async function run() {
   });
   // Create a typed client using the Example Workflow interface,
   // Workflow will be started in the "default" namespace unless specified otherwise.
-  const example = client.stub<Example>('example', {
+  const example = client.newWorkflowStub<Example>('example', {
     taskQueue: 'interceptors-opentelemetry-example',
   });
   const result = await example.execute('Temporal');

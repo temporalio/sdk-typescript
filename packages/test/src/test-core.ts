@@ -27,7 +27,7 @@ if (RUN_INTEGRATION_TESTS) {
     const connection = new WorkflowClient();
     {
       // Run a simple workflow
-      const wf = connection.stub(workflows.sleeper, { taskQueue: 'q2' });
+      const wf = connection.newWorkflowStub(workflows.sleeper, { taskQueue: 'q2' });
       await wf.start(1);
     }
     worker2.shutdown();
@@ -44,7 +44,7 @@ if (RUN_INTEGRATION_TESTS) {
     const worker3Drained = worker3.run();
     {
       // Run a simple workflow
-      const wf = connection.stub('sleeper', { taskQueue: 'q1' });
+      const wf = connection.newWorkflowStub('sleeper', { taskQueue: 'q1' });
       await wf.execute(1);
     }
     worker3.shutdown();
