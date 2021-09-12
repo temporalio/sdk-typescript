@@ -76,7 +76,7 @@ export {
   TerminatedFailure,
   TimeoutFailure,
 } from '@temporalio/common';
-export { ActivationJobResult, ChildWorkflowOptions, ChildWorkflowCancellationType, WorkflowInfo } from './interfaces';
+export { ChildWorkflowOptions, ChildWorkflowCancellationType, WorkflowInfo } from './interfaces';
 export * from './errors';
 export * from './workflow';
 export * from './interceptors';

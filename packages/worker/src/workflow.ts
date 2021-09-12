@@ -5,6 +5,7 @@ import { coresdk } from '@temporalio/proto';
 import * as internals from '@temporalio/workflow/lib/worker-interface';
 import { ExternalDependencyFunction, WorkflowInfo, ExternalCall } from '@temporalio/workflow';
 import { ApplyMode } from './dependencies';
+import { partition } from './utils';
 
 interface WorkflowModule {
   activate: ivm.Reference<typeof internals.activate>;
@@ -33,6 +34,7 @@ export class Workflow {
     info: WorkflowInfo,
     interceptorModules: string[],
     randomnessSeed: Long,
+    job: coresdk.workflow_activation.IStartWorkflow,
     isolateExecutionTimeoutMs: number
   ): Promise<Workflow> {
     const [
@@ -52,13 +54,13 @@ export class Workflow {
         )
         .concat(isolateExtensionModule.create(context))
     );
+    const arr = coresdk.workflow_activation.StartWorkflow.encodeDelimited(job).finish();
 
     await context.evalClosure(
-      'lib.initRuntime($0, $1, $2, $3)',
-      [info, interceptorModules, randomnessSeed.toBytes(), isolateExtension.derefInto()],
+      'lib.initRuntime($0, $1, $2, $3, $4)',
+      [info, interceptorModules, randomnessSeed.toBytes(), isolateExtension.derefInto(), arr],
       { arguments: { copy: true }, timeout: isolateExecutionTimeoutMs }
     );
-
     return new Workflow(
       info,
       context,
@@ -168,38 +170,30 @@ export class Workflow {
       throw new Error('Expected workflow activation jobs to be defined');
     }
 
-    // Process notify change jobs first
-    // TODO: Only doing this b/c I need to prevent workflows that don't do anything else from
-    //   "completing" before they have a chance to run the notify change job. In general this
-    //   seems like a bit of a hole that would also apply to signals, as noted below.
-    activation.jobs.sort((a, b) => {
-      const aIsPatch = a.notifyHasPatch !== undefined;
-      const bIsPatch = b.notifyHasPatch !== undefined;
+    // Job processing order
+    // 1. patch notifications
+    // 2. signals
+    // 3. anything left except for queries
+    // 4. queries
+    const [patches, nonPatches] = partition(activation.jobs, ({ notifyHasPatch }) => notifyHasPatch !== undefined);
+    const [signals, nonSignals] = partition(nonPatches, ({ signalWorkflow }) => signalWorkflow !== undefined);
+    const [queries, rest] = partition(nonSignals, ({ queryWorkflow }) => queryWorkflow !== undefined);
+    let batchIndex = 0;
 
-      if (aIsPatch === bIsPatch) {
-        return 0;
-      } else if (aIsPatch) {
-        return -1;
-      } else {
-        return 1;
-      }
-    });
-
-    const arr = coresdk.workflow_activation.WFActivation.encodeDelimited(activation).finish();
     try {
-      // Loop and invoke each job with entire microtasks chain.
+      // Loop and invoke each batch and wait for microtasks to complete.
       // This is done outside of the isolate because we can't wait for microtasks from inside the isolate.
-      // TODO: Process signals first
-      for (let idx = 0; idx < activation.jobs.length; ++idx) {
-        const { processed, pendingExternalCalls } = await this.workflowModule.activate.apply(undefined, [arr, idx], {
+      for (const jobs of [patches, signals, rest, queries]) {
+        if (jobs.length === 0) {
+          continue;
+        }
+        const arr = coresdk.workflow_activation.WFActivation.encodeDelimited({ ...activation, jobs }).finish();
+        const pendingExternalCalls = await this.workflowModule.activate.apply(undefined, [arr, batchIndex++], {
           arguments: { copy: true },
           result: { copy: true, promise: true },
           timeout: this.isolateExecutionTimeoutMs,
         });
         // Microtasks will already have run at this point
-        if (!processed) {
-          // TODO: Log?
-        }
         // Eagerly process external calls to unblock isolate and minimize the processing delay
         await this.processExternalCalls(pendingExternalCalls, true);
       }

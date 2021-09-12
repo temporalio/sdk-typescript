@@ -1,25 +1,22 @@
 import Long from 'long';
 import * as protobufjs from 'protobufjs/minimal';
 import {
-  ApplicationFailure,
   composeInterceptors,
   errorToFailure,
   ensureTemporalFailure,
   failureToError,
   optionalFailureToOptionalError,
   IllegalStateError,
-  Workflow,
   WorkflowSignalType,
   DataConverter,
   defaultDataConverter,
   arrayFromPayloadsSync,
-  errorMessage,
   WorkflowHandlers,
 } from '@temporalio/common';
 import { coresdk } from '@temporalio/proto/lib/coresdk';
 import { alea, RNG } from './alea';
 import { ContinueAsNew, WorkflowInfo } from './interfaces';
-import { QueryInput, SignalInput, WorkflowInput, WorkflowInterceptors } from './interceptors';
+import { QueryInput, SignalInput, WorkflowInterceptors } from './interceptors';
 import { DeterminismViolationError, WorkflowExecutionAlreadyStartedError, isCancellation } from './errors';
 import { ExternalCall, ExternalDependencies } from './dependencies';
 import { ROOT_SCOPE } from './cancellation-scope';
@@ -44,19 +41,10 @@ export type ActivationHandler = {
 };
 
 export class Activator implements ActivationHandler {
-  public async startWorkflowNextHandler(req: () => Workflow, input: WorkflowInput): Promise<any> {
-    let mod: Workflow;
-    try {
-      mod = req();
-      if (typeof mod !== 'function') {
-        throw new TypeError(`'${state.info?.workflowType}' is not a function`);
-      }
-    } catch (err) {
-      const failure = ApplicationFailure.nonRetryable(errorMessage(err), 'ReferenceError');
-      failure.stack = failure.stack?.split('\n')[0];
-      throw failure;
+  public async startWorkflowNextHandler(): Promise<any> {
+    if (state.workflow === undefined) {
+      throw new IllegalStateError('Workflow uninitialized');
     }
-    state.workflow = mod(...input.args);
     return await state.workflow.execute();
   }
 
@@ -68,7 +56,7 @@ export class Activator implements ActivationHandler {
     const execute = composeInterceptors(
       state.interceptors.inbound,
       'execute',
-      this.startWorkflowNextHandler.bind(this, req.bind(undefined, undefined, info.workflowType))
+      this.startWorkflowNextHandler.bind(this)
     );
     execute({
       headers: new Map(Object.entries(activation.headers ?? {})),
@@ -385,42 +373,64 @@ export class State {
    * Patches we sent to core {@link patched}
    */
   public readonly sentPatches = new Set<string>();
+
+  /**
+   * Buffer a Workflow command to be collected at the end of the current activation.
+   *
+   * Prevents commands from being added after Workflow completion.
+   */
+  pushCommand(cmd: coresdk.workflow_commands.IWorkflowCommand, complete = false): void {
+    // Only query responses may be sent after completion
+    if (this.completed && !cmd.respondToQuery) return;
+    this.commands.push(cmd);
+    if (complete) {
+      this.completed = true;
+    }
+  }
 }
 
 export const state = new State();
 
 function completeWorkflow(result: any) {
-  state.commands.push({
-    completeWorkflowExecution: {
-      result: state.dataConverter.toPayloadSync(result),
+  state.pushCommand(
+    {
+      completeWorkflowExecution: {
+        result: state.dataConverter.toPayloadSync(result),
+      },
     },
-  });
-  state.completed = true;
+    true
+  );
 }
 
-async function handleWorkflowFailure(error: any) {
+/**
+ * Transforms failures into a command to be sent to the server.
+ * Used to handle any failure emitted by the Workflow.
+ */
+export async function handleWorkflowFailure(error: unknown): Promise<void> {
   if (state.cancelled && isCancellation(error)) {
-    state.commands.push({ cancelWorkflowExecution: {} });
+    state.pushCommand({ cancelWorkflowExecution: {} }, true);
   } else if (error instanceof ContinueAsNew) {
-    state.commands.push({ continueAsNewWorkflowExecution: error.command });
+    state.pushCommand({ continueAsNewWorkflowExecution: error.command }, true);
   } else {
-    state.commands.push({
-      failWorkflowExecution: {
-        failure: await errorToFailure(ensureTemporalFailure(error), state.dataConverter),
+    state.pushCommand(
+      {
+        failWorkflowExecution: {
+          failure: await errorToFailure(ensureTemporalFailure(error), state.dataConverter),
+        },
       },
-    });
+      true
+    );
   }
-  state.completed = true;
 }
 
 function completeQuery(queryId: string, result: unknown) {
-  state.commands.push({
+  state.pushCommand({
     respondToQuery: { queryId, succeeded: { response: state.dataConverter.toPayloadSync(result) } },
   });
 }
 
 async function failQuery(queryId: string, error: any) {
-  state.commands.push({
+  state.pushCommand({
     respondToQuery: { queryId, failed: await errorToFailure(ensureTemporalFailure(error), state.dataConverter) },
   });
 }

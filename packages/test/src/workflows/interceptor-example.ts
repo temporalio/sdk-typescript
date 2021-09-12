@@ -50,14 +50,23 @@ export const interceptorExample = () => {
   };
 };
 
-let receivedMessage = '';
+let receivedMessageOnCreate = '';
+let receivedMessageOnExecute = '';
 
 export const interceptors = (): WorkflowInterceptors => ({
   inbound: [
     {
+      async create(input, next) {
+        const encoded = input.headers.get('message');
+        receivedMessageOnCreate = encoded ? await defaultDataConverter.fromPayload(encoded) : '';
+        return next(input);
+      },
       async execute(input, next) {
         const encoded = input.headers.get('message');
-        receivedMessage = encoded ? await defaultDataConverter.fromPayload(encoded) : '';
+        receivedMessageOnExecute = encoded ? await defaultDataConverter.fromPayload(encoded) : '';
+        if (receivedMessageOnExecute !== receivedMessageOnCreate) {
+          throw new Error('Expected to receive same message via headers in create and execute methods');
+        }
         return next(input);
       },
       async handleSignal(input, next) {
@@ -75,7 +84,7 @@ export const interceptors = (): WorkflowInterceptors => ({
     {
       async scheduleActivity(input, next) {
         const headers: Headers = new Map();
-        headers.set('message', await defaultDataConverter.toPayload(receivedMessage));
+        headers.set('message', await defaultDataConverter.toPayload(receivedMessageOnExecute));
         return next({ ...input, headers });
       },
       async startTimer(input, next) {

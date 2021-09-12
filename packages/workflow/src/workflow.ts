@@ -57,7 +57,7 @@ function timerNextHandler(input: TimerInput) {
         if (!state.completions.timer.delete(input.seq)) {
           return; // Already resolved
         }
-        state.commands.push({
+        state.pushCommand({
           cancelTimer: {
             seq: input.seq,
           },
@@ -69,7 +69,7 @@ function timerNextHandler(input: TimerInput) {
       resolve,
       reject,
     });
-    state.commands.push({
+    state.pushCommand({
       startTimer: {
         seq: input.seq,
         startToFireTimeout: msToTs(input.durationMs),
@@ -139,7 +139,7 @@ async function scheduleActivityNextHandler({
         if (!state.completions.activity.has(seq)) {
           return; // Already resolved
         }
-        state.commands.push({
+        state.pushCommand({
           requestCancelActivity: {
             seq,
           },
@@ -150,7 +150,7 @@ async function scheduleActivityNextHandler({
       resolve,
       reject,
     });
-    state.commands.push({
+    state.pushCommand({
       scheduleActivity: {
         seq,
         activityId: options.activityId ?? `${seq}`,
@@ -219,7 +219,7 @@ async function startChildWorkflowExecutionNextHandler({
 
         if (started && !complete) {
           const cancelSeq = state.nextSeqs.cancelWorkflow++;
-          state.commands.push({
+          state.pushCommand({
             requestCancelExternalWorkflowExecution: {
               seq: cancelSeq,
               childWorkflowId: workflowId,
@@ -228,7 +228,7 @@ async function startChildWorkflowExecutionNextHandler({
           // Not interested in this completion
           state.completions.cancelWorkflow.set(cancelSeq, { resolve: () => undefined, reject: () => undefined });
         } else if (!started) {
-          state.commands.push({
+          state.pushCommand({
             cancelUnstartedChildWorkflowExecution: { childWorkflowSeq: seq },
           });
         }
@@ -239,7 +239,7 @@ async function startChildWorkflowExecutionNextHandler({
       resolve,
       reject,
     });
-    state.commands.push({
+    state.pushCommand({
       startChildWorkflowExecution: {
         seq,
         workflowId,
@@ -305,10 +305,10 @@ function signalWorkflowNextHandler({ seq, signalName, args, target }: SignalWork
         if (!state.completions.signalWorkflow.has(seq)) {
           return;
         }
-        state.commands.push({ cancelSignalWorkflow: { seq } });
+        state.pushCommand({ cancelSignalWorkflow: { seq } });
       });
     }
-    state.commands.push({
+    state.pushCommand({
       signalExternalWorkflowExecution: {
         seq,
         args: state.dataConverter.toPayloadsSync(args),
@@ -410,7 +410,7 @@ export function newExternalWorkflowStub<T extends Workflow>(
           throw new IllegalStateError('Uninitialized workflow');
         }
         const seq = state.nextSeqs.cancelWorkflow++;
-        state.commands.push({
+        state.pushCommand({
           requestCancelExternalWorkflowExecution: {
             seq,
             workflowExecution: {
@@ -747,7 +747,7 @@ function patchInternal(patchId: string, deprecated: boolean): boolean {
   // Avoid sending commands for patches core already knows about.
   // This optimization enables development of automatic patching tools.
   if (usePatch && !state.sentPatches.has(patchId)) {
-    state.commands.push({
+    state.pushCommand({
       setPatchMarker: { patchId, deprecated },
     });
     state.sentPatches.add(patchId);
