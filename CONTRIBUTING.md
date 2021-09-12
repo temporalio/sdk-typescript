@@ -29,7 +29,11 @@ You will need to submit a CLA before we can accept your contribution. You only h
   npm ci
   ```
 
-You should now be able to successfully do `npm run build`. If this fails, resetting your environment may help: `npx lerna clean -- -f && npm ci`.
+You should now be able to successfully do `npm run build`. If this fails, resetting your environment may help: 
+
+```
+npx lerna clean -- -f && npm ci
+```
 
 To update your environment, run `git submodule update` to update to the latest version of the Core SDK, followed by `npm run build` to recompile.
 
