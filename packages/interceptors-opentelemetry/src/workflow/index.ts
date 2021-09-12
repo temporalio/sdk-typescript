@@ -6,7 +6,7 @@ import {
   Next,
   WorkflowInboundCallsInterceptor,
   WorkflowOutboundCallsInterceptor,
-  WorkflowInput,
+  WorkflowExecuteInput,
 } from '@temporalio/workflow';
 import { defaultDataConverter } from '@temporalio/common';
 import { instrument, instrumentFromSpanContext } from '../instrumentation';
@@ -37,7 +37,10 @@ export function registerOpentelemetryTracerProvider(): void {
  * provided in the Workflow input headers.
  */
 export class OpenTelemetryInboundInterceptor implements WorkflowInboundCallsInterceptor {
-  public async execute(input: WorkflowInput, next: Next<WorkflowInboundCallsInterceptor, 'execute'>): Promise<unknown> {
+  public async execute(
+    input: WorkflowExecuteInput,
+    next: Next<WorkflowInboundCallsInterceptor, 'execute'>
+  ): Promise<unknown> {
     const encodedSpanContext = input.headers.get(TRACE_HEADER);
     const spanContext: otel.SpanContext | undefined = encodedSpanContext
       ? await defaultDataConverter.fromPayload(encodedSpanContext)

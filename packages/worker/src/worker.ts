@@ -786,20 +786,26 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
 
                   if (workflow === undefined) {
                     // Find a workflow start job in the activation jobs list
-                    // TODO: should this always be the first job in the list?
                     const maybeStartWorkflow = activation.jobs.find((j) => j.startWorkflow);
                     if (maybeStartWorkflow !== undefined) {
-                      const attrs = maybeStartWorkflow.startWorkflow;
-                      if (!(attrs && attrs.workflowId && attrs.workflowType && attrs.randomnessSeed)) {
+                      const startWorkflow = maybeStartWorkflow.startWorkflow;
+                      if (
+                        !(
+                          startWorkflow &&
+                          startWorkflow.workflowId &&
+                          startWorkflow.workflowType &&
+                          startWorkflow.randomnessSeed
+                        )
+                      ) {
                         throw new TypeError(
                           `Expected StartWorkflow with workflowId, workflowType and randomnessSeed, got ${JSON.stringify(
                             maybeStartWorkflow
                           )}`
                         );
                       }
-                      const { workflowId, randomnessSeed, workflowType } = attrs;
+                      const { workflowId, randomnessSeed, workflowType } = startWorkflow;
                       this.log.debug('Creating workflow', {
-                        workflowId: attrs.workflowId,
+                        workflowId,
                         runId: activation.runId,
                       });
                       this.numRunningWorkflowInstancesSubject.next(this.numRunningWorkflowInstancesSubject.value + 1);
@@ -819,6 +825,7 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
                           },
                           this.options.interceptors?.workflowModules ?? [],
                           randomnessSeed,
+                          startWorkflow,
                           this.options.isolateExecutionTimeoutMs
                         );
                       });
