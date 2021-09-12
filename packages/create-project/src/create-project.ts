@@ -14,7 +14,7 @@ import {
 } from './helpers/examples';
 import { makeDir } from './helpers/make-dir';
 import { tryGitInit } from './helpers/git';
-import { install, installTsconfig } from './helpers/install';
+import { install, updateNodeVersion } from './helpers/install';
 import { testIfThisComputerIsOnline } from './helpers/is-online';
 import { isWriteable } from './helpers/is-writeable';
 import { getErrorCode } from './helpers/get-error-code';
@@ -167,13 +167,9 @@ export async function createApp({
   console.log('Installing packages. This might take a couple of minutes.');
   console.log();
 
-  try {
-    await installTsconfig({ root, useYarn });
-  } catch (error) {
-    // likely due to not finding the package (eg @tsconfig/node15 doesn't exist)
-  }
-
+  await updateNodeVersion({ root });
   await install({ root, useYarn });
+
   console.log();
 
   if (await tryGitInit(root)) {
