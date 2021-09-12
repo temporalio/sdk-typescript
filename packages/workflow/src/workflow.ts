@@ -397,7 +397,10 @@ export function configureActivities<A extends Record<string, ActivityFunction<an
  * Returns a client-side stub that can be used to signal and cancel an existing Workflow execution.
  * It takes a Workflow ID and optional run ID.
  */
-export function externalWorkflow<T extends Workflow>(workflowId: string, runId?: string): ExternalWorkflowStub<T> {
+export function newExternalWorkflowStub<T extends Workflow>(
+  workflowId: string,
+  runId?: string
+): ExternalWorkflowStub<T> {
   return {
     workflowId,
     runId,
@@ -457,7 +460,7 @@ export function externalWorkflow<T extends Workflow>(workflowId: string, runId?:
  * A child Workflow supports starting, awaiting completion, signaling and cancellation via {@link CancellationScope}s.
  * In order to query the child, use a WorkflowClient from an Activity.
  */
-export function childWorkflow<T extends Workflow>(
+export function newChildWorkflowStub<T extends Workflow>(
   workflowType: string,
   options?: ChildWorkflowOptions
 ): ChildWorkflowStub<T>;
@@ -470,12 +473,12 @@ export function childWorkflow<T extends Workflow>(
  * A child Workflow supports starting, awaiting completion, signaling and cancellation via {@link CancellationScope}s.
  * In order to query the child, use a WorkflowClient from an Activity.
  */
-export function childWorkflow<T extends Workflow>(
+export function newChildWorkflowStub<T extends Workflow>(
   workflowFunc: T,
   options?: ChildWorkflowOptions
 ): ChildWorkflowStub<T>;
 
-export function childWorkflow<T extends Workflow>(
+export function newChildWorkflowStub<T extends Workflow>(
   workflowTypeOrFunc: string | T,
   options?: ChildWorkflowOptions
 ): ChildWorkflowStub<T> {

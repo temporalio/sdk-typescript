@@ -4,7 +4,7 @@
  * @module
  */
 import { CancelledFailure, ChildWorkflowFailure, errorMessage } from '@temporalio/common';
-import { childWorkflow, CancellationScope, uuid4, externalWorkflow } from '@temporalio/workflow';
+import { newChildWorkflowStub, CancellationScope, uuid4, newExternalWorkflowStub } from '@temporalio/workflow';
 import { Empty } from '../interfaces';
 import { signalTarget } from './signal-target';
 
@@ -13,7 +13,7 @@ export const childWorkflowCancel: Empty = () => ({
     // Cancellation before sending to server
     try {
       await CancellationScope.cancellable(async () => {
-        const child = childWorkflow(signalTarget);
+        const child = newChildWorkflowStub(signalTarget);
         const promise = child.start();
         CancellationScope.current().cancel();
         await promise;
@@ -29,7 +29,7 @@ export const childWorkflowCancel: Empty = () => ({
     // Cancellation of running workflow
     try {
       await CancellationScope.cancellable(async () => {
-        const child = childWorkflow(signalTarget);
+        const child = newChildWorkflowStub(signalTarget);
         await child.start();
         CancellationScope.current().cancel();
         await child.result();
@@ -44,9 +44,9 @@ export const childWorkflowCancel: Empty = () => ({
 
     // Cancellation of external workflow
     try {
-      const child = childWorkflow(signalTarget);
+      const child = newChildWorkflowStub(signalTarget);
       const runId = await child.start();
-      const external = externalWorkflow<typeof signalTarget>(child.workflowId, runId);
+      const external = newExternalWorkflowStub<typeof signalTarget>(child.workflowId, runId);
       await external.cancel();
       await child.result();
       throw new Error('ChildWorkflow was not cancelled');
@@ -58,7 +58,7 @@ export const childWorkflowCancel: Empty = () => ({
 
     // Failed cancellation of external workflow
     try {
-      const external = externalWorkflow<typeof signalTarget>('some-workflow-id-that-doesnt-exist-' + uuid4());
+      const external = newExternalWorkflowStub<typeof signalTarget>('some-workflow-id-that-doesnt-exist-' + uuid4());
       await external.cancel();
       throw new Error('Cancel did not throw');
     } catch (err) {
