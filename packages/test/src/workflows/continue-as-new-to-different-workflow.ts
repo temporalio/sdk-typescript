@@ -2,12 +2,12 @@
  * Tests continueAsNew to another Workflow
  * @module
  */
-import { Context } from '@temporalio/workflow';
+import { makeContinueAsNewFunc } from '@temporalio/workflow';
 import { Empty, Sleeper } from '../interfaces';
 
-async function main(): Promise<void> {
-  const continueAsNew = Context.makeContinueAsNewFunc<Sleeper['main']>({ workflowType: 'sleep' });
-  await continueAsNew(1);
-}
-
-export const workflow: Empty = { main };
+export const continueAsNewToDifferentWorkflow: Empty = () => ({
+  async execute(): Promise<void> {
+    const continueAsNew = makeContinueAsNewFunc<Sleeper>({ workflowType: 'sleeper' });
+    await continueAsNew(1);
+  },
+});

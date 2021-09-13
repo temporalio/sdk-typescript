@@ -1,15 +1,30 @@
-export type WorkflowReturnType = any;
+/** Type that can be returned from a Workflow `execute` function */
+export type WorkflowReturnType = Promise<any>;
 export type WorkflowSignalType = (...args: any[]) => Promise<void> | void;
 export type WorkflowQueryType = (...args: any[]) => any;
 
 /**
- * Generic workflow interface, extend this in order to validate your workflow interface definitions
+ * Generic Workflow execute, signal, and query handlers
  */
-export interface Workflow {
-  main(...args: any[]): WorkflowReturnType;
+export interface WorkflowHandlers {
+  execute(): WorkflowReturnType;
   signals?: Record<string, WorkflowSignalType>;
   queries?: Record<string, WorkflowQueryType>;
 }
+
+/**
+ * Generic workflow interface, extend this in order to validate your workflow interface definitions
+ */
+export type Workflow = (...args: any[]) => WorkflowHandlers;
+
+/** Get the execute handler from Workflow interface `W` */
+export type WorkflowExecuteHandler<W extends Workflow> = ReturnType<W>['execute'];
+/** Get the return type of the execute handler from Workflow interface `W` */
+export type WorkflowResultType<W extends Workflow> = ReturnType<WorkflowExecuteHandler<W>>;
+/** Get the signal handler definitions from Workflow interface `W` */
+export type WorkflowSignalHandlers<W extends Workflow> = ReturnType<W>['signals'];
+/** Get the query handler definitions from Workflow interface `W` */
+export type WorkflowQueryHandlers<W extends Workflow> = ReturnType<W>['queries'];
 
 /**
  * Defines options for activity retries

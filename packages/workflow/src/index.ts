@@ -14,7 +14,7 @@
  *
  * ### Activities
  *
- * To schedule Activities, use {@link ContextImpl.configureActivities | Context.configureActivities} to obtain an Activity function and call.
+ * To schedule Activities, use {@link configureActivities} to obtain an Activity function and call.
  *
  * <!--SNIPSTART nodejs-schedule-activity-workflow-->
  * <!--SNIPEND-->
@@ -53,6 +53,8 @@
 
 export {
   Workflow,
+  WorkflowHandlers,
+  WorkflowResultType,
   ActivityCancellationType,
   ActivityFunction,
   ActivityInterface,
@@ -76,19 +78,10 @@ export {
 } from '@temporalio/common';
 export { ActivationJobResult, ChildWorkflowOptions, ChildWorkflowCancellationType, WorkflowInfo } from './interfaces';
 export * from './errors';
-export {
-  Context,
-  ContextImpl,
-  sleep,
-  uuid4,
-  validateActivityOptions,
-  scheduleActivity,
-  patched,
-  deprecatePatch,
-} from './workflow';
+export * from './workflow';
 export * from './interceptors';
 export { AsyncLocalStorage } from './async-local-storage';
-export { CancellationScope, CancellationScopeOptions } from './cancellation-scope';
+export { ROOT_SCOPE, CancellationScope, CancellationScopeOptions } from './cancellation-scope';
 export { Trigger } from './trigger';
 export {
   ApplyMode,
@@ -97,3 +90,4 @@ export {
   ExternalDependency,
   ExternalDependencies,
 } from './dependencies';
+export { ChildWorkflowStub, ExternalWorkflowStub } from './workflow-stub';

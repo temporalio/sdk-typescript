@@ -8,9 +8,9 @@ import {
   Workflow,
   composeInterceptors,
   mapToPayloadsSync,
+  WorkflowResultType,
 } from '@temporalio/common';
 import { coresdk } from '@temporalio/proto/lib/coresdk';
-import { EnsurePromise } from '@temporalio/common/lib/type-helpers';
 import {
   ChildWorkflowCancellationType,
   ChildWorkflowOptions,
@@ -34,7 +34,7 @@ registerSleepImplementation(sleep);
  */
 export function addDefaultWorkflowOptions(opts: ChildWorkflowOptions): ChildWorkflowOptionsWithDefaults {
   return {
-    taskQueue: Context.info.taskQueue,
+    taskQueue: workflowInfo().taskQueue,
     workflowId: uuid4(),
     workflowIdReusePolicy: coresdk.common.WorkflowIdReusePolicy.WORKFLOW_ID_REUSE_POLICY_ALLOW_DUPLICATE_FAILED_ONLY,
     cancellationType: ChildWorkflowCancellationType.WAIT_CANCELLATION_COMPLETED,
@@ -258,7 +258,7 @@ async function startChildWorkflowExecutionNextHandler({
         workflowExecutionTimeout: msOptionalToTs(options.workflowExecutionTimeout),
         workflowRunTimeout: msOptionalToTs(options.workflowRunTimeout),
         workflowTaskTimeout: msOptionalToTs(options.workflowTaskTimeout),
-        namespace: Context.info.namespace, // Not configurable
+        namespace: workflowInfo().namespace, // Not configurable
         header: Object.fromEntries(headers.entries()),
         cancellationType: options.cancellationType,
         workflowIdReusePolicy: options.workflowIdReusePolicy,
@@ -330,329 +330,341 @@ function signalWorkflowNextHandler({ seq, signalName, args, target }: SignalWork
   });
 }
 
-export class ContextImpl {
-  /**
-   * @protected
-   */
-  constructor() {
-    // Does nothing just marks this as protected for documentation
+/**
+ * Configure Activity functions with given {@link ActivityOptions}.
+ *
+ * This method may be called multiple times to setup Activities with different options.
+ *
+ * @return a [Proxy](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Proxy)
+ *         for which each attribute is a callable Activity function
+ *
+ * @typeparam A An {@link ActivityInterface} - mapping of name to function
+ *
+ * @example
+ * ```ts
+ * import { configureActivities, ActivityInterface } from '@temporalio/workflow';
+ * import * as activities from '../activities';
+ *
+ * // Setup Activities from module exports
+ * const { httpGet, otherActivity } = configureActivities<typeof activities>({
+ *   type: 'remote',
+ *   startToCloseTimeout: '30 minutes',
+ * });
+ *
+ * // Setup Activities from an explicit interface (e.g. when defined by another SDK)
+ * interface JavaActivities extends ActivityInterface {
+ *   httpGetFromJava(url: string): Promise<string>
+ *   someOtherJavaActivity(arg1: number, arg2: string): Promise<string>;
+ * }
+ *
+ * const {
+ *   httpGetFromJava,
+ *   someOtherJavaActivity
+ * } = configureActivities<JavaActivities>({
+ *   type: 'remote',
+ *   taskQueue: 'java-worker-taskQueue',
+ *   startToCloseTimeout: '5m',
+ * });
+ *
+ * export function execute(): Promise<void> {
+ *   const response = await httpGet('http://example.com');
+ *   // ...
+ * }
+ * ```
+ */
+export function configureActivities<A extends Record<string, ActivityFunction<any, any>>>(options: ActivityOptions): A {
+  if (options === undefined) {
+    throw new TypeError('options must be defined');
   }
-
-  /**
-   * Configure Activity functions with given {@link ActivityOptions}.
-   *
-   * This method may be called multiple times to setup Activities with different options.
-   *
-   * @return a [Proxy](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Proxy)
-   *         for which each attribute is a callable Activity function
-   *
-   * @typeparam A An {@link ActivityInterface} - mapping of name to function
-   *
-   * @example
-   * ```ts
-   * import { Context, ActivityInterface } from '@temporalio/workflow';
-   * import * as activities from '../activities';
-   *
-   * // Setup Activities from module exports
-   * const { httpGet, otherActivity } = Context.configureActivities<typeof activities>({
-   *   type: 'remote',
-   *   startToCloseTimeout: '30 minutes',
-   * });
-   *
-   * // Setup Activities from an explicit interface (e.g. when defined by another SDK)
-   * interface JavaActivities extends ActivityInterface {
-   *   httpGetFromJava(url: string): Promise<string>
-   *   someOtherJavaActivity(arg1: number, arg2: string): Promise<string>;
-   * }
-   *
-   * const {
-   *   httpGetFromJava,
-   *   someOtherJavaActivity
-   * } = Context.configureActivities<JavaActivities>({
-   *   type: 'remote',
-   *   taskQueue: 'java-worker-taskQueue',
-   *   startToCloseTimeout: '5m',
-   * });
-   *
-   * export function main(): Promise<void> {
-   *   const response = await httpGet('http://example.com');
-   *   // ...
-   * }
-   * ```
-   */
-  public configureActivities<A extends Record<string, ActivityFunction<any, any>>>(options: ActivityOptions): A {
-    if (options === undefined) {
-      throw new TypeError('options must be defined');
+  // Validate as early as possible for immediate user feedback
+  validateActivityOptions(options);
+  return new Proxy(
+    {},
+    {
+      get(_, activityType) {
+        if (typeof activityType !== 'string') {
+          throw new TypeError(`Only strings are supported for Activity types, got: ${String(activityType)}`);
+        }
+        return (...args: unknown[]) => {
+          return scheduleActivity(activityType, args, options);
+        };
+      },
     }
-    // Validate as early as possible for immediate user feedback
-    validateActivityOptions(options);
-    return new Proxy(
-      {},
-      {
-        get(_, activityType) {
-          if (typeof activityType !== 'string') {
-            throw new TypeError(`Only strings are supported for Activity types, got: ${String(activityType)}`);
-          }
-          return (...args: unknown[]) => {
-            return scheduleActivity(activityType, args, options);
-          };
-        },
-      }
-    ) as any;
-  }
-
-  /**
-   * Returns a client-side stub that can be used to signal and cancel an existing Workflow execution.
-   * It takes a Workflow ID and optional run ID.
-   */
-  public external<T extends Workflow>(workflowId: string, runId?: string): ExternalWorkflowStub<T> {
-    return {
-      workflowId,
-      runId,
-      cancel() {
-        return new Promise<void>((resolve, reject) => {
-          if (state.info === undefined) {
-            throw new IllegalStateError('Uninitialized workflow');
-          }
-          const seq = state.nextSeqs.cancelWorkflow++;
-          state.commands.push({
-            requestCancelExternalWorkflowExecution: {
-              seq,
-              workflowExecution: {
-                namespace: state.info.namespace,
-                workflowId,
-                runId,
-              },
-            },
-          });
-          state.completions.cancelWorkflow.set(seq, { resolve, reject });
-        });
-      },
-      signal: new Proxy(
-        {},
-        {
-          get(_, signalName) {
-            if (typeof signalName !== 'string') {
-              throw new TypeError(`Invalid signal type, expected string got: ${typeof signalName}`);
-            }
-
-            return (...args: any[]) => {
-              return composeInterceptors(
-                state.interceptors.outbound,
-                'signalWorkflow',
-                signalWorkflowNextHandler
-              )({
-                seq: state.nextSeqs.signalWorkflow++,
-                signalName,
-                args,
-                target: {
-                  type: 'external',
-                  workflowExecution: { workflowId, runId },
-                },
-              });
-            };
-          },
-        }
-      ) as any,
-    };
-  }
-
-  /**
-   * Returns a client-side stub that implements a child Workflow interface.
-   * It takes a child Workflow type and optional child Workflow options as arguments.
-   * Workflow options may be needed to override the timeouts and task queue if they differ from the parent Workflow.
-   *
-   * A child Workflow supports starting, awaiting completion, signaling and cancellation via {@link CancellationScope}s.
-   * In order to query the child, use a WorkflowClient from an Activity.
-   */
-  public child<T extends Workflow>(workflowType: string, options?: ChildWorkflowOptions): ChildWorkflowStub<T> {
-    const optionsWithDefaults = addDefaultWorkflowOptions(options ?? {});
-    let started: Promise<string> | undefined = undefined;
-    let completed: Promise<unknown> | undefined = undefined;
-
-    return {
-      workflowId: optionsWithDefaults.workflowId,
-      async start(...args: Parameters<T['main']>): Promise<string> {
-        if (started !== undefined) {
-          throw new WorkflowExecutionAlreadyStartedError(
-            'Workflow execution already started',
-            optionsWithDefaults.workflowId,
-            workflowType
-          );
-        }
-        const execute = composeInterceptors(
-          state.interceptors.outbound,
-          'startChildWorkflowExecution',
-          startChildWorkflowExecutionNextHandler
-        );
-        [started, completed] = await execute({
-          seq: state.nextSeqs.childWorkflow++,
-          options: optionsWithDefaults,
-          args,
-          headers: new Map(),
-          workflowType,
-        });
-        return await started;
-      },
-      async execute(...args: Parameters<T['main']>): // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-      // @ts-ignore
-      EnsurePromise<ReturnType<T['main']>> {
-        await this.start(...args);
-        return this.result();
-      },
-      result(): EnsurePromise<ReturnType<T['main']>> {
-        if (completed === undefined) {
-          throw new IllegalStateError('Child Workflow was not started');
-        }
-        return completed as any;
-      },
-      signal: new Proxy(
-        {},
-        {
-          get(_, signalName) {
-            if (typeof signalName !== 'string') {
-              throw new TypeError(`Invalid signal type, expected string got: ${typeof signalName}`);
-            }
-            return async (...args: any[]) => {
-              if (started === undefined) {
-                throw new IllegalStateError('Workflow execution not started');
-              }
-              return composeInterceptors(
-                state.interceptors.outbound,
-                'signalWorkflow',
-                signalWorkflowNextHandler
-              )({
-                seq: state.nextSeqs.signalWorkflow++,
-                signalName,
-                args,
-                target: {
-                  type: 'child',
-                  childWorkflowId: optionsWithDefaults.workflowId,
-                },
-              });
-            };
-          },
-        }
-      ) as any,
-    };
-  }
-
-  /**
-   * Returns whether or not this workflow received a cancellation request.
-   *
-   * The workflow might still be running in case cancellation was handled.
-   */
-  public get cancelled(): boolean {
-    return state.cancelled;
-  }
-
-  /**
-   * Get information about the current Workflow
-   */
-  public get info(): WorkflowInfo {
-    if (state.info === undefined) {
-      throw new IllegalStateError('Workflow uninitialized');
-    }
-    return state.info;
-  }
-
-  /**
-   * Get a reference to injected external dependencies.
-   *
-   * @example
-   * ```ts
-   * import { Context } from '@temporalio/workflow';
-   * import { MyDependencies } from '../interfaces';
-   *
-   * const { logger } = Context.dependencies<MyDependencies>();
-   * logger.info('setting up');
-   *
-   * export function main(): void {
-   *  logger.info('hey ho');
-   *  logger.error('lets go');
-   * }
-   * ```
-   */
-  public dependencies<T extends ExternalDependencies>(): T {
-    return new Proxy(
-      {},
-      {
-        get(_, ifaceName) {
-          return new Proxy(
-            {},
-            {
-              get(_, fnName) {
-                return (...args: any[]) => {
-                  if (state.info === undefined) {
-                    throw new IllegalStateError('Workflow uninitialized');
-                  }
-                  return state.dependencies[ifaceName as string][fnName as string](...args);
-                };
-              },
-            }
-          );
-        },
-      }
-    ) as any;
-  }
-
-  /**
-   * Returns a function `f` that will cause the current Workflow to ContinueAsNew when called.
-   *
-   * `f` takes the same arguments as the Workflow main function supplied to typeparam `F`.
-   *
-   * Once `f` is called, Workflow execution immediately completes.
-   */
-  public makeContinueAsNewFunc<F extends Workflow['main']>(
-    options?: ContinueAsNewOptions
-  ): (...args: Parameters<F>) => Promise<never> {
-    const nonOptionalOptions = { workflowType: state.info?.filename, taskQueue: state.info?.taskQueue, ...options };
-
-    return (...args: Parameters<F>): Promise<never> => {
-      const fn = composeInterceptors(state.interceptors.outbound, 'continueAsNew', async (input) => {
-        const { headers, args, options } = input;
-        throw new ContinueAsNew({
-          workflowType: options.workflowType,
-          arguments: await state.dataConverter.toPayloads(...args),
-          header: Object.fromEntries(headers.entries()),
-          taskQueue: options.taskQueue,
-          memo: options.memo,
-          searchAttributes: options.searchAttributes,
-          workflowRunTimeout: msOptionalToTs(options.workflowRunTimeout),
-          workflowTaskTimeout: msOptionalToTs(options.workflowTaskTimeout),
-        });
-      });
-      return fn({
-        args,
-        headers: new Map(),
-        options: nonOptionalOptions,
-      });
-    };
-  }
-
-  /**
-   * Continues current Workflow execution as new with default options.
-   *
-   * Shorthand for `Context.makeContinueAsNewFunc<F>()(...args)`.
-   *
-   * @example
-   *
-   * ```ts
-   * async function main(n: number) {
-   *   // ... Workflow logic
-   *   await Context.continueAsNew<typeof main>(n + 1);
-   * }
-   * ```
-   */
-  public continueAsNew<F extends Workflow['main']>(...args: Parameters<F>): Promise<never> {
-    return this.makeContinueAsNewFunc()(...args);
-  }
+  ) as any;
 }
 
 /**
- * Holds context of current running workflow
+ * Returns a client-side stub that can be used to signal and cancel an existing Workflow execution.
+ * It takes a Workflow ID and optional run ID.
  */
-export const Context: ContextImpl = new ContextImpl();
+export function newExternalWorkflowStub<T extends Workflow>(
+  workflowId: string,
+  runId?: string
+): ExternalWorkflowStub<T> {
+  return {
+    workflowId,
+    runId,
+    cancel() {
+      return new Promise<void>((resolve, reject) => {
+        if (state.info === undefined) {
+          throw new IllegalStateError('Uninitialized workflow');
+        }
+        const seq = state.nextSeqs.cancelWorkflow++;
+        state.commands.push({
+          requestCancelExternalWorkflowExecution: {
+            seq,
+            workflowExecution: {
+              namespace: state.info.namespace,
+              workflowId,
+              runId,
+            },
+          },
+        });
+        state.completions.cancelWorkflow.set(seq, { resolve, reject });
+      });
+    },
+    signal: new Proxy(
+      {},
+      {
+        get(_, signalName) {
+          if (typeof signalName !== 'string') {
+            throw new TypeError(`Invalid signal type, expected string got: ${typeof signalName}`);
+          }
+
+          return (...args: any[]) => {
+            return composeInterceptors(
+              state.interceptors.outbound,
+              'signalWorkflow',
+              signalWorkflowNextHandler
+            )({
+              seq: state.nextSeqs.signalWorkflow++,
+              signalName,
+              args,
+              target: {
+                type: 'external',
+                workflowExecution: { workflowId, runId },
+              },
+            });
+          };
+        },
+      }
+    ) as any,
+  };
+}
+
+/**
+ * Returns a client-side stub that implements a child Workflow interface.
+ * Takes a child Workflow type and optional child Workflow options as arguments.
+ * Workflow options may be needed to override the timeouts and task queue if they differ from the parent Workflow.
+ *
+ * A child Workflow supports starting, awaiting completion, signaling and cancellation via {@link CancellationScope}s.
+ * In order to query the child, use a WorkflowClient from an Activity.
+ */
+export function newChildWorkflowStub<T extends Workflow>(
+  workflowType: string,
+  options?: ChildWorkflowOptions
+): ChildWorkflowStub<T>;
+
+/**
+ * Returns a client-side stub that implements a child Workflow interface.
+ * Deduces the Workflow interface from provided Workflow function.
+ * Workflow options may be needed to override the timeouts and task queue if they differ from the parent Workflow.
+ *
+ * A child Workflow supports starting, awaiting completion, signaling and cancellation via {@link CancellationScope}s.
+ * In order to query the child, use a WorkflowClient from an Activity.
+ */
+export function newChildWorkflowStub<T extends Workflow>(
+  workflowFunc: T,
+  options?: ChildWorkflowOptions
+): ChildWorkflowStub<T>;
+
+export function newChildWorkflowStub<T extends Workflow>(
+  workflowTypeOrFunc: string | T,
+  options?: ChildWorkflowOptions
+): ChildWorkflowStub<T> {
+  const optionsWithDefaults = addDefaultWorkflowOptions(options ?? {});
+  const workflowType = typeof workflowTypeOrFunc === 'string' ? workflowTypeOrFunc : workflowTypeOrFunc.name;
+  let started: Promise<string> | undefined = undefined;
+  let completed: Promise<unknown> | undefined = undefined;
+
+  return {
+    workflowId: optionsWithDefaults.workflowId,
+    async start(...args: Parameters<T>): Promise<string> {
+      if (started !== undefined) {
+        throw new WorkflowExecutionAlreadyStartedError(
+          'Workflow execution already started',
+          optionsWithDefaults.workflowId,
+          workflowType
+        );
+      }
+      const execute = composeInterceptors(
+        state.interceptors.outbound,
+        'startChildWorkflowExecution',
+        startChildWorkflowExecutionNextHandler
+      );
+      [started, completed] = await execute({
+        seq: state.nextSeqs.childWorkflow++,
+        options: optionsWithDefaults,
+        args,
+        headers: new Map(),
+        workflowType,
+      });
+      return await started;
+    },
+    async execute(...args: Parameters<T>): // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    // @ts-ignore
+    WorkflowResultType<T> {
+      await this.start(...args);
+      return this.result();
+    },
+    result(): WorkflowResultType<T> {
+      if (completed === undefined) {
+        throw new IllegalStateError('Child Workflow was not started');
+      }
+      return completed as any;
+    },
+    signal: new Proxy(
+      {},
+      {
+        get(_, signalName) {
+          if (typeof signalName !== 'string') {
+            throw new TypeError(`Invalid signal type, expected string got: ${typeof signalName}`);
+          }
+          return async (...args: any[]) => {
+            if (started === undefined) {
+              throw new IllegalStateError('Workflow execution not started');
+            }
+            return composeInterceptors(
+              state.interceptors.outbound,
+              'signalWorkflow',
+              signalWorkflowNextHandler
+            )({
+              seq: state.nextSeqs.signalWorkflow++,
+              signalName,
+              args,
+              target: {
+                type: 'child',
+                childWorkflowId: optionsWithDefaults.workflowId,
+              },
+            });
+          };
+        },
+      }
+    ) as any,
+  };
+}
+
+/**
+ * Get information about the current Workflow
+ */
+export function workflowInfo(): WorkflowInfo {
+  if (state.info === undefined) {
+    throw new IllegalStateError('Workflow uninitialized');
+  }
+  return state.info;
+}
+
+/**
+ * Get a reference to injected external dependencies.
+ *
+ * @example
+ * ```ts
+ * import { dependencies } from '@temporalio/workflow';
+ * import { MyDependencies } from '../interfaces';
+ *
+ * const { logger } = dependencies<MyDependencies>();
+ * logger.info('setting up');
+ *
+ * export function myWorkflow() {
+ *   return {
+ *     async execute() {
+ *       logger.info('hey ho');
+ *       logger.error('lets go');
+ *     }
+ *   };
+ * }
+ * ```
+ */
+export function dependencies<T extends ExternalDependencies>(): T {
+  return new Proxy(
+    {},
+    {
+      get(_, ifaceName) {
+        return new Proxy(
+          {},
+          {
+            get(_, fnName) {
+              return (...args: any[]) => {
+                if (state.info === undefined) {
+                  throw new IllegalStateError('Workflow uninitialized');
+                }
+                return state.dependencies[ifaceName as string][fnName as string](...args);
+              };
+            },
+          }
+        );
+      },
+    }
+  ) as any;
+}
+
+/**
+ * Returns a function `f` that will cause the current Workflow to ContinueAsNew when called.
+ *
+ * `f` takes the same arguments as the Workflow execute function supplied to typeparam `F`.
+ *
+ * Once `f` is called, Workflow execution immediately completes.
+ */
+export function makeContinueAsNewFunc<F extends Workflow>(
+  options?: ContinueAsNewOptions
+): (...args: Parameters<F>) => Promise<never> {
+  const nonOptionalOptions = { workflowType: state.info?.workflowType, taskQueue: state.info?.taskQueue, ...options };
+
+  return (...args: Parameters<F>): Promise<never> => {
+    const fn = composeInterceptors(state.interceptors.outbound, 'continueAsNew', async (input) => {
+      const { headers, args, options } = input;
+      throw new ContinueAsNew({
+        workflowType: options.workflowType,
+        arguments: await state.dataConverter.toPayloads(...args),
+        header: Object.fromEntries(headers.entries()),
+        taskQueue: options.taskQueue,
+        memo: options.memo,
+        searchAttributes: options.searchAttributes,
+        workflowRunTimeout: msOptionalToTs(options.workflowRunTimeout),
+        workflowTaskTimeout: msOptionalToTs(options.workflowTaskTimeout),
+      });
+    });
+    return fn({
+      args,
+      headers: new Map(),
+      options: nonOptionalOptions,
+    });
+  };
+}
+
+/**
+ * Continues current Workflow execution as new with default options.
+ *
+ * Shorthand for `makeContinueAsNewFunc<F>()(...args)`.
+ *
+ * @example
+ *
+ * ```ts
+ * import { continueAsNew } from '@temporalio/workflow';
+ *
+ * export function myWorkflow(n: number) {
+ *   return {
+ *     async execute() {
+ *       // ... Workflow logic
+ *       await continueAsNew<typeof myWorkflow>(n + 1);
+ *     }
+ *   };
+ * }
+ * ```
+ */
+export function continueAsNew<F extends Workflow>(...args: Parameters<F>): Promise<never> {
+  return makeContinueAsNewFunc()(...args);
+}
 
 /**
  * Generate an RFC compliant V4 uuid.

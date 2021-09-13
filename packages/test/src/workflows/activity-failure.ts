@@ -1,15 +1,18 @@
 /**
  * Tests that ActivityFailure is propagated correctly to client
  */
-import { Context } from '@temporalio/workflow';
-import * as activities from '../activities';
+import { configureActivities } from '@temporalio/workflow';
+import type * as activities from '../activities';
+import { Empty } from '../interfaces';
 
-const { throwAnError } = Context.configureActivities<typeof activities>({
+const { throwAnError } = configureActivities<typeof activities>({
   type: 'remote',
   startToCloseTimeout: '5s',
   retry: { initialInterval: '1s', maximumAttempts: 1 },
 });
 
-export async function main(): Promise<void> {
-  await throwAnError('Fail me');
-}
+export const activityFailure: Empty = () => ({
+  async execute() {
+    await throwAnError('Fail me');
+  },
+});

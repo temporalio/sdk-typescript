@@ -5,7 +5,12 @@
  * @module
  */
 
-export const queries = {
+interface Queries {
+  invalidAsyncMethod(): Promise<boolean>;
+  fail(): never;
+}
+
+const queries = {
   async invalidAsyncMethod(): Promise<boolean> {
     return true;
   },
@@ -14,6 +19,10 @@ export const queries = {
   },
 };
 
-export async function main(): Promise<void> {
+async function execute(): Promise<void> {
   // Nothing to do here
+}
+
+export function invalidOrFailedQueries(): { execute(): Promise<void>; queries: Queries } {
+  return { execute, queries };
 }

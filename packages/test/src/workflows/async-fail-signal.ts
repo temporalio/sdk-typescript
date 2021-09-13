@@ -9,9 +9,9 @@ const signals = {
   },
 };
 
-async function main(): Promise<void> {
+async function execute(): Promise<void> {
   // Don't complete to allow Workflow to be interrupted by fail() signal
   await sleep(100000);
 }
 
-export const workflow: AsyncFailable = { main, signals };
+export const asyncFailSignal: AsyncFailable = () => ({ execute, signals });

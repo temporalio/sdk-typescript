@@ -1,6 +1,6 @@
 import { Workflow, sleep } from '@temporalio/workflow';
 
-async function main(): Promise<void> {
+async function execute(): Promise<void> {
   console.log(await Promise.race([1, 2, 3]));
   console.log(await Promise.race(new Set([1, 2, 3]).values()));
   console.log(await Promise.race([1, 2, 3].map((v) => Promise.resolve(v))));
@@ -13,4 +13,4 @@ async function main(): Promise<void> {
   }
 }
 
-export const workflow: Workflow = { main };
+export const promiseRace: Workflow = () => ({ execute });

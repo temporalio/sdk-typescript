@@ -1,6 +1,6 @@
-import '@temporalio/workflow';
+import { Empty } from '../interfaces';
 
-export async function main(): Promise<void> {
+async function execute(): Promise<void> {
   // None promises
   console.log(...(await Promise.all([1, 2, 3])));
   // Normal promises
@@ -22,3 +22,5 @@ export async function main(): Promise<void> {
     console.log(err.message);
   }
 }
+
+export const promiseAll: Empty = () => ({ execute });

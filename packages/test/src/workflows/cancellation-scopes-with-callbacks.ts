@@ -4,15 +4,18 @@
  */
 // @@@SNIPSTART nodejs-cancellation-scopes-with-callbacks
 import { CancellationScope } from '@temporalio/workflow';
+import { Empty } from '../interfaces';
 
-function doSomehing(callback: () => any) {
+function doSomething(callback: () => any) {
   setTimeout(callback, 10);
 }
 
-export async function main(): Promise<void> {
-  await new Promise<void>((resolve, reject) => {
-    doSomehing(resolve);
-    CancellationScope.current().cancelRequested.catch(reject);
-  });
-}
+export const cancellationScopesWithCallbacks: Empty = () => ({
+  async execute() {
+    await new Promise<void>((resolve, reject) => {
+      doSomething(resolve);
+      CancellationScope.current().cancelRequested.catch(reject);
+    });
+  },
+});
 // @@@SNIPEND

@@ -1,4 +1,7 @@
 /* eslint-disable @typescript-eslint/ban-ts-comment */
+
+import { Empty } from '../interfaces';
+
 /**
  * Test that we get meaningful errors when trying to use Weak* constructors.
  * NOTE that we had to add @ts-ignore to all of the constructor calls because
@@ -13,24 +16,26 @@ try {
   startupErrors.push(err.toString());
 }
 
-export async function main(): Promise<void> {
-  for (const err of startupErrors) {
-    console.log(err);
-  }
-  try {
-    new WeakMap();
-  } catch (err: any) {
-    console.log(err.toString());
-  }
-  try {
-    new WeakSet();
-  } catch (err: any) {
-    console.log(err.toString());
-  }
-  try {
-    // @ts-ignore
-    new WeakRef();
-  } catch (err: any) {
-    console.log(err.toString());
-  }
-}
+export const globalOverrides: Empty = () => ({
+  async execute() {
+    for (const err of startupErrors) {
+      console.log(err);
+    }
+    try {
+      new WeakMap();
+    } catch (err: any) {
+      console.log(err.toString());
+    }
+    try {
+      new WeakSet();
+    } catch (err: any) {
+      console.log(err.toString());
+    }
+    try {
+      // @ts-ignore
+      new WeakRef();
+    } catch (err: any) {
+      console.log(err.toString());
+    }
+  },
+});

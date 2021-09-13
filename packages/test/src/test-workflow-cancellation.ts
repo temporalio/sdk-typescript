@@ -2,13 +2,10 @@
 import anyTest, { Constructor, Macro, TestInterface } from 'ava';
 import { WorkflowClient, WorkflowExecutionCancelledError, WorkflowExecutionFailedError } from '@temporalio/client';
 import { Worker } from '@temporalio/worker';
-import {
-  WorkflowCancellationScenarioOutcome,
-  WorkflowCancellationScenarioTiming,
-  WorkflowCancellationScenarios,
-} from './interfaces';
+import { WorkflowCancellationScenarioOutcome, WorkflowCancellationScenarioTiming } from './interfaces';
 import { RUN_INTEGRATION_TESTS } from './helpers';
 import * as activities from './activities';
+import { workflowCancellationScenarios } from './workflows';
 
 export interface Context {
   worker: Worker;
@@ -23,7 +20,7 @@ const testWorkflowCancellation: Macro<
   Context
 > = async (t, outcome, timing, expected) => {
   const client = new WorkflowClient();
-  const workflow = client.stub<WorkflowCancellationScenarios>('workflow-cancellation-scenarios', { taskQueue });
+  const workflow = client.newWorkflowStub(workflowCancellationScenarios, { taskQueue });
   await workflow.start(outcome, timing);
   await workflow.cancel();
   if (expected === undefined) {

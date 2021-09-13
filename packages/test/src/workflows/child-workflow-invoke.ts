@@ -3,15 +3,15 @@
  * @module
  */
 
-import { Context } from '@temporalio/workflow';
-import * as sync from './sync';
+import { newChildWorkflowStub } from '@temporalio/workflow';
+import { Returner } from '../interfaces';
+import { successString } from './success-string';
 
-export async function main(): Promise<{ workflowId: string; runId: string; execResult: string; result: string }> {
-  const child = Context.child<typeof sync>('sync', {
-    taskQueue: 'test',
+export const childWorkflowInvoke: Returner<{ workflowId: string; runId: string; execResult: string; result: string }> =
+  () => ({
+    async execute() {
+      const child = newChildWorkflowStub(successString);
+      const execResult = await newChildWorkflowStub(successString).execute();
+      return { workflowId: child.workflowId, runId: await child.start(), result: await child.result(), execResult };
+    },
   });
-  const execResult = await Context.child<typeof sync>('sync', {
-    taskQueue: 'test',
-  }).execute();
-  return { workflowId: child.workflowId, runId: await child.start(), result: await child.result(), execResult };
-}

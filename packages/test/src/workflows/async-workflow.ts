@@ -1,6 +1,9 @@
-import '@temporalio/workflow';
+import { Returner } from '../interfaces';
 
-export async function main(): Promise<void> {
-  const res = await (async () => 'async')();
-  console.log(res);
-}
+export const asyncWorkflow: Returner<string> = () => {
+  return {
+    async execute() {
+      return await (async () => 'async')();
+    },
+  };
+};

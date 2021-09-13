@@ -19,7 +19,7 @@ export interface WorkflowInfo {
   /**
    * Filename containing the Workflow code
    */
-  filename: string;
+  workflowType: string;
 
   /**
    * Namespace this Workflow is scheduled in
@@ -38,7 +38,7 @@ export interface WorkflowInfo {
 }
 
 /**
- * Not an actual error, used by the Workflow runtime to abort execution when {@link Context.continueAsNew} is called
+ * Not an actual error, used by the Workflow runtime to abort execution when {@link continueAsNew} is called
  */
 export class ContinueAsNew extends Error {
   public readonly type = 'ContinueAsNew';

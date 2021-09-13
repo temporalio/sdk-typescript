@@ -3,14 +3,16 @@
  * @module
  */
 
-import { Context } from '@temporalio/workflow';
-import { workflow as blocked } from './unblock-or-cancel';
+import { newChildWorkflowStub } from '@temporalio/workflow';
+import { Empty } from '../interfaces';
+import { unblockOrCancel } from './unblock-or-cancel';
 
-export async function main(): Promise<void> {
-  const child = Context.child<typeof blocked>('unblock-or-cancel', {
-    taskQueue: 'test',
-    workflowExecutionTimeout: '10ms',
-    retryPolicy: { maximumAttempts: 1 },
-  });
-  await child.execute(); // should time out
-}
+export const childWorkflowTimeout: Empty = () => ({
+  async execute(): Promise<void> {
+    const child = newChildWorkflowStub(unblockOrCancel, {
+      workflowExecutionTimeout: '10ms',
+      retryPolicy: { maximumAttempts: 1 },
+    });
+    await child.execute(); // should time out
+  },
+});

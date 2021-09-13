@@ -6,24 +6,12 @@ import { CancellationScope } from './cancellation-scope';
  * Trigger is CancellationScope aware, it is linked to the current scope on
  * construction and throws when that scope is cancelled.
  *
- * Useful for e.g. waiting for a signal from Workflow main
+ * Useful for e.g. waiting for a signal from Workflow `execute`
  * @example
  * <!--SNIPSTART nodejs-blocked-interface-->
  * <!--SNIPEND-->
  *
  * <!--SNIPSTART nodejs-blocked-workflow-->
- * ```ts
- * const unblocked = new Trigger<void>();
- * export const signals = {
- *   unblock(): void {
- *     unblocked.resolve();
- *   },
- * };
- *
- * export async function main() {
- *   await unblocked;
- * }
- * ```
  * <!--SNIPEND-->
  */
 export class Trigger<T> implements PromiseLike<T> {

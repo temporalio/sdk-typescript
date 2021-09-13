@@ -1,7 +1,8 @@
-import { Context } from '@temporalio/workflow';
+import { dependencies } from '@temporalio/workflow';
 import { TestDependencies } from '../interfaces/dependencies';
+import { Returner } from '../interfaces';
 
-const { syncVoid, asyncIgnored, sync, async, error } = Context.dependencies<TestDependencies>();
+const { syncVoid, asyncIgnored, sync, async, error } = dependencies<TestDependencies>();
 
 function convertErrorToIntResult(fn: (x: number) => any, x: number): number {
   try {
@@ -10,7 +11,8 @@ function convertErrorToIntResult(fn: (x: number) => any, x: number): number {
     return parseInt(err.message);
   }
 }
-export async function main(): Promise<number> {
+
+async function execute(): Promise<number> {
   let i = 0;
   syncVoid.promise(i++);
   syncVoid.ignoredAsyncImpl(i++);
@@ -29,3 +31,5 @@ export async function main(): Promise<number> {
   i = convertErrorToIntResult(error.throwSyncPromise, i);
   return i;
 }
+
+export const dependenciesWorkflow: Returner<number> = () => ({ execute });

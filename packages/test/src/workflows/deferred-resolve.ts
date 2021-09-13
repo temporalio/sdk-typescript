@@ -1,6 +1,8 @@
-import '@temporalio/workflow';
+import { Empty } from '../interfaces';
 
-export async function main(): Promise<void> {
+async function execute(): Promise<void> {
   new Promise((resolve) => resolve(2)).then((val) => console.log(val));
   console.log(1);
 }
+
+export const deferredResolve: Empty = () => ({ execute });

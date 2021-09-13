@@ -4,21 +4,25 @@
  */
 
 import { WorkflowExecution } from '@temporalio/common';
-import { Context } from '@temporalio/workflow';
-import { workflow as blocked } from './unblock-or-cancel';
+import { newChildWorkflowStub } from '@temporalio/workflow';
+import { ChildTerminator } from '../interfaces';
+import { unblockOrCancel } from './unblock-or-cancel';
 
-let workflowExecution: WorkflowExecution | undefined = undefined;
+export const childWorkflowTermination: ChildTerminator = () => {
+  let workflowExecution: WorkflowExecution | undefined = undefined;
 
-export const queries = {
-  childExecution(): WorkflowExecution | undefined {
-    return workflowExecution;
-  },
+  return {
+    queries: {
+      childExecution(): WorkflowExecution | undefined {
+        return workflowExecution;
+      },
+    },
+    async execute(): Promise<void> {
+      const child = newChildWorkflowStub(unblockOrCancel, {
+        taskQueue: 'test',
+      });
+      workflowExecution = { workflowId: child.workflowId, runId: await child.start() };
+      await child.result();
+    },
+  };
 };
-
-export async function main(): Promise<void> {
-  const child = Context.child<typeof blocked>('unblock-or-cancel', {
-    taskQueue: 'test',
-  });
-  workflowExecution = { workflowId: child.workflowId, runId: await child.start() };
-  await child.result();
-}

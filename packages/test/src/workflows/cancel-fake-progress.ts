@@ -1,36 +1,43 @@
-import { ActivityCancellationType, Context, CancellationScope, isCancellation, Trigger } from '@temporalio/workflow';
+import {
+  ActivityCancellationType,
+  configureActivities,
+  CancellationScope,
+  isCancellation,
+  Trigger,
+} from '@temporalio/workflow';
 import { ActivitySignalHandler } from '../interfaces';
-import * as activities from '../activities';
+import type * as activities from '../activities';
 
-const { fakeProgress } = Context.configureActivities<typeof activities>({
+const { fakeProgress } = configureActivities<typeof activities>({
   type: 'remote',
   startToCloseTimeout: '200s',
   heartbeatTimeout: '2s',
   cancellationType: ActivityCancellationType.WAIT_CANCELLATION_COMPLETED,
 });
 
-const activityStarted = new Trigger<void>();
+export const cancelFakeProgress: ActivitySignalHandler = () => {
+  const activityStarted = new Trigger<void>();
 
-const signals = {
-  activityStarted(): void {
-    activityStarted.resolve();
-  },
+  return {
+    signals: {
+      activityStarted(): void {
+        activityStarted.resolve();
+      },
+    },
+    async execute(): Promise<void> {
+      try {
+        await CancellationScope.cancellable(async () => {
+          const promise = fakeProgress();
+          await activityStarted;
+          CancellationScope.current().cancel();
+          await promise;
+        });
+        throw new Error('Activity completed instead of being cancelled');
+      } catch (err) {
+        if (!isCancellation(err)) {
+          throw err;
+        }
+      }
+    },
+  };
 };
-
-async function main(): Promise<void> {
-  try {
-    await CancellationScope.cancellable(async () => {
-      const promise = fakeProgress();
-      await activityStarted;
-      CancellationScope.current().cancel();
-      await promise;
-    });
-    throw new Error('Activity completed instead of being cancelled');
-  } catch (err) {
-    if (!isCancellation(err)) {
-      throw err;
-    }
-  }
-}
-
-export const workflow: ActivitySignalHandler = { main, signals };

@@ -1,6 +1,9 @@
 import { deprecatePatch } from '@temporalio/workflow';
+import { Empty } from '../interfaces';
 
-export async function main(): Promise<void> {
+async function execute(): Promise<void> {
   deprecatePatch('my-change-id');
   console.log('has change');
 }
+
+export const deprecatePatchWorkflow: Empty = () => ({ execute });

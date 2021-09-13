@@ -3,12 +3,15 @@
  * @module
  */
 
-import { Context } from '@temporalio/workflow';
-import * as throwAsync from './throw-async';
+import { newChildWorkflowStub } from '@temporalio/workflow';
+import { Empty } from '../interfaces';
+import { throwAsync } from './throw-async';
 
-export async function main(): Promise<void> {
-  const child = Context.child<typeof throwAsync>('throw-async', {
-    taskQueue: 'test',
-  });
-  await child.execute();
-}
+export const childWorkflowFailure: Empty = () => ({
+  async execute(): Promise<void> {
+    const child = newChildWorkflowStub(throwAsync, {
+      taskQueue: 'test',
+    });
+    await child.execute();
+  },
+});

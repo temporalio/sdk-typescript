@@ -1,5 +1,7 @@
-import '@temporalio/workflow';
+import { Empty } from '../interfaces';
 
-export async function main(): Promise<never> {
-  throw new Error('failure');
-}
+export const throwAsync: Empty = () => ({
+  async execute(): Promise<void> {
+    throw new Error('failure');
+  },
+});

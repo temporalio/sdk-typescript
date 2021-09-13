@@ -1,10 +1,12 @@
-import '@temporalio/workflow';
-import fromPairs from 'ramda/es/fromPairs';
+import fromPairs from 'ramda/src/fromPairs';
+import { Empty } from '../interfaces';
 
-export async function main(): Promise<void> {
+async function execute(): Promise<void> {
   const obj = fromPairs([
     ['a', 1],
     ['b', 2],
   ]);
   console.log(obj);
 }
+
+export const externalImporter: Empty = () => ({ execute });

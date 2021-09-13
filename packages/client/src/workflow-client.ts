@@ -14,8 +14,10 @@ import {
   WorkflowSignalType,
   WorkflowQueryType,
   BaseWorkflowStub,
+  WorkflowSignalHandlers,
+  WorkflowResultType,
+  WorkflowQueryHandlers,
 } from '@temporalio/common';
-import { EnsurePromise } from '@temporalio/common/lib/type-helpers';
 import { WorkflowOptions, addDefaults, compileWorkflowOptions } from './workflow-options';
 import {
   WorkflowCancelInput,
@@ -41,8 +43,8 @@ import { Connection, WorkflowService } from './connection';
  *
  * Given a workflow interface such as:
  * ```ts
- * export interface Counter {
- *   main(initialValue?: number): number;
+ * export type Counter = () => {
+ *   execute(initialValue?: number): number;
  *   signals: {
  *     increment(amount?: number): void;
  *   };
@@ -57,8 +59,8 @@ import { Connection, WorkflowService } from './connection';
  * const client = new WorkflowClient();
  * // `counter` is a registered workflow file, typically found at
  * // `lib/workflows/counter.js` after building the typescript project
- * const workflow = connection.stub<Counter>('counter', { taskQueue: 'tutorial' });
- * // start workflow main function with initialValue of 2 and await its completion
+ * const workflow = connection.newWorkflowStub<Counter>('counter', { taskQueue: 'tutorial' });
+ * // start workflow `execute` function with initialValue of 2 and await its completion
  * await workflow.execute(2);
  * ```
  */
@@ -71,9 +73,11 @@ export interface WorkflowStub<T extends Workflow> extends BaseWorkflowStub<T> {
    * const value = await workflow.query.get();
    * ```
    */
-  query: T extends Record<'queries', Record<string, WorkflowQueryType>>
+  query: WorkflowQueryHandlers<T> extends Record<string, WorkflowQueryType>
     ? {
-        [P in keyof T['queries']]: (...args: Parameters<T['queries'][P]>) => Promise<ReturnType<T['queries'][P]>>;
+        [P in keyof WorkflowQueryHandlers<T>]: (
+          ...args: Parameters<WorkflowQueryHandlers<T>[P]>
+        ) => Promise<ReturnType<WorkflowQueryHandlers<T>[P]>>;
       }
     : undefined;
 
@@ -81,11 +85,11 @@ export interface WorkflowStub<T extends Workflow> extends BaseWorkflowStub<T> {
    * Sends a signal to a running Workflow or starts a new one if not already running and immediately signals it.
    * Useful when you're unsure of the run state.
    */
-  signalWithStart: T extends Record<'signals', Record<string, WorkflowSignalType>>
-    ? <S extends keyof T['signals']>(
+  signalWithStart: WorkflowSignalHandlers<T> extends Record<string, WorkflowSignalType>
+    ? <S extends keyof WorkflowSignalHandlers<T>>(
         signalName: S,
-        signalArgs: Parameters<T['signals'][S]>,
-        workflowArgs: Parameters<T['main']>
+        signalArgs: Parameters<WorkflowSignalHandlers<T>[S]>,
+        workflowArgs: Parameters<T>
       ) => Promise<string>
     : never;
 
@@ -169,13 +173,9 @@ export class WorkflowClient {
   }
 
   /**
-   * Starts a new Workflow execution
+   * Start a new Workflow execution. Resolves with the execution `runId`.
    */
-  public async start<T extends Workflow>(
-    opts: WorkflowOptions,
-    name: string,
-    ...args: Parameters<T['main']>
-  ): Promise<string> {
+  public async start<T extends Workflow>(opts: WorkflowOptions, name: string, ...args: Parameters<T>): Promise<string> {
     const compiledOptions = compileWorkflowOptions(addDefaults(opts));
 
     const interceptors = (this.options.interceptors.calls ?? []).map((ctor) =>
@@ -184,7 +184,7 @@ export class WorkflowClient {
 
     const next = composeInterceptors(interceptors, 'start', this._startWorkflowHandler.bind(this));
 
-    const start = (...args: Parameters<T['main']>) =>
+    const start = (...args: Parameters<T>) =>
       next({
         options: compiledOptions,
         headers: new Map(),
@@ -200,10 +200,10 @@ export class WorkflowClient {
   public async execute<T extends Workflow>(
     opts: WorkflowOptions,
     name: string,
-    ...args: Parameters<T['main']>
+    ...args: Parameters<T>
   ): // eslint-disable-next-line @typescript-eslint/ban-ts-comment
   // @ts-ignore
-  EnsurePromise<ReturnType<T['main']>> {
+  WorkflowResultType<T> {
     const workflowId = opts.workflowId ?? uuid4();
     const runId = await this.start({ ...opts, workflowId }, name, ...args);
     return this.result(workflowId, runId);
@@ -214,7 +214,7 @@ export class WorkflowClient {
    */
   // eslint-disable-next-line @typescript-eslint/ban-ts-comment
   // @ts-ignore
-  public async result<T extends Workflow>(workflowId: string, runId?: string): EnsurePromise<ReturnType<T['main']>> {
+  public async result<T extends Workflow>(workflowId: string, runId?: string): ReturnType<T['execute']> {
     const req: GetWorkflowExecutionHistoryRequest = {
       namespace: this.options.namespace,
       execution: { workflowId, runId },
@@ -438,31 +438,44 @@ export class WorkflowClient {
       workflowExecution: input.workflowExecution,
     });
   }
+
   /**
    * Create a {@link WorkflowStub} for a new Workflow execution
    *
    * @param name workflow type name (the filename in the Node.js SDK)
    * @param options used to start the Workflow
    */
-  public stub<T extends Workflow>(name: string, options: WorkflowOptions): WorkflowStub<T>;
+  public newWorkflowStub<T extends Workflow>(name: string, options: WorkflowOptions): WorkflowStub<T>;
+
+  /**
+   * TODO: doc
+   */
+  public newWorkflowStub<T extends Workflow>(func: T, options: WorkflowOptions): WorkflowStub<T>;
 
   /**
    * Create a {@link WorkflowStub} for an existing Workflow execution
    */
-  public stub<T extends Workflow>(workflowId: string): WorkflowStub<T>;
+  public newWorkflowStub<T extends Workflow>(workflowId: string): WorkflowStub<T>;
 
   /**
    * Create a {@link WorkflowStub} for an existing Workflow run
    */
-  public stub<T extends Workflow>(workflowId: string, runId: string): WorkflowStub<T>;
+  public newWorkflowStub<T extends Workflow>(workflowId: string, runId: string): WorkflowStub<T>;
 
-  public stub<T extends Workflow>(
-    nameOrWorkflowId: string,
+  public newWorkflowStub<T extends Workflow>(
+    nameOrWorkflowIdOrFunc: string | T,
     optionsOrRunId?: WorkflowOptions | string
   ): WorkflowStub<T> {
+    const nameOrWorkflowId =
+      typeof nameOrWorkflowIdOrFunc === 'string'
+        ? nameOrWorkflowIdOrFunc
+        : typeof nameOrWorkflowIdOrFunc === 'function'
+        ? nameOrWorkflowIdOrFunc.name
+        : undefined;
+
     if (typeof nameOrWorkflowId !== 'string') {
       throw new TypeError(
-        `Invalid argument: ${nameOrWorkflowId}, expected a string with the Workflow filename or Workflow ID`
+        `Invalid argument: ${nameOrWorkflowIdOrFunc}, expected a Workflow function or a string with the Workflow name or Workflow ID`
       );
     }
     if (optionsOrRunId === undefined) {
@@ -498,17 +511,17 @@ export class WorkflowClient {
     const workflow = {
       client: this,
       workflowId,
-      execute(...args: Parameters<T['main']>): EnsurePromise<ReturnType<T['main']>> {
-        // Typescript doesn't know how to unpack EnsurePromise, cast to any
+      execute(...args: Parameters<T>): WorkflowResultType<T> {
+        // TODO: fix the type here
         return this.start(...args).then(() => this.result()) as any;
       },
-      async start(...args: Parameters<T['main']>) {
+      async start(...args: Parameters<T>) {
         // Override runId in outer scope
         runId = await start(...args);
         return runId;
       },
-      result() {
-        return this.client.result(workflowId, runId) as EnsurePromise<ReturnType<T['main']>>;
+      result(): WorkflowResultType<T> {
+        return this.client.result(workflowId, runId);
       },
       async terminate(reason?: string) {
         const next = this.client._terminateWorkflowHandler.bind(this.client);
@@ -608,7 +621,7 @@ export class WorkflowClient {
       ctor({ workflowId: compiledOptions.workflowId })
     );
 
-    const start = (...args: Parameters<T['main']>) => {
+    const start = (...args: Parameters<T>) => {
       const next = composeInterceptors(interceptors, 'start', this._startWorkflowHandler.bind(this));
 
       return next({
@@ -619,7 +632,7 @@ export class WorkflowClient {
       });
     };
 
-    const signalWithStart = (signalName: string, signalArgs: unknown[], workflowArgs: Parameters<T['main']>) => {
+    const signalWithStart = (signalName: string, signalArgs: unknown[], workflowArgs: Parameters<T>) => {
       const next = composeInterceptors(
         interceptors,
         'signalWithStart',

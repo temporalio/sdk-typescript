@@ -14,6 +14,7 @@ import {
   defaultDataConverter,
   arrayFromPayloadsSync,
   errorMessage,
+  WorkflowHandlers,
 } from '@temporalio/common';
 import { coresdk } from '@temporalio/proto/lib/coresdk';
 import { alea, RNG } from './alea';
@@ -43,17 +44,20 @@ export type ActivationHandler = {
 };
 
 export class Activator implements ActivationHandler {
-  public async startWorkflowNextHandler(req: () => Record<string, unknown>, input: WorkflowInput): Promise<any> {
-    let mod: Record<string, unknown>;
+  public async startWorkflowNextHandler(req: () => Workflow, input: WorkflowInput): Promise<any> {
+    let mod: Workflow;
     try {
       mod = req();
+      if (typeof mod !== 'function') {
+        throw new TypeError(`'${state.info?.workflowType}' is not a function`);
+      }
     } catch (err) {
       const failure = ApplicationFailure.nonRetryable(errorMessage(err), 'ReferenceError');
       failure.stack = failure.stack?.split('\n')[0];
       throw failure;
     }
-    state.workflow = (mod.workflow ?? mod) as Workflow;
-    return await state.workflow.main(...input.args);
+    state.workflow = mod(...input.args);
+    return await state.workflow.execute();
   }
 
   public startWorkflow(activation: coresdk.workflow_activation.IStartWorkflow): void {
@@ -64,7 +68,7 @@ export class Activator implements ActivationHandler {
     const execute = composeInterceptors(
       state.interceptors.inbound,
       'execute',
-      this.startWorkflowNextHandler.bind(this, req.bind(undefined, info.filename))
+      this.startWorkflowNextHandler.bind(this, req.bind(undefined, undefined, info.workflowType))
     );
     execute({
       headers: new Map(Object.entries(activation.headers ?? {})),
@@ -290,7 +294,7 @@ export class State {
   /**
    * Loaded in {@link initRuntime}
    */
-  public interceptors: WorkflowInterceptors = { inbound: [], outbound: [], internals: [] };
+  public interceptors: Required<WorkflowInterceptors> = { inbound: [], outbound: [], internals: [] };
   /**
    * Buffer that stores all generated commands, reset after each activation
    */
@@ -339,7 +343,7 @@ export class State {
   /**
    * Reference to the current Workflow, initialized when a Workflow is started
    */
-  public workflow?: Workflow;
+  public workflow?: WorkflowHandlers;
 
   /**
    * Information about the current Workflow
@@ -368,7 +372,7 @@ export class State {
    *
    * Injected on isolate startup
    */
-  public require?: (filename: string) => Record<string, unknown>;
+  public require?: (path: string | undefined, workflowType: string) => any;
 
   public dataConverter: DataConverter = defaultDataConverter;
 

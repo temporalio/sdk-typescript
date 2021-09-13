@@ -36,7 +36,9 @@ export interface QueryInput {
  */
 export interface WorkflowInboundCallsInterceptor {
   /**
-   * Called when Workflow main method is called
+   * Called when Workflow execute method is called
+   *
+   * TODO: intercept creation too and move args there?
    *
    * @return result of the workflow execution
    */
@@ -173,20 +175,29 @@ export interface WorkflowInternalsInterceptor {
 }
 
 /**
- * Workflow interceptor modules should export an interceptors variable conforming to this interface
+ * A mapping from interceptor type to an optional list of interceptor implementations
+ */
+export interface WorkflowInterceptors {
+  inbound?: WorkflowInboundCallsInterceptor[];
+  outbound?: WorkflowOutboundCallsInterceptor[];
+  internals?: WorkflowInternalsInterceptor[];
+}
+
+/**
+ * A function that returns {@link WorkflowInterceptors} and takes no arguments.
+ *
+ * Workflow interceptor modules should export an `interceptors` function of this type.
  *
  * @example
  *
  * ```ts
- * export const interceptors: WorkflowInterceptors = {
- *   inbound: [],   // Populate with list of interceptor implementations
- *   outbound: [],  // Populate with list of interceptor implementations
- *   internals: [], // Populate with list of interceptor implementations
- * };
+ * export function interceptors(): WorkflowInterceptors {
+ *   return {
+ *     inbound: [],   // Populate with list of interceptor implementations
+ *     outbound: [],  // Populate with list of interceptor implementations
+ *     internals: [], // Populate with list of interceptor implementations
+ *   };
+ * }
  * ```
  */
-export interface WorkflowInterceptors {
-  inbound: WorkflowInboundCallsInterceptor[];
-  outbound: WorkflowOutboundCallsInterceptor[];
-  internals: WorkflowInternalsInterceptor[];
-}
+export type WorkflowInterceptorsFactory = () => WorkflowInterceptors;

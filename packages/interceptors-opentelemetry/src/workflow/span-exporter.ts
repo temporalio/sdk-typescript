@@ -1,9 +1,9 @@
 import * as tracing from '@opentelemetry/tracing';
 import { ExportResult, ExportResultCode } from '@opentelemetry/core';
-import { Context } from '@temporalio/workflow';
+import * as wf from '@temporalio/workflow';
 import { OpenTelemetryDependencies, SerializableSpan } from './interfaces';
 
-const { exporter } = Context.dependencies<OpenTelemetryDependencies>();
+const { exporter } = wf.dependencies<OpenTelemetryDependencies>();
 
 export class SpanExporter implements tracing.SpanExporter {
   public export(spans: tracing.ReadableSpan[], resultCallback: (result: ExportResult) => void): void {

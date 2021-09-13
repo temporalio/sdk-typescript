@@ -1,14 +1,16 @@
 # How to Contribute
 
-The Node.js SDK, as well as the rest of the Temporal codebase is open sourced under the MIT license.
+The Node.js SDK (as well as the rest of the Temporal codebase) is open sourced under the MIT license.
 
-We welcome contributions from the community. To contribute please start by opening an [issue](https://github.com/temporalio/sdk-node/issues) and dicussing the proposed change, once a change has been agreed upon development may start and submitted via a [pull request](https://github.com/temporalio/sdk-node/pulls).
+We welcome contributions from the community. To contribute please start by opening an [issue](https://github.com/temporalio/sdk-node/issues) and discussing the proposed change. Once a change has been agreed upon, development may start and be submitted via a [pull request](https://github.com/temporalio/sdk-node/pulls).
 
 ### Contributor License Agreement (CLA)
 
-You will need to submit a CLA before we can accept your contribution. You only have to do this once. Follow [this link](https://cla-assistant.io/temporalio/sdk-node) and sign in with your GitHub account.
+Contributors must agree to the CLA before their PR can be merged. You only have to do this once. Follow [this link](https://cla-assistant.io/temporalio/sdk-node) and sign in with your GitHub account.
 
-### [SDK Structure](./docs/sdk-structure.md)
+### SDK Structure
+
+See [sdk-structure.md](./docs/sdk-structure.md)
 
 ### Environment setup
 
@@ -29,7 +31,11 @@ You will need to submit a CLA before we can accept your contribution. You only h
   npm ci
   ```
 
-You should now be able to successfully do `npm run build`. If this fails, resetting your environment may help: `npx lerna clean -- -f && npm ci`.
+You should now be able to successfully do `npm run build`. If this fails, resetting your environment may help:
+
+```
+npx lerna clean -y && npm ci
+```
 
 To update your environment, run `git submodule update` to update to the latest version of the Core SDK, followed by `npm run build` to recompile.
 
@@ -46,13 +52,14 @@ After your environment is set up, you can run these commands:
 - `npm run test.watch` runs the test suite on each change to Typescript files.
 - `npm run format` formats code with prettier.
 - `npm run lint` verifies code style with prettier and ES lint.
+- `npm run commitlint` validates [commit messages](#style-guide).
 
 ### Testing local changes to core
 
 Create a `.cargo/config.toml` file and override the path to sdk-core and/or sdk-core-protos as
 described [here](https://doc.rust-lang.org/cargo/reference/overriding-dependencies.html#paths-overrides)
 
-##### Integration tests
+#### Integration tests
 
 In order to run integration tests:
 
@@ -63,4 +70,12 @@ In order to run integration tests:
 
 - Typescript code is linted with [eslint](https://eslint.org/)
 - Files in this repo are formatted with [prettier](https://prettier.io/)
-- All pull requests SHOULD adhere to the [Conventional Commits specification](https://conventionalcommits.org/)
+- All commits SHOULD adhere to the [Conventional Commits specification](https://conventionalcommits.org/) with sentence case descriptions, for example:
+
+```
+<type>(optional scope): <description>
+
+chore(samples): Upgrade commander module
+```
+
+The `scope` options are listed in [commitlint.config.js](https://github.com/temporalio/sdk-node/blob/main/commitlint.config.js).

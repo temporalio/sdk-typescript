@@ -3,7 +3,7 @@ import { Worker } from '@temporalio/worker';
 import { WorkflowClient } from '@temporalio/client';
 import { defaultOptions } from './mock-native-worker';
 import { RUN_INTEGRATION_TESTS } from './helpers';
-import * as workflow from './workflows/run-activity-in-different-task-queue';
+import { runActivityInDifferentTaskQueue } from './workflows';
 
 if (RUN_INTEGRATION_TESTS) {
   test('Worker functions when asked not to run Workflows', async (t) => {
@@ -11,7 +11,7 @@ if (RUN_INTEGRATION_TESTS) {
     const workflowlessWorker = await Worker.create({ taskQueue: 'only-activities', activities });
     const normalWorker = await Worker.create({ ...defaultOptions, taskQueue: 'also-workflows' });
     const client = new WorkflowClient();
-    const runner = client.stub<typeof workflow>('run-activity-in-different-task-queue', {
+    const runner = client.newWorkflowStub(runActivityInDifferentTaskQueue, {
       taskQueue: 'also-workflows',
     });
     const runAndShutdown = async () => {

@@ -1,80 +1,113 @@
-import { Workflow } from '@temporalio/workflow';
-
 // @@@SNIPSTART nodejs-workflow-signal-interface
-export interface Interruptable extends Workflow {
-  main(): void;
+export type Interruptable = () => {
+  execute(): Promise<void>;
   signals: {
     interrupt(reason: string): void;
   };
-}
+};
 // @@@SNIPEND
 
-export interface Failable extends Workflow {
-  main(): void;
+export type Failable = () => {
+  execute(): Promise<void>;
   signals: {
     fail(): void;
   };
-}
+};
 
-export interface AsyncFailable extends Workflow {
-  main(): void;
+export type AsyncFailable = () => {
+  execute(): Promise<void>;
   signals: {
     fail(): Promise<void>;
   };
-}
+};
 
-export interface ArgsAndReturn extends Workflow {
-  main(greeting: string, _skip: undefined, arr: ArrayBuffer): Promise<string>;
-}
+export type SignalTarget = () => {
+  execute(): Promise<void>;
+  signals: {
+    fail(message: string): void;
+    unblock(): void;
+  };
+};
 
-export interface HTTP extends Workflow {
-  main(): Promise<string>;
-}
+export type ArgsAndReturn = (
+  greeting: string,
+  _skip: undefined,
+  arr: ArrayBuffer
+) => {
+  execute(): Promise<string>;
+};
 
-export interface Empty extends Workflow {
-  main(): Promise<void>;
-}
+export type HTTP = () => {
+  execute(): Promise<string>;
+};
 
-export interface Sleeper extends Workflow {
-  main(ms?: number): Promise<void>;
-}
+export type HTTPGetter = (url: string) => {
+  execute(): Promise<any>;
+};
 
-export interface ActivitySignalHandler extends Workflow {
-  main(): Promise<void>;
+export type HTTPPoster = (url: string) => {
+  execute(): Promise<void>;
+};
+
+import { WorkflowExecution } from '@temporalio/common';
+
+export type ChildTerminator = () => {
+  execute(): Promise<void>;
+  queries: {
+    childExecution(): WorkflowExecution | undefined;
+  };
+};
+
+export type Empty = () => {
+  execute(): Promise<void>;
+};
+
+export type Returner<T> = () => {
+  execute(): Promise<T>;
+};
+
+export type Sleeper = (ms?: number) => {
+  execute(): Promise<void>;
+};
+
+export type ActivitySignalHandler = () => {
+  execute(): Promise<void>;
   signals: {
     activityStarted(): void;
   };
-}
+};
 
-export interface CancellableHTTPRequest extends Workflow {
-  main(url: string): Promise<void>;
+export type CancellableHTTPRequest = (url: string) => {
+  execute(): Promise<void>;
   signals: {
     activityStarted(): void;
   };
-}
+};
 
-export interface ContinueAsNewFromMainAndSignal extends Workflow {
-  main(continueFrom?: 'main' | 'signal' | 'none'): Promise<void>;
+export type ContinueAsNewFromMainAndSignal = (continueFrom?: 'execute' | 'signal' | 'none') => {
+  execute(): Promise<void>;
   signals: {
     continueAsNew(): void;
   };
-}
+};
 
 export type WorkflowCancellationScenarioOutcome = 'complete' | 'cancel' | 'fail';
 export type WorkflowCancellationScenarioTiming = 'immediately' | 'after-cleanup';
-
-export interface WorkflowCancellationScenarios extends Workflow {
-  main(outcome: WorkflowCancellationScenarioOutcome, when: WorkflowCancellationScenarioTiming): Promise<void>;
-}
+export type CancellationScenarioRunner = (
+  outcome: WorkflowCancellationScenarioOutcome,
+  when: WorkflowCancellationScenarioTiming
+) => {
+  execute(): Promise<void>;
+};
 
 // @@@SNIPSTART nodejs-blocked-interface
-export interface Blocked extends Workflow {
-  main(): Promise<void>;
+export type Blocked = () => {
+  execute(): Promise<void>;
   queries: {
     isBlocked(): boolean;
   };
   signals: {
     unblock(): void;
   };
-}
+};
 // @@@SNIPEND

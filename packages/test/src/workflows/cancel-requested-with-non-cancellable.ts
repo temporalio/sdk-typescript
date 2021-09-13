@@ -3,27 +3,30 @@
  * Used in the documentation site.
  */
 // @@@SNIPSTART nodejs-cancel-requested-with-non-cancellable
-import { CancelledFailure, CancellationScope, Context } from '@temporalio/workflow';
-import * as activities from '../activities';
+import { CancelledFailure, CancellationScope, configureActivities } from '@temporalio/workflow';
+import type * as activities from '../activities';
+import { HTTPGetter } from '../interfaces';
 
-const { httpGetJSON } = Context.configureActivities<typeof activities>({
+const { httpGetJSON } = configureActivities<typeof activities>({
   type: 'remote',
   startToCloseTimeout: '10m',
 });
 
-export async function main(url: string): Promise<any> {
-  let result: any = undefined;
-  const scope = new CancellationScope({ cancellable: false });
-  const promise = scope.run(() => httpGetJSON(url));
-  try {
-    result = await Promise.race([scope.cancelRequested, promise]);
-  } catch (err) {
-    if (!(err instanceof CancelledFailure)) {
-      throw err;
+export const resumeAfterCancellation: HTTPGetter = (url: string) => ({
+  async execute(): Promise<any> {
+    let result: any = undefined;
+    const scope = new CancellationScope({ cancellable: false });
+    const promise = scope.run(() => httpGetJSON(url));
+    try {
+      result = await Promise.race([scope.cancelRequested, promise]);
+    } catch (err) {
+      if (!(err instanceof CancelledFailure)) {
+        throw err;
+      }
+      // Prevent Workflow from completing so Activity can complete
+      result = await promise;
     }
-    // Prevent Workflow from completing so Activity can complete
-    result = await promise;
-  }
-  return result;
-}
+    return result;
+  },
+});
 // @@@SNIPEND

@@ -5,8 +5,7 @@ import { Connection, WorkflowClient } from '@temporalio/client';
 import { StarterArgSpec, starterArgSpec, getRequired } from './args';
 
 async function runWorkflow(client: WorkflowClient, name: string, taskQueue: string) {
-  const workflow = client.stub<any>(name, { taskQueue });
-  await workflow.execute();
+  await client.execute({ taskQueue }, name);
 }
 
 interface RunWorkflowOptions {
@@ -65,7 +64,7 @@ async function runWorkflows({
 
 async function main() {
   const args = arg<StarterArgSpec>(starterArgSpec);
-  const workflowName = args['--workflow'] || 'cancel-fake-progress';
+  const workflowName = args['--workflow'] || 'cancelFakeProgress';
   const iterations = args['--iterations'] || 1000;
   const concurrentWFClients = args['--concurrent-wf-clients'] || 100;
   const minWFPS = args['--min-wfs-per-sec'] || 35;

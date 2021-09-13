@@ -1,24 +1,23 @@
 /**
- * Tests continueAsNew for the same Workflow from main and signal handler
+ * Tests continueAsNew for the same Workflow from execute and signal handler
  * @module
  */
-import { Context, CancellationScope } from '@temporalio/workflow';
+import { continueAsNew, CancellationScope } from '@temporalio/workflow';
 import { ContinueAsNewFromMainAndSignal } from '../interfaces';
 
-const signals = {
-  async continueAsNew(): Promise<void> {
-    await Context.continueAsNew<typeof main>('none');
+export const continueAsNewSameWorkflow: ContinueAsNewFromMainAndSignal = (continueFrom = 'execute') => ({
+  async execute(): Promise<void> {
+    if (continueFrom === 'none') {
+      return;
+    }
+    if (continueFrom === 'execute') {
+      await continueAsNew<ContinueAsNewFromMainAndSignal>('signal');
+    }
+    await CancellationScope.current().cancelRequested;
   },
-};
-
-async function main(continueFrom: 'main' | 'signal' | 'none' = 'main'): Promise<void> {
-  if (continueFrom === 'none') {
-    return;
-  }
-  if (continueFrom === 'main') {
-    await Context.continueAsNew<typeof main>('signal');
-  }
-  await CancellationScope.current().cancelRequested;
-}
-
-export const workflow: ContinueAsNewFromMainAndSignal = { main, signals };
+  signals: {
+    async continueAsNew(): Promise<void> {
+      await continueAsNew<ContinueAsNewFromMainAndSignal>('none');
+    },
+  },
+});
