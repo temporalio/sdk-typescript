@@ -31,7 +31,7 @@ See [sdk-structure.md](./docs/sdk-structure.md)
   ```sh
   npm ci
   ```
-
+  This is a longer process that involves downloading and compiling Rust dependencies, wait a few minutes.
 You should now be able to successfully do `npm run build`. If this fails, resetting your environment may help:
 
 ```
