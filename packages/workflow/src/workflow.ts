@@ -166,7 +166,7 @@ async function scheduleActivityNextHandler({
         startToCloseTimeout: msOptionalToTs(options.startToCloseTimeout),
         scheduleToStartTimeout: msOptionalToTs(options.scheduleToStartTimeout),
         namespace: options.namespace,
-        headerFields: Object.fromEntries(headers.entries()),
+        headerFields: headers,
         cancellationType: options.cancellationType,
       },
     });
@@ -186,7 +186,7 @@ export function scheduleActivity<R>(activityType: string, args: any[], options: 
 
   return execute({
     activityType,
-    headers: new Map(),
+    headers: {},
     options,
     args,
     seq,
@@ -254,7 +254,7 @@ async function startChildWorkflowExecutionNextHandler({
         workflowRunTimeout: msOptionalToTs(options.workflowRunTimeout),
         workflowTaskTimeout: msOptionalToTs(options.workflowTaskTimeout),
         namespace: workflowInfo().namespace, // Not configurable
-        header: Object.fromEntries(headers.entries()),
+        header: headers,
         cancellationType: options.cancellationType,
         workflowIdReusePolicy: options.workflowIdReusePolicy,
         parentClosePolicy: options.parentClosePolicy,
@@ -503,7 +503,7 @@ export function createChildWorkflowHandle<T extends Workflow>(
         seq: state.nextSeqs.childWorkflow++,
         options: optionsWithDefaults,
         args,
-        headers: new Map(),
+        headers: {},
         workflowType,
       });
       return await started;
@@ -623,7 +623,7 @@ export function makeContinueAsNewFunc<F extends Workflow>(
       throw new ContinueAsNew({
         workflowType: options.workflowType,
         arguments: await state.dataConverter.toPayloads(...args),
-        header: Object.fromEntries(headers.entries()),
+        header: headers,
         taskQueue: options.taskQueue,
         memo: options.memo,
         searchAttributes: options.searchAttributes,
@@ -633,7 +633,7 @@ export function makeContinueAsNewFunc<F extends Workflow>(
     });
     return fn({
       args,
-      headers: new Map(),
+      headers: {},
       options: nonOptionalOptions,
     });
   };

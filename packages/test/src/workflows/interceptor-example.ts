@@ -3,7 +3,6 @@ import {
   createChildWorkflowHandle,
   WorkflowInterceptors,
   defaultDataConverter,
-  Headers,
   sleep,
   Trigger,
 } from '@temporalio/workflow';
@@ -57,12 +56,12 @@ export const interceptors = (): WorkflowInterceptors => ({
   inbound: [
     {
       async create(input, next) {
-        const encoded = input.headers.get('message');
+        const encoded = input.headers.message;
         receivedMessageOnCreate = encoded ? await defaultDataConverter.fromPayload(encoded) : '';
         return next(input);
       },
       async execute(input, next) {
-        const encoded = input.headers.get('message');
+        const encoded = input.headers.message;
         receivedMessageOnExecute = encoded ? await defaultDataConverter.fromPayload(encoded) : '';
         if (receivedMessageOnExecute !== receivedMessageOnCreate) {
           throw new Error('Expected to receive same message via headers in create and execute methods');
@@ -83,9 +82,10 @@ export const interceptors = (): WorkflowInterceptors => ({
   outbound: [
     {
       async scheduleActivity(input, next) {
-        const headers: Headers = new Map();
-        headers.set('message', await defaultDataConverter.toPayload(receivedMessageOnExecute));
-        return next({ ...input, headers });
+        return next({
+          ...input,
+          headers: { ...input.headers, message: await defaultDataConverter.toPayload(receivedMessageOnExecute) },
+        });
       },
       async startTimer(input, next) {
         if (input.durationMs === 1) {

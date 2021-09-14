@@ -9,7 +9,7 @@ import { AnyFunc, OmitLastParam } from './type-helpers';
 export type Next<IF, FN extends keyof IF> = Required<IF>[FN] extends AnyFunc ? OmitLastParam<Required<IF>[FN]> : never;
 
 /** Headers are just a mapping of header name to Payload */
-export type Headers = Map<string, coresdk.common.IPayload>;
+export type Headers = Record<string, coresdk.common.IPayload>;
 
 /**
  * Composes all interceptor methods into a single function

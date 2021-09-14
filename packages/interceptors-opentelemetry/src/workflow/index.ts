@@ -41,7 +41,7 @@ export class OpenTelemetryInboundInterceptor implements WorkflowInboundCallsInte
     input: WorkflowExecuteInput,
     next: Next<WorkflowInboundCallsInterceptor, 'execute'>
   ): Promise<unknown> {
-    const encodedSpanContext = input.headers.get(TRACE_HEADER);
+    const encodedSpanContext = input.headers[TRACE_HEADER];
     const spanContext: otel.SpanContext | undefined = encodedSpanContext
       ? await defaultDataConverter.fromPayload(encodedSpanContext)
       : undefined;
@@ -64,8 +64,10 @@ export class OpenTelemetryOutboundInterceptor implements WorkflowOutboundCallsIn
     next: Next<WorkflowOutboundCallsInterceptor, 'scheduleActivity'>
   ): Promise<unknown> {
     return await instrument(tracer, SpanName.ACTIVITY_SCHEUDLE, async (span) => {
-      input.headers.set(TRACE_HEADER, await defaultDataConverter.toPayload(span.spanContext()));
-      return next(input);
+      return next({
+        ...input,
+        headers: { ...input.headers, [TRACE_HEADER]: await defaultDataConverter.toPayload(span.spanContext()) },
+      });
     });
   }
 }

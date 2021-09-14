@@ -649,7 +649,7 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
                       };
                       break;
                     }
-                    const headers = new Map(Object.entries(task.start?.headerFields ?? {}));
+                    const headers = task.start?.headerFields ?? {};
                     const input = {
                       args,
                       headers,

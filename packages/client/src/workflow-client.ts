@@ -187,7 +187,7 @@ export class WorkflowClient {
     const start = (...args: Parameters<T>) =>
       next({
         options: compiledOptions,
-        headers: new Map(),
+        headers: {},
         args,
         name,
       });
@@ -367,7 +367,7 @@ export class WorkflowClient {
           }
         : undefined,
       cronSchedule: options.cronSchedule,
-      header: { fields: Object.fromEntries(headers.entries()) },
+      header: { fields: headers },
     });
     return runId;
   }
@@ -403,7 +403,7 @@ export class WorkflowClient {
           }
         : undefined,
       cronSchedule: opts.cronSchedule,
-      header: { fields: Object.fromEntries(headers.entries()) },
+      header: { fields: headers },
     };
     const res = await this.service.startWorkflowExecution(req);
     return res.runId;
@@ -624,7 +624,7 @@ export class WorkflowClient {
 
       return next({
         options: compiledOptions,
-        headers: new Map(),
+        headers: {},
         args,
         name,
       });
@@ -639,7 +639,7 @@ export class WorkflowClient {
 
       return next({
         options: compiledOptions,
-        headers: new Map(),
+        headers: {},
         workflowArgs,
         workflowName: name,
         signalName,
