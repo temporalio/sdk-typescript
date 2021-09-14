@@ -1,10 +1,10 @@
 // @@@SNIPSTART nodejs-nested-cancellation-scopes
-import { CancellationScope, configureActivities, isCancellation } from '@temporalio/workflow';
+import { CancellationScope, createActivityHandle, isCancellation } from '@temporalio/workflow';
 
 import type * as activities from '../activities';
 import { HTTPPoster } from '../interfaces';
 
-const { setup, httpPostJSON, cleanup } = configureActivities<typeof activities>({
+const { setup, httpPostJSON, cleanup } = createActivityHandle<typeof activities>({
   type: 'remote',
   startToCloseTimeout: '10m',
 });

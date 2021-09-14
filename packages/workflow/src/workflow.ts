@@ -24,7 +24,7 @@ import { WorkflowExecutionAlreadyStartedError } from './errors';
 import { ActivityInput, StartChildWorkflowExecutionInput, SignalWorkflowInput, TimerInput } from './interceptors';
 import { ExternalDependencies } from './dependencies';
 import { CancellationScope, registerSleepImplementation } from './cancellation-scope';
-import { ExternalWorkflowStub, ChildWorkflowStub } from './workflow-stub';
+import { ExternalWorkflowHandle, ChildWorkflowHandle } from './workflow-handle';
 
 // Avoid a circular dependency
 registerSleepImplementation(sleep);
@@ -342,11 +342,11 @@ function signalWorkflowNextHandler({ seq, signalName, args, target }: SignalWork
  *
  * @example
  * ```ts
- * import { configureActivities, ActivityInterface } from '@temporalio/workflow';
+ * import { createActivityHandle, ActivityInterface } from '@temporalio/workflow';
  * import * as activities from '../activities';
  *
  * // Setup Activities from module exports
- * const { httpGet, otherActivity } = configureActivities<typeof activities>({
+ * const { httpGet, otherActivity } = createActivityHandle<typeof activities>({
  *   type: 'remote',
  *   startToCloseTimeout: '30 minutes',
  * });
@@ -360,7 +360,7 @@ function signalWorkflowNextHandler({ seq, signalName, args, target }: SignalWork
  * const {
  *   httpGetFromJava,
  *   someOtherJavaActivity
- * } = configureActivities<JavaActivities>({
+ * } = createActivityHandle<JavaActivities>({
  *   type: 'remote',
  *   taskQueue: 'java-worker-taskQueue',
  *   startToCloseTimeout: '5m',
@@ -372,7 +372,9 @@ function signalWorkflowNextHandler({ seq, signalName, args, target }: SignalWork
  * }
  * ```
  */
-export function configureActivities<A extends Record<string, ActivityFunction<any, any>>>(options: ActivityOptions): A {
+export function createActivityHandle<A extends Record<string, ActivityFunction<any, any>>>(
+  options: ActivityOptions
+): A {
   if (options === undefined) {
     throw new TypeError('options must be defined');
   }
@@ -394,13 +396,13 @@ export function configureActivities<A extends Record<string, ActivityFunction<an
 }
 
 /**
- * Returns a client-side stub that can be used to signal and cancel an existing Workflow execution.
+ * Returns a client-side handle that can be used to signal and cancel an existing Workflow execution.
  * It takes a Workflow ID and optional run ID.
  */
-export function newExternalWorkflowStub<T extends Workflow>(
+export function createExternalWorkflowHandle<T extends Workflow>(
   workflowId: string,
   runId?: string
-): ExternalWorkflowStub<T> {
+): ExternalWorkflowHandle<T> {
   return {
     workflowId,
     runId,
@@ -453,35 +455,35 @@ export function newExternalWorkflowStub<T extends Workflow>(
 }
 
 /**
- * Returns a client-side stub that implements a child Workflow interface.
+ * Returns a client-side handle that implements a child Workflow interface.
  * Takes a child Workflow type and optional child Workflow options as arguments.
  * Workflow options may be needed to override the timeouts and task queue if they differ from the parent Workflow.
  *
  * A child Workflow supports starting, awaiting completion, signaling and cancellation via {@link CancellationScope}s.
  * In order to query the child, use a WorkflowClient from an Activity.
  */
-export function newChildWorkflowStub<T extends Workflow>(
+export function createChildWorkflowHandle<T extends Workflow>(
   workflowType: string,
   options?: ChildWorkflowOptions
-): ChildWorkflowStub<T>;
+): ChildWorkflowHandle<T>;
 
 /**
- * Returns a client-side stub that implements a child Workflow interface.
+ * Returns a client-side handle that implements a child Workflow interface.
  * Deduces the Workflow interface from provided Workflow function.
  * Workflow options may be needed to override the timeouts and task queue if they differ from the parent Workflow.
  *
  * A child Workflow supports starting, awaiting completion, signaling and cancellation via {@link CancellationScope}s.
  * In order to query the child, use a WorkflowClient from an Activity.
  */
-export function newChildWorkflowStub<T extends Workflow>(
+export function createChildWorkflowHandle<T extends Workflow>(
   workflowFunc: T,
   options?: ChildWorkflowOptions
-): ChildWorkflowStub<T>;
+): ChildWorkflowHandle<T>;
 
-export function newChildWorkflowStub<T extends Workflow>(
+export function createChildWorkflowHandle<T extends Workflow>(
   workflowTypeOrFunc: string | T,
   options?: ChildWorkflowOptions
-): ChildWorkflowStub<T> {
+): ChildWorkflowHandle<T> {
   const optionsWithDefaults = addDefaultWorkflowOptions(options ?? {});
   const workflowType = typeof workflowTypeOrFunc === 'string' ? workflowTypeOrFunc : workflowTypeOrFunc.name;
   let started: Promise<string> | undefined = undefined;

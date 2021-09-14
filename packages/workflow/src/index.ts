@@ -14,7 +14,7 @@
  *
  * ### Activities
  *
- * To schedule Activities, use {@link configureActivities} to obtain an Activity function and call.
+ * To schedule Activities, use {@link createActivityHandle} to obtain an Activity function and call.
  *
  * <!--SNIPSTART nodejs-schedule-activity-workflow-->
  * <!--SNIPEND-->
@@ -90,4 +90,4 @@ export {
   ExternalDependency,
   ExternalDependencies,
 } from './dependencies';
-export { ChildWorkflowStub, ExternalWorkflowStub } from './workflow-stub';
+export { ChildWorkflowHandle, ExternalWorkflowHandle } from './workflow-handle';

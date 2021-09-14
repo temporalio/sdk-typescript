@@ -1,5 +1,5 @@
 // @@@SNIPSTART nodejs-multiple-activities-single-timeout-workflow
-import { CancellationScope, configureActivities } from '@temporalio/workflow';
+import { CancellationScope, createActivityHandle } from '@temporalio/workflow';
 import type * as activities from '../activities';
 
 export interface MultiHTTPHandler {
@@ -7,7 +7,7 @@ export interface MultiHTTPHandler {
 }
 
 export function multipleActivitiesSingleTimeout(urls: string[], timeoutMs: number): MultiHTTPHandler {
-  const { httpGetJSON } = configureActivities<typeof activities>({
+  const { httpGetJSON } = createActivityHandle<typeof activities>({
     type: 'remote',
     startToCloseTimeout: timeoutMs,
   });
