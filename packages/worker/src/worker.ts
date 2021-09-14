@@ -43,7 +43,7 @@ import * as errors from './errors';
 import { childSpan, instrument, tracer } from './tracing';
 import { InjectedDependencies, getIvmTransferOptions } from './dependencies';
 import { ActivityExecuteInput, WorkerInterceptors } from './interceptors';
-export { RetryOptions, RemoteActivityOptions, IllegalStateError, LocalActivityOptions } from '@temporalio/common';
+export { RetryOptions, IllegalStateError } from '@temporalio/common';
 export { ActivityOptions, DataConverter, defaultDataConverter, errors };
 import { Core } from './core';
 

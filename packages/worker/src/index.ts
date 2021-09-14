@@ -16,8 +16,6 @@ export {
   WorkerSpecOptions,
   CompiledWorkerOptions,
   ActivityOptions,
-  LocalActivityOptions,
-  RemoteActivityOptions,
   DataConverter,
   defaultDataConverter,
   RetryOptions,

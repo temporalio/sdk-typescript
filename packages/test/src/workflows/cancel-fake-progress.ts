@@ -9,7 +9,6 @@ import { ActivitySignalHandler } from '../interfaces';
 import type * as activities from '../activities';
 
 const { fakeProgress } = createActivityHandle<typeof activities>({
-  type: 'remote',
   startToCloseTimeout: '200s',
   heartbeatTimeout: '2s',
   cancellationType: ActivityCancellationType.WAIT_CANCELLATION_COMPLETED,

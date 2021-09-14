@@ -8,7 +8,6 @@ export interface MultiHTTPHandler {
 
 export function multipleActivitiesSingleTimeout(urls: string[], timeoutMs: number): MultiHTTPHandler {
   const { httpGetJSON } = createActivityHandle<typeof activities>({
-    type: 'remote',
     startToCloseTimeout: timeoutMs,
   });
 

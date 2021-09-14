@@ -9,7 +9,6 @@ import { CancellableHTTPRequest } from '../interfaces';
 import type * as activities from '../activities';
 
 const { cancellableFetch } = createActivityHandle<typeof activities>({
-  type: 'remote',
   startToCloseTimeout: '20s',
   heartbeatTimeout: '3s',
   cancellationType: ActivityCancellationType.WAIT_CANCELLATION_COMPLETED,

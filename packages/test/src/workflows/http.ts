@@ -4,7 +4,6 @@ import type * as activities from '../activities';
 import { HTTP } from '../interfaces';
 
 const { httpGet } = createActivityHandle<typeof activities>({
-  type: 'remote',
   startToCloseTimeout: '1 minute',
 });
 

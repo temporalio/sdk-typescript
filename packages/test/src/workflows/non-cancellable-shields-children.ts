@@ -3,7 +3,7 @@ import { CancellationScope, createActivityHandle } from '@temporalio/workflow';
 import type * as activities from '../activities';
 import { HTTPGetter } from '../interfaces';
 
-const { httpGetJSON } = createActivityHandle<typeof activities>({ type: 'remote', startToCloseTimeout: '10m' });
+const { httpGetJSON } = createActivityHandle<typeof activities>({ startToCloseTimeout: '10m' });
 
 export const nonCancellable: HTTPGetter = (url: string) => ({
   async execute() {

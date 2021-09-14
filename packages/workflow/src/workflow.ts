@@ -2,7 +2,6 @@ import {
   ActivityFunction,
   ActivityOptions,
   IllegalStateError,
-  RemoteActivityOptions,
   msToTs,
   msOptionalToTs,
   Workflow,
@@ -107,11 +106,7 @@ export type InternalActivityFunction<P extends any[], R> = ActivityFunction<P, R
 /**
  * @hidden
  */
-export function validateActivityOptions(options: ActivityOptions): asserts options is RemoteActivityOptions {
-  if (options.type === 'local') {
-    throw new TypeError('local activity is not yet implemented');
-  }
-
+export function validateActivityOptions(options: ActivityOptions): void {
   if (options.scheduleToCloseTimeout === undefined && options.startToCloseTimeout === undefined) {
     throw new TypeError('Required either scheduleToCloseTimeout or startToCloseTimeout');
   }

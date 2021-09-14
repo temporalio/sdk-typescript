@@ -8,7 +8,6 @@ import type * as activities from '../activities';
 import { HTTPGetter } from '../interfaces';
 
 const { httpGetJSON } = createActivityHandle<typeof activities>({
-  type: 'remote',
   startToCloseTimeout: '10m',
 });
 
