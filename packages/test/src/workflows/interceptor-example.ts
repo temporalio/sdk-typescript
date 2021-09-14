@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/explicit-module-boundary-types */
 import {
-  newChildWorkflowStub,
+  createChildWorkflowHandle,
   WorkflowInterceptors,
   defaultDataConverter,
   Headers,
@@ -41,7 +41,7 @@ export const interceptorExample = () => {
       await sleep(2);
       await unblocked;
       // Untyped because we intercept the result
-      const result = await newChildWorkflowStub('successString').execute();
+      const result = await createChildWorkflowHandle('successString').execute();
       if (result !== 3) {
         throw new Error('expected interceptor to change child workflow result');
       }
