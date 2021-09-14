@@ -175,7 +175,7 @@ export async function initRuntime(
 
   state.workflow =
     (await create({
-      headers: new Map(Object.entries(headers ?? {})),
+      headers,
       args: arrayFromPayloadsSync(state.dataConverter, args),
     }).catch(handleWorkflowFailure)) ?? undefined;
 }

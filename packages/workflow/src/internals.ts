@@ -59,7 +59,7 @@ export class Activator implements ActivationHandler {
       this.startWorkflowNextHandler.bind(this)
     );
     execute({
-      headers: new Map(Object.entries(activation.headers ?? {})),
+      headers: activation.headers ?? {},
       args: arrayFromPayloadsSync(state.dataConverter, activation.arguments),
     })
       .then(completeWorkflow)
