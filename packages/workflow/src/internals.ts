@@ -110,13 +110,13 @@ export class Activator implements ActivationHandler {
       ) {
         throw new IllegalStateError('Got unknown StartChildWorkflowExecutionFailedCause');
       }
-      if (!(activation.seq && activation.failed?.workflowType)) {
+      if (!(activation.seq && activation.failed.workflowId && activation.failed.workflowType)) {
         throw new TypeError('Missing attributes in activation job');
       }
       reject(
         new WorkflowExecutionAlreadyStartedError(
           'Workflow execution already started',
-          'TODO: activation.workflowId',
+          activation.failed.workflowId,
           activation.failed.workflowType
         )
       );
