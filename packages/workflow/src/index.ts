@@ -59,8 +59,6 @@ export {
   ActivityFunction,
   ActivityInterface,
   ActivityOptions,
-  LocalActivityOptions,
-  RemoteActivityOptions,
   RetryOptions,
   rootCause,
   IllegalStateError,

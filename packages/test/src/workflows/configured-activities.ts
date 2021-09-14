@@ -2,7 +2,6 @@ import { createActivityHandle } from '@temporalio/workflow';
 import * as activityInterfaces from '../activities';
 
 const activities = createActivityHandle<typeof activityInterfaces>({
-  type: 'remote',
   startToCloseTimeout: '10m',
 });
 

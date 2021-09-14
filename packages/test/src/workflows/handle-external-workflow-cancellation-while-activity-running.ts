@@ -8,7 +8,6 @@ import { CancellationScope, createActivityHandle, isCancellation } from '@tempor
 import type * as activities from '../activities';
 
 const { httpPostJSON, cleanup } = createActivityHandle<typeof activities>({
-  type: 'remote',
   startToCloseTimeout: '10m',
 });
 
