@@ -22,6 +22,7 @@
   "author": "Roey Berman <roey@temporal.io>",
   "license": "MIT",
   "dependencies": {
+    "@temporalio/activity": "file:../activity",
     "@temporalio/client": "file:../client",
     "@temporalio/common": "file:../common",
     "@temporalio/proto": "file:../proto",
