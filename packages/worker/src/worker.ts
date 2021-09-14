@@ -281,7 +281,7 @@ export function addDefaults<T extends WorkerSpec>(options: WorkerSpecOptions<T>)
   // Typescript is really struggling with the conditional exisitence of the dependencies attribute.
   // Help it out without sacrificing type safety of the other attributes.
   const ret: Omit<WorkerOptionsWithDefaults<T>, 'dependencies'> = {
-    activities: workDir ? require(resolve(workDir, 'activities')) : undefined,
+    activities: workDir && !('activities' in rest) ? require(resolve(workDir, 'activities')) : undefined,
     workflowsPath: workDir ? resolve(workDir, 'workflows') : undefined,
     nodeModulesPath: workDir ? resolve(workDir, '../node_modules') : undefined,
     shutdownGraceTime: '5s',
