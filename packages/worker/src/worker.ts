@@ -617,7 +617,9 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
                         result: {
                           failed: {
                             failure: {
-                              message: `Activity function ${activityType} is not registered in this worker`,
+                              message: `Activity function ${activityType} is not registered on this Worker, available activities: ${JSON.stringify(
+                                Object.keys(this.options.activities ?? {})
+                              )}`,
                               applicationFailureInfo: { type: 'NotFoundError', nonRetryable: true },
                             },
                           },

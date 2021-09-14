@@ -169,3 +169,22 @@ test('Activity Context heartbeat is sent to core', async (t) => {
     });
   });
 });
+
+test('Worker fails activity with proper message when it is not registered', async (t) => {
+  const { worker } = t.context;
+  await runWorker(t, async () => {
+    const taskToken = Buffer.from(uuid4());
+    const { result } = await worker.native.runActivityTask({
+      taskToken,
+      activityId: 'abc',
+      start: {
+        activityType: 'notFound',
+        input: await defaultDataConverter.toPayloads(),
+      },
+    });
+    t.regex(
+      result?.failed?.failure?.message ?? '',
+      /^Activity function notFound is not registered on this Worker, available activities: \[.*"progressiveSleep".*\]/
+    );
+  });
+});
