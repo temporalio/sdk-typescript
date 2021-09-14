@@ -26,12 +26,12 @@ See [sdk-structure.md](./docs/sdk-structure.md)
   git submodule init
   git submodule update
   ```
-  > if you get a `The authenticity of host 'github.com (192.30.252.123)' can't be established.` error, run `ssh-keyscan github.com >> ~/.ssh/known_hosts` and retry.
+  > If you get a `The authenticity of host 'github.com (192.30.252.123)' can't be established.` error, run `ssh-keyscan github.com >> ~/.ssh/known_hosts` and retry.
 - Install the dependencies:
   ```sh
   npm ci
   ```
-  This is a longer process that involves downloading and compiling Rust dependencies, wait a few minutes.
+  This may take a few minutes, as it involves downloading and compiling Rust dependencies.
 You should now be able to successfully do `npm run build`. If this fails, resetting your environment may help:
 
 ```
