@@ -31,7 +31,8 @@ export function install({ root, useYarn }: InstallArgs): Promise<void> {
 
 export async function updateNodeVersion({ root }: InstallArgs): Promise<void> {
   const currentNodeVersion = +process.versions.node.split('.')[0];
-  const versionAlreadyInPackageJson = 16;
+  const versionAlreadyInPackageJson = 14;
+  // const versionAlreadyInPackageJson = 16;
   const minimumValidVersion = 14;
 
   if (currentNodeVersion >= minimumValidVersion && currentNodeVersion !== versionAlreadyInPackageJson) {
