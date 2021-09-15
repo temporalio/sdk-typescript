@@ -4,8 +4,9 @@ const { withRegistry, getArgs } = require('./registry');
 async function main() {
   const { registryDir, initArgs } = await getArgs();
   await withRegistry(registryDir, async () => {
+    console.log('spawning npm init with args: ', initArgs);
     const { status } = spawnSync('npm', ['init', '@temporalio', 'example'].concat(initArgs), {
-      stdio: 'inherit',
+      stdio: 'pipe',
       cwd: registryDir,
       env: { ...process.env, NPM_CONFIG_REGISTRY: 'http://localhost:4873/' },
     });
