@@ -6,7 +6,7 @@ import {
   Next,
   WorkflowInboundCallsInterceptor,
   WorkflowOutboundCallsInterceptor,
-  WorkflowInput,
+  WorkflowExecuteInput,
 } from '@temporalio/workflow';
 import { defaultDataConverter } from '@temporalio/common';
 import { instrument, instrumentFromSpanContext } from '../instrumentation';
@@ -37,8 +37,11 @@ export function registerOpentelemetryTracerProvider(): void {
  * provided in the Workflow input headers.
  */
 export class OpenTelemetryInboundInterceptor implements WorkflowInboundCallsInterceptor {
-  public async execute(input: WorkflowInput, next: Next<WorkflowInboundCallsInterceptor, 'execute'>): Promise<unknown> {
-    const encodedSpanContext = input.headers.get(TRACE_HEADER);
+  public async execute(
+    input: WorkflowExecuteInput,
+    next: Next<WorkflowInboundCallsInterceptor, 'execute'>
+  ): Promise<unknown> {
+    const encodedSpanContext = input.headers[TRACE_HEADER];
     const spanContext: otel.SpanContext | undefined = encodedSpanContext
       ? await defaultDataConverter.fromPayload(encodedSpanContext)
       : undefined;
@@ -61,8 +64,10 @@ export class OpenTelemetryOutboundInterceptor implements WorkflowOutboundCallsIn
     next: Next<WorkflowOutboundCallsInterceptor, 'scheduleActivity'>
   ): Promise<unknown> {
     return await instrument(tracer, SpanName.ACTIVITY_SCHEUDLE, async (span) => {
-      input.headers.set(TRACE_HEADER, await defaultDataConverter.toPayload(span.spanContext()));
-      return next(input);
+      return next({
+        ...input,
+        headers: { ...input.headers, [TRACE_HEADER]: await defaultDataConverter.toPayload(span.spanContext()) },
+      });
     });
   }
 }

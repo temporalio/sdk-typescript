@@ -4,10 +4,19 @@
  * @module
  */
 import ivm from 'isolated-vm';
-import { IllegalStateError, msToTs, tsToMs, composeInterceptors } from '@temporalio/common';
+import {
+  IllegalStateError,
+  msToTs,
+  tsToMs,
+  composeInterceptors,
+  Workflow,
+  ApplicationFailure,
+  errorMessage,
+  arrayFromPayloadsSync,
+} from '@temporalio/common';
 import { coresdk } from '@temporalio/proto/lib/coresdk';
-import { WorkflowInfo, ActivationJobResult } from './interfaces';
-import { consumeCompletion, state } from './internals';
+import { WorkflowInfo } from './interfaces';
+import { consumeCompletion, handleWorkflowFailure, state } from './internals';
 import { alea } from './alea';
 import { IsolateExtension, HookManager } from './promise-hooks';
 import { DeterminismViolationError } from './errors';
@@ -51,7 +60,7 @@ export function overrideGlobals(): void {
       resolve: () => cb(...args),
       reject: () => undefined /* ignore cancellation */,
     });
-    state.commands.push({
+    state.pushCommand({
       startTimer: {
         seq,
         startToFireTimeout: msToTs(ms),
@@ -63,7 +72,7 @@ export function overrideGlobals(): void {
   global.clearTimeout = function (handle: number): void {
     state.nextSeqs.timer++;
     state.completions.timer.delete(handle);
-    state.commands.push({
+    state.pushCommand({
       cancelTimer: {
         seq: handle,
       },
@@ -114,12 +123,13 @@ export function mockBrowserDocumentForWebpack(): MockDocument {
   };
 }
 
-export function initRuntime(
+export async function initRuntime(
   info: WorkflowInfo,
   interceptorModules: string[],
   randomnessSeed: number[],
-  isolateExtension: IsolateExtension
-): void {
+  isolateExtension: IsolateExtension,
+  encodedStartWorkflow: Uint8Array
+): Promise<void> {
   // Globals are overridden while building the isolate before loading user code.
   // For some reason the `WeakRef` mock is not restored properly when creating an isolate from snapshot in node 14 (at least on ubuntu), override again.
   (globalThis as any).WeakRef = function () {
@@ -146,48 +156,83 @@ export function initRuntime(
       state.interceptors.internals.push(...(interceptors.internals ?? []));
     }
   }
+  const { headers, arguments: args } = coresdk.workflow_activation.StartWorkflow.decodeDelimited(encodedStartWorkflow);
+
+  const create = composeInterceptors(state.interceptors.inbound, 'create', async ({ args }) => {
+    let mod: Workflow;
+    try {
+      mod = req(undefined, info.workflowType);
+      if (typeof mod !== 'function') {
+        throw new TypeError(`'${info.workflowType}' is not a function`);
+      }
+    } catch (err) {
+      const failure = ApplicationFailure.nonRetryable(errorMessage(err), 'ReferenceError');
+      failure.stack = failure.stack?.split('\n')[0];
+      throw failure;
+    }
+    return mod(...args);
+  });
+
+  state.workflow =
+    (await create({
+      headers,
+      args: arrayFromPayloadsSync(state.dataConverter, args),
+    }).catch(handleWorkflowFailure)) ?? undefined;
 }
 
 /**
- * Run a single activation job.
- * @param jobIndex index of job to process in the activation's job array.
- * @returns a boolean indicating whether the job was processed or ignored
+ * Run a chunk of activation jobs
+ * @returns a boolean indicating whether job was processed or ignored
  */
-export async function activate(encodedActivation: Uint8Array, jobIndex: number): Promise<ActivationJobResult> {
-  const intercept = composeInterceptors(state.interceptors.internals, 'activate', async ({ activation, jobIndex }) => {
-    const job = activation.jobs?.[jobIndex] as coresdk.workflow_activation.WFActivationJob;
-    // We only accept time not progressing when processing a query
-    if (!(job.variant === 'queryWorkflow' && activation.timestamp === null)) {
-      state.now = tsToMs(activation.timestamp);
+export async function activate(encodedActivation: Uint8Array, batchIndex: number): Promise<ExternalCall[]> {
+  const intercept = composeInterceptors(
+    state.interceptors.internals,
+    'activate',
+    async ({ activation, batchIndex }) => {
+      if (batchIndex === 0) {
+        if (state.info === undefined) {
+          throw new IllegalStateError('Workflow has not been initialized');
+        }
+        if (!activation.jobs) {
+          throw new TypeError('Got activation with no jobs');
+        }
+        if (activation.timestamp !== null) {
+          // timestamp will not be updated for activation that contain only queries
+          state.now = tsToMs(activation.timestamp);
+        }
+        state.info.isReplaying = activation.isReplaying ?? false;
+      }
+
+      // Cast from the interface to the class which has the `variant` attribute.
+      // This is safe because we just decoded this activation from a buffer.
+      const jobs = activation.jobs as coresdk.workflow_activation.WFActivationJob[];
+
+      await Promise.all(
+        jobs.map(async (job) => {
+          if (job.variant === undefined) {
+            throw new TypeError('Expected job.variant to be defined');
+          }
+          const variant = job[job.variant];
+          if (!variant) {
+            throw new TypeError(`Expected job.${job.variant} to be set`);
+          }
+          // The only job that can be executed on a completed workflow is a query.
+          // We might get other jobs after completion for instance when a single
+          // activation contains multiple jobs and the first one completes the workflow.
+          if (state.completed && job.variant !== 'queryWorkflow') {
+            return;
+          }
+          await state.activator[job.variant](variant as any /* TODO: TS is struggling with `true` and `{}` */);
+        })
+      );
     }
-    if (state.info === undefined) {
-      throw new IllegalStateError('Workflow has not been initialized');
-    }
-    state.info.isReplaying = activation.isReplaying ?? false;
-    if (job.variant === undefined) {
-      throw new TypeError('Expected job.variant to be defined');
-    }
-    const variant = job[job.variant];
-    if (!variant) {
-      throw new TypeError(`Expected job.${job.variant} to be set`);
-    }
-    // The only job that can be executed on a completed workflow is a query.
-    // We might get other jobs after completion for instance when a single
-    // activation contains multiple jobs and the first one completes the workflow.
-    if (state.completed && job.variant !== 'queryWorkflow') {
-      return false;
-    }
-    await state.activator[job.variant](variant as any /* TODO: TS is struggling with `true` and `{}` */);
-    return true;
+  );
+  await intercept({
+    activation: coresdk.workflow_activation.WFActivation.decodeDelimited(encodedActivation),
+    batchIndex,
   });
 
-  return {
-    processed: await intercept({
-      activation: coresdk.workflow_activation.WFActivation.decodeDelimited(encodedActivation),
-      jobIndex,
-    }),
-    pendingExternalCalls: state.getAndResetPendingExternalCalls(),
-  };
+  return state.getAndResetPendingExternalCalls();
 }
 
 type ActivationConclusion =

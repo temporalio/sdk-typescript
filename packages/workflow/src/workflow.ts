@@ -2,7 +2,6 @@ import {
   ActivityFunction,
   ActivityOptions,
   IllegalStateError,
-  RemoteActivityOptions,
   msToTs,
   msOptionalToTs,
   Workflow,
@@ -24,7 +23,7 @@ import { WorkflowExecutionAlreadyStartedError } from './errors';
 import { ActivityInput, StartChildWorkflowExecutionInput, SignalWorkflowInput, TimerInput } from './interceptors';
 import { ExternalDependencies } from './dependencies';
 import { CancellationScope, registerSleepImplementation } from './cancellation-scope';
-import { ExternalWorkflowStub, ChildWorkflowStub } from './workflow-stub';
+import { ExternalWorkflowHandle, ChildWorkflowHandle } from './workflow-handle';
 
 // Avoid a circular dependency
 registerSleepImplementation(sleep);
@@ -57,7 +56,7 @@ function timerNextHandler(input: TimerInput) {
         if (!state.completions.timer.delete(input.seq)) {
           return; // Already resolved
         }
-        state.commands.push({
+        state.pushCommand({
           cancelTimer: {
             seq: input.seq,
           },
@@ -69,7 +68,7 @@ function timerNextHandler(input: TimerInput) {
       resolve,
       reject,
     });
-    state.commands.push({
+    state.pushCommand({
       startTimer: {
         seq: input.seq,
         startToFireTimeout: msToTs(input.durationMs),
@@ -107,11 +106,7 @@ export type InternalActivityFunction<P extends any[], R> = ActivityFunction<P, R
 /**
  * @hidden
  */
-export function validateActivityOptions(options: ActivityOptions): asserts options is RemoteActivityOptions {
-  if (options.type === 'local') {
-    throw new TypeError('local activity is not yet implemented');
-  }
-
+export function validateActivityOptions(options: ActivityOptions): void {
   if (options.scheduleToCloseTimeout === undefined && options.startToCloseTimeout === undefined) {
     throw new TypeError('Required either scheduleToCloseTimeout or startToCloseTimeout');
   }
@@ -139,7 +134,7 @@ async function scheduleActivityNextHandler({
         if (!state.completions.activity.has(seq)) {
           return; // Already resolved
         }
-        state.commands.push({
+        state.pushCommand({
           requestCancelActivity: {
             seq,
           },
@@ -150,7 +145,7 @@ async function scheduleActivityNextHandler({
       resolve,
       reject,
     });
-    state.commands.push({
+    state.pushCommand({
       scheduleActivity: {
         seq,
         activityId: options.activityId ?? `${seq}`,
@@ -171,7 +166,7 @@ async function scheduleActivityNextHandler({
         startToCloseTimeout: msOptionalToTs(options.startToCloseTimeout),
         scheduleToStartTimeout: msOptionalToTs(options.scheduleToStartTimeout),
         namespace: options.namespace,
-        headerFields: Object.fromEntries(headers.entries()),
+        headerFields: headers,
         cancellationType: options.cancellationType,
       },
     });
@@ -191,7 +186,7 @@ export function scheduleActivity<R>(activityType: string, args: any[], options: 
 
   return execute({
     activityType,
-    headers: new Map(),
+    headers: {},
     options,
     args,
     seq,
@@ -219,7 +214,7 @@ async function startChildWorkflowExecutionNextHandler({
 
         if (started && !complete) {
           const cancelSeq = state.nextSeqs.cancelWorkflow++;
-          state.commands.push({
+          state.pushCommand({
             requestCancelExternalWorkflowExecution: {
               seq: cancelSeq,
               childWorkflowId: workflowId,
@@ -228,7 +223,7 @@ async function startChildWorkflowExecutionNextHandler({
           // Not interested in this completion
           state.completions.cancelWorkflow.set(cancelSeq, { resolve: () => undefined, reject: () => undefined });
         } else if (!started) {
-          state.commands.push({
+          state.pushCommand({
             cancelUnstartedChildWorkflowExecution: { childWorkflowSeq: seq },
           });
         }
@@ -239,7 +234,7 @@ async function startChildWorkflowExecutionNextHandler({
       resolve,
       reject,
     });
-    state.commands.push({
+    state.pushCommand({
       startChildWorkflowExecution: {
         seq,
         workflowId,
@@ -259,7 +254,7 @@ async function startChildWorkflowExecutionNextHandler({
         workflowRunTimeout: msOptionalToTs(options.workflowRunTimeout),
         workflowTaskTimeout: msOptionalToTs(options.workflowTaskTimeout),
         namespace: workflowInfo().namespace, // Not configurable
-        header: Object.fromEntries(headers.entries()),
+        header: headers,
         cancellationType: options.cancellationType,
         workflowIdReusePolicy: options.workflowIdReusePolicy,
         parentClosePolicy: options.parentClosePolicy,
@@ -305,10 +300,10 @@ function signalWorkflowNextHandler({ seq, signalName, args, target }: SignalWork
         if (!state.completions.signalWorkflow.has(seq)) {
           return;
         }
-        state.commands.push({ cancelSignalWorkflow: { seq } });
+        state.pushCommand({ cancelSignalWorkflow: { seq } });
       });
     }
-    state.commands.push({
+    state.pushCommand({
       signalExternalWorkflowExecution: {
         seq,
         args: state.dataConverter.toPayloadsSync(args),
@@ -342,11 +337,11 @@ function signalWorkflowNextHandler({ seq, signalName, args, target }: SignalWork
  *
  * @example
  * ```ts
- * import { configureActivities, ActivityInterface } from '@temporalio/workflow';
+ * import { createActivityHandle, ActivityInterface } from '@temporalio/workflow';
  * import * as activities from '../activities';
  *
  * // Setup Activities from module exports
- * const { httpGet, otherActivity } = configureActivities<typeof activities>({
+ * const { httpGet, otherActivity } = createActivityHandle<typeof activities>({
  *   type: 'remote',
  *   startToCloseTimeout: '30 minutes',
  * });
@@ -360,7 +355,7 @@ function signalWorkflowNextHandler({ seq, signalName, args, target }: SignalWork
  * const {
  *   httpGetFromJava,
  *   someOtherJavaActivity
- * } = configureActivities<JavaActivities>({
+ * } = createActivityHandle<JavaActivities>({
  *   type: 'remote',
  *   taskQueue: 'java-worker-taskQueue',
  *   startToCloseTimeout: '5m',
@@ -372,7 +367,9 @@ function signalWorkflowNextHandler({ seq, signalName, args, target }: SignalWork
  * }
  * ```
  */
-export function configureActivities<A extends Record<string, ActivityFunction<any, any>>>(options: ActivityOptions): A {
+export function createActivityHandle<A extends Record<string, ActivityFunction<any, any>>>(
+  options: ActivityOptions
+): A {
   if (options === undefined) {
     throw new TypeError('options must be defined');
   }
@@ -394,13 +391,13 @@ export function configureActivities<A extends Record<string, ActivityFunction<an
 }
 
 /**
- * Returns a client-side stub that can be used to signal and cancel an existing Workflow execution.
+ * Returns a client-side handle that can be used to signal and cancel an existing Workflow execution.
  * It takes a Workflow ID and optional run ID.
  */
-export function newExternalWorkflowStub<T extends Workflow>(
+export function createExternalWorkflowHandle<T extends Workflow>(
   workflowId: string,
   runId?: string
-): ExternalWorkflowStub<T> {
+): ExternalWorkflowHandle<T> {
   return {
     workflowId,
     runId,
@@ -410,7 +407,7 @@ export function newExternalWorkflowStub<T extends Workflow>(
           throw new IllegalStateError('Uninitialized workflow');
         }
         const seq = state.nextSeqs.cancelWorkflow++;
-        state.commands.push({
+        state.pushCommand({
           requestCancelExternalWorkflowExecution: {
             seq,
             workflowExecution: {
@@ -453,35 +450,35 @@ export function newExternalWorkflowStub<T extends Workflow>(
 }
 
 /**
- * Returns a client-side stub that implements a child Workflow interface.
+ * Returns a client-side handle that implements a child Workflow interface.
  * Takes a child Workflow type and optional child Workflow options as arguments.
  * Workflow options may be needed to override the timeouts and task queue if they differ from the parent Workflow.
  *
  * A child Workflow supports starting, awaiting completion, signaling and cancellation via {@link CancellationScope}s.
  * In order to query the child, use a WorkflowClient from an Activity.
  */
-export function newChildWorkflowStub<T extends Workflow>(
+export function createChildWorkflowHandle<T extends Workflow>(
   workflowType: string,
   options?: ChildWorkflowOptions
-): ChildWorkflowStub<T>;
+): ChildWorkflowHandle<T>;
 
 /**
- * Returns a client-side stub that implements a child Workflow interface.
+ * Returns a client-side handle that implements a child Workflow interface.
  * Deduces the Workflow interface from provided Workflow function.
  * Workflow options may be needed to override the timeouts and task queue if they differ from the parent Workflow.
  *
  * A child Workflow supports starting, awaiting completion, signaling and cancellation via {@link CancellationScope}s.
  * In order to query the child, use a WorkflowClient from an Activity.
  */
-export function newChildWorkflowStub<T extends Workflow>(
+export function createChildWorkflowHandle<T extends Workflow>(
   workflowFunc: T,
   options?: ChildWorkflowOptions
-): ChildWorkflowStub<T>;
+): ChildWorkflowHandle<T>;
 
-export function newChildWorkflowStub<T extends Workflow>(
+export function createChildWorkflowHandle<T extends Workflow>(
   workflowTypeOrFunc: string | T,
   options?: ChildWorkflowOptions
-): ChildWorkflowStub<T> {
+): ChildWorkflowHandle<T> {
   const optionsWithDefaults = addDefaultWorkflowOptions(options ?? {});
   const workflowType = typeof workflowTypeOrFunc === 'string' ? workflowTypeOrFunc : workflowTypeOrFunc.name;
   let started: Promise<string> | undefined = undefined;
@@ -506,7 +503,7 @@ export function newChildWorkflowStub<T extends Workflow>(
         seq: state.nextSeqs.childWorkflow++,
         options: optionsWithDefaults,
         args,
-        headers: new Map(),
+        headers: {},
         workflowType,
       });
       return await started;
@@ -626,7 +623,7 @@ export function makeContinueAsNewFunc<F extends Workflow>(
       throw new ContinueAsNew({
         workflowType: options.workflowType,
         arguments: await state.dataConverter.toPayloads(...args),
-        header: Object.fromEntries(headers.entries()),
+        header: headers,
         taskQueue: options.taskQueue,
         memo: options.memo,
         searchAttributes: options.searchAttributes,
@@ -636,7 +633,7 @@ export function makeContinueAsNewFunc<F extends Workflow>(
     });
     return fn({
       args,
-      headers: new Map(),
+      headers: {},
       options: nonOptionalOptions,
     });
   };
@@ -747,7 +744,7 @@ function patchInternal(patchId: string, deprecated: boolean): boolean {
   // Avoid sending commands for patches core already knows about.
   // This optimization enables development of automatic patching tools.
   if (usePatch && !state.sentPatches.has(patchId)) {
-    state.commands.push({
+    state.pushCommand({
       setPatchMarker: { patchId, deprecated },
     });
     state.sentPatches.add(patchId);

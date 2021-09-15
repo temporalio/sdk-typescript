@@ -6,14 +6,20 @@
  * @module
  */
 
-import { ActivityOptions, WorkflowExecution, Headers, Next } from '@temporalio/common';
+import { ActivityOptions, WorkflowExecution, Headers, Next, WorkflowHandlers } from '@temporalio/common';
 import { coresdk } from '@temporalio/proto/lib/coresdk';
 import { ChildWorkflowOptions, ContinueAsNewOptions } from './interfaces';
 
 export { Next, Headers };
 
+/** Input for WorkflowInboundCallsInterceptor.create */
+export interface WorkflowCreateInput {
+  readonly args: unknown[];
+  readonly headers: Headers;
+}
+
 /** Input for WorkflowInboundCallsInterceptor.execute */
-export interface WorkflowInput {
+export interface WorkflowExecuteInput {
   readonly args: unknown[];
   readonly headers: Headers;
 }
@@ -36,13 +42,18 @@ export interface QueryInput {
  */
 export interface WorkflowInboundCallsInterceptor {
   /**
+   * Called when Workflow is created from a factory function
+   *
+   * @return the Workflow handlers
+   */
+  create?: (input: WorkflowCreateInput, next: Next<this, 'create'>) => Promise<WorkflowHandlers>;
+
+  /**
    * Called when Workflow execute method is called
    *
-   * TODO: intercept creation too and move args there?
-   *
-   * @return result of the workflow execution
+   * @return result of the Workflow execution
    */
-  execute?: (input: WorkflowInput, next: Next<this, 'execute'>) => Promise<unknown>;
+  execute?: (input: WorkflowExecuteInput, next: Next<this, 'execute'>) => Promise<unknown>;
 
   /** Called when signal is delivered to a Workflow execution */
   handleSignal?: (input: SignalInput, next: Next<this, 'handleSignal'>) => Promise<void>;
@@ -151,7 +162,7 @@ export type ConcludeActivationOutput = ConcludeActivationInput;
 /** Input for WorkflowInternalsInterceptor.activate */
 export interface ActivateInput {
   activation: coresdk.workflow_activation.IWFActivation;
-  jobIndex: number;
+  batchIndex: number;
 }
 
 /**
@@ -162,10 +173,8 @@ export interface ActivateInput {
 export interface WorkflowInternalsInterceptor {
   /**
    * Called when the Workflow runtime runs a WFActivationJob.
-   *
-   * Returns a `boolean` indicating whether this job was processed or not
    */
-  activate?(input: ActivateInput, next: Next<this, 'activate'>): Promise<boolean>;
+  activate?(input: ActivateInput, next: Next<this, 'activate'>): Promise<void>;
   /**
    * Called after all `WFActivationJob`s have been proccesed for an activation.
    *

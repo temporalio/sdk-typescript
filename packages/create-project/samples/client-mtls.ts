@@ -34,8 +34,8 @@ async function run({
   });
   await connection.untilReady();
   const client = new WorkflowClient(connection.service, { namespace });
-  // Create a typed client for the example Workflow.
-  const workflow = client.newWorkflowStub(example, { taskQueue });
+  // Create a typed handle for the example Workflow.
+  const workflow = client.createWorkflowHandle(example, { taskQueue });
   const result = await workflow.execute('Temporal');
   console.log(result); // Hello, Temporal!
 }

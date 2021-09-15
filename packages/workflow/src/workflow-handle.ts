@@ -1,9 +1,9 @@
-import { BaseWorkflowStub, Workflow, WorkflowStubSignals } from '@temporalio/common';
+import { BaseWorkflowHandle, Workflow, WorkflowHandleSignals } from '@temporalio/common';
 
 /**
- * Stub representing an external Workflow execution
+ * Handle representing an external Workflow execution
  */
-export interface ExternalWorkflowStub<T extends Workflow> {
+export interface ExternalWorkflowHandle<T extends Workflow> {
   /**
    * A mapping of the different signals defined by Workflow interface `T` to callable functions.
    * Call to signal a running Workflow.
@@ -13,7 +13,7 @@ export interface ExternalWorkflowStub<T extends Workflow> {
    * await workflow.signal.increment(3);
    * ```
    */
-  signal: WorkflowStubSignals<T>;
+  signal: WorkflowHandleSignals<T>;
 
   /**
    * Cancel the external Workflow execution.
@@ -46,7 +46,7 @@ export interface ExternalWorkflowStub<T extends Workflow> {
  * }
  * ```
  *
- * Create a workflow client for running and interacting with a single workflow
+ * Create a handle for running and interacting with a single workflow
  * ```ts
  * // `counter` is a registered workflow file, typically found at
  * // `lib/workflows/counter.js` after building the typescript project
@@ -55,4 +55,4 @@ export interface ExternalWorkflowStub<T extends Workflow> {
  * await workflow.execute(2);
  * ```
  */
-export interface ChildWorkflowStub<T extends Workflow> extends BaseWorkflowStub<T> {} // eslint-disable-line @typescript-eslint/no-empty-interface
+export interface ChildWorkflowHandle<T extends Workflow> extends BaseWorkflowHandle<T> {} // eslint-disable-line @typescript-eslint/no-empty-interface

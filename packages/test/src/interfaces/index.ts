@@ -111,3 +111,10 @@ export type Blocked = () => {
   };
 };
 // @@@SNIPEND
+
+export type Gated = () => {
+  execute(): Promise<void>;
+  signals: {
+    someShallPass(): void;
+  };
+};

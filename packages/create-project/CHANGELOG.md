@@ -3,6 +3,67 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+# [0.5.0](https://github.com/temporalio/sdk-node/compare/@temporalio/create@0.4.0...@temporalio/create@0.5.0) (2021-09-15)
+
+
+### Bug Fixes
+
+* Fix permissions for packages/create-project/lib/index.js ([da369db](https://github.com/temporalio/sdk-node/commit/da369db65150e766e35a7af5b9f79b977de140cb))
+
+
+* feat(workflow)!: Flatten Context into `@temporalio/workflow` ([0751479](https://github.com/temporalio/sdk-node/commit/07514796df723328f870fe0d64702f928092608c))
+* feat(workflow)!: Revise Workflow API ([3467bd7](https://github.com/temporalio/sdk-node/commit/3467bd798f5e6866412be67c0b0e645e1d66dd7f))
+
+
+### BREAKING CHANGES
+
+* `Context` is no longer exported, methods and attributes
+have been flattened into `@temporalio/workflow`.
+- `Context.info` -> `workflowInfo`
+- `Context.child` -> `childWorkflow`
+- `Context.external` -> `externalWorkflow`
+- `Context.cancelled` -> `ROOT_SCOPE.consideredCancelled`
+- `Context.continueAsNew` -> `continueAsNew`
+- `Context.makeContinueAsNewFunc` -> `makeContinueAsNewFunc`
+* Workflow registration and invocation has been changed
+- `main` has been renamed `execute`
+- Workflow arguments moved from `execute` method to the Workflow factory
+  function (see below)
+- Workflows are now defined as named functions
+  Old:
+  ```ts
+  // workflows/myWorkflow.ts
+  export const workflow = { async main(...args) {}, /* signals, queries */ };
+  ```
+  New:
+  ```ts
+  // workflows/index.ts
+  export const myWorkflow = (...args) => ({ async execute() {}, /* signals, queries */ });
+  ```
+- Workflow Interceptors are now instantiated via a factory function
+  Old:
+  ```ts
+  export const interceptors = { /* ... */ };
+  ```
+  New:
+  ```ts
+  export const interceptors = () => ({ /* ... */ });
+  ```
+- Workflow stubs can be constructed from a registered Workflow function
+  Old:
+  ```ts
+  const stub = client.stub<MyWorkflowInterface>('my-workflow', opts);
+  ```
+  New:
+  ```ts
+  import { myWorkflow } from './workflows';
+  const stub = client.stub(myWorkflow, opts);
+  ```
+
+
+
+
+
 # [0.4.0](https://github.com/temporalio/sdk-node/compare/@temporalio/create@0.3.4...@temporalio/create@0.4.0) (2021-08-31)
 
 

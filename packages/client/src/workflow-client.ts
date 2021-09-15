@@ -13,7 +13,7 @@ import {
   Workflow,
   WorkflowSignalType,
   WorkflowQueryType,
-  BaseWorkflowStub,
+  BaseWorkflowHandle,
   WorkflowSignalHandlers,
   WorkflowResultType,
   WorkflowQueryHandlers,
@@ -59,12 +59,12 @@ import { Connection, WorkflowService } from './connection';
  * const client = new WorkflowClient();
  * // `counter` is a registered workflow file, typically found at
  * // `lib/workflows/counter.js` after building the typescript project
- * const workflow = connection.newWorkflowStub<Counter>('counter', { taskQueue: 'tutorial' });
+ * const workflow = connection.createWorkflowHandle<Counter>('counter', { taskQueue: 'tutorial' });
  * // start workflow `execute` function with initialValue of 2 and await its completion
  * await workflow.execute(2);
  * ```
  */
-export interface WorkflowStub<T extends Workflow> extends BaseWorkflowStub<T> {
+export interface WorkflowHandle<T extends Workflow> extends BaseWorkflowHandle<T> {
   /**
    * A mapping of the different queries defined by Workflow interface `T` to callable functions.
    * Call to query a Workflow after it's been started even if it has already completed.
@@ -163,7 +163,7 @@ export function defaultWorkflowClientOptions(): WorkflowClientOptionsWithDefault
 }
 
 /**
- * Client for starting Workflow executions and creating Workflow stubs
+ * Client for starting Workflow executions and creating Workflow handles
  */
 export class WorkflowClient {
   public readonly options: WorkflowClientOptionsWithDefaults;
@@ -187,7 +187,7 @@ export class WorkflowClient {
     const start = (...args: Parameters<T>) =>
       next({
         options: compiledOptions,
-        headers: new Map(),
+        headers: {},
         args,
         name,
       });
@@ -367,7 +367,7 @@ export class WorkflowClient {
           }
         : undefined,
       cronSchedule: options.cronSchedule,
-      header: { fields: Object.fromEntries(headers.entries()) },
+      header: { fields: headers },
     });
     return runId;
   }
@@ -403,7 +403,7 @@ export class WorkflowClient {
           }
         : undefined,
       cronSchedule: opts.cronSchedule,
-      header: { fields: Object.fromEntries(headers.entries()) },
+      header: { fields: headers },
     };
     const res = await this.service.startWorkflowExecution(req);
     return res.runId;
@@ -440,32 +440,30 @@ export class WorkflowClient {
   }
 
   /**
-   * Create a {@link WorkflowStub} for a new Workflow execution
+   * Create a {@link WorkflowHandle} for starting a new Workflow execution
    *
-   * @param name workflow type name (the filename in the Node.js SDK)
+   * @param name workflow type name (the exported function name in the Node.js SDK)
    * @param options used to start the Workflow
    */
-  public newWorkflowStub<T extends Workflow>(name: string, options: WorkflowOptions): WorkflowStub<T>;
+  public createWorkflowHandle<T extends Workflow>(name: string, options: WorkflowOptions): WorkflowHandle<T>;
 
   /**
-   * TODO: doc
+   * Create a {@link WorkflowHandle} for starting a new Workflow execution
+   *
+   * @param func an exported function
+   * @param options used to start the Workflow
    */
-  public newWorkflowStub<T extends Workflow>(func: T, options: WorkflowOptions): WorkflowStub<T>;
+  public createWorkflowHandle<T extends Workflow>(func: T, options: WorkflowOptions): WorkflowHandle<T>;
 
   /**
-   * Create a {@link WorkflowStub} for an existing Workflow execution
+   * Create a {@link WorkflowHandle} for an existing Workflow execution
    */
-  public newWorkflowStub<T extends Workflow>(workflowId: string): WorkflowStub<T>;
+  public createWorkflowHandle<T extends Workflow>(workflowId: string, runId?: string): WorkflowHandle<T>;
 
-  /**
-   * Create a {@link WorkflowStub} for an existing Workflow run
-   */
-  public newWorkflowStub<T extends Workflow>(workflowId: string, runId: string): WorkflowStub<T>;
-
-  public newWorkflowStub<T extends Workflow>(
+  public createWorkflowHandle<T extends Workflow>(
     nameOrWorkflowIdOrFunc: string | T,
     optionsOrRunId?: WorkflowOptions | string
-  ): WorkflowStub<T> {
+  ): WorkflowHandle<T> {
     const nameOrWorkflowId =
       typeof nameOrWorkflowIdOrFunc === 'string'
         ? nameOrWorkflowIdOrFunc
@@ -497,15 +495,15 @@ export class WorkflowClient {
   }
 
   /**
-   * Create a new workflow stub for new or existing Workflow execution
+   * Create a new workflow handle for new or existing Workflow execution
    */
-  protected createWorkflowStub<T extends Workflow>(
+  protected _createWorkflowHandle<T extends Workflow>(
     workflowId: string,
     runId: string | undefined,
     interceptors: WorkflowClientCallsInterceptor[],
-    start: WorkflowStub<T>['start'],
-    signalWithStart: WorkflowStub<T>['signalWithStart']
-  ): WorkflowStub<T> {
+    start: WorkflowHandle<T>['start'],
+    signalWithStart: WorkflowHandle<T>['signalWithStart']
+  ): WorkflowHandle<T> {
     const namespace = this.options.namespace;
 
     const workflow = {
@@ -593,15 +591,15 @@ export class WorkflowClient {
   }
 
   /**
-   * Creates a Workflow stub for existing Workflow using `workflowId` and optional `runId`
+   * Creates a Workflow handle for existing Workflow using `workflowId` and optional `runId`
    */
-  protected connectToExistingWorkflow<T extends Workflow>(workflowId: string, runId?: string): WorkflowStub<T> {
+  protected connectToExistingWorkflow<T extends Workflow>(workflowId: string, runId?: string): WorkflowHandle<T> {
     const interceptors = (this.options.interceptors.calls ?? []).map((ctor) => ctor({ workflowId, runId }));
 
     const startCallback = () => {
       throw new IllegalStateError('Workflow created with no WorkflowOptions cannot be started');
     };
-    return this.createWorkflowStub(
+    return this._createWorkflowHandle(
       workflowId,
       runId,
       interceptors,
@@ -612,9 +610,9 @@ export class WorkflowClient {
   }
 
   /**
-   * Creates a Workflow stub for new Workflow execution
+   * Creates a Workflow handle for new Workflow execution
    */
-  protected createNewWorkflow<T extends Workflow>(name: string, options: WorkflowOptions): WorkflowStub<T> {
+  protected createNewWorkflow<T extends Workflow>(name: string, options: WorkflowOptions): WorkflowHandle<T> {
     const compiledOptions = compileWorkflowOptions(addDefaults(options));
 
     const interceptors = (this.options.interceptors.calls ?? []).map((ctor) =>
@@ -626,7 +624,7 @@ export class WorkflowClient {
 
       return next({
         options: compiledOptions,
-        headers: new Map(),
+        headers: {},
         args,
         name,
       });
@@ -641,7 +639,7 @@ export class WorkflowClient {
 
       return next({
         options: compiledOptions,
-        headers: new Map(),
+        headers: {},
         workflowArgs,
         workflowName: name,
         signalName,
@@ -649,7 +647,7 @@ export class WorkflowClient {
       });
     };
 
-    return this.createWorkflowStub(
+    return this._createWorkflowHandle(
       compiledOptions.workflowId,
       undefined,
       interceptors,

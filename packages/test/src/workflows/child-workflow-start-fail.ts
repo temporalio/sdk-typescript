@@ -4,7 +4,7 @@
  */
 
 import {
-  newChildWorkflowStub,
+  createChildWorkflowHandle,
   WorkflowExecutionAlreadyStartedError,
   WorkflowIdReusePolicy,
 } from '@temporalio/workflow';
@@ -14,14 +14,14 @@ import { successString } from './success-string';
 export const childWorkflowStartFail: Empty = () => {
   return {
     async execute(): Promise<void> {
-      const child = newChildWorkflowStub(successString, {
+      const child = createChildWorkflowHandle(successString, {
         taskQueue: 'test',
         workflowIdReusePolicy: WorkflowIdReusePolicy.WORKFLOW_ID_REUSE_POLICY_REJECT_DUPLICATE,
       });
       await child.start();
       try {
         await child.start();
-        throw new Error('Calling start on child workflow stub twice did not fail');
+        throw new Error('Calling start on child workflow handle twice did not fail');
       } catch (err) {
         if (!(err instanceof WorkflowExecutionAlreadyStartedError)) {
           throw new Error(`Got invalid error: ${err}`);
@@ -30,7 +30,7 @@ export const childWorkflowStartFail: Empty = () => {
       await child.result();
 
       try {
-        const duplicate = newChildWorkflowStub(successString, {
+        const duplicate = createChildWorkflowHandle(successString, {
           taskQueue: 'test',
           workflowId: child.workflowId,
           workflowIdReusePolicy: WorkflowIdReusePolicy.WORKFLOW_ID_REUSE_POLICY_REJECT_DUPLICATE,

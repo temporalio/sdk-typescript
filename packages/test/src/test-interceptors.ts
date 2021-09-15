@@ -36,7 +36,7 @@ if (RUN_INTEGRATION_TESTS) {
         activityInbound: [
           () => ({
             async execute(input, next) {
-              const encoded = input.headers.get('message');
+              const encoded = input.headers.message;
               const receivedMessage = encoded ? defaultDataConverter.fromPayload(encoded) : '';
               return next({ ...input, args: [receivedMessage] });
             },
@@ -52,8 +52,13 @@ if (RUN_INTEGRATION_TESTS) {
         calls: [
           () => ({
             async start(input, next) {
-              input.headers.set('message', await defaultDataConverter.toPayload(message));
-              return next(input);
+              return next({
+                ...input,
+                headers: {
+                  ...input.headers,
+                  message: await defaultDataConverter.toPayload(message),
+                },
+              });
             },
             async signal(input, next) {
               const [decoded] = input.args;
@@ -61,10 +66,16 @@ if (RUN_INTEGRATION_TESTS) {
               return next({ ...input, args: [encoded] });
             },
             async signalWithStart(input, next) {
-              input.headers.set('message', await defaultDataConverter.toPayload(message));
               const [decoded] = input.signalArgs;
               const encoded = [...(decoded as any as string)].reverse().join('');
-              return next({ ...input, signalArgs: [encoded] });
+              return next({
+                ...input,
+                signalArgs: [encoded],
+                headers: {
+                  ...input.headers,
+                  message: await defaultDataConverter.toPayload(message),
+                },
+              });
             },
             async query(input, next) {
               const result: string = (await next(input)) as any;
@@ -75,7 +86,7 @@ if (RUN_INTEGRATION_TESTS) {
       },
     });
     {
-      const wf = client.newWorkflowStub(interceptorExample, {
+      const wf = client.createWorkflowHandle(interceptorExample, {
         taskQueue,
       });
       await wf.start();
@@ -85,7 +96,7 @@ if (RUN_INTEGRATION_TESTS) {
       t.is(result, message);
     }
     {
-      const wf = client.newWorkflowStub(interceptorExample, {
+      const wf = client.createWorkflowHandle(interceptorExample, {
         taskQueue,
       });
       await wf.signalWithStart('unblock', ['12345'], []);
@@ -142,7 +153,7 @@ if (RUN_INTEGRATION_TESTS) {
       },
     });
 
-    const wf = client.newWorkflowStub('blockWithDependencies', {
+    const wf = client.createWorkflowHandle('blockWithDependencies', {
       taskQueue,
     });
     await wf.start();
@@ -175,7 +186,7 @@ if (RUN_INTEGRATION_TESTS) {
     });
     const client = new WorkflowClient();
     const workerDrained = worker.run();
-    const workflow = client.newWorkflowStub(continueAsNewToDifferentWorkflow, {
+    const workflow = client.createWorkflowHandle(continueAsNewToDifferentWorkflow, {
       taskQueue,
     });
     const err: WorkflowExecutionFailedError = await t.throwsAsync(workflow.execute(), {
@@ -227,7 +238,7 @@ if (RUN_INTEGRATION_TESTS) {
     });
     const workerDrained = worker.run();
     const client = new WorkflowClient();
-    const wf = client.newWorkflowStub(internalsInterceptorExample, {
+    const wf = client.createWorkflowHandle(internalsInterceptorExample, {
       taskQueue,
     });
     await wf.execute();

@@ -3,6 +3,18 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+# [0.4.0](https://github.com/temporalio/sdk-node/compare/@temporalio/core-bridge@0.3.1...@temporalio/core-bridge@0.4.0) (2021-09-15)
+
+
+### Features
+
+* Export to an external OTel collector. Much easier ([7654b98](https://github.com/temporalio/sdk-node/commit/7654b980c0d8ea061a2a3cc4454f0d367759f90a))
+* Load tests in buildkite ([e3fe07f](https://github.com/temporalio/sdk-node/commit/e3fe07f5e97aedae75ee19b66e6ab54eb0cdc83f))
+
+
+
+
+
 ## [0.3.1](https://github.com/temporalio/sdk-node/compare/@temporalio/core-bridge@0.3.0...@temporalio/core-bridge@0.3.1) (2021-08-31)
 
 **Note:** Version bump only for package @temporalio/core-bridge
