@@ -4,7 +4,7 @@ const { copy, readFile, mkdtemp, pathExists } = require('fs-extra');
 const { spawn: spawnChild } = require('child_process');
 const arg = require('arg');
 const { Tail } = require('tail');
-const { shell, sleep, kill, waitOnChild, ChildProcessError } = require('./utils');
+const { shell, sleep, kill } = require('./utils');
 
 async function untilExists(file, attempts, sleepDuration = 1000) {
   for (let attempt = 1; attempt < attempts; attempt++) {

@@ -19,5 +19,5 @@ export async function fetchExamples(): Promise<string[]> {
 
   const files = JSON.parse(response.body) as File[];
 
-  return files.filter((file) => file.type === 'dir').map(({ name }) => name);
+  return files.filter((file) => file.type === 'dir' && file.name !== 'test').map(({ name }) => name);
 }

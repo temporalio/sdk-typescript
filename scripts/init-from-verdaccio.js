@@ -14,6 +14,7 @@ async function main() {
       throw new Error('Failed to init example');
     }
   });
+  spawnSync('ls', ['-la', '/tmp/registry/example'], { stdio: 'pipe' });
 }
 
 main()
