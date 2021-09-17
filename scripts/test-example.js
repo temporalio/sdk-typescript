@@ -1,7 +1,7 @@
 const path = require('path');
 const { spawn: spawnChild, spawnSync } = require('child_process');
 const arg = require('arg');
-const { shell, sleep, kill, waitOnChild, ChildProcessError } = require('./utils');
+const { shell, kill } = require('./utils');
 
 const npm = /^win/.test(process.platform) ? 'npm.cmd' : 'npm';
 
