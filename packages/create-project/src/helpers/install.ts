@@ -2,7 +2,7 @@
 import { spawn } from './subprocess';
 import { readFileSync, writeFileSync } from 'fs';
 
-import { isUrlOk } from './examples';
+import { isUrlOk } from './samples';
 
 interface InstallArgs {
   root: string;

@@ -10,7 +10,7 @@ import checkForUpdate from 'update-check';
 
 import { createApp } from './create-project';
 import { validateNpmName } from './helpers/validate-pkg';
-import { fetchExamples } from './helpers/fetch-examples';
+import { fetchSamples } from './helpers/fetch-samples';
 import packageJson from './pkg';
 
 const program = new Command(packageJson.name)
@@ -25,29 +25,29 @@ const program = new Command(packageJson.name)
 `
   )
   .option(
-    '-e, --example <name|github-url>',
+    '-s, --sample <name|github-url>',
     `
 
-  An example to bootstrap the app with. You can use an example name
+  A sample to bootstrap the app with. You can use a sample name
   from https://github.com/temporalio/samples-node or a GitHub URL. 
   The URL can use any branch and/or subdirectory
 `
   )
   .option(
-    '--example-path <path-to-example>',
+    '--sample-path <path-to-sample>',
     `
 
   In a rare case, your GitHub URL might contain a branch name with
-  a slash (e.g. bug/fix-1) and the path to the example (e.g. foo/bar).
-  In this case, you must specify the path to the example separately:
-  --example-path foo/bar
+  a slash (e.g. bug/fix-1) and the path to the sample (e.g. foo/bar).
+  In this case, you must specify the path to the sample separately:
+  --sample-path foo/bar
 `
   )
   .option(
-    '-l, --list-examples',
+    '-l, --list-samples',
     `
 
-  Print available example projects
+  Print available sample projects
 `
   )
   .allowUnknownOption()
@@ -57,9 +57,9 @@ let opts: OptionValues;
 
 async function run(): Promise<void> {
   opts = program.opts();
-  if (opts.listExamples) {
-    const examples = await fetchExamples();
-    console.log(`Available examples:\n\n${examples.join('\n')}\n`);
+  if (opts.listSamples) {
+    const samples = await fetchSamples();
+    console.log(`Available samples:\n\n${samples.join('\n')}\n`);
     return;
   }
 
@@ -114,31 +114,31 @@ async function run(): Promise<void> {
     process.exit(1);
   }
 
-  let example = opts.example;
-  if (!example) {
-    const examples = await fetchExamples();
-    const choices = examples.map((example) => ({ title: example, value: example }));
+  let sample = opts.sample;
+  if (!sample) {
+    const samples = await fetchSamples();
+    const choices = samples.map((sample) => ({ title: sample, value: sample }));
 
     const res = await prompts({
       type: 'select',
-      name: 'example',
-      message: `Which example would you like to use?`,
+      name: 'sample',
+      message: `Which sample would you like to use?`,
       choices,
-      initial: examples.indexOf('hello-world'),
+      initial: samples.indexOf('hello-world'),
     });
 
-    if (typeof res.example === 'string') {
-      example = res.example;
+    if (typeof res.sample === 'string') {
+      sample = res.sample;
     }
   }
 
-  if (!example) {
+  if (!sample) {
     console.error();
-    console.error('Please specify which example:');
-    console.error(`  ${chalk.cyan(program.name())} --example ${chalk.green('<name|github-url>')}`);
+    console.error('Please specify which sample:');
+    console.error(`  ${chalk.cyan(program.name())} --sample ${chalk.green('<name|github-url>')}`);
     console.error();
     console.error('For example:');
-    console.error(`  ${chalk.cyan(program.name())} --example ${chalk.green('hello-world')}`);
+    console.error(`  ${chalk.cyan(program.name())} --sample ${chalk.green('hello-world')}`);
     console.error();
     console.error(`Run ${chalk.cyan(`${program.name()} --help`)} to see all options.`);
     process.exit(1);
@@ -147,8 +147,8 @@ async function run(): Promise<void> {
   await createApp({
     appPath: resolvedProjectPath,
     useYarn: !!opts.useYarn,
-    example: example.trim(),
-    examplePath: typeof opts.examplePath === 'string' ? opts.examplePath.trim() : undefined,
+    sample: sample.trim(),
+    samplePath: typeof opts.samplePath === 'string' ? opts.samplePath.trim() : undefined,
   });
 }
 

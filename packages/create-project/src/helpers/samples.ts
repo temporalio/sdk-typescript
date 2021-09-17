@@ -27,12 +27,12 @@ function escapeRegex(s: string) {
   return s.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
 }
 
-export async function getRepoInfo(url: URL, examplePath?: string): Promise<RepoInfo> {
+export async function getRepoInfo(url: URL, samplePath?: string): Promise<RepoInfo> {
   const [, username, name, t, _branch, ...file] = url.pathname.split('/');
-  const filePath = examplePath ? examplePath.replace(/^\//, '') : file.join('/');
+  const filePath = samplePath ? samplePath.replace(/^\//, '') : file.join('/');
 
-  // Support repos whose entire purpose is to be a Temporal example, e.g.
-  // https://github.com/:username/:my-cool-temporal-example-repo
+  // Support repos whose entire purpose is to be a Temporal sample, e.g.
+  // https://github.com/:username/:my-cool-temporal-sample-repo
   if (t === undefined) {
     const repo = `https://api.github.com/repos/${username}/${name}`;
     let infoResponse;
@@ -52,15 +52,15 @@ export async function getRepoInfo(url: URL, examplePath?: string): Promise<RepoI
     return { username, name, branch: info['default_branch'], filePath };
   }
 
-  // If examplePath is available, the branch name takes the entire path
-  const branch = examplePath
+  // If samplePath is available, the branch name takes the entire path
+  const branch = samplePath
     ? `${_branch}/${file.join('/')}`.replace(new RegExp(`/${escapeRegex(filePath)}|/$`), '')
     : _branch;
 
   if (username && name && branch && t === 'tree') {
     return { username, name, branch, filePath };
   } else {
-    throw new Error(`Unable to parse URL: ${url} and example path: ${examplePath}`);
+    throw new Error(`Unable to parse URL: ${url} and sample path: ${samplePath}`);
   }
 }
 
@@ -79,7 +79,7 @@ export async function checkForPackageJson({ username, name, branch, filePath }: 
   }
 }
 
-export function hasExample(name: string): Promise<boolean> {
+export function hasSample(name: string): Promise<boolean> {
   return isUrlOk(
     `https://api.github.com/repos/temporalio/samples-node/contents/${encodeURIComponent(name)}/package.json`
   );
@@ -94,9 +94,9 @@ export function downloadAndExtractRepo(root: string, { username, name, branch, f
   );
 }
 
-export function downloadAndExtractExample(root: string, name: string): Promise<void> {
+export function downloadAndExtractSample(root: string, name: string): Promise<void> {
   if (name === '__internal-testing-retry') {
-    throw new Error('This is an internal example for testing the CLI.');
+    throw new Error('This is an internal sample for testing the CLI.');
   }
 
   return pipeline(

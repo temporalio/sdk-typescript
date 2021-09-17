@@ -7,7 +7,7 @@ interface File {
   type: string;
 }
 
-export async function fetchExamples(): Promise<string[]> {
+export async function fetchSamples(): Promise<string[]> {
   let response;
 
   try {

@@ -5,13 +5,13 @@ import path from 'path';
 import prompts from 'prompts';
 import { accessSync } from 'fs';
 import {
-  downloadAndExtractExample,
+  downloadAndExtractSample,
   downloadAndExtractRepo,
   getRepoInfo,
-  hasExample,
+  hasSample,
   checkForPackageJson,
   RepoInfo,
-} from './helpers/examples';
+} from './helpers/samples';
 import { makeDir } from './helpers/make-dir';
 import { tryGitInit } from './helpers/git';
 import { install, updateNodeVersion } from './helpers/install';
@@ -24,13 +24,13 @@ export class DownloadError extends Error {}
 export async function createApp({
   appPath,
   useYarn,
-  example,
-  examplePath,
+  sample,
+  samplePath,
 }: {
   appPath: string;
   useYarn: boolean;
-  example: string;
-  examplePath?: string;
+  sample: string;
+  samplePath?: string;
 }): Promise<void> {
   let repoInfo: RepoInfo | undefined;
   let repoUrl: URL | undefined;
@@ -42,7 +42,7 @@ export async function createApp({
   }
 
   try {
-    repoUrl = new URL(example);
+    repoUrl = new URL(sample);
   } catch (error) {
     if (getErrorCode(error) !== 'ERR_INVALID_URL') {
       console.error(error);
@@ -54,26 +54,26 @@ export async function createApp({
     if (repoUrl.origin !== 'https://github.com') {
       console.error(
         `Invalid URL: ${chalk.red(
-          `"${example}"`
+          `"${sample}"`
         )}. Only GitHub repositories are supported. Please use a GitHub URL and try again.`
       );
       process.exit(1);
     }
 
     try {
-      repoInfo = await getRepoInfo(repoUrl, examplePath);
+      repoInfo = await getRepoInfo(repoUrl, samplePath);
       await checkForPackageJson(repoInfo);
     } catch (e) {
       console.error(e);
       process.exit(1);
     }
-  } else if (example !== '__internal-testing-retry') {
-    const found = await hasExample(example);
+  } else if (sample !== '__internal-testing-retry') {
+    const found = await hasSample(sample);
 
     if (!found) {
       console.error(
-        `Could not locate an example named ${chalk.red(`"${example}"`)}. It could be due to the following:\n`,
-        `1. Your spelling of example ${chalk.red(`"${example}"`)} might be incorrect.\n`,
+        `Could not locate a sample named ${chalk.red(`"${sample}"`)}. It could be due to the following:\n`,
+        `1. Your spelling of sample ${chalk.red(`"${sample}"`)} might be incorrect.\n`,
         `2. You might not be connected to the internet.`
       );
       process.exit(1);
@@ -138,20 +138,20 @@ export async function createApp({
   }
 
   /**
-   * If an example repository is provided, clone it.
+   * If a sample repository is provided, clone it.
    */
   try {
     if (repoInfo) {
       const repoInfo2 = repoInfo;
-      console.log(`Downloading files from repo ${chalk.cyan(example)}. This might take a moment.`);
+      console.log(`Downloading files from repo ${chalk.cyan(sample)}. This might take a moment.`);
       console.log();
       await retry(() => downloadAndExtractRepo(root, repoInfo2), {
         retries: 3,
       });
     } else {
-      console.log(`Downloading files for example ${chalk.cyan(example)}. This might take a moment.`);
+      console.log(`Downloading files for sample ${chalk.cyan(sample)}. This might take a moment.`);
       console.log();
-      await retry(() => downloadAndExtractExample(root, example), {
+      await retry(() => downloadAndExtractSample(root, sample), {
         retries: 3,
       });
     }
