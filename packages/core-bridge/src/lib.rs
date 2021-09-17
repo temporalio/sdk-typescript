@@ -1,8 +1,10 @@
 mod errors;
 
 use errors::*;
+use log::LevelFilter;
 use neon::prelude::*;
 use prost::Message;
+use std::str::FromStr;
 use std::{fmt::Display, future::Future, sync::Arc, time::Duration};
 use temporal_sdk_core::errors::{
     CompleteActivityError, CompleteWfError, CoreInitError, PollActivityError, PollWfError,
@@ -66,6 +68,11 @@ pub enum Request {
     },
     /// A request to send a heartbeat from a running activity
     RecordActivityHeartbeat { heartbeat: ActivityHeartbeat },
+    /// A request to drain logs from core so they can be emitted in node
+    PollLogs {
+        /// Logs are sent to this function
+        callback: Root<JsFunction>,
+    },
 }
 
 #[derive(Clone)]
@@ -242,6 +249,23 @@ fn start_bridge_loop(
                                 )
                                     .await;
                                 break;
+                            }
+                            Request::PollLogs { callback } => {
+                                let logs = core.fetch_buffered_logs();
+                                send_result(event_queue.clone(), callback, |cx| {
+                                    let logarr = cx.empty_array();
+                                    for (i, cl) in logs.into_iter().enumerate() {
+                                        let logobj = cx.empty_object();
+                                        let level = cx.string(cl.level.to_string());
+                                        logobj.set(cx, "level", level).unwrap();
+                                        let ts = cx.number(cl.millis_since_epoch() as f64);
+                                        logobj.set(cx, "timestampMillis", ts).unwrap();
+                                        let msg = cx.string(cl.message);
+                                        logobj.set(cx, "message", msg).unwrap();
+                                        logarr.set(cx, i as u32, logobj).unwrap();
+                                    }
+                                    Ok(logarr)
+                                });
                             }
                             Request::ShutdownWorker {
                                 task_queue,
@@ -598,6 +622,11 @@ fn core_new(mut cx: FunctionContext) -> JsResult<JsUndefined> {
         retry_config,
     };
 
+    let log_forwarding_level_str =
+        js_value_getter!(cx, telem_options, "logForwardingLevel", JsString)
+            .replace("WARNING", "WARN");
+    let log_forwarding_level =
+        LevelFilter::from_str(&log_forwarding_level_str).unwrap_or(LevelFilter::Off);
     let telemetry_opts = TelemetryOptions {
         otel_collector_url: get_optional(&mut cx, telem_options, "oTelCollectorUrl").map(|x| {
             Url::parse(
@@ -614,6 +643,7 @@ fn core_new(mut cx: FunctionContext) -> JsResult<JsUndefined> {
                     .value(&mut cx)
             })
             .unwrap_or("".to_string()),
+        log_forwarding_level,
     };
 
     let callback = cx.argument::<JsFunction>(1)?.root(&mut cx);
@@ -707,6 +737,19 @@ fn core_shutdown(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     if let Err(err) = core.sender.send(request) {
         callback_with_unexpected_error(&mut cx, callback, err)?;
     };
+    Ok(cx.undefined())
+}
+
+/// Request to drain forwarded logs from core
+fn core_poll_logs(mut cx: FunctionContext) -> JsResult<JsUndefined> {
+    let core = cx.argument::<BoxedCore>(0)?;
+    let callback = cx.argument::<JsFunction>(1)?;
+    let request = Request::PollLogs {
+        callback: callback.root(&mut cx),
+    };
+    if let Err(err) = core.sender.send(request) {
+        callback_with_unexpected_error(&mut cx, callback, err)?;
+    }
     Ok(cx.undefined())
 }
 
@@ -849,6 +892,7 @@ fn main(mut cx: ModuleContext) -> NeonResult<()> {
     cx.export_function("newWorker", worker_new)?;
     cx.export_function("workerShutdown", worker_shutdown)?;
     cx.export_function("coreShutdown", core_shutdown)?;
+    cx.export_function("corePollLogs", core_poll_logs)?;
     cx.export_function(
         "workerPollWorkflowActivation",
         worker_poll_workflow_activation,

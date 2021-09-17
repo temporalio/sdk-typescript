@@ -2,15 +2,16 @@
  * Implement this interface in order to customize worker logging
  */
 export interface Logger {
+  trace(message: string, meta?: Record<string, any>): any;
   debug(message: string, meta?: Record<string, any>): any;
   info(message: string, meta?: Record<string, any>): any;
   warn(message: string, meta?: Record<string, any>): any;
   error(message: string, meta?: Record<string, any>): any;
 }
 
-export type LogLevel = 'DEBUG' | 'INFO' | 'WARNING' | 'ERROR';
+export type LogLevel = 'TRACE' | 'DEBUG' | 'INFO' | 'WARNING' | 'ERROR';
 
-const severities: LogLevel[] = ['DEBUG', 'INFO', 'WARNING', 'ERROR'];
+const severities: LogLevel[] = ['TRACE', 'DEBUG', 'INFO', 'WARNING', 'ERROR'];
 
 /**
  * Log messages using `console.error` and basic formatting
@@ -38,6 +39,10 @@ export class DefaultLogger implements Logger {
     if (severities.indexOf(level) >= this.severity) {
       this.logFunction(level, message, meta);
     }
+  }
+
+  public trace(message: string, meta?: Record<string, any>): void {
+    this.log('TRACE', message, meta);
   }
 
   public debug(message: string, meta?: Record<string, any>): void {

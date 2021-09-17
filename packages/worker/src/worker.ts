@@ -79,11 +79,6 @@ export interface WorkerOptions {
   taskQueue: string;
 
   /**
-   * Custom logger for the worker, by default we log everything to stderr
-   */
-  logger?: Logger;
-
-  /**
    * If provided, automatically discover Workflows and Activities relative to path.
    *
    * @see {@link activities}, {@link workflowsPath}, and {@link nodeModulesPath}
@@ -243,7 +238,6 @@ export type WorkerOptionsWithDefaults<T extends WorkerSpec = DefaultWorkerSpec> 
       | 'shutdownGraceTime'
       | 'shutdownSignals'
       | 'dataConverter'
-      | 'logger'
       | 'maxConcurrentActivityTaskExecutions'
       | 'maxConcurrentWorkflowTaskExecutions'
       | 'maxConcurrentActivityTaskPolls'
@@ -361,6 +355,7 @@ export interface NativeWorkerLike {
   completeActivityTask: Promisify<OmitFirstParam<typeof native.workerCompleteActivityTask>>;
   recordActivityHeartbeat: OmitFirstParam<typeof native.workerRecordActivityHeartbeat>;
   namespace: string;
+  logger: Logger;
 }
 
 export interface WorkerConstructor {
@@ -396,6 +391,10 @@ export class NativeWorker implements NativeWorkerLike {
 
   public get namespace(): string {
     return this.core.options.serverOptions.namespace;
+  }
+
+  public get logger(): Logger {
+    return this.core.options.logger;
   }
 }
 
@@ -440,7 +439,7 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
     }
     if (compiledOptions.workflowsPath && compiledOptions.nodeModulesPath) {
       const builder = new WorkflowIsolateBuilder(
-        compiledOptions.logger,
+        nativeWorker.logger,
         compiledOptions.nodeModulesPath,
         compiledOptions.workflowsPath,
         compiledOptions.interceptors?.workflowModules
@@ -489,7 +488,7 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
   }
 
   protected get log(): Logger {
-    return this.options.logger;
+    return this.nativeWorker.logger;
   }
 
   /**

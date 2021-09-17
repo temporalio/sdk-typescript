@@ -8,7 +8,7 @@
 import test from 'ava';
 import { v4 as uuid4 } from 'uuid';
 import dedent from 'dedent';
-import { Worker, DefaultLogger } from '@temporalio/worker';
+import { Worker } from '@temporalio/worker';
 import { ApplicationFailure } from '@temporalio/common';
 import {
   Connection,
@@ -31,7 +31,6 @@ if (RUN_INTEGRATION_TESTS) {
     const worker = await Worker.create({
       ...defaultOptions,
       taskQueue,
-      logger: new DefaultLogger('DEBUG'),
       interceptors: {
         activityInbound: [
           () => ({
@@ -123,7 +122,6 @@ if (RUN_INTEGRATION_TESTS) {
     const worker = await Worker.create<{ dependencies: Deps }>({
       ...defaultOptions,
       taskQueue,
-      logger: new DefaultLogger('DEBUG'),
       dependencies: {
         blocker: {
           block: {
@@ -178,7 +176,6 @@ if (RUN_INTEGRATION_TESTS) {
     const worker = await Worker.create({
       ...defaultOptions,
       taskQueue,
-      logger: new DefaultLogger('DEBUG'),
       interceptors: {
         // Includes an interceptor for ContinueAsNew that will throw an error when used with the workflow below
         workflowModules: ['interceptor-example'],

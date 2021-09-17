@@ -8,22 +8,33 @@ import {
   normalizeTlsConfig,
 } from './server-options';
 import * as native from '@temporalio/core-bridge';
-import { newCore, coreShutdown, TelemetryOptions } from '@temporalio/core-bridge';
+import { newCore, coreShutdown, TelemetryOptions, corePollLogs } from '@temporalio/core-bridge';
+import { DefaultLogger, Logger } from './logger';
+import { BehaviorSubject, lastValueFrom, of, map, concatMap, repeat } from 'rxjs';
+import { delay, takeWhile } from 'rxjs/operators';
 
 export interface CoreOptions {
   /** Options for communicating with the Temporal server */
   serverOptions?: ServerOptions;
   /** Telemetry options for traces/metrics/logging */
   telemetryOptions?: TelemetryOptions;
+  /**
+   * Custom logger for logging events from the SDK, by default we log everything to stderr
+   * at the INFO level. See https://docs.temporal.io/docs/node/logging/ for more info.
+   */
+  logger?: Logger;
 }
 
 export interface CompiledCoreOptions extends CoreOptions {
   /** Options for communicating with the Temporal server */
   serverOptions: CompiledServerOptions;
+  logger: Logger;
 }
 
 function defaultTelemetryOptions(): TelemetryOptions {
-  return {};
+  return {
+    logForwardingLevel: 'INFO',
+  };
 }
 
 /**
@@ -34,12 +45,16 @@ function defaultTelemetryOptions(): TelemetryOptions {
 export class Core {
   /** Track the registered workers to automatically shutdown when all have been deregistered */
   protected registeredWorkers = new Set<native.Worker>();
+  protected shouldPollForLogs = new BehaviorSubject<boolean>(false);
+  protected logPollPromise;
 
-  protected constructor(public readonly native: native.Core, public readonly options: CompiledCoreOptions) {}
+  protected constructor(public readonly native: native.Core, public readonly options: CompiledCoreOptions) {
+    this.logPollPromise = this.initLogPolling(options, native);
+  }
 
   /**
-   * Default options get overriden when Core is installed and are remembered in case Core is
-   * reinstantiated after being shut down
+   * Default options get overridden when Core is installed and are remembered in case Core is
+   * re-instantiated after being shut down
    */
   protected static defaultOptions: CoreOptions = {};
 
@@ -58,9 +73,46 @@ export class Core {
           : `http://${compiledServerOptions.address}`,
       },
       telemetryOptions,
+      logger: options.logger ?? new DefaultLogger('INFO'),
     };
     const native = await promisify(newCore)(compiledOptions);
+
     return new this(native, compiledOptions);
+  }
+
+  private initLogPolling(options: CompiledCoreOptions, native: native.Core) {
+    this.shouldPollForLogs.next(true);
+
+    if (options.telemetryOptions?.logForwardingLevel !== 'OFF') {
+      const poll = promisify(corePollLogs);
+      const logPromise = lastValueFrom(
+        of(this.shouldPollForLogs).pipe(
+          map((subject) => subject.getValue()),
+          takeWhile((shouldPoll) => shouldPoll),
+          concatMap(() => poll(native)),
+          map((logs) => {
+            for (const log of logs) {
+              if (log.level === 'TRACE') {
+                options.logger.trace(log.message);
+              } else if (log.level === 'DEBUG') {
+                options.logger.debug(log.message);
+              } else if (log.level === 'INFO') {
+                options.logger.info(log.message);
+              } else if (log.level === 'WARN') {
+                options.logger.warn(log.message);
+              } else if (log.level === 'ERROR') {
+                options.logger.error(log.message);
+              }
+            }
+          }),
+          delay(3), // Don't go wild polling as fast as possible
+          repeat()
+        )
+      );
+      // Prevent unhandled rejection
+      logPromise.catch((e) => options.logger.warn('Error gathering forwarded logs from core', e));
+      return logPromise;
+    }
   }
 
   protected static _instance?: Promise<Core>;
@@ -125,6 +177,7 @@ export class Core {
   public async deregisterWorker(worker: native.Worker): Promise<void> {
     this.registeredWorkers.delete(worker);
     if (this.registeredWorkers.size === 0) {
+      this.shouldPollForLogs.next(false);
       await promisify(coreShutdown)(this.native);
       delete Core._instance;
     }
