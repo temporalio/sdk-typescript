@@ -93,7 +93,7 @@ export async function createApp({
   const originalDirectory = process.cwd();
 
   const displayedCommand = useYarn ? 'yarn' : 'npm';
-  console.log(`Creating a new Temporal project in ${chalk.green(root)}/.`);
+  console.log(`Creating a new Temporal project in ${chalk.green(root)}/`);
   console.log();
 
   let directoryExists = true;
