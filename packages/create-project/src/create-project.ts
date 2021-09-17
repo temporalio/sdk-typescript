@@ -208,9 +208,8 @@ export async function createApp({
     )
   );
   console.log();
-  console.log(`Then, in the ${chalk.bold(cdpath + '/')} directory, using three other shells, run these commands:`);
+  console.log(`Then, in the ${chalk.bold(cdpath + '/')} directory, using two other shells, run these commands:`);
   console.log();
-  console.log(`  ${chalk.cyan(`${displayedCommand} ${useYarn ? '' : 'run '}build.watch`)}`);
   console.log(`  ${chalk.cyan(`${displayedCommand} ${useYarn ? '' : 'run '}start.watch`)}`);
   console.log(`  ${chalk.cyan(`${displayedCommand} ${useYarn ? '' : 'run '}workflow`)}`);
   console.log();
