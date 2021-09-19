@@ -23,8 +23,7 @@ See [sdk-structure.md](./docs/sdk-structure.md)
   ```
 - Initialize the Core SDK submodule:
   ```sh
-  git submodule init
-  git submodule update
+  git submodule update --init --recursive
   ```
 - Install the dependencies:
   ```sh

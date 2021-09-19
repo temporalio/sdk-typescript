@@ -17,13 +17,15 @@ export interface WorkflowHandlers {
  */
 export type Workflow = (...args: any[]) => WorkflowHandlers;
 
-/** Get the execute handler from Workflow interface `W` */
+/** Get the execute handler from Workflow type `W` */
 export type WorkflowExecuteHandler<W extends Workflow> = ReturnType<W>['execute'];
-/** Get the return type of the execute handler from Workflow interface `W` */
-export type WorkflowResultType<W extends Workflow> = ReturnType<WorkflowExecuteHandler<W>>;
-/** Get the signal handler definitions from Workflow interface `W` */
+/** Get the "unwrapped" return type (without Promise) of the execute handler from Workflow type `W` */
+export type WorkflowResultType<W extends Workflow> = ReturnType<WorkflowExecuteHandler<W>> extends Promise<infer R>
+  ? R
+  : never;
+/** Get the signal handler definitions from Workflow type `W` */
 export type WorkflowSignalHandlers<W extends Workflow> = ReturnType<W>['signals'];
-/** Get the query handler definitions from Workflow interface `W` */
+/** Get the query handler definitions from Workflow type `W` */
 export type WorkflowQueryHandlers<W extends Workflow> = ReturnType<W>['queries'];
 
 /**
