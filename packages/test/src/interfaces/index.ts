@@ -84,7 +84,10 @@ export type CancellableHTTPRequest = (url: string) => {
   };
 };
 
-export type ContinueAsNewFromMainAndSignal = (continueFrom?: 'execute' | 'signal' | 'none') => {
+export type ContinueAsNewFromMainAndSignal = (
+  continueFrom?: 'execute' | 'signal' | 'none',
+  continueTo?: 'execute' | 'signal' | 'none'
+) => {
   execute(): Promise<void>;
   signals: {
     continueAsNew(): void;

@@ -19,7 +19,7 @@ export interface BaseWorkflowHandle<T extends Workflow> {
   /**
    * Start the Workflow with arguments, returns a Promise that resolves when the Workflow execution completes
    */
-  execute(...args: Parameters<T>): WorkflowResultType<T>;
+  execute(...args: Parameters<T>): Promise<WorkflowResultType<T>>;
 
   /**
    * Start the Workflow with arguments, returns a Promise that resolves with the execution runId
@@ -29,7 +29,7 @@ export interface BaseWorkflowHandle<T extends Workflow> {
   /**
    * Promise that resolves when Workflow execution completes
    */
-  result(): WorkflowResultType<T>;
+  result(): Promise<WorkflowResultType<T>>;
 
   /**
    * A mapping of the different signals defined by Workflow interface `T` to callable functions.
