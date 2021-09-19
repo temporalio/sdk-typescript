@@ -86,3 +86,49 @@ export interface ActivityFunction<P extends any[], R> {
  * Mapping of Activity name to function
  */
 export type ActivityInterface = Record<string, ActivityFunction<any[], any>>;
+
+/**
+ * Transforms type `T` into an {@link ActivityInterface} by extracting all activity functions.
+ */
+// eslint-disable-next-line @typescript-eslint/ban-types
+export type IntoActivityInterface<T extends object> = {
+  [P in keyof T]: T[P] extends ActivityFunction<any[], any> ? T[P] : never;
+};
+
+/**
+ * Get all defined methods of an object prototype.
+ *
+ * (Taken from https://github.com/sindresorhus/auto-bind/blob/bfdc7861c61d78969912cb2a2d620cdc18de079c/index.js)
+ */
+// eslint-disable-next-line @typescript-eslint/ban-types
+function getPrototypeMethods(prototype: object) {
+  const properties = new Set<string | symbol>();
+
+  for (const key of Reflect.ownKeys(prototype)) {
+    if (key === 'constructor') continue;
+    const descriptor = Reflect.getOwnPropertyDescriptor(prototype, key);
+    if (descriptor && typeof descriptor.value === 'function') {
+      properties.add(key);
+    }
+  }
+
+  return properties;
+}
+
+/**
+ * Returns a copy of provided activities `act` where all methods are bound to `act`.
+ *
+ * Use this in order to register an activity class with the Worker.
+ */
+// eslint-disable-next-line @typescript-eslint/ban-types
+export function boundActivities<T extends object>(act: T): IntoActivityInterface<T> {
+  const bindWrapper: any = {};
+  for (const k of getPrototypeMethods(act.constructor.prototype)) {
+    Object.defineProperty(bindWrapper, k, {
+      value: (act as any)[k].bind(act),
+      writable: false,
+      enumerable: true,
+    });
+  }
+  return bindWrapper;
+}

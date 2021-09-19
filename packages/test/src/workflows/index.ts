@@ -66,5 +66,6 @@ export * from './trailing-timer';
 export * from './invalid-or-failed-queries';
 export * from './try-to-continue-after-completion';
 export * from './fail-unless-signaled-before-start';
+export * from './activities-from-class';
 export { interceptorExample } from './interceptor-example';
 export { internalsInterceptorExample } from './internals-interceptor-example';

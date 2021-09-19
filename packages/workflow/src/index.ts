@@ -62,6 +62,7 @@ export {
   RetryOptions,
   rootCause,
   IllegalStateError,
+  IntoActivityInterface,
   defaultDataConverter,
   DataConverter,
   WorkflowIdReusePolicy,

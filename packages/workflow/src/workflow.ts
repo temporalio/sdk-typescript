@@ -8,6 +8,7 @@ import {
   composeInterceptors,
   mapToPayloadsSync,
   WorkflowResultType,
+  IntoActivityInterface,
 } from '@temporalio/common';
 import { coresdk } from '@temporalio/proto/lib/coresdk';
 import {
@@ -365,9 +366,8 @@ function signalWorkflowNextHandler({ seq, signalName, args, target }: SignalWork
  * }
  * ```
  */
-export function createActivityHandle<A extends Record<string, ActivityFunction<any, any>>>(
-  options: ActivityOptions
-): A {
+// eslint-disable-next-line @typescript-eslint/ban-types
+export function createActivityHandle<A extends object>(options: ActivityOptions): IntoActivityInterface<A> {
   if (options === undefined) {
     throw new TypeError('options must be defined');
   }
