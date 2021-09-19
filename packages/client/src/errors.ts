@@ -41,7 +41,9 @@ export class WorkflowExecutionCancelledError extends Error {
 }
 
 /**
- * Thrown by client when waiting on Workflow execution result if Workflow continues as new
+ * Thrown by client when waiting on Workflow execution result if Workflow continues as new.
+ *
+ * Only thrown if asked not to follow the chain of execution (see {@link WorkflowOptions.followRuns}).
  */
 export class WorkflowExecutionContinuedAsNewError extends Error {
   public readonly name: string = 'WorkflowExecutionContinuedAsNewError';
