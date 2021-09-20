@@ -8,6 +8,7 @@
     { "path": "../activity" },
     { "path": "../client" },
     { "path": "../common" },
+    { "path": "../interceptors-opentelemetry" },
     { "path": "../worker" },
     { "path": "../workflow" }
   ],
