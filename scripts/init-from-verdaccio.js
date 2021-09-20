@@ -17,7 +17,7 @@ async function main() {
   });
   spawnSync('ls', ['-la'], { cwd: registryDir, stdio: 'inherit' });
   console.log('done ls -la');
-  spawnSync('npm', ['run', 'build'], { cwd: registryDir, stdio: 'inherit' });
+  spawnSync('npm', ['run', 'build'], { cwd: '/tmp/registry/example', stdio: 'inherit' });
   console.log('done building');
 }
 
