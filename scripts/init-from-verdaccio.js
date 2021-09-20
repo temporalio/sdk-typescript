@@ -15,7 +15,10 @@ async function main() {
       throw new Error('Failed to init example');
     }
   });
-  spawnSync('ls', ['-la', '/tmp/registry/example'], { stdio: 'pipe' });
+  spawnSync('ls', ['-la'], { cwd: registryDir, stdio: 'inherit' });
+  console.log('done ls -la');
+  spawnSync('npm', ['run', 'build'], { cwd: registryDir, stdio: 'inherit' });
+  console.log('done building');
 }
 
 main()
