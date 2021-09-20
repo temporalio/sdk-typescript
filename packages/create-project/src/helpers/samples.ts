@@ -2,7 +2,10 @@
 import chalk from 'chalk';
 import got from 'got';
 import tar from 'tar';
-import { pipeline } from 'stream/promises';
+import { Stream } from 'stream';
+import { promisify } from 'util';
+
+const pipeline = promisify(Stream.pipeline);
 
 export type RepoInfo = {
   username: string;
