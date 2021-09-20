@@ -342,7 +342,6 @@ function signalWorkflowNextHandler({ seq, signalName, args, target }: SignalWork
  *
  * // Setup Activities from module exports
  * const { httpGet, otherActivity } = createActivityHandle<typeof activities>({
- *   type: 'remote',
  *   startToCloseTimeout: '30 minutes',
  * });
  *
@@ -356,7 +355,6 @@ function signalWorkflowNextHandler({ seq, signalName, args, target }: SignalWork
  *   httpGetFromJava,
  *   someOtherJavaActivity
  * } = createActivityHandle<JavaActivities>({
- *   type: 'remote',
  *   taskQueue: 'java-worker-taskQueue',
  *   startToCloseTimeout: '5m',
  * });
