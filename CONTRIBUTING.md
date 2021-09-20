@@ -72,7 +72,7 @@ In order to run integration tests:
 
 To replicate the `test-npm-init` CI test locally, you can start with the below steps:
 
-> If you've run `npx @temporalio/create` before, you may need to delete the version of the package that's stored in `/Users/<username>/.npm/_npx/`.
+> If you've run `npx @temporalio/create` before, you may need to delete the version of the package that's stored in `~/.npm/_npx/`.
 
 ```
 rm /tmp/registry/storage
