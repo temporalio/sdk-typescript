@@ -1,5 +1,9 @@
 import { promisify } from 'util';
+import { BehaviorSubject, lastValueFrom, of } from 'rxjs';
+import { concatMap, delay, map, repeat } from 'rxjs/operators';
 import { IllegalStateError } from '@temporalio/common';
+import * as native from '@temporalio/core-bridge';
+import { newCore, coreShutdown, TelemetryOptions, corePollLogs } from '@temporalio/core-bridge';
 import {
   ServerOptions,
   CompiledServerOptions,
@@ -7,11 +11,8 @@ import {
   compileServerOptions,
   normalizeTlsConfig,
 } from './server-options';
-import * as native from '@temporalio/core-bridge';
-import { newCore, coreShutdown, TelemetryOptions, corePollLogs } from '@temporalio/core-bridge';
 import { DefaultLogger, Logger } from './logger';
-import { BehaviorSubject, lastValueFrom, of, map, concatMap, repeat } from 'rxjs';
-import { delay, takeWhile } from 'rxjs/operators';
+import * as errors from './errors';
 
 export interface CoreOptions {
   /** Options for communicating with the Temporal server */
@@ -44,9 +45,9 @@ function defaultTelemetryOptions(): TelemetryOptions {
  */
 export class Core {
   /** Track the registered workers to automatically shutdown when all have been deregistered */
-  protected registeredWorkers = new Set<native.Worker>();
-  protected shouldPollForLogs = new BehaviorSubject<boolean>(false);
-  protected logPollPromise;
+  protected readonly registeredWorkers = new Set<native.Worker>();
+  protected readonly shouldPollForLogs = new BehaviorSubject<boolean>(false);
+  protected readonly logPollPromise: Promise<void>;
 
   protected constructor(public readonly native: native.Core, public readonly options: CompiledCoreOptions) {
     this.logPollPromise = this.initLogPolling(options, native);
@@ -88,8 +89,10 @@ export class Core {
       const logPromise = lastValueFrom(
         of(this.shouldPollForLogs).pipe(
           map((subject) => subject.getValue()),
-          takeWhile((shouldPoll) => shouldPoll),
-          concatMap(() => poll(native)),
+          concatMap((shouldPoll) => {
+            if (!shouldPoll) throw new errors.ShutdownError('Poll stop requested');
+            return poll(native);
+          }),
           map((logs) => {
             for (const log of logs) {
               if (log.level === 'TRACE') {
@@ -108,11 +111,15 @@ export class Core {
           delay(3), // Don't go wild polling as fast as possible
           repeat()
         )
-      );
-      // Prevent unhandled rejection
-      logPromise.catch((e) => options.logger.warn('Error gathering forwarded logs from core', e));
+      ).catch((error) => {
+        // Prevent unhandled rejection
+        if (error instanceof errors.ShutdownError) return;
+        options.logger.warn('Error gathering forwarded logs from core', { error });
+      });
       return logPromise;
     }
+    // Make sure to always return a Promise
+    return Promise.resolve();
   }
 
   protected static _instance?: Promise<Core>;
@@ -179,6 +186,7 @@ export class Core {
     if (this.registeredWorkers.size === 0) {
       this.shouldPollForLogs.next(false);
       await promisify(coreShutdown)(this.native);
+      await this.logPollPromise;
       delete Core._instance;
     }
   }
