@@ -44,13 +44,19 @@ export function overrideGlobals(): void {
 
   const OriginalDate = globalThis.Date;
 
-  global.Date = function () {
+  global.Date = function (...args: unknown[]) {
+    if (args.length > 0) {
+      return new (OriginalDate as any)(...args);
+    }
     return new OriginalDate(state.now);
   };
 
   global.Date.now = function () {
     return state.now;
   };
+
+  global.Date.parse = OriginalDate.parse.bind(OriginalDate);
+  global.Date.UTC = OriginalDate.UTC.bind(OriginalDate);
 
   global.Date.prototype = OriginalDate.prototype;
 
