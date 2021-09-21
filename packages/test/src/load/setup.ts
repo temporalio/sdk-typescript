@@ -38,11 +38,6 @@ async function waitOnNamespace(connection: Connection, namespace: string, maxAtt
   }
 }
 
-export interface SetupOptions {
-  serverAddress: string;
-  namespace: string;
-}
-
 async function main() {
   const args = arg<SetupArgSpec>(setupArgSpec);
 
