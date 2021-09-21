@@ -1,0 +1,21 @@
+agents:
+  queue: 'default'
+  docker: '*'
+
+steps:
+  - label: 'nightly-test'
+    timeout_in_minutes: 360
+    concurrency: 1 # Only allow one nightly build at a time
+    concurrency_group: 'node-sdk/nightly'
+    commands:
+      - '.buildkite/docker/build.sh'
+      - 'npm run ci-nightly'
+    artifact_paths:
+      - 'docker-compose-logs/*'
+    plugins:
+      - docker-compose#v3.8.0:
+          run: test-container
+          upload-container-logs: always
+          config:
+            - .buildkite/docker/docker-compose.yaml
+            - .buildkite/docker/docker-ci.yaml

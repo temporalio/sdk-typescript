@@ -1,6 +1,6 @@
 import arg from 'arg';
-import { range } from 'rxjs';
-import { bufferTime, mergeMap, take, tap } from 'rxjs/operators';
+import { range, ReplaySubject } from 'rxjs';
+import { bufferTime, mergeMap, tap, repeatWhen, takeWhile, repeat } from 'rxjs/operators';
 import { Connection, WorkflowClient } from '@temporalio/client';
 import { StarterArgSpec, starterArgSpec, getRequired } from './args';
 
@@ -8,11 +8,21 @@ async function runWorkflow(client: WorkflowClient, name: string, taskQueue: stri
   await client.execute({ taskQueue }, name);
 }
 
+class NumberOfWorkflows {
+  constructor(readonly num: number = 0) {}
+}
+
+class UntilSecondsElapsed {
+  constructor(readonly seconds: number = 0) {}
+}
+
 interface RunWorkflowOptions {
   client: WorkflowClient;
   workflowName: string;
   taskQueue: string;
-  numWorkflows: number;
+  // Run either the specified number of workflows, or continue running workflows
+  // for the provided number of seconds
+  stopCondition: NumberOfWorkflows | UntilSecondsElapsed;
   concurrency: number;
   minWFPS: number;
 }
@@ -21,7 +31,7 @@ async function runWorkflows({
   client,
   workflowName: name,
   taskQueue,
-  numWorkflows,
+  stopCondition,
   concurrency,
   minWFPS,
 }: RunWorkflowOptions): Promise<boolean> {
@@ -29,11 +39,47 @@ async function runWorkflows({
   let totalTime = 0;
   let numComplete = 0;
   let numCompletePrevIteration = 0;
-  await range(0, numWorkflows)
+  let runWfPromise = () => runWorkflow(client, name, taskQueue);
+
+  let observable;
+  let progressPrinter: () => void;
+
+  if (stopCondition instanceof NumberOfWorkflows) {
+    observable = range(0, stopCondition.num);
+
+    progressPrinter = () => process.stderr.write(`\rWFs complete (${numComplete}/${stopCondition.num})`);
+  } else {
+    const subj = new ReplaySubject<number>(concurrency);
+    [...Array(concurrency)].forEach(() => {
+      subj.next();
+    });
+    observable = subj;
+
+    runWfPromise = () =>
+      runWorkflow(client, name, taskQueue).then(() => {
+        subj.next();
+      });
+
+    progressPrinter = () =>
+      process.stderr.write(
+        `\rWFs complete (${numComplete}) starting new wfs for (${stopCondition.seconds - totalTime}) more seconds`
+      );
+  }
+
+  let stream = observable.pipe(
+    mergeMap(() => runWfPromise(), concurrency),
+    tap(() => void ++numComplete)
+  );
+
+  if (stopCondition instanceof UntilSecondsElapsed) {
+    stream = stream.pipe(
+      repeatWhen((obs) => obs),
+      takeWhile(() => totalTime <= stopCondition.seconds)
+    );
+  }
+
+  await stream
     .pipe(
-      take(numWorkflows),
-      mergeMap(() => runWorkflow(client, name, taskQueue), concurrency),
-      tap(() => void ++numComplete),
       bufferTime(1000),
       tap(() => {
         const numCompleteThisIteration = numComplete - numCompletePrevIteration;
@@ -43,11 +89,9 @@ async function runWorkflows({
         totalTime += dt;
         prevIterationTime = now;
         const wfsPerSecond = (numCompleteThisIteration / dt).toFixed(1);
-
         const overallWfsPerSecond = (numComplete / totalTime).toFixed(1);
-        process.stderr.write(
-          `\rWFs complete (${numComplete}/${numWorkflows}), WFs/s curr ${wfsPerSecond} (acc ${overallWfsPerSecond})  `
-        );
+        progressPrinter();
+        process.stderr.write(` -- WFs/s curr ${wfsPerSecond} (acc ${overallWfsPerSecond})            `);
         numCompletePrevIteration = numComplete;
       })
     )
@@ -66,6 +110,7 @@ async function main() {
   const args = arg<StarterArgSpec>(starterArgSpec);
   const workflowName = args['--workflow'] || 'cancelFakeProgress';
   const iterations = args['--iterations'] || 1000;
+  const runForSeconds = args['--for-seconds'];
   const concurrentWFClients = args['--concurrent-wf-clients'] || 100;
   const minWFPS = args['--min-wfs-per-sec'] || 35;
   const serverAddress = getRequired(args, '--server-address');
@@ -76,11 +121,13 @@ async function main() {
 
   const client = new WorkflowClient(connection.service, { namespace });
 
+  const stopCondition = runForSeconds ? new UntilSecondsElapsed(runForSeconds) : new NumberOfWorkflows(iterations);
+
   const passed = await runWorkflows({
     client,
     workflowName,
     taskQueue,
-    numWorkflows: iterations,
+    stopCondition,
     concurrency: concurrentWFClients,
     minWFPS,
   });

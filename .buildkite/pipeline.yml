@@ -4,9 +4,13 @@ steps:
       queue: 'default'
       docker: '*'
     timeout_in_minutes: 15
+    commands:
+      - '.buildkite/docker/build.sh'
+      - 'npm run ci-load'
     plugins:
       - docker-compose#v3.8.0:
-          run: load-test
+          run: test-container
+          upload-container-logs: on-error
           config:
             - .buildkite/docker/docker-compose.yaml
-            - .buildkite/docker/docker-compose-load.yaml
+            - .buildkite/docker/docker-ci.yaml

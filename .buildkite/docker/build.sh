@@ -13,5 +13,3 @@ npm ci
 # Try rebuilding once if it fails
 # TODO: Figure out whatever problem causes "common" package to not get compiled when it should
 npm run build || npm run build
-
-npm run ci-load
