@@ -5,6 +5,8 @@ async function main() {
   const { registryDir, initArgs } = await getArgs();
 
   await withRegistry(registryDir, async () => {
+    console.log('npm init @temporalio -- -v :');
+    spawnSync('npm', ['init', '@temporalio', '--', '-v'], { stdio: 'inherit' });
     console.log('spawning npm init with args: ', initArgs);
     const { status } = spawnSync('npm', ['init', '@temporalio', 'example'].concat(initArgs), {
       stdio: 'inherit',
