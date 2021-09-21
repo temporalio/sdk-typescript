@@ -10,4 +10,3 @@ export TEMPORAL_TESTING_SERVER_URL="temporal:7233"
 
 npm ci
 npm run build
-npm run ci-load
