@@ -28,7 +28,7 @@ if (RUN_INTEGRATION_TESTS) {
     {
       // Run a simple workflow
       const wf = connection.createWorkflowHandle(workflows.sleeper, { taskQueue: 'q2' });
-      await wf.start(1);
+      await wf.execute(1);
     }
     worker2.shutdown();
     await worker2Drained;

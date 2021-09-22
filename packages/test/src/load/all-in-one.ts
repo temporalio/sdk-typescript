@@ -38,6 +38,7 @@ async function main() {
     worker.on('exit', async (code) => {
       // If worker dies unceremoniously then also make sure we can exit and not hang
       if (code !== 0) {
+        console.error('Killing starter because worker exited nonzero');
         await kill(starter, 'SIGINT');
       }
     });
@@ -48,6 +49,6 @@ async function main() {
 }
 
 main().catch((err) => {
-  console.error(err);
+  console.error('Load all-in-one caught error', err);
   process.exit(1);
 });
