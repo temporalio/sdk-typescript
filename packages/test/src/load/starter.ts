@@ -1,6 +1,6 @@
 import arg from 'arg';
-import { range, ReplaySubject } from 'rxjs';
-import { bufferTime, mergeMap, tap, repeatWhen, takeWhile, repeat } from 'rxjs/operators';
+import { interval, range, Observable, OperatorFunction, ReplaySubject, pipe } from 'rxjs';
+import { bufferTime, map, mergeMap, tap, takeUntil } from 'rxjs/operators';
 import { Connection, WorkflowClient } from '@temporalio/client';
 import { StarterArgSpec, starterArgSpec, getRequired } from './args';
 
@@ -35,67 +35,39 @@ async function runWorkflows({
   concurrency,
   minWFPS,
 }: RunWorkflowOptions): Promise<boolean> {
-  let prevIterationTime = process.hrtime.bigint();
-  let totalTime = 0;
-  let numComplete = 0;
-  let numCompletePrevIteration = 0;
-  let runWfPromise = () => runWorkflow(client, name, taskQueue);
-
-  let observable;
-  let progressPrinter: () => void;
+  let observable: Observable<any>;
 
   if (stopCondition instanceof NumberOfWorkflows) {
-    observable = range(0, stopCondition.num);
-
-    progressPrinter = () => process.stderr.write(`\rWFs complete (${numComplete}/${stopCondition.num})`);
+    observable = range(0, stopCondition.num).pipe(
+      mergeMap(() => runWorkflow(client, name, taskQueue), concurrency),
+      followProgress(),
+      tap(({ numComplete, wfsPerSecond, overallWfsPerSecond }) =>
+        process.stderr.write(
+          `\rWFs complete (${numComplete}/${stopCondition.num}) -- WFs/s curr ${wfsPerSecond} (acc ${overallWfsPerSecond})  `
+        )
+      )
+    );
   } else {
-    const subj = new ReplaySubject<number>(concurrency);
-    [...Array(concurrency)].forEach(() => {
+    const subj = new ReplaySubject<void>(concurrency);
+    for (let i = 0; i < concurrency; ++i) {
       subj.next();
-    });
-    observable = subj;
+    }
 
-    runWfPromise = () =>
-      runWorkflow(client, name, taskQueue).then(() => {
-        subj.next();
-      });
-
-    progressPrinter = () =>
-      process.stderr.write(
-        `\rWFs complete (${numComplete}) starting new wfs for (${stopCondition.seconds - totalTime}) more seconds`
-      );
-  }
-
-  let stream = observable.pipe(
-    mergeMap(() => runWfPromise(), concurrency),
-    tap(() => void ++numComplete)
-  );
-
-  if (stopCondition instanceof UntilSecondsElapsed) {
-    stream = stream.pipe(
-      repeatWhen((obs) => obs),
-      takeWhile(() => totalTime <= stopCondition.seconds)
+    observable = subj.pipe(
+      takeUntil(interval(stopCondition.seconds * 1000)),
+      mergeMap(() => runWorkflow(client, name, taskQueue)),
+      tap(subj),
+      followProgress(),
+      tap(({ numComplete, wfsPerSecond, overallWfsPerSecond, totalTime }) => {
+        const secondsLeft = Math.max(Math.floor(stopCondition.seconds - totalTime), 0);
+        process.stderr.write(
+          `\rWFs complete (${numComplete}) starting new wfs for (${secondsLeft}) more seconds -- WFs/s curr ${wfsPerSecond} (acc ${overallWfsPerSecond})  `
+        );
+      })
     );
   }
 
-  await stream
-    .pipe(
-      bufferTime(1000),
-      tap(() => {
-        const numCompleteThisIteration = numComplete - numCompletePrevIteration;
-        const now = process.hrtime.bigint();
-        // delta time in seconds
-        const dt = Number(now - prevIterationTime) / 1_000_000_000;
-        totalTime += dt;
-        prevIterationTime = now;
-        const wfsPerSecond = (numCompleteThisIteration / dt).toFixed(1);
-        const overallWfsPerSecond = (numComplete / totalTime).toFixed(1);
-        progressPrinter();
-        process.stderr.write(` -- WFs/s curr ${wfsPerSecond} (acc ${overallWfsPerSecond})            `);
-        numCompletePrevIteration = numComplete;
-      })
-    )
-    .toPromise();
+  const { numComplete, totalTime } = await observable.toPromise();
   const finalWfsPerSec = numComplete / totalTime;
   if (finalWfsPerSec < minWFPS) {
     console.error(
@@ -104,6 +76,39 @@ async function runWorkflows({
     return false;
   }
   return true;
+}
+
+interface Progress {
+  numComplete: number;
+  totalTime: number;
+  /** Formatted number */
+  wfsPerSecond: string;
+  /** Formatted number */
+  overallWfsPerSecond: string;
+}
+
+function followProgress(): OperatorFunction<any, Progress> {
+  let prevIterationTime = process.hrtime.bigint();
+  let totalTime = 0;
+  let numComplete = 0;
+  let numCompletePrevIteration = 0;
+
+  return pipe(
+    tap(() => void ++numComplete),
+    bufferTime(1000),
+    map(() => {
+      const numCompleteThisIteration = numComplete - numCompletePrevIteration;
+      const now = process.hrtime.bigint();
+      // delta time in seconds
+      const dt = Number(now - prevIterationTime) / 1_000_000_000;
+      totalTime += dt;
+      prevIterationTime = now;
+      const wfsPerSecond = (numCompleteThisIteration / dt).toFixed(1);
+      const overallWfsPerSecond = (numComplete / totalTime).toFixed(1);
+      numCompletePrevIteration = numComplete;
+      return { numComplete, wfsPerSecond, overallWfsPerSecond, totalTime };
+    })
+  );
 }
 
 async function main() {

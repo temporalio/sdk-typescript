@@ -7,6 +7,7 @@ async function createNamespace(connection: Connection, namespace: string, maxAtt
   for (let attempt = 1; attempt <= maxAttempts; ++attempt) {
     try {
       await connection.service.registerNamespace({ namespace, workflowExecutionRetentionPeriod: msToTs('1 day') });
+      break;
     } catch (err: any) {
       if (err.details === 'Namespace already exists.') {
         break;
