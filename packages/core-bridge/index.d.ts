@@ -88,6 +88,14 @@ export interface TelemetryOptions {
   /** What level, if any, logs should be forwarded from core at */
   // These strings should match the log::LevelFilter enum in rust
   logForwardingLevel: 'OFF' | LogLevel;
+  /** If set, metrics will be exposed on an http server in this process for direct scraping by
+   *  prometheus. If used in conjunction with the OTel collector, metrics will *not* be exported
+   *  to the collector, but traces will be.
+   *
+   *  The string provided must be an address the server will bind to. For example, `0.0.0.0:1234`.
+   *  Metrics will be available for scraping under the standard `/metrics` route.
+   */
+  prometheusMetricsBindAddress?: string;
 }
 
 export interface WorkerOptions {

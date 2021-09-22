@@ -634,7 +634,7 @@ fn core_new(mut cx: FunctionContext) -> JsResult<JsUndefined> {
                     .unwrap()
                     .value(&mut cx),
             )
-            .unwrap()
+            .expect("`oTelCollectorUrl` in telemetry options must be valid")
         }),
         tracing_filter: get_optional(&mut cx, telem_options, "tracingFilter")
             .map(|x| {
@@ -644,6 +644,18 @@ fn core_new(mut cx: FunctionContext) -> JsResult<JsUndefined> {
             })
             .unwrap_or("".to_string()),
         log_forwarding_level,
+        prometheus_export_bind_address: get_optional(
+            &mut cx,
+            telem_options,
+            "prometheusMetricsBindAddress",
+        )
+        .map(|x| {
+            x.downcast_or_throw::<JsString, _>(&mut cx)
+                .unwrap()
+                .value(&mut cx)
+                .parse()
+                .expect("`prometheusMetricsBindAddress` in telemetry options must be valid")
+        }),
     };
 
     let callback = cx.argument::<JsFunction>(1)?.root(&mut cx);

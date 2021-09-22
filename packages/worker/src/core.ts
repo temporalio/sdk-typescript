@@ -3,13 +3,13 @@ import { BehaviorSubject, lastValueFrom, of } from 'rxjs';
 import { concatMap, delay, map, repeat } from 'rxjs/operators';
 import { IllegalStateError } from '@temporalio/common';
 import * as native from '@temporalio/core-bridge';
-import { newCore, coreShutdown, TelemetryOptions, corePollLogs } from '@temporalio/core-bridge';
+import { corePollLogs, coreShutdown, newCore, TelemetryOptions } from '@temporalio/core-bridge';
 import {
-  ServerOptions,
   CompiledServerOptions,
-  getDefaultServerOptions,
   compileServerOptions,
+  getDefaultServerOptions,
   normalizeTlsConfig,
+  ServerOptions,
 } from './server-options';
 import { DefaultLogger, Logger } from './logger';
 import * as errors from './errors';
@@ -86,7 +86,7 @@ export class Core {
 
     if (options.telemetryOptions?.logForwardingLevel !== 'OFF') {
       const poll = promisify(corePollLogs);
-      const logPromise = lastValueFrom(
+      return lastValueFrom(
         of(this.shouldPollForLogs).pipe(
           map((subject) => subject.getValue()),
           concatMap((shouldPoll) => {
@@ -116,7 +116,6 @@ export class Core {
         if (error instanceof errors.ShutdownError) return;
         options.logger.warn('Error gathering forwarded logs from core', { error });
       });
-      return logPromise;
     }
     // Make sure to always return a Promise
     return Promise.resolve();
