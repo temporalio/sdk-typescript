@@ -99,7 +99,7 @@ async function getArgs() {
     { permissive: true }
   );
   const registryDir = opts['--registry-dir'] || (await createTempRegistryDir());
-  return { registryDir, initArgs: opts._.length > 0 ? ['--', ...opts._] : [] };
+  return { registryDir, initArgs: opts._.length > 0 ? opts._ : [] };
 }
 
 module.exports = { getArgs, withRegistry };

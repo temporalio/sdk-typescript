@@ -6,9 +6,8 @@ async function main() {
 
   await withRegistry(registryDir, async () => {
     console.log('npm init @temporalio -- -v :');
-    spawnSync('npm', ['init', '@temporalio', '--', '-v'], { stdio: 'inherit' });
-    console.log('spawning npm init with args: ', initArgs);
-    const { status } = spawnSync('npm', ['init', '@temporalio', 'example'].concat(initArgs), {
+    console.log('spawning npx @temporalio/create with args:', initArgs);
+    const { status } = spawnSync('npx', ['@temporalio/create', 'example'].concat(initArgs), {
       stdio: 'inherit',
       cwd: registryDir,
       env: { ...process.env, NPM_CONFIG_REGISTRY: 'http://localhost:4873/' },
