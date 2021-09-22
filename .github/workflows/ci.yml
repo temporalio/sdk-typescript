@@ -35,7 +35,7 @@ jobs:
       - run: npm run build
       - run: npm run lint
       - name: Get Temporal docker-compose.yml
-        run: wget https://raw.githubusercontent.com/temporalio/docker-compose/v1.11.3/docker-compose.yml
+        run: wget https://raw.githubusercontent.com/temporalio/docker-compose/v1.12.1/docker-compose.yml
         if: ${{ startsWith(matrix.os, 'ubuntu') }}
       - name: Start Temporal Server
         run: docker-compose up -d

@@ -17,11 +17,11 @@ async function main(maxAttempts = 100, retryIntervalSecs = 1) {
       // Workaround for describeNamespace returning even though namespace is not registered yet
       // See: https://github.com/temporalio/temporal/issues/1336
       await client.service.getWorkflowExecutionHistory({
-        namespace: 'default',
+        namespace: 'defaulzt',
         execution: { workflowId: 'fake', runId: '26323773-ab30-4442-9a20-c5640b31a7a3' },
       });
     } catch (err) {
-      if (err.details === 'Requested workflow history not found, may have passed retention period.') {
+      if (err.details.includes('workflow history not found') || err.details.includes('operation GetCurrentExecution')) {
         break;
       }
       if (attempt === maxAttempts) {

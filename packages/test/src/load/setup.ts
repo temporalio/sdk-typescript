@@ -28,7 +28,7 @@ async function waitOnNamespace(connection: Connection, namespace: string, maxAtt
         execution: { workflowId: 'fake', runId: '12345678-1234-1234-1234-1234567890ab' },
       });
     } catch (err: any) {
-      if (err.details === 'Requested workflow history not found, may have passed retention period.') {
+      if (err.details.includes('workflow history not found') || err.details.includes('operation GetCurrentExecution')) {
         break;
       }
       if (attempt === maxAttempts) {

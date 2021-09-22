@@ -10,7 +10,7 @@ import type * as activities from '../activities';
 
 const { fakeProgress } = createActivityHandle<typeof activities>({
   startToCloseTimeout: '200s',
-  heartbeatTimeout: '2s',
+  heartbeatTimeout: '3s',
   cancellationType: ActivityCancellationType.WAIT_CANCELLATION_COMPLETED,
 });
 

@@ -1,6 +1,7 @@
 import * as grpc from '@grpc/grpc-js';
 import { temporal } from '@temporalio/proto';
 import { TLSConfig, normalizeTlsConfig } from '@temporalio/common';
+import { defaultGrpcRetryOptions, makeGrpcRetryInterceptor } from './grpc-retry';
 
 export type WorkflowService = temporal.api.workflowservice.v1.WorkflowService;
 export const { WorkflowService } = temporal.api.workflowservice.v1;
@@ -39,6 +40,14 @@ export interface ConnectionOptions {
    * @see options {@link https://grpc.github.io/grpc/core/group__grpc__arg__keys.html | here}
    */
   channelArgs?: Record<string, any>;
+
+  /**
+   * Grpc interceptors which will be applied to every RPC call performed by this connection. By
+   * default, an interceptor will be included which automatically retries retryable errors. If you
+   * do not wish to perform automatic retries, set this to an empty list (or a list with your own
+   * interceptors).
+   */
+  interceptors?: grpc.Interceptor[];
 }
 
 export type ConnectionOptionsWithDefaults = Required<Omit<ConnectionOptions, 'tls'>>;
@@ -50,6 +59,7 @@ export function defaultConnectionOpts(): ConnectionOptionsWithDefaults {
     address: LOCAL_DOCKER_TARGET,
     credentials: grpc.credentials.createInsecure(),
     channelArgs: {},
+    interceptors: [makeGrpcRetryInterceptor(defaultGrpcRetryOptions())],
   };
 }
 
@@ -116,7 +126,7 @@ export class Connection {
         requestData,
         // TODO: allow adding metadata and call options
         new grpc.Metadata(),
-        {},
+        { interceptors: this.options.interceptors },
         callback
       );
     };

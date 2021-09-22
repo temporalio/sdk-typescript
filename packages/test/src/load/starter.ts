@@ -3,6 +3,7 @@ import { interval, range, Observable, OperatorFunction, ReplaySubject, pipe } fr
 import { bufferTime, map, mergeMap, tap, takeUntil } from 'rxjs/operators';
 import { Connection, WorkflowClient } from '@temporalio/client';
 import { StarterArgSpec, starterArgSpec, getRequired } from './args';
+import * as os from 'os';
 
 async function runWorkflow(client: WorkflowClient, name: string, taskQueue: string) {
   await client.execute({ taskQueue }, name);
@@ -61,7 +62,9 @@ async function runWorkflows({
       tap(({ numComplete, wfsPerSecond, overallWfsPerSecond, totalTime }) => {
         const secondsLeft = Math.max(Math.floor(stopCondition.seconds - totalTime), 0);
         process.stderr.write(
-          `\rWFs complete (${numComplete}) starting new wfs for (${secondsLeft}) more seconds -- WFs/s curr ${wfsPerSecond} (acc ${overallWfsPerSecond})  `
+          `\rWFs complete (${numComplete}) starting new wfs for (${secondsLeft.toFixed(
+            1
+          )}s) more -- WFs/s curr ${wfsPerSecond} (acc ${overallWfsPerSecond}) -- MEM (${os.freemem()}/${os.totalmem()})`
         );
       })
     );
@@ -137,6 +140,7 @@ async function main() {
     minWFPS,
   });
   if (!passed) {
+    console.error('Load test did not pass');
     process.exit(1);
   }
 }

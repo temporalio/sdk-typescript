@@ -13,4 +13,4 @@ steps:
           upload-container-logs: on-error
           config:
             - .buildkite/docker/docker-compose.yaml
-            - .buildkite/docker/docker-ci.yaml
+            - .buildkite/docker/docker-compose-ci.yaml
