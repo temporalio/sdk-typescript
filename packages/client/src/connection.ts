@@ -1,6 +1,7 @@
 import * as grpc from '@grpc/grpc-js';
 import { temporal } from '@temporalio/proto';
 import { TLSConfig, normalizeTlsConfig } from '@temporalio/common';
+import { GrpcRetry } from './grpc-retry';
 
 export type WorkflowService = temporal.api.workflowservice.v1.WorkflowService;
 export const { WorkflowService } = temporal.api.workflowservice.v1;
@@ -116,7 +117,7 @@ export class Connection {
         requestData,
         // TODO: allow adding metadata and call options
         new grpc.Metadata(),
-        {},
+        { interceptors: [GrpcRetry] },
         callback
       );
     };
