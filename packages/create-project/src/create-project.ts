@@ -24,11 +24,13 @@ export class DownloadError extends Error {}
 export async function createApp({
   appPath,
   useYarn,
+  useGit,
   sample,
   samplePath,
 }: {
   appPath: string;
   useYarn: boolean;
+  useGit: boolean;
   sample: string;
   samplePath?: string;
 }): Promise<void> {
@@ -172,7 +174,7 @@ export async function createApp({
 
   console.log();
 
-  if (await tryGitInit(root)) {
+  if (await tryGitInit(root, useGit)) {
     console.log('Initialized a git repository.');
     console.log();
   }

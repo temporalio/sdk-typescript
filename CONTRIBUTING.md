@@ -77,11 +77,12 @@ To replicate the `test-npm-init` CI test locally, you can start with the below s
 ```
 rm /tmp/registry/storage
 npm ci
-npm run build
+npm run rebuild
 node scripts/publish-to-verdaccio.js --registry-dir /tmp/registry
 node scripts/init-from-verdaccio.js --registry-dir /tmp/registry --sample hello-world
 cd /tmp/registry/example
 npm run build
+node ~/path-to/sdk-node/scripts/test-example.js --work-dir /tmp/registry/example
 ```
 
 ### Style Guide

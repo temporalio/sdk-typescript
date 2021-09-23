@@ -17,13 +17,6 @@ const program = new Command(packageJson.name)
   .arguments('[project-directory]')
   .usage(`${chalk.green('[project-directory]')} [options]`)
   .option(
-    '--use-yarn',
-    `
-
-  Use yarn instead of npm
-`
-  )
-  .option(
     '-s, --sample <name|github-url>',
     `
 
@@ -47,6 +40,20 @@ const program = new Command(packageJson.name)
     `
 
   Print available sample projects
+`
+  )
+  .option(
+    '--use-yarn',
+    `
+
+  Use yarn instead of npm
+`
+  )
+  .option(
+    '--use-git',
+    `
+
+  Initialize a git repository
 `
   )
   .allowUnknownOption()
@@ -146,6 +153,7 @@ async function start(): Promise<void> {
   await createApp({
     appPath: resolvedProjectPath,
     useYarn: !!opts.useYarn,
+    useGit: !!opts.useGit,
     sample: sample.trim(),
     samplePath: typeof opts.samplePath === 'string' ? opts.samplePath.trim() : undefined,
   });

@@ -38,12 +38,14 @@ function isInMercurialRepository(): boolean {
   }
 }
 
-export async function tryGitInit(root: string): Promise<boolean> {
+export async function tryGitInit(root: string, useGit: boolean): Promise<boolean> {
   let didInit = false;
   const exec = (command: string) => execSync(command, { stdio: 'ignore', cwd: root });
 
   try {
-    if (isInGitRepository() || isInMercurialRepository()) {
+    // If user didn't include --use-git, and they might be in an existing repo,
+    // ask before `git init`ing
+    if (!useGit && (isInGitRepository() || isInMercurialRepository())) {
       const res = await prompts({
         type: 'confirm',
         name: 'shouldInit',

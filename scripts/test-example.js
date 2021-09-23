@@ -6,7 +6,7 @@ const { shell, kill } = require('./utils');
 const npm = /^win/.test(process.platform) ? 'npm.cmd' : 'npm';
 
 function createWorker(workdir) {
-  return spawnChild(npm, ['start'], {
+  return spawnChild(npm, ['run', 'worker'], {
     cwd: workdir,
     stdio: 'inherit',
     shell,
@@ -25,7 +25,7 @@ async function withWorker(workdir, fn) {
 }
 
 async function test(workdir) {
-  const { status, output } = spawnSync('node', [path.join(workdir, 'lib/execute-workflow.js')], {
+  const { status, output } = spawnSync('node', [path.join(workdir, 'lib/starter/index.js')], {
     cwd: workdir,
     shell,
     encoding: 'utf8',
