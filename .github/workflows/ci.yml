@@ -130,12 +130,12 @@ jobs:
         with:
           name: packages
           path: /tmp/registry/storage
-      # The 2 steps below run npm init @temporalio from a local registry with different samples
+      # The 2 steps below run npx @temporalio/example from a local registry with different samples
       - run: node scripts/init-from-verdaccio.js --registry-dir /tmp/registry --sample hello-world
-        if: ${{ matrix.server == 'local' }}
+        # if: ${{ matrix.server == 'local' }}
       # - run: node scripts/init-from-verdaccio.js --registry-dir /tmp/registry --sample hello-world-mtls
       #   if: ${{ matrix.server == 'cloud' }}
-      # - name: Compile Typescript in example project
+      - name: Compile Typescript in example project
         run: npm run build
         working-directory: /tmp/registry/example
       - name: Get Temporal docker-compose.yml
