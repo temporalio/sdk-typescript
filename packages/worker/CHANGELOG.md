@@ -3,6 +3,23 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+# [0.10.0](https://github.com/temporalio/sdk-node/compare/@temporalio/worker@0.9.0...@temporalio/worker@0.10.0) (2021-09-23)
+
+
+### Bug Fixes
+
+* **core:** Fix log gather error on shutdown ([01653fa](https://github.com/temporalio/sdk-node/commit/01653fa80079581edae3968b8b408389e2c33e30))
+
+
+### Features
+
+* Ability to import logs from core ([a9621d1](https://github.com/temporalio/sdk-node/commit/a9621d1a891fd55d251f7003c4615429c8fe7384))
+* Expose option to enable direct prometheus scraping ([e08ffad](https://github.com/temporalio/sdk-node/commit/e08ffada21ea2fe10071e1cd36683ee4573185f7))
+
+
+
+
+
 # [0.9.0](https://github.com/temporalio/sdk-node/compare/@temporalio/worker@0.8.0...@temporalio/worker@0.9.0) (2021-09-15)
 
 

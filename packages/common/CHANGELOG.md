@@ -3,6 +3,32 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+# [0.4.0](https://github.com/temporalio/sdk-node/compare/@temporalio/common@0.3.0...@temporalio/common@0.4.0) (2021-09-23)
+
+
+### Features
+
+* **client:** Follow Workflow execution chain ([2d7d0ff](https://github.com/temporalio/sdk-node/commit/2d7d0ff6ca155008fc9eeb41e271339ab478db38))
+
+
+### BREAKING CHANGES
+
+* **client:** `WorkflowClient.result()` and
+`WorkflowClient.createWorkflowStub()` override for attaching to an
+existing Workflow now takes an object with `workflowId` and optional
+`runId` instead of 2 strings.
+
+`workflowDefaults` added to `WorkflowClientOptions`, if provided they
+will be merged with per-method and per-handle options.
+
+`WorkflowOptions` takes a `followRuns` boolean option which defaults to
+`true`, it determines whether or not the client will follow the Workflow
+execution chain when getting a Workflow's result.
+
+
+
+
+
 # [0.3.0](https://github.com/temporalio/sdk-node/compare/@temporalio/common@0.2.0...@temporalio/common@0.3.0) (2021-09-15)
 
 
