@@ -75,7 +75,7 @@ To replicate the `test-npm-init` CI test locally, you can start with the below s
 > If you've run `npx @temporalio/create` before, you may need to delete the version of the package that's stored in `~/.npm/_npx/`.
 
 ```
-rm /tmp/registry/storage
+rm -rf /tmp/registry
 npm ci
 npm run rebuild
 node scripts/publish-to-verdaccio.js --registry-dir /tmp/registry
