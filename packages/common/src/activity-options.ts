@@ -4,27 +4,10 @@ import { RetryOptions } from './interfaces';
 export const ActivityCancellationType = coresdk.workflow_commands.ActivityCancellationType;
 
 /**
- * Options for local activity invocation - will be processed by the worker running the calling workflow.
- *
- * **Not yet implemented**
- */
-export interface LocalActivityOptions {
-  /**
-   * Indicates this is a local activity invocation
-   */
-  type: 'local';
-}
-
-/**
  * Options for remote activity invocation - will be processed from a task queue.
  * @see https://www.javadoc.io/doc/io.temporal/temporal-sdk/latest/io/temporal/activity/ActivityOptions.Builder.html
  */
-export interface RemoteActivityOptions {
-  /**
-   * Indicates this is a remote activity invocation.
-   */
-  type: 'remote';
-
+export interface ActivityOptions {
   /**
    * Identifier to use for tracking the activity in Workflow history.
    * The `activityId` can be accessed by the activity function.
@@ -94,11 +77,6 @@ Note that the Temporal Server doesn't detect Worker process failures directly. I
    */
   cancellationType?: coresdk.workflow_commands.ActivityCancellationType;
 }
-
-/**
- * Used to configure the way activities are run
- */
-export type ActivityOptions = RemoteActivityOptions | LocalActivityOptions;
 
 export interface ActivityFunction<P extends any[], R> {
   (...args: P): Promise<R>;

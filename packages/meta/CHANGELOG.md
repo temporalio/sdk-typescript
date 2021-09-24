@@ -3,6 +3,25 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+## [0.4.3](https://github.com/temporalio/sdk-node/compare/temporalio@0.4.2...temporalio@0.4.3) (2021-09-23)
+
+**Note:** Version bump only for package temporalio
+
+
+
+
+
+## [0.4.2](https://github.com/temporalio/sdk-node/compare/temporalio@0.4.1...temporalio@0.4.2) (2021-09-15)
+
+
+### Bug Fixes
+
+* Add all dependencies to meta, interceptors and test packages ([8b490a7](https://github.com/temporalio/sdk-node/commit/8b490a725f51b9f1222248457fe3b7c2546e0921))
+
+
+
+
+
 ## [0.4.1](https://github.com/temporalio/sdk-node/compare/temporalio@0.4.0...temporalio@0.4.1) (2021-08-31)
 
 **Note:** Version bump only for package temporalio

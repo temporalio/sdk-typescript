@@ -10,11 +10,7 @@ import {
   addDefaults,
   errors,
 } from '@temporalio/worker/lib/worker';
-import { WorkflowIsolateBuilder } from '@temporalio/worker/lib/isolate-builder';
-import {
-  IsolateContextProvider,
-  RoundRobinIsolateContextProvider,
-} from '@temporalio/worker/lib/isolate-context-provider';
+import { IsolateContextProvider } from '@temporalio/worker/lib/isolate-context-provider';
 import { DefaultLogger } from '@temporalio/worker';
 import { sleep } from '@temporalio/worker/lib/utils';
 // We import from the worker's version of rxjs because inquirer (transitive dependency) uses an older rxjs version
@@ -49,6 +45,7 @@ export class MockNativeWorker implements NativeWorkerLike {
   activityHeartbeatCallback?: (taskToken: Uint8Array, details: any) => void;
   reject?: (err: Error) => void;
   namespace = 'mock';
+  logger = new DefaultLogger('DEBUG');
 
   public static async create(): Promise<NativeWorkerLike> {
     return new this();
@@ -105,10 +102,6 @@ export class MockNativeWorker implements NativeWorkerLike {
       const buffer = arr.buffer.slice(arr.byteOffset, arr.byteOffset + arr.byteLength);
       this.activityTasks.unshift(Promise.resolve(buffer));
     }
-  }
-
-  public emitWorkflowError(error: Error): void {
-    this.workflowActivations.unshift(Promise.reject(error));
   }
 
   public async runWorkflowActivation(
@@ -175,18 +168,6 @@ export const defaultOptions: WorkerOptions = {
   nodeModulesPath: `${__dirname}/../../../node_modules`,
   taskQueue: 'test',
 };
-
-export async function makeDefaultWorker(): Promise<Worker> {
-  const options = compileWorkerOptions(
-    addDefaults({
-      ...defaultOptions,
-      logger: new DefaultLogger('DEBUG'),
-    })
-  );
-  const builder = new WorkflowIsolateBuilder(options.logger, options.nodeModulesPath!, options.workflowsPath!);
-  const provider = await RoundRobinIsolateContextProvider.create(builder, 1, 1024);
-  return new Worker(provider, options);
-}
 
 export function isolateFreeWorker(options: WorkerOptions = defaultOptions): Worker {
   return new Worker(

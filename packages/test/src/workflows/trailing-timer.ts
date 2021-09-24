@@ -5,8 +5,7 @@ async function execute(): Promise<string> {
   return await Promise.race([
     sleep(1).then(() => 'first'),
     sleep(1).then(() => {
-      // This should never be executed
-      console.log('trailing timer triggered after workflow completed');
+      // This generates a command that will **not** be executed
       sleep(0);
       return 'second';
     }),

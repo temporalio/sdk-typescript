@@ -5,8 +5,8 @@
 
 import {
   CancellationScope,
-  newChildWorkflowStub,
-  newExternalWorkflowStub,
+  createChildWorkflowHandle,
+  createExternalWorkflowHandle,
   isCancellation,
   rootCause,
   uuid4,
@@ -22,14 +22,14 @@ export const childWorkflowSignals: Empty = () => ({
     /// Signal child WF tests
     {
       // Happy path
-      const child = newChildWorkflowStub(signalTarget);
+      const child = createChildWorkflowHandle(signalTarget);
       await child.start();
       await child.signal.unblock();
       await child.result();
     }
     {
       // Cancel signal
-      const child = newChildWorkflowStub(signalTarget);
+      const child = createChildWorkflowHandle(signalTarget);
       await child.start();
 
       try {
@@ -51,7 +51,7 @@ export const childWorkflowSignals: Empty = () => ({
     }
     {
       // Signal before start
-      const child = newChildWorkflowStub(signalTarget);
+      const child = createChildWorkflowHandle(signalTarget);
       try {
         await child.signal.unblock();
         throw new Error('Signal did not throw');
@@ -65,17 +65,17 @@ export const childWorkflowSignals: Empty = () => ({
     /// Signal external WF tests
     {
       // Happy path
-      const child = newChildWorkflowStub(signalTarget);
+      const child = createChildWorkflowHandle(signalTarget);
       const runId = await child.start();
-      const external = newExternalWorkflowStub<typeof signalTarget>(child.workflowId, runId);
+      const external = createExternalWorkflowHandle<typeof signalTarget>(child.workflowId, runId);
       await external.signal.unblock();
       await child.result();
     }
     {
       // Cancel signal
-      const child = newChildWorkflowStub(signalTarget);
+      const child = createChildWorkflowHandle(signalTarget);
       const runId = await child.start();
-      const external = newExternalWorkflowStub<typeof signalTarget>(child.workflowId, runId);
+      const external = createExternalWorkflowHandle<typeof signalTarget>(child.workflowId, runId);
 
       try {
         await CancellationScope.cancellable(async () => {
@@ -96,7 +96,9 @@ export const childWorkflowSignals: Empty = () => ({
     }
     {
       // No such WF
-      const external = newExternalWorkflowStub<typeof signalTarget>('some-workflow-id-that-doesnt-exist-' + uuid4());
+      const external = createExternalWorkflowHandle<typeof signalTarget>(
+        'some-workflow-id-that-doesnt-exist-' + uuid4()
+      );
 
       try {
         await external.signal.unblock();

@@ -43,7 +43,7 @@ import * as errors from './errors';
 import { childSpan, instrument, tracer } from './tracing';
 import { InjectedDependencies, getIvmTransferOptions } from './dependencies';
 import { ActivityExecuteInput, WorkerInterceptors } from './interceptors';
-export { RetryOptions, RemoteActivityOptions, IllegalStateError, LocalActivityOptions } from '@temporalio/common';
+export { RetryOptions, IllegalStateError } from '@temporalio/common';
 export { ActivityOptions, DataConverter, defaultDataConverter, errors };
 import { Core } from './core';
 
@@ -77,11 +77,6 @@ export interface WorkerOptions {
    * The task queue the worker will pull from
    */
   taskQueue: string;
-
-  /**
-   * Custom logger for the worker, by default we log everything to stderr
-   */
-  logger?: Logger;
 
   /**
    * If provided, automatically discover Workflows and Activities relative to path.
@@ -243,7 +238,6 @@ export type WorkerOptionsWithDefaults<T extends WorkerSpec = DefaultWorkerSpec> 
       | 'shutdownGraceTime'
       | 'shutdownSignals'
       | 'dataConverter'
-      | 'logger'
       | 'maxConcurrentActivityTaskExecutions'
       | 'maxConcurrentWorkflowTaskExecutions'
       | 'maxConcurrentActivityTaskPolls'
@@ -281,7 +275,7 @@ export function addDefaults<T extends WorkerSpec>(options: WorkerSpecOptions<T>)
   // Typescript is really struggling with the conditional exisitence of the dependencies attribute.
   // Help it out without sacrificing type safety of the other attributes.
   const ret: Omit<WorkerOptionsWithDefaults<T>, 'dependencies'> = {
-    activities: workDir ? require(resolve(workDir, 'activities')) : undefined,
+    activities: workDir && !('activities' in rest) ? require(resolve(workDir, 'activities')) : undefined,
     workflowsPath: workDir ? resolve(workDir, 'workflows') : undefined,
     nodeModulesPath: workDir ? resolve(workDir, '../node_modules') : undefined,
     shutdownGraceTime: '5s',
@@ -361,6 +355,7 @@ export interface NativeWorkerLike {
   completeActivityTask: Promisify<OmitFirstParam<typeof native.workerCompleteActivityTask>>;
   recordActivityHeartbeat: OmitFirstParam<typeof native.workerRecordActivityHeartbeat>;
   namespace: string;
+  logger: Logger;
 }
 
 export interface WorkerConstructor {
@@ -396,6 +391,10 @@ export class NativeWorker implements NativeWorkerLike {
 
   public get namespace(): string {
     return this.core.options.serverOptions.namespace;
+  }
+
+  public get logger(): Logger {
+    return this.core.options.logger;
   }
 }
 
@@ -440,7 +439,7 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
     }
     if (compiledOptions.workflowsPath && compiledOptions.nodeModulesPath) {
       const builder = new WorkflowIsolateBuilder(
-        compiledOptions.logger,
+        nativeWorker.logger,
         compiledOptions.nodeModulesPath,
         compiledOptions.workflowsPath,
         compiledOptions.interceptors?.workflowModules
@@ -489,7 +488,7 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
   }
 
   protected get log(): Logger {
-    return this.options.logger;
+    return this.nativeWorker.logger;
   }
 
   /**
@@ -617,7 +616,9 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
                         result: {
                           failed: {
                             failure: {
-                              message: `Activity function ${activityType} is not registered in this worker`,
+                              message: `Activity function ${activityType} is not registered on this Worker, available activities: ${JSON.stringify(
+                                Object.keys(this.options.activities ?? {})
+                              )}`,
                               applicationFailureInfo: { type: 'NotFoundError', nonRetryable: true },
                             },
                           },
@@ -649,7 +650,7 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
                       };
                       break;
                     }
-                    const headers = new Map(Object.entries(task.start?.headerFields ?? {}));
+                    const headers = task.start?.headerFields ?? {};
                     const input = {
                       args,
                       headers,
@@ -786,20 +787,26 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
 
                   if (workflow === undefined) {
                     // Find a workflow start job in the activation jobs list
-                    // TODO: should this always be the first job in the list?
                     const maybeStartWorkflow = activation.jobs.find((j) => j.startWorkflow);
                     if (maybeStartWorkflow !== undefined) {
-                      const attrs = maybeStartWorkflow.startWorkflow;
-                      if (!(attrs && attrs.workflowId && attrs.workflowType && attrs.randomnessSeed)) {
+                      const startWorkflow = maybeStartWorkflow.startWorkflow;
+                      if (
+                        !(
+                          startWorkflow &&
+                          startWorkflow.workflowId &&
+                          startWorkflow.workflowType &&
+                          startWorkflow.randomnessSeed
+                        )
+                      ) {
                         throw new TypeError(
                           `Expected StartWorkflow with workflowId, workflowType and randomnessSeed, got ${JSON.stringify(
                             maybeStartWorkflow
                           )}`
                         );
                       }
-                      const { workflowId, randomnessSeed, workflowType } = attrs;
+                      const { workflowId, randomnessSeed, workflowType } = startWorkflow;
                       this.log.debug('Creating workflow', {
-                        workflowId: attrs.workflowId,
+                        workflowId,
                         runId: activation.runId,
                       });
                       this.numRunningWorkflowInstancesSubject.next(this.numRunningWorkflowInstancesSubject.value + 1);
@@ -819,6 +826,7 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
                           },
                           this.options.interceptors?.workflowModules ?? [],
                           randomnessSeed,
+                          startWorkflow,
                           this.options.isolateExecutionTimeoutMs
                         );
                       });

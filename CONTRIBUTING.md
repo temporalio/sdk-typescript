@@ -23,8 +23,7 @@ See [sdk-structure.md](./docs/sdk-structure.md)
   ```
 - Initialize the Core SDK submodule:
   ```sh
-  git submodule init
-  git submodule update
+  git submodule update --init --recursive
   ```
   > If you get a `The authenticity of host 'github.com (192.30.252.123)' can't be established.` error, run `ssh-keyscan github.com >> ~/.ssh/known_hosts` and retry.
 - Install the dependencies:

@@ -21,7 +21,7 @@ export const interceptors = (): WorkflowInterceptors => ({
   internals: [
     {
       activate(input, next) {
-        logger.log(`activate: ${input.jobIndex}`);
+        logger.log(`activate: ${input.batchIndex}`);
         return next(input);
       },
     },

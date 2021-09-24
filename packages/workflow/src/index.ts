@@ -14,7 +14,7 @@
  *
  * ### Activities
  *
- * To schedule Activities, use {@link configureActivities} to obtain an Activity function and call.
+ * To schedule Activities, use {@link createActivityHandle} to obtain an Activity function and call.
  *
  * <!--SNIPSTART nodejs-schedule-activity-workflow-->
  * <!--SNIPEND-->
@@ -59,8 +59,6 @@ export {
   ActivityFunction,
   ActivityInterface,
   ActivityOptions,
-  LocalActivityOptions,
-  RemoteActivityOptions,
   RetryOptions,
   rootCause,
   IllegalStateError,
@@ -76,7 +74,7 @@ export {
   TerminatedFailure,
   TimeoutFailure,
 } from '@temporalio/common';
-export { ActivationJobResult, ChildWorkflowOptions, ChildWorkflowCancellationType, WorkflowInfo } from './interfaces';
+export { ChildWorkflowOptions, ChildWorkflowCancellationType, WorkflowInfo } from './interfaces';
 export * from './errors';
 export * from './workflow';
 export * from './interceptors';
@@ -90,4 +88,4 @@ export {
   ExternalDependency,
   ExternalDependencies,
 } from './dependencies';
-export { ChildWorkflowStub, ExternalWorkflowStub } from './workflow-stub';
+export { ChildWorkflowHandle, ExternalWorkflowHandle } from './workflow-handle';

@@ -13,9 +13,9 @@ import * as activityFunctions from './activities';
 import { u8 } from './helpers';
 
 export interface Context {
-  workflow: Workflow;
+  workflow?: Workflow;
   logs: unknown[][];
-  script: string;
+  workflowType: string;
   contextProvider: RoundRobinIsolateContextProvider;
 }
 
@@ -37,6 +37,14 @@ test.beforeEach(async (t) => {
   const { contextProvider } = t.context;
   // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
   const testName = t.title.match(/\S+$/)![0];
+  const logs: unknown[][] = [];
+  t.context = { logs, workflowType: testName, contextProvider };
+});
+
+async function createWorkflow(t: ExecutionContext<Context>, startWorkflow: coresdk.workflow_activation.IStartWorkflow) {
+  const { logs, contextProvider } = t.context;
+  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+  const testName = t.title.match(/\S+$/)![0];
   const workflow = await Workflow.create(
     await contextProvider.getContext(),
     {
@@ -49,17 +57,26 @@ test.beforeEach(async (t) => {
     },
     [],
     Long.fromInt(1337),
+    startWorkflow,
     100
   );
-  const logs: unknown[][] = [];
   await workflow.injectGlobal('console.log', (...args: unknown[]) => void logs.push(args), ApplyMode.SYNC);
-  t.context = { workflow, logs, script: testName, contextProvider };
-});
+  return workflow;
+}
 
 async function activate(t: ExecutionContext<Context>, activation: coresdk.workflow_activation.IWFActivation) {
-  const arr = await t.context.workflow.activate(activation);
+  let workflow = t.context.workflow;
+  if (workflow === undefined) {
+    const [{ startWorkflow }] = activation.jobs ?? [{}];
+    if (!startWorkflow) {
+      throw new TypeError('Expected first activation job to be startWorkflow');
+    }
+    workflow = await createWorkflow(t, startWorkflow);
+    t.context.workflow = workflow;
+  }
+  const arr = await workflow.activate(activation);
   const completion = coresdk.workflow_completion.WFActivationCompletion.decodeDelimited(arr);
-  t.deepEqual(completion.runId, t.context.workflow.info.runId);
+  t.deepEqual(completion.runId, workflow.info.runId);
   return completion;
 }
 
@@ -72,7 +89,7 @@ function compareCompletion(
     req.toJSON(),
     new coresdk.workflow_completion.WFActivationCompletion({
       ...expected,
-      runId: t.context.workflow.info.runId,
+      runId: t.context.workflow?.info.runId,
     }).toJSON()
   );
 }
@@ -92,11 +109,11 @@ function makeStartWorkflow(
 }
 
 function makeStartWorkflowJob(
-  script: string,
+  workflowType: string,
   args?: coresdk.common.IPayload[]
-): coresdk.workflow_activation.IWFActivationJob {
+): { startWorkflow: coresdk.workflow_activation.IStartWorkflow } {
   return {
-    startWorkflow: { workflowId: 'test-workflowId', workflowType: script, arguments: args },
+    startWorkflow: { workflowId: 'test-workflowId', workflowType, arguments: args },
   };
 }
 
@@ -260,9 +277,9 @@ function makeSetPatchMarker(myPatchId: string, deprecated: boolean): coresdk.wor
 }
 
 test('random', async (t) => {
-  const { logs, script } = t.context;
+  const { logs, workflowType } = t.context;
   {
-    const req = await activate(t, makeStartWorkflow(script));
+    const req = await activate(t, makeStartWorkflow(workflowType));
     compareCompletion(t, req, makeSuccess([makeStartTimerCommand({ seq: 1, startToFireTimeout: msToTs(1) })]));
   }
   {
@@ -280,8 +297,8 @@ test('random', async (t) => {
 });
 
 test('successString', async (t) => {
-  const { script } = t.context;
-  const req = await activate(t, makeStartWorkflow(script));
+  const { workflowType } = t.context;
+  const req = await activate(t, makeStartWorkflow(workflowType));
   compareCompletion(
     t,
     req,
@@ -318,8 +335,8 @@ function cleanWorkflowQueryFailureStackTrace(
 }
 
 test('throwAsync', async (t) => {
-  const { script } = t.context;
-  const req = cleanWorkflowFailureStackTrace(await activate(t, makeStartWorkflow(script)));
+  const { workflowType } = t.context;
+  const req = cleanWorkflowFailureStackTrace(await activate(t, makeStartWorkflow(workflowType)));
   compareCompletion(
     t,
     req,
@@ -336,30 +353,30 @@ test('throwAsync', async (t) => {
 });
 
 test('date', async (t) => {
-  const { logs, script } = t.context;
+  const { logs, workflowType } = t.context;
   const now = Date.now();
-  const req = await activate(t, makeStartWorkflow(script, undefined, now));
+  const req = await activate(t, makeStartWorkflow(workflowType, undefined, now));
   compareCompletion(t, req, makeSuccess());
-  t.deepEqual(logs, [[now], [now], [true]]);
+  t.deepEqual(logs, [[now], [now], [true], [true], [true], [true], [true]]);
 });
 
 test('asyncWorkflow', async (t) => {
-  const { script } = t.context;
-  const req = await activate(t, makeStartWorkflow(script));
+  const { workflowType } = t.context;
+  const req = await activate(t, makeStartWorkflow(workflowType));
   compareCompletion(t, req, makeSuccess([makeCompleteWorkflowExecution(defaultDataConverter.toPayloadSync('async'))]));
 });
 
 test('deferredResolve', async (t) => {
-  const { logs, script } = t.context;
-  const req = await activate(t, makeStartWorkflow(script));
+  const { logs, workflowType } = t.context;
+  const req = await activate(t, makeStartWorkflow(workflowType));
   compareCompletion(t, req, makeSuccess());
   t.deepEqual(logs, [[1], [2]]);
 });
 
 test('sleeper', async (t) => {
-  const { logs, script } = t.context;
+  const { logs, workflowType } = t.context;
   {
-    const req = await activate(t, makeStartWorkflow(script));
+    const req = await activate(t, makeStartWorkflow(workflowType));
     compareCompletion(t, req, makeSuccess([makeStartTimerCommand({ seq: 1, startToFireTimeout: msToTs(100) })]));
   }
   {
@@ -370,9 +387,9 @@ test('sleeper', async (t) => {
 });
 
 test('setTimeoutAfterMicroTasks', async (t) => {
-  const { logs, script } = t.context;
+  const { logs, workflowType } = t.context;
   {
-    const req = await activate(t, makeStartWorkflow(script));
+    const req = await activate(t, makeStartWorkflow(workflowType));
     compareCompletion(t, req, makeSuccess([makeStartTimerCommand({ seq: 1, startToFireTimeout: msToTs(100) })]));
   }
   {
@@ -383,30 +400,30 @@ test('setTimeoutAfterMicroTasks', async (t) => {
 });
 
 test('promiseThenPromise', async (t) => {
-  const { logs, script } = t.context;
-  const req = await activate(t, makeStartWorkflow(script));
+  const { logs, workflowType } = t.context;
+  const req = await activate(t, makeStartWorkflow(workflowType));
   compareCompletion(t, req, makeSuccess());
   t.deepEqual(logs, [[2]]);
 });
 
 test('rejectPromise', async (t) => {
-  const { logs, script } = t.context;
-  const req = await activate(t, makeStartWorkflow(script));
+  const { logs, workflowType } = t.context;
+  const req = await activate(t, makeStartWorkflow(workflowType));
   compareCompletion(t, req, makeSuccess());
   t.deepEqual(logs, [[true], [true]]);
 });
 
 test('promiseAll', async (t) => {
-  const { logs, script } = t.context;
-  const req = await activate(t, makeStartWorkflow(script));
+  const { logs, workflowType } = t.context;
+  const req = await activate(t, makeStartWorkflow(workflowType));
   compareCompletion(t, req, makeSuccess());
   t.deepEqual(logs, [[1, 2, 3], [1, 2, 3], [1, 2, 3], ['wow']]);
 });
 
 test('tasksAndMicrotasks', async (t) => {
-  const { logs, script } = t.context;
+  const { logs, workflowType } = t.context;
   {
-    const req = await activate(t, makeStartWorkflow(script));
+    const req = await activate(t, makeStartWorkflow(workflowType));
     compareCompletion(t, req, makeSuccess([makeStartTimerCommand({ seq: 1, startToFireTimeout: msToTs(0) })]));
   }
   {
@@ -417,12 +434,12 @@ test('tasksAndMicrotasks', async (t) => {
 });
 
 test('trailingTimer', async (t) => {
-  const { logs, script } = t.context;
+  const { logs, workflowType } = t.context;
   {
-    const req = await activate(t, makeStartWorkflow(script));
+    const completion = await activate(t, makeStartWorkflow(workflowType));
     compareCompletion(
       t,
-      req,
+      completion,
       makeSuccess([
         makeStartTimerCommand({ seq: 1, startToFireTimeout: msToTs(1) }),
         makeStartTimerCommand({ seq: 2, startToFireTimeout: msToTs(1) }),
@@ -430,22 +447,25 @@ test('trailingTimer', async (t) => {
     );
   }
   {
-    const req = await activate(t, makeActivation(undefined, makeFireTimerJob(1), makeFireTimerJob(2)));
+    const completion = await activate(t, makeActivation(undefined, makeFireTimerJob(1), makeFireTimerJob(2)));
     // Note that the trailing timer does not get scheduled since the workflow completes
     // after the first timer is triggered causing the second one to be dropped.
     compareCompletion(
       t,
-      req,
-      makeSuccess([makeCompleteWorkflowExecution(await defaultDataConverter.toPayload('first'))])
+      completion,
+      makeSuccess([
+        makeStartTimerCommand({ seq: 3, startToFireTimeout: msToTs(0) }),
+        makeCompleteWorkflowExecution(await defaultDataConverter.toPayload('first')),
+      ])
     );
   }
   t.deepEqual(logs, []);
 });
 
 test('promiseRace', async (t) => {
-  const { logs, script } = t.context;
+  const { logs, workflowType } = t.context;
   {
-    const req = await activate(t, makeStartWorkflow(script));
+    const req = await activate(t, makeStartWorkflow(workflowType));
     compareCompletion(
       t,
       req,
@@ -463,9 +483,9 @@ test('promiseRace', async (t) => {
 });
 
 test('race', async (t) => {
-  const { logs, script } = t.context;
+  const { logs, workflowType } = t.context;
   {
-    const req = await activate(t, makeStartWorkflow(script));
+    const req = await activate(t, makeStartWorkflow(workflowType));
     compareCompletion(
       t,
       req,
@@ -487,9 +507,9 @@ test('race', async (t) => {
 });
 
 test('importer', async (t) => {
-  const { logs, script } = t.context;
+  const { logs, workflowType } = t.context;
   {
-    const req = await activate(t, makeStartWorkflow(script));
+    const req = await activate(t, makeStartWorkflow(workflowType));
     compareCompletion(t, req, makeSuccess([makeStartTimerCommand({ seq: 1, startToFireTimeout: msToTs(10) })]));
   }
   {
@@ -500,17 +520,17 @@ test('importer', async (t) => {
 });
 
 test('externalImporter', async (t) => {
-  const { logs, script } = t.context;
-  const req = await activate(t, makeStartWorkflow(script));
+  const { logs, workflowType } = t.context;
+  const req = await activate(t, makeStartWorkflow(workflowType));
   compareCompletion(t, req, makeSuccess());
   t.deepEqual(logs, [[{ a: 1, b: 2 }]]);
 });
 
 test('argsAndReturn', async (t) => {
-  const { script } = t.context;
+  const { workflowType } = t.context;
   const req = await activate(
     t,
-    makeStartWorkflow(script, [
+    makeStartWorkflow(workflowType, [
       {
         metadata: { encoding: u8('json/plain') },
         data: u8(JSON.stringify('Hello')),
@@ -537,9 +557,9 @@ test('argsAndReturn', async (t) => {
 });
 
 test('invalidOrFailedQueries', async (t) => {
-  const { script } = t.context;
+  const { workflowType } = t.context;
   {
-    const completion = await activate(t, makeStartWorkflow(script));
+    const completion = await activate(t, makeStartWorkflow(workflowType));
     compareCompletion(t, completion, makeSuccess());
   }
   {
@@ -594,9 +614,9 @@ test('invalidOrFailedQueries', async (t) => {
 });
 
 test('interruptSignal', async (t) => {
-  const { script } = t.context;
+  const { workflowType } = t.context;
   {
-    const req = await activate(t, makeStartWorkflow(script));
+    const req = await activate(t, makeStartWorkflow(workflowType));
     compareCompletion(t, req, makeSuccess([]));
   }
   {
@@ -623,9 +643,9 @@ test('interruptSignal', async (t) => {
 });
 
 test('failSignal', async (t) => {
-  const { script } = t.context;
+  const { workflowType } = t.context;
   {
-    const req = await activate(t, makeStartWorkflow(script));
+    const req = await activate(t, makeStartWorkflow(workflowType));
     compareCompletion(t, req, makeSuccess([makeStartTimerCommand({ seq: 1, startToFireTimeout: msToTs(100000) })]));
   }
   {
@@ -648,9 +668,9 @@ test('failSignal', async (t) => {
 });
 
 test('asyncFailSignal', async (t) => {
-  const { script } = t.context;
+  const { workflowType } = t.context;
   {
-    const req = await activate(t, makeStartWorkflow(script));
+    const req = await activate(t, makeStartWorkflow(workflowType));
     compareCompletion(t, req, makeSuccess([makeStartTimerCommand({ seq: 1, startToFireTimeout: msToTs(100000) })]));
   }
   {
@@ -677,9 +697,9 @@ test('asyncFailSignal', async (t) => {
 
 test('cancelWorkflow', async (t) => {
   const url = 'https://temporal.io';
-  const { script } = t.context;
+  const { workflowType } = t.context;
   {
-    const req = await activate(t, makeStartWorkflow(script, await defaultDataConverter.toPayloads(url)));
+    const req = await activate(t, makeStartWorkflow(workflowType, await defaultDataConverter.toPayloads(url)));
     compareCompletion(
       t,
       req,
@@ -744,9 +764,9 @@ test('cancelWorkflow', async (t) => {
 });
 
 test('cancel - unblockOrCancel', async (t) => {
-  const { script, logs } = t.context;
+  const { workflowType, logs } = t.context;
   {
-    const completion = await activate(t, makeStartWorkflow(script));
+    const completion = await activate(t, makeStartWorkflow(workflowType));
     compareCompletion(t, completion, makeSuccess([]));
   }
   {
@@ -757,9 +777,9 @@ test('cancel - unblockOrCancel', async (t) => {
 });
 
 test('unblock - unblockOrCancel', async (t) => {
-  const { script } = t.context;
+  const { workflowType } = t.context;
   {
-    const completion = await activate(t, makeStartWorkflow(script));
+    const completion = await activate(t, makeStartWorkflow(workflowType));
     compareCompletion(t, completion, makeSuccess([]));
   }
   {
@@ -795,8 +815,8 @@ test('unblock - unblockOrCancel', async (t) => {
 });
 
 test('cancelTimer', async (t) => {
-  const { script, logs } = t.context;
-  const req = await activate(t, makeStartWorkflow(script));
+  const { workflowType, logs } = t.context;
+  const req = await activate(t, makeStartWorkflow(workflowType));
   compareCompletion(
     t,
     req,
@@ -810,8 +830,8 @@ test('cancelTimer', async (t) => {
 });
 
 test('cancelTimerAltImpl', async (t) => {
-  const { script, logs } = t.context;
-  const req = await activate(t, makeStartWorkflow(script));
+  const { workflowType, logs } = t.context;
+  const req = await activate(t, makeStartWorkflow(workflowType));
   compareCompletion(
     t,
     req,
@@ -825,11 +845,11 @@ test('cancelTimerAltImpl', async (t) => {
 });
 
 test('nonCancellable', async (t) => {
-  const { script } = t.context;
+  const { workflowType } = t.context;
   const url = 'https://temporal.io';
   const result = await defaultDataConverter.toPayload({ test: true });
   {
-    const completion = await activate(t, makeStartWorkflow(script, [await defaultDataConverter.toPayload(url)]));
+    const completion = await activate(t, makeStartWorkflow(workflowType, [await defaultDataConverter.toPayload(url)]));
     compareCompletion(
       t,
       completion,
@@ -852,11 +872,11 @@ test('nonCancellable', async (t) => {
 });
 
 test('resumeAfterCancellation', async (t) => {
-  const { script } = t.context;
+  const { workflowType } = t.context;
   const url = 'https://temporal.io';
   const result = await defaultDataConverter.toPayload({ test: true });
   {
-    const completion = await activate(t, makeStartWorkflow(script, [await defaultDataConverter.toPayload(url)]));
+    const completion = await activate(t, makeStartWorkflow(workflowType, [await defaultDataConverter.toPayload(url)]));
     compareCompletion(
       t,
       completion,
@@ -883,12 +903,15 @@ test('resumeAfterCancellation', async (t) => {
 });
 
 test('handleExternalWorkflowCancellationWhileActivityRunning', async (t) => {
-  const { script } = t.context;
+  const { workflowType } = t.context;
   const url = 'https://temporal.io';
   const data = { content: 'new HTML content' };
   {
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-    const completion = await activate(t, makeStartWorkflow(script, await defaultDataConverter.toPayloads(url, data)!));
+    const completion = await activate(
+      t,
+      makeStartWorkflow(workflowType, (await defaultDataConverter.toPayloads(url, data)) ?? [])
+    );
 
     compareCompletion(
       t,
@@ -939,10 +962,10 @@ test('handleExternalWorkflowCancellationWhileActivityRunning', async (t) => {
 });
 
 test('nestedCancellation', async (t) => {
-  const { script } = t.context;
+  const { workflowType } = t.context;
   const url = 'https://temporal.io';
   {
-    const completion = await activate(t, makeStartWorkflow(script, [await defaultDataConverter.toPayload(url)]));
+    const completion = await activate(t, makeStartWorkflow(workflowType, [await defaultDataConverter.toPayload(url)]));
 
     compareCompletion(
       t,
@@ -1020,10 +1043,10 @@ test('nestedCancellation', async (t) => {
 });
 
 test('sharedScopes', async (t) => {
-  const { script } = t.context;
+  const { workflowType } = t.context;
   const result = { some: 'data' };
   {
-    const completion = await activate(t, makeStartWorkflow(script));
+    const completion = await activate(t, makeStartWorkflow(workflowType));
     compareCompletion(
       t,
       completion,
@@ -1057,10 +1080,10 @@ test('sharedScopes', async (t) => {
 });
 
 test('shieldAwaitedInRootScope', async (t) => {
-  const { script } = t.context;
+  const { workflowType } = t.context;
   const result = { some: 'data' };
   {
-    const completion = await activate(t, makeStartWorkflow(script));
+    const completion = await activate(t, makeStartWorkflow(workflowType));
     compareCompletion(
       t,
       completion,
@@ -1095,9 +1118,9 @@ test('shieldAwaitedInRootScope', async (t) => {
 });
 
 test('cancellationScopesWithCallbacks', async (t) => {
-  const { script } = t.context;
+  const { workflowType } = t.context;
   {
-    const completion = await activate(t, makeStartWorkflow(script));
+    const completion = await activate(t, makeStartWorkflow(workflowType));
     compareCompletion(t, completion, makeSuccess([makeStartTimerCommand({ seq: 1, startToFireTimeout: msToTs(10) })]));
   }
   {
@@ -1107,9 +1130,9 @@ test('cancellationScopesWithCallbacks', async (t) => {
 });
 
 test('cancellationScopes', async (t) => {
-  const { script, logs } = t.context;
+  const { workflowType, logs } = t.context;
   {
-    const req = await activate(t, makeStartWorkflow(script));
+    const req = await activate(t, makeStartWorkflow(workflowType));
     compareCompletion(t, req, makeSuccess([makeStartTimerCommand({ seq: 1, startToFireTimeout: msToTs(3) })]));
   }
   {
@@ -1142,9 +1165,9 @@ test('cancellationScopes', async (t) => {
 });
 
 test('childAndShield', async (t) => {
-  const { script } = t.context;
+  const { workflowType } = t.context;
   {
-    const req = await activate(t, makeStartWorkflow(script));
+    const req = await activate(t, makeStartWorkflow(workflowType));
     compareCompletion(t, req, makeSuccess([makeStartTimerCommand({ seq: 1, startToFireTimeout: msToTs(5) })]));
   }
   {
@@ -1154,9 +1177,9 @@ test('childAndShield', async (t) => {
 });
 
 test('partialShield', async (t) => {
-  const { script, logs } = t.context;
+  const { workflowType, logs } = t.context;
   {
-    const req = await activate(t, makeStartWorkflow(script));
+    const req = await activate(t, makeStartWorkflow(workflowType));
     compareCompletion(
       t,
       req,
@@ -1193,9 +1216,9 @@ test('partialShield', async (t) => {
 });
 
 test('shieldInShield', async (t) => {
-  const { script, logs } = t.context;
+  const { workflowType, logs } = t.context;
   {
-    const req = await activate(t, makeStartWorkflow(script));
+    const req = await activate(t, makeStartWorkflow(workflowType));
     compareCompletion(
       t,
       req,
@@ -1217,8 +1240,8 @@ test('shieldInShield', async (t) => {
 });
 
 test('cancellationErrorIsPropagated', async (t) => {
-  const { script, logs } = t.context;
-  const req = cleanWorkflowFailureStackTrace(await activate(t, makeStartWorkflow(script)), 2);
+  const { workflowType, logs } = t.context;
+  const req = cleanWorkflowFailureStackTrace(await activate(t, makeStartWorkflow(workflowType)), 2);
   compareCompletion(
     t,
     req,
@@ -1251,9 +1274,9 @@ test('cancellationErrorIsPropagated', async (t) => {
 
 test('cancelActivityAfterFirstCompletion', async (t) => {
   const url = 'https://temporal.io';
-  const { script, logs } = t.context;
+  const { workflowType, logs } = t.context;
   {
-    const req = await activate(t, makeStartWorkflow(script, await defaultDataConverter.toPayloads(url)));
+    const req = await activate(t, makeStartWorkflow(workflowType, await defaultDataConverter.toPayloads(url)));
     compareCompletion(
       t,
       req,
@@ -1309,9 +1332,12 @@ test('cancelActivityAfterFirstCompletion', async (t) => {
 
 test('multipleActivitiesSingleTimeout', async (t) => {
   const urls = ['https://slow-site.com/', 'https://slow-site.org/'];
-  const { script } = t.context;
+  const { workflowType } = t.context;
   {
-    const completion = await activate(t, makeStartWorkflow(script, await defaultDataConverter.toPayloads(urls, 1000)));
+    const completion = await activate(
+      t,
+      makeStartWorkflow(workflowType, await defaultDataConverter.toPayloads(urls, 1000))
+    );
     compareCompletion(
       t,
       completion,
@@ -1352,9 +1378,9 @@ test('multipleActivitiesSingleTimeout', async (t) => {
 });
 
 test('resolve activity with result - http', async (t) => {
-  const { script } = t.context;
+  const { workflowType } = t.context;
   {
-    const completion = await activate(t, makeStartWorkflow(script));
+    const completion = await activate(t, makeStartWorkflow(workflowType));
     compareCompletion(
       t,
       completion,
@@ -1386,9 +1412,9 @@ test('resolve activity with result - http', async (t) => {
 });
 
 test('resolve activity with failure - http', async (t) => {
-  const { script } = t.context;
+  const { workflowType } = t.context;
   {
-    const completion = await activate(t, makeStartWorkflow(script));
+    const completion = await activate(t, makeStartWorkflow(workflowType));
     compareCompletion(
       t,
       completion,
@@ -1428,9 +1454,9 @@ test('resolve activity with failure - http', async (t) => {
 });
 
 test('globalOverrides', async (t) => {
-  const { script, logs } = t.context;
+  const { workflowType, logs } = t.context;
   {
-    const completion = await activate(t, makeStartWorkflow(script));
+    const completion = await activate(t, makeStartWorkflow(workflowType));
     compareCompletion(t, completion, makeSuccess());
   }
   t.deepEqual(
@@ -1442,24 +1468,29 @@ test('globalOverrides', async (t) => {
 });
 
 test('logAndTimeout', async (t) => {
-  const { script, workflow } = t.context;
+  const { workflowType } = t.context;
   const logs: string[] = [];
+  const { startWorkflow } = makeStartWorkflowJob(workflowType);
+  const workflow = await createWorkflow(t, startWorkflow);
+  t.context.workflow = workflow;
   await workflow.injectDependency('logger', 'info', (message: string) => logs.push(message), ApplyMode.ASYNC_IGNORED);
-  await t.throwsAsync(activate(t, makeStartWorkflow(script)), { message: 'Script execution timed out.' });
+  await t.throwsAsync(activate(t, makeActivation(undefined, { startWorkflow })), {
+    message: 'Script execution timed out.',
+  });
   t.deepEqual(logs, ['logging before getting stuck']);
 });
 
 test('continueAsNewSameWorkflow', async (t) => {
-  const { script } = t.context;
+  const { workflowType } = t.context;
   {
-    const req = await activate(t, makeStartWorkflow(script));
+    const req = await activate(t, makeStartWorkflow(workflowType));
     compareCompletion(
       t,
       req,
       makeSuccess([
         {
           continueAsNewWorkflowExecution: {
-            workflowType: script,
+            workflowType,
             taskQueue: 'test',
             arguments: await defaultDataConverter.toPayloads('signal'),
           },
@@ -1470,9 +1501,9 @@ test('continueAsNewSameWorkflow', async (t) => {
 });
 
 test('not-replay patchedWorkflow', async (t) => {
-  const { logs, script } = t.context;
+  const { logs, workflowType } = t.context;
   {
-    const req = await activate(t, makeStartWorkflow(script));
+    const req = await activate(t, makeStartWorkflow(workflowType));
     compareCompletion(
       t,
       req,
@@ -1490,13 +1521,13 @@ test('not-replay patchedWorkflow', async (t) => {
 });
 
 test('replay-no-marker patchedWorkflow', async (t) => {
-  const { logs, script } = t.context;
+  const { logs, workflowType } = t.context;
   {
     const act: coresdk.workflow_activation.IWFActivation = {
       runId: 'test-runId',
       timestamp: msToTs(Date.now()),
       isReplaying: true,
-      jobs: [makeStartWorkflowJob(script)],
+      jobs: [makeStartWorkflowJob(workflowType)],
     };
     const completion = await activate(t, act);
     compareCompletion(t, completion, makeSuccess([makeStartTimerCommand({ seq: 1, startToFireTimeout: msToTs(100) })]));
@@ -1515,13 +1546,13 @@ test('replay-no-marker patchedWorkflow', async (t) => {
 });
 
 test('replay-no-marker-then-not-replay patchedWorkflow', async (t) => {
-  const { logs, script } = t.context;
+  const { logs, workflowType } = t.context;
   {
     const act: coresdk.workflow_activation.IWFActivation = {
       runId: 'test-runId',
       timestamp: msToTs(Date.now()),
       isReplaying: true,
-      jobs: [makeStartWorkflowJob(script)],
+      jobs: [makeStartWorkflowJob(workflowType)],
     };
     const completion = await activate(t, act);
     compareCompletion(t, completion, makeSuccess([makeStartTimerCommand({ seq: 1, startToFireTimeout: msToTs(100) })]));
@@ -1539,13 +1570,13 @@ test('replay-no-marker-then-not-replay patchedWorkflow', async (t) => {
 });
 
 test('replay-with-marker patchedWorkflow', async (t) => {
-  const { logs, script } = t.context;
+  const { logs, workflowType } = t.context;
   {
     const act: coresdk.workflow_activation.IWFActivation = {
       runId: 'test-runId',
       timestamp: msToTs(Date.now()),
       isReplaying: true,
-      jobs: [makeStartWorkflowJob(script), makeNotifyHasPatchJob('my-change-id')],
+      jobs: [makeStartWorkflowJob(workflowType), makeNotifyHasPatchJob('my-change-id')],
     };
     const completion = await activate(t, act);
     compareCompletion(
@@ -1565,9 +1596,9 @@ test('replay-with-marker patchedWorkflow', async (t) => {
 });
 
 test('deprecatePatchWorkflow', async (t) => {
-  const { logs, script } = t.context;
+  const { logs, workflowType } = t.context;
   {
-    const completion = await activate(t, makeStartWorkflow(script));
+    const completion = await activate(t, makeStartWorkflow(workflowType));
     compareCompletion(
       t,
       completion,
@@ -1577,4 +1608,33 @@ test('deprecatePatchWorkflow', async (t) => {
   t.deepEqual(logs, [['has change']]);
 });
 
-test.todo('no-commands-can-be-issued-once-workflow-completes');
+test('tryToContinueAfterCompletion', async (t) => {
+  const { workflowType } = t.context;
+  {
+    const completion = cleanWorkflowFailureStackTrace(await activate(t, makeStartWorkflow(workflowType)));
+    compareCompletion(
+      t,
+      completion,
+      makeSuccess([
+        makeFailWorkflowExecution(
+          'fail before continue',
+          dedent`
+          Error: fail before continue
+              at Object.execute
+        `
+        ),
+      ])
+    );
+  }
+});
+
+test('failUnlessSignaledBeforeStart', async (t) => {
+  const { workflowType } = t.context;
+  const completion = await activate(
+    t,
+    makeActivation(undefined, makeStartWorkflowJob(workflowType), {
+      signalWorkflow: { signalName: 'someShallPass' },
+    })
+  );
+  compareCompletion(t, completion, makeSuccess());
+});

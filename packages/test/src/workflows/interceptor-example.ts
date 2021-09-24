@@ -1,9 +1,8 @@
 /* eslint-disable @typescript-eslint/explicit-module-boundary-types */
 import {
-  newChildWorkflowStub,
+  createChildWorkflowHandle,
   WorkflowInterceptors,
   defaultDataConverter,
-  Headers,
   sleep,
   Trigger,
 } from '@temporalio/workflow';
@@ -41,7 +40,7 @@ export const interceptorExample = () => {
       await sleep(2);
       await unblocked;
       // Untyped because we intercept the result
-      const result = await newChildWorkflowStub('successString').execute();
+      const result = await createChildWorkflowHandle('successString').execute();
       if (result !== 3) {
         throw new Error('expected interceptor to change child workflow result');
       }
@@ -50,14 +49,23 @@ export const interceptorExample = () => {
   };
 };
 
-let receivedMessage = '';
+let receivedMessageOnCreate = '';
+let receivedMessageOnExecute = '';
 
 export const interceptors = (): WorkflowInterceptors => ({
   inbound: [
     {
+      async create(input, next) {
+        const encoded = input.headers.message;
+        receivedMessageOnCreate = encoded ? await defaultDataConverter.fromPayload(encoded) : '';
+        return next(input);
+      },
       async execute(input, next) {
-        const encoded = input.headers.get('message');
-        receivedMessage = encoded ? await defaultDataConverter.fromPayload(encoded) : '';
+        const encoded = input.headers.message;
+        receivedMessageOnExecute = encoded ? await defaultDataConverter.fromPayload(encoded) : '';
+        if (receivedMessageOnExecute !== receivedMessageOnCreate) {
+          throw new Error('Expected to receive same message via headers in create and execute methods');
+        }
         return next(input);
       },
       async handleSignal(input, next) {
@@ -74,9 +82,10 @@ export const interceptors = (): WorkflowInterceptors => ({
   outbound: [
     {
       async scheduleActivity(input, next) {
-        const headers: Headers = new Map();
-        headers.set('message', await defaultDataConverter.toPayload(receivedMessage));
-        return next({ ...input, headers });
+        return next({
+          ...input,
+          headers: { ...input.headers, message: await defaultDataConverter.toPayload(receivedMessageOnExecute) },
+        });
       },
       async startTimer(input, next) {
         if (input.durationMs === 1) {

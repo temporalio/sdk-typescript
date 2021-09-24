@@ -2,7 +2,7 @@
 import test from 'ava';
 import { WorkflowInfo } from '@temporalio/workflow';
 import { WorkflowClient } from '@temporalio/client';
-import { Worker, ApplyMode, DefaultLogger } from '@temporalio/worker';
+import { Worker, ApplyMode, DefaultLogger, Core } from '@temporalio/worker';
 import { IgnoredTestDependencies, TestDependencies } from './interfaces/dependencies';
 import { defaultOptions } from './mock-native-worker';
 import { RUN_INTEGRATION_TESTS } from './helpers';
@@ -15,6 +15,15 @@ interface RecordedCall {
 }
 
 if (RUN_INTEGRATION_TESTS) {
+  const recordedLogs: any[] = [];
+  test.before(async (_) => {
+    await Core.install({
+      logger: new DefaultLogger('DEBUG', (level, message, meta) => {
+        if (message === 'External dependency function threw an error') recordedLogs.push({ level, message, meta });
+      }),
+    });
+  });
+
   test('Worker injects external dependencies', async (t) => {
     const recordedCalls: RecordedCall[] = [];
     const taskQueue = 'test-dependencies';
@@ -22,7 +31,6 @@ if (RUN_INTEGRATION_TESTS) {
     const worker = await Worker.create<{ dependencies: TestDependencies }>({
       ...defaultOptions,
       taskQueue,
-      logger: new DefaultLogger('DEBUG'),
       dependencies: {
         syncVoid: {
           promise: {
@@ -132,7 +140,7 @@ if (RUN_INTEGRATION_TESTS) {
     });
     const p = worker.run();
     const conn = new WorkflowClient();
-    const wf = conn.newWorkflowStub(workflows.dependenciesWorkflow, { taskQueue });
+    const wf = conn.createWorkflowHandle(workflows.dependenciesWorkflow, { taskQueue });
     const runId = await wf.start();
     const result = await wf.result();
     worker.shutdown();
@@ -165,16 +173,12 @@ if (RUN_INTEGRATION_TESTS) {
   });
 
   test('Worker wraps ignored dependencies and logs when they throw', async (t) => {
-    const recordedCalls: any[] = [];
     const thrownErrors: Error[] = [];
     const taskQueue = 'test-ignored-dependencies';
 
     const worker = await Worker.create<{ dependencies: IgnoredTestDependencies }>({
       ...defaultOptions,
       taskQueue,
-      logger: new DefaultLogger('DEBUG', (level, message, meta) => {
-        if (message === 'External dependency function threw an error') recordedCalls.push({ level, message, meta });
-      }),
       dependencies: {
         syncIgnored: {
           syncImpl: {
@@ -218,7 +222,7 @@ if (RUN_INTEGRATION_TESTS) {
     });
     const p = worker.run();
     const conn = new WorkflowClient();
-    const wf = conn.newWorkflowStub(workflows.ignoredDependencies, { taskQueue });
+    const wf = conn.createWorkflowHandle(workflows.ignoredDependencies, { taskQueue });
     const runId = await wf.start();
     const result = await wf.result();
     worker.shutdown();
@@ -238,7 +242,7 @@ if (RUN_INTEGRATION_TESTS) {
       ['syncIgnored.syncImpl', 'syncIgnored.asyncImpl', 'asyncIgnored.syncImpl', 'asyncIgnored.asyncImpl']
     );
     t.deepEqual(
-      recordedCalls,
+      recordedLogs,
       thrownErrors.map((error) => ({
         level: 'ERROR',
         message: 'External dependency function threw an error',

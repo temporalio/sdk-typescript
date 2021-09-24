@@ -1,6 +1,5 @@
 import { coresdk } from '@temporalio/proto/lib/coresdk';
 import { WorkflowOptions } from '@temporalio/common';
-import { ExternalCall } from './dependencies';
 
 /**
  * Workflow execution information
@@ -103,8 +102,3 @@ export type RequiredChildWorkflowOptions = Required<
 >;
 
 export type ChildWorkflowOptionsWithDefaults = ChildWorkflowOptions & RequiredChildWorkflowOptions;
-
-export interface ActivationJobResult {
-  pendingExternalCalls: ExternalCall[];
-  processed: boolean;
-}

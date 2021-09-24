@@ -29,9 +29,9 @@ export class OpenTelemetryWorkflowClientCallsInterceptor implements WorkflowClie
 
   async start(input: WorkflowStartInput, next: Next<WorkflowClientCallsInterceptor, 'start'>): Promise<string> {
     const span = this.tracer.startSpan(SpanName.WORKFLOW_SCHEDULE);
-    input.headers.set(TRACE_HEADER, await this.dataConverter.toPayload(span.spanContext()));
+    const header = await this.dataConverter.toPayload(span.spanContext());
     try {
-      return await next(input);
+      return await next({ ...input, headers: { ...input.headers, [TRACE_HEADER]: header } });
     } catch (error: any) {
       span.recordException(error);
       throw error;

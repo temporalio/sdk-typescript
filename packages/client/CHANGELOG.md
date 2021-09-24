@@ -3,6 +3,85 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+# [0.8.0](https://github.com/temporalio/sdk-node/compare/@temporalio/client@0.7.0...@temporalio/client@0.8.0) (2021-09-23)
+
+
+### Features
+
+* **client:** Follow Workflow execution chain ([2d7d0ff](https://github.com/temporalio/sdk-node/commit/2d7d0ff6ca155008fc9eeb41e271339ab478db38))
+
+
+### BREAKING CHANGES
+
+* **client:** `WorkflowClient.result()` and
+`WorkflowClient.createWorkflowStub()` override for attaching to an
+existing Workflow now takes an object with `workflowId` and optional
+`runId` instead of 2 strings.
+
+`workflowDefaults` added to `WorkflowClientOptions`, if provided they
+will be merged with per-method and per-handle options.
+
+`WorkflowOptions` takes a `followRuns` boolean option which defaults to
+`true`, it determines whether or not the client will follow the Workflow
+execution chain when getting a Workflow's result.
+
+
+
+
+
+# [0.7.0](https://github.com/temporalio/sdk-node/compare/@temporalio/client@0.6.1...@temporalio/client@0.7.0) (2021-09-15)
+
+
+* feat!: Use Object instead of Map for interceptor headers ([80db27d](https://github.com/temporalio/sdk-node/commit/80db27d62bad78a71352cdc5db2b9ca49b9d1062))
+* feat(workflow)!: Revise Workflow API ([3467bd7](https://github.com/temporalio/sdk-node/commit/3467bd798f5e6866412be67c0b0e645e1d66dd7f))
+
+
+### BREAKING CHANGES
+
+* Interceptors now use an Object for representing headers
+instead of a Map
+
+With this change it's easier to chain interceptors without mutating the
+input.
+* Workflow registration and invocation has been changed
+- `main` has been renamed `execute`
+- Workflow arguments moved from `execute` method to the Workflow factory
+  function (see below)
+- Workflows are now defined as named functions
+  Old:
+  ```ts
+  // workflows/myWorkflow.ts
+  export const workflow = { async main(...args) {}, /* signals, queries */ };
+  ```
+  New:
+  ```ts
+  // workflows/index.ts
+  export const myWorkflow = (...args) => ({ async execute() {}, /* signals, queries */ });
+  ```
+- Workflow Interceptors are now instantiated via a factory function
+  Old:
+  ```ts
+  export const interceptors = { /* ... */ };
+  ```
+  New:
+  ```ts
+  export const interceptors = () => ({ /* ... */ });
+  ```
+- Workflow stubs can be constructed from a registered Workflow function
+  Old:
+  ```ts
+  const stub = client.stub<MyWorkflowInterface>('my-workflow', opts);
+  ```
+  New:
+  ```ts
+  import { myWorkflow } from './workflows';
+  const stub = client.stub(myWorkflow, opts);
+  ```
+
+
+
+
+
 ## [0.6.1](https://github.com/temporalio/sdk-node/compare/@temporalio/client@0.6.0...@temporalio/client@0.6.1) (2021-08-31)
 
 **Note:** Version bump only for package @temporalio/client

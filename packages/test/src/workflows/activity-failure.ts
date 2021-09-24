@@ -1,12 +1,11 @@
 /**
  * Tests that ActivityFailure is propagated correctly to client
  */
-import { configureActivities } from '@temporalio/workflow';
+import { createActivityHandle } from '@temporalio/workflow';
 import type * as activities from '../activities';
 import { Empty } from '../interfaces';
 
-const { throwAnError } = configureActivities<typeof activities>({
-  type: 'remote',
+const { throwAnError } = createActivityHandle<typeof activities>({
   startToCloseTimeout: '5s',
   retry: { initialInterval: '1s', maximumAttempts: 1 },
 });

@@ -26,8 +26,8 @@ export interface BaseWorkflowOptions {
   workflowIdReusePolicy?: WorkflowIdReusePolicy;
 
   /**
-   * Task queue to use for workflow tasks. It should match a task queue specified when creating a
-   * `Worker` that hosts the workflow code.
+   * Task queue to use for Workflow tasks. It should match a task queue specified when creating a
+   * `Worker` that hosts the Workflow code.
    */
   taskQueue?: string;
 

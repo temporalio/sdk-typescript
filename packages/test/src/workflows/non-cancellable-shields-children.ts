@@ -1,9 +1,9 @@
 // @@@SNIPSTART nodejs-non-cancellable-shields-children
-import { CancellationScope, configureActivities } from '@temporalio/workflow';
+import { CancellationScope, createActivityHandle } from '@temporalio/workflow';
 import type * as activities from '../activities';
 import { HTTPGetter } from '../interfaces';
 
-const { httpGetJSON } = configureActivities<typeof activities>({ type: 'remote', startToCloseTimeout: '10m' });
+const { httpGetJSON } = createActivityHandle<typeof activities>({ startToCloseTimeout: '10m' });
 
 export const nonCancellable: HTTPGetter = (url: string) => ({
   async execute() {
