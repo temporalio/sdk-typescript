@@ -1,4 +1,5 @@
-import os from 'os';
+import { existsSync } from 'fs';
+import * as os from 'os';
 import { resolve } from 'path';
 import { promisify } from 'util';
 import * as otel from '@opentelemetry/api';
@@ -272,11 +273,17 @@ function includesDeps<T extends WorkerSpec>(
 
 export function addDefaults<T extends WorkerSpec>(options: WorkerSpecOptions<T>): WorkerOptionsWithDefaults<T> {
   const { workDir, ...rest } = options;
+  // If workDir is defined, workflowsPath defaults to workflows.js if workflows does not exist
+  let workflowsPath = undefined;
+  if (workDir) {
+    const workflowsDir = resolve(workDir, 'workflows');
+    workflowsPath = existsSync(workflowsDir) ? workflowsDir : resolve(workDir, 'workflows.js');
+  }
   // Typescript is really struggling with the conditional exisitence of the dependencies attribute.
   // Help it out without sacrificing type safety of the other attributes.
   const ret: Omit<WorkerOptionsWithDefaults<T>, 'dependencies'> = {
     activities: workDir && !('activities' in rest) ? require(resolve(workDir, 'activities')) : undefined,
-    workflowsPath: workDir ? resolve(workDir, 'workflows') : undefined,
+    workflowsPath,
     nodeModulesPath: workDir ? resolve(workDir, '../node_modules') : undefined,
     shutdownGraceTime: '5s',
     shutdownSignals: ['SIGINT', 'SIGTERM', 'SIGQUIT'],
