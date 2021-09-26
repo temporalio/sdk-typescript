@@ -4,6 +4,9 @@ import got from 'got';
 import tar from 'tar';
 import { Stream } from 'stream';
 import { promisify } from 'util';
+import { rmSync } from 'fs';
+import path from 'path';
+import { getErrorCode } from './get-error-code';
 
 const pipeline = promisify(Stream.pipeline);
 
@@ -97,13 +100,21 @@ export function downloadAndExtractRepo(root: string, { username, name, branch, f
   );
 }
 
-export function downloadAndExtractSample(root: string, name: string): Promise<void> {
+export async function downloadAndExtractSample(root: string, name: string): Promise<void> {
   if (name === '__internal-testing-retry') {
     throw new Error('This is an internal sample for testing the CLI.');
   }
 
-  return pipeline(
+  await pipeline(
     got.stream('https://codeload.github.com/temporalio/samples-node/tar.gz/main'),
     tar.extract({ cwd: root, strip: 2 }, [`samples-node-main/${name}`])
   );
+
+  try {
+    rmSync(path.join(root, `/.npmrc`));
+  } catch (e) {
+    if (getErrorCode(e) !== 'ENOENT') {
+      throw e;
+    }
+  }
 }
