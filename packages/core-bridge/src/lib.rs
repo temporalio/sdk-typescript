@@ -626,10 +626,8 @@ fn core_new(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     };
 
     let log_forwarding_level_str =
-        js_value_getter!(cx, telem_options, "logForwardingLevel", JsString)
-            .replace("WARNING", "WARN");
-    let log_forwarding_level =
-        LevelFilter::from_str(&log_forwarding_level_str).unwrap_or(LevelFilter::Off);
+        js_value_getter!(cx, telem_options, "logForwardingLevel", JsString);
+    let log_forwarding_level = LevelFilter::from_str(&log_forwarding_level_str).unwrap();
     let telemetry_opts = TelemetryOptions {
         otel_collector_url: get_optional(&mut cx, telem_options, "oTelCollectorUrl").map(|x| {
             Url::parse(
