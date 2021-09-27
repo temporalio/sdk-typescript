@@ -5,7 +5,12 @@ use log::LevelFilter;
 use neon::prelude::*;
 use prost::Message;
 use std::str::FromStr;
-use std::{fmt::Display, future::Future, sync::Arc, time::Duration};
+use std::{
+    fmt::Display,
+    future::Future,
+    sync::Arc,
+    time::{Duration, SystemTime, UNIX_EPOCH},
+};
 use temporal_sdk_core::errors::{
     CompleteActivityError, CompleteWfError, CoreInitError, PollActivityError, PollWfError,
 };
@@ -258,8 +263,8 @@ fn start_bridge_loop(
                                         let logobj = cx.empty_object();
                                         let level = cx.string(cl.level.to_string());
                                         logobj.set(cx, "level", level).unwrap();
-                                        let ts = cx.number(cl.millis_since_epoch() as f64);
-                                        logobj.set(cx, "timestampMillis", ts).unwrap();
+                                        let ts = system_time_to_js(cx, cl.timestamp).unwrap();
+                                        logobj.set(cx, "timestamp", ts).unwrap();
                                         let msg = cx.string(cl.message);
                                         logobj.set(cx, "message", msg).unwrap();
                                         logarr.set(cx, i as u32, logobj).unwrap();
@@ -898,8 +903,31 @@ fn worker_shutdown(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     }
 }
 
+/// Convert Rust SystemTime into a JS array with 2 numbers (seconds, nanos)
+fn system_time_to_js<'a, C>(cx: &mut C, time: SystemTime) -> NeonResult<Handle<'a, JsArray>>
+where
+    C: Context<'a>,
+{
+    let nanos = time
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or(Duration::ZERO)
+        .as_nanos();
+    let only_nanos = cx.number((nanos % 1_000_000_000) as f64);
+    let ts_seconds = cx.number((nanos / 1_000_000_000) as f64);
+    let ts = cx.empty_array();
+    ts.set(cx, 0, ts_seconds).unwrap();
+    ts.set(cx, 1, only_nanos).unwrap();
+    return Ok(ts);
+}
+
+/// Helper to get the current time in nanosecond resolution.
+fn get_time_of_day(mut cx: FunctionContext) -> JsResult<JsArray> {
+    system_time_to_js(&mut cx, SystemTime::now())
+}
+
 #[neon::main]
 fn main(mut cx: ModuleContext) -> NeonResult<()> {
+    cx.export_function("getTimeOfDay", get_time_of_day)?;
     cx.export_function("registerErrors", errors::register_errors)?;
     cx.export_function("newCore", core_new)?;
     cx.export_function("newWorker", worker_new)?;

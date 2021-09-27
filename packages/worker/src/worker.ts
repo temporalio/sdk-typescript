@@ -36,7 +36,7 @@ import { closeableGroupBy, mergeMapWithState } from './rxutils';
 import { GiB, MiB } from './utils';
 import { Workflow } from './workflow';
 import { Activity } from './activity';
-import { DefaultLogger, Logger } from './logger';
+import { Logger } from './logger';
 import { WorkflowIsolateBuilder } from './isolate-builder';
 import { IsolateContextProvider, RoundRobinIsolateContextProvider } from './isolate-context-provider';
 import * as errors from './errors';
@@ -281,7 +281,6 @@ export function addDefaults<T extends WorkerSpec>(options: WorkerSpecOptions<T>)
     shutdownGraceTime: '5s',
     shutdownSignals: ['SIGINT', 'SIGTERM', 'SIGQUIT'],
     dataConverter: defaultDataConverter,
-    logger: new DefaultLogger(),
     maxConcurrentActivityTaskExecutions: 100,
     maxConcurrentWorkflowTaskExecutions: 100,
     maxConcurrentActivityTaskPolls: 5,
@@ -394,7 +393,7 @@ export class NativeWorker implements NativeWorkerLike {
   }
 
   public get logger(): Logger {
-    return this.core.options.logger;
+    return this.core.logger;
   }
 }
 

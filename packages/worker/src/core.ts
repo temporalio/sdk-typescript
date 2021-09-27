@@ -1,4 +1,5 @@
 import { promisify } from 'util';
+import Heap from 'heap-js';
 import { BehaviorSubject, lastValueFrom, of } from 'rxjs';
 import { concatMap, delay, map, repeat } from 'rxjs/operators';
 import { IllegalStateError } from '@temporalio/common';
@@ -11,7 +12,7 @@ import {
   normalizeTlsConfig,
   ServerOptions,
 } from './server-options';
-import { DefaultLogger, Logger } from './logger';
+import { DefaultLogger, Logger, LogEntry, LogTimestamp, timeOfDayToBigint } from './logger';
 import * as errors from './errors';
 
 export interface CoreOptions {
@@ -39,6 +40,22 @@ function defaultTelemetryOptions(): TelemetryOptions {
   };
 }
 
+/** A logger that buffers logs from both Node.js and Rust Core and emits logs in the right order */
+export class CoreLogger extends DefaultLogger {
+  protected buffer = new Heap<LogEntry>((a, b) => Number(a.timestampNanos - b.timestampNanos));
+
+  constructor(protected readonly next: Logger) {
+    super('TRACE', (entry) => this.buffer.add(entry));
+  }
+
+  /** Flush all buffered logs into the logger supplied to the constructor */
+  flush(): void {
+    for (const entry of this.buffer) {
+      this.next.log(entry.level, entry.message, { ...entry.meta, [LogTimestamp]: entry.timestampNanos });
+    }
+  }
+}
+
 /**
  * Core singleton representing an instance of the Rust Core SDK
  *
@@ -49,9 +66,20 @@ export class Core {
   protected readonly registeredWorkers = new Set<native.Worker>();
   protected readonly shouldPollForLogs = new BehaviorSubject<boolean>(false);
   protected readonly logPollPromise: Promise<void>;
+  public readonly logger: Logger;
 
   protected constructor(public readonly native: native.Core, public readonly options: CompiledCoreOptions) {
-    this.logPollPromise = this.initLogPolling(options, native);
+    if (this.isForwardingLogs()) {
+      const logger = (this.logger = new CoreLogger(this.options.logger));
+      this.logPollPromise = this.initLogPolling(logger);
+    } else {
+      this.logger = this.options.logger;
+      this.logPollPromise = Promise.resolve();
+    }
+  }
+
+  protected isForwardingLogs(): boolean {
+    return this.options.telemetryOptions.logForwardingLevel !== 'OFF';
   }
 
   /**
@@ -82,10 +110,10 @@ export class Core {
     return new this(native, compiledOptions);
   }
 
-  protected async initLogPolling(options: CompiledCoreOptions, native: native.Core): Promise<void> {
+  protected async initLogPolling(logger: CoreLogger): Promise<void> {
     this.shouldPollForLogs.next(true);
 
-    if (options.telemetryOptions.logForwardingLevel === 'OFF') {
+    if (!this.isForwardingLogs()) {
       return;
     }
     const poll = promisify(corePollLogs);
@@ -95,22 +123,15 @@ export class Core {
           map((subject) => subject.getValue()),
           concatMap((shouldPoll) => {
             if (!shouldPoll) throw new errors.ShutdownError('Poll stop requested');
-            return poll(native);
+            return poll(this.native);
           }),
           map((logs) => {
             for (const log of logs) {
-              if (log.level === 'TRACE') {
-                options.logger.trace(log.message);
-              } else if (log.level === 'DEBUG') {
-                options.logger.debug(log.message);
-              } else if (log.level === 'INFO') {
-                options.logger.info(log.message);
-              } else if (log.level === 'WARN') {
-                options.logger.warn(log.message);
-              } else if (log.level === 'ERROR') {
-                options.logger.error(log.message);
-              }
+              logger.log(log.level, log.message, {
+                [LogTimestamp]: timeOfDayToBigint(log.timestamp),
+              });
             }
+            logger.flush();
           }),
           delay(3), // Don't go wild polling as fast as possible
           repeat()
@@ -119,7 +140,10 @@ export class Core {
     } catch (error) {
       // Prevent unhandled rejection
       if (error instanceof errors.ShutdownError) return;
-      options.logger.warn('Error gathering forwarded logs from core', { error });
+      // Log using the original logger instead of buffering
+      this.options.logger.warn('Error gathering forwarded logs from core', { error });
+    } finally {
+      logger.flush();
     }
   }
 
@@ -187,6 +211,7 @@ export class Core {
     if (this.registeredWorkers.size === 0) {
       this.shouldPollForLogs.next(false);
       await promisify(coreShutdown)(this.native);
+      // This will effectively drain all logs
       await this.logPollPromise;
       delete Core._instance;
     }
