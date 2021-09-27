@@ -34,7 +34,7 @@ registerSleepImplementation(sleep);
 export function addDefaultWorkflowOptions(opts: ChildWorkflowOptions): ChildWorkflowOptionsWithDefaults {
   return {
     taskQueue: workflowInfo().taskQueue,
-    workflowId: uuid4(),
+    workflowId: opts.workflowId ?? uuid4(),
     workflowIdReusePolicy: coresdk.common.WorkflowIdReusePolicy.WORKFLOW_ID_REUSE_POLICY_ALLOW_DUPLICATE_FAILED_ONLY,
     cancellationType: ChildWorkflowCancellationType.WAIT_CANCELLATION_COMPLETED,
     ...opts,
@@ -506,13 +506,11 @@ export function createChildWorkflowHandle<T extends Workflow>(
       });
       return await started;
     },
-    async execute(...args: Parameters<T>): // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-    // @ts-ignore
-    WorkflowResultType<T> {
+    async execute(...args: Parameters<T>): Promise<WorkflowResultType<T>> {
       await this.start(...args);
-      return this.result();
+      return await this.result();
     },
-    result(): WorkflowResultType<T> {
+    result(): Promise<WorkflowResultType<T>> {
       if (completed === undefined) {
         throw new IllegalStateError('Child Workflow was not started');
       }

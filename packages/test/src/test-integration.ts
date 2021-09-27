@@ -3,7 +3,7 @@ import anyTest, { TestInterface } from 'ava';
 import ms from 'ms';
 import { v4 as uuid4 } from 'uuid';
 import dedent from 'dedent';
-import { WorkflowClient } from '@temporalio/client';
+import { ValidWorkflowExecution, WorkflowClient } from '@temporalio/client';
 import {
   ChildWorkflowFailure,
   defaultDataConverter,
@@ -12,7 +12,6 @@ import {
   TimeoutFailure,
   TimeoutType,
   tsToMs,
-  WorkflowExecution,
 } from '@temporalio/common';
 import { Worker, DefaultLogger, Core } from '@temporalio/worker';
 import * as iface from '@temporalio/proto';
@@ -61,7 +60,11 @@ if (RUN_INTEGRATION_TESTS) {
     runPromise.catch((err) => {
       console.error('Caught error while worker was running', err);
     });
-    t.context = { worker, runPromise, client: new WorkflowClient() };
+    t.context = {
+      worker,
+      runPromise,
+      client: new WorkflowClient(undefined, { workflowDefaults: { followRuns: false } }),
+    };
   });
   test.after.always(async (t) => {
     t.context.worker.shutdown();
@@ -139,7 +142,7 @@ if (RUN_INTEGRATION_TESTS) {
     const { workflowId, runId, execResult, result } = await workflow.execute();
     t.is(execResult, 'success');
     t.is(result, 'success');
-    const child = client.createWorkflowHandle(workflowId, runId);
+    const child = client.createWorkflowHandle({ workflowId, runId });
     t.is(await child.result(), 'success');
   });
 
@@ -170,12 +173,12 @@ if (RUN_INTEGRATION_TESTS) {
     const workflow = client.createWorkflowHandle(workflows.childWorkflowTermination, { taskQueue: 'test' });
     await workflow.start();
 
-    let childExecution: WorkflowExecution | undefined = undefined;
+    let childExecution: ValidWorkflowExecution | undefined = undefined;
 
     while (childExecution === undefined) {
-      childExecution = await workflow.query.childExecution();
+      childExecution = (await workflow.query.childExecution()) as ValidWorkflowExecution;
     }
-    const child = client.createWorkflowHandle(childExecution.workflowId!, childExecution.runId!);
+    const child = client.createWorkflowHandle(childExecution);
     await child.terminate();
     const err: WorkflowExecutionFailedError = await t.throwsAsync(workflow.result(), {
       instanceOf: WorkflowExecutionFailedError,
@@ -472,10 +475,10 @@ if (RUN_INTEGRATION_TESTS) {
     });
     let err = await t.throwsAsync(workflow.execute(), { instanceOf: WorkflowExecutionContinuedAsNewError });
     if (!(err instanceof WorkflowExecutionContinuedAsNewError)) return; // Type assertion
-    workflow = client.createWorkflowHandle<typeof workflows.continueAsNewSameWorkflow>(
-      workflow.workflowId,
-      err.newExecutionRunId
-    );
+    workflow = client.createWorkflowHandle<typeof workflows.continueAsNewSameWorkflow>({
+      workflowId: workflow.workflowId,
+      runId: err.newExecutionRunId,
+    });
 
     await workflow.signal.continueAsNew();
     err = await t.throwsAsync(workflow.result(), {
@@ -483,11 +486,20 @@ if (RUN_INTEGRATION_TESTS) {
     });
     if (!(err instanceof WorkflowExecutionContinuedAsNewError)) return; // Type assertion
 
-    workflow = client.createWorkflowHandle<typeof workflows.continueAsNewSameWorkflow>(
-      workflow.workflowId,
-      err.newExecutionRunId
-    );
+    workflow = client.createWorkflowHandle<typeof workflows.continueAsNewSameWorkflow>({
+      workflowId: workflow.workflowId,
+      runId: err.newExecutionRunId,
+    });
     await workflow.result();
+  });
+
+  test('WorkflowHandle.result() follows chain of execution', async (t) => {
+    const client = new WorkflowClient(); // followRuns defaults to `true`
+    const workflow = client.createWorkflowHandle(workflows.continueAsNewSameWorkflow, {
+      taskQueue: 'test',
+    });
+    await workflow.execute('execute', 'none');
+    t.pass();
   });
 
   test('continue-as-new-to-different-workflow', async (t) => {
@@ -497,7 +509,10 @@ if (RUN_INTEGRATION_TESTS) {
     });
     const err = await t.throwsAsync(workflow.execute(), { instanceOf: WorkflowExecutionContinuedAsNewError });
     if (!(err instanceof WorkflowExecutionContinuedAsNewError)) return; // Type assertion
-    workflow = client.createWorkflowHandle<typeof workflows.sleeper>(workflow.workflowId, err.newExecutionRunId);
+    workflow = client.createWorkflowHandle<typeof workflows.sleeper>({
+      workflowId: workflow.workflowId,
+      runId: err.newExecutionRunId,
+    });
     await workflow.result();
     const info = await workflow.describe();
     t.is(info.workflowExecutionInfo?.type?.name, 'sleeper');
@@ -528,7 +543,10 @@ if (RUN_INTEGRATION_TESTS) {
       t.is(err.cause.message, 'interrupted from signalWithStart');
     }
     // Test returned runId
-    workflow = client.createWorkflowHandle<typeof workflows.interruptSignal>(workflow.workflowId, runId);
+    workflow = client.createWorkflowHandle<typeof workflows.interruptSignal>({
+      workflowId: workflow.workflowId,
+      runId,
+    });
     {
       const err: WorkflowExecutionFailedError = await t.throwsAsync(workflow.result(), {
         instanceOf: WorkflowExecutionFailedError,

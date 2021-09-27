@@ -3,6 +3,34 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+# [0.5.0](https://github.com/temporalio/sdk-node/compare/@temporalio/core-bridge@0.4.0...@temporalio/core-bridge@0.5.0) (2021-09-23)
+
+
+### Features
+
+* Ability to import logs from core ([a9621d1](https://github.com/temporalio/sdk-node/commit/a9621d1a891fd55d251f7003c4615429c8fe7384))
+* **client:** Follow Workflow execution chain ([2d7d0ff](https://github.com/temporalio/sdk-node/commit/2d7d0ff6ca155008fc9eeb41e271339ab478db38))
+* Expose option to enable direct prometheus scraping ([e08ffad](https://github.com/temporalio/sdk-node/commit/e08ffada21ea2fe10071e1cd36683ee4573185f7))
+
+
+### BREAKING CHANGES
+
+* **client:** `WorkflowClient.result()` and
+`WorkflowClient.createWorkflowStub()` override for attaching to an
+existing Workflow now takes an object with `workflowId` and optional
+`runId` instead of 2 strings.
+
+`workflowDefaults` added to `WorkflowClientOptions`, if provided they
+will be merged with per-method and per-handle options.
+
+`WorkflowOptions` takes a `followRuns` boolean option which defaults to
+`true`, it determines whether or not the client will follow the Workflow
+execution chain when getting a Workflow's result.
+
+
+
+
+
 # [0.4.0](https://github.com/temporalio/sdk-node/compare/@temporalio/core-bridge@0.3.1...@temporalio/core-bridge@0.4.0) (2021-09-15)
 
 

@@ -357,7 +357,7 @@ test('date', async (t) => {
   const now = Date.now();
   const req = await activate(t, makeStartWorkflow(workflowType, undefined, now));
   compareCompletion(t, req, makeSuccess());
-  t.deepEqual(logs, [[now], [now], [true]]);
+  t.deepEqual(logs, [[now], [now], [true], [true], [true], [true], [true]]);
 });
 
 test('asyncWorkflow', async (t) => {

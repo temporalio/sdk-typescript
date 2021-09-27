@@ -5,13 +5,16 @@
 import { continueAsNew, CancellationScope } from '@temporalio/workflow';
 import { ContinueAsNewFromMainAndSignal } from '../interfaces';
 
-export const continueAsNewSameWorkflow: ContinueAsNewFromMainAndSignal = (continueFrom = 'execute') => ({
+export const continueAsNewSameWorkflow: ContinueAsNewFromMainAndSignal = (
+  continueFrom = 'execute',
+  continueTo = 'signal'
+) => ({
   async execute(): Promise<void> {
     if (continueFrom === 'none') {
       return;
     }
     if (continueFrom === 'execute') {
-      await continueAsNew<ContinueAsNewFromMainAndSignal>('signal');
+      await continueAsNew<ContinueAsNewFromMainAndSignal>(continueTo);
     }
     await CancellationScope.current().cancelRequested;
   },
