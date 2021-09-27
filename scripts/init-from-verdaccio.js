@@ -20,6 +20,8 @@ async function main() {
     }
   });
   spawnSync('ls', ['-la'], { cwd: '/tmp/registry/example', stdio: 'inherit' });
+  spawnSync('cat', ['package.json'], { cwd: '/tmp/registry/example', stdio: 'inherit' });
+  spawnSync('ls', ['node_modules'], { cwd: '/tmp/registry/example', stdio: 'inherit' });
 }
 
 main()
