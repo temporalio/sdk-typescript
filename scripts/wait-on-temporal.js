@@ -30,6 +30,9 @@ async function main(maxAttempts = 100, retryIntervalSecs = 1) {
       await new Timer(retryIntervalSecs * 1000);
     }
   }
+
+  // The above can *still* lie sometimes w/o that bugfix it seems. Wait a bit extra.
+  await new Timer(10 * 1000);
 }
 
 main().then(
