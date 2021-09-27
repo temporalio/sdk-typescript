@@ -14,7 +14,7 @@ import {
 } from './helpers/samples';
 import { makeDir } from './helpers/make-dir';
 import { tryGitInit } from './helpers/git';
-import { install, updateNodeVersion } from './helpers/install';
+import { install, updateNodeVersion, installWithLatestTemporalVersion } from './helpers/install';
 import { testIfThisComputerIsOnline } from './helpers/is-online';
 import { isWriteable } from './helpers/is-writeable';
 import { getErrorCode } from './helpers/get-error-code';
@@ -25,12 +25,14 @@ export async function createApp({
   appPath,
   useYarn,
   useGit,
+  useLatestTemporalio,
   sample,
   samplePath,
 }: {
   appPath: string;
   useYarn: boolean;
   useGit: boolean;
+  useLatestTemporalio: boolean;
   sample: string;
   samplePath?: string;
 }): Promise<void> {
@@ -170,7 +172,11 @@ export async function createApp({
   console.log();
 
   await updateNodeVersion({ root });
-  await install({ root, useYarn });
+  if (useLatestTemporalio) {
+    await installWithLatestTemporalVersion({ root, useYarn });
+  } else {
+    await install({ root, useYarn });
+  }
 
   console.log();
 

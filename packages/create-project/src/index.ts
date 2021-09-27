@@ -56,6 +56,13 @@ const program = new Command(packageJson.name)
   Initialize a git repository
 `
   )
+  .option(
+    '--use-latest-temporalio',
+    `
+
+  Use the latest version of temporalio
+`
+  )
   .allowUnknownOption()
   .parse(process.argv);
 
@@ -154,6 +161,7 @@ async function start(): Promise<void> {
     appPath: resolvedProjectPath,
     useYarn: !!opts.useYarn,
     useGit: !!opts.useGit,
+    useLatestTemporalio: !!opts.useLatestTemporalio,
     sample: sample.trim(),
     samplePath: typeof opts.samplePath === 'string' ? opts.samplePath.trim() : undefined,
   });
