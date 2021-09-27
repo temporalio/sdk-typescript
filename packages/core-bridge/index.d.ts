@@ -128,15 +128,20 @@ export interface WorkerOptions {
   maxCachedWorkflows: number;
 }
 
-export interface CoreLog {
+/** Log level - must match rust log level names */
+export type LogLevel = 'TRACE' | 'DEBUG' | 'INFO' | 'WARN' | 'ERROR';
+
+export interface LogEntry {
   /** Log message */
   message: string;
-  /** Unix millis since epoch. Ideally would be bigint but Neon can't send those
+  /**
+   * Time since epoch [seconds, nanos].
+   *
+   * Should be switched to bigint once it is supported in neon.
    */
-  // TODO: Not meaningfully usable until logger interface has a timestamp concept
-  timestampMillis: number;
-  /** Log level - must match rust log level names */
-  level: 'TRACE' | 'DEBUG' | 'INFO' | 'WARN' | 'ERROR';
+  timestamp: [number, number];
+  /** Log level */
+  level: LogLevel;
 }
 
 export interface Worker {}
@@ -146,7 +151,7 @@ export declare type PollCallback = (err: Error, result: ArrayBuffer) => void;
 export declare type WorkerCallback = (err: Error, result: Worker) => void;
 export declare type CoreCallback = (err: Error, result: Core) => void;
 export declare type VoidCallback = (err: Error, result: void) => void;
-export declare type LogsCallback = (err: Error, result: CoreLog[]) => void;
+export declare type LogsCallback = (err: Error, result: LogEntry[]) => void;
 
 // TODO: improve type, for some reason Error is not accepted here
 export declare function registerErrors(errors: Record<string, any>): void;
@@ -164,3 +169,4 @@ export declare function workerCompleteWorkflowActivation(
 export declare function workerPollActivityTask(worker: Worker, callback: PollCallback): void;
 export declare function workerCompleteActivityTask(worker: Worker, result: ArrayBuffer, callback: VoidCallback): void;
 export declare function workerRecordActivityHeartbeat(worker: Worker, heartbeat: ArrayBuffer): void;
+export declare function getTimeOfDay(): [number, number];

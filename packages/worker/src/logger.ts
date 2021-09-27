@@ -1,28 +1,50 @@
-import { CoreLog } from '@temporalio/core-bridge';
+import { LogLevel, getTimeOfDay } from '@temporalio/core-bridge';
+
+export type LogMetadata = Record<string | symbol, any>;
+
+export interface LogEntry {
+  level: LogLevel;
+  message: string;
+  timestampNanos: bigint;
+  /** Custom attributes */
+  meta?: LogMetadata;
+}
+
 /**
  * Implement this interface in order to customize worker logging
  */
 export interface Logger {
-  trace(message: string, meta?: Record<string, any>): any;
-  debug(message: string, meta?: Record<string, any>): any;
-  info(message: string, meta?: Record<string, any>): any;
-  warn(message: string, meta?: Record<string, any>): any;
-  error(message: string, meta?: Record<string, any>): any;
+  log(level: LogLevel, message: string, meta?: LogMetadata): any;
+  trace(message: string, meta?: LogMetadata): any;
+  debug(message: string, meta?: LogMetadata): any;
+  info(message: string, meta?: LogMetadata): any;
+  warn(message: string, meta?: LogMetadata): any;
+  error(message: string, meta?: LogMetadata): any;
 }
 
-export type LogLevel = CoreLog['level'];
+export { LogLevel };
+
+export const LogTimestamp = Symbol('log_timestamp');
 
 const severities: LogLevel[] = ['TRACE', 'DEBUG', 'INFO', 'WARN', 'ERROR'];
 
 /**
  * Log messages using `console.error` and basic formatting
  */
-function defaultLogFunction(level: LogLevel, message: string, meta?: Record<string, any>): void {
+function defaultLogFunction({ level, timestampNanos, message, meta }: LogEntry): void {
+  const date = new Date(Number(timestampNanos / 1_000_000n));
   if (meta === undefined) {
-    console.error(new Date(), `[${level}]`, message);
+    console.error(date, `[${level}]`, message);
   } else {
-    console.error(new Date(), `[${level}]`, message, meta);
+    console.error(date, `[${level}]`, message, meta);
   }
+}
+
+/**
+ * Takes a `[seconds, nanos]` tuple as returned from getTimeOfDay and turns it into bigint.
+ */
+export function timeOfDayToBigint([seconds, nanos]: [number, number]): bigint {
+  return BigInt(seconds) * 1_000_000_000n + BigInt(nanos);
 }
 
 /**
@@ -36,29 +58,35 @@ export class DefaultLogger implements Logger {
     this.severity = severities.indexOf(this.level);
   }
 
-  log(level: LogLevel, message: string, meta?: Record<string, any>): void {
+  log(level: LogLevel, message: string, meta?: LogMetadata): void {
     if (severities.indexOf(level) >= this.severity) {
-      this.logFunction(level, message, meta);
+      const { [LogTimestamp]: timestampNanos, ...rest } = meta ?? {};
+      this.logFunction({
+        level,
+        message,
+        meta: rest,
+        timestampNanos: timestampNanos ?? timeOfDayToBigint(getTimeOfDay()),
+      });
     }
   }
 
-  public trace(message: string, meta?: Record<string, any>): void {
+  trace(message: string, meta?: LogMetadata): void {
     this.log('TRACE', message, meta);
   }
 
-  public debug(message: string, meta?: Record<string, any>): void {
+  debug(message: string, meta?: LogMetadata): void {
     this.log('DEBUG', message, meta);
   }
 
-  public info(message: string, meta?: Record<string, any>): void {
+  info(message: string, meta?: LogMetadata): void {
     this.log('INFO', message, meta);
   }
 
-  public warn(message: string, meta?: Record<string, any>): void {
+  warn(message: string, meta?: LogMetadata): void {
     this.log('WARN', message, meta);
   }
 
-  public error(message: string, meta?: Record<string, any>): void {
+  error(message: string, meta?: LogMetadata): void {
     this.log('ERROR', message, meta);
   }
 }

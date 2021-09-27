@@ -18,7 +18,7 @@ if (RUN_INTEGRATION_TESTS) {
   const recordedLogs: any[] = [];
   test.before(async (_) => {
     await Core.install({
-      logger: new DefaultLogger('DEBUG', (level, message, meta) => {
+      logger: new DefaultLogger('DEBUG', ({ level, message, meta }) => {
         if (message === 'External dependency function threw an error') recordedLogs.push({ level, message, meta });
       }),
     });
