@@ -33,8 +33,12 @@ export async function updateNodeVersion({ root }: InstallArgs): Promise<void> {
 
     const packageExists = await isUrlOk(`https://registry.npmjs.org/${packageName}`);
     if (packageExists) {
-      const fileString = readFileSync(fileName).toString();
-      writeFileSync(fileName, fileString.replace('@tsconfig/node16', packageName));
+      let fileString = readFileSync(fileName).toString();
+      writeFileSync(fileName, fileString.replace(`@tsconfig/node${versionAlreadyInPackageJson}`, packageName));
+
+      const tsconfigJson = `${root}/tsconfig.json`;
+      fileString = readFileSync(tsconfigJson).toString();
+      writeFileSync(tsconfigJson, fileString.replace(`@tsconfig/node${versionAlreadyInPackageJson}`, packageName));
     }
 
     writeFileSync(`${root}/.nvmrc`, currentNodeVersion.toString());
