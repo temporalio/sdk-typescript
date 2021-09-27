@@ -27,6 +27,7 @@ export interface CoreOptions {
 }
 
 export interface CompiledCoreOptions extends CoreOptions {
+  telemetryOptions: TelemetryOptions;
   /** Options for communicating with the Temporal server */
   serverOptions: CompiledServerOptions;
   logger: Logger;
@@ -81,12 +82,15 @@ export class Core {
     return new this(native, compiledOptions);
   }
 
-  private initLogPolling(options: CompiledCoreOptions, native: native.Core) {
+  protected async initLogPolling(options: CompiledCoreOptions, native: native.Core): Promise<void> {
     this.shouldPollForLogs.next(true);
 
-    if (options.telemetryOptions?.logForwardingLevel !== 'OFF') {
-      const poll = promisify(corePollLogs);
-      return lastValueFrom(
+    if (options.telemetryOptions.logForwardingLevel === 'OFF') {
+      return;
+    }
+    const poll = promisify(corePollLogs);
+    try {
+      await lastValueFrom(
         of(this.shouldPollForLogs).pipe(
           map((subject) => subject.getValue()),
           concatMap((shouldPoll) => {
@@ -111,14 +115,12 @@ export class Core {
           delay(3), // Don't go wild polling as fast as possible
           repeat()
         )
-      ).catch((error) => {
-        // Prevent unhandled rejection
-        if (error instanceof errors.ShutdownError) return;
-        options.logger.warn('Error gathering forwarded logs from core', { error });
-      });
+      );
+    } catch (error) {
+      // Prevent unhandled rejection
+      if (error instanceof errors.ShutdownError) return;
+      options.logger.warn('Error gathering forwarded logs from core', { error });
     }
-    // Make sure to always return a Promise
-    return Promise.resolve();
   }
 
   protected static _instance?: Promise<Core>;

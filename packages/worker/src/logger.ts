@@ -1,3 +1,4 @@
+import { CoreLog } from '@temporalio/core-bridge';
 /**
  * Implement this interface in order to customize worker logging
  */
@@ -9,9 +10,9 @@ export interface Logger {
   error(message: string, meta?: Record<string, any>): any;
 }
 
-export type LogLevel = 'TRACE' | 'DEBUG' | 'INFO' | 'WARNING' | 'ERROR';
+export type LogLevel = CoreLog['level'];
 
-const severities: LogLevel[] = ['TRACE', 'DEBUG', 'INFO', 'WARNING', 'ERROR'];
+const severities: LogLevel[] = ['TRACE', 'DEBUG', 'INFO', 'WARN', 'ERROR'];
 
 /**
  * Log messages using `console.error` and basic formatting
@@ -54,7 +55,7 @@ export class DefaultLogger implements Logger {
   }
 
   public warn(message: string, meta?: Record<string, any>): void {
-    this.log('WARNING', message, meta);
+    this.log('WARN', message, meta);
   }
 
   public error(message: string, meta?: Record<string, any>): void {
