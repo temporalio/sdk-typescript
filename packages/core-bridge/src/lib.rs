@@ -342,13 +342,8 @@ fn start_bridge_loop(
                                             WORKFLOW_ERROR.construct(cx, args)
                                         }
                                         CompleteWfError::NoWorkerForQueue(queue_name) => {
-                                            UNEXPECTED_ERROR.from_error(
-                                                cx,
-                                                format!(
-                                                    "No worker registered for queue {}",
-                                                    queue_name
-                                                ),
-                                            )
+                                            let args = vec![cx.string(queue_name).upcast()];
+                                            NO_WORKER_ERROR.construct(cx, args)
                                         }
                                         CompleteWfError::TonicError(_) => {
                                             TRANSPORT_ERROR.from_error(cx, err)
@@ -376,8 +371,9 @@ fn start_bridge_loop(
                                         CompleteActivityError::TonicError(_) => {
                                             TRANSPORT_ERROR.from_error(cx, err)
                                         }
-                                        CompleteActivityError::NoWorkerForQueue(_) => {
-                                            UNEXPECTED_ERROR.from_error(cx, err)
+                                        CompleteActivityError::NoWorkerForQueue(queue_name) => {
+                                            let args = vec![cx.string(queue_name).upcast()];
+                                            NO_WORKER_ERROR.construct(cx, args)
                                         }
                                     },
                                 ));
@@ -428,9 +424,14 @@ async fn handle_poll_workflow_activation_request(
                     ];
                     WORKFLOW_ERROR.construct(cx, args)
                 }
-                PollWfError::AutocompleteError(CompleteWfError::NoWorkerForQueue(_))
-                | PollWfError::NoWorkerForQueue(_) => UNEXPECTED_ERROR
-                    .from_error(cx, format!("No worker registered for queue {}", queue_name)),
+                PollWfError::AutocompleteError(CompleteWfError::NoWorkerForQueue(_)) => {
+                    UNEXPECTED_ERROR
+                        .from_error(cx, format!("No worker registered for queue {}", queue_name))
+                }
+                PollWfError::NoWorkerForQueue(queue_name) => {
+                    let args = vec![cx.string(queue_name).upcast()];
+                    NO_WORKER_ERROR.construct(cx, args)
+                }
                 PollWfError::BadPollResponseFromServer(_) => {
                     UNEXPECTED_ERROR.from_error(cx, "Bad poll response from server")
                 }
@@ -471,8 +472,10 @@ async fn handle_poll_activity_task_request(
         Err(err) => {
             send_error(event_queue, callback, move |cx| match err {
                 PollActivityError::ShutDown => SHUTDOWN_ERROR.from_error(cx, err),
-                PollActivityError::NoWorkerForQueue(_) => UNEXPECTED_ERROR
-                    .from_error(cx, format!("No worker registered for queue {}", queue_name)),
+                PollActivityError::NoWorkerForQueue(queue_name) => {
+                    let args = vec![cx.string(queue_name).upcast()];
+                    NO_WORKER_ERROR.construct(cx, args)
+                }
                 PollActivityError::TonicError(_) => TRANSPORT_ERROR.from_error(cx, err),
             });
         }

@@ -1,8 +1,19 @@
 /**
- * An unhandled error while communicating with the server, considered fatal
+ * The worker has been shut down
  */
 export class ShutdownError extends Error {
   public readonly name = 'ShutdownError';
+}
+
+/**
+ * The worker never existed or already completed shutdown
+ */
+export class NoWorkerRegisteredError extends Error {
+  public readonly name = 'NoWorkerRegisteredError';
+
+  public constructor(public readonly queue: string) {
+    super(`No worker for queue ${queue}`);
+  }
 }
 
 /**
