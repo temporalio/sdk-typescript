@@ -10,8 +10,6 @@ import { validateNpmName } from './helpers/validate-pkg';
 import { fetchSamples } from './helpers/fetch-samples';
 import packageJson from './pkg';
 
-console.log('argv:', process.argv);
-
 const program = new Command(packageJson.name)
   .version(packageJson.version, '-v, --version')
   .arguments('[project-directory]')

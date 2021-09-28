@@ -1,6 +1,6 @@
 The MIT License (MIT)
 
-Copyright (C) 2020 Temporal Technologies, Inc. All Rights Reserved.
+Copyright (C) 2021 Temporal Technologies, Inc. All Rights Reserved.
 
 Copyright (c) 2021 Vercel, Inc.
 
