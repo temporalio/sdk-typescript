@@ -27,6 +27,7 @@ import * as activities from './activities';
 import * as workflows from './workflows';
 import { u8, RUN_INTEGRATION_TESTS, cleanStackTrace } from './helpers';
 import { withZeroesHTTPServer } from './zeroes-http-server';
+import AsyncRetry from 'async-retry';
 
 const { EVENT_TYPE_TIMER_STARTED, EVENT_TYPE_TIMER_FIRED, EVENT_TYPE_TIMER_CANCELED } =
   iface.temporal.api.enums.v1.EventType;
@@ -65,7 +66,34 @@ if (RUN_INTEGRATION_TESTS) {
       runPromise,
       client: new WorkflowClient(undefined, { workflowDefaults: { followRuns: false } }),
     };
+
+    // The initialization of the custom search attributes is slooooow. Wait for it to finish
+    await AsyncRetry(
+      async () => {
+        try {
+          await t.context.client
+            .createWorkflowHandle(workflows.sleeper, {
+              taskQueue: 'no_one_cares_pointless_queue',
+              workflowExecutionTimeout: 1000,
+              searchAttributes: { CustomIntField: 1 },
+            })
+            .start();
+        } catch (e: any) {
+          // We don't stop until we see an error that *isn't* the error about the field not being
+          // valid
+          if (!e.details.includes('CustomIntField')) {
+            return;
+          }
+          throw e;
+        }
+      },
+      {
+        retries: 60,
+        maxTimeout: 1000,
+      }
+    );
   });
+
   test.after.always(async (t) => {
     t.context.worker.shutdown();
     await t.context.runPromise;

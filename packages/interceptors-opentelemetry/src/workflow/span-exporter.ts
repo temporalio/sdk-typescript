@@ -1,4 +1,4 @@
-import * as tracing from '@opentelemetry/tracing';
+import * as tracing from '@opentelemetry/sdk-trace-base';
 import { ExportResult, ExportResultCode } from '@opentelemetry/core';
 import * as wf from '@temporalio/workflow';
 import { OpenTelemetryDependencies, SerializableSpan } from './interfaces';
