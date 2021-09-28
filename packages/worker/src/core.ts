@@ -2,14 +2,13 @@ import { promisify } from 'util';
 import Heap from 'heap-js';
 import { BehaviorSubject, lastValueFrom, of } from 'rxjs';
 import { concatMap, delay, map, repeat } from 'rxjs/operators';
-import { IllegalStateError } from '@temporalio/common';
+import { IllegalStateError, normalizeTlsConfig } from "@temporalio/common";
 import * as native from '@temporalio/core-bridge';
 import { corePollLogs, coreShutdown, newCore, TelemetryOptions } from '@temporalio/core-bridge';
 import {
-  CompiledServerOptions,
   compileServerOptions,
   getDefaultServerOptions,
-  normalizeTlsConfig,
+  RequiredServerOptions,
   ServerOptions,
 } from './server-options';
 import { DefaultLogger, Logger, LogEntry, LogTimestamp, timeOfDayToBigint } from './logger';
@@ -30,7 +29,7 @@ export interface CoreOptions {
 export interface CompiledCoreOptions extends CoreOptions {
   telemetryOptions: TelemetryOptions;
   /** Options for communicating with the Temporal server */
-  serverOptions: CompiledServerOptions;
+  serverOptions: RequiredServerOptions;
   logger: Logger;
 }
 

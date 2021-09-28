@@ -4,10 +4,11 @@ use errors::*;
 use log::LevelFilter;
 use neon::prelude::*;
 use prost::Message;
-use std::str::FromStr;
 use std::{
     fmt::Display,
     future::Future,
+    net::SocketAddr,
+    str::FromStr,
     sync::Arc,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
@@ -15,8 +16,8 @@ use temporal_sdk_core::errors::{
     CompleteActivityError, CompleteWfError, CoreInitError, PollActivityError, PollWfError,
 };
 use temporal_sdk_core::{
-    init, ClientTlsConfig, Core, CoreInitOptions, RetryConfig, ServerGatewayOptions,
-    TelemetryOptions, TlsConfig, Url, WorkerConfig,
+    init, ClientTlsConfig, Core, CoreInitOptions, CoreInitOptionsBuilder, RetryConfig,
+    ServerGatewayOptionsBuilder, TelemetryOptionsBuilder, TlsConfig, Url, WorkerConfig,
 };
 use temporal_sdk_core_protos::coresdk::{
     workflow_completion::WfActivationCompletion, ActivityHeartbeat, ActivityTaskCompletion,
@@ -615,63 +616,72 @@ fn core_new(mut cx: FunctionContext) -> JsResult<JsUndefined> {
         }
     };
 
-    let gateway_opts = ServerGatewayOptions {
-        target_url: Url::parse(&url).unwrap(),
-        namespace: js_value_getter!(cx, server_options, "namespace", JsString),
-        identity: js_value_getter!(cx, server_options, "identity", JsString),
-        worker_binary_id: js_value_getter!(cx, server_options, "workerBinaryId", JsString),
-        long_poll_timeout: Duration::from_millis(js_value_getter!(
+    let mut gateway_opts = ServerGatewayOptionsBuilder::default();
+    if let Some(tls_cfg) = tls_cfg {
+        gateway_opts.tls_cfg(tls_cfg);
+    }
+    let gateway_opts = gateway_opts
+        .client_name("temporal-sdk-node".to_string())
+        .client_version(include_str!("../target/metaversion").to_string())
+        .target_url(Url::parse(&url).unwrap())
+        .namespace(js_value_getter!(cx, server_options, "namespace", JsString))
+        .identity(js_value_getter!(cx, server_options, "identity", JsString))
+        .worker_binary_id(js_value_getter!(
             cx,
             server_options,
-            "longPollTimeoutMs",
-            JsNumber
-        ) as u64),
-        tls_cfg,
-        retry_config,
-    };
+            "workerBinaryId",
+            JsString
+        ))
+        .retry_config(retry_config)
+        .build()
+        .expect("Core server gateway options must be valid");
 
     let log_forwarding_level_str =
         js_value_getter!(cx, telem_options, "logForwardingLevel", JsString);
     let log_forwarding_level = LevelFilter::from_str(&log_forwarding_level_str).unwrap();
-    let telemetry_opts = TelemetryOptions {
-        otel_collector_url: get_optional(&mut cx, telem_options, "oTelCollectorUrl").map(|x| {
+    let mut telemetry_opts = TelemetryOptionsBuilder::default();
+    if let Some(url) = get_optional(&mut cx, telem_options, "oTelCollectorUrl") {
+        telemetry_opts.otel_collector_url(
             Url::parse(
-                &x.downcast_or_throw::<JsString, _>(&mut cx)
+                &url.downcast_or_throw::<JsString, _>(&mut cx)
                     .unwrap()
                     .value(&mut cx),
             )
-            .expect("`oTelCollectorUrl` in telemetry options must be valid")
-        }),
-        tracing_filter: get_optional(&mut cx, telem_options, "tracingFilter")
-            .map(|x| {
-                x.downcast_or_throw::<JsString, _>(&mut cx)
-                    .unwrap()
-                    .value(&mut cx)
-            })
-            .unwrap_or("".to_string()),
-        log_forwarding_level,
-        prometheus_export_bind_address: get_optional(
-            &mut cx,
-            telem_options,
-            "prometheusMetricsBindAddress",
-        )
-        .map(|x| {
-            x.downcast_or_throw::<JsString, _>(&mut cx)
+            .expect("`oTelCollectorUrl` in telemetry options must be valid"),
+        );
+    }
+    if let Some(addr) = get_optional(&mut cx, telem_options, "prometheusMetricsBindAddress") {
+        telemetry_opts.prometheus_export_bind_address(
+            addr.downcast_or_throw::<JsString, _>(&mut cx)
                 .unwrap()
                 .value(&mut cx)
-                .parse()
-                .expect("`prometheusMetricsBindAddress` in telemetry options must be valid")
-        }),
-    };
+                .parse::<SocketAddr>()
+                .expect("`prometheusMetricsBindAddress` in telemetry options must be valid"),
+        );
+    }
+    let telemetry_opts = telemetry_opts
+        .tracing_filter(
+            get_optional(&mut cx, telem_options, "tracingFilter")
+                .map(|x| {
+                    x.downcast_or_throw::<JsString, _>(&mut cx)
+                        .unwrap()
+                        .value(&mut cx)
+                })
+                .unwrap_or("".to_string()),
+        )
+        .log_forwarding_level(log_forwarding_level)
+        .build()
+        .expect("Core telemetry options must be valid");
 
     let callback = cx.argument::<JsFunction>(1)?.root(&mut cx);
     let queue = Arc::new(cx.queue());
     std::thread::spawn(move || {
         start_bridge_loop(
-            CoreInitOptions {
-                gateway_opts,
-                telemetry_opts,
-            },
+            CoreInitOptionsBuilder::default()
+                .gateway_opts(gateway_opts)
+                .telemetry_opts(telemetry_opts)
+                .build()
+                .expect("Core init options must be valid"),
             queue,
             callback,
         )
