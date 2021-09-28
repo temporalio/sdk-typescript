@@ -1,6 +1,6 @@
 import * as otel from '@opentelemetry/api';
 import { Resource } from '@opentelemetry/resources';
-import { ReadableSpan, SpanExporter } from '@opentelemetry/tracing';
+import { ReadableSpan, SpanExporter } from '@opentelemetry/sdk-trace-base';
 import {
   ActivityExecuteInput,
   ActivityInboundCallsInterceptor,

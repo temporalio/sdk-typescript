@@ -41,7 +41,7 @@ jobs:
         run: docker-compose up -d
         if: ${{ startsWith(matrix.os, 'ubuntu') }}
       - name: Wait for Temporal Server
-        run: node scripts/wait-on-temporal.js
+        run: npm run wait-namespace
         if: ${{ startsWith(matrix.os, 'ubuntu') }}
       - run: npm test
         env:

@@ -1107,7 +1107,7 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
             },
             error: (error) => {
               if (
-                (this.state == 'STOPPING' || this.state == 'DRAINING') &&
+                (this.state === 'STOPPING' || this.state === 'DRAINING') &&
                 error instanceof errors.NoWorkerRegisteredError
               ) {
                 // It's possible for the worker to be completely removed if we poll after completing

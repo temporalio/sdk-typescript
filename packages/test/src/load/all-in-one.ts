@@ -46,6 +46,8 @@ async function main() {
   } finally {
     await kill(worker);
   }
+
+  console.log('Completely done');
 }
 
 main().catch((err) => {

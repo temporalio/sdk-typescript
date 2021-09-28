@@ -9,7 +9,7 @@ import {
 import * as grpc from '@grpc/grpc-js';
 
 export interface GrpcRetryOptions {
-  // Maximum number of allowed retries. Defaults to 10.
+  /** Maximum number of allowed retries. Defaults to 10. */
   maxRetries: number;
 
   /**
@@ -71,7 +71,7 @@ export function makeGrpcRetryInterceptor(retryOptions: GrpcRetryOptions): Interc
           })
           .withOnReceiveStatus((status, next) => {
             let retries = 0;
-            const retry = function (message: any, metadata: Metadata) {
+            const retry = (message: any, metadata: Metadata) => {
               retries++;
               const newCall = nextCall(options);
               newCall.start(metadata, {
@@ -88,7 +88,10 @@ export function makeGrpcRetryInterceptor(retryOptions: GrpcRetryOptions): Interc
                     }
                   } else {
                     savedMessageNext(savedReceiveMessage);
-                    next({ code: grpc.status.OK, details: '', metadata: new Metadata() });
+                    // TODO: For reasons that are completely unclear to me, if you pass a handcrafted
+                    //   status object here, node will magically just exit at the end of this line.
+                    //   No warning, no nothing. Here be dragons.
+                    next(status);
                   }
                 },
               });
@@ -96,7 +99,7 @@ export function makeGrpcRetryInterceptor(retryOptions: GrpcRetryOptions): Interc
               newCall.halfClose();
             };
 
-            if (isRetryableError(status)) {
+            if (retryOptions.retryableDecider(status)) {
               setTimeout(() => retry(savedSendMessage, savedMetadata), backOffAmount(retries));
             } else {
               savedMessageNext(savedReceiveMessage);

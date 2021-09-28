@@ -1,5 +1,5 @@
 import * as otel from '@opentelemetry/api';
-import * as tracing from '@opentelemetry/tracing';
+import * as tracing from '@opentelemetry/sdk-trace-base';
 import { InstrumentationLibrary } from '@opentelemetry/core';
 import { ExternalDependency, ExternalDependencies } from '@temporalio/workflow';
 

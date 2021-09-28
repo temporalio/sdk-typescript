@@ -10,6 +10,7 @@ steps:
     commands:
       - '.buildkite/docker/build.sh'
       - 'npm run ci-nightly'
+      - 'echo success'
     artifact_paths:
       - 'docker-compose-logs/*'
     plugins:
