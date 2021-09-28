@@ -1,4 +1,5 @@
 #include <cassert>
+#include <iostream>
 #include <nan.h>
 #include <isolated_vm.h>
 
@@ -33,6 +34,8 @@ void custom_promise_hook(
 #else
     Local<Context> context = promise->CreationContext();
 #endif
+
+    auto isolate = context->GetIsolate();
     // This may happen when creating a promise before registering the promise hook for a context
     // (e.g. when creating the root scope)
     Local<Function> fn = Local<Function>::Cast(context->GetEmbedderData(EMBEDDER_DATA_IDX));
@@ -43,8 +46,17 @@ void custom_promise_hook(
     const unsigned argc = 3;
     auto hook_type_str = promise_hook_type_to_str(type);
     Local<Value> argv[argc] = {Nan::New(hook_type_str).ToLocalChecked(), promise, parent};
+    TryCatch tryCatch(isolate);
+
     auto result = fn->Call(context, Local<Object>::Cast(Nan::Undefined()), argc, argv);
-    assert(!result.IsEmpty());
+    if (result.IsEmpty()) {
+        Local<Value> stack_trace_string;
+        if (tryCatch.StackTrace(context).ToLocal(&stack_trace_string)) {
+            String::Utf8Value e(isolate, stack_trace_string);
+            std::cerr << "Exception in promise hook: " << *e << std::endl;
+        }
+        abort();
+    }
 }
 
 NAN_METHOD(register_promise_hook) {
