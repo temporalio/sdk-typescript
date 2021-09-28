@@ -12,7 +12,20 @@ const bridgeDir = resolve(packagesPath, 'core-bridge');
 function cleanTsGeneratedFiles() {
   for (const package of readdirSync(packagesPath)) {
     const packagePath = resolve(packagesPath, package);
-    for (const file of readdirSync(packagePath)) {
+
+    let files;
+    try {
+      files = readdirSync(packagePath);
+    } catch (e) {
+      // Skip over non-directory files like .DS_Store
+      if (e?.code === 'ENOTDIR') {
+        continue;
+      } else {
+        throw e;
+      }
+    }
+
+    for (const file of files) {
       if (/^tsconfig(.*).json$/.test(file)) {
         const filePath = resolve(packagePath, file);
         const tsconfig = JSON5.parse(readFileSync(filePath));
