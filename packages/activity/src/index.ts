@@ -101,7 +101,7 @@ export interface Info {
  */
 export class Context {
   /**
-   * Holds information about the current executing Activity
+   * Holds information about the current executing Activity.
    */
   public info: Info;
   protected cancel: (reason?: any) => void = () => undefined;
@@ -118,13 +118,9 @@ export class Context {
    */
   public readonly cancellationSignal: AbortSignal;
   /**
-   * Send a heartbeat from an Activity.
-   *
-   * If an Activity times out, the last value of details is included in the {@link ActivityFailure} delivered to a Workflow in the `cause` attribute which will be set to {@link TimeoutFailure}. Then the Workflow can pass the details to the next Activity invocation. This acts as a periodic checkpoint mechanism for the progress of an Activity.
-   *
-   * The Activity must heartbeat in order to receive cancellation.
+   * The heartbeat implementation, injected via the constructor.
    */
-  public readonly heartbeat: (details?: any) => void;
+  protected readonly heartbeatFn: (details?: any) => void;
 
   /**
    * **Not** meant to instantiated by Activity code, used by the worker.
@@ -140,7 +136,18 @@ export class Context {
     this.info = info;
     this.cancelled = cancelled;
     this.cancellationSignal = cancellationSignal;
-    this.heartbeat = heartbeat;
+    this.heartbeatFn = heartbeat;
+  }
+
+  /**
+   * Send a heartbeat from an Activity.
+   *
+   * If an Activity times out, the last value of details is included in the {@link ActivityFailure} delivered to a Workflow in the `cause` attribute which will be set to {@link TimeoutFailure}. Then the Workflow can pass the details to the next Activity invocation. This acts as a periodic checkpoint mechanism for the progress of an Activity.
+   *
+   * The Activity must heartbeat in order to receive cancellation.
+   */
+  public heartbeat(details?: unknown): void {
+    this.heartbeatFn(details);
   }
 
   /**
