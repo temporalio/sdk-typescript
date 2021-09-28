@@ -66,7 +66,7 @@ export type Returner<T> = () => {
   execute(): Promise<T>;
 };
 
-export type Sleeper = (ms?: number) => {
+export type Sleeper = (ms?: number | string) => {
   execute(): Promise<void>;
 };
 

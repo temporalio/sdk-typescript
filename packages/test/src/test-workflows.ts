@@ -386,6 +386,19 @@ test('sleeper', async (t) => {
   t.deepEqual(logs, [['slept']]);
 });
 
+test('with ms string - sleeper', async (t) => {
+  const { logs, workflowType } = t.context;
+  {
+    const req = await activate(t, makeStartWorkflow(workflowType, [defaultDataConverter.toPayloadSync('10s')]));
+    compareCompletion(t, req, makeSuccess([makeStartTimerCommand({ seq: 1, startToFireTimeout: msToTs('10s') })]));
+  }
+  {
+    const req = await activate(t, makeFireTimer(1));
+    compareCompletion(t, req, makeSuccess());
+  }
+  t.deepEqual(logs, [['slept']]);
+});
+
 test('setTimeoutAfterMicroTasks', async (t) => {
   const { logs, workflowType } = t.context;
   {
