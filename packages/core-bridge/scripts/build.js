@@ -24,6 +24,13 @@ const platformMapping = { darwin: 'apple-darwin', linux: 'unknown-linux-gnu', wi
 
 function compile(target) {
   console.log('Compiling bridge', { target });
+  // Extract version from meta package for use as version number in client
+  // version field.
+  const metaPkg = require('../../meta/package.json');
+  const cargoOutputDir = path.resolve(__dirname, '..', 'target');
+  fs.mkdirSync(cargoOutputDir, { recursive: true });
+  fs.writeFileSync(path.resolve(cargoOutputDir, 'metaversion'), metaPkg.version);
+
   const out = target ? `releases/${target}/index.node` : 'index.node';
   try {
     fs.unlinkSync(out);

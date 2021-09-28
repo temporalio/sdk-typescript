@@ -39,10 +39,6 @@ export interface ServerOptions {
    * A string that should be unique to the exact worker code/binary being executed
    */
   workerBinaryId: string;
-  /**
-   * Timeout for long polls (polling of task queues)
-   */
-  longPollTimeoutMs: number;
 
   /**
    * TLS configuration options.
