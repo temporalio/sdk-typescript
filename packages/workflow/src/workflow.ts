@@ -2,6 +2,7 @@ import {
   ActivityFunction,
   ActivityOptions,
   IllegalStateError,
+  msToNumber,
   msToTs,
   msOptionalToTs,
   Workflow,
@@ -81,17 +82,16 @@ function timerNextHandler(input: TimerInput) {
  * Asynchronous sleep.
  *
  * Schedules a timer on the Temporal service.
- * The returned promise is {@link cancel | cancellable}.
  *
- * @param ms milliseconds to sleep for
+ * @param ms sleep duration - {@link https://www.npmjs.com/package/ms | ms} formatted string or number of milliseconds
  */
-export function sleep(ms: number): Promise<void> {
+export function sleep(ms: number | string): Promise<void> {
   const seq = state.nextSeqs.timer++;
 
   const execute = composeInterceptors(state.interceptors.outbound, 'startTimer', timerNextHandler);
 
   return execute({
-    durationMs: ms,
+    durationMs: msToNumber(ms),
     seq,
   });
 }
