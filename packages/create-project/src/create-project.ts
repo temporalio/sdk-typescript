@@ -174,9 +174,9 @@ export async function createApp({
   await updateNodeVersion({ root });
   if (useLatestTemporalio) {
     await installWithLatestTemporalVersion({ root, useYarn });
-  } else {
-    await install({ root, useYarn });
   }
+
+  await install({ root, useYarn });
 
   console.log();
 
