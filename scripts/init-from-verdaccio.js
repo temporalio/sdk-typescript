@@ -3,16 +3,25 @@ const { withRegistry, getArgs } = require('./registry');
 
 async function main() {
   const { registryDir, initArgs } = await getArgs();
+
   await withRegistry(registryDir, async () => {
-    const { status } = spawnSync('npm', ['init', '@temporalio', 'example'].concat(initArgs), {
-      stdio: 'inherit',
-      cwd: registryDir,
-      env: { ...process.env, NPM_CONFIG_REGISTRY: 'http://localhost:4873/' },
-    });
+    console.log('spawning npx @temporalio/create with args:', initArgs);
+    const { status } = spawnSync(
+      'npx',
+      ['@temporalio/create', 'example', '--no-git-init', '--temporalio-version', 'latest'].concat(initArgs),
+      {
+        stdio: 'inherit',
+        cwd: registryDir,
+        env: { ...process.env, NPM_CONFIG_REGISTRY: 'http://localhost:4873/' },
+      }
+    );
     if (status !== 0) {
       throw new Error('Failed to init example');
     }
   });
+  spawnSync('ls', ['-la'], { cwd: '/tmp/registry/example', stdio: 'inherit' });
+  spawnSync('cat', ['package.json'], { cwd: '/tmp/registry/example', stdio: 'inherit' });
+  spawnSync('ls', ['node_modules'], { cwd: '/tmp/registry/example', stdio: 'inherit' });
 }
 
 main()

@@ -1,7 +1,7 @@
 const path = require('path');
 const { spawn: spawnChild, spawnSync } = require('child_process');
 const arg = require('arg');
-const { shell, sleep, kill, waitOnChild, ChildProcessError } = require('./utils');
+const { shell, kill } = require('./utils');
 
 const npm = /^win/.test(process.platform) ? 'npm.cmd' : 'npm';
 
@@ -25,7 +25,7 @@ async function withWorker(workdir, fn) {
 }
 
 async function test(workdir) {
-  const { status, output } = spawnSync('node', [path.join(workdir, 'lib/exec-workflow.js')], {
+  const { status, output } = spawnSync(npm, ['run', 'execute-workflow'], {
     cwd: workdir,
     shell,
     encoding: 'utf8',
@@ -34,7 +34,7 @@ async function test(workdir) {
   if (status !== 0) {
     throw new Error('Failed to run workflow');
   }
-  if (output[1] !== 'Hello, Temporal!\n') {
+  if (!output[1].includes('Hello, Temporal!\n')) {
     throw new Error(`Invalid output: "${output[1]}"`);
   }
 }

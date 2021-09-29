@@ -1,150 +1,217 @@
-#!/usr/bin/env node
-import os from 'os';
+// Modified from: https://github.com/vercel/next.js/blob/2425f4703c4c6164cecfdb6aa8f80046213f0cc6/packages/create-next-app/index.ts
+import chalk from 'chalk';
+import dedent from 'dedent';
+import { Command } from 'commander';
 import path from 'path';
-import { mkdir, writeFile, readFile } from 'fs-extra';
-import arg from 'arg';
-import { spawn } from './subprocess';
+import prompts from 'prompts';
+import checkForUpdate from 'update-check';
 
-const command = '@temporalio/create';
-const typescriptVersion = '4.4.2';
-const nodeMajorVersion = parseInt(process.versions.node, 10);
-const npm = /^win/.test(process.platform) ? 'npm.cmd' : 'npm';
+import { createApp } from './create-project';
+import { validateNpmName } from './helpers/validate-pkg';
+import { fetchSamples } from './helpers/fetch-samples';
+import packageJson from './pkg';
 
-const packageJsonBase = {
-  version: '0.1.0',
-  private: true,
-  scripts: {
-    build: 'tsc --build',
-    'build.watch': 'tsc --build --watch',
-    start: 'ts-node src/worker.ts',
-    'start.watch': 'nodemon src/worker.ts',
-    workflow: 'ts-node src/exec-workflow.ts',
-  },
-  devDependencies: {
-    typescript: `^${typescriptVersion}`,
-    [`@tsconfig/node${nodeMajorVersion}`]: '^1.0.0',
-    'ts-node': '^10.2.1',
-    nodemon: '^2.0.12',
-  },
-  nodemonConfig: {
-    watch: ['src'],
-    ext: 'ts',
-    execMap: {
-      ts: 'ts-node',
-    },
-  },
-};
+const program = new Command(packageJson.name)
+  .version(packageJson.version, '-v, --version', 'Print the version and exit')
+  .arguments('[project-directory]')
+  .usage(`${chalk.green('[project-directory]')} [options]`)
+  .option(
+    '-s, --sample <name|github-url>',
+    dedent`
+  A sample to bootstrap the app with. You can use a sample name
+  from https://github.com/temporalio/samples-node or a GitHub URL. 
+  The URL can use any branch and/or subdirectory.
+  Example: https://github.com/temporalio/samples-node/tree/next/hello-world
+`
+  )
+  .option(
+    '--sample-path <path-to-sample>',
+    dedent`
+  In a rare case, your GitHub URL might contain a branch name with
+  a slash (e.g. bug/fix-1) and the path to the sample (e.g. foo/bar).
+  In this case, you must specify the path to the sample separately:
+  --sample-path foo/bar
+`
+  )
+  .option(
+    '-l, --list-samples',
+    dedent`
+  Print available sample projects and exit
+`
+  )
+  .option(
+    '--use-yarn',
+    dedent`
+  Use yarn instead of npm
+`
+  )
+  .option(
+    '--git-init',
+    dedent`
+  Initialize a git repository
+`
+  )
+  .option(
+    '--no-git-init',
+    dedent`
+  Skip git repository initialization
+`
+  )
+  .option(
+    '--temporalio-version <version>',
+    dedent`
+  Specify a which version of the temporalio npm package to use
+`
+  )
+  .allowUnknownOption()
+  .parse(process.argv);
 
-const tsConfig = {
-  extends: `@tsconfig/node${nodeMajorVersion}/tsconfig.json`,
-  version: typescriptVersion,
-  compilerOptions: {
-    emitDecoratorMetadata: false,
-    experimentalDecorators: false,
-    declaration: true,
-    declarationMap: true,
-    sourceMap: true,
-    composite: true,
-    rootDir: './src',
-    outDir: './lib',
-  },
-  include: ['src/**/*.ts'],
-  exclude: ['node_modules'],
-};
-
-/**
- * Copy sample from `source` to `target` stripping away snipsync comments
- */
-async function copySample(source: string, target: string) {
-  const code = await readFile(source, 'utf8');
-  const stripped = code.replace(/.*@@@SNIP(START|END).*\n/gm, '');
-  await writeFile(target, stripped);
+interface Options {
+  useYarn?: boolean;
+  gitInit?: boolean;
+  listSamples?: boolean;
+  sample?: string;
+  samplePath?: string;
+  temporalioVersion?: string;
 }
 
-async function writePrettyJson(path: string, obj: any) {
-  await writeFile(path, JSON.stringify(obj, null, 2) + os.EOL);
-}
+let opts: Options;
 
-class UsageError extends Error {
-  public readonly name: string = 'UsageError';
-}
+async function start(): Promise<void> {
+  opts = program.opts();
+  if (opts.listSamples) {
+    const samples = await fetchSamples();
+    console.log(`Available samples:\n\n${samples.join('\n')}\n`);
+    return;
+  }
 
-interface Template {
-  copySources(sampleDir: string, targetDir: string): Promise<void>;
-}
+  let projectPath = program.args[0];
 
-class HelloWorld implements Template {
-  constructor(public connectionVariant: 'default' | 'mtls') {}
+  if (typeof projectPath === 'string') {
+    projectPath = projectPath.trim();
+  }
 
-  async copySources(sampleDir: string, targetDir: string): Promise<void> {
-    if (this.connectionVariant === 'default') {
-      await copySample(path.join(sampleDir, 'worker.ts'), path.join(targetDir, 'worker.ts'));
-      await copySample(path.join(sampleDir, 'client.ts'), path.join(targetDir, 'exec-workflow.ts'));
-    } else if (this.connectionVariant === 'mtls') {
-      await copySample(path.join(sampleDir, 'mtls-env.ts'), path.join(targetDir, 'mtls-env.ts'));
-      await copySample(path.join(sampleDir, 'worker-mtls.ts'), path.join(targetDir, 'worker.ts'));
-      await copySample(path.join(sampleDir, 'client-mtls.ts'), path.join(targetDir, 'exec-workflow.ts'));
+  if (!projectPath) {
+    const res = await prompts({
+      type: 'text',
+      name: 'path',
+      message: 'What is your project named?',
+      initial: 'my-temporal',
+      validate: (name) => {
+        const validation = validateNpmName(path.basename(path.resolve(name)));
+        if (validation.valid) {
+          return true;
+        }
+        return 'Invalid project name: ' + validation.problems?.[0];
+      },
+    });
+
+    if (typeof res.path === 'string') {
+      projectPath = res.path.trim();
     }
-    await copySample(path.join(sampleDir, 'activity.ts'), path.join(targetDir, 'activities.ts'));
-    await copySample(path.join(sampleDir, 'workflow.ts'), path.join(targetDir, 'workflows', 'index.ts'));
-    await copySample(path.join(sampleDir, 'interface.ts'), path.join(targetDir, 'interfaces.ts'));
   }
-}
 
-function getTemplate(sampleName: string): Template {
-  switch (sampleName) {
-    case 'hello-world':
-      return new HelloWorld('default');
-    case 'hello-world-mtls':
-      return new HelloWorld('mtls');
-  }
-  throw new TypeError(`Invalid sample name ${sampleName}`);
-}
-
-async function createProject(projectPath: string, useYarn: boolean, temporalVersion: string, sample: string) {
-  const root = path.resolve(projectPath);
-  const src = path.resolve(root, 'src');
-  const name = path.basename(root);
-  await mkdir(root);
-  const packageJson = { ...packageJsonBase, name };
-  await writePrettyJson(path.join(root, 'package.json'), packageJson);
-  await mkdir(src);
-  await mkdir(path.join(src, 'workflows'));
-  await writePrettyJson(path.join(root, 'tsconfig.json'), tsConfig);
-  const sampleDir = path.join(__dirname, '../samples');
-  const template = getTemplate(sample);
-  await template.copySources(sampleDir, src);
-  if (useYarn) {
-    await spawn('yarn', ['install'], { cwd: root, stdio: 'inherit' });
-    await spawn('yarn', ['add', `temporalio@${temporalVersion}`], { cwd: root, stdio: 'inherit' });
-  } else {
-    await spawn(npm, ['install'], { cwd: root, stdio: 'inherit' });
-    await spawn(npm, ['install', `temporalio@${temporalVersion}`], { cwd: root, stdio: 'inherit' });
-  }
-}
-
-async function init() {
-  const { _: args, ...opts } = arg({
-    '--use-yarn': Boolean,
-    '--temporal-version': String,
-    '--sample': String,
-  });
-  if (args.length !== 1) {
-    throw new UsageError();
-  }
-  const sample = opts['--sample'] || 'hello-world';
-  await createProject(args[0], !!opts['--use-yarn'], opts['--temporal-version'] || 'latest', sample);
-}
-
-init()
-  .then(() => process.exit(0))
-  .catch((err) => {
-    if (err instanceof UsageError) {
-      console.error(
-        `Usage: ${command} [--use-yarn] [--temporal-version VERSION] [--sample hello-world|hello-world-mtls] <packagePath>`
-      );
-    } else {
-      console.error(err);
-    }
+  if (!projectPath) {
+    console.error();
+    console.error('Please specify the project directory:');
+    console.error(`  ${chalk.cyan(program.name())} ${chalk.green('<project-directory>')}`);
+    console.error();
+    console.error('For example:');
+    console.error(`  ${chalk.cyan(program.name())} ${chalk.green('my-temporal-project')}`);
+    console.error();
+    console.error(`Run ${chalk.cyan(`${program.name()} --help`)} to see all options.`);
     process.exit(1);
+  }
+
+  const resolvedProjectPath = path.resolve(projectPath);
+  const projectName = path.basename(resolvedProjectPath);
+
+  const { valid, problems } = validateNpmName(projectName);
+  if (!valid) {
+    console.error(
+      `Could not create a project called ${chalk.red(`"${projectName}"`)} because of npm naming restrictions:`
+    );
+
+    problems?.forEach((p) => console.error(`    ${chalk.red.bold('*')} ${p}`));
+    process.exit(1);
+  }
+
+  let sample = opts.sample;
+  if (!sample) {
+    const samples = await fetchSamples();
+    const choices = samples.map((sample) => ({ title: sample, value: sample }));
+
+    const res = await prompts({
+      type: 'select',
+      name: 'sample',
+      message: `Which sample would you like to use?`,
+      choices,
+      initial: samples.indexOf('hello-world'),
+    });
+
+    if (typeof res.sample === 'string') {
+      sample = res.sample;
+    }
+  }
+
+  if (!sample) {
+    console.error();
+    console.error('Please specify which sample:');
+    console.error(`  ${chalk.cyan(program.name())} --sample ${chalk.green('<name|github-url>')}`);
+    console.error();
+    console.error('For example:');
+    console.error(`  ${chalk.cyan(program.name())} --sample ${chalk.green('hello-world')}`);
+    console.error();
+    console.error(`Run ${chalk.cyan(`${program.name()} --help`)} to see all options.`);
+    process.exit(1);
+  }
+
+  await createApp({
+    appPath: resolvedProjectPath,
+    useYarn: !!opts.useYarn,
+    gitInit: opts.gitInit,
+    temporalioVersion: opts.temporalioVersion,
+    sample: sample.trim(),
+    samplePath: typeof opts.samplePath === 'string' ? opts.samplePath.trim() : undefined,
   });
+}
+
+const update = checkForUpdate(packageJson).catch(() => null);
+
+async function notifyUpdate(): Promise<void> {
+  try {
+    const res = await update;
+    if (res?.latest) {
+      console.log();
+      console.log(chalk.yellow.bold('A new version of `@temporalio/create` is available!'));
+      console.log(
+        'You can update by running: ' +
+          chalk.cyan(opts.useYarn ? 'yarn global add @temporalio/create' : 'npm i -g @temporalio/create')
+      );
+      console.log();
+    }
+    process.exit();
+  } catch {
+    // ignore error
+  }
+}
+
+export function run(): void {
+  start()
+    .then(notifyUpdate)
+    .catch(async (reason) => {
+      console.log();
+      console.log('Aborting installation.');
+      if (reason.command) {
+        console.log(`  ${chalk.cyan(reason.command)} has failed.`);
+      } else {
+        console.log(chalk.red('Unexpected error. Please report it as a bug:'));
+        console.log(reason);
+      }
+      console.log();
+
+      await notifyUpdate();
+
+      process.exit(1);
+    });
+}

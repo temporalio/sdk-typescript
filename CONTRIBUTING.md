@@ -53,17 +53,36 @@ After your environment is set up, you can run these commands:
 - `npm run lint` verifies code style with prettier and ES lint.
 - `npm run commitlint` validates [commit messages](#style-guide).
 
-### Testing local changes to core
+### Testing
+
+#### Testing local changes to core
 
 Create a `.cargo/config.toml` file and override the path to sdk-core and/or sdk-core-protos as
 described [here](https://doc.rust-lang.org/cargo/reference/overriding-dependencies.html#paths-overrides)
 
-#### Integration tests
+##### Integration tests
 
 In order to run integration tests:
 
 1. Run the temporal server using [docker-compose](https://github.com/temporalio/docker-compose).
 1. Export `RUN_INTEGRATION_TESTS=true`
+
+#### test-npm-init
+
+To replicate the `test-npm-init` CI test locally, you can start with the below steps:
+
+> If you've run `npx @temporalio/create` before, you may need to delete the version of the package that's stored in `~/.npm/_npx/`.
+
+```
+rm -rf /tmp/registry
+npm ci
+npm run rebuild
+node scripts/publish-to-verdaccio.js --registry-dir /tmp/registry
+node scripts/init-from-verdaccio.js --registry-dir /tmp/registry --sample hello-world
+cd /tmp/registry/example
+npm run build
+node ~/path-to/sdk-node/scripts/test-example.js --work-dir /tmp/registry/example
+```
 
 ### Style Guide
 

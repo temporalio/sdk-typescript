@@ -130,14 +130,11 @@ jobs:
         with:
           name: packages
           path: /tmp/registry/storage
-      # The 2 steps below run npm init @temporalio from a local registry with different samples
-      - run: node scripts/init-from-verdaccio.js --registry-dir /tmp/registry
+      # The 2 steps below run npx @temporalio/example from a local registry with different samples
+      - run: node scripts/init-from-verdaccio.js --registry-dir /tmp/registry --sample https://github.com/temporalio/samples-node/tree/next/hello-world
         if: ${{ matrix.server == 'local' }}
-      - run: node scripts/init-from-verdaccio.js --registry-dir /tmp/registry --sample hello-world-mtls
+      - run: node scripts/init-from-verdaccio.js --registry-dir /tmp/registry --sample https://github.com/temporalio/samples-node/tree/next/hello-world-mtls
         if: ${{ matrix.server == 'cloud' }}
-      - name: Compile Typescript in example project
-        run: npm run build
-        working-directory: /tmp/registry/example
       - name: Get Temporal docker-compose.yml
         run: wget https://raw.githubusercontent.com/temporalio/docker-compose/v1.11.3/docker-compose.yml
         if: ${{ matrix.server == 'local' }}
