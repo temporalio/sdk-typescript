@@ -1105,17 +1105,8 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
               this.state = 'STOPPED';
             },
             error: (error) => {
-              if (
-                (this.state === 'STOPPING' || this.state === 'DRAINING') &&
-                error instanceof errors.NoWorkerRegisteredError
-              ) {
-                // It's possible for the worker to be completely removed if we poll after completing
-                // everything, in which case it will be not registered.
-                this.state = 'STOPPED';
-              } else {
-                this.log.error('Worker failed', { error });
-                this.state = 'FAILED';
-              }
+              this.log.error('Worker failed', { error });
+              this.state = 'FAILED';
             },
           })
         ),

@@ -2,15 +2,10 @@ import { promisify } from 'util';
 import Heap from 'heap-js';
 import { BehaviorSubject, lastValueFrom, of } from 'rxjs';
 import { concatMap, delay, map, repeat } from 'rxjs/operators';
-import { IllegalStateError, normalizeTlsConfig } from "@temporalio/common";
+import { IllegalStateError, normalizeTlsConfig } from '@temporalio/common';
 import * as native from '@temporalio/core-bridge';
 import { corePollLogs, coreShutdown, newCore, TelemetryOptions } from '@temporalio/core-bridge';
-import {
-  compileServerOptions,
-  getDefaultServerOptions,
-  RequiredServerOptions,
-  ServerOptions,
-} from './server-options';
+import { compileServerOptions, getDefaultServerOptions, RequiredServerOptions, ServerOptions } from './server-options';
 import { DefaultLogger, Logger, LogEntry, LogTimestamp, timeOfDayToBigint } from './logger';
 import * as errors from './errors';
 
