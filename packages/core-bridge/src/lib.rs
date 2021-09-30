@@ -1,23 +1,22 @@
+mod conversions;
 mod errors;
 
+use crate::conversions::ObjectHandleConversionsExt;
 use errors::*;
-use log::LevelFilter;
 use neon::prelude::*;
+use opentelemetry::trace::{FutureExt, SpanContext, TraceContextExt};
 use prost::Message;
 use std::{
     fmt::Display,
     future::Future,
-    net::SocketAddr,
-    str::FromStr,
     sync::Arc,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
-use temporal_sdk_core::errors::{
-    CompleteActivityError, CompleteWfError, CoreInitError, PollActivityError, PollWfError,
-};
 use temporal_sdk_core::{
-    init, ClientTlsConfig, Core, CoreInitOptions, CoreInitOptionsBuilder, RetryConfig,
-    ServerGatewayOptionsBuilder, TelemetryOptionsBuilder, TlsConfig, Url, WorkerConfig,
+    errors::{
+        CompleteActivityError, CompleteWfError, CoreInitError, PollActivityError, PollWfError,
+    },
+    init, Core, CoreInitOptions, CoreInitOptionsBuilder, WorkerConfig,
 };
 use temporal_sdk_core_protos::coresdk::{
     workflow_completion::WfActivationCompletion, ActivityHeartbeat, ActivityTaskCompletion,
@@ -50,12 +49,14 @@ pub enum Request {
     PollWorkflowActivation {
         /// Name of queue to poll on
         queue_name: String,
+        otel_span: SpanContext,
         /// Used to send the result back into JS
         callback: Root<JsFunction>,
     },
     /// A request to complete a single workflow activation
     CompleteWorkflowActivation {
         completion: WfActivationCompletion,
+        otel_span: SpanContext,
         /// Used to send the result back into JS
         callback: Root<JsFunction>,
     },
@@ -63,12 +64,14 @@ pub enum Request {
     PollActivityTask {
         /// Name of queue to poll on
         queue_name: String,
+        otel_span: SpanContext,
         /// Used to report completion or error back into JS
         callback: Root<JsFunction>,
     },
     /// A request to complete a single activity task
     CompleteActivityTask {
         completion: ActivityTaskCompletion,
+        otel_span: SpanContext,
         /// Used to send the result back into JS
         callback: Root<JsFunction>,
     },
@@ -173,8 +176,7 @@ async fn void_future_to_js<E, F, ER, EF>(
     callback: Root<JsFunction>,
     f: F,
     error_function: EF,
-) -> ()
-where
+) where
     E: Display + Send + 'static,
     F: Future<Output = Result<(), E>> + Send + 'static,
     ER: Object,
@@ -253,7 +255,7 @@ fn start_bridge_loop(
                                     },
                                     |cx, err| UNEXPECTED_ERROR.from_error(cx, err),
                                 )
-                                    .await;
+                                .await;
                                 break;
                             }
                             Request::PollLogs { callback } => {
@@ -310,10 +312,12 @@ fn start_bridge_loop(
                             }
                             Request::PollWorkflowActivation {
                                 queue_name,
+                                otel_span,
                                 callback,
                             } => {
                                 tokio::spawn(handle_poll_workflow_activation_request(
                                     queue_name,
+                                    otel_span,
                                     core,
                                     event_queue,
                                     callback,
@@ -321,10 +325,12 @@ fn start_bridge_loop(
                             }
                             Request::PollActivityTask {
                                 queue_name,
+                                otel_span,
                                 callback,
                             } => {
                                 tokio::spawn(handle_poll_activity_task_request(
                                     queue_name,
+                                    otel_span,
                                     core,
                                     event_queue,
                                     callback,
@@ -332,12 +338,19 @@ fn start_bridge_loop(
                             }
                             Request::CompleteWorkflowActivation {
                                 completion,
+                                otel_span,
                                 callback,
                             } => {
+                                let otel_ctx = opentelemetry::Context::new()
+                                    .with_remote_span_context(otel_span);
                                 tokio::spawn(void_future_to_js(
                                     event_queue,
                                     callback,
-                                    async move { core.complete_workflow_activation(completion).await },
+                                    async move {
+                                        core.complete_workflow_activation(completion)
+                                            .with_context(otel_ctx)
+                                            .await
+                                    },
                                     |cx, err| match err {
                                         CompleteWfError::WorkflowUpdateError { run_id, source } => {
                                             let args = vec![
@@ -363,12 +376,19 @@ fn start_bridge_loop(
                             }
                             Request::CompleteActivityTask {
                                 completion,
+                                otel_span,
                                 callback,
                             } => {
+                                let otel_ctx = opentelemetry::Context::new()
+                                    .with_remote_span_context(otel_span);
                                 tokio::spawn(void_future_to_js(
                                     event_queue,
                                     callback,
-                                    async move { core.complete_activity_task(completion).await },
+                                    async move {
+                                        core.complete_activity_task(completion)
+                                            .with_context(otel_ctx)
+                                            .await
+                                    },
                                     |cx, err| match err {
                                         CompleteActivityError::MalformedActivityCompletion {
                                             reason,
@@ -397,18 +417,24 @@ fn start_bridge_loop(
 /// Called within the poll loop thread, calls core and triggers JS callback with result
 async fn handle_poll_workflow_activation_request(
     queue_name: String,
+    span_context: SpanContext,
     core: Arc<impl Core>,
     event_queue: Arc<EventQueue>,
     callback: Root<JsFunction>,
 ) {
-    match core.poll_workflow_activation(queue_name.as_str()).await {
+    let otel_ctx = opentelemetry::Context::new().with_remote_span_context(span_context);
+    match core
+        .poll_workflow_activation(queue_name.as_str())
+        .with_context(otel_ctx)
+        .await
+    {
         Ok(task) => {
             send_result(event_queue, callback, move |cx| {
                 let len = task.encoded_len();
                 let mut result = JsArrayBuffer::new(cx, len as u32)?;
                 cx.borrow_mut(&mut result, |data| {
                     let mut slice = data.as_mut_slice::<u8>();
-                    if let Err(_) = task.encode(&mut slice) {
+                    if task.encode(&mut slice).is_err() {
                         panic!("Failed to encode task")
                     };
                 });
@@ -457,18 +483,24 @@ async fn handle_poll_workflow_activation_request(
 /// Called within the poll loop thread, calls core and triggers JS callback with result
 async fn handle_poll_activity_task_request(
     queue_name: String,
+    span_context: SpanContext,
     core: Arc<impl Core>,
     event_queue: Arc<EventQueue>,
     callback: Root<JsFunction>,
 ) {
-    match core.poll_activity_task(queue_name.as_str()).await {
+    let otel_ctx = opentelemetry::Context::new().with_remote_span_context(span_context);
+    match core
+        .poll_activity_task(queue_name.as_str())
+        .with_context(otel_ctx)
+        .await
+    {
         Ok(task) => {
             send_result(event_queue, callback, move |cx| {
                 let len = task.encoded_len();
                 let mut result = JsArrayBuffer::new(cx, len as u32)?;
                 cx.borrow_mut(&mut result, |data| {
                     let mut slice = data.as_mut_slice::<u8>();
-                    if let Err(_) = task.encode(&mut slice) {
+                    if task.encode(&mut slice).is_err() {
                         panic!("Failed to encode task")
                     };
                 });
@@ -488,49 +520,6 @@ async fn handle_poll_activity_task_request(
     }
 }
 
-/// Helper for extracting an optional attribute from [obj].
-/// If [obj].[attr] is undefined or not present, None is returned
-fn get_optional<'a, C, K>(cx: &mut C, obj: Handle<JsObject>, attr: K) -> Option<Handle<'a, JsValue>>
-where
-    K: neon::object::PropertyKey,
-    C: Context<'a>,
-{
-    match obj.get(cx, attr) {
-        Err(_) => None,
-        Ok(val) => match val.is_a::<JsUndefined, _>(cx) {
-            true => None,
-            false => Some(val),
-        },
-    }
-}
-
-/// Helper for extracting a Vec<u8> from optional Buffer at [obj].[attr]
-fn get_optional_vec<'a, C, K>(
-    cx: &mut C,
-    obj: Handle<JsObject>,
-    attr: K,
-) -> Result<Option<Vec<u8>>, neon::result::Throw>
-where
-    K: neon::object::PropertyKey + Display,
-    C: Context<'a>,
-{
-    if let Some(val) = get_optional(cx, obj, attr) {
-        let buf = val.downcast_or_throw::<JsBuffer, C>(cx)?;
-        Ok(Some(cx.borrow(&buf, |data| data.as_slice::<u8>().to_vec())))
-    } else {
-        Ok(None)
-    }
-}
-
-macro_rules! js_value_getter {
-    ($js_cx:ident, $js_obj:ident, $prop_name:expr, $js_type:ty) => {
-        $js_obj
-            .get(&mut $js_cx, $prop_name)?
-            .downcast_or_throw::<$js_type, _>(&mut $js_cx)?
-            .value(&mut $js_cx)
-    };
-}
-
 // Below are functions exported to JS
 
 /// Create a new core instance asynchronously.
@@ -545,133 +534,8 @@ fn core_new(mut cx: FunctionContext) -> JsResult<JsUndefined> {
         .get(&mut cx, "telemetryOptions")?
         .downcast_or_throw::<JsObject, _>(&mut cx)?;
 
-    let url = js_value_getter!(cx, server_options, "url", JsString);
-
-    let tls_cfg = match get_optional(&mut cx, server_options, "tls") {
-        None => None,
-        Some(val) => {
-            let tls = val.downcast_or_throw::<JsObject, _>(&mut cx)?;
-            let domain = match get_optional(&mut cx, tls, "serverNameOverride") {
-                None => None,
-                Some(val) => Some(
-                    val.downcast_or_throw::<JsString, _>(&mut cx)?
-                        .value(&mut cx),
-                ),
-            };
-
-            let server_root_ca_cert = get_optional_vec(&mut cx, tls, "serverRootCACertificate")?;
-            let client_tls_config = match get_optional(&mut cx, tls, "clientCertPair") {
-                None => None,
-                Some(val) => {
-                    let client_tls_obj = val.downcast_or_throw::<JsObject, _>(&mut cx)?;
-                    Some(ClientTlsConfig {
-                        client_cert: get_optional_vec(&mut cx, client_tls_obj, "crt")?.unwrap(),
-                        client_private_key: get_optional_vec(&mut cx, client_tls_obj, "key")?
-                            .unwrap(),
-                    })
-                }
-            };
-
-            Some(TlsConfig {
-                server_root_ca_cert,
-                domain,
-                client_tls_config,
-            })
-        }
-    };
-
-    let retry_config = match get_optional(&mut cx, server_options, "retry") {
-        None => RetryConfig::default(),
-        Some(val) => {
-            let retry_config = val.downcast_or_throw::<JsObject, _>(&mut cx)?;
-            RetryConfig {
-                initial_interval: Duration::from_millis(js_value_getter!(
-                    cx,
-                    retry_config,
-                    "initialInterval",
-                    JsNumber
-                ) as u64),
-                randomization_factor: js_value_getter!(
-                    cx,
-                    retry_config,
-                    "randomizationFactor",
-                    JsNumber
-                ),
-                multiplier: js_value_getter!(cx, retry_config, "multiplier", JsNumber),
-                max_interval: Duration::from_millis(js_value_getter!(
-                    cx,
-                    retry_config,
-                    "maxInterval",
-                    JsNumber
-                ) as u64),
-                max_elapsed_time: match get_optional(&mut cx, retry_config, "maxElapsedTime") {
-                    None => None,
-                    Some(val) => {
-                        let val = val.downcast_or_throw::<JsNumber, _>(&mut cx)?;
-                        Some(Duration::from_millis(val.value(&mut cx) as u64))
-                    }
-                },
-                max_retries: js_value_getter!(cx, retry_config, "maxRetries", JsNumber) as usize,
-            }
-        }
-    };
-
-    let mut gateway_opts = ServerGatewayOptionsBuilder::default();
-    if let Some(tls_cfg) = tls_cfg {
-        gateway_opts.tls_cfg(tls_cfg);
-    }
-    let gateway_opts = gateway_opts
-        .client_name("temporal-sdk-node".to_string())
-        .client_version(include_str!("../target/metaversion").to_string())
-        .target_url(Url::parse(&url).unwrap())
-        .namespace(js_value_getter!(cx, server_options, "namespace", JsString))
-        .identity(js_value_getter!(cx, server_options, "identity", JsString))
-        .worker_binary_id(js_value_getter!(
-            cx,
-            server_options,
-            "workerBinaryId",
-            JsString
-        ))
-        .retry_config(retry_config)
-        .build()
-        .expect("Core server gateway options must be valid");
-
-    let log_forwarding_level_str =
-        js_value_getter!(cx, telem_options, "logForwardingLevel", JsString);
-    let log_forwarding_level = LevelFilter::from_str(&log_forwarding_level_str).unwrap();
-    let mut telemetry_opts = TelemetryOptionsBuilder::default();
-    if let Some(url) = get_optional(&mut cx, telem_options, "oTelCollectorUrl") {
-        telemetry_opts.otel_collector_url(
-            Url::parse(
-                &url.downcast_or_throw::<JsString, _>(&mut cx)
-                    .unwrap()
-                    .value(&mut cx),
-            )
-            .expect("`oTelCollectorUrl` in telemetry options must be valid"),
-        );
-    }
-    if let Some(addr) = get_optional(&mut cx, telem_options, "prometheusMetricsBindAddress") {
-        telemetry_opts.prometheus_export_bind_address(
-            addr.downcast_or_throw::<JsString, _>(&mut cx)
-                .unwrap()
-                .value(&mut cx)
-                .parse::<SocketAddr>()
-                .expect("`prometheusMetricsBindAddress` in telemetry options must be valid"),
-        );
-    }
-    let telemetry_opts = telemetry_opts
-        .tracing_filter(
-            get_optional(&mut cx, telem_options, "tracingFilter")
-                .map(|x| {
-                    x.downcast_or_throw::<JsString, _>(&mut cx)
-                        .unwrap()
-                        .value(&mut cx)
-                })
-                .unwrap_or("".to_string()),
-        )
-        .log_forwarding_level(log_forwarding_level)
-        .build()
-        .expect("Core telemetry options must be valid");
+    let gateway_opts = server_options.as_server_gateway_options(&mut cx)?;
+    let telemetry_opts = telem_options.as_telemetry_options(&mut cx)?;
 
     let callback = cx.argument::<JsFunction>(1)?.root(&mut cx);
     let queue = Arc::new(cx.queue());
@@ -695,57 +559,12 @@ fn core_new(mut cx: FunctionContext) -> JsResult<JsUndefined> {
 fn worker_new(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     let core = cx.argument::<BoxedCore>(0)?;
     let worker_options = cx.argument::<JsObject>(1)?;
-
-    let task_queue = js_value_getter!(cx, worker_options, "taskQueue", JsString);
-    let max_outstanding_activities = js_value_getter!(
-        cx,
-        worker_options,
-        "maxConcurrentActivityTaskExecutions",
-        JsNumber
-    ) as usize;
-    let max_outstanding_workflow_tasks = js_value_getter!(
-        cx,
-        worker_options,
-        "maxConcurrentWorkflowTaskExecutions",
-        JsNumber
-    ) as usize;
-    let max_concurrent_wft_polls = js_value_getter!(
-        cx,
-        worker_options,
-        "maxConcurrentWorkflowTaskPolls",
-        JsNumber
-    ) as usize;
-    let max_concurrent_at_polls = js_value_getter!(
-        cx,
-        worker_options,
-        "maxConcurrentActivityTaskPolls",
-        JsNumber
-    ) as usize;
-    let nonsticky_to_sticky_poll_ratio =
-        js_value_getter!(cx, worker_options, "nonStickyToStickyPollRatio", JsNumber) as f32;
-    let sticky_queue_schedule_to_start_timeout = Duration::from_millis(js_value_getter!(
-        cx,
-        worker_options,
-        "stickyQueueScheduleToStartTimeoutMs",
-        JsNumber
-    ) as u64);
-    let max_cached_workflows =
-        js_value_getter!(cx, worker_options, "maxCachedWorkflows", JsNumber) as usize;
-
     let callback = cx.argument::<JsFunction>(2)?;
 
+    let config = worker_options.as_worker_config(&mut cx)?;
+
     let request = Request::RegisterWorker {
-        config: WorkerConfig {
-            no_remote_activities: false, // TODO: make this configurable once Core implements local activities
-            max_concurrent_at_polls,
-            max_concurrent_wft_polls,
-            max_outstanding_workflow_tasks,
-            max_outstanding_activities,
-            max_cached_workflows,
-            nonsticky_to_sticky_poll_ratio,
-            sticky_queue_schedule_to_start_timeout,
-            task_queue,
-        },
+        config,
         callback: callback.root(&mut cx),
     };
     if let Err(err) = core.sender.send(request) {
@@ -785,9 +604,11 @@ fn core_poll_logs(mut cx: FunctionContext) -> JsResult<JsUndefined> {
 /// There should be only one concurrent poll request for this type.
 fn worker_poll_workflow_activation(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     let worker = cx.argument::<BoxedWorker>(0)?;
-    let callback = cx.argument::<JsFunction>(1)?;
+    let otel_span = cx.argument::<JsObject>(1)?;
+    let callback = cx.argument::<JsFunction>(2)?;
     let request = Request::PollWorkflowActivation {
         queue_name: worker.queue.clone(),
+        otel_span: otel_span.as_otel_span_context(&mut cx)?,
         callback: callback.root(&mut cx),
     };
     if let Err(err) = worker.core.sender.send(request) {
@@ -800,9 +621,11 @@ fn worker_poll_workflow_activation(mut cx: FunctionContext) -> JsResult<JsUndefi
 /// There should be only one concurrent poll request for this type.
 fn worker_poll_activity_task(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     let worker = cx.argument::<BoxedWorker>(0)?;
-    let callback = cx.argument::<JsFunction>(1)?;
+    let otel_span = cx.argument::<JsObject>(1)?;
+    let callback = cx.argument::<JsFunction>(2)?;
     let request = Request::PollActivityTask {
         queue_name: worker.queue.clone(),
+        otel_span: otel_span.as_otel_span_context(&mut cx)?,
         callback: callback.root(&mut cx),
     };
     if let Err(err) = worker.core.sender.send(request) {
@@ -814,8 +637,9 @@ fn worker_poll_activity_task(mut cx: FunctionContext) -> JsResult<JsUndefined> {
 /// Submit a workflow activation completion to core.
 fn worker_complete_workflow_activation(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     let worker = cx.argument::<BoxedWorker>(0)?;
-    let completion = cx.argument::<JsArrayBuffer>(1)?;
-    let callback = cx.argument::<JsFunction>(2)?;
+    let otel_span = cx.argument::<JsObject>(1)?;
+    let completion = cx.argument::<JsArrayBuffer>(2)?;
+    let callback = cx.argument::<JsFunction>(3)?;
     let result = cx.borrow(&completion, |data| {
         WfActivationCompletion::decode_length_delimited(data.as_slice::<u8>())
     });
@@ -828,6 +652,7 @@ fn worker_complete_workflow_activation(mut cx: FunctionContext) -> JsResult<JsUn
             };
             let request = Request::CompleteWorkflowActivation {
                 completion,
+                otel_span: otel_span.as_otel_span_context(&mut cx)?,
                 callback: callback.root(&mut cx),
             };
             if let Err(err) = worker.core.sender.send(request) {
@@ -844,8 +669,9 @@ fn worker_complete_workflow_activation(mut cx: FunctionContext) -> JsResult<JsUn
 /// Submit an activity task completion to core.
 fn worker_complete_activity_task(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     let worker = cx.argument::<BoxedWorker>(0)?;
-    let result = cx.argument::<JsArrayBuffer>(1)?;
-    let callback = cx.argument::<JsFunction>(2)?;
+    let otel_span = cx.argument::<JsObject>(1)?;
+    let result = cx.argument::<JsArrayBuffer>(2)?;
+    let callback = cx.argument::<JsFunction>(3)?;
     let result = cx.borrow(&result, |data| {
         ActivityTaskCompletion::decode_length_delimited(data.as_slice::<u8>())
     });
@@ -858,6 +684,7 @@ fn worker_complete_activity_task(mut cx: FunctionContext) -> JsResult<JsUndefine
             };
             let request = Request::CompleteActivityTask {
                 completion,
+                otel_span: otel_span.as_otel_span_context(&mut cx)?,
                 callback: callback.root(&mut cx),
             };
             if let Err(err) = worker.core.sender.send(request) {

@@ -405,7 +405,6 @@ function formatTaskToken(taskToken: Uint8Array) {
  * The temporal worker connects to the service and runs workflows and activities.
  */
 export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
-  protected readonly workflowOverrides: Map<string, string> = new Map();
   protected readonly activityHeartbeatSubject = new Subject<{
     taskToken: Uint8Array;
     details?: any;
@@ -416,7 +415,6 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
   protected readonly numRunningWorkflowInstancesSubject = new BehaviorSubject<number>(0);
 
   protected static nativeWorkerCtor: WorkerConstructor = NativeWorker;
-  protected nextIsolateIdx = 0;
 
   /**
    * Create a new Worker.
@@ -950,7 +948,7 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
       const parentSpan = tracer.startSpan('workflow.activation');
       try {
         return await instrument(parentSpan, 'workflow.poll', async (span) => {
-          const buffer = await this.nativeWorker.pollWorkflowActivation();
+          const buffer = await this.nativeWorker.pollWorkflowActivation(span.spanContext());
           const activation = coresdk.workflow_activation.WFActivation.decode(new Uint8Array(buffer));
           const { runId, ...rest } = activation;
           this.log.debug('Got workflow activation', { runId, ...rest });
@@ -992,7 +990,10 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
       mergeMap(async ({ completion, parentSpan: root }) => {
         const span = childSpan(root, 'workflow.complete');
         try {
-          await this.nativeWorker.completeWorkflowActivation(completion.buffer.slice(completion.byteOffset));
+          await this.nativeWorker.completeWorkflowActivation(
+            span.spanContext(),
+            completion.buffer.slice(completion.byteOffset)
+          );
           span.setStatus({ code: otel.SpanStatusCode.OK });
         } catch (err) {
           span.setStatus({ code: otel.SpanStatusCode.ERROR, message: errorMessage(err) });
@@ -1016,7 +1017,7 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
       const parentSpan = tracer.startSpan('activity.task');
       try {
         return await instrument(parentSpan, 'activity.poll', async () => {
-          const buffer = await this.nativeWorker.pollActivityTask();
+          const buffer = await this.nativeWorker.pollActivityTask(parentSpan.spanContext());
           const task = coresdk.activity_task.ActivityTask.decode(new Uint8Array(buffer));
           const { taskToken, ...rest } = task;
           const formattedTaskToken = formatTaskToken(taskToken);
@@ -1046,7 +1047,10 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
       mergeMap(async ({ completion, parentSpan }) => {
         try {
           await instrument(parentSpan, 'activity.complete', () =>
-            this.nativeWorker.completeActivityTask(completion.buffer.slice(completion.byteOffset))
+            this.nativeWorker.completeActivityTask(
+              parentSpan.spanContext(),
+              completion.buffer.slice(completion.byteOffset)
+            )
           );
         } finally {
           parentSpan.end();

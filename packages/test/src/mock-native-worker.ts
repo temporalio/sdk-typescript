@@ -16,6 +16,7 @@ import { sleep } from '@temporalio/worker/lib/utils';
 // We import from the worker's version of rxjs because inquirer (transitive dependency) uses an older rxjs version
 import { lastValueFrom } from '@temporalio/worker/node_modules/rxjs';
 import * as activities from './activities';
+import { SpanContext } from '@opentelemetry/api';
 
 function addActivityStartDefaults(task: coresdk.activity_task.IActivityTask) {
   // Add some defaults for convenience
@@ -81,12 +82,12 @@ export class MockNativeWorker implements NativeWorkerLike {
     }
   }
 
-  public async completeWorkflowActivation(result: ArrayBuffer): Promise<void> {
+  public async completeWorkflowActivation(spanContext: SpanContext, result: ArrayBuffer): Promise<void> {
     this.workflowCompletionCallback!(result);
     this.workflowCompletionCallback = undefined;
   }
 
-  public async completeActivityTask(result: ArrayBuffer): Promise<void> {
+  public async completeActivityTask(spanContext: SpanContext, result: ArrayBuffer): Promise<void> {
     this.activityCompletionCallback!(result);
     this.activityCompletionCallback = undefined;
   }
