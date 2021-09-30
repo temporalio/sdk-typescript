@@ -18,10 +18,10 @@ const program = new Command(packageJson.name)
   .option(
     '-s, --sample <name|github-url>',
     dedent`
-  A sample to bootstrap the app with. You can use a sample name
-  from https://github.com/temporalio/samples-node or a GitHub URL. 
-  The URL can use any branch and/or subdirectory.
-  Example: https://github.com/temporalio/samples-node/tree/next/hello-world
+  Which sample to bootstrap the project with. You can use the name of a sample
+  from https://github.com/temporalio/samples-node or use a GitHub URL. 
+  The URL can have a branch and/or subdirectory—for example:
+  https://github.com/temporalio/samples-node/tree/next/hello-world
 `
   )
   .option(
@@ -60,7 +60,7 @@ const program = new Command(packageJson.name)
   .option(
     '--temporalio-version <version>',
     dedent`
-  Specify a which version of the temporalio npm package to use
+  Specify which version of the temporalio npm package to use
 `
   )
   .allowUnknownOption()
