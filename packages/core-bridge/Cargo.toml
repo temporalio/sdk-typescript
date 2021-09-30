@@ -14,6 +14,7 @@ crate-type = ["cdylib"]
 futures = { version = "0.3", features = ["executor"] }
 log = "0.4"
 neon = { version = "0.8.0", default-features = false, features = ["napi-4", "event-queue-api"] }
+opentelemetry = "0.16"
 prost = "0.8"
 prost-types = "0.8"
 tokio = "1.4.0"

@@ -1,5 +1,6 @@
 import { TLSConfig } from '@temporalio/common';
 import { LogLevel } from '@temporalio/worker';
+import { SpanContext } from '@opentelemetry/api';
 
 export { TLSConfig };
 
@@ -39,6 +40,9 @@ export interface ServerOptions {
    * A string that should be unique to the exact worker code/binary being executed
    */
   workerBinaryId: string;
+
+  /** Version string for the whole node SDK. Should never be set by user */
+  sdkVersion: string;
 
   /**
    * TLS configuration options.
@@ -156,13 +160,23 @@ export declare function newWorker(core: Core, workerOptions: WorkerOptions, call
 export declare function workerShutdown(worker: Worker, callback: VoidCallback): void;
 export declare function coreShutdown(core: Core, callback: VoidCallback): void;
 export declare function corePollLogs(core: Core, callback: LogsCallback): void;
-export declare function workerPollWorkflowActivation(worker: Worker, callback: PollCallback): void;
+export declare function workerPollWorkflowActivation(
+  worker: Worker,
+  spanContext: SpanContext,
+  callback: PollCallback
+): void;
 export declare function workerCompleteWorkflowActivation(
   worker: Worker,
+  spanContext: SpanContext,
   result: ArrayBuffer,
   callback: VoidCallback
 ): void;
-export declare function workerPollActivityTask(worker: Worker, callback: PollCallback): void;
-export declare function workerCompleteActivityTask(worker: Worker, result: ArrayBuffer, callback: VoidCallback): void;
+export declare function workerPollActivityTask(worker: Worker, spanContext: SpanContext, callback: PollCallback): void;
+export declare function workerCompleteActivityTask(
+  worker: Worker,
+  spanContext: SpanContext,
+  result: ArrayBuffer,
+  callback: VoidCallback
+): void;
 export declare function workerRecordActivityHeartbeat(worker: Worker, heartbeat: ArrayBuffer): void;
 export declare function getTimeOfDay(): [number, number];

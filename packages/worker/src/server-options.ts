@@ -1,10 +1,14 @@
 import os from 'os';
 import * as native from '@temporalio/core-bridge';
 import pkg from './pkg';
+import path from 'path';
 
 type TLSConfig = native.TLSConfig;
 
 export { TLSConfig };
+
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const sdkVersion = require(path.resolve(__dirname, '../package.json')).version;
 
 export interface ServerOptions {
   /**
@@ -42,6 +46,7 @@ export interface ServerOptions {
 
 export type RequiredServerOptions = Omit<Required<ServerOptions>, 'tls'> & {
   tls?: ServerOptions['tls'];
+  sdkVersion: string;
 };
 
 export function getDefaultServerOptions(): RequiredServerOptions {
@@ -50,6 +55,9 @@ export function getDefaultServerOptions(): RequiredServerOptions {
     identity: `${process.pid}@${os.hostname()}`,
     namespace: 'default',
     workerBinaryId: `${pkg.name}@${pkg.version}`,
+    // TODO: Should be the same as top level package version
+    //  see https://github.com/temporalio/sdk-node/issues/244
+    sdkVersion,
   };
 }
 
