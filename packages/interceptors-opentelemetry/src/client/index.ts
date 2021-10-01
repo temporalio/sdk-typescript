@@ -6,7 +6,8 @@ import {
   WorkflowClientCallsInterceptor,
   WorkflowStartInput,
 } from '@temporalio/client';
-import { TRACE_HEADER, SpanName } from '../workflow';
+import { SpanName } from '../workflow';
+import { headersWithSpanContext, RUN_ID_ATTR_KEY } from '@temporalio/common';
 
 export interface InterceptorOptions {
   readonly tracer?: otel.Tracer;
@@ -29,9 +30,11 @@ export class OpenTelemetryWorkflowClientCallsInterceptor implements WorkflowClie
 
   async start(input: WorkflowStartInput, next: Next<WorkflowClientCallsInterceptor, 'start'>): Promise<string> {
     const span = this.tracer.startSpan(SpanName.WORKFLOW_SCHEDULE);
-    const header = await this.dataConverter.toPayload(span.spanContext());
+    const headers = await headersWithSpanContext(span.spanContext(), input.headers);
     try {
-      return await next({ ...input, headers: { ...input.headers, [TRACE_HEADER]: header } });
+      const res = await next({ ...input, headers });
+      span.setAttribute(RUN_ID_ATTR_KEY, res);
+      return res;
     } catch (error: any) {
       span.recordException(error);
       throw error;

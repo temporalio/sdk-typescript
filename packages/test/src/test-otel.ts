@@ -9,21 +9,27 @@ import * as opentelemetry from '@opentelemetry/sdk-node';
 import { SemanticResourceAttributes } from '@opentelemetry/semantic-conventions';
 import * as workflows from './workflows';
 import { WorkflowClient } from '@temporalio/client';
+import { OpenTelemetryWorkflowClientCallsInterceptor } from '@temporalio/interceptors-opentelemetry/lib/client';
+import {
+  makeWorkflowExporter,
+  OpenTelemetryActivityInboundInterceptor,
+} from '@temporalio/interceptors-opentelemetry/lib/worker';
+import { OpenTelemetryDependencies } from '@temporalio/interceptors-opentelemetry/lib/workflow';
 
 // Un-skip this test and run it by hand to inspect outputted traces
 test.skip('Otel spans connected', async (t) => {
   const oTelUrl = 'grpc://localhost:4317';
   const exporter = new CollectorTraceExporter({ url: oTelUrl });
+  const staticResource = new opentelemetry.resources.Resource({
+    [SemanticResourceAttributes.SERVICE_NAME]: 'node-test-otel-worker',
+  });
   const otel = new opentelemetry.NodeSDK({
-    resource: new opentelemetry.resources.Resource({
-      [SemanticResourceAttributes.SERVICE_NAME]: 'node-test-otel-worker',
-    }),
+    resource: staticResource,
     traceExporter: exporter,
   });
   await otel.start();
 
   const logger = new DefaultLogger('DEBUG');
-  // Use forwarded logging from core
   await Core.install({
     logger,
     telemetryOptions: {
@@ -32,13 +38,22 @@ test.skip('Otel spans connected', async (t) => {
       logForwardingLevel: 'INFO',
     },
   });
-  const worker = await Worker.create({
+  const worker = await Worker.create<{ dependencies: OpenTelemetryDependencies }>({
     workflowsPath: require.resolve('./workflows'),
     activities,
     taskQueue: 'test-otel',
+    interceptors: {
+      workflowModules: [require.resolve('./workflows/otel-interceptors')],
+      activityInbound: [() => new OpenTelemetryActivityInboundInterceptor()],
+    },
+    dependencies: { exporter: makeWorkflowExporter(exporter, staticResource) },
   });
 
-  const client = new WorkflowClient();
+  const client = new WorkflowClient(undefined, {
+    interceptors: {
+      calls: [() => new OpenTelemetryWorkflowClientCallsInterceptor()],
+    },
+  });
   const workflow = client.createWorkflowHandle(workflows.cancelFakeProgress, { taskQueue: 'test-otel' });
 
   await Promise.all([workflow.execute().finally(() => worker.shutdown()), worker.run()]).catch((err) => {
