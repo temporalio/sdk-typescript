@@ -32,6 +32,11 @@ import {
   defaultDataConverter,
   ActivityInterface,
   errorMessage,
+  extractSpanContextFromHeaders,
+  linkSpans,
+  RUN_ID_ATTR_KEY,
+  NUM_JOBS_ATTR_KEY,
+  TASK_TOKEN_ATTR_KEY,
 } from '@temporalio/common';
 import { closeableGroupBy, mergeMapWithState } from './rxutils';
 import { GiB, MiB } from './utils';
@@ -47,6 +52,8 @@ import { ActivityExecuteInput, WorkerInterceptors } from './interceptors';
 export { RetryOptions, IllegalStateError } from '@temporalio/common';
 export { ActivityOptions, DataConverter, defaultDataConverter, errors };
 import { Core } from './core';
+import { SpanContext } from '@opentelemetry/api';
+import IWFActivationJob = coresdk.workflow_activation.IWFActivationJob;
 
 native.registerErrors(errors);
 
@@ -438,6 +445,7 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
   protected readonly numInFlightActivationsSubject = new BehaviorSubject<number>(0);
   protected readonly numInFlightActivitiesSubject = new BehaviorSubject<number>(0);
   protected readonly numRunningWorkflowInstancesSubject = new BehaviorSubject<number>(0);
+  private readonly runIdsToSpanContext = new Map<string, SpanContext>();
 
   protected static nativeWorkerCtor: WorkerConstructor = NativeWorker;
 
@@ -891,6 +899,7 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
             this.numInFlightActivationsSubject.next(this.numInFlightActivationsSubject.value - 1);
             if (close) {
               group$.close();
+              this.runIdsToSpanContext.delete(group$.key);
               this.numRunningWorkflowInstancesSubject.next(this.numRunningWorkflowInstancesSubject.value - 1);
             }
           }),
@@ -976,7 +985,10 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
           const activation = coresdk.workflow_activation.WFActivation.decode(new Uint8Array(buffer));
           const { runId, ...rest } = activation;
           this.log.debug('Got workflow activation', { runId, ...rest });
-          span.setAttribute('runId', runId).setAttribute('numJobs', rest.jobs.length);
+
+          span.setAttribute(RUN_ID_ATTR_KEY, runId).setAttribute(NUM_JOBS_ATTR_KEY, rest.jobs.length);
+          await this.linkWorkflowSpans(runId, rest.jobs, parentSpan);
+
           return { activation, parentSpan };
         });
       } catch (err) {
@@ -996,6 +1008,34 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
         }
       }
     });
+  }
+
+  /**
+   * Given a run ID, some jobs from a new WFT, and the parent span or the workflow activation,
+   * handle linking any span context that exists in the WF headers to our internal spans.
+   *
+   * The result here is that our SDK spans in node and core are separate from the user's spans
+   * that they create when they use interceptors, with our spans being linked to theirs.
+   *
+   * If the activation includes WF start, headers will be extracted and cached. If it does not,
+   * any previously such extracted header will be used for the run.
+   */
+  private async linkWorkflowSpans(runId: string, jobs: IWFActivationJob[], parentSpan: otel.Span) {
+    let linkedContext = this.runIdsToSpanContext.get(runId);
+    // If there is an otel context in the headers, link our trace for the workflow to the
+    // trace in the header.
+    for (const j of jobs) {
+      if (j.startWorkflow != null) {
+        const ctx = await extractSpanContextFromHeaders(j.startWorkflow.headers ?? {});
+        if (ctx !== undefined && linkedContext === undefined) {
+          this.runIdsToSpanContext.set(runId, ctx);
+          linkedContext = ctx;
+        }
+      }
+    }
+    if (linkedContext != null) {
+      linkSpans(parentSpan, linkedContext);
+    }
   }
 
   /**
@@ -1040,8 +1080,8 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
     return this.pollLoop$(async () => {
       const parentSpan = tracer.startSpan('activity.task');
       try {
-        return await instrument(parentSpan, 'activity.poll', async () => {
-          const buffer = await this.nativeWorker.pollActivityTask(parentSpan.spanContext());
+        return await instrument(parentSpan, 'activity.poll', async (span) => {
+          const buffer = await this.nativeWorker.pollActivityTask(span.spanContext());
           const task = coresdk.activity_task.ActivityTask.decode(new Uint8Array(buffer));
           const { taskToken, ...rest } = task;
           const formattedTaskToken = formatTaskToken(taskToken);
@@ -1050,7 +1090,16 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
           if (variant === undefined) {
             throw new TypeError('Got an activity task without a "variant" attribute');
           }
-          parentSpan.setAttribute('taskToken', formattedTaskToken).setAttribute('variant', variant);
+          parentSpan.setAttributes({
+            [TASK_TOKEN_ATTR_KEY]: formattedTaskToken,
+            variant,
+            [RUN_ID_ATTR_KEY]: task.start?.workflowExecution?.runId ?? 'unknown',
+          });
+          // If the activity had otel headers, link to that span
+          if (task.start?.headerFields) {
+            const ctx = await extractSpanContextFromHeaders(task.start.headerFields);
+            linkSpans(parentSpan, ctx);
+          }
           return { task, parentSpan, formattedTaskToken };
         });
       } catch (err) {

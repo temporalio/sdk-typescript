@@ -163,6 +163,7 @@ export interface ActivationResult {
  * @returns a boolean indicating whether job was processed or ignored
  */
 export async function activate(encodedActivation: Uint8Array, batchIndex: number): Promise<ActivationResult> {
+  const activation = coresdk.workflow_activation.WFActivation.decodeDelimited(encodedActivation);
   const intercept = composeInterceptors(
     state.interceptors.internals,
     'activate',
@@ -207,7 +208,7 @@ export async function activate(encodedActivation: Uint8Array, batchIndex: number
     }
   );
   await intercept({
-    activation: coresdk.workflow_activation.WFActivation.decodeDelimited(encodedActivation),
+    activation,
     batchIndex,
   });
 

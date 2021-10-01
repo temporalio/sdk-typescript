@@ -1,6 +1,5 @@
 import './runtime'; // Patch the Workflow isolate runtime for opentelemetry
 import * as otel from '@opentelemetry/api';
-import * as tracing from '@opentelemetry/sdk-trace-base';
 import {
   ActivityInput,
   Next,
@@ -8,26 +7,26 @@ import {
   WorkflowOutboundCallsInterceptor,
   WorkflowExecuteInput,
 } from '@temporalio/workflow';
-import { defaultDataConverter } from '@temporalio/common';
+import { extractSpanContextFromHeaders, headersWithSpanContext } from '@temporalio/common';
 import { instrument, instrumentFromSpanContext } from '../instrumentation';
 import { ContextManager } from './context-manager';
 import { SpanExporter } from './span-exporter';
 import { SpanName } from './interfaces';
+import * as tracing from '@opentelemetry/sdk-trace-base';
 
 export * from './interfaces';
 
-export const TRACE_HEADER = 'Otel-Trace-Context';
+let tracer: undefined | otel.Tracer = undefined;
 
-export const tracer = otel.trace.getTracer('workflow');
+function getTracer(): otel.Tracer {
+  if (tracer === undefined) {
+    const provider = new tracing.BasicTracerProvider();
+    provider.addSpanProcessor(new tracing.SimpleSpanProcessor(new SpanExporter()));
+    provider.register({ contextManager: new ContextManager() });
 
-/**
- * Creates an opentelemetry tracer provider,
- * adds the Workflow span processor and registers the Workflow context manager.
- */
-export function registerOpentelemetryTracerProvider(): void {
-  const provider = new tracing.BasicTracerProvider();
-  provider.addSpanProcessor(new tracing.SimpleSpanProcessor(new SpanExporter()));
-  provider.register({ contextManager: new ContextManager() });
+    tracer = otel.trace.getTracer('workflow');
+  }
+  return tracer;
 }
 
 /**
@@ -41,15 +40,12 @@ export class OpenTelemetryInboundInterceptor implements WorkflowInboundCallsInte
     input: WorkflowExecuteInput,
     next: Next<WorkflowInboundCallsInterceptor, 'execute'>
   ): Promise<unknown> {
-    const encodedSpanContext = input.headers[TRACE_HEADER];
-    const spanContext: otel.SpanContext | undefined = encodedSpanContext
-      ? await defaultDataConverter.fromPayload(encodedSpanContext)
-      : undefined;
+    const spanContext = await extractSpanContextFromHeaders(input.headers);
 
     if (spanContext === undefined) {
-      return await instrument(tracer, SpanName.WORKFLOW_EXECUTE, () => next(input));
+      return await instrument(getTracer(), SpanName.WORKFLOW_EXECUTE, () => next(input));
     }
-    return await instrumentFromSpanContext(tracer, spanContext, SpanName.WORKFLOW_EXECUTE, () => next(input));
+    return await instrumentFromSpanContext(getTracer(), spanContext, SpanName.WORKFLOW_EXECUTE, () => next(input));
   }
 }
 
@@ -63,10 +59,11 @@ export class OpenTelemetryOutboundInterceptor implements WorkflowOutboundCallsIn
     input: ActivityInput,
     next: Next<WorkflowOutboundCallsInterceptor, 'scheduleActivity'>
   ): Promise<unknown> {
-    return await instrument(tracer, SpanName.ACTIVITY_SCHEUDLE, async (span) => {
+    return await instrument(getTracer(), SpanName.ACTIVITY_SCHEUDLE, async (span) => {
+      const headers = await headersWithSpanContext(span.spanContext(), input.headers);
       return next({
         ...input,
-        headers: { ...input.headers, [TRACE_HEADER]: await defaultDataConverter.toPayload(span.spanContext()) },
+        headers,
       });
     });
   }

@@ -33,6 +33,7 @@ Mostly complete implementation of all components that make up a Temporal SDK - W
 - General
   - Cancellation
   - Interceptors
+  - Telemetry
 - Workflows
   - Scheduling timers
   - Scheduling (non-local) Activities
@@ -51,7 +52,6 @@ Mostly complete implementation of all components that make up a Temporal SDK - W
 
 Notably these features are missing:
 
-- Telemetry
 - Local activities
 - Side effects
 - Search attributes

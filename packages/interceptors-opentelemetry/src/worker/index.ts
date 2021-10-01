@@ -10,8 +10,9 @@ import {
   InjectedDependency,
   Next,
 } from '@temporalio/worker';
-import { TRACE_HEADER, OpenTelemetryWorkflowExporter, SerializableSpan, SpanName } from '../workflow';
+import { OpenTelemetryWorkflowExporter, SerializableSpan, SpanName } from '../workflow';
 import { instrumentFromSpanContext } from '../instrumentation';
+import { extractSpanContextFromHeaders } from '@temporalio/common';
 
 export interface InterceptorOptions {
   readonly tracer?: otel.Tracer;
@@ -34,10 +35,7 @@ export class OpenTelemetryActivityInboundInterceptor implements ActivityInboundC
   }
 
   async execute(input: ActivityExecuteInput, next: Next<ActivityInboundCallsInterceptor, 'execute'>): Promise<unknown> {
-    const encodedSpanContext = input.headers[TRACE_HEADER];
-    const spanContext: otel.SpanContext | undefined = encodedSpanContext
-      ? await this.dataConverter.fromPayload(encodedSpanContext)
-      : undefined;
+    const spanContext = await extractSpanContextFromHeaders(input.headers);
     if (spanContext === undefined) {
       return await next(input);
     }
@@ -46,35 +44,38 @@ export class OpenTelemetryActivityInboundInterceptor implements ActivityInboundC
 }
 
 /**
- * Deserialize a serialized span created by the Workflow isolate
- */
-function extractReadableSpan(serializable: SerializableSpan): ReadableSpan {
-  const { spanContext, ...rest } = serializable;
-  return {
-    spanContext() {
-      return spanContext;
-    },
-    resource: Resource.EMPTY,
-    ...rest,
-  };
-}
-
-/**
  * Takes an opentelemetry SpanExporter and turns it into an injected Workflow span exporter dependency
  */
-export function makeWorkflowExporter(exporter: SpanExporter): InjectedDependency<OpenTelemetryWorkflowExporter> {
+export function makeWorkflowExporter(
+  exporter: SpanExporter,
+  resource?: Resource
+): InjectedDependency<OpenTelemetryWorkflowExporter> {
   return {
     export: {
       fn: (info, spanData) => {
         const spans = spanData.map((serialized) => {
           Object.assign(serialized.attributes, info);
           // Spans are copied over from the isolate and are converted to ReadableSpan instances
-          return extractReadableSpan(serialized);
+          return extractReadableSpan(serialized, resource);
         });
         // Ignore the export result for simplicity
         exporter.export(spans, () => undefined);
       },
       applyMode: ApplyMode.ASYNC_IGNORED,
     },
+  };
+}
+
+/**
+ * Deserialize a serialized span created by the Workflow isolate
+ */
+function extractReadableSpan(serializable: SerializableSpan, resource?: Resource): ReadableSpan {
+  const { spanContext, ...rest } = serializable;
+  return {
+    spanContext() {
+      return spanContext;
+    },
+    resource: resource ?? Resource.EMPTY,
+    ...rest,
   };
 }

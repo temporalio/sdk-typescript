@@ -3,13 +3,14 @@
  *
  * @module
  */
+export * from './activity-options';
+export * from './converter/data-converter';
 export * from './errors';
 export * from './failure';
-export * from './interfaces';
-export * from './activity-options';
-export * from './workflow-options';
-export * from './workflow-handle';
-export * from './converter/data-converter';
 export * from './interceptors';
+export * from './interfaces';
+export * from './otel';
 export * from './time';
 export * from './tls-config';
+export * from './workflow-handle';
+export * from './workflow-options';
