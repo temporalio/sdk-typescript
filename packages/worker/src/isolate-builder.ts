@@ -19,7 +19,7 @@ import { Logger } from './logger';
 export class WorkflowIsolateBuilder {
   constructor(
     public readonly logger: Logger,
-    public readonly nodeModulesPath: string,
+    public readonly nodeModulesPaths: string[],
     public readonly workflowsPath: string,
     public readonly workflowInterceptorModules: string[] = []
   ) {}
@@ -87,30 +87,30 @@ export class WorkflowIsolateBuilder {
    * Exports all detected Workflow implementations and some workflow libraries to be used by the Worker.
    */
   protected genEntrypoint(vol: typeof memfs.vol, target: string): void {
-    const bundlePaths = [
-      ...new Set(
-        this.workflowInterceptorModules.map((wf) => path.join(this.workflowsPath, wf)).concat(this.workflowsPath)
-      ),
-    ]
-      .map((v) => JSON.stringify(v))
-      .join(', ');
+    const interceptorCases = [...new Set(this.workflowInterceptorModules)]
+      .map(
+        (v) => dedent`
+        case ${JSON.stringify(v)}:
+          return require(${JSON.stringify(v)});
+        `
+      )
+      .join('\n');
 
     const code = dedent`
       const api = require('@temporalio/workflow/lib/worker-interface');
 
       // Bundle all Workflows and interceptor modules for lazy evaluation
-      globalThis.document = api.mockBrowserDocumentForWebpack();
-      // See https://webpack.js.org/api/module-methods/#requireensure
-      require.ensure([${bundlePaths}], function() {});
-      delete globalThis.document;
-
       api.overrideGlobals();
       api.setRequireFunc(
-        (path, name) => {
-          if (path !== undefined) {
-            return require(${JSON.stringify(this.workflowsPath)} + '${path.sep}' + path)[name];
+        (path) => {
+          if (path === undefined) {
+            return require(${JSON.stringify(this.workflowsPath)});
           }
-          return require(${JSON.stringify(this.workflowsPath)})[name];
+          switch (path) {
+            ${interceptorCases}
+            default:
+              throw new ReferenceError('Cannot load module: ' + path);
+          }
         }
       );
 
@@ -130,7 +130,7 @@ export class WorkflowIsolateBuilder {
   protected async bundle(filesystem: typeof unionfs.ufs, entry: string, distDir: string): Promise<void> {
     const compiler = webpack({
       resolve: {
-        modules: [this.nodeModulesPath],
+        modules: this.nodeModulesPaths,
         extensions: ['.ts', '.js'],
       },
       module: {

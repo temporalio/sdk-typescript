@@ -50,9 +50,8 @@ if (RUN_INTEGRATION_TESTS) {
     // Use forwarded logging from core
     await Core.install({ logger, telemetryOptions: { logForwardingLevel: 'INFO' } });
     const worker = await Worker.create({
-      workflowsPath: `${__dirname}/workflows`,
+      workflowsPath: require.resolve('./workflows'),
       activities,
-      nodeModulesPath: `${__dirname}/../../../node_modules`,
       taskQueue: 'test',
     });
 

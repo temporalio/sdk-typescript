@@ -1,5 +1,6 @@
 import os from 'os';
-import { resolve } from 'path';
+import fs from 'fs';
+import { resolve, dirname } from 'path';
 import { promisify } from 'util';
 import * as otel from '@opentelemetry/api';
 import {
@@ -79,32 +80,20 @@ export interface WorkerOptions {
   taskQueue: string;
 
   /**
-   * If provided, automatically discover Workflows and Activities relative to path.
-   *
-   * @see {@link activities}, {@link workflowsPath}, and {@link nodeModulesPath}
-   */
-  workDir?: string;
-
-  /**
    * Mapping of activity name to implementation.
-   *
-   * Automatically discovered from `${workDir}/activities` if {@link workDir} is provided.
    */
   activities?: ActivityInterface;
 
   /**
-   * Path to look up workflows in.
-   * Automatically discovered if {@link workDir} is provided.
-   * @default ${workDir}/workflows
+   * Path to look up workflows in, any function exported in this path will be registered as a Workflow in this Worker.
    */
   workflowsPath?: string;
 
   /**
    * Path for webpack to look up modules in for bundling the Workflow code.
-   * Automatically discovered if {@link workDir} is provided.
-   * @default ${workDir}/../node_modules
+   * Automatically discovered if {@link workflowsPath} is provided.
    */
-  nodeModulesPath?: string;
+  nodeModulesPaths?: string[];
 
   /**
    * Time to wait for pending tasks to drain after shutdown was requested.
@@ -270,14 +259,50 @@ function includesDeps<T extends WorkerSpec>(
   return (options as WorkerSpecOptions<{ dependencies: ExternalDependencies }>).dependencies !== undefined;
 }
 
-export function addDefaults<T extends WorkerSpec>(options: WorkerSpecOptions<T>): WorkerOptionsWithDefaults<T> {
-  const { workDir, ...rest } = options;
+function statIfExists(filesystem: typeof fs, path: string): fs.Stats | undefined {
+  try {
+    return filesystem.statSync(path);
+  } catch (err: any) {
+    if (err.code !== 'ENOENT') {
+      throw err;
+    }
+  }
+  return undefined;
+}
+
+export function resolveNodeModulesPaths(filesystem: typeof fs, workflowsPath?: string): string[] | undefined {
+  if (workflowsPath === undefined) {
+    return undefined;
+  }
+  let currentDir = workflowsPath;
+  const stat = filesystem.statSync(workflowsPath);
+  if (stat.isFile()) {
+    currentDir = dirname(currentDir);
+  }
+  for (;;) {
+    const candidate = resolve(currentDir, 'node_modules');
+    const stat = statIfExists(filesystem, candidate);
+    if (stat?.isDirectory()) {
+      return [candidate];
+    }
+    // Check if we've reached the FS root
+    const prevDir = currentDir;
+    currentDir = dirname(prevDir);
+    if (currentDir === prevDir) {
+      throw new Error(
+        `Failed to automatically locate node_modules relative to given workflowsPath: ${workflowsPath}, pass the nodeModulesPaths Worker option to run Workflows`
+      );
+    }
+  }
+}
+
+export function addDefaultWorkerOptions<T extends WorkerSpec>(
+  options: WorkerSpecOptions<T>
+): WorkerOptionsWithDefaults<T> {
   // Typescript is really struggling with the conditional exisitence of the dependencies attribute.
   // Help it out without sacrificing type safety of the other attributes.
   const ret: Omit<WorkerOptionsWithDefaults<T>, 'dependencies'> = {
-    activities: workDir && !('activities' in rest) ? require(resolve(workDir, 'activities')) : undefined,
-    workflowsPath: workDir ? resolve(workDir, 'workflows') : undefined,
-    nodeModulesPath: workDir ? resolve(workDir, '../node_modules') : undefined,
+    nodeModulesPaths: options.nodeModulesPaths ?? resolveNodeModulesPaths(fs, options.workflowsPath),
     shutdownGraceTime: '5s',
     shutdownSignals: ['SIGINT', 'SIGTERM', 'SIGQUIT'],
     dataConverter: defaultDataConverter,
@@ -291,7 +316,7 @@ export function addDefaults<T extends WorkerSpec>(options: WorkerSpecOptions<T>)
     maxIsolateMemoryMB: Math.max(os.totalmem() - GiB, GiB) / MiB,
     isolatePoolSize: 8,
     maxCachedWorkflows: options.maxCachedWorkflows || Math.max(os.totalmem() / GiB - 1, 1) * 500,
-    ...rest,
+    ...options,
   };
   return ret as WorkerOptionsWithDefaults<T>;
 }
@@ -424,20 +449,15 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
     options: WorkerSpecOptions<T>
   ): Promise<Worker<T>> {
     const nativeWorkerCtor: WorkerConstructor = this.nativeWorkerCtor;
-    const compiledOptions = compileWorkerOptions(addDefaults(options));
+    const compiledOptions = compileWorkerOptions(addDefaultWorkerOptions(options));
     // Pass dependencies as undefined to please the type checker
     const nativeWorker = await nativeWorkerCtor.create({ ...compiledOptions, dependencies: undefined });
     let contextProvider: IsolateContextProvider | undefined = undefined;
-    // Allow only both or none to be provided
-    if (Boolean(compiledOptions.workflowsPath) !== Boolean(compiledOptions.nodeModulesPath)) {
-      throw new TypeError(
-        'Could not build isolates for the worker due to missing WorkerOptions. Make sure you specify the `workDir` option, or both the `workflowsPath` and `nodeModulesPath` options.'
-      );
-    }
-    if (compiledOptions.workflowsPath && compiledOptions.nodeModulesPath) {
+    // nodeModulesPaths should not be undefined if workflowsPath is provided
+    if (compiledOptions.workflowsPath && compiledOptions.nodeModulesPaths) {
       const builder = new WorkflowIsolateBuilder(
         nativeWorker.logger,
-        compiledOptions.nodeModulesPath,
+        compiledOptions.nodeModulesPaths,
         compiledOptions.workflowsPath,
         compiledOptions.interceptors?.workflowModules
       );

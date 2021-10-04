@@ -25,7 +25,7 @@ async function withWorker(workdir, fn) {
 }
 
 async function test(workdir) {
-  const { status, output } = spawnSync(npm, ['run', 'execute-workflow'], {
+  const { status, output } = spawnSync(npm, ['run', 'workflow'], {
     cwd: workdir,
     shell,
     encoding: 'utf8',

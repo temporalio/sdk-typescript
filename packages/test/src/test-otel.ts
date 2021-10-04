@@ -33,9 +33,8 @@ test.skip('Otel spans connected', async (t) => {
     },
   });
   const worker = await Worker.create({
-    workflowsPath: `${__dirname}/workflows`,
+    workflowsPath: require.resolve('./workflows'),
     activities,
-    nodeModulesPath: `${__dirname}/../../../node_modules`,
     taskQueue: 'test-otel',
   });
 

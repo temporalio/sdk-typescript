@@ -74,7 +74,8 @@
     "@temporalio/worker": "file:packages/worker",
     "@temporalio/workflow": "file:packages/workflow",
     "arg": "^5.0.1",
-    "temporalio": "file:packages/meta"
+    "temporalio": "file:packages/meta",
+    "uuid": "^3.4.0"
   },
   "engines": {
     "node": ">= 14.0.0",

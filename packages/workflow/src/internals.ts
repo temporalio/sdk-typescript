@@ -49,8 +49,8 @@ export class Activator implements ActivationHandler {
   }
 
   public startWorkflow(activation: coresdk.workflow_activation.IStartWorkflow): void {
-    const { require: req, info } = state;
-    if (req === undefined || info === undefined) {
+    const { info } = state;
+    if (info === undefined) {
       throw new IllegalStateError('Workflow has not been initialized');
     }
     const execute = composeInterceptors(
@@ -360,7 +360,7 @@ export class State {
    *
    * Injected on isolate startup
    */
-  public require?: (path: string | undefined, workflowType: string) => any;
+  public require?: (path: string | undefined) => any;
 
   public dataConverter: DataConverter = defaultDataConverter;
 
