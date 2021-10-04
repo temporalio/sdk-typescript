@@ -4,8 +4,7 @@ import { LoggerDependencies } from '../interfaces/dependencies';
 
 async function main() {
   const worker = await Worker.create<{ dependencies: LoggerDependencies }>({
-    ...defaultOptions(), // omitted from this sample for brevity
-    workDir: __dirname,
+    workflowsPath: require.resolve('../workflows'),
     taskQueue: 'sample',
     dependencies: {
       logger: {
@@ -31,10 +30,3 @@ main().then(
   }
 );
 // @@@SNIPEND
-
-// Define outside of the snippet
-function defaultOptions() {
-  return {
-    nodeModulesPath: `${__dirname}/../../../../node_modules`,
-  };
-}

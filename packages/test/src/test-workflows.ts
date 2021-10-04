@@ -25,7 +25,7 @@ test.before(async (t) => {
   const logger = new DefaultLogger('INFO');
   const workflowsPath = path.join(__dirname, 'workflows');
   const nodeModulesPath = path.join(__dirname, '../../../node_modules');
-  const builder = new WorkflowIsolateBuilder(logger, nodeModulesPath, workflowsPath);
+  const builder = new WorkflowIsolateBuilder(logger, [nodeModulesPath], workflowsPath);
   t.context.contextProvider = await RoundRobinIsolateContextProvider.create(builder, 1, 1024);
 });
 

@@ -7,7 +7,7 @@ import {
   compileWorkerOptions,
   CompiledWorkerOptions,
   WorkerOptions,
-  addDefaults,
+  addDefaultWorkerOptions,
   errors,
 } from '@temporalio/worker/lib/worker';
 import { IsolateContextProvider } from '@temporalio/worker/lib/isolate-context-provider';
@@ -164,9 +164,8 @@ export class Worker extends RealWorker {
 }
 
 export const defaultOptions: WorkerOptions = {
-  workflowsPath: `${__dirname}/workflows`,
+  workflowsPath: require.resolve('./workflows'),
   activities,
-  nodeModulesPath: `${__dirname}/../../../node_modules`,
   taskQueue: 'test',
 };
 
@@ -180,6 +179,6 @@ export function isolateFreeWorker(options: WorkerOptions = defaultOptions): Work
         /* Nothing to destroy */
       },
     },
-    compileWorkerOptions(addDefaults(options))
+    compileWorkerOptions(addDefaultWorkerOptions(options))
   );
 }

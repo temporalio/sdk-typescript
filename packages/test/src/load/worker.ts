@@ -1,4 +1,3 @@
-import path from 'path';
 import arg from 'arg';
 import * as opentelemetry from '@opentelemetry/sdk-node';
 import { SemanticResourceAttributes } from '@opentelemetry/semantic-conventions';
@@ -6,6 +5,7 @@ import { Core, Worker, DefaultLogger } from '@temporalio/worker';
 import { CollectorTraceExporter } from '@opentelemetry/exporter-collector-grpc';
 import { WorkerArgSpec, workerArgSpec, getRequired } from './args';
 import { TelemetryOptions } from '@temporalio/core-bridge';
+import * as activities from '../activities';
 
 async function main() {
   const args = arg<WorkerArgSpec>(workerArgSpec);
@@ -50,8 +50,8 @@ async function main() {
   });
 
   const worker = await Worker.create({
-    workDir: path.join(__dirname, '..'),
-    nodeModulesPath: path.join(__dirname, '../../../../node_modules'),
+    activities,
+    workflowsPath: require.resolve('../workflows'),
     taskQueue,
     maxConcurrentActivityTaskExecutions,
     maxConcurrentWorkflowTaskExecutions,

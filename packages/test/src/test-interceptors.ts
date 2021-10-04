@@ -41,7 +41,7 @@ if (RUN_INTEGRATION_TESTS) {
             },
           }),
         ],
-        workflowModules: ['interceptor-example'],
+        workflowModules: [require.resolve('./workflows/interceptor-example')],
       },
     });
     const workerDrained = worker.run();
@@ -178,7 +178,7 @@ if (RUN_INTEGRATION_TESTS) {
       taskQueue,
       interceptors: {
         // Includes an interceptor for ContinueAsNew that will throw an error when used with the workflow below
-        workflowModules: ['interceptor-example'],
+        workflowModules: [require.resolve('./workflows/interceptor-example')],
       },
     });
     const client = new WorkflowClient();
@@ -219,7 +219,7 @@ if (RUN_INTEGRATION_TESTS) {
       taskQueue,
       interceptors: {
         // Co-exists with the Workflow
-        workflowModules: ['internals-interceptor-example'],
+        workflowModules: [require.resolve('./workflows/internals-interceptor-example')],
       },
       dependencies: {
         logger: {

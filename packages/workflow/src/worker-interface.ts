@@ -89,46 +89,6 @@ export function overrideGlobals(): void {
   Math.random = () => state.random();
 }
 
-/** Mock DOM element for Webpack dynamic imports */
-export interface MockElement {
-  getAttribute(name: string): unknown;
-  setAttribute(name: string, value: unknown): void;
-}
-
-/** Mock document object for Webpack dynamic imports */
-export interface MockDocument {
-  head: {
-    // Ignored
-    appendChild(): void;
-  };
-  getElementsByTagName(): MockElement[];
-  createElement(): MockElement;
-}
-
-/**
- * Create a mock document object with mimimal required attributes to support Webpack dynamic imports
- */
-export function mockBrowserDocumentForWebpack(): MockDocument {
-  const attrs = new Map<string, unknown>();
-  const el = {
-    getAttribute: (name: string) => attrs.get(name),
-    setAttribute: (name: string, value: unknown) => {
-      attrs.set(name, value);
-    },
-  };
-  return {
-    head: {
-      appendChild: () => undefined,
-    },
-    getElementsByTagName: () => {
-      return [el];
-    },
-    createElement: () => {
-      return el;
-    },
-  };
-}
-
 export async function initRuntime(
   info: WorkflowInfo,
   interceptorModules: string[],
@@ -151,7 +111,7 @@ export async function initRuntime(
   }
 
   for (const mod of interceptorModules) {
-    const factory: WorkflowInterceptorsFactory = req(mod, 'interceptors');
+    const factory: WorkflowInterceptorsFactory = req(mod).interceptors;
     if (factory !== undefined) {
       if (typeof factory !== 'function') {
         throw new TypeError(`interceptors must be a function, got: ${factory}`);
@@ -167,7 +127,7 @@ export async function initRuntime(
   const create = composeInterceptors(state.interceptors.inbound, 'create', async ({ args }) => {
     let mod: Workflow;
     try {
-      mod = req(undefined, info.workflowType);
+      mod = req(undefined)[info.workflowType];
       if (typeof mod !== 'function') {
         throw new TypeError(`'${info.workflowType}' is not a function`);
       }
