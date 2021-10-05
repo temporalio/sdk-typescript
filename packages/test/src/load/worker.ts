@@ -60,6 +60,7 @@ async function main() {
     maxConcurrentWorkflowTaskPolls,
     maxCachedWorkflows,
     isolatePoolSize,
+    silenceWorkflowLogging: true,
   });
   console.log('Created worker');
 

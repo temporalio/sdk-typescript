@@ -216,6 +216,9 @@ export interface WorkerOptions {
    * A mapping of interceptor type to a list of factories or module paths
    */
   interceptors?: WorkerInterceptors;
+
+  /** If set true, silence all `console.log` calls from workflow code */
+  silenceWorkflowLogging?: boolean;
   // TODO: implement all of these
   // maxConcurrentLocalActivityExecutions?: number; // defaults to 200
   // maxTaskQueueActivitiesPerSecond?: number;
@@ -917,7 +920,7 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
     await workflow.injectGlobal(
       'console.log',
       (...args: any[]) => {
-        if (workflow.info.isReplaying) return;
+        if (workflow.info.isReplaying || this.options.silenceWorkflowLogging) return;
         console.log(`${workflow.info.workflowType} ${workflow.info.runId} >`, ...args);
       },
       ApplyMode.SYNC
