@@ -14,7 +14,7 @@ Temporal is a mature technology—it's a fork of Uber's Cadence. Temporal is bei
 
 ## Documentation
 
-Check out the [Getting started](https://docs.temporal.io/docs/node/getting-started) page for a quick overview.
+Check out the [Getting started](https://docs.temporal.io/docs/node/introduction/#getting-started) page for a quick overview.
 
 The documentation is divided into several sections:
 
@@ -64,7 +64,7 @@ Notably these features are missing:
 
 ## Installation
 
-See the [getting started](https://docs.temporal.io/docs/node/getting-started) guide for setting up a project on your laptop.
+See the [getting started](https://docs.temporal.io/docs/node/introduction/#getting-started) guide for setting up a project on your laptop.
 
 ## Contributing
 
