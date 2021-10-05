@@ -69,6 +69,7 @@ async function runWorkflows({
       })
     );
   }
+  process.stderr.write('\n');
 
   const { numComplete, totalTime } = await observable.toPromise();
   const finalWfsPerSec = numComplete / totalTime;
@@ -126,22 +127,33 @@ async function main() {
   const taskQueue = getRequired(args, '--task-queue');
 
   const connection = new Connection({ address: serverAddress });
-
   const client = new WorkflowClient(connection.service, { namespace });
-
   const stopCondition = runForSeconds ? new UntilSecondsElapsed(runForSeconds) : new NumberOfWorkflows(iterations);
 
-  const passed = await runWorkflows({
-    client,
-    workflowName,
-    taskQueue,
-    stopCondition,
-    concurrency: concurrentWFClients,
-    minWFPS,
-  });
-  if (!passed) {
-    console.error('Load test did not pass');
-    process.exit(1);
+  let workflowsToRun: string[];
+  if (workflowName === 'yummy-sampler-mode') {
+    // Special workflow alias to run many different load tests sequentially.
+    // Expected wf/sec should be set low since some of these by their nature have
+    // higher latency.
+    workflowsToRun = ['cancelFakeProgress', 'childWorkflowCancel', 'childWorkflowSignals', 'cancellationScopes'];
+  } else {
+    workflowsToRun = [workflowName];
+  }
+
+  for (const wfName of workflowsToRun) {
+    console.log(`~~~ Starting test for ${wfName} workflows`);
+    const passed = await runWorkflows({
+      client,
+      workflowName: wfName,
+      taskQueue,
+      stopCondition,
+      concurrency: concurrentWFClients,
+      minWFPS,
+    });
+    if (!passed) {
+      console.error(`Load test did not pass for workflow ${wfName}`);
+      process.exit(1);
+    }
   }
 }
 

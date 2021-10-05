@@ -3,13 +3,31 @@ agents:
   docker: '*'
 
 steps:
-  - label: 'nightly-test'
+  - label: 'nightly-longrun'
     timeout_in_minutes: 360
-    concurrency: 1 # Only allow one nightly build at a time
-    concurrency_group: 'node-sdk/nightly'
+    concurrency: 1 # Only allow one of each kind of nightly test at once
+    concurrency_group: 'node-sdk/nightly-longrun'
     commands:
       - '.buildkite/docker/build.sh'
-      - 'npm run ci-nightly'
+      - 'npm run ci-nightly-longrun'
+      - 'echo success'
+    artifact_paths:
+      - 'docker-compose-logs/*'
+    plugins:
+      - docker-compose#v3.8.0:
+          run: test-container
+          upload-container-logs: always
+          config:
+            - .buildkite/docker/docker-compose.yaml
+            - .buildkite/docker/docker-compose-ci.yaml
+
+  - label: 'nightly-sampler'
+    timeout_in_minutes: 60
+    concurrency: 1
+    concurrency_group: 'node-sdk/nightly-sampler'
+    commands:
+      - '.buildkite/docker/build.sh'
+      - 'npm run ci-nightly-sampler'
       - 'echo success'
     artifact_paths:
       - 'docker-compose-logs/*'
