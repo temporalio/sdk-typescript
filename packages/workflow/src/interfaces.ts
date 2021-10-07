@@ -98,7 +98,7 @@ export interface ChildWorkflowOptions extends WorkflowOptions {
 }
 
 export type RequiredChildWorkflowOptions = Required<
-  Pick<ChildWorkflowOptions, 'workflowId' | 'workflowIdReusePolicy' | 'cancellationType' | 'taskQueue'>
+  Pick<ChildWorkflowOptions, 'workflowId' | 'cancellationType' | 'taskQueue'>
 >;
 
 export type ChildWorkflowOptionsWithDefaults = ChildWorkflowOptions & RequiredChildWorkflowOptions;
