@@ -16,6 +16,7 @@ export interface Context {
   workflow?: Workflow;
   logs: unknown[][];
   workflowType: string;
+  startTime: number;
   contextProvider: RoundRobinIsolateContextProvider;
 }
 
@@ -38,11 +39,11 @@ test.beforeEach(async (t) => {
   // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
   const testName = t.title.match(/\S+$/)![0];
   const logs: unknown[][] = [];
-  t.context = { logs, workflowType: testName, contextProvider };
+  t.context = { logs, workflowType: testName, contextProvider, startTime: Date.now() };
 });
 
 async function createWorkflow(t: ExecutionContext<Context>, startWorkflow: coresdk.workflow_activation.IStartWorkflow) {
-  const { logs, contextProvider } = t.context;
+  const { logs, contextProvider, startTime } = t.context;
   // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
   const testName = t.title.match(/\S+$/)![0];
   const workflow = await Workflow.create(
@@ -57,6 +58,7 @@ async function createWorkflow(t: ExecutionContext<Context>, startWorkflow: cores
     },
     [],
     Long.fromInt(1337),
+    startTime,
     startWorkflow,
     100
   );
@@ -353,11 +355,10 @@ test('throwAsync', async (t) => {
 });
 
 test('date', async (t) => {
-  const { logs, workflowType } = t.context;
-  const now = Date.now();
-  const req = await activate(t, makeStartWorkflow(workflowType, undefined, now));
+  const { startTime, logs, workflowType } = t.context;
+  const req = await activate(t, makeStartWorkflow(workflowType, undefined, startTime));
   compareCompletion(t, req, makeSuccess());
-  t.deepEqual(logs, [[now], [now], [true], [true], [true], [true], [true]]);
+  t.deepEqual(logs, [[startTime], [startTime], [true], [true], [true], [true], [true]]);
 });
 
 test('asyncWorkflow', async (t) => {

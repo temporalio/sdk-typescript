@@ -821,6 +821,9 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
                           )}`
                         );
                       }
+                      if (activation.timestamp === undefined) {
+                        throw new TypeError('Got activation with no timestamp, cannot create a new Workflow instance');
+                      }
                       const { workflowId, randomnessSeed, workflowType } = startWorkflow;
                       this.log.debug('Creating workflow', {
                         workflowId,
@@ -843,6 +846,7 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
                           },
                           this.options.interceptors?.workflowModules ?? [],
                           randomnessSeed,
+                          tsToMs(activation.timestamp),
                           startWorkflow,
                           this.options.isolateExecutionTimeoutMs
                         );
