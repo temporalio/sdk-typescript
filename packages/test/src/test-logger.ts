@@ -10,6 +10,6 @@ test('DefaultLogger logs messages according to configured level', (t) => {
   log.error('go');
   t.deepEqual(logs, [
     { level: 'WARN', message: 'lets', meta: { a: 1 } },
-    { level: 'ERROR', message: 'go', meta: {} },
+    { level: 'ERROR', message: 'go', meta: undefined },
   ]);
 });

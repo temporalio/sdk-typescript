@@ -64,7 +64,7 @@ export class DefaultLogger implements Logger {
       this.logFunction({
         level,
         message,
-        meta: rest,
+        meta: Object.keys(rest).length === 0 ? undefined : rest,
         timestampNanos: timestampNanos ?? timeOfDayToBigint(getTimeOfDay()),
       });
     }
