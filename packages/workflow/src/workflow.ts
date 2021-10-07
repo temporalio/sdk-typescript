@@ -33,7 +33,6 @@ registerSleepImplementation(sleep);
  */
 export function addDefaultWorkflowOptions(opts: ChildWorkflowOptions): ChildWorkflowOptionsWithDefaults {
   return {
-    taskQueue: workflowInfo().taskQueue,
     workflowId: opts.workflowId ?? uuid4(),
     cancellationType: ChildWorkflowCancellationType.WAIT_CANCELLATION_COMPLETED,
     ...opts,
@@ -479,6 +478,22 @@ export function createChildWorkflowHandle<T extends Workflow>(
   const workflowType = typeof workflowTypeOrFunc === 'string' ? workflowTypeOrFunc : workflowTypeOrFunc.name;
   let started: Promise<string> | undefined = undefined;
   let completed: Promise<unknown> | undefined = undefined;
+
+  const { info, require: req } = state;
+  // These will be undefined if called outside of Workflow context.
+  // It's a valid case since sometimes non-workflow code imports workflow code.
+  if (req !== undefined && info !== undefined) {
+    // Require the module where Workflows are registered.
+    const registeredWorkflows = req(undefined);
+    if (
+      (optionsWithDefaults.taskQueue === info.taskQueue || optionsWithDefaults.taskQueue === undefined) &&
+      !(workflowType in registeredWorkflows)
+    ) {
+      throw new TypeError(
+        `Cannot create a handle for unregistered Workflow type: ${workflowType}, make sure it is exported in the Worker's workflowsPath`
+      );
+    }
+  }
 
   return {
     workflowId: optionsWithDefaults.workflowId,
