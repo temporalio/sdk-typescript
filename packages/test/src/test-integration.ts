@@ -100,7 +100,7 @@ if (RUN_INTEGRATION_TESTS) {
 
   test('Workflow not found results in failure', async (t) => {
     const client = new WorkflowClient();
-    const promise = client.execute({ taskQueue: 'test' }, 'not-found');
+    const promise = client.execute('not-found', { taskQueue: 'test' });
     const err: WorkflowExecutionFailedError = await t.throwsAsync(() => promise, {
       instanceOf: WorkflowExecutionFailedError,
     });
@@ -587,7 +587,7 @@ if (RUN_INTEGRATION_TESTS) {
 
   test('activity-failures', async (t) => {
     const client = new WorkflowClient();
-    await client.execute({ taskQueue: 'test' }, 'activityFailures');
+    await client.execute(workflows.activityFailures, { taskQueue: 'test' });
     t.pass();
   });
 

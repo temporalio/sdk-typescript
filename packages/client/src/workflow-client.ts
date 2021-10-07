@@ -216,10 +216,12 @@ export class WorkflowClient {
    * Start a new Workflow execution. Resolves with the execution `runId`.
    */
   public async start<T extends Workflow>(
+    workflowTypeOrFunc: string | T,
     opts: Partial<WorkflowOptions>,
-    name: string,
     ...args: Parameters<T>
   ): Promise<string> {
+    const workflowType = typeof workflowTypeOrFunc === 'string' ? workflowTypeOrFunc : workflowTypeOrFunc.name;
+
     const mergedOptions = { ...this.options.workflowDefaults, ...opts };
     assertRequiredWorkflowOptions(mergedOptions);
     const compiledOptions = compileWorkflowOptions(addDefaults(mergedOptions));
@@ -235,7 +237,7 @@ export class WorkflowClient {
         options: compiledOptions,
         headers: {},
         args,
-        name,
+        name: workflowType,
       });
     return start(...args);
   }
@@ -244,12 +246,12 @@ export class WorkflowClient {
    * Starts a new Workflow execution and awaits its completion
    */
   public async execute<T extends Workflow>(
+    workflowTypeOrFunc: string | T,
     opts: Partial<WorkflowOptions>,
-    name: string,
     ...args: Parameters<T>
   ): Promise<WorkflowResultType<T>> {
     const workflowId = opts.workflowId ?? uuid4();
-    const runId = await this.start({ ...opts, workflowId }, name, ...args);
+    const runId = await this.start(workflowTypeOrFunc, { ...opts, workflowId }, ...args);
     return this.result({ workflowId, runId });
   }
 

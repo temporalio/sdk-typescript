@@ -6,7 +6,7 @@ import { StarterArgSpec, starterArgSpec, getRequired } from './args';
 import * as os from 'os';
 
 async function runWorkflow(client: WorkflowClient, name: string, taskQueue: string) {
-  await client.execute({ taskQueue }, name);
+  await client.execute(name, { taskQueue });
 }
 
 class NumberOfWorkflows {
