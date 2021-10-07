@@ -72,9 +72,9 @@ async function signalSchedulingWorkflow(signalName: string) {
   });
 }
 
-export async function fakeProgress(sleepIntervalMs = 1000): Promise<void> {
+export async function fakeProgress(sleepIntervalMs = 1000, numIters = 100): Promise<void> {
   await signalSchedulingWorkflow('activityStarted');
-  await fakeProgressInner(sleepIntervalMs);
+  await fakeProgressInner(sleepIntervalMs, numIters);
 }
 
 export async function cancellableFetch(url: string, signalWorkflowOnCheckpoint = false): Promise<Uint8Array> {

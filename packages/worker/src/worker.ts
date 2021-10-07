@@ -217,8 +217,11 @@ export interface WorkerOptions {
    */
   interceptors?: WorkerInterceptors;
 
-  /** If set true, silence all `console.log` calls from workflow code */
-  silenceWorkflowLogging?: boolean;
+  /**
+   * If set, override the behavior of `console.log` injected into workflows. By default, it will
+   * delegate to actual `console.log`.
+   */
+  workflowConsoleLog?: typeof console.log;
   // TODO: implement all of these
   // maxConcurrentLocalActivityExecutions?: number; // defaults to 200
   // maxTaskQueueActivitiesPerSecond?: number;
@@ -920,8 +923,12 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
     await workflow.injectGlobal(
       'console.log',
       (...args: any[]) => {
-        if (workflow.info.isReplaying || this.options.silenceWorkflowLogging) return;
-        console.log(`${workflow.info.workflowType} ${workflow.info.runId} >`, ...args);
+        if (workflow.info.isReplaying) return;
+        if (this.options.workflowConsoleLog !== undefined) {
+          this.options.workflowConsoleLog(...args);
+        } else {
+          console.log(`${workflow.info.workflowType} ${workflow.info.runId} >`, ...args);
+        }
       },
       ApplyMode.SYNC
     );
@@ -961,7 +968,7 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
       // The only way for this observable to be closed is by state changing to DRAINED meaning that all in-flight activities have been resolved and thus there should not be any heartbeats to send.
       this.takeUntilState('DRAINED'),
       tap({
-        next: ({ taskToken }) => this.log.debug('Got activity heartbeat', { taskToken: formatTaskToken(taskToken) }),
+        next: ({ taskToken }) => this.log.trace('Got activity heartbeat', { taskToken: formatTaskToken(taskToken) }),
         complete: () => this.log.debug('Heartbeats complete'),
       }),
       mergeMap(async ({ taskToken, details }) => {

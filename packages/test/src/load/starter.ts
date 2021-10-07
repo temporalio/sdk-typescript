@@ -4,9 +4,23 @@ import { bufferTime, map, mergeMap, tap, takeUntil } from 'rxjs/operators';
 import { Connection, WorkflowClient } from '@temporalio/client';
 import { StarterArgSpec, starterArgSpec, getRequired } from './args';
 import * as os from 'os';
+import { smorgasbord } from '../workflows';
 
 async function runWorkflow(client: WorkflowClient, name: string, taskQueue: string) {
-  await client.execute(name, { taskQueue });
+  if (name === 'smorgasbord') {
+    const wf = client.createWorkflowHandle(smorgasbord, { taskQueue });
+    const runid = await wf.start();
+    // TODO: Until server is released with the fix below, this fails often
+    //  https://github.com/temporalio/temporal/pull/2033
+    try {
+      await wf.query.step();
+    } catch (e) {
+      console.log(`wfid ${wf.workflowId} runid ${runid} query err`, e);
+    }
+    await wf.result();
+  } else {
+    await client.execute(name, { taskQueue });
+  }
 }
 
 class NumberOfWorkflows {
@@ -35,7 +49,7 @@ async function runWorkflows({
   stopCondition,
   concurrency,
   minWFPS,
-}: RunWorkflowOptions): Promise<boolean> {
+}: RunWorkflowOptions): Promise<void> {
   let observable: Observable<any>;
 
   if (stopCondition instanceof NumberOfWorkflows) {
@@ -69,17 +83,17 @@ async function runWorkflows({
       })
     );
   }
-  process.stderr.write('\n');
 
   const { numComplete, totalTime } = await observable.toPromise();
+  process.stderr.write('\n');
+
   const finalWfsPerSec = numComplete / totalTime;
   if (finalWfsPerSec < minWFPS) {
     console.error(
       `Insufficient overall workflows per second upon test completion: ${finalWfsPerSec} less than ${minWFPS}`
     );
-    return false;
+    throw new Error(`Load test did not pass for workflow ${name}`);
   }
-  return true;
 }
 
 interface Progress {
@@ -135,14 +149,14 @@ async function main() {
     // Special workflow alias to run many different load tests sequentially.
     // Expected wf/sec should be set low since some of these by their nature have
     // higher latency.
-    workflowsToRun = ['cancelFakeProgress', 'childWorkflowCancel', 'childWorkflowSignals', 'cancellationScopes'];
+    workflowsToRun = ['cancelFakeProgress', 'childWorkflowCancel', 'childWorkflowSignals', 'smorgasbord'];
   } else {
     workflowsToRun = [workflowName];
   }
 
   for (const wfName of workflowsToRun) {
-    console.log(`~~~ Starting test for ${wfName} workflows`);
-    const passed = await runWorkflows({
+    console.log(`+++ Starting test for ${wfName} workflows`);
+    await runWorkflows({
       client,
       workflowName: wfName,
       taskQueue,
@@ -150,14 +164,10 @@ async function main() {
       concurrency: concurrentWFClients,
       minWFPS,
     });
-    if (!passed) {
-      console.error(`Load test did not pass for workflow ${wfName}`);
-      process.exit(1);
-    }
   }
 }
 
 main().catch((err) => {
-  console.error(err);
+  console.error('Starter encountered error', err);
   process.exit(1);
 });
