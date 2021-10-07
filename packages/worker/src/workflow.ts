@@ -34,6 +34,7 @@ export class Workflow {
     info: WorkflowInfo,
     interceptorModules: string[],
     randomnessSeed: Long,
+    now: number,
     job: coresdk.workflow_activation.IStartWorkflow,
     isolateExecutionTimeoutMs: number
   ): Promise<Workflow> {
@@ -57,8 +58,8 @@ export class Workflow {
     const arr = coresdk.workflow_activation.StartWorkflow.encodeDelimited(job).finish();
 
     await context.evalClosure(
-      'lib.initRuntime($0, $1, $2, $3, $4)',
-      [info, interceptorModules, randomnessSeed.toBytes(), isolateExtension.derefInto(), arr],
+      'lib.initRuntime($0, $1, $2, $3, $4, $5)',
+      [info, interceptorModules, randomnessSeed.toBytes(), now, isolateExtension.derefInto(), arr],
       { arguments: { copy: true }, timeout: isolateExecutionTimeoutMs }
     );
     return new Workflow(

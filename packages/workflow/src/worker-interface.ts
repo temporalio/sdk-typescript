@@ -93,6 +93,7 @@ export async function initRuntime(
   info: WorkflowInfo,
   interceptorModules: string[],
   randomnessSeed: number[],
+  now: number,
   isolateExtension: IsolateExtension,
   encodedStartWorkflow: Uint8Array
 ): Promise<void> {
@@ -102,6 +103,7 @@ export async function initRuntime(
     throw new DeterminismViolationError('WeakRef cannot be used in workflows because v8 GC is non-deterministic');
   };
   state.info = info;
+  state.now = now;
   state.random = alea(randomnessSeed);
   HookManager.instance.setIsolateExtension(isolateExtension);
 
