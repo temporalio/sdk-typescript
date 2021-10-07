@@ -87,9 +87,7 @@ export interface WorkflowDurationOptions {
 
 export type WorkflowOptions = BaseWorkflowOptions & WorkflowDurationOptions;
 
-export type RequiredWorkflowOptions = Required<
-  Pick<BaseWorkflowOptions, 'workflowId' | 'workflowIdReusePolicy' | 'taskQueue'>
->;
+export type RequiredWorkflowOptions = Required<Pick<BaseWorkflowOptions, 'workflowId' | 'taskQueue'>>;
 
 export type WorkflowOptionsWithDefaults = WorkflowOptions & RequiredWorkflowOptions;
 

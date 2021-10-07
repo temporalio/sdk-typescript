@@ -10,7 +10,6 @@ import {
   mapToPayloadsSync,
   WorkflowResultType,
 } from '@temporalio/common';
-import { coresdk } from '@temporalio/proto/lib/coresdk';
 import {
   ChildWorkflowCancellationType,
   ChildWorkflowOptions,
@@ -36,7 +35,6 @@ export function addDefaultWorkflowOptions(opts: ChildWorkflowOptions): ChildWork
   return {
     taskQueue: workflowInfo().taskQueue,
     workflowId: opts.workflowId ?? uuid4(),
-    workflowIdReusePolicy: coresdk.common.WorkflowIdReusePolicy.WORKFLOW_ID_REUSE_POLICY_ALLOW_DUPLICATE_FAILED_ONLY,
     cancellationType: ChildWorkflowCancellationType.WAIT_CANCELLATION_COMPLETED,
     ...opts,
   };

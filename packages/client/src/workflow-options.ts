@@ -3,7 +3,6 @@ import {
   WorkflowOptions as BaseWorkflowOptions,
   WorkflowOptionsWithDefaults as BaseWorkflowOptionsWithDefaults,
 } from '@temporalio/common/lib/workflow-options';
-import * as iface from '@temporalio/proto';
 
 export { CompiledWorkflowOptions, compileWorkflowOptions } from '@temporalio/common/lib/workflow-options';
 
@@ -36,8 +35,6 @@ export function addDefaults(opts: WorkflowOptions): WorkflowOptionsWithDefaults 
   return {
     followRuns: true,
     workflowId: opts.workflowId ?? uuid4(),
-    workflowIdReusePolicy:
-      iface.temporal.api.enums.v1.WorkflowIdReusePolicy.WORKFLOW_ID_REUSE_POLICY_ALLOW_DUPLICATE_FAILED_ONLY,
     ...opts,
   };
 }
