@@ -1,10 +1,8 @@
-import { Empty } from '../interfaces';
-
 class CustomError extends Error {
   public readonly name: string = 'CustomError';
 }
 
-async function execute(): Promise<void> {
+export async function rejectPromise(): Promise<void> {
   try {
     await new Promise((_, reject) => reject(new CustomError('abc')));
   } catch (err) {
@@ -16,5 +14,3 @@ async function execute(): Promise<void> {
     console.log(err instanceof CustomError);
   }
 }
-
-export const rejectPromise: Empty = () => ({ execute });

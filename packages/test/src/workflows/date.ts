@@ -1,9 +1,8 @@
 import '@temporalio/workflow';
-import { Empty } from '../interfaces';
 
 const startTime = new Date().getTime();
 
-async function execute(): Promise<void> {
+export async function date(): Promise<void> {
   console.log(startTime);
   console.log(Date.now());
   console.log(new Date() instanceof Date);
@@ -12,5 +11,3 @@ async function execute(): Promise<void> {
   console.log(Date.UTC(1970, 0) === 0);
   console.log(Date.parse('1970-01-01') === 0);
 }
-
-export const date: Empty = () => ({ execute });

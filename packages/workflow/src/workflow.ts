@@ -9,6 +9,8 @@ import {
   composeInterceptors,
   mapToPayloadsSync,
   WorkflowResultType,
+  SignalDefinition,
+  QueryDefinition,
 } from '@temporalio/common';
 import {
   ChildWorkflowCancellationType,
@@ -389,10 +391,7 @@ export function createActivityHandle<A extends Record<string, ActivityFunction<a
  * Returns a client-side handle that can be used to signal and cancel an existing Workflow execution.
  * It takes a Workflow ID and optional run ID.
  */
-export function createExternalWorkflowHandle<T extends Workflow>(
-  workflowId: string,
-  runId?: string
-): ExternalWorkflowHandle<T> {
+export function createExternalWorkflowHandle(workflowId: string, runId?: string): ExternalWorkflowHandle {
   return {
     workflowId,
     runId,
@@ -415,32 +414,21 @@ export function createExternalWorkflowHandle<T extends Workflow>(
         state.completions.cancelWorkflow.set(seq, { resolve, reject });
       });
     },
-    signal: new Proxy(
-      {},
-      {
-        get(_, signalName) {
-          if (typeof signalName !== 'string') {
-            throw new TypeError(`Invalid signal type, expected string got: ${typeof signalName}`);
-          }
-
-          return (...args: any[]) => {
-            return composeInterceptors(
-              state.interceptors.outbound,
-              'signalWorkflow',
-              signalWorkflowNextHandler
-            )({
-              seq: state.nextSeqs.signalWorkflow++,
-              signalName,
-              args,
-              target: {
-                type: 'external',
-                workflowExecution: { workflowId, runId },
-              },
-            });
-          };
+    async signal<Args extends any[]>(def: SignalDefinition<Args> | string, ...args: Args): Promise<void> {
+      return composeInterceptors(
+        state.interceptors.outbound,
+        'signalWorkflow',
+        signalWorkflowNextHandler
+      )({
+        seq: state.nextSeqs.signalWorkflow++,
+        signalName: typeof def === 'string' ? def : def.name,
+        args,
+        target: {
+          type: 'external',
+          workflowExecution: { workflowId, runId },
         },
-      }
-    ) as any,
+      });
+    },
   };
 }
 
@@ -529,34 +517,24 @@ export function createChildWorkflowHandle<T extends Workflow>(
       }
       return completed as any;
     },
-    signal: new Proxy(
-      {},
-      {
-        get(_, signalName) {
-          if (typeof signalName !== 'string') {
-            throw new TypeError(`Invalid signal type, expected string got: ${typeof signalName}`);
-          }
-          return async (...args: any[]) => {
-            if (started === undefined) {
-              throw new IllegalStateError('Workflow execution not started');
-            }
-            return composeInterceptors(
-              state.interceptors.outbound,
-              'signalWorkflow',
-              signalWorkflowNextHandler
-            )({
-              seq: state.nextSeqs.signalWorkflow++,
-              signalName,
-              args,
-              target: {
-                type: 'child',
-                childWorkflowId: optionsWithDefaults.workflowId,
-              },
-            });
-          };
-        },
+    async signal<Args extends any[]>(def: SignalDefinition<Args> | string, ...args: Args): Promise<void> {
+      if (started === undefined) {
+        throw new IllegalStateError('Workflow execution not started');
       }
-    ) as any,
+      return composeInterceptors(
+        state.interceptors.outbound,
+        'signalWorkflow',
+        signalWorkflowNextHandler
+      )({
+        seq: state.nextSeqs.signalWorkflow++,
+        signalName: typeof def === 'string' ? def : def.name,
+        args,
+        target: {
+          type: 'child',
+          childWorkflowId: optionsWithDefaults.workflowId,
+        },
+      });
+    },
   };
 }
 
@@ -806,4 +784,71 @@ function conditionInner(fn: () => boolean): Promise<void> {
 
     state.blockedConditions.set(seq, { fn, resolve });
   });
+}
+
+/**
+ * Define a signal method for a Workflow.
+ *
+ * Definitions are used to register listeners in the Workflow via {@link setListener} and to signal Workflows using a {@link WorkflowHandle}, {@link ChildWorkflowHandle} or {@link ExternalWorkflowHandle}.
+ * Definitions can be reused in multiple Workflows.
+ */
+export function defineSignal<Args extends any[] = []>(name: string): SignalDefinition<Args> {
+  return {
+    type: 'signal',
+    name,
+  };
+}
+
+/**
+ * Define a query method for a Workflow.
+ *
+ * Definitions are used to register listeners in the Workflow via {@link setListener} and to query Workflows using a {@link WorkflowHandle}.
+ * Definitions can be reused in multiple Workflows.
+ */
+export function defineQuery<Ret, Args extends any[] = []>(name: string): QueryDefinition<Ret, Args> {
+  return {
+    type: 'query',
+    name,
+  };
+}
+
+/**
+ * A compatible listener function for a given SignalDefinition or QueryDefinition.
+ */
+export type Listener<
+  Ret,
+  Args extends any[],
+  T extends SignalDefinition<Args> | QueryDefinition<Ret, Args>
+> = T extends SignalDefinition<infer A>
+  ? (...args: A) => void | Promise<void>
+  : T extends QueryDefinition<infer R, infer A>
+  ? (...args: A) => R
+  : never;
+
+/**
+ * Set a listener function for a Workflow query or signal.
+ *
+ * If this function is called multiple times for a given signal or query name the last listener will overwrite any previous calls.
+ *
+ * @param def a {@link SignalDefinition} or {@link QueryDefinition} as returned by {@link defineSignal} or {@link defineQuery} respectively.
+ * @param listener  a compatible listener function for the given definition.
+ */
+export function setListener<Ret, Args extends any[], T extends SignalDefinition<Args> | QueryDefinition<Ret, Args>>(
+  def: T,
+  listener: Listener<Ret, Args, T>
+): void {
+  if (def.type === 'signal') {
+    const bufferedSignals = state.bufferedSignals.get(def.name);
+    if (bufferedSignals !== undefined) {
+      for (const args of bufferedSignals) {
+        listener(...args);
+      }
+      state.bufferedSignals.delete(def.name);
+    }
+    state.signalListeners.set(def.name, listener as any);
+  } else if (def.type === 'query') {
+    state.queryListeners.set(def.name, listener as any);
+  } else {
+    throw new TypeError(`Invalid definition type: ${(def as any).type}`);
+  }
 }

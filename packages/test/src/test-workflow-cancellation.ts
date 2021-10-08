@@ -2,10 +2,13 @@
 import anyTest, { Constructor, Macro, TestInterface } from 'ava';
 import { WorkflowClient, WorkflowExecutionCancelledError, WorkflowExecutionFailedError } from '@temporalio/client';
 import { Worker } from '@temporalio/worker';
-import { WorkflowCancellationScenarioOutcome, WorkflowCancellationScenarioTiming } from './interfaces';
 import { RUN_INTEGRATION_TESTS } from './helpers';
 import * as activities from './activities';
-import { workflowCancellationScenarios } from './workflows';
+import {
+  workflowCancellationScenarios,
+  WorkflowCancellationScenarioOutcome,
+  WorkflowCancellationScenarioTiming,
+} from './workflows';
 
 export interface Context {
   worker: Worker;

@@ -1,7 +1,5 @@
 // Taken from https://jakearchibald.com/2015/tasks-microtasks-queues-and-schedules/
-import { Empty } from '../interfaces';
-
-async function execute(): Promise<void> {
+export async function tasksAndMicrotasks(): Promise<void> {
   console.log('script start');
 
   const p1 = new Promise((resolve) => {
@@ -22,5 +20,3 @@ async function execute(): Promise<void> {
   console.log('script end');
   await Promise.all([p1, p2]);
 }
-
-export const tasksAndMicrotasks: Empty = () => ({ execute });

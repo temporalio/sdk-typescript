@@ -1,5 +1,4 @@
 import { dependencies, ExternalDependencies, CancellationScope } from '@temporalio/workflow';
-import { Empty } from '../interfaces';
 
 export interface Deps extends ExternalDependencies {
   blocker: {
@@ -7,12 +6,10 @@ export interface Deps extends ExternalDependencies {
   };
 }
 
-async function execute(): Promise<void> {
+export async function blockWithDependencies(): Promise<void> {
   console.log('blocking');
   const { blocker } = dependencies<Deps>();
   await blocker.block();
   console.log('unblocked');
   await CancellationScope.current().cancelRequested;
 }
-
-export const blockWithDependencies: Empty = () => ({ execute });

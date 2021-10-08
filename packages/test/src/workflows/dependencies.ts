@@ -1,7 +1,30 @@
-import { dependencies } from '@temporalio/workflow';
-import { TestDependencies } from '../interfaces/dependencies';
-import { Returner } from '../interfaces';
+import { dependencies, ExternalDependencies } from '@temporalio/workflow';
 
+export interface TestDependencies extends ExternalDependencies {
+  syncVoid: {
+    promise(counter: number): void;
+    ignoredAsyncImpl(counter: number): void;
+    sync(counter: number): void;
+    ignoredSyncImpl(counter: number): void;
+  };
+  asyncIgnored: {
+    syncImpl(counter: number): void;
+    asyncImpl(counter: number): void;
+  };
+  sync: {
+    syncImpl(counter: number): number;
+    asyncImpl(counter: number): number;
+  };
+  async: {
+    syncImpl(counter: number): Promise<number>;
+    asyncImpl(counter: number): Promise<number>;
+  };
+  error: {
+    throwAsync(counter: number): Promise<never>;
+    throwSync(counter: number): number;
+    throwSyncPromise(counter: number): number;
+  };
+}
 const { syncVoid, asyncIgnored, sync, async, error } = dependencies<TestDependencies>();
 
 function convertErrorToIntResult(fn: (x: number) => any, x: number): number {
@@ -12,7 +35,7 @@ function convertErrorToIntResult(fn: (x: number) => any, x: number): number {
   }
 }
 
-async function execute(): Promise<number> {
+export async function dependenciesWorkflow(): Promise<number> {
   let i = 0;
   syncVoid.promise(i++);
   syncVoid.ignoredAsyncImpl(i++);
@@ -31,5 +54,3 @@ async function execute(): Promise<number> {
   i = convertErrorToIntResult(error.throwSyncPromise, i);
   return i;
 }
-
-export const dependenciesWorkflow: Returner<number> = () => ({ execute });

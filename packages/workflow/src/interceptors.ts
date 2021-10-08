@@ -6,7 +6,7 @@
  * @module
  */
 
-import { ActivityOptions, WorkflowExecution, Headers, Next, WorkflowHandlers } from '@temporalio/common';
+import { ActivityOptions, WorkflowExecution, Headers, Next } from '@temporalio/common';
 import { coresdk } from '@temporalio/proto/lib/coresdk';
 import { ChildWorkflowOptions, ContinueAsNewOptions } from './interfaces';
 
@@ -41,13 +41,6 @@ export interface QueryInput {
  * Implement any of these methods to intercept Workflow inbound calls like execution, and signal and query handling.
  */
 export interface WorkflowInboundCallsInterceptor {
-  /**
-   * Called when Workflow is created from a factory function
-   *
-   * @return the Workflow handlers
-   */
-  create?: (input: WorkflowCreateInput, next: Next<this, 'create'>) => Promise<WorkflowHandlers>;
-
   /**
    * Called when Workflow execute method is called
    *

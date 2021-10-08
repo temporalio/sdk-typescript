@@ -4,29 +4,33 @@ export type WorkflowSignalType = (...args: any[]) => Promise<void> | void;
 export type WorkflowQueryType = (...args: any[]) => any;
 
 /**
- * Generic Workflow execute, signal, and query handlers
+ * Broard Workflow function definition, specific Workflows will typically use a narrower type definition, e.g:
+ * ```ts
+ * export async function myWorkflow(arg1: number, arg2: string): Promise<string>;
+ * ```
  */
-export interface WorkflowHandlers {
-  execute(): WorkflowReturnType;
-  signals?: Record<string, WorkflowSignalType>;
-  queries?: Record<string, WorkflowQueryType>;
+export type Workflow = (...args: any[]) => WorkflowReturnType;
+
+/**
+ * An interface representing a Workflow signal definition, as returned from {@link defineSignal}
+ */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export interface SignalDefinition<_Args extends any[] = []> {
+  type: 'signal';
+  name: string;
 }
 
 /**
- * Generic workflow interface, extend this in order to validate your workflow interface definitions
+ * An interface representing a Workflow query definition as returned from {@link defineQuery}
  */
-export type Workflow = (...args: any[]) => WorkflowHandlers;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export interface QueryDefinition<_Ret, _Args extends any[] = []> {
+  type: 'query';
+  name: string;
+}
 
-/** Get the execute handler from Workflow type `W` */
-export type WorkflowExecuteHandler<W extends Workflow> = ReturnType<W>['execute'];
 /** Get the "unwrapped" return type (without Promise) of the execute handler from Workflow type `W` */
-export type WorkflowResultType<W extends Workflow> = ReturnType<WorkflowExecuteHandler<W>> extends Promise<infer R>
-  ? R
-  : never;
-/** Get the signal handler definitions from Workflow type `W` */
-export type WorkflowSignalHandlers<W extends Workflow> = ReturnType<W>['signals'];
-/** Get the query handler definitions from Workflow type `W` */
-export type WorkflowQueryHandlers<W extends Workflow> = ReturnType<W>['queries'];
+export type WorkflowResultType<W extends Workflow> = ReturnType<W> extends Promise<infer R> ? R : never;
 
 /**
  * Defines options for activity retries

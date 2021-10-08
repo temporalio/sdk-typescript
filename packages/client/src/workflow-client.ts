@@ -11,12 +11,10 @@ import {
   IllegalStateError,
   optionalFailureToOptionalError,
   Workflow,
-  WorkflowSignalType,
-  WorkflowQueryType,
   BaseWorkflowHandle,
-  WorkflowSignalHandlers,
+  QueryDefinition,
+  SignalDefinition,
   WorkflowResultType,
-  WorkflowQueryHandlers,
 } from '@temporalio/common';
 import { WorkflowOptions, addDefaults, compileWorkflowOptions } from './workflow-options';
 import {
@@ -39,59 +37,53 @@ import * as errors from './errors';
 import { Connection, WorkflowService } from './connection';
 
 /**
- * Transforms a workflow interface `T` into a client interface
+ * A client side handle to a single Workflow instance.
+ * It can be used to start, signal, query, wait for completion, terminate and cancel a Workflow execution.
  *
- * Given a workflow interface such as:
+ * Given the following Workflow definition:
  * ```ts
- * export type Counter = () => {
- *   execute(initialValue?: number): number;
- *   signals: {
- *     increment(amount?: number): void;
- *   };
- *   queries: {
- *     get(): number;
- *   };
- * }
+ * export const incrementSignal = defineSignal('increment');
+ * export const getValueQuery = defineQuery<number>('getValue');
+ * export async function counterWorkflow(initialValue: number): Promise<void>;
  * ```
  *
- * Create a workflow client for running and interacting with a single workflow
+ * Create a handle for running and interacting with a single Workflow:
  * ```ts
  * const client = new WorkflowClient();
- * // `counter` is a registered workflow file, typically found at
- * // `lib/workflows/counter.js` after building the typescript project
- * const workflow = connection.createWorkflowHandle<Counter>('counter', { taskQueue: 'tutorial' });
- * // start workflow `execute` function with initialValue of 2 and await its completion
- * await workflow.execute(2);
+ * const handle = connection.createWorkflowHandle(counterWorkflow, { taskQueue: 'tutorial' });
+ * // Start the Workflow with initialValue of 2.
+ * await handle.start(2);
+ * await handle.signal(incrementSignal, 2);
+ * await handle.query(getValueQuery); // 4
+ * await handle.cancel();
+ * await handle.result(); // throws WorkflowExecutionCancelledError
  * ```
  */
 export interface WorkflowHandle<T extends Workflow> extends BaseWorkflowHandle<T> {
   /**
-   * A mapping of the different queries defined by Workflow interface `T` to callable functions.
-   * Call to query a Workflow after it's been started even if it has already completed.
+   * Query a running or completed Workflow.
+   *
+   * @param def a query definition as returned from {@link defineQuery} or query name (string)
+   *
    * @example
    * ```ts
-   * const value = await workflow.query.get();
+   * await handle.query(getValueQuery);
+   * await handle.query<number, []>('getValue');
    * ```
    */
-  query: WorkflowQueryHandlers<T> extends Record<string, WorkflowQueryType>
-    ? {
-        [P in keyof WorkflowQueryHandlers<T>]: (
-          ...args: Parameters<WorkflowQueryHandlers<T>[P]>
-        ) => Promise<ReturnType<WorkflowQueryHandlers<T>[P]>>;
-      }
-    : undefined;
+  query<Ret, Args extends any[]>(def: QueryDefinition<Ret, Args> | string, ...args: Args): Promise<Ret>;
 
   /**
    * Sends a signal to a running Workflow or starts a new one if not already running and immediately signals it.
-   * Useful when you're unsure of the run state.
+   * Useful when you're unsure of the Workflows's run state.
+   *
+   * @returns the runId of the Workflow
    */
-  signalWithStart: WorkflowSignalHandlers<T> extends Record<string, WorkflowSignalType>
-    ? <S extends keyof WorkflowSignalHandlers<T>>(
-        signalName: S,
-        signalArgs: Parameters<WorkflowSignalHandlers<T>[S]>,
-        workflowArgs: Parameters<T>
-      ) => Promise<string>
-    : never;
+  signalWithStart<Args extends any[]>(
+    def: SignalDefinition<Args> | string,
+    signalArgs: Args,
+    workflowArgs: Parameters<T>
+  ): Promise<string>;
 
   /**
    * Terminate a running Workflow
@@ -571,7 +563,7 @@ export class WorkflowClient {
     const namespace = this.options.namespace;
     let startPromise: Promise<string> | undefined = undefined;
 
-    const workflow = {
+    return {
       client: this,
       workflowId,
       async execute(...args: Parameters<T>): Promise<WorkflowResultType<T>> {
@@ -614,49 +606,27 @@ export class WorkflowClient {
           },
         });
       },
-      signal: new Proxy(
-        {},
-        {
-          get: (_, signalName) => {
-            if (typeof signalName !== 'string') {
-              throw new TypeError('signalName can only be a string');
-            }
-            return async (...args: any[]) => {
-              const next = this._signalWorkflowHandler.bind(this);
-              const fn = interceptors.length ? composeInterceptors(interceptors, 'signal', next) : next;
-              await fn({
-                workflowExecution: { workflowId, runId },
-                signalName,
-                args,
-              });
-            };
-          },
-        }
-      ) as any,
-      query: new Proxy(
-        {},
-        {
-          get: (_, queryType) => {
-            if (typeof queryType !== 'string') {
-              throw new TypeError('queryType can only be a string');
-            }
-            return async (...args: any[]) => {
-              const next = this._queryWorkflowHandler.bind(this);
-              const fn = interceptors.length ? composeInterceptors(interceptors, 'query', next) : next;
-              return fn({
-                workflowExecution: { workflowId, runId },
-                queryRejectCondition: this.options.queryRejectCondition,
-                queryType,
-                args,
-              });
-            };
-          },
-        }
-      ) as any,
+      async signal<Args extends any[]>(def: SignalDefinition<Args> | string, ...args: Args): Promise<void> {
+        const next = this.client._signalWorkflowHandler.bind(this.client);
+        const fn = interceptors.length ? composeInterceptors(interceptors, 'signal', next) : next;
+        await fn({
+          workflowExecution: { workflowId, runId },
+          signalName: typeof def === 'string' ? def : def.name,
+          args,
+        });
+      },
+      async query<Ret, Args extends any[]>(def: QueryDefinition<Ret, Args> | string, ...args: Args): Promise<Ret> {
+        const next = this.client._queryWorkflowHandler.bind(this.client);
+        const fn = interceptors.length ? composeInterceptors(interceptors, 'query', next) : next;
+        return fn({
+          workflowExecution: { workflowId, runId },
+          queryRejectCondition: this.client.options.queryRejectCondition,
+          queryType: typeof def === 'string' ? def : def.name,
+          args,
+        }) as Promise<Ret>;
+      },
       signalWithStart,
     };
-
-    return workflow;
   }
 
   /**
@@ -705,7 +675,7 @@ export class WorkflowClient {
       });
     };
 
-    const signalWithStart = (signalName: string, signalArgs: unknown[], workflowArgs: Parameters<T>) => {
+    const signalWithStart = (def: SignalDefinition | string, signalArgs: unknown[], workflowArgs: Parameters<T>) => {
       const next = composeInterceptors(
         interceptors,
         'signalWithStart',
@@ -717,7 +687,7 @@ export class WorkflowClient {
         headers: {},
         workflowArgs,
         workflowName: name,
-        signalName,
+        signalName: typeof def === 'string' ? def : def.name,
         signalArgs,
       });
     };

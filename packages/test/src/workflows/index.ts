@@ -1,3 +1,4 @@
+export * from './definitions';
 export * from './cancel-fake-progress';
 export * from './cancel-http-request';
 export * from './cancel-workflow';
@@ -34,7 +35,9 @@ export * from './child-workflow-timeout';
 export * from './child-workflow-signals';
 export * from './child-workflow-termination';
 export * from './signal-target';
-export * from './unblock-or-cancel';
+// unblockSignal is already defined in ./definitions, don't re-export it.
+// The reason it is redefined is for completeness of the snippet.
+export { unblockOrCancel, isBlockedQuery } from './unblock-or-cancel';
 export * from './throw-async';
 export * from './block-with-dependencies';
 export * from './args-and-return';

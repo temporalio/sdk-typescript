@@ -11,12 +11,13 @@ import {
   DataConverter,
   defaultDataConverter,
   arrayFromPayloadsSync,
-  WorkflowHandlers,
+  Workflow,
+  WorkflowQueryType,
 } from '@temporalio/common';
 import { coresdk } from '@temporalio/proto/lib/coresdk';
 import { alea, RNG } from './alea';
 import { ContinueAsNew, WorkflowInfo } from './interfaces';
-import { QueryInput, SignalInput, WorkflowInterceptors } from './interceptors';
+import { QueryInput, SignalInput, WorkflowExecuteInput, WorkflowInterceptors } from './interceptors';
 import { DeterminismViolationError, WorkflowExecutionAlreadyStartedError, isCancellation } from './errors';
 import { ExternalCall, ExternalDependencies } from './dependencies';
 import { ROOT_SCOPE } from './cancellation-scope';
@@ -46,11 +47,12 @@ export type ActivationHandler = {
 };
 
 export class Activator implements ActivationHandler {
-  public async startWorkflowNextHandler(): Promise<any> {
-    if (state.workflow === undefined) {
+  public async startWorkflowNextHandler({ args }: WorkflowExecuteInput): Promise<any> {
+    const { workflow } = state;
+    if (workflow === undefined) {
       throw new IllegalStateError('Workflow uninitialized');
     }
-    return await state.workflow.execute();
+    return await workflow(...args);
   }
 
   public startWorkflow(activation: coresdk.workflow_activation.IStartWorkflow): void {
@@ -161,13 +163,13 @@ export class Activator implements ActivationHandler {
     }
   }
 
-  protected async queryWorkflowNextHandler(input: QueryInput): Promise<unknown> {
-    const fn = state.workflow?.queries?.[input.queryName];
+  protected async queryWorkflowNextHandler({ queryName, args }: QueryInput): Promise<unknown> {
+    const fn = state.queryListeners.get(queryName);
     if (fn === undefined) {
       // Fail the query
-      throw new ReferenceError(`Workflow did not register a handler for ${input.queryName}`);
+      throw new ReferenceError(`Workflow did not register a handler for ${queryName}`);
     }
-    const ret = fn(...input.args);
+    const ret = fn(...args);
     if (ret instanceof Promise) {
       throw new DeterminismViolationError('Query handlers should not return a Promise');
     }
@@ -194,8 +196,19 @@ export class Activator implements ActivationHandler {
     );
   }
 
-  public async signalWorkflowNextHandler(fn: WorkflowSignalType, input: SignalInput): Promise<void> {
-    return fn(...input.args);
+  public async signalWorkflowNextHandler({ signalName, args }: SignalInput): Promise<void> {
+    // TODO: this means that the interceptor might not intercept actual signal processing :/
+    const fn = state.signalListeners.get(signalName);
+    if (fn === undefined) {
+      let buffer = state.bufferedSignals.get(signalName);
+      if (buffer === undefined) {
+        buffer = [];
+        state.bufferedSignals.set(signalName, buffer);
+      }
+      buffer.push(args);
+      return;
+    }
+    return fn(...args);
   }
 
   public signalWorkflow(activation: coresdk.workflow_activation.ISignalWorkflow): void {
@@ -204,15 +217,10 @@ export class Activator implements ActivationHandler {
       throw new TypeError('Missing activation signalName');
     }
 
-    const fn = state.workflow?.signals?.[signalName];
-    if (fn === undefined) {
-      // Fail the activation
-      throw new ReferenceError(`Workflow did not register a signal handler for ${signalName}`);
-    }
     const execute = composeInterceptors(
       state.interceptors.inbound,
       'handleSignal',
-      this.signalWorkflowNextHandler.bind(this, fn)
+      this.signalWorkflowNextHandler.bind(this)
     );
     execute({
       args: arrayFromPayloadsSync(state.dataConverter, activation.input),
@@ -285,6 +293,21 @@ export class State {
   };
 
   /**
+   * Buffer signal calls until a listener is registered
+   */
+  public readonly bufferedSignals = new Map<string, any[]>();
+
+  /**
+   * Mapping of signal name to listener
+   */
+  public readonly signalListeners = new Map<string, WorkflowSignalType>();
+
+  /**
+   * Mapping of signal name to listener
+   */
+  public readonly queryListeners = new Map<string, WorkflowQueryType>();
+
+  /**
    * Loaded in {@link initRuntime}
    */
   public interceptors: Required<WorkflowInterceptors> = { inbound: [], outbound: [], internals: [] };
@@ -343,7 +366,7 @@ export class State {
   /**
    * Reference to the current Workflow, initialized when a Workflow is started
    */
-  public workflow?: WorkflowHandlers;
+  public workflow?: Workflow;
 
   /**
    * Information about the current Workflow

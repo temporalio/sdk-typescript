@@ -12,7 +12,6 @@ import {
   Workflow,
   ApplicationFailure,
   errorMessage,
-  arrayFromPayloadsSync,
 } from '@temporalio/common';
 import { coresdk } from '@temporalio/proto/lib/coresdk';
 import { WorkflowInfo } from './interfaces';
@@ -99,8 +98,7 @@ export async function initRuntime(
   interceptorModules: string[],
   randomnessSeed: number[],
   now: number,
-  isolateExtension: IsolateExtension,
-  encodedStartWorkflow: Uint8Array
+  isolateExtension: IsolateExtension
 ): Promise<void> {
   // Globals are overridden while building the isolate before loading user code.
   // For some reason the `WeakRef` mock is not restored properly when creating an isolate from snapshot in node 14 (at least on ubuntu), override again.
@@ -129,28 +127,20 @@ export async function initRuntime(
       state.interceptors.internals.push(...(interceptors.internals ?? []));
     }
   }
-  const { headers, arguments: args } = coresdk.workflow_activation.StartWorkflow.decodeDelimited(encodedStartWorkflow);
 
-  const create = composeInterceptors(state.interceptors.inbound, 'create', async ({ args }) => {
-    let mod: Workflow;
-    try {
-      mod = req(undefined)[info.workflowType];
-      if (typeof mod !== 'function') {
-        throw new TypeError(`'${info.workflowType}' is not a function`);
-      }
-    } catch (err) {
-      const failure = ApplicationFailure.nonRetryable(errorMessage(err), 'ReferenceError');
-      failure.stack = failure.stack?.split('\n')[0];
-      throw failure;
+  let mod: Workflow;
+  try {
+    mod = req(undefined)[info.workflowType];
+    if (typeof mod !== 'function') {
+      throw new TypeError(`'${info.workflowType}' is not a function`);
     }
-    return mod(...args);
-  });
-
-  state.workflow =
-    (await create({
-      headers,
-      args: arrayFromPayloadsSync(state.dataConverter, args),
-    }).catch(handleWorkflowFailure)) ?? undefined;
+  } catch (err) {
+    const failure = ApplicationFailure.nonRetryable(errorMessage(err), 'ReferenceError');
+    failure.stack = failure.stack?.split('\n')[0];
+    handleWorkflowFailure(failure);
+    return;
+  }
+  state.workflow = mod;
 }
 
 export interface ActivationResult {

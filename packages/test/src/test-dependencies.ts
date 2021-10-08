@@ -3,7 +3,6 @@ import test from 'ava';
 import { WorkflowInfo } from '@temporalio/workflow';
 import { WorkflowClient } from '@temporalio/client';
 import { Worker, ApplyMode, DefaultLogger, Core } from '@temporalio/worker';
-import { IgnoredTestDependencies, TestDependencies } from './interfaces/dependencies';
 import { defaultOptions } from './mock-native-worker';
 import { RUN_INTEGRATION_TESTS } from './helpers';
 import * as workflows from './workflows';
@@ -28,7 +27,7 @@ if (RUN_INTEGRATION_TESTS) {
     const recordedCalls: RecordedCall[] = [];
     const taskQueue = 'test-dependencies';
 
-    const worker = await Worker.create<{ dependencies: TestDependencies }>({
+    const worker = await Worker.create<{ dependencies: workflows.TestDependencies }>({
       ...defaultOptions,
       taskQueue,
       dependencies: {
@@ -176,7 +175,7 @@ if (RUN_INTEGRATION_TESTS) {
     const thrownErrors: Error[] = [];
     const taskQueue = 'test-ignored-dependencies';
 
-    const worker = await Worker.create<{ dependencies: IgnoredTestDependencies }>({
+    const worker = await Worker.create<{ dependencies: workflows.IgnoredTestDependencies }>({
       ...defaultOptions,
       taskQueue,
       dependencies: {

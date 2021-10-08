@@ -1,5 +1,3 @@
-import { ArgsAndReturn } from '../interfaces';
-
 function str(a: Uint8Array): string {
   let out = '';
   for (const c of a) {
@@ -8,9 +6,7 @@ function str(a: Uint8Array): string {
   return out;
 }
 
-export const argsAndReturn: ArgsAndReturn = (greeting: string, _skip: undefined, arr: ArrayBuffer) => ({
-  async execute(): Promise<string> {
-    const name = str(new Uint8Array(arr));
-    return `${greeting}, ${name}`;
-  },
-});
+export async function argsAndReturn(greeting: string, _skip: undefined, arr: ArrayBuffer): Promise<string> {
+  const name = str(new Uint8Array(arr));
+  return `${greeting}, ${name}`;
+}

@@ -1,7 +1,3 @@
-import { Returner } from '../interfaces';
-
-export const successString: Returner<string> = () => ({
-  async execute() {
-    return 'success';
-  },
-});
+export async function successString(): Promise<string> {
+  return 'success';
+}

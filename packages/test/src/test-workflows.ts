@@ -13,7 +13,7 @@ import * as activityFunctions from './activities';
 import { u8 } from './helpers';
 
 export interface Context {
-  workflow?: Workflow;
+  workflow: Workflow;
   logs: unknown[][];
   workflowType: string;
   startTime: number;
@@ -39,17 +39,27 @@ test.beforeEach(async (t) => {
   // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
   const testName = t.title.match(/\S+$/)![0];
   const logs: unknown[][] = [];
-  t.context = { logs, workflowType: testName, contextProvider, startTime: Date.now() };
+
+  const startTime = Date.now();
+  t.context = {
+    logs,
+    workflowType: testName,
+    contextProvider,
+    startTime,
+    workflow: await createWorkflow(testName, startTime, logs, contextProvider),
+  };
 });
 
-async function createWorkflow(t: ExecutionContext<Context>, startWorkflow: coresdk.workflow_activation.IStartWorkflow) {
-  const { logs, contextProvider, startTime } = t.context;
-  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-  const testName = t.title.match(/\S+$/)![0];
+async function createWorkflow(
+  workflowType: string,
+  startTime: number,
+  logs: unknown[][],
+  contextProvider: RoundRobinIsolateContextProvider
+) {
   const workflow = await Workflow.create(
     await contextProvider.getContext(),
     {
-      workflowType: testName,
+      workflowType,
       runId: 'test-runId',
       workflowId: 'test-workflowId',
       namespace: 'default',
@@ -59,7 +69,6 @@ async function createWorkflow(t: ExecutionContext<Context>, startWorkflow: cores
     [],
     Long.fromInt(1337),
     startTime,
-    startWorkflow,
     100
   );
   await workflow.injectGlobal('console.log', (...args: unknown[]) => void logs.push(args), ApplyMode.SYNC);
@@ -67,15 +76,7 @@ async function createWorkflow(t: ExecutionContext<Context>, startWorkflow: cores
 }
 
 async function activate(t: ExecutionContext<Context>, activation: coresdk.workflow_activation.IWFActivation) {
-  let workflow = t.context.workflow;
-  if (workflow === undefined) {
-    const [{ startWorkflow }] = activation.jobs ?? [{}];
-    if (!startWorkflow) {
-      throw new TypeError('Expected first activation job to be startWorkflow');
-    }
-    workflow = await createWorkflow(t, startWorkflow);
-    t.context.workflow = workflow;
-  }
+  const { workflow } = t.context;
   const arr = await workflow.activate(activation);
   const completion = coresdk.workflow_completion.WFActivationCompletion.decodeDelimited(arr);
   t.deepEqual(completion.runId, workflow.info.runId);
@@ -347,7 +348,7 @@ test('throwAsync', async (t) => {
         'failure',
         dedent`
         Error: failure
-            at Object.execute
+            at throwAsync
         `
       ),
     ])
@@ -614,7 +615,7 @@ test('invalidOrFailedQueries', async (t) => {
             message: 'fail',
             stackTrace: dedent`
               Error: fail
-                  at fail
+                  at eval
             `,
             applicationFailureInfo: {
               type: 'Error',
@@ -627,7 +628,7 @@ test('invalidOrFailedQueries', async (t) => {
   }
 });
 
-test('interruptSignal', async (t) => {
+test('interruptableWorkflow', async (t) => {
   const { workflowType } = t.context;
   {
     const req = await activate(t, makeStartWorkflow(workflowType));
@@ -647,7 +648,7 @@ test('interruptSignal', async (t) => {
           // since the Error stack trace is generated in the constructor.
           dedent`
           Error: just because
-              at interrupt
+              at eval
           `,
           'Error'
         ),
@@ -656,7 +657,7 @@ test('interruptSignal', async (t) => {
   }
 });
 
-test('failSignal', async (t) => {
+test('failSignalWorkflow', async (t) => {
   const { workflowType } = t.context;
   {
     const req = await activate(t, makeStartWorkflow(workflowType));
@@ -672,7 +673,7 @@ test('failSignal', async (t) => {
           'Signal failed',
           dedent`
           Error: Signal failed
-              at fail
+              at eval
           `,
           'Error'
         ),
@@ -681,7 +682,7 @@ test('failSignal', async (t) => {
   }
 });
 
-test('asyncFailSignal', async (t) => {
+test('asyncFailSignalWorkflow', async (t) => {
   const { workflowType } = t.context;
   {
     const req = await activate(t, makeStartWorkflow(workflowType));
@@ -701,7 +702,7 @@ test('asyncFailSignal', async (t) => {
           'Signal failed',
           dedent`
           Error: Signal failed
-              at fail`,
+              at eval`,
           'Error'
         ),
       ])
@@ -1274,7 +1275,7 @@ test('cancellationErrorIsPropagated', async (t) => {
             at AsyncLocalStorage.run
             at CancellationScope.run
             at Function.cancellable
-            at Object.execute
+            at cancellationErrorIsPropagated
         `,
             canceledFailureInfo: {},
             source: 'NodeSDK',
@@ -1482,13 +1483,10 @@ test('globalOverrides', async (t) => {
 });
 
 test('logAndTimeout', async (t) => {
-  const { workflowType } = t.context;
+  const { workflowType, workflow } = t.context;
   const logs: string[] = [];
-  const { startWorkflow } = makeStartWorkflowJob(workflowType);
-  const workflow = await createWorkflow(t, startWorkflow);
-  t.context.workflow = workflow;
   await workflow.injectDependency('logger', 'info', (message: string) => logs.push(message), ApplyMode.ASYNC_IGNORED);
-  await t.throwsAsync(activate(t, makeActivation(undefined, { startWorkflow })), {
+  await t.throwsAsync(activate(t, makeStartWorkflow(workflowType)), {
     message: 'Script execution timed out.',
   });
   t.deepEqual(logs, ['logging before getting stuck']);
@@ -1634,7 +1632,7 @@ test('tryToContinueAfterCompletion', async (t) => {
           'fail before continue',
           dedent`
           Error: fail before continue
-              at Object.execute
+              at tryToContinueAfterCompletion
         `
         ),
       ])
@@ -1654,15 +1652,12 @@ test('failUnlessSignaledBeforeStart', async (t) => {
 });
 
 test('conditionWaiter', async (t) => {
-  const { workflowType } = t.context;
-  const { startWorkflow } = makeStartWorkflowJob(workflowType);
-  const workflow = await createWorkflow(t, startWorkflow);
-  t.context.workflow = workflow;
+  const { workflowType, workflow } = t.context;
   // This will set x = 3 in the workflow when resolved.
   // Test that conditions are unblocked after external dependency resolution.
   await workflow.injectDependency('unblock', 'me', async () => 3, ApplyMode.ASYNC);
   {
-    const completion = await activate(t, makeActivation(undefined, { startWorkflow }));
+    const completion = await activate(t, makeStartWorkflow(workflowType));
     compareCompletion(t, completion, makeSuccess([makeStartTimerCommand({ seq: 1, startToFireTimeout: msToTs(1) })]));
   }
   {

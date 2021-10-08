@@ -1,6 +1,6 @@
 // @@@SNIPSTART nodejs-external-dependencies-logger-worker
 import { Worker, ApplyMode } from '@temporalio/worker';
-import { LoggerDependencies } from '../interfaces/dependencies';
+import { LoggerDependencies } from '../workflows';
 
 async function main() {
   const worker = await Worker.create<{ dependencies: LoggerDependencies }>({

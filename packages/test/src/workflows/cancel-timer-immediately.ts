@@ -4,9 +4,8 @@
  */
 // @@@SNIPSTART nodejs-cancel-a-timer-from-workflow
 import { CancelledFailure, CancellationScope, sleep } from '@temporalio/workflow';
-import { Empty } from '../interfaces';
 
-async function execute(): Promise<void> {
+export async function cancelTimer(): Promise<void> {
   // Timers and Activities are automatically cancelled when their containing scope is cancelled.
   try {
     await CancellationScope.cancellable(async () => {
@@ -22,6 +21,4 @@ async function execute(): Promise<void> {
     }
   }
 }
-
-export const cancelTimer: Empty = () => ({ execute });
 // @@@SNIPEND

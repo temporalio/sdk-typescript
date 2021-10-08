@@ -1,18 +1,11 @@
-import { Gated } from '../interfaces';
+import { defineSignal, setListener } from '@temporalio/workflow';
 
-export const failUnlessSignaledBeforeStart: Gated = () => {
+export const someShallPassSignal = defineSignal('someShallPass');
+
+export async function failUnlessSignaledBeforeStart(): Promise<void> {
   let pass = false;
-  return {
-    signals: {
-      someShallPass(): void {
-        pass = true;
-      },
-    },
-
-    async execute(): Promise<void> {
-      if (!pass) {
-        throw new Error('None shall pass');
-      }
-    },
-  };
-};
+  setListener(someShallPassSignal, () => void (pass = true));
+  if (!pass) {
+    throw new Error('None shall pass');
+  }
+}

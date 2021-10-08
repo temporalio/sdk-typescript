@@ -3,9 +3,10 @@ import {
   createActivityHandle,
   CancellationScope,
   isCancellation,
-  Trigger,
+  setListener,
+  condition,
 } from '@temporalio/workflow';
-import { ActivitySignalHandler } from '../interfaces';
+import { activityStartedSignal } from './definitions';
 import type * as activities from '../activities';
 
 const { fakeProgress } = createActivityHandle<typeof activities>({
@@ -14,29 +15,20 @@ const { fakeProgress } = createActivityHandle<typeof activities>({
   cancellationType: ActivityCancellationType.WAIT_CANCELLATION_COMPLETED,
 });
 
-export const cancelFakeProgress: ActivitySignalHandler = () => {
-  const activityStarted = new Trigger<void>();
-
-  return {
-    signals: {
-      activityStarted(): void {
-        activityStarted.resolve();
-      },
-    },
-    async execute(): Promise<void> {
-      try {
-        await CancellationScope.cancellable(async () => {
-          const promise = fakeProgress();
-          await activityStarted;
-          CancellationScope.current().cancel();
-          await promise;
-        });
-        throw new Error('Activity completed instead of being cancelled');
-      } catch (err) {
-        if (!isCancellation(err)) {
-          throw err;
-        }
-      }
-    },
-  };
-};
+export async function cancelFakeProgress(): Promise<void> {
+  let activityStarted = false;
+  setListener(activityStartedSignal, () => void (activityStarted = true));
+  try {
+    await CancellationScope.cancellable(async () => {
+      const promise = fakeProgress();
+      await condition(() => activityStarted);
+      CancellationScope.current().cancel();
+      await promise;
+    });
+    throw new Error('Activity completed instead of being cancelled');
+  } catch (err) {
+    if (!isCancellation(err)) {
+      throw err;
+    }
+  }
+}
