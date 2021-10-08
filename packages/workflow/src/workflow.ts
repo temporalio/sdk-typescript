@@ -760,3 +760,50 @@ function patchInternal(patchId: string, deprecated: boolean): boolean {
   }
   return usePatch;
 }
+
+/**
+ * Returns a Promise that resolves when `fn` evaluates to `true` or `timeout` expires.
+ *
+ * @param timeout {@link https://www.npmjs.com/package/ms | ms} formatted string or number of milliseconds
+ *
+ * @returns a boolean indicating whether the condition was true before the timeout expires
+ */
+export function condition(timeout: number | string, fn: () => boolean): Promise<boolean>;
+
+/**
+ * Returns a Promise that resolves when `fn` evaluates to `true`.
+ */
+export function condition(fn: () => boolean): Promise<void>;
+
+export function condition(fnOrTimeout: (() => boolean) | number | string, fn?: () => boolean): Promise<void | boolean> {
+  if ((typeof fnOrTimeout === 'number' || typeof fnOrTimeout === 'string') && fn !== undefined) {
+    return Promise.race([sleep(fnOrTimeout).then(() => false), conditionInner(fn).then(() => true)]);
+  }
+  return conditionInner(fnOrTimeout as () => boolean);
+}
+
+function conditionInner(fn: () => boolean): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const scope = CancellationScope.current();
+    if (scope.consideredCancelled) {
+      scope.cancelRequested.catch(reject);
+      return;
+    }
+
+    const seq = state.nextSeqs.condition++;
+    if (scope.cancellable) {
+      scope.cancelRequested.catch((err) => {
+        state.blockedConditions.delete(seq);
+        reject(err);
+      });
+    }
+
+    // Eager evaluation
+    if (fn()) {
+      resolve();
+      return;
+    }
+
+    state.blockedConditions.set(seq, { fn, resolve });
+  });
+}
