@@ -10,7 +10,7 @@ services:
     #   - '9042:9042'
 
   temporal:
-    image: temporalio/auto-setup:1.12.1
+    image: temporalio/auto-setup:1.12.3
     # ports:
     #   - '7233:7233'
     #   - '7234:7234'
@@ -27,7 +27,7 @@ services:
       - cassandra
 
   temporal-web:
-    image: temporalio/web:1.11.0
+    image: temporalio/web:1.12.0
     logging:
       driver: none
     # ports:

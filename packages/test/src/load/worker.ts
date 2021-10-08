@@ -23,6 +23,7 @@ async function main() {
 
   let exporter = undefined;
   let telemetryOptions: TelemetryOptions | undefined = undefined;
+  let otel;
   if (oTelUrl) {
     exporter = new CollectorTraceExporter({ url: oTelUrl });
     telemetryOptions = {
@@ -30,15 +31,15 @@ async function main() {
       tracingFilter: 'temporal_sdk_core=DEBUG',
       logForwardingLevel: 'OFF',
     };
+    otel = new opentelemetry.NodeSDK({
+      resource: new opentelemetry.resources.Resource({
+        [SemanticResourceAttributes.SERVICE_NAME]: 'load-worker',
+        taskQueue,
+      }),
+      traceExporter: exporter,
+    });
+    await otel.start();
   }
-  const otel = new opentelemetry.NodeSDK({
-    resource: new opentelemetry.resources.Resource({
-      [SemanticResourceAttributes.SERVICE_NAME]: 'load-worker',
-      taskQueue,
-    }),
-    traceExporter: exporter,
-  });
-  await otel.start();
 
   await Core.install({
     serverOptions: {
@@ -63,7 +64,9 @@ async function main() {
   console.log('Created worker');
 
   await worker.run();
-  await otel.shutdown().catch(console.error);
+  if (otel) {
+    await otel.shutdown().catch(console.error);
+  }
 }
 
 main().catch((err) => {

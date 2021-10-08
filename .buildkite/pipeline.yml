@@ -7,6 +7,8 @@ steps:
     commands:
       - '.buildkite/docker/build.sh'
       - 'npm run ci-load'
+    artifact_paths:
+      - 'docker-compose-logs/*'
     plugins:
       - docker-compose#v3.8.0:
           run: test-container
