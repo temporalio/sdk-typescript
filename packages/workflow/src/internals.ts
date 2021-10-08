@@ -29,6 +29,11 @@ export interface Completion {
   reject: RejectFunction;
 }
 
+export interface Condition {
+  fn(): boolean;
+  resolve(): void;
+}
+
 protobufjs.util.Long = Long;
 protobufjs.configure();
 
@@ -291,6 +296,12 @@ export class State {
    * Buffer containing external dependency calls which have not yet been transferred out of the isolate
    */
   public pendingExternalCalls: ExternalCall[] = [];
+
+  /**
+   * Stores all {@link condition}s that haven't been unblocked yet
+   */
+  public blockedConditions = new Map<number, Condition>();
+
   /**
    * Is this Workflow completed
    */
@@ -310,6 +321,7 @@ export class State {
     dependency: 1,
     signalWorkflow: 1,
     cancelWorkflow: 1,
+    condition: 1,
   };
 
   /**

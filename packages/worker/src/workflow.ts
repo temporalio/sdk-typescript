@@ -7,12 +7,16 @@ import { ExternalDependencyFunction, WorkflowInfo, ExternalCall } from '@tempora
 import { ApplyMode } from './dependencies';
 import { partition } from './utils';
 
+/**
+ * Typed accessor into the workflow isolate's worker-interface exported functions.
+ */
 interface WorkflowModule {
   activate: ivm.Reference<typeof internals.activate>;
   concludeActivation: ivm.Reference<typeof internals.concludeActivation>;
   inject: ivm.Reference<typeof internals.inject>;
   resolveExternalDependencies: ivm.Reference<typeof internals.resolveExternalDependencies>;
   getAndResetPendingExternalCalls: ivm.Reference<typeof internals.getAndResetPendingExternalCalls>;
+  tryUnblockConditions: ivm.Reference<typeof internals.tryUnblockConditions>;
 }
 
 // Shared native isolate extension module for all isolates, needs to be injected into each Workflow's V8 context.
@@ -44,9 +48,17 @@ export class Workflow {
       inject,
       resolveExternalDependencies,
       getAndResetPendingExternalCalls,
+      tryUnblockConditions,
       isolateExtension,
     ] = await Promise.all(
-      ['activate', 'concludeActivation', 'inject', 'resolveExternalDependencies', 'getAndResetPendingExternalCalls']
+      [
+        'activate',
+        'concludeActivation',
+        'inject',
+        'resolveExternalDependencies',
+        'getAndResetPendingExternalCalls',
+        'tryUnblockConditions',
+      ]
         .map((fn) =>
           context.eval(`lib.${fn}`, {
             reference: true,
@@ -65,7 +77,14 @@ export class Workflow {
     return new Workflow(
       info,
       context,
-      { activate, concludeActivation, inject, resolveExternalDependencies, getAndResetPendingExternalCalls },
+      {
+        activate,
+        concludeActivation,
+        inject,
+        resolveExternalDependencies,
+        getAndResetPendingExternalCalls,
+        tryUnblockConditions,
+      },
       isolateExecutionTimeoutMs
     );
   }
@@ -189,14 +208,22 @@ export class Workflow {
           continue;
         }
         const arr = coresdk.workflow_activation.WFActivation.encodeDelimited({ ...activation, jobs }).finish();
-        const pendingExternalCalls = await this.workflowModule.activate.apply(undefined, [arr, batchIndex++], {
-          arguments: { copy: true },
-          result: { copy: true, promise: true },
-          timeout: this.isolateExecutionTimeoutMs,
-        });
+        const { externalCalls, numBlockedConditions } = await this.workflowModule.activate.apply(
+          undefined,
+          [arr, batchIndex++],
+          {
+            arguments: { copy: true },
+            result: { copy: true, promise: true },
+            timeout: this.isolateExecutionTimeoutMs,
+          }
+        );
         // Microtasks will already have run at this point
         // Eagerly process external calls to unblock isolate and minimize the processing delay
-        await this.processExternalCalls(pendingExternalCalls, true);
+        await this.processExternalCalls(externalCalls, true);
+
+        if (numBlockedConditions > 0) {
+          await this.tryUnblockConditions();
+        }
       }
       for (;;) {
         const conclusion = await this.workflowModule.concludeActivation.apply(undefined, [], {
@@ -206,12 +233,16 @@ export class Workflow {
         });
         if (conclusion.type === 'pending') {
           await this.processExternalCalls(conclusion.pendingExternalCalls, true);
+          if (conclusion.numBlockedConditions > 0) {
+            await this.tryUnblockConditions();
+          }
         } else {
           return conclusion.encoded;
         }
       }
     } catch (error) {
-      // Make sure to flush out any external calls on failure
+      // Make sure to flush out any external calls on failure.
+      // External calls may include logs and metrics, those should not be lost.
       const externalCalls = await this.workflowModule.getAndResetPendingExternalCalls.apply(undefined, [], {
         arguments: { copy: true },
         result: { copy: true },
@@ -219,6 +250,16 @@ export class Workflow {
       });
       await this.processExternalCalls(externalCalls, false);
       throw error;
+    }
+  }
+
+  protected async tryUnblockConditions(): Promise<void> {
+    for (;;) {
+      const numUnblocked = await this.workflowModule.tryUnblockConditions.apply(undefined, [], {
+        result: { copy: true },
+        timeout: this.isolateExecutionTimeoutMs,
+      });
+      if (numUnblocked === 0) break;
     }
   }
 

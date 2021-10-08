@@ -89,6 +89,11 @@ export function overrideGlobals(): void {
   Math.random = () => state.random();
 }
 
+/**
+ * Initialize the isolate runtime.
+ *
+ * Sets required internal state and instantiates the workflow and interceptors.
+ */
 export async function initRuntime(
   info: WorkflowInfo,
   interceptorModules: string[],
@@ -148,11 +153,16 @@ export async function initRuntime(
     }).catch(handleWorkflowFailure)) ?? undefined;
 }
 
+export interface ActivationResult {
+  externalCalls: ExternalCall[];
+  numBlockedConditions: number;
+}
+
 /**
  * Run a chunk of activation jobs
  * @returns a boolean indicating whether job was processed or ignored
  */
-export async function activate(encodedActivation: Uint8Array, batchIndex: number): Promise<ExternalCall[]> {
+export async function activate(encodedActivation: Uint8Array, batchIndex: number): Promise<ActivationResult> {
   const intercept = composeInterceptors(
     state.interceptors.internals,
     'activate',
@@ -191,6 +201,7 @@ export async function activate(encodedActivation: Uint8Array, batchIndex: number
             return;
           }
           await state.activator[job.variant](variant as any /* TODO: TS is struggling with `true` and `{}` */);
+          tryUnblockConditions();
         })
       );
     }
@@ -200,11 +211,14 @@ export async function activate(encodedActivation: Uint8Array, batchIndex: number
     batchIndex,
   });
 
-  return state.getAndResetPendingExternalCalls();
+  return {
+    externalCalls: state.getAndResetPendingExternalCalls(),
+    numBlockedConditions: state.blockedConditions.size,
+  };
 }
 
 type ActivationConclusion =
-  | { type: 'pending'; pendingExternalCalls: ExternalCall[] }
+  | { type: 'pending'; pendingExternalCalls: ExternalCall[]; numBlockedConditions: number }
   | { type: 'complete'; encoded: Uint8Array };
 
 /**
@@ -217,7 +231,7 @@ type ActivationConclusion =
 export function concludeActivation(): ActivationConclusion {
   const pendingExternalCalls = state.getAndResetPendingExternalCalls();
   if (pendingExternalCalls.length > 0) {
-    return { type: 'pending', pendingExternalCalls };
+    return { type: 'pending', pendingExternalCalls, numBlockedConditions: state.blockedConditions.size };
   }
   const intercept = composeInterceptors(state.interceptors.internals, 'concludeActivation', (input) => input);
   const { info } = state;
@@ -284,4 +298,28 @@ export function resolveExternalDependencies(results: ExternalDependencyResult[])
       completion.resolve(result);
     }
   }
+}
+
+/**
+ * Loop through all blocked conditions, evaluate and unblock if possible.
+ *
+ * @returns number of unblocked conditions.
+ */
+export function tryUnblockConditions(): number {
+  let numUnblocked = 0;
+  for (;;) {
+    const prevUnblocked = numUnblocked;
+    for (const [seq, cond] of state.blockedConditions.entries()) {
+      if (cond.fn()) {
+        cond.resolve();
+        numUnblocked++;
+        // It is safe to delete elements during map iteration
+        state.blockedConditions.delete(seq);
+      }
+    }
+    if (prevUnblocked === numUnblocked) {
+      break;
+    }
+  }
+  return numUnblocked;
 }

@@ -1652,3 +1652,29 @@ test('failUnlessSignaledBeforeStart', async (t) => {
   );
   compareCompletion(t, completion, makeSuccess());
 });
+
+test('conditionWaiter', async (t) => {
+  const { workflowType } = t.context;
+  const { startWorkflow } = makeStartWorkflowJob(workflowType);
+  const workflow = await createWorkflow(t, startWorkflow);
+  t.context.workflow = workflow;
+  // This will set x = 3 in the workflow when resolved.
+  // Test that conditions are unblocked after external dependency resolution.
+  await workflow.injectDependency('unblock', 'me', async () => 3, ApplyMode.ASYNC);
+  {
+    const completion = await activate(t, makeActivation(undefined, { startWorkflow }));
+    compareCompletion(t, completion, makeSuccess([makeStartTimerCommand({ seq: 1, startToFireTimeout: msToTs(1) })]));
+  }
+  {
+    const completion = await activate(t, makeFireTimer(1));
+    compareCompletion(
+      t,
+      completion,
+      makeSuccess([makeStartTimerCommand({ seq: 2, startToFireTimeout: msToTs('1s') })])
+    );
+  }
+  {
+    const completion = await activate(t, makeFireTimer(2));
+    compareCompletion(t, completion, makeSuccess());
+  }
+});
