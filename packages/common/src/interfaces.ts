@@ -4,7 +4,7 @@ export type WorkflowSignalType = (...args: any[]) => Promise<void> | void;
 export type WorkflowQueryType = (...args: any[]) => any;
 
 /**
- * Broard Workflow function definition, specific Workflows will typically use a narrower type definition, e.g:
+ * Broad Workflow function definition, specific Workflows will typically use a narrower type definition, e.g:
  * ```ts
  * export async function myWorkflow(arg1: number, arg2: string): Promise<string>;
  * ```

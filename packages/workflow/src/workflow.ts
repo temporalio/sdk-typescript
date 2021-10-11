@@ -813,7 +813,7 @@ export function defineQuery<Ret, Args extends any[] = []>(name: string): QueryDe
 }
 
 /**
- * A compatible listener function for a given SignalDefinition or QueryDefinition.
+ * A listener function capable of accepting the arguments for a given SignalDefinition or QueryDefinition.
  */
 export type Listener<
   Ret,

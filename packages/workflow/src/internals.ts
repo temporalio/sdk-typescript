@@ -293,7 +293,7 @@ export class State {
   };
 
   /**
-   * Buffer signal calls until a listener is registered
+   * Holds buffered signal calls until a listener is registered
    */
   public readonly bufferedSignals = new Map<string, any[]>();
 

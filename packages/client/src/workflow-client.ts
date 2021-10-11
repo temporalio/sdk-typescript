@@ -75,7 +75,7 @@ export interface WorkflowHandle<T extends Workflow> extends BaseWorkflowHandle<T
 
   /**
    * Sends a signal to a running Workflow or starts a new one if not already running and immediately signals it.
-   * Useful when you're unsure of the Workflows's run state.
+   * Useful when you're unsure of the Workflows' run state.
    *
    * @returns the runId of the Workflow
    */
