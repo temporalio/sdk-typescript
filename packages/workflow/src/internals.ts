@@ -197,16 +197,9 @@ export class Activator implements ActivationHandler {
   }
 
   public async signalWorkflowNextHandler({ signalName, args }: SignalInput): Promise<void> {
-    // TODO: this means that the interceptor might not intercept actual signal processing :/
     const fn = state.signalListeners.get(signalName);
     if (fn === undefined) {
-      let buffer = state.bufferedSignals.get(signalName);
-      if (buffer === undefined) {
-        buffer = [];
-        state.bufferedSignals.set(signalName, buffer);
-      }
-      buffer.push(args);
-      return;
+      throw new IllegalStateError(`No registered signal listener for signal ${signalName}`);
     }
     return fn(...args);
   }
@@ -215,6 +208,17 @@ export class Activator implements ActivationHandler {
     const { signalName } = activation;
     if (!signalName) {
       throw new TypeError('Missing activation signalName');
+    }
+
+    const fn = state.signalListeners.get(signalName);
+    if (fn === undefined) {
+      let buffer = state.bufferedSignals.get(signalName);
+      if (buffer === undefined) {
+        buffer = [];
+        state.bufferedSignals.set(signalName, buffer);
+      }
+      buffer.push(activation);
+      return;
     }
 
     const execute = composeInterceptors(
@@ -295,7 +299,7 @@ export class State {
   /**
    * Holds buffered signal calls until a listener is registered
    */
-  public readonly bufferedSignals = new Map<string, any[]>();
+  public readonly bufferedSignals = new Map<string, coresdk.workflow_activation.ISignalWorkflow[]>();
 
   /**
    * Mapping of signal name to listener

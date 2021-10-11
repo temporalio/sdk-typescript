@@ -838,14 +838,14 @@ export function setListener<Ret, Args extends any[], T extends SignalDefinition<
   listener: Listener<Ret, Args, T>
 ): void {
   if (def.type === 'signal') {
+    state.signalListeners.set(def.name, listener as any);
     const bufferedSignals = state.bufferedSignals.get(def.name);
     if (bufferedSignals !== undefined) {
-      for (const args of bufferedSignals) {
-        listener(...args);
+      for (const signal of bufferedSignals) {
+        state.activator.signalWorkflow(signal);
       }
       state.bufferedSignals.delete(def.name);
     }
-    state.signalListeners.set(def.name, listener as any);
   } else if (def.type === 'query') {
     state.queryListeners.set(def.name, listener as any);
   } else {
