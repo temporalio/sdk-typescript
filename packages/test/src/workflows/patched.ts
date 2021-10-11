@@ -1,7 +1,6 @@
 import { patched, sleep } from '@temporalio/workflow';
-import { Empty } from '../interfaces';
 
-async function execute(): Promise<void> {
+export async function patchedWorkflow(): Promise<void> {
   if (patched('my-change-id')) {
     console.log('has change');
   } else {
@@ -14,5 +13,3 @@ async function execute(): Promise<void> {
     console.log('no change 2');
   }
 }
-
-export const patchedWorkflow: Empty = () => ({ execute });

@@ -4,25 +4,18 @@
  */
 
 import { WorkflowExecution } from '@temporalio/common';
-import { createChildWorkflowHandle } from '@temporalio/workflow';
-import { ChildTerminator } from '../interfaces';
+import { createChildWorkflowHandle, defineQuery, setListener } from '@temporalio/workflow';
 import { unblockOrCancel } from './unblock-or-cancel';
 
-export const childWorkflowTermination: ChildTerminator = () => {
-  let workflowExecution: WorkflowExecution | undefined = undefined;
+export const childExecutionQuery = defineQuery<WorkflowExecution | undefined>('childExecution');
 
-  return {
-    queries: {
-      childExecution(): WorkflowExecution | undefined {
-        return workflowExecution;
-      },
-    },
-    async execute(): Promise<void> {
-      const child = createChildWorkflowHandle(unblockOrCancel, {
-        taskQueue: 'test',
-      });
-      workflowExecution = { workflowId: child.workflowId, runId: await child.start() };
-      await child.result();
-    },
-  };
-};
+export async function childWorkflowTermination(): Promise<void> {
+  let workflowExecution: WorkflowExecution | undefined = undefined;
+  setListener(childExecutionQuery, () => workflowExecution);
+
+  const child = createChildWorkflowHandle(unblockOrCancel, {
+    taskQueue: 'test',
+  });
+  workflowExecution = { workflowId: child.workflowId, runId: await child.start() };
+  await child.result();
+}

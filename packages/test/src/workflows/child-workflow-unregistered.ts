@@ -1,11 +1,8 @@
 import { createChildWorkflowHandle, WorkflowInfo, workflowInfo } from '@temporalio/workflow';
-import { Empty } from '../interfaces';
 
-const unregisteredWorkflow: Empty = () => ({
-  async execute() {
-    // noop
-  },
-});
+async function unregisteredWorkflow(): Promise<void> {
+  // noop
+}
 
 let info: WorkflowInfo | undefined;
 try {

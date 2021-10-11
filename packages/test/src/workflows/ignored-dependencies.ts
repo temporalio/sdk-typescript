@@ -1,11 +1,20 @@
 // Run all different kinds of ignored dependency functions to check that the Worker reports when they throw
-import { dependencies } from '@temporalio/workflow';
-import { Returner } from '../interfaces';
-import { IgnoredTestDependencies } from '../interfaces/dependencies';
+import { dependencies, ExternalDependencies } from '@temporalio/workflow';
+
+export interface IgnoredTestDependencies extends ExternalDependencies {
+  syncIgnored: {
+    syncImpl(counter: number): void;
+    asyncImpl(counter: number): void;
+  };
+  asyncIgnored: {
+    syncImpl(counter: number): void;
+    asyncImpl(counter: number): void;
+  };
+}
 
 const { syncIgnored, asyncIgnored } = dependencies<IgnoredTestDependencies>();
 
-async function execute(): Promise<number> {
+export async function ignoredDependencies(): Promise<number> {
   let i = 0;
   syncIgnored.syncImpl(i++);
   syncIgnored.asyncImpl(i++);
@@ -13,5 +22,3 @@ async function execute(): Promise<number> {
   asyncIgnored.asyncImpl(i++);
   return i;
 }
-
-export const ignoredDependencies: Returner<number> = () => ({ execute });

@@ -1,13 +1,11 @@
 import { createActivityHandle } from '@temporalio/workflow';
 import type * as activities from '../activities';
 
-export function runActivityInDifferentTaskQueue(taskQueue: string): { execute(): Promise<string> } {
+export async function runActivityInDifferentTaskQueue(taskQueue: string): Promise<string> {
   const { echo } = createActivityHandle<typeof activities>({
     taskQueue,
     scheduleToCloseTimeout: '30 minutes',
   });
 
-  return {
-    execute: () => echo('hi'),
-  };
+  return await echo('hi');
 }

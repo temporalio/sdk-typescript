@@ -855,7 +855,6 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
                           this.options.interceptors?.workflowModules ?? [],
                           randomnessSeed,
                           tsToMs(activation.timestamp),
-                          startWorkflow,
                           this.options.isolateExecutionTimeoutMs
                         );
                       });

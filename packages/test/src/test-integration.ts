@@ -190,7 +190,7 @@ if (RUN_INTEGRATION_TESTS) {
       cleanStackTrace(err.cause.cause.stack),
       dedent`
         Error: failure
-            at Object.execute
+            at throwAsync
       `
     );
   });
@@ -203,7 +203,7 @@ if (RUN_INTEGRATION_TESTS) {
     let childExecution: ValidWorkflowExecution | undefined = undefined;
 
     while (childExecution === undefined) {
-      childExecution = (await workflow.query.childExecution()) as ValidWorkflowExecution;
+      childExecution = (await workflow.query(workflows.childExecutionQuery)) as ValidWorkflowExecution;
     }
     const child = client.createWorkflowHandle(childExecution);
     await child.terminate();
@@ -263,17 +263,17 @@ if (RUN_INTEGRATION_TESTS) {
     const { client } = t.context;
     const workflow = client.createWorkflowHandle(workflows.unblockOrCancel, { taskQueue: 'test' });
     await workflow.start();
-    t.true(await workflow.query.isBlocked());
-    await workflow.signal.unblock();
+    t.true(await workflow.query(workflows.isBlockedQuery));
+    await workflow.signal(workflows.unblockSignal);
     await workflow.result();
-    t.false(await workflow.query.isBlocked());
+    t.false(await workflow.query(workflows.isBlockedQuery));
   });
 
   test('interrupt-signal', async (t) => {
     const { client } = t.context;
-    const workflow = client.createWorkflowHandle(workflows.interruptSignal, { taskQueue: 'test' });
+    const workflow = client.createWorkflowHandle(workflows.interruptableWorkflow, { taskQueue: 'test' });
     await workflow.start();
-    await workflow.signal.interrupt('just because');
+    await workflow.signal(workflows.interruptSignal, 'just because');
     const err: WorkflowExecutionFailedError = await t.throwsAsync(workflow.result(), {
       instanceOf: WorkflowExecutionFailedError,
     });
@@ -285,9 +285,9 @@ if (RUN_INTEGRATION_TESTS) {
 
   test('fail-signal', async (t) => {
     const { client } = t.context;
-    const workflow = client.createWorkflowHandle(workflows.failSignal, { taskQueue: 'test' });
+    const workflow = client.createWorkflowHandle(workflows.failSignalWorkflow, { taskQueue: 'test' });
     await workflow.start();
-    await workflow.signal.fail();
+    await workflow.signal(workflows.failSignal);
     const err: WorkflowExecutionFailedError = await t.throwsAsync(workflow.result(), {
       instanceOf: WorkflowExecutionFailedError,
     });
@@ -299,9 +299,9 @@ if (RUN_INTEGRATION_TESTS) {
 
   test('async-fail-signal', async (t) => {
     const { client } = t.context;
-    const workflow = client.createWorkflowHandle(workflows.asyncFailSignal, { taskQueue: 'test' });
+    const workflow = client.createWorkflowHandle(workflows.asyncFailSignalWorkflow, { taskQueue: 'test' });
     await workflow.start();
-    await workflow.signal.fail();
+    await workflow.signal(workflows.failSignal);
     const err: WorkflowExecutionFailedError = await t.throwsAsync(workflow.result(), {
       instanceOf: WorkflowExecutionFailedError,
     });
@@ -507,7 +507,7 @@ if (RUN_INTEGRATION_TESTS) {
       runId: err.newExecutionRunId,
     });
 
-    await workflow.signal.continueAsNew();
+    await workflow.signal(workflows.continueAsNewSignal);
     err = await t.throwsAsync(workflow.result(), {
       instanceOf: WorkflowExecutionContinuedAsNewError,
     });
@@ -556,10 +556,10 @@ if (RUN_INTEGRATION_TESTS) {
 
   test('signalWithStart works as intended and returns correct runId', async (t) => {
     const { client } = t.context;
-    let workflow = client.createWorkflowHandle(workflows.interruptSignal, {
+    let workflow = client.createWorkflowHandle(workflows.interruptableWorkflow, {
       taskQueue: 'test',
     });
-    const runId = await workflow.signalWithStart('interrupt', ['interrupted from signalWithStart'], []);
+    const runId = await workflow.signalWithStart(workflows.interruptSignal, ['interrupted from signalWithStart'], []);
     {
       const err: WorkflowExecutionFailedError = await t.throwsAsync(workflow.result(), {
         instanceOf: WorkflowExecutionFailedError,
@@ -570,7 +570,7 @@ if (RUN_INTEGRATION_TESTS) {
       t.is(err.cause.message, 'interrupted from signalWithStart');
     }
     // Test returned runId
-    workflow = client.createWorkflowHandle<typeof workflows.interruptSignal>({
+    workflow = client.createWorkflowHandle<typeof workflows.interruptableWorkflow>({
       workflowId: workflow.workflowId,
       runId,
     });

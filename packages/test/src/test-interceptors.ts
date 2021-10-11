@@ -22,6 +22,7 @@ import { cleanStackTrace, RUN_INTEGRATION_TESTS } from './helpers';
 import { Deps } from './workflows/block-with-dependencies';
 import { Dependencies as InternalsDeps } from './workflows/internals-interceptor-example';
 import { interceptorExample, internalsInterceptorExample, continueAsNewToDifferentWorkflow } from './workflows';
+import { getSecretQuery, unblockWithSecretSignal } from './workflows/interceptor-example';
 
 if (RUN_INTEGRATION_TESTS) {
   test.serial('Tracing can be implemented using interceptors', async (t) => {
@@ -89,8 +90,8 @@ if (RUN_INTEGRATION_TESTS) {
         taskQueue,
       });
       await wf.start();
-      await wf.signal.unblock('12345');
-      t.is(await wf.query.getSecret(), '12345');
+      await wf.signal(unblockWithSecretSignal, '12345');
+      t.is(await wf.query(getSecretQuery), '12345');
       const result = await wf.result();
       t.is(result, message);
     }
@@ -98,7 +99,7 @@ if (RUN_INTEGRATION_TESTS) {
       const wf = client.createWorkflowHandle(interceptorExample, {
         taskQueue,
       });
-      await wf.signalWithStart('unblock', ['12345'], []);
+      await wf.signalWithStart(unblockWithSecretSignal, ['12345'], []);
       const result = await wf.result();
       t.is(result, message);
     }
@@ -202,7 +203,7 @@ if (RUN_INTEGRATION_TESTS) {
           at Object.continueAsNew
           at next
           at eval
-          at Object.execute
+          at continueAsNewToDifferentWorkflow
     `
     );
     t.is(err.cause.cause, undefined);

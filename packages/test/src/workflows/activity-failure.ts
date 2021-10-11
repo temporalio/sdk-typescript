@@ -3,15 +3,12 @@
  */
 import { createActivityHandle } from '@temporalio/workflow';
 import type * as activities from '../activities';
-import { Empty } from '../interfaces';
 
 const { throwAnError } = createActivityHandle<typeof activities>({
   startToCloseTimeout: '5s',
   retry: { initialInterval: '1s', maximumAttempts: 1 },
 });
 
-export const activityFailure: Empty = () => ({
-  async execute() {
-    await throwAnError('Fail me');
-  },
-});
+export async function activityFailure(): Promise<void> {
+  await throwAnError('Fail me');
+}
