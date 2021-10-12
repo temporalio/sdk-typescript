@@ -216,12 +216,6 @@ export interface WorkerOptions {
    * A mapping of interceptor type to a list of factories or module paths
    */
   interceptors?: WorkerInterceptors;
-
-  /**
-   * If set, override the behavior of `console.log` injected into workflows. By default, it will
-   * delegate to actual `console.log`.
-   */
-  workflowConsoleLog?: typeof console.log;
   // TODO: implement all of these
   // maxConcurrentLocalActivityExecutions?: number; // defaults to 200
   // maxTaskQueueActivitiesPerSecond?: number;
@@ -924,11 +918,7 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
       'console.log',
       (...args: any[]) => {
         if (workflow.info.isReplaying) return;
-        if (this.options.workflowConsoleLog !== undefined) {
-          this.options.workflowConsoleLog(...args);
-        } else {
-          console.log(`${workflow.info.workflowType} ${workflow.info.runId} >`, ...args);
-        }
+        console.log(`${workflow.info.workflowType} ${workflow.info.runId} >`, ...args);
       },
       ApplyMode.SYNC
     );

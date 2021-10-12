@@ -4,23 +4,9 @@ import { bufferTime, map, mergeMap, tap, takeUntil } from 'rxjs/operators';
 import { Connection, WorkflowClient } from '@temporalio/client';
 import { StarterArgSpec, starterArgSpec, getRequired } from './args';
 import * as os from 'os';
-import { smorgasbord } from '../workflows';
 
 async function runWorkflow(client: WorkflowClient, name: string, taskQueue: string) {
-  if (name === 'smorgasbord') {
-    const wf = client.createWorkflowHandle(smorgasbord, { taskQueue });
-    const runid = await wf.start();
-    // TODO: Until server is released with the fix below, this fails often
-    //  https://github.com/temporalio/temporal/pull/2033
-    try {
-      await wf.query.step();
-    } catch (e) {
-      console.log(`wfid ${wf.workflowId} runid ${runid} query err`, e);
-    }
-    await wf.result();
-  } else {
-    await client.execute(name, { taskQueue });
-  }
+  await client.execute(name, { taskQueue });
 }
 
 class NumberOfWorkflows {
@@ -89,10 +75,9 @@ async function runWorkflows({
 
   const finalWfsPerSec = numComplete / totalTime;
   if (finalWfsPerSec < minWFPS) {
-    console.error(
-      `Insufficient overall workflows per second upon test completion: ${finalWfsPerSec} less than ${minWFPS}`
+    throw new Error(
+      `Insufficient overall workflows per second upon test completion: ${finalWfsPerSec} less than ${minWFPS} for workflow ${name}`
     );
-    throw new Error(`Load test did not pass for workflow ${name}`);
   }
 }
 
