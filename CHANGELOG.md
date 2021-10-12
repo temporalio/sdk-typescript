@@ -16,7 +16,7 @@ Breaking changes marked with a :boom:
 
 - [`client`] Add gRPC retry interceptors
 - Enhance `@temporalio/create` and use samples-node as its source (#273)
-- :boom:[`core`] Change `WARN` log level to `WARNING`
+- :boom:[`core`] Change `WARNING` log level to `WARN`
 - Add Core option to forward logs from Rust to configurable Node logger
 - [`workflow`] Support `ms` formatted strings in sleep() function
 - :boom:[`worker`] Remove `workDir` Worker option
