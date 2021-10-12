@@ -9,3 +9,4 @@ commonjs
 packages/*/CHANGELOG.md
 packages/docs/docs/api
 typedoc-sidebar.js
+lerna.json
