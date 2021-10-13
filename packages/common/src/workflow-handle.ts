@@ -31,7 +31,7 @@ export interface BaseWorkflowHandle<T extends Workflow> {
    * await handle.signal(incrementSignal, 3);
    * ```
    */
-  signal<Args extends any[]>(def: SignalDefinition<Args>, ...args: Args): Promise<void>;
+  signal<Args extends any[] = []>(def: SignalDefinition<Args> | string, ...args: Args): Promise<void>;
 
   /**
    * The workflowId of the current Workflow

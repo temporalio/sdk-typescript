@@ -71,7 +71,7 @@ export interface WorkflowHandle<T extends Workflow> extends BaseWorkflowHandle<T
    * await handle.query<number, []>('getValue');
    * ```
    */
-  query<Ret, Args extends any[]>(def: QueryDefinition<Ret, Args> | string, ...args: Args): Promise<Ret>;
+  query<Ret, Args extends any[] = []>(def: QueryDefinition<Ret, Args> | string, ...args: Args): Promise<Ret>;
 
   /**
    * Sends a signal to a running Workflow or starts a new one if not already running and immediately signals it.
@@ -79,7 +79,7 @@ export interface WorkflowHandle<T extends Workflow> extends BaseWorkflowHandle<T
    *
    * @returns the runId of the Workflow
    */
-  signalWithStart<Args extends any[]>(
+  signalWithStart<Args extends any[] = []>(
     def: SignalDefinition<Args> | string,
     signalArgs: Args,
     workflowArgs: Parameters<T>
