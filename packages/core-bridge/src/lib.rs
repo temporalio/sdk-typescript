@@ -464,9 +464,6 @@ async fn handle_poll_workflow_activation_request(
                     let args = vec![cx.string(queue_name).upcast()];
                     NO_WORKER_ERROR.construct(cx, args)
                 }
-                PollWfError::BadPollResponseFromServer(_) => {
-                    UNEXPECTED_ERROR.from_error(cx, "Bad poll response from server")
-                }
                 PollWfError::TonicError(_)
                 | PollWfError::AutocompleteError(CompleteWfError::TonicError(_)) => {
                     TRANSPORT_ERROR.from_error(cx, err)
