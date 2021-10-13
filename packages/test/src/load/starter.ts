@@ -35,7 +35,7 @@ async function runWorkflows({
   stopCondition,
   concurrency,
   minWFPS,
-}: RunWorkflowOptions): Promise<boolean> {
+}: RunWorkflowOptions): Promise<void> {
   let observable: Observable<any>;
 
   if (stopCondition instanceof NumberOfWorkflows) {
@@ -71,14 +71,14 @@ async function runWorkflows({
   }
 
   const { numComplete, totalTime } = await observable.toPromise();
+  process.stderr.write('\n');
+
   const finalWfsPerSec = numComplete / totalTime;
   if (finalWfsPerSec < minWFPS) {
-    console.error(
-      `Insufficient overall workflows per second upon test completion: ${finalWfsPerSec} less than ${minWFPS}`
+    throw new Error(
+      `Insufficient overall workflows per second upon test completion: ${finalWfsPerSec} less than ${minWFPS} for workflow ${name}`
     );
-    return false;
   }
-  return true;
 }
 
 interface Progress {
@@ -126,26 +126,33 @@ async function main() {
   const taskQueue = getRequired(args, '--task-queue');
 
   const connection = new Connection({ address: serverAddress });
-
   const client = new WorkflowClient(connection.service, { namespace });
-
   const stopCondition = runForSeconds ? new UntilSecondsElapsed(runForSeconds) : new NumberOfWorkflows(iterations);
 
-  const passed = await runWorkflows({
-    client,
-    workflowName,
-    taskQueue,
-    stopCondition,
-    concurrency: concurrentWFClients,
-    minWFPS,
-  });
-  if (!passed) {
-    console.error('Load test did not pass');
-    process.exit(1);
+  let workflowsToRun: string[];
+  if (workflowName === 'yummy-sampler-mode') {
+    // Special workflow alias to run many different load tests sequentially.
+    // Expected wf/sec should be set low since some of these by their nature have
+    // higher latency.
+    workflowsToRun = ['cancelFakeProgress', 'childWorkflowCancel', 'childWorkflowSignals', 'smorgasbord'];
+  } else {
+    workflowsToRun = [workflowName];
+  }
+
+  for (const wfName of workflowsToRun) {
+    console.log(`+++ Starting test for ${wfName} workflows`);
+    await runWorkflows({
+      client,
+      workflowName: wfName,
+      taskQueue,
+      stopCondition,
+      concurrency: concurrentWFClients,
+      minWFPS,
+    });
   }
 }
 
 main().catch((err) => {
-  console.error(err);
+  console.error('Starter encountered error', err);
   process.exit(1);
 });

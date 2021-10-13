@@ -1,9 +1,10 @@
 /* eslint-disable @typescript-eslint/no-empty-function */
 /* eslint-disable @typescript-eslint/explicit-module-boundary-types */
 import { Context } from '@temporalio/activity';
-import { Connection, LOCAL_DOCKER_TARGET } from '@temporalio/client';
+import { Connection, LOCAL_DOCKER_TARGET, WorkflowClient } from '@temporalio/client';
 import { fakeProgress as fakeProgressInner } from './fake-progress';
 import { cancellableFetch as cancellableFetchInner } from './cancellable-fetch';
+import { QueryDefinition } from '@temporalio/common';
 
 export { throwSpecificError } from './failure-tester';
 
@@ -72,9 +73,9 @@ async function signalSchedulingWorkflow(signalName: string) {
   });
 }
 
-export async function fakeProgress(sleepIntervalMs = 1000): Promise<void> {
+export async function fakeProgress(sleepIntervalMs = 1000, numIters = 100): Promise<void> {
   await signalSchedulingWorkflow('activityStarted');
-  await fakeProgressInner(sleepIntervalMs);
+  await fakeProgressInner(sleepIntervalMs, numIters);
 }
 
 export async function cancellableFetch(url: string, signalWorkflowOnCheckpoint = false): Promise<Uint8Array> {
@@ -91,4 +92,17 @@ export async function progressiveSleep(): Promise<void> {
   Context.current().heartbeat(2);
   await sleep(100);
   Context.current().heartbeat(3);
+}
+
+export async function queryOwnWf<R, A extends any[]>(queryDef: QueryDefinition<R, A>, ...args: A): Promise<void> {
+  const ctx = Context.current();
+  const we = ctx.info.workflowExecution;
+  const client = new WorkflowClient(getTestConnection().service, { namespace: ctx.info.workflowNamespace });
+  // TODO: Until server is released with the fix below, this fails often
+  //  https://github.com/temporalio/temporal/pull/2033
+  try {
+    await client.createWorkflowHandle(we).query(queryDef, ...args);
+  } catch (e) {
+    console.log(`Workflow ${JSON.stringify(we)} query err`, e);
+  }
 }

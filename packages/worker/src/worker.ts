@@ -958,7 +958,7 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
       // The only way for this observable to be closed is by state changing to DRAINED meaning that all in-flight activities have been resolved and thus there should not be any heartbeats to send.
       this.takeUntilState('DRAINED'),
       tap({
-        next: ({ taskToken }) => this.log.debug('Got activity heartbeat', { taskToken: formatTaskToken(taskToken) }),
+        next: ({ taskToken }) => this.log.trace('Got activity heartbeat', { taskToken: formatTaskToken(taskToken) }),
         complete: () => this.log.debug('Heartbeats complete'),
       }),
       mergeMap(async ({ taskToken, details }) => {

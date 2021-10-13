@@ -29,7 +29,7 @@ async function main() {
     telemetryOptions = {
       oTelCollectorUrl: oTelUrl,
       tracingFilter: 'temporal_sdk_core=DEBUG',
-      logForwardingLevel: 'OFF',
+      logForwardingLevel: 'INFO',
     };
     otel = new opentelemetry.NodeSDK({
       resource: new opentelemetry.resources.Resource({
