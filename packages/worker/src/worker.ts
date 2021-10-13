@@ -1044,10 +1044,6 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
     if (this.isolateContextProvider === undefined) {
       return EMPTY;
     }
-    if (this.options.taskQueue === undefined) {
-      throw new TypeError('Worker taskQueue not defined');
-    }
-
     return this.workflowPoll$().pipe(
       this.workflowOperator(),
       mergeMap(async ({ completion, parentSpan: root }) => {
@@ -1109,11 +1105,8 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
   }
 
   protected activity$(): Observable<void> {
-    // TODO: Let core know that we're not interested in polling on activities
-    // Don't even bother polling if no activities have been registered
-    if (this.options.activities === undefined || Object.keys(this.options.activities).length === 0) {
-      return EMPTY;
-    }
+    // Note that we poll on activities even if there are no activities registered.
+    // This is so workflows invoking activities on this task queue get a non-retriable error.
     return this.activityPoll$().pipe(
       this.activityOperator(),
       mergeMap(async ({ completion, parentSpan }) => {
