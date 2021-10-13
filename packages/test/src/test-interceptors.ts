@@ -8,7 +8,7 @@
 import test from 'ava';
 import { v4 as uuid4 } from 'uuid';
 import dedent from 'dedent';
-import { Worker } from '@temporalio/worker';
+import { Core, DefaultLogger, Worker } from '@temporalio/worker';
 import { ApplicationFailure } from '@temporalio/common';
 import {
   Connection,
@@ -25,6 +25,10 @@ import { interceptorExample, internalsInterceptorExample, continueAsNewToDiffere
 import { getSecretQuery, unblockWithSecretSignal } from './workflows/interceptor-example';
 
 if (RUN_INTEGRATION_TESTS) {
+  test.before(async () => {
+    await Core.install({ logger: new DefaultLogger('DEBUG') });
+  });
+
   test.serial('Tracing can be implemented using interceptors', async (t) => {
     const taskQueue = 'test-interceptors';
     const message = uuid4();
@@ -90,8 +94,11 @@ if (RUN_INTEGRATION_TESTS) {
         taskQueue,
       });
       await wf.start();
-      await wf.signal(unblockWithSecretSignal, '12345');
-      t.is(await wf.query(getSecretQuery), '12345');
+      // Send both signal and query to more consistently repro https://github.com/temporalio/sdk-node/issues/299
+      await Promise.all([
+        wf.signal(unblockWithSecretSignal, '12345'),
+        wf.query(getSecretQuery).then((result) => t.is(result, '12345')),
+      ]);
       const result = await wf.result();
       t.is(result, message);
     }

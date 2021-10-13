@@ -834,6 +834,7 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
                       }
                       const { workflowId, randomnessSeed, workflowType } = startWorkflow;
                       this.log.debug('Creating workflow', {
+                        workflowType,
                         workflowId,
                         runId: activation.runId,
                       });

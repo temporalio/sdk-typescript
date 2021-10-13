@@ -47,12 +47,27 @@ export type ActivationHandler = {
 };
 
 export class Activator implements ActivationHandler {
+  workflowFunctionWasCalled = false;
+
   public async startWorkflowNextHandler({ args }: WorkflowExecuteInput): Promise<any> {
     const { workflow } = state;
     if (workflow === undefined) {
       throw new IllegalStateError('Workflow uninitialized');
     }
-    return await workflow(...args);
+    let promise: Promise<any>;
+    try {
+      promise = workflow(...args);
+    } finally {
+      // Guarantee this runs even if there was an exception when invoking the Workflow function
+      // Otherwise this Workflow will now be queryable.
+      this.workflowFunctionWasCalled = true;
+      // Empty the buffer
+      const buffer = state.bufferedQueries.splice(0);
+      for (const activation of buffer) {
+        this.queryWorkflow(activation);
+      }
+    }
+    return await promise;
   }
 
   public startWorkflow(activation: coresdk.workflow_activation.IStartWorkflow): void {
@@ -177,10 +192,16 @@ export class Activator implements ActivationHandler {
   }
 
   public queryWorkflow(activation: coresdk.workflow_activation.IQueryWorkflow): void {
+    if (!this.workflowFunctionWasCalled) {
+      state.bufferedQueries.push(activation);
+      return;
+    }
+
     const { queryType, queryId } = activation;
     if (!(queryType && queryId)) {
       throw new TypeError('Missing query activation attributes');
     }
+
     const execute = composeInterceptors(
       state.interceptors.inbound,
       'handleQuery',
@@ -300,6 +321,15 @@ export class State {
    * Holds buffered signal calls until a listener is registered
    */
   public readonly bufferedSignals = new Map<string, coresdk.workflow_activation.ISignalWorkflow[]>();
+
+  /**
+   * Holds buffered query calls until a listener is registered.
+   *
+   * **IMPORTANT** queries are only buffered until workflow is started.
+   * This is required because async interceptors might block workflow function invocation
+   * which delays query handler registration.
+   */
+  public readonly bufferedQueries = Array<coresdk.workflow_activation.IQueryWorkflow>();
 
   /**
    * Mapping of signal name to listener
