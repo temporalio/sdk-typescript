@@ -161,15 +161,21 @@ export class WorkflowIsolateBuilder {
       await new Promise<void>((resolve, reject) => {
         compiler.run((err, stats) => {
           if (stats !== undefined) {
+            const hasError = stats.hasErrors();
             const lines = stats.toString({ chunks: false, colors: true }).split('\n');
             for (const line of lines) {
-              this.logger.info(line);
+              this.logger[hasError ? 'error' : 'info'](line);
+            }
+            if (hasError) {
+              reject(
+                new Error(
+                  "Webpack finished with errors, if you're unsure what went wrong, visit our troubleshooting page at https://docs.temporal.io/docs/typescript/troubleshooting#webpack-errors"
+                )
+              );
             }
           }
           if (err) {
             reject(err);
-          } else if (stats?.hasErrors()) {
-            reject(new Error('Webpack stats has errors'));
           } else {
             resolve();
           }
