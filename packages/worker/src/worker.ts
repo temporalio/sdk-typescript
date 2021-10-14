@@ -460,23 +460,29 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
     const compiledOptions = compileWorkerOptions(addDefaultWorkerOptions(options));
     // Pass dependencies as undefined to please the type checker
     const nativeWorker = await nativeWorkerCtor.create({ ...compiledOptions, dependencies: undefined });
-    let contextProvider: IsolateContextProvider | undefined = undefined;
-    // nodeModulesPaths should not be undefined if workflowsPath is provided
-    if (compiledOptions.workflowsPath && compiledOptions.nodeModulesPaths) {
-      const builder = new WorkflowIsolateBuilder(
-        nativeWorker.logger,
-        compiledOptions.nodeModulesPaths,
-        compiledOptions.workflowsPath,
-        compiledOptions.interceptors?.workflowModules
-      );
-      contextProvider = await RoundRobinIsolateContextProvider.create(
-        builder,
-        compiledOptions.isolatePoolSize,
-        compiledOptions.maxIsolateMemoryMB
-      );
-    }
+    try {
+      let contextProvider: IsolateContextProvider | undefined = undefined;
+      // nodeModulesPaths should not be undefined if workflowsPath is provided
+      if (compiledOptions.workflowsPath && compiledOptions.nodeModulesPaths) {
+        const builder = new WorkflowIsolateBuilder(
+          nativeWorker.logger,
+          compiledOptions.nodeModulesPaths,
+          compiledOptions.workflowsPath,
+          compiledOptions.interceptors?.workflowModules
+        );
+        contextProvider = await RoundRobinIsolateContextProvider.create(
+          builder,
+          compiledOptions.isolatePoolSize,
+          compiledOptions.maxIsolateMemoryMB
+        );
+      }
 
-    return new this(nativeWorker, contextProvider, compiledOptions);
+      return new this(nativeWorker, contextProvider, compiledOptions);
+    } catch (err) {
+      // Deregister our worker in case Worker creation (Webpack) failed
+      await nativeWorker.completeShutdown();
+      throw err;
+    }
   }
 
   /**
