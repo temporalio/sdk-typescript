@@ -429,7 +429,7 @@ export class State {
    *
    * Injected on isolate startup
    */
-  public require?: (path: string | undefined) => any;
+  public require?: (path: string | undefined) => Promise<Record<string, any>>;
 
   public dataConverter: DataConverter = defaultDataConverter;
 

@@ -115,8 +115,9 @@ export async function initRuntime(
     throw new IllegalStateError('Workflow has not been initialized');
   }
 
-  for (const mod of interceptorModules) {
-    const factory: WorkflowInterceptorsFactory = req(mod).interceptors;
+  for (const modName of interceptorModules) {
+    const mod = await req(modName);
+    const factory: WorkflowInterceptorsFactory = mod.interceptors;
     if (factory !== undefined) {
       if (typeof factory !== 'function') {
         throw new TypeError(`interceptors must be a function, got: ${factory}`);
@@ -128,10 +129,11 @@ export async function initRuntime(
     }
   }
 
-  let mod: Workflow;
+  let workflow: Workflow;
   try {
-    mod = req(undefined)[info.workflowType];
-    if (typeof mod !== 'function') {
+    const mod = await req(undefined);
+    workflow = mod[info.workflowType];
+    if (typeof workflow !== 'function') {
       throw new TypeError(`'${info.workflowType}' is not a function`);
     }
   } catch (err) {
@@ -140,7 +142,7 @@ export async function initRuntime(
     handleWorkflowFailure(failure);
     return;
   }
-  state.workflow = mod;
+  state.workflow = workflow;
 }
 
 export interface ActivationResult {

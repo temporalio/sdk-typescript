@@ -467,22 +467,6 @@ export function createChildWorkflowHandle<T extends Workflow>(
   let started: Promise<string> | undefined = undefined;
   let completed: Promise<unknown> | undefined = undefined;
 
-  const { info, require: req } = state;
-  // These will be undefined if called outside of Workflow context.
-  // It's a valid case since sometimes non-workflow code imports workflow code.
-  if (req !== undefined && info !== undefined) {
-    // Require the module where Workflows are registered.
-    const registeredWorkflows = req(undefined);
-    if (
-      (optionsWithDefaults.taskQueue === info.taskQueue || optionsWithDefaults.taskQueue === undefined) &&
-      !(workflowType in registeredWorkflows)
-    ) {
-      throw new TypeError(
-        `Cannot create a handle for unregistered Workflow type: ${workflowType}, make sure it is exported in the Worker's workflowsPath`
-      );
-    }
-  }
-
   return {
     workflowId: optionsWithDefaults.workflowId,
     async start(...args: Parameters<T>): Promise<string> {
