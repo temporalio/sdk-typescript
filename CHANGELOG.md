@@ -17,7 +17,7 @@ Breaking changes marked with a :boom:
 
 ### Features
 
-- Support importing ES Module dependencies in Activities ([#303](https://github.com/temporalio/sdk-node/pull/303))
+- Support ES Module based projects ([#303](https://github.com/temporalio/sdk-node/pull/303))
 
 ### Documentation
 
