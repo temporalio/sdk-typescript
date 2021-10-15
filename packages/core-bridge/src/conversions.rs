@@ -162,7 +162,7 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
             gateway_opts.tls_cfg(tls_cfg);
         }
         Ok(gateway_opts
-            .client_name("temporal-sdk-node".to_string())
+            .client_name("temporal-typescript".to_string())
             .client_version(js_value_getter!(cx, self, "sdkVersion", JsString))
             .target_url(Url::parse(&url).unwrap())
             .namespace(js_value_getter!(cx, self, "namespace", JsString))
