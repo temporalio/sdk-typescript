@@ -88,12 +88,12 @@ node ~/path-to/sdk-node/scripts/test-example.js --work-dir /tmp/registry/example
 
 - Typescript code is linted with [eslint](https://eslint.org/)
 - Files in this repo are formatted with [prettier](https://prettier.io/)
-- All commits SHOULD adhere to the [Conventional Commits specification](https://conventionalcommits.org/) with sentence case descriptions, for example:
+- Pull request titles SHOULD adhere to the [Conventional Commits specification](https://conventionalcommits.org/), for example:
 
 ```
 <type>(optional scope): <description>
 
-chore(samples): Upgrade commander module
+chore(samples): upgrade commander module
 ```
 
 The `scope` options are listed in [commitlint.config.js](https://github.com/temporalio/sdk-node/blob/main/commitlint.config.js).
