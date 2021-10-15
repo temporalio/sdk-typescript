@@ -1,6 +1,6 @@
 {
   "name": "@temporalio/core-bridge",
-  "version": "0.11.0",
+  "version": "0.11.1",
   "description": "Temporal.io SDK Core<>Node bridge",
   "main": "index.node",
   "types": "index.d.ts",
