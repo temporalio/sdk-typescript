@@ -91,20 +91,20 @@ export class WorkflowIsolateBuilder {
       .map(
         (v) => dedent`
         case ${JSON.stringify(v)}:
-          return require(${JSON.stringify(v)});
+          return import(/* webpackMode: "eager" */ ${JSON.stringify(v)});
         `
       )
       .join('\n');
 
     const code = dedent`
-      const api = require('@temporalio/workflow/lib/worker-interface');
+      import * as api from '@temporalio/workflow/lib/worker-interface.js';
 
       // Bundle all Workflows and interceptor modules for lazy evaluation
       api.overrideGlobals();
       api.setRequireFunc(
         (path) => {
           if (path === undefined) {
-            return require(${JSON.stringify(this.workflowsPath)});
+            return import(/* webpackMode: "eager" */ ${JSON.stringify(this.workflowsPath)});
           }
           switch (path) {
             ${interceptorCases}
@@ -114,7 +114,15 @@ export class WorkflowIsolateBuilder {
         }
       );
 
-      module.exports = api;
+      export const {
+        initRuntime,
+        activate,
+        concludeActivation,
+        inject,
+        resolveExternalDependencies,
+        getAndResetPendingExternalCalls,
+        tryUnblockConditions
+      } = api;
     `;
     try {
       vol.mkdirSync(path.dirname(target), { recursive: true });

@@ -73,5 +73,3 @@ export * from './smorgasbord';
 export * from './condition';
 export { interceptorExample } from './interceptor-example';
 export { internalsInterceptorExample } from './internals-interceptor-example';
-
-import './child-workflow-unregistered';
