@@ -1,4 +1,5 @@
-const { Connection } = require('@temporalio/client');
+// This is an ESM and has the mjs extension so it can be run in commonjs and ESM projects alike
+import { Connection } from '@temporalio/client';
 
 class Timer {
   constructor(ms) {

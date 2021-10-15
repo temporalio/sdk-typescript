@@ -111,10 +111,12 @@ jobs:
         node: [14, 16]
         os: [ubuntu-latest] # TODO: add windows and macos-latest
         server: [local]
+        sample: [hello-world, fetch-esm]
         include:
           - os: macos-latest
             node: 16
             server: cloud
+            sample: hello-world-mtls
     runs-on: ${{ matrix.os }}
     needs: cross-compile
     steps:
@@ -130,11 +132,7 @@ jobs:
         with:
           name: packages
           path: /tmp/registry/storage
-      # The 2 steps below run npx @temporalio/example from a local registry with different samples
-      - run: node scripts/init-from-verdaccio.js --registry-dir /tmp/registry --sample https://github.com/temporalio/samples-node/tree/next/hello-world
-        if: ${{ matrix.server == 'local' }}
-      - run: node scripts/init-from-verdaccio.js --registry-dir /tmp/registry --sample https://github.com/temporalio/samples-node/tree/next/hello-world-mtls
-        if: ${{ matrix.server == 'cloud' }}
+      - run: node scripts/init-from-verdaccio.js --registry-dir /tmp/registry --sample https://github.com/temporalio/samples-node/tree/next/${{ matrix.sample }}
       - name: Get Temporal docker-compose.yml
         run: wget https://raw.githubusercontent.com/temporalio/docker-compose/v1.11.3/docker-compose.yml
         if: ${{ matrix.server == 'local' }}
@@ -142,10 +140,10 @@ jobs:
         run: docker-compose up -d
         if: ${{ matrix.server == 'local' }}
       # Copy wait-on-temporal script to the example project where the built client package is installed
-      - run: cp scripts/wait-on-temporal.js /tmp/registry/example
+      - run: cp scripts/wait-on-temporal.mjs /tmp/registry/example
         if: ${{ matrix.server == 'local' }}
       - name: Wait for Temporal Server
-        run: node wait-on-temporal.js
+        run: node wait-on-temporal.mjs
         working-directory: /tmp/registry/example
         if: ${{ matrix.server == 'local' }}
       - name: Create certs dir
