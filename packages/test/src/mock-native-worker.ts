@@ -1,4 +1,6 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
+import { lastValueFrom } from 'rxjs';
+import { SpanContext } from '@opentelemetry/api';
 import { coresdk } from '@temporalio/proto';
 import { defaultDataConverter, msToTs } from '@temporalio/common';
 import {
@@ -13,10 +15,7 @@ import {
 import { IsolateContextProvider } from '@temporalio/worker/lib/isolate-context-provider';
 import { DefaultLogger } from '@temporalio/worker';
 import { sleep } from '@temporalio/worker/lib/utils';
-// We import from the worker's version of rxjs because inquirer (transitive dependency) uses an older rxjs version
-import { lastValueFrom } from '@temporalio/worker/node_modules/rxjs';
 import * as activities from './activities';
-import { SpanContext } from '@opentelemetry/api';
 
 function addActivityStartDefaults(task: coresdk.activity_task.IActivityTask) {
   // Add some defaults for convenience

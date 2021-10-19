@@ -1,9 +1,9 @@
 import arg from 'arg';
-import { interval, range, Observable, OperatorFunction, ReplaySubject, pipe } from 'rxjs';
+import pidusage from 'pidusage';
+import { interval, range, Observable, OperatorFunction, ReplaySubject, pipe, lastValueFrom } from 'rxjs';
 import { bufferTime, map, mergeMap, tap, takeUntil } from 'rxjs/operators';
 import { Connection, WorkflowClient } from '@temporalio/client';
 import { StarterArgSpec, starterArgSpec, getRequired } from './args';
-import * as os from 'os';
 
 async function runWorkflow(client: WorkflowClient, name: string, taskQueue: string) {
   await client.execute(name, { taskQueue });
@@ -17,6 +17,10 @@ class UntilSecondsElapsed {
   constructor(readonly seconds: number = 0) {}
 }
 
+function toMB(bytes: number, fractionDigits = 2) {
+  return (bytes / 1024 / 1024).toFixed(fractionDigits);
+}
+
 interface RunWorkflowOptions {
   client: WorkflowClient;
   workflowName: string;
@@ -26,6 +30,7 @@ interface RunWorkflowOptions {
   stopCondition: NumberOfWorkflows | UntilSecondsElapsed;
   concurrency: number;
   minWFPS: number;
+  workerPid?: number;
 }
 
 async function runWorkflows({
@@ -34,6 +39,7 @@ async function runWorkflows({
   taskQueue,
   stopCondition,
   concurrency,
+  workerPid,
   minWFPS,
 }: RunWorkflowOptions): Promise<void> {
   let observable: Observable<any>;
@@ -59,18 +65,23 @@ async function runWorkflows({
       mergeMap(() => runWorkflow(client, name, taskQueue)),
       tap(subj),
       followProgress(),
-      tap(({ numComplete, wfsPerSecond, overallWfsPerSecond, totalTime }) => {
+      mergeMap(async (progress) => ({ progress, workerResources: workerPid ? await pidusage(workerPid) : undefined })),
+      tap(({ progress: { numComplete, wfsPerSecond, overallWfsPerSecond, totalTime }, workerResources }) => {
+        let resourceString = '';
+        if (workerResources) {
+          resourceString = `CPU ${workerResources.cpu.toFixed(0)}%, MEM ${toMB(workerResources.memory)}MB`;
+        }
         const secondsLeft = Math.max(Math.floor(stopCondition.seconds - totalTime), 0);
         process.stderr.write(
           `\rWFs complete (${numComplete}) starting new wfs for (${secondsLeft.toFixed(
             1
-          )}s) more -- WFs/s curr ${wfsPerSecond} (acc ${overallWfsPerSecond}) -- MEM (${os.freemem()}/${os.totalmem()})`
+          )}s) more -- WFs/s curr ${wfsPerSecond} (acc ${overallWfsPerSecond}) -- ${resourceString}  `
         );
       })
     );
   }
 
-  const { numComplete, totalTime } = await observable.toPromise();
+  const { numComplete, totalTime } = await lastValueFrom(observable);
   process.stderr.write('\n');
 
   const finalWfsPerSec = numComplete / totalTime;
@@ -124,6 +135,7 @@ async function main() {
   const serverAddress = getRequired(args, '--server-address');
   const namespace = getRequired(args, '--ns');
   const taskQueue = getRequired(args, '--task-queue');
+  const workerPid = args['--worker-pid'];
 
   const connection = new Connection({ address: serverAddress });
   const client = new WorkflowClient(connection.service, { namespace });
@@ -148,6 +160,7 @@ async function main() {
       stopCondition,
       concurrency: concurrentWFClients,
       minWFPS,
+      workerPid,
     });
   }
 }

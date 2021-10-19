@@ -22,6 +22,7 @@ export interface StarterArgSpec extends arg.Spec {
   '--task-queue': typeof String;
   '--concurrent-wf-clients': typeof Number;
   '--server-address': typeof String;
+  '--worker-pid': typeof Number;
 }
 
 export const starterArgSpec: StarterArgSpec = {
@@ -33,6 +34,7 @@ export const starterArgSpec: StarterArgSpec = {
   '--task-queue': String,
   '--concurrent-wf-clients': Number,
   '--server-address': String,
+  '--worker-pid': Number,
 };
 
 export interface WorkerArgSpec extends arg.Spec {
