@@ -259,9 +259,7 @@ async function startChildWorkflowExecutionNextHandler({
         parentClosePolicy: options.parentClosePolicy,
         cronSchedule: options.cronSchedule,
         searchAttributes: options.searchAttributes
-          ? {
-              indexedFields: mapToPayloadsSync(state.dataConverter, options.searchAttributes),
-            }
+          ? mapToPayloadsSync(state.dataConverter, options.searchAttributes)
           : undefined,
         memo: options.memo && mapToPayloadsSync(state.dataConverter, options.memo),
       },
