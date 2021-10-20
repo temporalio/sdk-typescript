@@ -12,10 +12,10 @@ import {
   addDefaultWorkerOptions,
   errors,
 } from '@temporalio/worker/lib/worker';
-import { IsolateContextProvider } from '@temporalio/worker/lib/isolate-context-provider';
 import { DefaultLogger } from '@temporalio/worker';
 import { sleep } from '@temporalio/worker/lib/utils';
 import * as activities from './activities';
+import { WorkflowCreator } from '@temporalio/worker/src/workflow/interface';
 
 function addActivityStartDefaults(task: coresdk.activity_task.IActivityTask) {
   // Add some defaults for convenience
@@ -81,12 +81,12 @@ export class MockNativeWorker implements NativeWorkerLike {
     }
   }
 
-  public async completeWorkflowActivation(spanContext: SpanContext, result: ArrayBuffer): Promise<void> {
+  public async completeWorkflowActivation(_spanContext: SpanContext, result: ArrayBuffer): Promise<void> {
     this.workflowCompletionCallback!(result);
     this.workflowCompletionCallback = undefined;
   }
 
-  public async completeActivityTask(spanContext: SpanContext, result: ArrayBuffer): Promise<void> {
+  public async completeActivityTask(_spanContext: SpanContext, result: ArrayBuffer): Promise<void> {
     this.activityCompletionCallback!(result);
     this.activityCompletionCallback = undefined;
   }
@@ -151,9 +151,9 @@ export class Worker extends RealWorker {
     return this.nativeWorker as MockNativeWorker;
   }
 
-  public constructor(isolateContextProvider: IsolateContextProvider, opts: CompiledWorkerOptions) {
+  public constructor(workflowCreator: WorkflowCreator, opts: CompiledWorkerOptions) {
     const nativeWorker = new MockNativeWorker();
-    super(nativeWorker, isolateContextProvider, opts);
+    super(nativeWorker, workflowCreator, opts);
   }
 
   public runWorkflows(...args: Parameters<Worker['workflow$']>): Promise<void> {
@@ -171,10 +171,10 @@ export const defaultOptions: WorkerOptions = {
 export function isolateFreeWorker(options: WorkerOptions = defaultOptions): Worker {
   return new Worker(
     {
-      getContext() {
+      async createWorkflow() {
         throw new Error('Not implemented');
       },
-      destroy() {
+      async destroy() {
         /* Nothing to destroy */
       },
     },

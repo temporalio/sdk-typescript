@@ -2,22 +2,36 @@ import anyTest, { ExecutionContext, TestInterface } from 'ava';
 import path from 'path';
 import Long from 'long';
 import dedent from 'dedent';
+import * as ivm from 'isolated-vm';
 import { coresdk } from '@temporalio/proto';
-import { ApplyMode } from '@temporalio/workflow';
+import { WorkflowInfo } from '@temporalio/workflow';
 import { ApplicationFailure, defaultDataConverter, errorToFailure, msToTs, RetryState } from '@temporalio/common';
-import { Workflow } from '@temporalio/worker/lib/workflow';
-import { WorkflowIsolateBuilder } from '@temporalio/worker/lib/isolate-builder';
-import { RoundRobinIsolateContextProvider } from '@temporalio/worker/lib/isolate-context-provider';
+import { WorkflowCodeBundler } from '@temporalio/worker/lib/workflow/bundler';
+import { ApplyMode, IsolatedVMWorkflow, IsolatedVMWorkflowCreator } from '@temporalio/worker/lib/workflow/isolated-vm';
 import { DefaultLogger } from '@temporalio/worker/lib/logger';
 import * as activityFunctions from './activities';
 import { u8 } from './helpers';
 
+class TestIsolatedVMWorkflowCreator extends IsolatedVMWorkflowCreator {
+  public logs: Record<string, unknown[][]> = {};
+
+  protected async injectConsole(context: ivm.Context, info: WorkflowInfo) {
+    await IsolatedVMWorkflowCreator.injectGlobal(
+      context,
+      'console.log',
+      (...args: unknown[]) => void this.logs[info.runId].push(args),
+      ApplyMode.SYNC
+    );
+  }
+}
+
 export interface Context {
-  workflow: Workflow;
+  workflow: IsolatedVMWorkflow;
   logs: unknown[][];
   workflowType: string;
   startTime: number;
-  contextProvider: RoundRobinIsolateContextProvider;
+  runId: string;
+  workflowCreator: TestIsolatedVMWorkflowCreator;
 }
 
 const test = anyTest as TestInterface<Context>;
@@ -26,60 +40,61 @@ test.before(async (t) => {
   const logger = new DefaultLogger('INFO');
   const workflowsPath = path.join(__dirname, 'workflows');
   const nodeModulesPath = path.join(__dirname, '../../../node_modules');
-  const builder = new WorkflowIsolateBuilder(logger, [nodeModulesPath], workflowsPath);
-  t.context.contextProvider = await RoundRobinIsolateContextProvider.create(builder, 1, 1024);
+  const bundler = new WorkflowCodeBundler(logger, [nodeModulesPath], workflowsPath);
+  const bundle = await bundler.createBundle();
+  t.context.workflowCreator = await TestIsolatedVMWorkflowCreator.create(1, 100, 1024, bundle);
 });
 
-test.after.always((t) => {
-  t.context.contextProvider.destroy();
+test.after.always(async (t) => {
+  await t.context.workflowCreator.destroy();
 });
 
 test.beforeEach(async (t) => {
-  const { contextProvider } = t.context;
+  const { workflowCreator } = t.context;
   // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-  const testName = t.title.match(/\S+$/)![0];
-  const logs: unknown[][] = [];
+  const workflowType = t.title.match(/\S+$/)![0];
+  const runId = t.title;
+  const logs = new Array<unknown[]>();
+  workflowCreator.logs[runId] = logs;
 
   const startTime = Date.now();
   t.context = {
     logs,
-    workflowType: testName,
-    contextProvider,
+    runId,
+    workflowType,
+    workflowCreator,
     startTime,
-    workflow: await createWorkflow(testName, startTime, logs, contextProvider),
+    workflow: await createWorkflow(workflowType, runId, startTime, workflowCreator),
   };
 });
 
 async function createWorkflow(
   workflowType: string,
+  runId: string,
   startTime: number,
-  logs: unknown[][],
-  contextProvider: RoundRobinIsolateContextProvider
+  workflowCreator: IsolatedVMWorkflowCreator
 ) {
-  const workflow = await Workflow.create(
-    await contextProvider.getContext(),
+  const workflow = (await workflowCreator.createWorkflow(
     {
       workflowType,
-      runId: 'test-runId',
+      runId,
       workflowId: 'test-workflowId',
       namespace: 'default',
       taskQueue: 'test',
       isReplaying: false,
     },
     [],
-    Long.fromInt(1337),
-    startTime,
-    100
-  );
-  await workflow.injectGlobal('console.log', (...args: unknown[]) => void logs.push(args), ApplyMode.SYNC);
+    Long.fromInt(1337).toBytes(),
+    startTime
+  )) as IsolatedVMWorkflow;
   return workflow;
 }
 
 async function activate(t: ExecutionContext<Context>, activation: coresdk.workflow_activation.IWFActivation) {
-  const { workflow } = t.context;
+  const { workflow, runId } = t.context;
   const arr = await workflow.activate(activation);
   const completion = coresdk.workflow_completion.WFActivationCompletion.decodeDelimited(arr);
-  t.deepEqual(completion.runId, workflow.info.runId);
+  t.deepEqual(completion.runId, runId);
   return completion;
 }
 
@@ -92,7 +107,7 @@ function compareCompletion(
     req.toJSON(),
     new coresdk.workflow_completion.WFActivationCompletion({
       ...expected,
-      runId: t.context.workflow?.info.runId,
+      runId: t.context.runId,
     }).toJSON()
   );
 }
@@ -1484,12 +1499,11 @@ test('globalOverrides', async (t) => {
 
 test('logAndTimeout', async (t) => {
   const { workflowType, workflow } = t.context;
-  const logs: string[] = [];
-  await workflow.injectDependency('logger', 'info', (message: string) => logs.push(message), ApplyMode.ASYNC_IGNORED);
   await t.throwsAsync(activate(t, makeStartWorkflow(workflowType)), {
     message: 'Script execution timed out.',
   });
-  t.deepEqual(logs, ['logging before getting stuck']);
+  const calls = await workflow.getAndResetExternalCalls();
+  t.deepEqual(calls, [{ ifaceName: 'logger', fnName: 'info', args: ['logging before getting stuck'] }]);
 });
 
 test('continueAsNewSameWorkflow', async (t) => {
@@ -1652,10 +1666,7 @@ test('failUnlessSignaledBeforeStart', async (t) => {
 });
 
 test('conditionWaiter', async (t) => {
-  const { workflowType, workflow } = t.context;
-  // This will set x = 3 in the workflow when resolved.
-  // Test that conditions are unblocked after external dependency resolution.
-  await workflow.injectDependency('unblock', 'me', async () => 3, ApplyMode.ASYNC);
+  const { workflowType } = t.context;
   {
     const completion = await activate(t, makeStartWorkflow(workflowType));
     compareCompletion(t, completion, makeSuccess([makeStartTimerCommand({ seq: 1, startToFireTimeout: msToTs(1) })]));

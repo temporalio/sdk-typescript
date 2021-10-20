@@ -39,14 +39,12 @@ export * from './signal-target';
 // The reason it is redefined is for completeness of the snippet.
 export { unblockOrCancel, isBlockedQuery } from './unblock-or-cancel';
 export * from './throw-async';
-export * from './block-with-dependencies';
 export * from './args-and-return';
 export * from './activity-failure';
 export * from './activity-failures';
 export * from './sleep';
 export * from './http';
 export * from './dependencies';
-export * from './ignored-dependencies';
 export * from './interrupt-signal';
 export * from './patched';
 export * from './deprecate-patch';

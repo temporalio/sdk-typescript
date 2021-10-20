@@ -7,7 +7,7 @@ import {
   WorkflowOutboundCallsInterceptor,
   WorkflowExecuteInput,
 } from '@temporalio/workflow';
-import { extractSpanContextFromHeaders, headersWithSpanContext } from '@temporalio/common';
+import { extractSpanContextFromHeaders, headersWithSpanContext } from '@temporalio/common/lib/otel';
 import { instrument, instrumentFromSpanContext } from '../instrumentation';
 import { ContextManager } from './context-manager';
 import { SpanExporter } from './span-exporter';

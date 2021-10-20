@@ -1,12 +1,11 @@
 import path from 'path';
 import util from 'util';
 import dedent from 'dedent';
-import ivm from 'isolated-vm';
 import webpack from 'webpack';
 import * as realFS from 'fs';
 import * as memfs from 'memfs';
 import * as unionfs from 'unionfs';
-import { Logger } from './logger';
+import { Logger } from '../logger';
 
 /**
  * Builds a V8 Isolate by bundling provided Workflows using webpack.
@@ -16,7 +15,7 @@ import { Logger } from './logger';
  * @param workflowsPath all Workflows found in path will be put in the bundle
  * @param workflowInterceptorModules list of interceptor modules to register on Workflow creation
  */
-export class WorkflowIsolateBuilder {
+export class WorkflowCodeBundler {
   constructor(
     public readonly logger: Logger,
     public readonly nodeModulesPaths: string[],
@@ -64,24 +63,6 @@ export class WorkflowIsolateBuilder {
   }
 
   /**
-   * @return a V8 snapshot which can be used to create isolates
-   */
-  public async buildSnapshot(): Promise<ivm.ExternalCopy<ArrayBuffer>> {
-    const code = await this.createBundle();
-    return ivm.Isolate.createSnapshot([{ code, filename: 'workflow-isolate' }]);
-  }
-
-  /**
-   * Bundle Workflows with dependencies and return an Isolate pre-loaded with the bundle.
-   *
-   * @param maxIsolateMemoryMB used to limit the memory consumption of the created isolate
-   */
-  public async buildIsolate(maxIsolateMemoryMB: number): Promise<ivm.Isolate> {
-    const snapshot = await this.buildSnapshot();
-    return new ivm.Isolate({ snapshot, memoryLimit: maxIsolateMemoryMB });
-  }
-
-  /**
    * Creates the main entrypoint for the generated webpack library.
    *
    * Exports all detected Workflow implementations and some workflow libraries to be used by the Worker.
@@ -120,8 +101,8 @@ export class WorkflowIsolateBuilder {
         concludeActivation,
         inject,
         resolveExternalDependencies,
-        getAndResetPendingExternalCalls,
-        tryUnblockConditions
+        getAndResetExternalCalls,
+        tryUnblockConditions,
       } = api;
     `;
     try {

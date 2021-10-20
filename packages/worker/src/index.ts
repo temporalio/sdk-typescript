@@ -12,8 +12,6 @@ export {
   State,
   Worker,
   WorkerOptions,
-  WorkerSpec,
-  WorkerSpecOptions,
   CompiledWorkerOptions,
   ActivityOptions,
   DataConverter,

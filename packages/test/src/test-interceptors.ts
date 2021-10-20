@@ -16,12 +16,15 @@ import {
   WorkflowExecutionFailedError,
   WorkflowExecutionTerminatedError,
 } from '@temporalio/client';
-import { ApplyMode, defaultDataConverter, WorkflowInfo } from '@temporalio/workflow';
+import { defaultDataConverter, WorkflowInfo } from '@temporalio/workflow';
 import { defaultOptions } from './mock-native-worker';
 import { cleanStackTrace, RUN_INTEGRATION_TESTS } from './helpers';
-import { Deps } from './workflows/block-with-dependencies';
-import { Dependencies as InternalsDeps } from './workflows/internals-interceptor-example';
-import { interceptorExample, internalsInterceptorExample, continueAsNewToDifferentWorkflow } from './workflows';
+import {
+  interceptorExample,
+  internalsInterceptorExample,
+  continueAsNewToDifferentWorkflow,
+  unblockOrCancel,
+} from './workflows';
 import { getSecretQuery, unblockWithSecretSignal } from './workflows/interceptor-example';
 
 if (RUN_INTEGRATION_TESTS) {
@@ -114,33 +117,13 @@ if (RUN_INTEGRATION_TESTS) {
     await workerDrained;
   });
 
-  /**
-   * This test also verifies that worker can shutdown when there are outstanding activations.
-   * Without blocking the activation as we do here there'd be a race between WF completion and termination.
-   */
   test.serial('WorkflowClientCallsInterceptor intercepts terminate and cancel', async (t) => {
     const taskQueue = 'test-interceptor-term-and-cancel';
     const message = uuid4();
     // Use these to coordinate with workflow activation to complete only after terimnation
-    let unblockLang = (): void => undefined;
-    const unblockLangPromise = new Promise<void>((res) => void (unblockLang = res));
-    let setLangIsBlocked = (): void => undefined;
-    const langIsBlockedPromise = new Promise<void>((res) => void (setLangIsBlocked = res));
-
-    const worker = await Worker.create<{ dependencies: Deps }>({
+    const worker = await Worker.create({
       ...defaultOptions,
       taskQueue,
-      dependencies: {
-        blocker: {
-          block: {
-            applyMode: ApplyMode.ASYNC,
-            fn: () => {
-              setLangIsBlocked();
-              return unblockLangPromise;
-            },
-          },
-        },
-      },
     });
     const workerDrained = worker.run();
     const conn = new Connection();
@@ -159,11 +142,10 @@ if (RUN_INTEGRATION_TESTS) {
       },
     });
 
-    const wf = client.createWorkflowHandle('blockWithDependencies', {
+    const wf = client.createWorkflowHandle(unblockOrCancel, {
       taskQueue,
     });
     await wf.start();
-    await langIsBlockedPromise;
     await t.throwsAsync(wf.cancel(), {
       instanceOf: Error,
       message: 'nope',
@@ -173,7 +155,6 @@ if (RUN_INTEGRATION_TESTS) {
       instanceOf: WorkflowExecutionTerminatedError,
       message,
     });
-    if (unblockLang !== undefined) unblockLang();
 
     worker.shutdown();
     await workerDrained;
@@ -222,7 +203,7 @@ if (RUN_INTEGRATION_TESTS) {
     const taskQueue = 'test-internals-interceptor';
 
     const events = Array<string>();
-    const worker = await Worker.create<{ dependencies: InternalsDeps }>({
+    const worker = await Worker.create({
       ...defaultOptions,
       taskQueue,
       interceptors: {
@@ -235,8 +216,6 @@ if (RUN_INTEGRATION_TESTS) {
             fn: (_: WorkflowInfo, event: string): void => {
               events.push(event);
             },
-            applyMode: ApplyMode.SYNC_IGNORED,
-            arguments: 'copy',
           },
         },
       },

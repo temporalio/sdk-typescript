@@ -4,7 +4,6 @@ import { ReadableSpan, SpanExporter } from '@opentelemetry/sdk-trace-base';
 import {
   ActivityExecuteInput,
   ActivityInboundCallsInterceptor,
-  ApplyMode,
   DataConverter,
   defaultDataConverter,
   InjectedDependency,
@@ -12,7 +11,7 @@ import {
 } from '@temporalio/worker';
 import { OpenTelemetryWorkflowExporter, SerializableSpan, SpanName } from '../workflow';
 import { instrumentFromSpanContext } from '../instrumentation';
-import { extractSpanContextFromHeaders } from '@temporalio/common';
+import { extractSpanContextFromHeaders } from '@temporalio/common/lib/otel';
 
 export interface InterceptorOptions {
   readonly tracer?: otel.Tracer;
@@ -61,7 +60,6 @@ export function makeWorkflowExporter(
         // Ignore the export result for simplicity
         exporter.export(spans, () => undefined);
       },
-      applyMode: ApplyMode.ASYNC_IGNORED,
     },
   };
 }

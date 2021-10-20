@@ -1,4 +1,4 @@
-import { temporal } from '@temporalio/proto';
+import { temporal } from '@temporalio/proto/lib/coresdk';
 import { DataConverter, arrayFromPayloads } from './converter/data-converter';
 
 export const FAILURE_SOURCE = 'NodeSDK';
