@@ -2,7 +2,7 @@
  * Demonstrates how to make Workflow aware of cancellation while waiting on nonCancellable scope.
  * Used in the documentation site.
  */
-// @@@SNIPSTART nodejs-cancel-requested-with-non-cancellable
+// @@@SNIPSTART typescript-cancel-requested-with-non-cancellable
 import { CancelledFailure, CancellationScope, createActivityHandle } from '@temporalio/workflow';
 import type * as activities from '../activities';
 

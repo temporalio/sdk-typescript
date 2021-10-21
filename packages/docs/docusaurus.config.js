@@ -13,7 +13,7 @@ module.exports = {
   onBrokenMarkdownLinks: 'warn',
   favicon: 'img/favicon.ico',
   organizationName: 'temporalio',
-  projectName: 'sdk-node',
+  projectName: 'sdk-typescript',
   themeConfig: {
     prism: {
       theme: lightCodeTheme,
@@ -27,7 +27,7 @@ module.exports = {
       },
       items: [
         {
-          href: 'https://github.com/temporalio/sdk-node',
+          href: 'https://github.com/temporalio/sdk-typescript',
           label: 'GitHub',
           position: 'right',
         },
@@ -64,7 +64,7 @@ module.exports = {
             },
             {
               label: 'GitHub',
-              href: 'https://github.com/temporalio/sdk-node',
+              href: 'https://github.com/temporalio/sdk-typescript',
             },
             {
               label: 'Twitter',

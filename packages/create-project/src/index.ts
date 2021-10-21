@@ -19,9 +19,9 @@ const program = new Command(packageJson.name)
     '-s, --sample <name|github-url>',
     dedent`
   Which sample to bootstrap the project with. You can use the name of a sample
-  from https://github.com/temporalio/samples-node or use a GitHub URL. 
+  from https://github.com/temporalio/samples-typescript or use a GitHub URL. 
   The URL can have a branch and/or subdirectory—for example:
-  https://github.com/temporalio/samples-node/tree/next/hello-world
+  https://github.com/temporalio/samples-typescript/tree/next/hello-world
 `
   )
   .option(

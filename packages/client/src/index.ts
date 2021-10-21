@@ -4,7 +4,7 @@
  * Interact with workflows using {@link WorkflowClient} or call GRPC methods directly using {@link Connection.service}.
  *
  * ### Usage
- * <!--SNIPSTART nodejs-hello-client-->
+ * <!--SNIPSTART typescript-hello-client-->
  * <!--SNIPEND-->
  * @module
  */

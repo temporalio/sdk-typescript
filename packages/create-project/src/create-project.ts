@@ -212,7 +212,7 @@ export async function createApp({
   console.log();
   console.log(
     chalk.dim.italic(
-      `If you haven't run Temporal Server before, visit:\nhttps://docs.temporal.io/docs/node/getting-started/`
+      `If you haven't run Temporal Server before, visit:\nhttps://docs.temporal.io/docs/typescript/getting-started/`
     )
   );
   console.log();

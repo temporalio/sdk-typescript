@@ -1,4 +1,4 @@
-// @@@SNIPSTART nodejs-multiple-activities-single-timeout-workflow
+// @@@SNIPSTART typescript-multiple-activities-single-timeout-workflow
 import { CancellationScope, createActivityHandle } from '@temporalio/workflow';
 import type * as activities from '../activities';
 

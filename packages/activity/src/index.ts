@@ -15,12 +15,12 @@
  *
  * #### An Activity that fakes progress and can be cancelled
  *
- * <!--SNIPSTART nodejs-activity-fake-progress-->
+ * <!--SNIPSTART typescript-activity-fake-progress-->
  * <!--SNIPEND-->
  *
  * #### An Activity that makes a cancellable HTTP request
  *
- * <!--SNIPSTART nodejs-activity-cancellable-fetch-->
+ * <!--SNIPSTART typescript-activity-cancellable-fetch-->
  * <!--SNIPEND-->
  *
  * @module
@@ -28,6 +28,8 @@
 
 import { AsyncLocalStorage } from 'async_hooks';
 import { AbortSignal } from 'abort-controller';
+
+export { CancelledFailure } from '@temporalio/common';
 
 /** @ignore */
 export const asyncLocalStorage = new AsyncLocalStorage<Context>();

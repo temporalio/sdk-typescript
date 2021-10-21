@@ -1493,7 +1493,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "temporal-sdk-node-bridge"
+name = "temporal-sdk-typescript-bridge"
 version = "0.1.0"
 dependencies = [
  "futures",

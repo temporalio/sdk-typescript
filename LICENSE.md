@@ -1,4 +1,4 @@
-Temporal Node.js SDK
+Temporal TypeScript SDK
 
 MIT License
 

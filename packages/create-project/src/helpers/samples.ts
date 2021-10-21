@@ -80,14 +80,14 @@ export async function checkForPackageJson({ username, name, branch, filePath }: 
     throw new Error(
       `Could not locate a package.json at ${chalk.red(
         `"${fullUrl}"`
-      )}.\nPlease check that the repository is a Temporal node-sdk template and try again.`
+      )}.\nPlease check that the repository is a Temporal TypeScript SDK template and try again.`
     );
   }
 }
 
 export function hasSample(name: string): Promise<boolean> {
   return isUrlOk(
-    `https://api.github.com/repos/temporalio/samples-node/contents/${encodeURIComponent(name)}/package.json`
+    `https://api.github.com/repos/temporalio/samples-typescript/contents/${encodeURIComponent(name)}/package.json`
   );
 }
 
@@ -106,8 +106,8 @@ export async function downloadAndExtractSample(root: string, name: string): Prom
   }
 
   await pipeline(
-    got.stream('https://codeload.github.com/temporalio/samples-node/tar.gz/main'),
-    tar.extract({ cwd: root, strip: 2 }, [`samples-node-main/${name}`])
+    got.stream('https://codeload.github.com/temporalio/samples-typescript/tar.gz/main'),
+    tar.extract({ cwd: root, strip: 2 }, [`samples-typescript-main/${name}`])
   );
 
   try {

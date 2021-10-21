@@ -1,5 +1,5 @@
 import { defineSignal } from '@temporalio/workflow';
-// @@@SNIPSTART nodejs-external-dependencies-logger-interface
+// @@@SNIPSTART typescript-external-dependencies-logger-interface
 import { ExternalDependencies } from '@temporalio/workflow';
 
 export interface LoggerDependencies extends ExternalDependencies {

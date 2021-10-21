@@ -1,4 +1,4 @@
-// @@@SNIPSTART nodejs-external-dependencies-logger-worker
+// @@@SNIPSTART typescript-external-dependencies-logger-worker
 import { Worker, InjectedDependencies } from '@temporalio/worker';
 import { LoggerDependencies } from '../workflows';
 

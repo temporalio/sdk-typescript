@@ -3,7 +3,7 @@
  * Demonstrates how to clean up after cancellation.
  * Used in the documentation site.
  */
-// @@@SNIPSTART nodejs-handle-external-workflow-cancellation-while-activity-running
+// @@@SNIPSTART typescript-handle-external-workflow-cancellation-while-activity-running
 import { CancellationScope, createActivityHandle, isCancellation } from '@temporalio/workflow';
 import type * as activities from '../activities';
 

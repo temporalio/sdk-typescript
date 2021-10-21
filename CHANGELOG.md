@@ -8,24 +8,24 @@ Breaking changes marked with a :boom:
 
 ### Bug Fixes
 
-- [`proto`] Remove core-bridge dependency from proto package ([#295](https://github.com/temporalio/sdk-node/pull/295))
-- Indefinitely reconnect to server on poll errors ([#298](https://github.com/temporalio/sdk-node/pull/298))
-- WorkflowHandle.signal() can take a string, default args to [] ([#297](https://github.com/temporalio/sdk-node/pull/297))
-- Poll for Activities even if none registered ([#300](https://github.com/temporalio/sdk-node/pull/300))
-- Delay query processing until workflow has started ([#301](https://github.com/temporalio/sdk-node/pull/301))
-- Shutdown native worker on webpack errors and provide better error message ([#302](https://github.com/temporalio/sdk-node/pull/302))
+- [`proto`] Remove core-bridge dependency from proto package ([#295](https://github.com/temporalio/sdk-typescript/pull/295))
+- Indefinitely reconnect to server on poll errors ([#298](https://github.com/temporalio/sdk-typescript/pull/298))
+- WorkflowHandle.signal() can take a string, default args to [] ([#297](https://github.com/temporalio/sdk-typescript/pull/297))
+- Poll for Activities even if none registered ([#300](https://github.com/temporalio/sdk-typescript/pull/300))
+- Delay query processing until workflow has started ([#301](https://github.com/temporalio/sdk-typescript/pull/301))
+- Shutdown native worker on webpack errors and provide better error message ([#302](https://github.com/temporalio/sdk-typescript/pull/302))
 
 ### Features
 
-- Support ES Module based projects ([#303](https://github.com/temporalio/sdk-node/pull/303))
+- Support ES Module based projects ([#303](https://github.com/temporalio/sdk-typescript/pull/303))
 
 ### Documentation
 
-- Add more links in per-package READMEs for NPM ([#296](https://github.com/temporalio/sdk-node/pull/296))
+- Add more links in per-package READMEs for NPM ([#296](https://github.com/temporalio/sdk-typescript/pull/296))
 
 ### Testing
 
-- Add nightly "load sampler" run ([#281](https://github.com/temporalio/sdk-node/pull/281))
+- Add nightly "load sampler" run ([#281](https://github.com/temporalio/sdk-typescript/pull/281))
 - Add smorgasbord workflow
 - Address smorgasboard wf feedback
 - Test init from fetch-esm sample
@@ -41,7 +41,7 @@ Breaking changes marked with a :boom:
 ### Features
 
 - [`client`] Add gRPC retry interceptors
-- Enhance `@temporalio/create` and use samples-node as its source ([#273](https://github.com/temporalio/sdk-node/pull/273))
+- Enhance `@temporalio/create` and use samples-node as its source ([#273](https://github.com/temporalio/sdk-typescript/pull/273))
 - :boom:[`core`] Change `WARNING` log level to `WARN`
 - Add Core option to forward logs from Rust to configurable Node logger
 - [`workflow`] Support `ms` formatted strings in sleep() function
@@ -57,7 +57,7 @@ Breaking changes marked with a :boom:
 - :boom:[`client`] Switch parameter order in WorkflowClient.execute and start methods
 - [`workflow`] Add condition helper function
 - Link Node / Core and `interceptors/opentelemetry` generated spans together
-- :boom:[`workflow`] Implement Workflow API 3rd revision ([#292](https://github.com/temporalio/sdk-node/pull/292))
+- :boom:[`workflow`] Implement Workflow API 3rd revision ([#292](https://github.com/temporalio/sdk-typescript/pull/292))
 
   All existing Workflows need to be rewritten in the new form:
 

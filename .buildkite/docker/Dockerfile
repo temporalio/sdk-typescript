@@ -14,4 +14,4 @@ ENV PATH="/root/.nvm/versions/node/${NODE_VERSION}/bin/:${PATH}"
 RUN rustup component add rustfmt && \
 	rustup component add clippy
 
-WORKDIR /sdk-node
+WORKDIR /sdk-typescript

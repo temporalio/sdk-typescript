@@ -4,7 +4,7 @@
 # This config is still incomplete, please review output and edit manually.
 # PR links should be turned into links manually.
 # With vim use
-# :%s/\v#(\d+)/[#\1](https:\/\/github.com\/temporalio\/sdk-node\/pull\/\1)
+# :%s/\v#(\d+)/[#\1](https:\/\/github.com\/temporalio\/sdk-typescript\/pull\/\1)
 #
 # breaking_description isn't rendedered properly
 

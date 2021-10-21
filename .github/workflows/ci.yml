@@ -108,7 +108,8 @@ jobs:
     strategy:
       fail-fast: true
       matrix:
-        node: [14, 16]
+        # TODO: use latest 16 release when the ts-node/esm loader supports it
+        node: ['14', '16.11']
         os: [ubuntu-latest] # TODO: add windows and macos-latest
         server: [local]
         sample: [hello-world, fetch-esm]
@@ -132,7 +133,7 @@ jobs:
         with:
           name: packages
           path: /tmp/registry/storage
-      - run: node scripts/init-from-verdaccio.js --registry-dir /tmp/registry --sample https://github.com/temporalio/samples-node/tree/next/${{ matrix.sample }}
+      - run: node scripts/init-from-verdaccio.js --registry-dir /tmp/registry --sample https://github.com/temporalio/samples-typescript/tree/next/${{ matrix.sample }}
       - name: Get Temporal docker-compose.yml
         run: wget https://raw.githubusercontent.com/temporalio/docker-compose/v1.11.3/docker-compose.yml
         if: ${{ matrix.server == 'local' }}

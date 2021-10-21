@@ -242,7 +242,7 @@ function makeFailWorkflowExecution(
 ): coresdk.workflow_commands.IWorkflowCommand {
   return {
     failWorkflowExecution: {
-      failure: { message, stackTrace, applicationFailureInfo: { type, nonRetryable: false }, source: 'NodeSDK' },
+      failure: { message, stackTrace, applicationFailureInfo: { type, nonRetryable: false }, source: 'TypeScriptSDK' },
     },
   };
 }
@@ -604,7 +604,7 @@ test('invalidOrFailedQueries', async (t) => {
           queryId: '3',
           failed: {
             message: 'Query handlers should not return a Promise',
-            source: 'NodeSDK',
+            source: 'TypeScriptSDK',
             stackTrace: dedent`
               DeterminismViolationError: Query handlers should not return a Promise
             `,
@@ -626,7 +626,7 @@ test('invalidOrFailedQueries', async (t) => {
         makeRespondToQueryCommand({
           queryId: '3',
           failed: {
-            source: 'NodeSDK',
+            source: 'TypeScriptSDK',
             message: 'fail',
             stackTrace: dedent`
               Error: fail
@@ -1293,7 +1293,7 @@ test('cancellationErrorIsPropagated', async (t) => {
             at cancellationErrorIsPropagated
         `,
             canceledFailureInfo: {},
-            source: 'NodeSDK',
+            source: 'TypeScriptSDK',
           },
         },
       },

@@ -2,7 +2,7 @@
  * Demonstrates the basics of cancellation scopes.
  * Used in the documentation site.
  */
-// @@@SNIPSTART nodejs-cancel-a-timer-from-workflow
+// @@@SNIPSTART typescript-cancel-a-timer-from-workflow
 import { CancelledFailure, CancellationScope, sleep } from '@temporalio/workflow';
 
 export async function cancelTimer(): Promise<void> {

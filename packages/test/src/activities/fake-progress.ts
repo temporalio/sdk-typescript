@@ -1,4 +1,3 @@
-// @@@SNIPSTART nodejs-activity-fake-progress
 import { Context } from '@temporalio/activity';
 import { CancelledFailure } from '@temporalio/common';
 
@@ -16,4 +15,3 @@ export async function fakeProgress(sleepIntervalMs = 1000, numIters = 100): Prom
     throw err;
   }
 }
-// @@@SNIPEND

@@ -6,7 +6,7 @@ steps:
   - label: 'nightly-longrun'
     timeout_in_minutes: 360
     concurrency: 1 # Only allow one of each kind of nightly test at once
-    concurrency_group: 'node-sdk/nightly-longrun'
+    concurrency_group: 'sdk-typescript/nightly-longrun'
     commands:
       - '.buildkite/docker/build.sh'
       - 'npm run ci-nightly-longrun'
@@ -24,7 +24,7 @@ steps:
   - label: 'nightly-sampler'
     timeout_in_minutes: 60
     concurrency: 1
-    concurrency_group: 'node-sdk/nightly-sampler'
+    concurrency_group: 'sdk-typescript/nightly-sampler'
     commands:
       - '.buildkite/docker/build.sh'
       - 'npm run ci-nightly-sampler'

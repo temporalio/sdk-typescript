@@ -35,7 +35,7 @@
     "ramda": "^0.27.1"
   },
   "bugs": {
-    "url": "https://github.com/temporalio/sdk-node/issues"
+    "url": "https://github.com/temporalio/sdk-typescript/issues"
   },
-  "homepage": "https://github.com/temporalio/sdk-node#readme"
+  "homepage": "https://github.com/temporalio/sdk-typescript#readme"
 }

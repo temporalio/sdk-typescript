@@ -17,9 +17,9 @@
     "@temporalio/proto": "file:../proto"
   },
   "bugs": {
-    "url": "https://github.com/temporalio/sdk-node/issues"
+    "url": "https://github.com/temporalio/sdk-typescript/issues"
   },
-  "homepage": "https://github.com/temporalio/sdk-node/tree/main/packages/workflow",
+  "homepage": "https://github.com/temporalio/sdk-typescript/tree/main/packages/workflow",
   "files": [
     "lib"
   ],
