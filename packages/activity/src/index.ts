@@ -28,6 +28,7 @@
 
 import { AsyncLocalStorage } from 'async_hooks';
 import { AbortSignal } from 'abort-controller';
+import { msToNumber } from '@temporalio/common';
 
 export { CancelledFailure } from '@temporalio/common';
 
@@ -167,13 +168,13 @@ export class Context {
 
   /**
    * Helper function for sleeping in an Activity.
-   * @param ms duration in milliseconds
+   * @param ms sleep duration - {@link https://www.npmjs.com/package/ms | ms} formatted string or number of milliseconds
    * @returns a Promise that either resolves when deadline is reached or rejects when the Context is cancelled
    */
-  public sleep(ms: number): Promise<void> {
+  public sleep(ms: number | string): Promise<void> {
     let handle: NodeJS.Timeout;
     const timer = new Promise<void>((resolve) => {
-      handle = setTimeout(resolve, ms);
+      handle = setTimeout(resolve, msToNumber(ms));
     });
     return Promise.race([this.cancelled.finally(() => clearTimeout(handle)), timer]);
   }
