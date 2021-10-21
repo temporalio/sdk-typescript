@@ -14,10 +14,6 @@ function getTestConnection(): Connection {
   return new Connection({ address });
 }
 
-async function sleep(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
 /**
  * Used in order to check Activity interceptor,
  * message should be injected by interceptor according to received header.
@@ -86,12 +82,14 @@ export async function cancellableFetch(url: string, signalWorkflowOnCheckpoint =
 }
 
 export async function progressiveSleep(): Promise<void> {
-  await sleep(100);
-  Context.current().heartbeat(1);
-  await sleep(100);
-  Context.current().heartbeat(2);
-  await sleep(100);
-  Context.current().heartbeat(3);
+  const cx = Context.current();
+  // Use ms formatted string once to test this is supported
+  await cx.sleep('100ms');
+  cx.heartbeat(1);
+  await cx.sleep(100);
+  cx.heartbeat(2);
+  await cx.sleep(100);
+  cx.heartbeat(3);
 }
 
 export async function queryOwnWf<R, A extends any[]>(queryDef: QueryDefinition<R, A>, ...args: A): Promise<void> {

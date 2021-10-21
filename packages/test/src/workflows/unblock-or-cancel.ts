@@ -2,7 +2,7 @@
  * All-in-one sample showing cancellation, signals and queries
  * @module
  */
-import { CancelledFailure, defineSignal, defineQuery, setListener, condition } from '@temporalio/workflow';
+import { CancelledFailure, defineQuery, setListener, condition } from '@temporalio/workflow';
 import { unblockSignal } from './definitions';
 
 export const isBlockedQuery = defineQuery<boolean>('isBlocked');
