@@ -3,7 +3,7 @@
  *
  * ### Usage
  *
- * <!--SNIPSTART nodejs-hello-worker-->
+ * <!--SNIPSTART typescript-hello-worker-->
  * <!--SNIPEND-->
  * @module
  */

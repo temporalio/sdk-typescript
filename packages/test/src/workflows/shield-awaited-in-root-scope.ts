@@ -1,4 +1,4 @@
-// @@@SNIPSTART nodejs-shield-awaited-in-root-scope
+// @@@SNIPSTART typescript-shield-awaited-in-root-scope
 import { CancellationScope, createActivityHandle } from '@temporalio/workflow';
 import type * as activities from '../activities';
 

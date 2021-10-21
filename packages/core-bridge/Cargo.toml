@@ -1,5 +1,5 @@
 [package]
-name = "temporal-sdk-node-bridge"
+name = "temporal-sdk-typescript-bridge"
 version = "0.1.0"
 authors = ["Roey Berman <roey@temporal.io>"]
 license = "MIT"
@@ -7,7 +7,7 @@ edition = "2018"
 exclude = ["index.node", "sdk-core"]
 
 [lib]
-name = "temporal_sdk_node_bridge"
+name = "temporal_sdk_typescript_bridge"
 crate-type = ["cdylib"]
 
 [dependencies]

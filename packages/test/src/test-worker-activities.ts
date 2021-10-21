@@ -82,7 +82,7 @@ test('Worker runs an activity and reports failure', async (t) => {
       failed: {
         failure: {
           message,
-          source: 'NodeSDK',
+          source: 'TypeScriptSDK',
           stackTrace: dedent`
             Error: :(
                 at Activity.throwAnError [as fn]
@@ -114,7 +114,7 @@ test('Worker cancels activity and reports cancellation', async (t) => {
       cancel: {},
     });
     compareCompletion(t, completion.result, {
-      cancelled: { failure: { source: 'NodeSDK', message: '', canceledFailureInfo: {} } },
+      cancelled: { failure: { source: 'TypeScriptSDK', message: '', canceledFailureInfo: {} } },
     });
   });
 });
@@ -140,7 +140,7 @@ test('Activity Context AbortSignal cancels a fetch request', async (t) => {
         cancel: {},
       });
       compareCompletion(t, completion.result, {
-        cancelled: { failure: { source: 'NodeSDK', canceledFailureInfo: {} } },
+        cancelled: { failure: { source: 'TypeScriptSDK', canceledFailureInfo: {} } },
       });
     });
   });

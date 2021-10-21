@@ -1,4 +1,4 @@
-// @@@SNIPSTART nodejs-shared-promise-scopes
+// @@@SNIPSTART typescript-shared-promise-scopes
 import { CancellationScope, createActivityHandle } from '@temporalio/workflow';
 import type * as activities from '../activities';
 

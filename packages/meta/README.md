@@ -1,7 +1,7 @@
-# Temporal Node.js SDK
+# Temporal TypeScript SDK
 
 <p align="center">
-  <img src="https://img.shields.io/github/workflow/status/temporalio/sdk-node/Continuous%20Integration?style=for-the-badge" alt="CI" />
+  <img src="https://img.shields.io/github/workflow/status/temporalio/sdk-typescript/Continuous%20Integration?style=for-the-badge" alt="CI" />
   <a href="https://www.npmjs.com/package/temporalio">
     <img src="https://img.shields.io/npm/v/temporalio.svg?style=for-the-badge" alt="NPM" />
   </a>
@@ -14,12 +14,12 @@ Temporal is a mature technology—it's a fork of Uber's Cadence. Temporal is bei
 
 ## Documentation
 
-Check out the [Getting started](https://docs.temporal.io/docs/node/introduction/#getting-started) page for a quick overview.
+Check out the [Getting started](https://docs.temporal.io/docs/typescript/introduction/#getting-started) page for a quick overview.
 
 The documentation is divided into several sections:
 
-- [Node SDK docs](https://docs.temporal.io/docs/node/introduction)
-- [Node SDK API reference](https://nodejs.temporal.io/)
+- [TypeScript SDK docs](https://docs.temporal.io/docs/typescript/introduction)
+- [TypeScript SDK API reference](https://typescript.temporal.io/)
 - [General Temporal docs](https://docs.temporal.io)
 
 You can improve it by sending pull requests to this repository (for the API reference) or to the [documentation repository](https://github.com/temporalio/documentation).
@@ -59,13 +59,13 @@ Notably these features are missing:
 
 > NOTE: The API is considered unstable and may change at any time.
 > While in alpha we are gathering feedback from developers about the usability and ergonomics of the API.
-> To provide feedback please [open an issue](https://github.com/temporalio/sdk-node/issues) and feel free to
-> talk to us on the [#nodejs-sdk community slack channel](https://temporal.io/slack) or post on our [discourse support forum](https://community.temporal.io/).
+> To provide feedback please [open an issue](https://github.com/temporalio/sdk-typescript/issues) and feel free to
+> talk to us on the [#typescript-sdk community slack channel](https://temporal.io/slack) or post on our [discourse support forum](https://community.temporal.io/).
 
 ## Installation
 
-See the [getting started](https://docs.temporal.io/docs/node/introduction/#getting-started) guide for setting up a project on your laptop.
+See the [getting started](https://docs.temporal.io/docs/typescript/introduction/#getting-started) guide for setting up a project on your laptop.
 
 ## Contributing
 
-Read our [contributing guide](https://github.com/temporalio/sdk-node/blob/main/CONTRIBUTING.md) to learn about our development process, how to propose bugfixes and improvements, and how to build and test your changes to the SDK.
+Read our [contributing guide](https://github.com/temporalio/sdk-typescript/blob/main/CONTRIBUTING.md) to learn about our development process, how to propose bugfixes and improvements, and how to build and test your changes to the SDK.

@@ -52,7 +52,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/temporalio/sdk-node.git"
+    "url": "git+https://github.com/temporalio/sdk-typescript.git"
   },
   "keywords": [
     "temporal",
@@ -62,9 +62,9 @@
   "author": "Roey Berman <roey@temporal.io>",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/temporalio/sdk-node/issues"
+    "url": "https://github.com/temporalio/sdk-typescript/issues"
   },
-  "homepage": "https://github.com/temporalio/sdk-node#readme",
+  "homepage": "https://github.com/temporalio/sdk-typescript#readme",
   "files": [],
   "name": "typescript-sdk",
   "dependencies": {

@@ -1,4 +1,4 @@
-// @@@SNIPSTART nodejs-workflow-signal-implementation
+// @@@SNIPSTART typescript-workflow-signal-implementation
 import { defineSignal, setListener } from '@temporalio/workflow';
 
 export const interruptSignal = defineSignal<[string]>('interrupt');

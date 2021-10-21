@@ -1,6 +1,6 @@
 import got from 'got';
 
-const SAMPLE_REPO_CONTENTS = 'https://api.github.com/repos/temporalio/samples-node/contents/';
+const SAMPLE_REPO_CONTENTS = 'https://api.github.com/repos/temporalio/samples-typescript/contents/';
 
 interface File {
   name: string;

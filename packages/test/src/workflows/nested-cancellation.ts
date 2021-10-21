@@ -1,4 +1,4 @@
-// @@@SNIPSTART nodejs-nested-cancellation-scopes
+// @@@SNIPSTART typescript-nested-cancellation-scopes
 import { CancellationScope, createActivityHandle, isCancellation } from '@temporalio/workflow';
 
 import type * as activities from '../activities';

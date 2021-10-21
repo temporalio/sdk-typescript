@@ -1,4 +1,4 @@
-// @@@SNIPSTART nodejs-non-cancellable-shields-children
+// @@@SNIPSTART typescript-non-cancellable-shields-children
 import { CancellationScope, createActivityHandle } from '@temporalio/workflow';
 import type * as activities from '../activities';
 

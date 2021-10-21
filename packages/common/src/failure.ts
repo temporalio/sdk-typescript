@@ -1,7 +1,7 @@
 import { temporal } from '@temporalio/proto/lib/coresdk';
 import { DataConverter, arrayFromPayloads } from './converter/data-converter';
 
-export const FAILURE_SOURCE = 'NodeSDK';
+export const FAILURE_SOURCE = 'TypeScriptSDK';
 export type ProtoFailure = temporal.api.failure.v1.IFailure;
 export type TimeoutType = temporal.api.enums.v1.TimeoutType;
 export const TimeoutType = temporal.api.enums.v1.TimeoutType;

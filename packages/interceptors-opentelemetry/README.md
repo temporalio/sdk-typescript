@@ -4,4 +4,4 @@
 
 [Temporal](https://temporal.io) [SDK](https://www.npmjs.com/package/temporalio) interceptors bundle for tracing Workflow and Activity executions with opentelemetry.
 
-[Temporal documentation site](https://docs.temporal.io/docs/node/introduction).
+[Temporal documentation site](https://docs.temporal.io/docs/typescript/introduction).

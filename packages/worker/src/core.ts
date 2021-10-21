@@ -16,7 +16,7 @@ export interface CoreOptions {
   telemetryOptions?: TelemetryOptions;
   /**
    * Custom logger for logging events from the SDK, by default we log everything to stderr
-   * at the INFO level. See https://docs.temporal.io/docs/node/logging/ for more info.
+   * at the INFO level. See https://docs.temporal.io/docs/typescript/logging/ for more info.
    */
   logger?: Logger;
 }

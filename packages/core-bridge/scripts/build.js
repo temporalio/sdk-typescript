@@ -38,7 +38,7 @@ function compile(target) {
     [
       '--artifact',
       'cdylib',
-      'temporal_sdk_node_bridge',
+      'temporal_sdk_typescript_bridge',
       out,
       '--',
       'cargo',

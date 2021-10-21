@@ -2,10 +2,9 @@
  * All-in-one sample showing cancellation, signals and queries
  * @module
  */
-// @@@SNIPSTART nodejs-blocked-workflow
 import { CancelledFailure, defineSignal, defineQuery, setListener, condition } from '@temporalio/workflow';
+import { unblockSignal } from './definitions';
 
-export const unblockSignal = defineSignal('unblock');
 export const isBlockedQuery = defineQuery<boolean>('isBlocked');
 
 export async function unblockOrCancel(): Promise<void> {
@@ -24,4 +23,3 @@ export async function unblockOrCancel(): Promise<void> {
     console.log('Cancelled');
   }
 }
-// @@@SNIPEND

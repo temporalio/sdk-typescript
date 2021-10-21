@@ -2,21 +2,21 @@
  * This library provides tools required for authoring workflows.
  *
  * ## Usage
- * See the [tutorial](https://docs.temporal.io/docs/node/hello-world#workflows) for writing your first workflow.
+ * See the [tutorial](https://docs.temporal.io/docs/typescript/hello-world#workflows) for writing your first workflow.
  *
  * ### Timers
  *
  * The recommended way of scheduling timers is by using the {@link sleep} function.
- * We've replaced `setTimeout` and `clearTimeout` with deterministic versions so these are also usable but have a limitation that they don't play well with [cancellation scopes](https://docs.temporal.io/docs/node/workflow-scopes-and-cancellation).
+ * We've replaced `setTimeout` and `clearTimeout` with deterministic versions so these are also usable but have a limitation that they don't play well with [cancellation scopes](https://docs.temporal.io/docs/typescript/workflow-scopes-and-cancellation).
  *
- * <!--SNIPSTART nodejs-sleep-workflow-->
+ * <!--SNIPSTART typescript-sleep-workflow-->
  * <!--SNIPEND-->
  *
  * ### Activities
  *
  * To schedule Activities, use {@link createActivityHandle} to obtain an Activity function and call.
  *
- * <!--SNIPSTART nodejs-schedule-activity-workflow-->
+ * <!--SNIPSTART typescript-schedule-activity-workflow-->
  * <!--SNIPEND-->
  *
  * ### Signals and Queries
@@ -29,22 +29,22 @@
  *
  * #### Interface
  *
- * <!--SNIPSTART nodejs-workflow-signal-interface-->
+ * <!--SNIPSTART typescript-workflow-signal-interface-->
  * <!--SNIPEND-->
  *
  * #### Implementation
  *
- * <!--SNIPSTART nodejs-workflow-signal-implementation-->
+ * <!--SNIPSTART typescript-workflow-signal-implementation-->
  * <!--SNIPEND-->
  *
  * ### Deterministic built-ins
  * It is safe to call `Math.random()` and `Date()` in workflow code as they are replaced with deterministic versions. We also provide a deterministic {@link uuid4} function for convenience.
  *
- * ### [Cancellation and scopes](https://docs.temporal.io/docs/node/workflow-scopes-and-cancellation)
+ * ### [Cancellation and scopes](https://docs.temporal.io/docs/typescript/workflow-scopes-and-cancellation)
  * - {@link CancellationScope}
  * - {@link Trigger}
  *
- * ### [External dependencies](https://docs.temporal.io/docs/node/workflow-external-dependencies)
+ * ### [External dependencies](https://docs.temporal.io/docs/typescript/workflow-external-dependencies)
  * - {@link ExternalDependencies}
  * - {@link ApplyMode}
  *

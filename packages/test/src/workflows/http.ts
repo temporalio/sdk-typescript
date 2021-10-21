@@ -1,4 +1,4 @@
-// @@@SNIPSTART nodejs-schedule-activity-workflow
+// @@@SNIPSTART typescript-schedule-activity-workflow
 import { createActivityHandle } from '@temporalio/workflow';
 import type * as activities from '../activities';
 

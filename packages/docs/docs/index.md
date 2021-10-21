@@ -1,10 +1,10 @@
 ---
-title: Temporal Node.js SDK API Reference
+title: Temporal TypeScript SDK API Reference
 sidebar_label: Home
 slug: /
 ---
 
-> For the main Temporal documentation site and Node.js tutorials go to https://docs.temporal.io.
+> For the main Temporal documentation site and TypeScript tutorials go to https://docs.temporal.io.
 
 ## Modules
 
