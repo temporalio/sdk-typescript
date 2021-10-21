@@ -2,7 +2,7 @@
  * Manual tests to inspect tracing output
  */
 import test from 'ava';
-import { Core, DefaultLogger, Worker } from '@temporalio/worker';
+import { Core, DefaultLogger, InjectedDependencies, Worker } from '@temporalio/worker';
 import { CollectorTraceExporter } from '@opentelemetry/exporter-collector-grpc';
 import * as activities from './activities';
 import * as opentelemetry from '@opentelemetry/sdk-node';
@@ -38,7 +38,10 @@ test.skip('Otel spans connected', async (t) => {
       logForwardingLevel: 'INFO',
     },
   });
-  const worker = await Worker.create<{ dependencies: OpenTelemetryDependencies }>({
+  const dependencies: InjectedDependencies<OpenTelemetryDependencies> = {
+    exporter: makeWorkflowExporter(exporter, staticResource),
+  };
+  const worker = await Worker.create({
     workflowsPath: require.resolve('./workflows'),
     activities,
     taskQueue: 'test-otel',
@@ -46,7 +49,7 @@ test.skip('Otel spans connected', async (t) => {
       workflowModules: [require.resolve('./workflows/otel-interceptors')],
       activityInbound: [() => new OpenTelemetryActivityInboundInterceptor()],
     },
-    dependencies: { exporter: makeWorkflowExporter(exporter, staticResource) },
+    dependencies,
   });
 
   const client = new WorkflowClient(undefined, {

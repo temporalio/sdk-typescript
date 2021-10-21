@@ -7,7 +7,7 @@ import {
   WorkflowStartInput,
 } from '@temporalio/client';
 import { SpanName } from '../workflow';
-import { headersWithSpanContext, RUN_ID_ATTR_KEY } from '@temporalio/common';
+import { headersWithSpanContext, RUN_ID_ATTR_KEY } from '@temporalio/common/lib/otel';
 
 export interface InterceptorOptions {
   readonly tracer?: otel.Tracer;

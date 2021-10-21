@@ -19,7 +19,7 @@ import { alea, RNG } from './alea';
 import { ContinueAsNew, WorkflowInfo } from './interfaces';
 import { QueryInput, SignalInput, WorkflowExecuteInput, WorkflowInterceptors } from './interceptors';
 import { DeterminismViolationError, WorkflowExecutionAlreadyStartedError, isCancellation } from './errors';
-import { ExternalCall, ExternalDependencies } from './dependencies';
+import { ExternalCall } from './dependencies';
 import { ROOT_SCOPE } from './cancellation-scope';
 
 export type ResolveFunction<T = any> = (val: T) => any;
@@ -350,10 +350,6 @@ export class State {
    */
   public commands: coresdk.workflow_commands.IWorkflowCommand[] = [];
   /**
-   * Buffer containing external dependency calls which have not yet been transferred out of the isolate
-   */
-  public pendingExternalCalls: ExternalCall[] = [];
-
   /**
    * Stores all {@link condition}s that haven't been unblocked yet
    */
@@ -375,7 +371,6 @@ export class State {
     timer: 1,
     activity: 1,
     childWorkflow: 1,
-    dependency: 1,
     signalWorkflow: 1,
     cancelWorkflow: 1,
     condition: 1,
@@ -413,17 +408,6 @@ export class State {
     throw new IllegalStateError('Tried to use Math.random before Workflow has been initialized');
   };
 
-  public dependencies: ExternalDependencies = {};
-
-  public getAndResetPendingExternalCalls(): ExternalCall[] {
-    if (this.pendingExternalCalls.length > 0) {
-      const ret = this.pendingExternalCalls;
-      this.pendingExternalCalls = [];
-      return ret;
-    }
-    return [];
-  }
-
   /**
    * Used to require user code
    *
@@ -442,6 +426,14 @@ export class State {
    * Patches we sent to core {@link patched}
    */
   public readonly sentPatches = new Set<string>();
+
+  externalCalls = Array<ExternalCall>();
+
+  getAndResetExternalCalls(): ExternalCall[] {
+    const { externalCalls } = this;
+    this.externalCalls = [];
+    return externalCalls;
+  }
 
   /**
    * Buffer a Workflow command to be collected at the end of the current activation.

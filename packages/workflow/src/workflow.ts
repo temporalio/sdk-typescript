@@ -535,8 +535,14 @@ export function workflowInfo(): WorkflowInfo {
  *
  * @example
  * ```ts
- * import { dependencies } from '@temporalio/workflow';
- * import { MyDependencies } from '../interfaces';
+ * import { dependencies, ExternalDependencies } from '@temporalio/workflow';
+ *
+ * interface MyDependencies extends ExternalDependencies {
+ *   logger: {
+ *     info(message: string): void;
+ *     error(message: string): void;
+ *   };
+ * }
  *
  * const { logger } = dependencies<MyDependencies>();
  * logger.info('setting up');
@@ -561,10 +567,11 @@ export function dependencies<T extends ExternalDependencies>(): T {
           {
             get(_, fnName) {
               return (...args: any[]) => {
-                if (state.info === undefined) {
-                  throw new IllegalStateError('Workflow uninitialized');
-                }
-                return state.dependencies[ifaceName as string][fnName as string](...args);
+                state.externalCalls.push({
+                  ifaceName: ifaceName as string,
+                  fnName: fnName as string,
+                  args,
+                });
               };
             },
           }

@@ -3,7 +3,6 @@
  *
  * @module
  */
-import ivm from 'isolated-vm';
 import {
   IllegalStateError,
   msToTs,
@@ -15,12 +14,12 @@ import {
 } from '@temporalio/common';
 import { coresdk } from '@temporalio/proto/lib/coresdk';
 import { WorkflowInfo } from './interfaces';
-import { consumeCompletion, handleWorkflowFailure, state } from './internals';
+import { handleWorkflowFailure, state } from './internals';
 import { alea } from './alea';
-import { IsolateExtension, HookManager } from './promise-hooks';
 import { DeterminismViolationError } from './errors';
-import { ApplyMode, ExternalDependencyFunction, ExternalCall } from './dependencies';
+import { ExternalCall } from './dependencies';
 import { WorkflowInterceptorsFactory } from './interceptors';
+import { HookManager, IsolateExtension } from './promise-hooks';
 
 export function setRequireFunc(fn: Exclude<typeof state['require'], undefined>): void {
   state.require = fn;
@@ -146,7 +145,6 @@ export async function initRuntime(
 }
 
 export interface ActivationResult {
-  externalCalls: ExternalCall[];
   numBlockedConditions: number;
 }
 
@@ -205,14 +203,9 @@ export async function activate(encodedActivation: Uint8Array, batchIndex: number
   });
 
   return {
-    externalCalls: state.getAndResetPendingExternalCalls(),
     numBlockedConditions: state.blockedConditions.size,
   };
 }
-
-type ActivationConclusion =
-  | { type: 'pending'; pendingExternalCalls: ExternalCall[]; numBlockedConditions: number }
-  | { type: 'complete'; encoded: Uint8Array };
 
 /**
  * Conclude a single activation.
@@ -221,76 +214,19 @@ type ActivationConclusion =
  * Activation may be in either `complete` or `pending` state according to pending external dependency calls.
  * Activation failures are handled in the main Node.js isolate.
  */
-export function concludeActivation(): ActivationConclusion {
-  const pendingExternalCalls = state.getAndResetPendingExternalCalls();
-  if (pendingExternalCalls.length > 0) {
-    return { type: 'pending', pendingExternalCalls, numBlockedConditions: state.blockedConditions.size };
-  }
+export function concludeActivation(): Uint8Array {
   const intercept = composeInterceptors(state.interceptors.internals, 'concludeActivation', (input) => input);
   const { info } = state;
   const { commands } = intercept({ commands: state.commands });
-  const encoded = coresdk.workflow_completion.WFActivationCompletion.encodeDelimited({
+  state.commands = [];
+  return coresdk.workflow_completion.WFActivationCompletion.encodeDelimited({
     runId: info?.runId,
     successful: { commands },
   }).finish();
-  state.commands = [];
-  return { type: 'complete', encoded };
 }
 
-export function getAndResetPendingExternalCalls(): ExternalCall[] {
-  return state.getAndResetPendingExternalCalls();
-}
-
-/**
- * Inject an external dependency function into the Workflow via global state.
- * The injected function is available via {@link dependencies}.
- */
-export function inject(
-  ifaceName: string,
-  fnName: string,
-  dependency: ivm.Reference<ExternalDependencyFunction>,
-  applyMode: ApplyMode,
-  transferOptions: ivm.TransferOptionsBidirectional
-): void {
-  if (state.dependencies[ifaceName] === undefined) {
-    state.dependencies[ifaceName] = {};
-  }
-  if (applyMode === ApplyMode.ASYNC) {
-    state.dependencies[ifaceName][fnName] = (...args: any[]) =>
-      new Promise((resolve, reject) => {
-        const seq = state.nextSeqs.dependency++;
-        state.completions.dependency.set(seq, {
-          resolve,
-          reject,
-        });
-        state.pendingExternalCalls.push({ ifaceName, fnName, args, seq });
-      });
-  } else if (applyMode === ApplyMode.ASYNC_IGNORED) {
-    state.dependencies[ifaceName][fnName] = (...args: any[]) =>
-      state.pendingExternalCalls.push({ ifaceName, fnName, args });
-  } else {
-    state.dependencies[ifaceName][fnName] = (...args: any[]) => dependency[applyMode](undefined, args, transferOptions);
-  }
-}
-
-export interface ExternalDependencyResult {
-  seq: number;
-  result: any;
-  error: any;
-}
-
-/**
- * Resolve external dependency function calls with given results.
- */
-export function resolveExternalDependencies(results: ExternalDependencyResult[]): void {
-  for (const { seq, result, error } of results) {
-    const completion = consumeCompletion('dependency', seq);
-    if (error) {
-      completion.reject(error);
-    } else {
-      completion.resolve(result);
-    }
-  }
+export function getAndResetExternalCalls(): ExternalCall[] {
+  return state.getAndResetExternalCalls();
 }
 
 /**

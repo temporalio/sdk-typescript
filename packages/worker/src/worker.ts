@@ -19,7 +19,6 @@ import {
 import { delay, filter, first, ignoreElements, map, mergeMap, takeUntil, takeWhile, tap } from 'rxjs/operators';
 import * as native from '@temporalio/core-bridge';
 import { coresdk } from '@temporalio/proto';
-import { ApplyMode, ExternalDependencies, WorkflowInfo } from '@temporalio/workflow';
 import { Info as ActivityInfo } from '@temporalio/activity';
 import {
   ActivityOptions,
@@ -32,50 +31,34 @@ import {
   defaultDataConverter,
   ActivityInterface,
   errorMessage,
+} from '@temporalio/common';
+import {
   extractSpanContextFromHeaders,
   linkSpans,
   RUN_ID_ATTR_KEY,
   NUM_JOBS_ATTR_KEY,
   TASK_TOKEN_ATTR_KEY,
-} from '@temporalio/common';
+} from '@temporalio/common/lib/otel';
+
 import { closeableGroupBy, mergeMapWithState } from './rxutils';
-import { GiB, MiB } from './utils';
-import { Workflow } from './workflow';
+import { GiB, MiB, toMB } from './utils';
+import { Workflow, WorkflowCreator } from './workflow/interface';
+import { WorkflowCodeBundler } from './workflow/bundler';
 import { Activity } from './activity';
 import { Logger } from './logger';
-import { WorkflowIsolateBuilder } from './isolate-builder';
-import { IsolateContextProvider, RoundRobinIsolateContextProvider } from './isolate-context-provider';
 import * as errors from './errors';
 import { childSpan, instrument, tracer } from './tracing';
-import { InjectedDependencies, getIvmTransferOptions } from './dependencies';
 import { ActivityExecuteInput, WorkerInterceptors } from './interceptors';
 export { RetryOptions, IllegalStateError } from '@temporalio/common';
 export { ActivityOptions, DataConverter, defaultDataConverter, errors };
 import { Core } from './core';
 import { SpanContext } from '@opentelemetry/api';
 import IWFActivationJob = coresdk.workflow_activation.IWFActivationJob;
+import { IsolatedVMWorkflowCreator } from './workflow/isolated-vm';
+import { InjectedDependencies } from './dependencies';
+import { ExternalCall, WorkflowInfo } from '@temporalio/workflow';
 
 native.registerErrors(errors);
-
-/**
- * Customize the Worker according to spec.
- *
- * Pass as a type parameter to {@link Worker.create} to alter the accepted {@link WorkerSpecOptions}
- */
-export interface WorkerSpec {
-  dependencies?: ExternalDependencies;
-}
-
-export interface DefaultWorkerSpec extends WorkerSpec {
-  dependencies: undefined;
-}
-
-/**
- * Same as {@link WorkerOptions} with {@link WorkerSpec} applied
- */
-export type WorkerSpecOptions<T extends WorkerSpec> = T extends { dependencies: ExternalDependencies }
-  ? { dependencies: InjectedDependencies<T['dependencies']> } & WorkerOptions
-  : WorkerOptions;
 
 /**
  * Options to configure the {@link Worker}
@@ -174,7 +157,7 @@ export interface WorkerOptions {
   /**
    * Time to wait for result when calling a Workflow isolate function.
    * @format {@link https://www.npmjs.com/package/ms | ms} formatted string or number of milliseconds
-   * @default 1s
+   * @default 5s
    */
   isolateExecutionTimeout?: string | number;
 
@@ -188,15 +171,6 @@ export interface WorkerOptions {
   maxIsolateMemoryMB?: number;
 
   /**
-   * Controls number of v8 isolates the Worker should create.
-   *
-   * New Workflows are created on this pool in a round-robin fashion.
-   *
-   * @default 8
-   */
-  isolatePoolSize?: number;
-
-  /**
    * The number of Workflow isolates to keep in cached in memory
    *
    * Cached Workflows continue execution from their last stopping point.
@@ -208,9 +182,18 @@ export interface WorkerOptions {
    *
    * This number is impacted by the the Worker's {@link maxIsolateMemoryMB} option.
    *
-   * @default `max(os.totalmem() / 1GiB - 1, 1) * 500`
+   * @default `max(os.totalmem() / 1GiB - 1, 1) * 200`
    */
   maxCachedWorkflows?: number;
+
+  /**
+   * Controls the number of v8 isolates the Worker should create.
+   *
+   * New Workflows are created on this pool in a round-robin fashion.
+   *
+   * @default 8
+   */
+  isolatePoolSize?: number;
 
   /**
    * A mapping of interceptor type to a list of factories or module paths
@@ -221,14 +204,14 @@ export interface WorkerOptions {
   // maxTaskQueueActivitiesPerSecond?: number;
   // maxWorkerActivitiesPerSecond?: number;
   // isLocalActivityWorkerOnly?: boolean; // defaults to false
+  dependencies?: InjectedDependencies<any>;
 }
 
 /**
  * WorkerOptions with all of the Worker required attributes
  */
-export type WorkerOptionsWithDefaults<T extends WorkerSpec = DefaultWorkerSpec> = WorkerOptions & {
-  dependencies: T['dependencies'] extends ExternalDependencies ? InjectedDependencies<T['dependencies']> : undefined;
-} & Required<
+export type WorkerOptionsWithDefaults = WorkerOptions &
+  Required<
     Pick<
       WorkerOptions,
       | 'shutdownGraceTime'
@@ -242,28 +225,18 @@ export type WorkerOptionsWithDefaults<T extends WorkerSpec = DefaultWorkerSpec> 
       | 'stickyQueueScheduleToStartTimeout'
       | 'isolateExecutionTimeout'
       | 'maxIsolateMemoryMB'
-      | 'isolatePoolSize'
       | 'maxCachedWorkflows'
+      | 'isolatePoolSize'
     >
   >;
 
 /**
  * {@link WorkerOptions} where the attributes the Worker requires are required and time units are converted from ms formatted strings to numbers.
  */
-export interface CompiledWorkerOptions<T extends WorkerSpec = DefaultWorkerSpec>
-  extends Omit<WorkerOptionsWithDefaults<T>, 'serverOptions'> {
+export interface CompiledWorkerOptions extends Omit<WorkerOptionsWithDefaults, 'serverOptions'> {
   shutdownGraceTimeMs: number;
   isolateExecutionTimeoutMs: number;
   stickyQueueScheduleToStartTimeoutMs: number;
-}
-
-/**
- * Type assertion helper for working with conditional dependencies
- */
-function includesDeps<T extends WorkerSpec>(
-  options: unknown
-): options is WorkerSpecOptions<T & { dependencies: ExternalDependencies }> {
-  return (options as WorkerSpecOptions<{ dependencies: ExternalDependencies }>).dependencies !== undefined;
 }
 
 function statIfExists(filesystem: typeof fs, path: string): fs.Stats | undefined {
@@ -303,12 +276,9 @@ export function resolveNodeModulesPaths(filesystem: typeof fs, workflowsPath?: s
   }
 }
 
-export function addDefaultWorkerOptions<T extends WorkerSpec>(
-  options: WorkerSpecOptions<T>
-): WorkerOptionsWithDefaults<T> {
-  // Typescript is really struggling with the conditional exisitence of the dependencies attribute.
-  // Help it out without sacrificing type safety of the other attributes.
-  const ret: Omit<WorkerOptionsWithDefaults<T>, 'dependencies'> = {
+export function addDefaultWorkerOptions(options: WorkerOptions): WorkerOptionsWithDefaults {
+  const { maxCachedWorkflows, ...rest } = options;
+  return {
     nodeModulesPaths: options.nodeModulesPaths ?? resolveNodeModulesPaths(fs, options.workflowsPath),
     shutdownGraceTime: '5s',
     shutdownSignals: ['SIGINT', 'SIGTERM', 'SIGQUIT'],
@@ -319,18 +289,15 @@ export function addDefaultWorkerOptions<T extends WorkerSpec>(
     maxConcurrentWorkflowTaskPolls: 5,
     nonStickyToStickyPollRatio: 0.2,
     stickyQueueScheduleToStartTimeout: '10s',
-    isolateExecutionTimeout: '1s',
+    isolateExecutionTimeout: '5s',
     maxIsolateMemoryMB: Math.max(os.totalmem() - GiB, GiB) / MiB,
     isolatePoolSize: 8,
-    maxCachedWorkflows: options.maxCachedWorkflows || Math.max(os.totalmem() / GiB - 1, 1) * 500,
-    ...options,
+    maxCachedWorkflows: maxCachedWorkflows ?? Math.max(os.totalmem() / GiB - 1, 1) * 200,
+    ...rest,
   };
-  return ret as WorkerOptionsWithDefaults<T>;
 }
 
-export function compileWorkerOptions<T extends WorkerSpec>(
-  opts: WorkerOptionsWithDefaults<T>
-): CompiledWorkerOptions<T> {
+export function compileWorkerOptions(opts: WorkerOptionsWithDefaults): CompiledWorkerOptions {
   return {
     ...opts,
     shutdownGraceTimeMs: msToNumber(opts.shutdownGraceTime),
@@ -436,7 +403,7 @@ function formatTaskToken(taskToken: Uint8Array) {
 /**
  * The temporal worker connects to the service and runs workflows and activities.
  */
-export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
+export class Worker {
   protected readonly activityHeartbeatSubject = new Subject<{
     taskToken: Uint8Array;
     details?: any;
@@ -453,31 +420,30 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
    * Create a new Worker.
    * This method initiates a connection to the server and will throw (asynchronously) on connection failure.
    */
-  public static async create<T extends WorkerSpec = DefaultWorkerSpec>(
-    options: WorkerSpecOptions<T>
-  ): Promise<Worker<T>> {
+  public static async create(options: WorkerOptions): Promise<Worker> {
     const nativeWorkerCtor: WorkerConstructor = this.nativeWorkerCtor;
     const compiledOptions = compileWorkerOptions(addDefaultWorkerOptions(options));
-    // Pass dependencies as undefined to please the type checker
-    const nativeWorker = await nativeWorkerCtor.create({ ...compiledOptions, dependencies: undefined });
+    const nativeWorker = await nativeWorkerCtor.create(compiledOptions);
     try {
-      let contextProvider: IsolateContextProvider | undefined = undefined;
+      let workflowCreator: WorkflowCreator | undefined = undefined;
       // nodeModulesPaths should not be undefined if workflowsPath is provided
       if (compiledOptions.workflowsPath && compiledOptions.nodeModulesPaths) {
-        const builder = new WorkflowIsolateBuilder(
+        const bundler = new WorkflowCodeBundler(
           nativeWorker.logger,
           compiledOptions.nodeModulesPaths,
           compiledOptions.workflowsPath,
           compiledOptions.interceptors?.workflowModules
         );
-        contextProvider = await RoundRobinIsolateContextProvider.create(
-          builder,
+        const bundle = await bundler.createBundle();
+        nativeWorker.logger.info('Workflow bundle created', { size: `${toMB(bundle.length)}MB` });
+        workflowCreator = await IsolatedVMWorkflowCreator.create(
           compiledOptions.isolatePoolSize,
-          compiledOptions.maxIsolateMemoryMB
+          compiledOptions.isolateExecutionTimeoutMs,
+          compiledOptions.maxIsolateMemoryMB,
+          bundle
         );
       }
-
-      return new this(nativeWorker, contextProvider, compiledOptions);
+      return new this(nativeWorker, workflowCreator, compiledOptions);
     } catch (err) {
       // Deregister our worker in case Worker creation (Webpack) failed
       await nativeWorker.completeShutdown();
@@ -491,10 +457,10 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
   protected constructor(
     protected readonly nativeWorker: NativeWorkerLike,
     /**
-     * Optional IsolateContextProvider - if not provided, Worker will not poll on workflows
+     * Optional WorkflowCreator - if not provided, Worker will not poll on workflows
      */
-    protected readonly isolateContextProvider: IsolateContextProvider | undefined,
-    public readonly options: CompiledWorkerOptions<T>
+    protected readonly workflowCreator: WorkflowCreator | undefined,
+    public readonly options: CompiledWorkerOptions
   ) {}
 
   /**
@@ -754,9 +720,13 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
    * Process workflow activations
    */
   protected workflowOperator(): OperatorFunction<ActivationWithContext, ContextAware<{ completion: Uint8Array }>> {
-    const { isolateContextProvider } = this;
-    if (isolateContextProvider === undefined) {
+    const { workflowCreator } = this;
+    if (workflowCreator === undefined) {
       throw new IllegalStateError('Cannot process workflows without an IsolateContextProvider');
+    }
+    interface WorkflowWithInfo {
+      workflow: Workflow;
+      info: WorkflowInfo;
     }
     return pipe(
       closeableGroupBy(({ activation }) => activation.runId),
@@ -784,10 +754,10 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
           }),
           mergeMapWithState(
             async (
-              workflow: Workflow | undefined,
+              state: WorkflowWithInfo | undefined,
               { activation, parentSpan, synthetic }
             ): Promise<{
-              state: Workflow | undefined;
+              state: WorkflowWithInfo | undefined;
               output: ContextAware<{ completion?: Uint8Array; close: boolean }>;
             }> => {
               try {
@@ -801,7 +771,7 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
                   const close = jobs.length < activation.jobs.length;
                   activation.jobs = jobs;
                   if (jobs.length === 0) {
-                    workflow?.dispose();
+                    state?.workflow.dispose();
                     if (!close) {
                       const message = 'Got a Workflow activation with no jobs';
                       throw new IllegalStateError(message);
@@ -816,7 +786,7 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
                     return { state: undefined, output: { close, completion, parentSpan } };
                   }
 
-                  if (workflow === undefined) {
+                  if (state === undefined) {
                     // Find a workflow start job in the activation jobs list
                     const maybeStartWorkflow = activation.jobs.find((j) => j.startWorkflow);
                     if (maybeStartWorkflow !== undefined) {
@@ -845,28 +815,24 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
                         runId: activation.runId,
                       });
                       this.numRunningWorkflowInstancesSubject.next(this.numRunningWorkflowInstancesSubject.value + 1);
-                      // workflow type is Workflow | undefined which doesn't work in the instrumented closures, create add local variable with type Workflow.
-                      const createdWF = await instrument(span, 'workflow.create', async () => {
-                        const context = await isolateContextProvider.getContext();
+                      const workflowInfo = {
+                        workflowType,
+                        runId: activation.runId,
+                        workflowId,
+                        namespace: this.nativeWorker.namespace,
+                        taskQueue: this.options.taskQueue,
+                        isReplaying: activation.isReplaying,
+                      };
 
-                        return await Workflow.create(
-                          context,
-                          {
-                            workflowType,
-                            runId: activation.runId,
-                            workflowId,
-                            namespace: this.nativeWorker.namespace,
-                            taskQueue: this.options.taskQueue,
-                            isReplaying: activation.isReplaying,
-                          },
+                      const workflow = await instrument(span, 'workflow.create', async () => {
+                        return await workflowCreator.createWorkflow(
+                          workflowInfo,
                           this.options.interceptors?.workflowModules ?? [],
-                          randomnessSeed,
-                          tsToMs(activation.timestamp),
-                          this.options.isolateExecutionTimeoutMs
+                          randomnessSeed.toBytes(),
+                          tsToMs(activation.timestamp)
                         );
                       });
-                      workflow = createdWF;
-                      await instrument(span, 'workflow.inject.dependencies', () => this.injectDependencies(createdWF));
+                      state = { workflow, info: workflowInfo };
                     } else {
                       throw new IllegalStateError(
                         'Received workflow activation for an untracked workflow with no start workflow job'
@@ -874,19 +840,24 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
                     }
                   }
 
-                  const completion = await workflow.activate(activation);
-                  this.log.debug('Completed activation', {
-                    runId: activation.runId,
-                  });
+                  try {
+                    const completion = await state.workflow.activate(activation);
+                    this.log.debug('Completed activation', {
+                      runId: activation.runId,
+                    });
 
-                  span.setAttribute('close', close).end();
-                  return { state: workflow, output: { close, completion, parentSpan } };
+                    span.setAttribute('close', close).end();
+                    return { state, output: { close, completion, parentSpan } };
+                  } finally {
+                    const externalCalls = await state.workflow.getAndResetExternalCalls();
+                    await this.processExternalCalls(externalCalls, state.info);
+                  }
                 });
               } catch (error) {
                 this.log.error('Failed to activate workflow', {
                   runId: activation.runId,
                   error,
-                  workflowExists: workflow !== undefined,
+                  workflowExists: state !== undefined,
                 });
                 const completion = coresdk.workflow_completion.WFActivationCompletion.encodeDelimited({
                   runId: activation.runId,
@@ -895,7 +866,7 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
                   },
                 }).finish();
                 // TODO: should we wait to be evicted from core?
-                workflow?.dispose();
+                state?.workflow.dispose();
                 return { state: undefined, output: { close: true, completion, parentSpan } };
               }
             },
@@ -918,42 +889,37 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
   }
 
   /**
-   * Inject default console log and user provided external dependencies into a Workflow isolate
+   * Process extracted external calls from Workflow post activation.
+   *
+   * Each ExternalCall is translated into a injected dependency function call.
+   *
+   * This function does not throw, it will log in case of missing dependencies
+   * or failed dependency function invocations.
    */
-  protected async injectDependencies(workflow: Workflow): Promise<void> {
-    await workflow.injectGlobal(
-      'console.log',
-      (...args: any[]) => {
-        if (workflow.info.isReplaying) return;
-        console.log(`${workflow.info.workflowType} ${workflow.info.runId} >`, ...args);
-      },
-      ApplyMode.SYNC
-    );
-
-    if (includesDeps(this.options)) {
-      for (const [ifaceName, dep] of Object.entries(this.options.dependencies)) {
-        for (const [fnName, impl] of Object.entries(dep)) {
-          await workflow.injectDependency(
+  protected async processExternalCalls(externalCalls: ExternalCall[], info: WorkflowInfo): Promise<void> {
+    const { dependencies } = this.options;
+    await Promise.all(
+      externalCalls.map(async ({ ifaceName, fnName, args }) => {
+        const dep = dependencies?.[ifaceName]?.[fnName];
+        if (dep === undefined) {
+          this.log.error('Workflow referenced an unregistrered external dependency', {
             ifaceName,
             fnName,
-            (...args) => {
-              if (!impl.callDuringReplay && workflow.info.isReplaying) return;
-              try {
-                const ret = impl.fn(workflow.info, ...args);
-                if (ret instanceof Promise) {
-                  return ret.catch((error) => this.handleExternalDependencyError(workflow.info, impl.applyMode, error));
-                }
-                return ret;
-              } catch (error) {
-                this.handleExternalDependencyError(workflow.info, impl.applyMode, error);
-              }
-            },
-            impl.applyMode,
-            getIvmTransferOptions(impl)
-          );
+          });
+        } else if (dep.callDuringReplay || !info.isReplaying) {
+          try {
+            await dep.fn(info, ...args);
+          } catch (error) {
+            this.log.error('External dependency function threw an error', {
+              ifaceName,
+              fnName,
+              error,
+              workflowInfo: info,
+            });
+          }
         }
-      }
-    }
+      })
+    );
   }
 
   /**
@@ -1048,7 +1014,7 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
    * Poll for Workflow activations, handle them, and report completions.
    */
   protected workflow$(): Observable<void> {
-    if (this.isolateContextProvider === undefined) {
+    if (this.workflowCreator === undefined) {
       return EMPTY;
     }
     return this.workflowPoll$().pipe(
@@ -1190,21 +1156,7 @@ export class Worker<T extends WorkerSpec = DefaultWorkerSpec> {
       );
     } finally {
       await this.nativeWorker.completeShutdown();
-      this.isolateContextProvider?.destroy();
-    }
-  }
-
-  /**
-   * Log when an external dependency function throws an error in IGNORED mode and throw otherwise
-   */
-  protected handleExternalDependencyError(workflowInfo: WorkflowInfo, applyMode: ApplyMode, error: unknown): void {
-    if (applyMode === ApplyMode.SYNC_IGNORED || applyMode === ApplyMode.ASYNC_IGNORED) {
-      this.log.error('External dependency function threw an error', {
-        workflowInfo,
-        error,
-      });
-    } else {
-      throw error;
+      await this.workflowCreator?.destroy();
     }
   }
 }

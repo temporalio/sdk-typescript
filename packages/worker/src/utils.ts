@@ -10,3 +10,7 @@ export function partition<T>(arr: T[], predicate: (x: T) => boolean): [T[], T[]]
   arr.forEach((v) => (predicate(v) ? truthy : falsy).push(v));
   return [truthy, falsy];
 }
+
+export function toMB(bytes: number, fractionDigits = 2): string {
+  return (bytes / 1024 / 1024).toFixed(fractionDigits);
+}

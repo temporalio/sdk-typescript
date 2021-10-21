@@ -3,6 +3,7 @@ import pidusage from 'pidusage';
 import { interval, range, Observable, OperatorFunction, ReplaySubject, pipe, lastValueFrom } from 'rxjs';
 import { bufferTime, map, mergeMap, tap, takeUntil } from 'rxjs/operators';
 import { Connection, WorkflowClient } from '@temporalio/client';
+import { toMB } from '@temporalio/worker/lib/utils';
 import { StarterArgSpec, starterArgSpec, getRequired } from './args';
 
 async function runWorkflow(client: WorkflowClient, name: string, taskQueue: string) {
@@ -15,10 +16,6 @@ class NumberOfWorkflows {
 
 class UntilSecondsElapsed {
   constructor(readonly seconds: number = 0) {}
-}
-
-function toMB(bytes: number, fractionDigits = 2) {
-  return (bytes / 1024 / 1024).toFixed(fractionDigits);
 }
 
 interface RunWorkflowOptions {

@@ -9,7 +9,6 @@ export * from './errors';
 export * from './failure';
 export * from './interceptors';
 export * from './interfaces';
-export * from './otel';
 export * from './time';
 export * from './tls-config';
 export * from './workflow-handle';
