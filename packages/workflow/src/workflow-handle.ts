@@ -1,4 +1,4 @@
-import { BaseWorkflowHandle, SignalDefinition, Workflow } from '@temporalio/common';
+import { BaseExecutableWorkflowHandle, SignalDefinition, Workflow } from '@temporalio/common';
 
 /**
  * Handle representing an external Workflow execution
@@ -53,4 +53,4 @@ export interface ExternalWorkflowHandle {
  * await handle.result(); // throws WorkflowExecutionTerminatedError
  * ```
  */
-export interface ChildWorkflowHandle<T extends Workflow> extends BaseWorkflowHandle<T> {} // eslint-disable-line @typescript-eslint/no-empty-interface
+export interface ChildWorkflowHandle<T extends Workflow> extends BaseExecutableWorkflowHandle<T> {} // eslint-disable-line @typescript-eslint/no-empty-interface

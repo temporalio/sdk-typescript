@@ -7,16 +7,6 @@ import { Workflow, WorkflowResultType, SignalDefinition } from './interfaces';
  */
 export interface BaseWorkflowHandle<T extends Workflow> {
   /**
-   * Start the Workflow with arguments, returns a Promise that resolves when the Workflow execution completes
-   */
-  execute(...args: Parameters<T>): Promise<WorkflowResultType<T>>;
-
-  /**
-   * Start the Workflow with arguments, returns a Promise that resolves with the execution runId
-   */
-  start(...args: Parameters<T>): Promise<string /* runId */>;
-
-  /**
    * Promise that resolves when Workflow execution completes
    */
   result(): Promise<WorkflowResultType<T>>;
@@ -37,4 +27,19 @@ export interface BaseWorkflowHandle<T extends Workflow> {
    * The workflowId of the current Workflow
    */
   readonly workflowId: string;
+}
+
+/**
+ * Base Executable WorkflowHandle interface, supports starting a new Workflow
+ */
+export interface BaseExecutableWorkflowHandle<T extends Workflow> extends BaseWorkflowHandle<T> {
+  /**
+   * Start the Workflow with arguments, returns a Promise that resolves when the Workflow execution completes
+   */
+  execute(...args: Parameters<T>): Promise<WorkflowResultType<T>>;
+
+  /**
+   * Start the Workflow with arguments, returns a Promise that resolves with the execution runId
+   */
+  start(...args: Parameters<T>): Promise<string /* runId */>;
 }

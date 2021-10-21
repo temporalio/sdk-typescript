@@ -169,7 +169,7 @@ if (RUN_INTEGRATION_TESTS) {
     const { workflowId, runId, execResult, result } = await workflow.execute();
     t.is(execResult, 'success');
     t.is(result, 'success');
-    const child = client.createWorkflowHandle({ workflowId, runId });
+    const child = client.createExistingWorkflowHandle({ workflowId, runId });
     t.is(await child.result(), 'success');
   });
 
@@ -205,7 +205,7 @@ if (RUN_INTEGRATION_TESTS) {
     while (childExecution === undefined) {
       childExecution = (await workflow.query(workflows.childExecutionQuery)) as ValidWorkflowExecution;
     }
-    const child = client.createWorkflowHandle(childExecution);
+    const child = client.createExistingWorkflowHandle(childExecution);
     await child.terminate();
     const err: WorkflowExecutionFailedError = await t.throwsAsync(workflow.result(), {
       instanceOf: WorkflowExecutionFailedError,
@@ -497,26 +497,32 @@ if (RUN_INTEGRATION_TESTS) {
 
   test('WorkflowHandle.result() throws if continued as new', async (t) => {
     const { client } = t.context;
-    let workflow = client.createWorkflowHandle(workflows.continueAsNewSameWorkflow, {
-      taskQueue: 'test',
-    });
-    let err = await t.throwsAsync(workflow.execute(), { instanceOf: WorkflowExecutionContinuedAsNewError });
-    if (!(err instanceof WorkflowExecutionContinuedAsNewError)) return; // Type assertion
-    workflow = client.createWorkflowHandle<typeof workflows.continueAsNewSameWorkflow>({
-      workflowId: workflow.workflowId,
-      runId: err.newExecutionRunId,
-    });
+    let execution = await (async () => {
+      const workflow = client.createWorkflowHandle(workflows.continueAsNewSameWorkflow, {
+        taskQueue: 'test',
+      });
+      const err = await t.throwsAsync(workflow.execute(), { instanceOf: WorkflowExecutionContinuedAsNewError });
+      if (!(err instanceof WorkflowExecutionContinuedAsNewError)) throw new Error('Unreachable'); // Type assertion
+      return {
+        workflowId: workflow.workflowId,
+        runId: err.newExecutionRunId,
+      };
+    })();
+    execution = await (async () => {
+      const workflow = client.createExistingWorkflowHandle<typeof workflows.continueAsNewSameWorkflow>(execution);
 
-    await workflow.signal(workflows.continueAsNewSignal);
-    err = await t.throwsAsync(workflow.result(), {
-      instanceOf: WorkflowExecutionContinuedAsNewError,
-    });
-    if (!(err instanceof WorkflowExecutionContinuedAsNewError)) return; // Type assertion
+      await workflow.signal(workflows.continueAsNewSignal);
+      const err = await t.throwsAsync(workflow.result(), {
+        instanceOf: WorkflowExecutionContinuedAsNewError,
+      });
+      if (!(err instanceof WorkflowExecutionContinuedAsNewError)) throw new Error('Unreachable'); // Type assertion
+      return {
+        workflowId: workflow.workflowId,
+        runId: err.newExecutionRunId,
+      };
+    })();
 
-    workflow = client.createWorkflowHandle<typeof workflows.continueAsNewSameWorkflow>({
-      workflowId: workflow.workflowId,
-      runId: err.newExecutionRunId,
-    });
+    const workflow = client.createExistingWorkflowHandle<typeof workflows.continueAsNewSameWorkflow>(execution);
     await workflow.result();
   });
 
@@ -531,21 +537,24 @@ if (RUN_INTEGRATION_TESTS) {
 
   test('continue-as-new-to-different-workflow', async (t) => {
     const { client } = t.context;
-    let workflow = client.createWorkflowHandle(workflows.continueAsNewToDifferentWorkflow, {
-      taskQueue: 'test',
-    });
-    const err = await t.throwsAsync(workflow.execute(), { instanceOf: WorkflowExecutionContinuedAsNewError });
-    if (!(err instanceof WorkflowExecutionContinuedAsNewError)) return; // Type assertion
-    workflow = client.createWorkflowHandle<typeof workflows.sleeper>({
-      workflowId: workflow.workflowId,
-      runId: err.newExecutionRunId,
-    });
+    const execution = await (async () => {
+      const workflow = client.createWorkflowHandle(workflows.continueAsNewToDifferentWorkflow, {
+        taskQueue: 'test',
+      });
+      const err = await t.throwsAsync(workflow.execute(), { instanceOf: WorkflowExecutionContinuedAsNewError });
+      if (!(err instanceof WorkflowExecutionContinuedAsNewError)) throw new Error('Unreachable'); // Type assertion
+      return {
+        workflowId: workflow.workflowId,
+        runId: err.newExecutionRunId,
+      };
+    })();
+    const workflow = client.createExistingWorkflowHandle<typeof workflows.sleeper>(execution);
     await workflow.result();
     const info = await workflow.describe();
     t.is(info.workflowExecutionInfo?.type?.name, 'sleeper');
     const { history } = await client.service.getWorkflowExecutionHistory({
       namespace,
-      execution: { workflowId: workflow.workflowId, runId: err.newExecutionRunId },
+      execution,
     });
     const timeSlept = await defaultDataConverter.fromPayloads(
       0,
@@ -556,24 +565,25 @@ if (RUN_INTEGRATION_TESTS) {
 
   test('signalWithStart works as intended and returns correct runId', async (t) => {
     const { client } = t.context;
-    let workflow = client.createWorkflowHandle(workflows.interruptableWorkflow, {
-      taskQueue: 'test',
-    });
-    const runId = await workflow.signalWithStart(workflows.interruptSignal, ['interrupted from signalWithStart'], []);
-    {
-      const err: WorkflowExecutionFailedError = await t.throwsAsync(workflow.result(), {
-        instanceOf: WorkflowExecutionFailedError,
+    const execution = await (async () => {
+      const workflow = client.createWorkflowHandle(workflows.interruptableWorkflow, {
+        taskQueue: 'test',
       });
-      if (!(err.cause instanceof ApplicationFailure)) {
-        return t.fail('Expected err.cause to be an instance of ApplicationFailure');
+      const runId = await workflow.signalWithStart(workflows.interruptSignal, ['interrupted from signalWithStart'], []);
+      {
+        const err: WorkflowExecutionFailedError = await t.throwsAsync(workflow.result(), {
+          instanceOf: WorkflowExecutionFailedError,
+        });
+        if (!(err.cause instanceof ApplicationFailure)) {
+          t.fail('Expected err.cause to be an instance of ApplicationFailure');
+          throw new Error('Test failed'); // This is just to mark this as unreachable
+        }
+        t.is(err.cause.message, 'interrupted from signalWithStart');
       }
-      t.is(err.cause.message, 'interrupted from signalWithStart');
-    }
+      return { workflowId: workflow.workflowId, runId };
+    })();
     // Test returned runId
-    workflow = client.createWorkflowHandle<typeof workflows.interruptableWorkflow>({
-      workflowId: workflow.workflowId,
-      runId,
-    });
+    const workflow = client.createExistingWorkflowHandle<typeof workflows.interruptableWorkflow>(execution);
     {
       const err: WorkflowExecutionFailedError = await t.throwsAsync(workflow.result(), {
         instanceOf: WorkflowExecutionFailedError,
