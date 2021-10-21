@@ -505,7 +505,7 @@ export class WorkflowClient {
   }
 
   /**
-   * Create a {@link WorkflowHandle} for starting a new Workflow execution
+   * Create a {@link WorkflowHandle}. Handles can start/execute, cancel/terminate, signal/query, describe or signalWithStart Workflows.
    *
    * @param name workflow type name (the exported function name in the Node.js SDK)
    * @param options used to start the Workflow
@@ -513,7 +513,7 @@ export class WorkflowClient {
   public createWorkflowHandle<T extends Workflow>(name: string, options?: Partial<WorkflowOptions>): WorkflowHandle<T>;
 
   /**
-   * Create a {@link WorkflowHandle} for starting a new Workflow execution
+   * Create a {@link WorkflowHandle}. Handles can start/execute, cancel/terminate, signal/query, describe or signalWithStart Workflows.
    *
    * @param func an exported function
    * @param options used to start the Workflow
@@ -521,7 +521,7 @@ export class WorkflowClient {
   public createWorkflowHandle<T extends Workflow>(func: T, options?: Partial<WorkflowOptions>): WorkflowHandle<T>;
 
   /**
-   * Create a {@link WorkflowHandle} for an existing Workflow execution
+   * Create a {@link WorkflowHandle}. Handles can start/execute, cancel/terminate, signal/query, describe or signalWithStart Workflows.
    */
   public createWorkflowHandle<T extends Workflow>(execution: ValidWorkflowExecution): WorkflowHandle<T>;
 
