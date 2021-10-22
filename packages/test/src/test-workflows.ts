@@ -454,7 +454,7 @@ test('tasksAndMicrotasks', async (t) => {
   const { logs, workflowType } = t.context;
   {
     const req = await activate(t, makeStartWorkflow(workflowType));
-    compareCompletion(t, req, makeSuccess([makeStartTimerCommand({ seq: 1, startToFireTimeout: msToTs(0) })]));
+    compareCompletion(t, req, makeSuccess([makeStartTimerCommand({ seq: 1, startToFireTimeout: msToTs(1) })]));
   }
   {
     const req = await activate(t, makeFireTimer(1));
@@ -484,7 +484,7 @@ test('trailingTimer', async (t) => {
       t,
       completion,
       makeSuccess([
-        makeStartTimerCommand({ seq: 3, startToFireTimeout: msToTs(0) }),
+        makeStartTimerCommand({ seq: 3, startToFireTimeout: msToTs(1) }),
         makeCompleteWorkflowExecution(await defaultDataConverter.toPayload('first')),
       ])
     );
@@ -1276,7 +1276,7 @@ test('cancellationErrorIsPropagated', async (t) => {
     t,
     req,
     makeSuccess([
-      makeStartTimerCommand({ seq: 1, startToFireTimeout: msToTs(0) }),
+      makeStartTimerCommand({ seq: 1, startToFireTimeout: msToTs(1) }),
       makeCancelTimerCommand({ seq: 1 }),
       {
         failWorkflowExecution: {
