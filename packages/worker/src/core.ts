@@ -4,10 +4,20 @@ import { BehaviorSubject, lastValueFrom, of } from 'rxjs';
 import { concatMap, delay, map, repeat } from 'rxjs/operators';
 import { IllegalStateError, normalizeTlsConfig } from '@temporalio/common';
 import * as native from '@temporalio/core-bridge';
-import { corePollLogs, coreShutdown, newCore, TelemetryOptions } from '@temporalio/core-bridge';
+import {
+  corePollLogs,
+  coreShutdown,
+  newCore,
+  TelemetryOptions as RequiredTelemetryOptions,
+} from '@temporalio/core-bridge';
 import { compileServerOptions, getDefaultServerOptions, RequiredServerOptions, ServerOptions } from './server-options';
 import { DefaultLogger, Logger, LogEntry, LogTimestamp, timeOfDayToBigint } from './logger';
 import * as errors from './errors';
+import { filterNullAndUndefined } from './utils';
+
+export type TelemetryOptions = Omit<RequiredTelemetryOptions, 'logForwardingLevel'> & {
+  logForwardingLevel?: RequiredTelemetryOptions['logForwardingLevel'];
+};
 
 export interface CoreOptions {
   /** Options for communicating with the Temporal server */
@@ -22,13 +32,13 @@ export interface CoreOptions {
 }
 
 export interface CompiledCoreOptions extends CoreOptions {
-  telemetryOptions: TelemetryOptions;
+  telemetryOptions: RequiredTelemetryOptions;
   /** Options for communicating with the Temporal server */
   serverOptions: RequiredServerOptions;
   logger: Logger;
 }
 
-function defaultTelemetryOptions(): TelemetryOptions {
+function defaultTelemetryOptions(): RequiredTelemetryOptions {
   return {
     logForwardingLevel: 'INFO',
   };
@@ -86,8 +96,14 @@ export class Core {
    * Factory function for creating a new Core instance, not exposed because Core is meant to be used as a singleton
    */
   protected static async create(options: CoreOptions): Promise<Core> {
-    const compiledServerOptions = compileServerOptions({ ...getDefaultServerOptions(), ...options.serverOptions });
-    const telemetryOptions = { ...defaultTelemetryOptions(), ...options.telemetryOptions };
+    const compiledServerOptions = compileServerOptions({
+      ...getDefaultServerOptions(),
+      ...filterNullAndUndefined(options.serverOptions ?? {}),
+    });
+    const telemetryOptions = {
+      ...defaultTelemetryOptions(),
+      ...filterNullAndUndefined(options.telemetryOptions ?? {}),
+    };
     const compiledOptions = {
       serverOptions: {
         ...compiledServerOptions,
@@ -163,7 +179,11 @@ export class Core {
       }
     }
     this.instantiator = 'install';
-    this._instance = this.create(options);
+    this._instance = this.create(options).catch((err) => {
+      // Unset the singleton in case creation failed
+      delete this._instance;
+      throw err;
+    });
     return this._instance;
   }
 
@@ -203,11 +223,21 @@ export class Core {
   public async deregisterWorker(worker: native.Worker): Promise<void> {
     this.registeredWorkers.delete(worker);
     if (this.registeredWorkers.size === 0) {
-      this.shouldPollForLogs.next(false);
-      await promisify(coreShutdown)(this.native);
-      // This will effectively drain all logs
-      await this.logPollPromise;
-      delete Core._instance;
+      await this.shutdown();
     }
+  }
+
+  /**
+   * Shutdown and unset the singleton instance.
+   *
+   * Hidden in the docs because it is only meant to be used for testing.
+   * @hidden
+   */
+  public async shutdown(): Promise<void> {
+    this.shouldPollForLogs.next(false);
+    await promisify(coreShutdown)(this.native);
+    // This will effectively drain all logs
+    await this.logPollPromise;
+    delete Core._instance;
   }
 }
