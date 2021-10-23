@@ -18,6 +18,7 @@ import { install, updateNodeVersion, replaceTemporalVersion } from './helpers/in
 import { testIfThisComputerIsOnline } from './helpers/is-online';
 import { isWriteable } from './helpers/is-writeable';
 import { getErrorCode } from './helpers/get-error-code';
+import { stripSnipComments } from './helpers/strip-snip-comments';
 
 export class DownloadError extends Error {}
 
@@ -158,6 +159,7 @@ export async function createApp({
       await retry(() => downloadAndExtractSample(root, sample), {
         retries: 3,
       });
+      await stripSnipComments(root)
     }
   } catch (reason) {
     let message = 'Unable to download';
