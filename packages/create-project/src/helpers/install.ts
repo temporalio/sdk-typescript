@@ -1,6 +1,6 @@
 // Modified from: https://github.com/vercel/next.js/blob/2425f4703c4c6164cecfdb6aa8f80046213f0cc6/packages/create-next-app/helpers/install.ts
 import { spawn } from './subprocess';
-import { readFileSync, writeFileSync } from 'fs';
+import { readFile, writeFile } from 'fs/promises';
 
 import { isUrlOk } from './samples';
 
@@ -41,22 +41,22 @@ export async function updateNodeVersion({ root }: InstallArgs): Promise<void> {
 
     const packageExists = await isUrlOk(`https://registry.npmjs.org/${packageName}`);
     if (packageExists) {
-      let fileString = readFileSync(fileName).toString();
-      writeFileSync(fileName, fileString.replace(`@tsconfig/node${versionAlreadyInPackageJson}`, packageName));
+      let fileString = (await readFile(fileName)).toString();
+      await writeFile(fileName, fileString.replace(`@tsconfig/node${versionAlreadyInPackageJson}`, packageName));
 
       const tsconfigJson = `${root}/tsconfig.json`;
-      fileString = readFileSync(tsconfigJson).toString();
-      writeFileSync(tsconfigJson, fileString.replace(`@tsconfig/node${versionAlreadyInPackageJson}`, packageName));
+      fileString = (await readFile(tsconfigJson)).toString();
+      await writeFile(tsconfigJson, fileString.replace(`@tsconfig/node${versionAlreadyInPackageJson}`, packageName));
     }
 
-    writeFileSync(`${root}/.nvmrc`, currentNodeVersion.toString());
+    await writeFile(`${root}/.nvmrc`, currentNodeVersion.toString());
   }
 }
 
-export function replaceTemporalVersion({ root, temporalioVersion }: InstallArgs): void {
+export async function replaceTemporalVersion({ root, temporalioVersion }: InstallArgs): Promise<void> {
   const fileName = `${root}/package.json`;
 
-  const packageJson = JSON.parse(readFileSync(fileName, 'utf8'));
+  const packageJson = JSON.parse(await readFile(fileName, 'utf8'));
   packageJson.dependencies.temporalio = temporalioVersion;
-  writeFileSync(fileName, JSON.stringify(packageJson));
+  await writeFile(fileName, JSON.stringify(packageJson));
 }

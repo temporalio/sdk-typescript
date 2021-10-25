@@ -3,7 +3,7 @@
 import { execSync } from 'child_process';
 import path from 'path';
 import prompts from 'prompts';
-import fs from 'fs-extra';
+import { remove } from 'fs-extra';
 
 const NOT_A_GIT_REPOSITORY_STATUS_CODE = 128;
 
@@ -71,7 +71,7 @@ export async function tryGitInit(root: string, useGit?: boolean): Promise<boolea
   } catch (e) {
     if (didInit) {
       try {
-        fs.removeSync(path.join(root, '.git'));
+        await remove(path.join(root, '.git'));
       } catch (_) {}
     }
     return false;
