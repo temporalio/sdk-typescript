@@ -72,6 +72,42 @@ if (RUN_INTEGRATION_TESTS) {
     {
       const core = await Core.instance();
       t.is(core.options.serverOptions.workerBinaryId, 'test-id');
+      await core.shutdown();
     }
+  });
+
+  test.serial('Core.instance() throws meaningful error when passed invalid address', async (t) => {
+    await t.throwsAsync(Core.install({ serverOptions: { address: ':invalid' } }), {
+      instanceOf: TypeError,
+      message: 'Invalid serverOptions.address',
+    });
+  });
+
+  test.serial('Core.instance() throws meaningful error when passed invalid clientCertPair', async (t) => {
+    await t.throwsAsync(Core.install({ serverOptions: { tls: { clientCertPair: {} as any } } }), {
+      instanceOf: TypeError,
+      message: 'Invalid or missing serverOptions.tls.clientCertPair.crt',
+    });
+  });
+
+  test.serial('Core.instance() throws meaningful error when passed invalid oTelCollectorUrl', async (t) => {
+    await t.throwsAsync(Core.install({ telemetryOptions: { oTelCollectorUrl: ':invalid' } }), {
+      instanceOf: TypeError,
+      message: 'Invalid telemetryOptions.oTelCollectorUrl',
+    });
+  });
+
+  test.serial('Core.instance() throws meaningful error when passed invalid prometheusMetricsBindAddress', async (t) => {
+    await t.throwsAsync(Core.install({ telemetryOptions: { prometheusMetricsBindAddress: ':invalid' } }), {
+      instanceOf: TypeError,
+      message: 'Invalid telemetryOptions.prometheusMetricsBindAddress',
+    });
+  });
+
+  test.serial('Core.instance() throws meaningful error when passed invalid tracingFilter', async (t) => {
+    await t.throwsAsync(Core.install({ telemetryOptions: { tracingFilter: 2 as any } }), {
+      instanceOf: TypeError,
+      message: 'Invalid tracingFilter',
+    });
   });
 }
