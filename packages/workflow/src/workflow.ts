@@ -11,6 +11,7 @@ import {
   WorkflowResultType,
   SignalDefinition,
   QueryDefinition,
+  ValueError,
 } from '@temporalio/common';
 import {
   ChildWorkflowCancellationType,
@@ -82,15 +83,17 @@ function timerNextHandler(input: TimerInput) {
  *
  * Schedules a timer on the Temporal service.
  *
- * @param ms sleep duration - {@link https://www.npmjs.com/package/ms | ms} formatted string or number of milliseconds
+ * @param ms sleep duration - {@link https://www.npmjs.com/package/ms | ms} formatted string or number of milliseconds. If given a negative number, value will be set to 1.
+ *
  */
 export function sleep(ms: number | string): Promise<void> {
   const seq = state.nextSeqs.timer++;
 
   const execute = composeInterceptors(state.interceptors.outbound, 'startTimer', timerNextHandler);
 
+  const durationMs = Math.max(1, msToNumber(ms));
   return execute({
-    durationMs: msToNumber(ms),
+    durationMs,
     seq,
   });
 }
