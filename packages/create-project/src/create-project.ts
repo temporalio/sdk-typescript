@@ -159,7 +159,7 @@ export async function createApp({
       await retry(() => downloadAndExtractSample(root, sample), {
         retries: 3,
       });
-      await stripSnipComments(root)
+      await stripSnipComments(root);
     }
   } catch (reason) {
     let message = 'Unable to download';
