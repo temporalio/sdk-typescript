@@ -27,17 +27,16 @@ export function setRequireFunc(fn: Exclude<typeof state['require'], undefined>):
 
 export function overrideGlobals(): void {
   const global = globalThis as any;
-  // Mock any weak reference holding structures because GC is non-deterministic.
+  // Mock any weak reference because GC is non-deterministic and the effect is observable from the Workflow.
   // WeakRef is implemented in V8 8.4 which is embedded in node >=14.6.0.
   // Workflow developer will get a meaningful exception if they try to use these.
-  global.WeakMap = function () {
-    throw new DeterminismViolationError('WeakMap cannot be used in workflows because v8 GC is non-deterministic');
-  };
-  global.WeakSet = function () {
-    throw new DeterminismViolationError('WeakSet cannot be used in workflows because v8 GC is non-deterministic');
-  };
   global.WeakRef = function () {
     throw new DeterminismViolationError('WeakRef cannot be used in workflows because v8 GC is non-deterministic');
+  };
+  global.FinalizationRegistry = function () {
+    throw new DeterminismViolationError(
+      'FinalizationRegistry cannot be used in workflows because v8 GC is non-deterministic'
+    );
   };
 
   const OriginalDate = globalThis.Date;

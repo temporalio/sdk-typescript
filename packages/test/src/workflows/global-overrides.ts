@@ -1,15 +1,17 @@
 /* eslint-disable @typescript-eslint/ban-ts-comment */
 
 /**
- * Test that we get meaningful errors when trying to use Weak* constructors.
- * NOTE that we had to add @ts-ignore to all of the constructor calls because
- * workflows intentionally do not include Weak* types and typescript complains
- * and suggests changing the `lib` compiler option to es2015 or later when used.
+ * Test that we get meaningful errors when trying to use the non-deterministic
+ * WeakRef and FinalizationRegistry constructors.
+ * NOTE: the @ts-ignore comments in the constructor calls are there because
+ * WeakRef and FinalizationRegistry isn't defined in es2020 (lib in
+ * @tsconfig/node14).
  */
 const startupErrors: string[] = [];
 
 try {
-  new WeakMap();
+  // @ts-ignore
+  new WeakRef();
 } catch (err: any) {
   startupErrors.push(err.toString());
 }
@@ -19,12 +21,8 @@ export async function globalOverrides(): Promise<void> {
     console.log(err);
   }
   try {
-    new WeakMap();
-  } catch (err: any) {
-    console.log(err.toString());
-  }
-  try {
-    new WeakSet();
+    // @ts-ignore
+    new FinalizationRegistry();
   } catch (err: any) {
     console.log(err.toString());
   }
