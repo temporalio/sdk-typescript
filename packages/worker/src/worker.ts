@@ -1161,7 +1161,6 @@ export class Worker {
   }
 }
 
-type NonNullable<T> = Exclude<T, null | undefined>; // Remove null and undefined from T
 type NonNullableObject<T> = { [P in keyof T]-?: NonNullable<T[P]> };
 
 /**

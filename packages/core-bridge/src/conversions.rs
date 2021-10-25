@@ -17,8 +17,39 @@ macro_rules! js_value_getter {
     ($js_cx:expr, $js_obj:ident, $prop_name:expr, $js_type:ty) => {
         $js_obj
             .get($js_cx, $prop_name)?
-            .downcast_or_throw::<$js_type, _>($js_cx)?
+            .downcast::<$js_type, _>($js_cx)
+            .map_err(|_| {
+                $js_cx
+                    .throw_type_error::<_, Option<Vec<u8>>>(format!("Invalid {}", $prop_name))
+                    .unwrap_err()
+            })?
             .value($js_cx)
+    };
+}
+
+macro_rules! js_optional_getter {
+    ($js_cx:expr, $js_obj:ident, $prop_name:expr, $js_type:ty) => {
+        match get_optional($js_cx, $js_obj, $prop_name) {
+            Some(val) => Some(val.downcast::<$js_type, _>($js_cx).map_err(|_| {
+                $js_cx
+                    .throw_type_error::<_, Option<Vec<u8>>>(format!("Invalid {}", $prop_name))
+                    .unwrap_err()
+            })?),
+            None => None,
+        }
+    };
+}
+
+macro_rules! js_optional_getter_ref {
+    ($js_cx:expr, $js_obj:ident, $prop_name:expr, $js_type:ty) => {
+        match get_optional($js_cx, &$js_obj, $prop_name) {
+            Some(val) => Some(val.downcast::<$js_type, _>($js_cx).map_err(|_| {
+                $js_cx
+                    .throw_type_error::<_, Option<Vec<u8>>>(format!("Invalid {}", $prop_name))
+                    .unwrap_err()
+            })?),
+            None => None,
+        }
     };
 }
 
@@ -49,14 +80,39 @@ fn get_optional_vec<'a, C, K>(
     attr: K,
 ) -> Result<Option<Vec<u8>>, neon::result::Throw>
 where
-    K: neon::object::PropertyKey + Display,
+    K: neon::object::PropertyKey + Display + Clone,
     C: Context<'a>,
 {
-    if let Some(val) = get_optional(cx, obj, attr) {
-        let buf = val.downcast_or_throw::<JsBuffer, C>(cx)?;
+    if let Some(val) = get_optional(cx, obj, attr.clone()) {
+        let buf = val.downcast::<JsBuffer, C>(cx).map_err(|_| {
+            cx.throw_type_error::<_, Option<Vec<u8>>>(format!("Invalid {}", attr))
+                .unwrap_err()
+        })?;
         Ok(Some(cx.borrow(&buf, |data| data.as_slice::<u8>().to_vec())))
     } else {
         Ok(None)
+    }
+}
+
+/// Helper for extracting a Vec<u8> from optional Buffer at [obj].[attr]
+fn get_vec<'a, C, K>(
+    cx: &mut C,
+    obj: &Handle<JsObject>,
+    attr: K,
+    full_attr_path: &str,
+) -> Result<Vec<u8>, neon::result::Throw>
+where
+    K: neon::object::PropertyKey + Display + Clone,
+    C: Context<'a>,
+{
+    if let Some(val) = get_optional(cx, obj, attr.clone()) {
+        let buf = val.downcast::<JsBuffer, C>(cx).map_err(|_| {
+            cx.throw_type_error::<_, Option<Vec<u8>>>(format!("Invalid {}", attr))
+                .unwrap_err()
+        })?;
+        Ok(cx.borrow(&buf, |data| data.as_slice::<u8>().to_vec()))
+    } else {
+        cx.throw_type_error::<_, Vec<u8>>(format!("Invalid or missing {}", full_attr_path))
     }
 }
 
@@ -88,29 +144,37 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
         &self,
         cx: &mut FunctionContext,
     ) -> NeonResult<ServerGatewayOptions> {
-        let url = js_value_getter!(cx, self, "url", JsString);
+        let url = match Url::parse(&js_value_getter!(cx, self, "url", JsString)) {
+            Ok(url) => url,
+            // Note that address is what's used in the Node side.
+            Err(_) => cx.throw_type_error("Invalid serverOptions.address")?,
+        };
 
-        let tls_cfg = match get_optional(cx, self, "tls") {
+        let tls_cfg = match js_optional_getter!(cx, self, "tls", JsObject) {
             None => None,
-            Some(val) => {
-                let tls = val.downcast_or_throw::<JsObject, _>(cx)?;
-                let domain = match get_optional(cx, &tls, "serverNameOverride") {
-                    None => None,
-                    Some(val) => Some(val.downcast_or_throw::<JsString, _>(cx)?.value(cx)),
-                };
+            Some(tls) => {
+                let domain = js_optional_getter_ref!(cx, tls, "serverNameOverride", JsString)
+                    .map(|h| h.value(cx));
 
                 let server_root_ca_cert = get_optional_vec(cx, &tls, "serverRootCACertificate")?;
-                let client_tls_config = match get_optional(cx, &tls, "clientCertPair") {
-                    None => None,
-                    Some(val) => {
-                        let client_tls_obj = val.downcast_or_throw::<JsObject, _>(cx)?;
-                        Some(ClientTlsConfig {
-                            client_cert: get_optional_vec(cx, &client_tls_obj, "crt")?.unwrap(),
-                            client_private_key: get_optional_vec(cx, &client_tls_obj, "key")?
-                                .unwrap(),
-                        })
-                    }
-                };
+                let client_tls_config =
+                    match js_optional_getter_ref!(cx, tls, "clientCertPair", JsObject) {
+                        None => None,
+                        Some(client_tls_obj) => Some(ClientTlsConfig {
+                            client_cert: get_vec(
+                                cx,
+                                &client_tls_obj,
+                                "crt",
+                                "serverOptions.tls.clientCertPair.crt",
+                            )?,
+                            client_private_key: get_vec(
+                                cx,
+                                &client_tls_obj,
+                                "key",
+                                "serverOptions.tls.clientCertPair.crt",
+                            )?,
+                        }),
+                    };
 
                 Some(TlsConfig {
                     server_root_ca_cert,
@@ -120,41 +184,39 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
             }
         };
 
-        let retry_config = match get_optional(cx, self, "retry") {
+        let retry_config = match js_optional_getter!(cx, self, "retry", JsObject) {
             None => RetryConfig::default(),
-            Some(val) => {
-                let retry_config = val.downcast_or_throw::<JsObject, _>(cx)?;
-                RetryConfig {
-                    initial_interval: Duration::from_millis(js_value_getter!(
-                        cx,
-                        retry_config,
-                        "initialInterval",
-                        JsNumber
-                    ) as u64),
-                    randomization_factor: js_value_getter!(
-                        cx,
-                        retry_config,
-                        "randomizationFactor",
-                        JsNumber
-                    ),
-                    multiplier: js_value_getter!(cx, retry_config, "multiplier", JsNumber),
-                    max_interval: Duration::from_millis(js_value_getter!(
-                        cx,
-                        retry_config,
-                        "maxInterval",
-                        JsNumber
-                    ) as u64),
-                    max_elapsed_time: match get_optional(cx, &retry_config, "maxElapsedTime") {
-                        None => None,
-                        Some(val) => {
-                            let val = val.downcast_or_throw::<JsNumber, _>(cx)?;
-                            Some(Duration::from_millis(val.value(cx) as u64))
-                        }
-                    },
-                    max_retries: js_value_getter!(cx, retry_config, "maxRetries", JsNumber)
-                        as usize,
-                }
-            }
+            Some(retry_config) => RetryConfig {
+                initial_interval: Duration::from_millis(js_value_getter!(
+                    cx,
+                    retry_config,
+                    "initialInterval",
+                    JsNumber
+                ) as u64),
+                randomization_factor: js_value_getter!(
+                    cx,
+                    retry_config,
+                    "randomizationFactor",
+                    JsNumber
+                ),
+                multiplier: js_value_getter!(cx, retry_config, "multiplier", JsNumber),
+                max_interval: Duration::from_millis(js_value_getter!(
+                    cx,
+                    retry_config,
+                    "maxInterval",
+                    JsNumber
+                ) as u64),
+                max_elapsed_time: match js_optional_getter_ref!(
+                    cx,
+                    retry_config,
+                    "maxElapsedTime",
+                    JsNumber
+                ) {
+                    None => None,
+                    Some(val) => Some(Duration::from_millis(val.value(cx) as u64)),
+                },
+                max_retries: js_value_getter!(cx, retry_config, "maxRetries", JsNumber) as usize,
+            },
         };
 
         let mut gateway_opts = ServerGatewayOptionsBuilder::default();
@@ -164,7 +226,7 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
         Ok(gateway_opts
             .client_name("temporal-typescript".to_string())
             .client_version(js_value_getter!(cx, self, "sdkVersion", JsString))
-            .target_url(Url::parse(&url).unwrap())
+            .target_url(url)
             .namespace(js_value_getter!(cx, self, "namespace", JsString))
             .identity(js_value_getter!(cx, self, "identity", JsString))
             .worker_binary_id(js_value_getter!(cx, self, "workerBinaryId", JsString))
@@ -179,30 +241,33 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
         let log_forwarding_level =
             LevelFilter::from_str(&log_forwarding_level_str).unwrap_or(LevelFilter::Off);
         let mut telemetry_opts = TelemetryOptionsBuilder::default();
-        if let Some(url) = get_optional(cx, self, "oTelCollectorUrl") {
-            telemetry_opts.otel_collector_url(
-                Url::parse(&url.downcast_or_throw::<JsString, _>(cx).unwrap().value(cx))
-                    .expect("`oTelCollectorUrl` in telemetry options must be valid"),
-            );
+        if let Some(url) = js_optional_getter!(cx, self, "oTelCollectorUrl", JsString) {
+            let url = match Url::parse(&url.value(cx)) {
+                Ok(url) => url,
+                // Note that address is what's used in the Node side.
+                Err(_) => cx.throw_type_error("Invalid telemetryOptions.oTelCollectorUrl")?,
+            };
+            telemetry_opts.otel_collector_url(url);
         }
-        if let Some(addr) = get_optional(cx, self, "prometheusMetricsBindAddress") {
-            telemetry_opts.prometheus_export_bind_address(
-                addr.downcast_or_throw::<JsString, _>(cx)
-                    .unwrap()
-                    .value(cx)
-                    .parse::<SocketAddr>()
-                    .expect("`prometheusMetricsBindAddress` in telemetry options must be valid"),
-            );
+        if let Some(addr) = js_optional_getter!(cx, self, "prometheusMetricsBindAddress", JsString)
+        {
+            match addr.value(cx).parse::<SocketAddr>() {
+                Ok(address) => telemetry_opts.prometheus_export_bind_address(address),
+                Err(_) => {
+                    cx.throw_type_error("Invalid telemetryOptions.prometheusMetricsBindAddress")?
+                }
+            };
         }
-        Ok(telemetry_opts
-            .tracing_filter(
-                get_optional(cx, self, "tracingFilter")
-                    .map(|x| x.downcast_or_throw::<JsString, _>(cx).unwrap().value(cx))
-                    .unwrap_or_else(|| "".to_string()),
-            )
+        if let Some(tf) = js_optional_getter!(cx, self, "tracingFilter", JsString) {
+            telemetry_opts.tracing_filter(tf.value(cx));
+        }
+        telemetry_opts
             .log_forwarding_level(log_forwarding_level)
             .build()
-            .expect("Core telemetry options must be valid"))
+            .map_err(|reason| {
+                cx.throw_type_error::<_, TelemetryOptions>(format!("{}", reason))
+                    .unwrap_err()
+            })
     }
 
     fn as_worker_config(&self, cx: &mut FunctionContext) -> NeonResult<WorkerConfig> {
