@@ -591,5 +591,11 @@ if (RUN_INTEGRATION_TESTS) {
     t.pass();
   });
 
+  test('sleepInvalidDuration is caught in Workflow runtime', async (t) => {
+    const client = new WorkflowClient();
+    await client.execute(workflows.sleepInvalidDuration, { taskQueue: 'test' });
+    t.pass();
+  });
+
   test.todo('default retryPolicy is filled in ActivityInfo');
 }
