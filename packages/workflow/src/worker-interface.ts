@@ -57,18 +57,25 @@ export function overrideGlobals(): void {
 
   global.Date.prototype = OriginalDate.prototype;
 
+  /**
+   * @param ms sleep duration -  number of milliseconds. If given a negative number, value will be set to 1.
+   */
   global.setTimeout = function (cb: (...args: any[]) => any, ms: number, ...args: any[]): number {
+    ms = Math.max(1, ms);
     const seq = state.nextSeqs.timer++;
-    state.completions.timer.set(seq, {
-      resolve: () => cb(...args),
-      reject: () => undefined /* ignore cancellation */,
-    });
-    state.pushCommand({
-      startTimer: {
-        seq,
-        startToFireTimeout: msToTs(ms),
-      },
-    });
+    // Create a Promise for AsyncLocalStorage to be able to track this completion using promise hooks.
+    new Promise((resolve, reject) => {
+      state.completions.timer.set(seq, { resolve, reject });
+      state.pushCommand({
+        startTimer: {
+          seq,
+          startToFireTimeout: msToTs(ms),
+        },
+      });
+    }).then(
+      () => cb(...args),
+      () => undefined /* ignore cancellation */
+    );
     return seq;
   };
 

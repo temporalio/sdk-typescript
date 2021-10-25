@@ -69,5 +69,6 @@ export * from './try-to-continue-after-completion';
 export * from './fail-unless-signaled-before-start';
 export * from './smorgasbord';
 export * from './condition';
+export * from './sleep-invalid-duration';
 export { interceptorExample } from './interceptor-example';
 export { internalsInterceptorExample } from './internals-interceptor-example';
