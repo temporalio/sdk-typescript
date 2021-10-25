@@ -4,6 +4,37 @@ All notable changes to this project will be documented in this file.
 
 Breaking changes marked with a :boom:
 
+## [0.12.0] - 2021-10-25
+
+### Bug Fixes
+
+- [`workflow`] Validate timer duration is positive ([#328](https://github.com/temporalio/sdk-typescript/pull/328))
+- [`worker`] Provide better error messages when instantiating rust Core ([#331](https://github.com/temporalio/sdk-typescript/pull/331))
+
+### Features
+
+- :boom: Restructure code in prep for vm transition ([#317](https://github.com/temporalio/sdk-typescript/pull/317))
+
+  - Decrease Workflow bundle size from ~7.44MB to ~2.75MB
+  - :boom: Remove otel module from @temporalio/common default export
+  - Rename WorkflowIsolateBuilder to WorkflowCodeBundler and remove unused methods
+  - Add Workflow and WorkflowCreator interfaces to support pluggable workflow environments (prepare for VM)
+  - :boom: Simplify external dependencies mechanism to only support void functions and remove the isolated-vm transfer options.
+
+- Support [`ms`](https://www.npmjs.com/package/ms) formatted string for activity.Context.sleep ([#322](https://github.com/temporalio/sdk-typescript/pull/322))
+- :boom: Runtime determinism tweaks ([#326](https://github.com/temporalio/sdk-typescript/pull/326))
+  - Undelete WeakMap and WeakSet
+  - Delete FinalizationRegistry
+
+### Miscellaneous Tasks
+
+- Change client name string to `temporal-typescript` ([#306](https://github.com/temporalio/sdk-typescript/pull/306))
+- Rename to sdk-typescript ([#320](https://github.com/temporalio/sdk-typescript/pull/320))
+
+### Testing
+
+- Print more useful information in load test ([#315](https://github.com/temporalio/sdk-typescript/pull/315))
+
 ## [0.11.1] - 2021-10-15
 
 ### Bug Fixes
