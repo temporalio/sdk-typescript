@@ -1,12 +1,12 @@
 import glob from 'glob';
 import path from 'path';
-import { readFileSync, writeFileSync } from 'fs';
+import { readFile, writeFile } from 'fs/promises';
 
-export function stripSnipComments(root: string): void {
+export async function stripSnipComments(root: string): Promise<void> {
   const files = glob.sync('**/*.ts', { cwd: root });
-  files.forEach((file) => {
+  await Promise.all(files.map(async (file) => {
     const filePath = path.join(root, file);
-    const fileString = readFileSync(filePath, 'utf8');
-    writeFileSync(filePath, fileString.replace(/ *\/\/ @@@SNIP.+\n/g, ''));
-  });
+    const fileString = await readFile(filePath, 'utf8');
+    return writeFile(filePath, fileString.replace(/ *\/\/ @@@SNIP.+\n/g, ''));
+  }));
 }
