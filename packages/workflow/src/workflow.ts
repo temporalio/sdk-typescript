@@ -11,7 +11,6 @@ import {
   WorkflowResultType,
   SignalDefinition,
   QueryDefinition,
-  ValueError,
 } from '@temporalio/common';
 import {
   ChildWorkflowCancellationType,

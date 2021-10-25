@@ -234,11 +234,10 @@ fn start_bridge_loop(
 
                     loop {
                         let request_option = receiver.recv().await;
-                        if request_option.is_none() {
-                            // All senders are dropped, nothing to do here anymore
-                            break;
-                        }
-                        let request = request_option.unwrap();
+                        let request = match request_option {
+                            None => break,
+                            Some(request) => request,
+                        };
                         let core = core.clone();
                         let event_queue = event_queue.clone();
 
@@ -263,6 +262,8 @@ fn start_bridge_loop(
                                 send_result(event_queue.clone(), callback, |cx| {
                                     let logarr = cx.empty_array();
                                     for (i, cl) in logs.into_iter().enumerate() {
+                                        // Not much to do here except for panic when there's an
+                                        // error here.
                                         let logobj = cx.empty_object();
                                         let level = cx.string(cl.level.to_string());
                                         logobj.set(cx, "level", level).unwrap();
