@@ -4,7 +4,7 @@ import got from 'got';
 import tar from 'tar';
 import { Stream } from 'stream';
 import { promisify } from 'util';
-import { rmSync } from 'fs';
+import { rm } from 'fs/promises';
 import path from 'path';
 import { getErrorCode } from './get-error-code';
 
@@ -111,7 +111,7 @@ export async function downloadAndExtractSample(root: string, name: string): Prom
   );
 
   try {
-    rmSync(path.join(root, `/.npmrc`));
+    await rm(path.join(root, `/.npmrc`));
   } catch (e) {
     if (getErrorCode(e) !== 'ENOENT') {
       throw e;

@@ -3,7 +3,7 @@ import retry from 'async-retry';
 import chalk from 'chalk';
 import path from 'path';
 import prompts from 'prompts';
-import { accessSync } from 'fs';
+import { access } from 'fs/promises';
 import {
   downloadAndExtractSample,
   downloadAndExtractRepo,
@@ -18,6 +18,7 @@ import { install, updateNodeVersion, replaceTemporalVersion } from './helpers/in
 import { testIfThisComputerIsOnline } from './helpers/is-online';
 import { isWriteable } from './helpers/is-writeable';
 import { getErrorCode } from './helpers/get-error-code';
+import { stripSnipComments } from './helpers/strip-snip-comments';
 
 export class DownloadError extends Error {}
 
@@ -103,7 +104,7 @@ export async function createApp({
   let directoryExists = true;
 
   try {
-    accessSync(root);
+    await access(root);
   } catch (error: any) {
     const code = getErrorCode(error);
 
@@ -158,6 +159,7 @@ export async function createApp({
       await retry(() => downloadAndExtractSample(root, sample), {
         retries: 3,
       });
+      await stripSnipComments(root);
     }
   } catch (reason) {
     let message = 'Unable to download';
@@ -173,7 +175,7 @@ export async function createApp({
 
   await updateNodeVersion({ root });
   if (temporalioVersion) {
-    replaceTemporalVersion({ root, useYarn, temporalioVersion });
+    await replaceTemporalVersion({ root, useYarn, temporalioVersion });
   }
 
   await install({ root, useYarn });
