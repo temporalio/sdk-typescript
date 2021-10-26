@@ -35,7 +35,7 @@ jobs:
       - run: npm run build
       - run: npm run lint
       - name: Get Temporal docker-compose.yml
-        run: wget https://raw.githubusercontent.com/temporalio/docker-compose/v1.12.1/docker-compose.yml
+        run: wget https://raw.githubusercontent.com/temporalio/docker-compose/v1.13.0/docker-compose.yml
         if: ${{ startsWith(matrix.os, 'ubuntu') }}
       - name: Start Temporal Server
         run: docker-compose up -d
@@ -135,7 +135,7 @@ jobs:
           path: /tmp/registry/storage
       - run: node scripts/init-from-verdaccio.js --registry-dir /tmp/registry --sample https://github.com/temporalio/samples-typescript/tree/next/${{ matrix.sample }}
       - name: Get Temporal docker-compose.yml
-        run: wget https://raw.githubusercontent.com/temporalio/docker-compose/v1.11.3/docker-compose.yml
+        run: wget https://raw.githubusercontent.com/temporalio/docker-compose/v1.13.0/docker-compose.yml
         if: ${{ matrix.server == 'local' }}
       - name: Start Temporal Server
         run: docker-compose up -d
