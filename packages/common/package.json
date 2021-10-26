@@ -1,6 +1,6 @@
 {
   "name": "@temporalio/common",
-  "version": "0.11.1",
+  "version": "0.12.0",
   "description": "Temporal.io SDK common library for use in Workflow and normal code",
   "main": "lib/index.js",
   "types": "./lib/index.d.ts",
