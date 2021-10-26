@@ -45,8 +45,8 @@ export interface WorkerInterceptors {
    */
   activityInbound?: ActivityInboundCallsInterceptorFactory[];
   /**
-   * List of modules to search for Workflow interceptors in {@link WorkerOptions.workflowsPath}
-   * - Modules should export an `interceptors` variable of type {@link WorkflowInterceptors}
+   * List of modules to search for Workflow interceptors in
+   * - Modules should export an `interceptors` variable of type {@link WorkflowInterceptorsFactory}
    * - Workflow interceptors run in in the Workflow isolate
    */
   workflowModules?: string[];

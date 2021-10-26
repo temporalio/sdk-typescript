@@ -1,6 +1,6 @@
 import test from 'ava';
 import * as memfs from 'memfs';
-import { resolveNodeModulesPaths } from '@temporalio/worker/lib/worker';
+import { resolveNodeModulesPaths } from '@temporalio/worker/lib/worker-options';
 
 test('resolveNodeModulesPaths resolves when workflowsPath is a file', (t) => {
   const fs = new memfs.Volume();

@@ -5,7 +5,8 @@ import webpack from 'webpack';
 import * as realFS from 'fs';
 import * as memfs from 'memfs';
 import * as unionfs from 'unionfs';
-import { Logger } from '../logger';
+import { DefaultLogger, Logger } from '../logger';
+import { resolveNodeModulesPaths } from '../worker-options';
 
 /**
  * Builds a V8 Isolate by bundling provided Workflows using webpack.
@@ -174,4 +175,41 @@ export class WorkflowCodeBundler {
       await util.promisify(compiler.close).bind(compiler)();
     }
   }
+}
+
+/**
+ * Options for bundling Workflow code using Webpack
+ */
+export interface BundleOptions {
+  /**
+   * Path to look up workflows in, any function exported in this path will be registered as a Workflows when the bundle is loaded by a Worker.
+   */
+  workflowsPath: string;
+  /**
+   * Path for webpack to look up modules in for bundling the Workflow code.
+   * Automatically discovered if undefined.
+   */
+  nodeModulesPaths?: string[];
+  /**
+   * List of modules to import Workflow interceptors from
+   * - Modules should export an `interceptors` variable of type {@link WorkflowInterceptorsFactory}
+   * - The same list must be provided to {@link Worker.create} to actually use the interceptors
+   */
+  workflowInterceptorModules?: string[];
+  /**
+   * Optional logger for logging Webpack output
+   */
+  logger?: Logger;
+}
+
+export async function bundleWorkflowCode({
+  logger,
+  workflowsPath,
+  nodeModulesPaths,
+  workflowInterceptorModules,
+}: BundleOptions): Promise<{ code: string }> {
+  nodeModulesPaths ??= resolveNodeModulesPaths(realFS, workflowsPath);
+  logger ??= new DefaultLogger('INFO');
+  const bundler = new WorkflowCodeBundler(logger, nodeModulesPaths, workflowsPath, workflowInterceptorModules);
+  return { code: await bundler.createBundle() };
 }
