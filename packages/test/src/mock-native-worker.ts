@@ -3,15 +3,13 @@ import { lastValueFrom } from 'rxjs';
 import { SpanContext } from '@opentelemetry/api';
 import { coresdk } from '@temporalio/proto';
 import { defaultDataConverter, msToTs } from '@temporalio/common';
+import { Worker as RealWorker, NativeWorkerLike, errors } from '@temporalio/worker/lib/worker';
 import {
-  Worker as RealWorker,
-  NativeWorkerLike,
   compileWorkerOptions,
   CompiledWorkerOptions,
   WorkerOptions,
   addDefaultWorkerOptions,
-  errors,
-} from '@temporalio/worker/lib/worker';
+} from '@temporalio/worker/lib/worker-options';
 import { DefaultLogger } from '@temporalio/worker';
 import { sleep } from '@temporalio/worker/lib/utils';
 import * as activities from './activities';
