@@ -11,6 +11,7 @@ import {
   defineQuery,
   setListener,
   condition,
+  continueAsNew,
 } from '@temporalio/workflow';
 import * as activities from '../activities/';
 import { signalTarget } from './signal-target';
@@ -30,37 +31,37 @@ const { queryOwnWf } = createActivityHandle<typeof activities>({
 
 export const stepQuery = defineQuery<number>('step');
 
-export async function smorgasbord(): Promise<void> {
-  let step = 0;
+export async function smorgasbord(iteration = 0): Promise<void> {
   let unblocked = false;
 
-  setListener(stepQuery, () => step);
+  setListener(stepQuery, () => iteration);
   setListener(activityStartedSignal, () => void (unblocked = true));
 
-  for (; step < 2; ++step) {
-    try {
-      await CancellationScope.cancellable(async () => {
-        const activityPromise = fakeProgress(100, 10);
-        const queryActPromise = queryOwnWf(stepQuery);
-        const timerPromise = sleep(1000);
+  try {
+    await CancellationScope.cancellable(async () => {
+      const activityPromise = fakeProgress(100, 10);
+      const queryActPromise = queryOwnWf(stepQuery);
+      const timerPromise = sleep(1000);
 
-        const childWf = createChildWorkflowHandle(signalTarget);
-        const childWfPromise = (async () => {
-          await childWf.start();
-          await childWf.signal(unblockSignal);
-          await childWf.result();
-        })();
+      const childWf = createChildWorkflowHandle(signalTarget);
+      const childWfPromise = (async () => {
+        await childWf.start();
+        await childWf.signal(unblockSignal);
+        await childWf.result();
+      })();
 
-        if (step === 1) {
-          CancellationScope.current().cancel();
-        }
-
-        await Promise.all([activityPromise, queryActPromise, timerPromise, childWfPromise, condition(() => unblocked)]);
-      });
-    } catch (e) {
-      if (step !== 1 || !isCancellation(e)) {
-        throw e;
+      if (iteration === 0) {
+        CancellationScope.current().cancel();
       }
+
+      await Promise.all([activityPromise, queryActPromise, timerPromise, childWfPromise, condition(() => unblocked)]);
+    });
+  } catch (e) {
+    if (iteration !== 0 || !isCancellation(e)) {
+      throw e;
     }
+  }
+  if (iteration < 2) {
+    await continueAsNew<typeof smorgasbord>(iteration + 1);
   }
 }

@@ -15,8 +15,9 @@
   "license": "MIT",
   "dependencies": {
     "@opentelemetry/api": "^1.0.3",
-    "@opentelemetry/exporter-jaeger": "^0.25.0",
-    "@opentelemetry/sdk-node": "^0.25.0",
+    "@opentelemetry/core": "^1.0.0",
+    "@opentelemetry/resources": "^1.0.0",
+    "@opentelemetry/sdk-trace-base": "^1.0.0",
     "@temporalio/client": "file:../client",
     "@temporalio/common": "file:../common",
     "@temporalio/worker": "file:../worker",
