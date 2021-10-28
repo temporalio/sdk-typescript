@@ -6,6 +6,8 @@
 // Required by opentelemetry (pretend to be a browser)
 (globalThis as any).performance = {
   timeOrigin: Date.now(),
-  now: Date.now,
+  now() {
+    return Date.now() - this.timeOrigin;
+  },
 };
 (globalThis as any).window = globalThis;

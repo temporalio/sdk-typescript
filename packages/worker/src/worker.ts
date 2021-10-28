@@ -43,7 +43,7 @@ import { WorkflowCodeBundler } from './workflow/bundler';
 import { Activity } from './activity';
 import { Logger } from './logger';
 import * as errors from './errors';
-import { childSpan, instrument, tracer } from './tracing';
+import { childSpan, instrument, getTracer } from './tracing';
 import { ActivityExecuteInput } from './interceptors';
 export { RetryOptions, IllegalStateError } from '@temporalio/common';
 export { ActivityOptions, DataConverter, defaultDataConverter, errors };
@@ -171,6 +171,7 @@ export class Worker {
   private readonly runIdsToSpanContext = new Map<string, SpanContext>();
 
   protected static nativeWorkerCtor: WorkerConstructor = NativeWorker;
+  protected readonly tracer: otel.Tracer;
 
   /**
    * Create a new Worker.
@@ -228,7 +229,9 @@ export class Worker {
      */
     protected readonly workflowCreator: WorkflowCreator | undefined,
     public readonly options: CompiledWorkerOptions
-  ) {}
+  ) {
+    this.tracer = getTracer(options.enableSDKTracing);
+  }
 
   /**
    * An Observable which emits each time the number of in flight activations changes
@@ -350,7 +353,7 @@ export class Worker {
                 throw new TypeError('Got an activity task without a "variant" attribute');
               }
 
-              return await instrument(parentSpan, `activity.${variant}`, async (span) => {
+              return await instrument(this.tracer, parentSpan, `activity.${variant}`, async (span) => {
                 // We either want to return an activity result (for failures) or pass on the activity for running at a later stage
                 // If cancel is requested we ignore the result of this function
                 // We don't run the activity directly in this operator because we need to return the activity in the state
@@ -463,7 +466,7 @@ export class Worker {
             if (output.type === 'result') {
               return { taskToken, result: output.result, parentSpan: output.parentSpan };
             }
-            return await instrument(output.parentSpan, 'activity.run', async (span) => {
+            return await instrument(this.tracer, output.parentSpan, 'activity.run', async (span) => {
               const result = await output.activity.run(output.input);
               const status = result.failed ? 'failed' : result.completed ? 'completed' : 'cancelled';
               span.setAttributes({ status });
@@ -506,7 +509,7 @@ export class Worker {
             first(),
             map((): ContextAware<{ activation: coresdk.workflow_activation.WFActivation; synthetic: true }> => {
               return {
-                parentSpan: tracer.startSpan('workflow.shutdown.evict'),
+                parentSpan: this.tracer.startSpan('workflow.shutdown.evict'),
                 activation: new coresdk.workflow_activation.WFActivation({
                   runId: group$.key,
                   jobs: [{ removeFromCache: true }],
@@ -528,7 +531,7 @@ export class Worker {
               output: ContextAware<{ completion?: Uint8Array; close: boolean }>;
             }> => {
               try {
-                return await instrument(parentSpan, 'workflow.process', async (span) => {
+                return await instrument(this.tracer, parentSpan, 'workflow.process', async (span) => {
                   span.setAttributes({
                     numInFlightActivations: this.numInFlightActivationsSubject.value,
                     numRunningWorkflowInstances: this.numRunningWorkflowInstancesSubject.value,
@@ -591,7 +594,7 @@ export class Worker {
                         isReplaying: activation.isReplaying,
                       };
 
-                      const workflow = await instrument(span, 'workflow.create', async () => {
+                      const workflow = await instrument(this.tracer, span, 'workflow.create', async () => {
                         return await workflowCreator.createWorkflow(
                           workflowInfo,
                           this.options.interceptors?.workflowModules ?? [],
@@ -717,9 +720,9 @@ export class Worker {
    */
   protected workflowPoll$(): Observable<ActivationWithContext> {
     return this.pollLoop$(async () => {
-      const parentSpan = tracer.startSpan('workflow.activation');
+      const parentSpan = this.tracer.startSpan('workflow.activation');
       try {
-        return await instrument(parentSpan, 'workflow.poll', async (span) => {
+        return await instrument(this.tracer, parentSpan, 'workflow.poll', async (span) => {
           const buffer = await this.nativeWorker.pollWorkflowActivation(span.spanContext());
           const activation = coresdk.workflow_activation.WFActivation.decode(new Uint8Array(buffer));
           const { runId, ...rest } = activation;
@@ -787,7 +790,7 @@ export class Worker {
     return this.workflowPoll$().pipe(
       this.workflowOperator(),
       mergeMap(async ({ completion, parentSpan: root }) => {
-        const span = childSpan(root, 'workflow.complete');
+        const span = childSpan(this.tracer, root, 'workflow.complete');
         try {
           await this.nativeWorker.completeWorkflowActivation(
             span.spanContext(),
@@ -813,9 +816,9 @@ export class Worker {
    */
   protected activityPoll$(): Observable<ActivityTaskWithContext> {
     return this.pollLoop$(async () => {
-      const parentSpan = tracer.startSpan('activity.task');
+      const parentSpan = this.tracer.startSpan('activity.task');
       try {
-        return await instrument(parentSpan, 'activity.poll', async (span) => {
+        return await instrument(this.tracer, parentSpan, 'activity.poll', async (span) => {
           const buffer = await this.nativeWorker.pollActivityTask(span.spanContext());
           const task = coresdk.activity_task.ActivityTask.decode(new Uint8Array(buffer));
           const { taskToken, ...rest } = task;
@@ -851,7 +854,7 @@ export class Worker {
       this.activityOperator(),
       mergeMap(async ({ completion, parentSpan }) => {
         try {
-          await instrument(parentSpan, 'activity.complete', () =>
+          await instrument(this.tracer, parentSpan, 'activity.complete', () =>
             this.nativeWorker.completeActivityTask(
               parentSpan.spanContext(),
               completion.buffer.slice(completion.byteOffset)
