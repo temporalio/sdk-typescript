@@ -28,21 +28,8 @@ macro_rules! js_value_getter {
 }
 
 macro_rules! js_optional_getter {
-    ($js_cx:expr, $js_obj:ident, $prop_name:expr, $js_type:ty) => {
+    ($js_cx:expr, $js_obj:expr, $prop_name:expr, $js_type:ty) => {
         match get_optional($js_cx, $js_obj, $prop_name) {
-            Some(val) => Some(val.downcast::<$js_type, _>($js_cx).map_err(|_| {
-                $js_cx
-                    .throw_type_error::<_, Option<Vec<u8>>>(format!("Invalid {}", $prop_name))
-                    .unwrap_err()
-            })?),
-            None => None,
-        }
-    };
-}
-
-macro_rules! js_optional_getter_ref {
-    ($js_cx:expr, $js_obj:ident, $prop_name:expr, $js_type:ty) => {
-        match get_optional($js_cx, &$js_obj, $prop_name) {
             Some(val) => Some(val.downcast::<$js_type, _>($js_cx).map_err(|_| {
                 $js_cx
                     .throw_type_error::<_, Option<Vec<u8>>>(format!("Invalid {}", $prop_name))
@@ -153,12 +140,12 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
         let tls_cfg = match js_optional_getter!(cx, self, "tls", JsObject) {
             None => None,
             Some(tls) => {
-                let domain = js_optional_getter_ref!(cx, tls, "serverNameOverride", JsString)
+                let domain = js_optional_getter!(cx, &tls, "serverNameOverride", JsString)
                     .map(|h| h.value(cx));
 
                 let server_root_ca_cert = get_optional_vec(cx, &tls, "serverRootCACertificate")?;
                 let client_tls_config =
-                    match js_optional_getter_ref!(cx, tls, "clientCertPair", JsObject) {
+                    match js_optional_getter!(cx, &tls, "clientCertPair", JsObject) {
                         None => None,
                         Some(client_tls_obj) => Some(ClientTlsConfig {
                             client_cert: get_vec(
@@ -206,9 +193,9 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
                     "maxInterval",
                     JsNumber
                 ) as u64),
-                max_elapsed_time: match js_optional_getter_ref!(
+                max_elapsed_time: match js_optional_getter!(
                     cx,
-                    retry_config,
+                    &retry_config,
                     "maxElapsedTime",
                     JsNumber
                 ) {
@@ -244,7 +231,6 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
         if let Some(url) = js_optional_getter!(cx, self, "oTelCollectorUrl", JsString) {
             let url = match Url::parse(&url.value(cx)) {
                 Ok(url) => url,
-                // Note that address is what's used in the Node side.
                 Err(_) => cx.throw_type_error("Invalid telemetryOptions.oTelCollectorUrl")?,
             };
             telemetry_opts.otel_collector_url(url);

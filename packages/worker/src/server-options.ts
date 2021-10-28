@@ -27,7 +27,7 @@ export interface ServerOptions {
   identity?: string;
   /**
    * A string that should be unique to the exact worker code/binary being executed
-   * @default `@temporal/worker` package name and version
+   * @default `@temporalio/worker` package name and version
    */
   workerBinaryId?: string;
 
@@ -51,8 +51,6 @@ export function getDefaultServerOptions(): RequiredServerOptions {
     identity: `${process.pid}@${os.hostname()}`,
     namespace: 'default',
     workerBinaryId: `${pkg.name}@${pkg.version}`,
-    // TODO: Should be the same as top level package version
-    //  see https://github.com/temporalio/sdk-node/issues/244
     sdkVersion: pkg.version,
   };
 }
