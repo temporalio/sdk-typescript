@@ -26,7 +26,7 @@ export class OpenTelemetryWorkflowClientCallsInterceptor implements WorkflowClie
 
   constructor(options?: InterceptorOptions) {
     this.dataConverter = options?.dataConverter ?? defaultDataConverter;
-    this.tracer = options?.tracer ?? otel.trace.getTracer('@temporalio/client');
+    this.tracer = options?.tracer ?? otel.trace.getTracer('@temporalio/interceptor-client');
   }
 
   async start(input: WorkflowStartInput, next: Next<WorkflowClientCallsInterceptor, 'start'>): Promise<string> {

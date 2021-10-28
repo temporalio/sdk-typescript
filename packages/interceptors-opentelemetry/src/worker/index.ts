@@ -31,7 +31,7 @@ export class OpenTelemetryActivityInboundInterceptor implements ActivityInboundC
 
   constructor(protected readonly ctx: ActivityContext, options?: InterceptorOptions) {
     this.dataConverter = options?.dataConverter ?? defaultDataConverter;
-    this.tracer = options?.tracer ?? otel.trace.getTracer('@temporalio/activity');
+    this.tracer = options?.tracer ?? otel.trace.getTracer('@temporalio/interceptor-activity');
   }
 
   async execute(input: ActivityExecuteInput, next: Next<ActivityInboundCallsInterceptor, 'execute'>): Promise<unknown> {

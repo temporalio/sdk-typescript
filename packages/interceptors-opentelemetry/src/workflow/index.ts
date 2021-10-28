@@ -26,7 +26,7 @@ function getTracer(): otel.Tracer {
     const provider = new tracing.BasicTracerProvider();
     provider.addSpanProcessor(new tracing.SimpleSpanProcessor(new SpanExporter()));
     provider.register({ contextManager: new ContextManager() });
-    tracer = provider.getTracer('@temporalio/workflow');
+    tracer = provider.getTracer('@temporalio/interceptor-workflow');
   }
   return tracer;
 }
