@@ -26,6 +26,7 @@
   },
   "homepage": "https://github.com/temporalio/sdk-typescript/tree/main/packages/core-bridge",
   "files": [
+    "index.d.ts",
     "scripts",
     "src",
     "releases",
