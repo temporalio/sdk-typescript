@@ -1,11 +1,11 @@
 import { coresdk, google } from '@temporalio/proto/lib/coresdk';
+import { Workflow } from './interfaces';
 import { msToTs } from './time';
 
 export type WorkflowIdReusePolicy = coresdk.common.WorkflowIdReusePolicy;
 export const WorkflowIdReusePolicy = coresdk.common.WorkflowIdReusePolicy;
 export type RetryPolicy = coresdk.common.IRetryPolicy;
 
-// Copied from https://github.com/temporalio/sdk-java/blob/master/temporal-sdk/src/main/java/io/temporal/client/WorkflowOptions.java
 export interface BaseWorkflowOptions {
   /**
    * Workflow id to use when starting. If not specified a UUID is generated. Note that it is
@@ -57,6 +57,21 @@ export interface BaseWorkflowOptions {
   searchAttributes?: Record<string, string | number | boolean>;
 }
 
+export type WithWorkflowArgs<W extends Workflow, T> = T &
+  (Parameters<W> extends [any, ...any[]]
+    ? {
+        /**
+         * Arguments to pass to the Workflow
+         */
+        args: Parameters<W>;
+      }
+    : {
+        /**
+         * Arguments to pass to the Workflow
+         */
+        args?: Parameters<W>;
+      });
+
 export interface WorkflowDurationOptions {
   /**
    * The time after which workflow run is automatically terminated by Temporal service. Do not
@@ -87,23 +102,27 @@ export interface WorkflowDurationOptions {
 
 export type WorkflowOptions = BaseWorkflowOptions & WorkflowDurationOptions;
 
-export type RequiredWorkflowOptions = Required<Pick<BaseWorkflowOptions, 'workflowId' | 'taskQueue'>>;
+export type RequiredWorkflowOptions<T extends Workflow = Workflow> = Required<
+  Pick<BaseWorkflowOptions, 'workflowId' | 'taskQueue'>
+> & {
+  args: Parameters<T>[];
+};
 
-export type WorkflowOptionsWithDefaults = WorkflowOptions & RequiredWorkflowOptions;
+export type WorkflowOptionsWithDefaults<T extends Workflow = Workflow> = WorkflowOptions & RequiredWorkflowOptions<T>;
 
-export type CompiledWorkflowOptions = BaseWorkflowOptions &
-  RequiredWorkflowOptions & {
+export type CompiledWorkflowOptions<T extends Workflow = Workflow> = BaseWorkflowOptions &
+  RequiredWorkflowOptions<T> & {
     workflowExecutionTimeout?: google.protobuf.IDuration;
     workflowRunTimeout?: google.protobuf.IDuration;
     workflowTaskTimeout?: google.protobuf.IDuration;
   };
 
-export function compileWorkflowOptions({
+export function compileWorkflowOptions<T extends Workflow>({
   workflowExecutionTimeout,
   workflowRunTimeout,
   workflowTaskTimeout,
   ...rest
-}: WorkflowOptionsWithDefaults): CompiledWorkflowOptions {
+}: WorkflowOptionsWithDefaults<T>): CompiledWorkflowOptions<T> {
   return {
     ...rest,
     workflowExecutionTimeout: workflowExecutionTimeout ? msToTs(workflowExecutionTimeout) : undefined,

@@ -4,20 +4,14 @@
  * @module
  */
 import { CancelledFailure, ChildWorkflowFailure, errorMessage } from '@temporalio/common';
-import {
-  createChildWorkflowHandle,
-  CancellationScope,
-  uuid4,
-  createExternalWorkflowHandle,
-} from '@temporalio/workflow';
+import { startChild, CancellationScope, uuid4, getExternalWorkflowHandle } from '@temporalio/workflow';
 import { signalTarget } from './signal-target';
 
 export async function childWorkflowCancel(): Promise<void> {
   // Cancellation before sending to server
   try {
     await CancellationScope.cancellable(async () => {
-      const child = createChildWorkflowHandle(signalTarget);
-      const promise = child.start();
+      const promise = startChild(signalTarget);
       CancellationScope.current().cancel();
       await promise;
       throw new Error('ChildWorkflow was not cancelled');
@@ -32,8 +26,7 @@ export async function childWorkflowCancel(): Promise<void> {
   // Cancellation of running workflow
   try {
     await CancellationScope.cancellable(async () => {
-      const child = createChildWorkflowHandle(signalTarget);
-      await child.start();
+      const child = await startChild(signalTarget, {});
       CancellationScope.current().cancel();
       await child.result();
       throw new Error('ChildWorkflow was not cancelled');
@@ -47,9 +40,8 @@ export async function childWorkflowCancel(): Promise<void> {
 
   // Cancellation of external workflow
   try {
-    const child = createChildWorkflowHandle(signalTarget);
-    const runId = await child.start();
-    const external = createExternalWorkflowHandle(child.workflowId, runId);
+    const child = await startChild(signalTarget, {});
+    const external = getExternalWorkflowHandle(child.workflowId, child.originalRunId);
     await external.cancel();
     await child.result();
     throw new Error('ChildWorkflow was not cancelled');
@@ -61,7 +53,7 @@ export async function childWorkflowCancel(): Promise<void> {
 
   // Failed cancellation of external workflow
   try {
-    const external = createExternalWorkflowHandle('some-workflow-id-that-doesnt-exist-' + uuid4());
+    const external = getExternalWorkflowHandle('some-workflow-id-that-doesnt-exist-' + uuid4());
     await external.cancel();
     throw new Error('Cancel did not throw');
   } catch (err) {

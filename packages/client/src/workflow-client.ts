@@ -8,15 +8,21 @@ import {
   DataConverter,
   defaultDataConverter,
   composeInterceptors,
-  IllegalStateError,
   optionalFailureToOptionalError,
   Workflow,
   BaseWorkflowHandle,
   QueryDefinition,
   SignalDefinition,
   WorkflowResultType,
+  WithWorkflowArgs,
+  WorkflowReturnType,
 } from '@temporalio/common';
-import { WorkflowOptions, addDefaults, compileWorkflowOptions } from './workflow-options';
+import {
+  WorkflowOptions,
+  addDefaults,
+  compileWorkflowOptions,
+  WorkflowSignalWithStartOptions,
+} from './workflow-options';
 import {
   WorkflowCancelInput,
   WorkflowClientCallsInterceptor,
@@ -50,9 +56,12 @@ import { Connection, WorkflowService } from './connection';
  * Create a handle for running and interacting with a single Workflow:
  * ```ts
  * const client = new WorkflowClient();
- * const handle = connection.createWorkflowHandle(counterWorkflow, { taskQueue: 'tutorial' });
  * // Start the Workflow with initialValue of 2.
- * await handle.start(2);
+ * const handle = await client.start({
+ *   workflowType: counterWorkflow,
+ *   args: [2],
+ *   taskQueue: 'tutorial',
+ * });
  * await handle.signal(incrementSignal, 2);
  * await handle.query(getValueQuery); // 4
  * await handle.cancel();
@@ -74,18 +83,6 @@ export interface WorkflowHandle<T extends Workflow> extends BaseWorkflowHandle<T
   query<Ret, Args extends any[] = []>(def: QueryDefinition<Ret, Args> | string, ...args: Args): Promise<Ret>;
 
   /**
-   * Sends a signal to a running Workflow or starts a new one if not already running and immediately signals it.
-   * Useful when you're unsure of the Workflows' run state.
-   *
-   * @returns the runId of the Workflow
-   */
-  signalWithStart<Args extends any[] = []>(
-    def: SignalDefinition<Args> | string,
-    signalArgs: Args,
-    workflowArgs: Parameters<T>
-  ): Promise<string>;
-
-  /**
    * Terminate a running Workflow
    */
   terminate(reason?: string): Promise<TerminateWorkflowExecutionResponse>;
@@ -104,6 +101,17 @@ export interface WorkflowHandle<T extends Workflow> extends BaseWorkflowHandle<T
    * Readonly accessor to the underlying WorkflowClient
    */
   readonly client: WorkflowClient;
+}
+
+/**
+ * This interface is exactly the same as {@link WorkflowHandle} except it
+ * includes the `originalRunId` returned after starting a new Workflow.
+ */
+export interface WorkflowHandleWithRunId<T extends Workflow> extends WorkflowHandle<T> {
+  /**
+   * The runId of the initial run of the bound Workflow
+   */
+  readonly originalRunId: string;
 }
 
 export interface WorkflowClientOptions {
@@ -144,7 +152,7 @@ export interface WorkflowClientOptions {
    * Apply default options for starting new Workflows.
    *
    * These defaults are **shallowly** merged with options provided to methods that start Workflows
-   * e.g. {@link WorkflowHandle.start}.
+   * e.g. {@link WorkflowClient.start}.
    */
   workflowDefaults?: Partial<WorkflowOptions>;
 }
@@ -170,16 +178,6 @@ function assertRequiredWorkflowOptions(opts: Partial<WorkflowOptions>): asserts 
 }
 
 /**
- * Same as the protocol's {@link WorkflowExecution} but `workflowId` is required.
- *
- * NOTE: Does not accept nulls.
- */
-export interface ValidWorkflowExecution {
-  workflowId: string;
-  runId?: string;
-}
-
-/**
  * Options for getting a result of a Workflow execution.
  */
 export interface WorkflowResultOptions {
@@ -195,6 +193,11 @@ export interface WorkflowResultOptions {
 }
 
 /**
+ * Options for starting a Workflow
+ */
+export type WorkflowStartOptions<T extends Workflow> = WithWorkflowArgs<T, Partial<WorkflowOptions>>;
+
+/**
  * Client for starting Workflow executions and creating Workflow handles
  */
 export class WorkflowClient {
@@ -205,46 +208,150 @@ export class WorkflowClient {
   }
 
   /**
-   * Start a new Workflow execution. Resolves with the execution `runId`.
+   * Start a new Workflow execution.
+   *
+   * @returns the execution's `runId`.
    */
-  public async start<T extends Workflow>(
+  protected async _start<T extends Workflow>(
     workflowTypeOrFunc: string | T,
-    opts: Partial<WorkflowOptions>,
-    ...args: Parameters<T>
+    options: WithWorkflowArgs<T, Partial<WorkflowOptions>>,
+    interceptors: WorkflowClientCallsInterceptor[]
   ): Promise<string> {
     const workflowType = typeof workflowTypeOrFunc === 'string' ? workflowTypeOrFunc : workflowTypeOrFunc.name;
+    assertRequiredWorkflowOptions(options);
+    const compiledOptions = compileWorkflowOptions(addDefaults(options));
 
-    const mergedOptions = { ...this.options.workflowDefaults, ...opts };
-    assertRequiredWorkflowOptions(mergedOptions);
-    const compiledOptions = compileWorkflowOptions(addDefaults(mergedOptions));
+    const start = composeInterceptors(interceptors, 'start', this._startWorkflowHandler.bind(this));
 
-    const interceptors = (this.options.interceptors.calls ?? []).map((ctor) =>
-      ctor({ workflowId: compiledOptions.workflowId })
-    );
-
-    const next = composeInterceptors(interceptors, 'start', this._startWorkflowHandler.bind(this));
-
-    const start = (...args: Parameters<T>) =>
-      next({
-        options: compiledOptions,
-        headers: {},
-        args,
-        workflowType,
-      });
-    return start(...args);
+    return start({
+      options: compiledOptions,
+      headers: {},
+      workflowType,
+    });
   }
 
   /**
-   * Starts a new Workflow execution and awaits its completion
+   * Sends a signal to a running Workflow or starts a new one if not already running and immediately signals it.
+   * Useful when you're unsure of the Workflows' run state.
+   *
+   * @returns the runId of the Workflow
+   */
+  protected async _signalWithStart<T extends Workflow, SA extends any[]>(
+    workflowTypeOrFunc: string | T,
+    options: WithWorkflowArgs<T, WorkflowSignalWithStartOptions<SA>>,
+    interceptors: WorkflowClientCallsInterceptor[]
+  ): Promise<string> {
+    const workflowType = typeof workflowTypeOrFunc === 'string' ? workflowTypeOrFunc : workflowTypeOrFunc.name;
+    const { signal, signalArgs, ...rest } = options;
+    assertRequiredWorkflowOptions(rest);
+    const compiledOptions = compileWorkflowOptions(addDefaults(rest));
+
+    const signalWithStart = composeInterceptors(
+      interceptors,
+      'signalWithStart',
+      this._signalWithStartWorkflowHandler.bind(this)
+    );
+
+    return signalWithStart({
+      options: compiledOptions,
+      headers: {},
+      workflowType,
+      signalName: typeof signal === 'string' ? signal : signal.name,
+      signalArgs,
+    });
+  }
+
+  /**
+   * Start a new Workflow execution.
+   *
+   * **Override for Workflows that accept no arguments**.
+   *
+   * @returns a WorkflowHandle to the started Workflow
+   */
+  public async start<T extends () => WorkflowReturnType>(
+    workflowTypeOrFunc: string | T
+  ): Promise<WorkflowHandleWithRunId<T>>;
+
+  /**
+   * Start a new Workflow execution.
+   *
+   * @returns a WorkflowHandle to the started Workflow
+   */
+  public async start<T extends Workflow>(
+    workflowTypeOrFunc: string | T,
+    options: WorkflowStartOptions<T>
+  ): Promise<WorkflowHandleWithRunId<T>>;
+
+  public async start<T extends Workflow>(
+    workflowTypeOrFunc: string | T,
+    maybeOptions?: WorkflowStartOptions<T>
+  ): Promise<WorkflowHandleWithRunId<T>> {
+    // Cast is needed because it's impossible to deduce the type in this situation
+    const options = { ...this.options.workflowDefaults, ...maybeOptions } as WorkflowStartOptions<T>;
+    const workflowId = options.workflowId ?? uuid4();
+    const interceptors = (this.options.interceptors.calls ?? []).map((ctor) => ctor({ workflowId }));
+    const runId = await this._start(workflowTypeOrFunc, { ...options, workflowId }, interceptors);
+    const handle = this._createWorkflowHandle(workflowId, runId, interceptors, {
+      followRuns: options.followRuns ?? true,
+    }) as WorkflowHandleWithRunId<T>; // Cast is safe because we know we add the originalRunId below
+    (handle as any) /* readonly */.originalRunId = runId;
+    return handle;
+  }
+
+  /**
+   * Sends a signal to a running Workflow or starts a new one if not already running and immediately signals it.
+   * Useful when you're unsure of the Workflows' run state.
+   *
+   * @returns a WorkflowHandle to the started Workflow
+   */
+  public async signalWithStart<T extends Workflow, SA extends any[] = []>(
+    workflowTypeOrFunc: string | T,
+    options: WithWorkflowArgs<T, WorkflowSignalWithStartOptions<SA>>
+  ): Promise<WorkflowHandleWithRunId<T>> {
+    options = { ...this.options.workflowDefaults, ...options };
+    const workflowId = options.workflowId ?? uuid4();
+    const interceptors = (this.options.interceptors.calls ?? []).map((ctor) => ctor({ workflowId }));
+    const runId = await this._signalWithStart(workflowTypeOrFunc, { ...options, workflowId }, interceptors);
+    const handle = this._createWorkflowHandle(workflowId, runId, interceptors, {
+      followRuns: options.followRuns ?? true,
+    }) as WorkflowHandleWithRunId<T>; // Cast is safe because we know we add the originalRunId below
+    (handle as any) /* readonly */.originalRunId = runId;
+    return handle;
+  }
+
+  /**
+   * Starts a new Workflow execution and awaits its completion.
+   *
+   * @returns the result of the Workflow execution
    */
   public async execute<T extends Workflow>(
     workflowTypeOrFunc: string | T,
-    opts: Partial<WorkflowOptions>,
-    ...args: Parameters<T>
+    options: WorkflowStartOptions<T>
+  ): Promise<WorkflowResultType<T>>;
+
+  /**
+   * Starts a new Workflow execution and awaits its completion.
+   *
+   * **Override for Workflows that accept no arguments**.
+   *
+   * @returns the result of the Workflow execution
+   */
+  public async execute<T extends () => WorkflowReturnType>(
+    workflowTypeOrFunc: string | T
+  ): Promise<WorkflowResultType<T>>;
+
+  public async execute<T extends Workflow>(
+    workflowTypeOrFunc: string | T,
+    maybeOptions?: WorkflowStartOptions<T>
   ): Promise<WorkflowResultType<T>> {
-    const workflowId = opts.workflowId ?? uuid4();
-    const runId = await this.start(workflowTypeOrFunc, { ...opts, workflowId }, ...args);
-    return this.result({ workflowId, runId });
+    // Cast is needed because it's impossible to deduce the type in this situation
+    const options = { ...this.options.workflowDefaults, ...maybeOptions } as WorkflowStartOptions<T>;
+    const workflowId = options.workflowId ?? uuid4();
+    const interceptors = (this.options.interceptors.calls ?? []).map((ctor) => ctor({ workflowId }));
+    await this._start(workflowTypeOrFunc, { ...options, workflowId }, interceptors);
+    return await this.result(workflowId, undefined, {
+      followRuns: options.followRuns ?? true,
+    });
   }
 
   /**
@@ -253,7 +360,8 @@ export class WorkflowClient {
    * Follows the chain of execution in case Workflow continues as new, or has a cron schedule or retry policy.
    */
   public async result<T extends Workflow>(
-    { workflowId, runId }: ValidWorkflowExecution,
+    workflowId: string,
+    runId?: string,
     opts?: WorkflowResultOptions
   ): Promise<WorkflowResultType<T>> {
     const followRuns = opts?.followRuns ?? true;
@@ -406,7 +514,7 @@ export class WorkflowClient {
    */
   protected async _signalWithStartWorkflowHandler(input: WorkflowSignalWithStartInput): Promise<string> {
     const { identity, dataConverter } = this.options;
-    const { options, workflowType, workflowArgs, signalName, signalArgs, headers } = input;
+    const { options, workflowType, signalName, signalArgs, headers } = input;
     const { runId } = await this.service.signalWithStartWorkflowExecution({
       namespace: this.options.namespace,
       identity,
@@ -414,7 +522,7 @@ export class WorkflowClient {
       workflowId: options.workflowId,
       workflowIdReusePolicy: options.workflowIdReusePolicy,
       workflowType: { name: workflowType },
-      input: { payloads: await dataConverter.toPayloads(...workflowArgs) },
+      input: { payloads: await dataConverter.toPayloads(...options.args) },
       signalName,
       signalInput: { payloads: await dataConverter.toPayloads(...signalArgs) },
       taskQueue: {
@@ -443,7 +551,7 @@ export class WorkflowClient {
    * Used as the final function of the start interceptor chain
    */
   protected async _startWorkflowHandler(input: WorkflowStartInput): Promise<string> {
-    const { options: opts, workflowType: name, args, headers } = input;
+    const { options: opts, workflowType: name, headers } = input;
     const { identity, dataConverter } = this.options;
     const req: StartWorkflowExecutionRequest = {
       namespace: this.options.namespace,
@@ -452,7 +560,7 @@ export class WorkflowClient {
       workflowId: opts.workflowId,
       workflowIdReusePolicy: opts.workflowIdReusePolicy,
       workflowType: { name },
-      input: { payloads: await dataConverter.toPayloads(...args) },
+      input: { payloads: await dataConverter.toPayloads(...opts.args) },
       taskQueue: {
         kind: temporal.api.enums.v1.TaskQueueKind.TASK_QUEUE_KIND_UNSPECIFIED,
         name: opts.taskQueue,
@@ -505,82 +613,21 @@ export class WorkflowClient {
   }
 
   /**
-   * Create a {@link WorkflowHandle} for starting a new Workflow execution
-   *
-   * @param name workflow type name (the exported function name in the Node.js SDK)
-   * @param options used to start the Workflow
-   */
-  public createWorkflowHandle<T extends Workflow>(name: string, options?: Partial<WorkflowOptions>): WorkflowHandle<T>;
-
-  /**
-   * Create a {@link WorkflowHandle} for starting a new Workflow execution
-   *
-   * @param func an exported function
-   * @param options used to start the Workflow
-   */
-  public createWorkflowHandle<T extends Workflow>(func: T, options?: Partial<WorkflowOptions>): WorkflowHandle<T>;
-
-  /**
-   * Create a {@link WorkflowHandle} for an existing Workflow execution
-   */
-  public createWorkflowHandle<T extends Workflow>(execution: ValidWorkflowExecution): WorkflowHandle<T>;
-
-  public createWorkflowHandle<T extends Workflow>(
-    executionOrNameOrFunc: string | T | ValidWorkflowExecution,
-    options?: Partial<WorkflowOptions>
-  ): WorkflowHandle<T> {
-    const workflowExecution =
-      typeof executionOrNameOrFunc === 'object' && executionOrNameOrFunc.workflowId ? executionOrNameOrFunc : undefined;
-    if (workflowExecution !== undefined) {
-      return this.connectToExistingWorkflow(workflowExecution);
-    }
-    const workflowType =
-      typeof executionOrNameOrFunc === 'string'
-        ? executionOrNameOrFunc
-        : typeof executionOrNameOrFunc === 'function'
-        ? executionOrNameOrFunc.name
-        : undefined;
-
-    if (typeof workflowType !== 'string') {
-      throw new TypeError(
-        `Invalid argument: ${executionOrNameOrFunc}, expected one of: Workflow function, a string with the Workflow type name, or WorkflowExecution`
-      );
-    }
-    return this.createNewWorkflow(workflowType, options);
-  }
-
-  /**
    * Create a new workflow handle for new or existing Workflow execution
    */
   protected _createWorkflowHandle<T extends Workflow>(
     workflowId: string,
     runId: string | undefined,
     interceptors: WorkflowClientCallsInterceptor[],
-    start: WorkflowHandle<T>['start'],
-    signalWithStart: WorkflowHandle<T>['signalWithStart'],
     resultOptions: WorkflowResultOptions
   ): WorkflowHandle<T> {
     const namespace = this.options.namespace;
-    let startPromise: Promise<string> | undefined = undefined;
 
     return {
       client: this,
       workflowId,
-      async execute(...args: Parameters<T>): Promise<WorkflowResultType<T>> {
-        await this.start(...args);
-        return await this.result();
-      },
-      async start(...args: Parameters<T>) {
-        if (startPromise !== undefined) {
-          throw new IllegalStateError('Workflow execution already started');
-        }
-        startPromise = start(...args);
-        // Override runId in outer scope
-        runId = await startPromise;
-        return runId;
-      },
       async result(): Promise<WorkflowResultType<T>> {
-        return this.client.result({ workflowId, runId }, resultOptions);
+        return this.client.result(workflowId, runId, resultOptions);
       },
       async terminate(reason?: string) {
         const next = this.client._terminateWorkflowHandler.bind(this.client);
@@ -625,85 +672,18 @@ export class WorkflowClient {
           args,
         }) as Promise<Ret>;
       },
-      signalWithStart,
     };
   }
 
   /**
    * Creates a Workflow handle for existing Workflow using `workflowId` and optional `runId`
    */
-  protected connectToExistingWorkflow<T extends Workflow>({
-    workflowId,
-    runId,
-  }: ValidWorkflowExecution): WorkflowHandle<T> {
+  public getHandle<T extends Workflow>(workflowId: string, runId?: string): WorkflowHandle<T> {
     const interceptors = (this.options.interceptors.calls ?? []).map((ctor) => ctor({ workflowId, runId }));
 
-    const startCallback = () => {
-      throw new IllegalStateError('WorkflowHandle created with no WorkflowOptions cannot be started');
-    };
-    return this._createWorkflowHandle(
-      workflowId,
-      runId,
-      interceptors,
-      startCallback,
-      // Requires cast because workflow signals are optional which complicate the type
-      startCallback as any,
-      { followRuns: this.options.workflowDefaults.followRuns ?? true }
-    );
-  }
-
-  /**
-   * Creates a Workflow handle for new Workflow execution
-   */
-  protected createNewWorkflow<T extends Workflow>(
-    workflowType: string,
-    options?: Partial<WorkflowOptions>
-  ): WorkflowHandle<T> {
-    const mergedOptions = { ...this.options.workflowDefaults, ...options };
-    assertRequiredWorkflowOptions(mergedOptions);
-    const compiledOptions = compileWorkflowOptions(addDefaults(mergedOptions));
-
-    const interceptors = (this.options.interceptors.calls ?? []).map((ctor) =>
-      ctor({ workflowId: compiledOptions.workflowId })
-    );
-
-    const start = (...args: Parameters<T>) => {
-      const next = composeInterceptors(interceptors, 'start', this._startWorkflowHandler.bind(this));
-
-      return next({
-        options: compiledOptions,
-        headers: {},
-        args,
-        workflowType,
-      });
-    };
-
-    const signalWithStart = (def: SignalDefinition | string, signalArgs: unknown[], workflowArgs: Parameters<T>) => {
-      const next = composeInterceptors(
-        interceptors,
-        'signalWithStart',
-        this._signalWithStartWorkflowHandler.bind(this)
-      );
-
-      return next({
-        options: compiledOptions,
-        headers: {},
-        workflowArgs,
-        workflowType,
-        signalName: typeof def === 'string' ? def : def.name,
-        signalArgs,
-      });
-    };
-
-    return this._createWorkflowHandle(
-      compiledOptions.workflowId,
-      undefined,
-      interceptors,
-      start,
-      // Requires cast because workflow signals are optional which complicate the type
-      signalWithStart as any,
-      { followRuns: mergedOptions.followRuns ?? true }
-    );
+    return this._createWorkflowHandle(workflowId, runId, interceptors, {
+      followRuns: this.options.workflowDefaults.followRuns ?? true,
+    });
   }
 }
 

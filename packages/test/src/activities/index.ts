@@ -96,10 +96,8 @@ export async function queryOwnWf<R, A extends any[]>(queryDef: QueryDefinition<R
   const ctx = Context.current();
   const we = ctx.info.workflowExecution;
   const client = new WorkflowClient(getTestConnection().service, { namespace: ctx.info.workflowNamespace });
-  // TODO: Until server is released with the fix below, this fails often
-  //  https://github.com/temporalio/temporal/pull/2033
   try {
-    await client.createWorkflowHandle(we).query(queryDef, ...args);
+    await client.getHandle(we.workflowId, we.runId).query(queryDef, ...args);
   } catch (e) {
     console.log(`Workflow ${JSON.stringify(we)} query err`, e);
   }

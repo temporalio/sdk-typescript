@@ -5,8 +5,8 @@
 
 import {
   CancellationScope,
-  createChildWorkflowHandle,
-  createExternalWorkflowHandle,
+  startChild,
+  getExternalWorkflowHandle,
   isCancellation,
   rootCause,
   uuid4,
@@ -21,15 +21,13 @@ export async function childWorkflowSignals(): Promise<void> {
   /// Signal child WF tests
   {
     // Happy path
-    const child = createChildWorkflowHandle(signalTarget);
-    await child.start();
+    const child = await startChild(signalTarget, {});
     await child.signal(unblockSignal);
     await child.result();
   }
   {
     // Cancel signal
-    const child = createChildWorkflowHandle(signalTarget);
-    await child.start();
+    const child = await startChild(signalTarget, {});
 
     try {
       await CancellationScope.cancellable(async () => {
@@ -48,33 +46,19 @@ export async function childWorkflowSignals(): Promise<void> {
     // child would have failed instead of completing successfully
     await Promise.all([child.signal(unblockSignal), child.result()]);
   }
-  {
-    // Signal before start
-    const child = createChildWorkflowHandle(signalTarget);
-    try {
-      await child.signal(unblockSignal);
-      throw new Error('Signal did not throw');
-    } catch (err: any) {
-      if (err.name !== 'IllegalStateError' || err.message !== 'Workflow execution not started') {
-        throw err;
-      }
-    }
-  }
 
   /// Signal external WF tests
   {
     // Happy path
-    const child = createChildWorkflowHandle(signalTarget);
-    const runId = await child.start();
-    const external = createExternalWorkflowHandle(child.workflowId, runId);
+    const child = await startChild(signalTarget, {});
+    const external = getExternalWorkflowHandle(child.workflowId, child.originalRunId);
     await external.signal(unblockSignal);
     await child.result();
   }
   {
     // Cancel signal
-    const child = createChildWorkflowHandle(signalTarget);
-    const runId = await child.start();
-    const external = createExternalWorkflowHandle(child.workflowId, runId);
+    const child = await startChild(signalTarget, {});
+    const external = getExternalWorkflowHandle(child.workflowId, child.originalRunId);
 
     try {
       await CancellationScope.cancellable(async () => {
@@ -95,7 +79,7 @@ export async function childWorkflowSignals(): Promise<void> {
   }
   {
     // No such WF
-    const external = createExternalWorkflowHandle('some-workflow-id-that-doesnt-exist-' + uuid4());
+    const external = getExternalWorkflowHandle('some-workflow-id-that-doesnt-exist-' + uuid4());
 
     try {
       await external.signal(unblockSignal);

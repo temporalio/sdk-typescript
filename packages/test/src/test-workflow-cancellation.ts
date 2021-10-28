@@ -23,8 +23,7 @@ const testWorkflowCancellation: Macro<
   Context
 > = async (t, outcome, timing, expected) => {
   const client = new WorkflowClient();
-  const workflow = client.createWorkflowHandle(workflowCancellationScenarios, { taskQueue });
-  await workflow.start(outcome, timing);
+  const workflow = await client.start(workflowCancellationScenarios, { args: [outcome, timing], taskQueue });
   await workflow.cancel();
   if (expected === undefined) {
     await workflow.result();

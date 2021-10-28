@@ -65,9 +65,10 @@ if (RUN_INTEGRATION_TESTS) {
         calls: [() => new OpenTelemetryWorkflowClientCallsInterceptor()],
       },
     });
-    const handle = client.createWorkflowHandle(workflows.smorgasbord, { taskQueue: 'test-otel' });
-
-    await Promise.all([handle.execute().finally(() => worker.shutdown()), worker.run()]);
+    await Promise.all([
+      client.execute(workflows.smorgasbord, { taskQueue: 'test-otel', args: [] }).finally(() => worker.shutdown()),
+      worker.run(),
+    ]);
     await otel.shutdown();
     const originalSpan = spans.find(({ name }) => name === `${SpanName.WORKFLOW_START}${SPAN_DELIMITER}smorgasbord`);
     t.true(originalSpan !== undefined);
@@ -173,9 +174,12 @@ if (RUN_INTEGRATION_TESTS) {
         calls: [() => new OpenTelemetryWorkflowClientCallsInterceptor()],
       },
     });
-    const workflow = client.createWorkflowHandle(workflows.cancelFakeProgress, { taskQueue: 'test-otel' });
-
-    await Promise.all([workflow.execute().finally(() => worker.shutdown()), worker.run()]);
+    await Promise.all([
+      client
+        .execute(workflows.cancelFakeProgress, { taskQueue: 'test-otel', args: [] })
+        .finally(() => worker.shutdown()),
+      worker.run(),
+    ]);
     // Allow some time to ensure spans are flushed out to collector
     await new Promise((resolve) => setTimeout(resolve, 5000));
     t.pass();

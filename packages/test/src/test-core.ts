@@ -25,11 +25,8 @@ if (RUN_INTEGRATION_TESTS) {
     worker1.shutdown();
     await worker1Drained;
     const connection = new WorkflowClient();
-    {
-      // Run a simple workflow
-      const wf = connection.createWorkflowHandle(workflows.sleeper, { taskQueue: 'q2' });
-      await wf.execute(1);
-    }
+    // Run a simple workflow
+    await connection.execute(workflows.sleeper, { taskQueue: 'q2', args: [1] });
     worker2.shutdown();
     await worker2Drained;
 
@@ -42,11 +39,8 @@ if (RUN_INTEGRATION_TESTS) {
       taskQueue: 'q1', // Same as the first Worker created
     });
     const worker3Drained = worker3.run();
-    {
-      // Run a simple workflow
-      const wf = connection.createWorkflowHandle('sleeper', { taskQueue: 'q1' });
-      await wf.execute(1);
-    }
+    // Run a simple workflow
+    await connection.execute('sleeper', { taskQueue: 'q1', args: [1] });
     worker3.shutdown();
     await worker3Drained;
     // No exceptions, test passes

@@ -97,6 +97,8 @@ export interface ChildWorkflowOptions extends WorkflowOptions {
   parentClosePolicy?: ParentClosePolicy;
 }
 
-export type RequiredChildWorkflowOptions = Required<Pick<ChildWorkflowOptions, 'workflowId' | 'cancellationType'>>;
+export type RequiredChildWorkflowOptions = Required<Pick<ChildWorkflowOptions, 'workflowId' | 'cancellationType'>> & {
+  args: unknown[];
+};
 
 export type ChildWorkflowOptionsWithDefaults = ChildWorkflowOptions & RequiredChildWorkflowOptions;

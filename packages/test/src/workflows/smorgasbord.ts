@@ -3,7 +3,7 @@
  */
 import {
   sleep,
-  createChildWorkflowHandle,
+  startChild,
   createActivityHandle,
   ActivityCancellationType,
   CancellationScope,
@@ -43,9 +43,8 @@ export async function smorgasbord(iteration = 0): Promise<void> {
       const queryActPromise = queryOwnWf(stepQuery);
       const timerPromise = sleep(1000);
 
-      const childWf = createChildWorkflowHandle(signalTarget);
       const childWfPromise = (async () => {
-        await childWf.start();
+        const childWf = await startChild(signalTarget, {});
         await childWf.signal(unblockSignal);
         await childWf.result();
       })();

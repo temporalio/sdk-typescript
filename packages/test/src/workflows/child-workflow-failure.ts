@@ -3,12 +3,11 @@
  * @module
  */
 
-import { createChildWorkflowHandle } from '@temporalio/workflow';
+import { executeChild } from '@temporalio/workflow';
 import { throwAsync } from './throw-async';
 
 export async function childWorkflowFailure(): Promise<void> {
-  const child = createChildWorkflowHandle(throwAsync, {
+  await executeChild(throwAsync, {
     taskQueue: 'test',
   });
-  await child.execute();
 }

@@ -15,8 +15,6 @@ export { Next, Headers };
 export interface WorkflowStartInput {
   /** Name of Workflow to start */
   readonly workflowType: string;
-  /** Workflow arguments */
-  readonly args: unknown[];
   readonly headers: Headers;
   readonly options: CompiledWorkflowOptions;
 }
@@ -31,7 +29,6 @@ export interface WorkflowSignalInput {
 /** Input for WorkflowClientCallsInterceptor.signalWithStart */
 export interface WorkflowSignalWithStartInput {
   readonly workflowType: string;
-  readonly workflowArgs: unknown[];
   readonly signalName: string;
   readonly signalArgs: unknown[];
   readonly headers: Headers;
