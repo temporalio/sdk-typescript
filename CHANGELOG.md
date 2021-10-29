@@ -4,6 +4,45 @@ All notable changes to this project will be documented in this file.
 
 Breaking changes marked with a :boom:
 
+## [0.13.0] - 2021-10-29
+
+### Bug Fixes
+
+- Fix and improve opentelemetry interceptors ([#340](https://github.com/temporalio/sdk-typescript/pull/340))
+  - :boom: Make `makeWorkflowExporter` resource param required
+  - Fix Workflow span timestamps
+  - Disable internal SDK tracing by default
+  - Connect child workflow traces to their parent
+  - Connect continueAsNew traces
+  - Add activity type and workflow type to span names and copy format from Java SDK
+  - :boom: Some breaking changes were made to the interceptor interfaces
+    - `workflowType` input attribute is now consistently called `workflowType`
+  - Change trace header name for compatibility with Go and Java tracing implementations
+
+### Features
+
+- Support bundling Workflow code prior to Worker creation ([#336](https://github.com/temporalio/sdk-typescript/pull/336))
+- :boom: Refactor WorkflowHandle creation ([#343](https://github.com/temporalio/sdk-typescript/pull/343))
+  - `WorkflowClient.start` now returns a `WorkflowHandle`
+  - `WorkflowHandle` no longer has `start`, `signalWithStart` and
+    `execute` methods
+  - `WorkflowClient.signalWithStart` was added
+  - To get a handle to an existing Workflow use `WorkflowClient.getHandle`
+  - `wf.createChildWorklowHandle` was renamed to `wf.startChild` and
+    immediately starts the Workflow
+  - `wf.executeChild` replaces `ChildWorkflowHandle.execute`
+  - `wf.createExternalWorkflowHandle` was renamed to
+    `wf.getExternalWorkflowHandle`
+
+### Miscellaneous Tasks
+
+- Strip snipsync and exclude .dirs ([#332](https://github.com/temporalio/sdk-typescript/pull/332))
+- Cleanup some TODOs and unaddressed PR comments ([#342](https://github.com/temporalio/sdk-typescript/pull/342))
+
+### Testing
+
+- Update docker-compose server version to 1.13.0 ([#338](https://github.com/temporalio/sdk-typescript/pull/338))
+
 ## [0.12.0] - 2021-10-25
 
 ### Bug Fixes
