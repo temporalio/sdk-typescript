@@ -593,7 +593,13 @@ export function dependencies<T extends ExternalDependencies>(): T {
 export function makeContinueAsNewFunc<F extends Workflow>(
   options?: ContinueAsNewOptions
 ): (...args: Parameters<F>) => Promise<never> {
-  const nonOptionalOptions = { workflowType: state.info?.workflowType, taskQueue: state.info?.taskQueue, ...options };
+  const info = workflowInfo();
+  const { workflowType, taskQueue, ...rest } = options ?? {};
+  const requiredOptions = {
+    workflowType: workflowType ?? info.workflowType,
+    taskQueue: taskQueue ?? info.taskQueue,
+    ...rest,
+  };
 
   return (...args: Parameters<F>): Promise<never> => {
     const fn = composeInterceptors(state.interceptors.outbound, 'continueAsNew', async (input) => {
@@ -612,7 +618,7 @@ export function makeContinueAsNewFunc<F extends Workflow>(
     return fn({
       args,
       headers: {},
-      options: nonOptionalOptions,
+      options: requiredOptions,
     });
   };
 }

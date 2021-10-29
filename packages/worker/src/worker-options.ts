@@ -165,12 +165,21 @@ export interface WorkerOptions {
    * A mapping of interceptor type to a list of factories or module paths
    */
   interceptors?: WorkerInterceptors;
+  dependencies?: InjectedDependencies<any>;
+  /**
+   * Enable opentelemetry tracing of SDK internals like polling, processing and completing tasks.
+   *
+   * Useful for debugging issues with the SDK itself.
+   *
+   * For completeness the Rust Core also generates opentelemetry spans which connect to the Worker's spans.
+   * Configure {@link CoreOptions.telemetryOptions} to enable tracing in Core.
+   */
+  enableSDKTracing?: boolean;
   // TODO: implement all of these
   // maxConcurrentLocalActivityExecutions?: number; // defaults to 200
   // maxTaskQueueActivitiesPerSecond?: number;
   // maxWorkerActivitiesPerSecond?: number;
   // isLocalActivityWorkerOnly?: boolean; // defaults to false
-  dependencies?: InjectedDependencies<any>;
 }
 
 /**
@@ -193,6 +202,7 @@ export type WorkerOptionsWithDefaults = WorkerOptions &
       | 'maxIsolateMemoryMB'
       | 'maxCachedWorkflows'
       | 'isolatePoolSize'
+      | 'enableSDKTracing'
     >
   >;
 
@@ -258,6 +268,7 @@ export function addDefaultWorkerOptions(options: WorkerOptions): WorkerOptionsWi
     maxIsolateMemoryMB: Math.max(os.totalmem() - GiB, GiB) / MiB,
     isolatePoolSize: 8,
     maxCachedWorkflows: maxCachedWorkflows ?? Math.max(os.totalmem() / GiB - 1, 1) * 200,
+    enableSDKTracing: false,
     ...rest,
   };
 }

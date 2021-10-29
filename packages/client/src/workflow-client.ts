@@ -229,7 +229,7 @@ export class WorkflowClient {
         options: compiledOptions,
         headers: {},
         args,
-        name: workflowType,
+        workflowType,
       });
     return start(...args);
   }
@@ -406,14 +406,14 @@ export class WorkflowClient {
    */
   protected async _signalWithStartWorkflowHandler(input: WorkflowSignalWithStartInput): Promise<string> {
     const { identity, dataConverter } = this.options;
-    const { options, workflowName, workflowArgs, signalName, signalArgs, headers } = input;
+    const { options, workflowType, workflowArgs, signalName, signalArgs, headers } = input;
     const { runId } = await this.service.signalWithStartWorkflowExecution({
       namespace: this.options.namespace,
       identity,
       requestId: uuid4(),
       workflowId: options.workflowId,
       workflowIdReusePolicy: options.workflowIdReusePolicy,
-      workflowType: { name: workflowName },
+      workflowType: { name: workflowType },
       input: { payloads: await dataConverter.toPayloads(...workflowArgs) },
       signalName,
       signalInput: { payloads: await dataConverter.toPayloads(...signalArgs) },
@@ -443,7 +443,7 @@ export class WorkflowClient {
    * Used as the final function of the start interceptor chain
    */
   protected async _startWorkflowHandler(input: WorkflowStartInput): Promise<string> {
-    const { options: opts, name, args, headers } = input;
+    const { options: opts, workflowType: name, args, headers } = input;
     const { identity, dataConverter } = this.options;
     const req: StartWorkflowExecutionRequest = {
       namespace: this.options.namespace,
@@ -655,7 +655,10 @@ export class WorkflowClient {
   /**
    * Creates a Workflow handle for new Workflow execution
    */
-  protected createNewWorkflow<T extends Workflow>(name: string, options?: Partial<WorkflowOptions>): WorkflowHandle<T> {
+  protected createNewWorkflow<T extends Workflow>(
+    workflowType: string,
+    options?: Partial<WorkflowOptions>
+  ): WorkflowHandle<T> {
     const mergedOptions = { ...this.options.workflowDefaults, ...options };
     assertRequiredWorkflowOptions(mergedOptions);
     const compiledOptions = compileWorkflowOptions(addDefaults(mergedOptions));
@@ -671,7 +674,7 @@ export class WorkflowClient {
         options: compiledOptions,
         headers: {},
         args,
-        name,
+        workflowType,
       });
     };
 
@@ -686,7 +689,7 @@ export class WorkflowClient {
         options: compiledOptions,
         headers: {},
         workflowArgs,
-        workflowName: name,
+        workflowType,
         signalName: typeof def === 'string' ? def : def.name,
         signalArgs,
       });

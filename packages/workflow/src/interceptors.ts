@@ -83,11 +83,16 @@ export interface TimerInput {
   readonly seq: number;
 }
 
+/**
+ * Same as ContinueAsNewOptions but workflowType must be defined
+ */
+export type ContinueAsNewInputOptions = ContinueAsNewOptions & Required<Pick<ContinueAsNewOptions, 'workflowType'>>;
+
 /** Input for WorkflowOutboundCallsInterceptor.continueAsNew */
 export interface ContinueAsNewInput {
   args: unknown[];
   headers: Headers;
-  options: ContinueAsNewOptions;
+  options: ContinueAsNewInputOptions;
 }
 
 /** Input for WorkflowOutboundCallsInterceptor.signalWorkflow */

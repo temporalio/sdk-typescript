@@ -38,17 +38,33 @@ export enum SpanName {
   /**
    * Workflow is scheduled by a client
    */
-  WORKFLOW_SCHEDULE = 'workflow.schedule',
+  WORKFLOW_START = 'StartWorkflow',
+
+  /**
+   * Workflow is client calls signalWithStart
+   */
+  WORKFLOW_SIGNAL_WITH_START = 'SignalWithStartWorkflow',
+
   /**
    * Workflow run is executing
    */
-  WORKFLOW_EXECUTE = 'workflow.execute',
+  WORKFLOW_EXECUTE = 'RunWorkflow',
+  /**
+   * Child Workflow is started (by parent Workflow)
+   */
+  CHILD_WORKFLOW_START = 'StartChildWorkflow',
   /**
    * Activity is scheduled by a Workflow
    */
-  ACTIVITY_SCHEUDLE = 'activity.schedule',
+  ACTIVITY_START = 'StartActivity',
   /**
    * Activity is executing
    */
-  ACTIVITY_EXECUTE = 'activity.execute',
+  ACTIVITY_EXECUTE = 'RunActivity',
+  /**
+   * Workflow is continuing as new
+   */
+  CONTINUE_AS_NEW = 'ContinueAsNew',
 }
+
+export const SPAN_DELIMITER = ':';

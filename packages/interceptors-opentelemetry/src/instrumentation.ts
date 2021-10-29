@@ -3,7 +3,20 @@
  * @module
  */
 import * as otel from '@opentelemetry/api';
-import { errorMessage } from '@temporalio/common';
+
+async function wrapWithSpan<T>(span: otel.Span, fn: (span: otel.Span) => Promise<T>): Promise<T> {
+  try {
+    const ret = await fn(span);
+    span.setStatus({ code: otel.SpanStatusCode.OK });
+    return ret;
+  } catch (err: any) {
+    span.setStatus({ code: otel.SpanStatusCode.ERROR });
+    span.recordException(err);
+    throw err;
+  } finally {
+    span.end();
+  }
+}
 
 /**
  * Wraps `fn` in a span which ends when function returns or throws
@@ -11,37 +24,13 @@ import { errorMessage } from '@temporalio/common';
 export async function instrument<T>(
   tracer: otel.Tracer,
   name: string,
-  fn: (span: otel.Span) => Promise<T>
+  fn: (span: otel.Span) => Promise<T>,
+  context?: otel.Context
 ): Promise<T> {
-  const parentContext = otel.context.active();
-  const span = tracer.startSpan(name, undefined);
-  const contextWithSpanSet = otel.trace.setSpan(parentContext, span);
-
-  return otel.context.with(contextWithSpanSet, async () => {
-    try {
-      const ret = await fn(span);
-      span.setStatus({ code: otel.SpanStatusCode.OK });
-      return ret;
-    } catch (err) {
-      span.setStatus({ code: otel.SpanStatusCode.ERROR, message: errorMessage(err) });
-      throw err;
-    } finally {
-      span.end();
-    }
-  });
-}
-
-/**
- * Instrument `fn` and set parent span context
- */
-export async function instrumentFromSpanContext<T>(
-  tracer: otel.Tracer,
-  parent: otel.SpanContext,
-  name: string,
-  fn: (span: otel.Span) => Promise<T>
-): Promise<T> {
-  const context = otel.trace.setSpanContext(otel.context.active(), parent);
-  return otel.context.with(context, async () => {
-    return instrument(tracer, name, fn);
-  });
+  if (context) {
+    return await otel.context.with(context, async () => {
+      return await tracer.startActiveSpan(name, async (span) => await wrapWithSpan(span, fn));
+    });
+  }
+  return await tracer.startActiveSpan(name, async (span) => await wrapWithSpan(span, fn));
 }
