@@ -92,29 +92,34 @@ if (RUN_INTEGRATION_TESTS) {
         ],
       },
     });
-    {
-      const wf = client.createWorkflowHandle(interceptorExample, {
-        taskQueue,
-      });
-      await wf.start();
-      // Send both signal and query to more consistently repro https://github.com/temporalio/sdk-node/issues/299
-      await Promise.all([
-        wf.signal(unblockWithSecretSignal, '12345'),
-        wf.query(getSecretQuery).then((result) => t.is(result, '12345')),
-      ]);
-      const result = await wf.result();
-      t.is(result, message);
+    try {
+      {
+        const wf = await client.start(interceptorExample, {
+          taskQueue,
+          args: [],
+        });
+        // Send both signal and query to more consistently repro https://github.com/temporalio/sdk-node/issues/299
+        await Promise.all([
+          wf.signal(unblockWithSecretSignal, '12345'),
+          wf.query(getSecretQuery).then((result) => t.is(result, '12345')),
+        ]);
+        const result = await wf.result();
+        t.is(result, message);
+      }
+      {
+        const wf = await client.signalWithStart(interceptorExample, {
+          taskQueue,
+          args: [],
+          signal: unblockWithSecretSignal,
+          signalArgs: ['12345'],
+        });
+        const result = await wf.result();
+        t.is(result, message);
+      }
+    } finally {
+      worker.shutdown();
+      await workerDrained;
     }
-    {
-      const wf = client.createWorkflowHandle(interceptorExample, {
-        taskQueue,
-      });
-      await wf.signalWithStart(unblockWithSecretSignal, ['12345'], []);
-      const result = await wf.result();
-      t.is(result, message);
-    }
-    worker.shutdown();
-    await workerDrained;
   });
 
   test.serial('WorkflowClientCallsInterceptor intercepts terminate and cancel', async (t) => {
@@ -142,22 +147,24 @@ if (RUN_INTEGRATION_TESTS) {
       },
     });
 
-    const wf = client.createWorkflowHandle(unblockOrCancel, {
-      taskQueue,
-    });
-    await wf.start();
-    await t.throwsAsync(wf.cancel(), {
-      instanceOf: Error,
-      message: 'nope',
-    });
-    await wf.terminate();
-    await t.throwsAsync(wf.result(), {
-      instanceOf: WorkflowExecutionTerminatedError,
-      message,
-    });
-
-    worker.shutdown();
-    await workerDrained;
+    try {
+      const wf = await client.start(unblockOrCancel, {
+        taskQueue,
+        args: [],
+      });
+      await t.throwsAsync(wf.cancel(), {
+        instanceOf: Error,
+        message: 'nope',
+      });
+      await wf.terminate();
+      await t.throwsAsync(wf.result(), {
+        instanceOf: WorkflowExecutionTerminatedError,
+        message,
+      });
+    } finally {
+      worker.shutdown();
+      await workerDrained;
+    }
   });
 
   test.serial('Workflow continueAsNew can be intercepted', async (t) => {
@@ -171,14 +178,22 @@ if (RUN_INTEGRATION_TESTS) {
       },
     });
     const client = new WorkflowClient();
-    const workerDrained = worker.run();
-    const workflow = client.createWorkflowHandle(continueAsNewToDifferentWorkflow, {
-      taskQueue,
-    });
-    const err: WorkflowExecutionFailedError = await t.throwsAsync(workflow.execute(), {
-      instanceOf: WorkflowExecutionFailedError,
-      message: 'Workflow execution failed',
-    });
+    const [_, err] = await Promise.all([
+      worker.run(),
+      (await t.throwsAsync(
+        client
+          .execute(continueAsNewToDifferentWorkflow, {
+            taskQueue,
+            args: [],
+          })
+          .finally(() => worker.shutdown()),
+        {
+          instanceOf: WorkflowExecutionFailedError,
+          message: 'Workflow execution failed',
+        }
+      )) as WorkflowExecutionFailedError,
+    ]);
+
     if (!(err.cause instanceof ApplicationFailure)) {
       t.fail(`Expected err.cause to be an ApplicationFailure, got ${err.cause}`);
       return;
@@ -195,8 +210,6 @@ if (RUN_INTEGRATION_TESTS) {
     `
     );
     t.is(err.cause.cause, undefined);
-    worker.shutdown();
-    await workerDrained;
   });
 
   test.serial('Internals can be intercepted for observing Workflow state changes', async (t) => {
@@ -220,15 +233,16 @@ if (RUN_INTEGRATION_TESTS) {
         },
       },
     });
-    const workerDrained = worker.run();
     const client = new WorkflowClient();
-    const wf = client.createWorkflowHandle(internalsInterceptorExample, {
-      taskQueue,
-    });
-    await wf.execute();
-
-    worker.shutdown();
-    await workerDrained;
+    await Promise.all([
+      worker.run(),
+      client
+        .execute(internalsInterceptorExample, {
+          taskQueue,
+          args: [],
+        })
+        .finally(() => worker.shutdown()),
+    ]);
     t.deepEqual(events, ['activate: 0', 'concludeActivation: 1', 'activate: 0', 'concludeActivation: 1']);
   });
 }

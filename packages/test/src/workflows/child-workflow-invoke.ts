@@ -3,7 +3,7 @@
  * @module
  */
 
-import { createChildWorkflowHandle } from '@temporalio/workflow';
+import { startChild, executeChild } from '@temporalio/workflow';
 import { successString } from './success-string';
 
 export async function childWorkflowInvoke(): Promise<{
@@ -12,7 +12,7 @@ export async function childWorkflowInvoke(): Promise<{
   execResult: string;
   result: string;
 }> {
-  const child = createChildWorkflowHandle(successString);
-  const execResult = await createChildWorkflowHandle(successString).execute();
-  return { workflowId: child.workflowId, runId: await child.start(), result: await child.result(), execResult };
+  const child = await startChild(successString, {});
+  const execResult = await executeChild(successString, {});
+  return { workflowId: child.workflowId, runId: child.originalRunId, result: await child.result(), execResult };
 }

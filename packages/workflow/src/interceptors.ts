@@ -8,7 +8,7 @@
 
 import { ActivityOptions, WorkflowExecution, Headers, Next } from '@temporalio/common';
 import { coresdk } from '@temporalio/proto/lib/coresdk';
-import { ChildWorkflowOptions, ContinueAsNewOptions } from './interfaces';
+import { ChildWorkflowOptionsWithDefaults, ContinueAsNewOptions } from './interfaces';
 
 export { Next, Headers };
 
@@ -71,8 +71,7 @@ export interface ActivityInput {
 /** Input for WorkflowOutboundCallsInterceptor.startChildWorkflowExecution */
 export interface StartChildWorkflowExecutionInput {
   readonly workflowType: string;
-  readonly args: unknown[];
-  readonly options: ChildWorkflowOptions;
+  readonly options: ChildWorkflowOptionsWithDefaults;
   readonly headers: Headers;
   readonly seq: number;
 }

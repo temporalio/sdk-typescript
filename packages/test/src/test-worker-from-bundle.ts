@@ -27,7 +27,7 @@ if (RUN_INTEGRATION_TESTS) {
       worker.run(),
       (async () => {
         try {
-          client.execute(successString, { taskQueue });
+          await client.execute(successString, { taskQueue, args: [] });
         } finally {
           worker.shutdown();
         }
@@ -54,7 +54,7 @@ if (RUN_INTEGRATION_TESTS) {
         worker.run(),
         (async () => {
           try {
-            client.execute(successString, { taskQueue });
+            client.execute(successString, { taskQueue, args: [] });
           } finally {
             worker.shutdown();
           }

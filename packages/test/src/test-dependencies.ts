@@ -73,8 +73,7 @@ if (RUN_INTEGRATION_TESTS) {
     });
     const p = worker.run();
     const conn = new WorkflowClient();
-    const wf = conn.createWorkflowHandle(workflows.dependenciesWorkflow, { taskQueue });
-    const runId = await wf.start();
+    const wf = await conn.start(workflows.dependenciesWorkflow, { taskQueue });
     await wf.result();
     worker.shutdown();
     await p;
@@ -82,7 +81,7 @@ if (RUN_INTEGRATION_TESTS) {
       namespace: 'default',
       taskQueue,
       workflowId: wf.workflowId,
-      runId,
+      runId: wf.originalRunId,
       workflowType: 'dependenciesWorkflow',
       isReplaying: false,
     };

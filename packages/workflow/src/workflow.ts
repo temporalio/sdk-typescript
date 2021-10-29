@@ -11,6 +11,8 @@ import {
   WorkflowResultType,
   SignalDefinition,
   QueryDefinition,
+  WithWorkflowArgs,
+  WorkflowReturnType,
 } from '@temporalio/common';
 import {
   ChildWorkflowCancellationType,
@@ -21,7 +23,6 @@ import {
   WorkflowInfo,
 } from './interfaces';
 import { state } from './internals';
-import { WorkflowExecutionAlreadyStartedError } from './errors';
 import { ActivityInput, StartChildWorkflowExecutionInput, SignalWorkflowInput, TimerInput } from './interceptors';
 import { ExternalDependencies } from './dependencies';
 import { CancellationScope, registerSleepImplementation } from './cancellation-scope';
@@ -33,11 +34,15 @@ registerSleepImplementation(sleep);
 /**
  * Adds default values to `workflowId` and `workflowIdReusePolicy` to given workflow options.
  */
-export function addDefaultWorkflowOptions(opts: ChildWorkflowOptions): ChildWorkflowOptionsWithDefaults {
+export function addDefaultWorkflowOptions<T extends Workflow>(
+  opts: WithWorkflowArgs<T, ChildWorkflowOptions>
+): ChildWorkflowOptionsWithDefaults {
+  const { args, workflowId, ...rest } = opts;
   return {
-    workflowId: opts.workflowId ?? uuid4(),
+    workflowId: workflowId ?? uuid4(),
+    args: args ?? [],
     cancellationType: ChildWorkflowCancellationType.WAIT_CANCELLATION_COMPLETED,
-    ...opts,
+    ...rest,
   };
 }
 
@@ -196,7 +201,6 @@ export function scheduleActivity<R>(activityType: string, args: any[], options: 
 
 async function startChildWorkflowExecutionNextHandler({
   options,
-  args,
   headers,
   workflowType,
   seq,
@@ -240,7 +244,7 @@ async function startChildWorkflowExecutionNextHandler({
         seq,
         workflowId,
         workflowType,
-        input: state.dataConverter.toPayloadsSync(...args),
+        input: state.dataConverter.toPayloadsSync(...options.args),
         retryPolicy: options.retryPolicy
           ? {
               maximumAttempts: options.retryPolicy.maximumAttempts,
@@ -391,7 +395,7 @@ export function createActivityHandle<A extends Record<string, ActivityFunction<a
  * Returns a client-side handle that can be used to signal and cancel an existing Workflow execution.
  * It takes a Workflow ID and optional run ID.
  */
-export function createExternalWorkflowHandle(workflowId: string, runId?: string): ExternalWorkflowHandle {
+export function getExternalWorkflowHandle(workflowId: string, runId?: string): ExternalWorkflowHandle {
   return {
     workflowId,
     runId,
@@ -433,68 +437,87 @@ export function createExternalWorkflowHandle(workflowId: string, runId?: string)
 }
 
 /**
- * Returns a client-side handle that implements a child Workflow interface.
- * Takes a child Workflow type and optional child Workflow options as arguments.
- * Workflow options may be needed to override the timeouts and task queue if they differ from the parent Workflow.
+ * Start a child Workflow execution
  *
- * A child Workflow supports starting, awaiting completion, signaling and cancellation via {@link CancellationScope}s.
- * In order to query the child, use a WorkflowClient from an Activity.
+ * **Override for Workflows that accept no arguments**.
+ *
+ * - Returns a client-side handle that implements a child Workflow interface.
+ * - By default a child will be scheduled on the same task queue as its parent.
+ *
+ * A child Workflow handle supports awaiting completion, signaling and cancellation via {@link CancellationScope}s.
+ * In order to query the child, use a {@link WorkflowClient} from an Activity.
  */
-export function createChildWorkflowHandle<T extends Workflow>(
+export async function startChild<T extends Workflow>(
   workflowType: string,
-  options?: ChildWorkflowOptions
-): ChildWorkflowHandle<T>;
+  options: ChildWorkflowOptions
+): Promise<ChildWorkflowHandle<T>>;
 
 /**
- * Returns a client-side handle that implements a child Workflow interface.
- * Deduces the Workflow interface from provided Workflow function.
- * Workflow options may be needed to override the timeouts and task queue if they differ from the parent Workflow.
+ * Start a child Workflow execution
  *
- * A child Workflow supports starting, awaiting completion, signaling and cancellation via {@link CancellationScope}s.
- * In order to query the child, use a WorkflowClient from an Activity.
+ * **Override for Workflows that accept no arguments**.
+ *
+ * - Returns a client-side handle that implements a child Workflow interface.
+ * - Deduces the Workflow type and signature from provided Workflow function.
+ * - By default a child will be scheduled on the same task queue as its parent.
+ *
+ * A child Workflow handle supports awaiting completion, signaling and cancellation via {@link CancellationScope}s.
+ * In order to query the child, use a {@link WorkflowClient} from an Activity.
  */
-export function createChildWorkflowHandle<T extends Workflow>(
+export async function startChild<T extends Workflow>(
   workflowFunc: T,
-  options?: ChildWorkflowOptions
-): ChildWorkflowHandle<T>;
+  options: WithWorkflowArgs<T, ChildWorkflowOptions>
+): Promise<ChildWorkflowHandle<T>>;
 
-export function createChildWorkflowHandle<T extends Workflow>(
+/**
+ * Start a child Workflow execution
+ *
+ * **Override for Workflows that accept no arguments**.
+ *
+ * - Returns a client-side handle that implements a child Workflow interface.
+ * - The child will be scheduled on the same task queue as its parent.
+ *
+ * A child Workflow handle supports awaiting completion, signaling and cancellation via {@link CancellationScope}s.
+ * In order to query the child, use a {@link WorkflowClient} from an Activity.
+ */
+export async function startChild<T extends () => Promise<any>>(workflowType: string): Promise<ChildWorkflowHandle<T>>;
+
+/**
+ * Start a child Workflow execution
+ *
+ * **Override for Workflows that accept no arguments**.
+ *
+ * - Returns a client-side handle that implements a child Workflow interface.
+ * - Deduces the Workflow type and signature from provided Workflow function.
+ * - The child will be scheduled on the same task queue as its parent.
+ *
+ * A child Workflow handle supports awaiting completion, signaling and cancellation via {@link CancellationScope}s.
+ * In order to query the child, use a {@link WorkflowClient} from an Activity.
+ */
+export async function startChild<T extends () => Promise<any>>(workflowFunc: T): Promise<ChildWorkflowHandle<T>>;
+
+export async function startChild<T extends Workflow>(
   workflowTypeOrFunc: string | T,
-  options?: ChildWorkflowOptions
-): ChildWorkflowHandle<T> {
+  options?: WithWorkflowArgs<T, ChildWorkflowOptions>
+): Promise<ChildWorkflowHandle<T>> {
   const optionsWithDefaults = addDefaultWorkflowOptions(options ?? {});
   const workflowType = typeof workflowTypeOrFunc === 'string' ? workflowTypeOrFunc : workflowTypeOrFunc.name;
-  let started: Promise<string> | undefined = undefined;
-  let completed: Promise<unknown> | undefined = undefined;
+  const execute = composeInterceptors(
+    state.interceptors.outbound,
+    'startChildWorkflowExecution',
+    startChildWorkflowExecutionNextHandler
+  );
+  const [started, completed] = await execute({
+    seq: state.nextSeqs.childWorkflow++,
+    options: optionsWithDefaults,
+    headers: {},
+    workflowType,
+  });
+  const originalRunId = await started;
 
   return {
     workflowId: optionsWithDefaults.workflowId,
-    async start(...args: Parameters<T>): Promise<string> {
-      if (started !== undefined) {
-        throw new WorkflowExecutionAlreadyStartedError(
-          'Workflow execution already started',
-          optionsWithDefaults.workflowId,
-          workflowType
-        );
-      }
-      const execute = composeInterceptors(
-        state.interceptors.outbound,
-        'startChildWorkflowExecution',
-        startChildWorkflowExecutionNextHandler
-      );
-      [started, completed] = await execute({
-        seq: state.nextSeqs.childWorkflow++,
-        options: optionsWithDefaults,
-        args,
-        headers: {},
-        workflowType,
-      });
-      return await started;
-    },
-    async execute(...args: Parameters<T>): Promise<WorkflowResultType<T>> {
-      await this.start(...args);
-      return await this.result();
-    },
+    originalRunId,
     result(): Promise<WorkflowResultType<T>> {
       if (completed === undefined) {
         throw new IllegalStateError('Child Workflow was not started');
@@ -520,6 +543,82 @@ export function createChildWorkflowHandle<T extends Workflow>(
       });
     },
   };
+}
+
+/**
+ * Start a child Workflow execution and await its completion.
+ *
+ * - By default a child will be scheduled on the same task queue as its parent.
+ * - This operation is cancellable using {@link CancellationScope}s.
+ *
+ * @return The result of the child Workflow.
+ */
+export async function executeChild<T extends Workflow>(
+  workflowType: string,
+  options: WithWorkflowArgs<T, ChildWorkflowOptions>
+): Promise<WorkflowResultType<T>>;
+
+/**
+ * Start a child Workflow execution and await its completion.
+ *
+ * - By default a child will be scheduled on the same task queue as its parent.
+ * - Deduces the Workflow type and signature from provided Workflow function.
+ * - This operation is cancellable using {@link CancellationScope}s.
+ *
+ * @return The result of the child Workflow.
+ */
+export async function executeChild<T extends Workflow>(
+  workflowType: T,
+  options: WithWorkflowArgs<T, ChildWorkflowOptions>
+): Promise<WorkflowResultType<T>>;
+
+/**
+ * Start a child Workflow execution and await its completion.
+ *
+ * **Override for Workflows that accept no arguments**.
+ *
+ * - The child will be scheduled on the same task queue as its parent.
+ * - This operation is cancellable using {@link CancellationScope}s.
+ *
+ * @return The result of the child Workflow.
+ */
+export async function executeChild<T extends () => WorkflowReturnType>(
+  workflowType: string
+): Promise<WorkflowResultType<T>>;
+
+/**
+ * Start a child Workflow execution and await its completion.
+ *
+ * **Override for Workflows that accept no arguments**.
+ *
+ * - The child will be scheduled on the same task queue as its parent.
+ * - Deduces the Workflow type and signature from provided Workflow function.
+ * - This operation is cancellable using {@link CancellationScope}s.
+ *
+ * @return The result of the child Workflow.
+ */
+export async function executeChild<T extends () => WorkflowReturnType>(
+  workflowFunc: T
+): Promise<ChildWorkflowHandle<T>>;
+
+export async function executeChild<T extends Workflow>(
+  workflowTypeOrFunc: string | T,
+  options?: WithWorkflowArgs<T, ChildWorkflowOptions>
+): Promise<WorkflowResultType<T>> {
+  const optionsWithDefaults = addDefaultWorkflowOptions(options ?? {});
+  const workflowType = typeof workflowTypeOrFunc === 'string' ? workflowTypeOrFunc : workflowTypeOrFunc.name;
+  const execute = composeInterceptors(
+    state.interceptors.outbound,
+    'startChildWorkflowExecution',
+    startChildWorkflowExecutionNextHandler
+  );
+  const [_started, completed] = await execute({
+    seq: state.nextSeqs.childWorkflow++,
+    options: optionsWithDefaults,
+    headers: {},
+    workflowType,
+  });
+  return (await completed) as Promise<any>;
 }
 
 /**

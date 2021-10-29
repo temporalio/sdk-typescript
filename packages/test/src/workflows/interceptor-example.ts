@@ -1,5 +1,5 @@
 import {
-  createChildWorkflowHandle,
+  executeChild,
   WorkflowInterceptors,
   defaultDataConverter,
   sleep,
@@ -37,7 +37,7 @@ export async function interceptorExample(): Promise<string> {
   await sleep(2);
   await condition(() => unblocked);
   // Untyped because we intercept the result
-  const result = await createChildWorkflowHandle('successString').execute();
+  const result = await executeChild('successString', {});
   if (result !== 3) {
     throw new Error('expected interceptor to change child workflow result');
   }

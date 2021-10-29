@@ -36,7 +36,7 @@ export interface ExternalWorkflowHandle {
 
 /**
  * A client side handle to a single Workflow instance.
- * It can be used to start, signal, wait for completion, and cancel a Workflow execution.
+ * It can be used to signal, wait for completion, and cancel a Workflow execution.
  *
  * Given the following Workflow definition:
  * ```ts
@@ -44,13 +44,17 @@ export interface ExternalWorkflowHandle {
  * export async function counterWorkflow(initialValue: number): Promise<void>;
  * ```
  *
- * Create a handle for running and interacting with a single Workflow:
+ * Start a new Workflow execution and get a handle for interacting with it:
  * ```ts
- * const handle = createChildWorkflowHandle(counterWorkflow);
  * // Start the Workflow with initialValue of 2.
- * await handle.start(2);
+ * const handle = await startWorkflow(counterWorkflow, { args: [2] });
  * await handle.signal(incrementSignal, 2);
  * await handle.result(); // throws WorkflowExecutionTerminatedError
  * ```
  */
-export interface ChildWorkflowHandle<T extends Workflow> extends BaseWorkflowHandle<T> {} // eslint-disable-line @typescript-eslint/no-empty-interface
+export interface ChildWorkflowHandle<T extends Workflow> extends BaseWorkflowHandle<T> {
+  /**
+   * The runId of the initial run of the bound Workflow
+   */
+  readonly originalRunId: string;
+}

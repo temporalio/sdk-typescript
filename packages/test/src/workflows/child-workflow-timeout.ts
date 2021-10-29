@@ -3,13 +3,12 @@
  * @module
  */
 
-import { createChildWorkflowHandle } from '@temporalio/workflow';
+import { executeChild } from '@temporalio/workflow';
 import { unblockOrCancel } from './unblock-or-cancel';
 
 export async function childWorkflowTimeout(): Promise<void> {
-  const child = createChildWorkflowHandle(unblockOrCancel, {
+  await executeChild(unblockOrCancel, {
     workflowExecutionTimeout: '10ms',
     retryPolicy: { maximumAttempts: 1 },
   });
-  await child.execute(); // should time out
 }

@@ -7,7 +7,7 @@ import { toMB } from '@temporalio/worker/lib/utils';
 import { StarterArgSpec, starterArgSpec, getRequired } from './args';
 
 async function runWorkflow(client: WorkflowClient, name: string, taskQueue: string) {
-  await client.execute(name, { taskQueue });
+  await client.execute(name, { args: [], taskQueue });
 }
 
 class NumberOfWorkflows {
