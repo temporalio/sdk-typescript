@@ -31,7 +31,8 @@
     "releases",
     "sdk-core",
     "Cargo.toml",
-    "Cargo.lock"
+    "Cargo.lock",
+    "index.d.ts"
   ],
   "publishConfig": {
     "access": "public"
