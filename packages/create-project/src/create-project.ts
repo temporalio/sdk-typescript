@@ -131,7 +131,7 @@ export async function createApp({
       process.exit(1);
     }
 
-    await rm(root, { recursive: true });
+    await rm(root, { recursive: true, force: true, maxRetries: 5 });
   }
 
   try {
@@ -196,7 +196,16 @@ export async function createApp({
   console.log();
   console.log(chalk.bold(appPath + '/'));
   console.log();
-  await spawn('npx', ['chalk', '-t', `"$(cat ${messageFile})"`], { stdio: 'inherit' });
-  console.log();
-  await rm(messageFile);
+
+  try {
+    await access(messageFile);
+    await spawn('npx', ['chalk', '-t', `"$(cat ${messageFile})"`], { stdio: 'inherit' });
+    console.log();
+    await rm(messageFile);
+  } catch (error) {
+    const code = getErrorCode(error);
+    if (code !== 'ENOENT') {
+      throw error;
+    }
+  }
 }
