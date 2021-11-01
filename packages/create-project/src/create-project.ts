@@ -127,6 +127,8 @@ export async function createApp({
       console.error('Exiting. You can re-run this command with a different project name.');
       process.exit(1);
     }
+
+    await rm(root, { recursive: true });
   }
 
   try {
