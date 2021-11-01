@@ -3,7 +3,7 @@ import retry from 'async-retry';
 import chalk from 'chalk';
 import path from 'path';
 import prompts from 'prompts';
-import { access } from 'fs/promises';
+import { access, rm } from 'fs/promises';
 import {
   downloadAndExtractSample,
   downloadAndExtractRepo,
@@ -19,6 +19,7 @@ import { testIfThisComputerIsOnline } from './helpers/is-online';
 import { isWriteable } from './helpers/is-writeable';
 import { getErrorCode } from './helpers/get-error-code';
 import { stripSnipComments } from './helpers/strip-snip-comments';
+import { spawn } from './helpers/subprocess';
 
 export class DownloadError extends Error {}
 
@@ -95,9 +96,6 @@ export async function createApp({
 
   const appName = path.basename(root);
 
-  const originalDirectory = process.cwd();
-
-  const displayedCommand = useYarn ? 'yarn' : 'npm';
   console.log(`Creating a new Temporal project in ${chalk.green(root)}/`);
   console.log();
 
@@ -187,40 +185,12 @@ export async function createApp({
     console.log();
   }
 
-  let cdpath: string;
-  if (path.join(originalDirectory, appName) === appPath) {
-    cdpath = appName;
-  } else {
-    cdpath = appPath;
-  }
+  const messageFile = path.join(root, '.post-create');
 
-  console.log(`${chalk.green('Success!')} Created ${chalk.bold(appName)} at ${chalk.bold(appPath + '/')}`);
   console.log();
-  console.log('Inside that directory, you can run several commands:');
+  console.log(`${chalk.green('Success!')} Created project ${chalk.bold(appName)} at ${chalk.bold(appPath + '/')}`);
   console.log();
-  console.log(chalk.cyan(`  ${displayedCommand} ${useYarn ? '' : 'run '}build`));
-  console.log('    Builds all the code.');
+  await spawn('npx', ['chalk', '-t', `"$(cat ${messageFile})"`], { stdio: 'inherit' });
   console.log();
-  console.log(chalk.cyan(`  ${displayedCommand} start`));
-  console.log('    Runs the built Worker.');
-  console.log();
-  console.log(chalk.cyan(`  ${displayedCommand} ${useYarn ? '' : 'run '}workflow`));
-  console.log('    Starts a Workflow.');
-  console.log();
-  console.log('To begin development, start Temporal Server:');
-  console.log();
-  console.log(chalk.cyan('  cd'), '~/path/to/temporal/docker-compose/');
-  console.log(`  ${chalk.cyan('docker-compose up')}`);
-  console.log();
-  console.log(
-    chalk.dim.italic(
-      `If you haven't run Temporal Server before, visit:\nhttps://docs.temporal.io/docs/typescript/getting-started/`
-    )
-  );
-  console.log();
-  console.log(`Then, in the ${chalk.bold(cdpath + '/')} directory, using two other shells, run these commands:`);
-  console.log();
-  console.log(`  ${chalk.cyan(`${displayedCommand} ${useYarn ? '' : 'run '}start.watch`)}`);
-  console.log(`  ${chalk.cyan(`${displayedCommand} ${useYarn ? '' : 'run '}workflow`)}`);
-  console.log();
+  await rm(messageFile);
 }

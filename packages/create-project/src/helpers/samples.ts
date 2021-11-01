@@ -111,7 +111,7 @@ export async function downloadAndExtractSample(root: string, name: string): Prom
   );
 
   try {
-    await rm(path.join(root, `/.npmrc`));
+    await rm(path.join(root, `.npmrc`));
   } catch (e) {
     if (getErrorCode(e) !== 'ENOENT') {
       throw e;
