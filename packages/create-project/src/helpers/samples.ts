@@ -4,7 +4,7 @@ import got from 'got';
 import tar from 'tar';
 import { Stream } from 'stream';
 import { promisify } from 'util';
-import { rm } from 'fs/promises';
+import { rm, readdir } from 'fs/promises';
 import path from 'path';
 import { getErrorCode } from './get-error-code';
 
@@ -91,13 +91,29 @@ export function hasSample(name: string): Promise<boolean> {
   );
 }
 
-export function downloadAndExtractRepo(root: string, { username, name, branch, filePath }: RepoInfo): Promise<void> {
-  return pipeline(
-    got.stream(`https://codeload.github.com/${username}/${name}/tar.gz/${branch}`),
-    tar.extract({ cwd: root, strip: filePath ? filePath.split('/').length + 1 : 1 }, [
-      `${name}-${branch}${filePath ? `/${filePath}` : ''}`,
-    ])
+export async function downloadAndExtractRepo(
+  root: string,
+  { username, name, branch, filePath }: RepoInfo
+): Promise<void> {
+  const archiveUrl = `https://codeload.github.com/${username}/${name}/tar.gz/${branch}`;
+  const archivePath = `${name}-${branch}${filePath ? `/${filePath}` : ''}`;
+
+  await pipeline(
+    got.stream(archiveUrl),
+    tar.extract({ cwd: root, strip: filePath ? filePath.split('/').length + 1 : 1 }, [archivePath])
   );
+
+  const files = await readdir(root);
+  const pipelineFailed = files.length === 0;
+  if (pipelineFailed) {
+    console.error(
+      'We were unable to download and extract the provided project.\n',
+      `Archive URL: ${archiveUrl}\n`,
+      `Archive path: ${archivePath}\n`,
+      `Sometimes this is due to the repo name changing. If that's the case, try using the new repo URL.`
+    );
+    process.exit(1);
+  }
 }
 
 export async function downloadAndExtractSample(root: string, name: string): Promise<void> {
