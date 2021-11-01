@@ -20,6 +20,7 @@ import { isWriteable } from './helpers/is-writeable';
 import { getErrorCode } from './helpers/get-error-code';
 import { stripSnipComments } from './helpers/strip-snip-comments';
 import { spawn } from './helpers/subprocess';
+import { fetchSamples } from './helpers/fetch-samples';
 
 export class DownloadError extends Error {}
 
@@ -80,8 +81,10 @@ export async function createApp({
       console.error(
         `Could not locate a sample named ${chalk.red(`"${sample}"`)}. It could be due to the following:\n`,
         `1. Your spelling of sample ${chalk.red(`"${sample}"`)} might be incorrect.\n`,
-        `2. You might not be connected to the internet.`
+        `2. You might not be connected to the internet.\n`
       );
+      const samples = await fetchSamples();
+      console.error(`Available samples:\n\n${samples.join('\n')}\n`);
       process.exit(1);
     }
   }
@@ -184,13 +187,14 @@ export async function createApp({
 
   if (await tryGitInit(root, gitInit)) {
     console.log('Initialized a git repository.');
-    console.log();
   }
 
   const messageFile = path.join(root, '.post-create');
 
   console.log();
-  console.log(`${chalk.green('Success!')} Created project ${chalk.bold(appName)} at ${chalk.bold(appPath + '/')}`);
+  console.log(`${chalk.green('Success!')} Created project ${chalk.bold(appName)} at:`);
+  console.log();
+  console.log(chalk.bold(appPath + '/'));
   console.log();
   await spawn('npx', ['chalk', '-t', `"$(cat ${messageFile})"`], { stdio: 'inherit' });
   console.log();
