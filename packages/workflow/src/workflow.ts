@@ -883,7 +883,7 @@ function conditionInner(fn: () => boolean): Promise<void> {
 /**
  * Define a signal method for a Workflow.
  *
- * Definitions are used to register listeners in the Workflow via {@link setListener} and to signal Workflows using a {@link WorkflowHandle}, {@link ChildWorkflowHandle} or {@link ExternalWorkflowHandle}.
+ * Definitions are used to register handler in the Workflow via {@link setHandler} and to signal Workflows using a {@link WorkflowHandle}, {@link ChildWorkflowHandle} or {@link ExternalWorkflowHandle}.
  * Definitions can be reused in multiple Workflows.
  */
 export function defineSignal<Args extends any[] = []>(name: string): SignalDefinition<Args> {
@@ -896,7 +896,7 @@ export function defineSignal<Args extends any[] = []>(name: string): SignalDefin
 /**
  * Define a query method for a Workflow.
  *
- * Definitions are used to register listeners in the Workflow via {@link setListener} and to query Workflows using a {@link WorkflowHandle}.
+ * Definitions are used to register handler in the Workflow via {@link setHandler} and to query Workflows using a {@link WorkflowHandle}.
  * Definitions can be reused in multiple Workflows.
  */
 export function defineQuery<Ret, Args extends any[] = []>(name: string): QueryDefinition<Ret, Args> {
@@ -907,9 +907,9 @@ export function defineQuery<Ret, Args extends any[] = []>(name: string): QueryDe
 }
 
 /**
- * A listener function capable of accepting the arguments for a given SignalDefinition or QueryDefinition.
+ * A handler function capable of accepting the arguments for a given SignalDefinition or QueryDefinition.
  */
-export type Listener<
+export type Handler<
   Ret,
   Args extends any[],
   T extends SignalDefinition<Args> | QueryDefinition<Ret, Args>
@@ -920,19 +920,19 @@ export type Listener<
   : never;
 
 /**
- * Set a listener function for a Workflow query or signal.
+ * Set a handler function for a Workflow query or signal.
  *
- * If this function is called multiple times for a given signal or query name the last listener will overwrite any previous calls.
+ * If this function is called multiple times for a given signal or query name the last handler will overwrite any previous calls.
  *
  * @param def a {@link SignalDefinition} or {@link QueryDefinition} as returned by {@link defineSignal} or {@link defineQuery} respectively.
- * @param listener  a compatible listener function for the given definition.
+ * @param handler  a compatible handler function for the given definition.
  */
-export function setListener<Ret, Args extends any[], T extends SignalDefinition<Args> | QueryDefinition<Ret, Args>>(
+export function setHandler<Ret, Args extends any[], T extends SignalDefinition<Args> | QueryDefinition<Ret, Args>>(
   def: T,
-  listener: Listener<Ret, Args, T>
+  handler: Handler<Ret, Args, T>
 ): void {
   if (def.type === 'signal') {
-    state.signalListeners.set(def.name, listener as any);
+    state.signalHandlers.set(def.name, handler as any);
     const bufferedSignals = state.bufferedSignals.get(def.name);
     if (bufferedSignals !== undefined) {
       for (const signal of bufferedSignals) {
@@ -941,7 +941,7 @@ export function setListener<Ret, Args extends any[], T extends SignalDefinition<
       state.bufferedSignals.delete(def.name);
     }
   } else if (def.type === 'query') {
-    state.queryListeners.set(def.name, listener as any);
+    state.queryHandlers.set(def.name, handler as any);
   } else {
     throw new TypeError(`Invalid definition type: ${(def as any).type}`);
   }

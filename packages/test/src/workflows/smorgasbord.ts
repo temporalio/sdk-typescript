@@ -9,7 +9,7 @@ import {
   CancellationScope,
   isCancellation,
   defineQuery,
-  setListener,
+  setHandler,
   condition,
   continueAsNew,
 } from '@temporalio/workflow';
@@ -34,8 +34,8 @@ export const stepQuery = defineQuery<number>('step');
 export async function smorgasbord(iteration = 0): Promise<void> {
   let unblocked = false;
 
-  setListener(stepQuery, () => iteration);
-  setListener(activityStartedSignal, () => void (unblocked = true));
+  setHandler(stepQuery, () => iteration);
+  setHandler(activityStartedSignal, () => void (unblocked = true));
 
   try {
     await CancellationScope.cancellable(async () => {
