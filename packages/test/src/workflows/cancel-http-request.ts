@@ -1,6 +1,6 @@
 import {
   ActivityCancellationType,
-  createActivityHandle,
+  proxyActivities,
   CancellationScope,
   isCancellation,
   setListener,
@@ -9,7 +9,7 @@ import {
 import type * as activities from '../activities';
 import { activityStartedSignal } from './definitions';
 
-const { cancellableFetch } = createActivityHandle<typeof activities>({
+const { cancellableFetch } = proxyActivities<typeof activities>({
   startToCloseTimeout: '20s',
   heartbeatTimeout: '3s',
   cancellationType: ActivityCancellationType.WAIT_CANCELLATION_COMPLETED,

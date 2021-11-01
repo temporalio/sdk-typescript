@@ -1,6 +1,6 @@
 import {
   ActivityCancellationType,
-  createActivityHandle,
+  proxyActivities,
   CancellationScope,
   isCancellation,
   setListener,
@@ -9,7 +9,7 @@ import {
 import { activityStartedSignal } from './definitions';
 import type * as activities from '../activities';
 
-const { fakeProgress } = createActivityHandle<typeof activities>({
+const { fakeProgress } = proxyActivities<typeof activities>({
   startToCloseTimeout: '200s',
   heartbeatTimeout: '3s',
   cancellationType: ActivityCancellationType.WAIT_CANCELLATION_COMPLETED,

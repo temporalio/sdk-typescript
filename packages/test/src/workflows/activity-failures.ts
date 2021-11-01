@@ -11,11 +11,11 @@
  * @module
  */
 
-import { createActivityHandle } from '@temporalio/workflow';
+import { proxyActivities } from '@temporalio/workflow';
 import { ActivityFailure, ApplicationFailure, RetryState } from '@temporalio/common';
 import type * as activities from '../activities';
 
-const { throwSpecificError } = createActivityHandle<typeof activities>({
+const { throwSpecificError } = proxyActivities<typeof activities>({
   startToCloseTimeout: '20s',
   retry: { initialInterval: 5, maximumAttempts: 1, nonRetryableErrorTypes: ['NonRetryableError'] },
 });

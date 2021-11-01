@@ -1,7 +1,7 @@
-import { createActivityHandle } from '@temporalio/workflow';
+import { proxyActivities } from '@temporalio/workflow';
 import * as activityInterfaces from '../activities';
 
-const activities = createActivityHandle<typeof activityInterfaces>({
+const activities = proxyActivities<typeof activityInterfaces>({
   startToCloseTimeout: '10m',
 });
 

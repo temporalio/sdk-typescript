@@ -1,8 +1,8 @@
 // @@@SNIPSTART typescript-schedule-activity-workflow
-import { createActivityHandle } from '@temporalio/workflow';
+import { proxyActivities } from '@temporalio/workflow';
 import type * as activities from '../activities';
 
-const { httpGet } = createActivityHandle<typeof activities>({
+const { httpGet } = proxyActivities<typeof activities>({
   startToCloseTimeout: '1 minute',
 });
 

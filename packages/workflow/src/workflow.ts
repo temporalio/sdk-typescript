@@ -340,11 +340,11 @@ function signalWorkflowNextHandler({ seq, signalName, args, target }: SignalWork
  *
  * @example
  * ```ts
- * import { createActivityHandle, ActivityInterface } from '@temporalio/workflow';
+ * import { proxyActivities, ActivityInterface } from '@temporalio/workflow';
  * import * as activities from '../activities';
  *
  * // Setup Activities from module exports
- * const { httpGet, otherActivity } = createActivityHandle<typeof activities>({
+ * const { httpGet, otherActivity } = proxyActivities<typeof activities>({
  *   startToCloseTimeout: '30 minutes',
  * });
  *
@@ -357,7 +357,7 @@ function signalWorkflowNextHandler({ seq, signalName, args, target }: SignalWork
  * const {
  *   httpGetFromJava,
  *   someOtherJavaActivity
- * } = createActivityHandle<JavaActivities>({
+ * } = proxyActivities<JavaActivities>({
  *   taskQueue: 'java-worker-taskQueue',
  *   startToCloseTimeout: '5m',
  * });
@@ -368,9 +368,7 @@ function signalWorkflowNextHandler({ seq, signalName, args, target }: SignalWork
  * }
  * ```
  */
-export function createActivityHandle<A extends Record<string, ActivityFunction<any, any>>>(
-  options: ActivityOptions
-): A {
+export function proxyActivities<A extends Record<string, ActivityFunction<any, any>>>(options: ActivityOptions): A {
   if (options === undefined) {
     throw new TypeError('options must be defined');
   }
