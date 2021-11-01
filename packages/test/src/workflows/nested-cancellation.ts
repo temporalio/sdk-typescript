@@ -1,9 +1,9 @@
 // @@@SNIPSTART typescript-nested-cancellation-scopes
-import { CancellationScope, createActivityHandle, isCancellation } from '@temporalio/workflow';
+import { CancellationScope, proxyActivities, isCancellation } from '@temporalio/workflow';
 
 import type * as activities from '../activities';
 
-const { setup, httpPostJSON, cleanup } = createActivityHandle<typeof activities>({
+const { setup, httpPostJSON, cleanup } = proxyActivities<typeof activities>({
   startToCloseTimeout: '10m',
 });
 

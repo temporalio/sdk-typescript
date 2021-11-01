@@ -4,7 +4,7 @@
 import {
   sleep,
   startChild,
-  createActivityHandle,
+  proxyActivities,
   ActivityCancellationType,
   CancellationScope,
   isCancellation,
@@ -17,13 +17,13 @@ import * as activities from '../activities/';
 import { signalTarget } from './signal-target';
 import { activityStartedSignal, unblockSignal } from './definitions';
 
-const { fakeProgress } = createActivityHandle<typeof activities>({
+const { fakeProgress } = proxyActivities<typeof activities>({
   startToCloseTimeout: '5s',
   scheduleToCloseTimeout: '10s',
   heartbeatTimeout: '3s',
   cancellationType: ActivityCancellationType.WAIT_CANCELLATION_COMPLETED,
 });
-const { queryOwnWf } = createActivityHandle<typeof activities>({
+const { queryOwnWf } = proxyActivities<typeof activities>({
   // This one needs a long timeout because of the queries getting dropped bug
   startToCloseTimeout: '35s',
   scheduleToCloseTimeout: '40s',

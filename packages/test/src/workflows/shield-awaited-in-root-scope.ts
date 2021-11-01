@@ -1,8 +1,8 @@
 // @@@SNIPSTART typescript-shield-awaited-in-root-scope
-import { CancellationScope, createActivityHandle } from '@temporalio/workflow';
+import { CancellationScope, proxyActivities } from '@temporalio/workflow';
 import type * as activities from '../activities';
 
-const { httpGetJSON } = createActivityHandle<typeof activities>({ startToCloseTimeout: '10m' });
+const { httpGetJSON } = proxyActivities<typeof activities>({ startToCloseTimeout: '10m' });
 
 export async function shieldAwaitedInRootScope(): Promise<any> {
   let p: Promise<any> | undefined = undefined;

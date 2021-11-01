@@ -1,9 +1,9 @@
 // @@@SNIPSTART typescript-multiple-activities-single-timeout-workflow
-import { CancellationScope, createActivityHandle } from '@temporalio/workflow';
+import { CancellationScope, proxyActivities } from '@temporalio/workflow';
 import type * as activities from '../activities';
 
 export function multipleActivitiesSingleTimeout(urls: string[], timeoutMs: number): Promise<any> {
-  const { httpGetJSON } = createActivityHandle<typeof activities>({
+  const { httpGetJSON } = proxyActivities<typeof activities>({
     startToCloseTimeout: timeoutMs,
   });
 
