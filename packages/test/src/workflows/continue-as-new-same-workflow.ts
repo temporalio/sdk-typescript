@@ -2,7 +2,7 @@
  * Tests continueAsNew for the same Workflow from execute and signal handler
  * @module
  */
-import { continueAsNew, CancellationScope, defineSignal, setListener } from '@temporalio/workflow';
+import { continueAsNew, CancellationScope, defineSignal, setHandler } from '@temporalio/workflow';
 
 export const continueAsNewSignal = defineSignal('continueAsNew');
 
@@ -10,7 +10,7 @@ export async function continueAsNewSameWorkflow(
   continueFrom: 'execute' | 'signal' | 'none' = 'execute',
   continueTo: 'execute' | 'signal' | 'none' = 'signal'
 ): Promise<void> {
-  setListener(continueAsNewSignal, async () => {
+  setHandler(continueAsNewSignal, async () => {
     await continueAsNew<typeof continueAsNewSameWorkflow>('none');
   });
   if (continueFrom === 'none') {

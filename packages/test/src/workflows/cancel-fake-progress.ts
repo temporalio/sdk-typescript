@@ -3,7 +3,7 @@ import {
   proxyActivities,
   CancellationScope,
   isCancellation,
-  setListener,
+  setHandler,
   condition,
 } from '@temporalio/workflow';
 import { activityStartedSignal } from './definitions';
@@ -17,7 +17,7 @@ const { fakeProgress } = proxyActivities<typeof activities>({
 
 export async function cancelFakeProgress(): Promise<void> {
   let activityStarted = false;
-  setListener(activityStartedSignal, () => void (activityStarted = true));
+  setHandler(activityStartedSignal, () => void (activityStarted = true));
   try {
     await CancellationScope.cancellable(async () => {
       const promise = fakeProgress();

@@ -4,16 +4,16 @@
  *
  * @module
  */
-import { condition, setListener } from '@temporalio/workflow';
+import { condition, setHandler } from '@temporalio/workflow';
 import { failWithMessageSignal, unblockSignal } from './definitions';
 
 export async function signalTarget(): Promise<void> {
   let unblocked = false;
 
-  setListener(failWithMessageSignal, (message) => {
+  setHandler(failWithMessageSignal, (message) => {
     throw new Error(message);
   });
-  setListener(unblockSignal, () => void (unblocked = true));
+  setHandler(unblockSignal, () => void (unblocked = true));
 
   await condition(() => unblocked);
 }

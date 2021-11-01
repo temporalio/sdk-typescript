@@ -3,7 +3,7 @@ import {
   proxyActivities,
   CancellationScope,
   isCancellation,
-  setListener,
+  setHandler,
   condition,
 } from '@temporalio/workflow';
 import type * as activities from '../activities';
@@ -17,7 +17,7 @@ const { cancellableFetch } = proxyActivities<typeof activities>({
 
 export async function cancellableHTTPRequest(url: string): Promise<void> {
   let activityStarted = false;
-  setListener(activityStartedSignal, () => void (activityStarted = true));
+  setHandler(activityStartedSignal, () => void (activityStarted = true));
   try {
     await CancellationScope.cancellable(async () => {
       const promise = cancellableFetch(url, true);
