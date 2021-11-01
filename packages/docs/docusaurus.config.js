@@ -86,7 +86,7 @@ module.exports = {
     },
     algolia: {
       apiKey: 'f0437b275747f3b6bd2cff61e1e3a796',
-      indexName: 'nodejs-temporal',
+      indexName: 'typescript-temporal',
       algoliaOptions: { facetFilters: ['type:$TYPE'] },
     },
   },
