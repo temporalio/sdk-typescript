@@ -1,7 +1,8 @@
 /* eslint @typescript-eslint/no-non-null-assertion: 0 */
 import anyTest, { Constructor, Macro, TestInterface } from 'ava';
-import { WorkflowClient, WorkflowExecutionCancelledError, WorkflowExecutionFailedError } from '@temporalio/client';
+import { WorkflowClient, WorkflowFailedError } from '@temporalio/client';
 import { Worker } from '@temporalio/worker';
+import { ApplicationFailure, CancelledFailure } from '@temporalio/common';
 import { RUN_INTEGRATION_TESTS } from './helpers';
 import * as activities from './activities';
 import {
@@ -29,9 +30,13 @@ const testWorkflowCancellation: Macro<
     await workflow.result();
     t.pass();
   } else {
-    await t.throwsAsync(workflow.result(), {
-      instanceOf: expected,
+    const err = await t.throwsAsync(workflow.result(), {
+      instanceOf: WorkflowFailedError,
     });
+    if (!(err instanceof WorkflowFailedError)) {
+      throw new Error('Unreachable');
+    }
+    t.true(err.cause instanceof expected);
   }
 };
 
@@ -61,8 +66,8 @@ if (RUN_INTEGRATION_TESTS) {
 
   test(testWorkflowCancellation, 'complete', 'immediately', undefined);
   test(testWorkflowCancellation, 'complete', 'after-cleanup', undefined);
-  test(testWorkflowCancellation, 'cancel', 'immediately', WorkflowExecutionCancelledError);
-  test(testWorkflowCancellation, 'cancel', 'after-cleanup', WorkflowExecutionCancelledError);
-  test(testWorkflowCancellation, 'fail', 'immediately', WorkflowExecutionFailedError);
-  test(testWorkflowCancellation, 'fail', 'after-cleanup', WorkflowExecutionFailedError);
+  test(testWorkflowCancellation, 'cancel', 'immediately', CancelledFailure);
+  test(testWorkflowCancellation, 'cancel', 'after-cleanup', CancelledFailure);
+  test(testWorkflowCancellation, 'fail', 'immediately', ApplicationFailure);
+  test(testWorkflowCancellation, 'fail', 'after-cleanup', ApplicationFailure);
 }

@@ -9,13 +9,8 @@ import test from 'ava';
 import { v4 as uuid4 } from 'uuid';
 import dedent from 'dedent';
 import { Core, DefaultLogger, Worker } from '@temporalio/worker';
-import { ApplicationFailure } from '@temporalio/common';
-import {
-  Connection,
-  WorkflowClient,
-  WorkflowExecutionFailedError,
-  WorkflowExecutionTerminatedError,
-} from '@temporalio/client';
+import { ApplicationFailure, TerminatedFailure } from '@temporalio/common';
+import { Connection, WorkflowClient, WorkflowFailedError } from '@temporalio/client';
 import { defaultDataConverter, WorkflowInfo } from '@temporalio/workflow';
 import { defaultOptions } from './mock-native-worker';
 import { cleanStackTrace, RUN_INTEGRATION_TESTS } from './helpers';
@@ -157,10 +152,14 @@ if (RUN_INTEGRATION_TESTS) {
         message: 'nope',
       });
       await wf.terminate();
-      await t.throwsAsync(wf.result(), {
-        instanceOf: WorkflowExecutionTerminatedError,
+      const error = await t.throwsAsync(wf.result(), {
+        instanceOf: WorkflowFailedError,
         message,
       });
+      if (!(error instanceof WorkflowFailedError)) {
+        throw new Error('Unreachable');
+      }
+      t.true(error.cause instanceof TerminatedFailure);
     } finally {
       worker.shutdown();
       await workerDrained;
@@ -188,10 +187,10 @@ if (RUN_INTEGRATION_TESTS) {
           })
           .finally(() => worker.shutdown()),
         {
-          instanceOf: WorkflowExecutionFailedError,
+          instanceOf: WorkflowFailedError,
           message: 'Workflow execution failed',
         }
-      )) as WorkflowExecutionFailedError,
+      )) as WorkflowFailedError,
     ]);
 
     if (!(err.cause instanceof ApplicationFailure)) {
