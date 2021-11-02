@@ -3,7 +3,12 @@ import retry from 'async-retry';
 import chalk from 'chalk';
 import path from 'path';
 import prompts from 'prompts';
-import { access, rm } from 'fs/promises';
+import { access, rm, readFile } from 'fs/promises';
+
+// TODO switch to this when version newer than 2016 is published
+// https://www.npmjs.com/package/chalk-template
+// import chalkTemplate from 'chalk-template';
+
 import {
   downloadAndExtractSample,
   downloadAndExtractRepo,
@@ -199,8 +204,9 @@ export async function createApp({
 
   try {
     await access(messageFile);
-    await spawn('npx', ['chalk', '-t', `"$(cat ${messageFile})"`], { stdio: 'inherit' });
-    console.log();
+    const message = await readFile(messageFile);
+    await spawn('npx', ['chalk', '-t', message.toString()], { stdio: 'inherit' });
+    // console.log(chalkTemplate(message));
     await rm(messageFile);
   } catch (error) {
     const code = getErrorCode(error);
