@@ -1,51 +1,32 @@
-import { temporal } from '@temporalio/proto';
+import { RetryState, TemporalFailure } from '@temporalio/common';
 
 /**
- * Thrown by client when waiting on Workflow execution result if Workflow is terminated
+ * Thrown by the client while waiting on Workflow execution result if execution
+ * completes with failure.
+ *
+ * The failure type will be set in the `cause` attribute.
+ *
+ * For example if the workflow is cancelled, `cause` will be set to
+ * {@link CancelledFailure}.
  */
-export class WorkflowExecutionTerminatedError extends Error {
-  public readonly name: string = 'WorkflowExecutionTerminatedError';
-  public constructor(message: string, public readonly details: any[], public readonly identity?: string) {
-    super(message);
-  }
-}
-
-/**
- * Thrown by client when waiting on Workflow execution result if execution times out
- */
-export class WorkflowExecutionTimedOutError extends Error {
-  public readonly name: string = 'WorkflowExecutionTimedOutError';
-  public constructor(message: string, public readonly retryState: temporal.api.enums.v1.RetryState) {
-    super(message);
-  }
-}
-
-/**
- * Thrown by client when waiting on Workflow execution result if execution fails
- */
-export class WorkflowExecutionFailedError extends Error {
+export class WorkflowFailedError extends Error {
   public readonly name: string = 'WorkflowExecutionFailedError';
-  public constructor(message: string, public readonly cause: Error | undefined) {
+  public constructor(
+    message: string,
+    public readonly cause: TemporalFailure | undefined,
+    public readonly retryState: RetryState
+  ) {
     super(message);
   }
 }
 
 /**
- * Thrown by client when waiting on Workflow execution result if Workflow is cancelled
- */
-export class WorkflowExecutionCancelledError extends Error {
-  public readonly name: string = 'WorkflowExecutionCancelledError';
-  public constructor(message: string, public readonly details: any[]) {
-    super(message);
-  }
-}
-
-/**
- * Thrown by client when waiting on Workflow execution result if Workflow continues as new.
+ * Thrown the by client while waiting on Workflow execution result if Workflow
+ * continues as new.
  *
  * Only thrown if asked not to follow the chain of execution (see {@link WorkflowOptions.followRuns}).
  */
-export class WorkflowExecutionContinuedAsNewError extends Error {
+export class WorkflowContinuedAsNewError extends Error {
   public readonly name: string = 'WorkflowExecutionContinuedAsNewError';
   public constructor(message: string, public readonly newExecutionRunId: string) {
     super(message);

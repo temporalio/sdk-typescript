@@ -16,6 +16,11 @@ import {
   WorkflowResultType,
   WithWorkflowArgs,
   WorkflowReturnType,
+  CancelledFailure,
+  TerminatedFailure,
+  RetryState,
+  TimeoutFailure,
+  TimeoutType,
 } from '@temporalio/common';
 import {
   WorkflowOptions,
@@ -39,7 +44,7 @@ import {
   TerminateWorkflowExecutionResponse,
   RequestCancelWorkflowExecutionResponse,
 } from './types';
-import * as errors from './errors';
+import { WorkflowFailedError, WorkflowContinuedAsNewError } from './errors';
 import { Connection, WorkflowService } from './connection';
 
 /**
@@ -413,26 +418,34 @@ export class WorkflowClient {
           continue;
         }
         const { failure } = ev.workflowExecutionFailedEventAttributes;
-        throw new errors.WorkflowExecutionFailedError(
+        throw new WorkflowFailedError(
           'Workflow execution failed',
-          await optionalFailureToOptionalError(failure, this.options.dataConverter)
+          await optionalFailureToOptionalError(failure, this.options.dataConverter),
+          RetryState.RETRY_STATE_NON_RETRYABLE_FAILURE
         );
       } else if (ev.workflowExecutionCanceledEventAttributes) {
-        throw new errors.WorkflowExecutionCancelledError(
-          'Workflow execution cancelled',
+        const failure = new CancelledFailure(
+          'Workflow canceled',
           await arrayFromPayloads(
             this.options.dataConverter,
             ev.workflowExecutionCanceledEventAttributes.details?.payloads
           )
         );
+        failure.stack = '';
+        throw new WorkflowFailedError(
+          'Workflow execution cancelled',
+          failure,
+          RetryState.RETRY_STATE_NON_RETRYABLE_FAILURE
+        );
       } else if (ev.workflowExecutionTerminatedEventAttributes) {
-        throw new errors.WorkflowExecutionTerminatedError(
+        const failure = new TerminatedFailure(
+          ev.workflowExecutionTerminatedEventAttributes.reason || 'Workflow execution terminated'
+        );
+        failure.stack = '';
+        throw new WorkflowFailedError(
           ev.workflowExecutionTerminatedEventAttributes.reason || 'Workflow execution terminated',
-          await arrayFromPayloads(
-            this.options.dataConverter,
-            ev.workflowExecutionTerminatedEventAttributes.details?.payloads
-          ),
-          ev.workflowExecutionTerminatedEventAttributes.identity ?? undefined
+          failure,
+          RetryState.RETRY_STATE_NON_RETRYABLE_FAILURE
         );
       } else if (ev.workflowExecutionTimedOutEventAttributes) {
         if (ev.workflowExecutionTimedOutEventAttributes.newExecutionRunId) {
@@ -440,8 +453,15 @@ export class WorkflowClient {
           req.nextPageToken = undefined;
           continue;
         }
-        throw new errors.WorkflowExecutionTimedOutError(
+        const failure = new TimeoutFailure(
           'Workflow execution timed out',
+          undefined,
+          TimeoutType.TIMEOUT_TYPE_START_TO_CLOSE
+        );
+        failure.stack = '';
+        throw new WorkflowFailedError(
+          'Workflow execution timed out',
+          failure,
           ev.workflowExecutionTimedOutEventAttributes.retryState || 0
         );
       } else if (ev.workflowExecutionContinuedAsNewEventAttributes) {
@@ -450,10 +470,7 @@ export class WorkflowClient {
           throw new TypeError('Expected service to return newExecutionRunId for WorkflowExecutionContinuedAsNewEvent');
         }
         if (!followRuns) {
-          throw new errors.WorkflowExecutionContinuedAsNewError(
-            'Workflow execution continued as new',
-            newExecutionRunId
-          );
+          throw new WorkflowContinuedAsNewError('Workflow execution continued as new', newExecutionRunId);
         }
         execution.runId = newExecutionRunId;
         req.nextPageToken = undefined;

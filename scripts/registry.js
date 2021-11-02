@@ -36,7 +36,7 @@ class Registry {
 
   async ready() {
     const logPath = path.resolve(this.workdir, 'verdaccio.log');
-    await untilExists(logPath, 60);
+    await untilExists(logPath, 120);
     const tail = new Tail(logPath, {
       fromBeginning: true,
     });
