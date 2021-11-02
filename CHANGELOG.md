@@ -23,6 +23,7 @@ Breaking changes marked with a :boom:
 
 - Support bundling Workflow code prior to Worker creation ([#336](https://github.com/temporalio/sdk-typescript/pull/336))
 - :boom: Refactor WorkflowHandle creation ([#343](https://github.com/temporalio/sdk-typescript/pull/343))
+
   - `WorkflowClient.start` now returns a `WorkflowHandle`
   - `WorkflowHandle` no longer has `start`, `signalWithStart` and
     `execute` methods
@@ -39,12 +40,14 @@ Breaking changes marked with a :boom:
   **WorkflowClient - Starting a new Workflow**
 
   Before:
+
   ```ts
   const handle = await client.createWorkflowHandle(myWorkflow, { taskQueue: 'q' });
   await handle.start(arg1, arg2);
   ```
 
   After:
+
   ```ts
   const handle = await client.start(myWorkflow, { taskQueue: 'q', args: [arg1, arg2] });
   ```
@@ -52,12 +55,14 @@ Breaking changes marked with a :boom:
   **WorkflowClient - Starting a new Workflow and awaiting completion**
 
   Before:
+
   ```ts
   const handle = await client.createWorkflowHandle(myWorkflow, { taskQueue: 'q' });
   const result = await handle.execute(arg1, arg2);
   ```
 
   After:
+
   ```ts
   const result = await client.execute(myWorkflow, { taskQueue: 'q', args: [arg1, arg2] });
   ```
@@ -65,12 +70,14 @@ Breaking changes marked with a :boom:
   **WorkflowClient - signalWithStart**
 
   Before:
+
   ```ts
   const handle = await client.createWorkflowHandle(myWorkflow, { taskQueue: 'q' });
   await handle.signalWithStart(signalDef, [signalArg1, signalArg2], [wfArg1, wfArg2]);
   ```
 
   After:
+
   ```ts
   await client.signalWithStart(myWorkflow, {
     args: [wfArg1, wfArg2],
@@ -83,11 +90,13 @@ Breaking changes marked with a :boom:
   **WorkflowClient - Get handle to an existing Workflow**
 
   Before:
+
   ```ts
   const handle = await client.createWorkflowHandle({ workflowId });
   ```
 
   After:
+
   ```ts
   const handle = await client.getHandle(workflowId);
   ```
@@ -95,12 +104,14 @@ Breaking changes marked with a :boom:
   **`@temporalio/workflow` - Start Child Workflow**
 
   Before:
+
   ```ts
   const handle = await workflow.createChildWorkflowHandle(myWorkflow, { taskQueue: 'q' });
   await handle.start(arg1, arg2);
   ```
 
   After:
+
   ```ts
   const handle = await workflow.startChild(myWorkflow, { taskQueue: 'q', args: [arg1, arg2] });
   ```
@@ -108,12 +119,14 @@ Breaking changes marked with a :boom:
   **`@temporalio/workflow` - Start Child Workflow and await completion**
 
   Before:
+
   ```ts
   const handle = await workflow.createChildWorkflowHandle(myWorkflow, { taskQueue: 'q' });
   const result = await handle.execute(arg1, arg2);
   ```
 
   After:
+
   ```ts
   const result = await workflow.executeChild(myWorkflow, { taskQueue: 'q', args: [arg1, arg2] });
   ```
@@ -121,11 +134,13 @@ Breaking changes marked with a :boom:
   **`@temporalio/workflow` - Get handle to an external Workflow**
 
   Before:
+
   ```ts
   const handle = await workflow.createExternalWorkflowHandle(workflowId);
   ```
 
   After:
+
   ```ts
   const handle = await workflow.getExternalWorkflowHandle(workflowId);
   ```
