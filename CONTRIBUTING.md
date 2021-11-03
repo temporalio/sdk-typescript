@@ -31,7 +31,7 @@ See [sdk-structure.md](./docs/sdk-structure.md)
   npm ci
   ```
   This may take a few minutes, as it involves downloading and compiling Rust dependencies.
-You should now be able to successfully do `npm run build`. If this fails, resetting your environment may help:
+  You should now be able to successfully do `npm run build`. If this fails, resetting your environment may help:
 
 ```
 npx lerna clean -y && npm ci
