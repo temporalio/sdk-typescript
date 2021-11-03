@@ -6,7 +6,7 @@ import {
   condition,
   defineSignal,
   defineQuery,
-  setListener,
+  setHandler,
 } from '@temporalio/workflow';
 import { echo } from './configured-activities';
 
@@ -17,14 +17,14 @@ export const getSecretQuery = defineQuery<string>('getSecret');
 
 export async function interceptorExample(): Promise<string> {
   let unblocked = false;
-  setListener(unblockWithSecretSignal, (secret: string) => {
+  setHandler(unblockWithSecretSignal, (secret: string) => {
     if (secret !== '12345') {
       // Workflow execution should fail
       throw new Error('Wrong unblock secret');
     }
     unblocked = true;
   });
-  setListener(getSecretQuery, () => '12345');
+  setHandler(getSecretQuery, () => '12345');
 
   try {
     await sleep(1);

@@ -1,8 +1,8 @@
-import { setListener, sleep } from '@temporalio/workflow';
+import { setHandler, sleep } from '@temporalio/workflow';
 import { failSignal } from './definitions';
 
 export async function asyncFailSignalWorkflow(): Promise<void> {
-  setListener(failSignal, async () => {
+  setHandler(failSignal, async () => {
     await sleep(100);
     throw new Error('Signal failed');
   });

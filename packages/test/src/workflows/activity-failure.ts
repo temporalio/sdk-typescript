@@ -1,10 +1,10 @@
 /**
  * Tests that ActivityFailure is propagated correctly to client
  */
-import { createActivityHandle } from '@temporalio/workflow';
+import { proxyActivities } from '@temporalio/workflow';
 import type * as activities from '../activities';
 
-const { throwAnError } = createActivityHandle<typeof activities>({
+const { throwAnError } = proxyActivities<typeof activities>({
   startToCloseTimeout: '5s',
   retry: { initialInterval: '1s', maximumAttempts: 1 },
 });

@@ -14,7 +14,7 @@
  *
  * ### Activities
  *
- * To schedule Activities, use {@link createActivityHandle} to obtain an Activity function and call.
+ * To schedule Activities, use {@link proxyActivities} to obtain an Activity function and call.
  *
  * <!--SNIPSTART typescript-schedule-activity-workflow-->
  * <!--SNIPEND-->

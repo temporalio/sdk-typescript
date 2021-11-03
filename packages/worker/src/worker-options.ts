@@ -62,7 +62,7 @@ export interface WorkerOptions {
    * Automatically shut down worker on any of these signals.
    * @default
    * ```ts
-   * ['SIGINT', 'SIGTERM', 'SIGQUIT']
+   * ['SIGINT', 'SIGTERM', 'SIGQUIT', 'SIGUSR2']
    * ```
    */
   shutdownSignals?: NodeJS.Signals[];
@@ -256,7 +256,7 @@ export function addDefaultWorkerOptions(options: WorkerOptions): WorkerOptionsWi
       options.nodeModulesPaths ??
       (options.workflowsPath ? resolveNodeModulesPaths(fs, options.workflowsPath) : undefined),
     shutdownGraceTime: '5s',
-    shutdownSignals: ['SIGINT', 'SIGTERM', 'SIGQUIT'],
+    shutdownSignals: ['SIGINT', 'SIGTERM', 'SIGQUIT', 'SIGUSR2'],
     dataConverter: defaultDataConverter,
     maxConcurrentActivityTaskExecutions: 100,
     maxConcurrentWorkflowTaskExecutions: 100,

@@ -3,10 +3,10 @@
  * Used in the documentation site.
  */
 // @@@SNIPSTART typescript-cancel-requested-with-non-cancellable
-import { CancelledFailure, CancellationScope, createActivityHandle } from '@temporalio/workflow';
+import { CancelledFailure, CancellationScope, proxyActivities } from '@temporalio/workflow';
 import type * as activities from '../activities';
 
-const { httpGetJSON } = createActivityHandle<typeof activities>({
+const { httpGetJSON } = proxyActivities<typeof activities>({
   startToCloseTimeout: '10m',
 });
 

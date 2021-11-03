@@ -1,8 +1,8 @@
 // @@@SNIPSTART typescript-shared-promise-scopes
-import { CancellationScope, createActivityHandle } from '@temporalio/workflow';
+import { CancellationScope, proxyActivities } from '@temporalio/workflow';
 import type * as activities from '../activities';
 
-const { httpGetJSON } = createActivityHandle<typeof activities>({ startToCloseTimeout: '10m' });
+const { httpGetJSON } = proxyActivities<typeof activities>({ startToCloseTimeout: '10m' });
 
 export async function sharedScopes(): Promise<any> {
   // Start activities in the root scope

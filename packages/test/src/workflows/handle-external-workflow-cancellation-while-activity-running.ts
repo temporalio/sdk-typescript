@@ -4,10 +4,10 @@
  * Used in the documentation site.
  */
 // @@@SNIPSTART typescript-handle-external-workflow-cancellation-while-activity-running
-import { CancellationScope, createActivityHandle, isCancellation } from '@temporalio/workflow';
+import { CancellationScope, proxyActivities, isCancellation } from '@temporalio/workflow';
 import type * as activities from '../activities';
 
-const { httpPostJSON, cleanup } = createActivityHandle<typeof activities>({
+const { httpPostJSON, cleanup } = proxyActivities<typeof activities>({
   startToCloseTimeout: '10m',
 });
 

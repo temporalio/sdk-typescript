@@ -4,6 +4,136 @@ All notable changes to this project will be documented in this file.
 
 Breaking changes marked with a :boom:
 
+## [0.14.0] - 2021-11-03
+
+### Bug Fixes
+
+- Add missing index.d.ts to published files in core-bridge package ([#347](https://github.com/temporalio/sdk-typescript/pull/347))
+- [`docs`] Update algolia index name ([#350](https://github.com/temporalio/sdk-typescript/pull/350))
+- [`core`] Update core to gain infinite poll retries ([#355](https://github.com/temporalio/sdk-typescript/pull/355))
+- [`worker`] Fix Worker possible hang after graceful shutdown period expires ([#356](https://github.com/temporalio/sdk-typescript/pull/356))
+
+### Features
+
+- :boom: [`workflow`] Rename `createActivityHandle` to `proxyActivities` ([#351](https://github.com/temporalio/sdk-typescript/pull/351))
+- The function's usage remains the same, only the name was changed.
+
+  Before:
+
+  ```ts
+  import { createActivityHandle } from '@temporalio/workflow';
+  import type * as activities from './activities';
+
+  const { greet } = createActivityHandle<typeof activities>({
+    startToCloseTimeout: '1 minute',
+  });
+  ```
+
+  After:
+
+  ```ts
+  import { proxyActivities } from '@temporalio/workflow';
+  import type * as activities from './activities';
+
+  const { greet } = proxyActivities<typeof activities>({
+    startToCloseTimeout: '1 minute',
+  });
+  ```
+
+  Reasoning:
+
+  - Clarify that the method returns a proxy
+  - Avoid confusion with `WorkflowHandle`
+
+- :boom: [`workflow`] Rename `setListener` to `setHandler` ([#352](https://github.com/temporalio/sdk-typescript/pull/352))
+
+  BREAKING CHANGE: The function's usage remains the same, only the name was changed.
+
+  Before:
+
+  ```ts
+  import { defineSignal, setListener, condition } from '@temporalio/workflow';
+  import { unblockSignal } from './definitions';
+
+  export const unblockSignal = defineSignal('unblock');
+
+  export async function myWorkflow() {
+    let isBlocked = true;
+    setListener(unblockSignal, () => void (isBlocked = false));
+    await condition(() => !isBlocked);
+  }
+  ```
+
+  After:
+
+  ```ts
+  import { defineSignal, setHandler, condition } from '@temporalio/workflow';
+  import { unblockSignal } from './definitions';
+
+  export const unblockSignal = defineSignal('unblock');
+
+  export async function myWorkflow() {
+    let isBlocked = true;
+    setHandler(unblockSignal, () => void (isBlocked = false));
+    await condition(() => !isBlocked);
+  }
+  ```
+
+  Reasoning:
+
+  - It was our go-to name initially but we decided against it when to avoid confusion with the `WorkflowHandle` concept
+  - Handling seems more accurate about what the function is doing than listening
+  - With listeners it sounds like you can set multiple listeners, and handler doesn't
+
+- [`worker`] Add SIGUSR2 to default list of shutdown signals ([#346](https://github.com/temporalio/sdk-typescript/pull/346))
+- :boom: [`client`] Use failure classes for WorkflowClient errors
+
+  - Error handling for `WorkflowClient` and `WorkflowHandle` `execute` and `result` methods now throw
+    `WorkflowFailedError` with the specific `TemporalFailure` as the cause.
+    The following error classes were renamed:
+
+    - `WorkflowExecutionFailedError` was renamed `WorkflowFailedError`.
+    - `WorkflowExecutionContinuedAsNewError` was renamed
+      `WorkflowContinuedAsNewError`.
+
+  Before:
+
+  ```ts
+  try {
+    await WorkflowClient.execute(myWorkflow, { taskQueue: 'example' });
+  } catch (err) {
+    if (err instanceof WorkflowExecutionFailedError && err.cause instanceof ApplicationFailure) {
+      console.log('Workflow failed');
+    } else if (err instanceof WorkflowExecutionTimedOutError) {
+      console.log('Workflow timed out');
+    } else if (err instanceof WorkflowExecutionTerminatedError) {
+      console.log('Workflow terminated');
+    } else if (err instanceof WorkflowExecutionCancelledError) {
+      console.log('Workflow cancelled');
+    }
+  }
+  ```
+
+  After:
+
+  ```ts
+  try {
+    await WorkflowClient.execute(myWorkflow, { taskQueue: 'example' });
+  } catch (err) {
+    if (err instanceof WorkflowFailedError) {
+    ) {
+      if (err.cause instanceof ApplicationFailure) {
+        console.log('Workflow failed');
+      } else if (err.cause instanceof TimeoutFailure) {
+        console.log('Workflow timed out');
+      } else if (err.cause instanceof TerminatedFailure) {
+        console.log('Workflow terminated');
+      } else if (err.cause instanceof CancelledFailure) {
+        console.log('Workflow cancelled');
+      }
+  }
+  ```
+
 ## [0.13.0] - 2021-10-29
 
 ### Bug Fixes
@@ -23,6 +153,7 @@ Breaking changes marked with a :boom:
 
 - Support bundling Workflow code prior to Worker creation ([#336](https://github.com/temporalio/sdk-typescript/pull/336))
 - :boom: Refactor WorkflowHandle creation ([#343](https://github.com/temporalio/sdk-typescript/pull/343))
+
   - `WorkflowClient.start` now returns a `WorkflowHandle`
   - `WorkflowHandle` no longer has `start`, `signalWithStart` and
     `execute` methods
@@ -33,6 +164,116 @@ Breaking changes marked with a :boom:
   - `wf.executeChild` replaces `ChildWorkflowHandle.execute`
   - `wf.createExternalWorkflowHandle` was renamed to
     `wf.getExternalWorkflowHandle`
+
+  #### Migration Guide
+
+  **WorkflowClient - Starting a new Workflow**
+
+  Before:
+
+  ```ts
+  const handle = await client.createWorkflowHandle(myWorkflow, { taskQueue: 'q' });
+  await handle.start(arg1, arg2);
+  ```
+
+  After:
+
+  ```ts
+  const handle = await client.start(myWorkflow, { taskQueue: 'q', args: [arg1, arg2] });
+  ```
+
+  **WorkflowClient - Starting a new Workflow and awaiting completion**
+
+  Before:
+
+  ```ts
+  const handle = await client.createWorkflowHandle(myWorkflow, { taskQueue: 'q' });
+  const result = await handle.execute(arg1, arg2);
+  ```
+
+  After:
+
+  ```ts
+  const result = await client.execute(myWorkflow, { taskQueue: 'q', args: [arg1, arg2] });
+  ```
+
+  **WorkflowClient - signalWithStart**
+
+  Before:
+
+  ```ts
+  const handle = await client.createWorkflowHandle(myWorkflow, { taskQueue: 'q' });
+  await handle.signalWithStart(signalDef, [signalArg1, signalArg2], [wfArg1, wfArg2]);
+  ```
+
+  After:
+
+  ```ts
+  await client.signalWithStart(myWorkflow, {
+    args: [wfArg1, wfArg2],
+    taskQueue: 'q',
+    signal: signalDef,
+    signalArgs: [signalArg1, signalArg2],
+  });
+  ```
+
+  **WorkflowClient - Get handle to an existing Workflow**
+
+  Before:
+
+  ```ts
+  const handle = await client.createWorkflowHandle({ workflowId });
+  ```
+
+  After:
+
+  ```ts
+  const handle = await client.getHandle(workflowId);
+  ```
+
+  **`@temporalio/workflow` - Start Child Workflow**
+
+  Before:
+
+  ```ts
+  const handle = await workflow.createChildWorkflowHandle(myWorkflow, { taskQueue: 'q' });
+  await handle.start(arg1, arg2);
+  ```
+
+  After:
+
+  ```ts
+  const handle = await workflow.startChild(myWorkflow, { taskQueue: 'q', args: [arg1, arg2] });
+  ```
+
+  **`@temporalio/workflow` - Start Child Workflow and await completion**
+
+  Before:
+
+  ```ts
+  const handle = await workflow.createChildWorkflowHandle(myWorkflow, { taskQueue: 'q' });
+  const result = await handle.execute(arg1, arg2);
+  ```
+
+  After:
+
+  ```ts
+  const result = await workflow.executeChild(myWorkflow, { taskQueue: 'q', args: [arg1, arg2] });
+  ```
+
+  **`@temporalio/workflow` - Get handle to an external Workflow**
+
+  Before:
+
+  ```ts
+  const handle = await workflow.createExternalWorkflowHandle(workflowId);
+  ```
+
+  After:
+
+  ```ts
+  const handle = await workflow.getExternalWorkflowHandle(workflowId);
+  ```
 
 ### Miscellaneous Tasks
 

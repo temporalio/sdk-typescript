@@ -179,7 +179,7 @@ export class Activator implements ActivationHandler {
   }
 
   protected async queryWorkflowNextHandler({ queryName, args }: QueryInput): Promise<unknown> {
-    const fn = state.queryListeners.get(queryName);
+    const fn = state.queryHandlers.get(queryName);
     if (fn === undefined) {
       // Fail the query
       throw new ReferenceError(`Workflow did not register a handler for ${queryName}`);
@@ -218,9 +218,9 @@ export class Activator implements ActivationHandler {
   }
 
   public async signalWorkflowNextHandler({ signalName, args }: SignalInput): Promise<void> {
-    const fn = state.signalListeners.get(signalName);
+    const fn = state.signalHandlers.get(signalName);
     if (fn === undefined) {
-      throw new IllegalStateError(`No registered signal listener for signal ${signalName}`);
+      throw new IllegalStateError(`No registered signal handler for signal ${signalName}`);
     }
     return fn(...args);
   }
@@ -231,7 +231,7 @@ export class Activator implements ActivationHandler {
       throw new TypeError('Missing activation signalName');
     }
 
-    const fn = state.signalListeners.get(signalName);
+    const fn = state.signalHandlers.get(signalName);
     if (fn === undefined) {
       let buffer = state.bufferedSignals.get(signalName);
       if (buffer === undefined) {
@@ -318,12 +318,12 @@ export class State {
   };
 
   /**
-   * Holds buffered signal calls until a listener is registered
+   * Holds buffered signal calls until a handler is registered
    */
   public readonly bufferedSignals = new Map<string, coresdk.workflow_activation.ISignalWorkflow[]>();
 
   /**
-   * Holds buffered query calls until a listener is registered.
+   * Holds buffered query calls until a handler is registered.
    *
    * **IMPORTANT** queries are only buffered until workflow is started.
    * This is required because async interceptors might block workflow function invocation
@@ -332,14 +332,14 @@ export class State {
   public readonly bufferedQueries = Array<coresdk.workflow_activation.IQueryWorkflow>();
 
   /**
-   * Mapping of signal name to listener
+   * Mapping of signal name to handler
    */
-  public readonly signalListeners = new Map<string, WorkflowSignalType>();
+  public readonly signalHandlers = new Map<string, WorkflowSignalType>();
 
   /**
-   * Mapping of signal name to listener
+   * Mapping of signal name to handler
    */
-  public readonly queryListeners = new Map<string, WorkflowQueryType>();
+  public readonly queryHandlers = new Map<string, WorkflowQueryType>();
 
   /**
    * Loaded in {@link initRuntime}
