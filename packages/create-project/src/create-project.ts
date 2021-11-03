@@ -204,8 +204,8 @@ export async function createApp({
 
   try {
     await access(messageFile);
-    const message = await readFile(messageFile);
-    await spawn('npx', ['chalk', '-t', message.toString()], { stdio: 'inherit' });
+    const message = await readFile(messageFile, 'utf8');
+    await spawn('npx', ['chalk', '-t', message], { stdio: 'inherit' });
     // console.log(chalkTemplate(message));
     await rm(messageFile);
   } catch (error) {
