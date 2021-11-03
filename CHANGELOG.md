@@ -4,6 +4,136 @@ All notable changes to this project will be documented in this file.
 
 Breaking changes marked with a :boom:
 
+## [0.14.0] - 2021-11-03
+
+### Bug Fixes
+
+- Add missing index.d.ts to published files in core-bridge package ([#347](https://github.com/temporalio/sdk-typescript/pull/347))
+- [`docs`] Update algolia index name ([#350](https://github.com/temporalio/sdk-typescript/pull/350))
+- [`core`] Update core to gain infinite poll retries ([#355](https://github.com/temporalio/sdk-typescript/pull/355))
+- [`worker`] Fix Worker possible hang after graceful shutdown period expires ([#356](https://github.com/temporalio/sdk-typescript/pull/356))
+
+### Features
+
+- :boom: [`workflow`] Rename `createActivityHandle` to `proxyActivities` ([#351](https://github.com/temporalio/sdk-typescript/pull/351))
+- The function's usage remains the same, only the name was changed.
+
+  Before:
+
+  ```ts
+  import { createActivityHandle } from '@temporalio/workflow';
+  import type * as activities from './activities';
+
+  const { greet } = createActivityHandle<typeof activities>({
+    startToCloseTimeout: '1 minute',
+  });
+  ```
+
+  After:
+
+  ```ts
+  import { proxyActivities } from '@temporalio/workflow';
+  import type * as activities from './activities';
+
+  const { greet } = proxyActivities<typeof activities>({
+    startToCloseTimeout: '1 minute',
+  });
+  ```
+
+  Reasoning:
+
+  - Clarify that the method returns a proxy
+  - Avoid confusion with `WorkflowHandle`
+
+- :boom: [`workflow`] Rename `setListener` to `setHandler` ([#352](https://github.com/temporalio/sdk-typescript/pull/352))
+
+  BREAKING CHANGE: The function's usage remains the same, only the name was changed.
+
+  Before:
+
+  ```ts
+  import { defineSignal, setListener, condition } from '@temporalio/workflow';
+  import { unblockSignal } from './definitions';
+
+  export const unblockSignal = defineSignal('unblock');
+
+  export async function myWorkflow() {
+    let isBlocked = true;
+    setListener(unblockSignal, () => void (isBlocked = false));
+    await condition(() => !isBlocked);
+  }
+  ```
+
+  After:
+
+  ```ts
+  import { defineSignal, setHandler, condition } from '@temporalio/workflow';
+  import { unblockSignal } from './definitions';
+
+  export const unblockSignal = defineSignal('unblock');
+
+  export async function myWorkflow() {
+    let isBlocked = true;
+    setHandler(unblockSignal, () => void (isBlocked = false));
+    await condition(() => !isBlocked);
+  }
+  ```
+
+  Reasoning:
+
+  - It was our go-to name initially but we decided against it when to avoid confusion with the `WorkflowHandle` concept
+  - Handling seems more accurate about what the function is doing than listening
+  - With listeners it sounds like you can set multiple listeners, and handler doesn't
+
+- [`worker`] Add SIGUSR2 to default list of shutdown signals ([#346](https://github.com/temporalio/sdk-typescript/pull/346))
+- :boom: [`client`] Use failure classes for WorkflowClient errors
+
+  - Error handling for `WorkflowClient` and `WorkflowHandle` `execute` and `result` methods now throw
+    `WorkflowFailedError` with the specific `TemporalFailure` as the cause.
+    The following error classes were renamed:
+
+    - `WorkflowExecutionFailedError` was renamed `WorkflowFailedError`.
+    - `WorkflowExecutionContinuedAsNewError` was renamed
+      `WorkflowContinuedAsNewError`.
+
+  Before:
+
+  ```ts
+  try {
+    await WorkflowClient.execute(myWorkflow, { taskQueue: 'example' });
+  } catch (err) {
+    if (err instanceof WorkflowExecutionFailedError && err.cause instanceof ApplicationFailure) {
+      console.log('Workflow failed');
+    } else if (err instanceof WorkflowExecutionTimedOutError) {
+      console.log('Workflow timed out');
+    } else if (err instanceof WorkflowExecutionTerminatedError) {
+      console.log('Workflow terminated');
+    } else if (err instanceof WorkflowExecutionCancelledError) {
+      console.log('Workflow cancelled');
+    }
+  }
+  ```
+
+  After:
+
+  ```ts
+  try {
+    await WorkflowClient.execute(myWorkflow, { taskQueue: 'example' });
+  } catch (err) {
+    if (err instanceof WorkflowFailedError) {
+    ) {
+      if (err.cause instanceof ApplicationFailure) {
+        console.log('Workflow failed');
+      } else if (err.cause instanceof TimeoutFailure) {
+        console.log('Workflow timed out');
+      } else if (err.cause instanceof TerminatedFailure) {
+        console.log('Workflow terminated');
+      } else if (err.cause instanceof CancelledFailure) {
+        console.log('Workflow cancelled');
+      }
+  }
+  ```
+
 ## [0.13.0] - 2021-10-29
 
 ### Bug Fixes
