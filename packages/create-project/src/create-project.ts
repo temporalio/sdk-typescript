@@ -3,7 +3,12 @@ import retry from 'async-retry';
 import chalk from 'chalk';
 import path from 'path';
 import prompts from 'prompts';
-import { access } from 'fs/promises';
+import { access, rm, readFile } from 'fs/promises';
+
+// TODO switch to this when version newer than 2016 is published
+// https://www.npmjs.com/package/chalk-template
+// import chalkTemplate from 'chalk-template';
+
 import {
   downloadAndExtractSample,
   downloadAndExtractRepo,
@@ -19,6 +24,8 @@ import { testIfThisComputerIsOnline } from './helpers/is-online';
 import { isWriteable } from './helpers/is-writeable';
 import { getErrorCode } from './helpers/get-error-code';
 import { stripSnipComments } from './helpers/strip-snip-comments';
+import { spawn } from './helpers/subprocess';
+import { fetchSamples } from './helpers/fetch-samples';
 
 export class DownloadError extends Error {}
 
@@ -79,8 +86,10 @@ export async function createApp({
       console.error(
         `Could not locate a sample named ${chalk.red(`"${sample}"`)}. It could be due to the following:\n`,
         `1. Your spelling of sample ${chalk.red(`"${sample}"`)} might be incorrect.\n`,
-        `2. You might not be connected to the internet.`
+        `2. You might not be connected to the internet.\n`
       );
+      const samples = await fetchSamples();
+      console.error(`Available samples:\n\n${samples.join('\n')}\n`);
       process.exit(1);
     }
   }
@@ -95,9 +104,6 @@ export async function createApp({
 
   const appName = path.basename(root);
 
-  const originalDirectory = process.cwd();
-
-  const displayedCommand = useYarn ? 'yarn' : 'npm';
   console.log(`Creating a new Temporal project in ${chalk.green(root)}/`);
   console.log();
 
@@ -129,6 +135,8 @@ export async function createApp({
       console.error('Exiting. You can re-run this command with a different project name.');
       process.exit(1);
     }
+
+    await rm(root, { recursive: true, force: true, maxRetries: 5 });
   }
 
   try {
@@ -184,43 +192,26 @@ export async function createApp({
 
   if (await tryGitInit(root, gitInit)) {
     console.log('Initialized a git repository.');
-    console.log();
   }
 
-  let cdpath: string;
-  if (path.join(originalDirectory, appName) === appPath) {
-    cdpath = appName;
-  } else {
-    cdpath = appPath;
-  }
+  const messageFile = path.join(root, '.post-create');
 
-  console.log(`${chalk.green('Success!')} Created ${chalk.bold(appName)} at ${chalk.bold(appPath + '/')}`);
   console.log();
-  console.log('Inside that directory, you can run several commands:');
+  console.log(`${chalk.green('Success!')} Created project ${chalk.bold(appName)} at:`);
   console.log();
-  console.log(chalk.cyan(`  ${displayedCommand} ${useYarn ? '' : 'run '}build`));
-  console.log('    Builds all the code.');
+  console.log(chalk.bold(appPath + '/'));
   console.log();
-  console.log(chalk.cyan(`  ${displayedCommand} start`));
-  console.log('    Runs the built Worker.');
-  console.log();
-  console.log(chalk.cyan(`  ${displayedCommand} ${useYarn ? '' : 'run '}workflow`));
-  console.log('    Starts a Workflow.');
-  console.log();
-  console.log('To begin development, start Temporal Server:');
-  console.log();
-  console.log(chalk.cyan('  cd'), '~/path/to/temporal/docker-compose/');
-  console.log(`  ${chalk.cyan('docker-compose up')}`);
-  console.log();
-  console.log(
-    chalk.dim.italic(
-      `If you haven't run Temporal Server before, visit:\nhttps://docs.temporal.io/docs/typescript/getting-started/`
-    )
-  );
-  console.log();
-  console.log(`Then, in the ${chalk.bold(cdpath + '/')} directory, using two other shells, run these commands:`);
-  console.log();
-  console.log(`  ${chalk.cyan(`${displayedCommand} ${useYarn ? '' : 'run '}start.watch`)}`);
-  console.log(`  ${chalk.cyan(`${displayedCommand} ${useYarn ? '' : 'run '}workflow`)}`);
-  console.log();
+
+  try {
+    await access(messageFile);
+    const message = await readFile(messageFile, 'utf8');
+    await spawn('npx', ['chalk', '-t', message], { stdio: 'inherit' });
+    // console.log(chalkTemplate(message));
+    await rm(messageFile);
+  } catch (error) {
+    const code = getErrorCode(error);
+    if (code !== 'ENOENT') {
+      throw error;
+    }
+  }
 }
