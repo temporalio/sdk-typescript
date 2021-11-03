@@ -5,24 +5,14 @@
  * @module
  */
 
-interface Queries {
-  invalidAsyncMethod(): Promise<boolean>;
-  fail(): never;
-}
+import { defineQuery, setHandler } from '@temporalio/workflow';
 
-const queries = {
-  async invalidAsyncMethod(): Promise<boolean> {
-    return true;
-  },
-  fail(): never {
+export const invalidAsyncQuery = defineQuery<Promise<boolean>>('invalidAsyncMethod');
+export const failQuery = defineQuery<never>('fail');
+
+export async function invalidOrFailedQueries(): Promise<void> {
+  setHandler(invalidAsyncQuery, async () => true);
+  setHandler(failQuery, () => {
     throw new Error('fail');
-  },
-};
-
-async function execute(): Promise<void> {
-  // Nothing to do here
-}
-
-export function invalidOrFailedQueries(): { execute(): Promise<void>; queries: Queries } {
-  return { execute, queries };
+  });
 }

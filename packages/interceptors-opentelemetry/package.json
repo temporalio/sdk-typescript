@@ -1,6 +1,6 @@
 {
   "name": "@temporalio/interceptors-opentelemetry",
-  "version": "0.2.1",
+  "version": "0.13.0",
   "description": "Temporal.io SDK interceptors bundle for tracing with opentelemetry",
   "main": "lib/index.js",
   "types": "./lib/index.d.ts",
@@ -14,18 +14,19 @@
   "author": "Roey Berman <roey@temporal.io>",
   "license": "MIT",
   "dependencies": {
-    "@opentelemetry/api": "^1.0.2",
-    "@opentelemetry/exporter-jaeger": "^0.24.0",
-    "@opentelemetry/sdk-node": "^0.24.0",
+    "@opentelemetry/api": "^1.0.3",
+    "@opentelemetry/core": "^1.0.0",
+    "@opentelemetry/resources": "^1.0.0",
+    "@opentelemetry/sdk-trace-base": "^1.0.0",
     "@temporalio/client": "file:../client",
     "@temporalio/common": "file:../common",
     "@temporalio/worker": "file:../worker",
     "@temporalio/workflow": "file:../workflow"
   },
   "bugs": {
-    "url": "https://github.com/temporalio/sdk-node/issues"
+    "url": "https://github.com/temporalio/sdk-typescript/issues"
   },
-  "homepage": "https://github.com/temporalio/sdk-node/tree/main/packages/interceptors-opentelemetry",
+  "homepage": "https://github.com/temporalio/sdk-typescript/tree/main/packages/interceptors-opentelemetry",
   "files": [
     "lib"
   ],

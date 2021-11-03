@@ -1,7 +1,3 @@
-import { Empty } from '../interfaces';
-
-export const throwAsync: Empty = () => ({
-  async execute(): Promise<void> {
-    throw new Error('failure');
-  },
-});
+export async function throwAsync(): Promise<void> {
+  throw new Error('failure');
+}

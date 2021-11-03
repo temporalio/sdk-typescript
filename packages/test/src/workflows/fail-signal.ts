@@ -1,16 +1,10 @@
-import { sleep } from '@temporalio/workflow';
-import { Failable } from '../interfaces';
+import { setHandler, sleep } from '@temporalio/workflow';
+import { failSignal } from './definitions';
 
-const signals = {
-  // Throw an error directly in the signal handler, this should be translated to a failWorkflowExecution command
-  fail(): never {
+export async function failSignalWorkflow(): Promise<void> {
+  setHandler(failSignal, () => {
     throw new Error('Signal failed');
-  },
-};
-
-async function execute(): Promise<void> {
+  });
   // Don't complete to allow Workflow to be interrupted by fail() signal
   await sleep(100000);
 }
-
-export const failSignal: Failable = () => ({ execute, signals });

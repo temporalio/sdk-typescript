@@ -1,12 +1,12 @@
 # How to Contribute
 
-The Node.js SDK (as well as the rest of the Temporal codebase) is open sourced under the MIT license.
+The TypeScript SDK (as well as the rest of the Temporal codebase) is open sourced under the MIT license.
 
-We welcome contributions from the community. To contribute please start by opening an [issue](https://github.com/temporalio/sdk-node/issues) and discussing the proposed change. Once a change has been agreed upon, development may start and be submitted via a [pull request](https://github.com/temporalio/sdk-node/pulls).
+We welcome contributions from the community. To contribute please start by opening an [issue](https://github.com/temporalio/sdk-typescript/issues) and discussing the proposed change. Once a change has been agreed upon, development may start and be submitted via a [pull request](https://github.com/temporalio/sdk-typescript/pulls).
 
 ### Contributor License Agreement (CLA)
 
-Contributors must agree to the CLA before their PR can be merged. You only have to do this once. Follow [this link](https://cla-assistant.io/temporalio/sdk-node) and sign in with your GitHub account.
+Contributors must agree to the CLA before their PR can be merged. You only have to do this once. Follow [this link](https://cla-assistant.io/temporalio/sdk-typescript) and sign in with your GitHub account.
 
 ### SDK Structure
 
@@ -16,10 +16,10 @@ See [sdk-structure.md](./docs/sdk-structure.md)
 
 - Install the system dependencies listed in [Getting started > Step 0: Prerequisites](https://docs.temporal.io/docs/node/getting-started/#step-0-prerequisites)
 - Install the [Rust toolchain](https://rustup.rs/)
-- Clone the [sdk-node](https://github.com/temporalio/sdk-node) repo:
+- Clone the [sdk-typescript](https://github.com/temporalio/sdk-typescript) repo:
   ```sh
-  git clone https://github.com/temporalio/sdk-node.git
-  cd sdk-node
+  git clone https://github.com/temporalio/sdk-typescript.git
+  cd sdk-typescript
   ```
 - Initialize the Core SDK submodule:
   ```sh
@@ -39,7 +39,7 @@ npx lerna clean -y && npm ci
 
 To update your environment, run `git submodule update` to update to the latest version of the Core SDK, followed by `npm run build` to recompile.
 
-> For cross compilation on MacOS follow [these instructions](https://github.com/temporalio/sdk-node/blob/main/docs/building.md) (only required for publishing packages).
+> For cross compilation on MacOS follow [these instructions](https://github.com/temporalio/sdk-typescript/blob/main/docs/building.md) (only required for publishing packages).
 
 ### Development Workflow
 
@@ -54,28 +54,47 @@ After your environment is set up, you can run these commands:
 - `npm run lint` verifies code style with prettier and ES lint.
 - `npm run commitlint` validates [commit messages](#style-guide).
 
-### Testing local changes to core
+### Testing
+
+#### Testing local changes to core
 
 Create a `.cargo/config.toml` file and override the path to sdk-core and/or sdk-core-protos as
 described [here](https://doc.rust-lang.org/cargo/reference/overriding-dependencies.html#paths-overrides)
 
-#### Integration tests
+##### Integration tests
 
 In order to run integration tests:
 
 1. Run the temporal server using [docker-compose](https://github.com/temporalio/docker-compose).
 1. Export `RUN_INTEGRATION_TESTS=true`
 
+#### test-npm-init
+
+To replicate the `test-npm-init` CI test locally, you can start with the below steps:
+
+> If you've run `npx @temporalio/create` before, you may need to delete the version of the package that's stored in `~/.npm/_npx/`.
+
+```
+rm -rf /tmp/registry
+npm ci
+npm run rebuild
+node scripts/publish-to-verdaccio.js --registry-dir /tmp/registry
+node scripts/init-from-verdaccio.js --registry-dir /tmp/registry --sample hello-world
+cd /tmp/registry/example
+npm run build
+node ~/path-to/sdk-typescript/scripts/test-example.js --work-dir /tmp/registry/example
+```
+
 ### Style Guide
 
 - Typescript code is linted with [eslint](https://eslint.org/)
 - Files in this repo are formatted with [prettier](https://prettier.io/)
-- All commits SHOULD adhere to the [Conventional Commits specification](https://conventionalcommits.org/) with sentence case descriptions, for example:
+- Pull request titles SHOULD adhere to the [Conventional Commits specification](https://conventionalcommits.org/), for example:
 
 ```
 <type>(optional scope): <description>
 
-chore(samples): Upgrade commander module
+chore(samples): upgrade commander module
 ```
 
-The `scope` options are listed in [commitlint.config.js](https://github.com/temporalio/sdk-node/blob/main/commitlint.config.js).
+The `scope` options are listed in [commitlint.config.js](https://github.com/temporalio/sdk-typescript/blob/main/commitlint.config.js).

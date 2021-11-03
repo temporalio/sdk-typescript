@@ -2,38 +2,24 @@
  * All-in-one sample showing cancellation, signals and queries
  * @module
  */
-// @@@SNIPSTART nodejs-blocked-workflow
-import { Trigger, CancelledFailure } from '@temporalio/workflow';
-import { Blocked } from '../interfaces';
+import { CancelledFailure, defineQuery, setHandler, condition } from '@temporalio/workflow';
+import { unblockSignal } from './definitions';
 
-export const unblockOrCancel: Blocked = () => {
-  let blocked = true;
-  const unblocked = new Trigger<void>();
+export const isBlockedQuery = defineQuery<boolean>('isBlocked');
 
-  return {
-    queries: {
-      isBlocked(): boolean {
-        return blocked;
-      },
-    },
-    signals: {
-      unblock(): void {
-        unblocked.resolve();
-      },
-    },
-    async execute(): Promise<void> {
-      try {
-        console.log('Blocked');
-        await unblocked;
-        blocked = false;
-        console.log('Unblocked');
-      } catch (err) {
-        if (!(err instanceof CancelledFailure)) {
-          throw err;
-        }
-        console.log('Cancelled');
-      }
-    },
-  };
-};
-// @@@SNIPEND
+export async function unblockOrCancel(): Promise<void> {
+  let isBlocked = true;
+  setHandler(unblockSignal, () => void (isBlocked = false));
+  setHandler(isBlockedQuery, () => isBlocked);
+  try {
+    console.log('Blocked');
+    await condition(() => !isBlocked);
+    isBlocked = false;
+    console.log('Unblocked');
+  } catch (err) {
+    if (!(err instanceof CancelledFailure)) {
+      throw err;
+    }
+    console.log('Cancelled');
+  }
+}

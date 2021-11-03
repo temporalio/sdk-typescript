@@ -4,7 +4,7 @@ const { copy, readFile, mkdtemp, pathExists } = require('fs-extra');
 const { spawn: spawnChild } = require('child_process');
 const arg = require('arg');
 const { Tail } = require('tail');
-const { shell, sleep, kill, waitOnChild, ChildProcessError } = require('./utils');
+const { shell, sleep, kill } = require('./utils');
 
 async function untilExists(file, attempts, sleepDuration = 1000) {
   for (let attempt = 1; attempt < attempts; attempt++) {
@@ -36,7 +36,7 @@ class Registry {
 
   async ready() {
     const logPath = path.resolve(this.workdir, 'verdaccio.log');
-    await untilExists(logPath, 60);
+    await untilExists(logPath, 120);
     const tail = new Tail(logPath, {
       fromBeginning: true,
     });
@@ -99,7 +99,7 @@ async function getArgs() {
     { permissive: true }
   );
   const registryDir = opts['--registry-dir'] || (await createTempRegistryDir());
-  return { registryDir, initArgs: opts._.length > 0 ? ['--', ...opts._] : [] };
+  return { registryDir, initArgs: opts._.length > 0 ? opts._ : [] };
 }
 
 module.exports = { getArgs, withRegistry };

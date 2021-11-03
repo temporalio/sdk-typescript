@@ -1,13 +1,15 @@
 import { v4 as uuid4 } from 'uuid';
 import {
-  WorkflowOptions as BaseWorkflowOptions,
-  WorkflowOptionsWithDefaults as BaseWorkflowOptionsWithDefaults,
-} from '@temporalio/common/lib/workflow-options';
-import * as iface from '@temporalio/proto';
+  WithWorkflowArgs,
+  WorkflowOptions as CommonWorkflowOptions,
+  WorkflowOptionsWithDefaults as CommonWorkflowOptionsWithDefaults,
+  SignalDefinition,
+  Workflow,
+} from '@temporalio/common';
 
-export { CompiledWorkflowOptions, compileWorkflowOptions } from '@temporalio/common/lib/workflow-options';
+export { CompiledWorkflowOptions, compileWorkflowOptions } from '@temporalio/common';
 
-export interface WorkflowOptions extends BaseWorkflowOptions {
+export interface WorkflowOptions extends CommonWorkflowOptions {
   /**
    * Task queue to use for Workflow tasks. It should match a task queue specified when creating a
    * `Worker` that hosts the Workflow code.
@@ -17,7 +19,18 @@ export interface WorkflowOptions extends BaseWorkflowOptions {
   followRuns?: boolean;
 }
 
-export interface WorkflowOptionsWithDefaults extends BaseWorkflowOptionsWithDefaults {
+export interface WorkflowSignalWithStartOptions<SA extends any[] = []> extends Partial<WorkflowOptions> {
+  /**
+   * SignalDefinition or name of signal
+   */
+  signal: SignalDefinition<SA> | string;
+  /**
+   * Arguments to invoke the signal handler with
+   */
+  signalArgs: SA;
+}
+
+export interface WorkflowOptionsWithDefaults<T extends Workflow> extends CommonWorkflowOptionsWithDefaults<T> {
   /**
    * If set to true, instructs the client to follow the chain of execution before returning a Workflow's result.
    *
@@ -32,12 +45,14 @@ export interface WorkflowOptionsWithDefaults extends BaseWorkflowOptionsWithDefa
 /**
  * Adds default values to `workflowId` and `workflowIdReusePolicy` to given workflow options.
  */
-export function addDefaults(opts: WorkflowOptions): WorkflowOptionsWithDefaults {
+export function addDefaults<T extends Workflow>(
+  opts: WithWorkflowArgs<T, WorkflowOptions>
+): WorkflowOptionsWithDefaults<T> {
+  const { workflowId, args, ...rest } = opts;
   return {
     followRuns: true,
-    workflowId: opts.workflowId ?? uuid4(),
-    workflowIdReusePolicy:
-      iface.temporal.api.enums.v1.WorkflowIdReusePolicy.WORKFLOW_ID_REUSE_POLICY_ALLOW_DUPLICATE_FAILED_ONLY,
-    ...opts,
+    args: args ?? [],
+    workflowId: workflowId ?? uuid4(),
+    ...rest,
   };
 }

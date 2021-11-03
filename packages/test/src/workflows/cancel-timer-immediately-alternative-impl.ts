@@ -3,24 +3,21 @@
  * Alternative implementation with cancellation from an outer scope.
  * Used in the documentation site.
  */
-// @@@SNIPSTART nodejs-cancel-a-timer-from-workflow-alternative-impl
+// @@@SNIPSTART typescript-cancel-a-timer-from-workflow-alternative-impl
 import { CancelledFailure, CancellationScope, sleep } from '@temporalio/workflow';
-import { Empty } from '../interfaces';
 
-export const cancelTimerAltImpl: Empty = () => ({
-  async execute() {
-    try {
-      const scope = new CancellationScope();
-      const promise = scope.run(() => sleep(1));
-      scope.cancel(); // <-- Cancel the timer created in scope
-      await promise; // <-- Throws CancelledFailure
-    } catch (e) {
-      if (e instanceof CancelledFailure) {
-        console.log('Timer cancelled 👍');
-      } else {
-        throw e; // <-- Fail the workflow
-      }
+export async function cancelTimerAltImpl(): Promise<void> {
+  try {
+    const scope = new CancellationScope();
+    const promise = scope.run(() => sleep(1));
+    scope.cancel(); // <-- Cancel the timer created in scope
+    await promise; // <-- Throws CancelledFailure
+  } catch (e) {
+    if (e instanceof CancelledFailure) {
+      console.log('Timer cancelled 👍');
+    } else {
+      throw e; // <-- Fail the workflow
     }
-  },
-});
+  }
+}
 // @@@SNIPEND

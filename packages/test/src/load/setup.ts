@@ -7,6 +7,7 @@ async function createNamespace(connection: Connection, namespace: string, maxAtt
   for (let attempt = 1; attempt <= maxAttempts; ++attempt) {
     try {
       await connection.service.registerNamespace({ namespace, workflowExecutionRetentionPeriod: msToTs('1 day') });
+      break;
     } catch (err: any) {
       if (err.details === 'Namespace already exists.') {
         break;
@@ -27,7 +28,7 @@ async function waitOnNamespace(connection: Connection, namespace: string, maxAtt
         execution: { workflowId: 'fake', runId: '12345678-1234-1234-1234-1234567890ab' },
       });
     } catch (err: any) {
-      if (err.details === 'Requested workflow history not found, may have passed retention period.') {
+      if (err.details.includes('workflow history not found') || err.details.includes('operation GetCurrentExecution')) {
         break;
       }
       if (attempt === maxAttempts) {
@@ -36,11 +37,6 @@ async function waitOnNamespace(connection: Connection, namespace: string, maxAtt
       await new Promise((resolve) => setTimeout(resolve, retryIntervalSecs * 1000));
     }
   }
-}
-
-export interface SetupOptions {
-  serverAddress: string;
-  namespace: string;
 }
 
 async function main() {

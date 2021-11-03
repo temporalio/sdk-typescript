@@ -1,6 +1,6 @@
 {
   "name": "@temporalio/proto",
-  "version": "0.3.3",
+  "version": "0.13.0",
   "description": "Temporal.io SDK compiled protobuf definitions",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -15,7 +15,6 @@
   "author": "Roey Berman <roey@temporal.io>",
   "license": "MIT",
   "dependencies": {
-    "@temporalio/core-bridge": "file:../core-bridge",
     "@types/long": "^4.0.1",
     "long": "^4.0.0",
     "protobufjs": "^6.11.2"
@@ -24,9 +23,9 @@
     "glob": "^7.1.7"
   },
   "bugs": {
-    "url": "https://github.com/temporalio/sdk-node/issues"
+    "url": "https://github.com/temporalio/sdk-typescript/issues"
   },
-  "homepage": "https://github.com/temporalio/sdk-node/tree/main/packages/proto",
+  "homepage": "https://github.com/temporalio/sdk-typescript/tree/main/packages/proto",
   "publishConfig": {
     "access": "public"
   }

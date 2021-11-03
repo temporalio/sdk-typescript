@@ -1,35 +1,22 @@
-import { dependencies } from '@temporalio/workflow';
-import { TestDependencies } from '../interfaces/dependencies';
-import { Returner } from '../interfaces';
+import { dependencies, ExternalDependencies } from '@temporalio/workflow';
 
-const { syncVoid, asyncIgnored, sync, async, error } = dependencies<TestDependencies>();
-
-function convertErrorToIntResult(fn: (x: number) => any, x: number): number {
-  try {
-    return fn(x);
-  } catch (err: any) {
-    return parseInt(err.message);
-  }
+export interface TestDependencies extends ExternalDependencies {
+  success: {
+    runAsync(counter: number): void;
+    runSync(counter: number): void;
+  };
+  error: {
+    throwAsync(counter: number): void;
+    throwSync(counter: number): void;
+  };
 }
 
-async function execute(): Promise<number> {
+const { success, error } = dependencies<TestDependencies>();
+
+export async function dependenciesWorkflow(): Promise<void> {
   let i = 0;
-  syncVoid.promise(i++);
-  syncVoid.ignoredAsyncImpl(i++);
-  syncVoid.sync(i++);
-  syncVoid.ignoredSyncImpl(i++);
-
-  asyncIgnored.syncImpl(i++);
-  asyncIgnored.asyncImpl(i++);
-
-  i = sync.syncImpl(i);
-  i = sync.asyncImpl(i);
-  i = await async.syncImpl(i);
-  i = await async.asyncImpl(i);
-  i = await error.throwAsync(i).catch((err) => parseInt(err.message));
-  i = convertErrorToIntResult(error.throwSync, i);
-  i = convertErrorToIntResult(error.throwSyncPromise, i);
-  return i;
+  success.runSync(i++);
+  success.runAsync(i++);
+  error.throwSync(i++);
+  error.throwAsync(i++);
 }
-
-export const dependenciesWorkflow: Returner<number> = () => ({ execute });

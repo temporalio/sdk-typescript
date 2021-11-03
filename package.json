@@ -6,14 +6,15 @@
   "devDependencies": {
     "@commitlint/cli": "^13.1.0",
     "@commitlint/config-conventional": "^13.1.0",
-    "@opentelemetry/api": "^1.0.1",
-    "@opentelemetry/sdk-node": "^0.24.0",
+    "@opentelemetry/api": "^1.0.3",
+    "@opentelemetry/sdk-node": "^0.25.0",
     "@tsconfig/node14": "^1.0.1",
     "@types/dedent": "^0.7.0",
     "@types/fs-extra": "^9.0.12",
     "@types/ms": "^0.7.31",
     "@types/node": "^16.7.8",
     "@types/node-fetch": "^2.5.12",
+    "@types/pidusage": "^2.0.1",
     "@types/ramda": "^0.27.44",
     "@types/uuid": "^8.3.1",
     "@typescript-eslint/eslint-plugin": "^4.30.0",
@@ -28,6 +29,7 @@
     "json5": "^2.2.0",
     "lerna": "^4.0.0",
     "long": "^4.0.0",
+    "pidusage": "^2.0.21",
     "prettier": "^2.3.2",
     "tail": "^2.2.3",
     "typescript": "^4.4.2"
@@ -38,7 +40,10 @@
     "build.watch": "lerna run --stream build.watch",
     "test": "lerna run --stream test",
     "test.watch": "lerna run --stream test.watch",
-    "ci-load": "node ./packages/test/lib/load/all-in-one.js --server-address $TEMPORAL_TESTING_SERVER_URL --iterations 10000 --otel-url=''",
+    "ci-load": "node ./packages/test/lib/load/all-in-one.js --server-address $TEMPORAL_TESTING_SERVER_URL --iterations 10000 --otel-url='' --max-cached-wfs 500",
+    "ci-nightly-longrun": "node ./packages/test/lib/load/all-in-one.js --server-address $TEMPORAL_TESTING_SERVER_URL --for-seconds 14400 --min-wfs-per-sec 5 --concurrent-wf-clients 10 --otel-url=''",
+    "ci-nightly-sampler": "node ./packages/test/lib/load/all-in-one.js --server-address $TEMPORAL_TESTING_SERVER_URL --otel-url='' --iterations 1000 --min-wfs-per-sec 5 --max-cached-wfs 500 --workflow yummy-sampler-mode",
+    "wait-namespace": "node ./scripts/wait-on-temporal.mjs",
     "lint": "eslint packages/*/src --ext .ts --no-error-on-unmatched-pattern && prettier --check .",
     "commitlint": "commitlint --from origin/main",
     "format": "prettier --write .",
@@ -47,7 +52,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/temporalio/sdk-node.git"
+    "url": "git+https://github.com/temporalio/sdk-typescript.git"
   },
   "keywords": [
     "temporal",
@@ -57,9 +62,9 @@
   "author": "Roey Berman <roey@temporal.io>",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/temporalio/sdk-node/issues"
+    "url": "https://github.com/temporalio/sdk-typescript/issues"
   },
-  "homepage": "https://github.com/temporalio/sdk-node#readme",
+  "homepage": "https://github.com/temporalio/sdk-typescript#readme",
   "files": [],
   "name": "typescript-sdk",
   "dependencies": {
@@ -72,7 +77,8 @@
     "@temporalio/worker": "file:packages/worker",
     "@temporalio/workflow": "file:packages/workflow",
     "arg": "^5.0.1",
-    "temporalio": "file:packages/meta"
+    "temporalio": "file:packages/meta",
+    "uuid": "^3.4.0"
   },
   "engines": {
     "node": ">= 14.0.0",

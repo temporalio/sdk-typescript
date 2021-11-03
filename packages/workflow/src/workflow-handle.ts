@@ -1,19 +1,20 @@
-import { BaseWorkflowHandle, Workflow, WorkflowHandleSignals } from '@temporalio/common';
+import { BaseWorkflowHandle, SignalDefinition, Workflow } from '@temporalio/common';
 
 /**
  * Handle representing an external Workflow execution
  */
-export interface ExternalWorkflowHandle<T extends Workflow> {
+export interface ExternalWorkflowHandle {
   /**
-   * A mapping of the different signals defined by Workflow interface `T` to callable functions.
-   * Call to signal a running Workflow.
+   * Signal a running Workflow.
+   *
+   * @param def a signal definition as returned from {@link defineSignal} or signal name (string)
    *
    * @example
    * ```ts
-   * await workflow.signal.increment(3);
+   * await handle.signal(incrementSignal, 3);
    * ```
    */
-  signal: WorkflowHandleSignals<T>;
+  signal<Args extends any[] = []>(def: SignalDefinition<Args> | string, ...args: Args): Promise<void>;
 
   /**
    * Cancel the external Workflow execution.
@@ -34,25 +35,26 @@ export interface ExternalWorkflowHandle<T extends Workflow> {
 }
 
 /**
- * Transforms a workflow interface `T` into a client interface
+ * A client side handle to a single Workflow instance.
+ * It can be used to signal, wait for completion, and cancel a Workflow execution.
  *
- * Given a workflow interface such as:
+ * Given the following Workflow definition:
  * ```ts
- * export interface Counter {
- *   execute(initialValue?: number): number;
- *   signals: {
- *     increment(amount?: number): void;
- *   };
- * }
+ * export const incrementSignal = defineSignal('increment');
+ * export async function counterWorkflow(initialValue: number): Promise<void>;
  * ```
  *
- * Create a handle for running and interacting with a single workflow
+ * Start a new Workflow execution and get a handle for interacting with it:
  * ```ts
- * // `counter` is a registered workflow file, typically found at
- * // `lib/workflows/counter.js` after building the typescript project
- * const workflow = Context.child<Counter>('counter');
- * // start workflow `execute` function with initialValue of 2 and await its completion
- * await workflow.execute(2);
+ * // Start the Workflow with initialValue of 2.
+ * const handle = await startWorkflow(counterWorkflow, { args: [2] });
+ * await handle.signal(incrementSignal, 2);
+ * await handle.result(); // throws WorkflowExecutionTerminatedError
  * ```
  */
-export interface ChildWorkflowHandle<T extends Workflow> extends BaseWorkflowHandle<T> {} // eslint-disable-line @typescript-eslint/no-empty-interface
+export interface ChildWorkflowHandle<T extends Workflow> extends BaseWorkflowHandle<T> {
+  /**
+   * The runId of the initial run of the bound Workflow
+   */
+  readonly originalRunId: string;
+}

@@ -1,6 +1,4 @@
-import { Empty } from '../interfaces';
-
-async function execute(): Promise<void> {
+export async function promiseAll(): Promise<void> {
   // None promises
   console.log(...(await Promise.all([1, 2, 3])));
   // Normal promises
@@ -22,5 +20,3 @@ async function execute(): Promise<void> {
     console.log(err.message);
   }
 }
-
-export const promiseAll: Empty = () => ({ execute });

@@ -11,11 +11,11 @@ if (RUN_INTEGRATION_TESTS) {
     const { activities, taskQueue, ...rest } = defaultOptions;
     const worker = await Worker.create({ taskQueue: 'only-workflows', ...rest });
     const client = new WorkflowClient();
-    const runner = client.createWorkflowHandle(successString, {
-      taskQueue: 'only-workflows',
-    });
     const runAndShutdown = async () => {
-      const result = await runner.execute();
+      const result = await client.execute(successString, {
+        args: [],
+        taskQueue: 'only-workflows',
+      });
       t.is(result, 'success');
       worker.shutdown();
     };

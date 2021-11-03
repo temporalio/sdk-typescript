@@ -11,11 +11,11 @@ if (RUN_INTEGRATION_TESTS) {
     const workflowlessWorker = await Worker.create({ taskQueue: 'only-activities', activities });
     const normalWorker = await Worker.create({ ...defaultOptions, taskQueue: 'also-workflows' });
     const client = new WorkflowClient();
-    const runner = client.createWorkflowHandle(runActivityInDifferentTaskQueue, {
-      taskQueue: 'also-workflows',
-    });
     const runAndShutdown = async () => {
-      const result = await runner.execute('only-activities');
+      const result = await client.execute(runActivityInDifferentTaskQueue, {
+        args: ['only-activities'],
+        taskQueue: 'also-workflows',
+      });
       t.is(result, 'hi');
       workflowlessWorker.shutdown();
       normalWorker.shutdown();

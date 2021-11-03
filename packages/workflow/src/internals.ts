@@ -11,14 +11,15 @@ import {
   DataConverter,
   defaultDataConverter,
   arrayFromPayloadsSync,
-  WorkflowHandlers,
+  Workflow,
+  WorkflowQueryType,
 } from '@temporalio/common';
 import { coresdk } from '@temporalio/proto/lib/coresdk';
 import { alea, RNG } from './alea';
 import { ContinueAsNew, WorkflowInfo } from './interfaces';
-import { QueryInput, SignalInput, WorkflowInterceptors } from './interceptors';
+import { QueryInput, SignalInput, WorkflowExecuteInput, WorkflowInterceptors } from './interceptors';
 import { DeterminismViolationError, WorkflowExecutionAlreadyStartedError, isCancellation } from './errors';
-import { ExternalCall, ExternalDependencies } from './dependencies';
+import { ExternalCall } from './dependencies';
 import { ROOT_SCOPE } from './cancellation-scope';
 
 export type ResolveFunction<T = any> = (val: T) => any;
@@ -27,6 +28,11 @@ export type RejectFunction<E = any> = (val: E) => any;
 export interface Completion {
   resolve: ResolveFunction;
   reject: RejectFunction;
+}
+
+export interface Condition {
+  fn(): boolean;
+  resolve(): void;
 }
 
 protobufjs.util.Long = Long;
@@ -41,16 +47,32 @@ export type ActivationHandler = {
 };
 
 export class Activator implements ActivationHandler {
-  public async startWorkflowNextHandler(): Promise<any> {
-    if (state.workflow === undefined) {
+  workflowFunctionWasCalled = false;
+
+  public async startWorkflowNextHandler({ args }: WorkflowExecuteInput): Promise<any> {
+    const { workflow } = state;
+    if (workflow === undefined) {
       throw new IllegalStateError('Workflow uninitialized');
     }
-    return await state.workflow.execute();
+    let promise: Promise<any>;
+    try {
+      promise = workflow(...args);
+    } finally {
+      // Guarantee this runs even if there was an exception when invoking the Workflow function
+      // Otherwise this Workflow will now be queryable.
+      this.workflowFunctionWasCalled = true;
+      // Empty the buffer
+      const buffer = state.bufferedQueries.splice(0);
+      for (const activation of buffer) {
+        this.queryWorkflow(activation);
+      }
+    }
+    return await promise;
   }
 
   public startWorkflow(activation: coresdk.workflow_activation.IStartWorkflow): void {
-    const { require: req, info } = state;
-    if (req === undefined || info === undefined) {
+    const { info } = state;
+    if (info === undefined) {
       throw new IllegalStateError('Workflow has not been initialized');
     }
     const execute = composeInterceptors(
@@ -156,13 +178,13 @@ export class Activator implements ActivationHandler {
     }
   }
 
-  protected async queryWorkflowNextHandler(input: QueryInput): Promise<unknown> {
-    const fn = state.workflow?.queries?.[input.queryName];
+  protected async queryWorkflowNextHandler({ queryName, args }: QueryInput): Promise<unknown> {
+    const fn = state.queryHandlers.get(queryName);
     if (fn === undefined) {
       // Fail the query
-      throw new ReferenceError(`Workflow did not register a handler for ${input.queryName}`);
+      throw new ReferenceError(`Workflow did not register a handler for ${queryName}`);
     }
-    const ret = fn(...input.args);
+    const ret = fn(...args);
     if (ret instanceof Promise) {
       throw new DeterminismViolationError('Query handlers should not return a Promise');
     }
@@ -170,10 +192,16 @@ export class Activator implements ActivationHandler {
   }
 
   public queryWorkflow(activation: coresdk.workflow_activation.IQueryWorkflow): void {
+    if (!this.workflowFunctionWasCalled) {
+      state.bufferedQueries.push(activation);
+      return;
+    }
+
     const { queryType, queryId } = activation;
     if (!(queryType && queryId)) {
       throw new TypeError('Missing query activation attributes');
     }
+
     const execute = composeInterceptors(
       state.interceptors.inbound,
       'handleQuery',
@@ -189,8 +217,12 @@ export class Activator implements ActivationHandler {
     );
   }
 
-  public async signalWorkflowNextHandler(fn: WorkflowSignalType, input: SignalInput): Promise<void> {
-    return fn(...input.args);
+  public async signalWorkflowNextHandler({ signalName, args }: SignalInput): Promise<void> {
+    const fn = state.signalHandlers.get(signalName);
+    if (fn === undefined) {
+      throw new IllegalStateError(`No registered signal handler for signal ${signalName}`);
+    }
+    return fn(...args);
   }
 
   public signalWorkflow(activation: coresdk.workflow_activation.ISignalWorkflow): void {
@@ -199,15 +231,21 @@ export class Activator implements ActivationHandler {
       throw new TypeError('Missing activation signalName');
     }
 
-    const fn = state.workflow?.signals?.[signalName];
+    const fn = state.signalHandlers.get(signalName);
     if (fn === undefined) {
-      // Fail the activation
-      throw new ReferenceError(`Workflow did not register a signal handler for ${signalName}`);
+      let buffer = state.bufferedSignals.get(signalName);
+      if (buffer === undefined) {
+        buffer = [];
+        state.bufferedSignals.set(signalName, buffer);
+      }
+      buffer.push(activation);
+      return;
     }
+
     const execute = composeInterceptors(
       state.interceptors.inbound,
       'handleSignal',
-      this.signalWorkflowNextHandler.bind(this, fn)
+      this.signalWorkflowNextHandler.bind(this)
     );
     execute({
       args: arrayFromPayloadsSync(state.dataConverter, activation.input),
@@ -280,6 +318,30 @@ export class State {
   };
 
   /**
+   * Holds buffered signal calls until a handler is registered
+   */
+  public readonly bufferedSignals = new Map<string, coresdk.workflow_activation.ISignalWorkflow[]>();
+
+  /**
+   * Holds buffered query calls until a handler is registered.
+   *
+   * **IMPORTANT** queries are only buffered until workflow is started.
+   * This is required because async interceptors might block workflow function invocation
+   * which delays query handler registration.
+   */
+  public readonly bufferedQueries = Array<coresdk.workflow_activation.IQueryWorkflow>();
+
+  /**
+   * Mapping of signal name to handler
+   */
+  public readonly signalHandlers = new Map<string, WorkflowSignalType>();
+
+  /**
+   * Mapping of signal name to handler
+   */
+  public readonly queryHandlers = new Map<string, WorkflowQueryType>();
+
+  /**
    * Loaded in {@link initRuntime}
    */
   public interceptors: Required<WorkflowInterceptors> = { inbound: [], outbound: [], internals: [] };
@@ -288,9 +350,11 @@ export class State {
    */
   public commands: coresdk.workflow_commands.IWorkflowCommand[] = [];
   /**
-   * Buffer containing external dependency calls which have not yet been transferred out of the isolate
+  /**
+   * Stores all {@link condition}s that haven't been unblocked yet
    */
-  public pendingExternalCalls: ExternalCall[] = [];
+  public blockedConditions = new Map<number, Condition>();
+
   /**
    * Is this Workflow completed
    */
@@ -307,9 +371,9 @@ export class State {
     timer: 1,
     activity: 1,
     childWorkflow: 1,
-    dependency: 1,
     signalWorkflow: 1,
     cancelWorkflow: 1,
+    condition: 1,
   };
 
   /**
@@ -331,7 +395,7 @@ export class State {
   /**
    * Reference to the current Workflow, initialized when a Workflow is started
    */
-  public workflow?: WorkflowHandlers;
+  public workflow?: Workflow;
 
   /**
    * Information about the current Workflow
@@ -344,23 +408,12 @@ export class State {
     throw new IllegalStateError('Tried to use Math.random before Workflow has been initialized');
   };
 
-  public dependencies: ExternalDependencies = {};
-
-  public getAndResetPendingExternalCalls(): ExternalCall[] {
-    if (this.pendingExternalCalls.length > 0) {
-      const ret = this.pendingExternalCalls;
-      this.pendingExternalCalls = [];
-      return ret;
-    }
-    return [];
-  }
-
   /**
    * Used to require user code
    *
    * Injected on isolate startup
    */
-  public require?: (path: string | undefined, workflowType: string) => any;
+  public require?: (path: string | undefined) => Promise<Record<string, any>>;
 
   public dataConverter: DataConverter = defaultDataConverter;
 
@@ -373,6 +426,14 @@ export class State {
    * Patches we sent to core {@link patched}
    */
   public readonly sentPatches = new Set<string>();
+
+  externalCalls = Array<ExternalCall>();
+
+  getAndResetExternalCalls(): ExternalCall[] {
+    const { externalCalls } = this;
+    this.externalCalls = [];
+    return externalCalls;
+  }
 
   /**
    * Buffer a Workflow command to be collected at the end of the current activation.

@@ -180,7 +180,7 @@ export class RootCancellationScope extends CancellationScope {
 export const ROOT_SCOPE = new RootCancellationScope({ cancellable: true, parent: NO_PARENT });
 
 /** This function is here to avoid a circular dependency between this module and workflow.ts */
-let sleep = (_: number): Promise<void> => {
+let sleep = (_: number | string): Promise<void> => {
   throw new IllegalStateError('Workflow has not been properly initialized');
 };
 

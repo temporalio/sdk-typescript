@@ -1,7 +1,6 @@
 import { CancelledFailure, CancellationScope, sleep } from '@temporalio/workflow';
-import { Empty } from '../interfaces';
 
-async function execute(): Promise<void> {
+export async function cancelTimerWithDelay(): Promise<void> {
   const scope = new CancellationScope();
   const promise = scope.run(() => sleep(10000));
   await sleep(1).then(() => scope.cancel());
@@ -15,5 +14,3 @@ async function execute(): Promise<void> {
     }
   }
 }
-
-export const cancelTimerWithDelay: Empty = () => ({ execute });

@@ -4,22 +4,16 @@
  *
  * @module
  */
-import { Trigger } from '@temporalio/workflow';
-import { SignalTarget } from '../interfaces';
+import { condition, setHandler } from '@temporalio/workflow';
+import { failWithMessageSignal, unblockSignal } from './definitions';
 
-const unblocked = new Trigger<void>();
+export async function signalTarget(): Promise<void> {
+  let unblocked = false;
 
-export const signalTarget: SignalTarget = () => ({
-  signals: {
-    fail(message: string): void {
-      throw new Error(message);
-    },
-    unblock(): void {
-      unblocked.resolve();
-    },
-  },
+  setHandler(failWithMessageSignal, (message) => {
+    throw new Error(message);
+  });
+  setHandler(unblockSignal, () => void (unblocked = true));
 
-  async execute(): Promise<void> {
-    await unblocked;
-  },
-});
+  await condition(() => unblocked);
+}

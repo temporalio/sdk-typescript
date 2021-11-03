@@ -1,3 +1,4 @@
+# No ports are exposed by default because tests run concurrently on a single CI instance
 version: '3.5'
 
 services:
@@ -5,20 +6,20 @@ services:
     image: cassandra:3.11
     logging:
       driver: none
-  #    ports:
-  #      - '9042:9042'
+    # ports:
+    #   - '9042:9042'
 
   temporal:
-    image: temporalio/auto-setup:1.11.0
-    ports:
-      - '7233:7233'
-      - '7234:7234'
-    #      - '7235:7235'
-    #      - '7239:7239'
-    #      - '6933:6933'
-    #      - '6934:6934'
-    #      - '6935:6935'
-    #      - '6939:6939'
+    image: temporalio/auto-setup:1.13.0
+    # ports:
+    #   - '7233:7233'
+    #   - '7234:7234'
+    #   - '7235:7235'
+    #   - '7239:7239'
+    #   - '6933:6933'
+    #   - '6934:6934'
+    #   - '6935:6935'
+    #   - '6939:6939'
     environment:
       - 'CASSANDRA_SEEDS=cassandra'
       - 'DYNAMIC_CONFIG_FILE_PATH=config/dynamicconfig/development.yaml'
@@ -26,11 +27,11 @@ services:
       - cassandra
 
   temporal-web:
-    image: temporalio/web:1.11.0
+    image: temporalio/web:1.13.0
     logging:
       driver: none
-    ports:
-      - '8088:8088'
+    # ports:
+    #   - '8088:8088'
     environment:
       - 'TEMPORAL_GRPC_ENDPOINT=temporal:7233'
     depends_on:

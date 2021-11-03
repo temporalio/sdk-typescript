@@ -3,26 +3,16 @@
  *
  * ### Usage
  *
- * <!--SNIPSTART nodejs-hello-worker-->
+ * <!--SNIPSTART typescript-hello-worker-->
  * <!--SNIPEND-->
  * @module
  */
 
-export {
-  State,
-  Worker,
-  WorkerOptions,
-  WorkerSpec,
-  WorkerSpecOptions,
-  CompiledWorkerOptions,
-  ActivityOptions,
-  DataConverter,
-  defaultDataConverter,
-  RetryOptions,
-  errors,
-} from './worker';
+export { State, Worker, ActivityOptions, DataConverter, defaultDataConverter, RetryOptions, errors } from './worker';
+export { WorkerOptions, CompiledWorkerOptions } from './worker-options';
 export { ServerOptions, TLSConfig } from './server-options';
 export { Core } from './core';
 export * from './logger';
 export * from './dependencies';
 export * from './interceptors';
+export { bundleWorkflowCode } from './workflow/bundler';

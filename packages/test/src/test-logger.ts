@@ -1,15 +1,15 @@
 import test from 'ava';
-import { DefaultLogger } from '@temporalio/worker';
+import { DefaultLogger, LogEntry } from '@temporalio/worker';
 
 test('DefaultLogger logs messages according to configured level', (t) => {
-  const logs: any[] = [];
-  const log = new DefaultLogger('WARNING', (...args) => logs.push(args));
+  const logs: Array<Omit<LogEntry, 'timestampNanos'>> = [];
+  const log = new DefaultLogger('WARN', ({ level, message, meta }) => logs.push({ level, message, meta }));
   log.debug('hey', { a: 1 });
   log.info('ho');
   log.warn('lets', { a: 1 });
   log.error('go');
   t.deepEqual(logs, [
-    ['WARNING', 'lets', { a: 1 }],
-    ['ERROR', 'go', undefined],
+    { level: 'WARN', message: 'lets', meta: { a: 1 } },
+    { level: 'ERROR', message: 'go', meta: undefined },
   ]);
 });

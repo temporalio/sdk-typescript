@@ -1,4 +1,3 @@
-// @@@SNIPSTART nodejs-activity-cancellable-fetch
 import fetch from 'node-fetch';
 import { Context } from '@temporalio/activity';
 
@@ -22,4 +21,3 @@ export async function cancellableFetch(url: string): Promise<Uint8Array> {
   }
   return Buffer.concat(chunks);
 }
-// @@@SNIPEND

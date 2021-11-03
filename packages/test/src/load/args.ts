@@ -14,21 +14,27 @@ export const setupArgSpec: SetupArgSpec = {
 };
 
 export interface StarterArgSpec extends arg.Spec {
+  '--min-wfs-per-sec': typeof Number;
   '--iterations': typeof Number;
+  '--for-seconds': typeof Number;
   '--workflow': typeof String;
   '--ns': typeof String;
   '--task-queue': typeof String;
   '--concurrent-wf-clients': typeof Number;
   '--server-address': typeof String;
+  '--worker-pid': typeof Number;
 }
 
 export const starterArgSpec: StarterArgSpec = {
+  '--min-wfs-per-sec': Number,
   '--iterations': Number,
+  '--for-seconds': Number,
   '--workflow': String,
   '--ns': String,
   '--task-queue': String,
   '--concurrent-wf-clients': Number,
   '--server-address': String,
+  '--worker-pid': Number,
 };
 
 export interface WorkerArgSpec extends arg.Spec {
@@ -37,7 +43,6 @@ export interface WorkerArgSpec extends arg.Spec {
   '--max-cached-wfs': typeof Number;
   '--max-concurrent-at-executions': typeof Number;
   '--max-concurrent-wft-executions': typeof Number;
-  '--isolate-pool-size': typeof Number;
   // NOTE: this is not supported yet by Core
   '--max-concurrent-at-polls': typeof Number;
   // NOTE: this is not supported yet by Core
@@ -62,8 +67,6 @@ export const workerArgSpec: WorkerArgSpec = {
   '--server-address': String,
   '--otel-url': String,
 };
-
-export type AllInOneArgSpec = SetupArgSpec & StarterArgSpec & WorkerArgSpec;
 
 export function getRequired<T extends arg.Spec, K extends keyof T>(
   args: arg.Result<T>,

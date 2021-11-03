@@ -1,6 +1,6 @@
 {
   "name": "@temporalio/activity",
-  "version": "0.4.0",
+  "version": "0.13.0",
   "description": "Temporal.io SDK Activity sub-package",
   "main": "lib/index.js",
   "types": "./lib/index.d.ts",
@@ -13,12 +13,13 @@
   "author": "Roey Berman <roey@temporal.io>",
   "license": "MIT",
   "dependencies": {
+    "@temporalio/common": "file:../common",
     "abort-controller": "^3.0.0"
   },
   "bugs": {
-    "url": "https://github.com/temporalio/sdk-node/issues"
+    "url": "https://github.com/temporalio/sdk-typescript/issues"
   },
-  "homepage": "https://github.com/temporalio/sdk-node/tree/main/packages/activity",
+  "homepage": "https://github.com/temporalio/sdk-typescript/tree/main/packages/activity",
   "publishConfig": {
     "access": "public"
   }

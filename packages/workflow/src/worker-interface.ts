@@ -3,7 +3,6 @@
  *
  * @module
  */
-import ivm from 'isolated-vm';
 import {
   IllegalStateError,
   msToTs,
@@ -12,16 +11,15 @@ import {
   Workflow,
   ApplicationFailure,
   errorMessage,
-  arrayFromPayloadsSync,
 } from '@temporalio/common';
 import { coresdk } from '@temporalio/proto/lib/coresdk';
 import { WorkflowInfo } from './interfaces';
-import { consumeCompletion, handleWorkflowFailure, state } from './internals';
+import { handleWorkflowFailure, state } from './internals';
 import { alea } from './alea';
-import { IsolateExtension, HookManager } from './promise-hooks';
 import { DeterminismViolationError } from './errors';
-import { ApplyMode, ExternalDependencyFunction, ExternalCall } from './dependencies';
+import { ExternalCall } from './dependencies';
 import { WorkflowInterceptorsFactory } from './interceptors';
+import { HookManager, IsolateExtension } from './promise-hooks';
 
 export function setRequireFunc(fn: Exclude<typeof state['require'], undefined>): void {
   state.require = fn;
@@ -29,17 +27,16 @@ export function setRequireFunc(fn: Exclude<typeof state['require'], undefined>):
 
 export function overrideGlobals(): void {
   const global = globalThis as any;
-  // Mock any weak reference holding structures because GC is non-deterministic.
+  // Mock any weak reference because GC is non-deterministic and the effect is observable from the Workflow.
   // WeakRef is implemented in V8 8.4 which is embedded in node >=14.6.0.
   // Workflow developer will get a meaningful exception if they try to use these.
-  global.WeakMap = function () {
-    throw new DeterminismViolationError('WeakMap cannot be used in workflows because v8 GC is non-deterministic');
-  };
-  global.WeakSet = function () {
-    throw new DeterminismViolationError('WeakSet cannot be used in workflows because v8 GC is non-deterministic');
-  };
   global.WeakRef = function () {
     throw new DeterminismViolationError('WeakRef cannot be used in workflows because v8 GC is non-deterministic');
+  };
+  global.FinalizationRegistry = function () {
+    throw new DeterminismViolationError(
+      'FinalizationRegistry cannot be used in workflows because v8 GC is non-deterministic'
+    );
   };
 
   const OriginalDate = globalThis.Date;
@@ -60,18 +57,25 @@ export function overrideGlobals(): void {
 
   global.Date.prototype = OriginalDate.prototype;
 
+  /**
+   * @param ms sleep duration -  number of milliseconds. If given a negative number, value will be set to 1.
+   */
   global.setTimeout = function (cb: (...args: any[]) => any, ms: number, ...args: any[]): number {
+    ms = Math.max(1, ms);
     const seq = state.nextSeqs.timer++;
-    state.completions.timer.set(seq, {
-      resolve: () => cb(...args),
-      reject: () => undefined /* ignore cancellation */,
-    });
-    state.pushCommand({
-      startTimer: {
-        seq,
-        startToFireTimeout: msToTs(ms),
-      },
-    });
+    // Create a Promise for AsyncLocalStorage to be able to track this completion using promise hooks.
+    new Promise((resolve, reject) => {
+      state.completions.timer.set(seq, { resolve, reject });
+      state.pushCommand({
+        startTimer: {
+          seq,
+          startToFireTimeout: msToTs(ms),
+        },
+      });
+    }).then(
+      () => cb(...args),
+      () => undefined /* ignore cancellation */
+    );
     return seq;
   };
 
@@ -89,52 +93,17 @@ export function overrideGlobals(): void {
   Math.random = () => state.random();
 }
 
-/** Mock DOM element for Webpack dynamic imports */
-export interface MockElement {
-  getAttribute(name: string): unknown;
-  setAttribute(name: string, value: unknown): void;
-}
-
-/** Mock document object for Webpack dynamic imports */
-export interface MockDocument {
-  head: {
-    // Ignored
-    appendChild(): void;
-  };
-  getElementsByTagName(): MockElement[];
-  createElement(): MockElement;
-}
-
 /**
- * Create a mock document object with mimimal required attributes to support Webpack dynamic imports
+ * Initialize the isolate runtime.
+ *
+ * Sets required internal state and instantiates the workflow and interceptors.
  */
-export function mockBrowserDocumentForWebpack(): MockDocument {
-  const attrs = new Map<string, unknown>();
-  const el = {
-    getAttribute: (name: string) => attrs.get(name),
-    setAttribute: (name: string, value: unknown) => {
-      attrs.set(name, value);
-    },
-  };
-  return {
-    head: {
-      appendChild: () => undefined,
-    },
-    getElementsByTagName: () => {
-      return [el];
-    },
-    createElement: () => {
-      return el;
-    },
-  };
-}
-
 export async function initRuntime(
   info: WorkflowInfo,
   interceptorModules: string[],
   randomnessSeed: number[],
-  isolateExtension: IsolateExtension,
-  encodedStartWorkflow: Uint8Array
+  now: number,
+  isolateExtension: IsolateExtension
 ): Promise<void> {
   // Globals are overridden while building the isolate before loading user code.
   // For some reason the `WeakRef` mock is not restored properly when creating an isolate from snapshot in node 14 (at least on ubuntu), override again.
@@ -142,6 +111,7 @@ export async function initRuntime(
     throw new DeterminismViolationError('WeakRef cannot be used in workflows because v8 GC is non-deterministic');
   };
   state.info = info;
+  state.now = now;
   state.random = alea(randomnessSeed);
   HookManager.instance.setIsolateExtension(isolateExtension);
 
@@ -150,8 +120,9 @@ export async function initRuntime(
     throw new IllegalStateError('Workflow has not been initialized');
   }
 
-  for (const mod of interceptorModules) {
-    const factory: WorkflowInterceptorsFactory = req(mod, 'interceptors');
+  for (const modName of interceptorModules) {
+    const mod = await req(modName);
+    const factory: WorkflowInterceptorsFactory = mod.interceptors;
     if (factory !== undefined) {
       if (typeof factory !== 'function') {
         throw new TypeError(`interceptors must be a function, got: ${factory}`);
@@ -162,35 +133,33 @@ export async function initRuntime(
       state.interceptors.internals.push(...(interceptors.internals ?? []));
     }
   }
-  const { headers, arguments: args } = coresdk.workflow_activation.StartWorkflow.decodeDelimited(encodedStartWorkflow);
 
-  const create = composeInterceptors(state.interceptors.inbound, 'create', async ({ args }) => {
-    let mod: Workflow;
-    try {
-      mod = req(undefined, info.workflowType);
-      if (typeof mod !== 'function') {
-        throw new TypeError(`'${info.workflowType}' is not a function`);
-      }
-    } catch (err) {
-      const failure = ApplicationFailure.nonRetryable(errorMessage(err), 'ReferenceError');
-      failure.stack = failure.stack?.split('\n')[0];
-      throw failure;
+  let workflow: Workflow;
+  try {
+    const mod = await req(undefined);
+    workflow = mod[info.workflowType];
+    if (typeof workflow !== 'function') {
+      throw new TypeError(`'${info.workflowType}' is not a function`);
     }
-    return mod(...args);
-  });
+  } catch (err) {
+    const failure = ApplicationFailure.nonRetryable(errorMessage(err), 'ReferenceError');
+    failure.stack = failure.stack?.split('\n')[0];
+    handleWorkflowFailure(failure);
+    return;
+  }
+  state.workflow = workflow;
+}
 
-  state.workflow =
-    (await create({
-      headers,
-      args: arrayFromPayloadsSync(state.dataConverter, args),
-    }).catch(handleWorkflowFailure)) ?? undefined;
+export interface ActivationResult {
+  numBlockedConditions: number;
 }
 
 /**
  * Run a chunk of activation jobs
  * @returns a boolean indicating whether job was processed or ignored
  */
-export async function activate(encodedActivation: Uint8Array, batchIndex: number): Promise<ExternalCall[]> {
+export async function activate(encodedActivation: Uint8Array, batchIndex: number): Promise<ActivationResult> {
+  const activation = coresdk.workflow_activation.WFActivation.decodeDelimited(encodedActivation);
   const intercept = composeInterceptors(
     state.interceptors.internals,
     'activate',
@@ -229,21 +198,20 @@ export async function activate(encodedActivation: Uint8Array, batchIndex: number
             return;
           }
           await state.activator[job.variant](variant as any /* TODO: TS is struggling with `true` and `{}` */);
+          tryUnblockConditions();
         })
       );
     }
   );
   await intercept({
-    activation: coresdk.workflow_activation.WFActivation.decodeDelimited(encodedActivation),
+    activation,
     batchIndex,
   });
 
-  return state.getAndResetPendingExternalCalls();
+  return {
+    numBlockedConditions: state.blockedConditions.size,
+  };
 }
-
-type ActivationConclusion =
-  | { type: 'pending'; pendingExternalCalls: ExternalCall[] }
-  | { type: 'complete'; encoded: Uint8Array };
 
 /**
  * Conclude a single activation.
@@ -252,74 +220,41 @@ type ActivationConclusion =
  * Activation may be in either `complete` or `pending` state according to pending external dependency calls.
  * Activation failures are handled in the main Node.js isolate.
  */
-export function concludeActivation(): ActivationConclusion {
-  const pendingExternalCalls = state.getAndResetPendingExternalCalls();
-  if (pendingExternalCalls.length > 0) {
-    return { type: 'pending', pendingExternalCalls };
-  }
+export function concludeActivation(): Uint8Array {
   const intercept = composeInterceptors(state.interceptors.internals, 'concludeActivation', (input) => input);
   const { info } = state;
   const { commands } = intercept({ commands: state.commands });
-  const encoded = coresdk.workflow_completion.WFActivationCompletion.encodeDelimited({
+  state.commands = [];
+  return coresdk.workflow_completion.WFActivationCompletion.encodeDelimited({
     runId: info?.runId,
     successful: { commands },
   }).finish();
-  state.commands = [];
-  return { type: 'complete', encoded };
 }
 
-export function getAndResetPendingExternalCalls(): ExternalCall[] {
-  return state.getAndResetPendingExternalCalls();
-}
-
-/**
- * Inject an external dependency function into the Workflow via global state.
- * The injected function is available via {@link dependencies}.
- */
-export function inject(
-  ifaceName: string,
-  fnName: string,
-  dependency: ivm.Reference<ExternalDependencyFunction>,
-  applyMode: ApplyMode,
-  transferOptions: ivm.TransferOptionsBidirectional
-): void {
-  if (state.dependencies[ifaceName] === undefined) {
-    state.dependencies[ifaceName] = {};
-  }
-  if (applyMode === ApplyMode.ASYNC) {
-    state.dependencies[ifaceName][fnName] = (...args: any[]) =>
-      new Promise((resolve, reject) => {
-        const seq = state.nextSeqs.dependency++;
-        state.completions.dependency.set(seq, {
-          resolve,
-          reject,
-        });
-        state.pendingExternalCalls.push({ ifaceName, fnName, args, seq });
-      });
-  } else if (applyMode === ApplyMode.ASYNC_IGNORED) {
-    state.dependencies[ifaceName][fnName] = (...args: any[]) =>
-      state.pendingExternalCalls.push({ ifaceName, fnName, args });
-  } else {
-    state.dependencies[ifaceName][fnName] = (...args: any[]) => dependency[applyMode](undefined, args, transferOptions);
-  }
-}
-
-export interface ExternalDependencyResult {
-  seq: number;
-  result: any;
-  error: any;
+export function getAndResetExternalCalls(): ExternalCall[] {
+  return state.getAndResetExternalCalls();
 }
 
 /**
- * Resolve external dependency function calls with given results.
+ * Loop through all blocked conditions, evaluate and unblock if possible.
+ *
+ * @returns number of unblocked conditions.
  */
-export function resolveExternalDependencies(results: ExternalDependencyResult[]): void {
-  for (const { seq, result, error } of results) {
-    const completion = consumeCompletion('dependency', seq);
-    if (error) {
-      completion.reject(error);
-    } else {
-      completion.resolve(result);
+export function tryUnblockConditions(): number {
+  let numUnblocked = 0;
+  for (;;) {
+    const prevUnblocked = numUnblocked;
+    for (const [seq, cond] of state.blockedConditions.entries()) {
+      if (cond.fn()) {
+        cond.resolve();
+        numUnblocked++;
+        // It is safe to delete elements during map iteration
+        state.blockedConditions.delete(seq);
+      }
+    }
+    if (prevUnblocked === numUnblocked) {
+      break;
     }
   }
+  return numUnblocked;
 }

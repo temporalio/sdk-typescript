@@ -1,5 +1,5 @@
 [package]
-name = "temporal-sdk-node-bridge"
+name = "temporal-sdk-typescript-bridge"
 version = "0.1.0"
 authors = ["Roey Berman <roey@temporal.io>"]
 license = "MIT"
@@ -7,13 +7,14 @@ edition = "2018"
 exclude = ["index.node", "sdk-core"]
 
 [lib]
-name = "temporal_sdk_node_bridge"
+name = "temporal_sdk_typescript_bridge"
 crate-type = ["cdylib"]
 
 [dependencies]
 futures = { version = "0.3", features = ["executor"] }
 log = "0.4"
 neon = { version = "0.8.0", default-features = false, features = ["napi-4", "event-queue-api"] }
+opentelemetry = "0.16"
 prost = "0.8"
 prost-types = "0.8"
 tokio = "1.4.0"

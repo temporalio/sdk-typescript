@@ -12,4 +12,4 @@ This command starts a local development server and opens up a browser window. Mo
 
 ## Deployment
 
-The reference is built and deployed to Netlify under https://nodejs.temporal.io during CI for branch `main` using GitHub Actions.
+The reference is built and deployed to Netlify under https://typescript.temporal.io during CI for branch `main` using GitHub Actions.

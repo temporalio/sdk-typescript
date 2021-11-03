@@ -1,71 +1,57 @@
-/* eslint-disable @typescript-eslint/explicit-module-boundary-types */
 import {
-  createChildWorkflowHandle,
+  executeChild,
   WorkflowInterceptors,
   defaultDataConverter,
   sleep,
-  Trigger,
+  condition,
+  defineSignal,
+  defineQuery,
+  setHandler,
 } from '@temporalio/workflow';
 import { echo } from './configured-activities';
 
 class InvalidTimerDurationError extends Error {}
 
-export const interceptorExample = () => {
-  const unblocked = new Trigger<void>();
+export const unblockWithSecretSignal = defineSignal<[string]>('unblock');
+export const getSecretQuery = defineQuery<string>('getSecret');
 
-  return {
-    signals: {
-      unblock(secret: string) {
-        if (secret !== '12345') {
-          // Workflow execution should fail
-          throw new Error('Wrong unblock secret');
-        }
-        unblocked.resolve();
-      },
-    },
-    queries: {
-      getSecret() {
-        return '12345';
-      },
-    },
-    async execute(): Promise<string> {
-      try {
-        await sleep(1);
-        throw new Error('timer did not fail');
-      } catch (err) {
-        if (!(err instanceof InvalidTimerDurationError)) {
-          throw new Error('timer failed with wrong error type');
-        }
-      }
-      await sleep(2);
-      await unblocked;
-      // Untyped because we intercept the result
-      const result = await createChildWorkflowHandle('successString').execute();
-      if (result !== 3) {
-        throw new Error('expected interceptor to change child workflow result');
-      }
-      return await echo(); // Do not pass message in, done in Activity interceptor
-    },
-  };
-};
+export async function interceptorExample(): Promise<string> {
+  let unblocked = false;
+  setHandler(unblockWithSecretSignal, (secret: string) => {
+    if (secret !== '12345') {
+      // Workflow execution should fail
+      throw new Error('Wrong unblock secret');
+    }
+    unblocked = true;
+  });
+  setHandler(getSecretQuery, () => '12345');
 
-let receivedMessageOnCreate = '';
-let receivedMessageOnExecute = '';
+  try {
+    await sleep(1);
+    throw new Error('timer did not fail');
+  } catch (err) {
+    if (!(err instanceof InvalidTimerDurationError)) {
+      throw new Error('timer failed with wrong error type');
+    }
+  }
+  await sleep(2);
+  await condition(() => unblocked);
+  // Untyped because we intercept the result
+  const result = await executeChild('successString', {});
+  if (result !== 3) {
+    throw new Error('expected interceptor to change child workflow result');
+  }
+  return await echo(); // Do not pass message in, done in Activity interceptor
+}
+
+let receivedMessage = '';
 
 export const interceptors = (): WorkflowInterceptors => ({
   inbound: [
     {
-      async create(input, next) {
-        const encoded = input.headers.message;
-        receivedMessageOnCreate = encoded ? await defaultDataConverter.fromPayload(encoded) : '';
-        return next(input);
-      },
       async execute(input, next) {
         const encoded = input.headers.message;
-        receivedMessageOnExecute = encoded ? await defaultDataConverter.fromPayload(encoded) : '';
-        if (receivedMessageOnExecute !== receivedMessageOnCreate) {
-          throw new Error('Expected to receive same message via headers in create and execute methods');
-        }
+        receivedMessage = encoded ? await defaultDataConverter.fromPayload(encoded) : '';
         return next(input);
       },
       async handleSignal(input, next) {
@@ -84,7 +70,7 @@ export const interceptors = (): WorkflowInterceptors => ({
       async scheduleActivity(input, next) {
         return next({
           ...input,
-          headers: { ...input.headers, message: await defaultDataConverter.toPayload(receivedMessageOnExecute) },
+          headers: { ...input.headers, message: await defaultDataConverter.toPayload(receivedMessage) },
         });
       },
       async startTimer(input, next) {

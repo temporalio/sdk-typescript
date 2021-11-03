@@ -2,14 +2,18 @@ import {
   ActivityFunction,
   ActivityOptions,
   IllegalStateError,
+  msToNumber,
   msToTs,
   msOptionalToTs,
   Workflow,
   composeInterceptors,
   mapToPayloadsSync,
   WorkflowResultType,
+  SignalDefinition,
+  QueryDefinition,
+  WithWorkflowArgs,
+  WorkflowReturnType,
 } from '@temporalio/common';
-import { coresdk } from '@temporalio/proto/lib/coresdk';
 import {
   ChildWorkflowCancellationType,
   ChildWorkflowOptions,
@@ -19,7 +23,6 @@ import {
   WorkflowInfo,
 } from './interfaces';
 import { state } from './internals';
-import { WorkflowExecutionAlreadyStartedError } from './errors';
 import { ActivityInput, StartChildWorkflowExecutionInput, SignalWorkflowInput, TimerInput } from './interceptors';
 import { ExternalDependencies } from './dependencies';
 import { CancellationScope, registerSleepImplementation } from './cancellation-scope';
@@ -31,13 +34,15 @@ registerSleepImplementation(sleep);
 /**
  * Adds default values to `workflowId` and `workflowIdReusePolicy` to given workflow options.
  */
-export function addDefaultWorkflowOptions(opts: ChildWorkflowOptions): ChildWorkflowOptionsWithDefaults {
+export function addDefaultWorkflowOptions<T extends Workflow>(
+  opts: WithWorkflowArgs<T, ChildWorkflowOptions>
+): ChildWorkflowOptionsWithDefaults {
+  const { args, workflowId, ...rest } = opts;
   return {
-    taskQueue: workflowInfo().taskQueue,
-    workflowId: opts.workflowId ?? uuid4(),
-    workflowIdReusePolicy: coresdk.common.WorkflowIdReusePolicy.WORKFLOW_ID_REUSE_POLICY_ALLOW_DUPLICATE_FAILED_ONLY,
+    workflowId: workflowId ?? uuid4(),
+    args: args ?? [],
     cancellationType: ChildWorkflowCancellationType.WAIT_CANCELLATION_COMPLETED,
-    ...opts,
+    ...rest,
   };
 }
 
@@ -81,17 +86,18 @@ function timerNextHandler(input: TimerInput) {
  * Asynchronous sleep.
  *
  * Schedules a timer on the Temporal service.
- * The returned promise is {@link cancel | cancellable}.
  *
- * @param ms milliseconds to sleep for
+ * @param ms sleep duration - {@link https://www.npmjs.com/package/ms | ms} formatted string or number of milliseconds. If given a negative number, value will be set to 1.
+ *
  */
-export function sleep(ms: number): Promise<void> {
+export function sleep(ms: number | string): Promise<void> {
   const seq = state.nextSeqs.timer++;
 
   const execute = composeInterceptors(state.interceptors.outbound, 'startTimer', timerNextHandler);
 
+  const durationMs = Math.max(1, msToNumber(ms));
   return execute({
-    durationMs: ms,
+    durationMs,
     seq,
   });
 }
@@ -195,7 +201,6 @@ export function scheduleActivity<R>(activityType: string, args: any[], options: 
 
 async function startChildWorkflowExecutionNextHandler({
   options,
-  args,
   headers,
   workflowType,
   seq,
@@ -239,7 +244,7 @@ async function startChildWorkflowExecutionNextHandler({
         seq,
         workflowId,
         workflowType,
-        input: state.dataConverter.toPayloadsSync(...args),
+        input: state.dataConverter.toPayloadsSync(...options.args),
         retryPolicy: options.retryPolicy
           ? {
               maximumAttempts: options.retryPolicy.maximumAttempts,
@@ -260,9 +265,7 @@ async function startChildWorkflowExecutionNextHandler({
         parentClosePolicy: options.parentClosePolicy,
         cronSchedule: options.cronSchedule,
         searchAttributes: options.searchAttributes
-          ? {
-              indexedFields: mapToPayloadsSync(state.dataConverter, options.searchAttributes),
-            }
+          ? mapToPayloadsSync(state.dataConverter, options.searchAttributes)
           : undefined,
         memo: options.memo && mapToPayloadsSync(state.dataConverter, options.memo),
       },
@@ -337,11 +340,11 @@ function signalWorkflowNextHandler({ seq, signalName, args, target }: SignalWork
  *
  * @example
  * ```ts
- * import { createActivityHandle, ActivityInterface } from '@temporalio/workflow';
+ * import { proxyActivities, ActivityInterface } from '@temporalio/workflow';
  * import * as activities from '../activities';
  *
  * // Setup Activities from module exports
- * const { httpGet, otherActivity } = createActivityHandle<typeof activities>({
+ * const { httpGet, otherActivity } = proxyActivities<typeof activities>({
  *   startToCloseTimeout: '30 minutes',
  * });
  *
@@ -354,7 +357,7 @@ function signalWorkflowNextHandler({ seq, signalName, args, target }: SignalWork
  * const {
  *   httpGetFromJava,
  *   someOtherJavaActivity
- * } = createActivityHandle<JavaActivities>({
+ * } = proxyActivities<JavaActivities>({
  *   taskQueue: 'java-worker-taskQueue',
  *   startToCloseTimeout: '5m',
  * });
@@ -365,9 +368,7 @@ function signalWorkflowNextHandler({ seq, signalName, args, target }: SignalWork
  * }
  * ```
  */
-export function createActivityHandle<A extends Record<string, ActivityFunction<any, any>>>(
-  options: ActivityOptions
-): A {
+export function proxyActivities<A extends Record<string, ActivityFunction<any, any>>>(options: ActivityOptions): A {
   if (options === undefined) {
     throw new TypeError('options must be defined');
   }
@@ -392,10 +393,7 @@ export function createActivityHandle<A extends Record<string, ActivityFunction<a
  * Returns a client-side handle that can be used to signal and cancel an existing Workflow execution.
  * It takes a Workflow ID and optional run ID.
  */
-export function createExternalWorkflowHandle<T extends Workflow>(
-  workflowId: string,
-  runId?: string
-): ExternalWorkflowHandle<T> {
+export function getExternalWorkflowHandle(workflowId: string, runId?: string): ExternalWorkflowHandle {
   return {
     workflowId,
     runId,
@@ -418,133 +416,207 @@ export function createExternalWorkflowHandle<T extends Workflow>(
         state.completions.cancelWorkflow.set(seq, { resolve, reject });
       });
     },
-    signal: new Proxy(
-      {},
-      {
-        get(_, signalName) {
-          if (typeof signalName !== 'string') {
-            throw new TypeError(`Invalid signal type, expected string got: ${typeof signalName}`);
-          }
-
-          return (...args: any[]) => {
-            return composeInterceptors(
-              state.interceptors.outbound,
-              'signalWorkflow',
-              signalWorkflowNextHandler
-            )({
-              seq: state.nextSeqs.signalWorkflow++,
-              signalName,
-              args,
-              target: {
-                type: 'external',
-                workflowExecution: { workflowId, runId },
-              },
-            });
-          };
+    async signal<Args extends any[]>(def: SignalDefinition<Args> | string, ...args: Args): Promise<void> {
+      return composeInterceptors(
+        state.interceptors.outbound,
+        'signalWorkflow',
+        signalWorkflowNextHandler
+      )({
+        seq: state.nextSeqs.signalWorkflow++,
+        signalName: typeof def === 'string' ? def : def.name,
+        args,
+        target: {
+          type: 'external',
+          workflowExecution: { workflowId, runId },
         },
-      }
-    ) as any,
+      });
+    },
   };
 }
 
 /**
- * Returns a client-side handle that implements a child Workflow interface.
- * Takes a child Workflow type and optional child Workflow options as arguments.
- * Workflow options may be needed to override the timeouts and task queue if they differ from the parent Workflow.
+ * Start a child Workflow execution
  *
- * A child Workflow supports starting, awaiting completion, signaling and cancellation via {@link CancellationScope}s.
- * In order to query the child, use a WorkflowClient from an Activity.
+ * **Override for Workflows that accept no arguments**.
+ *
+ * - Returns a client-side handle that implements a child Workflow interface.
+ * - By default a child will be scheduled on the same task queue as its parent.
+ *
+ * A child Workflow handle supports awaiting completion, signaling and cancellation via {@link CancellationScope}s.
+ * In order to query the child, use a {@link WorkflowClient} from an Activity.
  */
-export function createChildWorkflowHandle<T extends Workflow>(
+export async function startChild<T extends Workflow>(
   workflowType: string,
-  options?: ChildWorkflowOptions
-): ChildWorkflowHandle<T>;
+  options: ChildWorkflowOptions
+): Promise<ChildWorkflowHandle<T>>;
 
 /**
- * Returns a client-side handle that implements a child Workflow interface.
- * Deduces the Workflow interface from provided Workflow function.
- * Workflow options may be needed to override the timeouts and task queue if they differ from the parent Workflow.
+ * Start a child Workflow execution
  *
- * A child Workflow supports starting, awaiting completion, signaling and cancellation via {@link CancellationScope}s.
- * In order to query the child, use a WorkflowClient from an Activity.
+ * **Override for Workflows that accept no arguments**.
+ *
+ * - Returns a client-side handle that implements a child Workflow interface.
+ * - Deduces the Workflow type and signature from provided Workflow function.
+ * - By default a child will be scheduled on the same task queue as its parent.
+ *
+ * A child Workflow handle supports awaiting completion, signaling and cancellation via {@link CancellationScope}s.
+ * In order to query the child, use a {@link WorkflowClient} from an Activity.
  */
-export function createChildWorkflowHandle<T extends Workflow>(
+export async function startChild<T extends Workflow>(
   workflowFunc: T,
-  options?: ChildWorkflowOptions
-): ChildWorkflowHandle<T>;
+  options: WithWorkflowArgs<T, ChildWorkflowOptions>
+): Promise<ChildWorkflowHandle<T>>;
 
-export function createChildWorkflowHandle<T extends Workflow>(
+/**
+ * Start a child Workflow execution
+ *
+ * **Override for Workflows that accept no arguments**.
+ *
+ * - Returns a client-side handle that implements a child Workflow interface.
+ * - The child will be scheduled on the same task queue as its parent.
+ *
+ * A child Workflow handle supports awaiting completion, signaling and cancellation via {@link CancellationScope}s.
+ * In order to query the child, use a {@link WorkflowClient} from an Activity.
+ */
+export async function startChild<T extends () => Promise<any>>(workflowType: string): Promise<ChildWorkflowHandle<T>>;
+
+/**
+ * Start a child Workflow execution
+ *
+ * **Override for Workflows that accept no arguments**.
+ *
+ * - Returns a client-side handle that implements a child Workflow interface.
+ * - Deduces the Workflow type and signature from provided Workflow function.
+ * - The child will be scheduled on the same task queue as its parent.
+ *
+ * A child Workflow handle supports awaiting completion, signaling and cancellation via {@link CancellationScope}s.
+ * In order to query the child, use a {@link WorkflowClient} from an Activity.
+ */
+export async function startChild<T extends () => Promise<any>>(workflowFunc: T): Promise<ChildWorkflowHandle<T>>;
+
+export async function startChild<T extends Workflow>(
   workflowTypeOrFunc: string | T,
-  options?: ChildWorkflowOptions
-): ChildWorkflowHandle<T> {
+  options?: WithWorkflowArgs<T, ChildWorkflowOptions>
+): Promise<ChildWorkflowHandle<T>> {
   const optionsWithDefaults = addDefaultWorkflowOptions(options ?? {});
   const workflowType = typeof workflowTypeOrFunc === 'string' ? workflowTypeOrFunc : workflowTypeOrFunc.name;
-  let started: Promise<string> | undefined = undefined;
-  let completed: Promise<unknown> | undefined = undefined;
+  const execute = composeInterceptors(
+    state.interceptors.outbound,
+    'startChildWorkflowExecution',
+    startChildWorkflowExecutionNextHandler
+  );
+  const [started, completed] = await execute({
+    seq: state.nextSeqs.childWorkflow++,
+    options: optionsWithDefaults,
+    headers: {},
+    workflowType,
+  });
+  const originalRunId = await started;
 
   return {
     workflowId: optionsWithDefaults.workflowId,
-    async start(...args: Parameters<T>): Promise<string> {
-      if (started !== undefined) {
-        throw new WorkflowExecutionAlreadyStartedError(
-          'Workflow execution already started',
-          optionsWithDefaults.workflowId,
-          workflowType
-        );
-      }
-      const execute = composeInterceptors(
-        state.interceptors.outbound,
-        'startChildWorkflowExecution',
-        startChildWorkflowExecutionNextHandler
-      );
-      [started, completed] = await execute({
-        seq: state.nextSeqs.childWorkflow++,
-        options: optionsWithDefaults,
-        args,
-        headers: {},
-        workflowType,
-      });
-      return await started;
-    },
-    async execute(...args: Parameters<T>): Promise<WorkflowResultType<T>> {
-      await this.start(...args);
-      return await this.result();
-    },
+    originalRunId,
     result(): Promise<WorkflowResultType<T>> {
       if (completed === undefined) {
         throw new IllegalStateError('Child Workflow was not started');
       }
       return completed as any;
     },
-    signal: new Proxy(
-      {},
-      {
-        get(_, signalName) {
-          if (typeof signalName !== 'string') {
-            throw new TypeError(`Invalid signal type, expected string got: ${typeof signalName}`);
-          }
-          return async (...args: any[]) => {
-            if (started === undefined) {
-              throw new IllegalStateError('Workflow execution not started');
-            }
-            return composeInterceptors(
-              state.interceptors.outbound,
-              'signalWorkflow',
-              signalWorkflowNextHandler
-            )({
-              seq: state.nextSeqs.signalWorkflow++,
-              signalName,
-              args,
-              target: {
-                type: 'child',
-                childWorkflowId: optionsWithDefaults.workflowId,
-              },
-            });
-          };
-        },
+    async signal<Args extends any[]>(def: SignalDefinition<Args> | string, ...args: Args): Promise<void> {
+      if (started === undefined) {
+        throw new IllegalStateError('Workflow execution not started');
       }
-    ) as any,
+      return composeInterceptors(
+        state.interceptors.outbound,
+        'signalWorkflow',
+        signalWorkflowNextHandler
+      )({
+        seq: state.nextSeqs.signalWorkflow++,
+        signalName: typeof def === 'string' ? def : def.name,
+        args,
+        target: {
+          type: 'child',
+          childWorkflowId: optionsWithDefaults.workflowId,
+        },
+      });
+    },
   };
+}
+
+/**
+ * Start a child Workflow execution and await its completion.
+ *
+ * - By default a child will be scheduled on the same task queue as its parent.
+ * - This operation is cancellable using {@link CancellationScope}s.
+ *
+ * @return The result of the child Workflow.
+ */
+export async function executeChild<T extends Workflow>(
+  workflowType: string,
+  options: WithWorkflowArgs<T, ChildWorkflowOptions>
+): Promise<WorkflowResultType<T>>;
+
+/**
+ * Start a child Workflow execution and await its completion.
+ *
+ * - By default a child will be scheduled on the same task queue as its parent.
+ * - Deduces the Workflow type and signature from provided Workflow function.
+ * - This operation is cancellable using {@link CancellationScope}s.
+ *
+ * @return The result of the child Workflow.
+ */
+export async function executeChild<T extends Workflow>(
+  workflowType: T,
+  options: WithWorkflowArgs<T, ChildWorkflowOptions>
+): Promise<WorkflowResultType<T>>;
+
+/**
+ * Start a child Workflow execution and await its completion.
+ *
+ * **Override for Workflows that accept no arguments**.
+ *
+ * - The child will be scheduled on the same task queue as its parent.
+ * - This operation is cancellable using {@link CancellationScope}s.
+ *
+ * @return The result of the child Workflow.
+ */
+export async function executeChild<T extends () => WorkflowReturnType>(
+  workflowType: string
+): Promise<WorkflowResultType<T>>;
+
+/**
+ * Start a child Workflow execution and await its completion.
+ *
+ * **Override for Workflows that accept no arguments**.
+ *
+ * - The child will be scheduled on the same task queue as its parent.
+ * - Deduces the Workflow type and signature from provided Workflow function.
+ * - This operation is cancellable using {@link CancellationScope}s.
+ *
+ * @return The result of the child Workflow.
+ */
+export async function executeChild<T extends () => WorkflowReturnType>(
+  workflowFunc: T
+): Promise<ChildWorkflowHandle<T>>;
+
+export async function executeChild<T extends Workflow>(
+  workflowTypeOrFunc: string | T,
+  options?: WithWorkflowArgs<T, ChildWorkflowOptions>
+): Promise<WorkflowResultType<T>> {
+  const optionsWithDefaults = addDefaultWorkflowOptions(options ?? {});
+  const workflowType = typeof workflowTypeOrFunc === 'string' ? workflowTypeOrFunc : workflowTypeOrFunc.name;
+  const execute = composeInterceptors(
+    state.interceptors.outbound,
+    'startChildWorkflowExecution',
+    startChildWorkflowExecutionNextHandler
+  );
+  const [_started, completed] = await execute({
+    seq: state.nextSeqs.childWorkflow++,
+    options: optionsWithDefaults,
+    headers: {},
+    workflowType,
+  });
+  return (await completed) as Promise<any>;
 }
 
 /**
@@ -562,8 +634,14 @@ export function workflowInfo(): WorkflowInfo {
  *
  * @example
  * ```ts
- * import { dependencies } from '@temporalio/workflow';
- * import { MyDependencies } from '../interfaces';
+ * import { dependencies, ExternalDependencies } from '@temporalio/workflow';
+ *
+ * interface MyDependencies extends ExternalDependencies {
+ *   logger: {
+ *     info(message: string): void;
+ *     error(message: string): void;
+ *   };
+ * }
  *
  * const { logger } = dependencies<MyDependencies>();
  * logger.info('setting up');
@@ -588,10 +666,11 @@ export function dependencies<T extends ExternalDependencies>(): T {
           {
             get(_, fnName) {
               return (...args: any[]) => {
-                if (state.info === undefined) {
-                  throw new IllegalStateError('Workflow uninitialized');
-                }
-                return state.dependencies[ifaceName as string][fnName as string](...args);
+                state.externalCalls.push({
+                  ifaceName: ifaceName as string,
+                  fnName: fnName as string,
+                  args,
+                });
               };
             },
           }
@@ -611,7 +690,13 @@ export function dependencies<T extends ExternalDependencies>(): T {
 export function makeContinueAsNewFunc<F extends Workflow>(
   options?: ContinueAsNewOptions
 ): (...args: Parameters<F>) => Promise<never> {
-  const nonOptionalOptions = { workflowType: state.info?.workflowType, taskQueue: state.info?.taskQueue, ...options };
+  const info = workflowInfo();
+  const { workflowType, taskQueue, ...rest } = options ?? {};
+  const requiredOptions = {
+    workflowType: workflowType ?? info.workflowType,
+    taskQueue: taskQueue ?? info.taskQueue,
+    ...rest,
+  };
 
   return (...args: Parameters<F>): Promise<never> => {
     const fn = composeInterceptors(state.interceptors.outbound, 'continueAsNew', async (input) => {
@@ -630,7 +715,7 @@ export function makeContinueAsNewFunc<F extends Workflow>(
     return fn({
       args,
       headers: {},
-      options: nonOptionalOptions,
+      options: requiredOptions,
     });
   };
 }
@@ -662,7 +747,7 @@ export function continueAsNew<F extends Workflow>(...args: Parameters<F>): Promi
 /**
  * Generate an RFC compliant V4 uuid.
  * Uses the workflow's deterministic PRNG making it safe for use within a workflow.
- * This function is cryptograpically insecure.
+ * This function is cryptographically insecure.
  * See the {@link https://stackoverflow.com/questions/105034/how-to-create-a-guid-uuid | stackoverflow discussion}.
  */
 export function uuid4(): string {
@@ -689,7 +774,7 @@ export function uuid4(): string {
 /**
  * Patch or upgrade workflow code by checking or stating that this workflow has a certain patch.
  *
- * See [docs page](https://docs.temporal.io/docs/node/versioning) for info.
+ * See [docs page](https://docs.temporal.io/docs/typescript/versioning) for info.
  *
  * If the workflow is replaying an existing history, then this function returns true if that
  * history was produced by a worker which also had a `patched` call with the same `patchId`.
@@ -710,7 +795,7 @@ export function patched(patchId: string): boolean {
 /**
  * Indicate that a patch is being phased out.
  *
- * See [docs page](https://docs.temporal.io/docs/node/versioning) for info.
+ * See [docs page](https://docs.temporal.io/docs/typescript/versioning) for info.
  *
  * Workflows with this call may be deployed alongside workflows with a {@link patched} call, but
  * they must *not* be deployed while any workers still exist running old code without a
@@ -746,4 +831,118 @@ function patchInternal(patchId: string, deprecated: boolean): boolean {
     state.sentPatches.add(patchId);
   }
   return usePatch;
+}
+
+/**
+ * Returns a Promise that resolves when `fn` evaluates to `true` or `timeout` expires.
+ *
+ * @param timeout {@link https://www.npmjs.com/package/ms | ms} formatted string or number of milliseconds
+ *
+ * @returns a boolean indicating whether the condition was true before the timeout expires
+ */
+export function condition(timeout: number | string, fn: () => boolean): Promise<boolean>;
+
+/**
+ * Returns a Promise that resolves when `fn` evaluates to `true`.
+ */
+export function condition(fn: () => boolean): Promise<void>;
+
+export function condition(fnOrTimeout: (() => boolean) | number | string, fn?: () => boolean): Promise<void | boolean> {
+  if ((typeof fnOrTimeout === 'number' || typeof fnOrTimeout === 'string') && fn !== undefined) {
+    return Promise.race([sleep(fnOrTimeout).then(() => false), conditionInner(fn).then(() => true)]);
+  }
+  return conditionInner(fnOrTimeout as () => boolean);
+}
+
+function conditionInner(fn: () => boolean): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const scope = CancellationScope.current();
+    if (scope.consideredCancelled) {
+      scope.cancelRequested.catch(reject);
+      return;
+    }
+
+    const seq = state.nextSeqs.condition++;
+    if (scope.cancellable) {
+      scope.cancelRequested.catch((err) => {
+        state.blockedConditions.delete(seq);
+        reject(err);
+      });
+    }
+
+    // Eager evaluation
+    if (fn()) {
+      resolve();
+      return;
+    }
+
+    state.blockedConditions.set(seq, { fn, resolve });
+  });
+}
+
+/**
+ * Define a signal method for a Workflow.
+ *
+ * Definitions are used to register handler in the Workflow via {@link setHandler} and to signal Workflows using a {@link WorkflowHandle}, {@link ChildWorkflowHandle} or {@link ExternalWorkflowHandle}.
+ * Definitions can be reused in multiple Workflows.
+ */
+export function defineSignal<Args extends any[] = []>(name: string): SignalDefinition<Args> {
+  return {
+    type: 'signal',
+    name,
+  };
+}
+
+/**
+ * Define a query method for a Workflow.
+ *
+ * Definitions are used to register handler in the Workflow via {@link setHandler} and to query Workflows using a {@link WorkflowHandle}.
+ * Definitions can be reused in multiple Workflows.
+ */
+export function defineQuery<Ret, Args extends any[] = []>(name: string): QueryDefinition<Ret, Args> {
+  return {
+    type: 'query',
+    name,
+  };
+}
+
+/**
+ * A handler function capable of accepting the arguments for a given SignalDefinition or QueryDefinition.
+ */
+export type Handler<
+  Ret,
+  Args extends any[],
+  T extends SignalDefinition<Args> | QueryDefinition<Ret, Args>
+> = T extends SignalDefinition<infer A>
+  ? (...args: A) => void | Promise<void>
+  : T extends QueryDefinition<infer R, infer A>
+  ? (...args: A) => R
+  : never;
+
+/**
+ * Set a handler function for a Workflow query or signal.
+ *
+ * If this function is called multiple times for a given signal or query name the last handler will overwrite any previous calls.
+ *
+ * @param def a {@link SignalDefinition} or {@link QueryDefinition} as returned by {@link defineSignal} or {@link defineQuery} respectively.
+ * @param handler  a compatible handler function for the given definition.
+ */
+export function setHandler<Ret, Args extends any[], T extends SignalDefinition<Args> | QueryDefinition<Ret, Args>>(
+  def: T,
+  handler: Handler<Ret, Args, T>
+): void {
+  if (def.type === 'signal') {
+    state.signalHandlers.set(def.name, handler as any);
+    const bufferedSignals = state.bufferedSignals.get(def.name);
+    if (bufferedSignals !== undefined) {
+      for (const signal of bufferedSignals) {
+        state.activator.signalWorkflow(signal);
+      }
+      state.bufferedSignals.delete(def.name);
+    }
+  } else if (def.type === 'query') {
+    state.queryHandlers.set(def.name, handler as any);
+  } else {
+    throw new TypeError(`Invalid definition type: ${(def as any).type}`);
+  }
 }

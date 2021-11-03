@@ -1,21 +1,19 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
+import { lastValueFrom } from 'rxjs';
+import { SpanContext } from '@opentelemetry/api';
 import { coresdk } from '@temporalio/proto';
 import { defaultDataConverter, msToTs } from '@temporalio/common';
+import { Worker as RealWorker, NativeWorkerLike, errors } from '@temporalio/worker/lib/worker';
 import {
-  Worker as RealWorker,
-  NativeWorkerLike,
   compileWorkerOptions,
   CompiledWorkerOptions,
   WorkerOptions,
-  addDefaults,
-  errors,
-} from '@temporalio/worker/lib/worker';
-import { IsolateContextProvider } from '@temporalio/worker/lib/isolate-context-provider';
+  addDefaultWorkerOptions,
+} from '@temporalio/worker/lib/worker-options';
 import { DefaultLogger } from '@temporalio/worker';
 import { sleep } from '@temporalio/worker/lib/utils';
-// We import from the worker's version of rxjs because inquirer (transitive dependency) uses an older rxjs version
-import { lastValueFrom } from '@temporalio/worker/node_modules/rxjs';
 import * as activities from './activities';
+import { WorkflowCreator } from '@temporalio/worker/src/workflow/interface';
 
 function addActivityStartDefaults(task: coresdk.activity_task.IActivityTask) {
   // Add some defaults for convenience
@@ -81,12 +79,12 @@ export class MockNativeWorker implements NativeWorkerLike {
     }
   }
 
-  public async completeWorkflowActivation(result: ArrayBuffer): Promise<void> {
+  public async completeWorkflowActivation(_spanContext: SpanContext, result: ArrayBuffer): Promise<void> {
     this.workflowCompletionCallback!(result);
     this.workflowCompletionCallback = undefined;
   }
 
-  public async completeActivityTask(result: ArrayBuffer): Promise<void> {
+  public async completeActivityTask(_spanContext: SpanContext, result: ArrayBuffer): Promise<void> {
     this.activityCompletionCallback!(result);
     this.activityCompletionCallback = undefined;
   }
@@ -151,9 +149,9 @@ export class Worker extends RealWorker {
     return this.nativeWorker as MockNativeWorker;
   }
 
-  public constructor(isolateContextProvider: IsolateContextProvider, opts: CompiledWorkerOptions) {
+  public constructor(workflowCreator: WorkflowCreator, opts: CompiledWorkerOptions) {
     const nativeWorker = new MockNativeWorker();
-    super(nativeWorker, isolateContextProvider, opts);
+    super(nativeWorker, workflowCreator, opts);
   }
 
   public runWorkflows(...args: Parameters<Worker['workflow$']>): Promise<void> {
@@ -163,22 +161,21 @@ export class Worker extends RealWorker {
 }
 
 export const defaultOptions: WorkerOptions = {
-  workflowsPath: `${__dirname}/workflows`,
+  workflowsPath: require.resolve('./workflows'),
   activities,
-  nodeModulesPath: `${__dirname}/../../../node_modules`,
   taskQueue: 'test',
 };
 
 export function isolateFreeWorker(options: WorkerOptions = defaultOptions): Worker {
   return new Worker(
     {
-      getContext() {
+      async createWorkflow() {
         throw new Error('Not implemented');
       },
-      destroy() {
+      async destroy() {
         /* Nothing to destroy */
       },
     },
-    compileWorkerOptions(addDefaults(options))
+    compileWorkerOptions(addDefaultWorkerOptions(options))
   );
 }

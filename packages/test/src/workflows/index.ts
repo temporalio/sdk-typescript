@@ -1,3 +1,4 @@
+export * from './definitions';
 export * from './cancel-fake-progress';
 export * from './cancel-http-request';
 export * from './cancel-workflow';
@@ -34,16 +35,16 @@ export * from './child-workflow-timeout';
 export * from './child-workflow-signals';
 export * from './child-workflow-termination';
 export * from './signal-target';
-export * from './unblock-or-cancel';
+// unblockSignal is already defined in ./definitions, don't re-export it.
+// The reason it is redefined is for completeness of the snippet.
+export { unblockOrCancel, isBlockedQuery } from './unblock-or-cancel';
 export * from './throw-async';
-export * from './block-with-dependencies';
 export * from './args-and-return';
 export * from './activity-failure';
 export * from './activity-failures';
 export * from './sleep';
 export * from './http';
 export * from './dependencies';
-export * from './ignored-dependencies';
 export * from './interrupt-signal';
 export * from './patched';
 export * from './deprecate-patch';
@@ -66,5 +67,8 @@ export * from './trailing-timer';
 export * from './invalid-or-failed-queries';
 export * from './try-to-continue-after-completion';
 export * from './fail-unless-signaled-before-start';
+export * from './smorgasbord';
+export * from './condition';
+export * from './sleep-invalid-duration';
 export { interceptorExample } from './interceptor-example';
 export { internalsInterceptorExample } from './internals-interceptor-example';

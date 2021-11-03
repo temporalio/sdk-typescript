@@ -1,11 +1,8 @@
-// @@@SNIPSTART nodejs-sleep-workflow
+// @@@SNIPSTART typescript-sleep-workflow
 import { sleep } from '@temporalio/workflow';
-import { Sleeper } from '../interfaces';
 
-export const sleeper: Sleeper = (ms = 100) => ({
-  async execute(): Promise<void> {
-    await sleep(ms);
-    console.log('slept');
-  },
-});
+export async function sleeper(ms = 100): Promise<void> {
+  await sleep(ms);
+  console.log('slept');
+}
 // @@@SNIPEND

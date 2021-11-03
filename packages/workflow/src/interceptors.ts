@@ -6,9 +6,9 @@
  * @module
  */
 
-import { ActivityOptions, WorkflowExecution, Headers, Next, WorkflowHandlers } from '@temporalio/common';
+import { ActivityOptions, WorkflowExecution, Headers, Next } from '@temporalio/common';
 import { coresdk } from '@temporalio/proto/lib/coresdk';
-import { ChildWorkflowOptions, ContinueAsNewOptions } from './interfaces';
+import { ChildWorkflowOptionsWithDefaults, ContinueAsNewOptions } from './interfaces';
 
 export { Next, Headers };
 
@@ -42,13 +42,6 @@ export interface QueryInput {
  */
 export interface WorkflowInboundCallsInterceptor {
   /**
-   * Called when Workflow is created from a factory function
-   *
-   * @return the Workflow handlers
-   */
-  create?: (input: WorkflowCreateInput, next: Next<this, 'create'>) => Promise<WorkflowHandlers>;
-
-  /**
    * Called when Workflow execute method is called
    *
    * @return result of the Workflow execution
@@ -78,8 +71,7 @@ export interface ActivityInput {
 /** Input for WorkflowOutboundCallsInterceptor.startChildWorkflowExecution */
 export interface StartChildWorkflowExecutionInput {
   readonly workflowType: string;
-  readonly args: unknown[];
-  readonly options: ChildWorkflowOptions;
+  readonly options: ChildWorkflowOptionsWithDefaults;
   readonly headers: Headers;
   readonly seq: number;
 }
@@ -90,11 +82,16 @@ export interface TimerInput {
   readonly seq: number;
 }
 
+/**
+ * Same as ContinueAsNewOptions but workflowType must be defined
+ */
+export type ContinueAsNewInputOptions = ContinueAsNewOptions & Required<Pick<ContinueAsNewOptions, 'workflowType'>>;
+
 /** Input for WorkflowOutboundCallsInterceptor.continueAsNew */
 export interface ContinueAsNewInput {
   args: unknown[];
   headers: Headers;
-  options: ContinueAsNewOptions;
+  options: ContinueAsNewInputOptions;
 }
 
 /** Input for WorkflowOutboundCallsInterceptor.signalWorkflow */

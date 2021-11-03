@@ -1,14 +1,4 @@
-import { Workflow, WorkflowSignalType, WorkflowSignalHandlers, WorkflowResultType } from './interfaces';
-import { AsyncOnly } from './type-helpers';
-
-export type WorkflowHandleSignals<T extends Workflow> = WorkflowSignalHandlers<T> extends Record<
-  string,
-  WorkflowSignalType
->
-  ? {
-      [P in keyof WorkflowSignalHandlers<T>]: AsyncOnly<WorkflowSignalHandlers<T>[P]>;
-    }
-  : undefined;
+import { Workflow, WorkflowResultType, SignalDefinition } from './interfaces';
 
 /**
  * Base WorkflowHandle interface, extended in workflow and client libs.
@@ -17,30 +7,21 @@ export type WorkflowHandleSignals<T extends Workflow> = WorkflowSignalHandlers<T
  */
 export interface BaseWorkflowHandle<T extends Workflow> {
   /**
-   * Start the Workflow with arguments, returns a Promise that resolves when the Workflow execution completes
-   */
-  execute(...args: Parameters<T>): Promise<WorkflowResultType<T>>;
-
-  /**
-   * Start the Workflow with arguments, returns a Promise that resolves with the execution runId
-   */
-  start(...args: Parameters<T>): Promise<string /* runId */>;
-
-  /**
    * Promise that resolves when Workflow execution completes
    */
   result(): Promise<WorkflowResultType<T>>;
 
   /**
-   * A mapping of the different signals defined by Workflow interface `T` to callable functions.
-   * Call to signal a running Workflow.
+   * Signal a running Workflow.
+   *
+   * @param def a signal definition as returned from {@link defineSignal}
    *
    * @example
    * ```ts
-   * await workflow.signal.increment(3);
+   * await handle.signal(incrementSignal, 3);
    * ```
    */
-  signal: WorkflowHandleSignals<T>;
+  signal<Args extends any[] = []>(def: SignalDefinition<Args> | string, ...args: Args): Promise<void>;
 
   /**
    * The workflowId of the current Workflow

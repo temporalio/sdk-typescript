@@ -34,10 +34,15 @@ async function main() {
 
   try {
     const starterArgs = argsToForward(starterArgSpec, args);
-    const starter = spawn('node', [path.resolve(__dirname, 'starter.js'), ...starterArgs], { shell, stdio: 'inherit' });
-    worker.on('exit', async (code) => {
+    const starter = spawn(
+      'node',
+      [path.resolve(__dirname, 'starter.js'), '--worker-pid', `${worker.pid ?? ''}`, ...starterArgs],
+      { shell, stdio: 'inherit' }
+    );
+    worker.on('exit', async (code, signal) => {
       // If worker dies unceremoniously then also make sure we can exit and not hang
       if (code !== 0) {
+        console.error('Killing starter because worker exited nonzero', { code, signal });
         await kill(starter, 'SIGINT');
       }
     });
@@ -45,9 +50,11 @@ async function main() {
   } finally {
     await kill(worker);
   }
+
+  console.log('Completely done');
 }
 
 main().catch((err) => {
-  console.error(err);
+  console.error('Load all-in-one caught error', err);
   process.exit(1);
 });

@@ -24,6 +24,7 @@ const platformMapping = { darwin: 'apple-darwin', linux: 'unknown-linux-gnu', wi
 
 function compile(target) {
   console.log('Compiling bridge', { target });
+
   const out = target ? `releases/${target}/index.node` : 'index.node';
   try {
     fs.unlinkSync(out);
@@ -37,7 +38,7 @@ function compile(target) {
     [
       '--artifact',
       'cdylib',
-      'temporal_sdk_node_bridge',
+      'temporal_sdk_typescript_bridge',
       out,
       '--',
       'cargo',

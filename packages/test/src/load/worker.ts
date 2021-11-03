@@ -1,4 +1,3 @@
-import path from 'path';
 import arg from 'arg';
 import * as opentelemetry from '@opentelemetry/sdk-node';
 import { SemanticResourceAttributes } from '@opentelemetry/semantic-conventions';
@@ -6,6 +5,7 @@ import { Core, Worker, DefaultLogger } from '@temporalio/worker';
 import { CollectorTraceExporter } from '@opentelemetry/exporter-collector-grpc';
 import { WorkerArgSpec, workerArgSpec, getRequired } from './args';
 import { TelemetryOptions } from '@temporalio/core-bridge';
+import * as activities from '../activities';
 
 async function main() {
   const args = arg<WorkerArgSpec>(workerArgSpec);
@@ -13,8 +13,7 @@ async function main() {
   const maxConcurrentWorkflowTaskExecutions = args['--max-concurrent-wft-executions'] ?? 100;
   const maxConcurrentActivityTaskPolls = args['--max-concurrent-at-polls'] ?? 20;
   const maxConcurrentWorkflowTaskPolls = args['--max-concurrent-wft-polls'] ?? 20;
-  const isolatePoolSize = args['--isolate-pool-size'] ?? 16;
-  const maxCachedWorkflows = args['--max-cached-wfs'] ?? 2500;
+  const maxCachedWorkflows = args['--max-cached-wfs'];
   const oTelUrl = args['--otel-url'] ?? 'grpc://localhost:4317';
   const logLevel = (args['--log-level'] || 'INFO').toUpperCase();
   const serverAddress = getRequired(args, '--server-address');
@@ -23,22 +22,23 @@ async function main() {
 
   let exporter = undefined;
   let telemetryOptions: TelemetryOptions | undefined = undefined;
+  let otel;
   if (oTelUrl) {
     exporter = new CollectorTraceExporter({ url: oTelUrl });
     telemetryOptions = {
       oTelCollectorUrl: oTelUrl,
       tracingFilter: 'temporal_sdk_core=DEBUG',
-      logForwardingLevel: 'OFF',
+      logForwardingLevel: 'INFO',
     };
+    otel = new opentelemetry.NodeSDK({
+      resource: new opentelemetry.resources.Resource({
+        [SemanticResourceAttributes.SERVICE_NAME]: 'load-worker',
+        taskQueue,
+      }),
+      traceExporter: exporter,
+    });
+    await otel.start();
   }
-  const otel = new opentelemetry.NodeSDK({
-    resource: new opentelemetry.resources.Resource({
-      [SemanticResourceAttributes.SERVICE_NAME]: 'load-worker',
-      taskQueue,
-    }),
-    traceExporter: exporter,
-  });
-  await otel.start();
 
   await Core.install({
     serverOptions: {
@@ -50,20 +50,21 @@ async function main() {
   });
 
   const worker = await Worker.create({
-    workDir: path.join(__dirname, '..'),
-    nodeModulesPath: path.join(__dirname, '../../../../node_modules'),
+    activities,
+    workflowsPath: require.resolve('../workflows'),
     taskQueue,
     maxConcurrentActivityTaskExecutions,
     maxConcurrentWorkflowTaskExecutions,
     maxConcurrentActivityTaskPolls,
     maxConcurrentWorkflowTaskPolls,
     maxCachedWorkflows,
-    isolatePoolSize,
   });
-  console.log('Created worker');
+  console.log('Created worker with options', worker.options);
 
   await worker.run();
-  await otel.shutdown().catch(console.error);
+  if (otel) {
+    await otel.shutdown().catch(console.error);
+  }
 }
 
 main().catch((err) => {
