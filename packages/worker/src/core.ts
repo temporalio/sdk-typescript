@@ -157,6 +157,19 @@ export class Core {
     }
   }
 
+  /**
+   * Flush any buffered logs.
+   *
+   * This is a noop in case the instance is configured with
+   * `logForwardingLevel=OFF`.
+   */
+  flushLogs(): void {
+    if (this.isForwardingLogs()) {
+      const logger = this.logger as CoreLogger;
+      logger.flush();
+    }
+  }
+
   protected static _instance?: Promise<Core>;
   protected static instantiator?: 'install' | 'instance';
 

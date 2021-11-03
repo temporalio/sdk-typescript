@@ -103,6 +103,7 @@ export type ActivityTaskWithContext = ContextAware<{
 export interface NativeWorkerLike {
   shutdown: Promisify<OmitFirstParam<typeof native.workerShutdown>>;
   completeShutdown(): Promise<void>;
+  flushCoreLogs(): void;
   pollWorkflowActivation: Promisify<OmitFirstParam<typeof native.workerPollWorkflowActivation>>;
   pollActivityTask: Promisify<OmitFirstParam<typeof native.workerPollActivityTask>>;
   completeWorkflowActivation: Promisify<OmitFirstParam<typeof native.workerCompleteWorkflowActivation>>;
@@ -137,6 +138,9 @@ export class NativeWorker implements NativeWorkerLike {
     this.completeActivityTask = promisify(native.workerCompleteActivityTask).bind(undefined, nativeWorker);
     this.recordActivityHeartbeat = native.workerRecordActivityHeartbeat.bind(undefined, nativeWorker);
     this.shutdown = promisify(native.workerShutdown).bind(undefined, nativeWorker);
+  }
+  flushCoreLogs(): void {
+    this.core.flushLogs();
   }
 
   public async completeShutdown(): Promise<void> {
@@ -635,8 +639,8 @@ export class Worker {
                     failure: await errorToFailure(error, this.options.dataConverter),
                   },
                 }).finish();
-                // TODO: should we wait to be evicted from core?
-                state?.workflow.dispose();
+                // We do not dispose of the Workflow yet, wait to be evicted from Core.
+                // This is done to simplify the Workflow lifecycle so Core the sole driver.
                 return { state: undefined, output: { close: true, completion, parentSpan } };
               }
             },
@@ -924,9 +928,17 @@ export class Worker {
         ),
         { defaultValue: undefined }
       );
-    } finally {
+      // Only shutdown the native worker if we completed without an error.
+      // Otherwise Rust / TS are in an unknown state and shutdown might hang.
+      // A new process must be created in order to instantiate a new Rust Core.
+      // TODO: force shutdown in core?
       await this.nativeWorker.completeShutdown();
-      await this.workflowCreator?.destroy();
+    } finally {
+      try {
+        await this.workflowCreator?.destroy();
+      } finally {
+        this.nativeWorker.flushCoreLogs();
+      }
     }
   }
 }

@@ -36,6 +36,9 @@ export type Task =
   | { activity: coresdk.activity_task.IActivityTask };
 
 export class MockNativeWorker implements NativeWorkerLike {
+  flushCoreLogs(): void {
+    // noop
+  }
   activityTasks: Array<Promise<ArrayBuffer>> = [];
   workflowActivations: Array<Promise<ArrayBuffer>> = [];
   activityCompletionCallback?: (arr: ArrayBuffer) => void;
