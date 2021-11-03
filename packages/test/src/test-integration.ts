@@ -17,10 +17,8 @@ import {
 import { Worker, DefaultLogger, Core } from '@temporalio/worker';
 import * as iface from '@temporalio/proto';
 import {
-  WorkflowExecutionContinuedAsNewError,
-  WorkflowExecutionFailedError,
-  WorkflowExecutionTerminatedError,
-  WorkflowExecutionTimedOutError,
+  WorkflowContinuedAsNewError,
+  WorkflowFailedError,
   ActivityFailure,
   ApplicationFailure,
 } from '@temporalio/client';
@@ -100,8 +98,8 @@ if (RUN_INTEGRATION_TESTS) {
   test('Workflow not found results in failure', async (t) => {
     const { client } = t.context;
     const promise = client.execute('not-found');
-    const err: WorkflowExecutionFailedError = await t.throwsAsync(() => promise, {
-      instanceOf: WorkflowExecutionFailedError,
+    const err: WorkflowFailedError = await t.throwsAsync(() => promise, {
+      instanceOf: WorkflowFailedError,
     });
     if (!(err.cause instanceof ApplicationFailure)) {
       t.fail('Expected err.cause to be an instance of ApplicationFailure');
@@ -138,8 +136,8 @@ if (RUN_INTEGRATION_TESTS) {
 
   test('activity-failure', async (t) => {
     const { client } = t.context;
-    const err: WorkflowExecutionFailedError = await t.throwsAsync(client.execute(workflows.activityFailure), {
-      instanceOf: WorkflowExecutionFailedError,
+    const err: WorkflowFailedError = await t.throwsAsync(client.execute(workflows.activityFailure), {
+      instanceOf: WorkflowFailedError,
     });
     t.is(err.message, 'Workflow execution failed');
     if (!(err.cause instanceof ActivityFailure)) {
@@ -172,8 +170,8 @@ if (RUN_INTEGRATION_TESTS) {
 
   test('child-workflow-failure', async (t) => {
     const { client } = t.context;
-    const err: WorkflowExecutionFailedError = await t.throwsAsync(client.execute(workflows.childWorkflowFailure), {
-      instanceOf: WorkflowExecutionFailedError,
+    const err: WorkflowFailedError = await t.throwsAsync(client.execute(workflows.childWorkflowFailure), {
+      instanceOf: WorkflowFailedError,
     });
     if (!(err.cause instanceof ChildWorkflowFailure)) {
       return t.fail('Expected err.cause to be an instance of ChildWorkflowFailure');
@@ -202,8 +200,8 @@ if (RUN_INTEGRATION_TESTS) {
     }
     const child = client.getHandle(childExecution.workflowId!, childExecution.runId!);
     await child.terminate();
-    const err: WorkflowExecutionFailedError = await t.throwsAsync(workflow.result(), {
-      instanceOf: WorkflowExecutionFailedError,
+    const err: WorkflowFailedError = await t.throwsAsync(workflow.result(), {
+      instanceOf: WorkflowFailedError,
     });
     if (!(err.cause instanceof ChildWorkflowFailure)) {
       return t.fail('Expected err.cause to be an instance of ChildWorkflowFailure');
@@ -216,8 +214,8 @@ if (RUN_INTEGRATION_TESTS) {
 
   test('child-workflow-timeout', async (t) => {
     const { client } = t.context;
-    const err: WorkflowExecutionFailedError = await t.throwsAsync(client.execute(workflows.childWorkflowTimeout), {
-      instanceOf: WorkflowExecutionFailedError,
+    const err: WorkflowFailedError = await t.throwsAsync(client.execute(workflows.childWorkflowTimeout), {
+      instanceOf: WorkflowFailedError,
     });
     if (!(err.cause instanceof ChildWorkflowFailure)) {
       return t.fail('Expected err.cause to be an instance of ChildWorkflowFailure');
@@ -263,8 +261,8 @@ if (RUN_INTEGRATION_TESTS) {
     const { client } = t.context;
     const workflow = await client.start(workflows.interruptableWorkflow);
     await workflow.signal(workflows.interruptSignal, 'just because');
-    const err: WorkflowExecutionFailedError = await t.throwsAsync(workflow.result(), {
-      instanceOf: WorkflowExecutionFailedError,
+    const err: WorkflowFailedError = await t.throwsAsync(workflow.result(), {
+      instanceOf: WorkflowFailedError,
     });
     if (!(err.cause instanceof ApplicationFailure)) {
       return t.fail('Expected err.cause to be an instance of ApplicationFailure');
@@ -276,8 +274,8 @@ if (RUN_INTEGRATION_TESTS) {
     const { client } = t.context;
     const workflow = await client.start(workflows.failSignalWorkflow);
     await workflow.signal(workflows.failSignal);
-    const err: WorkflowExecutionFailedError = await t.throwsAsync(workflow.result(), {
-      instanceOf: WorkflowExecutionFailedError,
+    const err: WorkflowFailedError = await t.throwsAsync(workflow.result(), {
+      instanceOf: WorkflowFailedError,
     });
     if (!(err.cause instanceof ApplicationFailure)) {
       return t.fail('Expected err.cause to be an instance of ApplicationFailure');
@@ -289,8 +287,8 @@ if (RUN_INTEGRATION_TESTS) {
     const { client } = t.context;
     const workflow = await client.start(workflows.asyncFailSignalWorkflow);
     await workflow.signal(workflows.failSignal);
-    const err: WorkflowExecutionFailedError = await t.throwsAsync(workflow.result(), {
-      instanceOf: WorkflowExecutionFailedError,
+    const err: WorkflowFailedError = await t.throwsAsync(workflow.result(), {
+      instanceOf: WorkflowFailedError,
     });
     if (!(err.cause instanceof ApplicationFailure)) {
       return t.fail('Expected err.cause to be an instance of ApplicationFailure');
@@ -445,7 +443,7 @@ if (RUN_INTEGRATION_TESTS) {
     const workflow = await client.start(workflows.sleeper, options);
     // Throws because we use a different task queue
     await t.throwsAsync(() => workflow.result(), {
-      instanceOf: WorkflowExecutionTimedOutError,
+      instanceOf: WorkflowFailedError,
       message: 'Workflow execution timed out',
     });
     const execution = await workflow.describe();
@@ -473,7 +471,7 @@ if (RUN_INTEGRATION_TESTS) {
     const workflow = await client.start(workflows.sleeper, { args: [1000000] });
     await workflow.terminate('hasta la vista baby');
     await t.throwsAsync(workflow.result(), {
-      instanceOf: WorkflowExecutionTerminatedError,
+      instanceOf: WorkflowFailedError,
       message: 'hasta la vista baby',
     });
   });
@@ -481,15 +479,15 @@ if (RUN_INTEGRATION_TESTS) {
   test('WorkflowHandle.result() throws if continued as new', async (t) => {
     const { client } = t.context;
     const ogWF = await client.start(workflows.continueAsNewSameWorkflow);
-    let err = await t.throwsAsync(ogWF.result(), { instanceOf: WorkflowExecutionContinuedAsNewError });
-    if (!(err instanceof WorkflowExecutionContinuedAsNewError)) return; // Type assertion
+    let err = await t.throwsAsync(ogWF.result(), { instanceOf: WorkflowContinuedAsNewError });
+    if (!(err instanceof WorkflowContinuedAsNewError)) return; // Type assertion
     let workflow = client.getHandle<typeof workflows.continueAsNewSameWorkflow>(ogWF.workflowId, err.newExecutionRunId);
 
     await workflow.signal(workflows.continueAsNewSignal);
     err = await t.throwsAsync(workflow.result(), {
-      instanceOf: WorkflowExecutionContinuedAsNewError,
+      instanceOf: WorkflowContinuedAsNewError,
     });
-    if (!(err instanceof WorkflowExecutionContinuedAsNewError)) return; // Type assertion
+    if (!(err instanceof WorkflowContinuedAsNewError)) return; // Type assertion
 
     workflow = client.getHandle<typeof workflows.continueAsNewSameWorkflow>(workflow.workflowId, err.newExecutionRunId);
     await workflow.result();
@@ -507,8 +505,8 @@ if (RUN_INTEGRATION_TESTS) {
   test('continue-as-new-to-different-workflow', async (t) => {
     const { client } = t.context;
     const ogWF = await client.start(workflows.continueAsNewToDifferentWorkflow);
-    const err = await t.throwsAsync(ogWF.result(), { instanceOf: WorkflowExecutionContinuedAsNewError });
-    if (!(err instanceof WorkflowExecutionContinuedAsNewError)) return; // Type assertion
+    const err = await t.throwsAsync(ogWF.result(), { instanceOf: WorkflowContinuedAsNewError });
+    if (!(err instanceof WorkflowContinuedAsNewError)) return; // Type assertion
     const workflow = client.getHandle<typeof workflows.sleeper>(ogWF.workflowId, err.newExecutionRunId);
     await workflow.result();
     const info = await workflow.describe();
@@ -531,8 +529,8 @@ if (RUN_INTEGRATION_TESTS) {
       signalArgs: ['interrupted from signalWithStart'],
     });
     {
-      const err: WorkflowExecutionFailedError = await t.throwsAsync(ogWF.result(), {
-        instanceOf: WorkflowExecutionFailedError,
+      const err: WorkflowFailedError = await t.throwsAsync(ogWF.result(), {
+        instanceOf: WorkflowFailedError,
       });
       if (!(err.cause instanceof ApplicationFailure)) {
         return t.fail('Expected err.cause to be an instance of ApplicationFailure');
@@ -542,8 +540,8 @@ if (RUN_INTEGRATION_TESTS) {
     // Test returned runId
     const workflow = client.getHandle<typeof workflows.interruptableWorkflow>(ogWF.workflowId, ogWF.originalRunId);
     {
-      const err: WorkflowExecutionFailedError = await t.throwsAsync(workflow.result(), {
-        instanceOf: WorkflowExecutionFailedError,
+      const err: WorkflowFailedError = await t.throwsAsync(workflow.result(), {
+        instanceOf: WorkflowFailedError,
       });
       if (!(err.cause instanceof ApplicationFailure)) {
         return t.fail('Expected err.cause to be an instance of ApplicationFailure');
