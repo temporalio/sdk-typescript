@@ -19,6 +19,7 @@
   "license": "MIT",
   "dependencies": {
     "@temporalio/common": "file:../common",
+    "@opentelemetry/api": "^1.0.3",
     "cargo-cp-artifact": "^0.1.4"
   },
   "bugs": {
