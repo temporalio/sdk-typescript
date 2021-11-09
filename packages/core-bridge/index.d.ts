@@ -1,5 +1,4 @@
 import { TLSConfig } from '@temporalio/common';
-import { LogLevel } from '@temporalio/worker';
 import { SpanContext } from '@opentelemetry/api';
 
 export { TLSConfig };

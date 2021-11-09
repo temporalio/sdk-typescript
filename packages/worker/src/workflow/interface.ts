@@ -1,6 +1,6 @@
 import { coresdk } from '@temporalio/proto';
 import { WorkflowInfo } from '@temporalio/workflow';
-import { ExternalCall } from '@temporalio/workflow/src/dependencies';
+import { ExternalCall } from '@temporalio/workflow/lib/dependencies';
 
 export interface Workflow {
   /**
