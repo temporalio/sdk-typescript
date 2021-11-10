@@ -840,18 +840,18 @@ function patchInternal(patchId: string, deprecated: boolean): boolean {
  *
  * @returns a boolean indicating whether the condition was true before the timeout expires
  */
-export function condition(timeout: number | string, fn: () => boolean): Promise<boolean>;
+export function condition(fn: () => boolean, timeout: number | string): Promise<boolean>;
 
 /**
  * Returns a Promise that resolves when `fn` evaluates to `true`.
  */
 export function condition(fn: () => boolean): Promise<void>;
 
-export function condition(fnOrTimeout: (() => boolean) | number | string, fn?: () => boolean): Promise<void | boolean> {
-  if ((typeof fnOrTimeout === 'number' || typeof fnOrTimeout === 'string') && fn !== undefined) {
-    return Promise.race([sleep(fnOrTimeout).then(() => false), conditionInner(fn).then(() => true)]);
+export function condition(fn: () => boolean, timeout?: number | string): Promise<void | boolean> {
+  if (timeout) {
+    return Promise.race([sleep(timeout).then(() => false), conditionInner(fn).then(() => true)]);
   }
-  return conditionInner(fnOrTimeout as () => boolean);
+  return conditionInner(fn);
 }
 
 function conditionInner(fn: () => boolean): Promise<void> {

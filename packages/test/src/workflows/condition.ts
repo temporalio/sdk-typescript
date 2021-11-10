@@ -13,7 +13,7 @@ export async function conditionWaiter(): Promise<void> {
     condition(() => x === 2),
   ]);
 
-  if (await condition('1s', () => x === 3)) {
+  if (await condition(() => x === 3, '1s')) {
     throw new Error('Condition returned true');
   }
 
