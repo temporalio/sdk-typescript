@@ -598,13 +598,29 @@ export class Worker {
                         isReplaying: activation.isReplaying,
                       };
 
+                      const patchJobs = activation.jobs.filter(
+                        (
+                          j
+                        ): j is NonNullableObject<
+                          Pick<coresdk.workflow_activation.IWFActivationJob, 'notifyHasPatch'>
+                        > => j.notifyHasPatch != null
+                      );
+                      const patches = patchJobs.map(({ notifyHasPatch }) => {
+                        const { patchId } = notifyHasPatch;
+                        if (!patchId) {
+                          throw new TypeError('Got a patch without a patchId');
+                        }
+                        return patchId;
+                      });
+
                       const workflow = await instrument(this.tracer, span, 'workflow.create', async () => {
-                        return await workflowCreator.createWorkflow(
-                          workflowInfo,
-                          this.options.interceptors?.workflowModules ?? [],
-                          randomnessSeed.toBytes(),
-                          tsToMs(activation.timestamp)
-                        );
+                        return await workflowCreator.createWorkflow({
+                          info: workflowInfo,
+                          interceptorModules: this.options.interceptors?.workflowModules ?? [],
+                          randomnessSeed: randomnessSeed.toBytes(),
+                          now: tsToMs(activation.timestamp),
+                          patches,
+                        });
                       });
                       state = { workflow, info: workflowInfo };
                     } else {

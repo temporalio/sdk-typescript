@@ -21,6 +21,14 @@ import { ExternalCall } from './dependencies';
 import { WorkflowInterceptorsFactory } from './interceptors';
 import { HookManager, IsolateExtension } from './promise-hooks';
 
+export interface WorkflowCreateOptions {
+  info: WorkflowInfo;
+  interceptorModules: string[];
+  randomnessSeed: number[];
+  now: number;
+  patches: string[];
+}
+
 export function setRequireFunc(fn: Exclude<typeof state['require'], undefined>): void {
   state.require = fn;
 }
@@ -99,10 +107,7 @@ export function overrideGlobals(): void {
  * Sets required internal state and instantiates the workflow and interceptors.
  */
 export async function initRuntime(
-  info: WorkflowInfo,
-  interceptorModules: string[],
-  randomnessSeed: number[],
-  now: number,
+  { info, interceptorModules, randomnessSeed, now, patches }: WorkflowCreateOptions,
   isolateExtension: IsolateExtension
 ): Promise<void> {
   // Globals are overridden while building the isolate before loading user code.
@@ -114,6 +119,11 @@ export async function initRuntime(
   state.now = now;
   state.random = alea(randomnessSeed);
   HookManager.instance.setIsolateExtension(isolateExtension);
+  if (info.isReplaying) {
+    for (const patch of patches) {
+      state.knownPresentPatches.add(patch);
+    }
+  }
 
   const { require: req } = state;
   if (req === undefined) {

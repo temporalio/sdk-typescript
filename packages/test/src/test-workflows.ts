@@ -74,8 +74,8 @@ async function createWorkflow(
   startTime: number,
   workflowCreator: IsolatedVMWorkflowCreator
 ) {
-  const workflow = (await workflowCreator.createWorkflow(
-    {
+  const workflow = (await workflowCreator.createWorkflow({
+    info: {
       workflowType,
       runId,
       workflowId: 'test-workflowId',
@@ -83,10 +83,11 @@ async function createWorkflow(
       taskQueue: 'test',
       isReplaying: false,
     },
-    [],
-    Long.fromInt(1337).toBytes(),
-    startTime
-  )) as IsolatedVMWorkflow;
+    interceptorModules: [],
+    randomnessSeed: Long.fromInt(1337).toBytes(),
+    now: startTime,
+    patches: [],
+  })) as IsolatedVMWorkflow;
   return workflow;
 }
 
@@ -1632,6 +1633,13 @@ test('deprecatePatchWorkflow', async (t) => {
     );
   }
   t.deepEqual(logs, [['has change']]);
+});
+
+test('patchedTopLevel', async (t) => {
+  const { workflowType, logs } = t.context;
+  const completion = await activate(t, makeStartWorkflow(workflowType));
+  compareCompletion(t, completion, makeSuccess());
+  t.deepEqual(logs, [[['Patches cannot be used before Workflow starts']]]);
 });
 
 test('tryToContinueAfterCompletion', async (t) => {
