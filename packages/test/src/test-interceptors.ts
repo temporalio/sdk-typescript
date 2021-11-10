@@ -222,7 +222,7 @@ if (RUN_INTEGRATION_TESTS) {
         // Co-exists with the Workflow
         workflowModules: [require.resolve('./workflows/internals-interceptor-example')],
       },
-      dependencies: {
+      sinks: {
         logger: {
           log: {
             fn: (_: WorkflowInfo, event: string): void => {

@@ -1,12 +1,12 @@
-import { dependencies, WorkflowInterceptors, ExternalDependencies, sleep } from '@temporalio/workflow';
+import { proxySinks, WorkflowInterceptors, Sinks, sleep } from '@temporalio/workflow';
 
-export interface Dependencies extends ExternalDependencies {
+export interface LoggerSinks extends Sinks {
   logger: {
     log(event: string): void;
   };
 }
 
-const { logger } = dependencies<Dependencies>();
+const { logger } = proxySinks<LoggerSinks>();
 
 export async function internalsInterceptorExample(): Promise<void> {
   await sleep(10);

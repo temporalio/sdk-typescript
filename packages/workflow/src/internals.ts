@@ -19,7 +19,7 @@ import { alea, RNG } from './alea';
 import { ContinueAsNew, WorkflowInfo } from './interfaces';
 import { QueryInput, SignalInput, WorkflowExecuteInput, WorkflowInterceptors } from './interceptors';
 import { DeterminismViolationError, WorkflowExecutionAlreadyStartedError, isCancellation } from './errors';
-import { ExternalCall } from './dependencies';
+import { SinkCall } from './sinks';
 import { ROOT_SCOPE } from './cancellation-scope';
 
 export type ResolveFunction<T = any> = (val: T) => any;
@@ -312,7 +312,6 @@ export class State {
     activity: new Map<number, Completion>(),
     childWorkflowStart: new Map<number, Completion>(),
     childWorkflowComplete: new Map<number, Completion>(),
-    dependency: new Map<number, Completion>(),
     signalWorkflow: new Map<number, Completion>(),
     cancelWorkflow: new Map<number, Completion>(),
   };
@@ -427,12 +426,12 @@ export class State {
    */
   public readonly sentPatches = new Set<string>();
 
-  externalCalls = Array<ExternalCall>();
+  sinkCalls = Array<SinkCall>();
 
-  getAndResetExternalCalls(): ExternalCall[] {
-    const { externalCalls } = this;
-    this.externalCalls = [];
-    return externalCalls;
+  getAndResetSinkCalls(): SinkCall[] {
+    const { sinkCalls } = this;
+    this.sinkCalls = [];
+    return sinkCalls;
   }
 
   /**

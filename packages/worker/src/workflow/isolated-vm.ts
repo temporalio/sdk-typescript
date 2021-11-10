@@ -2,50 +2,30 @@ import ivm from 'isolated-vm';
 import dedent from 'dedent';
 import { coresdk } from '@temporalio/proto';
 import * as internals from '@temporalio/workflow/lib/worker-interface';
-import { ExternalDependencyFunction, WorkflowInfo, ExternalCall } from '@temporalio/workflow';
+import { SinkFunction, WorkflowInfo, SinkCall } from '@temporalio/workflow';
 import { partition } from '../utils';
 import { Workflow, WorkflowCreateOptions, WorkflowCreator } from './interface';
 
 /**
- * Controls how an external dependency function is executed.
- * - `ASYNC*` variants run at the end of an activation and do **not** block the isolate.
- * - `SYNC*` variants run during Workflow activation and block the isolate,
- *   they're passed into the isolate using an {@link https://github.com/laverdet/isolated-vm#referenceapplyreceiver-arguments-options-promise | isolated-vm Reference}
+ * Controls how an injected function is executed.
  *
- * The Worker will log if an error occurs in one of ignored variants.
- *
- * **NOTE: External dependencies are an advanced feature and should be used with caution**
- * - Do not return anything that can break Workflow execution determinism
- * - Synchronous variants should be used as a last resort and their execution time should be kept short to free up the Workflow thread
+ * Functions are injected into the isolate using an {@link https://github.com/laverdet/isolated-vm#referenceapplyreceiver-arguments-options-promise | isolated-vm Reference}
  */
 export enum ApplyMode {
   /**
-   * Injected function will be called at the end of an activation.
-   * Isolate enqueues function to be called during activation and registers a callback to await its completion.
-   * Use if exposing an async function to the isolate for which the result should be returned to the isolate.
-   */
-  ASYNC = 'async',
-  /**
-   * Injected function will be called at the end of an activation.
-   * Isolate enqueues function to be called during activation and does **not** register a callback to await its completion.
-   * This is the safest async `ApplyMode` because it can not break Workflow code determinism.
-   * Can only be used when the injected function returns `void` and the implementation returns `void` or `Promise<void>`.
-   */
-  ASYNC_IGNORED = 'asyncIgnored',
-  /**
    * Injected function is called synchronously, implementation must be a synchronous function.
-   * Injection is done using an `isolated-vm` reference, function is called with `applySync`.
+   * Function is called with `applySync`.
    */
   SYNC = 'applySync',
   /**
    * Injected function is called synchronously, implementation must return a promise.
-   * Injection is done using an `isolated-vm` reference, function is called with `applySyncPromise`.
+   * Function is called with `applySyncPromise`.
    */
   SYNC_PROMISE = 'applySyncPromise',
   /**
    * Injected function is called in the background not blocking the isolate.
    * Implementation can be either synchronous or asynchronous.
-   * Injection is done using an `isolated-vm` reference, function is called with `applyIgnored`.
+   * Function is called with `applyIgnored`.
    *
    * This is the safest sync `ApplyMode` because it can not break Workflow code determinism.
    */
@@ -58,7 +38,7 @@ export enum ApplyMode {
 interface WorkflowModule {
   activate: ivm.Reference<typeof internals.activate>;
   concludeActivation: ivm.Reference<typeof internals.concludeActivation>;
-  getAndResetExternalCalls: ivm.Reference<typeof internals.getAndResetExternalCalls>;
+  getAndResetSinkCalls: ivm.Reference<typeof internals.getAndResetSinkCalls>;
   tryUnblockConditions: ivm.Reference<typeof internals.tryUnblockConditions>;
 }
 
@@ -116,7 +96,7 @@ export class IsolatedVMWorkflowCreator implements WorkflowCreator {
     context: ivm.Context,
     path: string,
     fn: () => any,
-    applyMode: ApplyMode.SYNC | ApplyMode.SYNC_PROMISE | ApplyMode.SYNC_IGNORED,
+    applyMode: ApplyMode,
     transferOptions?: ivm.TransferOptionsBidirectional
   ): Promise<void> {
     transferOptions = addDefaultTransferOptions(applyMode, transferOptions);
@@ -175,7 +155,7 @@ export class IsolatedVMWorkflow implements Workflow {
     readonly context: ivm.Context,
     readonly workflowModule: WorkflowModule,
     public readonly isolateExecutionTimeoutMs: number,
-    readonly dependencies: Record<string, Record<string, ExternalDependencyFunction>> = {}
+    readonly sinks: Record<string, Record<string, SinkFunction>> = {}
   ) {}
 
   public static async create(
@@ -183,9 +163,9 @@ export class IsolatedVMWorkflow implements Workflow {
     options: WorkflowCreateOptions,
     isolateExecutionTimeoutMs: number
   ): Promise<IsolatedVMWorkflow> {
-    const [activate, concludeActivation, getAndResetExternalCalls, tryUnblockConditions, isolateExtension] =
+    const [activate, concludeActivation, getAndResetSinkCalls, tryUnblockConditions, isolateExtension] =
       await Promise.all(
-        ['activate', 'concludeActivation', 'getAndResetExternalCalls', 'tryUnblockConditions']
+        ['activate', 'concludeActivation', 'getAndResetSinkCalls', 'tryUnblockConditions']
           .map((fn) =>
             context.eval(`lib.${fn}`, {
               reference: true,
@@ -206,15 +186,15 @@ export class IsolatedVMWorkflow implements Workflow {
       {
         activate,
         concludeActivation,
-        getAndResetExternalCalls,
+        getAndResetSinkCalls,
         tryUnblockConditions,
       },
       isolateExecutionTimeoutMs
     );
   }
 
-  async getAndResetExternalCalls(): Promise<ExternalCall[]> {
-    return await this.workflowModule.getAndResetExternalCalls.apply(undefined, [], {
+  async getAndResetSinkCalls(): Promise<SinkCall[]> {
+    return await this.workflowModule.getAndResetSinkCalls.apply(undefined, [], {
       arguments: { copy: true },
       result: { copy: true },
       timeout: this.isolateExecutionTimeoutMs,

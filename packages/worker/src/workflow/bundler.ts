@@ -101,8 +101,7 @@ export class WorkflowCodeBundler {
         activate,
         concludeActivation,
         inject,
-        resolveExternalDependencies,
-        getAndResetExternalCalls,
+        getAndResetSinkCalls,
         tryUnblockConditions,
       } = api;
     `;

@@ -24,7 +24,7 @@ import {
 } from './interfaces';
 import { state } from './internals';
 import { ActivityInput, StartChildWorkflowExecutionInput, SignalWorkflowInput, TimerInput } from './interceptors';
-import { ExternalDependencies } from './dependencies';
+import { Sinks } from './sinks';
 import { CancellationScope, registerSleepImplementation } from './cancellation-scope';
 import { ExternalWorkflowHandle, ChildWorkflowHandle } from './workflow-handle';
 
@@ -630,20 +630,23 @@ export function workflowInfo(): WorkflowInfo {
 }
 
 /**
- * Get a reference to injected external dependencies.
+ * Get a reference to Sinks for exporting data out of the Workflow.
+ *
+ * These Sinks **must** be registered with the Worker in order for this
+ * mechanism to work.
  *
  * @example
  * ```ts
- * import { dependencies, ExternalDependencies } from '@temporalio/workflow';
+ * import { proxySinks, Sinks } from '@temporalio/workflow';
  *
- * interface MyDependencies extends ExternalDependencies {
+ * interface MySinks extends Sinks {
  *   logger: {
  *     info(message: string): void;
  *     error(message: string): void;
  *   };
  * }
  *
- * const { logger } = dependencies<MyDependencies>();
+ * const { logger } = proxySinks<MyDependencies>();
  * logger.info('setting up');
  *
  * export function myWorkflow() {
@@ -656,7 +659,7 @@ export function workflowInfo(): WorkflowInfo {
  * }
  * ```
  */
-export function dependencies<T extends ExternalDependencies>(): T {
+export function proxySinks<T extends Sinks>(): T {
   return new Proxy(
     {},
     {
@@ -666,7 +669,7 @@ export function dependencies<T extends ExternalDependencies>(): T {
           {
             get(_, fnName) {
               return (...args: any[]) => {
-                state.externalCalls.push({
+                state.sinkCalls.push({
                   ifaceName: ifaceName as string,
                   fnName: fnName as string,
                   args,

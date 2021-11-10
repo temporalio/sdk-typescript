@@ -17,7 +17,7 @@ import { WorkflowInfo } from './interfaces';
 import { handleWorkflowFailure, state } from './internals';
 import { alea } from './alea';
 import { DeterminismViolationError } from './errors';
-import { ExternalCall } from './dependencies';
+import { SinkCall } from './sinks';
 import { WorkflowInterceptorsFactory } from './interceptors';
 import { HookManager, IsolateExtension } from './promise-hooks';
 
@@ -227,7 +227,6 @@ export async function activate(encodedActivation: Uint8Array, batchIndex: number
  * Conclude a single activation.
  * Should be called after processing all activation jobs and queued microtasks.
  *
- * Activation may be in either `complete` or `pending` state according to pending external dependency calls.
  * Activation failures are handled in the main Node.js isolate.
  */
 export function concludeActivation(): Uint8Array {
@@ -241,8 +240,8 @@ export function concludeActivation(): Uint8Array {
   }).finish();
 }
 
-export function getAndResetExternalCalls(): ExternalCall[] {
-  return state.getAndResetExternalCalls();
+export function getAndResetSinkCalls(): SinkCall[] {
+  return state.getAndResetSinkCalls();
 }
 
 /**

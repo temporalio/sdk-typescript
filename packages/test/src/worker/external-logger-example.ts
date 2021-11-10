@@ -1,9 +1,9 @@
-// @@@SNIPSTART typescript-external-dependencies-logger-worker
-import { Worker, InjectedDependencies } from '@temporalio/worker';
-import { LoggerDependencies } from '../workflows';
+// @@@SNIPSTART typescript-logger-sink-worker
+import { Worker, InjectedSinks } from '@temporalio/worker';
+import { LoggerSinks } from '../workflows';
 
 async function main() {
-  const dependencies: InjectedDependencies<LoggerDependencies> = {
+  const sinks: InjectedSinks<LoggerSinks> = {
     logger: {
       info: {
         fn(workflowInfo, message) {
@@ -16,7 +16,7 @@ async function main() {
   const worker = await Worker.create({
     workflowsPath: require.resolve('../workflows'),
     taskQueue: 'sample',
-    dependencies,
+    sinks,
   });
   await worker.run();
   console.log('Worker gracefully shutdown');

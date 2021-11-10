@@ -2,7 +2,7 @@
 import test from 'ava';
 import { WorkflowInfo } from '@temporalio/workflow';
 import { WorkflowClient } from '@temporalio/client';
-import { Worker, DefaultLogger, Core, InjectedDependencies } from '@temporalio/worker';
+import { Worker, DefaultLogger, Core, InjectedSinks } from '@temporalio/worker';
 import { defaultOptions } from './mock-native-worker';
 import { RUN_INTEGRATION_TESTS } from './helpers';
 import * as workflows from './workflows';
@@ -24,16 +24,16 @@ if (RUN_INTEGRATION_TESTS) {
   test.before(async (_) => {
     await Core.install({
       logger: new DefaultLogger('DEBUG', ({ level, message, meta }) => {
-        if (message === 'External dependency function threw an error') recordedLogs.push({ level, message, meta });
+        if (message === 'External sink function threw an error') recordedLogs.push({ level, message, meta });
       }),
     });
   });
 
-  test('Worker injects external dependencies', async (t) => {
+  test('Worker injects sinks', async (t) => {
     const recordedCalls: RecordedCall[] = [];
-    const taskQueue = 'test-dependencies';
+    const taskQueue = 'test-sinks';
     const thrownErrors = Array<DependencyError>();
-    const dependencies: InjectedDependencies<workflows.TestDependencies> = {
+    const sinks: InjectedSinks<workflows.TestSinks> = {
       success: {
         runAsync: {
           async fn(info, counter) {
@@ -69,11 +69,11 @@ if (RUN_INTEGRATION_TESTS) {
     const worker = await Worker.create({
       ...defaultOptions,
       taskQueue,
-      dependencies,
+      sinks,
     });
     const p = worker.run();
     const conn = new WorkflowClient();
-    const wf = await conn.start(workflows.dependenciesWorkflow, { taskQueue });
+    const wf = await conn.start(workflows.sinksWorkflow, { taskQueue });
     await wf.result();
     worker.shutdown();
     await p;
@@ -82,7 +82,7 @@ if (RUN_INTEGRATION_TESTS) {
       taskQueue,
       workflowId: wf.workflowId,
       runId: wf.originalRunId,
-      workflowType: 'dependenciesWorkflow',
+      workflowType: 'sinksWorkflow',
       isReplaying: false,
     };
 
@@ -97,7 +97,7 @@ if (RUN_INTEGRATION_TESTS) {
       recordedLogs,
       thrownErrors.map((error) => ({
         level: 'ERROR',
-        message: 'External dependency function threw an error',
+        message: 'External sink function threw an error',
         meta: {
           error,
           ifaceName: error.ifaceName,
@@ -108,5 +108,5 @@ if (RUN_INTEGRATION_TESTS) {
     );
   });
 
-  test.todo('Dependency functions are called during replay if callDuringReplay is set');
+  test.todo('Sink functions are called during replay if callDuringReplay is set');
 }
