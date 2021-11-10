@@ -738,20 +738,8 @@ export class Worker {
           return { activation, parentSpan };
         });
       } catch (err) {
-        // Transform a Workflow error into an activation with a single removeFromCache job
-        if (err instanceof errors.WorkflowError) {
-          this.log.warn('Poll resulted in WorkflowError, converting to a removeFromCache job', { runId: err.runId });
-          return {
-            parentSpan,
-            activation: new coresdk.workflow_activation.WFActivation({
-              runId: err.runId,
-              jobs: [{ removeFromCache: true }],
-            }),
-          };
-        } else {
-          parentSpan.setStatus({ code: otel.SpanStatusCode.ERROR }).end();
-          throw err;
-        }
+        parentSpan.setStatus({ code: otel.SpanStatusCode.ERROR }).end();
+        throw err;
       }
     });
   }
@@ -803,10 +791,7 @@ export class Worker {
           span.setStatus({ code: otel.SpanStatusCode.OK });
         } catch (err) {
           span.setStatus({ code: otel.SpanStatusCode.ERROR, message: errorMessage(err) });
-          // Expect Core to issue an eviction in this case
-          if (!(err instanceof errors.WorkflowError)) {
-            throw err;
-          }
+          throw err;
         } finally {
           span.end();
           root.end();
