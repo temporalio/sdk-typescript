@@ -47,6 +47,7 @@ export * from './http';
 export * from './dependencies';
 export * from './interrupt-signal';
 export * from './patched';
+export * from './patched-top-level';
 export * from './deprecate-patch';
 export * from './fail-signal';
 export * from './async-fail-signal';

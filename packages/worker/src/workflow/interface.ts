@@ -1,6 +1,7 @@
 import { coresdk } from '@temporalio/proto';
-import { WorkflowInfo } from '@temporalio/workflow';
 import { ExternalCall } from '@temporalio/workflow/lib/dependencies';
+import { WorkflowCreateOptions } from '@temporalio/workflow/lib/worker-interface';
+export { WorkflowCreateOptions };
 
 export interface Workflow {
   /**
@@ -32,12 +33,7 @@ export interface WorkflowCreator {
   /**
    * Create a Workflow for the Worker to activate
    */
-  createWorkflow(
-    info: WorkflowInfo,
-    interceptorModules: string[],
-    randomnessSeed: number[],
-    now: number
-  ): Promise<Workflow>;
+  createWorkflow(options: WorkflowCreateOptions): Promise<Workflow>;
 
   /**
    * Destroy and cleanup any resources

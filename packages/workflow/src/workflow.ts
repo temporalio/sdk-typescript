@@ -814,13 +814,13 @@ export function deprecatePatch(patchId: string): void {
 }
 
 function patchInternal(patchId: string, deprecated: boolean): boolean {
-  if (state.info === undefined) {
-    throw new IllegalStateError('Workflow info must be set when calling patch functions');
-  }
   // Patch operation does not support interception at the moment, if it did,
   // this would be the place to start the interception chain
 
-  const { isReplaying } = state.info;
+  const { isReplaying } = workflowInfo();
+  if (state.workflow === undefined) {
+    throw new IllegalStateError('Patches cannot be used before Workflow starts');
+  }
   const usePatch = !isReplaying || state.knownPresentPatches.has(patchId);
   // Avoid sending commands for patches core already knows about.
   // This optimization enables development of automatic patching tools.

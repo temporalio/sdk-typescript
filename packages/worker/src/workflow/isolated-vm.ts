@@ -4,7 +4,7 @@ import { coresdk } from '@temporalio/proto';
 import * as internals from '@temporalio/workflow/lib/worker-interface';
 import { ExternalDependencyFunction, WorkflowInfo, ExternalCall } from '@temporalio/workflow';
 import { partition } from '../utils';
-import { Workflow, WorkflowCreator } from './interface';
+import { Workflow, WorkflowCreateOptions, WorkflowCreator } from './interface';
 
 /**
  * Controls how an external dependency function is executed.
@@ -153,22 +153,10 @@ export class IsolatedVMWorkflowCreator implements WorkflowCreator {
     );
   }
 
-  async createWorkflow(
-    info: WorkflowInfo,
-    interceptorModules: string[],
-    randomnessSeed: number[],
-    now: number
-  ): Promise<Workflow> {
+  async createWorkflow(options: WorkflowCreateOptions): Promise<Workflow> {
     const context = await this.getContext();
-    await this.injectConsole(context, info);
-    return await IsolatedVMWorkflow.create(
-      context,
-      info,
-      interceptorModules,
-      randomnessSeed,
-      now,
-      this.isolateExecutionTimeoutMs
-    );
+    await this.injectConsole(context, options.info);
+    return await IsolatedVMWorkflow.create(context, options, this.isolateExecutionTimeoutMs);
   }
 
   async destroy(): Promise<void> {
@@ -192,10 +180,7 @@ export class IsolatedVMWorkflow implements Workflow {
 
   public static async create(
     context: ivm.Context,
-    info: WorkflowInfo,
-    interceptorModules: string[],
-    randomnessSeed: number[],
-    now: number,
+    options: WorkflowCreateOptions,
     isolateExecutionTimeoutMs: number
   ): Promise<IsolatedVMWorkflow> {
     const [activate, concludeActivation, getAndResetExternalCalls, tryUnblockConditions, isolateExtension] =
@@ -210,14 +195,13 @@ export class IsolatedVMWorkflow implements Workflow {
           .concat(isolateExtensionModule.create(context))
       );
 
-    await context.evalClosure(
-      'lib.initRuntime($0, $1, $2, $3, $4)',
-      [info, interceptorModules, randomnessSeed, now, isolateExtension.derefInto()],
-      { arguments: { copy: true }, timeout: isolateExecutionTimeoutMs }
-    );
+    await context.evalClosure('lib.initRuntime($0, $1)', [options, isolateExtension.derefInto()], {
+      arguments: { copy: true },
+      timeout: isolateExecutionTimeoutMs,
+    });
 
     return new this(
-      info,
+      options.info,
       context,
       {
         activate,
