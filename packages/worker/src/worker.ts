@@ -516,7 +516,7 @@ export class Worker {
                 parentSpan: this.tracer.startSpan('workflow.shutdown.evict'),
                 activation: new coresdk.workflow_activation.WFActivation({
                   runId: group$.key,
-                  jobs: [{ removeFromCache: true }],
+                  jobs: [{ removeFromCache: { reason: 'Shutting down' } }],
                 }),
                 synthetic: true,
               };
