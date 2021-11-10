@@ -1,7 +1,7 @@
-import { dependencies } from '@temporalio/workflow';
-import { LoggerDependencies } from './definitions';
+import { proxySinks } from '@temporalio/workflow';
+import { LoggerSinks } from './definitions';
 
-const { logger } = dependencies<LoggerDependencies>();
+const { logger } = proxySinks<LoggerSinks>();
 
 export async function logAndTimeout(): Promise<void> {
   logger.info('logging before getting stuck');

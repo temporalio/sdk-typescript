@@ -1,10 +1,8 @@
-// @@@SNIPSTART typescript-external-dependencies-logger-workflow
+// @@@SNIPSTART typescript-logger-sink-workflow
 import * as wf from '@temporalio/workflow';
-import { LoggerDependencies } from './definitions';
+import { LoggerSinks } from './definitions';
 
-const { logger } = wf.dependencies<LoggerDependencies>();
-// logger cannot be used at the top level as exernal dependencies are not injected yet.
-// Wait for Workflow to start (execute called) before calling injected dependencies.
+const { logger } = wf.proxySinks<LoggerSinks>();
 
 export async function logSampleWorkflow(): Promise<void> {
   logger.info('Workflow execution started');

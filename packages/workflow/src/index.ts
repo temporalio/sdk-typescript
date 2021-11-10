@@ -44,9 +44,8 @@
  * - {@link CancellationScope}
  * - {@link Trigger}
  *
- * ### [External dependencies](https://docs.temporal.io/docs/typescript/workflow-external-dependencies)
- * - {@link ExternalDependencies}
- * - {@link ApplyMode}
+ * ### [Sinks](https://docs.temporal.io/docs/typescript/sinks)
+ * - {@link Sinks}
  *
  * @module
  */
@@ -86,6 +85,6 @@ export * from './workflow';
 export * from './interceptors';
 export { ROOT_SCOPE, CancellationScope, CancellationScopeOptions } from './cancellation-scope';
 export { Trigger } from './trigger';
-export { ExternalDependencyFunction, ExternalDependency, ExternalDependencies, ExternalCall } from './dependencies';
+export { SinkFunction, Sink, Sinks, SinkCall } from './sinks';
 export { ChildWorkflowHandle, ExternalWorkflowHandle } from './workflow-handle';
 export { AsyncLocalStorage } from './async-local-storage';

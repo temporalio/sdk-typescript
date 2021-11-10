@@ -13,6 +13,6 @@ export { WorkerOptions, CompiledWorkerOptions } from './worker-options';
 export { ServerOptions, TLSConfig } from './server-options';
 export { Core } from './core';
 export * from './logger';
-export * from './dependencies';
+export * from './sinks';
 export * from './interceptors';
 export { bundleWorkflowCode } from './workflow/bundler';

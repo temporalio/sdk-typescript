@@ -2,7 +2,7 @@
  * Manual tests to inspect tracing output
  */
 import test from 'ava';
-import { Core, DefaultLogger, InjectedDependencies, Worker } from '@temporalio/worker';
+import { Core, DefaultLogger, InjectedSinks, Worker } from '@temporalio/worker';
 import { ExportResultCode } from '@opentelemetry/core';
 import { CollectorTraceExporter } from '@opentelemetry/exporter-collector-grpc';
 
@@ -14,11 +14,7 @@ import {
   makeWorkflowExporter,
   OpenTelemetryActivityInboundInterceptor,
 } from '@temporalio/interceptors-opentelemetry/lib/worker';
-import {
-  OpenTelemetryDependencies,
-  SpanName,
-  SPAN_DELIMITER,
-} from '@temporalio/interceptors-opentelemetry/lib/workflow';
+import { OpenTelemetrySinks, SpanName, SPAN_DELIMITER } from '@temporalio/interceptors-opentelemetry/lib/workflow';
 
 import * as activities from './activities';
 import * as workflows from './workflows';
@@ -46,7 +42,7 @@ if (RUN_INTEGRATION_TESTS) {
     });
     await otel.start();
 
-    const dependencies: InjectedDependencies<OpenTelemetryDependencies> = {
+    const sinks: InjectedSinks<OpenTelemetrySinks> = {
       exporter: makeWorkflowExporter(traceExporter, staticResource),
     };
     const worker = await Worker.create({
@@ -57,7 +53,7 @@ if (RUN_INTEGRATION_TESTS) {
         workflowModules: [require.resolve('./workflows/otel-interceptors')],
         activityInbound: [(ctx) => new OpenTelemetryActivityInboundInterceptor(ctx)],
       },
-      dependencies,
+      sinks,
     });
 
     const client = new WorkflowClient(undefined, {
@@ -154,7 +150,7 @@ if (RUN_INTEGRATION_TESTS) {
         logForwardingLevel: 'INFO',
       },
     });
-    const dependencies: InjectedDependencies<OpenTelemetryDependencies> = {
+    const sinks: InjectedSinks<OpenTelemetrySinks> = {
       exporter: makeWorkflowExporter(exporter, staticResource),
     };
     const worker = await Worker.create({
@@ -166,7 +162,7 @@ if (RUN_INTEGRATION_TESTS) {
         workflowModules: [require.resolve('./workflows/otel-interceptors')],
         activityInbound: [(ctx) => new OpenTelemetryActivityInboundInterceptor(ctx)],
       },
-      dependencies,
+      sinks,
     });
 
     const client = new WorkflowClient(undefined, {
