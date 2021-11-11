@@ -1689,6 +1689,13 @@ test('conditionWaiter', async (t) => {
   }
   {
     const completion = await activate(t, makeFireTimer(2));
-    compareCompletion(t, completion, makeSuccess());
+    compareCompletion(
+      t,
+      completion,
+      makeSuccess([
+        makeSetPatchMarker('__temporal-internal-condition-cancels-timer', false),
+        makeCompleteWorkflowExecution(),
+      ])
+    );
   }
 });

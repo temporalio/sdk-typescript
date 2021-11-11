@@ -850,9 +850,19 @@ export function condition(fn: () => boolean, timeout: number | string): Promise<
  */
 export function condition(fn: () => boolean): Promise<void>;
 
-export function condition(fn: () => boolean, timeout?: number | string): Promise<void | boolean> {
+export async function condition(fn: () => boolean, timeout?: number | string): Promise<void | boolean> {
   if (timeout) {
-    return Promise.race([sleep(timeout).then(() => false), conditionInner(fn).then(() => true)]);
+    return await CancellationScope.cancellable(async () => {
+      try {
+        return await Promise.race([sleep(timeout).then(() => false), conditionInner(fn).then(() => true)]);
+      } finally {
+        // Use patched to avoid breaking existing histories using this `condition`
+        if (patched('__temporal-internal-condition-cancels-timer')) {
+          // Cancel either the condition or the timer
+          CancellationScope.current().cancel();
+        }
+      }
+    });
   }
   return conditionInner(fn);
 }
