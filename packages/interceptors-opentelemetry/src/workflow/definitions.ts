@@ -1,7 +1,7 @@
 import * as otel from '@opentelemetry/api';
 import * as tracing from '@opentelemetry/sdk-trace-base';
 import { InstrumentationLibrary } from '@opentelemetry/core';
-import { ExternalDependency, ExternalDependencies } from '@temporalio/workflow';
+import { Sink, Sinks } from '@temporalio/workflow';
 
 /**
  * Serializable version of the opentelemetry Span for cross isolate copying
@@ -23,14 +23,14 @@ export interface SerializableSpan {
   readonly instrumentationLibrary: InstrumentationLibrary;
 }
 
-export interface OpenTelemetryWorkflowExporter extends ExternalDependency {
+export interface OpenTelemetryWorkflowExporter extends Sink {
   export(span: SerializableSpan[]): void;
 }
 
 /**
  * Required external dependencies for Workflow interceptor to export spans
  */
-export interface OpenTelemetryDependencies extends ExternalDependencies {
+export interface OpenTelemetrySinks extends Sinks {
   exporter: OpenTelemetryWorkflowExporter;
 }
 

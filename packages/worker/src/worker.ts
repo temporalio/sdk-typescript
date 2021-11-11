@@ -51,7 +51,7 @@ import { Core } from './core';
 import { SpanContext } from '@opentelemetry/api';
 import IWFActivationJob = coresdk.workflow_activation.IWFActivationJob;
 import { IsolatedVMWorkflowCreator } from './workflow/isolated-vm';
-import { ExternalCall, WorkflowInfo } from '@temporalio/workflow';
+import { SinkCall, WorkflowInfo } from '@temporalio/workflow';
 import {
   addDefaultWorkerOptions,
   CompiledWorkerOptions,
@@ -639,8 +639,8 @@ export class Worker {
                     span.setAttribute('close', close).end();
                     return { state, output: { close, completion, parentSpan } };
                   } finally {
-                    const externalCalls = await state.workflow.getAndResetExternalCalls();
-                    await this.processExternalCalls(externalCalls, state.info);
+                    const externalCalls = await state.workflow.getAndResetSinkCalls();
+                    await this.processSinkCalls(externalCalls, state.info);
                   }
                 });
               } catch (error) {
@@ -681,18 +681,18 @@ export class Worker {
   /**
    * Process extracted external calls from Workflow post activation.
    *
-   * Each ExternalCall is translated into a injected dependency function call.
+   * Each SinkCall is translated into a injected sink function call.
    *
-   * This function does not throw, it will log in case of missing dependencies
-   * or failed dependency function invocations.
+   * This function does not throw, it will log in case of missing sinks
+   * or failed sink function invocations.
    */
-  protected async processExternalCalls(externalCalls: ExternalCall[], info: WorkflowInfo): Promise<void> {
-    const { dependencies } = this.options;
+  protected async processSinkCalls(externalCalls: SinkCall[], info: WorkflowInfo): Promise<void> {
+    const { sinks } = this.options;
     await Promise.all(
       externalCalls.map(async ({ ifaceName, fnName, args }) => {
-        const dep = dependencies?.[ifaceName]?.[fnName];
+        const dep = sinks?.[ifaceName]?.[fnName];
         if (dep === undefined) {
-          this.log.error('Workflow referenced an unregistrered external dependency', {
+          this.log.error('Workflow referenced an unregistrered external sink', {
             ifaceName,
             fnName,
           });
@@ -700,7 +700,7 @@ export class Worker {
           try {
             await dep.fn(info, ...args);
           } catch (error) {
-            this.log.error('External dependency function threw an error', {
+            this.log.error('External sink function threw an error', {
               ifaceName,
               fnName,
               error,

@@ -1,5 +1,5 @@
 import { coresdk } from '@temporalio/proto';
-import { ExternalCall } from '@temporalio/workflow/lib/dependencies';
+import { SinkCall } from '@temporalio/workflow';
 import { WorkflowCreateOptions } from '@temporalio/workflow/lib/worker-interface';
 export { WorkflowCreateOptions };
 
@@ -19,7 +19,7 @@ export interface Workflow {
    * This is separate from `activate` so it can be called even if activation fails
    * in order to extract all logs and metrics from the Workflow context.
    */
-  getAndResetExternalCalls(): Promise<ExternalCall[]>;
+  getAndResetSinkCalls(): Promise<SinkCall[]>;
 
   /**
    * Dispose this instance, and release its resources.

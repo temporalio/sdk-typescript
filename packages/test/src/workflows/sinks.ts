@@ -1,6 +1,6 @@
-import { dependencies, ExternalDependencies } from '@temporalio/workflow';
+import { proxySinks, Sinks } from '@temporalio/workflow';
 
-export interface TestDependencies extends ExternalDependencies {
+export interface TestSinks extends Sinks {
   success: {
     runAsync(counter: number): void;
     runSync(counter: number): void;
@@ -11,9 +11,9 @@ export interface TestDependencies extends ExternalDependencies {
   };
 }
 
-const { success, error } = dependencies<TestDependencies>();
+const { success, error } = proxySinks<TestSinks>();
 
-export async function dependenciesWorkflow(): Promise<void> {
+export async function sinksWorkflow(): Promise<void> {
   let i = 0;
   success.runSync(i++);
   success.runAsync(i++);

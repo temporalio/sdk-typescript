@@ -8,7 +8,7 @@ import {
   ActivityInboundCallsInterceptor,
   DataConverter,
   defaultDataConverter,
-  InjectedDependency,
+  InjectedSink,
   Next,
 } from '@temporalio/worker';
 import { OpenTelemetryWorkflowExporter, SerializableSpan, SpanName, SPAN_DELIMITER } from '../workflow';
@@ -42,12 +42,12 @@ export class OpenTelemetryActivityInboundInterceptor implements ActivityInboundC
 }
 
 /**
- * Takes an opentelemetry SpanExporter and turns it into an injected Workflow span exporter dependency
+ * Takes an opentelemetry SpanExporter and turns it into an injected Workflow span exporter sink
  */
 export function makeWorkflowExporter(
   exporter: SpanExporter,
   resource: Resource
-): InjectedDependency<OpenTelemetryWorkflowExporter> {
+): InjectedSink<OpenTelemetryWorkflowExporter> {
   return {
     export: {
       fn: (info, spanData) => {

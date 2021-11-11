@@ -1503,7 +1503,7 @@ test('logAndTimeout', async (t) => {
   await t.throwsAsync(activate(t, makeStartWorkflow(workflowType)), {
     message: 'Script execution timed out.',
   });
-  const calls = await workflow.getAndResetExternalCalls();
+  const calls = await workflow.getAndResetSinkCalls();
   t.deepEqual(calls, [{ ifaceName: 'logger', fnName: 'info', args: ['logging before getting stuck'] }]);
 });
 

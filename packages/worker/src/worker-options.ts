@@ -3,7 +3,7 @@ import fs from 'fs';
 import { resolve, dirname } from 'path';
 import { ActivityInterface, DataConverter, defaultDataConverter, msToNumber } from '@temporalio/common';
 import { WorkerInterceptors } from './interceptors';
-import { InjectedDependencies } from './dependencies';
+import { InjectedSinks } from './sinks';
 import { GiB, MiB } from './utils';
 
 export type WorkflowBundle = { code: string } | { path: string };
@@ -165,7 +165,7 @@ export interface WorkerOptions {
    * A mapping of interceptor type to a list of factories or module paths
    */
   interceptors?: WorkerInterceptors;
-  dependencies?: InjectedDependencies<any>;
+  sinks?: InjectedSinks<any>;
   /**
    * Enable opentelemetry tracing of SDK internals like polling, processing and completing tasks.
    *

@@ -1,8 +1,8 @@
 import { defineSignal } from '@temporalio/workflow';
-// @@@SNIPSTART typescript-external-dependencies-logger-interface
-import { ExternalDependencies } from '@temporalio/workflow';
+// @@@SNIPSTART typescript-logger-sink-interface
+import { Sinks } from '@temporalio/workflow';
 
-export interface LoggerDependencies extends ExternalDependencies {
+export interface LoggerSinks extends Sinks {
   logger: {
     info(message: string): void;
   };

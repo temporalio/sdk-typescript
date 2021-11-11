@@ -44,7 +44,7 @@ export * from './activity-failure';
 export * from './activity-failures';
 export * from './sleep';
 export * from './http';
-export * from './dependencies';
+export * from './sinks';
 export * from './interrupt-signal';
 export * from './patched';
 export * from './patched-top-level';
