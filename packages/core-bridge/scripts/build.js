@@ -5,7 +5,13 @@ const { spawnSync } = require('child_process');
 
 process.chdir(path.resolve(__dirname, '..'));
 
-const targets = ['x86_64-apple-darwin', 'aarch64-apple-darwin', 'x86_64-unknown-linux-gnu', 'x86_64-pc-windows-gnu'];
+const targets = [
+  'x86_64-apple-darwin',
+  'aarch64-apple-darwin',
+  'x86_64-unknown-linux-gnu',
+  'aarch64-unknown-linux-gnu',
+  'x86_64-pc-windows-gnu',
+];
 
 const requestedTargets =
   process.env.TEMPORAL_WORKER_BUILD_TARGETS === 'all'

@@ -20,11 +20,13 @@ By using Node.js' `n-api` we get a binary which _should_ work on all supported N
    **NOTE:** you can only compile for aarch64 if you have MacOS Big Sur or later
 1. Run `rustup target add x86_64-pc-windows-gnu`
 1. Run `rustup target add x86_64-unknown-linux-gnu`
-1. Run `brew tap SergioBenitez/osxct`
-1. Run `brew install x86_64-unknown-linux-gnu` to enable Linux compilation
+1. Run `rustup target add aarch64-unknown-linux-gnu`
+1. Run `brew tap messense/macos-cross-toolchains`
+1. Run `brew install x86_64-unknown-linux-gnu` to enable Linux x86_64 compilation
+1. Run `brew install aarch64-unknown-linux-gnu` to enable Linux aarch64 compilation
 1. Run `brew install mingw-w64` to enable Windows compilation on Intel Macs<br/>
    Or `arch -x86_64 /usr/local/bin/brew install mingw-w64` on M1 Macs
 1. Configure cargo for the Windows and Linux build targets
    `cp etc/mac-cargo-config.toml ~/.cargo/config.toml`
 1. Install the project's dependencies with `NPM_CONFIG_FOREGROUND_SCRIPTS=true npm ci` if you haven't already
-1. Build the the bridge with `CC_x86_64_unknown_linux_gnu=x86_64-unknown-linux-gnu-gcc TEMPORAL_WORKER_BUILD_TARGETS=all npx lerna run --stream build-rust`
+1. Build the the bridge with `CC_aarch64_unknown_linux_gnu=aarch64-unknown-linux-gnu-gcc CC_x86_64_unknown_linux_gnu=x86_64-unknown-linux-gnu-gcc TEMPORAL_WORKER_BUILD_TARGETS=all npx lerna run --stream build-rust`
