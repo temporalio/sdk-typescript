@@ -181,7 +181,7 @@ export async function activate(encodedActivation: Uint8Array, batchIndex: number
         if (!activation.jobs) {
           throw new TypeError('Got activation with no jobs');
         }
-        if (activation.timestamp !== null) {
+        if (activation.timestamp != null) {
           // timestamp will not be updated for activation that contain only queries
           state.now = tsToMs(activation.timestamp);
         }
@@ -197,6 +197,7 @@ export async function activate(encodedActivation: Uint8Array, batchIndex: number
           if (job.variant === undefined) {
             throw new TypeError('Expected job.variant to be defined');
           }
+
           const variant = job[job.variant];
           if (!variant) {
             throw new TypeError(`Expected job.${job.variant} to be set`);
@@ -207,7 +208,7 @@ export async function activate(encodedActivation: Uint8Array, batchIndex: number
           if (state.completed && job.variant !== 'queryWorkflow') {
             return;
           }
-          await state.activator[job.variant](variant as any /* TODO: TS is struggling with `true` and `{}` */);
+          await state.activator[job.variant](variant as any /* TS can't infer this type */);
           tryUnblockConditions();
         })
       );
