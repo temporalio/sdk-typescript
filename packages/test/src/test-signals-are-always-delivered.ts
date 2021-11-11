@@ -1,3 +1,11 @@
+/**
+ * Tests that if a signal is delivered while the Worker is processing a Workflow
+ * Task, the Worker picks up a new Workflow Task (including the signal) and
+ * the Workflow library delivers the signal to user code before it starts the
+ * Workflow execution.
+ *
+ * @module
+ */
 import test from 'ava';
 import { WorkflowClient } from '@temporalio/client';
 import { Worker, DefaultLogger, Core, InjectedSinks } from '@temporalio/worker';
@@ -13,12 +21,13 @@ if (RUN_INTEGRATION_TESTS) {
   test('Signals are always delivered', async (t) => {
     const taskQueue = 'test-signal-delivery';
     const conn = new WorkflowClient();
-    const wf = await conn.start(workflows.signalsAreAlwaysProcessed, { taskQueue, workflowTaskTimeout: '3s' });
+    const wf = await conn.start(workflows.signalsAreAlwaysProcessed, { taskQueue });
 
     const sinks: InjectedSinks<workflows.SignalProcessTestSinks> = {
       controller: {
         sendSignal: {
           async fn() {
+            // Send a signal to the Workflow which will cause the WFT to fail
             await wf.signal(workflows.incrementSignal);
           },
         },
