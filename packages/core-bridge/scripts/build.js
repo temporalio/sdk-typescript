@@ -2,6 +2,7 @@ const path = require('path');
 const os = require('os');
 const fs = require('fs');
 const { spawnSync } = require('child_process');
+const cargo_cp_artifact = require('cargo-cp-artifact');
 
 process.chdir(path.resolve(__dirname, '..'));
 
@@ -39,28 +40,12 @@ function compile(target) {
       throw err;
     }
   }
-  const { status, error } = spawnSync(
-    'cargo-cp-artifact',
-    [
-      '--artifact',
-      'cdylib',
-      'temporal_sdk_typescript_bridge',
-      out,
-      '--',
-      'cargo',
-      'build',
-      '--message-format=json-render-diagnostics',
-      '--release',
-      ...(target ? ['--target', target] : []),
-    ],
-    { stdio: 'inherit' }
-  );
-  if (error !== undefined) {
+
+  try {
+    argv = ['--artifact', 'cdylib', 'temporal_sdk_typescript_bridge', out, '--', 'cargo', 'build', '--message-format=json-render-diagnostics', '--release', ...(target ? ['--target', target] : []), ]
+    cargo_cp_artifact(argv, process.env)
+  } catch (error) {
     console.error(`Failed to build${target ? ' for ' + target : ''}`);
-    throw error;
-  }
-  if (status !== 0) {
-    throw new Error(`Failed to build${target ? ' for ' + target : ''}`);
   }
 }
 
