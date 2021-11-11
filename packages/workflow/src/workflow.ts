@@ -856,11 +856,7 @@ export async function condition(fn: () => boolean, timeout?: number | string): P
       try {
         return await Promise.race([sleep(timeout).then(() => false), conditionInner(fn).then(() => true)]);
       } finally {
-        // Use patched to avoid breaking existing histories using this `condition`
-        if (patched('__temporal-internal-condition-cancels-timer')) {
-          // Cancel either the condition or the timer
-          CancellationScope.current().cancel();
-        }
+        CancellationScope.current().cancel();
       }
     });
   }
