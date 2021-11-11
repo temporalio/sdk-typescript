@@ -4,6 +4,42 @@ All notable changes to this project will be documented in this file.
 
 Breaking changes marked with a :boom:
 
+## [0.15.0] - 2021-11-11
+
+### Bug Fixes
+
+- Fix type imports ([#361](https://github.com/temporalio/sdk-typescript/pull/361))
+
+- Update core, changes for no more WF update errors ([#366](https://github.com/temporalio/sdk-typescript/pull/366))
+
+  Failing a Workflow task before this change could put the workflow in a stuck state.
+
+- :boom: [`workflow`] Throw if patches are used at Workflow top level ([#369](https://github.com/temporalio/sdk-typescript/pull/369))
+- :boom: [`workflow`] Cancel timer created by condition ([#372](https://github.com/temporalio/sdk-typescript/pull/372))
+
+  Also clean up resources taken by the blocked condition.<br>
+  **This change is incompatible with old Workflow histories**.
+
+- :boom: [`workflow`] Ensure signals are always processed ([#380](https://github.com/temporalio/sdk-typescript/pull/380))
+
+  This fixes a critical issue where the SDK was not processing history events in the right order, for example, patches and signals should always be delivered before other events in the context of a single Workflow Task.
+
+  **This change is incompatible with old Workflow histories**.
+
+### Features
+
+- :boom: [`workflow`] Change condition parameter order ([#371](https://github.com/temporalio/sdk-typescript/pull/371))
+
+  ```ts
+  // Before
+  const conditionIsTrue = await condition('1s', () => someBooleanVariable);
+  // After
+  const conditionIsTrue = await condition(() => someBooleanVariable, '1s');
+  ```
+
+- :boom: Rename ExternalDependencies to Sinks ([#370](https://github.com/temporalio/sdk-typescript/pull/370))
+- Support complication on Mac for aarch64-unknown-linux-gnu ([#378](https://github.com/temporalio/sdk-typescript/pull/378))
+
 ## [0.14.0] - 2021-11-03
 
 ### Bug Fixes

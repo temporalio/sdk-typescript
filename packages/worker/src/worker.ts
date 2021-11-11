@@ -88,6 +88,7 @@ type Promisify<T> = T extends (...args: any[]) => void
   ? (...args: OmitLast<Parameters<T>>) => ExtractToPromise<LastParameter<T>>
   : never;
 
+type PatchJob = NonNullableObject<Pick<coresdk.workflow_activation.IWFActivationJob, 'notifyHasPatch'>>;
 type ContextAware<T> = T & {
   parentSpan: otel.Span;
 };
@@ -597,14 +598,7 @@ export class Worker {
                         taskQueue: this.options.taskQueue,
                         isReplaying: activation.isReplaying,
                       };
-
-                      const patchJobs = activation.jobs.filter(
-                        (
-                          j
-                        ): j is NonNullableObject<
-                          Pick<coresdk.workflow_activation.IWFActivationJob, 'notifyHasPatch'>
-                        > => j.notifyHasPatch != null
-                      );
+                      const patchJobs = activation.jobs.filter((j): j is PatchJob => j.notifyHasPatch != null);
                       const patches = patchJobs.map(({ notifyHasPatch }) => {
                         const { patchId } = notifyHasPatch;
                         if (!patchId) {
