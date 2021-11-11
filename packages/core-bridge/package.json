@@ -5,7 +5,7 @@
   "main": "index.node",
   "types": "index.d.ts",
   "scripts": {
-    "build-rust": "TEMPORAL_WORKER_FORCE_BUILD=true node ./scripts/build.js",
+    "build-rust": "npx cross-env TEMPORAL_WORKER_FORCE_BUILD=true node ./scripts/build.js",
     "build": "npm run build-rust",
     "install": "node ./scripts/build.js"
   },
