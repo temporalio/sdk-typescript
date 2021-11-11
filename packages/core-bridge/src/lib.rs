@@ -353,14 +353,6 @@ fn start_bridge_loop(
                                             .await
                                     },
                                     |cx, err| match err {
-                                        CompleteWfError::WorkflowUpdateError { run_id, source } => {
-                                            let args = vec![
-                                                cx.string("Workflow update error").upcast(),
-                                                cx.string(run_id).upcast(),
-                                                cx.string(format!("{}", source)).upcast(),
-                                            ];
-                                            WORKFLOW_ERROR.construct(cx, args)
-                                        }
                                         CompleteWfError::NoWorkerForQueue(queue_name) => {
                                             let args = vec![cx.string(queue_name).upcast()];
                                             NO_WORKER_ERROR.construct(cx, args)
@@ -445,18 +437,6 @@ async fn handle_poll_workflow_activation_request(
         Err(err) => {
             send_error(event_queue, callback, move |cx| match err {
                 PollWfError::ShutDown => SHUTDOWN_ERROR.from_error(cx, err),
-                PollWfError::AutocompleteError(CompleteWfError::WorkflowUpdateError {
-                    run_id,
-                    source,
-                })
-                | PollWfError::WorkflowUpdateError { run_id, source } => {
-                    let args = vec![
-                        cx.string("Workflow update error").upcast(),
-                        cx.string(run_id).upcast(),
-                        cx.string(format!("{}", source)).upcast(),
-                    ];
-                    WORKFLOW_ERROR.construct(cx, args)
-                }
                 PollWfError::AutocompleteError(CompleteWfError::NoWorkerForQueue(_)) => {
                     UNEXPECTED_ERROR
                         .from_error(cx, format!("No worker registered for queue {}", queue_name))

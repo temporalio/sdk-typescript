@@ -25,17 +25,6 @@ export class TransportError extends Error {
 }
 
 /**
- * Workflow did something Core did not expect, it should be immediately deleted from the cache
- */
-export class WorkflowError extends Error {
-  public readonly name = 'WorkflowError';
-
-  public constructor(message: string, public readonly runId: string, public readonly source: string) {
-    super(message);
-  }
-}
-
-/**
  * Something unexpected happened, considered fatal
  */
 export class UnexpectedError extends Error {
