@@ -212,9 +212,9 @@ export class IsolatedVMWorkflow implements Workflow {
     // 2. signals
     // 3. anything left except for queries
     // 4. queries
-    const [patches, nonPatches] = partition(activation.jobs, ({ notifyHasPatch }) => notifyHasPatch !== undefined);
-    const [signals, nonSignals] = partition(nonPatches, ({ signalWorkflow }) => signalWorkflow !== undefined);
-    const [queries, rest] = partition(nonSignals, ({ queryWorkflow }) => queryWorkflow !== undefined);
+    const [patches, nonPatches] = partition(activation.jobs, ({ notifyHasPatch }) => notifyHasPatch != null);
+    const [signals, nonSignals] = partition(nonPatches, ({ signalWorkflow }) => signalWorkflow != null);
+    const [queries, rest] = partition(nonSignals, ({ queryWorkflow }) => queryWorkflow != null);
     let batchIndex = 0;
 
     // Loop and invoke each batch and wait for microtasks to complete.
