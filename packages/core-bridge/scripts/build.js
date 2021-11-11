@@ -46,6 +46,7 @@ function compile(target) {
     cargo_cp_artifact(argv, process.env)
   } catch (error) {
     console.error(`Failed to build${target ? ' for ' + target : ''}`);
+    throw error
   }
 }
 
