@@ -5,7 +5,7 @@
   "main": "index.node",
   "types": "index.d.ts",
   "scripts": {
-    "build-rust": "npx cross-env TEMPORAL_WORKER_FORCE_BUILD=true node ./scripts/build.js",
+    "build-rust": "node ./scripts/build.js --force",
     "build": "npm run build-rust",
     "install": "node ./scripts/build.js"
   },
@@ -18,9 +18,11 @@
   "author": "Roey Berman <roey@temporal.io>",
   "license": "MIT",
   "dependencies": {
-    "@temporalio/common": "file:../common",
     "@opentelemetry/api": "^1.0.3",
-    "cargo-cp-artifact": "^0.1.4"
+    "@temporalio/common": "file:../common",
+    "argparse": "^2.0.1",
+    "cargo-cp-artifact": "^0.1.4",
+    "which": "^2.0.2"
   },
   "bugs": {
     "url": "https://github.com/temporalio/sdk-typescript/issues"

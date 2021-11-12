@@ -2,7 +2,9 @@ const path = require('path');
 const os = require('os');
 const fs = require('fs');
 const { spawnSync } = require('child_process');
-const cargo_cp_artifact = require('cargo-cp-artifact');
+const which = require('which');
+const { ArgumentParser } = require('argparse');
+const { version } = require('../package.json');
 
 process.chdir(path.resolve(__dirname, '..'));
 
@@ -14,18 +16,19 @@ const targets = [
   'x86_64-pc-windows-gnu',
 ];
 
+// parse arguments
+const parser = new ArgumentParser({ prog:path.basename(__filename), description: "%(prog)s compiles the sdk-core via cargo and then packages it as javascript module", epilog:"Happy compiling!"})
+parser.add_argument('-v', '--version', { action: 'version', version})
+parser.add_argument('-t', '--targets', { action: 'append', default: [], choices:[...targets, 'all'], help: 'specifies the targets to build for (formerly env.TEMPORAL_WORKER_BUILD_TARGETS)',  } )
+parser.add_argument('-f', '--force', { action:'store_const', default:false, const:true , help: 'forces a clean rebuild of sdk-core and repackaging (formerly env.TEMPORAL_WORKER_FORCE_BUILD)'})
+arguments = parser.parse_args()
+
+// prepare recompile options
 const requestedTargets =
-  process.env.TEMPORAL_WORKER_BUILD_TARGETS === 'all'
+  arguments.targets.includes('all')
     ? targets
-    : process.env.TEMPORAL_WORKER_BUILD_TARGETS
-    ? process.env.TEMPORAL_WORKER_BUILD_TARGETS.split(':')
-    : [];
-
-// Only applicable if TEMPORAL_WORKER_BUILD_TARGETS is not specified
-const forceBuild = new Set(['y', 't', '1', 'yes', 'true']).has(
-  (process.env.TEMPORAL_WORKER_FORCE_BUILD || '').toLowerCase()
-);
-
+    : arguments.targets
+const forceBuild = arguments.force;
 const archAlias = { x64: 'x86_64', arm64: 'aarch64' };
 const platformMapping = { darwin: 'apple-darwin', linux: 'unknown-linux-gnu', win32: 'pc-windows-gnu' };
 
@@ -41,12 +44,19 @@ function compile(target) {
     }
   }
 
-  try {
-    argv = ['--artifact', 'cdylib', 'temporal_sdk_typescript_bridge', out, '--', 'cargo', 'build', '--message-format=json-render-diagnostics', '--release', ...(target ? ['--target', target] : []), ]
-    cargo_cp_artifact(argv, process.env)
-  } catch (error) {
-    console.error(`Failed to build${target ? ' for ' + target : ''}`);
-    throw error
+  argv = ['--artifact', 'cdylib', 'temporal_sdk_typescript_bridge', out, '--', 'cargo', 'build', '--message-format=json-render-diagnostics', '--release', ...(target ? ['--target', target] : []), ]
+  const { status, output, error } = spawnSync(which.sync('cargo-cp-artifact'), argv, {stdio:'pipe', encoding:'utf-8'})
+  if (error !== undefined) {
+    console.error(`./> ${which.sync('cargo-cp-artifact')} ${argv.join(' ')}`)
+    console.error(`Failed to build${target ? ' for ' + target : ''} with output:`);
+    console.error(output)
+    throw error;
+  }
+  if (status !== 0) {
+    console.error(`./> ${which.sync('cargo-cp-artifact')} ${argv.join(' ')}`)
+    console.error(`rc=${status} failed to build${target ? ' for ' + target : ''} with output:`);
+    console.error(output)
+    throw new Error(`Failed to build${target ? ' for ' + target : ''}`);
   }
 }
 
@@ -96,7 +106,7 @@ if (requestedTargets.length > 0) {
       }
     }
   } else {
-    console.log('Force build via TEMPORAL_WORKER_FORCE_BUILD env var');
+    console.log('Forced the build via --force');
     compile();
   }
 }
