@@ -1,32 +1,70 @@
 const path = require('path');
+const arg = require('arg');
 const os = require('os');
 const fs = require('fs');
+const which = require('which');
 const { spawnSync } = require('child_process');
+const { version } = require('../package.json');
 
 process.chdir(path.resolve(__dirname, '..'));
 
+// List of tested compile targets
 const targets = [
   'x86_64-apple-darwin',
   'aarch64-apple-darwin',
   'x86_64-unknown-linux-gnu',
   'aarch64-unknown-linux-gnu',
+  // TODO: this is not supported on macos
+  'x86_64-pc-windows-msvc',
   'x86_64-pc-windows-gnu',
 ];
 
-const requestedTargets =
-  process.env.TEMPORAL_WORKER_BUILD_TARGETS === 'all'
-    ? targets
-    : process.env.TEMPORAL_WORKER_BUILD_TARGETS
-    ? process.env.TEMPORAL_WORKER_BUILD_TARGETS.split(':')
-    : [];
-
-// Only applicable if TEMPORAL_WORKER_BUILD_TARGETS is not specified
-const forceBuild = new Set(['y', 't', '1', 'yes', 'true']).has(
-  (process.env.TEMPORAL_WORKER_FORCE_BUILD || '').toLowerCase()
-);
-
 const archAlias = { x64: 'x86_64', arm64: 'aarch64' };
 const platformMapping = { darwin: 'apple-darwin', linux: 'unknown-linux-gnu', win32: 'pc-windows-gnu' };
+
+const args = arg({
+  '--help': Boolean,
+  '-h': '--help',
+  '--version': Boolean,
+  '-v': '--version',
+  '--target': [String],
+  '--force': Boolean,
+  '-f': '--force',
+});
+
+const HELP_STRING = `${path.basename(
+  process.argv[1]
+)} compiles the Core SDK and temporal-sdk-typescript-bridge Rust libraries
+
+Options:
+
+-h, --help     Show this help message and exit
+-v, --version  Show program's version number and exit
+-f, --force    Forces a build instead of using a prebuilt binary
+-t, --target   Compilation targets, choose any of:
+  ${targets.concat('all').join('\n  ')}
+
+Happy compiling!`;
+
+if (args['--help']) {
+  console.log(HELP_STRING);
+  process.exit();
+}
+if (args['--version']) {
+  console.log(version);
+  process.exit();
+}
+// });
+
+// prepare recompile options
+const targetsArg = args['--target'] || [];
+const requestedTargets = targetsArg.includes('all') ? targets : targetsArg;
+const unsupportedTargets = requestedTargets.filter((t) => !targets.includes(t));
+if (unsupportedTargets.length) {
+  console.error(`Unsupported targets ${JSON.stringify(unsupportedTargets)}`);
+  process.exit(1);
+}
+const forceBuild = args['--force'];
 
 function compile(target) {
   console.log('Compiling bridge', { target });
@@ -39,26 +77,25 @@ function compile(target) {
       throw err;
     }
   }
-  const { status, error } = spawnSync(
-    'cargo-cp-artifact',
-    [
-      '--artifact',
-      'cdylib',
-      'temporal_sdk_typescript_bridge',
-      out,
-      '--',
-      'cargo',
-      'build',
-      '--message-format=json-render-diagnostics',
-      '--release',
-      ...(target ? ['--target', target] : []),
-    ],
-    { stdio: 'inherit' }
-  );
-  if (error !== undefined) {
-    console.error(`Failed to build${target ? ' for ' + target : ''}`);
-    throw error;
-  }
+
+  const argv = [
+    '--artifact',
+    'cdylib',
+    'temporal_sdk_typescript_bridge',
+    out,
+    '--',
+    'cargo',
+    'build',
+    '--message-format=json-render-diagnostics',
+    '--release',
+    ...(target ? ['--target', target] : []),
+  ];
+  const cmd = which.sync('cargo-cp-artifact');
+
+  console.log('Running', cmd, argv);
+  const { status } = spawnSync(cmd, argv, {
+    stdio: 'inherit',
+  });
   if (status !== 0) {
     throw new Error(`Failed to build${target ? ' for ' + target : ''}`);
   }
@@ -110,7 +147,7 @@ if (requestedTargets.length > 0) {
       }
     }
   } else {
-    console.log('Force build via TEMPORAL_WORKER_FORCE_BUILD env var');
+    console.log('Forced the build via --force');
     compile();
   }
 }

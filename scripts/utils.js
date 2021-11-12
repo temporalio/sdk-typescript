@@ -21,7 +21,12 @@ async function waitOnChild(child) {
 }
 
 async function kill(child, signal = 'SIGINT') {
-  process.kill(-child.pid, signal);
+  if (process.platform === 'win32') {
+    // -PID not supported on Windows
+    process.kill(child.pid, signal);
+  } else {
+    process.kill(-child.pid, signal);
+  }
   try {
     await waitOnChild(child);
   } catch (err) {

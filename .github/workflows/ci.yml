@@ -13,11 +13,13 @@ jobs:
       fail-fast: true
       matrix:
         node: [14, 16]
-        os: [ubuntu-latest, macos-latest] # TODO: support windows
+        os: [ubuntu-latest, macos-latest]
         include:
           - os: ubuntu-latest
             node: 16
             docsTarget: true
+          - os: windows-latest
+            node: 14 # TODO: isolated-vm does not compile with node 16
     runs-on: ${{ matrix.os }}
     steps:
       - name: Print build information
@@ -34,6 +36,7 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: npm run lint
+        if: ${{ !startsWith(matrix.os, 'windows') }} # This fails so let's not bother
       - name: Get Temporal docker-compose.yml
         run: wget https://raw.githubusercontent.com/temporalio/docker-compose/v1.13.0/docker-compose.yml
         if: ${{ startsWith(matrix.os, 'ubuntu') }}
@@ -67,11 +70,20 @@ jobs:
           NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
           NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
 
-  # Cross compile native bridge code for Windows, Mac and Linux.
-  # We use Mac here because it's harder to compile to Mac from other OSes.
+  # Compile native bridge code and isolate extension for Windows, Mac and Linux.
   # Uploads the packages as a build artifact to be tested later.
-  cross-compile:
-    runs-on: macos-latest
+  compile-binaries:
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+          - os: macos-latest
+            target: x86_64-apple-darwin
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v2
         with:
@@ -79,28 +91,23 @@ jobs:
       - uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
-      - run: |
-          rustup target add aarch64-apple-darwin
-          rustup target add x86_64-unknown-linux-gnu
-          brew tap SergioBenitez/osxct
-          brew install x86_64-unknown-linux-gnu
-      - run: cp etc/mac-cargo-config.toml ~/.cargo/config.toml
       - uses: actions/setup-node@v1
         with:
+          # TODO: use 16 (isolated-vm does not compile with this version on windows)
           node-version: 14
+        if: ${{ matrix.os == 'windows-latest' }}
+      - uses: actions/setup-node@v1
+        with:
+          node-version: 16
+        if: ${{ matrix.os != 'windows-latest' }}
       - run: npm ci
       - run: npm run build
       - name: Cross compile rust code
-        run: npx lerna run --stream build-rust
-        env:
-          # aarch64 build fails on GH actions, skip it since we can't test it anyways
-          # windows build temporarily disabled due to brew issues
-          TEMPORAL_WORKER_BUILD_TARGETS: 'x86_64-apple-darwin:x86_64-unknown-linux-gnu'
-          CC_x86_64_unknown_linux_gnu: x86_64-unknown-linux-gnu-gcc
+        run: npx lerna run --stream build-rust -- -- --target ${{ matrix.target }}
       - run: node scripts/publish-to-verdaccio.js --registry-dir /tmp/registry
       - uses: actions/upload-artifact@v2
         with:
-          name: packages
+          name: packages-${{ matrix.target }}
           path: /tmp/registry/storage
   # Tests that npm init @temporalio results in a working worker and client
   # Note that the instances used here don't have the Rust toolchain installed which ensures use of prebuilt libs.
@@ -108,18 +115,41 @@ jobs:
     strategy:
       fail-fast: true
       matrix:
-        # TODO: use latest 16 release when the ts-node/esm loader supports it
-        node: ['14', '16.11']
-        os: [ubuntu-latest] # TODO: add windows and macos-latest
-        server: [local]
-        sample: [hello-world, fetch-esm]
         include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            node: 14
+            server: local
+            sample: hello-world
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            node: 16
+            server: local
+            sample: hello-world
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            node: 14
+            server: local
+            sample: fetch-esm
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            # TODO: use latest 16 release when the ts-node/esm loader supports it
+            node: '16.11'
+            server: local
+            sample: fetch-esm
           - os: macos-latest
+            target: x86_64-apple-darwin
             node: 16
             server: cloud
             sample: hello-world-mtls
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            node: 14 # TODO: 16 (isolated-vm does not compile with this version)
+            server: cloud
+            sample: hello-world-mtls
+
     runs-on: ${{ matrix.os }}
-    needs: cross-compile
+    needs: compile-binaries
     steps:
       # We don't need the core submodule here since bridge since we don't build the project
       - uses: actions/checkout@v2
@@ -131,7 +161,7 @@ jobs:
         run: npm ci --ignore-scripts
       - uses: actions/download-artifact@v2
         with:
-          name: packages
+          name: packages-${{ matrix.target }}
           path: /tmp/registry/storage
       - run: node scripts/init-from-verdaccio.js --registry-dir /tmp/registry --sample https://github.com/temporalio/samples-typescript/tree/next/${{ matrix.sample }}
       - name: Get Temporal docker-compose.yml

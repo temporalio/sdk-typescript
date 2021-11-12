@@ -55,7 +55,6 @@ Notably these features are missing:
 - Local activities
 - Side effects
 - Search attributes
-- Windows support
 
 > NOTE: The API is considered unstable and may change at any time.
 > While in alpha we are gathering feedback from developers about the usability and ergonomics of the API.
