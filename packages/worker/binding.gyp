@@ -19,12 +19,12 @@
         'VCCLCompilerTool': { 'ExceptionHandling': 1, 'AdditionalOptions': [ '/GR' ] },
       },
       'msvs_disabled_warnings': [
-					4101, # Unreferenced local (msvc fires these for ignored exception)
-					4068, # Unknown pragma
-				],
-			'conditions': [
-					[ 'OS == "win"', { 'defines': [ 'NOMSG', 'NOMINMAX', 'WIN32_LEAN_AND_MEAN' ] } ],
-				],      
+        4101, # Unreferenced local (msvc fires these for ignored exception)
+        4068, # Unknown pragma
+      ],
+      'conditions': [
+        [ 'OS == "win"', { 'defines': [ 'NOMSG', 'NOMINMAX', 'WIN32_LEAN_AND_MEAN' ] } ],
+      ],      
       'sources': [
         'workflow-isolate-extension.cc',
       ],
