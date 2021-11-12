@@ -1,5 +1,5 @@
-/* eslint @typescript-eslint/no-non-null-assertion: 0 */
 import anyTest, { Constructor, Macro, TestInterface } from 'ava';
+import { v4 as uuid4 } from 'uuid';
 import { WorkflowClient, WorkflowFailedError } from '@temporalio/client';
 import { Worker } from '@temporalio/worker';
 import { ApplicationFailure, CancelledFailure } from '@temporalio/common';
@@ -24,7 +24,11 @@ const testWorkflowCancellation: Macro<
   Context
 > = async (t, outcome, timing, expected) => {
   const client = new WorkflowClient();
-  const workflow = await client.start(workflowCancellationScenarios, { args: [outcome, timing], taskQueue });
+  const workflow = await client.start(workflowCancellationScenarios, {
+    args: [outcome, timing],
+    taskQueue,
+    workflowId: uuid4(),
+  });
   await workflow.cancel();
   if (expected === undefined) {
     await workflow.result();

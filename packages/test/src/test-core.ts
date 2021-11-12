@@ -3,6 +3,7 @@
  * Tests run serially because Core is a singleton.
  */
 import test from 'ava';
+import { v4 as uuid4 } from 'uuid';
 import { Worker, Core } from '@temporalio/worker';
 import { WorkflowClient } from '@temporalio/client';
 import { defaultOptions } from './mock-native-worker';
@@ -26,7 +27,7 @@ if (RUN_INTEGRATION_TESTS) {
     await worker1Drained;
     const connection = new WorkflowClient();
     // Run a simple workflow
-    await connection.execute(workflows.sleeper, { taskQueue: 'q2', args: [1] });
+    await connection.execute(workflows.sleeper, { taskQueue: 'q2', workflowId: uuid4(), args: [1] });
     worker2.shutdown();
     await worker2Drained;
 
@@ -40,7 +41,7 @@ if (RUN_INTEGRATION_TESTS) {
     });
     const worker3Drained = worker3.run();
     // Run a simple workflow
-    await connection.execute('sleeper', { taskQueue: 'q1', args: [1] });
+    await connection.execute('sleeper', { taskQueue: 'q1', workflowId: uuid4(), args: [1] });
     worker3.shutdown();
     await worker3Drained;
     // No exceptions, test passes

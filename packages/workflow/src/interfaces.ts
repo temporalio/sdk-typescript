@@ -1,5 +1,5 @@
 import { coresdk } from '@temporalio/proto/lib/coresdk';
-import { WorkflowOptions } from '@temporalio/common';
+import { CommonWorkflowOptions } from '@temporalio/common';
 
 /**
  * Workflow execution information
@@ -84,7 +84,20 @@ export const ChildWorkflowCancellationType = coresdk.child_workflow.ChildWorkflo
 export type ParentClosePolicy = coresdk.child_workflow.ParentClosePolicy;
 export const ParentClosePolicy = coresdk.child_workflow.ParentClosePolicy;
 
-export interface ChildWorkflowOptions extends WorkflowOptions {
+export interface ChildWorkflowOptions extends CommonWorkflowOptions {
+  /**
+   * Workflow id to use when starting. If not specified a UUID is generated. Note that it is
+   * dangerous as in case of client side retries no deduplication will happen based on the
+   * generated id. So prefer assigning business meaningful ids if possible.
+   */
+  workflowId?: string;
+
+  /**
+   * Task queue to use for Workflow tasks. It should match a task queue specified when creating a
+   * `Worker` that hosts the Workflow code.
+   */
+  taskQueue?: string;
+
   /**
    * In case of a child workflow cancellation it fails with a CanceledFailure.
    * The type defines at which point the exception is thrown.
