@@ -91,7 +91,7 @@ if (RUN_INTEGRATION_TESTS) {
       {
         const wf = await client.start(interceptorExample, {
           taskQueue,
-          args: [],
+          workflowId: uuid4(),
         });
         // Send both signal and query to more consistently repro https://github.com/temporalio/sdk-node/issues/299
         await Promise.all([
@@ -104,7 +104,7 @@ if (RUN_INTEGRATION_TESTS) {
       {
         const wf = await client.signalWithStart(interceptorExample, {
           taskQueue,
-          args: [],
+          workflowId: uuid4(),
           signal: unblockWithSecretSignal,
           signalArgs: ['12345'],
         });
@@ -145,7 +145,7 @@ if (RUN_INTEGRATION_TESTS) {
     try {
       const wf = await client.start(unblockOrCancel, {
         taskQueue,
-        args: [],
+        workflowId: uuid4(),
       });
       await t.throwsAsync(wf.cancel(), {
         instanceOf: Error,
@@ -183,7 +183,7 @@ if (RUN_INTEGRATION_TESTS) {
         client
           .execute(continueAsNewToDifferentWorkflow, {
             taskQueue,
-            args: [],
+            workflowId: uuid4(),
           })
           .finally(() => worker.shutdown()),
         {
@@ -238,7 +238,7 @@ if (RUN_INTEGRATION_TESTS) {
       client
         .execute(internalsInterceptorExample, {
           taskQueue,
-          args: [],
+          workflowId: uuid4(),
         })
         .finally(() => worker.shutdown()),
     ]);

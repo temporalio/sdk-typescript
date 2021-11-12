@@ -1,5 +1,6 @@
 /* eslint @typescript-eslint/no-non-null-assertion: 0 */
 import test from 'ava';
+import { v4 as uuid4 } from 'uuid';
 import { WorkflowInfo } from '@temporalio/workflow';
 import { WorkflowClient } from '@temporalio/client';
 import { Worker, DefaultLogger, Core, InjectedSinks } from '@temporalio/worker';
@@ -73,7 +74,7 @@ if (RUN_INTEGRATION_TESTS) {
     });
     const p = worker.run();
     const conn = new WorkflowClient();
-    const wf = await conn.start(workflows.sinksWorkflow, { taskQueue });
+    const wf = await conn.start(workflows.sinksWorkflow, { taskQueue, workflowId: uuid4() });
     await wf.result();
     worker.shutdown();
     await p;

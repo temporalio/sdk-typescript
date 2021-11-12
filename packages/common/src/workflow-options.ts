@@ -8,13 +8,6 @@ export type RetryPolicy = coresdk.common.IRetryPolicy;
 
 export interface BaseWorkflowOptions {
   /**
-   * Workflow id to use when starting. If not specified a UUID is generated. Note that it is
-   * dangerous as in case of client side retries no deduplication will happen based on the
-   * generated id. So prefer assigning business meaningful ids if possible.
-   */
-  workflowId?: string;
-
-  /**
    * Specifies server behavior if a completed workflow with the same id exists. Note that under no
    * conditions Temporal allows two workflows with the same namespace and workflow id run
    * simultaneously.
@@ -24,12 +17,6 @@ export interface BaseWorkflowOptions {
    *   REJECT_DUPLICATE doesn't allow new run independently of the previous run closure status.
    */
   workflowIdReusePolicy?: WorkflowIdReusePolicy;
-
-  /**
-   * Task queue to use for Workflow tasks. It should match a task queue specified when creating a
-   * `Worker` that hosts the Workflow code.
-   */
-  taskQueue?: string;
 
   retryPolicy?: coresdk.common.IRetryPolicy;
 
@@ -100,29 +87,23 @@ export interface WorkflowDurationOptions {
   workflowTaskTimeout?: string | number;
 }
 
-export type WorkflowOptions = BaseWorkflowOptions & WorkflowDurationOptions;
+export type CommonWorkflowOptions = BaseWorkflowOptions & WorkflowDurationOptions;
 
-export type RequiredWorkflowOptions<T extends Workflow = Workflow> = Required<
-  Pick<BaseWorkflowOptions, 'workflowId' | 'taskQueue'>
+export type WithCompiledWorkflowDurationOptions<T extends WorkflowDurationOptions> = Omit<
+  T,
+  'workflowExecutionTimeout' | 'workflowRunTimeout' | 'workflowTaskTimeout'
 > & {
-  args: Parameters<T>[];
+  workflowExecutionTimeout?: google.protobuf.IDuration;
+  workflowRunTimeout?: google.protobuf.IDuration;
+  workflowTaskTimeout?: google.protobuf.IDuration;
 };
 
-export type WorkflowOptionsWithDefaults<T extends Workflow = Workflow> = WorkflowOptions & RequiredWorkflowOptions<T>;
-
-export type CompiledWorkflowOptions<T extends Workflow = Workflow> = BaseWorkflowOptions &
-  RequiredWorkflowOptions<T> & {
-    workflowExecutionTimeout?: google.protobuf.IDuration;
-    workflowRunTimeout?: google.protobuf.IDuration;
-    workflowTaskTimeout?: google.protobuf.IDuration;
-  };
-
-export function compileWorkflowOptions<T extends Workflow>({
+export function compileWorkflowOptions<T extends WorkflowDurationOptions>({
   workflowExecutionTimeout,
   workflowRunTimeout,
   workflowTaskTimeout,
   ...rest
-}: WorkflowOptionsWithDefaults<T>): CompiledWorkflowOptions<T> {
+}: T): WithCompiledWorkflowDurationOptions<T> {
   return {
     ...rest,
     workflowExecutionTimeout: workflowExecutionTimeout ? msToTs(workflowExecutionTimeout) : undefined,

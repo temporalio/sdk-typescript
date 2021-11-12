@@ -2,6 +2,7 @@
  * Manual tests to inspect tracing output
  */
 import test from 'ava';
+import { v4 as uuid4 } from 'uuid';
 import { Core, DefaultLogger, InjectedSinks, Worker } from '@temporalio/worker';
 import { ExportResultCode } from '@opentelemetry/core';
 import { CollectorTraceExporter } from '@opentelemetry/exporter-collector-grpc';
@@ -62,7 +63,9 @@ if (RUN_INTEGRATION_TESTS) {
       },
     });
     await Promise.all([
-      client.execute(workflows.smorgasbord, { taskQueue: 'test-otel', args: [] }).finally(() => worker.shutdown()),
+      client
+        .execute(workflows.smorgasbord, { taskQueue: 'test-otel', workflowId: uuid4() })
+        .finally(() => worker.shutdown()),
       worker.run(),
     ]);
     await otel.shutdown();
@@ -172,7 +175,7 @@ if (RUN_INTEGRATION_TESTS) {
     });
     await Promise.all([
       client
-        .execute(workflows.cancelFakeProgress, { taskQueue: 'test-otel', args: [] })
+        .execute(workflows.cancelFakeProgress, { taskQueue: 'test-otel', workflowId: uuid4() })
         .finally(() => worker.shutdown()),
       worker.run(),
     ]);

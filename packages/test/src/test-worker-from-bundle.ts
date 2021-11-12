@@ -27,7 +27,7 @@ if (RUN_INTEGRATION_TESTS) {
       worker.run(),
       (async () => {
         try {
-          await client.execute(successString, { taskQueue, args: [] });
+          await client.execute(successString, { taskQueue, workflowId: uuid4() });
         } finally {
           worker.shutdown();
         }
@@ -54,7 +54,7 @@ if (RUN_INTEGRATION_TESTS) {
         worker.run(),
         (async () => {
           try {
-            client.execute(successString, { taskQueue, args: [] });
+            client.execute(successString, { taskQueue, workflowId: uuid4() });
           } finally {
             worker.shutdown();
           }

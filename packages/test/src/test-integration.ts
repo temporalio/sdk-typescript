@@ -62,7 +62,7 @@ if (RUN_INTEGRATION_TESTS) {
     t.context = {
       worker,
       runPromise,
-      client: new WorkflowClient(undefined, { workflowDefaults: { followRuns: false, taskQueue: 'test' } }),
+      client: new WorkflowClient(),
     };
 
     // The initialization of the custom search attributes is slooooow. Wait for it to finish
@@ -70,6 +70,7 @@ if (RUN_INTEGRATION_TESTS) {
       async () => {
         try {
           await t.context.client.start(workflows.sleeper, {
+            workflowId: uuid4(),
             taskQueue: 'no_one_cares_pointless_queue',
             workflowExecutionTimeout: 1000,
             searchAttributes: { CustomIntField: 1 },
@@ -97,7 +98,10 @@ if (RUN_INTEGRATION_TESTS) {
 
   test('Workflow not found results in failure', async (t) => {
     const { client } = t.context;
-    const promise = client.execute('not-found');
+    const promise = client.execute('not-found', {
+      taskQueue: 'test',
+      workflowId: uuid4(),
+    });
     const err: WorkflowFailedError = await t.throwsAsync(() => promise, {
       instanceOf: WorkflowFailedError,
     });
@@ -114,6 +118,8 @@ if (RUN_INTEGRATION_TESTS) {
   test('args-and-return', async (t) => {
     const { client } = t.context;
     const res = await client.execute(workflows.argsAndReturn, {
+      taskQueue: 'test',
+      workflowId: uuid4(),
       args: ['Hello', undefined, u8('world!')],
     });
     t.is(res, 'Hello, world!');
@@ -121,7 +127,10 @@ if (RUN_INTEGRATION_TESTS) {
 
   test('cancel-fake-progress', async (t) => {
     const { client } = t.context;
-    await client.execute(workflows.cancelFakeProgress);
+    await client.execute(workflows.cancelFakeProgress, {
+      taskQueue: 'test',
+      workflowId: uuid4(),
+    });
     t.pass();
   });
 
@@ -129,16 +138,26 @@ if (RUN_INTEGRATION_TESTS) {
     const { client } = t.context;
     await withZeroesHTTPServer(async (port) => {
       const url = `http://127.0.0.1:${port}`;
-      await client.execute(workflows.cancellableHTTPRequest, { args: [url] });
+      await client.execute(workflows.cancellableHTTPRequest, {
+        taskQueue: 'test',
+        workflowId: uuid4(),
+        args: [url],
+      });
     });
     t.pass();
   });
 
   test('activity-failure', async (t) => {
     const { client } = t.context;
-    const err: WorkflowFailedError = await t.throwsAsync(client.execute(workflows.activityFailure), {
-      instanceOf: WorkflowFailedError,
-    });
+    const err: WorkflowFailedError = await t.throwsAsync(
+      client.execute(workflows.activityFailure, {
+        taskQueue: 'test',
+        workflowId: uuid4(),
+      }),
+      {
+        instanceOf: WorkflowFailedError,
+      }
+    );
     t.is(err.message, 'Workflow execution failed');
     if (!(err.cause instanceof ActivityFailure)) {
       t.fail('Expected err.cause to be an instance of ActivityFailure');
@@ -160,7 +179,10 @@ if (RUN_INTEGRATION_TESTS) {
 
   test('child-workflow-invoke', async (t) => {
     const { client } = t.context;
-    const workflow = await client.start(workflows.childWorkflowInvoke);
+    const workflow = await client.start(workflows.childWorkflowInvoke, {
+      taskQueue: 'test',
+      workflowId: uuid4(),
+    });
     const { workflowId, runId, execResult, result } = await workflow.result();
     t.is(execResult, 'success');
     t.is(result, 'success');
@@ -170,9 +192,15 @@ if (RUN_INTEGRATION_TESTS) {
 
   test('child-workflow-failure', async (t) => {
     const { client } = t.context;
-    const err: WorkflowFailedError = await t.throwsAsync(client.execute(workflows.childWorkflowFailure), {
-      instanceOf: WorkflowFailedError,
-    });
+    const err: WorkflowFailedError = await t.throwsAsync(
+      client.execute(workflows.childWorkflowFailure, {
+        taskQueue: 'test',
+        workflowId: uuid4(),
+      }),
+      {
+        instanceOf: WorkflowFailedError,
+      }
+    );
     if (!(err.cause instanceof ChildWorkflowFailure)) {
       return t.fail('Expected err.cause to be an instance of ChildWorkflowFailure');
     }
@@ -191,7 +219,10 @@ if (RUN_INTEGRATION_TESTS) {
 
   test('child-workflow-termination', async (t) => {
     const { client } = t.context;
-    const workflow = await client.start(workflows.childWorkflowTermination);
+    const workflow = await client.start(workflows.childWorkflowTermination, {
+      taskQueue: 'test',
+      workflowId: uuid4(),
+    });
 
     let childExecution: WorkflowExecution | undefined = undefined;
 
@@ -214,9 +245,15 @@ if (RUN_INTEGRATION_TESTS) {
 
   test('child-workflow-timeout', async (t) => {
     const { client } = t.context;
-    const err: WorkflowFailedError = await t.throwsAsync(client.execute(workflows.childWorkflowTimeout), {
-      instanceOf: WorkflowFailedError,
-    });
+    const err: WorkflowFailedError = await t.throwsAsync(
+      client.execute(workflows.childWorkflowTimeout, {
+        taskQueue: 'test',
+        workflowId: uuid4(),
+      }),
+      {
+        instanceOf: WorkflowFailedError,
+      }
+    );
     if (!(err.cause instanceof ChildWorkflowFailure)) {
       return t.fail('Expected err.cause to be an instance of ChildWorkflowFailure');
     }
@@ -229,28 +266,40 @@ if (RUN_INTEGRATION_TESTS) {
 
   test('child-workflow-start-fail', async (t) => {
     const { client } = t.context;
-    await client.execute(workflows.childWorkflowStartFail);
+    await client.execute(workflows.childWorkflowStartFail, {
+      taskQueue: 'test',
+      workflowId: uuid4(),
+    });
     // Assertions in workflow code
     t.pass();
   });
 
   test('child-workflow-cancel', async (t) => {
     const { client } = t.context;
-    await client.execute(workflows.childWorkflowCancel);
+    await client.execute(workflows.childWorkflowCancel, {
+      taskQueue: 'test',
+      workflowId: uuid4(),
+    });
     // Assertions in workflow code
     t.pass();
   });
 
   test('child-workflow-signals', async (t) => {
     const { client } = t.context;
-    await client.execute(workflows.childWorkflowSignals);
+    await client.execute(workflows.childWorkflowSignals, {
+      taskQueue: 'test',
+      workflowId: uuid4(),
+    });
     // Assertions in workflow code
     t.pass();
   });
 
   test('query and unblock', async (t) => {
     const { client } = t.context;
-    const workflow = await client.start(workflows.unblockOrCancel);
+    const workflow = await client.start(workflows.unblockOrCancel, {
+      taskQueue: 'test',
+      workflowId: uuid4(),
+    });
     t.true(await workflow.query(workflows.isBlockedQuery));
     await workflow.signal(workflows.unblockSignal);
     await workflow.result();
@@ -259,7 +308,10 @@ if (RUN_INTEGRATION_TESTS) {
 
   test('interrupt-signal', async (t) => {
     const { client } = t.context;
-    const workflow = await client.start(workflows.interruptableWorkflow);
+    const workflow = await client.start(workflows.interruptableWorkflow, {
+      taskQueue: 'test',
+      workflowId: uuid4(),
+    });
     await workflow.signal(workflows.interruptSignal, 'just because');
     const err: WorkflowFailedError = await t.throwsAsync(workflow.result(), {
       instanceOf: WorkflowFailedError,
@@ -272,7 +324,10 @@ if (RUN_INTEGRATION_TESTS) {
 
   test('fail-signal', async (t) => {
     const { client } = t.context;
-    const workflow = await client.start(workflows.failSignalWorkflow);
+    const workflow = await client.start(workflows.failSignalWorkflow, {
+      taskQueue: 'test',
+      workflowId: uuid4(),
+    });
     await workflow.signal(workflows.failSignal);
     const err: WorkflowFailedError = await t.throwsAsync(workflow.result(), {
       instanceOf: WorkflowFailedError,
@@ -285,7 +340,10 @@ if (RUN_INTEGRATION_TESTS) {
 
   test('async-fail-signal', async (t) => {
     const { client } = t.context;
-    const workflow = await client.start(workflows.asyncFailSignalWorkflow);
+    const workflow = await client.start(workflows.asyncFailSignalWorkflow, {
+      taskQueue: 'test',
+      workflowId: uuid4(),
+    });
     await workflow.signal(workflows.failSignal);
     const err: WorkflowFailedError = await t.throwsAsync(workflow.result(), {
       instanceOf: WorkflowFailedError,
@@ -298,13 +356,19 @@ if (RUN_INTEGRATION_TESTS) {
 
   test('http', async (t) => {
     const { client } = t.context;
-    const res = await client.execute(workflows.http);
+    const res = await client.execute(workflows.http, {
+      taskQueue: 'test',
+      workflowId: uuid4(),
+    });
     t.deepEqual(res, await activities.httpGet('https://temporal.io'));
   });
 
   test('sleep', async (t) => {
     const { client } = t.context;
-    const workflow = await client.start(workflows.sleeper);
+    const workflow = await client.start(workflows.sleeper, {
+      taskQueue: 'test',
+      workflowId: uuid4(),
+    });
     const res = await workflow.result();
     t.is(res, undefined);
     const execution = await client.service.getWorkflowExecutionHistory({
@@ -320,7 +384,10 @@ if (RUN_INTEGRATION_TESTS) {
 
   test('cancel-timer-immediately', async (t) => {
     const { client } = t.context;
-    const workflow = await client.start(workflows.cancelTimer);
+    const workflow = await client.start(workflows.cancelTimer, {
+      taskQueue: 'test',
+      workflowId: uuid4(),
+    });
     const res = await workflow.result();
     t.is(res, undefined);
     const execution = await client.service.getWorkflowExecutionHistory({
@@ -334,7 +401,10 @@ if (RUN_INTEGRATION_TESTS) {
 
   test('cancel-timer-with-delay', async (t) => {
     const { client } = t.context;
-    const workflow = await client.start(workflows.cancelTimerWithDelay);
+    const workflow = await client.start(workflows.cancelTimerWithDelay, {
+      taskQueue: 'test',
+      workflowId: uuid4(),
+    });
     const res = await workflow.result();
     t.is(res, undefined);
     const execution = await client.service.getWorkflowExecutionHistory({
@@ -353,7 +423,10 @@ if (RUN_INTEGRATION_TESTS) {
 
   test('patched', async (t) => {
     const { client } = t.context;
-    const workflow = await client.start(workflows.patchedWorkflow);
+    const workflow = await client.start(workflows.patchedWorkflow, {
+      taskQueue: 'test',
+      workflowId: uuid4(),
+    });
     const res = await workflow.result();
     t.is(res, undefined);
     const execution = await client.service.getWorkflowExecutionHistory({
@@ -371,7 +444,10 @@ if (RUN_INTEGRATION_TESTS) {
 
   test('deprecate-patch', async (t) => {
     const { client } = t.context;
-    const workflow = await client.start(workflows.deprecatePatchWorkflow);
+    const workflow = await client.start(workflows.deprecatePatchWorkflow, {
+      taskQueue: 'test',
+      workflowId: uuid4(),
+    });
     const res = await workflow.result();
     t.is(res, undefined);
     const execution = await client.service.getWorkflowExecutionHistory({
@@ -389,6 +465,8 @@ if (RUN_INTEGRATION_TESTS) {
     const { client } = t.context;
     const workflow = await client.start(workflows.argsAndReturn, {
       args: ['hey', undefined, Buffer.from('abc')],
+      taskQueue: 'test',
+      workflowId: uuid4(),
     });
     await workflow.result();
     const execution = await client.service.getWorkflowExecutionHistory({
@@ -408,6 +486,8 @@ if (RUN_INTEGRATION_TESTS) {
     const { client } = t.context;
     const workflow = await client.start(workflows.argsAndReturn, {
       args: ['hey', undefined, Buffer.from('def')],
+      taskQueue: 'test',
+      workflowId: uuid4(),
     });
     await workflow.result();
     const execution = await workflow.describe();
@@ -468,7 +548,11 @@ if (RUN_INTEGRATION_TESTS) {
 
   test('WorkflowHandle.result() throws if terminated', async (t) => {
     const { client } = t.context;
-    const workflow = await client.start(workflows.sleeper, { args: [1000000] });
+    const workflow = await client.start(workflows.sleeper, {
+      taskQueue: 'test',
+      workflowId: uuid4(),
+      args: [1000000],
+    });
     await workflow.terminate('hasta la vista baby');
     await t.throwsAsync(workflow.result(), {
       instanceOf: WorkflowFailedError,
@@ -478,10 +562,20 @@ if (RUN_INTEGRATION_TESTS) {
 
   test('WorkflowHandle.result() throws if continued as new', async (t) => {
     const { client } = t.context;
-    const ogWF = await client.start(workflows.continueAsNewSameWorkflow);
+    const ogWF = await client.start(workflows.continueAsNewSameWorkflow, {
+      taskQueue: 'test',
+      workflowId: uuid4(),
+      followRuns: false,
+    });
     let err = await t.throwsAsync(ogWF.result(), { instanceOf: WorkflowContinuedAsNewError });
     if (!(err instanceof WorkflowContinuedAsNewError)) return; // Type assertion
-    let workflow = client.getHandle<typeof workflows.continueAsNewSameWorkflow>(ogWF.workflowId, err.newExecutionRunId);
+    let workflow = client.getHandle<typeof workflows.continueAsNewSameWorkflow>(
+      ogWF.workflowId,
+      err.newExecutionRunId,
+      {
+        followRuns: false,
+      }
+    );
 
     await workflow.signal(workflows.continueAsNewSignal);
     err = await t.throwsAsync(workflow.result(), {
@@ -494,9 +588,10 @@ if (RUN_INTEGRATION_TESTS) {
   });
 
   test('WorkflowHandle.result() follows chain of execution', async (t) => {
-    const client = new WorkflowClient(); // followRuns defaults to `true`
+    const { client } = t.context;
     await client.execute(workflows.continueAsNewSameWorkflow, {
       taskQueue: 'test',
+      workflowId: uuid4(),
       args: ['execute', 'none'],
     });
     t.pass();
@@ -504,10 +599,16 @@ if (RUN_INTEGRATION_TESTS) {
 
   test('continue-as-new-to-different-workflow', async (t) => {
     const { client } = t.context;
-    const ogWF = await client.start(workflows.continueAsNewToDifferentWorkflow);
+    const ogWF = await client.start(workflows.continueAsNewToDifferentWorkflow, {
+      taskQueue: 'test',
+      workflowId: uuid4(),
+      followRuns: false,
+    });
     const err = await t.throwsAsync(ogWF.result(), { instanceOf: WorkflowContinuedAsNewError });
     if (!(err instanceof WorkflowContinuedAsNewError)) return; // Type assertion
-    const workflow = client.getHandle<typeof workflows.sleeper>(ogWF.workflowId, err.newExecutionRunId);
+    const workflow = client.getHandle<typeof workflows.sleeper>(ogWF.workflowId, err.newExecutionRunId, {
+      followRuns: false,
+    });
     await workflow.result();
     const info = await workflow.describe();
     t.is(info.workflowExecutionInfo?.type?.name, 'sleeper');
@@ -525,6 +626,8 @@ if (RUN_INTEGRATION_TESTS) {
   test('signalWithStart works as intended and returns correct runId', async (t) => {
     const { client } = t.context;
     const ogWF = await client.signalWithStart(workflows.interruptableWorkflow, {
+      taskQueue: 'test',
+      workflowId: uuid4(),
       signal: workflows.interruptSignal,
       signalArgs: ['interrupted from signalWithStart'],
     });
@@ -552,13 +655,19 @@ if (RUN_INTEGRATION_TESTS) {
 
   test('activity-failures', async (t) => {
     const { client } = t.context;
-    await client.execute(workflows.activityFailures);
+    await client.execute(workflows.activityFailures, {
+      taskQueue: 'test',
+      workflowId: uuid4(),
+    });
     t.pass();
   });
 
   test('sleepInvalidDuration is caught in Workflow runtime', async (t) => {
     const { client } = t.context;
-    await client.execute(workflows.sleepInvalidDuration);
+    await client.execute(workflows.sleepInvalidDuration, {
+      taskQueue: 'test',
+      workflowId: uuid4(),
+    });
     t.pass();
   });
 

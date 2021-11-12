@@ -1,4 +1,5 @@
 import test from 'ava';
+import { v4 as uuid4 } from 'uuid';
 import { Worker } from '@temporalio/worker';
 import { WorkflowClient } from '@temporalio/client';
 import { defaultOptions } from './mock-native-worker';
@@ -15,6 +16,7 @@ if (RUN_INTEGRATION_TESTS) {
       const result = await client.execute(runActivityInDifferentTaskQueue, {
         args: ['only-activities'],
         taskQueue: 'also-workflows',
+        workflowId: uuid4(),
       });
       t.is(result, 'hi');
       workflowlessWorker.shutdown();
