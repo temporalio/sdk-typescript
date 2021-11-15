@@ -1,4 +1,5 @@
 import arg from 'arg';
+import os from 'os';
 import pidusage from 'pidusage';
 import { v4 as uuid4 } from 'uuid';
 import { interval, range, Observable, OperatorFunction, ReplaySubject, pipe, lastValueFrom } from 'rxjs';
@@ -46,11 +47,16 @@ async function runWorkflows({
     observable = range(0, stopCondition.num).pipe(
       mergeMap(() => runWorkflow(client, name, taskQueue), concurrency),
       followProgress(),
-      tap(({ numComplete, wfsPerSecond, overallWfsPerSecond }) =>
+      mergeMap(async (progress) => ({ progress, workerResources: workerPid ? await pidusage(workerPid) : undefined })),
+      tap(({ progress: { numComplete, wfsPerSecond, overallWfsPerSecond }, workerResources }) => {
+        let resourceString = '';
+        if (workerResources) {
+          resourceString = `CPU ${workerResources.cpu.toFixed(0)}%, MEM ${toMB(workerResources.memory)}MB`;
+        }
         process.stderr.write(
-          `\rWFs complete (${numComplete}/${stopCondition.num}) -- WFs/s curr ${wfsPerSecond} (acc ${overallWfsPerSecond})  `
-        )
-      )
+          `\rWFs complete (${numComplete}/${stopCondition.num}) -- WFs/s curr ${wfsPerSecond} (acc ${overallWfsPerSecond}) -- ${resourceString}  `
+        );
+      })
     );
   } else {
     const subj = new ReplaySubject<void>(concurrency);
@@ -138,6 +144,7 @@ async function main() {
   const connection = new Connection({ address: serverAddress });
   const client = new WorkflowClient(connection.service, { namespace });
   const stopCondition = runForSeconds ? new UntilSecondsElapsed(runForSeconds) : new NumberOfWorkflows(iterations);
+  console.log(`Starting tests on machine with ${toMB(os.totalmem(), 0)}MB of RAM and ${os.cpus().length} CPUs`);
 
   let workflowsToRun: string[];
   if (workflowName === 'yummy-sampler-mode') {
