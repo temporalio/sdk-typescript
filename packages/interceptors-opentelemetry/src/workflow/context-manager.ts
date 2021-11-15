@@ -1,8 +1,8 @@
 import * as otel from '@opentelemetry/api';
-import { AsyncLocalStorage } from '@temporalio/workflow';
+import { makeAsyncLocalStorage } from '@temporalio/workflow';
 
 export class ContextManager implements otel.ContextManager {
-  protected storage = new AsyncLocalStorage<otel.Context>();
+  protected storage = makeAsyncLocalStorage<otel.Context>();
 
   active(): otel.Context {
     return this.storage.getStore() || otel.ROOT_CONTEXT;

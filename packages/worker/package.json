@@ -4,11 +4,6 @@
   "description": "Temporal.io SDK Worker sub-package",
   "main": "lib/index.js",
   "types": "./lib/index.d.ts",
-  "gypfile": true,
-  "scripts": {
-    "build": "node-gyp rebuild --release",
-    "install": "npm run build"
-  },
   "keywords": [
     "temporal",
     "workflow",
@@ -29,7 +24,6 @@
     "dedent": "^0.7.0",
     "fs-extra": "^10.0.0",
     "heap-js": "^2.1.6",
-    "isolated-vm": "^4.3.4",
     "memfs": "^3.2.2",
     "ms": "^2.1.3",
     "nan": "^2.15.0",

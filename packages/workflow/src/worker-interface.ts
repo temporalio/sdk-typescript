@@ -15,11 +15,11 @@ import {
 import { coresdk } from '@temporalio/proto/lib/coresdk';
 import { WorkflowInfo } from './interfaces';
 import { handleWorkflowFailure, state } from './internals';
+import { storage } from './cancellation-scope';
 import { alea } from './alea';
 import { DeterminismViolationError } from './errors';
 import { SinkCall } from './sinks';
 import { WorkflowInterceptorsFactory } from './interceptors';
-import { HookManager, IsolateExtension } from './promise-hooks';
 
 export interface WorkflowCreateOptions {
   info: WorkflowInfo;
@@ -106,10 +106,13 @@ export function overrideGlobals(): void {
  *
  * Sets required internal state and instantiates the workflow and interceptors.
  */
-export async function initRuntime(
-  { info, interceptorModules, randomnessSeed, now, patches }: WorkflowCreateOptions,
-  isolateExtension: IsolateExtension
-): Promise<void> {
+export async function initRuntime({
+  info,
+  interceptorModules,
+  randomnessSeed,
+  now,
+  patches,
+}: WorkflowCreateOptions): Promise<void> {
   // Globals are overridden while building the isolate before loading user code.
   // For some reason the `WeakRef` mock is not restored properly when creating an isolate from snapshot in node 14 (at least on ubuntu), override again.
   (globalThis as any).WeakRef = function () {
@@ -118,7 +121,6 @@ export async function initRuntime(
   state.info = info;
   state.now = now;
   state.random = alea(randomnessSeed);
-  HookManager.instance.setIsolateExtension(isolateExtension);
   if (info.isReplaying) {
     for (const patch of patches) {
       state.knownPresentPatches.add(patch);
@@ -267,4 +269,8 @@ export function tryUnblockConditions(): number {
     }
   }
   return numUnblocked;
+}
+
+export function dispose(): void {
+  storage.disable();
 }
