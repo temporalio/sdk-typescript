@@ -2,13 +2,22 @@ import test from 'ava';
 import * as memfs from 'memfs';
 import { resolveNodeModulesPaths } from '@temporalio/worker/lib/worker-options';
 
+function assertExpectedPaths(t: { deepEqual(a: string[], b: string[]): void }, paths: string[], expected: string) {
+  // If Windows, strip drive letter off paths and change path separator
+  if (process.platform === 'win32') {
+    paths = paths.map((p) => p.substr(p.indexOf(':') + 1));
+    expected = expected.replace(/\//g, '\\');
+  }
+  t.deepEqual(paths, [expected]);
+}
+
 test('resolveNodeModulesPaths resolves when workflowsPath is a file', (t) => {
   const fs = new memfs.Volume();
   fs.mkdirpSync('/app/project/lib');
   fs.mkdirpSync('/app/project/node_modules');
   fs.writeFileSync('/app/project/lib/workflows.ts', '');
   const paths = resolveNodeModulesPaths(fs as any, '/app/project/lib/workflows.ts');
-  t.deepEqual(paths, ['/app/project/node_modules']);
+  assertExpectedPaths(t, paths, '/app/project/node_modules');
 });
 
 test('resolveNodeModulesPaths resolves when workflowsPath is a directory', (t) => {
@@ -16,7 +25,7 @@ test('resolveNodeModulesPaths resolves when workflowsPath is a directory', (t) =
   fs.mkdirpSync('/app/project/lib/workflows');
   fs.mkdirpSync('/app/project/node_modules');
   const paths = resolveNodeModulesPaths(fs as any, '/app/project/lib/workflows');
-  t.deepEqual(paths, ['/app/project/node_modules']);
+  assertExpectedPaths(t, paths, '/app/project/node_modules');
 });
 
 test('resolveNodeModulesPaths throws if not found', (t) => {

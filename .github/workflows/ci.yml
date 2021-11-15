@@ -19,7 +19,8 @@ jobs:
             node: 16
             docsTarget: true
           - os: windows-latest
-            node: 14 # TODO: isolated-vm does not compile with node 16
+            # See https://github.com/laverdet/isolated-vm/issues/264#issuecomment-967212960
+            node: '16.10'
     runs-on: ${{ matrix.os }}
     steps:
       - name: Print build information
@@ -93,8 +94,8 @@ jobs:
           toolchain: stable
       - uses: actions/setup-node@v1
         with:
-          # TODO: use 16 (isolated-vm does not compile with this version on windows)
-          node-version: 14
+          # See https://github.com/laverdet/isolated-vm/issues/264#issuecomment-967212960
+          node-version: '16.10'
         if: ${{ matrix.os == 'windows-latest' }}
       - uses: actions/setup-node@v1
         with:
@@ -104,6 +105,10 @@ jobs:
       - run: npm run build
       - name: Cross compile rust code
         run: npx lerna run --stream build-rust -- -- --target ${{ matrix.target }}
+      # Restore the CLI JS only on Windows because Windows build changes the
+      # file attributes causing publish to think the change is uncommitted
+      - run: git restore packages/create-project/cli.js
+        if: ${{ matrix.os == 'windows-latest' }}
       - run: node scripts/publish-to-verdaccio.js --registry-dir /tmp/registry
       - uses: actions/upload-artifact@v2
         with:
@@ -118,19 +123,9 @@ jobs:
         include:
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
-            node: 14
-            server: local
-            sample: hello-world
-          - os: ubuntu-latest
-            target: x86_64-unknown-linux-gnu
             node: 16
             server: local
             sample: hello-world
-          - os: ubuntu-latest
-            target: x86_64-unknown-linux-gnu
-            node: 14
-            server: local
-            sample: fetch-esm
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
             # TODO: use latest 16 release when the ts-node/esm loader supports it
@@ -144,7 +139,8 @@ jobs:
             sample: hello-world-mtls
           - os: windows-latest
             target: x86_64-pc-windows-msvc
-            node: 14 # TODO: 16 (isolated-vm does not compile with this version)
+            # See https://github.com/laverdet/isolated-vm/issues/264#issuecomment-967212960
+            node: '16.10'
             server: cloud
             sample: hello-world-mtls
 
@@ -194,4 +190,7 @@ jobs:
           TEMPORAL_CLIENT_CERT_PATH: /tmp/temporal-certs/client.pem
           TEMPORAL_CLIENT_KEY_PATH: /tmp/temporal-certs/client.key
           TEMPORAL_TASK_QUEUE: ${{ format('{0}-{1}', matrix.os, matrix.node) }}
-      - run: rm -rf /tmp/temporal-certs
+      - run: rm /tmp/temporal-certs/client.pem
+        if: ${{ matrix.server == 'cloud' }}
+      - run: rm /tmp/temporal-certs/client.key
+        if: ${{ matrix.server == 'cloud' }}
