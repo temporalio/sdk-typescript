@@ -83,13 +83,7 @@ export {
 export * from './errors';
 export * from './workflow';
 export * from './interceptors';
-export {
-  makeAsyncLocalStorage,
-  AsyncLocalStorage,
-  ROOT_SCOPE,
-  CancellationScope,
-  CancellationScopeOptions,
-} from './cancellation-scope';
+export { AsyncLocalStorage, ROOT_SCOPE, CancellationScope, CancellationScopeOptions } from './cancellation-scope';
 export { Trigger } from './trigger';
 export { SinkFunction, Sink, Sinks, SinkCall } from './sinks';
 export { ChildWorkflowHandle, ExternalWorkflowHandle } from './workflow-handle';
