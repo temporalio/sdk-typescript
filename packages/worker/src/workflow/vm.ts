@@ -12,7 +12,7 @@ import { SinkCall } from '@temporalio/workflow/lib/sinks';
  * Pre-compiles the bundled Workflow code from provided {@link WorkflowIsolateBuilder}.
  */
 export class VMWorkflowCreator implements WorkflowCreator {
-  script: vm.Script | undefined;
+  script?: vm.Script;
 
   protected constructor(script: vm.Script, public readonly isolateExecutionTimeoutMs: number) {
     this.script = script;

@@ -1,5 +1,5 @@
 import { coresdk } from '@temporalio/proto';
-import { IllegalStateError, WorkflowInfo, SinkCall } from '@temporalio/workflow';
+import { IllegalStateError, SinkCall } from '@temporalio/workflow';
 import { Worker } from 'worker_threads';
 import { Workflow, WorkflowCreator, WorkflowCreateOptions } from './interface';
 import { WorkerThreadInput, WorkerThreadRequest } from './workflow-worker-thread/input';
@@ -34,6 +34,7 @@ export class WorkerThreadClient {
         // TODO: log
         return;
       }
+      this.requestIdToCompletion.delete(requestId);
       if (result.type === 'error') {
         const ctor = errorNameToClass(result.name);
         const err = new ctor(result.message);
@@ -65,7 +66,6 @@ export class WorkerThreadClient {
 
 export class ThreadedVMWorkflowCreator implements WorkflowCreator {
   protected workflowThreadIdx = 0;
-  protected runIdToThreadNum = new Map<string, number>();
 
   static async create(
     threadPoolSize: number,
@@ -85,8 +85,6 @@ export class ThreadedVMWorkflowCreator implements WorkflowCreator {
 
   async createWorkflow(options: WorkflowCreateOptions): Promise<Workflow> {
     const workflowThreadIdx = this.workflowThreadIdx;
-    const { runId } = options.info;
-    this.runIdToThreadNum.set(runId, workflowThreadIdx);
     const workflow = await VMWorkflowThreadProxy.create(this.workerThreadClients[workflowThreadIdx], options);
     this.workflowThreadIdx = (this.workflowThreadIdx + 1) % this.workerThreadClients.length;
     return workflow;
@@ -113,7 +111,7 @@ export class VMWorkflowThreadProxy implements Workflow {
       type: 'exteract-sink-calls',
       runId: this.runId,
     });
-    if (!(output?.type === 'sink-calls')) {
+    if (output?.type !== 'sink-calls') {
       throw new TypeError(`Got invalid response output from Workflow Worker thread ${output}`);
     }
     return output.calls;
@@ -126,7 +124,7 @@ export class VMWorkflowThreadProxy implements Workflow {
       activation: arr,
       runId: this.runId,
     });
-    if (!(output?.type === 'activation-completion')) {
+    if (output?.type !== 'activation-completion') {
       throw new TypeError(`Got invalid response output from Workflow Worker thread ${output}`);
     }
     return output.completion;
