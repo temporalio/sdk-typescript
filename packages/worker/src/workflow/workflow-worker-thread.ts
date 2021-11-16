@@ -67,6 +67,7 @@ async function handleRequest({ requestId, input }: WorkerThreadRequest): Promise
       if (workflow === undefined) {
         throw new IllegalStateError(`Tried to dispose non running workflow with runId: ${input.runId}`);
       }
+      workflowByRunId.delete(input.runId);
       await workflow.dispose();
       return ok(requestId);
     }
