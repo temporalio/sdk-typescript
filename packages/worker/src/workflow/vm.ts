@@ -14,12 +14,13 @@ import { SinkCall } from '@temporalio/workflow/lib/sinks';
 export class VMWorkflowCreator implements WorkflowCreator {
   script?: vm.Script;
 
-  protected constructor(script: vm.Script, public readonly isolateExecutionTimeoutMs: number) {
+  constructor(script: vm.Script, public readonly isolateExecutionTimeoutMs: number) {
     this.script = script;
   }
 
   async createWorkflow(options: WorkflowCreateOptions): Promise<Workflow> {
     const context = await this.getContext();
+    this.injectConsole(context, options.info);
     const { isolateExecutionTimeoutMs } = this;
     const workflowModule: WorkflowModule = new Proxy(
       {},
@@ -53,11 +54,30 @@ export class VMWorkflowCreator implements WorkflowCreator {
   }
 
   /**
+   * Inject console.log into the Workflow isolate context.
+   *
+   * Overridable for test purposes.
+   */
+  protected injectConsole(context: vm.Context, info: WorkflowInfo): void {
+    context.console = {
+      log: (...args: any[]) => {
+        // info.isReplaying is mutated by the Workflow class on activation
+        if (info.isReplaying) return;
+        console.log(`[${info.workflowType}(${info.workflowId})]`, ...args);
+      },
+    };
+  }
+
+  /**
    * Create a new instance, isolates and pre-compiled scripts are generated here
    */
-  public static async create(code: string, isolateExecutionTimeoutMs: number): Promise<VMWorkflowCreator> {
+  public static async create<T extends typeof VMWorkflowCreator>(
+    this: T,
+    code: string,
+    isolateExecutionTimeoutMs: number
+  ): Promise<InstanceType<T>> {
     const script = new vm.Script(code, { filename: 'workflow-isolate' });
-    return new this(script, isolateExecutionTimeoutMs);
+    return new this(script, isolateExecutionTimeoutMs) as InstanceType<T>;
   }
 
   public async destroy(): Promise<void> {

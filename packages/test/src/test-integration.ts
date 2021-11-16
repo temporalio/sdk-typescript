@@ -69,12 +69,13 @@ if (RUN_INTEGRATION_TESTS) {
     await AsyncRetry(
       async () => {
         try {
-          await t.context.client.start(workflows.sleeper, {
+          const handle = await t.context.client.start(workflows.sleeper, {
             workflowId: uuid4(),
             taskQueue: 'no_one_cares_pointless_queue',
             workflowExecutionTimeout: 1000,
             searchAttributes: { CustomIntField: 1 },
           });
+          await handle.terminate();
         } catch (e: any) {
           // We don't stop until we see an error that *isn't* the error about the field not being
           // valid

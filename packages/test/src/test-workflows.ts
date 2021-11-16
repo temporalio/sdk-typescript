@@ -1,4 +1,5 @@
 import anyTest, { ExecutionContext, TestInterface } from 'ava';
+import vm from 'vm';
 import path from 'path';
 import Long from 'long';
 import dedent from 'dedent';
@@ -9,6 +10,7 @@ import { VMWorkflow, VMWorkflowCreator } from '@temporalio/worker/lib/workflow/v
 import { DefaultLogger } from '@temporalio/worker/lib/logger';
 import * as activityFunctions from './activities';
 import { u8 } from './helpers';
+import { WorkflowInfo } from '@temporalio/workflow';
 
 export interface Context {
   workflow: VMWorkflow;
@@ -16,7 +18,20 @@ export interface Context {
   workflowType: string;
   startTime: number;
   runId: string;
-  workflowCreator: VMWorkflowCreator;
+  workflowCreator: TestVMWorkflowCreator;
+}
+
+class TestVMWorkflowCreator extends VMWorkflowCreator {
+  public logs: Record<string, unknown[][]> = {};
+
+  override injectConsole(context: vm.Context, info: WorkflowInfo) {
+    const { logs } = this;
+    context.console = {
+      log(...args: unknown[]) {
+        logs[info.runId].push(args);
+      },
+    };
+  }
 }
 
 const test = anyTest as TestInterface<Context>;
@@ -27,7 +42,7 @@ test.before(async (t) => {
   const nodeModulesPath = path.join(__dirname, '../../../node_modules');
   const bundler = new WorkflowCodeBundler(logger, [nodeModulesPath], workflowsPath);
   const bundle = await bundler.createBundle();
-  t.context.workflowCreator = await VMWorkflowCreator.create(bundle, 100);
+  t.context.workflowCreator = await TestVMWorkflowCreator.create(bundle, 100);
 });
 
 test.after.always(async (t) => {
@@ -40,13 +55,9 @@ test.beforeEach(async (t) => {
   const workflowType = t.title.match(/\S+$/)![0];
   const runId = t.title;
   const logs = new Array<unknown[]>();
+  workflowCreator.logs[runId] = logs;
   const startTime = Date.now();
   const workflow = await createWorkflow(workflowType, runId, startTime, workflowCreator);
-  workflow.injectGlobal('console', {
-    log(...args: unknown[]) {
-      logs.push(args);
-    },
-  });
 
   t.context = {
     logs,
