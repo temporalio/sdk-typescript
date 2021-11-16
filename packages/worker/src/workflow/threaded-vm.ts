@@ -1,9 +1,13 @@
 import { coresdk } from '@temporalio/proto';
 import { IllegalStateError, SinkCall } from '@temporalio/workflow';
 import { Worker } from 'worker_threads';
+import { UnexpectedError } from '../errors';
 import { Workflow, WorkflowCreator, WorkflowCreateOptions } from './interface';
 import { WorkerThreadInput, WorkerThreadRequest } from './workflow-worker-thread/input';
 import { WorkerThreadOutput, WorkerThreadResponse } from './workflow-worker-thread/output';
+
+// https://nodejs.org/api/worker_threads.html#event-exit
+export const TERMINATED_EXIT_CODE = 1;
 
 interface Completion<T> {
   resolve(value: T): void;
@@ -31,8 +35,7 @@ export class WorkerThreadClient {
     workerThread.on('message', ({ requestId, result }: WorkerThreadResponse) => {
       const completion = this.requestIdToCompletion.get(requestId);
       if (completion === undefined) {
-        // TODO: log
-        return;
+        throw new IllegalStateError(`Got completion for unknown requestId ${requestId}`);
       }
       this.requestIdToCompletion.delete(requestId);
       if (result.type === 'error') {
@@ -59,19 +62,27 @@ export class WorkerThreadClient {
 
   async destroy(): Promise<void> {
     await this.send({ type: 'destroy' });
-    // TODO: figure this out
-    this.workerThread.unref();
+    const exitCode = await this.workerThread.terminate();
+    if (exitCode !== TERMINATED_EXIT_CODE) {
+      throw new UnexpectedError(`Failed to terminate Worker thread, exit code: ${exitCode}`);
+    }
   }
+}
+
+export interface ThreadedVMWorkflowCreatorOptions {
+  code: string;
+  threadPoolSize: number;
+  isolateExecutionTimeoutMs: number;
 }
 
 export class ThreadedVMWorkflowCreator implements WorkflowCreator {
   protected workflowThreadIdx = 0;
 
-  static async create(
-    threadPoolSize: number,
-    code: string,
-    isolateExecutionTimeoutMs: number
-  ): Promise<ThreadedVMWorkflowCreator> {
+  static async create({
+    threadPoolSize,
+    code,
+    isolateExecutionTimeoutMs,
+  }: ThreadedVMWorkflowCreatorOptions): Promise<ThreadedVMWorkflowCreator> {
     const workerThreadClients = Array(threadPoolSize)
       .fill(0)
       .map(() => new WorkerThreadClient(new Worker(require.resolve('./workflow-worker-thread'))));

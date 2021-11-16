@@ -209,11 +209,11 @@ export class Worker {
         }
       }
       if (bundle) {
-        workflowCreator = await ThreadedVMWorkflowCreator.create(
-          compiledOptions.workflowThreadPoolSize,
-          bundle,
-          compiledOptions.isolateExecutionTimeoutMs
-        );
+        workflowCreator = await ThreadedVMWorkflowCreator.create({
+          code: bundle,
+          threadPoolSize: compiledOptions.workflowThreadPoolSize,
+          isolateExecutionTimeoutMs: compiledOptions.isolateExecutionTimeoutMs,
+        });
       }
       return new this(nativeWorker, workflowCreator, compiledOptions);
     } catch (err) {
