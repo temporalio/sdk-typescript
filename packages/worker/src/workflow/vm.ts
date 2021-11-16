@@ -6,6 +6,7 @@ import { IllegalStateError } from '@temporalio/common';
 import { partition } from '../utils';
 import { Workflow, WorkflowCreator, WorkflowCreateOptions } from './interface';
 import { SinkCall } from '@temporalio/workflow/lib/sinks';
+import { AsyncLocalStorage } from 'async_hooks';
 
 /**
  * Maintains a pool of v8 isolates, returns Context in a round-robin manner.
@@ -46,10 +47,8 @@ export class VMWorkflowCreator implements WorkflowCreator {
     if (this.script === undefined) {
       throw new IllegalStateError('Isolate context provider was destroyed');
     }
-    const context = vm.createContext({ require });
+    const context = vm.createContext({ AsyncLocalStorage });
     this.script.runInContext(context);
-    // Don't expose require to user code
-    delete context.require;
     return context;
   }
 
@@ -161,7 +160,7 @@ export class VMWorkflow implements Workflow {
    * Do not use this Workflow instance after this method has been called.
    */
   public async dispose(): Promise<void> {
-    this.workflowModule.dispose();
+    await this.workflowModule.dispose();
     delete this.context;
   }
 }

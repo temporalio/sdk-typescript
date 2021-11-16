@@ -36,6 +36,7 @@ export class ContextManager implements otel.ContextManager {
   }
 
   disable(): this {
+    this.storage.disable();
     return this;
   }
 

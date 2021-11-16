@@ -271,6 +271,9 @@ export function tryUnblockConditions(): number {
   return numUnblocked;
 }
 
-export function dispose(): void {
-  storage.disable();
+export async function dispose(): Promise<void> {
+  const dispose = composeInterceptors(state.interceptors.internals, 'dispose', async () => {
+    storage.disable();
+  });
+  await dispose({});
 }

@@ -1,9 +1,9 @@
 import { CancelledFailure, IllegalStateError } from '@temporalio/common';
 import type { AsyncLocalStorage as ALS } from 'async_hooks';
 
-// This is quite a hack, TODO: document why it is done this way
-export const AsyncLocalStorage: new <T>() => ALS<T> =
-  (globalThis as any).require?.('async_hooks')?.AsyncLocalStorage ?? class {};
+// AsyncLocalStorage is injected via vm module into global scope.
+// In case Workflow code is imported in Node.js context, replace with an empty class.
+export const AsyncLocalStorage: new <T>() => ALS<T> = (globalThis as any).AsyncLocalStorage ?? class {};
 
 /** Magic symbol used to create the root scope - intentionally not exported */
 const NO_PARENT = Symbol('NO_PARENT');
