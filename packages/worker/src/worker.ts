@@ -210,7 +210,7 @@ export class Worker {
       }
       if (bundle) {
         workflowCreator = await ThreadedVMWorkflowCreator.create(
-          compiledOptions.isolatePoolSize,
+          compiledOptions.workflowThreadPoolSize,
           bundle,
           compiledOptions.isolateExecutionTimeoutMs
         );
