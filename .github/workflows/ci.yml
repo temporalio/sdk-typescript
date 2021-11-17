@@ -13,14 +13,11 @@ jobs:
       fail-fast: true
       matrix:
         node: [14, 16]
-        os: [ubuntu-latest, macos-latest]
+        os: [ubuntu-latest, macos-latest, windows-latest]
         include:
           - os: ubuntu-latest
             node: 16
             docsTarget: true
-          - os: windows-latest
-            # See https://github.com/laverdet/isolated-vm/issues/264#issuecomment-967212960
-            node: '16.10'
     runs-on: ${{ matrix.os }}
     steps:
       - name: Print build information
@@ -48,7 +45,7 @@ jobs:
         if: ${{ startsWith(matrix.os, 'ubuntu') }}
       - run: npm test
         env:
-          # TODO: Run integration tests on MacOS once we get docker-compose running on the GH actions Mac instance (or use temporalite)
+          # TODO: Run integration tests on MacOS / Windows probably using temporalite
           RUN_INTEGRATION_TESTS: ${{ startsWith(matrix.os, 'ubuntu') }}
       - name: Build docs
         if: ${{ matrix.docsTarget }}
@@ -79,8 +76,14 @@ jobs:
         include:
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
+          # TODO: this compliation target fails
+          # https://github.com/temporalio/sdk-typescript/runs/4241087289?check_suite_focus=true#step:8:119
+          # - os: ubuntu-latest
+          #   target: aarch64-unknown-linux-gnu
           - os: macos-latest
             target: x86_64-apple-darwin
+          - os: macos-latest
+            target: aarch64-apple-darwin
           - os: windows-latest
             target: x86_64-pc-windows-msvc
     runs-on: ${{ matrix.os }}
@@ -93,13 +96,9 @@ jobs:
           toolchain: stable
       - uses: actions/setup-node@v1
         with:
-          # See https://github.com/laverdet/isolated-vm/issues/264#issuecomment-967212960
-          node-version: '16.10'
-        if: ${{ matrix.os == 'windows-latest' }}
-      - uses: actions/setup-node@v1
-        with:
           node-version: 16
-        if: ${{ matrix.os != 'windows-latest' }}
+      - name: Add ${{ matrix.target }} rust target
+        run: rustup target add ${{ matrix.target }}
       - run: npm ci
       - run: npm run build
       - name: Cross compile rust code
@@ -127,8 +126,7 @@ jobs:
             sample: hello-world
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
-            # TODO: use latest 16 release when the ts-node/esm loader supports it
-            node: '16.11'
+            node: 16
             server: local
             sample: fetch-esm
           - os: macos-latest
@@ -138,8 +136,7 @@ jobs:
             sample: hello-world-mtls
           - os: windows-latest
             target: x86_64-pc-windows-msvc
-            # See https://github.com/laverdet/isolated-vm/issues/264#issuecomment-967212960
-            node: '16.10'
+            node: 16
             server: cloud
             sample: hello-world-mtls
 
@@ -188,7 +185,7 @@ jobs:
           TEMPORAL_NAMESPACE: roey.temporal-dev
           TEMPORAL_CLIENT_CERT_PATH: /tmp/temporal-certs/client.pem
           TEMPORAL_CLIENT_KEY_PATH: /tmp/temporal-certs/client.key
-          TEMPORAL_TASK_QUEUE: ${{ format('{0}-{1}', matrix.os, matrix.node) }}
+          TEMPORAL_TASK_QUEUE: ${{ format('{0}-{1}-{2}', matrix.os, matrix.node, matrix.target) }}
       - run: rm /tmp/temporal-certs/client.pem
         if: ${{ matrix.server == 'cloud' }}
       - run: rm /tmp/temporal-certs/client.key
