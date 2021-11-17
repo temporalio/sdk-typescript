@@ -56,7 +56,7 @@ export class WorkflowCodeBundler {
     // Cast because the type definitions are inaccurate
     ufs.use(memfs.createFsFromVolume(vol) as any).use({ ...realFS, readdir: readdir as any });
     const distDir = '/dist';
-    const entrypointPath = path.join('/src/main.js');
+    const entrypointPath = '/src/main.js';
 
     this.genEntrypoint(vol, entrypointPath);
     await this.bundle(ufs, entrypointPath, distDir);

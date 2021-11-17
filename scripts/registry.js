@@ -1,10 +1,9 @@
 const path = require('path');
 const { tmpdir } = require('os');
 const { copy, readFile, mkdtemp, pathExists } = require('fs-extra');
-const { spawn: spawnChild } = require('child_process');
 const arg = require('arg');
 const { Tail } = require('tail');
-const { shell, sleep, kill } = require('./utils');
+const { shell, sleep, kill, spawnNpx } = require('./utils');
 
 async function untilExists(file, attempts, sleepDuration = 1000) {
   for (let attempt = 1; attempt < attempts; attempt++) {
@@ -25,7 +24,7 @@ class Registry {
   static async create(workdir) {
     await copy(path.resolve(__dirname, '../etc/verdaccio-config.yaml'), path.resolve(workdir, 'verdaccio.yaml'));
 
-    const proc = spawnChild('npx', ['verdaccio', '-c', 'verdaccio.yaml'], {
+    const proc = spawnNpx(['--yes', 'verdaccio', '-c', 'verdaccio.yaml'], {
       cwd: workdir,
       stdio: 'inherit',
       shell,
@@ -78,7 +77,11 @@ async function withRegistry(testDir, fn) {
     console.log('Local registry ready');
     return await fn();
   } finally {
-    await registry.destroy();
+    try {
+      await registry.destroy();
+    } catch (e) {
+      console.warn('Warning, failed destroying registry', e);
+    }
   }
 }
 

@@ -1,14 +1,14 @@
 const { spawnSync } = require('child_process');
 const { withRegistry, getArgs } = require('./registry');
+const { spawnNpxSync } = require('./utils');
 
 async function main() {
   const { registryDir, initArgs } = await getArgs();
 
   await withRegistry(registryDir, async () => {
     console.log('spawning npx @temporalio/create with args:', initArgs);
-    const { status } = spawnSync(
-      'npx',
-      ['@temporalio/create', 'example', '--no-git-init', '--temporalio-version', 'latest'].concat(initArgs),
+    const { status, error } = spawnNpxSync(
+      ['--yes', '@temporalio/create', 'example', '--no-git-init', '--temporalio-version', 'latest'].concat(initArgs),
       {
         stdio: 'inherit',
         cwd: registryDir,
@@ -16,6 +16,7 @@ async function main() {
       }
     );
     if (status !== 0) {
+      console.error(error);
       throw new Error('Failed to init example');
     }
   });
