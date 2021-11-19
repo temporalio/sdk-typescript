@@ -4,7 +4,7 @@ import { resolve, dirname } from 'path';
 import { ActivityInterface, DataConverter, defaultDataConverter, msToNumber } from '@temporalio/common';
 import { WorkerInterceptors } from './interceptors';
 import { InjectedSinks } from './sinks';
-import { GiB, MiB } from './utils';
+import { GiB } from './utils';
 
 export type WorkflowBundle = { code: string } | { path: string };
 
@@ -121,22 +121,6 @@ export interface WorkerOptions {
   stickyQueueScheduleToStartTimeout?: string;
 
   /**
-   * Time to wait for result when calling a Workflow isolate function.
-   * @format {@link https://www.npmjs.com/package/ms | ms} formatted string or number of milliseconds
-   * @default 5s
-   */
-  isolateExecutionTimeout?: string | number;
-
-  /**
-   * Memory limit in MB for the Workflow v8 isolate.
-   *
-   * If this limit is exceeded the isolate will be disposed and the worker will crash.
-   *
-   * @default `max(os.totalmem() - 1GiB, 1GiB)`
-   */
-  maxIsolateMemoryMB?: number;
-
-  /**
    * The number of Workflow isolates to keep in cached in memory
    *
    * Cached Workflows continue execution from their last stopping point.
@@ -151,15 +135,6 @@ export interface WorkerOptions {
    * @default `max(os.totalmem() / 1GiB - 1, 1) * 200`
    */
   maxCachedWorkflows?: number;
-
-  /**
-   * Controls the number of v8 isolates the Worker should create.
-   *
-   * New Workflows are created on this pool in a round-robin fashion.
-   *
-   * @default 8
-   */
-  isolatePoolSize?: number;
 
   /**
    * A mapping of interceptor type to a list of factories or module paths
@@ -198,13 +173,35 @@ export type WorkerOptionsWithDefaults = WorkerOptions &
       | 'maxConcurrentWorkflowTaskPolls'
       | 'nonStickyToStickyPollRatio'
       | 'stickyQueueScheduleToStartTimeout'
-      | 'isolateExecutionTimeout'
-      | 'maxIsolateMemoryMB'
       | 'maxCachedWorkflows'
-      | 'isolatePoolSize'
       | 'enableSDKTracing'
     >
-  >;
+  > & {
+    /**
+     * Controls the number of Worker threads the Worker should create.
+     *
+     * Threads are used to create [vm](https://nodejs.org/api/vm.html)s for the
+     *
+     * isolated Workflow environment.
+     *
+     * New Workflows are created on this pool in a round-robin fashion.
+     *
+     * This value is not exposed at the moment.
+     *
+     * @default 8
+     */
+    workflowThreadPoolSize: number;
+
+    /**
+     * Time to wait for result when calling a Workflow isolate function.
+     * @format {@link https://www.npmjs.com/package/ms | ms} formatted string or number of milliseconds
+     *
+     * This value is not exposed at the moment.
+     *
+     * @default 5s
+     */
+    isolateExecutionTimeout: string | number;
+  };
 
 /**
  * {@link WorkerOptions} where the attributes the Worker requires are required and time units are converted from ms formatted strings to numbers.
@@ -265,8 +262,7 @@ export function addDefaultWorkerOptions(options: WorkerOptions): WorkerOptionsWi
     nonStickyToStickyPollRatio: 0.2,
     stickyQueueScheduleToStartTimeout: '10s',
     isolateExecutionTimeout: '5s',
-    maxIsolateMemoryMB: Math.max(os.totalmem() - GiB, GiB) / MiB,
-    isolatePoolSize: 8,
+    workflowThreadPoolSize: 8,
     maxCachedWorkflows: maxCachedWorkflows ?? Math.max(os.totalmem() / GiB - 1, 1) * 200,
     enableSDKTracing: false,
     ...rest,

@@ -1,37 +1,37 @@
 import anyTest, { ExecutionContext, TestInterface } from 'ava';
+import vm from 'vm';
 import path from 'path';
 import Long from 'long';
 import dedent from 'dedent';
-import * as ivm from 'isolated-vm';
 import { coresdk } from '@temporalio/proto';
-import { WorkflowInfo } from '@temporalio/workflow';
 import { ApplicationFailure, defaultDataConverter, errorToFailure, msToTs, RetryState } from '@temporalio/common';
 import { WorkflowCodeBundler } from '@temporalio/worker/lib/workflow/bundler';
-import { ApplyMode, IsolatedVMWorkflow, IsolatedVMWorkflowCreator } from '@temporalio/worker/lib/workflow/isolated-vm';
+import { VMWorkflow, VMWorkflowCreator } from '@temporalio/worker/lib/workflow/vm';
 import { DefaultLogger } from '@temporalio/worker/lib/logger';
 import * as activityFunctions from './activities';
 import { u8 } from './helpers';
-
-class TestIsolatedVMWorkflowCreator extends IsolatedVMWorkflowCreator {
-  public logs: Record<string, unknown[][]> = {};
-
-  protected async injectConsole(context: ivm.Context, info: WorkflowInfo) {
-    await IsolatedVMWorkflowCreator.injectGlobal(
-      context,
-      'console.log',
-      (...args: unknown[]) => void this.logs[info.runId].push(args),
-      ApplyMode.SYNC
-    );
-  }
-}
+import { WorkflowInfo } from '@temporalio/workflow';
 
 export interface Context {
-  workflow: IsolatedVMWorkflow;
+  workflow: VMWorkflow;
   logs: unknown[][];
   workflowType: string;
   startTime: number;
   runId: string;
-  workflowCreator: TestIsolatedVMWorkflowCreator;
+  workflowCreator: TestVMWorkflowCreator;
+}
+
+class TestVMWorkflowCreator extends VMWorkflowCreator {
+  public logs: Record<string, unknown[][]> = {};
+
+  override injectConsole(context: vm.Context, info: WorkflowInfo) {
+    const { logs } = this;
+    context.console = {
+      log(...args: unknown[]) {
+        logs[info.runId].push(args);
+      },
+    };
+  }
 }
 
 const test = anyTest as TestInterface<Context>;
@@ -42,7 +42,7 @@ test.before(async (t) => {
   const nodeModulesPath = path.join(__dirname, '../../../node_modules');
   const bundler = new WorkflowCodeBundler(logger, [nodeModulesPath], workflowsPath);
   const bundle = await bundler.createBundle();
-  t.context.workflowCreator = await TestIsolatedVMWorkflowCreator.create(1, 100, 1024, bundle);
+  t.context.workflowCreator = await TestVMWorkflowCreator.create(bundle, 100);
 });
 
 test.after.always(async (t) => {
@@ -56,15 +56,16 @@ test.beforeEach(async (t) => {
   const runId = t.title;
   const logs = new Array<unknown[]>();
   workflowCreator.logs[runId] = logs;
-
   const startTime = Date.now();
+  const workflow = await createWorkflow(workflowType, runId, startTime, workflowCreator);
+
   t.context = {
     logs,
     runId,
     workflowType,
     workflowCreator,
     startTime,
-    workflow: await createWorkflow(workflowType, runId, startTime, workflowCreator),
+    workflow,
   };
 });
 
@@ -72,7 +73,7 @@ async function createWorkflow(
   workflowType: string,
   runId: string,
   startTime: number,
-  workflowCreator: IsolatedVMWorkflowCreator
+  workflowCreator: VMWorkflowCreator
 ) {
   const workflow = (await workflowCreator.createWorkflow({
     info: {
@@ -87,7 +88,7 @@ async function createWorkflow(
     randomnessSeed: Long.fromInt(1337).toBytes(),
     now: startTime,
     patches: [],
-  })) as IsolatedVMWorkflow;
+  })) as VMWorkflow;
   return workflow;
 }
 
@@ -718,7 +719,8 @@ test('asyncFailSignalWorkflow', async (t) => {
           'Signal failed',
           dedent`
           Error: Signal failed
-              at eval`,
+              at eval
+              at processTicksAndRejections`,
           'Error'
         ),
       ])
@@ -1501,7 +1503,8 @@ test('globalOverrides', async (t) => {
 test('logAndTimeout', async (t) => {
   const { workflowType, workflow } = t.context;
   await t.throwsAsync(activate(t, makeStartWorkflow(workflowType)), {
-    message: 'Script execution timed out.',
+    code: 'ERR_SCRIPT_EXECUTION_TIMEOUT',
+    message: 'Script execution timed out after 100ms',
   });
   const calls = await workflow.getAndResetSinkCalls();
   t.deepEqual(calls, [{ ifaceName: 'logger', fnName: 'info', args: ['logging before getting stuck'] }]);

@@ -3,7 +3,7 @@ FROM rust:1.56
 # INSTALL NODE ============================================================================
 # Unfortunately can't use the friendly lts name here easily, because then it gets hard to add to the
 # path. We'll just have to update this as needed.
-ENV NODE_VERSION="v14.17.5"
+ENV NODE_VERSION="v16.13.0"
 RUN curl -o- https://raw.githubusercontent.com/creationix/nvm/v0.38.0/install.sh | bash
 ENV NVM_DIR=/root/.nvm
 RUN . "$NVM_DIR/nvm.sh" && nvm install ${NODE_VERSION}

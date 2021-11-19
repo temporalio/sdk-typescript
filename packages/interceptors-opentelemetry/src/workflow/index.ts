@@ -2,6 +2,7 @@ import './runtime'; // Patch the Workflow isolate runtime for opentelemetry
 import * as otel from '@opentelemetry/api';
 import {
   ActivityInput,
+  DisposeInput,
   Next,
   StartChildWorkflowExecutionInput,
   WorkflowInboundCallsInterceptor,
@@ -9,6 +10,7 @@ import {
   WorkflowExecuteInput,
   workflowInfo,
   ContinueAsNewInput,
+  WorkflowInternalsInterceptor,
 } from '@temporalio/workflow';
 import { extractContextFromHeaders, headersWithContext } from '@temporalio/common/lib/otel';
 import { ContextManager } from './context-manager';
@@ -20,12 +22,16 @@ import { instrument } from '../instrumentation';
 export * from './definitions';
 
 let tracer: undefined | otel.Tracer = undefined;
+let contextManager: undefined | ContextManager = undefined;
 
 function getTracer(): otel.Tracer {
+  if (contextManager === undefined) {
+    contextManager = new ContextManager();
+  }
   if (tracer === undefined) {
     const provider = new tracing.BasicTracerProvider();
     provider.addSpanProcessor(new tracing.SimpleSpanProcessor(new SpanExporter()));
-    provider.register({ contextManager: new ContextManager() });
+    provider.register({ contextManager });
     tracer = provider.getTracer('@temporalio/interceptor-workflow');
   }
   return tracer;
@@ -107,5 +113,14 @@ export class OpenTelemetryOutboundInterceptor implements WorkflowOutboundCallsIn
         });
       }
     );
+  }
+}
+
+export class OpenTelemetryInternalsInterceptor implements WorkflowInternalsInterceptor {
+  async dispose(input: DisposeInput, next: Next<WorkflowInternalsInterceptor, 'dispose'>): Promise<void> {
+    if (contextManager !== undefined) {
+      contextManager.disable();
+    }
+    await next(input);
   }
 }

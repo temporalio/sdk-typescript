@@ -97,6 +97,7 @@ export class WorkflowCodeBundler {
       );
 
       export const {
+        dispose,
         initRuntime,
         activate,
         concludeActivation,

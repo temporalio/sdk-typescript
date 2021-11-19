@@ -21,14 +21,15 @@ async function createNamespace(connection: Connection, namespace: string, maxAtt
 }
 
 async function waitOnNamespace(connection: Connection, namespace: string, maxAttempts = 100, retryIntervalSecs = 1) {
+  const runId = '12345678-1234-1234-1234-1234567890ab';
   for (let attempt = 1; attempt <= maxAttempts; ++attempt) {
     try {
       await connection.service.getWorkflowExecutionHistory({
         namespace,
-        execution: { workflowId: 'fake', runId: '12345678-1234-1234-1234-1234567890ab' },
+        execution: { workflowId: 'fake', runId },
       });
     } catch (err: any) {
-      if (err.details.includes('workflow history not found') || err.details.includes('operation GetCurrentExecution')) {
+      if (err.details.includes('workflow history not found') || err.details.includes(runId)) {
         break;
       }
       if (attempt === maxAttempts) {
@@ -53,7 +54,11 @@ async function main() {
   console.log('Wait complete on namespace', { namespace });
 }
 
-main().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+main()
+  .then(() => {
+    process.exit();
+  })
+  .catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });

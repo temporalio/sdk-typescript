@@ -50,7 +50,7 @@ export { ActivityOptions, DataConverter, defaultDataConverter, errors };
 import { Core } from './core';
 import { SpanContext } from '@opentelemetry/api';
 import IWFActivationJob = coresdk.workflow_activation.IWFActivationJob;
-import { IsolatedVMWorkflowCreator } from './workflow/isolated-vm';
+import { ThreadedVMWorkflowCreator } from './workflow/threaded-vm';
 import { SinkCall, WorkflowInfo } from '@temporalio/workflow';
 import {
   addDefaultWorkerOptions,
@@ -209,12 +209,11 @@ export class Worker {
         }
       }
       if (bundle) {
-        workflowCreator = await IsolatedVMWorkflowCreator.create(
-          compiledOptions.isolatePoolSize,
-          compiledOptions.isolateExecutionTimeoutMs,
-          compiledOptions.maxIsolateMemoryMB,
-          bundle
-        );
+        workflowCreator = await ThreadedVMWorkflowCreator.create({
+          code: bundle,
+          threadPoolSize: compiledOptions.workflowThreadPoolSize,
+          isolateExecutionTimeoutMs: compiledOptions.isolateExecutionTimeoutMs,
+        });
       }
       return new this(nativeWorker, workflowCreator, compiledOptions);
     } catch (err) {
