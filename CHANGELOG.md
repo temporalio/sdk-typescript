@@ -4,6 +4,72 @@ All notable changes to this project will be documented in this file.
 
 Breaking changes marked with a :boom:
 
+## [0.16.0] - 2021-11-19 - beta-rc.0
+
+### Bug Fixes
+
+- [`core`] Update Core w/ specifying queue kind on polling ([#389](https://github.com/temporalio/sdk-typescript/pull/389))
+
+  - Must be specified for optimization reasons on server
+
+- [`core`] Update Core to receive bugfixes ([#391](https://github.com/temporalio/sdk-typescript/pull/391))
+
+  - Fix a situation where Core could get stuck polling if WFTs were repeatedly being failed
+  - Do not fail Workflow if Lang (TypeScript) cancels something that's already completed (e.g. activity, timer, child workflow)
+  - Fix for Core accidentally still sending commands sometimes for things that were cancelled immediately
+
+### Features
+
+- :boom: [`client`] Make `workflowId` required ([#387](https://github.com/temporalio/sdk-typescript/pull/387))
+
+  Also remove `WorkflowClientOptions.workflowDefaults`.
+
+  Reasoning:
+
+  - Workflow IDs should represent a meaningful business ID
+  - Workflow IDs can be used as an idempotency key when starting workflows from an external signal
+  - `workflowDefaults` were removed because their presence made `taskQueue` optional in `WorkflowOptions`, omitting it from both the defaults and options resulted in runtime errors where we could have caught those at compile time.
+
+  Migration:
+
+  ```ts
+  // Before
+  const client = new WorkflowClient(conn.service, { workflowDefaults: { taskQueue: 'example' } });
+  const handle = await client.start(myWorkflow, { args: [foo, bar] });
+  // After
+  const client = new WorkflowClient(conn.service);
+  const handle = await client.start(myWorkflow, {
+    args: [foo, bar],
+    taskQueue: 'example',
+    workflowId: 'a-meaningful-business-id',
+  });
+  ```
+
+- [`workflow`] Use vm instead of isolated-vm ([#264](https://github.com/temporalio/sdk-typescript/pull/264))
+
+  - Removes the `node-gyp` dependency and speeds up installation times
+  - Uses Node's built-in `AsyncLocalStorage` implementation instead of our own
+  - :boom: Requires an additional workflow interceptor if using `@temporalio/interceptors-opentelemetry`
+
+  ```ts
+  import { WorkflowInterceptors } from '@temporalio/workflow';
+  import {
+    OpenTelemetryInboundInterceptor,
+    OpenTelemetryOutboundInterceptor,
+    OpenTelemetryInternalsInterceptor,
+  } from '@temporalio/interceptors-opentelemetry/lib/workflow';
+
+  export const interceptors = (): WorkflowInterceptors => ({
+    inbound: [new OpenTelemetryInboundInterceptor()],
+    outbound: [new OpenTelemetryOutboundInterceptor()],
+    // Disposes of the internal AsyncLocalStorage used for
+    // the otel workflow context manager.
+    internals: [new OpenTelemetryInternalsInterceptor()], // <-- new
+  });
+  ```
+
+  - Unexpose the `isolatePoolSize` and `isolateExecutionTimeout` `WorkerOptions`
+
 ## [0.15.0] - 2021-11-11
 
 ### Bug Fixes
