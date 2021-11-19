@@ -1,0 +1,60 @@
+name: Compile binaries
+on:
+  workflow_call:
+    inputs:
+      publishPackages:
+        type: boolean
+        description: 'Publish packages or only compiled Rust Core bridge'
+
+jobs:
+  # Compile native bridge code for Windows, Mac and Linux.
+  # Uploads the packages as a build artifact to be tested later.
+  compile-binaries:
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+          # TODO: this compliation target fails
+          # https://github.com/temporalio/sdk-typescript/runs/4241087289?check_suite_focus=true#step:8:119
+          # - os: ubuntu-latest
+          #   target: aarch64-unknown-linux-gnu
+          - os: macos-latest
+            target: x86_64-apple-darwin
+          - os: macos-latest
+            target: aarch64-apple-darwin
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          submodules: recursive
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+      - uses: actions/setup-node@v1
+        with:
+          node-version: 16
+      - name: Add ${{ matrix.target }} rust target
+        run: rustup target add ${{ matrix.target }}
+      - run: npm ci
+      - run: npm run build
+      - name: Cross compile rust code
+        run: npx lerna run --stream build-rust -- -- --target ${{ matrix.target }}
+      # Restore the CLI JS only on Windows because Windows build changes the
+      # file attributes causing publish to think the change is uncommitted
+      - run: git restore packages/create-project/cli.js
+        if: ${{ matrix.os == 'windows-latest' }}
+      - run: node scripts/publish-to-verdaccio.js --registry-dir /tmp/registry
+        if: ${{ inputs.publishPackages }}
+      - uses: actions/upload-artifact@v2
+        with:
+          name: packages-${{ matrix.target }}
+          path: /tmp/registry/storage
+        if: ${{ inputs.publishPackages }}
+      - uses: actions/upload-artifact@v2
+        with:
+          name: compiled-bridge-${{ matrix.target }}
+          path: ${{ github.workspace }}/packages/core-bridge/releases/${{ matrix.target }}
