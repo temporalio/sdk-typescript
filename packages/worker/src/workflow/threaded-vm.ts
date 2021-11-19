@@ -1,3 +1,13 @@
+/**
+ * Wrapper for starting VM Workflows in Worker threads.
+ *
+ * Worker threads are used here because creating vm contexts is a long running
+ * operation which blocks the Node.js event loop causing the SDK Worker to
+ * become unresponsive.
+ *
+ * @module
+ */
+
 import { coresdk } from '@temporalio/proto';
 import { IllegalStateError, SinkCall } from '@temporalio/workflow';
 import { Worker } from 'worker_threads';
@@ -18,6 +28,9 @@ interface ErrorConstructor {
   new (message: string): Error;
 }
 
+/**
+ * Helper to translate errors returned from worker thread to `Error` classes
+ */
 function errorNameToClass(name: string): ErrorConstructor {
   switch (name) {
     case 'IllegalStateError':
@@ -27,11 +40,16 @@ function errorNameToClass(name: string): ErrorConstructor {
   }
 }
 
+/**
+ * Client for communicating with a workflow worker thread.
+ *
+ * Uses postMessage to send messages and listens on the `message` event to receive messages.
+ */
 export class WorkerThreadClient {
   requestIdx = 0n;
   requestIdToCompletion = new Map<BigInt, Completion<WorkerThreadOutput>>();
 
-  constructor(protected readonly workerThread: Worker) {
+  constructor(protected workerThread: Worker) {
     workerThread.on('message', ({ requestId, result }: WorkerThreadResponse) => {
       const completion = this.requestIdToCompletion.get(requestId);
       if (completion === undefined) {
@@ -50,6 +68,9 @@ export class WorkerThreadClient {
     });
   }
 
+  /**
+   * Send input to Worker thread and await for output
+   */
   async send(input: WorkerThreadInput): Promise<WorkerThreadOutput> {
     const requestId = this.requestIdx++;
     const request: WorkerThreadRequest = { requestId, input };
@@ -60,6 +81,9 @@ export class WorkerThreadClient {
     return promise;
   }
 
+  /**
+   * Request destruction of the worker thread and await for it to terminate correctly
+   */
   async destroy(): Promise<void> {
     await this.send({ type: 'destroy' });
     const exitCode = await this.workerThread.terminate();
@@ -75,9 +99,17 @@ export interface ThreadedVMWorkflowCreatorOptions {
   isolateExecutionTimeoutMs: number;
 }
 
+/**
+ * A WorkflowCreator that creates vm Workflows inside Worker threads
+ */
 export class ThreadedVMWorkflowCreator implements WorkflowCreator {
   protected workflowThreadIdx = 0;
 
+  /**
+   * Create an instance of ThreadedVMWorkflowCreator asynchronouly.
+   *
+   * This method creates and initializes the workflow-worker-thread instances.
+   */
   static async create({
     threadPoolSize,
     code,
@@ -94,6 +126,9 @@ export class ThreadedVMWorkflowCreator implements WorkflowCreator {
 
   constructor(protected readonly workerThreadClients: WorkerThreadClient[]) {}
 
+  /**
+   * Create a workflow with given options
+   */
   async createWorkflow(options: WorkflowCreateOptions): Promise<Workflow> {
     const workflowThreadIdx = this.workflowThreadIdx;
     const workflow = await VMWorkflowThreadProxy.create(this.workerThreadClients[workflowThreadIdx], options);
@@ -101,12 +136,21 @@ export class ThreadedVMWorkflowCreator implements WorkflowCreator {
     return workflow;
   }
 
+  /**
+   * Destroy and terminate all threads created by this instance
+   */
   async destroy(): Promise<void> {
     await Promise.all(this.workerThreadClients.map((client) => client.destroy()));
   }
 }
 
+/**
+ * A proxy class used to communicate with a VMWorkflow instance in a worker thread.
+ */
 export class VMWorkflowThreadProxy implements Workflow {
+  /**
+   * Send a create-workflow command to the thread and await for acknowledgement
+   */
   static async create(
     workerThreadClient: WorkerThreadClient,
     options: WorkflowCreateOptions
@@ -117,6 +161,9 @@ export class VMWorkflowThreadProxy implements Workflow {
 
   constructor(protected readonly workerThreadClient: WorkerThreadClient, public readonly runId: string) {}
 
+  /**
+   * Proxy request to the VMWorkflow instance
+   */
   async getAndResetSinkCalls(): Promise<SinkCall[]> {
     const output = await this.workerThreadClient.send({
       type: 'exteract-sink-calls',
@@ -128,6 +175,9 @@ export class VMWorkflowThreadProxy implements Workflow {
     return output.calls;
   }
 
+  /**
+   * Proxy request to the VMWorkflow instance
+   */
   async activate(activation: coresdk.workflow_activation.IWFActivation): Promise<Uint8Array> {
     const arr = coresdk.workflow_activation.WFActivation.encodeDelimited(activation).finish();
     const output = await this.workerThreadClient.send({
@@ -141,6 +191,9 @@ export class VMWorkflowThreadProxy implements Workflow {
     return output.completion;
   }
 
+  /**
+   * Proxy request to the VMWorkflow instance
+   */
   async dispose(): Promise<void> {
     await this.workerThreadClient.send({ type: 'dispose-workflow', runId: this.runId });
   }

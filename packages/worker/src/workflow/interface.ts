@@ -14,7 +14,7 @@ export interface Workflow {
   activate(activation: coresdk.workflow_activation.IWFActivation): Promise<Uint8Array>;
 
   /**
-   * Gets any external calls recorded during an activation.
+   * Gets any sink calls recorded during an activation.
    *
    * This is separate from `activate` so it can be called even if activation fails
    * in order to extract all logs and metrics from the Workflow context.

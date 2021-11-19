@@ -23,6 +23,9 @@ function ok(requestId: BigInt): WorkerThreadResponse {
 let workflowCreator: VMWorkflowCreator | undefined;
 const workflowByRunId = new Map<string, VMWorkflow>();
 
+/**
+ * Process a `WorkerThreadRequest` and resolve with a `WorkerThreadResponse`.
+ */
 async function handleRequest({ requestId, input }: WorkerThreadRequest): Promise<WorkerThreadResponse> {
   switch (input.type) {
     case 'init':
@@ -74,6 +77,10 @@ async function handleRequest({ requestId, input }: WorkerThreadRequest): Promise
   }
 }
 
+/**
+ * Listen on messages delivered from the parent thread (the SDK Worker),
+ * process any requests and respond back with result or error.
+ */
 parentPort.on('message', async (request: WorkerThreadRequest) => {
   try {
     parentPort.postMessage(await handleRequest(request));

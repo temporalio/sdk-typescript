@@ -9,8 +9,7 @@ import { SinkCall } from '@temporalio/workflow/lib/sinks';
 import { AsyncLocalStorage } from 'async_hooks';
 
 /**
- * Maintains a pool of v8 isolates, returns Context in a round-robin manner.
- * Pre-compiles the bundled Workflow code from provided {@link WorkflowIsolateBuilder}.
+ * A WorkflowCreator that creates VMWorkflows in the current isolate
  */
 export class VMWorkflowCreator implements WorkflowCreator {
   script?: vm.Script;
@@ -19,6 +18,9 @@ export class VMWorkflowCreator implements WorkflowCreator {
     this.script = script;
   }
 
+  /**
+   * Create a workflow with given options
+   */
   async createWorkflow(options: WorkflowCreateOptions): Promise<Workflow> {
     const context = await this.getContext();
     this.injectConsole(context, options.info);
@@ -68,7 +70,9 @@ export class VMWorkflowCreator implements WorkflowCreator {
   }
 
   /**
-   * Create a new instance, isolates and pre-compiled scripts are generated here
+   * Create a new instance, pre-compile scripts from given code.
+   *
+   * This method is generic to support subclassing.
    */
   public static async create<T extends typeof VMWorkflowCreator>(
     this: T,
@@ -79,6 +83,9 @@ export class VMWorkflowCreator implements WorkflowCreator {
     return new this(script, isolateExecutionTimeoutMs) as InstanceType<T>;
   }
 
+  /**
+   * Cleanup the precompiled script
+   */
   public async destroy(): Promise<void> {
     delete this.script;
   }
@@ -86,6 +93,9 @@ export class VMWorkflowCreator implements WorkflowCreator {
 
 type WorkflowModule = typeof internals;
 
+/**
+ * A Workflow implementation using Node.js' built-in `vm` module
+ */
 export class VMWorkflow implements Workflow {
   constructor(
     public readonly info: WorkflowInfo,
@@ -94,6 +104,9 @@ export class VMWorkflow implements Workflow {
     public readonly isolateExecutionTimeoutMs: number
   ) {}
 
+  /**
+   * Send request to the Workflow runtime's worker-interface
+   */
   async getAndResetSinkCalls(): Promise<SinkCall[]> {
     return this.workflowModule.getAndResetSinkCalls();
   }
@@ -111,6 +124,12 @@ export class VMWorkflow implements Workflow {
     this.context[key] = val;
   }
 
+  /**
+   * Send request to the Workflow runtime's worker-interface
+   *
+   * The Workflow is activated in batches to ensure correct order of activation
+   * job application.
+   */
   public async activate(activation: coresdk.workflow_activation.IWFActivation): Promise<Uint8Array> {
     if (this.context === undefined) {
       throw new IllegalStateError('Workflow isolate context uninitialized');
@@ -147,10 +166,17 @@ export class VMWorkflow implements Workflow {
     return this.workflowModule.concludeActivation();
   }
 
+  /**
+   * Call into the Workflow context to attempt to unblock any blocked conditions.
+   *
+   * This is performed in a loop allowing microtasks to be processed between
+   * each iteration until there are no more conditions to unblock.
+   */
   protected async tryUnblockConditions(): Promise<void> {
     for (;;) {
       const numUnblocked = this.workflowModule.tryUnblockConditions();
       if (numUnblocked === 0) break;
+      // Wait for microtasks to be processed
       await new Promise((resolve) => process.nextTick(resolve));
     }
   }
