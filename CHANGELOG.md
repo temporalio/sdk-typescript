@@ -45,6 +45,11 @@ Breaking changes marked with a :boom:
   });
   ```
 
+- Support Windows development ([#385](https://github.com/temporalio/sdk-typescript/pull/385))
+
+  - Support was added for using and developing the SDK on Windows
+  - Thanks @cons0l3 and @cretz for the contribution
+
 - [`workflow`] Use vm instead of isolated-vm ([#264](https://github.com/temporalio/sdk-typescript/pull/264))
 
   - Removes the `node-gyp` dependency and speeds up installation times
