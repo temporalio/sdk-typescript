@@ -4,7 +4,8 @@
     "outDir": "./lib",
     "rootDir": "./src",
     "resolveJsonModule": true,
-    "lib": ["dom"]
+    "lib": ["dom"],
+    "module": "esnext"
   },
   "include": ["./src/**/*.ts"],
   "exclude": ["node_modules"]

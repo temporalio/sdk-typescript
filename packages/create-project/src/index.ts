@@ -6,10 +6,10 @@ import path from 'path';
 import prompts from 'prompts';
 import checkForUpdate from 'update-check';
 
-import { createApp } from './create-project';
-import { validateNpmName } from './helpers/validate-pkg';
-import { fetchSamples } from './helpers/fetch-samples';
-import packageJson from './pkg';
+import { createApp } from './create-project.js';
+import { validateNpmName } from './helpers/validate-pkg.js';
+import { fetchSamples } from './helpers/fetch-samples.js';
+import packageJson from './pkg.js';
 
 const program = new Command(packageJson.name)
   .version(packageJson.version, '-v, --version', 'Print the version and exit')

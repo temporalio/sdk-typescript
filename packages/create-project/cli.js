@@ -1,3 +1,3 @@
 #!/usr/bin/env node
-const { run } = require('./lib/index.js');
+import { run } from './lib/index.js';
 run();
