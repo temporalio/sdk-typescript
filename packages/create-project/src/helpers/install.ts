@@ -1,8 +1,8 @@
 // Modified from: https://github.com/vercel/next.js/blob/2425f4703c4c6164cecfdb6aa8f80046213f0cc6/packages/create-next-app/helpers/install.ts
-import { spawn } from './subprocess';
 import { readFile, writeFile } from 'fs/promises';
 
-import { isUrlOk } from './samples';
+import { spawn } from './subprocess.js';
+import { isUrlOk } from './samples.js';
 
 interface InstallArgs {
   root: string;

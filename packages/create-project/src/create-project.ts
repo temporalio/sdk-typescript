@@ -1,13 +1,10 @@
 // Modified from: https://github.com/vercel/next.js/blob/2425f4703c4c6164cecfdb6aa8f80046213f0cc6/packages/create-next-app/create-app.ts
 import retry from 'async-retry';
 import chalk from 'chalk';
+import chalkTemplate from 'chalk-template';
 import path from 'path';
 import prompts from 'prompts';
 import { access, rm, readFile } from 'fs/promises';
-
-// TODO switch to this when version newer than 2016 is published
-// https://www.npmjs.com/package/chalk-template
-// import chalkTemplate from 'chalk-template';
 
 import {
   downloadAndExtractSample,
@@ -16,16 +13,15 @@ import {
   hasSample,
   checkForPackageJson,
   RepoInfo,
-} from './helpers/samples';
-import { makeDir } from './helpers/make-dir';
-import { tryGitInit } from './helpers/git';
-import { install, updateNodeVersion, replaceTemporalVersion } from './helpers/install';
-import { testIfThisComputerIsOnline } from './helpers/is-online';
-import { isWriteable } from './helpers/is-writeable';
-import { getErrorCode } from './helpers/get-error-code';
-import { stripSnipComments } from './helpers/strip-snip-comments';
-import { spawn } from './helpers/subprocess';
-import { fetchSamples } from './helpers/fetch-samples';
+} from './helpers/samples.js';
+import { makeDir } from './helpers/make-dir.js';
+import { tryGitInit } from './helpers/git.js';
+import { install, updateNodeVersion, replaceTemporalVersion } from './helpers/install.js';
+import { testIfThisComputerIsOnline } from './helpers/is-online.js';
+import { isWriteable } from './helpers/is-writeable.js';
+import { getErrorCode } from './helpers/get-error-code.js';
+import { stripSnipComments } from './helpers/strip-snip-comments.js';
+import { fetchSamples } from './helpers/fetch-samples.js';
 
 export class DownloadError extends Error {}
 
@@ -205,8 +201,15 @@ export async function createApp({
   try {
     await access(messageFile);
     const message = await readFile(messageFile, 'utf8');
-    await spawn('npx', ['chalk', '-t', message], { stdio: 'inherit' });
-    // console.log(chalkTemplate(message));
+
+    // Hack for creating a TemplateStringsArray
+    // Required by chalk-template
+    class MockTemplateString extends Array implements TemplateStringsArray {
+      constructor(public readonly raw: string[]) {
+        super();
+      }
+    }
+    console.log(chalkTemplate(new MockTemplateString([message])));
     await rm(messageFile);
   } catch (error) {
     const code = getErrorCode(error);
