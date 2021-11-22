@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 Breaking changes marked with a :boom:
 
+## [0.16.1] - 2021-11-22 - beta-rc.1
+
+### Features
+
+- [`create-project`] Use chalk-template instead of chalk-cli (#396)
+  - Fixes issues where `npx @temporalio/create` fails to resolve the `chalk` executable
+
 ## [0.16.0] - 2021-11-19 - beta-rc.0
 
 ### Bug Fixes
