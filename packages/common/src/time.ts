@@ -44,6 +44,10 @@ export function msNumberToTs(millis: number): Timestamp {
   return { seconds: Long.fromNumber(seconds), nanos };
 }
 
+export function falsyMsToTs(str: string | number | undefined): Timestamp | undefined {
+  return str ? msToTs(str) : undefined;
+}
+
 export function msToTs(str: string | number): Timestamp {
   if (typeof str === 'number') {
     return msNumberToTs(str);

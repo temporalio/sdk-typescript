@@ -1,6 +1,7 @@
 import { coresdk, google } from '@temporalio/proto/lib/coresdk';
 import { Workflow } from './interfaces';
-import { msToTs } from './time';
+import { falsyMsToTs } from './time';
+import { Replace } from './type-helpers';
 
 export type WorkflowIdReusePolicy = coresdk.common.WorkflowIdReusePolicy;
 export const WorkflowIdReusePolicy = coresdk.common.WorkflowIdReusePolicy;
@@ -89,14 +90,14 @@ export interface WorkflowDurationOptions {
 
 export type CommonWorkflowOptions = BaseWorkflowOptions & WorkflowDurationOptions;
 
-export type WithCompiledWorkflowDurationOptions<T extends WorkflowDurationOptions> = Omit<
+export type WithCompiledWorkflowDurationOptions<T extends WorkflowDurationOptions> = Replace<
   T,
-  'workflowExecutionTimeout' | 'workflowRunTimeout' | 'workflowTaskTimeout'
-> & {
-  workflowExecutionTimeout?: google.protobuf.IDuration;
-  workflowRunTimeout?: google.protobuf.IDuration;
-  workflowTaskTimeout?: google.protobuf.IDuration;
-};
+  {
+    workflowExecutionTimeout?: google.protobuf.IDuration;
+    workflowRunTimeout?: google.protobuf.IDuration;
+    workflowTaskTimeout?: google.protobuf.IDuration;
+  }
+>;
 
 export function compileWorkflowOptions<T extends WorkflowDurationOptions>({
   workflowExecutionTimeout,
@@ -106,8 +107,8 @@ export function compileWorkflowOptions<T extends WorkflowDurationOptions>({
 }: T): WithCompiledWorkflowDurationOptions<T> {
   return {
     ...rest,
-    workflowExecutionTimeout: workflowExecutionTimeout ? msToTs(workflowExecutionTimeout) : undefined,
-    workflowRunTimeout: workflowRunTimeout ? msToTs(workflowRunTimeout) : undefined,
-    workflowTaskTimeout: workflowTaskTimeout ? msToTs(workflowTaskTimeout) : undefined,
+    workflowExecutionTimeout: falsyMsToTs(workflowExecutionTimeout),
+    workflowRunTimeout: falsyMsToTs(workflowRunTimeout),
+    workflowTaskTimeout: falsyMsToTs(workflowTaskTimeout),
   };
 }

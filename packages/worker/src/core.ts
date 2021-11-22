@@ -14,10 +14,9 @@ import { compileServerOptions, getDefaultServerOptions, RequiredServerOptions, S
 import { DefaultLogger, Logger, LogEntry, LogTimestamp, timeOfDayToBigint } from './logger';
 import * as errors from './errors';
 import { filterNullAndUndefined } from './utils';
+import { MakeOptional } from '@temporalio/common/src/type-helpers';
 
-export type TelemetryOptions = Omit<RequiredTelemetryOptions, 'logForwardingLevel'> & {
-  logForwardingLevel?: RequiredTelemetryOptions['logForwardingLevel'];
-};
+export type TelemetryOptions = MakeOptional<RequiredTelemetryOptions, 'logForwardingLevel'>;
 
 export interface CoreOptions {
   /** Options for communicating with the Temporal server */
