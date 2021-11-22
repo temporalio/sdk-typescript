@@ -60,6 +60,7 @@ import {
   isPathBundleOption,
   WorkerOptions,
 } from './worker-options';
+import { VMWorkflowCreator } from './workflow/vm';
 
 native.registerErrors(errors);
 /**
@@ -209,11 +210,15 @@ export class Worker {
         }
       }
       if (bundle) {
-        workflowCreator = await ThreadedVMWorkflowCreator.create({
-          code: bundle,
-          threadPoolSize: compiledOptions.workflowThreadPoolSize,
-          isolateExecutionTimeoutMs: compiledOptions.isolateExecutionTimeoutMs,
-        });
+        if (compiledOptions.debugMode) {
+          workflowCreator = await VMWorkflowCreator.create(bundle, compiledOptions.isolateExecutionTimeoutMs);
+        } else {
+          workflowCreator = await ThreadedVMWorkflowCreator.create({
+            code: bundle,
+            threadPoolSize: compiledOptions.workflowThreadPoolSize,
+            isolateExecutionTimeoutMs: compiledOptions.isolateExecutionTimeoutMs,
+          });
+        }
       }
       return new this(nativeWorker, workflowCreator, compiledOptions);
     } catch (err) {

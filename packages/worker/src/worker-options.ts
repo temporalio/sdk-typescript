@@ -141,6 +141,7 @@ export interface WorkerOptions {
    */
   interceptors?: WorkerInterceptors;
   sinks?: InjectedSinks<any>;
+
   /**
    * Enable opentelemetry tracing of SDK internals like polling, processing and completing tasks.
    *
@@ -150,6 +151,16 @@ export interface WorkerOptions {
    * Configure {@link CoreOptions.telemetryOptions} to enable tracing in Core.
    */
   enableSDKTracing?: boolean;
+
+  /**
+   * If `true` Worker runs Workflows in the same thread allowing debugger to
+   * attach to Workflow instances.
+   *
+   * Workflow execution time will not be limited by the Worker in `debugMode`.
+   *
+   * @default false
+   */
+  debugMode?: boolean;
   // TODO: implement all of these
   // maxConcurrentLocalActivityExecutions?: number; // defaults to 200
   // maxTaskQueueActivitiesPerSecond?: number;
@@ -175,6 +186,7 @@ export type WorkerOptionsWithDefaults = WorkerOptions &
       | 'stickyQueueScheduleToStartTimeout'
       | 'maxCachedWorkflows'
       | 'enableSDKTracing'
+      | 'debugMode'
     >
   > & {
     /**
@@ -247,7 +259,7 @@ export function resolveNodeModulesPaths(filesystem: typeof fs, workflowsPath: st
 }
 
 export function addDefaultWorkerOptions(options: WorkerOptions): WorkerOptionsWithDefaults {
-  const { maxCachedWorkflows, ...rest } = options;
+  const { maxCachedWorkflows, debugMode, ...rest } = options;
   return {
     nodeModulesPaths:
       options.nodeModulesPaths ??
@@ -261,10 +273,12 @@ export function addDefaultWorkerOptions(options: WorkerOptions): WorkerOptionsWi
     maxConcurrentWorkflowTaskPolls: 5,
     nonStickyToStickyPollRatio: 0.2,
     stickyQueueScheduleToStartTimeout: '10s',
-    isolateExecutionTimeout: '5s',
+    // 4294967295ms is the maximum allowed time
+    isolateExecutionTimeout: debugMode ? '4294967295ms' : '5s',
     workflowThreadPoolSize: 8,
     maxCachedWorkflows: maxCachedWorkflows ?? Math.max(os.totalmem() / GiB - 1, 1) * 200,
     enableSDKTracing: false,
+    debugMode: debugMode ?? false,
     ...rest,
   };
 }
