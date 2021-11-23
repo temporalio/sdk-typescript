@@ -652,8 +652,8 @@ export class WorkflowClient {
   }
 
   /**
-   * Creates a Workflow handle for existing Workflow using `workflowId` and optional `runId`. 
-   * 
+   * Creates a Workflow handle for existing Workflow using `workflowId` and optional `runId`.
+   *
    * This method does not validate `workflowId`. If there is no Workflow Execution with the given `workflowId`, handle
    * methods like `handle.describe()` will throw a `NOT_FOUND` error.
    */
