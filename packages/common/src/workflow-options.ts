@@ -98,12 +98,11 @@ export type WithCompiledWorkflowDurationOptions<T extends WorkflowDurationOption
   workflowTaskTimeout?: google.protobuf.IDuration;
 };
 
-export function compileWorkflowOptions<T extends WorkflowDurationOptions>({
-  workflowExecutionTimeout,
-  workflowRunTimeout,
-  workflowTaskTimeout,
-  ...rest
-}: T): WithCompiledWorkflowDurationOptions<T> {
+export function compileWorkflowOptions<T extends WorkflowDurationOptions>(
+  options: T
+): WithCompiledWorkflowDurationOptions<T> {
+  const { workflowExecutionTimeout, workflowRunTimeout, workflowTaskTimeout, ...rest } = options;
+
   return {
     ...rest,
     workflowExecutionTimeout: workflowExecutionTimeout ? msToTs(workflowExecutionTimeout) : undefined,
