@@ -112,6 +112,23 @@ jobs:
         with:
           name: packages-${{ matrix.target }}
           path: /tmp/registry/storage
+
+  # Run ts-prune to find unused code
+  prune:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          submodules: recursive
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+      - uses: actions/setup-node@v1
+        with:
+          node-version: 16
+      - run: npm ci
+      - run: npm run lint.prune
+
   # Tests that npm init @temporalio results in a working worker and client
   # Note that the instances used here don't have the Rust toolchain installed which ensures use of prebuilt libs.
   test-npm-init:
