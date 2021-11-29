@@ -309,7 +309,7 @@ function signalWorkflowNextHandler({ seq, signalName, args, target }: SignalWork
     state.pushCommand({
       signalExternalWorkflowExecution: {
         seq,
-        args: state.dataConverter.toPayloadsSync(args),
+        args: state.dataConverter.toPayloadsSync(...args),
         signalName,
         ...(target.type === 'external'
           ? {
