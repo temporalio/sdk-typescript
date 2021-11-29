@@ -4,6 +4,46 @@ All notable changes to this project will be documented in this file.
 
 Breaking changes marked with a :boom:
 
+## [0.16.3] - 2021-11-29
+
+### Bug Fixes
+
+- [`workflow`] Fix argument wrapping in array when signaling from Workflow ([#410](https://github.com/temporalio/sdk-typescript/pull/410))
+
+  Before this fix, signal arguments sent from a workflow would be wrapped in an array, e.g:
+
+  ```ts
+  await child.signal(someSignal, 1, '2');
+  ```
+
+  Was received in the child workflow as:
+
+  ```ts
+  wf.setHandler(someSignal, (num: number, str: string) => {
+    console.log(num, str); // [1, '2'] undefined
+  });
+  ```
+
+- [`core`] Upgrade Core to receive fixes to activity heartbeats ([#411](https://github.com/temporalio/sdk-typescript/pull/411))
+
+  - Fix hang in case Activity completes after heartbeat response indicates Activity timed out.
+
+  - Behavior was incorrect and not inline with the other SDKs.
+    Heartbeats are now throttled using a timer and Core does not count on user to keep sending heartbeats in order flush them out.
+
+    Added 2 new `WorkerOption`s to control throttling:
+
+    - `maxHeartbeatThrottleInterval`
+    - `defaultHeartbeatThrottleInterval`
+
+### Miscellaneous Tasks
+
+- [`docs`] Explain that getHandle doesn't validate workflowId ([#400](https://github.com/temporalio/sdk-typescript/pull/400))
+
+- Don't use fs-extra in create-project ([#412](https://github.com/temporalio/sdk-typescript/pull/412))
+
+  Fixes issue where fs-extra is incompatible with ESM as reported on slack.
+
 ## [0.16.2] - 2021-11-23 - beta
 
 ### Features
