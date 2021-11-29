@@ -25,7 +25,6 @@
     "chalk-template": "^0.2.0",
     "commander": "^8.2.0",
     "dedent": "^0.7.0",
-    "fs-extra": "^10.0.0",
     "glob": "^7.2.0",
     "got": "^10.7.0",
     "prompts": "^2.4.1",
