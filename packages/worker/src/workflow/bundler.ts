@@ -203,10 +203,15 @@ export interface BundleOptions {
 }
 
 export async function bundleWorkflowCode(options: BundleOptions): Promise<{ code: string }> {
-  let { logger, workflowsPath, nodeModulesPaths, workflowInterceptorModules } = options;
+  let { logger, nodeModulesPaths } = options;
 
-  nodeModulesPaths ??= resolveNodeModulesPaths(realFS, workflowsPath);
+  nodeModulesPaths ??= resolveNodeModulesPaths(realFS, options.workflowsPath);
   logger ??= new DefaultLogger('INFO');
-  const bundler = new WorkflowCodeBundler(logger, nodeModulesPaths, workflowsPath, workflowInterceptorModules);
+  const bundler = new WorkflowCodeBundler(
+    logger,
+    nodeModulesPaths,
+    options.workflowsPath,
+    options.workflowInterceptorModules
+  );
   return { code: await bundler.createBundle() };
 }
