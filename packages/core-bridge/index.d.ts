@@ -125,6 +125,20 @@ export interface WorkerOptions {
    * Maximum number of Workflow instances to cache before automatic eviction
    */
   maxCachedWorkflows: number;
+  /**
+   * Longest interval for throttling activity heartbeats
+   * @default 60 seconds
+   */
+  maxHeartbeatThrottleIntervalMs: number;
+
+  /**
+   * Default interval for throttling activity heartbeats in case
+   * `ActivityOptions.heartbeat_timeout` is unset.
+   * When the timeout *is* set in the `ActivityOptions`, throttling is set to
+   * `heartbeat_timeout * 0.8`.
+   * @default 30 seconds
+   */
+  defaultHeartbeatThrottleIntervalMs: number;
 }
 
 /** Log level - must match rust log level names */

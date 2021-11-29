@@ -276,6 +276,21 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
         ) as u64);
         let max_cached_workflows =
             js_value_getter!(cx, self, "maxCachedWorkflows", JsNumber) as usize;
+
+        let max_heartbeat_throttle_interval = Duration::from_millis(js_value_getter!(
+            cx,
+            self,
+            "maxHeartbeatThrottleIntervalMs",
+            JsNumber
+        ) as u64);
+
+        let default_heartbeat_throttle_interval = Duration::from_millis(js_value_getter!(
+            cx,
+            self,
+            "defaultHeartbeatThrottleIntervalMs",
+            JsNumber
+        ) as u64);
+
         Ok(WorkerConfig {
             no_remote_activities: false, // TODO: make this configurable once Core implements local activities
             max_concurrent_at_polls,
@@ -286,6 +301,8 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
             nonsticky_to_sticky_poll_ratio,
             sticky_queue_schedule_to_start_timeout,
             task_queue,
+            max_heartbeat_throttle_interval,
+            default_heartbeat_throttle_interval,
         })
     }
 }
