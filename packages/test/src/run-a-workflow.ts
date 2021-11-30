@@ -9,7 +9,7 @@ async function main() {
   const [workflowType, ...argsRaw] = argv._;
   const args = argsRaw.map((v) => JSON.parse(v));
   const workflowId = argv['--workflow-id'] ?? 'test';
-  if (!workflows.hasOwnProperty(workflowType)) {
+  if (!Object.prototype.hasOwnProperty.call(workflows, workflowType)) {
     throw new TypeError(`Invalid workflowType ${workflowType}`);
   }
   console.log('running', { workflowType, args });

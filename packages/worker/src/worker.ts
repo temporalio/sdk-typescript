@@ -626,6 +626,7 @@ export class Worker {
                     }
                   }
 
+                  let isFatalError = false;
                   try {
                     const completion = await state.workflow.activate(activation);
                     this.log.debug('Completed activation', {
@@ -634,12 +635,24 @@ export class Worker {
 
                     span.setAttribute('close', close).end();
                     return { state, output: { close, completion, parentSpan } };
+                  } catch (err) {
+                    if (err instanceof errors.UnexpectedError) {
+                      isFatalError = true;
+                    }
+                    throw err;
                   } finally {
-                    const externalCalls = await state.workflow.getAndResetSinkCalls();
-                    await this.processSinkCalls(externalCalls, state.info);
+                    // Fatal error means we cannot call into this workflow again unfortunately
+                    if (!isFatalError) {
+                      const externalCalls = await state.workflow.getAndResetSinkCalls();
+                      await this.processSinkCalls(externalCalls, state.info);
+                    }
                   }
                 });
               } catch (error) {
+                if (error instanceof errors.UnexpectedError) {
+                  // rethrow and fail the worker
+                  throw error;
+                }
                 this.log.error('Failed to activate workflow', {
                   runId: activation.runId,
                   error,

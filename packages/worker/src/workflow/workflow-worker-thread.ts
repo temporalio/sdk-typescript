@@ -23,6 +23,31 @@ function ok(requestId: BigInt): WorkerThreadResponse {
 let workflowCreator: VMWorkflowCreator | undefined;
 const workflowByRunId = new Map<string, VMWorkflow>();
 
+function isErrorWithStack(err: unknown): err is { stack: string } {
+  return typeof err === 'object' && err !== null && 'stack' in err && typeof (err as any).stack === 'string';
+}
+
+// Best effort to catch unhandled rejections from workflow code.
+// We crash the thread if we cannot find the culprit.
+process.on('unhandledRejection', (err) => {
+  if (isErrorWithStack(err)) {
+    const match = err.stack.match(/\[as temporal-workflow-enter:(\S+)\]/);
+    if (match) {
+      const runId = match[1];
+      const workflow = workflowByRunId.get(runId);
+      if (workflow !== undefined) {
+        console.log('found workflow', runId);
+        workflow.setUnhandledRejection(err);
+        return;
+      }
+    }
+  }
+  // The user's logger is not accessible in this thread,
+  // dump the error information to stderr and abort.
+  console.error('Unhandled rejection', err);
+  process.exit(1);
+});
+
 /**
  * Process a `WorkerThreadRequest` and resolve with a `WorkerThreadResponse`.
  */

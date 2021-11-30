@@ -26,7 +26,7 @@ import * as activities from './activities';
 import * as workflows from './workflows';
 import { u8, RUN_INTEGRATION_TESTS, cleanStackTrace } from './helpers';
 import { withZeroesHTTPServer } from './zeroes-http-server';
-import AsyncRetry from 'async-retry';
+import asyncRetry from 'async-retry';
 
 const { EVENT_TYPE_TIMER_STARTED, EVENT_TYPE_TIMER_FIRED, EVENT_TYPE_TIMER_CANCELED } =
   iface.temporal.api.enums.v1.EventType;
@@ -66,7 +66,7 @@ if (RUN_INTEGRATION_TESTS) {
     };
 
     // The initialization of the custom search attributes is slooooow. Wait for it to finish
-    await AsyncRetry(
+    await asyncRetry(
       async () => {
         try {
           const handle = await t.context.client.start(workflows.sleeper, {
@@ -705,6 +705,32 @@ if (RUN_INTEGRATION_TESTS) {
       workflowId: uuid4(),
     });
     t.pass();
+  });
+
+  test('unhandledRejection causes WFT to fail', async (t) => {
+    const { client } = t.context;
+    const workflowId = uuid4();
+    const handle = await client.start(workflows.throwUnhandledRejection, {
+      taskQueue: 'test',
+      workflowId,
+      // throw an exception that our worker can associate with an running workflow
+      args: [{ crashWorker: false }],
+    });
+    await asyncRetry(
+      async () => {
+        const history = await client.service.getWorkflowExecutionHistory({
+          namespace: 'default',
+          execution: { workflowId },
+        });
+        const wftFailedEvent = history.history?.events?.find((ev) => ev.workflowTaskFailedEventAttributes);
+        if (wftFailedEvent === undefined) {
+          throw new Error('No WFT failed event');
+        }
+        t.is(wftFailedEvent.workflowTaskFailedEventAttributes?.failure?.message, 'Error: unhandled rejection');
+      },
+      { minTimeout: 100, factor: 1.2, maxRetryTime: 10000 }
+    );
+    await handle.terminate();
   });
 
   test.todo('default retryPolicy is filled in ActivityInfo');
