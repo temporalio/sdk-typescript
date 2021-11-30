@@ -13,6 +13,8 @@ export type Workflow = (...args: any[]) => WorkflowReturnType;
 
 /**
  * An interface representing a Workflow signal definition, as returned from {@link defineSignal}
+ *
+ * @remarks `_Args` can be used for parameter type inference in handler functions and *WorkflowHandle methods.
  */
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 export interface SignalDefinition<_Args extends any[] = []> {
@@ -22,6 +24,8 @@ export interface SignalDefinition<_Args extends any[] = []> {
 
 /**
  * An interface representing a Workflow query definition as returned from {@link defineQuery}
+ *
+ * @remarks `_Args` and `_Ret` can be used for parameter type inference in handler functions and *WorkflowHandle methods.
  */
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 export interface QueryDefinition<_Ret, _Args extends any[] = []> {
