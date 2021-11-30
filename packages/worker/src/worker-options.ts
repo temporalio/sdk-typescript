@@ -137,6 +137,24 @@ export interface WorkerOptions {
   maxCachedWorkflows?: number;
 
   /**
+   * Longest interval for throttling activity heartbeats
+   * @format {@link https://www.npmjs.com/package/ms | ms} formatted string
+   * @default 60 seconds
+   */
+  maxHeartbeatThrottleInterval?: number | string;
+
+  /**
+   * Default interval for throttling activity heartbeats in case
+   * `ActivityOptions.heartbeat_timeout` is unset.
+   * When the timeout *is* set in the `ActivityOptions`, throttling is set to
+   * `heartbeat_timeout * 0.8`.
+   *
+   * @format {@link https://www.npmjs.com/package/ms | ms} formatted string
+   * @default 30 seconds
+   */
+  defaultHeartbeatThrottleInterval?: number | string;
+
+  /**
    * A mapping of interceptor type to a list of factories or module paths
    */
   interceptors?: WorkerInterceptors;
@@ -185,6 +203,8 @@ export type WorkerOptionsWithDefaults = WorkerOptions &
       | 'nonStickyToStickyPollRatio'
       | 'stickyQueueScheduleToStartTimeout'
       | 'maxCachedWorkflows'
+      | 'maxHeartbeatThrottleInterval'
+      | 'defaultHeartbeatThrottleInterval'
       | 'enableSDKTracing'
       | 'debugMode'
     >
@@ -222,6 +242,8 @@ export interface CompiledWorkerOptions extends Omit<WorkerOptionsWithDefaults, '
   shutdownGraceTimeMs: number;
   isolateExecutionTimeoutMs: number;
   stickyQueueScheduleToStartTimeoutMs: number;
+  maxHeartbeatThrottleIntervalMs: number;
+  defaultHeartbeatThrottleIntervalMs: number;
 }
 
 function statIfExists(filesystem: typeof fs, path: string): fs.Stats | undefined {
@@ -273,6 +295,8 @@ export function addDefaultWorkerOptions(options: WorkerOptions): WorkerOptionsWi
     maxConcurrentWorkflowTaskPolls: 5,
     nonStickyToStickyPollRatio: 0.2,
     stickyQueueScheduleToStartTimeout: '10s',
+    maxHeartbeatThrottleInterval: '60s',
+    defaultHeartbeatThrottleInterval: '30s',
     // 4294967295ms is the maximum allowed time
     isolateExecutionTimeout: debugMode ? '4294967295ms' : '5s',
     workflowThreadPoolSize: 8,
@@ -289,5 +313,7 @@ export function compileWorkerOptions(opts: WorkerOptionsWithDefaults): CompiledW
     shutdownGraceTimeMs: msToNumber(opts.shutdownGraceTime),
     stickyQueueScheduleToStartTimeoutMs: msToNumber(opts.stickyQueueScheduleToStartTimeout),
     isolateExecutionTimeoutMs: msToNumber(opts.isolateExecutionTimeout),
+    maxHeartbeatThrottleIntervalMs: msToNumber(opts.maxHeartbeatThrottleInterval),
+    defaultHeartbeatThrottleIntervalMs: msToNumber(opts.defaultHeartbeatThrottleInterval),
   };
 }

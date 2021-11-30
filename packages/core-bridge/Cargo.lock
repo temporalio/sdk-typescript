@@ -1550,6 +1550,7 @@ dependencies = [
  "thiserror",
  "tokio",
  "tokio-stream",
+ "tokio-util",
  "tonic 0.6.1",
  "tonic-build 0.6.0",
  "tower",
