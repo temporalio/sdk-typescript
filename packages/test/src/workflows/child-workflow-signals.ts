@@ -12,7 +12,7 @@ import {
   uuid4,
 } from '@temporalio/workflow';
 import { signalTarget } from './signal-target';
-import { unblockSignal, failWithMessageSignal } from './definitions';
+import { argsTestSignal, unblockSignal, failWithMessageSignal } from './definitions';
 
 /**
  * If this workflow completes successfully, it should make the test pass
@@ -22,6 +22,8 @@ export async function childWorkflowSignals(): Promise<void> {
   {
     // Happy path
     const child = await startChild(signalTarget, {});
+    // Args are transferred correctly
+    await child.signal(argsTestSignal, 123, 'kid');
     await child.signal(unblockSignal);
     await child.result();
   }
@@ -52,6 +54,8 @@ export async function childWorkflowSignals(): Promise<void> {
     // Happy path
     const child = await startChild(signalTarget, {});
     const external = getExternalWorkflowHandle(child.workflowId, child.originalRunId);
+    // Args are transferred correctly
+    await external.signal(argsTestSignal, 123, 'kid');
     await external.signal(unblockSignal);
     await child.result();
   }
