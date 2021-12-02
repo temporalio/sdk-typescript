@@ -24,40 +24,20 @@ The documentation is divided into several sections:
 
 You can improve it by sending pull requests to this repository (for the API reference) or to the [documentation repository](https://github.com/temporalio/documentation).
 
-## This SDK is in alpha
+## This SDK is in beta
 
 ### Features
 
 Mostly complete implementation of all components that make up a Temporal SDK - Worker, Client, Workflows, and Activities
 
-- General
-  - Cancellation
-  - Interceptors
-  - Telemetry
-- Workflows
-  - Scheduling timers
-  - Scheduling (non-local) Activities
-  - Child and external Workflows
-  - Cancelling timers and Activities
-  - Signals
-  - Queries
-  - Versioning
-- Activities (complete)
-- Client (complete)
-  - Workflow client
-  - Service client (for administration)
-- Worker (mostly complete)
-  - Basic logging and tracing capabilities
-  - Sticky Workflow execution
-
 Notably these features are missing:
 
 - Local activities
 - Side effects
-- Search attributes
+- Upsert search attributes
+- Test framework
+- Custom data converters
 
-> NOTE: The API is considered unstable and may change at any time.
-> While in alpha we are gathering feedback from developers about the usability and ergonomics of the API.
 > To provide feedback please [open an issue](https://github.com/temporalio/sdk-typescript/issues) and feel free to
 > talk to us on the [#typescript-sdk community slack channel](https://temporal.io/slack) or post on our [discourse support forum](https://community.temporal.io/).
 
