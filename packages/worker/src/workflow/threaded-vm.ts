@@ -189,7 +189,7 @@ export class VMWorkflowThreadProxy implements Workflow {
    */
   async getAndResetSinkCalls(): Promise<SinkCall[]> {
     const output = await this.workerThreadClient.send({
-      type: 'exteract-sink-calls',
+      type: 'extract-sink-calls',
       runId: this.runId,
     });
     if (output?.type !== 'sink-calls') {
