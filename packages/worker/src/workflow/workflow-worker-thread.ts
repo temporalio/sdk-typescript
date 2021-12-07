@@ -23,23 +23,18 @@ function ok(requestId: BigInt): WorkerThreadResponse {
 let workflowCreator: VMWorkflowCreator | undefined;
 const workflowByRunId = new Map<string, VMWorkflow>();
 
-function isErrorWithStack(err: unknown): err is { stack: string } {
-  return typeof err === 'object' && err !== null && 'stack' in err && typeof (err as any).stack === 'string';
-}
-
 // Best effort to catch unhandled rejections from workflow code.
 // We crash the thread if we cannot find the culprit.
-process.on('unhandledRejection', (err) => {
-  if (isErrorWithStack(err)) {
-    const match = err.stack.match(/\[as temporal-workflow-enter:(\S+)\]/);
-    if (match) {
-      const runId = match[1];
-      const workflow = workflowByRunId.get(runId);
-      if (workflow !== undefined) {
-        console.log('found workflow', runId);
-        workflow.setUnhandledRejection(err);
-        return;
-      }
+process.on('unhandledRejection', (err, promise) => {
+  // Get the runId associated with the vm context.
+  // See for reference https://github.com/patriksimek/vm2/issues/32
+  const ctor = promise.constructor.constructor;
+  const runId = ctor('return __TEMPORAL__.runId')();
+  if (runId !== undefined) {
+    const workflow = workflowByRunId.get(runId);
+    if (workflow !== undefined) {
+      workflow.setUnhandledRejection(err);
+      return;
     }
   }
   // The user's logger is not accessible in this thread,

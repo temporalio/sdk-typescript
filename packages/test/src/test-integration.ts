@@ -728,7 +728,7 @@ if (RUN_INTEGRATION_TESTS) {
         }
         t.is(wftFailedEvent.workflowTaskFailedEventAttributes?.failure?.message, 'Error: unhandled rejection');
       },
-      { minTimeout: 100, factor: 1.2, maxRetryTime: 10000 }
+      { minTimeout: 300, factor: 1, maxRetryTime: 10000 }
     );
     await handle.terminate();
   });

@@ -719,7 +719,9 @@ test('asyncFailSignalWorkflow', async (t) => {
           dedent`
           Error: Signal failed
               at eval
-              at processTicksAndRejections`,
+              at runNextTicks
+              at listOnTimeout
+              at processTimers`,
           'Error'
         ),
       ])

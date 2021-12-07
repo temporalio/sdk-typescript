@@ -111,6 +111,10 @@ export function overrideGlobals(): void {
  * Sets required internal state and instantiates the workflow and interceptors.
  */
 export async function initRuntime({ info, randomnessSeed, now, patches }: WorkflowCreateOptions): Promise<void> {
+  // Set the runId globally on the context so it can be retrieved in the case
+  // of an unhandled promise rejection.
+  (globalThis as any).__TEMPORAL__.runId = info.runId;
+
   // Globals are overridden while building the isolate before loading user code.
   // For some reason the `WeakRef` mock is not restored properly when creating an isolate from snapshot in node 14 (at least on ubuntu), override again.
   (globalThis as any).WeakRef = function () {
