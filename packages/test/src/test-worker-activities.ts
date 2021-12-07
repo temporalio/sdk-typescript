@@ -75,7 +75,7 @@ test('Worker runs an activity and reports failure', async (t) => {
       activityId: 'abc',
       start: {
         activityType: 'throwAnError',
-        input: await defaultDataConverter.toPayloads(message),
+        input: await defaultDataConverter.toPayloads(false, message),
       },
     });
     compareCompletion(t, completion.result, {

@@ -9,6 +9,14 @@ const { throwAnError } = proxyActivities<typeof activities>({
   retry: { initialInterval: '1s', maximumAttempts: 1 },
 });
 
-export async function activityFailure(): Promise<void> {
-  await throwAnError('Fail me');
+export interface ActivityFailureWorkflowOptions {
+  useApplicationFailure: boolean;
+}
+
+export async function activityFailure({ useApplicationFailure }: ActivityFailureWorkflowOptions): Promise<void> {
+  if (useApplicationFailure) {
+    await throwAnError(true, 'Fail me');
+  } else {
+    await throwAnError(false, 'Fail me');
+  }
 }
