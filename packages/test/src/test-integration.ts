@@ -148,12 +148,13 @@ if (RUN_INTEGRATION_TESTS) {
     t.pass();
   });
 
-  test('activity-failure', async (t) => {
+  test('activity-failure with Error', async (t) => {
     const { client } = t.context;
     const err: WorkflowFailedError = await t.throwsAsync(
       client.execute(workflows.activityFailure, {
         taskQueue: 'test',
         workflowId: uuid4(),
+        args: [{ useApplicationFailure: false }],
       }),
       {
         instanceOf: WorkflowFailedError,
@@ -173,6 +174,40 @@ if (RUN_INTEGRATION_TESTS) {
       cleanStackTrace(err.cause.cause.stack),
       dedent`
       Error: Fail me
+          at Activity.throwAnError [as fn]
+      `
+    );
+  });
+
+  test('activity-failure with ApplicationFailure', async (t) => {
+    const { client } = t.context;
+    const err: WorkflowFailedError = await t.throwsAsync(
+      client.execute(workflows.activityFailure, {
+        taskQueue: 'test',
+        workflowId: uuid4(),
+        args: [{ useApplicationFailure: true }],
+      }),
+      {
+        instanceOf: WorkflowFailedError,
+      }
+    );
+    t.is(err.message, 'Workflow execution failed');
+    if (!(err.cause instanceof ActivityFailure)) {
+      t.fail('Expected err.cause to be an instance of ActivityFailure');
+      return;
+    }
+    if (!(err.cause.cause instanceof ApplicationFailure)) {
+      t.fail('Expected err.cause.cause to be an instance of ApplicationFailure');
+      return;
+    }
+    t.is(err.cause.cause.message, 'Fail me');
+    t.is(err.cause.cause.type, 'Error');
+    t.deepEqual(err.cause.cause.details, ['details', 123, false]);
+    t.is(
+      cleanStackTrace(err.cause.cause.stack),
+      dedent`
+      ApplicationFailure: Fail me
+          at Function.nonRetryable
           at Activity.throwAnError [as fn]
       `
     );
