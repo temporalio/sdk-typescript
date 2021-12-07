@@ -4,7 +4,7 @@ import { Context } from '@temporalio/activity';
 import { Connection, LOCAL_DOCKER_TARGET, WorkflowClient } from '@temporalio/client';
 import { fakeProgress as fakeProgressInner } from './fake-progress';
 import { cancellableFetch as cancellableFetchInner } from './cancellable-fetch';
-import { QueryDefinition } from '@temporalio/common';
+import { ApplicationFailure, QueryDefinition } from '@temporalio/common';
 
 export { throwSpecificError } from './failure-tester';
 
@@ -51,8 +51,12 @@ export async function setup(): Promise<void> {}
  */
 export async function cleanup(_url: string): Promise<void> {}
 
-export async function throwAnError(message: string): Promise<void> {
-  throw new Error(message);
+export async function throwAnError(useApplicationFailure: boolean, message: string): Promise<void> {
+  if (useApplicationFailure) {
+    throw ApplicationFailure.nonRetryable(message, 'Error', 'details', 123, false);
+  } else {
+    throw new Error(message);
+  }
 }
 
 export async function waitForCancellation(): Promise<void> {
