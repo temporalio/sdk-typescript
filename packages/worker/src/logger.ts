@@ -31,7 +31,9 @@ const severities: LogLevel[] = ['TRACE', 'DEBUG', 'INFO', 'WARN', 'ERROR'];
 /**
  * Log messages using `console.error` and basic formatting
  */
-function defaultLogFunction({ level, timestampNanos, message, meta }: LogEntry): void {
+function defaultLogFunction(entry: LogEntry): void {
+  const { level, timestampNanos, message, meta } = entry;
+
   const date = new Date(Number(timestampNanos / 1_000_000n));
   if (meta === undefined) {
     console.error(date, `[${level}]`, message);
@@ -43,7 +45,8 @@ function defaultLogFunction({ level, timestampNanos, message, meta }: LogEntry):
 /**
  * Takes a `[seconds, nanos]` tuple as returned from getTimeOfDay and turns it into bigint.
  */
-export function timeOfDayToBigint([seconds, nanos]: [number, number]): bigint {
+export function timeOfDayToBigint(timeOfDay: [number, number]): bigint {
+  const [seconds, nanos] = timeOfDay;
   return BigInt(seconds) * 1_000_000_000n + BigInt(nanos);
 }
 

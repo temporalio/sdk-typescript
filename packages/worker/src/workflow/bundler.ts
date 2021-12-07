@@ -202,14 +202,16 @@ export interface BundleOptions {
   logger?: Logger;
 }
 
-export async function bundleWorkflowCode({
-  logger,
-  workflowsPath,
-  nodeModulesPaths,
-  workflowInterceptorModules,
-}: BundleOptions): Promise<{ code: string }> {
-  nodeModulesPaths ??= resolveNodeModulesPaths(realFS, workflowsPath);
+export async function bundleWorkflowCode(options: BundleOptions): Promise<{ code: string }> {
+  let { logger, nodeModulesPaths } = options;
+
+  nodeModulesPaths ??= resolveNodeModulesPaths(realFS, options.workflowsPath);
   logger ??= new DefaultLogger('INFO');
-  const bundler = new WorkflowCodeBundler(logger, nodeModulesPaths, workflowsPath, workflowInterceptorModules);
+  const bundler = new WorkflowCodeBundler(
+    logger,
+    nodeModulesPaths,
+    options.workflowsPath,
+    options.workflowInterceptorModules
+  );
   return { code: await bundler.createBundle() };
 }

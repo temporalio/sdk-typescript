@@ -15,4 +15,4 @@ export { Core, CoreOptions } from './core';
 export * from './logger';
 export * from './sinks';
 export * from './interceptors';
-export { bundleWorkflowCode } from './workflow/bundler';
+export { bundleWorkflowCode, BundleOptions } from './workflow/bundler';
