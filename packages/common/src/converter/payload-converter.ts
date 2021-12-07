@@ -155,21 +155,38 @@ export class BinaryPayloadConverter extends AsyncFacadePayloadConverter {
  */
 export class ProtobufPayloadConverter extends AsyncFacadePayloadConverter {
   public encodingType = encodingTypes.METADATA_ENCODING_PROTOBUF;
+  private protobufClasses?: Record<string, ProtobufSerializable>;
 
-  constructor(private readonly protobufClasses?: Record<string, ProtobufSerializable>) {
+  // eslint-disable-next-line @typescript-eslint/ban-types
+  constructor(protobufClasses?: Record<string, Function>) {
     super();
-    if (protobufClasses && typeof protobufClasses !== 'object') {
-      throw new TypeError('protobufClasses must be an object');
+
+    if (protobufClasses) {
+      if (typeof protobufClasses !== 'object') {
+        throw new DataConverterError('protobufClasses must be an object');
+      }
+
+      for (const className in protobufClasses) {
+        const messageClass = protobufClasses[className];
+        if (typeof messageClass !== 'function') {
+          throw new DataConverterError('protobufClasses values must be classes');
+        }
+
+        if (
+          typeof (messageClass as unknown as ProtobufSerializable).encode !== 'function' ||
+          typeof (messageClass as unknown as ProtobufSerializable).decode !== 'function'
+        ) {
+          throw new DataConverterError('protobufClasses must have encode and decode static methods');
+        }
+      }
+
+      this.protobufClasses = protobufClasses as unknown as Record<string, ProtobufSerializable>;
     }
   }
 
   public toDataSync(value: unknown): Payload | undefined {
     const isProtobufMessageInstance =
-      this.protobufClasses &&
-      typeof this.protobufClasses === 'object' &&
-      value &&
-      typeof value === 'object' &&
-      this.protobufClasses[value.constructor.name];
+      this.protobufClasses && value && typeof value === 'object' && this.protobufClasses[value.constructor.name];
 
     if (!isProtobufMessageInstance) {
       return undefined;
@@ -180,8 +197,7 @@ export class ProtobufPayloadConverter extends AsyncFacadePayloadConverter {
         [METADATA_ENCODING_KEY]: encodingKeys.METADATA_ENCODING_PROTOBUF,
         [METADATA_MESSAGE_TYPE_KEY]: u8(value.constructor.name),
       },
-      data: this.protobufClasses && this.protobufClasses[value.constructor.name].encode(value).finish(),
-      // data: (value.constructor as unknown as ProtobufSerializable).encode(value).finish(),
+      data: this.protobufClasses?.[value.constructor.name].encode(value).finish(),
     };
   }
 

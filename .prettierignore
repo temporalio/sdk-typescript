@@ -11,6 +11,8 @@ packages/docs/docs/api
 typedoc-sidebar.js
 lerna.json
 README.md
+packages/test/protos/protobufs.d.ts
+packages/test/protos/protobufs.js
 
 # Ignored since it fails Windows CI
 packages/create-project/cli.js
