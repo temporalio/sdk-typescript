@@ -12,7 +12,7 @@ import {
   ApplicationFailure,
   errorMessage,
 } from '@temporalio/common';
-import { coresdk } from '@temporalio/proto/lib/coresdk';
+import type { coresdk } from '@temporalio/proto/lib/coresdk';
 import { WorkflowInfo } from './interfaces';
 import { handleWorkflowFailure, state } from './internals';
 import { storage } from './cancellation-scope';
@@ -170,8 +170,10 @@ export interface ActivationResult {
  * Run a chunk of activation jobs
  * @returns a boolean indicating whether job was processed or ignored
  */
-export async function activate(encodedActivation: Uint8Array, batchIndex: number): Promise<ActivationResult> {
-  const activation = coresdk.workflow_activation.WFActivation.decodeDelimited(encodedActivation);
+export async function activate(
+  activation: coresdk.workflow_activation.WFActivation,
+  batchIndex: number
+): Promise<ActivationResult> {
   const intercept = composeInterceptors(
     state.interceptors.internals,
     'activate',
@@ -191,7 +193,7 @@ export async function activate(encodedActivation: Uint8Array, batchIndex: number
       }
 
       // Cast from the interface to the class which has the `variant` attribute.
-      // This is safe because we just decoded this activation from a buffer.
+      // This is safe because we know that activation is a proto class.
       const jobs = activation.jobs as coresdk.workflow_activation.WFActivationJob[];
 
       await Promise.all(
@@ -232,15 +234,15 @@ export async function activate(encodedActivation: Uint8Array, batchIndex: number
  *
  * Activation failures are handled in the main Node.js isolate.
  */
-export function concludeActivation(): Uint8Array {
+export function concludeActivation(): coresdk.workflow_completion.IWFActivationCompletion {
   const intercept = composeInterceptors(state.interceptors.internals, 'concludeActivation', (input) => input);
   const { info } = state;
   const { commands } = intercept({ commands: state.commands });
   state.commands = [];
-  return coresdk.workflow_completion.WFActivationCompletion.encodeDelimited({
+  return {
     runId: info?.runId,
     successful: { commands },
-  }).finish();
+  };
 }
 
 export function getAndResetSinkCalls(): SinkCall[] {

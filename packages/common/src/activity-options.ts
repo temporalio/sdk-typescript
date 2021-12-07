@@ -1,7 +1,16 @@
-import { coresdk } from '@temporalio/proto/lib/coresdk';
+import type { coresdk } from '@temporalio/proto/lib/coresdk';
 import { RetryOptions } from './interfaces';
+import { checkExtends } from './type-helpers';
 
-export const ActivityCancellationType = coresdk.workflow_commands.ActivityCancellationType;
+// Avoid importing the proto implementation to reduce workflow bundle size
+// Copied from coresdk.workflow_commands.ActivityCancellationType
+export enum ActivityCancellationType {
+  TRY_CANCEL = 0,
+  WAIT_CANCELLATION_COMPLETED = 1,
+  ABANDON = 2,
+}
+
+checkExtends<coresdk.workflow_commands.ActivityCancellationType, ActivityCancellationType>();
 
 /**
  * Options for remote activity invocation - will be processed from a task queue.

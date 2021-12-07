@@ -1,9 +1,19 @@
-import { coresdk, google } from '@temporalio/proto/lib/coresdk';
+import type { coresdk, google } from '@temporalio/proto/lib/coresdk';
 import { Workflow } from './interfaces';
 import { msToTs } from './time';
+import { checkExtends } from './type-helpers';
 
-export type WorkflowIdReusePolicy = coresdk.common.WorkflowIdReusePolicy;
-export const WorkflowIdReusePolicy = coresdk.common.WorkflowIdReusePolicy;
+// Avoid importing the proto implementation to reduce workflow bundle size
+// Copied from coresdk.common.WorkflowIdReusePolicy
+export enum WorkflowIdReusePolicy {
+  WORKFLOW_ID_REUSE_POLICY_UNSPECIFIED = 0,
+  WORKFLOW_ID_REUSE_POLICY_ALLOW_DUPLICATE = 1,
+  WORKFLOW_ID_REUSE_POLICY_ALLOW_DUPLICATE_FAILED_ONLY = 2,
+  WORKFLOW_ID_REUSE_POLICY_REJECT_DUPLICATE = 3,
+}
+
+checkExtends<coresdk.common.WorkflowIdReusePolicy, WorkflowIdReusePolicy>();
+
 export type RetryPolicy = coresdk.common.IRetryPolicy;
 
 export interface BaseWorkflowOptions {

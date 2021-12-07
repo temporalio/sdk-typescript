@@ -1,5 +1,3 @@
-import Long from 'long';
-import * as protobufjs from 'protobufjs/minimal';
 import {
   composeInterceptors,
   errorToFailure,
@@ -14,13 +12,21 @@ import {
   Workflow,
   WorkflowQueryType,
 } from '@temporalio/common';
-import { coresdk } from '@temporalio/proto/lib/coresdk';
+import { checkExtends } from '@temporalio/common/lib/type-helpers';
+import type { coresdk } from '@temporalio/proto/lib/coresdk';
 import { alea, RNG } from './alea';
 import { ContinueAsNew, WorkflowInfo } from './interfaces';
 import { QueryInput, SignalInput, WorkflowExecuteInput, WorkflowInterceptors } from './interceptors';
 import { DeterminismViolationError, WorkflowExecutionAlreadyStartedError, isCancellation } from './errors';
 import { SinkCall } from './sinks';
 import { ROOT_SCOPE } from './cancellation-scope';
+
+enum StartChildWorkflowExecutionFailedCause {
+  START_CHILD_WORKFLOW_EXECUTION_FAILED_CAUSE_UNSPECIFIED = 0,
+  START_CHILD_WORKFLOW_EXECUTION_FAILED_CAUSE_WORKFLOW_ALREADY_EXISTS = 1,
+}
+
+checkExtends<coresdk.child_workflow.StartChildWorkflowExecutionFailedCause, StartChildWorkflowExecutionFailedCause>();
 
 export type ResolveFunction<T = any> = (val: T) => any;
 export type RejectFunction<E = any> = (val: E) => any;
@@ -34,9 +40,6 @@ export interface Condition {
   fn(): boolean;
   resolve(): void;
 }
-
-protobufjs.util.Long = Long;
-protobufjs.configure();
 
 export type ActivationHandlerFunction<K extends keyof coresdk.workflow_activation.IWFActivationJob> = (
   activation: NonNullable<coresdk.workflow_activation.IWFActivationJob[K]>
@@ -127,8 +130,7 @@ export class Activator implements ActivationHandler {
     } else if (activation.failed) {
       if (
         activation.failed.cause !==
-        coresdk.child_workflow.StartChildWorkflowExecutionFailedCause
-          .START_CHILD_WORKFLOW_EXECUTION_FAILED_CAUSE_WORKFLOW_ALREADY_EXISTS
+        StartChildWorkflowExecutionFailedCause.START_CHILD_WORKFLOW_EXECUTION_FAILED_CAUSE_WORKFLOW_ALREADY_EXISTS
       ) {
         throw new IllegalStateError('Got unknown StartChildWorkflowExecutionFailedCause');
       }

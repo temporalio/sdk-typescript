@@ -155,15 +155,18 @@ export class VMWorkflow implements Workflow {
       if (jobs.length === 0) {
         continue;
       }
-      const arr = coresdk.workflow_activation.WFActivation.encodeDelimited({ ...activation, jobs }).finish();
-      const { numBlockedConditions } = await this.workflowModule.activate(arr, batchIndex++);
+      const { numBlockedConditions } = await this.workflowModule.activate(
+        coresdk.workflow_activation.WFActivation.fromObject({ ...activation, jobs }),
+        batchIndex++
+      );
       if (numBlockedConditions > 0) {
         await this.tryUnblockConditions();
       }
       // Wait for microtasks to be processed
       await new Promise((resolve) => process.nextTick(resolve));
     }
-    return this.workflowModule.concludeActivation();
+    const completion = this.workflowModule.concludeActivation();
+    return coresdk.workflow_completion.WFActivationCompletion.encodeDelimited(completion).finish();
   }
 
   /**
