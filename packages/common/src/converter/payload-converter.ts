@@ -155,49 +155,31 @@ export class BinaryPayloadConverter extends AsyncFacadePayloadConverter {
  */
 export class ProtobufPayloadConverter extends AsyncFacadePayloadConverter {
   public encodingType = encodingTypes.METADATA_ENCODING_PROTOBUF;
-  private protobufClasses?: Record<string, ProtobufSerializable>;
 
   // eslint-disable-next-line @typescript-eslint/ban-types
-  constructor(protobufClasses?: Record<string, Function>) {
+  constructor(protected protobufClasses?: Record<string, unknown>) {
     super();
 
-    if (protobufClasses) {
-      if (typeof protobufClasses !== 'object') {
-        throw new DataConverterError('protobufClasses must be an object');
-      }
-
-      for (const className in protobufClasses) {
-        const messageClass = protobufClasses[className];
-        if (typeof messageClass !== 'function') {
-          throw new DataConverterError('protobufClasses values must be classes');
-        }
-
-        if (
-          typeof (messageClass as unknown as ProtobufSerializable).encode !== 'function' ||
-          typeof (messageClass as unknown as ProtobufSerializable).decode !== 'function'
-        ) {
-          throw new DataConverterError('protobufClasses must have encode and decode static methods');
-        }
-      }
-
-      this.protobufClasses = protobufClasses as unknown as Record<string, ProtobufSerializable>;
+    if (protobufClasses && typeof protobufClasses !== 'object') {
+      throw new DataConverterError('protobufClasses must be an object');
     }
   }
 
   public toDataSync(value: unknown): Payload | undefined {
     const isProtobufMessageInstance =
       this.protobufClasses && value && typeof value === 'object' && this.protobufClasses[value.constructor.name];
-
     if (!isProtobufMessageInstance) {
       return undefined;
     }
+
+    const messageClass = this.validateMessageClass(this.protobufClasses![value.constructor.name]);
 
     return {
       metadata: {
         [METADATA_ENCODING_KEY]: encodingKeys.METADATA_ENCODING_PROTOBUF,
         [METADATA_MESSAGE_TYPE_KEY]: u8(value.constructor.name),
       },
-      data: this.protobufClasses?.[value.constructor.name].encode(value).finish(),
+      data: messageClass.encode(value).finish(),
     };
   }
 
@@ -222,6 +204,19 @@ export class ProtobufPayloadConverter extends AsyncFacadePayloadConverter {
       );
     }
 
-    return messageClass.decode<T>(content.data);
+    return this.validateMessageClass(messageClass).decode<T>(content.data);
+  }
+
+  protected validateMessageClass(messageClass: unknown): ProtobufSerializable {
+    if (typeof messageClass !== 'function') {
+      throw new DataConverterError(`protobufClasses values must be classes`);
+    }
+
+    const serializableClass = messageClass as unknown as ProtobufSerializable;
+    if (typeof serializableClass.encode !== 'function' || typeof serializableClass.decode !== 'function') {
+      throw new DataConverterError(`protobufClasses must have encode and decode static methods.`);
+    }
+
+    return serializableClass;
   }
 }

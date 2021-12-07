@@ -184,7 +184,7 @@ export function mapToPayloadsSync<K extends string>(
 }
 
 export interface DefaultDataConverterOptions {
-  protobufClasses?: Record<string, Function>; // eslint-disable-line @typescript-eslint/ban-types
+  protobufClasses?: Record<string, unknown>;
 }
 
 export class DefaultDataConverter extends CompositeDataConverter {
