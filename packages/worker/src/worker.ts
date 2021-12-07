@@ -190,6 +190,12 @@ export class Worker {
     const nativeWorker = await nativeWorkerCtor.create(compiledOptions);
     const dataConverter = await this.getDataConverter(options);
     try {
+      let dataConverter;
+      if (options.dataConverterPath) {
+        const dataConverterModule = await import(options.dataConverterPath);
+        dataConverter = dataConverterModule.dataConverter;
+      }
+
       let bundle: string | undefined = undefined;
       let workflowCreator: WorkflowCreator | undefined = undefined;
       // nodeModulesPaths should not be undefined if workflowsPath is provided
