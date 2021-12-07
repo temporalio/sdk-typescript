@@ -34,10 +34,7 @@ export const encodingKeys = {
 
 export const METADATA_MESSAGE_TYPE_KEY = 'messageType'; // TODO camelcase?
 
-export interface ProtobufEncodable {
+export interface ProtobufSerializable {
   encode(message: any): Writer;
-}
-
-export interface ProtobufDecodable {
   decode<T>(bytes: Uint8Array): T;
 }

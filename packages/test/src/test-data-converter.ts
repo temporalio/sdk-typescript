@@ -1,12 +1,13 @@
 /* eslint @typescript-eslint/no-non-null-assertion: 0 */
 import test from 'ava';
-import { defaultDataConverter, ValueError } from '@temporalio/common';
+import { defaultDataConverter, ValueError, DefaultDataConverter } from '@temporalio/common';
 import { METADATA_ENCODING_KEY, encodingKeys, u8 } from '@temporalio/common/lib/converter/types';
 import {
   UndefinedPayloadConverter,
   BinaryPayloadConverter,
   JsonPayloadConverter,
 } from '@temporalio/common/lib/converter/payload-converter';
+import protobufClasses from '../protos/protobufs';
 
 test('UndefinedPayloadConverter converts from undefined only', async (t) => {
   const converter = new UndefinedPayloadConverter();
@@ -82,5 +83,14 @@ test('defaultDataConverter converts from payload by payload type', async (t) => 
   await t.throwsAsync(
     async () => await defaultDataConverter.fromPayload({ metadata: { [METADATA_ENCODING_KEY]: u8('not-supported') } }),
     { instanceOf: ValueError, message: 'Unknown encoding: not-supported' }
+  );
+});
+
+test.only('DefaultDataConverter converts protobufs', async (t) => {
+  const protoDataConverter = new DefaultDataConverter({ protobufClasses });
+  const instance = protobufClasses.FooSignalArgs.create({ name: 'swyx', age: 100 });
+  t.deepEqual(
+    (await protoDataConverter.toPayload(instance)).data,
+    protobufClasses.FooSignalArgs.encode(instance).finish()
   );
 });

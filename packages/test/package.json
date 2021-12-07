@@ -6,6 +6,7 @@
   "scripts": {
     "build": "tsc --build",
     "build.watch": "tsc --build --watch",
+    "build.proto": "pbjs -t static-module -w commonjs -o protos/protobufs.js protos/test-messages.proto && pbts protos/protobufs.js -o protos/protobufs.d.ts",
     "test": "ava ./lib/test-*.js",
     "test.watch": "ava --watch ./lib/test-*.js"
   },
@@ -37,5 +38,8 @@
   "bugs": {
     "url": "https://github.com/temporalio/sdk-typescript/issues"
   },
-  "homepage": "https://github.com/temporalio/sdk-typescript#readme"
+  "homepage": "https://github.com/temporalio/sdk-typescript#readme",
+  "devDependencies": {
+    "protobufjs": "^6.11.2"
+  }
 }

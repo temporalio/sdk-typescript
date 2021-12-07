@@ -1,5 +1,5 @@
 import { ValueError } from '../errors';
-import { str, METADATA_ENCODING_KEY, Payload } from './types';
+import { str, METADATA_ENCODING_KEY, Payload, ProtobufSerializable } from './types';
 import {
   PayloadConverter,
   UndefinedPayloadConverter,
@@ -184,7 +184,7 @@ export function mapToPayloadsSync<K extends string>(
 }
 
 export interface DefaultDataConverterOptions {
-  protobufClasses?: Record<string, Function>;
+  protobufClasses?: Record<string, ProtobufSerializable>;
 }
 
 export class DefaultDataConverter extends CompositeDataConverter {

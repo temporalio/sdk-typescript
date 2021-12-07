@@ -7,8 +7,7 @@ import {
   encodingKeys,
   METADATA_ENCODING_KEY,
   METADATA_MESSAGE_TYPE_KEY,
-  ProtobufEncodable,
-  ProtobufDecodable,
+  ProtobufSerializable,
 } from './types';
 
 /**
@@ -157,7 +156,7 @@ export class BinaryPayloadConverter extends AsyncFacadePayloadConverter {
 export class ProtobufPayloadConverter extends AsyncFacadePayloadConverter {
   public encodingType = encodingTypes.METADATA_ENCODING_PROTOBUF;
 
-  constructor(private readonly protobufClasses?: Record<string, Function>) {
+  constructor(private readonly protobufClasses?: Record<string, ProtobufSerializable>) {
     super();
     if (protobufClasses && typeof protobufClasses !== 'object') {
       throw new TypeError('protobufClasses must be an object');
@@ -170,7 +169,7 @@ export class ProtobufPayloadConverter extends AsyncFacadePayloadConverter {
       typeof this.protobufClasses === 'object' &&
       value &&
       typeof value === 'object' &&
-      value.constructor.name in this.protobufClasses;
+      this.protobufClasses[value.constructor.name];
 
     if (!isProtobufMessageInstance) {
       return undefined;
@@ -181,7 +180,8 @@ export class ProtobufPayloadConverter extends AsyncFacadePayloadConverter {
         [METADATA_ENCODING_KEY]: encodingKeys.METADATA_ENCODING_PROTOBUF,
         [METADATA_MESSAGE_TYPE_KEY]: u8(value.constructor.name),
       },
-      data: (value.constructor as unknown as ProtobufEncodable).encode(value).finish(),
+      data: this.protobufClasses && this.protobufClasses[value.constructor.name].encode(value).finish(),
+      // data: (value.constructor as unknown as ProtobufSerializable).encode(value).finish(),
     };
   }
 
@@ -206,6 +206,6 @@ export class ProtobufPayloadConverter extends AsyncFacadePayloadConverter {
       );
     }
 
-    return (messageClass as unknown as ProtobufDecodable).decode<T>(content.data);
+    return messageClass.decode<T>(content.data);
   }
 }
