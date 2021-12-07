@@ -1,3 +1,4 @@
+import { Writer } from 'protobufjs';
 import type * as iface from '@temporalio/proto/lib/coresdk';
 import { TextEncoder, TextDecoder } from '../encoding';
 
@@ -30,3 +31,13 @@ export const encodingKeys = {
   METADATA_ENCODING_PROTOBUF_JSON: u8(encodingTypes.METADATA_ENCODING_PROTOBUF_JSON),
   METADATA_ENCODING_PROTOBUF: u8(encodingTypes.METADATA_ENCODING_PROTOBUF),
 } as const;
+
+export const METADATA_MESSAGE_TYPE_KEY = 'messageType'; // TODO camelcase?
+
+export interface ProtobufEncodable {
+  encode(message: any): Writer;
+}
+
+export interface ProtobufDecodable {
+  decode<T>(bytes: Uint8Array): T;
+}

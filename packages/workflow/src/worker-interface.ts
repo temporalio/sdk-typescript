@@ -118,7 +118,7 @@ export async function initRuntime({ info, randomnessSeed, now, patches }: Workfl
   // Globals are overridden while building the isolate before loading user code.
   // For some reason the `WeakRef` mock is not restored properly when creating an isolate from snapshot in node 14 (at least on ubuntu), override again.
   (globalThis as any).WeakRef = function () {
-    throw new DeterminismViolationError('WeakRef cannot be used in workflows because v8 GC is non-deterministic');
+    throw new DeterminismViolationError('WeakRef cannot be used in Workflows because v8 GC is non-deterministic');
   };
   state.info = info;
   state.now = now;

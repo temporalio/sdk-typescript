@@ -5,13 +5,14 @@ import {
   UndefinedPayloadConverter,
   BinaryPayloadConverter,
   JsonPayloadConverter,
+  ProtobufPayloadConverter,
 } from './payload-converter';
 
 /**
  * Used by the framework to serialize/deserialize method parameters that need to be sent over the
  * wire.
  *
- * Implement this in order to customize worker data serialization or use the default data converter which supports `Uint8Array` and JSON serializables.
+ * Implement this in order to customize worker data serialization or use the default data converter which supports `Uint8Array`, Protobuf, and JSON serializables.
  */
 export interface DataConverter {
   toPayload<T>(value: T): Promise<Payload>;
@@ -182,8 +183,21 @@ export function mapToPayloadsSync<K extends string>(
   ) as Record<K, Payload>;
 }
 
-export const defaultDataConverter = new CompositeDataConverter(
-  new UndefinedPayloadConverter(),
-  new BinaryPayloadConverter(),
-  new JsonPayloadConverter()
-);
+export interface DefaultDataConverterOptions {
+  protobufClasses?: Record<string, Function>;
+}
+
+export class DefaultDataConverter extends CompositeDataConverter {
+  constructor({ protobufClasses }: DefaultDataConverterOptions = {}) {
+    // Match the order used in other SDKs
+    // Java: https://github.com/temporalio/sdk-java/blob/0da3149c8eb16454c30fb7bda32d28f2539f3f3c/temporal-sdk/src/main/java/io/temporal/common/converter/DefaultDataConverter.java#L44
+    super(
+      new UndefinedPayloadConverter(),
+      new BinaryPayloadConverter(),
+      new ProtobufPayloadConverter(protobufClasses),
+      new JsonPayloadConverter()
+    );
+  }
+}
+
+export const defaultDataConverter = new DefaultDataConverter();

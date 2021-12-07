@@ -10,7 +10,6 @@ import { resolveNodeModulesPaths } from '../worker-options';
 
 /**
  * Builds a V8 Isolate by bundling provided Workflows using webpack.
- * Activities are replaced with stubs.
  *
  * @param nodeModulesPath node_modules path with required Workflow dependencies
  * @param workflowsPath all Workflows found in path will be put in the bundle

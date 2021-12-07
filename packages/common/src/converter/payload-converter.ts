@@ -1,5 +1,15 @@
-import { ValueError } from '../errors';
-import { u8, str, Payload, encodingTypes, encodingKeys, METADATA_ENCODING_KEY } from './types';
+import { ValueError, DataConverterError } from '../errors';
+import {
+  u8,
+  str,
+  Payload,
+  encodingTypes,
+  encodingKeys,
+  METADATA_ENCODING_KEY,
+  METADATA_MESSAGE_TYPE_KEY,
+  ProtobufEncodable,
+  ProtobufDecodable,
+} from './types';
 
 /**
  * Used by the framework to serialize/deserialize method parameters that need to be sent over the
@@ -15,7 +25,7 @@ export interface PayloadConverter {
    * Implements conversion of value to payload
    *
    * @param value JS value to convert.
-   * @return converted value
+   * @return converted value or `undefined` if unable to convert.
    * @throws DataConverterException if conversion of the value passed as parameter failed for any
    *     reason.
    */
@@ -38,7 +48,7 @@ export interface PayloadConverter {
    * Implements conversion of value to payload
    *
    * @param value JS value to convert.
-   * @return converted value
+   * @return converted value or `undefined` if unable to convert.
    * @throws DataConverterException if conversion of the value passed as parameter failed for any
    *     reason.
    */
@@ -138,5 +148,64 @@ export class BinaryPayloadConverter extends AsyncFacadePayloadConverter {
   public fromDataSync<T>(content: Payload): T {
     // TODO: support any DataView or ArrayBuffer?
     return content.data as any;
+  }
+}
+
+/**
+ * Converts between protobufjs Message instances and serialized Protobuf Payload
+ */
+export class ProtobufPayloadConverter extends AsyncFacadePayloadConverter {
+  public encodingType = encodingTypes.METADATA_ENCODING_PROTOBUF;
+
+  constructor(private readonly protobufClasses?: Record<string, Function>) {
+    super();
+    if (protobufClasses && typeof protobufClasses !== 'object') {
+      throw new TypeError('protobufClasses must be an object');
+    }
+  }
+
+  public toDataSync(value: unknown): Payload | undefined {
+    const isProtobufMessageInstance =
+      this.protobufClasses &&
+      typeof this.protobufClasses === 'object' &&
+      value &&
+      typeof value === 'object' &&
+      value.constructor.name in this.protobufClasses;
+
+    if (!isProtobufMessageInstance) {
+      return undefined;
+    }
+
+    return {
+      metadata: {
+        [METADATA_ENCODING_KEY]: encodingKeys.METADATA_ENCODING_PROTOBUF,
+        [METADATA_MESSAGE_TYPE_KEY]: u8(value.constructor.name),
+      },
+      data: (value.constructor as unknown as ProtobufEncodable).encode(value).finish(),
+    };
+  }
+
+  public fromDataSync<T>(content: Payload): T {
+    if (content.data === undefined || content.data === null) {
+      throw new ValueError('Got payload with no data');
+    }
+    if (!content.metadata || !(METADATA_MESSAGE_TYPE_KEY in content.metadata)) {
+      throw new ValueError(`Got protobuf payload without metadata.${METADATA_MESSAGE_TYPE_KEY}`);
+    }
+    if (!this.protobufClasses) {
+      throw new DataConverterError(
+        'Unable to deserialize protobuf message without protobufClasses provided to DefaultDataConverter'
+      );
+    }
+
+    const messageClassName = str(content.metadata[METADATA_MESSAGE_TYPE_KEY]);
+    const messageClass = this.protobufClasses[messageClassName];
+    if (!messageClass) {
+      throw new DataConverterError(
+        `Got a \`${messageClassName}\` protobuf message but cannot find corresponding message class in protobufClasses`
+      );
+    }
+
+    return (messageClass as unknown as ProtobufDecodable).decode<T>(content.data);
   }
 }
