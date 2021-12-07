@@ -162,7 +162,7 @@ function formatTaskToken(taskToken: Uint8Array) {
 }
 
 /**
- * The temporal worker connects to the service and runs workflows and activities.
+ * The temporal Worker connects to Temporal Server and runs Workflows and Activities.
  */
 export class Worker {
   protected readonly activityHeartbeatSubject = new Subject<{
@@ -187,6 +187,12 @@ export class Worker {
     const compiledOptions = compileWorkerOptions(addDefaultWorkerOptions(options));
     const nativeWorker = await nativeWorkerCtor.create(compiledOptions);
     try {
+      let dataConverter;
+      if (options.dataConverterPath) {
+        const dataConverterModule = await import(options.dataConverterPath);
+        dataConverter = dataConverterModule.dataConverter;
+      }
+
       let bundle: string | undefined = undefined;
       let workflowCreator: WorkflowCreator | undefined = undefined;
       // nodeModulesPaths should not be undefined if workflowsPath is provided
@@ -219,7 +225,7 @@ export class Worker {
           });
         }
       }
-      return new this(nativeWorker, workflowCreator, compiledOptions);
+      return new this(nativeWorker, workflowCreator, compiledOptions, dataConverter);
     } catch (err) {
       // Deregister our worker in case Worker creation (Webpack) failed
       await nativeWorker.completeShutdown();
@@ -233,10 +239,11 @@ export class Worker {
   protected constructor(
     protected readonly nativeWorker: NativeWorkerLike,
     /**
-     * Optional WorkflowCreator - if not provided, Worker will not poll on workflows
+     * Optional WorkflowCreator - if not provided, Worker will not poll on Workflows
      */
     protected readonly workflowCreator: WorkflowCreator | undefined,
-    public readonly options: CompiledWorkerOptions
+    public readonly options: CompiledWorkerOptions,
+    protected readonly dataConverter: DataConverter = defaultDataConverter
   ) {
     this.tracer = getTracer(options.enableSDKTracing);
   }
@@ -380,7 +387,7 @@ export class Worker {
                     const info = await extractActivityInfo(
                       task,
                       false,
-                      this.options.dataConverter,
+                      this.dataConverter,
                       this.nativeWorker.namespace
                     );
                     const { activityType } = info;
@@ -404,7 +411,7 @@ export class Worker {
                     }
                     let args: unknown[];
                     try {
-                      args = await arrayFromPayloads(this.options.dataConverter, task.start?.input);
+                      args = await arrayFromPayloads(this.dataConverter, task.start?.input);
                     } catch (err) {
                       output = {
                         type: 'result',
@@ -435,7 +442,7 @@ export class Worker {
                     activity = new Activity(
                       info,
                       fn,
-                      this.options.dataConverter,
+                      this.dataConverter,
                       (details) =>
                         this.activityHeartbeatSubject.next({
                           taskToken,
@@ -661,7 +668,7 @@ export class Worker {
                 const completion = coresdk.workflow_completion.WFActivationCompletion.encodeDelimited({
                   runId: activation.runId,
                   failed: {
-                    failure: await errorToFailure(error, this.options.dataConverter),
+                    failure: await errorToFailure(error, this.dataConverter),
                   },
                 }).finish();
                 // We do not dispose of the Workflow yet, wait to be evicted from Core.
@@ -734,7 +741,7 @@ export class Worker {
         complete: () => this.log.debug('Heartbeats complete'),
       }),
       mergeMap(async ({ taskToken, details }) => {
-        const payload = await this.options.dataConverter.toPayload(details);
+        const payload = await this.dataConverter.toPayload(details);
         const arr = coresdk.ActivityHeartbeat.encodeDelimited({
           taskToken,
           details: [payload],
