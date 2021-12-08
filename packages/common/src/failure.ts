@@ -1,12 +1,36 @@
-import { temporal } from '@temporalio/proto/lib/coresdk';
+import type { temporal } from '@temporalio/proto/lib/coresdk';
 import { DataConverter, arrayFromPayloads } from './converter/data-converter';
+import { checkExtends } from './type-helpers';
 
 export const FAILURE_SOURCE = 'TypeScriptSDK';
 export type ProtoFailure = temporal.api.failure.v1.IFailure;
-export type TimeoutType = temporal.api.enums.v1.TimeoutType;
-export const TimeoutType = temporal.api.enums.v1.TimeoutType;
-export type RetryState = temporal.api.enums.v1.RetryState;
-export const RetryState = temporal.api.enums.v1.RetryState;
+// Avoid importing the proto implementation to reduce workflow bundle size
+// Copied from temporal.api.enums.v1.TimeoutType
+export enum TimeoutType {
+  TIMEOUT_TYPE_UNSPECIFIED = 0,
+  TIMEOUT_TYPE_START_TO_CLOSE = 1,
+  TIMEOUT_TYPE_SCHEDULE_TO_START = 2,
+  TIMEOUT_TYPE_SCHEDULE_TO_CLOSE = 3,
+  TIMEOUT_TYPE_HEARTBEAT = 4,
+}
+
+checkExtends<temporal.api.enums.v1.TimeoutType, TimeoutType>();
+
+// Avoid importing the proto implementation to reduce workflow bundle size
+// Copied from temporal.api.enums.v1.RetryState
+export enum RetryState {
+  RETRY_STATE_UNSPECIFIED = 0,
+  RETRY_STATE_IN_PROGRESS = 1,
+  RETRY_STATE_NON_RETRYABLE_FAILURE = 2,
+  RETRY_STATE_TIMEOUT = 3,
+  RETRY_STATE_MAXIMUM_ATTEMPTS_REACHED = 4,
+  RETRY_STATE_RETRY_POLICY_NOT_SET = 5,
+  RETRY_STATE_INTERNAL_SERVER_ERROR = 6,
+  RETRY_STATE_CANCEL_REQUESTED = 7,
+}
+
+checkExtends<temporal.api.enums.v1.RetryState, RetryState>();
+
 export type WorkflowExecution = temporal.api.common.v1.IWorkflowExecution;
 
 /**
