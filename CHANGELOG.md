@@ -4,6 +4,33 @@ All notable changes to this project will be documented in this file.
 
 Breaking changes marked with a :boom:
 
+## [0.16.4] - 2021-12-08
+
+### Bug Fixes
+
+- Update core to fix workflow semaphore not released on cache miss ([#424](https://github.com/temporalio/sdk-typescript/pull/424))
+
+### Features
+
+- Default `WorkflowHandle` generic T param to `Workflow` ([#419](https://github.com/temporalio/sdk-typescript/pull/419))
+
+### Miscellaneous Tasks
+
+- Add comments for unused query and signal generics ([#402](https://github.com/temporalio/sdk-typescript/pull/402))
+- [`docs`] Expose worker.CoreOptions ([#416](https://github.com/temporalio/sdk-typescript/pull/416))
+- [`docs`] Expose BundleOptions and remove `__namedParameters` ([#404](https://github.com/temporalio/sdk-typescript/pull/404))
+
+- Remove proto usage from workflow runtime ([#423](https://github.com/temporalio/sdk-typescript/pull/423))
+
+  This is now possible because we're using vm instead of isolated-vm.
+
+  - Greatly reduce workflow bundle size - SDK test bundle size went down from 2.77MB to 0.73MB
+  - Step 1 in supporting custom data converter
+
+### Testing
+
+- Ignore github actions jobs that require secrets for external committers ([#414](https://github.com/temporalio/sdk-typescript/pull/414))
+
 ## [0.16.3] - 2021-11-29
 
 ### Bug Fixes
