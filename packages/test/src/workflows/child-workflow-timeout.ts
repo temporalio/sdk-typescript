@@ -9,6 +9,6 @@ import { unblockOrCancel } from './unblock-or-cancel';
 export async function childWorkflowTimeout(): Promise<void> {
   await executeChild(unblockOrCancel, {
     workflowExecutionTimeout: '10ms',
-    retryPolicy: { maximumAttempts: 1 },
+    retry: { maximumAttempts: 1 },
   });
 }

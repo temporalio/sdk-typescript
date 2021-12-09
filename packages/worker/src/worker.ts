@@ -19,7 +19,6 @@ import * as native from '@temporalio/core-bridge';
 import { coresdk } from '@temporalio/proto';
 import { Info as ActivityInfo } from '@temporalio/activity';
 import {
-  ActivityOptions,
   IllegalStateError,
   tsToMs,
   errorToFailure,
@@ -45,8 +44,8 @@ import { Logger } from './logger';
 import * as errors from './errors';
 import { childSpan, instrument, getTracer } from './tracing';
 import { ActivityExecuteInput } from './interceptors';
-export { RetryOptions, IllegalStateError } from '@temporalio/common';
-export { ActivityOptions, DataConverter, defaultDataConverter, errors };
+export { IllegalStateError } from '@temporalio/common';
+export { DataConverter, defaultDataConverter, errors };
 import { Core } from './core';
 import { SpanContext } from '@opentelemetry/api';
 import IWFActivationJob = coresdk.workflow_activation.IWFActivationJob;

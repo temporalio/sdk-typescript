@@ -59,6 +59,11 @@ export function msOptionalToTs(str: string | number | undefined): Timestamp | un
   return msNumberToTs(ms(str));
 }
 
+export function msOptionalToNumber(val: string | number | undefined): number | undefined {
+  if (val === undefined) return undefined;
+  return msToNumber(val);
+}
+
 export function msToNumber(val: string | number): number {
   if (typeof val === 'number') {
     return val;
