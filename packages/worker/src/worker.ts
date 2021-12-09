@@ -613,7 +613,6 @@ export class Worker {
                       const workflow = await instrument(this.tracer, span, 'workflow.create', async () => {
                         return await workflowCreator.createWorkflow({
                           info: workflowInfo,
-                          interceptorModules: this.options.interceptors?.workflowModules ?? [],
                           randomnessSeed: randomnessSeed.toBytes(),
                           now: tsToMs(activation.timestamp),
                           patches,

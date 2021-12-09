@@ -34,6 +34,11 @@ export interface WorkerOptions {
    * Path to look up workflows in, any function exported in this path will be registered as a Workflows in this Worker.
    *
    * If this option is provided to {@link Worker.create}, Webpack compliation will be triggered.
+   *
+   * This option is typically used for local development, for production it's preferred to pre-build the Workflow bundle
+   * and pass that to {@link Worker.create} via the {@link workflowBundle} option.
+   *
+   * See https://docs.temporal.io/docs/typescript/production-deploy#pre-build-code for more information.
    */
   workflowsPath?: string;
 
@@ -42,6 +47,8 @@ export interface WorkerOptions {
    * Use {@link bundleWorkflowCode} to genrate a bundle.
    *
    * This is the recommended way to deploy Workers to production.
+   *
+   * See https://docs.temporal.io/docs/typescript/production-deploy#pre-build-code for more information.
    */
   workflowBundle?: WorkflowBundle;
 

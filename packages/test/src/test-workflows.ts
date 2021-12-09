@@ -84,7 +84,6 @@ async function createWorkflow(
       taskQueue: 'test',
       isReplaying: false,
     },
-    interceptorModules: [],
     randomnessSeed: Long.fromInt(1337).toBytes(),
     now: startTime,
     patches: [],
