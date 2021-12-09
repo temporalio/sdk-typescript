@@ -69,42 +69,27 @@ export class WorkflowCodeBundler {
    * Exports all detected Workflow implementations and some workflow libraries to be used by the Worker.
    */
   protected genEntrypoint(vol: typeof memfs.vol, target: string): void {
-    const interceptorCases = [...new Set(this.workflowInterceptorModules)]
-      .map(
-        (v) => dedent`
-        case ${JSON.stringify(v)}:
-          return import(/* webpackMode: "eager" */ ${JSON.stringify(v)});
-        `
-      )
-      .join('\n');
+    const interceptorImports = [...new Set(this.workflowInterceptorModules)]
+      .map((v) => `import(/* webpackMode: "eager" */ ${JSON.stringify(v)})`)
+      .join(', \n');
 
     const code = dedent`
       import * as api from '@temporalio/workflow/lib/worker-interface.js';
 
       // Bundle all Workflows and interceptor modules for lazy evaluation
       api.overrideGlobals();
-      api.setRequireFunc(
-        (path) => {
-          if (path === undefined) {
-            return import(/* webpackMode: "eager" */ ${JSON.stringify(this.workflowsPath)});
-          }
-          switch (path) {
-            ${interceptorCases}
-            default:
-              throw new ReferenceError('Cannot load module: ' + path);
-          }
+      api.setImportFuncs({ 
+        importWorkflows: () => {
+          return import(/* webpackMode: "eager" */ ${JSON.stringify(this.workflowsPath)});
+        },
+        importInterceptors: () => {
+          return Promise.all([
+            ${interceptorImports}
+          ]);
         }
-      );
+      });
 
-      export const {
-        dispose,
-        initRuntime,
-        activate,
-        concludeActivation,
-        inject,
-        getAndResetSinkCalls,
-        tryUnblockConditions,
-      } = api;
+      export { api };
     `;
     try {
       vol.mkdirSync(path.dirname(target), { recursive: true });

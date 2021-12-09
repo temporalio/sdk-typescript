@@ -16,7 +16,13 @@ import { checkExtends } from '@temporalio/common/lib/type-helpers';
 import type { coresdk } from '@temporalio/proto/lib/coresdk';
 import { alea, RNG } from './alea';
 import { ContinueAsNew, WorkflowInfo } from './interfaces';
-import { QueryInput, SignalInput, WorkflowExecuteInput, WorkflowInterceptors } from './interceptors';
+import {
+  QueryInput,
+  SignalInput,
+  WorkflowExecuteInput,
+  WorkflowInterceptors,
+  WorkflowInterceptorsFactory,
+} from './interceptors';
 import { DeterminismViolationError, WorkflowExecutionAlreadyStartedError, isCancellation } from './errors';
 import { SinkCall } from './sinks';
 import { ROOT_SCOPE } from './cancellation-scope';
@@ -296,6 +302,9 @@ export class Activator implements ActivationHandler {
   }
 }
 
+export type WorkflowsImportFunc = () => Promise<Record<string, any>>;
+export type InterceptorsImportFunc = () => Promise<Array<{ interceptors: WorkflowInterceptorsFactory }>>;
+
 /**
  * Keeps all of the Workflow runtime state like pending completions for activities and timers and the scope stack.
  *
@@ -410,11 +419,18 @@ export class State {
   };
 
   /**
-   * Used to require user code
+   * Used to import the user workflows
    *
-   * Injected on isolate startup
+   * Injected on isolate context startup
    */
-  public require?: (path: string | undefined) => Promise<Record<string, any>>;
+  public importWorkflows?: WorkflowsImportFunc;
+
+  /**
+   * Used to import the user interceptors
+   *
+   * Injected on isolate context startup
+   */
+  public importInterceptors?: InterceptorsImportFunc;
 
   public dataConverter: DataConverter = defaultDataConverter;
 

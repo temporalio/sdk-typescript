@@ -31,7 +31,7 @@ export class VMWorkflowCreator implements WorkflowCreator {
         get(_: any, fn: string) {
           return (...args: any[]) => {
             context.args = args;
-            return vm.runInContext(`lib.${fn}(...globalThis.args)`, context, {
+            return vm.runInContext(`lib.api.${fn}(...globalThis.args)`, context, {
               timeout: isolateExecutionTimeoutMs,
               displayErrors: true,
             });
