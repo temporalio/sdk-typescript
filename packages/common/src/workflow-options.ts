@@ -1,5 +1,6 @@
 import type { coresdk, google } from '@temporalio/proto/lib/coresdk';
 import { Workflow } from './interfaces';
+import { RetryPolicy } from './retry-policy';
 import { msToTs } from './time';
 import { checkExtends } from './type-helpers';
 
@@ -14,8 +15,6 @@ export enum WorkflowIdReusePolicy {
 
 checkExtends<coresdk.common.WorkflowIdReusePolicy, WorkflowIdReusePolicy>();
 
-export type RetryPolicy = coresdk.common.IRetryPolicy;
-
 export interface BaseWorkflowOptions {
   /**
    * Specifies server behavior if a completed workflow with the same id exists. Note that under no
@@ -28,7 +27,13 @@ export interface BaseWorkflowOptions {
    */
   workflowIdReusePolicy?: WorkflowIdReusePolicy;
 
-  retryPolicy?: coresdk.common.IRetryPolicy;
+  /**
+   * Controls how a Workflow is retried.
+   *
+   * Workflows should typically use the system default, do not set this unless
+   * you know what you're doing.
+   */
+  retry?: RetryPolicy;
 
   /**
    * Optional cron schedule for Workflow. If a cron schedule is specified, the Workflow will run

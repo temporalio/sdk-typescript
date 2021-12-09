@@ -20,6 +20,7 @@ import {
   RetryState,
   TimeoutFailure,
   TimeoutType,
+  compileRetryPolicy,
 } from '@temporalio/common';
 import { WorkflowOptions, compileWorkflowOptions, WorkflowSignalWithStartOptions } from './workflow-options';
 import {
@@ -508,7 +509,7 @@ export class WorkflowClient {
       workflowExecutionTimeout: options.workflowExecutionTimeout,
       workflowRunTimeout: options.workflowRunTimeout,
       workflowTaskTimeout: options.workflowTaskTimeout,
-      retryPolicy: options.retryPolicy,
+      retryPolicy: options.retry ? compileRetryPolicy(options.retry) : undefined,
       memo: options.memo ? { fields: await mapToPayloads(dataConverter, options.memo) } : undefined,
       searchAttributes: options.searchAttributes
         ? {
@@ -544,7 +545,7 @@ export class WorkflowClient {
       workflowExecutionTimeout: opts.workflowExecutionTimeout,
       workflowRunTimeout: opts.workflowRunTimeout,
       workflowTaskTimeout: opts.workflowTaskTimeout,
-      retryPolicy: opts.retryPolicy,
+      retryPolicy: opts.retry ? compileRetryPolicy(opts.retry) : undefined,
       memo: opts.memo ? { fields: await mapToPayloads(dataConverter, opts.memo) } : undefined,
       searchAttributes: opts.searchAttributes
         ? {

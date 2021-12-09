@@ -27,4 +27,5 @@ export {
   TerminatedFailure,
   TimeoutFailure,
   ProtoFailure,
+  RetryPolicy,
 } from '@temporalio/common';
