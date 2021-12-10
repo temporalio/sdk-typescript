@@ -39,7 +39,7 @@ process.on('unhandledRejection', (err, promise) => {
   }
   // The user's logger is not accessible in this thread,
   // dump the error information to stderr and abort.
-  console.error('Unhandled rejection', err);
+  console.error('Unhandled rejection', { runId }, err);
   process.exit(1);
 });
 
