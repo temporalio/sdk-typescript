@@ -10,6 +10,7 @@
  */
 
 export * from './workflow-client';
+export * from './async-completion-client';
 export * from './connection';
 export * from './types';
 export * from './errors';
