@@ -7,6 +7,7 @@ import {
   defineSignal,
   defineQuery,
   setHandler,
+  ApplicationFailure,
 } from '@temporalio/workflow';
 import { echo } from './configured-activities';
 
@@ -31,7 +32,7 @@ export async function interceptorExample(): Promise<string> {
     throw new Error('timer did not fail');
   } catch (err) {
     if (!(err instanceof InvalidTimerDurationError)) {
-      throw new Error('timer failed with wrong error type');
+      throw ApplicationFailure.nonRetryable('timer failed with wrong error type');
     }
   }
   await sleep(2);
@@ -82,7 +83,7 @@ export const interceptors = (): WorkflowInterceptors => ({
       async continueAsNew(input, next) {
         // Used to test interception of continue-as-new-to-different-workflow
         if (input.args[0] === 1) {
-          throw new InvalidTimerDurationError('Expected anything other than 1');
+          throw ApplicationFailure.nonRetryable('Expected anything other than 1', 'InvalidTimerDurationError');
         }
         return next(input);
       },
