@@ -14,3 +14,4 @@ export * from './time';
 export * from './tls-config';
 export * from './workflow-handle';
 export * from './workflow-options';
+export * from './utils';

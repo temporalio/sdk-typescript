@@ -2,7 +2,7 @@ import { promisify } from 'util';
 import Heap from 'heap-js';
 import { BehaviorSubject, lastValueFrom, of } from 'rxjs';
 import { concatMap, delay, map, repeat } from 'rxjs/operators';
-import { IllegalStateError, normalizeTlsConfig } from '@temporalio/common';
+import { IllegalStateError, normalizeTlsConfig, filterNullAndUndefined } from '@temporalio/common';
 import * as native from '@temporalio/core-bridge';
 import {
   corePollLogs,
@@ -13,7 +13,6 @@ import {
 import { compileServerOptions, getDefaultServerOptions, RequiredServerOptions, ServerOptions } from './server-options';
 import { DefaultLogger, Logger, LogEntry, LogTimestamp, timeOfDayToBigint } from './logger';
 import * as errors from './errors';
-import { filterNullAndUndefined } from './utils';
 
 export type TelemetryOptions = Omit<RequiredTelemetryOptions, 'logForwardingLevel'> & {
   logForwardingLevel?: RequiredTelemetryOptions['logForwardingLevel'];

@@ -30,7 +30,22 @@ import { AsyncLocalStorage } from 'async_hooks';
 import { AbortSignal } from 'abort-controller';
 import { msToNumber } from '@temporalio/common';
 
-export { CancelledFailure } from '@temporalio/common';
+export { ActivityFunction, ActivityInterface, CancelledFailure } from '@temporalio/common';
+
+/**
+ * Throw this error from an Activity in order to make the Worker
+ * forget about this Activity.
+ *
+ * The Activity can be completed asynchronously using
+ * {@link AsyncCompletionClient}
+ */
+export class CompleteAsyncError extends Error {
+  public readonly name: string = 'CompleteAsyncError';
+
+  constructor() {
+    super();
+  }
+}
 
 /** @ignore */
 export const asyncLocalStorage = new AsyncLocalStorage<Context>();

@@ -14,6 +14,7 @@ import {
   WithWorkflowArgs,
   WorkflowReturnType,
   compileRetryPolicy,
+  ActivityInterface,
 } from '@temporalio/common';
 import {
   ChildWorkflowCancellationType,
@@ -353,7 +354,7 @@ function signalWorkflowNextHandler({ seq, signalName, args, target }: SignalWork
  * }
  * ```
  */
-export function proxyActivities<A extends Record<string, ActivityFunction<any, any>>>(options: ActivityOptions): A {
+export function proxyActivities<A extends ActivityInterface>(options: ActivityOptions): A {
   if (options === undefined) {
     throw new TypeError('options must be defined');
   }
