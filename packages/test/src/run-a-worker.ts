@@ -1,8 +1,12 @@
+import arg from 'arg';
 import { Worker, Core, DefaultLogger } from '@temporalio/worker';
 import * as activities from './activities';
 
 async function main() {
-  if (['1', 'y', 'yes', 't', 'true'].includes((process.env.DEBUG ?? '').toLowerCase())) {
+  const argv = arg({
+    '--debug': Boolean,
+  });
+  if (argv['--debug']) {
     await Core.install({
       logger: new DefaultLogger('DEBUG'),
       telemetryOptions: {
