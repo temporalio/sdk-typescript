@@ -12,7 +12,9 @@ export async function throwUnhandledRejection({ crashWorker }: { crashWorker: bo
 
   const p2 = (async () => {
     if (crashWorker) {
-      throw 'not an error to crash the worker';
+      // Create a Promise associated with the worker thread context
+      const Promise = globalThis.constructor.constructor('return Promise')();
+      Promise.reject(new Error('error to crash the worker'));
     } else {
       throw new Error('unhandled rejection');
     }

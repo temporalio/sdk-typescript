@@ -29,7 +29,7 @@ process.on('unhandledRejection', (err, promise) => {
   // Get the runId associated with the vm context.
   // See for reference https://github.com/patriksimek/vm2/issues/32
   const ctor = promise.constructor.constructor;
-  const runId = ctor('return __TEMPORAL__.runId')();
+  const runId = ctor('return globalThis.__TEMPORAL__?.runId')();
   if (runId !== undefined) {
     const workflow = workflowByRunId.get(runId);
     if (workflow !== undefined) {
