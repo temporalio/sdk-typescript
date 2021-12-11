@@ -16,3 +16,4 @@ export * from './logger';
 export * from './sinks';
 export * from './interceptors';
 export { bundleWorkflowCode, BundleOptions } from './workflow/bundler';
+export * from './errors';

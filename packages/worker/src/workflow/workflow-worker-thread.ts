@@ -23,6 +23,26 @@ function ok(requestId: BigInt): WorkerThreadResponse {
 let workflowCreator: VMWorkflowCreator | undefined;
 const workflowByRunId = new Map<string, VMWorkflow>();
 
+// Best effort to catch unhandled rejections from workflow code.
+// We crash the thread if we cannot find the culprit.
+process.on('unhandledRejection', (err, promise) => {
+  // Get the runId associated with the vm context.
+  // See for reference https://github.com/patriksimek/vm2/issues/32
+  const ctor = promise.constructor.constructor;
+  const runId = ctor('return globalThis.__TEMPORAL__?.runId')();
+  if (runId !== undefined) {
+    const workflow = workflowByRunId.get(runId);
+    if (workflow !== undefined) {
+      workflow.setUnhandledRejection(err);
+      return;
+    }
+  }
+  // The user's logger is not accessible in this thread,
+  // dump the error information to stderr and abort.
+  console.error('Unhandled rejection', { runId }, err);
+  process.exit(1);
+});
+
 /**
  * Process a `WorkerThreadRequest` and resolve with a `WorkerThreadResponse`.
  */

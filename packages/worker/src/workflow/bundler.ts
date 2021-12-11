@@ -124,7 +124,7 @@ export class WorkflowCodeBundler {
       output: {
         path: distDir,
         filename: 'main.js',
-        library: 'lib',
+        library: '__TEMPORAL__',
       },
     });
 
