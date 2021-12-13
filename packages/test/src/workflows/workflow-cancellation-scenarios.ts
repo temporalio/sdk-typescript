@@ -1,4 +1,4 @@
-import { CancellationScope, CancelledFailure, sleep } from '@temporalio/workflow';
+import { ApplicationFailure, CancellationScope, CancelledFailure, sleep } from '@temporalio/workflow';
 
 export type WorkflowCancellationScenarioOutcome = 'complete' | 'cancel' | 'fail';
 export type WorkflowCancellationScenarioTiming = 'immediately' | 'after-cleanup';
@@ -22,7 +22,7 @@ export async function workflowCancellationScenarios(
       case 'complete':
         return;
       case 'fail':
-        throw new Error('Expected failure');
+        throw ApplicationFailure.nonRetryable('Expected failure');
     }
   }
 }

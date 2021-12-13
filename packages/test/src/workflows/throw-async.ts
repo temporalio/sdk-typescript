@@ -1,3 +1,5 @@
+import { ApplicationFailure } from '@temporalio/workflow';
+
 export async function throwAsync(): Promise<void> {
-  throw new Error('failure');
+  throw ApplicationFailure.nonRetryable('failure');
 }

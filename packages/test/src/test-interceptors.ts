@@ -201,7 +201,8 @@ if (RUN_INTEGRATION_TESTS) {
     t.is(
       cleanStackTrace(err.cause.stack),
       dedent`
-      Error: Expected anything other than 1
+      ApplicationFailure: Expected anything other than 1
+          at Function.nonRetryable
           at Object.continueAsNew
           at next
           at eval
