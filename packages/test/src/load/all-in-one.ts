@@ -1,6 +1,6 @@
 import path from 'path';
 import arg from 'arg';
-import { waitOnChild, shell, kill } from './utils';
+import { waitOnChild, shell, kill } from '@temporalio/testing/lib/child-process';
 import { setupArgSpec, starterArgSpec, workerArgSpec } from './args';
 import { spawn } from 'child_process';
 

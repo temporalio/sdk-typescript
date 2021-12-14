@@ -9,10 +9,14 @@ export class ChildProcessError extends Error {
   }
 }
 
-export async function waitOnChild(child: ChildProcess): Promise<void> {
+export interface WaitOptions {
+  validReturnCodes: number[];
+}
+
+export async function waitOnChild(child: ChildProcess, opts?: WaitOptions): Promise<void> {
   return new Promise((resolve, reject) => {
     child.on('exit', (code, signal) => {
-      if (code === 0) {
+      if (code !== null && (opts?.validReturnCodes ?? [0]).includes(code)) {
         resolve();
       } else {
         reject(new ChildProcessError('Process failed', code, signal));
@@ -22,15 +26,18 @@ export async function waitOnChild(child: ChildProcess): Promise<void> {
   });
 }
 
-export async function kill(child: ChildProcess, signal: NodeJS.Signals = 'SIGINT'): Promise<void> {
+export async function kill(child: ChildProcess, signal: NodeJS.Signals = 'SIGINT', opts?: WaitOptions) {
   if (child.pid === undefined) {
     throw new TypeError('Expected child with pid');
   }
   process.kill(child.pid, signal);
   try {
-    await waitOnChild(child);
-  } catch (err: any) {
-    if (!(err.name === 'ChildProcessError' && err.signal === signal)) {
+    await waitOnChild(child, opts);
+  } catch (err) {
+    // Should error if the error is not a child process error or it is a child
+    // process and either the platform is Windows or the signal matches.
+    const shouldError = !(err instanceof ChildProcessError) || (process.platform !== 'win32' && err.signal !== signal);
+    if (shouldError) {
       throw err;
     }
   }
