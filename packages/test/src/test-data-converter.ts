@@ -1,6 +1,6 @@
 /* eslint @typescript-eslint/no-non-null-assertion: 0 */
 import test from 'ava';
-import { defaultDataConverter, ValueError, DefaultDataConverter } from '@temporalio/common';
+import { defaultDataConverter, ValueError, DataConverterError, DefaultDataConverter } from '@temporalio/common';
 import {
   METADATA_ENCODING_KEY,
   METADATA_MESSAGE_TYPE_KEY,
@@ -70,27 +70,56 @@ test('JsonPayloadConverter converts to object', async (t) => {
 });
 
 test('ProtobufPayloadConverter converts from an instance', async (t) => {
-  const instance = protobufClasses.FooSignalArgs.create({ name: 'swyx', age: 1 });
+  const instance = protobufClasses.ProtoActivityInput.create({ name: 'Proto', age: 1 });
   const converter = new ProtobufPayloadConverter(protobufClasses);
   t.deepEqual(await converter.toData(instance), {
     metadata: {
       [METADATA_ENCODING_KEY]: encodingKeys.METADATA_ENCODING_PROTOBUF,
-      [METADATA_MESSAGE_TYPE_KEY]: u8('FooSignalArgs'),
+      [METADATA_MESSAGE_TYPE_KEY]: u8('ProtoActivityInput'),
     },
-    data: protobufClasses.FooSignalArgs.encode(instance).finish(),
+    data: protobufClasses.ProtoActivityInput.encode(instance).finish(),
   });
 });
 
 test('ProtobufPayloadConverter converts to an instance', async (t) => {
-  const instance = protobufClasses.FooSignalArgs.create({ name: 'swyx', age: 1 });
+  const instance = protobufClasses.ProtoActivityInput.create({ name: 'Proto', age: 1 });
   const converter = new ProtobufPayloadConverter(protobufClasses);
   const testInstance = await converter.fromData((await converter.toData(instance))!);
   // tests that both are instances of the same class with the same properties
   t.deepEqual(testInstance, instance);
 });
 
+test('ProtobufPayloadConverter throws detailed errors', async (t) => {
+  const instance = protobufClasses.ProtoActivityInput.create({ name: 'Proto', age: 1 });
+  const converter = new ProtobufPayloadConverter(protobufClasses);
+
+  await t.throwsAsync(
+    async () =>
+      await converter.fromData({
+        metadata: { [METADATA_ENCODING_KEY]: encodingKeys.METADATA_ENCODING_PROTOBUF },
+        data: protobufClasses.ProtoActivityInput.encode(instance).finish(),
+      }),
+    { instanceOf: ValueError, message: 'Got protobuf payload without metadata.messageType' }
+  );
+  await t.throwsAsync(
+    async () =>
+      await converter.fromData({
+        metadata: {
+          [METADATA_ENCODING_KEY]: encodingKeys.METADATA_ENCODING_PROTOBUF,
+          [METADATA_MESSAGE_TYPE_KEY]: u8('NonExistentMessageClass'),
+        },
+        data: protobufClasses.ProtoActivityInput.encode(instance).finish(),
+      }),
+    {
+      instanceOf: DataConverterError,
+      message:
+        'Got a `NonExistentMessageClass` protobuf message but cannot find corresponding message class in protobufClasses',
+    }
+  );
+});
+
 test('DefaultDataConverter converts protobufs', async (t) => {
-  const instance = protobufClasses.FooSignalArgs.create({ name: 'swyx', age: 1 });
+  const instance = protobufClasses.ProtoActivityInput.create({ name: 'Proto', age: 1 });
   const defaultDataConverterWithProtos = new DefaultDataConverter({ protobufClasses });
   t.deepEqual(
     await defaultDataConverterWithProtos.toPayload(instance),
@@ -99,7 +128,7 @@ test('DefaultDataConverter converts protobufs', async (t) => {
 });
 
 test('defaultDataConverter converts to payload by trying each converter in order', async (t) => {
-  const instance = protobufClasses.FooSignalArgs.create({ name: 'swyx', age: 1 });
+  const instance = protobufClasses.ProtoActivityInput.create({ name: 'Proto', age: 1 });
   // defaultDataConverter shouldn't use ProtobufPayloadConverter without protobufClasses,
   // so it should fall through to JsonPayloadConverter
   t.deepEqual(await defaultDataConverter.toPayload(instance), await new JsonPayloadConverter().toData(instance));
@@ -126,5 +155,21 @@ test('defaultDataConverter converts from payload by payload type', async (t) => 
   await t.throwsAsync(
     async () => await defaultDataConverter.fromPayload({ metadata: { [METADATA_ENCODING_KEY]: u8('not-supported') } }),
     { instanceOf: ValueError, message: 'Unknown encoding: not-supported' }
+  );
+  await t.throwsAsync(
+    async () =>
+      await defaultDataConverter.fromPayload({
+        metadata: { [METADATA_ENCODING_KEY]: encodingKeys.METADATA_ENCODING_PROTOBUF },
+      }),
+    { instanceOf: ValueError, message: 'Got payload with no data' }
+  );
+  const instance = protobufClasses.ProtoActivityInput.create({ name: 'Proto', age: 1 });
+  await t.throwsAsync(
+    async () =>
+      await defaultDataConverter.fromPayload((await new ProtobufPayloadConverter(protobufClasses).toData(instance))!),
+    {
+      instanceOf: DataConverterError,
+      message: 'Unable to deserialize protobuf message without protobufClasses provided to DefaultDataConverter',
+    }
   );
 });

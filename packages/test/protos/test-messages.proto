@@ -1,6 +1,10 @@
 syntax = "proto3";
 
-message FooSignalArgs {
+message ProtoActivityInput {
   string name = 1;
   int32 age = 2;
+}
+
+message ProtoActivityResult {
+  string sentence = 1;
 }

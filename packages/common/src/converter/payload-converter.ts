@@ -156,7 +156,6 @@ export class BinaryPayloadConverter extends AsyncFacadePayloadConverter {
 export class ProtobufPayloadConverter extends AsyncFacadePayloadConverter {
   public encodingType = encodingTypes.METADATA_ENCODING_PROTOBUF;
 
-  // eslint-disable-next-line @typescript-eslint/ban-types
   constructor(protected protobufClasses?: Record<string, unknown>) {
     super();
 
@@ -172,6 +171,8 @@ export class ProtobufPayloadConverter extends AsyncFacadePayloadConverter {
       return undefined;
     }
 
+    // Safe to non-null assert due to above check
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     const messageClass = this.validateMessageClass(this.protobufClasses![value.constructor.name]);
 
     return {

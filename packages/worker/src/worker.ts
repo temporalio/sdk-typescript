@@ -25,7 +25,9 @@ import {
   arrayFromPayloads,
   DataConverter,
   defaultDataConverter,
+  isValidDataConverter,
   errorMessage,
+  errorCode,
 } from '@temporalio/common';
 import {
   extractSpanContextFromHeaders,
@@ -186,13 +188,8 @@ export class Worker {
     const nativeWorkerCtor: WorkerConstructor = this.nativeWorkerCtor;
     const compiledOptions = compileWorkerOptions(addDefaultWorkerOptions(options));
     const nativeWorker = await nativeWorkerCtor.create(compiledOptions);
+    const dataConverter = await this.getDataConverter(options);
     try {
-      let dataConverter;
-      if (options.dataConverterPath) {
-        const dataConverterModule = await import(options.dataConverterPath);
-        dataConverter = dataConverterModule.dataConverter;
-      }
-
       let bundle: string | undefined = undefined;
       let workflowCreator: WorkflowCreator | undefined = undefined;
       // nodeModulesPaths should not be undefined if workflowsPath is provided
@@ -231,6 +228,37 @@ export class Worker {
       await nativeWorker.completeShutdown();
       throw err;
     }
+  }
+
+  public static async getDataConverter(options: WorkerOptions): Promise<DataConverter> {
+    if (options.dataConverterPath) {
+      let dataConverter: DataConverter;
+
+      try {
+        const dataConverterModule = await import(options.dataConverterPath);
+        dataConverter = dataConverterModule.dataConverter;
+      } catch (error) {
+        if (errorCode(error) === 'MODULE_NOT_FOUND') {
+          throw new Error(`Could not find a file at the specified dataConverterPath: '${options.dataConverterPath}'.`);
+        }
+        throw error;
+      }
+
+      if (dataConverter === undefined) {
+        throw new Error(
+          `The module at dataConverterPath ('${options.dataConverterPath}') does not have a \`dataConverter\` named export.`
+        );
+      }
+      if (!isValidDataConverter(dataConverter)) {
+        throw new Error(
+          `The \`dataConverter\` named export at dataConverterPath (${options.dataConverterPath}) should be an instance of a class that implements the DataConverter interface.`
+        );
+      }
+
+      return dataConverter;
+    }
+
+    return defaultDataConverter;
   }
 
   /**

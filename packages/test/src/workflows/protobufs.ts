@@ -1,6 +1,5 @@
-import type { FooSignalArgs } from '../../protos/protobufs';
+import type { ProtoActivityInput } from '../../protos/protobufs';
 
-export async function protobufWorkflow(args: FooSignalArgs): Promise<FooSignalArgs> {
-  console.log(typeof args, args);
+export async function protobufWorkflow(args: ProtoActivityInput): Promise<ProtoActivityInput> {
   return args;
 }
