@@ -247,7 +247,8 @@ if (RUN_INTEGRATION_TESTS) {
     t.is(
       cleanStackTrace(err.cause.cause.stack),
       dedent`
-        Error: failure
+        ApplicationFailure: failure
+            at Function.nonRetryable
             at throwAsync
       `
     );
@@ -728,10 +729,8 @@ if (RUN_INTEGRATION_TESTS) {
         }
         t.is(wftFailedEvent.workflowTaskFailedEventAttributes?.failure?.message, 'Error: unhandled rejection');
       },
-      { minTimeout: 300, factor: 1, maxRetryTime: 10000 }
+      { minTimeout: 300, factor: 1, retries: 100 }
     );
     await handle.terminate();
   });
-
-  test.todo('default retryPolicy is filled in ActivityInfo');
 }
