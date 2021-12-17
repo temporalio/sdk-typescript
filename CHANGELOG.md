@@ -4,6 +4,65 @@ All notable changes to this project will be documented in this file.
 
 Breaking changes marked with a :boom:
 
+## [0.17.0] - 2021-12-17
+
+### Bug Fixes
+
+- Use bundled Workflow interceptors ([#427](https://github.com/temporalio/sdk-typescript/pull/427))
+
+  Addresses issue [#390](https://github.com/temporalio/sdk-typescript/issues/390) where workflow interceptor modules might not be present when using pre-bundled workflow code.
+
+### Features
+
+- :boom: Add validation to retry policy and use a TS friendly interface everywhere ([#426](https://github.com/temporalio/sdk-typescript/pull/426))
+
+  - `RetryOptions` was renamed `RetryPolicy`
+  - client `WorkflowOptions` no longer accepts protobuf `retryPolicy` instead it has a TS `RetryPolicy` `retry` attribute
+
+- Implement async Activity completion ([#428](https://github.com/temporalio/sdk-typescript/pull/428))
+
+  - Activity can throw [`CompleteAsyncError`](https://typescript.temporal.io/api/classes/activity.completeasyncerror/) to ask the worker to forget about it
+  - Later on the [`AsyncCompletionClient`](https://typescript.temporal.io/api/classes/client.asynccompletionclient/) can be used to complete that activity
+
+- [`workflow`] Handle unhandled rejections in workflow code ([#415](https://github.com/temporalio/sdk-typescript/pull/415))
+
+  - Associate unhandled rejections from workflow code to a specific runId.
+  - Makes the unhandled rejection behavior consistent between node 14 and 16 and propagates failure back to the user.
+    Previously, in node 16 the process would crash and in node 14 we would incorrectly ignore rejections leading to unexpected workflow behavior.
+
+- :boom: [`workflow`] Make random workflow errors retryable ([#429](https://github.com/temporalio/sdk-typescript/pull/429))
+
+  BREAKING CHANGE: Before this change throwing an error in a Workflow
+  would cause the Workflow execution to fail. After the change only the
+  Workflow task fails on random errors.
+  To fail the Workflow exection throw `ApplicationFailure.nonRetryable`.
+
+  To make other error types non retryable use the
+  `WorkflowInboundCallsInterceptor` `execute` and `handleSignal` methods
+  to catch errors thrown from the Workflow and convert them to non
+  retryable failures, e.g:
+
+  ```ts
+  class WorkflowErrorInterceptor implements WorkflowInboundCallsInterceptor {
+    async execute(
+      input: WorkflowExecuteInput,
+      next: Next<WorkflowInboundCallsInterceptor, 'execute'>
+    ): Promise<unknown> {
+      try {
+        return await next(input);
+      } catch (err) {
+        if (err instanceof MySpecialNonRetryableError) {
+          throw ApplicationFailure.nonRetryable(err.message, 'MySpecialNonRetryableError');
+        }
+        throw err;
+      }
+    }
+  }
+  ```
+
+  NOTE: Propagated Activity and child Workflow failures are considered non
+  retryable and will fail the workflow execution.
+
 ## [0.16.4] - 2021-12-08
 
 ### Bug Fixes
