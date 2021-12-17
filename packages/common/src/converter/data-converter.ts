@@ -67,7 +67,7 @@ export interface DataConverter {
   fromPayloadsSync<T>(index: number, content?: Payload[] | null): T;
 }
 
-export const isValidDataConverter = (dataConverter: unknown): boolean =>
+export const isValidDataConverter = (dataConverter: unknown): dataConverter is DataConverter =>
   typeof dataConverter === 'object' &&
   dataConverter !== null &&
   ['toPayload', 'toPayloads', 'fromPayload', 'fromPayloads'].every((method) => method in dataConverter);
