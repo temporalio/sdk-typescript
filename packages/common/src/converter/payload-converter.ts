@@ -150,74 +150,129 @@ export class BinaryPayloadConverter extends AsyncFacadePayloadConverter {
   }
 }
 
-/**
- * Converts between protobufjs Message instances and serialized Protobuf Payload
- */
-export class ProtobufPayloadConverter extends AsyncFacadePayloadConverter {
-  public encodingType = encodingTypes.METADATA_ENCODING_PROTOBUF;
+abstract class ProtobufPayloadConverter extends AsyncFacadePayloadConverter {
+  protected messageClasses: Record<string, ProtobufSerializable> = {};
 
-  constructor(protected protobufClasses: Record<string, unknown> = {}) {
+  constructor(protobufClasses?: Record<string, unknown>) {
     super();
 
-    if (protobufClasses && typeof protobufClasses !== 'object') {
-      throw new DataConverterError('protobufClasses must be an object');
+    if (protobufClasses) {
+      if (typeof protobufClasses !== 'object') {
+        throw new TypeError('protobufClasses must be an object');
+      }
+
+      let count = 0;
+      for (const [name, klass] of Object.entries(protobufClasses)) {
+        if (this.isProtobufMessageClass(klass)) {
+          this.messageClasses[name] = klass;
+          count++;
+        }
+      }
+
+      if (count === 0) {
+        throw new TypeError(
+          'protobufClasses must be an object with values that are classes that have `encode`, `decode`, and `create` static methods'
+        );
+      }
     }
   }
 
-  public toDataSync(value: unknown): Payload | undefined {
-    const isProtobufMessageInstance =
-      this.protobufClasses && value && typeof value === 'object' && this.protobufClasses[value.constructor.name];
-    if (!isProtobufMessageInstance) {
-      return undefined;
-    }
-
-    // Safe to non-null assert due to above check
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-    const messageClass = this.validateMessageClass(this.protobufClasses![value.constructor.name]);
-
-    return {
-      metadata: {
-        [METADATA_ENCODING_KEY]: encodingKeys.METADATA_ENCODING_PROTOBUF,
-        [METADATA_MESSAGE_TYPE_KEY]: u8(value.constructor.name),
-      },
-      data: messageClass.encode(value).finish(),
-    };
+  protected isProtobufMessageClass(messageClass: unknown): messageClass is ProtobufSerializable {
+    return (
+      typeof messageClass === 'function' &&
+      typeof (messageClass as unknown as ProtobufSerializable).create === 'function' &&
+      typeof (messageClass as unknown as ProtobufSerializable).encode === 'function' &&
+      typeof (messageClass as unknown as ProtobufSerializable).decode === 'function'
+    );
   }
 
-  public fromDataSync<T>(content: Payload): T {
+  protected isProtobufMessageInstance(value: unknown): value is ProtobufSerializable {
+    if (!value || typeof value !== 'object') {
+      return false;
+    }
+
+    const messageClass = this.messageClasses[value.constructor.name];
+    return typeof messageClass === 'function' && value instanceof messageClass;
+  }
+
+  protected validatePayload(content: Payload): { messageClass: ProtobufSerializable; data: Uint8Array } {
     if (content.data === undefined || content.data === null) {
       throw new ValueError('Got payload with no data');
     }
     if (!content.metadata || !(METADATA_MESSAGE_TYPE_KEY in content.metadata)) {
       throw new ValueError(`Got protobuf payload without metadata.${METADATA_MESSAGE_TYPE_KEY}`);
     }
-    if (!this.protobufClasses) {
-      throw new DataConverterError(
-        'Unable to deserialize protobuf message without protobufClasses provided to DefaultDataConverter'
-      );
+    if (Object.keys(this.messageClasses).length === 0) {
+      throw new DataConverterError('Unable to deserialize protobuf message without `protobufClasses` being provided');
     }
 
     const messageClassName = str(content.metadata[METADATA_MESSAGE_TYPE_KEY]);
-    const messageClass = this.protobufClasses[messageClassName];
+    const messageClass = this.messageClasses[messageClassName];
     if (!messageClass) {
       throw new DataConverterError(
         `Got a \`${messageClassName}\` protobuf message but cannot find corresponding message class in protobufClasses`
       );
     }
 
-    return this.validateMessageClass(messageClass).decode<T>(content.data);
+    return { messageClass, data: content.data };
   }
 
-  protected validateMessageClass(messageClass: unknown): ProtobufSerializable {
-    if (typeof messageClass !== 'function') {
-      throw new DataConverterError(`protobufClasses values must be classes`);
+  protected constructPayload(messageType: string, message: Uint8Array): Payload {
+    return {
+      metadata: {
+        [METADATA_ENCODING_KEY]: u8(this.encodingType),
+        [METADATA_MESSAGE_TYPE_KEY]: u8(messageType),
+      },
+      data: message,
+    };
+  }
+}
+
+/**
+ * Converts between protobufjs Message instances and serialized Protobuf Payload
+ */
+export class ProtobufBinaryPayloadConverter extends ProtobufPayloadConverter {
+  public encodingType = encodingTypes.METADATA_ENCODING_PROTOBUF;
+
+  constructor(protobufClasses?: Record<string, unknown>) {
+    super(protobufClasses);
+  }
+
+  public toDataSync(value: unknown): Payload | undefined {
+    if (!this.isProtobufMessageInstance(value)) {
+      return undefined;
     }
 
-    const serializableClass = messageClass as unknown as ProtobufSerializable;
-    if (typeof serializableClass.encode !== 'function' || typeof serializableClass.decode !== 'function') {
-      throw new DataConverterError(`protobufClasses must have encode and decode static methods.`);
+    const messageClass = this.messageClasses[value.constructor.name];
+    return this.constructPayload(value.constructor.name, messageClass.encode(value).finish());
+  }
+
+  public fromDataSync<T>(content: Payload): T {
+    const { messageClass, data } = this.validatePayload(content);
+    return messageClass.decode<T>(data);
+  }
+}
+
+/**
+ * Converts between protobufjs Message instances and serialized JSON Payload
+ */
+export class ProtobufJSONPayloadConverter extends ProtobufPayloadConverter {
+  public encodingType = encodingTypes.METADATA_ENCODING_PROTOBUF_JSON;
+
+  constructor(protobufClasses?: Record<string, unknown>) {
+    super(protobufClasses);
+  }
+
+  public toDataSync(value: unknown): Payload | undefined {
+    if (!this.isProtobufMessageInstance(value)) {
+      return undefined;
     }
 
-    return serializableClass;
+    return this.constructPayload(value.constructor.name, u8(JSON.stringify(value)));
+  }
+
+  public fromDataSync<T>(content: Payload): T {
+    const { messageClass, data } = this.validatePayload(content);
+    return messageClass.create<T>(JSON.parse(str(data)));
   }
 }

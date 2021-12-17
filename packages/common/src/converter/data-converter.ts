@@ -5,7 +5,8 @@ import {
   UndefinedPayloadConverter,
   BinaryPayloadConverter,
   JsonPayloadConverter,
-  ProtobufPayloadConverter,
+  ProtobufJSONPayloadConverter,
+  ProtobufBinaryPayloadConverter,
 } from './payload-converter';
 
 /**
@@ -70,7 +71,9 @@ export interface DataConverter {
 export const isValidDataConverter = (dataConverter: unknown): dataConverter is DataConverter =>
   typeof dataConverter === 'object' &&
   dataConverter !== null &&
-  ['toPayload', 'toPayloads', 'fromPayload', 'fromPayloads'].every((method) => typeof dataConverter[method] === 'function');
+  ['toPayload', 'toPayloads', 'fromPayload', 'fromPayloads'].every(
+    (method) => typeof (dataConverter as Record<string, unknown>)[method] === 'function'
+  );
 
 export class CompositeDataConverter implements DataConverter {
   readonly converters: PayloadConverter[];
@@ -195,11 +198,12 @@ export interface DefaultDataConverterOptions {
 export class DefaultDataConverter extends CompositeDataConverter {
   constructor({ protobufClasses }: DefaultDataConverterOptions = {}) {
     // Match the order used in other SDKs
-    // Java: https://github.com/temporalio/sdk-java/blob/0da3149c8eb16454c30fb7bda32d28f2539f3f3c/temporal-sdk/src/main/java/io/temporal/common/converter/DefaultDataConverter.java#L44
+    // Go SDK: https://github.com/temporalio/sdk-go/blob/5e5645f0c550dcf717c095ae32c76a7087d2e985/converter/default_data_converter.go#L28
     super(
       new UndefinedPayloadConverter(),
       new BinaryPayloadConverter(),
-      new ProtobufPayloadConverter(protobufClasses),
+      new ProtobufJSONPayloadConverter(protobufClasses),
+      new ProtobufBinaryPayloadConverter(protobufClasses),
       new JsonPayloadConverter()
     );
   }

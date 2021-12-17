@@ -32,9 +32,10 @@ export const encodingKeys = {
   METADATA_ENCODING_PROTOBUF: u8(encodingTypes.METADATA_ENCODING_PROTOBUF),
 } as const;
 
-export const METADATA_MESSAGE_TYPE_KEY = 'messageType'; // TODO camelcase?
+export const METADATA_MESSAGE_TYPE_KEY = 'messageType';
 
 export interface ProtobufSerializable {
+  create<T>(object: { [k: string]: any }): T;
   encode(message: any): Writer;
   decode<T>(bytes: Uint8Array): T;
 }
