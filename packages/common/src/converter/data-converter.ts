@@ -70,7 +70,7 @@ export interface DataConverter {
 export const isValidDataConverter = (dataConverter: unknown): dataConverter is DataConverter =>
   typeof dataConverter === 'object' &&
   dataConverter !== null &&
-  ['toPayload', 'toPayloads', 'fromPayload', 'fromPayloads'].every((method) => method in dataConverter);
+  ['toPayload', 'toPayloads', 'fromPayload', 'fromPayloads'].every((method) => typeof dataConverter[method] === 'function');
 
 export class CompositeDataConverter implements DataConverter {
   readonly converters: PayloadConverter[];
