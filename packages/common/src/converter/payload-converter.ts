@@ -156,7 +156,7 @@ export class BinaryPayloadConverter extends AsyncFacadePayloadConverter {
 export class ProtobufPayloadConverter extends AsyncFacadePayloadConverter {
   public encodingType = encodingTypes.METADATA_ENCODING_PROTOBUF;
 
-  constructor(protected protobufClasses?: Record<string, unknown>) {
+  constructor(protected protobufClasses: Record<string, unknown> = {}) {
     super();
 
     if (protobufClasses && typeof protobufClasses !== 'object') {
