@@ -12,6 +12,7 @@ import {
   Workflow,
   WorkflowQueryType,
   ApplicationFailure,
+  TemporalFailure,
 } from '@temporalio/common';
 import { checkExtends } from '@temporalio/common/lib/type-helpers';
 import type { coresdk } from '@temporalio/proto/lib/coresdk';
@@ -496,19 +497,16 @@ export async function handleWorkflowFailure(error: unknown): Promise<void> {
   } else if (error instanceof ContinueAsNew) {
     state.pushCommand({ continueAsNewWorkflowExecution: error.command }, true);
   } else {
-    const failure = ensureTemporalFailure(error);
-    if (failure instanceof ApplicationFailure) {
-      if (!failure.nonRetryable) {
-        // This results in an unhandled rejection which will fail the activation
-        // preventing it from completing.
-        throw error;
-      }
+    if (!(error instanceof TemporalFailure)) {
+      // This results in an unhandled rejection which will fail the activation
+      // preventing it from completing.
+      throw error;
     }
 
     state.pushCommand(
       {
         failWorkflowExecution: {
-          failure: await errorToFailure(failure, state.dataConverter),
+          failure: await errorToFailure(error, state.dataConverter),
         },
       },
       true

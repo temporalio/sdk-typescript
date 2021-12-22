@@ -239,11 +239,12 @@ function makeCompleteWorkflowExecution(result?: coresdk.common.IPayload): coresd
 function makeFailWorkflowExecution(
   message: string,
   stackTrace: string,
-  type = 'Error'
+  type = 'Error',
+  nonRetryable = true
 ): coresdk.workflow_commands.IWorkflowCommand {
   return {
     failWorkflowExecution: {
-      failure: { message, stackTrace, applicationFailureInfo: { type, nonRetryable: true }, source: 'TypeScriptSDK' },
+      failure: { message, stackTrace, applicationFailureInfo: { type, nonRetryable }, source: 'TypeScriptSDK' },
     },
   };
 }
@@ -665,10 +666,11 @@ test('interruptableWorkflow', async (t) => {
           // since the Error stack trace is generated in the constructor.
           dedent`
           ApplicationFailure: just because
-              at Function.nonRetryable
+              at Function.retryable
               at eval
           `,
-          'Error'
+          'Error',
+          false
         ),
       ])
     );
