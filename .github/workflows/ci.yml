@@ -159,20 +159,28 @@ jobs:
 
     runs-on: ${{ matrix.os }}
     needs: compile-binaries
+    env:
+      TEMPORAL_CLIENT_CERT: ${{ secrets.TEMPORAL_CLIENT_CERT }}
+      TEMPORAL_CLIENT_KEY: ${{ secrets.TEMPORAL_CLIENT_KEY }}
     steps:
       # We don't need the core submodule here since bridge since we don't build the project
       - uses: actions/checkout@v2
+        if: ${{ matrix.server != 'cloud' || env.TEMPORAL_CLIENT_CERT != '' }}
       - uses: actions/setup-node@v1
         with:
           node-version: ${{ matrix.node }}
+        if: ${{ matrix.server != 'cloud' || env.TEMPORAL_CLIENT_CERT != '' }}
       # No need to compile anything, we just need the package ./scripts and their dependencies
       - name: Install dependencies without compilation
         run: npm ci --ignore-scripts
+        if: ${{ matrix.server != 'cloud' || env.TEMPORAL_CLIENT_CERT != '' }}
       - uses: actions/download-artifact@v2
         with:
           name: packages-${{ matrix.target }}
           path: /tmp/registry/storage
+        if: ${{ matrix.server != 'cloud' || env.TEMPORAL_CLIENT_CERT != '' }}
       - run: node scripts/init-from-verdaccio.js --registry-dir /tmp/registry --sample https://github.com/temporalio/samples-typescript/tree/next/${{ matrix.sample }}
+        if: ${{ matrix.server != 'cloud' || env.TEMPORAL_CLIENT_CERT != '' }}
       - name: Get Temporal docker-compose.yml
         run: wget https://raw.githubusercontent.com/temporalio/docker-compose/v1.13.0/docker-compose.yml
         if: ${{ matrix.server == 'local' }}
@@ -189,10 +197,7 @@ jobs:
       - name: Create certs dir
         # We write the certs to disk because it serves the sample
         run: node scripts/create-certs-dir.js
-        env:
-          TEMPORAL_CLIENT_CERT: ${{ secrets.TEMPORAL_CLIENT_CERT }}
-          TEMPORAL_CLIENT_KEY: ${{ secrets.TEMPORAL_CLIENT_KEY }}
-        if: ${{ matrix.server == 'cloud' }}
+        if: ${{ matrix.server == 'cloud' && env.TEMPORAL_CLIENT_CERT != '' }}
       - name: Test run a workflow
         run: node scripts/test-example.js --work-dir /tmp/registry/example
         env:
@@ -203,7 +208,8 @@ jobs:
           TEMPORAL_CLIENT_CERT_PATH: /tmp/temporal-certs/client.pem
           TEMPORAL_CLIENT_KEY_PATH: /tmp/temporal-certs/client.key
           TEMPORAL_TASK_QUEUE: ${{ format('{0}-{1}-{2}', matrix.os, matrix.node, matrix.target) }}
+        if: ${{ matrix.server != 'cloud' || env.TEMPORAL_CLIENT_CERT != '' }}
       - run: rm /tmp/temporal-certs/client.pem
-        if: ${{ matrix.server == 'cloud' }}
+        if: ${{ matrix.server == 'cloud' && env.TEMPORAL_CLIENT_CERT != '' }}
       - run: rm /tmp/temporal-certs/client.key
-        if: ${{ matrix.server == 'cloud' }}
+        if: ${{ matrix.server == 'cloud' && env.TEMPORAL_CLIENT_CERT != '' }}

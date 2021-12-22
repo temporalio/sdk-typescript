@@ -19,7 +19,6 @@ import * as native from '@temporalio/core-bridge';
 import { coresdk } from '@temporalio/proto';
 import { Info as ActivityInfo } from '@temporalio/activity';
 import {
-  ActivityOptions,
   IllegalStateError,
   tsToMs,
   errorToFailure,
@@ -45,8 +44,8 @@ import { Logger } from './logger';
 import * as errors from './errors';
 import { childSpan, instrument, getTracer } from './tracing';
 import { ActivityExecuteInput } from './interceptors';
-export { RetryOptions, IllegalStateError } from '@temporalio/common';
-export { ActivityOptions, DataConverter, defaultDataConverter, errors };
+export { IllegalStateError } from '@temporalio/common';
+export { DataConverter, defaultDataConverter, errors };
 import { Core } from './core';
 import { SpanContext } from '@opentelemetry/api';
 import IWFActivationJob = coresdk.workflow_activation.IWFActivationJob;
@@ -614,7 +613,6 @@ export class Worker {
                       const workflow = await instrument(this.tracer, span, 'workflow.create', async () => {
                         return await workflowCreator.createWorkflow({
                           info: workflowInfo,
-                          interceptorModules: this.options.interceptors?.workflowModules ?? [],
                           randomnessSeed: randomnessSeed.toBytes(),
                           now: tsToMs(activation.timestamp),
                           patches,
@@ -628,6 +626,7 @@ export class Worker {
                     }
                   }
 
+                  let isFatalError = false;
                   try {
                     const completion = await state.workflow.activate(activation);
                     this.log.debug('Completed activation', {
@@ -636,12 +635,24 @@ export class Worker {
 
                     span.setAttribute('close', close).end();
                     return { state, output: { close, completion, parentSpan } };
+                  } catch (err) {
+                    if (err instanceof errors.UnexpectedError) {
+                      isFatalError = true;
+                    }
+                    throw err;
                   } finally {
-                    const externalCalls = await state.workflow.getAndResetSinkCalls();
-                    await this.processSinkCalls(externalCalls, state.info);
+                    // Fatal error means we cannot call into this workflow again unfortunately
+                    if (!isFatalError) {
+                      const externalCalls = await state.workflow.getAndResetSinkCalls();
+                      await this.processSinkCalls(externalCalls, state.info);
+                    }
                   }
                 });
               } catch (error) {
+                if (error instanceof errors.UnexpectedError) {
+                  // rethrow and fail the worker
+                  throw error;
+                }
                 this.log.error('Failed to activate workflow', {
                   runId: activation.runId,
                   error,

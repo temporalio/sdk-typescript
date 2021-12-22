@@ -9,8 +9,7 @@ import {
   FAILURE_SOURCE,
 } from '@temporalio/common';
 import { coresdk } from '@temporalio/proto';
-import { asyncLocalStorage } from '@temporalio/activity';
-import { Context, Info } from '@temporalio/activity';
+import { asyncLocalStorage, Context, Info } from '@temporalio/activity';
 import {
   ActivityExecuteInput,
   ActivityInboundCallsInterceptor,
@@ -66,6 +65,9 @@ export class Activity {
         const result = await execute(input);
         return { completed: { result: await this.dataConverter.toPayload(result) } };
       } catch (err) {
+        if (err instanceof Error && err.name === 'CompleteAsyncError') {
+          return { willCompleteAsync: {} };
+        }
         if (this.cancelRequested) {
           // Either a CancelledFailure that we threw or AbortError from AbortController
           if (err instanceof CancelledFailure) {

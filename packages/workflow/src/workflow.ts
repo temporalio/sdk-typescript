@@ -13,6 +13,8 @@ import {
   QueryDefinition,
   WithWorkflowArgs,
   WorkflowReturnType,
+  compileRetryPolicy,
+  ActivityInterface,
 } from '@temporalio/common';
 import {
   ChildWorkflowCancellationType,
@@ -157,15 +159,7 @@ async function scheduleActivityNextHandler({
         activityId: options.activityId ?? `${seq}`,
         activityType,
         arguments: state.dataConverter.toPayloadsSync(...args),
-        retryPolicy: options.retry
-          ? {
-              maximumAttempts: options.retry.maximumAttempts,
-              initialInterval: msOptionalToTs(options.retry.initialInterval),
-              maximumInterval: msOptionalToTs(options.retry.maximumInterval),
-              backoffCoefficient: options.retry.backoffCoefficient,
-              nonRetryableErrorTypes: options.retry.nonRetryableErrorTypes,
-            }
-          : undefined,
+        retryPolicy: options.retry ? compileRetryPolicy(options.retry) : undefined,
         taskQueue: options.taskQueue || state.info?.taskQueue,
         heartbeatTimeout: msOptionalToTs(options.heartbeatTimeout),
         scheduleToCloseTimeout: msOptionalToTs(options.scheduleToCloseTimeout),
@@ -245,15 +239,7 @@ async function startChildWorkflowExecutionNextHandler({
         workflowId,
         workflowType,
         input: state.dataConverter.toPayloadsSync(...options.args),
-        retryPolicy: options.retryPolicy
-          ? {
-              maximumAttempts: options.retryPolicy.maximumAttempts,
-              initialInterval: options.retryPolicy.initialInterval,
-              maximumInterval: options.retryPolicy.maximumInterval,
-              backoffCoefficient: options.retryPolicy.backoffCoefficient,
-              nonRetryableErrorTypes: options.retryPolicy.nonRetryableErrorTypes,
-            }
-          : undefined,
+        retryPolicy: options.retry ? compileRetryPolicy(options.retry) : undefined,
         taskQueue: options.taskQueue || state.info?.taskQueue,
         workflowExecutionTimeout: msOptionalToTs(options.workflowExecutionTimeout),
         workflowRunTimeout: msOptionalToTs(options.workflowRunTimeout),
@@ -309,7 +295,7 @@ function signalWorkflowNextHandler({ seq, signalName, args, target }: SignalWork
     state.pushCommand({
       signalExternalWorkflowExecution: {
         seq,
-        args: state.dataConverter.toPayloadsSync(args),
+        args: state.dataConverter.toPayloadsSync(...args),
         signalName,
         ...(target.type === 'external'
           ? {
@@ -368,7 +354,7 @@ function signalWorkflowNextHandler({ seq, signalName, args, target }: SignalWork
  * }
  * ```
  */
-export function proxyActivities<A extends Record<string, ActivityFunction<any, any>>>(options: ActivityOptions): A {
+export function proxyActivities<A extends ActivityInterface>(options: ActivityOptions): A {
   if (options === undefined) {
     throw new TypeError('options must be defined');
   }

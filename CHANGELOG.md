@@ -4,6 +4,132 @@ All notable changes to this project will be documented in this file.
 
 Breaking changes marked with a :boom:
 
+## [0.17.0] - 2021-12-17
+
+### Bug Fixes
+
+- Use bundled Workflow interceptors ([#427](https://github.com/temporalio/sdk-typescript/pull/427))
+
+  Addresses issue [#390](https://github.com/temporalio/sdk-typescript/issues/390) where workflow interceptor modules might not be present when using pre-bundled workflow code.
+
+### Features
+
+- :boom: Add validation to retry policy and use a TS friendly interface everywhere ([#426](https://github.com/temporalio/sdk-typescript/pull/426))
+
+  - `RetryOptions` was renamed `RetryPolicy`
+  - client `WorkflowOptions` no longer accepts protobuf `retryPolicy` instead it has a TS `RetryPolicy` `retry` attribute
+
+- Implement async Activity completion ([#428](https://github.com/temporalio/sdk-typescript/pull/428))
+
+  - Activity can throw [`CompleteAsyncError`](https://typescript.temporal.io/api/classes/activity.completeasyncerror/) to ask the worker to forget about it
+  - Later on the [`AsyncCompletionClient`](https://typescript.temporal.io/api/classes/client.asynccompletionclient/) can be used to complete that activity
+
+- [`workflow`] Handle unhandled rejections in workflow code ([#415](https://github.com/temporalio/sdk-typescript/pull/415))
+
+  - Associate unhandled rejections from workflow code to a specific runId.
+  - Makes the unhandled rejection behavior consistent between node 14 and 16 and propagates failure back to the user.
+    Previously, in node 16 the process would crash and in node 14 we would incorrectly ignore rejections leading to unexpected workflow behavior.
+
+- :boom: [`workflow`] Make random workflow errors retryable ([#429](https://github.com/temporalio/sdk-typescript/pull/429))
+
+  BREAKING CHANGE: Before this change throwing an error in a Workflow
+  would cause the Workflow execution to fail. After the change only the
+  Workflow task fails on random errors.
+  To fail the Workflow exection throw `ApplicationFailure.nonRetryable`.
+
+  To make other error types non retryable use the
+  `WorkflowInboundCallsInterceptor` `execute` and `handleSignal` methods
+  to catch errors thrown from the Workflow and convert them to non
+  retryable failures, e.g:
+
+  ```ts
+  class WorkflowErrorInterceptor implements WorkflowInboundCallsInterceptor {
+    async execute(
+      input: WorkflowExecuteInput,
+      next: Next<WorkflowInboundCallsInterceptor, 'execute'>
+    ): Promise<unknown> {
+      try {
+        return await next(input);
+      } catch (err) {
+        if (err instanceof MySpecialNonRetryableError) {
+          throw ApplicationFailure.nonRetryable(err.message, 'MySpecialNonRetryableError');
+        }
+        throw err;
+      }
+    }
+  }
+  ```
+
+  NOTE: Propagated Activity and child Workflow failures are considered non
+  retryable and will fail the workflow execution.
+
+## [0.16.4] - 2021-12-08
+
+### Bug Fixes
+
+- Update core to fix workflow semaphore not released on cache miss ([#424](https://github.com/temporalio/sdk-typescript/pull/424))
+
+### Features
+
+- Default `WorkflowHandle` generic T param to `Workflow` ([#419](https://github.com/temporalio/sdk-typescript/pull/419))
+
+### Miscellaneous Tasks
+
+- Add comments for unused query and signal generics ([#402](https://github.com/temporalio/sdk-typescript/pull/402))
+- [`docs`] Expose worker.CoreOptions ([#416](https://github.com/temporalio/sdk-typescript/pull/416))
+- [`docs`] Expose BundleOptions and remove `__namedParameters` ([#404](https://github.com/temporalio/sdk-typescript/pull/404))
+
+- Remove proto usage from workflow runtime ([#423](https://github.com/temporalio/sdk-typescript/pull/423))
+
+  This is now possible because we're using vm instead of isolated-vm.
+
+  - Greatly reduce workflow bundle size - SDK test bundle size went down from 2.77MB to 0.73MB
+  - Step 1 in supporting custom data converter
+
+### Testing
+
+- Ignore github actions jobs that require secrets for external committers ([#414](https://github.com/temporalio/sdk-typescript/pull/414))
+
+## [0.16.3] - 2021-11-29
+
+### Bug Fixes
+
+- [`workflow`] Fix argument wrapping in array when signaling from Workflow ([#410](https://github.com/temporalio/sdk-typescript/pull/410))
+
+  Before this fix, signal arguments sent from a workflow would be wrapped in an array, e.g:
+
+  ```ts
+  await child.signal(someSignal, 1, '2');
+  ```
+
+  Was received in the child workflow as:
+
+  ```ts
+  wf.setHandler(someSignal, (num: number, str: string) => {
+    console.log(num, str); // [1, '2'] undefined
+  });
+  ```
+
+- [`core`] Upgrade Core to receive fixes to activity heartbeats ([#411](https://github.com/temporalio/sdk-typescript/pull/411))
+
+  - Fix hang in case Activity completes after heartbeat response indicates Activity timed out.
+
+  - Behavior was incorrect and not inline with the other SDKs.
+    Heartbeats are now throttled using a timer and Core does not count on user to keep sending heartbeats in order flush them out.
+
+    Added 2 new `WorkerOption`s to control throttling:
+
+    - `maxHeartbeatThrottleInterval`
+    - `defaultHeartbeatThrottleInterval`
+
+### Miscellaneous Tasks
+
+- [`docs`] Explain that getHandle doesn't validate workflowId ([#400](https://github.com/temporalio/sdk-typescript/pull/400))
+
+- Don't use fs-extra in create-project ([#412](https://github.com/temporalio/sdk-typescript/pull/412))
+
+  Fixes issue where fs-extra is incompatible with ESM as reported on slack.
+
 ## [0.16.2] - 2021-11-23 - beta
 
 ### Features

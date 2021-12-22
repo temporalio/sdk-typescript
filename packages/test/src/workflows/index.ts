@@ -72,5 +72,7 @@ export * from './smorgasbord';
 export * from './condition';
 export * from './sleep-invalid-duration';
 export * from './signals-are-always-processed';
+export * from './async-activity-completion-tester';
+export * from './unhandled-rejection';
 export { interceptorExample } from './interceptor-example';
 export { internalsInterceptorExample } from './internals-interceptor-example';

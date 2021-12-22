@@ -57,7 +57,7 @@ export {
   ActivityFunction,
   ActivityInterface,
   ActivityOptions,
-  RetryOptions,
+  RetryPolicy,
   rootCause,
   IllegalStateError,
   defaultDataConverter,

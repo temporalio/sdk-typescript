@@ -1,7 +1,7 @@
 {
   "private": true,
   "name": "@temporalio/test",
-  "version": "0.16.2",
+  "version": "0.17.0",
   "description": "Temporal.io SDK Tests",
   "scripts": {
     "build": "tsc --build",

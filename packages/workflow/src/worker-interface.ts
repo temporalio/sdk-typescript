@@ -12,9 +12,9 @@ import {
   ApplicationFailure,
   errorMessage,
 } from '@temporalio/common';
-import { coresdk } from '@temporalio/proto/lib/coresdk';
+import type { coresdk } from '@temporalio/proto/lib/coresdk';
 import { WorkflowInfo } from './interfaces';
-import { handleWorkflowFailure, state } from './internals';
+import { handleWorkflowFailure, InterceptorsImportFunc, state, WorkflowsImportFunc } from './internals';
 import { storage } from './cancellation-scope';
 import { alea } from './alea';
 import { DeterminismViolationError } from './errors';
@@ -23,14 +23,18 @@ import { WorkflowInterceptorsFactory } from './interceptors';
 
 export interface WorkflowCreateOptions {
   info: WorkflowInfo;
-  interceptorModules: string[];
   randomnessSeed: number[];
   now: number;
   patches: string[];
 }
 
-export function setRequireFunc(fn: Exclude<typeof state['require'], undefined>): void {
-  state.require = fn;
+export interface ImportFunctions {
+  importWorkflows: WorkflowsImportFunc;
+  importInterceptors: InterceptorsImportFunc;
+}
+export function setImportFuncs({ importWorkflows, importInterceptors }: ImportFunctions): void {
+  state.importWorkflows = importWorkflows;
+  state.importInterceptors = importInterceptors;
 }
 
 export function overrideGlobals(): void {
@@ -106,13 +110,11 @@ export function overrideGlobals(): void {
  *
  * Sets required internal state and instantiates the workflow and interceptors.
  */
-export async function initRuntime({
-  info,
-  interceptorModules,
-  randomnessSeed,
-  now,
-  patches,
-}: WorkflowCreateOptions): Promise<void> {
+export async function initRuntime({ info, randomnessSeed, now, patches }: WorkflowCreateOptions): Promise<void> {
+  // Set the runId globally on the context so it can be retrieved in the case
+  // of an unhandled promise rejection.
+  (globalThis as any).__TEMPORAL__.runId = info.runId;
+
   // Globals are overridden while building the isolate before loading user code.
   // For some reason the `WeakRef` mock is not restored properly when creating an isolate from snapshot in node 14 (at least on ubuntu), override again.
   (globalThis as any).WeakRef = function () {
@@ -127,13 +129,13 @@ export async function initRuntime({
     }
   }
 
-  const { require: req } = state;
-  if (req === undefined) {
+  const { importWorkflows, importInterceptors } = state;
+  if (importWorkflows === undefined || importInterceptors === undefined) {
     throw new IllegalStateError('Workflow has not been initialized');
   }
 
-  for (const modName of interceptorModules) {
-    const mod = await req(modName);
+  const interceptors = await importInterceptors();
+  for (const mod of interceptors) {
     const factory: WorkflowInterceptorsFactory = mod.interceptors;
     if (factory !== undefined) {
       if (typeof factory !== 'function') {
@@ -148,7 +150,7 @@ export async function initRuntime({
 
   let workflow: Workflow;
   try {
-    const mod = await req(undefined);
+    const mod = await importWorkflows();
     workflow = mod[info.workflowType];
     if (typeof workflow !== 'function') {
       throw new TypeError(`'${info.workflowType}' is not a function`);
@@ -170,8 +172,10 @@ export interface ActivationResult {
  * Run a chunk of activation jobs
  * @returns a boolean indicating whether job was processed or ignored
  */
-export async function activate(encodedActivation: Uint8Array, batchIndex: number): Promise<ActivationResult> {
-  const activation = coresdk.workflow_activation.WFActivation.decodeDelimited(encodedActivation);
+export async function activate(
+  activation: coresdk.workflow_activation.WFActivation,
+  batchIndex: number
+): Promise<ActivationResult> {
   const intercept = composeInterceptors(
     state.interceptors.internals,
     'activate',
@@ -191,7 +195,7 @@ export async function activate(encodedActivation: Uint8Array, batchIndex: number
       }
 
       // Cast from the interface to the class which has the `variant` attribute.
-      // This is safe because we just decoded this activation from a buffer.
+      // This is safe because we know that activation is a proto class.
       const jobs = activation.jobs as coresdk.workflow_activation.WFActivationJob[];
 
       await Promise.all(
@@ -232,15 +236,15 @@ export async function activate(encodedActivation: Uint8Array, batchIndex: number
  *
  * Activation failures are handled in the main Node.js isolate.
  */
-export function concludeActivation(): Uint8Array {
+export function concludeActivation(): coresdk.workflow_completion.IWFActivationCompletion {
   const intercept = composeInterceptors(state.interceptors.internals, 'concludeActivation', (input) => input);
   const { info } = state;
   const { commands } = intercept({ commands: state.commands });
   state.commands = [];
-  return coresdk.workflow_completion.WFActivationCompletion.encodeDelimited({
+  return {
     runId: info?.runId,
     successful: { commands },
-  }).finish();
+  };
 }
 
 export function getAndResetSinkCalls(): SinkCall[] {

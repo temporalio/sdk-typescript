@@ -1,6 +1,6 @@
 import Long from 'long';
 import ms from 'ms';
-import * as iface from '@temporalio/proto/lib/coresdk';
+import type * as iface from '@temporalio/proto/lib/coresdk';
 import { ValueError } from './errors';
 
 // NOTE: these are the same interface in JS
@@ -57,6 +57,11 @@ export function msOptionalToTs(str: string | number | undefined): Timestamp | un
     return msNumberToTs(str);
   }
   return msNumberToTs(ms(str));
+}
+
+export function msOptionalToNumber(val: string | number | undefined): number | undefined {
+  if (val === undefined) return undefined;
+  return msToNumber(val);
 }
 
 export function msToNumber(val: string | number): number {

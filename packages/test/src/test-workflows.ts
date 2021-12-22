@@ -84,7 +84,6 @@ async function createWorkflow(
       taskQueue: 'test',
       isReplaying: false,
     },
-    interceptorModules: [],
     randomnessSeed: Long.fromInt(1337).toBytes(),
     now: startTime,
     patches: [],
@@ -240,11 +239,12 @@ function makeCompleteWorkflowExecution(result?: coresdk.common.IPayload): coresd
 function makeFailWorkflowExecution(
   message: string,
   stackTrace: string,
-  type = 'Error'
+  type = 'Error',
+  nonRetryable = true
 ): coresdk.workflow_commands.IWorkflowCommand {
   return {
     failWorkflowExecution: {
-      failure: { message, stackTrace, applicationFailureInfo: { type, nonRetryable: false }, source: 'TypeScriptSDK' },
+      failure: { message, stackTrace, applicationFailureInfo: { type, nonRetryable }, source: 'TypeScriptSDK' },
     },
   };
 }
@@ -364,7 +364,8 @@ test('throwAsync', async (t) => {
       makeFailWorkflowExecution(
         'failure',
         dedent`
-        Error: failure
+        ApplicationFailure: failure
+            at Function.nonRetryable
             at throwAsync
         `
       ),
@@ -664,10 +665,12 @@ test('interruptableWorkflow', async (t) => {
           // The stack trace is weird here and might confuse users, it might be a JS limitation
           // since the Error stack trace is generated in the constructor.
           dedent`
-          Error: just because
+          ApplicationFailure: just because
+              at Function.retryable
               at eval
           `,
-          'Error'
+          'Error',
+          false
         ),
       ])
     );
@@ -689,7 +692,8 @@ test('failSignalWorkflow', async (t) => {
         makeFailWorkflowExecution(
           'Signal failed',
           dedent`
-          Error: Signal failed
+          ApplicationFailure: Signal failed
+              at Function.nonRetryable
               at eval
           `,
           'Error'
@@ -718,9 +722,12 @@ test('asyncFailSignalWorkflow', async (t) => {
         makeFailWorkflowExecution(
           'Signal failed',
           dedent`
-          Error: Signal failed
+          ApplicationFailure: Signal failed
+              at Function.nonRetryable
               at eval
-              at processTicksAndRejections`,
+              at runNextTicks
+              at listOnTimeout
+              at processTimers`,
           'Error'
         ),
       ])
@@ -1464,7 +1471,7 @@ test('resolve activity with failure - http', async (t) => {
     );
   }
 
-  const failure = ApplicationFailure.retryable('Connection timeout', 'MockError');
+  const failure = ApplicationFailure.nonRetryable('Connection timeout', 'MockError');
   failure.stack = failure.stack?.split('\n')[0];
 
   {
@@ -1656,7 +1663,8 @@ test('tryToContinueAfterCompletion', async (t) => {
         makeFailWorkflowExecution(
           'fail before continue',
           dedent`
-          Error: fail before continue
+          ApplicationFailure: fail before continue
+              at Function.nonRetryable
               at tryToContinueAfterCompletion
         `
         ),

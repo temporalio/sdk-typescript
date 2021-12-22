@@ -1,3 +1,5 @@
-export async function throwAsync(): Promise<void> {
-  throw new Error('failure');
+import { ApplicationFailure } from '@temporalio/workflow';
+
+export async function throwAsync(variant: 'retryable' | 'nonRetryable' = 'nonRetryable'): Promise<void> {
+  throw ApplicationFailure[variant]('failure');
 }
