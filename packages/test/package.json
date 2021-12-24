@@ -8,9 +8,7 @@
     "build.watch": "npm-run-all build:protos build:ts-watch",
     "build:ts": "tsc --build",
     "build:ts-watch": "tsc --build --watch",
-    "build:protos": "npm-run-all --parallel build:protos-*",
-    "build:protos-json-module": "pbjs -t json-module -w commonjs -r test -o protos/json-module.js protos/*.proto",
-    "build:protos-types": "pbjs -t static-module protos/*.proto | pbts -o protos/root.d.ts -",
+    "build:protos": "node ./scripts/compile-proto.js",
     "test": "ava ./lib/test-*.js",
     "test.watch": "ava --watch ./lib/test-*.js"
   },
