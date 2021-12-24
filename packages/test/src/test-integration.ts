@@ -733,4 +733,44 @@ if (RUN_INTEGRATION_TESTS) {
     );
     await handle.terminate();
   });
+
+  test('Workflow RetryPolicy kicks in with retryable failure', async (t) => {
+    const { client } = t.context;
+    const workflowId = uuid4();
+    const handle = await client.start(workflows.throwAsync, {
+      taskQueue: 'test',
+      workflowId,
+      args: ['retryable'],
+      retry: {
+        initialInterval: 1,
+        maximumInterval: 1,
+        maximumAttempts: 2,
+      },
+    });
+    await t.throwsAsync(handle.result());
+    const handleForSecondAtttempt = client.getHandle(workflowId);
+    const { workflowExecutionInfo } = await handleForSecondAtttempt.describe();
+    t.not(workflowExecutionInfo?.execution?.runId, handle.originalRunId);
+  });
+
+  test('Workflow RetryPolicy ignored with nonRetryable failure', async (t) => {
+    const { client } = t.context;
+    const workflowId = uuid4();
+    const handle = await client.start(workflows.throwAsync, {
+      taskQueue: 'test',
+      workflowId,
+      args: ['nonRetryable'],
+      retry: {
+        initialInterval: 1,
+        maximumInterval: 1,
+        maximumAttempts: 2,
+      },
+    });
+    await t.throwsAsync(handle.result());
+    const res = await handle.describe();
+    t.is(
+      res.workflowExecutionInfo?.status,
+      iface.temporal.api.enums.v1.WorkflowExecutionStatus.WORKFLOW_EXECUTION_STATUS_FAILED
+    );
+  });
 }
