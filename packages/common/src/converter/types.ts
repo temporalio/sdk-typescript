@@ -1,4 +1,4 @@
-import { Writer } from 'protobufjs';
+import type { Writer } from 'protobufjs';
 import type * as iface from '@temporalio/proto/lib/coresdk';
 import { TextEncoder, TextDecoder } from '../encoding';
 
@@ -34,8 +34,17 @@ export const encodingKeys = {
 
 export const METADATA_MESSAGE_TYPE_KEY = 'messageType';
 
-export interface ProtobufSerializable {
+export interface ProtobufjsNode {
+  name: string;
+  parent: ProtobufjsNode | null;
+}
+
+export interface ProtobufCodec extends ProtobufjsNode {
   create<T>(object: { [k: string]: any }): T;
   encode(message: any): Writer;
   decode<T>(bytes: Uint8Array): T;
+}
+
+export interface ProtobufjsInstance {
+  $type: ProtobufCodec;
 }

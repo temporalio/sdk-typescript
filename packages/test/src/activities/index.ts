@@ -7,7 +7,7 @@ import { cancellableFetch as cancellableFetchInner } from './cancellable-fetch';
 import { ApplicationFailure, QueryDefinition } from '@temporalio/common';
 
 export { throwSpecificError } from './failure-tester';
-import { ProtoActivityInput, ProtoActivityResult } from '../../protos/protobufs';
+import { ProtoActivityInput, ProtoActivityResult } from '../../protos/root';
 
 // TODO: Get rid of this by providing client via activity context
 function getTestConnection(): Connection {
@@ -109,5 +109,5 @@ export async function queryOwnWf<R, A extends any[]>(queryDef: QueryDefinition<R
 }
 
 export async function protoActivity(args: ProtoActivityInput): Promise<ProtoActivityResult> {
-  return new ProtoActivityResult({ sentence: `${args.name} is ${args.age} years old.` });
+  return ProtoActivityResult.create({ sentence: `${args.name} is ${args.age} years old.` });
 }

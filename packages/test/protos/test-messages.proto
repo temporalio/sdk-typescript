@@ -8,3 +8,7 @@ message ProtoActivityInput {
 message ProtoActivityResult {
   string sentence = 1;
 }
+
+message BinaryMessage {
+  bytes data = 1;
+}

@@ -12,9 +12,9 @@ import {
   BinaryPayloadConverter,
   JsonPayloadConverter,
   ProtobufBinaryPayloadConverter,
-  ProtobufJSONPayloadConverter,
+  ProtobufJsonPayloadConverter,
 } from '@temporalio/common/lib/converter/payload-converter';
-import protobufClasses from '../protos/protobufs';
+import root from '../protos/root';
 
 test('UndefinedPayloadConverter converts from undefined only', async (t) => {
   const converter = new UndefinedPayloadConverter();
@@ -71,34 +71,34 @@ test('JsonPayloadConverter converts to object', async (t) => {
 });
 
 test('ProtobufBinaryPayloadConverter converts from an instance', async (t) => {
-  const instance = protobufClasses.ProtoActivityInput.create({ name: 'Proto', age: 1 });
-  const converter = new ProtobufBinaryPayloadConverter(protobufClasses);
+  const instance = root.ProtoActivityInput.create({ name: 'Proto', age: 1 });
+  const converter = new ProtobufBinaryPayloadConverter(root);
   t.deepEqual(await converter.toData(instance), {
     metadata: {
       [METADATA_ENCODING_KEY]: encodingKeys.METADATA_ENCODING_PROTOBUF,
       [METADATA_MESSAGE_TYPE_KEY]: u8('ProtoActivityInput'),
     },
-    data: protobufClasses.ProtoActivityInput.encode(instance).finish(),
+    data: root.ProtoActivityInput.encode(instance).finish(),
   });
 });
 
 test('ProtobufBinaryPayloadConverter converts to an instance', async (t) => {
-  const instance = protobufClasses.ProtoActivityInput.create({ name: 'Proto', age: 1 });
-  const converter = new ProtobufBinaryPayloadConverter(protobufClasses);
+  const instance = root.ProtoActivityInput.create({ name: 'Proto', age: 1 });
+  const converter = new ProtobufBinaryPayloadConverter(root);
   const testInstance = await converter.fromData((await converter.toData(instance))!);
   // tests that both are instances of the same class with the same properties
   t.deepEqual(testInstance, instance);
 });
 
 test('ProtobufBinaryPayloadConverter throws detailed errors', async (t) => {
-  const instance = protobufClasses.ProtoActivityInput.create({ name: 'Proto', age: 1 });
-  const converter = new ProtobufBinaryPayloadConverter(protobufClasses);
+  const instance = root.ProtoActivityInput.create({ name: 'Proto', age: 1 });
+  const converter = new ProtobufBinaryPayloadConverter(root);
 
   await t.throwsAsync(
     async () =>
       await converter.fromData({
         metadata: { [METADATA_ENCODING_KEY]: encodingKeys.METADATA_ENCODING_PROTOBUF },
-        data: protobufClasses.ProtoActivityInput.encode(instance).finish(),
+        data: root.ProtoActivityInput.encode(instance).finish(),
       }),
     { instanceOf: ValueError, message: 'Got protobuf payload without metadata.messageType' }
   );
@@ -109,51 +109,73 @@ test('ProtobufBinaryPayloadConverter throws detailed errors', async (t) => {
           [METADATA_ENCODING_KEY]: encodingKeys.METADATA_ENCODING_PROTOBUF,
           [METADATA_MESSAGE_TYPE_KEY]: u8('NonExistentMessageClass'),
         },
-        data: protobufClasses.ProtoActivityInput.encode(instance).finish(),
+        data: root.ProtoActivityInput.encode(instance).finish(),
       }),
     {
       instanceOf: DataConverterError,
-      message:
-        'Got a `NonExistentMessageClass` protobuf message but cannot find corresponding message class in protobufClasses',
+      message: 'Got a `NonExistentMessageClass` protobuf message but cannot find corresponding message class in `root`',
     }
   );
 });
 
 test('ProtobufJSONPayloadConverter converts from an instance to JSON', async (t) => {
-  const instance = protobufClasses.ProtoActivityInput.create({ name: 'Proto', age: 1 });
-  const converter = new ProtobufJSONPayloadConverter(protobufClasses);
+  const instance = root.foo.bar.ProtoActivityInput.create({ name: 'Proto', age: 1 });
+  const converter = new ProtobufJsonPayloadConverter(root);
   t.deepEqual(await converter.toData(instance), {
     metadata: {
       [METADATA_ENCODING_KEY]: encodingKeys.METADATA_ENCODING_PROTOBUF_JSON,
-      [METADATA_MESSAGE_TYPE_KEY]: u8('ProtoActivityInput'),
+      [METADATA_MESSAGE_TYPE_KEY]: u8('foo.bar.ProtoActivityInput'),
     },
     data: u8(JSON.stringify(instance)),
   });
 });
 
 test('ProtobufJSONPayloadConverter converts to an instance from JSON', async (t) => {
-  const instance = protobufClasses.ProtoActivityInput.create({ name: 'Proto', age: 1 });
-  const converter = new ProtobufJSONPayloadConverter(protobufClasses);
+  const instance = root.foo.bar.ProtoActivityInput.create({ name: 'Proto', age: 1 });
+  const converter = new ProtobufJsonPayloadConverter(root);
   const testInstance = await converter.fromData((await converter.toData(instance))!);
   // tests that both are instances of the same class with the same properties
   t.deepEqual(testInstance, instance);
 });
 
+test('ProtobufJSONPayloadConverter converts binary', async (t) => {
+  // binary should be base64-encoded:
+  // https://developers.google.com/protocol-buffers/docs/proto3#json
+  const instance = root.BinaryMessage.create({ data: u8('abc') });
+  const converter = new ProtobufJsonPayloadConverter(root);
+  const encoded = await converter.toData(instance);
+  t.deepEqual(encoded, {
+    metadata: {
+      [METADATA_ENCODING_KEY]: encodingKeys.METADATA_ENCODING_PROTOBUF_JSON,
+      [METADATA_MESSAGE_TYPE_KEY]: u8('BinaryMessage'),
+    },
+    data: u8(JSON.stringify({ data: Buffer.from('abc').toString('base64') })),
+  });
+
+  const testInstance = await converter.fromData<root.BinaryMessage>(encoded!);
+  // testInstance contains a Buffer, while u8() returns a Uint8Array, so deepEqual fails:
+  // t.deepEqual(testInstance, instance);
+  t.true(
+    instance.data.length === testInstance.data.length && instance.data.every((v, i) => v === testInstance.data[i])
+  );
+});
+
 test('DefaultDataConverter converts protobufs', async (t) => {
-  const instance = protobufClasses.ProtoActivityInput.create({ name: 'Proto', age: 1 });
-  const defaultDataConverterWithProtos = new DefaultDataConverter({ protobufClasses });
+  const instance = root.ProtoActivityInput.create({ name: 'Proto', age: 1 });
+  const defaultDataConverterWithProtos = new DefaultDataConverter({ root });
   t.deepEqual(
     await defaultDataConverterWithProtos.toPayload(instance),
     // It will always use JSON because it appears before binary in the list
-    await new ProtobufJSONPayloadConverter(protobufClasses).toData(instance)
+    await new ProtobufJsonPayloadConverter(root).toData(instance)
   );
 });
 
 test('defaultDataConverter converts to payload by trying each converter in order', async (t) => {
-  const instance = protobufClasses.ProtoActivityInput.create({ name: 'Proto', age: 1 });
-  // defaultDataConverter shouldn't use Protobuf*PayloadConverter without protobufClasses,
-  // so it should fall through to JsonPayloadConverter
-  t.deepEqual(await defaultDataConverter.toPayload(instance), await new JsonPayloadConverter().toData(instance));
+  const instance = root.ProtoActivityInput.create({ name: 'Proto', age: 1 });
+  t.deepEqual(
+    await defaultDataConverter.toPayload(instance),
+    await new ProtobufJsonPayloadConverter().toData(instance)
+  );
 
   t.deepEqual(await defaultDataConverter.toPayload('abc'), await new JsonPayloadConverter().toData('abc'));
   t.deepEqual(await defaultDataConverter.toPayload(undefined), await new UndefinedPayloadConverter().toData(undefined));
@@ -186,23 +208,19 @@ test('defaultDataConverter converts from payload by payload type', async (t) => 
     { instanceOf: ValueError, message: 'Got payload with no data' }
   );
 
-  const instance = protobufClasses.ProtoActivityInput.create({ name: 'Proto', age: 1 });
+  const instance = root.ProtoActivityInput.create({ name: 'Proto', age: 1 });
   const protoError = {
     instanceOf: DataConverterError,
-    message: 'Unable to deserialize protobuf message without `protobufClasses` being provided',
+    message: 'Unable to deserialize protobuf message without `root` being provided',
   };
   await t.throwsAsync(
     async () =>
-      await defaultDataConverter.fromPayload(
-        (await new ProtobufBinaryPayloadConverter(protobufClasses).toData(instance))!
-      ),
+      await defaultDataConverter.fromPayload((await new ProtobufBinaryPayloadConverter(root).toData(instance))!),
     protoError
   );
   await t.throwsAsync(
     async () =>
-      await defaultDataConverter.fromPayload(
-        (await new ProtobufJSONPayloadConverter(protobufClasses).toData(instance))!
-      ),
+      await defaultDataConverter.fromPayload((await new ProtobufJsonPayloadConverter(root).toData(instance))!),
     protoError
   );
 });

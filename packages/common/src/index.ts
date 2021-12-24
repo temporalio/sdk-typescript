@@ -5,6 +5,7 @@
  */
 export * from './activity-options';
 export * from './converter/data-converter';
+export * from './converter/helpers';
 export * from './errors';
 export * from './failure';
 export * from './interceptors';

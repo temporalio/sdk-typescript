@@ -106,6 +106,7 @@ export class WorkflowCodeBundler {
       resolve: {
         modules: this.nodeModulesPaths,
         extensions: ['.ts', '.js'],
+        fallback: { assert: false }, // used by `proto3-json-serializer`
       },
       module: {
         rules: [

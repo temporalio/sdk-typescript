@@ -5,7 +5,7 @@ import {
   UndefinedPayloadConverter,
   BinaryPayloadConverter,
   JsonPayloadConverter,
-  ProtobufJSONPayloadConverter,
+  ProtobufJsonPayloadConverter,
   ProtobufBinaryPayloadConverter,
 } from './payload-converter';
 
@@ -192,18 +192,18 @@ export function mapToPayloadsSync<K extends string>(
 }
 
 export interface DefaultDataConverterOptions {
-  protobufClasses?: Record<string, unknown>;
+  root?: Record<string, unknown>;
 }
 
 export class DefaultDataConverter extends CompositeDataConverter {
-  constructor({ protobufClasses }: DefaultDataConverterOptions = {}) {
+  constructor({ root }: DefaultDataConverterOptions = {}) {
     // Match the order used in other SDKs
     // Go SDK: https://github.com/temporalio/sdk-go/blob/5e5645f0c550dcf717c095ae32c76a7087d2e985/converter/default_data_converter.go#L28
     super(
       new UndefinedPayloadConverter(),
       new BinaryPayloadConverter(),
-      new ProtobufJSONPayloadConverter(protobufClasses),
-      new ProtobufBinaryPayloadConverter(protobufClasses),
+      new ProtobufJsonPayloadConverter(root),
+      new ProtobufBinaryPayloadConverter(root),
       new JsonPayloadConverter()
     );
   }

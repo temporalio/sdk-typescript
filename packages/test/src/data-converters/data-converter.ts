@@ -1,6 +1,6 @@
 import { DefaultDataConverter } from '@temporalio/common';
-import protobufClasses from '../../protos/protobufs';
+import root, { foo } from '../../protos/root';
 
-export const messageInstance = protobufClasses.ProtoActivityInput.create({ name: 'Proto', age: 1 });
+export const messageInstance = foo.bar.ProtoActivityInput.create({ name: 'Proto', age: 1 });
 
-export const dataConverter = new DefaultDataConverter({ protobufClasses });
+export const dataConverter = new DefaultDataConverter({ root });

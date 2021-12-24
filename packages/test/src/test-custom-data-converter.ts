@@ -3,7 +3,6 @@ import { coresdk } from '@temporalio/proto';
 import { Core, DefaultLogger, Worker } from '@temporalio/worker';
 import test, { ExecutionContext } from 'ava';
 import { v4 as uuid4 } from 'uuid';
-import { ProtoActivityInput } from '../protos/protobufs';
 import { protoActivity } from './activities';
 import { dataConverter, messageInstance } from './data-converters/data-converter';
 import { cleanStackTrace, RUN_INTEGRATION_TESTS } from './helpers';
@@ -124,8 +123,6 @@ test('Worker with proto data converter runs an activity and reports completion',
     dataConverterPath: require.resolve('./data-converters/data-converter'),
   });
 
-  const input = new ProtoActivityInput({ name: 'Proto', age: 1 });
-
   await runWorker(worker, async () => {
     const taskToken = Buffer.from(uuid4());
     const completion = await worker.native.runActivityTask({
@@ -133,11 +130,11 @@ test('Worker with proto data converter runs an activity and reports completion',
       activityId: 'abc',
       start: {
         activityType: 'protoActivity',
-        input: await dataConverter.toPayloads(input),
+        input: await dataConverter.toPayloads(messageInstance),
       },
     });
     compareCompletion(t, completion.result, {
-      completed: { result: await dataConverter.toPayload(await protoActivity(input)) },
+      completed: { result: await dataConverter.toPayload(await protoActivity(messageInstance)) },
     });
   });
 });
