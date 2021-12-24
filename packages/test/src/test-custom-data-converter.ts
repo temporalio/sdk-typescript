@@ -43,8 +43,7 @@ if (RUN_INTEGRATION_TESTS) {
         if (
           entry.message === 'Failed to activate workflow' &&
           entry.meta?.error?.stack?.includes('Activator.startWorkflow') &&
-          entry.meta?.error?.message ===
-            'Unable to deserialize protobuf message without protobufClasses provided to DefaultDataConverter'
+          entry.meta?.error?.message === 'Unable to deserialize protobuf message without `root` being provided'
         ) {
           resolvePromise(true);
         }
