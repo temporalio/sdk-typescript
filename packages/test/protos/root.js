@@ -1,3 +1,3 @@
-const { patchRoot } = require('@temporalio/common');
+const { patchProtobufRoot } = require('@temporalio/common');
 const unpatchedRoot = require('./json-module');
-module.exports = patchRoot(unpatchedRoot);
+module.exports = patchProtobufRoot(unpatchedRoot);

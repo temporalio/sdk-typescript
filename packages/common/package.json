@@ -23,5 +23,8 @@
   "homepage": "https://github.com/temporalio/sdk-typescript/tree/main/packages/common",
   "publishConfig": {
     "access": "public"
+  },
+  "devDependencies": {
+    "protobufjs": "^6.11.2"
   }
 }

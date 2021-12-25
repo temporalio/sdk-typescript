@@ -7,12 +7,11 @@ import {
   encodingKeys,
   METADATA_ENCODING_KEY,
   METADATA_MESSAGE_TYPE_KEY,
-  ProtobufCodec,
-  ProtobufjsInstance,
-  ProtobufjsNode,
 } from './types';
 import { isRecord, hasOwnProperty } from '../type-helpers';
+import { errorMessage } from '../errors';
 import * as protoJsonSerializer from 'proto3-json-serializer';
+import type { Root, Type, Namespace, Message } from 'protobufjs';
 
 /**
  * Used by the framework to serialize/deserialize method parameters that need to be sent over the
@@ -155,59 +154,44 @@ export class BinaryPayloadConverter extends AsyncFacadePayloadConverter {
 }
 
 abstract class ProtobufPayloadConverter extends AsyncFacadePayloadConverter {
-  protected readonly typesByName: Record<string, ProtobufCodec> = {};
+  protected readonly root: Root | undefined;
 
-  constructor(root?: Record<string, unknown>) {
+  // Don't use type Root here because root.d.ts doesn't export Root, so users would have to type assert
+  constructor(root?: unknown) {
     super();
 
     if (root) {
-      if (typeof root !== 'object') {
-        throw new TypeError('root must be an object');
+      if (!isRoot(root)) {
+        throw new TypeError('root must be an instance of a protobufjs Root');
       }
 
-      this.extractTypes(root);
-
-      if (Object.keys(this.typesByName).length === 0) {
-        throw new TypeError(
-          'root must be an object with values or nested values that are Type classes with `encode`, `decode`, and `create` static methods'
-        );
-      }
+      this.root = root;
     }
   }
 
-  extractTypes(node: Record<string, unknown>, seen = new Set()) {
-    for (const key in node) {
-      const value = node[key];
-      if (seen.has(value)) {
-        continue;
-      }
-
-      seen.add(value);
-      if (isProtobufMessageType(value)) {
-        this.typesByName[getNamespacedTypeName(value)] = value;
-      } else if (isProtobufNamespace(value)) {
-        this.extractTypes(value, seen);
-      }
-    }
-  }
-
-  protected validatePayload(content: Payload): { messageType: ProtobufCodec; data: Uint8Array } {
+  protected validatePayload(content: Payload): { messageType: Type; data: Uint8Array } {
     if (content.data === undefined || content.data === null) {
       throw new ValueError('Got payload with no data');
     }
     if (!content.metadata || !(METADATA_MESSAGE_TYPE_KEY in content.metadata)) {
       throw new ValueError(`Got protobuf payload without metadata.${METADATA_MESSAGE_TYPE_KEY}`);
     }
-    if (Object.keys(this.typesByName).length === 0) {
+    if (!this.root) {
       throw new DataConverterError('Unable to deserialize protobuf message without `root` being provided');
     }
 
     const messageTypeName = str(content.metadata[METADATA_MESSAGE_TYPE_KEY]);
-    const messageType = this.typesByName[messageTypeName];
-    if (!messageType) {
-      throw new DataConverterError(
-        `Got a \`${messageTypeName}\` protobuf message but cannot find corresponding message class in \`root\``
-      );
+    let messageType;
+    try {
+      messageType = this.root.lookupType(messageTypeName);
+    } catch (e) {
+      if (errorMessage(e)?.includes('no such type')) {
+        throw new DataConverterError(
+          `Got a \`${messageTypeName}\` protobuf message but cannot find corresponding message class in \`root\``
+        );
+      }
+
+      throw e;
     }
 
     return { messageType, data: content.data };
@@ -230,12 +214,12 @@ abstract class ProtobufPayloadConverter extends AsyncFacadePayloadConverter {
 export class ProtobufBinaryPayloadConverter extends ProtobufPayloadConverter {
   public encodingType = encodingTypes.METADATA_ENCODING_PROTOBUF;
 
-  constructor(root?: Record<string, unknown>) {
+  constructor(root?: unknown) {
     super(root);
   }
 
   public toDataSync(value: unknown): Payload | undefined {
-    if (!isProtobufMessageInstance(value)) {
+    if (!isProtobufMessage(value)) {
       return undefined;
     }
 
@@ -247,7 +231,7 @@ export class ProtobufBinaryPayloadConverter extends ProtobufPayloadConverter {
 
   public fromDataSync<T>(content: Payload): T {
     const { messageType, data } = this.validatePayload(content);
-    return messageType.decode<T>(data);
+    return messageType.decode(data) as unknown as T;
   }
 }
 
@@ -257,16 +241,16 @@ export class ProtobufBinaryPayloadConverter extends ProtobufPayloadConverter {
 export class ProtobufJsonPayloadConverter extends ProtobufPayloadConverter {
   public encodingType = encodingTypes.METADATA_ENCODING_PROTOBUF_JSON;
 
-  constructor(root?: Record<string, unknown>) {
+  constructor(root?: unknown) {
     super(root);
   }
 
   public toDataSync(value: unknown): Payload | undefined {
-    if (!isProtobufMessageInstance(value)) {
+    if (!isProtobufMessage(value)) {
       return undefined;
     }
 
-    const jsonValue = protoJsonSerializer.toProto3JSON(value as any);
+    const jsonValue = protoJsonSerializer.toProto3JSON(value);
 
     return this.constructPayload({
       messageTypeName: getNamespacedTypeName(value.$type),
@@ -276,34 +260,34 @@ export class ProtobufJsonPayloadConverter extends ProtobufPayloadConverter {
 
   public fromDataSync<T>(content: Payload): T {
     const { messageType, data } = this.validatePayload(content);
-    return protoJsonSerializer.fromProto3JSON(messageType as any, JSON.parse(str(data))) as any as T;
+    return protoJsonSerializer.fromProto3JSON(messageType, JSON.parse(str(data))) as unknown as T;
   }
 }
 
-function isProtobufMessageType(type: unknown): type is ProtobufCodec {
+function isProtobufType(type: unknown): type is Type {
   return (
     isRecord(type) &&
     type.constructor.name === 'Type' &&
     'parent' in type &&
-    typeof (type as unknown as ProtobufCodec).name === 'string' &&
-    typeof (type as unknown as ProtobufCodec).create === 'function' &&
-    typeof (type as unknown as ProtobufCodec).encode === 'function' &&
-    typeof (type as unknown as ProtobufCodec).decode === 'function'
+    typeof (type as unknown as Type).name === 'string' &&
+    typeof (type as unknown as Type).create === 'function' &&
+    typeof (type as unknown as Type).encode === 'function' &&
+    typeof (type as unknown as Type).decode === 'function'
   );
 }
 
-function isProtobufNamespace(namespace: unknown): namespace is Record<string, unknown> {
-  return isRecord(namespace) && namespace.constructor.name === 'Namespace';
+function isProtobufMessage(value: unknown): value is Message {
+  return isRecord(value) && hasOwnProperty(value, '$type') && isProtobufType(value.$type);
 }
 
-function isProtobufMessageInstance(value: unknown): value is ProtobufjsInstance {
-  return isRecord(value) && hasOwnProperty(value, '$type') && isProtobufMessageType(value.$type);
-}
-
-function getNamespacedTypeName(node: ProtobufjsNode): string {
-  if (node.parent && node.parent.constructor.name !== 'Root') {
+function getNamespacedTypeName(node: Type | Namespace): string {
+  if (node.parent && !isRoot(node.parent)) {
     return getNamespacedTypeName(node.parent) + '.' + node.name;
   } else {
     return node.name;
   }
+}
+
+function isRoot(root: unknown): root is Root {
+  return isRecord(root) && root.constructor.name === 'Root';
 }

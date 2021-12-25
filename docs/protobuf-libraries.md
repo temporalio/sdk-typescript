@@ -1,7 +1,7 @@
 Loren & Roey surveyed the available protobuf libraries in Dec '21 for use with our `ProtobufBinaryDataConverter` and `ProtobufJsonDataConverter`. The main criteria was:
 
 - A. TypeScript types for messages
-- B. Being able to check at runtime whether an object passed to the SDK as input or returned to the SDK from a workflow/query/activity is meant to be protobuf-serialized
+- B. Being able to check at runtime whether an object passed to the SDK as input or returned to the SDK from a workflow/query/activity is meant to be protobuf-serialized, without adding annotations to the functions.
 - C. Spec-compliant [proto3 JSON encoding](https://developers.google.com/protocol-buffers/docs/proto3#json) so that the TS SDK is interoperable with the other SDKs
 
 ## Options
@@ -58,9 +58,9 @@ A and B
 // pbjs -t json-module -w commonjs -o json-module.js *.proto
 
 // protos/root.js
-const { patchRoot } = require('@temporalio/common');
+const { patchProtobufRoot } = require('@temporalio/common');
 const unpatchedRoot = require('./json-module');
-module.exports = patchRoot(unpatchedRoot);
+module.exports = patchProtobufRoot(unpatchedRoot);
 
 // root.d.ts generated with:
 // pbjs -t static-module *.proto | pbts -o root.d.ts -
@@ -78,17 +78,17 @@ await client.start(protoWorkflow, {
 import { foo } from '../protos/root';
 
 export async function protoWorkflow(input: foo.bar.ProtoInput): Promise<foo.bar.ProtoResult> {
-  return foo.bar.ProtoResult({ sentence: `Name is ${input.name}` });
+  return foo.bar.ProtoResult.create({ sentence: `Name is ${input.name}` });
 }
 ```
 
-We originally were thinking of this, but the namespaces in `json-module.js` get lost through `patchRoot()`:
+We originally were thinking of this, but the namespaces in `json-module.js` get lost through `patchProtobufRoot()`:
 
 ```
 import * as generatedRoot from '../protos/json-module';
 
-const patchRoot = <T>(x: T): T => x;
-const root = patchRoot(generatedRoot);
+const patchProtobufRoot = <T>(x: T): T => x;
+const root = patchProtobufRoot(generatedRoot);
 
 function myWorkflowError(input: root.foo.bar.ProtoActivityInput) {
   return input.name;

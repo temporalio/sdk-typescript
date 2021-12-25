@@ -61,7 +61,7 @@ if (RUN_INTEGRATION_TESTS) {
 
     // For now, just check that the protobuf message gets to the workflow
     worker.run();
-    client.execute(protobufWorkflow, {
+    await client.start(protobufWorkflow, {
       args: [messageInstance],
       workflowId: uuid4(),
       taskQueue,

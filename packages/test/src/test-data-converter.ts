@@ -153,11 +153,7 @@ test('ProtobufJSONPayloadConverter converts binary', async (t) => {
   });
 
   const testInstance = await converter.fromData<root.BinaryMessage>(encoded!);
-  // testInstance contains a Buffer, while u8() returns a Uint8Array, so deepEqual fails:
-  // t.deepEqual(testInstance, instance);
-  t.true(
-    instance.data.length === testInstance.data.length && instance.data.every((v, i) => v === testInstance.data[i])
-  );
+  t.deepEqual(testInstance.data, Buffer.from(instance.data));
 });
 
 test('DefaultDataConverter converts protobufs', async (t) => {
