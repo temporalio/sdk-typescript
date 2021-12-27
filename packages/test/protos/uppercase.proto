@@ -1,0 +1,8 @@
+syntax = "proto3";
+
+package Uppercase;
+
+message UpperMessage {
+  string name = 1;
+}
+
