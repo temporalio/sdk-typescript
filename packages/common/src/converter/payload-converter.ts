@@ -8,7 +8,7 @@ import {
   METADATA_ENCODING_KEY,
   METADATA_MESSAGE_TYPE_KEY,
 } from './types';
-import { isRecord, hasOwnProperty } from '../type-helpers';
+import { isRecord, hasOwnProperty, hasOwnProperties } from '../type-helpers';
 import { errorMessage } from '../errors';
 import * as protoJsonSerializer from 'proto3-json-serializer';
 import type { Root, Type, Namespace, Message } from 'protobufjs';
@@ -268,11 +268,11 @@ function isProtobufType(type: unknown): type is Type {
   return (
     isRecord(type) &&
     type.constructor.name === 'Type' &&
-    'parent' in type &&
-    typeof (type as unknown as Type).name === 'string' &&
-    typeof (type as unknown as Type).create === 'function' &&
-    typeof (type as unknown as Type).encode === 'function' &&
-    typeof (type as unknown as Type).decode === 'function'
+    hasOwnProperties(type, ['parent', 'name', 'create', 'encode', 'decode']) &&
+    typeof type.name === 'string' &&
+    typeof type.create === 'function' &&
+    typeof type.encode === 'function' &&
+    typeof type.decode === 'function'
   );
 }
 

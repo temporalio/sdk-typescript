@@ -20,3 +20,10 @@ export function hasOwnProperty<X extends Record<string, unknown>, Y extends Prop
 ): record is X & Record<Y, unknown> {
   return prop in record;
 }
+
+export function hasOwnProperties<X extends Record<string, unknown>, Y extends PropertyKey>(
+  record: X,
+  props: Y[]
+): record is X & Record<Y, unknown> {
+  return props.every((prop) => prop in record);
+}
