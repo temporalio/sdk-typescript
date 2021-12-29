@@ -74,7 +74,7 @@ async function handleRequest({ requestId, input }: WorkerThreadRequest): Promise
         result: { type: 'ok', output: { type: 'activation-completion', completion } },
       };
     }
-    case 'extract-sink-calls': {
+    case 'exteract-sink-calls': {
       const workflow = workflowByRunId.get(input.runId);
       if (workflow === undefined) {
         throw new IllegalStateError(`Tried to activate non running workflow with runId: ${input.runId}`);

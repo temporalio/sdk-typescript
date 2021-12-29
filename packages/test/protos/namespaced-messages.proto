@@ -1,9 +1,0 @@
-syntax = "proto3";
-
-package foo.bar;
-
-message ProtoActivityInput {
-  string name = 1;
-  int32 age = 2;
-}
-

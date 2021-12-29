@@ -9,21 +9,3 @@ export type OmitLastParam<F extends AnyFunc> = (...args: OmitLast<Parameters<F>>
 export function checkExtends<_Orig, _Copy extends _Orig>(): void {
   // noop, just type check
 }
-
-export function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
-}
-
-export function hasOwnProperty<X extends Record<string, unknown>, Y extends PropertyKey>(
-  record: X,
-  prop: Y
-): record is X & Record<Y, unknown> {
-  return prop in record;
-}
-
-export function hasOwnProperties<X extends Record<string, unknown>, Y extends PropertyKey>(
-  record: X,
-  props: Y[]
-): record is X & Record<Y, unknown> {
-  return props.every((prop) => prop in record);
-}

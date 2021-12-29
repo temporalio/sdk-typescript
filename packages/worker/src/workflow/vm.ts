@@ -84,7 +84,7 @@ export class VMWorkflowCreator implements WorkflowCreator {
   }
 
   /**
-   * Cleanup the pre-compiled script
+   * Cleanup the precompiled script
    */
   public async destroy(): Promise<void> {
     delete this.script;

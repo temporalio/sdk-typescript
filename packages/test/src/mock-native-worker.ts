@@ -2,7 +2,7 @@
 import { lastValueFrom } from 'rxjs';
 import { SpanContext } from '@opentelemetry/api';
 import { coresdk } from '@temporalio/proto';
-import { defaultDataConverter, DataConverter, msToTs } from '@temporalio/common';
+import { defaultDataConverter, msToTs } from '@temporalio/common';
 import { Worker as RealWorker, NativeWorkerLike, errors } from '@temporalio/worker/lib/worker';
 import {
   compileWorkerOptions,
@@ -152,9 +152,9 @@ export class Worker extends RealWorker {
     return this.nativeWorker as MockNativeWorker;
   }
 
-  public constructor(workflowCreator: WorkflowCreator, opts: CompiledWorkerOptions, dataConverter: DataConverter) {
+  public constructor(workflowCreator: WorkflowCreator, opts: CompiledWorkerOptions) {
     const nativeWorker = new MockNativeWorker();
-    super(nativeWorker, workflowCreator, opts, dataConverter);
+    super(nativeWorker, workflowCreator, opts);
   }
 
   public runWorkflows(...args: Parameters<Worker['workflow$']>): Promise<void> {
@@ -169,8 +169,7 @@ export const defaultOptions: WorkerOptions = {
   taskQueue: 'test',
 };
 
-export async function isolateFreeWorker(options: WorkerOptions = defaultOptions): Promise<Worker> {
-  const dataConverter = await RealWorker.getDataConverter(options);
+export function isolateFreeWorker(options: WorkerOptions = defaultOptions): Worker {
   return new Worker(
     {
       async createWorkflow() {
@@ -180,7 +179,6 @@ export async function isolateFreeWorker(options: WorkerOptions = defaultOptions)
         /* Nothing to destroy */
       },
     },
-    compileWorkerOptions(addDefaultWorkerOptions(options)),
-    dataConverter
+    compileWorkerOptions(addDefaultWorkerOptions(options))
   );
 }

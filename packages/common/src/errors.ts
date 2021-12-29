@@ -25,21 +25,3 @@ export function errorMessage(err: unknown): string | undefined {
   }
   return undefined;
 }
-
-interface ErrorWithCode {
-  code: string;
-}
-/**
- * Get error code from an Error or return undefined
- */
-export function errorCode(error: unknown): string | undefined {
-  if (
-    typeof error === 'object' &&
-    (error as ErrorWithCode).code !== undefined &&
-    typeof (error as ErrorWithCode).code === 'string'
-  ) {
-    return (error as ErrorWithCode).code;
-  }
-
-  return undefined;
-}

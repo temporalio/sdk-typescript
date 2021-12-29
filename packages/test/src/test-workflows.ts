@@ -1502,7 +1502,7 @@ test('globalOverrides', async (t) => {
   t.deepEqual(
     logs,
     ['WeakRef' /* First error happens on startup */, 'FinalizationRegistry', 'WeakRef'].map((type) => [
-      `DeterminismViolationError: ${type} cannot be used in Workflows because v8 GC is non-deterministic`,
+      `DeterminismViolationError: ${type} cannot be used in workflows because v8 GC is non-deterministic`,
     ])
   );
 });

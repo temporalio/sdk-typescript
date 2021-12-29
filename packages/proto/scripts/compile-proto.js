@@ -73,7 +73,7 @@ async function main() {
   const genMTime = Math.min(mtime(coresdkJsOutputFile), mtime(serviceJsOutputFile));
 
   if (protosMTime < genMTime) {
-    console.log('Assuming protos are up to date');
+    console.log('Asuming protos are up to date');
     return;
   }
 

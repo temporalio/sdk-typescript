@@ -5,15 +5,13 @@ import {
   UndefinedPayloadConverter,
   BinaryPayloadConverter,
   JsonPayloadConverter,
-  ProtobufJsonPayloadConverter,
-  ProtobufBinaryPayloadConverter,
 } from './payload-converter';
 
 /**
  * Used by the framework to serialize/deserialize method parameters that need to be sent over the
  * wire.
  *
- * Implement this in order to customize worker data serialization or use the default data converter which supports `Uint8Array`, Protobuf, and JSON serializables.
+ * Implement this in order to customize worker data serialization or use the default data converter which supports `Uint8Array` and JSON serializables.
  */
 export interface DataConverter {
   toPayload<T>(value: T): Promise<Payload>;
@@ -67,13 +65,6 @@ export interface DataConverter {
    */
   fromPayloadsSync<T>(index: number, content?: Payload[] | null): T;
 }
-
-export const isValidDataConverter = (dataConverter: unknown): dataConverter is DataConverter =>
-  typeof dataConverter === 'object' &&
-  dataConverter !== null &&
-  ['toPayload', 'toPayloads', 'fromPayload', 'fromPayloads'].every(
-    (method) => typeof (dataConverter as Record<string, unknown>)[method] === 'function'
-  );
 
 export class CompositeDataConverter implements DataConverter {
   readonly converters: PayloadConverter[];
@@ -191,22 +182,8 @@ export function mapToPayloadsSync<K extends string>(
   ) as Record<K, Payload>;
 }
 
-export interface DefaultDataConverterOptions {
-  root?: Record<string, unknown>;
-}
-
-export class DefaultDataConverter extends CompositeDataConverter {
-  constructor({ root }: DefaultDataConverterOptions = {}) {
-    // Match the order used in other SDKs
-    // Go SDK: https://github.com/temporalio/sdk-go/blob/5e5645f0c550dcf717c095ae32c76a7087d2e985/converter/default_data_converter.go#L28
-    super(
-      new UndefinedPayloadConverter(),
-      new BinaryPayloadConverter(),
-      new ProtobufJsonPayloadConverter(root),
-      new ProtobufBinaryPayloadConverter(root),
-      new JsonPayloadConverter()
-    );
-  }
-}
-
-export const defaultDataConverter = new DefaultDataConverter();
+export const defaultDataConverter = new CompositeDataConverter(
+  new UndefinedPayloadConverter(),
+  new BinaryPayloadConverter(),
+  new JsonPayloadConverter()
+);

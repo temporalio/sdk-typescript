@@ -25,9 +25,7 @@ import {
   arrayFromPayloads,
   DataConverter,
   defaultDataConverter,
-  isValidDataConverter,
   errorMessage,
-  errorCode,
 } from '@temporalio/common';
 import {
   extractSpanContextFromHeaders,
@@ -164,7 +162,7 @@ function formatTaskToken(taskToken: Uint8Array) {
 }
 
 /**
- * The temporal Worker connects to Temporal Server and runs Workflows and Activities.
+ * The temporal worker connects to the service and runs workflows and activities.
  */
 export class Worker {
   protected readonly activityHeartbeatSubject = new Subject<{
@@ -188,7 +186,6 @@ export class Worker {
     const nativeWorkerCtor: WorkerConstructor = this.nativeWorkerCtor;
     const compiledOptions = compileWorkerOptions(addDefaultWorkerOptions(options));
     const nativeWorker = await nativeWorkerCtor.create(compiledOptions);
-    const dataConverter = await this.getDataConverter(options);
     try {
       let bundle: string | undefined = undefined;
       let workflowCreator: WorkflowCreator | undefined = undefined;
@@ -222,43 +219,12 @@ export class Worker {
           });
         }
       }
-      return new this(nativeWorker, workflowCreator, compiledOptions, dataConverter);
+      return new this(nativeWorker, workflowCreator, compiledOptions);
     } catch (err) {
       // Deregister our worker in case Worker creation (Webpack) failed
       await nativeWorker.completeShutdown();
       throw err;
     }
-  }
-
-  public static async getDataConverter(options: WorkerOptions): Promise<DataConverter> {
-    if (options.dataConverterPath) {
-      let dataConverter: DataConverter;
-
-      try {
-        const dataConverterModule = await import(options.dataConverterPath);
-        dataConverter = dataConverterModule.dataConverter;
-      } catch (error) {
-        if (errorCode(error) === 'MODULE_NOT_FOUND') {
-          throw new Error(`Could not find a file at the specified dataConverterPath: '${options.dataConverterPath}'.`);
-        }
-        throw error;
-      }
-
-      if (dataConverter === undefined) {
-        throw new Error(
-          `The module at dataConverterPath ('${options.dataConverterPath}') does not have a \`dataConverter\` named export.`
-        );
-      }
-      if (!isValidDataConverter(dataConverter)) {
-        throw new Error(
-          `The \`dataConverter\` named export at dataConverterPath (${options.dataConverterPath}) should be an instance of a class that implements the DataConverter interface.`
-        );
-      }
-
-      return dataConverter;
-    }
-
-    return defaultDataConverter;
   }
 
   /**
@@ -267,11 +233,10 @@ export class Worker {
   protected constructor(
     protected readonly nativeWorker: NativeWorkerLike,
     /**
-     * Optional WorkflowCreator - if not provided, Worker will not poll on Workflows
+     * Optional WorkflowCreator - if not provided, Worker will not poll on workflows
      */
     protected readonly workflowCreator: WorkflowCreator | undefined,
-    public readonly options: CompiledWorkerOptions,
-    protected readonly dataConverter: DataConverter = defaultDataConverter
+    public readonly options: CompiledWorkerOptions
   ) {
     this.tracer = getTracer(options.enableSDKTracing);
   }
@@ -415,7 +380,7 @@ export class Worker {
                     const info = await extractActivityInfo(
                       task,
                       false,
-                      this.dataConverter,
+                      this.options.dataConverter,
                       this.nativeWorker.namespace
                     );
                     const { activityType } = info;
@@ -439,7 +404,7 @@ export class Worker {
                     }
                     let args: unknown[];
                     try {
-                      args = await arrayFromPayloads(this.dataConverter, task.start?.input);
+                      args = await arrayFromPayloads(this.options.dataConverter, task.start?.input);
                     } catch (err) {
                       output = {
                         type: 'result',
@@ -470,7 +435,7 @@ export class Worker {
                     activity = new Activity(
                       info,
                       fn,
-                      this.dataConverter,
+                      this.options.dataConverter,
                       (details) =>
                         this.activityHeartbeatSubject.next({
                           taskToken,
@@ -696,7 +661,7 @@ export class Worker {
                 const completion = coresdk.workflow_completion.WFActivationCompletion.encodeDelimited({
                   runId: activation.runId,
                   failed: {
-                    failure: await errorToFailure(error, this.dataConverter),
+                    failure: await errorToFailure(error, this.options.dataConverter),
                   },
                 }).finish();
                 // We do not dispose of the Workflow yet, wait to be evicted from Core.
@@ -769,7 +734,7 @@ export class Worker {
         complete: () => this.log.debug('Heartbeats complete'),
       }),
       mergeMap(async ({ taskToken, details }) => {
-        const payload = await this.dataConverter.toPayload(details);
+        const payload = await this.options.dataConverter.toPayload(details);
         const arr = coresdk.ActivityHeartbeat.encodeDelimited({
           taskToken,
           details: [payload],

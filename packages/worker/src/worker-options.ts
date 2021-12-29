@@ -1,7 +1,7 @@
 import os from 'os';
 import fs from 'fs';
 import { resolve, dirname } from 'path';
-import { ActivityInterface, msToNumber } from '@temporalio/common';
+import { ActivityInterface, DataConverter, defaultDataConverter, msToNumber } from '@temporalio/common';
 import { WorkerInterceptors } from './interceptors';
 import { InjectedSinks } from './sinks';
 import { GiB } from './utils';
@@ -75,9 +75,9 @@ export interface WorkerOptions {
   shutdownSignals?: NodeJS.Signals[];
 
   /**
-   * Path of a module with a `dataConverter` named export. `dataConverter` should be an instance of a class that implements {@link DataConverter}.
+   * TODO: document, figure out how to propagate this to the workflow isolate
    */
-  dataConverterPath?: string;
+  dataConverter?: DataConverter;
 
   /**
    * Maximum number of Activity tasks to execute concurrently.
@@ -202,6 +202,7 @@ export type WorkerOptionsWithDefaults = WorkerOptions &
       WorkerOptions,
       | 'shutdownGraceTime'
       | 'shutdownSignals'
+      | 'dataConverter'
       | 'maxConcurrentActivityTaskExecutions'
       | 'maxConcurrentWorkflowTaskExecutions'
       | 'maxConcurrentActivityTaskPolls'
@@ -294,6 +295,7 @@ export function addDefaultWorkerOptions(options: WorkerOptions): WorkerOptionsWi
       (options.workflowsPath ? resolveNodeModulesPaths(fs, options.workflowsPath) : undefined),
     shutdownGraceTime: '5s',
     shutdownSignals: ['SIGINT', 'SIGTERM', 'SIGQUIT', 'SIGUSR2'],
+    dataConverter: defaultDataConverter,
     maxConcurrentActivityTaskExecutions: 100,
     maxConcurrentWorkflowTaskExecutions: 100,
     maxConcurrentActivityTaskPolls: 5,

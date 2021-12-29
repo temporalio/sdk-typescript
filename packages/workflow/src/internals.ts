@@ -11,6 +11,7 @@ import {
   arrayFromPayloadsSync,
   Workflow,
   WorkflowQueryType,
+  ApplicationFailure,
   TemporalFailure,
 } from '@temporalio/common';
 import { checkExtends } from '@temporalio/common/lib/type-helpers';

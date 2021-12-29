@@ -30,5 +30,3 @@ export const encodingKeys = {
   METADATA_ENCODING_PROTOBUF_JSON: u8(encodingTypes.METADATA_ENCODING_PROTOBUF_JSON),
   METADATA_ENCODING_PROTOBUF: u8(encodingTypes.METADATA_ENCODING_PROTOBUF),
 } as const;
-
-export const METADATA_MESSAGE_TYPE_KEY = 'messageType';
