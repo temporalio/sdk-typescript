@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 Breaking changes marked with a :boom:
 
+## [0.17.2] - 2021-12-28
+
+### Bug Fixes
+
+- Reverted ([#430](https://github.com/temporalio/sdk-typescript/pull/430)) which added protobuf payload converters
+
+  This broke Workflows for some users who had the `assert` package installed in their `node_modules` folder.
+  `proto3-json-serializer` (added in this PR) requires `assert` which transitively requires `utils` which relies on `process` being available.
+
 ## [0.17.1] - 2021-12-27
 
 ### Bug Fixes
