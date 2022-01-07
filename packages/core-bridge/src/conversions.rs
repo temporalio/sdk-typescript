@@ -10,8 +10,9 @@ use std::net::SocketAddr;
 use std::{fmt::Display, str::FromStr, time::Duration};
 use temporal_sdk_core::{
     ClientTlsConfig, RetryConfig, ServerGatewayOptions, ServerGatewayOptionsBuilder,
-    TelemetryOptions, TelemetryOptionsBuilder, TlsConfig, Url, WorkerConfig,
+    TelemetryOptions, TelemetryOptionsBuilder, TlsConfig, Url,
 };
+use temporal_sdk_core_api::worker::{WorkerConfig, WorkerConfigBuilder};
 
 macro_rules! js_value_getter {
     ($js_cx:expr, $js_obj:ident, $prop_name:expr, $js_type:ty) => {
@@ -291,18 +292,23 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
             JsNumber
         ) as u64);
 
-        Ok(WorkerConfig {
-            no_remote_activities: false, // TODO: make this configurable once Core implements local activities
-            max_concurrent_at_polls,
-            max_concurrent_wft_polls,
-            max_outstanding_workflow_tasks,
-            max_outstanding_activities,
-            max_cached_workflows,
-            nonsticky_to_sticky_poll_ratio,
-            sticky_queue_schedule_to_start_timeout,
-            task_queue,
-            max_heartbeat_throttle_interval,
-            default_heartbeat_throttle_interval,
-        })
+        match WorkerConfigBuilder::default()
+            .no_remote_activities(false) // TODO: make this configurable once Core implements local activities
+            .max_concurrent_at_polls(max_concurrent_at_polls)
+            .max_concurrent_wft_polls(max_concurrent_wft_polls)
+            .max_outstanding_workflow_tasks(max_outstanding_workflow_tasks)
+            .max_outstanding_activities(max_outstanding_activities)
+            .max_cached_workflows(max_cached_workflows)
+            .nonsticky_to_sticky_poll_ratio(nonsticky_to_sticky_poll_ratio)
+            .sticky_queue_schedule_to_start_timeout(sticky_queue_schedule_to_start_timeout)
+            .task_queue(task_queue)
+            .max_heartbeat_throttle_interval(max_heartbeat_throttle_interval)
+            .default_heartbeat_throttle_interval(default_heartbeat_throttle_interval)
+            .max_outstanding_local_activities(10_usize) // TODO: Pass in
+            .build()
+        {
+            Ok(worker_cfg) => Ok(worker_cfg),
+            Err(e) => cx.throw_error(format!("Invalid worker config: {:?}", e)),
+        }
     }
 }

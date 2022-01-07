@@ -175,7 +175,7 @@ function makeFireTimerJob(seq: number): coresdk.workflow_activation.IWFActivatio
 
 function makeResolveActivityJob(
   seq: number,
-  result: coresdk.activity_result.IActivityResult
+  result: coresdk.activity_result.IActivityExecutionResult
 ): coresdk.workflow_activation.IWFActivationJob {
   return {
     resolveActivity: { seq, result },
@@ -184,7 +184,7 @@ function makeResolveActivityJob(
 
 function makeResolveActivity(
   seq: number,
-  result: coresdk.activity_result.IActivityResult,
+  result: coresdk.activity_result.IActivityExecutionResult,
   timestamp: number = Date.now()
 ): coresdk.workflow_activation.IWFActivation {
   return makeActivation(timestamp, makeResolveActivityJob(seq, result));

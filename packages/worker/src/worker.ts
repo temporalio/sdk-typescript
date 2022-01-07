@@ -356,7 +356,7 @@ export class Worker {
         return group$.pipe(
           mergeMapWithState(
             async (activity: Activity | undefined, { task, parentSpan, formattedTaskToken }) => {
-              const { taskToken, variant, activityId } = task;
+              const { taskToken, variant } = task;
               if (!variant) {
                 throw new TypeError('Got an activity task without a "variant" attribute');
               }
@@ -367,7 +367,7 @@ export class Worker {
                 // We don't run the activity directly in this operator because we need to return the activity in the state
                 // so it can be cancelled if requested
                 let output:
-                  | { type: 'result'; result: coresdk.activity_result.IActivityResult; parentSpan: otel.Span }
+                  | { type: 'result'; result: coresdk.activity_result.IActivityExecutionResult; parentSpan: otel.Span }
                   | { type: 'run'; activity: Activity; input: ActivityExecuteInput; parentSpan: otel.Span }
                   | { type: 'ignore'; parentSpan: otel.Span };
                 switch (variant) {
@@ -430,6 +430,7 @@ export class Worker {
                       args,
                       headers,
                     };
+                    const activityId = info.activityId;
                     this.log.debug('Starting activity', { activityId, activityType });
 
                     activity = new Activity(
@@ -450,12 +451,12 @@ export class Worker {
                   case 'cancel': {
                     output = { type: 'ignore', parentSpan };
                     if (activity === undefined) {
-                      this.log.error('Tried to cancel a non-existing activity', { activityId });
+                      this.log.error('Tried to cancel a non-existing activity', { formattedTaskToken });
                       span.setAttribute('found', false);
                       break;
                     }
                     // NOTE: activity will not be considered cancelled until it confirms cancellation
-                    this.log.debug('Cancelling activity', { activityId });
+                    this.log.debug('Cancelling activity', { formattedTaskToken });
                     span.setAttribute('found', true);
                     activity.cancel();
                     break;
@@ -965,8 +966,9 @@ async function extractActivityInfo(
   activityNamespace: string
 ): Promise<ActivityInfo> {
   // NOTE: We trust core to supply all of these fields instead of checking for null and undefined everywhere
-  const { taskToken, activityId } = task as NonNullableObject<coresdk.activity_task.IActivityTask>;
+  const { taskToken } = task as NonNullableObject<coresdk.activity_task.IActivityTask>;
   const start = task.start as NonNullableObject<coresdk.activity_task.IStart>;
+  const activityId = start.activityId;
   return {
     taskToken,
     activityId,

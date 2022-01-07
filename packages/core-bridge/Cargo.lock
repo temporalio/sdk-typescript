@@ -1636,6 +1636,7 @@ dependencies = [
  "prost 0.9.0",
  "prost-types 0.9.0",
  "temporal-sdk-core",
+ "temporal-sdk-core-api",
  "temporal-sdk-core-protos",
  "tokio",
 ]
