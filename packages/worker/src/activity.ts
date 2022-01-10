@@ -54,12 +54,12 @@ export class Activity {
    *
    * Exist mostly for cutting it out of the stack trace for failures.
    */
-  protected async execute({ args }: ActivityExecuteInput): Promise<coresdk.activity_result.IActivityResult> {
+  protected async execute({ args }: ActivityExecuteInput): Promise<coresdk.activity_result.IActivityExecutionResult> {
     return await this.fn(...args);
   }
 
-  public run(input: ActivityExecuteInput): Promise<coresdk.activity_result.IActivityResult> {
-    return asyncLocalStorage.run(this.context, async (): Promise<coresdk.activity_result.IActivityResult> => {
+  public run(input: ActivityExecuteInput): Promise<coresdk.activity_result.IActivityExecutionResult> {
+    return asyncLocalStorage.run(this.context, async (): Promise<coresdk.activity_result.IActivityExecutionResult> => {
       try {
         const execute = composeInterceptors(this.interceptors.inbound, 'execute', (inp) => this.execute(inp));
         const result = await execute(input);

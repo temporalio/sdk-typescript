@@ -120,7 +120,7 @@ if (RUN_INTEGRATION_TESTS) {
   test.serial('WorkflowClientCallsInterceptor intercepts terminate and cancel', async (t) => {
     const taskQueue = 'test-interceptor-term-and-cancel';
     const message = uuid4();
-    // Use these to coordinate with workflow activation to complete only after terimnation
+    // Use these to coordinate with workflow activation to complete only after termination
     const worker = await Worker.create({
       ...defaultOptions,
       taskQueue,

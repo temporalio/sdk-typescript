@@ -12,12 +12,11 @@ use std::{
     sync::Arc,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
-use temporal_sdk_core::{
-    errors::{
-        CompleteActivityError, CompleteWfError, CoreInitError, PollActivityError, PollWfError,
-    },
-    init, Core, CoreInitOptions, CoreInitOptionsBuilder, WorkerConfig,
+use temporal_sdk_core::{init, CoreInitOptions, CoreInitOptionsBuilder, WorkerConfig};
+use temporal_sdk_core_api::errors::{
+    CompleteActivityError, CompleteWfError, CoreInitError, PollActivityError, PollWfError,
 };
+use temporal_sdk_core_api::Core;
 use temporal_sdk_core_protos::coresdk::{
     workflow_completion::WfActivationCompletion, ActivityHeartbeat, ActivityTaskCompletion,
 };
@@ -210,12 +209,7 @@ fn start_bridge_loop(
             match init(core_init_options).await {
                 Err(err) => {
                     send_error(event_queue.clone(), callback, |cx| match err {
-                        CoreInitError::InvalidUri(_) => {
-                            Ok(JsError::type_error(cx, "Invalid URI")?.upcast())
-                        }
-                        CoreInitError::TonicTransportError(err) => {
-                            TRANSPORT_ERROR.from_error(cx, err)
-                        }
+                        CoreInitError::GatewayInitError(err) => TRANSPORT_ERROR.from_error(cx, err),
                         e @ CoreInitError::TelemetryInitError(_) => {
                             UNEXPECTED_ERROR.from_error(cx, e)
                         }
