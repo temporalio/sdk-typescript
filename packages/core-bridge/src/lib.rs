@@ -4,6 +4,7 @@ mod errors;
 use crate::conversions::ObjectHandleConversionsExt;
 use errors::*;
 use neon::prelude::*;
+use once_cell::sync::OnceCell;
 use opentelemetry::trace::{FutureExt, SpanContext, TraceContextExt};
 use prost::Message;
 use std::{
@@ -12,7 +13,7 @@ use std::{
     sync::Arc,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
-use temporal_sdk_core::{init, CoreInitOptions, CoreInitOptionsBuilder, WorkerConfig};
+use temporal_sdk_core::{init, CoreInitOptions, CoreInitOptionsBuilder, CoreSDK, WorkerConfig};
 use temporal_sdk_core_api::{
     errors::{
         CompleteActivityError, CompleteWfError, CoreInitError, PollActivityError, PollWfError,
@@ -22,10 +23,12 @@ use temporal_sdk_core_api::{
 use temporal_sdk_core_protos::coresdk::{
     workflow_completion::WorkflowActivationCompletion, ActivityHeartbeat, ActivityTaskCompletion,
 };
+use temporal_sdk_core_test_utils::history_replay::ReplayCoreImpl;
+use tokio::runtime::Runtime;
 use tokio::sync::mpsc::{unbounded_channel, UnboundedSender};
 
 /// A request from JS to bridge to core
-pub enum Request {
+enum Request {
     /// A request to shutdown Core, any registered workers will be shutdown as well.
     /// Breaks from the thread loop.
     Shutdown {
@@ -43,6 +46,13 @@ pub enum Request {
     RegisterWorker {
         /// Worker configuration e.g. limits and task queue
         config: WorkerConfig,
+        /// Used to send the result back into JS
+        callback: Root<JsFunction>,
+    },
+    /// A request to register a replay worker. Will only work against a replay core instance.
+    ReplayWorker {
+        /// Must be unique for each workflow being replayed
+        queue_name: String,
         /// Used to send the result back into JS
         callback: Root<JsFunction>,
     },
@@ -86,26 +96,39 @@ pub enum Request {
 }
 
 #[derive(Clone)]
-pub struct CoreHandle {
+struct CoreHandle {
     sender: UnboundedSender<Request>,
 }
-
 /// Box it so we can use Core from JS
 type BoxedCore = JsBox<CoreHandle>;
-
 impl Finalize for CoreHandle {}
 
 /// Worker struct, hold a reference for the channel sender responsible for sending requests from
 /// JS to a bridge thread which forwards them to core
-pub struct Worker {
+struct Worker {
     core: CoreHandle,
     queue: String,
 }
-
 /// Box it so we can use Worker from JS
 type BoxedWorker = JsBox<Worker>;
-
 impl Finalize for Worker {}
+
+enum CoreType {
+    Real(CoreSDK),
+    Replay(ReplayCoreImpl),
+}
+
+/// Lazy-inits or returns a global tokio runtime that we use for interactions with Core(s)
+fn tokio_runtime() -> &'static Runtime {
+    static INSTANCE: OnceCell<Runtime> = OnceCell::new();
+    INSTANCE.get_or_init(|| {
+        tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .thread_name("node-core-bridge")
+            .build()
+            .expect("Tokio runtime must construct properly")
+    })
+}
 
 /// Send a result to JS via callback using an [EventQueue]
 fn send_result<F, T>(queue: Arc<EventQueue>, callback: Root<JsFunction>, res_fn: F)
@@ -203,204 +226,197 @@ fn start_bridge_loop(
 ) {
     let (sender, mut receiver) = unbounded_channel::<Request>();
 
-    tokio::runtime::Builder::new_multi_thread()
-        .enable_all()
-        .build()
-        .unwrap()
-        .block_on(async {
-            match init(core_init_options).await {
-                Err(err) => {
-                    send_error(event_queue.clone(), callback, |cx| match err {
-                        CoreInitError::GatewayInitError(err) => TRANSPORT_ERROR.from_error(cx, err),
-                        e @ CoreInitError::TelemetryInitError(_) => {
-                            UNEXPECTED_ERROR.from_error(cx, e)
-                        }
-                    });
-                }
-                Ok(result) => {
-                    let core = Arc::new(result);
-                    let core_handle = CoreHandle {
-                        sender: sender.clone(),
+    tokio_runtime().block_on(async {
+        match init(core_init_options).await {
+            Err(err) => {
+                send_error(event_queue.clone(), callback, |cx| match err {
+                    CoreInitError::GatewayInitError(err) => TRANSPORT_ERROR.from_error(cx, err),
+                    e @ CoreInitError::TelemetryInitError(_) => UNEXPECTED_ERROR.from_error(cx, e),
+                });
+            }
+            Ok(result) => {
+                let core = Arc::new(result);
+                let core_handle = CoreHandle { sender };
+                // Clone once to send back to JS via event queue
+                let cloned_core_handle = core_handle.clone();
+                send_result(event_queue.clone(), callback, |cx| {
+                    Ok(cx.boxed(cloned_core_handle))
+                });
+
+                loop {
+                    let request_option = receiver.recv().await;
+                    let request = match request_option {
+                        None => break,
+                        Some(request) => request,
                     };
-                    // Clone once to send back to JS via event queue
-                    let cloned_core_handle = core_handle.clone();
-                    send_result(event_queue.clone(), callback, |cx| {
-                        Ok(cx.boxed(cloned_core_handle))
-                    });
+                    let core = core.clone();
+                    let event_queue = event_queue.clone();
 
-                    loop {
-                        let request_option = receiver.recv().await;
-                        let request = match request_option {
-                            None => break,
-                            Some(request) => request,
-                        };
-                        let core = core.clone();
-                        let event_queue = event_queue.clone();
-
-                        match request {
-                            Request::Shutdown { callback } => {
-                                void_future_to_js(
-                                    event_queue,
-                                    callback,
-                                    async move {
-                                        core.shutdown().await;
-                                        // Wrap the empty result in a valid Result object
-                                        let result: Result<(), String> = Ok(());
-                                        result
-                                    },
-                                    |cx, err| UNEXPECTED_ERROR.from_error(cx, err),
-                                )
-                                .await;
-                                break;
-                            }
-                            Request::PollLogs { callback } => {
-                                let logs = core.fetch_buffered_logs();
-                                send_result(event_queue.clone(), callback, |cx| {
-                                    let logarr = cx.empty_array();
-                                    for (i, cl) in logs.into_iter().enumerate() {
-                                        // Not much to do here except for panic when there's an
-                                        // error here.
-                                        let logobj = cx.empty_object();
-                                        let level = cx.string(cl.level.to_string());
-                                        logobj.set(cx, "level", level).unwrap();
-                                        let ts = system_time_to_js(cx, cl.timestamp).unwrap();
-                                        logobj.set(cx, "timestamp", ts).unwrap();
-                                        let msg = cx.string(cl.message);
-                                        logobj.set(cx, "message", msg).unwrap();
-                                        logarr.set(cx, i as u32, logobj).unwrap();
+                    match request {
+                        Request::Shutdown { callback } => {
+                            void_future_to_js(
+                                event_queue,
+                                callback,
+                                async move {
+                                    core.shutdown().await;
+                                    // Wrap the empty result in a valid Result object
+                                    let result: Result<(), String> = Ok(());
+                                    result
+                                },
+                                |cx, err| UNEXPECTED_ERROR.from_error(cx, err),
+                            )
+                            .await;
+                            break;
+                        }
+                        Request::PollLogs { callback } => {
+                            let logs = core.fetch_buffered_logs();
+                            send_result(event_queue.clone(), callback, |cx| {
+                                let logarr = cx.empty_array();
+                                for (i, cl) in logs.into_iter().enumerate() {
+                                    // Not much to do here except for panic when there's an
+                                    // error here.
+                                    let logobj = cx.empty_object();
+                                    let level = cx.string(cl.level.to_string());
+                                    logobj.set(cx, "level", level).unwrap();
+                                    let ts = system_time_to_js(cx, cl.timestamp).unwrap();
+                                    logobj.set(cx, "timestamp", ts).unwrap();
+                                    let msg = cx.string(cl.message);
+                                    logobj.set(cx, "message", msg).unwrap();
+                                    logarr.set(cx, i as u32, logobj).unwrap();
+                                }
+                                Ok(logarr)
+                            });
+                        }
+                        Request::ShutdownWorker {
+                            task_queue,
+                            callback,
+                        } => {
+                            tokio::spawn(void_future_to_js(
+                                event_queue,
+                                callback,
+                                async move {
+                                    core.shutdown_worker(&task_queue).await;
+                                    // Wrap the empty result in a valid Result object
+                                    let result: Result<(), String> = Ok(());
+                                    result
+                                },
+                                |cx, err| UNEXPECTED_ERROR.from_error(cx, err),
+                            ));
+                        }
+                        Request::RegisterWorker { config, callback } => {
+                            let task_queue = config.clone().task_queue;
+                            let core_handle = core_handle.clone();
+                            match core.register_worker(config) {
+                                Ok(_) => send_result(event_queue.clone(), callback, |cx| {
+                                    Ok(cx.boxed(Worker {
+                                        core: core_handle,
+                                        queue: task_queue,
+                                    }))
+                                }),
+                                Err(err) => send_error(event_queue.clone(), callback, |cx| {
+                                    UNEXPECTED_ERROR.from_error(cx, err)
+                                }),
+                            };
+                        }
+                        Request::ReplayWorker {
+                            queue_name,
+                            callback,
+                        } => {
+                            todo!()
+                        }
+                        Request::PollWorkflowActivation {
+                            queue_name,
+                            otel_span,
+                            callback,
+                        } => {
+                            tokio::spawn(handle_poll_workflow_activation_request(
+                                queue_name,
+                                otel_span,
+                                core,
+                                event_queue,
+                                callback,
+                            ));
+                        }
+                        Request::PollActivityTask {
+                            queue_name,
+                            otel_span,
+                            callback,
+                        } => {
+                            tokio::spawn(handle_poll_activity_task_request(
+                                queue_name,
+                                otel_span,
+                                core,
+                                event_queue,
+                                callback,
+                            ));
+                        }
+                        Request::CompleteWorkflowActivation {
+                            completion,
+                            otel_span,
+                            callback,
+                        } => {
+                            let otel_ctx =
+                                opentelemetry::Context::new().with_remote_span_context(otel_span);
+                            tokio::spawn(void_future_to_js(
+                                event_queue,
+                                callback,
+                                async move {
+                                    core.complete_workflow_activation(completion)
+                                        .with_context(otel_ctx)
+                                        .await
+                                },
+                                |cx, err| match err {
+                                    CompleteWfError::NoWorkerForQueue(queue_name) => {
+                                        let args = vec![cx.string(queue_name).upcast()];
+                                        NO_WORKER_ERROR.construct(cx, args)
                                     }
-                                    Ok(logarr)
-                                });
-                            }
-                            Request::ShutdownWorker {
-                                task_queue,
+                                    CompleteWfError::TonicError(_) => {
+                                        TRANSPORT_ERROR.from_error(cx, err)
+                                    }
+                                    CompleteWfError::MalformedWorkflowCompletion {
+                                        reason, ..
+                                    } => Ok(JsError::type_error(cx, reason)?.upcast()),
+                                },
+                            ));
+                        }
+                        Request::CompleteActivityTask {
+                            completion,
+                            otel_span,
+                            callback,
+                        } => {
+                            let otel_ctx =
+                                opentelemetry::Context::new().with_remote_span_context(otel_span);
+                            tokio::spawn(void_future_to_js(
+                                event_queue,
                                 callback,
-                            } => {
-                                tokio::spawn(void_future_to_js(
-                                    event_queue,
-                                    callback,
-                                    async move {
-                                        core.shutdown_worker(&task_queue).await;
-                                        // Wrap the empty result in a valid Result object
-                                        let result: Result<(), String> = Ok(());
-                                        result
-                                    },
-                                    |cx, err| UNEXPECTED_ERROR.from_error(cx, err),
-                                ));
-                            }
-                            Request::RegisterWorker { config, callback } => {
-                                let task_queue = config.clone().task_queue;
-                                let core_handle = core_handle.clone();
-                                tokio::spawn(async move {
-                                    match core.register_worker(config).await {
-                                        Ok(_) => send_result(event_queue.clone(), callback, |cx| {
-                                            Ok(cx.boxed(Worker {
-                                                core: core_handle,
-                                                queue: task_queue,
-                                            }))
-                                        }),
-                                        Err(err) => {
-                                            send_error(event_queue.clone(), callback, |cx| {
-                                                UNEXPECTED_ERROR.from_error(cx, err)
-                                            })
-                                        }
-                                    };
-                                });
-                            }
-                            Request::PollWorkflowActivation {
-                                queue_name,
-                                otel_span,
-                                callback,
-                            } => {
-                                tokio::spawn(handle_poll_workflow_activation_request(
-                                    queue_name,
-                                    otel_span,
-                                    core,
-                                    event_queue,
-                                    callback,
-                                ));
-                            }
-                            Request::PollActivityTask {
-                                queue_name,
-                                otel_span,
-                                callback,
-                            } => {
-                                tokio::spawn(handle_poll_activity_task_request(
-                                    queue_name,
-                                    otel_span,
-                                    core,
-                                    event_queue,
-                                    callback,
-                                ));
-                            }
-                            Request::CompleteWorkflowActivation {
-                                completion,
-                                otel_span,
-                                callback,
-                            } => {
-                                let otel_ctx = opentelemetry::Context::new()
-                                    .with_remote_span_context(otel_span);
-                                tokio::spawn(void_future_to_js(
-                                    event_queue,
-                                    callback,
-                                    async move {
-                                        core.complete_workflow_activation(completion)
-                                            .with_context(otel_ctx)
-                                            .await
-                                    },
-                                    |cx, err| match err {
-                                        CompleteWfError::NoWorkerForQueue(queue_name) => {
-                                            let args = vec![cx.string(queue_name).upcast()];
-                                            NO_WORKER_ERROR.construct(cx, args)
-                                        }
-                                        CompleteWfError::TonicError(_) => {
-                                            TRANSPORT_ERROR.from_error(cx, err)
-                                        }
-                                        CompleteWfError::MalformedWorkflowCompletion {
-                                            reason,
-                                            ..
-                                        } => Ok(JsError::type_error(cx, reason)?.upcast()),
-                                    },
-                                ));
-                            }
-                            Request::CompleteActivityTask {
-                                completion,
-                                otel_span,
-                                callback,
-                            } => {
-                                let otel_ctx = opentelemetry::Context::new()
-                                    .with_remote_span_context(otel_span);
-                                tokio::spawn(void_future_to_js(
-                                    event_queue,
-                                    callback,
-                                    async move {
-                                        core.complete_activity_task(completion)
-                                            .with_context(otel_ctx)
-                                            .await
-                                    },
-                                    |cx, err| match err {
-                                        CompleteActivityError::MalformedActivityCompletion {
-                                            reason,
-                                            ..
-                                        } => Ok(JsError::type_error(cx, reason)?.upcast()),
-                                        CompleteActivityError::TonicError(_) => {
-                                            TRANSPORT_ERROR.from_error(cx, err)
-                                        }
-                                        CompleteActivityError::NoWorkerForQueue(queue_name) => {
-                                            let args = vec![cx.string(queue_name).upcast()];
-                                            NO_WORKER_ERROR.construct(cx, args)
-                                        }
-                                    },
-                                ));
-                            }
-                            Request::RecordActivityHeartbeat { heartbeat } => {
-                                core.record_activity_heartbeat(heartbeat)
-                            }
+                                async move {
+                                    core.complete_activity_task(completion)
+                                        .with_context(otel_ctx)
+                                        .await
+                                },
+                                |cx, err| match err {
+                                    CompleteActivityError::MalformedActivityCompletion {
+                                        reason,
+                                        ..
+                                    } => Ok(JsError::type_error(cx, reason)?.upcast()),
+                                    CompleteActivityError::TonicError(_) => {
+                                        TRANSPORT_ERROR.from_error(cx, err)
+                                    }
+                                    CompleteActivityError::NoWorkerForQueue(queue_name) => {
+                                        let args = vec![cx.string(queue_name).upcast()];
+                                        NO_WORKER_ERROR.construct(cx, args)
+                                    }
+                                },
+                            ));
+                        }
+                        Request::RecordActivityHeartbeat { heartbeat } => {
+                            core.record_activity_heartbeat(heartbeat)
                         }
                     }
                 }
             }
-        })
+        }
+    })
 }
 
 /// Called within the poll loop thread, calls core and triggers JS callback with result
@@ -525,6 +541,11 @@ fn core_new(mut cx: FunctionContext) -> JsResult<JsUndefined> {
         )
     });
 
+    Ok(cx.undefined())
+}
+
+/// Create a new "replay" instance of core, which can only be used for replaying static histories.
+fn replay_core_new(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     Ok(cx.undefined())
 }
 
@@ -728,7 +749,7 @@ where
     let ts = cx.empty_array();
     ts.set(cx, 0, ts_seconds).unwrap();
     ts.set(cx, 1, only_nanos).unwrap();
-    return Ok(ts);
+    Ok(ts)
 }
 
 /// Helper to get the current time in nanosecond resolution.

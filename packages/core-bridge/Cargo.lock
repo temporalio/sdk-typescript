@@ -331,6 +331,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "difflib"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6184e33543162437515c2e2b48714794e37845ec9851711914eec9d308f6ebe8"
+
+[[package]]
+name = "downcast"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1435fa1053d8b2fbbe9be7e97eca7f33d37b28409959813daefc1446a14247f1"
+
+[[package]]
 name = "either"
 version = "1.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -361,6 +373,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "279fb028e20b3c4c320317955b77c5e0c9701f05a1d309905d6fc702cdc5053e"
 
 [[package]]
+name = "float-cmp"
+version = "0.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "98de4bbd547a563b716d8dfa9aad1cb19bfab00f4fa09a6a4ed21dbcf44ce9c4"
+dependencies = [
+ "num-traits",
+]
+
+[[package]]
 name = "fnv"
 version = "1.0.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -375,6 +396,12 @@ dependencies = [
  "matches",
  "percent-encoding",
 ]
+
+[[package]]
+name = "fragile"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "69a039c3498dc930fe810151a34ba0c1c70b02b8625035592e74432f678591f2"
 
 [[package]]
 name = "futures"
@@ -771,6 +798,33 @@ dependencies = [
 ]
 
 [[package]]
+name = "mockall"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3d4d70639a72f972725db16350db56da68266ca368b2a1fe26724a903ad3d6b8"
+dependencies = [
+ "cfg-if",
+ "downcast",
+ "fragile",
+ "lazy_static",
+ "mockall_derive",
+ "predicates",
+ "predicates-tree",
+]
+
+[[package]]
+name = "mockall_derive"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "79ef208208a0dea3f72221e26e904cdc6db2e481d9ade89081ddd494f1dbaa6b"
+dependencies = [
+ "cfg-if",
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "multimap"
 version = "0.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -818,12 +872,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "normalize-line-endings"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "61807f77802ff30975e01f4f071c8ba10c022052f98b3294119f3e615d13e5be"
+
+[[package]]
 name = "ntapi"
 version = "0.3.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3f6bb902e437b6d86e03cce10a7e2af662292c5dfef23b65899ea3ac9354ad44"
 dependencies = [
  "winapi",
+]
+
+[[package]]
+name = "num-traits"
+version = "0.2.14"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9a64b1ec5cda2586e284722486d802acf1f7dbdc623e2bfc57e65ca1cd099290"
+dependencies = [
+ "autocfg",
 ]
 
 [[package]]
@@ -985,6 +1054,36 @@ name = "ppv-lite86"
 version = "0.2.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "eb9f9e6e233e5c4a35559a617bf40a4ec447db2e84c20b55a6f83167b7e57872"
+
+[[package]]
+name = "predicates"
+version = "2.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a5aab5be6e4732b473071984b3164dbbfb7a3674d30ea5ff44410b6bcd960c3c"
+dependencies = [
+ "difflib",
+ "float-cmp",
+ "itertools",
+ "normalize-line-endings",
+ "predicates-core",
+ "regex",
+]
+
+[[package]]
+name = "predicates-core"
+version = "1.0.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "da1c2388b1513e1b605fcec39a95e0a9e8ef088f71443ef37099fa9ae6673fcb"
+
+[[package]]
+name = "predicates-tree"
+version = "1.0.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4d86de6de25020a36c6d3643a86d9a6a9f552107c0559c60ea03551b5e16c032"
+dependencies = [
+ "predicates-core",
+ "termtree",
+]
 
 [[package]]
 name = "proc-macro2"
@@ -1499,6 +1598,7 @@ dependencies = [
  "futures-retry",
  "http",
  "lazy_static",
+ "mockall",
  "opentelemetry",
  "prost-types 0.9.0",
  "temporal-sdk-core-protos",
@@ -1509,6 +1609,27 @@ dependencies = [
  "tracing",
  "url",
  "uuid",
+]
+
+[[package]]
+name = "temporal-sdk"
+version = "0.1.0-alpha.1"
+dependencies = [
+ "anyhow",
+ "crossbeam",
+ "derive_more",
+ "futures",
+ "parking_lot",
+ "prost-types 0.9.0",
+ "serde",
+ "temporal-sdk-core",
+ "temporal-sdk-core-api",
+ "temporal-sdk-core-protos",
+ "tokio",
+ "tokio-stream",
+ "tokio-util",
+ "tonic 0.6.2",
+ "tracing",
 ]
 
 [[package]]
@@ -1593,6 +1714,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "temporal-sdk-core-test-utils"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "base64",
+ "futures",
+ "log",
+ "prost 0.9.0",
+ "prost-types 0.9.0",
+ "rand",
+ "serde_json",
+ "temporal-client",
+ "temporal-sdk",
+ "temporal-sdk-core",
+ "temporal-sdk-core-api",
+ "temporal-sdk-core-protos",
+ "thiserror",
+ "tokio",
+ "url",
+ "uuid",
+]
+
+[[package]]
 name = "temporal-sdk-typescript-bridge"
 version = "0.1.0"
 dependencies = [
@@ -1606,8 +1751,15 @@ dependencies = [
  "temporal-sdk-core",
  "temporal-sdk-core-api",
  "temporal-sdk-core-protos",
+ "temporal-sdk-core-test-utils",
  "tokio",
 ]
+
+[[package]]
+name = "termtree"
+version = "0.2.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "507e9898683b6c43a9aa55b64259b721b52ba226e0f3779137e50ad114a4c90b"
 
 [[package]]
 name = "thiserror"

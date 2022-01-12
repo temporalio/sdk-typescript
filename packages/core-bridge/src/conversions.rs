@@ -194,15 +194,13 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
                     "maxInterval",
                     JsNumber
                 ) as u64),
-                max_elapsed_time: match js_optional_getter!(
+                max_elapsed_time: js_optional_getter!(
                     cx,
                     &retry_config,
                     "maxElapsedTime",
                     JsNumber
-                ) {
-                    None => None,
-                    Some(val) => Some(Duration::from_millis(val.value(cx) as u64)),
-                },
+                )
+                .map(|val| Duration::from_millis(val.value(cx) as u64)),
                 max_retries: js_value_getter!(cx, retry_config, "maxRetries", JsNumber) as usize,
             },
         };
