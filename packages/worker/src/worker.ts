@@ -48,7 +48,7 @@ export { IllegalStateError } from '@temporalio/common';
 export { DataConverter, defaultDataConverter, errors };
 import { Core } from './core';
 import { SpanContext } from '@opentelemetry/api';
-import IWFActivationJob = coresdk.workflow_activation.IWFActivationJob;
+import IWorkflowActivationJob = coresdk.workflow_activation.IWorkflowActivationJob;
 import { ThreadedVMWorkflowCreator } from './workflow/threaded-vm';
 import { SinkCall, WorkflowInfo } from '@temporalio/workflow';
 import {
@@ -88,13 +88,13 @@ type Promisify<T> = T extends (...args: any[]) => void
   ? (...args: OmitLast<Parameters<T>>) => ExtractToPromise<LastParameter<T>>
   : never;
 
-type PatchJob = NonNullableObject<Pick<coresdk.workflow_activation.IWFActivationJob, 'notifyHasPatch'>>;
+type PatchJob = NonNullableObject<Pick<coresdk.workflow_activation.IWorkflowActivationJob, 'notifyHasPatch'>>;
 type ContextAware<T> = T & {
   parentSpan: otel.Span;
 };
 
 export type ActivationWithContext = ContextAware<{
-  activation: coresdk.workflow_activation.WFActivation;
+  activation: coresdk.workflow_activation.WorkflowActivation;
 }>;
 export type ActivityTaskWithContext = ContextAware<{
   task: coresdk.activity_task.ActivityTask;
@@ -516,10 +516,10 @@ export class Worker {
             // Core has indicated that it will not return any more poll results, evict all cached WFs
             filter((state) => state === 'DRAINING'),
             first(),
-            map((): ContextAware<{ activation: coresdk.workflow_activation.WFActivation; synthetic: true }> => {
+            map((): ContextAware<{ activation: coresdk.workflow_activation.WorkflowActivation; synthetic: true }> => {
               return {
                 parentSpan: this.tracer.startSpan('workflow.shutdown.evict'),
-                activation: new coresdk.workflow_activation.WFActivation({
+                activation: new coresdk.workflow_activation.WorkflowActivation({
                   runId: group$.key,
                   jobs: [{ removeFromCache: { reason: 'Shutting down' } }],
                 }),
@@ -558,7 +558,7 @@ export class Worker {
                     this.log.debug('Disposing workflow', { runId: activation.runId });
                     const completion = synthetic
                       ? undefined
-                      : coresdk.workflow_completion.WFActivationCompletion.encodeDelimited({
+                      : coresdk.workflow_completion.WorkflowActivationCompletion.encodeDelimited({
                           runId: activation.runId,
                           successful: {},
                         }).finish();
@@ -659,7 +659,7 @@ export class Worker {
                   error,
                   workflowExists: state !== undefined,
                 });
-                const completion = coresdk.workflow_completion.WFActivationCompletion.encodeDelimited({
+                const completion = coresdk.workflow_completion.WorkflowActivationCompletion.encodeDelimited({
                   runId: activation.runId,
                   failed: {
                     failure: await errorToFailure(error, this.options.dataConverter),
@@ -746,7 +746,7 @@ export class Worker {
   }
 
   /**
-   * Poll core for `WFActivation`s while respecting worker state
+   * Poll core for `WorkflowActivation`s while respecting worker state
    */
   protected workflowPoll$(): Observable<ActivationWithContext> {
     return this.pollLoop$(async () => {
@@ -754,7 +754,7 @@ export class Worker {
       try {
         return await instrument(this.tracer, parentSpan, 'workflow.poll', async (span) => {
           const buffer = await this.nativeWorker.pollWorkflowActivation(span.spanContext());
-          const activation = coresdk.workflow_activation.WFActivation.decode(new Uint8Array(buffer));
+          const activation = coresdk.workflow_activation.WorkflowActivation.decode(new Uint8Array(buffer));
           const { runId, ...rest } = activation;
           this.log.debug('Got workflow activation', { runId, ...rest });
 
@@ -780,7 +780,7 @@ export class Worker {
    * If the activation includes WF start, headers will be extracted and cached. If it does not,
    * any previously such extracted header will be used for the run.
    */
-  private async linkWorkflowSpans(runId: string, jobs: IWFActivationJob[], parentSpan: otel.Span) {
+  private async linkWorkflowSpans(runId: string, jobs: IWorkflowActivationJob[], parentSpan: otel.Span) {
     let linkedContext = this.runIdsToSpanContext.get(runId);
     // If there is an otel context in the headers, link our trace for the workflow to the
     // trace in the header.

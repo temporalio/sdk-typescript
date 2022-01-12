@@ -201,8 +201,8 @@ export class VMWorkflowThreadProxy implements Workflow {
   /**
    * Proxy request to the VMWorkflow instance
    */
-  async activate(activation: coresdk.workflow_activation.IWFActivation): Promise<Uint8Array> {
-    const arr = coresdk.workflow_activation.WFActivation.encodeDelimited(activation).finish();
+  async activate(activation: coresdk.workflow_activation.IWorkflowActivation): Promise<Uint8Array> {
+    const arr = coresdk.workflow_activation.WorkflowActivation.encodeDelimited(activation).finish();
     const output = await this.workerThreadClient.send({
       type: 'activate-workflow',
       activation: arr,

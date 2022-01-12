@@ -173,7 +173,7 @@ export interface ActivationResult {
  * @returns a boolean indicating whether job was processed or ignored
  */
 export async function activate(
-  activation: coresdk.workflow_activation.WFActivation,
+  activation: coresdk.workflow_activation.WorkflowActivation,
   batchIndex: number
 ): Promise<ActivationResult> {
   const intercept = composeInterceptors(
@@ -196,7 +196,7 @@ export async function activate(
 
       // Cast from the interface to the class which has the `variant` attribute.
       // This is safe because we know that activation is a proto class.
-      const jobs = activation.jobs as coresdk.workflow_activation.WFActivationJob[];
+      const jobs = activation.jobs as coresdk.workflow_activation.WorkflowActivationJob[];
 
       await Promise.all(
         jobs.map(async (job) => {
@@ -236,7 +236,7 @@ export async function activate(
  *
  * Activation failures are handled in the main Node.js isolate.
  */
-export function concludeActivation(): coresdk.workflow_completion.IWFActivationCompletion {
+export function concludeActivation(): coresdk.workflow_completion.IWorkflowActivationCompletion {
   const intercept = composeInterceptors(state.interceptors.internals, 'concludeActivation', (input) => input);
   const { info } = state;
   const { commands } = intercept({ commands: state.commands });

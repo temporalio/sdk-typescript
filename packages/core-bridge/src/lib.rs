@@ -13,12 +13,14 @@ use std::{
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 use temporal_sdk_core::{init, CoreInitOptions, CoreInitOptionsBuilder, WorkerConfig};
-use temporal_sdk_core_api::errors::{
-    CompleteActivityError, CompleteWfError, CoreInitError, PollActivityError, PollWfError,
+use temporal_sdk_core_api::{
+    errors::{
+        CompleteActivityError, CompleteWfError, CoreInitError, PollActivityError, PollWfError,
+    },
+    Core,
 };
-use temporal_sdk_core_api::Core;
 use temporal_sdk_core_protos::coresdk::{
-    workflow_completion::WfActivationCompletion, ActivityHeartbeat, ActivityTaskCompletion,
+    workflow_completion::WorkflowActivationCompletion, ActivityHeartbeat, ActivityTaskCompletion,
 };
 use tokio::sync::mpsc::{unbounded_channel, UnboundedSender};
 
@@ -54,7 +56,7 @@ pub enum Request {
     },
     /// A request to complete a single workflow activation
     CompleteWorkflowActivation {
-        completion: WfActivationCompletion,
+        completion: WorkflowActivationCompletion,
         otel_span: SpanContext,
         /// Used to send the result back into JS
         callback: Root<JsFunction>,
@@ -613,12 +615,12 @@ fn worker_complete_workflow_activation(mut cx: FunctionContext) -> JsResult<JsUn
     let completion = cx.argument::<JsArrayBuffer>(2)?;
     let callback = cx.argument::<JsFunction>(3)?;
     let result = cx.borrow(&completion, |data| {
-        WfActivationCompletion::decode_length_delimited(data.as_slice::<u8>())
+        WorkflowActivationCompletion::decode_length_delimited(data.as_slice::<u8>())
     });
     match result {
         Ok(completion) => {
             // Add the task queue from our Worker
-            let completion = WfActivationCompletion {
+            let completion = WorkflowActivationCompletion {
                 task_queue: worker.queue.clone(),
                 ..completion
             };

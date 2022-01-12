@@ -32,7 +32,7 @@ function addActivityStartDefaults(task: coresdk.activity_task.IActivityTask) {
 }
 
 export type Task =
-  | { workflow: coresdk.workflow_activation.IWFActivation }
+  | { workflow: coresdk.workflow_activation.IWorkflowActivation }
   | { activity: coresdk.activity_task.IActivityTask };
 
 export class MockNativeWorker implements NativeWorkerLike {
@@ -94,7 +94,7 @@ export class MockNativeWorker implements NativeWorkerLike {
 
   public emit(task: Task): void {
     if ('workflow' in task) {
-      const arr = coresdk.workflow_activation.WFActivation.encode(task.workflow).finish();
+      const arr = coresdk.workflow_activation.WorkflowActivation.encode(task.workflow).finish();
       const buffer = arr.buffer.slice(arr.byteOffset, arr.byteOffset + arr.byteLength);
       this.workflowActivations.unshift(Promise.resolve(buffer));
     } else {
@@ -106,15 +106,15 @@ export class MockNativeWorker implements NativeWorkerLike {
   }
 
   public async runWorkflowActivation(
-    activation: coresdk.workflow_activation.IWFActivation
-  ): Promise<coresdk.workflow_completion.WFActivationCompletion> {
-    const arr = coresdk.workflow_activation.WFActivation.encode(activation).finish();
+    activation: coresdk.workflow_activation.IWorkflowActivation
+  ): Promise<coresdk.workflow_completion.WorkflowActivationCompletion> {
+    const arr = coresdk.workflow_activation.WorkflowActivation.encode(activation).finish();
     const buffer = arr.buffer.slice(arr.byteOffset, arr.byteOffset + arr.byteLength);
     const result = await new Promise<ArrayBuffer>((resolve) => {
       this.workflowCompletionCallback = resolve;
       this.workflowActivations.unshift(Promise.resolve(buffer));
     });
-    return coresdk.workflow_completion.WFActivationCompletion.decodeDelimited(new Uint8Array(result));
+    return coresdk.workflow_completion.WorkflowActivationCompletion.decodeDelimited(new Uint8Array(result));
   }
 
   public async runActivityTask(task: coresdk.activity_task.IActivityTask): Promise<coresdk.ActivityTaskCompletion> {

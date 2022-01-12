@@ -1,7 +1,7 @@
 import { SinkCall } from '@temporalio/workflow/lib/sinks';
 
 /**
- * A serialized coresdk.workflow_completion.WFActivationCompletion proto.
+ * A serialized coresdk.workflow_completion.WorkflowActivationCompletion proto.
  *
  * Used as response to an `ActivateWorkflow` request.
  */
