@@ -31,7 +31,7 @@ export interface ActivateWorkflow {
   type: 'activate-workflow';
   runId: string;
   /**
-   * Serialized coresdk.workflow_activation.WFActivation proto
+   * Serialized coresdk.workflow_activation.WorkflowActivation proto
    */
   activation: Uint8Array;
 }

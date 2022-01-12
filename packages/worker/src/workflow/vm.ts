@@ -132,7 +132,7 @@ export class VMWorkflow implements Workflow {
    * The Workflow is activated in batches to ensure correct order of activation
    * job application.
    */
-  public async activate(activation: coresdk.workflow_activation.IWFActivation): Promise<Uint8Array> {
+  public async activate(activation: coresdk.workflow_activation.IWorkflowActivation): Promise<Uint8Array> {
     if (this.context === undefined) {
       throw new IllegalStateError('Workflow isolate context uninitialized');
     }
@@ -158,7 +158,7 @@ export class VMWorkflow implements Workflow {
         continue;
       }
       const { numBlockedConditions } = await this.workflowModule.activate(
-        coresdk.workflow_activation.WFActivation.fromObject({ ...activation, jobs }),
+        coresdk.workflow_activation.WorkflowActivation.fromObject({ ...activation, jobs }),
         batchIndex++
       );
       if (numBlockedConditions > 0) {
@@ -172,12 +172,12 @@ export class VMWorkflow implements Workflow {
     // Apparently nextTick does not get it triggered so we use setTimeout here.
     await new Promise((resolve) => setTimeout(resolve, 0));
     if (this.unhandledRejection) {
-      return coresdk.workflow_completion.WFActivationCompletion.encodeDelimited({
+      return coresdk.workflow_completion.WorkflowActivationCompletion.encodeDelimited({
         runId: activation.runId,
         failed: { failure: await errorToFailure(this.unhandledRejection, defaultDataConverter) },
       }).finish();
     }
-    return coresdk.workflow_completion.WFActivationCompletion.encodeDelimited(completion).finish();
+    return coresdk.workflow_completion.WorkflowActivationCompletion.encodeDelimited(completion).finish();
   }
 
   /**
