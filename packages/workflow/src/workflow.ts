@@ -426,14 +426,14 @@ export function getExternalWorkflowHandle(workflowId: string, runId?: string): E
  * **Override for Workflows that accept no arguments**.
  *
  * - Returns a client-side handle that implements a child Workflow interface.
- * - By default a child will be scheduled on the same task queue as its parent.
+ * - By default, a child will be scheduled on the same task queue as its parent.
  *
  * A child Workflow handle supports awaiting completion, signaling and cancellation via {@link CancellationScope}s.
  * In order to query the child, use a {@link WorkflowClient} from an Activity.
  */
 export async function startChild<T extends Workflow>(
   workflowType: string,
-  options: ChildWorkflowOptions
+  options: WithWorkflowArgs<T, ChildWorkflowOptions>
 ): Promise<ChildWorkflowHandle<T>>;
 
 /**
@@ -443,7 +443,7 @@ export async function startChild<T extends Workflow>(
  *
  * - Returns a client-side handle that implements a child Workflow interface.
  * - Deduces the Workflow type and signature from provided Workflow function.
- * - By default a child will be scheduled on the same task queue as its parent.
+ * - By default, a child will be scheduled on the same task queue as its parent.
  *
  * A child Workflow handle supports awaiting completion, signaling and cancellation via {@link CancellationScope}s.
  * In order to query the child, use a {@link WorkflowClient} from an Activity.
@@ -532,7 +532,7 @@ export async function startChild<T extends Workflow>(
 /**
  * Start a child Workflow execution and await its completion.
  *
- * - By default a child will be scheduled on the same task queue as its parent.
+ * - By default, a child will be scheduled on the same task queue as its parent.
  * - This operation is cancellable using {@link CancellationScope}s.
  *
  * @return The result of the child Workflow.
@@ -545,7 +545,7 @@ export async function executeChild<T extends Workflow>(
 /**
  * Start a child Workflow execution and await its completion.
  *
- * - By default a child will be scheduled on the same task queue as its parent.
+ * - By default, a child will be scheduled on the same task queue as its parent.
  * - Deduces the Workflow type and signature from provided Workflow function.
  * - This operation is cancellable using {@link CancellationScope}s.
  *
