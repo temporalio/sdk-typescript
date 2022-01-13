@@ -1,6 +1,6 @@
 {
   "name": "@temporalio/proto",
-  "version": "0.17.0",
+  "version": "0.17.2",
   "description": "Temporal.io SDK compiled protobuf definitions",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

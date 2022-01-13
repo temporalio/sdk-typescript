@@ -67,7 +67,7 @@ async function handleRequest({ requestId, input }: WorkerThreadRequest): Promise
       if (workflow === undefined) {
         throw new IllegalStateError(`Tried to activate non running workflow with runId: ${input.runId}`);
       }
-      const activation = coresdk.workflow_activation.WFActivation.decodeDelimited(input.activation);
+      const activation = coresdk.workflow_activation.WorkflowActivation.decodeDelimited(input.activation);
       const completion = await workflow.activate(activation);
       return {
         requestId,

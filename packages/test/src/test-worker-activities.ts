@@ -33,16 +33,16 @@ test.beforeEach(async (t) => {
 
 function compareCompletion(
   t: ExecutionContext<Context>,
-  actual: coresdk.activity_result.IActivityResult | null | undefined,
-  expected: coresdk.activity_result.IActivityResult
+  actual: coresdk.activity_result.IActivityExecutionResult | null | undefined,
+  expected: coresdk.activity_result.IActivityExecutionResult
 ) {
   if (actual?.failed?.failure) {
     const { stackTrace, ...rest } = actual.failed.failure;
     actual = { failed: { failure: { stackTrace: cleanStackTrace(stackTrace), ...rest } } };
   }
   t.deepEqual(
-    new coresdk.activity_result.ActivityResult(actual ?? undefined).toJSON(),
-    new coresdk.activity_result.ActivityResult(expected).toJSON()
+    new coresdk.activity_result.ActivityExecutionResult(actual ?? undefined).toJSON(),
+    new coresdk.activity_result.ActivityExecutionResult(expected).toJSON()
   );
 }
 
@@ -53,7 +53,6 @@ test('Worker runs an activity and reports completion', async (t) => {
     const url = 'https://temporal.io';
     const completion = await worker.native.runActivityTask({
       taskToken,
-      activityId: 'abc',
       start: {
         activityType: 'httpGet',
         input: await defaultDataConverter.toPayloads(url),
@@ -72,7 +71,6 @@ test('Worker runs an activity and reports failure', async (t) => {
     const message = ':(';
     const completion = await worker.native.runActivityTask({
       taskToken,
-      activityId: 'abc',
       start: {
         activityType: 'throwAnError',
         input: await defaultDataConverter.toPayloads(false, message),
@@ -101,7 +99,6 @@ test('Worker cancels activity and reports cancellation', async (t) => {
     worker.native.emit({
       activity: {
         taskToken,
-        activityId: 'abc',
         start: {
           activityType: 'waitForCancellation',
           input: await defaultDataConverter.toPayloads(),
@@ -110,7 +107,6 @@ test('Worker cancels activity and reports cancellation', async (t) => {
     });
     const completion = await worker.native.runActivityTask({
       taskToken,
-      activityId: 'abc',
       cancel: {},
     });
     compareCompletion(t, completion.result, {
@@ -127,7 +123,6 @@ test('Activity Context AbortSignal cancels a fetch request', async (t) => {
       worker.native.emit({
         activity: {
           taskToken,
-          activityId: 'abc',
           start: {
             activityType: 'cancellableFetch',
             input: await defaultDataConverter.toPayloads(`http://127.0.0.1:${port}`, false),
@@ -136,7 +131,6 @@ test('Activity Context AbortSignal cancels a fetch request', async (t) => {
       });
       const completion = await worker.native.runActivityTask({
         taskToken,
-        activityId: 'abc',
         cancel: {},
       });
       compareCompletion(t, completion.result, {
@@ -152,7 +146,6 @@ test('Activity Context heartbeat is sent to core', async (t) => {
     const taskToken = Buffer.from(uuid4());
     const completionPromise = worker.native.runActivityTask({
       taskToken,
-      activityId: 'abc',
       start: {
         activityType: 'progressiveSleep',
         input: await defaultDataConverter.toPayloads(),
@@ -176,7 +169,6 @@ test('Worker fails activity with proper message when it is not registered', asyn
     const taskToken = Buffer.from(uuid4());
     const { result } = await worker.native.runActivityTask({
       taskToken,
-      activityId: 'abc',
       start: {
         activityType: 'notFound',
         input: await defaultDataConverter.toPayloads(),

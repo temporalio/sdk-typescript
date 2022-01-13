@@ -91,22 +91,22 @@ async function createWorkflow(
   return workflow;
 }
 
-async function activate(t: ExecutionContext<Context>, activation: coresdk.workflow_activation.IWFActivation) {
+async function activate(t: ExecutionContext<Context>, activation: coresdk.workflow_activation.IWorkflowActivation) {
   const { workflow, runId } = t.context;
   const arr = await workflow.activate(activation);
-  const completion = coresdk.workflow_completion.WFActivationCompletion.decodeDelimited(arr);
+  const completion = coresdk.workflow_completion.WorkflowActivationCompletion.decodeDelimited(arr);
   t.deepEqual(completion.runId, runId);
   return completion;
 }
 
 function compareCompletion(
   t: ExecutionContext<Context>,
-  req: coresdk.workflow_completion.WFActivationCompletion,
-  expected: coresdk.workflow_completion.IWFActivationCompletion
+  req: coresdk.workflow_completion.WorkflowActivationCompletion,
+  expected: coresdk.workflow_completion.IWorkflowActivationCompletion
 ) {
   t.deepEqual(
     req.toJSON(),
-    new coresdk.workflow_completion.WFActivationCompletion({
+    new coresdk.workflow_completion.WorkflowActivationCompletion({
       ...expected,
       runId: t.context.runId,
     }).toJSON()
@@ -115,7 +115,7 @@ function compareCompletion(
 
 function makeSuccess(
   commands: coresdk.workflow_commands.IWorkflowCommand[] = [makeCompleteWorkflowExecution()]
-): coresdk.workflow_completion.IWFActivationCompletion {
+): coresdk.workflow_completion.IWorkflowActivationCompletion {
   return { successful: { commands } };
 }
 
@@ -123,7 +123,7 @@ function makeStartWorkflow(
   script: string,
   args?: coresdk.common.IPayload[],
   timestamp: number = Date.now()
-): coresdk.workflow_activation.IWFActivation {
+): coresdk.workflow_activation.IWorkflowActivation {
   return makeActivation(timestamp, makeStartWorkflowJob(script, args));
 }
 
@@ -154,8 +154,8 @@ function makeActivityCancelledFailure(activityId: string, activityType: string) 
 }
 function makeActivation(
   timestamp: number = Date.now(),
-  ...jobs: coresdk.workflow_activation.IWFActivationJob[]
-): coresdk.workflow_activation.IWFActivation {
+  ...jobs: coresdk.workflow_activation.IWorkflowActivationJob[]
+): coresdk.workflow_activation.IWorkflowActivation {
   return {
     runId: 'test-runId',
     timestamp: msToTs(timestamp),
@@ -163,11 +163,11 @@ function makeActivation(
   };
 }
 
-function makeFireTimer(seq: number, timestamp: number = Date.now()): coresdk.workflow_activation.IWFActivation {
+function makeFireTimer(seq: number, timestamp: number = Date.now()): coresdk.workflow_activation.IWorkflowActivation {
   return makeActivation(timestamp, makeFireTimerJob(seq));
 }
 
-function makeFireTimerJob(seq: number): coresdk.workflow_activation.IWFActivationJob {
+function makeFireTimerJob(seq: number): coresdk.workflow_activation.IWorkflowActivationJob {
   return {
     fireTimer: { seq },
   };
@@ -175,8 +175,8 @@ function makeFireTimerJob(seq: number): coresdk.workflow_activation.IWFActivatio
 
 function makeResolveActivityJob(
   seq: number,
-  result: coresdk.activity_result.IActivityResult
-): coresdk.workflow_activation.IWFActivationJob {
+  result: coresdk.activity_result.IActivityExecutionResult
+): coresdk.workflow_activation.IWorkflowActivationJob {
   return {
     resolveActivity: { seq, result },
   };
@@ -184,13 +184,13 @@ function makeResolveActivityJob(
 
 function makeResolveActivity(
   seq: number,
-  result: coresdk.activity_result.IActivityResult,
+  result: coresdk.activity_result.IActivityExecutionResult,
   timestamp: number = Date.now()
-): coresdk.workflow_activation.IWFActivation {
+): coresdk.workflow_activation.IWorkflowActivation {
   return makeActivation(timestamp, makeResolveActivityJob(seq, result));
 }
 
-function makeNotifyHasPatchJob(patchId: string): coresdk.workflow_activation.IWFActivationJob {
+function makeNotifyHasPatchJob(patchId: string): coresdk.workflow_activation.IWorkflowActivationJob {
   return {
     notifyHasPatch: { patchId },
   };
@@ -201,7 +201,7 @@ async function makeQueryWorkflow(
   queryType: string,
   queryArgs: any[],
   timestamp: number = Date.now()
-): Promise<coresdk.workflow_activation.IWFActivation> {
+): Promise<coresdk.workflow_activation.IWorkflowActivation> {
   return makeActivation(timestamp, await makeQueryWorkflowJob(queryId, queryType, ...queryArgs));
 }
 
@@ -209,7 +209,7 @@ async function makeQueryWorkflowJob(
   queryId: string,
   queryType: string,
   ...queryArgs: any[]
-): Promise<coresdk.workflow_activation.IWFActivationJob> {
+): Promise<coresdk.workflow_activation.IWorkflowActivationJob> {
   return {
     queryWorkflow: {
       queryId,
@@ -223,7 +223,7 @@ async function makeSignalWorkflow(
   signalName: string,
   args: any[],
   timestamp: number = Date.now()
-): Promise<coresdk.workflow_activation.IWFActivation> {
+): Promise<coresdk.workflow_activation.IWorkflowActivation> {
   return makeActivation(timestamp, {
     signalWorkflow: { signalName, input: await defaultDataConverter.toPayloads(...args) },
   });
@@ -333,7 +333,10 @@ function cleanStackTrace(stack: string) {
   return stack.replace(/\bat ((async )?\S+)(:\d+:\d+| \(.*\))/g, (_, m0) => `at ${m0}`);
 }
 
-function cleanWorkflowFailureStackTrace(req: coresdk.workflow_completion.WFActivationCompletion, commandIndex = 0) {
+function cleanWorkflowFailureStackTrace(
+  req: coresdk.workflow_completion.WorkflowActivationCompletion,
+  commandIndex = 0
+) {
   // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
   req.successful!.commands![commandIndex].failWorkflowExecution!.failure!.stackTrace = cleanStackTrace(
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
@@ -343,7 +346,7 @@ function cleanWorkflowFailureStackTrace(req: coresdk.workflow_completion.WFActiv
 }
 
 function cleanWorkflowQueryFailureStackTrace(
-  req: coresdk.workflow_completion.WFActivationCompletion,
+  req: coresdk.workflow_completion.WorkflowActivationCompletion,
   commandIndex = 0
 ) {
   // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
@@ -1560,7 +1563,7 @@ test('not-replay patchedWorkflow', async (t) => {
 test('replay-no-marker patchedWorkflow', async (t) => {
   const { logs, workflowType } = t.context;
   {
-    const act: coresdk.workflow_activation.IWFActivation = {
+    const act: coresdk.workflow_activation.IWorkflowActivation = {
       runId: 'test-runId',
       timestamp: msToTs(Date.now()),
       isReplaying: true,
@@ -1570,7 +1573,7 @@ test('replay-no-marker patchedWorkflow', async (t) => {
     compareCompletion(t, completion, makeSuccess([makeStartTimerCommand({ seq: 1, startToFireTimeout: msToTs(100) })]));
   }
   {
-    const act: coresdk.workflow_activation.IWFActivation = {
+    const act: coresdk.workflow_activation.IWorkflowActivation = {
       runId: 'test-runId',
       timestamp: msToTs(Date.now()),
       isReplaying: true,
@@ -1585,7 +1588,7 @@ test('replay-no-marker patchedWorkflow', async (t) => {
 test('replay-no-marker-then-not-replay patchedWorkflow', async (t) => {
   const { logs, workflowType } = t.context;
   {
-    const act: coresdk.workflow_activation.IWFActivation = {
+    const act: coresdk.workflow_activation.IWorkflowActivation = {
       runId: 'test-runId',
       timestamp: msToTs(Date.now()),
       isReplaying: true,
@@ -1609,7 +1612,7 @@ test('replay-no-marker-then-not-replay patchedWorkflow', async (t) => {
 test('replay-with-marker patchedWorkflow', async (t) => {
   const { logs, workflowType } = t.context;
   {
-    const act: coresdk.workflow_activation.IWFActivation = {
+    const act: coresdk.workflow_activation.IWorkflowActivation = {
       runId: 'test-runId',
       timestamp: msToTs(Date.now()),
       isReplaying: true,
