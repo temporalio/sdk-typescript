@@ -20,6 +20,7 @@ import {
   RetryState,
   TimeoutFailure,
   TimeoutType,
+  compileRetryPolicy,
 } from '@temporalio/common';
 import { WorkflowOptions, compileWorkflowOptions, WorkflowSignalWithStartOptions } from './workflow-options';
 import {
@@ -67,7 +68,7 @@ import { Connection, WorkflowService } from './connection';
  * await handle.result(); // throws WorkflowExecutionCancelledError
  * ```
  */
-export interface WorkflowHandle<T extends Workflow> extends BaseWorkflowHandle<T> {
+export interface WorkflowHandle<T extends Workflow = Workflow> extends BaseWorkflowHandle<T> {
   /**
    * Query a running or completed Workflow.
    *
@@ -106,7 +107,7 @@ export interface WorkflowHandle<T extends Workflow> extends BaseWorkflowHandle<T
  * This interface is exactly the same as {@link WorkflowHandle} except it
  * includes the `originalRunId` returned after starting a new Workflow.
  */
-export interface WorkflowHandleWithRunId<T extends Workflow> extends WorkflowHandle<T> {
+export interface WorkflowHandleWithRunId<T extends Workflow = Workflow> extends WorkflowHandle<T> {
   /**
    * The runId of the initial run of the bound Workflow
    */
@@ -195,7 +196,7 @@ export interface WorkflowResultOptions {
 /**
  * Options for starting a Workflow
  */
-export type WorkflowStartOptions<T extends Workflow> = WithWorkflowArgs<T, WorkflowOptions>;
+export type WorkflowStartOptions<T extends Workflow = Workflow> = WithWorkflowArgs<T, WorkflowOptions>;
 
 /**
  * Client for starting Workflow executions and creating Workflow handles
@@ -508,7 +509,7 @@ export class WorkflowClient {
       workflowExecutionTimeout: options.workflowExecutionTimeout,
       workflowRunTimeout: options.workflowRunTimeout,
       workflowTaskTimeout: options.workflowTaskTimeout,
-      retryPolicy: options.retryPolicy,
+      retryPolicy: options.retry ? compileRetryPolicy(options.retry) : undefined,
       memo: options.memo ? { fields: await mapToPayloads(dataConverter, options.memo) } : undefined,
       searchAttributes: options.searchAttributes
         ? {
@@ -544,7 +545,7 @@ export class WorkflowClient {
       workflowExecutionTimeout: opts.workflowExecutionTimeout,
       workflowRunTimeout: opts.workflowRunTimeout,
       workflowTaskTimeout: opts.workflowTaskTimeout,
-      retryPolicy: opts.retryPolicy,
+      retryPolicy: opts.retry ? compileRetryPolicy(opts.retry) : undefined,
       memo: opts.memo ? { fields: await mapToPayloads(dataConverter, opts.memo) } : undefined,
       searchAttributes: opts.searchAttributes
         ? {

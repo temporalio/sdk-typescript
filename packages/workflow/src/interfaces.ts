@@ -1,5 +1,6 @@
-import { coresdk } from '@temporalio/proto/lib/coresdk';
+import type { coresdk } from '@temporalio/proto/lib/coresdk';
 import { CommonWorkflowOptions } from '@temporalio/common';
+import { checkExtends } from '@temporalio/common/lib/type-helpers';
 
 /**
  * Workflow execution information
@@ -79,10 +80,23 @@ export interface ContinueAsNewOptions {
   searchAttributes?: Record<string, any>;
 }
 
-export type ChildWorkflowCancellationType = coresdk.child_workflow.ChildWorkflowCancellationType;
-export const ChildWorkflowCancellationType = coresdk.child_workflow.ChildWorkflowCancellationType;
-export type ParentClosePolicy = coresdk.child_workflow.ParentClosePolicy;
-export const ParentClosePolicy = coresdk.child_workflow.ParentClosePolicy;
+export enum ChildWorkflowCancellationType {
+  ABANDON = 0,
+  TRY_CANCEL = 1,
+  WAIT_CANCELLATION_COMPLETED = 2,
+  WAIT_CANCELLATION_REQUESTED = 3,
+}
+
+checkExtends<coresdk.child_workflow.ChildWorkflowCancellationType, ChildWorkflowCancellationType>();
+
+export enum ParentClosePolicy {
+  PARENT_CLOSE_POLICY_UNSPECIFIED = 0,
+  PARENT_CLOSE_POLICY_TERMINATE = 1,
+  PARENT_CLOSE_POLICY_ABANDON = 2,
+  PARENT_CLOSE_POLICY_REQUEST_CANCEL = 3,
+}
+
+checkExtends<coresdk.child_workflow.ParentClosePolicy, ParentClosePolicy>();
 
 export interface ChildWorkflowOptions extends CommonWorkflowOptions {
   /**

@@ -48,6 +48,8 @@ function errorNameToClass(name: string): ErrorConstructor {
 export class WorkerThreadClient {
   requestIdx = 0n;
   requestIdToCompletion = new Map<BigInt, Completion<WorkerThreadOutput>>();
+  shutDownRequested = false;
+  workerExited = false;
 
   constructor(protected workerThread: Worker) {
     workerThread.on('message', ({ requestId, result }: WorkerThreadResponse) => {
@@ -65,6 +67,23 @@ export class WorkerThreadClient {
       }
 
       completion.resolve(result.output);
+    });
+    workerThread.on('exit', () => {
+      this.workerExited = true;
+      if (this.shutDownRequested) {
+        return; // ignore
+      }
+      const completions = this.requestIdToCompletion.values();
+      this.requestIdToCompletion = new Map();
+      for (const completion of completions) {
+        completion.reject(
+          new UnexpectedError(
+            'Worker thread shut down prematurely, this could be caused by an' +
+              ' unhandled rejection in workflow code that could not be' +
+              ' associated with a workflow run'
+          )
+        );
+      }
     });
   }
 
@@ -85,6 +104,10 @@ export class WorkerThreadClient {
    * Request destruction of the worker thread and await for it to terminate correctly
    */
   async destroy(): Promise<void> {
+    if (this.workerExited) {
+      return;
+    }
+    this.shutDownRequested = true;
     await this.send({ type: 'destroy' });
     const exitCode = await this.workerThread.terminate();
     if (exitCode !== TERMINATED_EXIT_CODE) {
@@ -178,8 +201,8 @@ export class VMWorkflowThreadProxy implements Workflow {
   /**
    * Proxy request to the VMWorkflow instance
    */
-  async activate(activation: coresdk.workflow_activation.IWFActivation): Promise<Uint8Array> {
-    const arr = coresdk.workflow_activation.WFActivation.encodeDelimited(activation).finish();
+  async activate(activation: coresdk.workflow_activation.IWorkflowActivation): Promise<Uint8Array> {
+    const arr = coresdk.workflow_activation.WorkflowActivation.encodeDelimited(activation).finish();
     const output = await this.workerThreadClient.send({
       type: 'activate-workflow',
       activation: arr,

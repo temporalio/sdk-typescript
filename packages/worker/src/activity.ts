@@ -9,8 +9,7 @@ import {
   FAILURE_SOURCE,
 } from '@temporalio/common';
 import { coresdk } from '@temporalio/proto';
-import { asyncLocalStorage } from '@temporalio/activity';
-import { Context, Info } from '@temporalio/activity';
+import { asyncLocalStorage, Context, Info } from '@temporalio/activity';
 import {
   ActivityExecuteInput,
   ActivityInboundCallsInterceptor,
@@ -55,17 +54,20 @@ export class Activity {
    *
    * Exist mostly for cutting it out of the stack trace for failures.
    */
-  protected async execute({ args }: ActivityExecuteInput): Promise<coresdk.activity_result.IActivityResult> {
+  protected async execute({ args }: ActivityExecuteInput): Promise<coresdk.activity_result.IActivityExecutionResult> {
     return await this.fn(...args);
   }
 
-  public run(input: ActivityExecuteInput): Promise<coresdk.activity_result.IActivityResult> {
-    return asyncLocalStorage.run(this.context, async (): Promise<coresdk.activity_result.IActivityResult> => {
+  public run(input: ActivityExecuteInput): Promise<coresdk.activity_result.IActivityExecutionResult> {
+    return asyncLocalStorage.run(this.context, async (): Promise<coresdk.activity_result.IActivityExecutionResult> => {
       try {
         const execute = composeInterceptors(this.interceptors.inbound, 'execute', (inp) => this.execute(inp));
         const result = await execute(input);
         return { completed: { result: await this.dataConverter.toPayload(result) } };
       } catch (err) {
+        if (err instanceof Error && err.name === 'CompleteAsyncError') {
+          return { willCompleteAsync: {} };
+        }
         if (this.cancelRequested) {
           // Either a CancelledFailure that we threw or AbortError from AbortController
           if (err instanceof CancelledFailure) {

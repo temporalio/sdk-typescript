@@ -19,7 +19,6 @@ import * as native from '@temporalio/core-bridge';
 import { coresdk } from '@temporalio/proto';
 import { Info as ActivityInfo } from '@temporalio/activity';
 import {
-  ActivityOptions,
   IllegalStateError,
   tsToMs,
   errorToFailure,
@@ -45,11 +44,11 @@ import { Logger } from './logger';
 import * as errors from './errors';
 import { childSpan, instrument, getTracer } from './tracing';
 import { ActivityExecuteInput } from './interceptors';
-export { RetryOptions, IllegalStateError } from '@temporalio/common';
-export { ActivityOptions, DataConverter, defaultDataConverter, errors };
+export { IllegalStateError } from '@temporalio/common';
+export { DataConverter, defaultDataConverter, errors };
 import { Core } from './core';
 import { SpanContext } from '@opentelemetry/api';
-import IWFActivationJob = coresdk.workflow_activation.IWFActivationJob;
+import IWorkflowActivationJob = coresdk.workflow_activation.IWorkflowActivationJob;
 import { ThreadedVMWorkflowCreator } from './workflow/threaded-vm';
 import { SinkCall, WorkflowInfo } from '@temporalio/workflow';
 import {
@@ -89,13 +88,13 @@ type Promisify<T> = T extends (...args: any[]) => void
   ? (...args: OmitLast<Parameters<T>>) => ExtractToPromise<LastParameter<T>>
   : never;
 
-type PatchJob = NonNullableObject<Pick<coresdk.workflow_activation.IWFActivationJob, 'notifyHasPatch'>>;
+type PatchJob = NonNullableObject<Pick<coresdk.workflow_activation.IWorkflowActivationJob, 'notifyHasPatch'>>;
 type ContextAware<T> = T & {
   parentSpan: otel.Span;
 };
 
 export type ActivationWithContext = ContextAware<{
-  activation: coresdk.workflow_activation.WFActivation;
+  activation: coresdk.workflow_activation.WorkflowActivation;
 }>;
 export type ActivityTaskWithContext = ContextAware<{
   task: coresdk.activity_task.ActivityTask;
@@ -357,7 +356,7 @@ export class Worker {
         return group$.pipe(
           mergeMapWithState(
             async (activity: Activity | undefined, { task, parentSpan, formattedTaskToken }) => {
-              const { taskToken, variant, activityId } = task;
+              const { taskToken, variant } = task;
               if (!variant) {
                 throw new TypeError('Got an activity task without a "variant" attribute');
               }
@@ -368,7 +367,7 @@ export class Worker {
                 // We don't run the activity directly in this operator because we need to return the activity in the state
                 // so it can be cancelled if requested
                 let output:
-                  | { type: 'result'; result: coresdk.activity_result.IActivityResult; parentSpan: otel.Span }
+                  | { type: 'result'; result: coresdk.activity_result.IActivityExecutionResult; parentSpan: otel.Span }
                   | { type: 'run'; activity: Activity; input: ActivityExecuteInput; parentSpan: otel.Span }
                   | { type: 'ignore'; parentSpan: otel.Span };
                 switch (variant) {
@@ -431,6 +430,7 @@ export class Worker {
                       args,
                       headers,
                     };
+                    const activityId = info.activityId;
                     this.log.debug('Starting activity', { activityId, activityType });
 
                     activity = new Activity(
@@ -451,12 +451,12 @@ export class Worker {
                   case 'cancel': {
                     output = { type: 'ignore', parentSpan };
                     if (activity === undefined) {
-                      this.log.error('Tried to cancel a non-existing activity', { activityId });
+                      this.log.error('Tried to cancel a non-existing activity', { formattedTaskToken });
                       span.setAttribute('found', false);
                       break;
                     }
                     // NOTE: activity will not be considered cancelled until it confirms cancellation
-                    this.log.debug('Cancelling activity', { activityId });
+                    this.log.debug('Cancelling activity', { formattedTaskToken });
                     span.setAttribute('found', true);
                     activity.cancel();
                     break;
@@ -516,10 +516,10 @@ export class Worker {
             // Core has indicated that it will not return any more poll results, evict all cached WFs
             filter((state) => state === 'DRAINING'),
             first(),
-            map((): ContextAware<{ activation: coresdk.workflow_activation.WFActivation; synthetic: true }> => {
+            map((): ContextAware<{ activation: coresdk.workflow_activation.WorkflowActivation; synthetic: true }> => {
               return {
                 parentSpan: this.tracer.startSpan('workflow.shutdown.evict'),
-                activation: new coresdk.workflow_activation.WFActivation({
+                activation: new coresdk.workflow_activation.WorkflowActivation({
                   runId: group$.key,
                   jobs: [{ removeFromCache: { reason: 'Shutting down' } }],
                 }),
@@ -558,7 +558,7 @@ export class Worker {
                     this.log.debug('Disposing workflow', { runId: activation.runId });
                     const completion = synthetic
                       ? undefined
-                      : coresdk.workflow_completion.WFActivationCompletion.encodeDelimited({
+                      : coresdk.workflow_completion.WorkflowActivationCompletion.encodeDelimited({
                           runId: activation.runId,
                           successful: {},
                         }).finish();
@@ -614,7 +614,6 @@ export class Worker {
                       const workflow = await instrument(this.tracer, span, 'workflow.create', async () => {
                         return await workflowCreator.createWorkflow({
                           info: workflowInfo,
-                          interceptorModules: this.options.interceptors?.workflowModules ?? [],
                           randomnessSeed: randomnessSeed.toBytes(),
                           now: tsToMs(activation.timestamp),
                           patches,
@@ -628,6 +627,7 @@ export class Worker {
                     }
                   }
 
+                  let isFatalError = false;
                   try {
                     const completion = await state.workflow.activate(activation);
                     this.log.debug('Completed activation', {
@@ -636,18 +636,30 @@ export class Worker {
 
                     span.setAttribute('close', close).end();
                     return { state, output: { close, completion, parentSpan } };
+                  } catch (err) {
+                    if (err instanceof errors.UnexpectedError) {
+                      isFatalError = true;
+                    }
+                    throw err;
                   } finally {
-                    const externalCalls = await state.workflow.getAndResetSinkCalls();
-                    await this.processSinkCalls(externalCalls, state.info);
+                    // Fatal error means we cannot call into this workflow again unfortunately
+                    if (!isFatalError) {
+                      const externalCalls = await state.workflow.getAndResetSinkCalls();
+                      await this.processSinkCalls(externalCalls, state.info);
+                    }
                   }
                 });
               } catch (error) {
+                if (error instanceof errors.UnexpectedError) {
+                  // rethrow and fail the worker
+                  throw error;
+                }
                 this.log.error('Failed to activate workflow', {
                   runId: activation.runId,
                   error,
                   workflowExists: state !== undefined,
                 });
-                const completion = coresdk.workflow_completion.WFActivationCompletion.encodeDelimited({
+                const completion = coresdk.workflow_completion.WorkflowActivationCompletion.encodeDelimited({
                   runId: activation.runId,
                   failed: {
                     failure: await errorToFailure(error, this.options.dataConverter),
@@ -734,7 +746,7 @@ export class Worker {
   }
 
   /**
-   * Poll core for `WFActivation`s while respecting worker state
+   * Poll core for `WorkflowActivation`s while respecting worker state
    */
   protected workflowPoll$(): Observable<ActivationWithContext> {
     return this.pollLoop$(async () => {
@@ -742,7 +754,7 @@ export class Worker {
       try {
         return await instrument(this.tracer, parentSpan, 'workflow.poll', async (span) => {
           const buffer = await this.nativeWorker.pollWorkflowActivation(span.spanContext());
-          const activation = coresdk.workflow_activation.WFActivation.decode(new Uint8Array(buffer));
+          const activation = coresdk.workflow_activation.WorkflowActivation.decode(new Uint8Array(buffer));
           const { runId, ...rest } = activation;
           this.log.debug('Got workflow activation', { runId, ...rest });
 
@@ -768,7 +780,7 @@ export class Worker {
    * If the activation includes WF start, headers will be extracted and cached. If it does not,
    * any previously such extracted header will be used for the run.
    */
-  private async linkWorkflowSpans(runId: string, jobs: IWFActivationJob[], parentSpan: otel.Span) {
+  private async linkWorkflowSpans(runId: string, jobs: IWorkflowActivationJob[], parentSpan: otel.Span) {
     let linkedContext = this.runIdsToSpanContext.get(runId);
     // If there is an otel context in the headers, link our trace for the workflow to the
     // trace in the header.
@@ -954,8 +966,9 @@ async function extractActivityInfo(
   activityNamespace: string
 ): Promise<ActivityInfo> {
   // NOTE: We trust core to supply all of these fields instead of checking for null and undefined everywhere
-  const { taskToken, activityId } = task as NonNullableObject<coresdk.activity_task.IActivityTask>;
+  const { taskToken } = task as NonNullableObject<coresdk.activity_task.IActivityTask>;
   const start = task.start as NonNullableObject<coresdk.activity_task.IStart>;
+  const activityId = start.activityId;
   return {
     taskToken,
     activityId,

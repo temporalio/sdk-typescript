@@ -26,7 +26,7 @@ import * as activities from './activities';
 import * as workflows from './workflows';
 import { u8, RUN_INTEGRATION_TESTS, cleanStackTrace } from './helpers';
 import { withZeroesHTTPServer } from './zeroes-http-server';
-import AsyncRetry from 'async-retry';
+import asyncRetry from 'async-retry';
 
 const { EVENT_TYPE_TIMER_STARTED, EVENT_TYPE_TIMER_FIRED, EVENT_TYPE_TIMER_CANCELED } =
   iface.temporal.api.enums.v1.EventType;
@@ -66,7 +66,7 @@ if (RUN_INTEGRATION_TESTS) {
     };
 
     // The initialization of the custom search attributes is slooooow. Wait for it to finish
-    await AsyncRetry(
+    await asyncRetry(
       async () => {
         try {
           const handle = await t.context.client.start(workflows.sleeper, {
@@ -148,12 +148,13 @@ if (RUN_INTEGRATION_TESTS) {
     t.pass();
   });
 
-  test('activity-failure', async (t) => {
+  test('activity-failure with Error', async (t) => {
     const { client } = t.context;
     const err: WorkflowFailedError = await t.throwsAsync(
       client.execute(workflows.activityFailure, {
         taskQueue: 'test',
         workflowId: uuid4(),
+        args: [{ useApplicationFailure: false }],
       }),
       {
         instanceOf: WorkflowFailedError,
@@ -173,6 +174,40 @@ if (RUN_INTEGRATION_TESTS) {
       cleanStackTrace(err.cause.cause.stack),
       dedent`
       Error: Fail me
+          at Activity.throwAnError [as fn]
+      `
+    );
+  });
+
+  test('activity-failure with ApplicationFailure', async (t) => {
+    const { client } = t.context;
+    const err: WorkflowFailedError = await t.throwsAsync(
+      client.execute(workflows.activityFailure, {
+        taskQueue: 'test',
+        workflowId: uuid4(),
+        args: [{ useApplicationFailure: true }],
+      }),
+      {
+        instanceOf: WorkflowFailedError,
+      }
+    );
+    t.is(err.message, 'Workflow execution failed');
+    if (!(err.cause instanceof ActivityFailure)) {
+      t.fail('Expected err.cause to be an instance of ActivityFailure');
+      return;
+    }
+    if (!(err.cause.cause instanceof ApplicationFailure)) {
+      t.fail('Expected err.cause.cause to be an instance of ApplicationFailure');
+      return;
+    }
+    t.is(err.cause.cause.message, 'Fail me');
+    t.is(err.cause.cause.type, 'Error');
+    t.deepEqual(err.cause.cause.details, ['details', 123, false]);
+    t.is(
+      cleanStackTrace(err.cause.cause.stack),
+      dedent`
+      ApplicationFailure: Fail me
+          at Function.nonRetryable
           at Activity.throwAnError [as fn]
       `
     );
@@ -212,7 +247,8 @@ if (RUN_INTEGRATION_TESTS) {
     t.is(
       cleanStackTrace(err.cause.cause.stack),
       dedent`
-        Error: failure
+        ApplicationFailure: failure
+            at Function.nonRetryable
             at throwAsync
       `
     );
@@ -672,5 +708,69 @@ if (RUN_INTEGRATION_TESTS) {
     t.pass();
   });
 
-  test.todo('default retryPolicy is filled in ActivityInfo');
+  test('unhandledRejection causes WFT to fail', async (t) => {
+    const { client } = t.context;
+    const workflowId = uuid4();
+    const handle = await client.start(workflows.throwUnhandledRejection, {
+      taskQueue: 'test',
+      workflowId,
+      // throw an exception that our worker can associate with an running workflow
+      args: [{ crashWorker: false }],
+    });
+    await asyncRetry(
+      async () => {
+        const history = await client.service.getWorkflowExecutionHistory({
+          namespace: 'default',
+          execution: { workflowId },
+        });
+        const wftFailedEvent = history.history?.events?.find((ev) => ev.workflowTaskFailedEventAttributes);
+        if (wftFailedEvent === undefined) {
+          throw new Error('No WFT failed event');
+        }
+        t.is(wftFailedEvent.workflowTaskFailedEventAttributes?.failure?.message, 'Error: unhandled rejection');
+      },
+      { minTimeout: 300, factor: 1, retries: 100 }
+    );
+    await handle.terminate();
+  });
+
+  test('Workflow RetryPolicy kicks in with retryable failure', async (t) => {
+    const { client } = t.context;
+    const workflowId = uuid4();
+    const handle = await client.start(workflows.throwAsync, {
+      taskQueue: 'test',
+      workflowId,
+      args: ['retryable'],
+      retry: {
+        initialInterval: 1,
+        maximumInterval: 1,
+        maximumAttempts: 2,
+      },
+    });
+    await t.throwsAsync(handle.result());
+    const handleForSecondAtttempt = client.getHandle(workflowId);
+    const { workflowExecutionInfo } = await handleForSecondAtttempt.describe();
+    t.not(workflowExecutionInfo?.execution?.runId, handle.originalRunId);
+  });
+
+  test('Workflow RetryPolicy ignored with nonRetryable failure', async (t) => {
+    const { client } = t.context;
+    const workflowId = uuid4();
+    const handle = await client.start(workflows.throwAsync, {
+      taskQueue: 'test',
+      workflowId,
+      args: ['nonRetryable'],
+      retry: {
+        initialInterval: 1,
+        maximumInterval: 1,
+        maximumAttempts: 2,
+      },
+    });
+    await t.throwsAsync(handle.result());
+    const res = await handle.describe();
+    t.is(
+      res.workflowExecutionInfo?.status,
+      iface.temporal.api.enums.v1.WorkflowExecutionStatus.WORKFLOW_EXECUTION_STATUS_FAILED
+    );
+  });
 }

@@ -1,7 +1,16 @@
-import { coresdk } from '@temporalio/proto/lib/coresdk';
-import { RetryOptions } from './interfaces';
+import type { coresdk } from '@temporalio/proto/lib/coresdk';
+import { RetryPolicy } from './retry-policy';
+import { checkExtends } from './type-helpers';
 
-export const ActivityCancellationType = coresdk.workflow_commands.ActivityCancellationType;
+// Avoid importing the proto implementation to reduce workflow bundle size
+// Copied from coresdk.workflow_commands.ActivityCancellationType
+export enum ActivityCancellationType {
+  TRY_CANCEL = 0,
+  WAIT_CANCELLATION_COMPLETED = 1,
+  ABANDON = 2,
+}
+
+checkExtends<coresdk.workflow_commands.ActivityCancellationType, ActivityCancellationType>();
 
 /**
  * Options for remote activity invocation - will be processed from a task queue.
@@ -37,9 +46,9 @@ export interface ActivityOptions {
   heartbeatTimeout?: string | number;
 
   /**
-   * RetryOptions that define how activity is retried in case of failure. If this is not set, then the server-defined default activity retry policy will be used. To ensure zero retries, set maximum attempts to 1.
+   * RetryPolicy that define how activity is retried in case of failure. If this is not set, then the server-defined default activity retry policy will be used. To ensure zero retries, set maximum attempts to 1.
    */
-  retry?: RetryOptions;
+  retry?: RetryPolicy;
 
   /**
    * Maximum time of a single Activity execution attempt.

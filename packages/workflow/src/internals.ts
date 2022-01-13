@@ -1,5 +1,3 @@
-import Long from 'long';
-import * as protobufjs from 'protobufjs/minimal';
 import {
   composeInterceptors,
   errorToFailure,
@@ -13,14 +11,30 @@ import {
   arrayFromPayloadsSync,
   Workflow,
   WorkflowQueryType,
+  ApplicationFailure,
+  TemporalFailure,
 } from '@temporalio/common';
-import { coresdk } from '@temporalio/proto/lib/coresdk';
+import { checkExtends } from '@temporalio/common/lib/type-helpers';
+import type { coresdk } from '@temporalio/proto/lib/coresdk';
 import { alea, RNG } from './alea';
 import { ContinueAsNew, WorkflowInfo } from './interfaces';
-import { QueryInput, SignalInput, WorkflowExecuteInput, WorkflowInterceptors } from './interceptors';
+import {
+  QueryInput,
+  SignalInput,
+  WorkflowExecuteInput,
+  WorkflowInterceptors,
+  WorkflowInterceptorsFactory,
+} from './interceptors';
 import { DeterminismViolationError, WorkflowExecutionAlreadyStartedError, isCancellation } from './errors';
 import { SinkCall } from './sinks';
 import { ROOT_SCOPE } from './cancellation-scope';
+
+enum StartChildWorkflowExecutionFailedCause {
+  START_CHILD_WORKFLOW_EXECUTION_FAILED_CAUSE_UNSPECIFIED = 0,
+  START_CHILD_WORKFLOW_EXECUTION_FAILED_CAUSE_WORKFLOW_ALREADY_EXISTS = 1,
+}
+
+checkExtends<coresdk.child_workflow.StartChildWorkflowExecutionFailedCause, StartChildWorkflowExecutionFailedCause>();
 
 export type ResolveFunction<T = any> = (val: T) => any;
 export type RejectFunction<E = any> = (val: E) => any;
@@ -35,15 +49,12 @@ export interface Condition {
   resolve(): void;
 }
 
-protobufjs.util.Long = Long;
-protobufjs.configure();
-
-export type ActivationHandlerFunction<K extends keyof coresdk.workflow_activation.IWFActivationJob> = (
-  activation: NonNullable<coresdk.workflow_activation.IWFActivationJob[K]>
+export type ActivationHandlerFunction<K extends keyof coresdk.workflow_activation.IWorkflowActivationJob> = (
+  activation: NonNullable<coresdk.workflow_activation.IWorkflowActivationJob[K]>
 ) => Promise<void> | void;
 
 export type ActivationHandler = {
-  [P in keyof coresdk.workflow_activation.IWFActivationJob]: ActivationHandlerFunction<P>;
+  [P in keyof coresdk.workflow_activation.IWorkflowActivationJob]: ActivationHandlerFunction<P>;
 };
 
 export class Activator implements ActivationHandler {
@@ -127,8 +138,7 @@ export class Activator implements ActivationHandler {
     } else if (activation.failed) {
       if (
         activation.failed.cause !==
-        coresdk.child_workflow.StartChildWorkflowExecutionFailedCause
-          .START_CHILD_WORKFLOW_EXECUTION_FAILED_CAUSE_WORKFLOW_ALREADY_EXISTS
+        StartChildWorkflowExecutionFailedCause.START_CHILD_WORKFLOW_EXECUTION_FAILED_CAUSE_WORKFLOW_ALREADY_EXISTS
       ) {
         throw new IllegalStateError('Got unknown StartChildWorkflowExecutionFailedCause');
       }
@@ -294,6 +304,9 @@ export class Activator implements ActivationHandler {
   }
 }
 
+export type WorkflowsImportFunc = () => Promise<Record<string, any>>;
+export type InterceptorsImportFunc = () => Promise<Array<{ interceptors: WorkflowInterceptorsFactory }>>;
+
 /**
  * Keeps all of the Workflow runtime state like pending completions for activities and timers and the scope stack.
  *
@@ -355,11 +368,16 @@ export class State {
   public blockedConditions = new Map<number, Condition>();
 
   /**
-   * Is this Workflow completed
+   * Is this Workflow completed?
+   *
+   * A Workflow will be considered completed if it generates a command that the
+   * system considers as a final Workflow command (e.g.
+   * completeWorkflowExecution or failWorkflowExecution).
    */
   public completed = false;
+
   /**
-   * Was this Workflow cancelled
+   * Was this Workflow cancelled?
    */
   public cancelled = false;
 
@@ -408,11 +426,18 @@ export class State {
   };
 
   /**
-   * Used to require user code
+   * Used to import the user workflows
    *
-   * Injected on isolate startup
+   * Injected on isolate context startup
    */
-  public require?: (path: string | undefined) => Promise<Record<string, any>>;
+  public importWorkflows?: WorkflowsImportFunc;
+
+  /**
+   * Used to import the user interceptors
+   *
+   * Injected on isolate context startup
+   */
+  public importInterceptors?: InterceptorsImportFunc;
 
   public dataConverter: DataConverter = defaultDataConverter;
 
@@ -472,10 +497,16 @@ export async function handleWorkflowFailure(error: unknown): Promise<void> {
   } else if (error instanceof ContinueAsNew) {
     state.pushCommand({ continueAsNewWorkflowExecution: error.command }, true);
   } else {
+    if (!(error instanceof TemporalFailure)) {
+      // This results in an unhandled rejection which will fail the activation
+      // preventing it from completing.
+      throw error;
+    }
+
     state.pushCommand(
       {
         failWorkflowExecution: {
-          failure: await errorToFailure(ensureTemporalFailure(error), state.dataConverter),
+          failure: await errorToFailure(error, state.dataConverter),
         },
       },
       true

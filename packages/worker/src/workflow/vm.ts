@@ -2,7 +2,7 @@ import vm from 'vm';
 import { coresdk } from '@temporalio/proto';
 import * as internals from '@temporalio/workflow/lib/worker-interface';
 import { WorkflowInfo } from '@temporalio/workflow';
-import { IllegalStateError } from '@temporalio/common';
+import { defaultDataConverter, errorToFailure, IllegalStateError } from '@temporalio/common';
 import { partition } from '../utils';
 import { Workflow, WorkflowCreator, WorkflowCreateOptions } from './interface';
 import { SinkCall } from '@temporalio/workflow/lib/sinks';
@@ -31,7 +31,7 @@ export class VMWorkflowCreator implements WorkflowCreator {
         get(_: any, fn: string) {
           return (...args: any[]) => {
             context.args = args;
-            return vm.runInContext(`lib.${fn}(...globalThis.args)`, context, {
+            return vm.runInContext(`__TEMPORAL__.api.${fn}(...globalThis.args)`, context, {
               timeout: isolateExecutionTimeoutMs,
               displayErrors: true,
             });
@@ -97,6 +97,8 @@ type WorkflowModule = typeof internals;
  * A Workflow implementation using Node.js' built-in `vm` module
  */
 export class VMWorkflow implements Workflow {
+  unhandledRejection: unknown;
+
   constructor(
     public readonly info: WorkflowInfo,
     protected context: vm.Context | undefined,
@@ -130,7 +132,7 @@ export class VMWorkflow implements Workflow {
    * The Workflow is activated in batches to ensure correct order of activation
    * job application.
    */
-  public async activate(activation: coresdk.workflow_activation.IWFActivation): Promise<Uint8Array> {
+  public async activate(activation: coresdk.workflow_activation.IWorkflowActivation): Promise<Uint8Array> {
     if (this.context === undefined) {
       throw new IllegalStateError('Workflow isolate context uninitialized');
     }
@@ -155,15 +157,34 @@ export class VMWorkflow implements Workflow {
       if (jobs.length === 0) {
         continue;
       }
-      const arr = coresdk.workflow_activation.WFActivation.encodeDelimited({ ...activation, jobs }).finish();
-      const { numBlockedConditions } = await this.workflowModule.activate(arr, batchIndex++);
+      const { numBlockedConditions } = await this.workflowModule.activate(
+        coresdk.workflow_activation.WorkflowActivation.fromObject({ ...activation, jobs }),
+        batchIndex++
+      );
       if (numBlockedConditions > 0) {
         await this.tryUnblockConditions();
       }
       // Wait for microtasks to be processed
       await new Promise((resolve) => process.nextTick(resolve));
     }
-    return this.workflowModule.concludeActivation();
+    const completion = this.workflowModule.concludeActivation();
+    // Give unhandledRejection handler a chance to process.
+    // Apparently nextTick does not get it triggered so we use setTimeout here.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    if (this.unhandledRejection) {
+      return coresdk.workflow_completion.WorkflowActivationCompletion.encodeDelimited({
+        runId: activation.runId,
+        failed: { failure: await errorToFailure(this.unhandledRejection, defaultDataConverter) },
+      }).finish();
+    }
+    return coresdk.workflow_completion.WorkflowActivationCompletion.encodeDelimited(completion).finish();
+  }
+
+  /**
+   * If called (by an external unhandledRejection handler), activations will fail with provided error.
+   */
+  public setUnhandledRejection(err: unknown): void {
+    this.unhandledRejection = err;
   }
 
   /**
