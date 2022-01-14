@@ -2,17 +2,21 @@ import { promisify } from 'util';
 import Heap from 'heap-js';
 import { BehaviorSubject, lastValueFrom, of } from 'rxjs';
 import { concatMap, delay, map, repeat } from 'rxjs/operators';
-import { IllegalStateError, normalizeTlsConfig, filterNullAndUndefined } from '@temporalio/common';
+import { filterNullAndUndefined, IllegalStateError, normalizeTlsConfig } from '@temporalio/common';
 import * as native from '@temporalio/core-bridge';
 import {
   corePollLogs,
   coreShutdown,
   newCore,
+  newReplayCore,
   TelemetryOptions as RequiredTelemetryOptions,
 } from '@temporalio/core-bridge';
 import { compileServerOptions, getDefaultServerOptions, RequiredServerOptions, ServerOptions } from './server-options';
-import { DefaultLogger, Logger, LogEntry, LogTimestamp, timeOfDayToBigint } from './logger';
+import { DefaultLogger, LogEntry, Logger, LogTimestamp, timeOfDayToBigint } from './logger';
 import * as errors from './errors';
+import { temporal } from '@temporalio/proto';
+import History = temporal.api.history.v1.History;
+import { byteArrayToBuffer } from './utils';
 
 export type TelemetryOptions = Omit<RequiredTelemetryOptions, 'logForwardingLevel'> & {
   logForwardingLevel?: RequiredTelemetryOptions['logForwardingLevel'];
@@ -95,6 +99,13 @@ export class Core {
    * Factory function for creating a new Core instance, not exposed because Core is meant to be used as a singleton
    */
   protected static async create(options: CoreOptions): Promise<Core> {
+    const compiledOptions = this.compileOptions(options);
+    const native = await promisify(newCore)(compiledOptions);
+
+    return new this(native, compiledOptions);
+  }
+
+  protected static compileOptions(options: CoreOptions) {
     const compiledServerOptions = compileServerOptions({
       ...getDefaultServerOptions(),
       ...filterNullAndUndefined(options.serverOptions ?? {}),
@@ -103,7 +114,7 @@ export class Core {
       ...defaultTelemetryOptions(),
       ...filterNullAndUndefined(options.telemetryOptions ?? {}),
     };
-    const compiledOptions = {
+    return {
       serverOptions: {
         ...compiledServerOptions,
         tls: normalizeTlsConfig(compiledServerOptions.tls),
@@ -114,9 +125,6 @@ export class Core {
       telemetryOptions,
       logger: options.logger ?? new DefaultLogger('INFO'),
     };
-    const native = await promisify(newCore)(compiledOptions);
-
-    return new this(native, compiledOptions);
   }
 
   protected async initLogPolling(logger: CoreLogger): Promise<void> {
@@ -251,5 +259,40 @@ export class Core {
     // This will effectively drain all logs
     await this.logPollPromise;
     delete Core._instance;
+  }
+}
+
+// TODO: Probably don't extend, as we don't necessarily want to expose all methods
+export class ReplayCore extends Core {
+  protected static _instance?: Promise<ReplayCore>;
+
+  public static async instance(): Promise<ReplayCore> {
+    if (this._instance === undefined) {
+      this.instantiator = 'instance';
+      this._instance = this.create();
+    }
+    return this._instance;
+  }
+
+  /**
+   * Create a replay core instance, for replaying static histories
+   */
+  public static async create(): Promise<ReplayCore> {
+    // TODO: We should still accept the logging options here
+    const native = await promisify(newReplayCore)();
+
+    return new this(native, this.compileOptions(Core.defaultOptions));
+  }
+
+  // TODO: accept either history or binary
+  public async createReplayWorker(history: History): Promise<native.Worker> {
+    // TODO: generate unique task q name (may need to be passed in)
+    const worker = await promisify(native.newReplayWorker)(
+      this.native,
+      'test',
+      byteArrayToBuffer(History.encodeDelimited(history).finish())
+    );
+    this.registeredWorkers.add(worker);
+    return worker;
   }
 }

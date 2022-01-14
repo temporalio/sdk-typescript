@@ -11,7 +11,7 @@ import {
   addDefaultWorkerOptions,
 } from '@temporalio/worker/lib/worker-options';
 import { DefaultLogger } from '@temporalio/worker';
-import { sleep } from '@temporalio/worker/lib/utils';
+import { byteArrayToBuffer, sleep } from '@temporalio/worker/lib/utils';
 import * as activities from './activities';
 import { WorkflowCreator } from '@temporalio/worker/src/workflow/interface';
 
@@ -49,6 +49,10 @@ export class MockNativeWorker implements NativeWorkerLike {
   logger = new DefaultLogger('DEBUG');
 
   public static async create(): Promise<NativeWorkerLike> {
+    return new this();
+  }
+
+  public static async createReplay(): Promise<NativeWorkerLike> {
     return new this();
   }
 
@@ -95,12 +99,12 @@ export class MockNativeWorker implements NativeWorkerLike {
   public emit(task: Task): void {
     if ('workflow' in task) {
       const arr = coresdk.workflow_activation.WorkflowActivation.encode(task.workflow).finish();
-      const buffer = arr.buffer.slice(arr.byteOffset, arr.byteOffset + arr.byteLength);
+      const buffer = byteArrayToBuffer(arr);
       this.workflowActivations.unshift(Promise.resolve(buffer));
     } else {
       addActivityStartDefaults(task.activity);
       const arr = coresdk.activity_task.ActivityTask.encode(task.activity).finish();
-      const buffer = arr.buffer.slice(arr.byteOffset, arr.byteOffset + arr.byteLength);
+      const buffer = byteArrayToBuffer(arr);
       this.activityTasks.unshift(Promise.resolve(buffer));
     }
   }
@@ -109,7 +113,7 @@ export class MockNativeWorker implements NativeWorkerLike {
     activation: coresdk.workflow_activation.IWorkflowActivation
   ): Promise<coresdk.workflow_completion.WorkflowActivationCompletion> {
     const arr = coresdk.workflow_activation.WorkflowActivation.encode(activation).finish();
-    const buffer = arr.buffer.slice(arr.byteOffset, arr.byteOffset + arr.byteLength);
+    const buffer = byteArrayToBuffer(arr);
     const result = await new Promise<ArrayBuffer>((resolve) => {
       this.workflowCompletionCallback = resolve;
       this.workflowActivations.unshift(Promise.resolve(buffer));
@@ -120,7 +124,7 @@ export class MockNativeWorker implements NativeWorkerLike {
   public async runActivityTask(task: coresdk.activity_task.IActivityTask): Promise<coresdk.ActivityTaskCompletion> {
     addActivityStartDefaults(task);
     const arr = coresdk.activity_task.ActivityTask.encode(task).finish();
-    const buffer = arr.buffer.slice(arr.byteOffset, arr.byteOffset + arr.byteLength);
+    const buffer = byteArrayToBuffer(arr);
     const result = await new Promise<ArrayBuffer>((resolve) => {
       this.activityCompletionCallback = resolve;
       this.activityTasks.unshift(Promise.resolve(buffer));

@@ -2,7 +2,8 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "outDir": "./lib",
-    "rootDir": "./src"
+    "rootDir": "./src",
+    "resolveJsonModule": true
   },
   "references": [
     { "path": "../activity" },
@@ -12,6 +13,6 @@
     { "path": "../worker" },
     { "path": "../workflow" }
   ],
-  "include": ["./src/**/*.ts"],
+  "include": ["./src/**/*.ts", "./src/history_files/*.json"],
   "exclude": ["node_modules"]
 }

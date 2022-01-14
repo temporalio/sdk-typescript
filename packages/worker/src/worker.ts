@@ -16,7 +16,7 @@ import {
 } from 'rxjs';
 import { delay, filter, first, ignoreElements, map, mergeMap, takeUntil, takeWhile, tap } from 'rxjs/operators';
 import * as native from '@temporalio/core-bridge';
-import { coresdk } from '@temporalio/proto';
+import { coresdk, temporal } from '@temporalio/proto';
 import { Info as ActivityInfo } from '@temporalio/activity';
 import {
   IllegalStateError,
@@ -36,7 +36,7 @@ import {
 } from '@temporalio/common/lib/otel';
 
 import { closeableGroupBy, mergeMapWithState } from './rxutils';
-import { toMB } from './utils';
+import { byteArrayToBuffer, toMB } from './utils';
 import { Workflow, WorkflowCreator } from './workflow/interface';
 import { WorkflowCodeBundler } from './workflow/bundler';
 import { Activity } from './activity';
@@ -46,7 +46,7 @@ import { childSpan, instrument, getTracer } from './tracing';
 import { ActivityExecuteInput } from './interceptors';
 export { IllegalStateError } from '@temporalio/common';
 export { DataConverter, defaultDataConverter, errors };
-import { Core } from './core';
+import { Core, ReplayCore } from './core';
 import { SpanContext } from '@opentelemetry/api';
 import IWorkflowActivationJob = coresdk.workflow_activation.IWorkflowActivationJob;
 import { ThreadedVMWorkflowCreator } from './workflow/threaded-vm';
@@ -60,6 +60,7 @@ import {
   WorkerOptions,
 } from './worker-options';
 import { VMWorkflowCreator } from './workflow/vm';
+import History = temporal.api.history.v1.History;
 
 native.registerErrors(errors);
 /**
@@ -116,6 +117,7 @@ export interface NativeWorkerLike {
 
 export interface WorkerConstructor {
   create(options: CompiledWorkerOptions): Promise<NativeWorkerLike>;
+  createReplay(history: History): Promise<NativeWorkerLike>;
 }
 
 export class NativeWorker implements NativeWorkerLike {
@@ -129,6 +131,12 @@ export class NativeWorker implements NativeWorkerLike {
   public static async create(options: CompiledWorkerOptions): Promise<NativeWorkerLike> {
     const core = await Core.instance();
     const nativeWorker = await core.registerWorker(options);
+    return new NativeWorker(core, nativeWorker);
+  }
+
+  public static async createReplay(history: History): Promise<NativeWorkerLike> {
+    const core = await ReplayCore.instance();
+    const nativeWorker = await core.createReplayWorker(history);
     return new NativeWorker(core, nativeWorker);
   }
 
@@ -170,6 +178,7 @@ export class Worker {
     details?: any;
   }>();
   protected readonly stateSubject = new BehaviorSubject<State>('INITIALIZED');
+  protected readonly workflowPollerStateSubject = new BehaviorSubject<'POLLING' | 'SHUTDOWN'>('POLLING');
   protected readonly numInFlightActivationsSubject = new BehaviorSubject<number>(0);
   protected readonly numInFlightActivitiesSubject = new BehaviorSubject<number>(0);
   protected readonly numRunningWorkflowInstancesSubject = new BehaviorSubject<number>(0);
@@ -186,6 +195,34 @@ export class Worker {
     const nativeWorkerCtor: WorkerConstructor = this.nativeWorkerCtor;
     const compiledOptions = compileWorkerOptions(addDefaultWorkerOptions(options));
     const nativeWorker = await nativeWorkerCtor.create(compiledOptions);
+    return await this.bundleWorker(compiledOptions, nativeWorker);
+  }
+
+  /**
+   * Create a replay Worker. TODO: Different, narrower options
+   */
+  public static async createReplay(options: WorkerOptions, history: History): Promise<void> {
+    const nativeWorkerCtor: WorkerConstructor = this.nativeWorkerCtor;
+    const compiledOptions = compileWorkerOptions(addDefaultWorkerOptions(options));
+    const replayWorker = await nativeWorkerCtor.createReplay(history);
+    const constructedWorker = await this.bundleWorker(compiledOptions, replayWorker);
+
+    // TODO: Make running lazy? Return type which users can then explicitly start running?
+    const runPromise = constructedWorker.run();
+    runPromise.catch((err) => {
+      console.error('Caught error while replay worker was running', err);
+    });
+    const pollerShutdown = constructedWorker.workflowPollerStateSubject.pipe(
+      filter((state): state is 'SHUTDOWN' => state === 'SHUTDOWN')
+    );
+    pollerShutdown.subscribe((_) => {
+      constructedWorker.shutdown();
+    });
+
+    await runPromise;
+  }
+
+  protected static async bundleWorker(compiledOptions: CompiledWorkerOptions, nativeWorker: NativeWorkerLike) {
     try {
       let bundle: string | undefined = undefined;
       let workflowCreator: WorkflowCreator | undefined = undefined;
@@ -199,11 +236,11 @@ export class Worker {
         );
         bundle = await bundler.createBundle();
         nativeWorker.logger.info('Workflow bundle created', { size: `${toMB(bundle.length)}MB` });
-      } else if (options.workflowBundle) {
-        if (isCodeBundleOption(options.workflowBundle)) {
-          bundle = options.workflowBundle.code;
-        } else if (isPathBundleOption(options.workflowBundle)) {
-          bundle = await fs.readFile(options.workflowBundle.path, 'utf8');
+      } else if (compiledOptions.workflowBundle) {
+        if (isCodeBundleOption(compiledOptions.workflowBundle)) {
+          bundle = compiledOptions.workflowBundle.code;
+        } else if (isPathBundleOption(compiledOptions.workflowBundle)) {
+          bundle = await fs.readFile(compiledOptions.workflowBundle.path, 'utf8');
         } else {
           throw new TypeError('Invalid WorkflowOptions.workflowBundle');
         }
@@ -256,7 +293,7 @@ export class Worker {
   }
 
   /**
-   * An Observable which emits each time the number of in flight activations changes
+   * An Observable which emits each time the number of cached workflows changes
    */
   public get numRunningWorkflowInstances$(): Observable<number> {
     return this.numRunningWorkflowInstancesSubject;
@@ -740,7 +777,7 @@ export class Worker {
           taskToken,
           details: [payload],
         }).finish();
-        this.nativeWorker.recordActivityHeartbeat(arr.buffer.slice(arr.byteOffset, arr.byteLength + arr.byteOffset));
+        this.nativeWorker.recordActivityHeartbeat(byteArrayToBuffer(arr));
       })
     );
   }
@@ -767,7 +804,13 @@ export class Worker {
         parentSpan.setStatus({ code: otel.SpanStatusCode.ERROR }).end();
         throw err;
       }
-    });
+    }).pipe(
+      tap({
+        complete: () => {
+          this.workflowPollerStateSubject.next('SHUTDOWN');
+        },
+      })
+    );
   }
 
   /**
@@ -823,9 +866,14 @@ export class Worker {
           root.end();
         }
       }),
-      tap({ complete: () => this.log.debug('Workflows complete') })
+      tap({
+        complete: () => {
+          this.log.debug('Workflows complete');
+        },
+      })
     );
   }
+
   /**
    * Poll core for `ActivityTask`s while respecting worker state
    */
@@ -908,7 +956,7 @@ export class Worker {
    */
   async run(): Promise<void> {
     if (this.state !== 'INITIALIZED') {
-      throw new IllegalStateError('Poller was aleady started');
+      throw new IllegalStateError('Poller was already started');
     }
     this.state = 'RUNNING';
 

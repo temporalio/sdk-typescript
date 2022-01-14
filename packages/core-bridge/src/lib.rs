@@ -10,20 +10,28 @@ use prost::Message;
 use std::{
     fmt::Display,
     future::Future,
+    ops::Deref,
     sync::Arc,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
-use temporal_sdk_core::{init, CoreInitOptions, CoreInitOptionsBuilder, CoreSDK, WorkerConfig};
+use temporal_sdk_core::{init, CoreInitOptionsBuilder, CoreSDK, WorkerConfig};
 use temporal_sdk_core_api::{
     errors::{
         CompleteActivityError, CompleteWfError, CoreInitError, PollActivityError, PollWfError,
     },
     Core,
 };
-use temporal_sdk_core_protos::coresdk::{
-    workflow_completion::WorkflowActivationCompletion, ActivityHeartbeat, ActivityTaskCompletion,
+use temporal_sdk_core_protos::{
+    coresdk::{
+        workflow_completion::WorkflowActivationCompletion, ActivityHeartbeat,
+        ActivityTaskCompletion,
+    },
+    temporal::api::history::v1::History,
 };
-use temporal_sdk_core_test_utils::history_replay::ReplayCoreImpl;
+use temporal_sdk_core_test_utils::{
+    history_replay::{ReplayCore, ReplayCoreImpl},
+    init_core_replay,
+};
 use tokio::runtime::Runtime;
 use tokio::sync::mpsc::{unbounded_channel, UnboundedSender};
 
@@ -53,6 +61,8 @@ enum Request {
     ReplayWorker {
         /// Must be unique for each workflow being replayed
         queue_name: String,
+        /// The history this worker should replay
+        history: History,
         /// Used to send the result back into JS
         callback: Root<JsFunction>,
     },
@@ -116,6 +126,17 @@ impl Finalize for Worker {}
 enum CoreType {
     Real(CoreSDK),
     Replay(ReplayCoreImpl),
+}
+
+impl Deref for CoreType {
+    type Target = dyn Core;
+
+    fn deref(&self) -> &Self::Target {
+        match self {
+            CoreType::Real(ref r) => r,
+            CoreType::Replay(ref r) => r,
+        }
+    }
 }
 
 /// Lazy-inits or returns a global tokio runtime that we use for interactions with Core(s)
@@ -220,14 +241,14 @@ async fn void_future_to_js<E, F, ER, EF>(
 /// Bridges requests from JS to core and sends responses back to JS using a neon::EventQueue.
 /// Blocks current thread until a [BreakPoller] request is received in channel.
 fn start_bridge_loop(
-    core_init_options: CoreInitOptions,
+    core_init_fut: impl Future<Output = Result<CoreType, CoreInitError>>,
     event_queue: Arc<EventQueue>,
     callback: Root<JsFunction>,
 ) {
     let (sender, mut receiver) = unbounded_channel::<Request>();
 
     tokio_runtime().block_on(async {
-        match init(core_init_options).await {
+        match core_init_fut.await {
             Err(err) => {
                 send_error(event_queue.clone(), callback, |cx| match err {
                     CoreInitError::GatewayInitError(err) => TRANSPORT_ERROR.from_error(cx, err),
@@ -305,14 +326,16 @@ fn start_bridge_loop(
                         }
                         Request::RegisterWorker { config, callback } => {
                             let task_queue = config.clone().task_queue;
-                            let core_handle = core_handle.clone();
                             match core.register_worker(config) {
-                                Ok(_) => send_result(event_queue.clone(), callback, |cx| {
-                                    Ok(cx.boxed(Worker {
-                                        core: core_handle,
-                                        queue: task_queue,
-                                    }))
-                                }),
+                                Ok(_) => {
+                                    let core_handle = core_handle.clone();
+                                    send_result(event_queue.clone(), callback, |cx| {
+                                        Ok(cx.boxed(Worker {
+                                            core: core_handle,
+                                            queue: task_queue,
+                                        }))
+                                    })
+                                }
                                 Err(err) => send_error(event_queue.clone(), callback, |cx| {
                                     UNEXPECTED_ERROR.from_error(cx, err)
                                 }),
@@ -320,35 +343,60 @@ fn start_bridge_loop(
                         }
                         Request::ReplayWorker {
                             queue_name,
+                            history,
                             callback,
-                        } => {
-                            todo!()
-                        }
+                        } => match *core {
+                            CoreType::Real(_) => {
+                                todo!("Return a proper error here")
+                            }
+                            CoreType::Replay(ref rc) => {
+                                match rc.make_replay_worker(queue_name.clone(), &history) {
+                                    Ok(_) => {
+                                        let core_handle = core_handle.clone();
+                                        send_result(event_queue.clone(), callback, |cx| {
+                                            Ok(cx.boxed(Worker {
+                                                core: core_handle,
+                                                queue: queue_name,
+                                            }))
+                                        })
+                                    }
+                                    Err(err) => send_error(event_queue.clone(), callback, |cx| {
+                                        UNEXPECTED_ERROR.from_error(cx, err)
+                                    }),
+                                };
+                            }
+                        },
                         Request::PollWorkflowActivation {
                             queue_name,
                             otel_span,
                             callback,
                         } => {
-                            tokio::spawn(handle_poll_workflow_activation_request(
-                                queue_name,
-                                otel_span,
-                                core,
-                                event_queue,
-                                callback,
-                            ));
+                            tokio::spawn(async move {
+                                handle_poll_workflow_activation_request(
+                                    queue_name,
+                                    otel_span,
+                                    core.as_ref().deref(),
+                                    event_queue,
+                                    callback,
+                                )
+                                .await
+                            });
                         }
                         Request::PollActivityTask {
                             queue_name,
                             otel_span,
                             callback,
                         } => {
-                            tokio::spawn(handle_poll_activity_task_request(
-                                queue_name,
-                                otel_span,
-                                core,
-                                event_queue,
-                                callback,
-                            ));
+                            tokio::spawn(async move {
+                                handle_poll_activity_task_request(
+                                    queue_name,
+                                    otel_span,
+                                    core.as_ref().deref(),
+                                    event_queue,
+                                    callback,
+                                )
+                                .await
+                            });
                         }
                         Request::CompleteWorkflowActivation {
                             completion,
@@ -423,7 +471,7 @@ fn start_bridge_loop(
 async fn handle_poll_workflow_activation_request(
     queue_name: String,
     span_context: SpanContext,
-    core: Arc<impl Core>,
+    core: &dyn Core,
     event_queue: Arc<EventQueue>,
     callback: Root<JsFunction>,
 ) {
@@ -474,7 +522,7 @@ async fn handle_poll_workflow_activation_request(
 async fn handle_poll_activity_task_request(
     queue_name: String,
     span_context: SpanContext,
-    core: Arc<impl Core>,
+    core: &dyn Core,
     event_queue: Arc<EventQueue>,
     callback: Root<JsFunction>,
 ) {
@@ -529,23 +577,25 @@ fn core_new(mut cx: FunctionContext) -> JsResult<JsUndefined> {
 
     let callback = cx.argument::<JsFunction>(1)?.root(&mut cx);
     let queue = Arc::new(cx.queue());
-    std::thread::spawn(move || {
-        start_bridge_loop(
-            CoreInitOptionsBuilder::default()
-                .gateway_opts(gateway_opts)
-                .telemetry_opts(telemetry_opts)
-                .build()
-                .expect("Core init options must be valid"),
-            queue,
-            callback,
-        )
-    });
+    let core_init_fut = async move {
+        let opts = CoreInitOptionsBuilder::default()
+            .gateway_opts(gateway_opts)
+            .telemetry_opts(telemetry_opts)
+            .build()
+            .expect("Core init options must be valid");
+        Ok(CoreType::Real(init(opts).await?))
+    };
+    std::thread::spawn(move || start_bridge_loop(core_init_fut, queue, callback));
 
     Ok(cx.undefined())
 }
 
 /// Create a new "replay" instance of core, which can only be used for replaying static histories.
 fn replay_core_new(mut cx: FunctionContext) -> JsResult<JsUndefined> {
+    let callback = cx.argument::<JsFunction>(0)?.root(&mut cx);
+    let queue = Arc::new(cx.queue());
+    let core_init_fut = async { Ok(CoreType::Replay(init_core_replay())) };
+    std::thread::spawn(move || start_bridge_loop(core_init_fut, queue, callback));
     Ok(cx.undefined())
 }
 
@@ -565,6 +615,36 @@ fn worker_new(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     if let Err(err) = core.sender.send(request) {
         callback_with_unexpected_error(&mut cx, callback, err)?;
     };
+
+    Ok(cx.undefined())
+}
+
+/// Create a new replay worker asynchronously.
+/// Worker is registered on supplied core instance and returned to JS using supplied callback.
+/// The provided core instance must be a replay core.
+fn replay_worker_new(mut cx: FunctionContext) -> JsResult<JsUndefined> {
+    let core = cx.argument::<BoxedCore>(0)?;
+    let queue_name = cx.argument::<JsString>(1)?.value(&mut cx);
+    let history_binary = cx.argument::<JsArrayBuffer>(2)?;
+    let callback = cx.argument::<JsFunction>(3)?;
+
+    match cx.borrow(&history_binary, |data| {
+        History::decode_length_delimited(data.as_slice::<u8>())
+    }) {
+        Ok(history) => {
+            let request = Request::ReplayWorker {
+                queue_name,
+                history,
+                callback: callback.root(&mut cx),
+            };
+            if let Err(err) = core.sender.send(request) {
+                callback_with_unexpected_error(&mut cx, callback, err)?;
+            };
+        }
+        Err(_) => callback_with_error(&mut cx, callback, |cx| {
+            JsError::type_error(cx, "Cannot decode History from buffer")
+        })?,
+    }
 
     Ok(cx.undefined())
 }
@@ -651,7 +731,7 @@ fn worker_complete_workflow_activation(mut cx: FunctionContext) -> JsResult<JsUn
                 callback: callback.root(&mut cx),
             };
             if let Err(err) = worker.core.sender.send(request) {
-                callback_with_error(&mut cx, callback, |cx| UNEXPECTED_ERROR.from_error(cx, err))?;
+                callback_with_unexpected_error(&mut cx, callback, err)?;
             };
         }
         Err(_) => callback_with_error(&mut cx, callback, |cx| {
@@ -762,7 +842,9 @@ fn main(mut cx: ModuleContext) -> NeonResult<()> {
     cx.export_function("getTimeOfDay", get_time_of_day)?;
     cx.export_function("registerErrors", errors::register_errors)?;
     cx.export_function("newCore", core_new)?;
+    cx.export_function("newReplayCore", replay_core_new)?;
     cx.export_function("newWorker", worker_new)?;
+    cx.export_function("newReplayWorker", replay_worker_new)?;
     cx.export_function("workerShutdown", worker_shutdown)?;
     cx.export_function("coreShutdown", core_shutdown)?;
     cx.export_function("corePollLogs", core_poll_logs)?;
