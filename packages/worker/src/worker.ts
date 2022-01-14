@@ -342,7 +342,8 @@ export class Worker {
   }
 
   /**
-   * An observable which completes when state becomes DRAINED or throws if state transitions to STOPPING and remains that way for {@link this.options.shutdownGraceTimeMs}.
+   * An observable which completes when state becomes DRAINED or throws if state transitions to
+   * STOPPING and remains that way for {@link this.options.shutdownGraceTimeMs}.
    */
   protected gracefulShutdown$(): Observable<never> {
     return race(
@@ -549,9 +550,9 @@ export class Worker {
       mergeMap((group$) => {
         return merge(
           group$.pipe(map((act) => ({ ...act, synthetic: false }))),
-          this.stateSubject.pipe(
+          this.workflowPollerStateSubject.pipe(
             // Core has indicated that it will not return any more poll results, evict all cached WFs
-            filter((state) => state === 'DRAINING'),
+            filter((state) => state === 'SHUTDOWN'),
             first(),
             map((): ContextAware<{ activation: coresdk.workflow_activation.WorkflowActivation; synthetic: true }> => {
               return {
@@ -801,7 +802,9 @@ export class Worker {
           return { activation, parentSpan };
         });
       } catch (err) {
-        parentSpan.setStatus({ code: otel.SpanStatusCode.ERROR }).end();
+        if (!(err instanceof errors.ShutdownError)) {
+          parentSpan.setStatus({ code: otel.SpanStatusCode.ERROR }).end();
+        }
         throw err;
       }
     }).pipe(
@@ -904,7 +907,9 @@ export class Worker {
           return { task, parentSpan, formattedTaskToken };
         });
       } catch (err) {
-        parentSpan.setStatus({ code: otel.SpanStatusCode.ERROR }).end();
+        if (!(err instanceof errors.ShutdownError)) {
+          parentSpan.setStatus({ code: otel.SpanStatusCode.ERROR }).end();
+        }
         throw err;
       }
     });
