@@ -36,6 +36,7 @@ use tokio::runtime::Runtime;
 use tokio::sync::mpsc::{unbounded_channel, UnboundedSender};
 
 /// A request from JS to bridge to core
+#[derive(Debug)]
 enum Request {
     /// A request to shutdown Core, any registered workers will be shutdown as well.
     /// Breaks from the thread loop.
@@ -59,8 +60,8 @@ enum Request {
     },
     /// A request to register a replay worker. Will only work against a replay core instance.
     ReplayWorker {
-        /// Must be unique for each workflow being replayed
-        queue_name: String,
+        /// Worker configuration. Must have unique task queue name.
+        config: WorkerConfig,
         /// The history this worker should replay
         history: History,
         /// Used to send the result back into JS
@@ -270,6 +271,7 @@ fn start_bridge_loop(
                         None => break,
                         Some(request) => request,
                     };
+
                     let core = core.clone();
                     let event_queue = event_queue.clone();
 
@@ -325,7 +327,7 @@ fn start_bridge_loop(
                             ));
                         }
                         Request::RegisterWorker { config, callback } => {
-                            let task_queue = config.clone().task_queue;
+                            let task_queue = config.task_queue.clone();
                             match core.register_worker(config) {
                                 Ok(_) => {
                                     let core_handle = core_handle.clone();
@@ -342,7 +344,7 @@ fn start_bridge_loop(
                             };
                         }
                         Request::ReplayWorker {
-                            queue_name,
+                            config,
                             history,
                             callback,
                         } => match *core {
@@ -350,13 +352,15 @@ fn start_bridge_loop(
                                 todo!("Return a proper error here")
                             }
                             CoreType::Replay(ref rc) => {
-                                match rc.make_replay_worker(queue_name.clone(), &history) {
+                                dbg!("registering replay");
+                                let task_queue = config.task_queue.clone();
+                                match rc.make_replay_worker(config, &history) {
                                     Ok(_) => {
                                         let core_handle = core_handle.clone();
                                         send_result(event_queue.clone(), callback, |cx| {
                                             Ok(cx.boxed(Worker {
                                                 core: core_handle,
-                                                queue: queue_name,
+                                                queue: task_queue,
                                             }))
                                         })
                                     }
@@ -364,6 +368,7 @@ fn start_bridge_loop(
                                         UNEXPECTED_ERROR.from_error(cx, err)
                                     }),
                                 };
+                                dbg!("replay registerred");
                             }
                         },
                         Request::PollWorkflowActivation {
@@ -371,6 +376,7 @@ fn start_bridge_loop(
                             otel_span,
                             callback,
                         } => {
+                            // dbg!(&queue_name);
                             tokio::spawn(async move {
                                 handle_poll_workflow_activation_request(
                                     queue_name,
@@ -624,16 +630,18 @@ fn worker_new(mut cx: FunctionContext) -> JsResult<JsUndefined> {
 /// The provided core instance must be a replay core.
 fn replay_worker_new(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     let core = cx.argument::<BoxedCore>(0)?;
-    let queue_name = cx.argument::<JsString>(1)?.value(&mut cx);
+    let worker_options = cx.argument::<JsObject>(1)?;
     let history_binary = cx.argument::<JsArrayBuffer>(2)?;
     let callback = cx.argument::<JsFunction>(3)?;
+
+    let config = worker_options.as_worker_config(&mut cx)?;
 
     match cx.borrow(&history_binary, |data| {
         History::decode_length_delimited(data.as_slice::<u8>())
     }) {
         Ok(history) => {
             let request = Request::ReplayWorker {
-                queue_name,
+                config,
                 history,
                 callback: callback.root(&mut cx),
             };

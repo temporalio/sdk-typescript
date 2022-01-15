@@ -285,11 +285,10 @@ export class ReplayCore extends Core {
   }
 
   // TODO: accept either history or binary
-  public async createReplayWorker(history: History): Promise<native.Worker> {
-    // TODO: generate unique task q name (may need to be passed in)
+  public async createReplayWorker(options: native.WorkerOptions, history: History): Promise<native.Worker> {
     const worker = await promisify(native.newReplayWorker)(
       this.native,
-      'test',
+      options,
       byteArrayToBuffer(History.encodeDelimited(history).finish())
     );
     this.registeredWorkers.add(worker);

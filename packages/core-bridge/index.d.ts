@@ -173,7 +173,7 @@ export declare function newReplayCore(callback: CoreCallback): void;
 export declare function newWorker(core: Core, workerOptions: WorkerOptions, callback: WorkerCallback): void;
 export declare function newReplayWorker(
   core: Core,
-  taskQueue: String,
+  workerOptions: WorkerOptions,
   history: ArrayBuffer,
   callback: WorkerCallback
 ): void;

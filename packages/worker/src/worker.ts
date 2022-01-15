@@ -57,6 +57,7 @@ import {
   compileWorkerOptions,
   isCodeBundleOption,
   isPathBundleOption,
+  ReplayWorkerOptions,
   WorkerOptions,
 } from './worker-options';
 import { VMWorkflowCreator } from './workflow/vm';
@@ -117,7 +118,7 @@ export interface NativeWorkerLike {
 
 export interface WorkerConstructor {
   create(options: CompiledWorkerOptions): Promise<NativeWorkerLike>;
-  createReplay(history: History): Promise<NativeWorkerLike>;
+  createReplay(options: CompiledWorkerOptions, history: History): Promise<NativeWorkerLike>;
 }
 
 export class NativeWorker implements NativeWorkerLike {
@@ -134,9 +135,9 @@ export class NativeWorker implements NativeWorkerLike {
     return new NativeWorker(core, nativeWorker);
   }
 
-  public static async createReplay(history: History): Promise<NativeWorkerLike> {
+  public static async createReplay(options: CompiledWorkerOptions, history: History): Promise<NativeWorkerLike> {
     const core = await ReplayCore.instance();
-    const nativeWorker = await core.createReplayWorker(history);
+    const nativeWorker = await core.createReplayWorker(options, history);
     return new NativeWorker(core, nativeWorker);
   }
 
@@ -185,6 +186,8 @@ export class Worker {
   private readonly runIdsToSpanContext = new Map<string, SpanContext>();
 
   protected static nativeWorkerCtor: WorkerConstructor = NativeWorker;
+  // Used to add uniqueness to replay worker task queue names
+  protected static replayWorkerCount = 0;
   protected readonly tracer: otel.Tracer;
 
   /**
@@ -199,12 +202,18 @@ export class Worker {
   }
 
   /**
-   * Create a replay Worker. TODO: Different, narrower options
+   * Create a replay Worker.
    */
-  public static async createReplay(options: WorkerOptions, history: History): Promise<void> {
+  public static async createReplay(options: ReplayWorkerOptions, history: History): Promise<void> {
     const nativeWorkerCtor: WorkerConstructor = this.nativeWorkerCtor;
-    const compiledOptions = compileWorkerOptions(addDefaultWorkerOptions(options));
-    const replayWorker = await nativeWorkerCtor.createReplay(history);
+    const fixedUpOptions = {
+      taskQueue: options.testName + '-' + this.replayWorkerCount,
+      workflowThreadPoolSize: 1,
+      ...options,
+    };
+    const compiledOptions = compileWorkerOptions(addDefaultWorkerOptions(fixedUpOptions));
+    const replayWorker = await nativeWorkerCtor.createReplay(compiledOptions, history);
+    this.replayWorkerCount += 1;
     const constructedWorker = await this.bundleWorker(compiledOptions, replayWorker);
 
     // TODO: Make running lazy? Return type which users can then explicitly start running?
@@ -788,6 +797,7 @@ export class Worker {
    */
   protected workflowPoll$(): Observable<ActivationWithContext> {
     return this.pollLoop$(async () => {
+      console.log('workflow poll');
       const parentSpan = this.tracer.startSpan('workflow.activation');
       try {
         return await instrument(this.tracer, parentSpan, 'workflow.poll', async (span) => {

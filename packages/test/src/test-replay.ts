@@ -32,7 +32,7 @@ test('cancel-fake-progress-replay', async (t) => {
   await Worker.createReplay(
     {
       workflowsPath: require.resolve('./workflows'),
-      taskQueue: 'test',
+      testName: 'cancel-fake-progress-replay',
     },
     hist
   );
