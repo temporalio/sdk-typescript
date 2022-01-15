@@ -797,7 +797,6 @@ export class Worker {
    */
   protected workflowPoll$(): Observable<ActivationWithContext> {
     return this.pollLoop$(async () => {
-      console.log('workflow poll');
       const parentSpan = this.tracer.startSpan('workflow.activation');
       try {
         return await instrument(this.tracer, parentSpan, 'workflow.poll', async (span) => {

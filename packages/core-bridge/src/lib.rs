@@ -352,7 +352,6 @@ fn start_bridge_loop(
                                 todo!("Return a proper error here")
                             }
                             CoreType::Replay(ref rc) => {
-                                dbg!("registering replay");
                                 let task_queue = config.task_queue.clone();
                                 match rc.make_replay_worker(config, &history) {
                                     Ok(_) => {
@@ -368,7 +367,6 @@ fn start_bridge_loop(
                                         UNEXPECTED_ERROR.from_error(cx, err)
                                     }),
                                 };
-                                dbg!("replay registerred");
                             }
                         },
                         Request::PollWorkflowActivation {
@@ -598,9 +596,11 @@ fn core_new(mut cx: FunctionContext) -> JsResult<JsUndefined> {
 
 /// Create a new "replay" instance of core, which can only be used for replaying static histories.
 fn replay_core_new(mut cx: FunctionContext) -> JsResult<JsUndefined> {
-    let callback = cx.argument::<JsFunction>(0)?.root(&mut cx);
+    let telem_options = cx.argument::<JsObject>(0)?;
+    let telem_options = telem_options.as_telemetry_options(&mut cx)?;
+    let callback = cx.argument::<JsFunction>(1)?.root(&mut cx);
     let queue = Arc::new(cx.queue());
-    let core_init_fut = async { Ok(CoreType::Replay(init_core_replay())) };
+    let core_init_fut = async { Ok(CoreType::Replay(init_core_replay(telem_options))) };
     std::thread::spawn(move || start_bridge_loop(core_init_fut, queue, callback));
     Ok(cx.undefined())
 }

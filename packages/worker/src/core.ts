@@ -75,6 +75,14 @@ export class Core {
   protected readonly logPollPromise: Promise<void>;
   public readonly logger: Logger;
 
+  protected static _instance?: Promise<Core>;
+  protected static instantiator?: 'install' | 'instance';
+  /**
+   * Default options get overridden when Core is installed and are remembered in case Core is
+   * re-instantiated after being shut down
+   */
+  protected static defaultOptions: CoreOptions = {};
+
   protected constructor(public readonly native: native.Core, public readonly options: CompiledCoreOptions) {
     if (this.isForwardingLogs()) {
       const logger = (this.logger = new CoreLogger(this.options.logger));
@@ -85,15 +93,47 @@ export class Core {
     }
   }
 
-  protected isForwardingLogs(): boolean {
-    return this.options.telemetryOptions.logForwardingLevel !== 'OFF';
+  /**
+   * Instantiate a new Core object and set it as the singleton instance
+   *
+   * If Core has already been instantiated with {@link instance} or this method,
+   * will throw a {@link IllegalStateError}.
+   */
+  public static async install(options: CoreOptions): Promise<Core> {
+    // Remember the provided options in case Core is reinstantiated after being shut down
+    this.defaultOptions = options;
+    if (this._instance !== undefined) {
+      if (this.instantiator === 'install') {
+        throw new IllegalStateError('Core singleton has already been installed');
+      } else if (this.instantiator === 'instance') {
+        throw new IllegalStateError(
+          'Core singleton has already been instantiated. Did you start a Worker before calling `install`?'
+        );
+      }
+    }
+    this.instantiator = 'install';
+    this._instance = this.create(options).catch((err) => {
+      // Unset the singleton in case creation failed
+      delete this._instance;
+      throw err;
+    });
+    return this._instance;
   }
 
   /**
-   * Default options get overridden when Core is installed and are remembered in case Core is
-   * re-instantiated after being shut down
+   * Get or instantiate the singleton Core object
+   *
+   * If Core has not been instantiated with {@link install} or this method,
+   * a new Core instance will be installed and configured to connect to
+   * the local docker compose setup.
    */
-  protected static defaultOptions: CoreOptions = {};
+  public static async instance(): Promise<Core> {
+    if (this._instance === undefined) {
+      this.instantiator = 'instance';
+      this._instance = this.create(this.defaultOptions);
+    }
+    return this._instance;
+  }
 
   /**
    * Factory function for creating a new Core instance, not exposed because Core is meant to be used as a singleton
@@ -164,6 +204,10 @@ export class Core {
     }
   }
 
+  protected isForwardingLogs(): boolean {
+    return this.options.telemetryOptions.logForwardingLevel !== 'OFF';
+  }
+
   /**
    * Flush any buffered logs.
    *
@@ -175,51 +219,6 @@ export class Core {
       const logger = this.logger as CoreLogger;
       logger.flush();
     }
-  }
-
-  protected static _instance?: Promise<Core>;
-  protected static instantiator?: 'install' | 'instance';
-
-  /**
-   * Instantiate a new Core object and set it as the singleton instance
-   *
-   * If Core has already been instantiated with {@link instance} or this method,
-   * will throw a {@link IllegalStateError}.
-   */
-  public static async install(options: CoreOptions): Promise<Core> {
-    // Remember the provided options in case Core is reinstantiated after being shut down
-    this.defaultOptions = options;
-    if (this._instance !== undefined) {
-      if (this.instantiator === 'install') {
-        throw new IllegalStateError('Core singleton has already been installed');
-      } else if (this.instantiator === 'instance') {
-        throw new IllegalStateError(
-          'Core singleton has already been instantiated. Did you start a Worker before calling `install`?'
-        );
-      }
-    }
-    this.instantiator = 'install';
-    this._instance = this.create(options).catch((err) => {
-      // Unset the singleton in case creation failed
-      delete this._instance;
-      throw err;
-    });
-    return this._instance;
-  }
-
-  /**
-   * Get or instantiate the singleton Core object
-   *
-   * If Core has not been instantiated with {@link install} or this method,
-   * a new Core instance will be installed and configured to connect to
-   * the local docker compose setup.
-   */
-  public static async instance(): Promise<Core> {
-    if (this._instance === undefined) {
-      this.instantiator = 'instance';
-      this._instance = this.create(this.defaultOptions);
-    }
-    return this._instance;
   }
 
   /**
@@ -262,14 +261,42 @@ export class Core {
   }
 }
 
-// TODO: Probably don't extend, as we don't necessarily want to expose all methods
 export class ReplayCore extends Core {
   protected static _instance?: Promise<ReplayCore>;
+  protected static instantiator?: 'install' | 'instance';
+  /**
+   * Default options get overridden when Core is installed and are remembered in case Core is
+   * re-instantiated after being shut down
+   */
+  protected static defaultOptions: CoreOptions = {};
+
+  // TODO: How do we de-dupe all this static goop? Maybe have some non-static
+  //   core singleton generic type which these hold a static instance of
+  public static async install(options: CoreOptions): Promise<ReplayCore> {
+    // Remember the provided options in case Core is reinstantiated after being shut down
+    this.defaultOptions = options;
+    if (this._instance !== undefined) {
+      if (this.instantiator === 'install') {
+        throw new IllegalStateError('Core singleton has already been installed');
+      } else if (this.instantiator === 'instance') {
+        throw new IllegalStateError(
+          'Core singleton has already been instantiated. Did you start a Worker before calling `install`?'
+        );
+      }
+    }
+    this.instantiator = 'install';
+    this._instance = this.create(options).catch((err) => {
+      // Unset the singleton in case creation failed
+      delete this._instance;
+      throw err;
+    });
+    return this._instance;
+  }
 
   public static async instance(): Promise<ReplayCore> {
     if (this._instance === undefined) {
       this.instantiator = 'instance';
-      this._instance = this.create();
+      this._instance = this.create(this.defaultOptions);
     }
     return this._instance;
   }
@@ -277,11 +304,11 @@ export class ReplayCore extends Core {
   /**
    * Create a replay core instance, for replaying static histories
    */
-  public static async create(): Promise<ReplayCore> {
-    // TODO: We should still accept the logging options here
-    const native = await promisify(newReplayCore)();
+  public static async create(options: CoreOptions): Promise<ReplayCore> {
+    const compiledOptions = this.compileOptions(options);
+    const native = await promisify(newReplayCore)(compiledOptions.telemetryOptions);
 
-    return new this(native, this.compileOptions(Core.defaultOptions));
+    return new this(native, compiledOptions);
   }
 
   // TODO: accept either history or binary
