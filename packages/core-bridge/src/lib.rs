@@ -351,7 +351,10 @@ fn start_bridge_loop(
                             callback,
                         } => match *core {
                             CoreType::Real(_) => {
-                                todo!("Return a proper error here")
+                                panic!(
+                                    "Attempted to use a real core instance to register a \
+                                        replay worker. This is a bug in the TS SDK."
+                                )
                             }
                             CoreType::Replay(ref rc) => {
                                 let task_queue = config.task_queue.clone();
