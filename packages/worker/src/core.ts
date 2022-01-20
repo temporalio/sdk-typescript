@@ -74,7 +74,7 @@ export class Core {
   protected readonly logPollPromise: Promise<void>;
   public readonly logger: Logger;
 
-  protected static _instanceCtor = (options: native.CoreOptions, callback: native.CoreCallback) => {
+  protected static _instanceCtor = (options: native.CoreOptions, callback: native.CoreCallback): void => {
     newCore(options, callback);
   };
   protected static _instance?: Promise<Core>;
@@ -98,7 +98,7 @@ export class Core {
     }
   }
 
-  protected static getInstance() {
+  protected static getInstance(): Promise<Core> | undefined {
     return this._instance;
   }
 
@@ -106,7 +106,7 @@ export class Core {
     this._instance = i;
   }
 
-  protected static clearInstance() {
+  protected static clearInstance(): void {
     delete this._instance;
   }
 
@@ -169,6 +169,7 @@ export class Core {
     return (await this.getInstance()) as InstanceType<T>;
   }
 
+  // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
   protected static compileOptions(options: CoreOptions) {
     const compiledServerOptions = compileServerOptions({
       ...getDefaultServerOptions(),
@@ -290,12 +291,12 @@ export class Core {
  * rather than an actual server to replay histories.
  */
 export class ReplayCore extends Core {
-  protected static _instanceCtor = (options: native.CoreOptions, callback: native.CoreCallback) => {
+  protected static _instanceCtor = (options: native.CoreOptions, callback: native.CoreCallback): void => {
     newReplayCore(options.telemetryOptions, callback);
   };
   protected static _replayInstance?: Promise<ReplayCore>;
 
-  protected static getInstance() {
+  protected static getInstance(): Promise<ReplayCore> | undefined {
     return this._replayInstance;
   }
 
@@ -303,7 +304,7 @@ export class ReplayCore extends Core {
     this._replayInstance = i;
   }
 
-  protected static clearInstance() {
+  protected static clearInstance(): void {
     delete this._replayInstance;
   }
 

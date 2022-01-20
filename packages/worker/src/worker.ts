@@ -231,7 +231,10 @@ export class Worker {
     await runPromise;
   }
 
-  protected static async bundleWorker(compiledOptions: CompiledWorkerOptions, nativeWorker: NativeWorkerLike) {
+  protected static async bundleWorker(
+    compiledOptions: CompiledWorkerOptions,
+    nativeWorker: NativeWorkerLike
+  ): Promise<Worker> {
     try {
       let bundle: string | undefined = undefined;
       let workflowCreator: WorkflowCreator | undefined = undefined;

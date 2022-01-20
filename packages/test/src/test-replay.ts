@@ -40,7 +40,9 @@ test.skip('cancel-fake-progress-replay-nondeterministic', async (t) => {
     path.resolve(__dirname, '../src/history_files/cancel_fake_progress_history.bin')
   );
   const hist = History.decode(histBin);
+
   // Manually alter the workflow type to point to different workflow code
+  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
   hist.events[0].workflowExecutionStartedEventAttributes!.workflowType!.name = 'http';
 
   // TODO: Should throw when nondeterminism error is encountered but need feedback on best way
