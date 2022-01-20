@@ -9,3 +9,7 @@ export type OmitLastParam<F extends AnyFunc> = (...args: OmitLast<Parameters<F>>
 export function checkExtends<_Orig, _Copy extends _Orig>(): void {
   // noop, just type check
 }
+
+export type Replace<Base, New> = Omit<Base, keyof New> & New;
+
+export type MakeOptional<Base, Keys extends keyof Base> = Omit<Base, Keys> & Partial<Pick<Base, Keys>>;

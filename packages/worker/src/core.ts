@@ -17,10 +17,9 @@ import * as errors from './errors';
 import { temporal } from '@temporalio/proto';
 import History = temporal.api.history.v1.History;
 import { byteArrayToBuffer } from './utils';
+import { MakeOptional } from '@temporalio/common/src/type-helpers';
 
-export type TelemetryOptions = Omit<RequiredTelemetryOptions, 'logForwardingLevel'> & {
-  logForwardingLevel?: RequiredTelemetryOptions['logForwardingLevel'];
-};
+export type TelemetryOptions = MakeOptional<RequiredTelemetryOptions, 'logForwardingLevel'>;
 
 export interface CoreOptions {
   /** Options for communicating with the Temporal server */

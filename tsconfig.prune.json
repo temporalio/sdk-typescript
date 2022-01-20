@@ -1,0 +1,19 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "paths": {
+      "@temporalio/*": ["packages/*"]
+    }
+  },
+  "files": [
+    "./packages/activity/src/index.ts",
+    "./packages/client/src/index.ts",
+    "./packages/common/src/index.ts",
+    "./packages/create-project/src/index.ts",
+    "./packages/meta/src/index.ts",
+    "./packages/worker/src/index.ts",
+    "./packages/worker/src/workflow/workflow-worker-thread.ts",
+    "./packages/workflow/src/index.ts",
+    "./packages/workflow/src/worker-interface.ts"
+  ]
+}

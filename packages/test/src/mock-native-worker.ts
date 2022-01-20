@@ -11,9 +11,11 @@ import {
   addDefaultWorkerOptions,
 } from '@temporalio/worker/lib/worker-options';
 import { DefaultLogger } from '@temporalio/worker';
-import { byteArrayToBuffer, sleep } from '@temporalio/worker/lib/utils';
+import { byteArrayToBuffer } from '@temporalio/worker/lib/utils';
 import * as activities from './activities';
 import { WorkflowCreator } from '@temporalio/worker/src/workflow/interface';
+
+const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
 function addActivityStartDefaults(task: coresdk.activity_task.IActivityTask) {
   // Add some defaults for convenience
