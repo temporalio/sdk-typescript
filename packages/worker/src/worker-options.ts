@@ -265,6 +265,7 @@ export interface ReplayWorkerOptions
     | 'maxConcurrentActivityTaskPolls'
     | 'maxHeartbeatThrottleInterval'
     | 'defaultHeartbeatThrottleInterval'
+    | 'debugMode'
   > {
   /**
    *  A name for the test this replay worker is used for. It will be combined with a short random ID

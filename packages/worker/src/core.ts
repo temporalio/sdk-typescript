@@ -125,7 +125,7 @@ export class Core {
    *
    * If Core has not been instantiated with {@link install} or this method,
    * a new Core instance will be installed and configured to connect to
-   * the local docker compose setup.
+   * a local server.
    */
   public static async instance(): Promise<Core> {
     if (this._instance === undefined) {

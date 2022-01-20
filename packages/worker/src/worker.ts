@@ -202,21 +202,21 @@ export class Worker {
   }
 
   /**
-   * Create a replay Worker.
+   * Create a replay Worker, and run the provided history against it. Will resolve as soon as
+   * the history has finished being replayed, or if the workflow produces a nondeterminism error.
    */
-  public static async createReplay(options: ReplayWorkerOptions, history: History): Promise<void> {
+  public static async runReplayHistory(options: ReplayWorkerOptions, history: History): Promise<void> {
     const nativeWorkerCtor: WorkerConstructor = this.nativeWorkerCtor;
-    const fixedUpOptions = {
+    const fixedUpOptions: WorkerOptions = {
       taskQueue: options.testName + '-' + this.replayWorkerCount,
-      workflowThreadPoolSize: 1,
+      debugMode: true,
       ...options,
     };
+    this.replayWorkerCount += 1;
     const compiledOptions = compileWorkerOptions(addDefaultWorkerOptions(fixedUpOptions));
     const replayWorker = await nativeWorkerCtor.createReplay(compiledOptions, history);
-    this.replayWorkerCount += 1;
     const constructedWorker = await this.bundleWorker(compiledOptions, replayWorker);
 
-    // TODO: Make running lazy? Return type which users can then explicitly start running?
     const runPromise = constructedWorker.run();
     runPromise.catch((err) => {
       console.error('Caught error while replay worker was running', err);
@@ -568,7 +568,7 @@ export class Worker {
                 parentSpan: this.tracer.startSpan('workflow.shutdown.evict'),
                 activation: new coresdk.workflow_activation.WorkflowActivation({
                   runId: group$.key,
-                  jobs: [{ removeFromCache: { reason: 'Shutting down' } }],
+                  jobs: [{ removeFromCache: { message: 'Shutting down' } }],
                 }),
                 synthetic: true,
               };
