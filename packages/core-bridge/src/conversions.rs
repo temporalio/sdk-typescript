@@ -6,13 +6,12 @@ use neon::{
     types::{JsNumber, JsString},
 };
 use opentelemetry::trace::{SpanContext, SpanId, TraceFlags, TraceId, TraceState};
-use std::net::SocketAddr;
-use std::{fmt::Display, str::FromStr, time::Duration};
+use std::{fmt::Display, net::SocketAddr, str::FromStr, time::Duration};
 use temporal_sdk_core::{
+    api::worker::{WorkerConfig, WorkerConfigBuilder},
     ClientTlsConfig, RetryConfig, ServerGatewayOptions, ServerGatewayOptionsBuilder,
     TelemetryOptions, TelemetryOptionsBuilder, TlsConfig, Url,
 };
-use temporal_sdk_core_api::worker::{WorkerConfig, WorkerConfigBuilder};
 
 macro_rules! js_value_getter {
     ($js_cx:expr, $js_obj:ident, $prop_name:expr, $js_type:ty) => {

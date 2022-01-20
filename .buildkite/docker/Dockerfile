@@ -1,4 +1,4 @@
-FROM rust:1.56
+FROM rust:1.58
 
 # INSTALL NODE ============================================================================
 # Unfortunately can't use the friendly lts name here easily, because then it gets hard to add to the

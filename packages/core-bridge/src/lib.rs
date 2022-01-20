@@ -14,26 +14,28 @@ use std::{
     sync::Arc,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
-use temporal_sdk_core::{init, CoreInitOptionsBuilder, CoreSDK, WorkerConfig};
-use temporal_sdk_core_api::{
-    errors::{
-        CompleteActivityError, CompleteWfError, CoreInitError, PollActivityError, PollWfError,
+use temporal_sdk_core::{
+    api::{
+        errors::{
+            CompleteActivityError, CompleteWfError, CoreInitError, PollActivityError, PollWfError,
+        },
+        Core,
     },
-    Core,
-};
-use temporal_sdk_core_protos::{
-    coresdk::{
-        workflow_completion::WorkflowActivationCompletion, ActivityHeartbeat,
-        ActivityTaskCompletion,
+    init,
+    protos::{
+        coresdk::{
+            workflow_completion::WorkflowActivationCompletion, ActivityHeartbeat,
+            ActivityTaskCompletion,
+        },
+        temporal::api::history::v1::History,
     },
-    temporal::api::history::v1::History,
+    replay::{init_core_replay, ReplayCore, ReplayCoreImpl},
+    CoreInitOptionsBuilder, CoreSDK, WorkerConfig,
 };
-use temporal_sdk_core_test_utils::{
-    history_replay::{ReplayCore, ReplayCoreImpl},
-    init_core_replay,
+use tokio::{
+    runtime::Runtime,
+    sync::mpsc::{unbounded_channel, UnboundedSender},
 };
-use tokio::runtime::Runtime;
-use tokio::sync::mpsc::{unbounded_channel, UnboundedSender};
 
 /// A request from JS to bridge to core
 #[derive(Debug)]
