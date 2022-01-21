@@ -61,7 +61,7 @@ enum Request {
         callback: Root<JsFunction>,
     },
     /// A request to register a replay worker. Will only work against a replay core instance.
-    ReplayWorker {
+    RegisterReplayWorker {
         /// Worker configuration. Must have unique task queue name.
         config: WorkerConfig,
         /// The history this worker should replay
@@ -148,7 +148,7 @@ fn tokio_runtime() -> &'static Runtime {
     INSTANCE.get_or_init(|| {
         tokio::runtime::Builder::new_multi_thread()
             .enable_all()
-            .thread_name("node-core-bridge")
+            .thread_name("core")
             .build()
             .expect("Tokio runtime must construct properly")
     })
@@ -345,7 +345,7 @@ fn start_bridge_loop(
                                 }),
                             };
                         }
-                        Request::ReplayWorker {
+                        Request::RegisterReplayWorker {
                             config,
                             history,
                             callback,
@@ -645,7 +645,7 @@ fn replay_worker_new(mut cx: FunctionContext) -> JsResult<JsUndefined> {
         History::decode_length_delimited(data.as_slice::<u8>())
     }) {
         Ok(history) => {
-            let request = Request::ReplayWorker {
+            let request = Request::RegisterReplayWorker {
                 config,
                 history,
                 callback: callback.root(&mut cx),

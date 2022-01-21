@@ -1,9 +1,12 @@
 import fs from 'fs/promises';
 import { promisify } from 'util';
 import * as otel from '@opentelemetry/api';
+import { SpanContext } from '@opentelemetry/api';
 import {
   BehaviorSubject,
+  EMPTY,
   from,
+  lastValueFrom,
   merge,
   MonoTypeOperatorFunction,
   Observable,
@@ -11,27 +14,25 @@ import {
   pipe,
   race,
   Subject,
-  lastValueFrom,
-  EMPTY,
 } from 'rxjs';
 import { delay, filter, first, ignoreElements, map, mergeMap, takeUntil, takeWhile, tap } from 'rxjs/operators';
 import * as native from '@temporalio/core-bridge';
 import { coresdk, temporal } from '@temporalio/proto';
 import { Info as ActivityInfo } from '@temporalio/activity';
 import {
-  IllegalStateError,
-  tsToMs,
-  errorToFailure,
   arrayFromPayloads,
   DataConverter,
   defaultDataConverter,
   errorMessage,
+  errorToFailure,
+  IllegalStateError,
+  tsToMs,
 } from '@temporalio/common';
 import {
   extractSpanContextFromHeaders,
   linkSpans,
-  RUN_ID_ATTR_KEY,
   NUM_JOBS_ATTR_KEY,
+  RUN_ID_ATTR_KEY,
   TASK_TOKEN_ATTR_KEY,
 } from '@temporalio/common/lib/otel';
 
@@ -42,13 +43,9 @@ import { WorkflowCodeBundler } from './workflow/bundler';
 import { Activity } from './activity';
 import { Logger } from './logger';
 import * as errors from './errors';
-import { childSpan, instrument, getTracer } from './tracing';
+import { childSpan, getTracer, instrument } from './tracing';
 import { ActivityExecuteInput } from './interceptors';
-export { IllegalStateError } from '@temporalio/common';
-export { DataConverter, defaultDataConverter, errors };
 import { Core, ReplayCore } from './core';
-import { SpanContext } from '@opentelemetry/api';
-import IWorkflowActivationJob = coresdk.workflow_activation.IWorkflowActivationJob;
 import { ThreadedVMWorkflowCreator } from './workflow/threaded-vm';
 import { SinkCall, WorkflowInfo } from '@temporalio/workflow';
 import {
@@ -61,7 +58,12 @@ import {
   WorkerOptions,
 } from './worker-options';
 import { VMWorkflowCreator } from './workflow/vm';
+
+export { IllegalStateError } from '@temporalio/common';
+export { DataConverter, defaultDataConverter, errors };
+import IWorkflowActivationJob = coresdk.workflow_activation.IWorkflowActivationJob;
 import History = temporal.api.history.v1.History;
+import EvictionReason = coresdk.workflow_activation.RemoveFromCache.EvictionReason;
 
 native.registerErrors(errors);
 /**
@@ -179,7 +181,7 @@ export class Worker {
     details?: any;
   }>();
   protected readonly stateSubject = new BehaviorSubject<State>('INITIALIZED');
-  protected readonly workflowPollerStateSubject = new BehaviorSubject<'POLLING' | 'SHUTDOWN'>('POLLING');
+  protected readonly workflowPollerStateSubject = new BehaviorSubject<'POLLING' | 'SHUTDOWN' | 'FAILED'>('POLLING');
   protected readonly numInFlightActivationsSubject = new BehaviorSubject<number>(0);
   protected readonly numInFlightActivitiesSubject = new BehaviorSubject<number>(0);
   protected readonly numRunningWorkflowInstancesSubject = new BehaviorSubject<number>(0);
@@ -218,9 +220,6 @@ export class Worker {
     const constructedWorker = await this.bundleWorker(compiledOptions, replayWorker);
 
     const runPromise = constructedWorker.run();
-    runPromise.catch((err) => {
-      console.error('Caught error while replay worker was running', err);
-    });
     const pollerShutdown = constructedWorker.workflowPollerStateSubject.pipe(
       filter((state): state is 'SHUTDOWN' => state === 'SHUTDOWN')
     );
@@ -571,7 +570,7 @@ export class Worker {
                 parentSpan: this.tracer.startSpan('workflow.shutdown.evict'),
                 activation: new coresdk.workflow_activation.WorkflowActivation({
                   runId: group$.key,
-                  jobs: [{ removeFromCache: { message: 'Shutting down' } }],
+                  jobs: [{ removeFromCache: { message: 'Shutting down', reason: EvictionReason.FATAL } }],
                 }),
                 synthetic: true,
               };
@@ -823,6 +822,9 @@ export class Worker {
       tap({
         complete: () => {
           this.workflowPollerStateSubject.next('SHUTDOWN');
+        },
+        error: () => {
+          this.workflowPollerStateSubject.next('FAILED');
         },
       })
     );
