@@ -231,7 +231,7 @@ export class Worker {
       constructedWorker.shutdown();
     });
 
-    let nondeterminismPromise = firstValueFrom(
+    const nondeterminismPromise = firstValueFrom(
       constructedWorker.evictions.pipe(
         filter((ev) => ev.reason === EvictionReason.NONDETERMINISM),
         map((ev) => {
@@ -612,7 +612,7 @@ export class Worker {
                   });
                   const removeFromCacheIx = activation.jobs.findIndex(({ removeFromCache }) => removeFromCache);
                   const close = removeFromCacheIx !== -1;
-                  let jobs = activation.jobs;
+                  const jobs = activation.jobs;
                   if (close) {
                     const asEvictJob = jobs.splice(removeFromCacheIx, 1)[0].removeFromCache;
                     this.evictions.next({
