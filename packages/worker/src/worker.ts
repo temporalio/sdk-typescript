@@ -819,13 +819,16 @@ export class Worker {
   }
 
   /**
-   * Poll core for `WorkflowActivation`s while respecting worker state
+   * Poll core for `WorkflowActivation`s while respecting worker state.
    */
   protected workflowPoll$(): Observable<ActivationWithContext> {
     return this.pollLoop$(async () => {
       const parentSpan = this.tracer.startSpan('workflow.activation');
-      try {
-        return await instrument(this.tracer, parentSpan, 'workflow.poll', async (span) => {
+      return await instrument(
+        this.tracer,
+        parentSpan,
+        'workflow.poll',
+        async (span) => {
           const buffer = await this.nativeWorker.pollWorkflowActivation(span.spanContext());
           const activation = coresdk.workflow_activation.WorkflowActivation.decode(new Uint8Array(buffer));
           const { runId, ...rest } = activation;
@@ -835,13 +838,9 @@ export class Worker {
           await this.linkWorkflowSpans(runId, rest.jobs, parentSpan);
 
           return { activation, parentSpan };
-        });
-      } catch (err) {
-        if (!(err instanceof errors.ShutdownError)) {
-          parentSpan.setStatus({ code: otel.SpanStatusCode.ERROR }).end();
-        }
-        throw err;
-      }
+        },
+        (err) => err instanceof errors.ShutdownError
+      );
     }).pipe(
       tap({
         complete: () => {
@@ -921,8 +920,11 @@ export class Worker {
   protected activityPoll$(): Observable<ActivityTaskWithContext> {
     return this.pollLoop$(async () => {
       const parentSpan = this.tracer.startSpan('activity.task');
-      try {
-        return await instrument(this.tracer, parentSpan, 'activity.poll', async (span) => {
+      return await instrument(
+        this.tracer,
+        parentSpan,
+        'activity.poll',
+        async (span) => {
           const buffer = await this.nativeWorker.pollActivityTask(span.spanContext());
           const task = coresdk.activity_task.ActivityTask.decode(new Uint8Array(buffer));
           const { taskToken, ...rest } = task;
@@ -943,13 +945,9 @@ export class Worker {
             linkSpans(parentSpan, ctx);
           }
           return { task, parentSpan, formattedTaskToken };
-        });
-      } catch (err) {
-        if (!(err instanceof errors.ShutdownError)) {
-          parentSpan.setStatus({ code: otel.SpanStatusCode.ERROR }).end();
-        }
-        throw err;
-      }
+        },
+        (err) => err instanceof errors.ShutdownError
+      );
     });
   }
 
