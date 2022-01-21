@@ -8,7 +8,7 @@ export class WorkflowError extends Error {
 }
 
 /**
- * Thrown in workflow when it trys to do something that non-deterministic such as construct a WeakMap()
+ * Thrown in workflow when it tries to do something that non-deterministic such as construct a WeakMap()
  */
 export class DeterminismViolationError extends WorkflowError {
   public readonly name: string = 'DeterminismViolationError';

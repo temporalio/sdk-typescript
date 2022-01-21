@@ -5,6 +5,7 @@ import { SpanContext } from '@opentelemetry/api';
 import {
   BehaviorSubject,
   EMPTY,
+  firstValueFrom,
   from,
   lastValueFrom,
   merge,
@@ -47,7 +48,7 @@ import { childSpan, getTracer, instrument } from './tracing';
 import { ActivityExecuteInput } from './interceptors';
 import { Core, ReplayCore } from './core';
 import { ThreadedVMWorkflowCreator } from './workflow/threaded-vm';
-import { SinkCall, WorkflowInfo } from '@temporalio/workflow';
+import { DeterminismViolationError, SinkCall, WorkflowInfo } from '@temporalio/workflow';
 import {
   addDefaultWorkerOptions,
   CompiledWorkerOptions,
@@ -185,6 +186,7 @@ export class Worker {
   protected readonly numInFlightActivationsSubject = new BehaviorSubject<number>(0);
   protected readonly numInFlightActivitiesSubject = new BehaviorSubject<number>(0);
   protected readonly numRunningWorkflowInstancesSubject = new BehaviorSubject<number>(0);
+  protected readonly evictions = new Subject<{ runId: string; reason: EvictionReason; message: string }>();
   private readonly runIdsToSpanContext = new Map<string, SpanContext>();
 
   protected static nativeWorkerCtor: WorkerConstructor = NativeWorker;
@@ -206,6 +208,8 @@ export class Worker {
   /**
    * Create a replay Worker, and run the provided history against it. Will resolve as soon as
    * the history has finished being replayed, or if the workflow produces a nondeterminism error.
+   *
+   * @throws DeterminismViolationError if the workflow code is not compatible with the history.
    */
   public static async runReplayHistory(options: ReplayWorkerOptions, history: History): Promise<void> {
     const nativeWorkerCtor: WorkerConstructor = this.nativeWorkerCtor;
@@ -227,7 +231,19 @@ export class Worker {
       constructedWorker.shutdown();
     });
 
-    await runPromise;
+    let nondeterminismPromise = firstValueFrom(
+      constructedWorker.evictions.pipe(
+        filter((ev) => ev.reason === EvictionReason.NONDETERMINISM),
+        map((ev) => {
+          throw new DeterminismViolationError(
+            'Replay failed with a nondeterminism error. This means that the workflow code as written ' +
+              `is not compatible with the history that was fed in. Details: ${ev.message}`
+          );
+        })
+      )
+    );
+
+    await Promise.race([runPromise, nondeterminismPromise]);
   }
 
   protected static async bundleWorker(
@@ -594,9 +610,17 @@ export class Worker {
                     numInFlightActivations: this.numInFlightActivationsSubject.value,
                     numRunningWorkflowInstances: this.numRunningWorkflowInstancesSubject.value,
                   });
-                  const jobs = activation.jobs.filter(({ removeFromCache }) => !removeFromCache);
-                  // Found a removeFromCache job
-                  const close = jobs.length < activation.jobs.length;
+                  const removeFromCacheIx = activation.jobs.findIndex(({ removeFromCache }) => removeFromCache);
+                  const close = removeFromCacheIx !== -1;
+                  let jobs = activation.jobs;
+                  if (close) {
+                    const asEvictJob = jobs.splice(removeFromCacheIx, 1)[0].removeFromCache;
+                    this.evictions.next({
+                      runId: activation.runId,
+                      reason: asEvictJob?.reason ?? EvictionReason.UNSPECIFIED,
+                      message: asEvictJob?.message ?? '',
+                    });
+                  }
                   activation.jobs = jobs;
                   if (jobs.length === 0) {
                     state?.workflow.dispose();

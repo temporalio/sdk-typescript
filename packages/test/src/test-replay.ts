@@ -4,6 +4,7 @@ import { temporal } from '@temporalio/proto';
 const History = temporal.api.history.v1.History;
 import path from 'path';
 import * as fs from 'fs';
+import { DeterminismViolationError } from '@temporalio/workflow';
 
 export interface Context {
   replayCore: Core;
@@ -35,7 +36,7 @@ test('cancel-fake-progress-replay', async (t) => {
   t.pass();
 });
 
-test.skip('cancel-fake-progress-replay-nondeterministic', async (t) => {
+test('cancel-fake-progress-replay-nondeterministic', async (t) => {
   const histBin = await fs.promises.readFile(
     path.resolve(__dirname, '../src/history_files/cancel_fake_progress_history.bin')
   );
@@ -45,14 +46,16 @@ test.skip('cancel-fake-progress-replay-nondeterministic', async (t) => {
   // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
   hist.events[0].workflowExecutionStartedEventAttributes!.workflowType!.name = 'http';
 
-  // TODO: Should throw when nondeterminism error is encountered but need feedback on best way
-  //   to intercept
-  await Worker.runReplayHistory(
+  await t.throwsAsync(
+    Worker.runReplayHistory(
+      {
+        workflowsPath: require.resolve('./workflows'),
+        testName: 'cancel-fake-progress-replay-nondeterministic',
+      },
+      hist
+    ),
     {
-      workflowsPath: require.resolve('./workflows'),
-      testName: 'cancel-fake-progress-replay',
-    },
-    hist
+      instanceOf: DeterminismViolationError,
+    }
   );
-  t.pass();
 });
