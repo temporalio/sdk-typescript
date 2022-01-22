@@ -15,7 +15,7 @@ const test = anyTest as TestInterface<Context>;
 test.before(async (t) => {
   const logger = new DefaultLogger('DEBUG');
   // Use forwarded logging from core
-  const replayCore = await ReplayCore.install({ logger, telemetryOptions: { logForwardingLevel: 'INFO' } });
+  const replayCore = await ReplayCore.install({ logger, telemetryOptions: { logForwardingLevel: 'DEBUG' } });
   t.context = {
     replayCore,
   };
@@ -29,7 +29,7 @@ test('cancel-fake-progress-replay', async (t) => {
   await Worker.runReplayHistory(
     {
       workflowsPath: require.resolve('./workflows'),
-      testName: 'cancel-fake-progress-replay',
+      testName: t.title,
     },
     hist
   );
@@ -50,12 +50,33 @@ test('cancel-fake-progress-replay-nondeterministic', async (t) => {
     Worker.runReplayHistory(
       {
         workflowsPath: require.resolve('./workflows'),
-        testName: 'cancel-fake-progress-replay-nondeterministic',
+        testName: t.title,
       },
       hist
     ),
     {
       instanceOf: DeterminismViolationError,
     }
+  );
+});
+
+test('workflow-task-failure-fails-replay', async (t) => {
+  const histBin = await fs.promises.readFile(
+    path.resolve(__dirname, '../src/history_files/cancel_fake_progress_history.bin')
+  );
+  const hist = History.decode(histBin);
+
+  // Manually alter the workflow type to point to our workflow which will fail workflow tasks
+  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+  hist.events[0].workflowExecutionStartedEventAttributes!.workflowType!.name = 'failsWorkflowTask';
+
+  await t.throwsAsync(
+    Worker.runReplayHistory(
+      {
+        workflowsPath: require.resolve('./workflows'),
+        testName: t.title,
+      },
+      hist
+    )
   );
 });

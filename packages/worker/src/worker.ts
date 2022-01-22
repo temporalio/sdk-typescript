@@ -59,12 +59,13 @@ import {
   WorkerOptions,
 } from './worker-options';
 import { VMWorkflowCreator } from './workflow/vm';
-
-export { IllegalStateError } from '@temporalio/common';
-export { DataConverter, defaultDataConverter, errors };
 import IWorkflowActivationJob = coresdk.workflow_activation.IWorkflowActivationJob;
 import History = temporal.api.history.v1.History;
 import EvictionReason = coresdk.workflow_activation.RemoveFromCache.EvictionReason;
+import IRemoveFromCache = coresdk.workflow_activation.IRemoveFromCache;
+
+export { IllegalStateError } from '@temporalio/common';
+export { DataConverter, defaultDataConverter, errors };
 
 native.registerErrors(errors);
 /**
@@ -186,12 +187,16 @@ export class Worker {
   protected readonly numInFlightActivationsSubject = new BehaviorSubject<number>(0);
   protected readonly numInFlightActivitiesSubject = new BehaviorSubject<number>(0);
   protected readonly numRunningWorkflowInstancesSubject = new BehaviorSubject<number>(0);
-  protected readonly evictions = new Subject<{ runId: string; reason: EvictionReason; message: string }>();
+  protected readonly evictions = new Subject<{ runId: string; evictJob: IRemoveFromCache }>();
   private readonly runIdsToSpanContext = new Map<string, SpanContext>();
 
   protected static nativeWorkerCtor: WorkerConstructor = NativeWorker;
   // Used to add uniqueness to replay worker task queue names
   protected static replayWorkerCount = 0;
+  private static readonly SELF_INDUCED_SHUTDOWN_EVICTION: IRemoveFromCache = {
+    message: 'Shutting down',
+    reason: EvictionReason.FATAL,
+  };
   protected readonly tracer: otel.Tracer;
 
   /**
@@ -233,12 +238,17 @@ export class Worker {
 
     const nondeterminismPromise = firstValueFrom(
       constructedWorker.evictions.pipe(
-        filter((ev) => ev.reason === EvictionReason.NONDETERMINISM),
+        // Ignore self-induced shutdowns, as they are a legit and we'll terminate normally.
+        filter((ev) => ev.evictJob != this.SELF_INDUCED_SHUTDOWN_EVICTION),
         map((ev) => {
-          throw new DeterminismViolationError(
-            'Replay failed with a nondeterminism error. This means that the workflow code as written ' +
-              `is not compatible with the history that was fed in. Details: ${ev.message}`
-          );
+          if (ev.evictJob.reason === EvictionReason.NONDETERMINISM) {
+            throw new DeterminismViolationError(
+              'Replay failed with a nondeterminism error. This means that the workflow code as written ' +
+                `is not compatible with the history that was fed in. Details: ${ev.evictJob.message}`
+            );
+          } else {
+            throw new Error(`Replay failed. Details: ${ev.evictJob.message}`);
+          }
         })
       )
     );
@@ -586,7 +596,7 @@ export class Worker {
                 parentSpan: this.tracer.startSpan('workflow.shutdown.evict'),
                 activation: new coresdk.workflow_activation.WorkflowActivation({
                   runId: group$.key,
-                  jobs: [{ removeFromCache: { message: 'Shutting down', reason: EvictionReason.FATAL } }],
+                  jobs: [{ removeFromCache: Worker.SELF_INDUCED_SHUTDOWN_EVICTION }],
                 }),
                 synthetic: true,
               };
@@ -615,11 +625,12 @@ export class Worker {
                   const jobs = activation.jobs;
                   if (close) {
                     const asEvictJob = jobs.splice(removeFromCacheIx, 1)[0].removeFromCache;
-                    this.evictions.next({
-                      runId: activation.runId,
-                      reason: asEvictJob?.reason ?? EvictionReason.UNSPECIFIED,
-                      message: asEvictJob?.message ?? '',
-                    });
+                    if (asEvictJob) {
+                      this.evictions.next({
+                        runId: activation.runId,
+                        evictJob: asEvictJob,
+                      });
+                    }
                   }
                   activation.jobs = jobs;
                   if (jobs.length === 0) {
