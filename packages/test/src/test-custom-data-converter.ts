@@ -18,16 +18,16 @@ export async function runWorker(worker: Worker, fn: () => Promise<any>): Promise
 
 function compareCompletion(
   t: ExecutionContext,
-  actual: coresdk.activity_result.IActivityResult | null | undefined,
-  expected: coresdk.activity_result.IActivityResult
+  actual: coresdk.activity_result.IActivityExecutionResult | null | undefined,
+  expected: coresdk.activity_result.IActivityExecutionResult
 ) {
   if (actual?.failed?.failure) {
     const { stackTrace, ...rest } = actual.failed.failure;
     actual = { failed: { failure: { stackTrace: cleanStackTrace(stackTrace), ...rest } } };
   }
   t.deepEqual(
-    new coresdk.activity_result.ActivityResult(actual ?? undefined).toJSON(),
-    new coresdk.activity_result.ActivityResult(expected).toJSON()
+    new coresdk.activity_result.ActivityExecutionResult(actual ?? undefined).toJSON(),
+    new coresdk.activity_result.ActivityExecutionResult(expected).toJSON()
   );
 }
 
@@ -126,7 +126,6 @@ test('Worker with proto data converter runs an activity and reports completion',
     const taskToken = Buffer.from(uuid4());
     const completion = await worker.native.runActivityTask({
       taskToken,
-      activityId: 'abc',
       start: {
         activityType: 'protoActivity',
         input: await dataConverter.toPayloads(messageInstance),

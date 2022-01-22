@@ -7,6 +7,7 @@ import { partition } from '../utils';
 import { Workflow, WorkflowCreator, WorkflowCreateOptions } from './interface';
 import { SinkCall } from '@temporalio/workflow/lib/sinks';
 import { AsyncLocalStorage } from 'async_hooks';
+import assert from 'assert';
 
 /**
  * A WorkflowCreator that creates VMWorkflows in the current isolate
@@ -49,7 +50,7 @@ export class VMWorkflowCreator implements WorkflowCreator {
     if (this.script === undefined) {
       throw new IllegalStateError('Isolate context provider was destroyed');
     }
-    const context = vm.createContext({ AsyncLocalStorage });
+    const context = vm.createContext({ AsyncLocalStorage, assert });
     this.script.runInContext(context);
     return context;
   }

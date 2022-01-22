@@ -104,9 +104,8 @@ export class WorkflowCodeBundler {
   protected async bundle(filesystem: typeof unionfs.ufs, entry: string, distDir: string): Promise<void> {
     const compiler = webpack({
       resolve: {
-        modules: this.nodeModulesPaths,
+        modules: [path.resolve(__dirname, 'module-overrides'), ...this.nodeModulesPaths],
         extensions: ['.ts', '.js'],
-        fallback: { assert: false }, // used by `proto3-json-serializer`
       },
       module: {
         rules: [
@@ -137,6 +136,8 @@ export class WorkflowCodeBundler {
         compiler.run((err, stats) => {
           if (stats !== undefined) {
             const hasError = stats.hasErrors();
+            // To debug webpack build:
+            // const lines = stats.toString({ preset: 'verbose' }).split('\n');
             const lines = stats.toString({ chunks: false, colors: true }).split('\n');
             for (const line of lines) {
               this.logger[hasError ? 'error' : 'info'](line);
