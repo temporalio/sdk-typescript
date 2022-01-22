@@ -1,5 +1,17 @@
-import { ValueError } from '../errors';
-import { u8, str, Payload, encodingTypes, encodingKeys, METADATA_ENCODING_KEY } from './types';
+import { ValueError, DataConverterError } from '../errors';
+import {
+  u8,
+  str,
+  Payload,
+  encodingTypes,
+  encodingKeys,
+  METADATA_ENCODING_KEY,
+  METADATA_MESSAGE_TYPE_KEY,
+} from './types';
+import { isRecord, hasOwnProperty, hasOwnProperties } from '../type-helpers';
+import { errorMessage } from '../errors';
+import * as protoJsonSerializer from 'proto3-json-serializer';
+import type { Root, Type, Namespace, Message } from 'protobufjs';
 
 /**
  * Used by the framework to serialize/deserialize method parameters that need to be sent over the
@@ -15,7 +27,7 @@ export interface PayloadConverter {
    * Implements conversion of value to payload
    *
    * @param value JS value to convert.
-   * @return converted value
+   * @return converted value or `undefined` if unable to convert.
    * @throws DataConverterException if conversion of the value passed as parameter failed for any
    *     reason.
    */
@@ -38,7 +50,7 @@ export interface PayloadConverter {
    * Implements conversion of value to payload
    *
    * @param value JS value to convert.
-   * @return converted value
+   * @return converted value or `undefined` if unable to convert.
    * @throws DataConverterException if conversion of the value passed as parameter failed for any
    *     reason.
    */
@@ -139,4 +151,143 @@ export class BinaryPayloadConverter extends AsyncFacadePayloadConverter {
     // TODO: support any DataView or ArrayBuffer?
     return content.data as any;
   }
+}
+
+abstract class ProtobufPayloadConverter extends AsyncFacadePayloadConverter {
+  protected readonly root: Root | undefined;
+
+  // Don't use type Root here because root.d.ts doesn't export Root, so users would have to type assert
+  constructor(root?: unknown) {
+    super();
+
+    if (root) {
+      if (!isRoot(root)) {
+        throw new TypeError('root must be an instance of a protobufjs Root');
+      }
+
+      this.root = root;
+    }
+  }
+
+  protected validatePayload(content: Payload): { messageType: Type; data: Uint8Array } {
+    if (content.data === undefined || content.data === null) {
+      throw new ValueError('Got payload with no data');
+    }
+    if (!content.metadata || !(METADATA_MESSAGE_TYPE_KEY in content.metadata)) {
+      throw new ValueError(`Got protobuf payload without metadata.${METADATA_MESSAGE_TYPE_KEY}`);
+    }
+    if (!this.root) {
+      throw new DataConverterError('Unable to deserialize protobuf message without `root` being provided');
+    }
+
+    const messageTypeName = str(content.metadata[METADATA_MESSAGE_TYPE_KEY]);
+    let messageType;
+    try {
+      messageType = this.root.lookupType(messageTypeName);
+    } catch (e) {
+      if (errorMessage(e)?.includes('no such type')) {
+        throw new DataConverterError(
+          `Got a \`${messageTypeName}\` protobuf message but cannot find corresponding message class in \`root\``
+        );
+      }
+
+      throw e;
+    }
+
+    return { messageType, data: content.data };
+  }
+
+  protected constructPayload({ messageTypeName, message }: { messageTypeName: string; message: Uint8Array }): Payload {
+    return {
+      metadata: {
+        [METADATA_ENCODING_KEY]: u8(this.encodingType),
+        [METADATA_MESSAGE_TYPE_KEY]: u8(messageTypeName),
+      },
+      data: message,
+    };
+  }
+}
+
+/**
+ * Converts between protobufjs Message instances and serialized Protobuf Payload
+ */
+export class ProtobufBinaryPayloadConverter extends ProtobufPayloadConverter {
+  public encodingType = encodingTypes.METADATA_ENCODING_PROTOBUF;
+
+  constructor(root?: unknown) {
+    super(root);
+  }
+
+  public toDataSync(value: unknown): Payload | undefined {
+    if (!isProtobufMessage(value)) {
+      return undefined;
+    }
+
+    return this.constructPayload({
+      messageTypeName: getNamespacedTypeName(value.$type),
+      message: value.$type.encode(value).finish(),
+    });
+  }
+
+  public fromDataSync<T>(content: Payload): T {
+    const { messageType, data } = this.validatePayload(content);
+    return messageType.decode(data) as unknown as T;
+  }
+}
+
+/**
+ * Converts between protobufjs Message instances and serialized JSON Payload
+ */
+export class ProtobufJsonPayloadConverter extends ProtobufPayloadConverter {
+  public encodingType = encodingTypes.METADATA_ENCODING_PROTOBUF_JSON;
+
+  constructor(root?: unknown) {
+    super(root);
+  }
+
+  public toDataSync(value: unknown): Payload | undefined {
+    if (!isProtobufMessage(value)) {
+      return undefined;
+    }
+
+    const jsonValue = protoJsonSerializer.toProto3JSON(value);
+
+    return this.constructPayload({
+      messageTypeName: getNamespacedTypeName(value.$type),
+      message: u8(JSON.stringify(jsonValue)),
+    });
+  }
+
+  public fromDataSync<T>(content: Payload): T {
+    const { messageType, data } = this.validatePayload(content);
+    return protoJsonSerializer.fromProto3JSON(messageType, JSON.parse(str(data))) as unknown as T;
+  }
+}
+
+function isProtobufType(type: unknown): type is Type {
+  return (
+    isRecord(type) &&
+    type.constructor.name === 'Type' &&
+    hasOwnProperties(type, ['parent', 'name', 'create', 'encode', 'decode']) &&
+    typeof type.name === 'string' &&
+    typeof type.create === 'function' &&
+    typeof type.encode === 'function' &&
+    typeof type.decode === 'function'
+  );
+}
+
+function isProtobufMessage(value: unknown): value is Message {
+  return isRecord(value) && hasOwnProperty(value, '$type') && isProtobufType(value.$type);
+}
+
+function getNamespacedTypeName(node: Type | Namespace): string {
+  if (node.parent && !isRoot(node.parent)) {
+    return getNamespacedTypeName(node.parent) + '.' + node.name;
+  } else {
+    return node.name;
+  }
+}
+
+function isRoot(root: unknown): root is Root {
+  return isRecord(root) && root.constructor.name === 'Root';
 }

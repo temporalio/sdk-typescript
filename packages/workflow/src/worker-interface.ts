@@ -43,11 +43,11 @@ export function overrideGlobals(): void {
   // WeakRef is implemented in V8 8.4 which is embedded in node >=14.6.0.
   // Workflow developer will get a meaningful exception if they try to use these.
   global.WeakRef = function () {
-    throw new DeterminismViolationError('WeakRef cannot be used in workflows because v8 GC is non-deterministic');
+    throw new DeterminismViolationError('WeakRef cannot be used in Workflows because v8 GC is non-deterministic');
   };
   global.FinalizationRegistry = function () {
     throw new DeterminismViolationError(
-      'FinalizationRegistry cannot be used in workflows because v8 GC is non-deterministic'
+      'FinalizationRegistry cannot be used in Workflows because v8 GC is non-deterministic'
     );
   };
 
@@ -118,7 +118,7 @@ export async function initRuntime({ info, randomnessSeed, now, patches }: Workfl
   // Globals are overridden while building the isolate before loading user code.
   // For some reason the `WeakRef` mock is not restored properly when creating an isolate from snapshot in node 14 (at least on ubuntu), override again.
   (globalThis as any).WeakRef = function () {
-    throw new DeterminismViolationError('WeakRef cannot be used in workflows because v8 GC is non-deterministic');
+    throw new DeterminismViolationError('WeakRef cannot be used in Workflows because v8 GC is non-deterministic');
   };
   state.info = info;
   state.now = now;
