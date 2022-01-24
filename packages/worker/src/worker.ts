@@ -231,11 +231,12 @@ export class Worker {
     const runPromise = constructedWorker.run();
     const pollerShutdown = constructedWorker.workflowPollerStateSubject.pipe(filter((state) => state !== 'POLLING'));
     pollerShutdown.subscribe((_) => {
-      // We may have already called shutdown from the eviction branch, so ignore
-      // errors if we're already shut down.
       try {
         constructedWorker.shutdown();
-      } catch {}
+      } catch {
+        // We may have already called shutdown from the eviction branch, so ignore
+        // errors if we're already shut down.
+      }
     });
 
     const evcitionPromise = firstValueFrom(

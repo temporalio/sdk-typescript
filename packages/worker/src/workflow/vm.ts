@@ -10,7 +10,7 @@ import { AsyncLocalStorage } from 'async_hooks';
 
 // Best effort to catch unhandled rejections from workflow code.
 // We crash the thread if we cannot find the culprit.
-export function setUnhandledRejectionHandler() {
+export function setUnhandledRejectionHandler(): void {
   process.on('unhandledRejection', (err, promise) => {
     // Get the runId associated with the vm context.
     // See for reference https://github.com/patriksimek/vm2/issues/32

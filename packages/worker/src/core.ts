@@ -15,9 +15,9 @@ import { compileServerOptions, getDefaultServerOptions, RequiredServerOptions, S
 import { DefaultLogger, LogEntry, Logger, LogTimestamp, timeOfDayToBigint } from './logger';
 import * as errors from './errors';
 import { temporal } from '@temporalio/proto';
-import History = temporal.api.history.v1.History;
 import { byteArrayToBuffer } from './utils';
 import { MakeOptional } from '@temporalio/common/src/type-helpers';
+import History = temporal.api.history.v1.History;
 
 export type TelemetryOptions = MakeOptional<RequiredTelemetryOptions, 'logForwardingLevel'>;
 
@@ -63,6 +63,22 @@ export class CoreLogger extends DefaultLogger {
 }
 
 /**
+ * Holds bag-o-statics for different core types to ensure that they get independent instances of all
+ * statics.
+ */
+class CoreStatics<T extends Core> {
+  instance?: Promise<T>;
+  instantiator?: 'install' | 'instance';
+  /**
+   * Default options get overridden when Core is installed and are remembered in case Core is
+   * re-instantiated after being shut down
+   */
+  defaultOptions: CoreOptions = {};
+
+  constructor(readonly instanceCtor: (options: native.CoreOptions, callback: native.CoreCallback) => void) {}
+}
+
+/**
  * Core singleton representing an instance of the Rust Core SDK
  *
  * Use {@link install} in order to customize the server connection options or other global process options.
@@ -74,16 +90,7 @@ export class Core {
   protected readonly logPollPromise: Promise<void>;
   public readonly logger: Logger;
 
-  protected static _instanceCtor = (options: native.CoreOptions, callback: native.CoreCallback): void => {
-    newCore(options, callback);
-  };
-  protected static _instance?: Promise<Core>;
-  protected static instantiator?: 'install' | 'instance';
-  /**
-   * Default options get overridden when Core is installed and are remembered in case Core is
-   * re-instantiated after being shut down
-   */
-  protected static defaultOptions: CoreOptions = {};
+  protected static _statics: CoreStatics<Core> = new CoreStatics(newCore);
 
   /**
    * @ignore
@@ -98,18 +105,6 @@ export class Core {
     }
   }
 
-  protected static getInstance(): Promise<Core> | undefined {
-    return this._instance;
-  }
-
-  protected static setInstance(i: Promise<Core>): void {
-    this._instance = i;
-  }
-
-  protected static clearInstance(): void {
-    delete this._instance;
-  }
-
   /**
    * Instantiate a new Core object and set it as the singleton instance
    *
@@ -117,10 +112,10 @@ export class Core {
    * will throw a {@link IllegalStateError}.
    */
   public static async install<T extends typeof Core>(this: T, options: CoreOptions): Promise<InstanceType<T>> {
-    if (this.getInstance() !== undefined) {
-      if (this.instantiator === 'install') {
+    if (this._statics.instance !== undefined) {
+      if (this._statics.instantiator === 'install') {
         throw new IllegalStateError('Core singleton has already been installed');
-      } else if (this.instantiator === 'instance') {
+      } else if (this._statics.instantiator === 'instance') {
         throw new IllegalStateError(
           'Core singleton has already been instantiated. Did you start a Worker before calling `install`?'
         );
@@ -128,7 +123,7 @@ export class Core {
     }
     return (await this.create(options, 'install').catch((err) => {
       // Unset the singleton in case creation failed
-      this.clearInstance();
+      delete this._statics.instance;
       throw err;
     })) as InstanceType<T>;
   }
@@ -141,11 +136,11 @@ export class Core {
    * a local server.
    */
   public static async instance<T extends typeof Core>(this: T): Promise<InstanceType<T>> {
-    const existingInst = this.getInstance();
+    const existingInst = this._statics.instance;
     if (existingInst !== undefined) {
       return existingInst as InstanceType<T>;
     }
-    return (await this.create(this.defaultOptions, 'instance')) as InstanceType<T>;
+    return (await this.create(this._statics.defaultOptions, 'instance')) as InstanceType<T>;
   }
 
   /**
@@ -157,16 +152,14 @@ export class Core {
     instantiator: 'install' | 'instance'
   ): Promise<InstanceType<T>> {
     // Remember the provided options in case Core is reinstantiated after being shut down
-    this.defaultOptions = options;
-    this.instantiator = instantiator;
+    this._statics.defaultOptions = options;
+    this._statics.instantiator = instantiator;
 
     const compiledOptions = this.compileOptions(options);
-    const instantiated = promisify(this._instanceCtor)(compiledOptions).then((native) => {
+    this._statics.instance = promisify(this._statics.instanceCtor)(compiledOptions).then((native) => {
       return new this(native, compiledOptions);
     });
-
-    this.setInstance(instantiated);
-    return (await this.getInstance()) as InstanceType<T>;
+    return (await this._statics.instance) as InstanceType<T>;
   }
 
   // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
@@ -282,7 +275,7 @@ export class Core {
     await promisify(coreShutdown)(this.native);
     // This will effectively drain all logs
     await this.logPollPromise;
-    delete Core._instance;
+    delete Core._statics.instance;
   }
 }
 
@@ -291,22 +284,12 @@ export class Core {
  * rather than an actual server to replay histories.
  */
 export class ReplayCore extends Core {
-  protected static _instanceCtor = (options: native.CoreOptions, callback: native.CoreCallback): void => {
-    newReplayCore(options.telemetryOptions, callback);
-  };
-  protected static _replayInstance?: Promise<ReplayCore>;
-
-  protected static getInstance(): Promise<ReplayCore> | undefined {
-    return this._replayInstance;
-  }
-
-  protected static setInstance(i: Promise<ReplayCore>): void {
-    this._replayInstance = i;
-  }
-
-  protected static clearInstance(): void {
-    delete this._replayInstance;
-  }
+  // protected static _instanceCtor = (options: native.CoreOptions, callback: native.CoreCallback): void => {
+  //   newReplayCore(options.telemetryOptions, callback);
+  // };
+  protected static _statics: CoreStatics<ReplayCore> = new CoreStatics((opts, cb) =>
+    newReplayCore(opts.telemetryOptions, cb)
+  );
 
   // TODO: accept either history or JSON or binary
   /** @hidden */
