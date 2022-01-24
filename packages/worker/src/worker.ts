@@ -229,8 +229,9 @@ export class Worker {
     const constructedWorker = await this.bundleWorker(compiledOptions, replayWorker);
 
     const runPromise = constructedWorker.run();
-    const pollerShutdown = constructedWorker.workflowPollerStateSubject.pipe(filter((state) => state !== 'POLLING'));
-    pollerShutdown.subscribe((_) => {
+    const pollerShutdown = firstValueFrom(
+      constructedWorker.workflowPollerStateSubject.pipe(filter((state) => state !== 'POLLING'))
+    ).then((_) => {
       try {
         constructedWorker.shutdown();
       } catch {
@@ -239,7 +240,7 @@ export class Worker {
       }
     });
 
-    const evcitionPromise = firstValueFrom(
+    const evictionPromise = firstValueFrom(
       constructedWorker.evictionsSubject.pipe(
         // Ignore self-induced shutdowns, as they are a legit and we'll terminate normally.
         filter((ev) => ev.evictJob != this.SELF_INDUCED_SHUTDOWN_EVICTION),
@@ -262,7 +263,8 @@ export class Worker {
       )
     );
 
-    await Promise.race([runPromise, evcitionPromise]);
+    await Promise.race([runPromise, evictionPromise]);
+    await pollerShutdown;
   }
 
   protected static async bundleWorker(

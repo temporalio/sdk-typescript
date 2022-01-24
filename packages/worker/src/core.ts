@@ -284,9 +284,6 @@ export class Core {
  * rather than an actual server to replay histories.
  */
 export class ReplayCore extends Core {
-  // protected static _instanceCtor = (options: native.CoreOptions, callback: native.CoreCallback): void => {
-  //   newReplayCore(options.telemetryOptions, callback);
-  // };
   protected static _statics: CoreStatics<ReplayCore> = new CoreStatics((opts, cb) =>
     newReplayCore(opts.telemetryOptions, cb)
   );
