@@ -309,6 +309,7 @@ export class ReplayCore extends Core {
   }
 
   // TODO: accept either history or JSON or binary
+  /** @hidden */
   public async createReplayWorker(options: native.WorkerOptions, history: History): Promise<native.Worker> {
     const worker = await promisify(native.newReplayWorker)(
       this.native,

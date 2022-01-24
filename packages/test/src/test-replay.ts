@@ -13,6 +13,8 @@ export interface Context {
 const test = anyTest as TestInterface<Context>;
 
 test.before(async (t) => {
+  // We don't want AVA to whine about unhandled rejections thrown by workflows
+  process.removeAllListeners('unhandledRejection');
   const logger = new DefaultLogger('DEBUG');
   // Use forwarded logging from core
   const replayCore = await ReplayCore.install({ logger, telemetryOptions: { logForwardingLevel: 'DEBUG' } });
@@ -29,7 +31,7 @@ test('cancel-fake-progress-replay', async (t) => {
   await Worker.runReplayHistory(
     {
       workflowsPath: require.resolve('./workflows'),
-      testName: t.title,
+      replayName: t.title,
     },
     hist
   );
@@ -50,7 +52,7 @@ test('cancel-fake-progress-replay-nondeterministic', async (t) => {
     Worker.runReplayHistory(
       {
         workflowsPath: require.resolve('./workflows'),
-        testName: t.title,
+        replayName: t.title,
       },
       hist
     ),
@@ -74,7 +76,7 @@ test('workflow-task-failure-fails-replay', async (t) => {
     Worker.runReplayHistory(
       {
         workflowsPath: require.resolve('./workflows'),
-        testName: t.title,
+        replayName: t.title,
       },
       hist
     )

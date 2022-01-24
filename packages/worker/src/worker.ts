@@ -187,7 +187,7 @@ export class Worker {
   protected readonly numInFlightActivationsSubject = new BehaviorSubject<number>(0);
   protected readonly numInFlightActivitiesSubject = new BehaviorSubject<number>(0);
   protected readonly numRunningWorkflowInstancesSubject = new BehaviorSubject<number>(0);
-  protected readonly evictions = new Subject<{ runId: string; evictJob: IRemoveFromCache }>();
+  protected readonly evictionsSubject = new Subject<{ runId: string; evictJob: IRemoveFromCache }>();
   private readonly runIdsToSpanContext = new Map<string, SpanContext>();
 
   protected static nativeWorkerCtor: WorkerConstructor = NativeWorker;
@@ -219,7 +219,7 @@ export class Worker {
   public static async runReplayHistory(options: ReplayWorkerOptions, history: History): Promise<void> {
     const nativeWorkerCtor: WorkerConstructor = this.nativeWorkerCtor;
     const fixedUpOptions: WorkerOptions = {
-      taskQueue: options.testName + '-' + this.replayWorkerCount,
+      taskQueue: options.replayName + '-' + this.replayWorkerCount,
       debugMode: true,
       ...options,
     };
@@ -229,17 +229,25 @@ export class Worker {
     const constructedWorker = await this.bundleWorker(compiledOptions, replayWorker);
 
     const runPromise = constructedWorker.run();
-    const pollerShutdown = constructedWorker.workflowPollerStateSubject.pipe(
-      filter((state): state is 'SHUTDOWN' => state === 'SHUTDOWN')
-    );
+    const pollerShutdown = constructedWorker.workflowPollerStateSubject.pipe(filter((state) => state !== 'POLLING'));
     pollerShutdown.subscribe((_) => {
-      constructedWorker.shutdown();
+      // We may have already called shutdown from the eviction branch, so ignore
+      // errors if we're already shut down.
+      try {
+        constructedWorker.shutdown();
+      } catch {}
     });
 
-    const nondeterminismPromise = firstValueFrom(
-      constructedWorker.evictions.pipe(
+    const evcitionPromise = firstValueFrom(
+      constructedWorker.evictionsSubject.pipe(
         // Ignore self-induced shutdowns, as they are a legit and we'll terminate normally.
         filter((ev) => ev.evictJob != this.SELF_INDUCED_SHUTDOWN_EVICTION),
+        tap(async () => {
+          // Once we've seen an eviction, shutdown the worker and wait for running to end before
+          // we throw an appropriate error.
+          constructedWorker.shutdown();
+          await runPromise;
+        }),
         map((ev) => {
           if (ev.evictJob.reason === EvictionReason.NONDETERMINISM) {
             throw new DeterminismViolationError(
@@ -253,7 +261,7 @@ export class Worker {
       )
     );
 
-    await Promise.race([runPromise, nondeterminismPromise]);
+    await Promise.race([runPromise, evcitionPromise]);
   }
 
   protected static async bundleWorker(
@@ -589,7 +597,7 @@ export class Worker {
           group$.pipe(map((act) => ({ ...act, synthetic: false }))),
           this.workflowPollerStateSubject.pipe(
             // Core has indicated that it will not return any more poll results, evict all cached WFs
-            filter((state) => state === 'SHUTDOWN'),
+            filter((state) => state !== 'POLLING'),
             first(),
             map((): ContextAware<{ activation: coresdk.workflow_activation.WorkflowActivation; synthetic: true }> => {
               return {
@@ -626,7 +634,7 @@ export class Worker {
                   if (close) {
                     const asEvictJob = jobs.splice(removeFromCacheIx, 1)[0].removeFromCache;
                     if (asEvictJob) {
-                      this.evictions.next({
+                      this.evictionsSubject.next({
                         runId: activation.runId,
                         evictJob: asEvictJob,
                       });

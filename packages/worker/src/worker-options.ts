@@ -268,10 +268,10 @@ export interface ReplayWorkerOptions
     | 'debugMode'
   > {
   /**
-   *  A name for the test this replay worker is used for. It will be combined with a short random ID
-   *  to form a unique task queue for the replay worker.
+   *  A name for this replay worker. It will be combined with a short random ID to form a unique
+   *  task queue for the replay worker.
    */
-  testName: string;
+  replayName: string;
 }
 
 function statIfExists(filesystem: typeof fs, path: string): fs.Stats | undefined {

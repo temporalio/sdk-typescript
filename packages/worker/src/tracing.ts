@@ -38,15 +38,19 @@ export async function instrument<T>(
   const context = otel.trace.setSpan(otel.context.active(), parent);
   return otel.context.with(context, async () => {
     const span = tracer.startSpan(name, undefined);
+    let didSetErr = false;
     try {
       return await fn(span);
     } catch (err) {
       if (acceptableErrors === undefined || !acceptableErrors(err)) {
+        didSetErr = true;
         span.setStatus({ code: otel.SpanStatusCode.ERROR, message: errorMessage(err) });
       }
       throw err;
     } finally {
-      span.setStatus({ code: otel.SpanStatusCode.OK });
+      if (!didSetErr) {
+        span.setStatus({ code: otel.SpanStatusCode.OK });
+      }
       span.end();
     }
   });
