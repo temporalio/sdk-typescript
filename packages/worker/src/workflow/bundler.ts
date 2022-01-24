@@ -21,7 +21,7 @@ export class WorkflowCodeBundler {
     public readonly nodeModulesPaths: string[],
     public readonly workflowsPath: string,
     public readonly workflowInterceptorModules: string[] = [],
-    protected readonly dataConverterPath?: string
+    protected readonly payloadConverterPath?: string
   ) {}
 
   /**
@@ -59,7 +59,7 @@ export class WorkflowCodeBundler {
     const entrypointPath = '/src/main.js';
 
     this.genEntrypoint(vol, entrypointPath);
-    await this.bundle(ufs, entrypointPath, distDir, this.dataConverterPath);
+    await this.bundle(ufs, entrypointPath, distDir, this.payloadConverterPath);
     return ufs.readFileSync(path.join(distDir, 'main.js'), 'utf8');
   }
 
@@ -106,7 +106,7 @@ export class WorkflowCodeBundler {
     filesystem: typeof unionfs.ufs,
     entry: string,
     distDir: string,
-    dataConverterPath?: string
+    payloadConverterPath?: string
   ): Promise<void> {
     const webpackConfig: webpack.Configuration = {
       resolve: {
@@ -135,9 +135,9 @@ export class WorkflowCodeBundler {
       },
     };
     if (webpackConfig.resolve) {
-      if (dataConverterPath) {
+      if (payloadConverterPath) {
         webpackConfig.resolve.alias = {
-          __temporal_custom_data_converter$: dataConverterPath,
+          __temporal_custom_data_converter$: payloadConverterPath,
         };
       } else {
         // Save 100KB from the bundle by not including the npm module,
@@ -210,10 +210,10 @@ export interface BundleOptions {
    */
   logger?: Logger;
   /**
-   * Path to a module with a `dataConverter` named export.
-   * `dataConverter` should be an instance of a class that extends `DataConverter`.
+   * Path to a module with a `payloadConverter` named export.
+   * `payloadConverter` should be an instance of a class that extends {@link DataConverter}.
    */
-  dataConverterPath?: string;
+  payloadConverterPath?: string;
 }
 
 export async function bundleWorkflowCode(options: BundleOptions): Promise<{ code: string }> {
@@ -226,7 +226,7 @@ export async function bundleWorkflowCode(options: BundleOptions): Promise<{ code
     nodeModulesPaths,
     options.workflowsPath,
     options.workflowInterceptorModules,
-    options.dataConverterPath
+    options.payloadConverterPath
   );
   return { code: await bundler.createBundle() };
 }

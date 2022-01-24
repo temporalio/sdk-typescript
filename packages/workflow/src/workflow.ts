@@ -692,7 +692,7 @@ export function makeContinueAsNewFunc<F extends Workflow>(
       const { headers, args, options } = input;
       throw new ContinueAsNew({
         workflowType: options.workflowType,
-        arguments: await state.dataConverter.toPayloads(...args),
+        arguments: state.dataConverter.toPayloads(...args),
         header: headers,
         taskQueue: options.taskQueue,
         memo: options.memo,

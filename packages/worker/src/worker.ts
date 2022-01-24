@@ -23,8 +23,8 @@ import {
   tsToMs,
   errorToFailure,
   arrayFromPayloads,
-  DataConverter,
-  defaultDataConverter,
+  PayloadConverter,
+  defaultPayloadConverter,
   isValidDataConverter,
   errorMessage,
   errorCode,
@@ -47,7 +47,7 @@ import * as errors from './errors';
 import { childSpan, instrument, getTracer } from './tracing';
 import { ActivityExecuteInput } from './interceptors';
 export { IllegalStateError } from '@temporalio/common';
-export { DataConverter, defaultDataConverter, errors };
+export { PayloadConverter as DataConverter, defaultPayloadConverter, errors };
 import { Core } from './core';
 import { SpanContext } from '@opentelemetry/api';
 import IWorkflowActivationJob = coresdk.workflow_activation.IWorkflowActivationJob;
@@ -199,7 +199,7 @@ export class Worker {
           compiledOptions.nodeModulesPaths,
           compiledOptions.workflowsPath,
           compiledOptions.interceptors?.workflowModules,
-          options.dataConverterPath
+          options.dataConverter?.payloadConverterPath
         );
         bundle = await bundler.createBundle();
         nativeWorker.logger.info('Workflow bundle created', { size: `${toMB(bundle.length)}MB` });
@@ -217,14 +217,14 @@ export class Worker {
           workflowCreator = await VMWorkflowCreator.create(
             bundle,
             compiledOptions.isolateExecutionTimeoutMs,
-            options.dataConverterPath
+            options.dataConverter?.payloadConverterPath
           );
         } else {
           workflowCreator = await ThreadedVMWorkflowCreator.create({
             code: bundle,
             threadPoolSize: compiledOptions.workflowThreadPoolSize,
             isolateExecutionTimeoutMs: compiledOptions.isolateExecutionTimeoutMs,
-            dataConverterPath: options.dataConverterPath,
+            payloadConverterPath: options.dataConverter?.payloadConverterPath,
           });
         }
       }
@@ -236,35 +236,37 @@ export class Worker {
     }
   }
 
-  public static async getDataConverter(options: WorkerOptions): Promise<DataConverter> {
-    if (options.dataConverterPath) {
-      let dataConverter: DataConverter;
+  public static async getDataConverter(options: WorkerOptions): Promise<PayloadConverter> {
+    if (options.dataConverter?.payloadConverterPath) {
+      let dataConverter: PayloadConverter;
 
       try {
-        const dataConverterModule = await import(options.dataConverterPath);
+        const dataConverterModule = await import(options.dataConverter?.payloadConverterPath);
         dataConverter = dataConverterModule.dataConverter;
       } catch (error) {
         if (errorCode(error) === 'MODULE_NOT_FOUND') {
-          throw new Error(`Could not find a file at the specified dataConverterPath: '${options.dataConverterPath}'.`);
+          throw new Error(
+            `Could not find a file at the specified payloadConverterPath: '${options.dataConverter?.payloadConverterPath}'.`
+          );
         }
         throw error;
       }
 
       if (dataConverter === undefined) {
         throw new Error(
-          `The module at dataConverterPath ('${options.dataConverterPath}') does not have a \`dataConverter\` named export.`
+          `The module at payloadConverterPath ('${options.dataConverter?.payloadConverterPath}') does not have a \`dataConverter\` named export.`
         );
       }
       if (!isValidDataConverter(dataConverter)) {
         throw new Error(
-          `The \`dataConverter\` named export at dataConverterPath (${options.dataConverterPath}) should be an instance of a class that implements the DataConverter interface.`
+          `The \`dataConverter\` named export at payloadConverterPath (${options.dataConverter?.payloadConverterPath}) should be an instance of a class that implements the DataConverter interface.`
         );
       }
 
       return dataConverter;
     }
 
-    return defaultDataConverter;
+    return defaultPayloadConverter;
   }
 
   /**
@@ -277,7 +279,7 @@ export class Worker {
      */
     protected readonly workflowCreator: WorkflowCreator | undefined,
     public readonly options: CompiledWorkerOptions,
-    protected readonly dataConverter: DataConverter = defaultDataConverter
+    protected readonly dataConverter: PayloadConverter = defaultPayloadConverter
   ) {
     this.tracer = getTracer(options.enableSDKTracing);
   }
@@ -703,7 +705,7 @@ export class Worker {
                 const completion = coresdk.workflow_completion.WorkflowActivationCompletion.encodeDelimited({
                   runId: activation.runId,
                   failed: {
-                    failure: await errorToFailure(error, this.dataConverter),
+                    failure: errorToFailure(error, this.dataConverter),
                   },
                 }).finish();
                 // We do not dispose of the Workflow yet, wait to be evicted from Core.
@@ -776,7 +778,7 @@ export class Worker {
         complete: () => this.log.debug('Heartbeats complete'),
       }),
       mergeMap(async ({ taskToken, details }) => {
-        const payload = await this.dataConverter.toPayload(details);
+        const payload = this.dataConverter.toPayload(details);
         const arr = coresdk.ActivityHeartbeat.encodeDelimited({
           taskToken,
           details: [payload],
@@ -1003,7 +1005,7 @@ type NonNullableObject<T> = { [P in keyof T]-?: NonNullable<T[P]> };
 async function extractActivityInfo(
   task: coresdk.activity_task.IActivityTask,
   isLocal: boolean,
-  dataConverter: DataConverter,
+  dataConverter: PayloadConverter,
   activityNamespace: string
 ): Promise<ActivityInfo> {
   // NOTE: We trust core to supply all of these fields instead of checking for null and undefined everywhere
@@ -1018,7 +1020,7 @@ async function extractActivityInfo(
     isLocal,
     activityType: start.activityType,
     workflowType: start.workflowType,
-    heartbeatDetails: await dataConverter.fromPayloads(0, start.heartbeatDetails),
+    heartbeatDetails: dataConverter.fromPayloads(0, start.heartbeatDetails),
     activityNamespace,
     workflowNamespace: start.workflowNamespace,
     scheduledTimestampMs: tsToMs(start.scheduledTime),

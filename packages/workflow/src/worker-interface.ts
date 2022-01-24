@@ -156,10 +156,10 @@ export async function initRuntime({
   }
 
   if (useCustomDataConverter) {
-    // @ts-expect-error this is a webpack alias to dataConverterPath
+    // @ts-expect-error this is a webpack alias to payloadConverterPath
     state.dataConverter = (await import('__temporal_custom_data_converter')).dataConverter;
     // webpack doesn't know what to bundle given a dynamic import expression, so we can't do:
-    // state.dataConverter = (await import(dataConverterPath)).dataConverter;
+    // state.dataConverter = (await import(payloadConverterPath)).dataConverter;
   }
 
   let workflow: Workflow;

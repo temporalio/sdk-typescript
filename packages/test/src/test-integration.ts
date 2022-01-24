@@ -6,7 +6,7 @@ import dedent from 'dedent';
 import { WorkflowClient } from '@temporalio/client';
 import {
   ChildWorkflowFailure,
-  defaultDataConverter,
+  defaultPayloadConverter,
   RetryState,
   TerminatedFailure,
   TimeoutFailure,
@@ -535,7 +535,7 @@ if (RUN_INTEGRATION_TESTS) {
     t.deepEqual(execution.workflowExecutionInfo?.memo, new iface.temporal.api.common.v1.Memo({ fields: {} }));
     t.deepEqual(Object.keys(execution.workflowExecutionInfo!.searchAttributes!.indexedFields!), ['BinaryChecksums']);
 
-    const checksums = await defaultDataConverter.fromPayload(
+    const checksums = defaultPayloadConverter.fromPayload(
       execution.workflowExecutionInfo!.searchAttributes!.indexedFields!.BinaryChecksums!
     );
     t.true(checksums instanceof Array && checksums.length === 1);
@@ -568,9 +568,9 @@ if (RUN_INTEGRATION_TESTS) {
       execution.workflowExecutionInfo?.type,
       new iface.temporal.api.common.v1.WorkflowType({ name: 'sleeper' })
     );
-    t.deepEqual(await defaultDataConverter.fromPayload(execution.workflowExecutionInfo!.memo!.fields!.a!), 'b');
+    t.deepEqual(defaultPayloadConverter.fromPayload(execution.workflowExecutionInfo!.memo!.fields!.a!), 'b');
     t.deepEqual(
-      await defaultDataConverter.fromPayload(
+      defaultPayloadConverter.fromPayload(
         execution.workflowExecutionInfo!.searchAttributes!.indexedFields!.CustomIntField!
       ),
       3
@@ -653,7 +653,7 @@ if (RUN_INTEGRATION_TESTS) {
       namespace,
       execution: { workflowId: workflow.workflowId, runId: err.newExecutionRunId },
     });
-    const timeSlept = await defaultDataConverter.fromPayloads(
+    const timeSlept = defaultPayloadConverter.fromPayloads(
       0,
       history?.events?.[0].workflowExecutionStartedEventAttributes?.input?.payloads
     );

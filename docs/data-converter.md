@@ -6,6 +6,7 @@ When designing the custom data converter feature, we considered two routes:
 ### Outside vm
 
 - Pro: Users can use any node module in their custom data converter code.
+- Pro: Methods can be async (users can use Promises).
 - Con: Only works because `vm` allows for passing complex objects into/out of vm. If we switch to an isolation method like `isolated-vm` or `rusty_v8`, conversion needs to be done inside.
 - Con: `object instanceof Class` doesn't work on object that come from the vm, because the `Class` definition inside the vm is from a different instance of the code. A workaround like this must be used:
 
@@ -22,7 +23,7 @@ function workflowInclusiveInstanceOf(instance: unknown, type: Function): boolean
 
 ## Decision
 
-Given the possibility of switching or adding other isolation methods in future, we opted for inside the vm. We'll also have another data transformer / payload interceptor layer that runs outside the vm, can use node modules, and operates on Payloads.
+Given the possibility of switching or adding other isolation methods in future, we opted for inside the vm. We'll also have another data transformer / payload interceptor layer that runs outside the vm, can use node modules and Promises, and operates on Payloads.
 
 ### General flow
 

@@ -52,7 +52,7 @@ async function handleRequest({ requestId, input }: WorkerThreadRequest): Promise
       workflowCreator = await VMWorkflowCreator.create(
         input.code,
         input.isolateExecutionTimeoutMs,
-        input.dataConverterPath
+        input.payloadConverterPath
       );
       return ok(requestId);
     case 'destroy':

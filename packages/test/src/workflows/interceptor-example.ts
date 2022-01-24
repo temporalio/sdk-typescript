@@ -1,7 +1,7 @@
 import {
   executeChild,
   WorkflowInterceptors,
-  defaultDataConverter,
+  defaultPayloadConverter,
   sleep,
   condition,
   defineSignal,
@@ -52,7 +52,7 @@ export const interceptors = (): WorkflowInterceptors => ({
     {
       async execute(input, next) {
         const encoded = input.headers.message;
-        receivedMessage = encoded ? await defaultDataConverter.fromPayload(encoded) : '';
+        receivedMessage = encoded ? defaultPayloadConverter.fromPayload(encoded) : '';
         return next(input);
       },
       async handleSignal(input, next) {
@@ -71,7 +71,7 @@ export const interceptors = (): WorkflowInterceptors => ({
       async scheduleActivity(input, next) {
         return next({
           ...input,
-          headers: { ...input.headers, message: await defaultDataConverter.toPayload(receivedMessage) },
+          headers: { ...input.headers, message: defaultPayloadConverter.toPayload(receivedMessage) },
         });
       },
       async startTimer(input, next) {

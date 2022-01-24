@@ -1,212 +1,32 @@
-import { ValueError } from '../errors';
-import { str, METADATA_ENCODING_KEY, Payload } from './types';
-import {
-  PayloadConverter,
-  UndefinedPayloadConverter,
-  BinaryPayloadConverter,
-  JsonPayloadConverter,
-  ProtobufJsonPayloadConverter,
-  ProtobufBinaryPayloadConverter,
-} from './payload-converter';
+import { PayloadCodec } from './payload-codec';
 
 /**
- * Used by the framework to serialize/deserialize method parameters that need to be sent over the
- * wire.
+ * When your data (arguments and return values) is sent over the wire and stored by Temporal Server,
+ * it is encoded in binary in a {@link Payload} Protobuf message.
  *
- * Implement this in order to customize worker data serialization or use the default data converter which supports `Uint8Array`, Protobuf, and JSON serializables.
+ * The default `DataConverter` supports `Uint8Array`, protobuf.js objects, and JSON serializables (so if `JSON.stringify(yourArg)` works, the default data converter will work).
+ *
+ * Use a custom `DataConverter` to control the contents of your {@link Payload}s.
+ * Common reasons for using a custom `DataConverter` are:
+ * - Converting values that are not supported by the default `DataConverter` (for example, `JSON.stringify()` doesn't handle `BigInt`s, so if you want to return `{ total: 1000n }` from a Workflow, Signal, or Activity, you need your own `DataConverter`).
+ * - Encrypting values that may contain private information that you don't want stored in plaintext in Temporal Server's database.
+ * - Compressing values to reduce disk or network usage.
+ *
+ * To use your custom `DataConverter`, provide it to the {@link WorkflowClient}, {@link Worker}, and {@link bundleWorkflowCode} (if you use it):
+ * - `new WorkflowClient(..., dataConverter)`
+ * - `Worker.create(..., dataConverter)`
+ * - `bundleWorkflowCode(..., payloadConverterPath)`
  */
 export interface DataConverter {
-  toPayload<T>(value: T): Promise<Payload>;
-
-  fromPayload<T>(payload: Payload): Promise<T>;
   /**
-   * Implements conversion of a list of values.
-   *
-   * @param values JS values to convert to Payloads.
-   * @return converted value
-   * @throws DataConverterError if conversion of the value passed as parameter failed for any
-   *     reason.
+   * Path of a file that has a `payloadConverter` named export.
+   * `payloadConverter` should be an instance of a class that implements {@link PayloadConverter}.
+   * If no path is provided, {@link defaultPayloadConverter} is used.
    */
-  toPayloads(...values: unknown[]): Promise<Payload[] | undefined>;
+  payloadConverterPath?: string;
 
   /**
-   * Implements conversion of an array of values of different types. Useful for deserializing
-   * arguments of function invocations.
-   *
-   * @param index index of the value in the payloads
-   * @param content serialized value to convert to JS values.
-   * @return converted JS value
-   * @throws DataConverterError if conversion of the data passed as parameter failed for any
-   *     reason.
+   * A {@link PayloadCodec} instance. The default codec is a no-op.
    */
-  fromPayloads<T>(index: number, content?: Payload[] | null): Promise<T>;
-
-  /**
-   * Sync conversion of single payload, used in the Workflow runtime
-   */
-  toPayloadSync<T>(value: T): Payload;
-
-  /**
-   * Sync conversion from a single payload, used in the Workflow runtime
-   */
-  fromPayloadSync<T>(payload: Payload): T;
-  /**
-   * Sync conversion of all arguments, used in the Workflow runtime
-   *
-   * Implements conversion of a list of values.
-   *
-   * @param values JS values to convert to Payloads.
-   * @return converted value
-   * @throws DataConverterError if conversion of the value passed as parameter failed for any
-   *     reason.
-   */
-  toPayloadsSync(...values: unknown[]): Payload[] | undefined;
-
-  /**
-   * Sync version of {@link fromPayloads}
-   */
-  fromPayloadsSync<T>(index: number, content?: Payload[] | null): T;
+  payloadCodec?: PayloadCodec;
 }
-
-export const isValidDataConverter = (dataConverter: unknown): dataConverter is DataConverter =>
-  typeof dataConverter === 'object' &&
-  dataConverter !== null &&
-  ['toPayload', 'toPayloads', 'fromPayload', 'fromPayloads'].every(
-    (method) => typeof (dataConverter as Record<string, unknown>)[method] === 'function'
-  );
-
-export class CompositeDataConverter implements DataConverter {
-  readonly converters: PayloadConverter[];
-  readonly converterByEncoding: Map<string, PayloadConverter> = new Map();
-
-  constructor(...converters: PayloadConverter[]) {
-    this.converters = converters;
-    for (const converter of converters) {
-      this.converterByEncoding.set(converter.encodingType, converter);
-    }
-  }
-
-  public async toPayload<T>(value: T): Promise<Payload> {
-    for (const converter of this.converters) {
-      const result = await converter.toData(value);
-      if (result !== undefined) return result;
-    }
-    throw new ValueError(`Cannot serialize ${value}`);
-  }
-
-  public toPayloadSync<T>(value: T): Payload {
-    for (const converter of this.converters) {
-      const result = converter.toDataSync(value);
-      if (result !== undefined) return result;
-    }
-    throw new ValueError(`Cannot serialize ${value}`);
-  }
-
-  public async fromPayload<T>(payload: Payload): Promise<T> {
-    if (payload.metadata === undefined || payload.metadata === null) {
-      throw new ValueError('Missing payload metadata');
-    }
-    const encoding = str(payload.metadata[METADATA_ENCODING_KEY]);
-    const converter = this.converterByEncoding.get(encoding);
-    if (converter === undefined) {
-      throw new ValueError(`Unknown encoding: ${encoding}`);
-    }
-    return await converter.fromData(payload);
-  }
-
-  public fromPayloadSync<T>(payload: Payload): T {
-    if (payload.metadata === undefined || payload.metadata === null) {
-      throw new ValueError('Missing payload metadata');
-    }
-    const encoding = str(payload.metadata[METADATA_ENCODING_KEY]);
-    const converter = this.converterByEncoding.get(encoding);
-    if (converter === undefined) {
-      throw new ValueError(`Unknown encoding: ${encoding}`);
-    }
-    return converter.fromDataSync(payload);
-  }
-
-  public async toPayloads(...values: unknown[]): Promise<Payload[] | undefined> {
-    if (values.length === 0) {
-      return undefined;
-    }
-    return await Promise.all(values.map((value) => this.toPayload(value)));
-  }
-
-  public toPayloadsSync(...values: unknown[]): Payload[] | undefined {
-    if (values.length === 0) {
-      return undefined;
-    }
-    return values.map((value) => this.toPayloadSync(value));
-  }
-
-  public async fromPayloads<T>(index: number, payloads?: Payload[] | null): Promise<T> {
-    // To make adding arguments a backwards compatible change
-    if (payloads === undefined || payloads === null || index >= payloads.length) {
-      return undefined as any;
-    }
-    return await this.fromPayload(payloads[index]);
-  }
-
-  public fromPayloadsSync<T>(index: number, payloads?: Payload[] | null): T {
-    // To make adding arguments a backwards compatible change
-    if (payloads === undefined || payloads === null || index >= payloads.length) {
-      return undefined as any;
-    }
-    return this.fromPayloadSync(payloads[index]);
-  }
-}
-
-export async function arrayFromPayloads(converter: DataConverter, content?: Payload[] | null): Promise<unknown[]> {
-  if (!content) {
-    return [];
-  }
-  return await Promise.all(content.map((payload: Payload) => converter.fromPayload(payload)));
-}
-
-export async function mapToPayloads<K extends string>(
-  converter: DataConverter,
-  source: Record<K, any>
-): Promise<Record<K, Payload>> {
-  return Object.fromEntries(
-    await Promise.all(
-      Object.entries(source).map(async ([k, v]): Promise<[K, Payload]> => [k as K, await converter.toPayload(v)])
-    )
-  ) as Record<K, Payload>;
-}
-
-export function arrayFromPayloadsSync(converter: DataConverter, content?: Payload[] | null): unknown[] {
-  if (!content) {
-    return [];
-  }
-  return content.map((payload: Payload) => converter.fromPayloadSync(payload));
-}
-
-export function mapToPayloadsSync<K extends string>(
-  converter: DataConverter,
-  source: Record<K, any>
-): Record<K, Payload> {
-  return Object.fromEntries(
-    Object.entries(source).map(([k, v]): [K, Payload] => [k as K, converter.toPayloadSync(v)])
-  ) as Record<K, Payload>;
-}
-
-export interface DefaultDataConverterOptions {
-  root?: Record<string, unknown>;
-}
-
-export class DefaultDataConverter extends CompositeDataConverter {
-  constructor({ root }: DefaultDataConverterOptions = {}) {
-    // Match the order used in other SDKs
-    // Go SDK: https://github.com/temporalio/sdk-go/blob/5e5645f0c550dcf717c095ae32c76a7087d2e985/converter/default_data_converter.go#L28
-    super(
-      new UndefinedPayloadConverter(),
-      new BinaryPayloadConverter(),
-      new ProtobufJsonPayloadConverter(root),
-      new ProtobufBinaryPayloadConverter(root),
-      new JsonPayloadConverter()
-    );
-  }
-}
-
-export const defaultDataConverter = new DefaultDataConverter();

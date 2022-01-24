@@ -7,7 +7,7 @@ import {
   ActivityExecuteInput,
   ActivityInboundCallsInterceptor,
   DataConverter,
-  defaultDataConverter,
+  defaultPayloadConverter,
   InjectedSink,
   Next,
 } from '@temporalio/worker';
@@ -30,7 +30,7 @@ export class OpenTelemetryActivityInboundInterceptor implements ActivityInboundC
   protected readonly dataConverter: DataConverter;
 
   constructor(protected readonly ctx: ActivityContext, options?: InterceptorOptions) {
-    this.dataConverter = options?.dataConverter ?? defaultDataConverter;
+    this.dataConverter = options?.dataConverter ?? defaultPayloadConverter;
     this.tracer = options?.tracer ?? otel.trace.getTracer('@temporalio/interceptor-activity');
   }
 

@@ -1,293 +1,180 @@
-import { ValueError, DataConverterError } from '../errors';
+import { ValueError, UnsupportedTypeError } from '../errors';
+import { str, METADATA_ENCODING_KEY, Payload } from './types';
 import {
-  u8,
-  str,
-  Payload,
-  encodingTypes,
-  encodingKeys,
-  METADATA_ENCODING_KEY,
-  METADATA_MESSAGE_TYPE_KEY,
-} from './types';
-import { isRecord, hasOwnProperty, hasOwnProperties } from '../type-helpers';
-import { errorMessage } from '../errors';
-import * as protoJsonSerializer from 'proto3-json-serializer';
-import type { Root, Type, Namespace, Message } from 'protobufjs';
+  PayloadConverterWithEncoding,
+  UndefinedPayloadConverter,
+  BinaryPayloadConverter,
+  JsonPayloadConverter,
+  ProtobufJsonPayloadConverter,
+  ProtobufBinaryPayloadConverter,
+} from './payload-converters';
+import { hasOwnProperty } from '../type-helpers';
 
 /**
- * Used by the framework to serialize/deserialize method parameters that need to be sent over the
- * wire.
+ * Used by the framework to serialize/deserialize parameters and return values that need to be
+ * sent over the wire.
  *
- * @author fateev
+ * This is called inside the [Workflow isolate](https://docs.temporal.io/docs/typescript/determinism).
+ * To write async code or use Node APIs (or use packages that use Node APIs), use a {@link PayloadCodec}.
  */
 export interface PayloadConverter {
-  encodingType: string;
+  /**
+   * Converts a value to a {@link Payload}.
+   * @param value The value to convert. Example values include the Workflow args sent by the client and the values returned by a Workflow or Activity.
+   */
+  toPayload<T>(value: T): Payload;
 
   /**
-   * TODO: Fix comment in https://github.com/temporalio/sdk-java/blob/85593dbfa99bddcdf54c7196d2b73eeb23e94e9e/temporal-sdk/src/main/java/io/temporal/common/converter/DataConverter.java#L46
-   * Implements conversion of value to payload
-   *
-   * @param value JS value to convert.
-   * @return converted value or `undefined` if unable to convert.
-   * @throws DataConverterException if conversion of the value passed as parameter failed for any
-   *     reason.
+   * Converts a {@link Payload} back to a value.
    */
-  toData(value: unknown): Promise<Payload | undefined>;
-
-  /**
-   * Implements conversion of payload to value.
-   *
-   * @param content Serialized value to convert to a JS value.
-   * @return converted JS value
-   * @throws DataConverterException if conversion of the data passed as parameter failed for any
-   *     reason.
-   */
-  fromData<T>(content: Payload): Promise<T>;
-
-  /**
-   * Synchronous version of {@link toData}, used in the Workflow runtime because
-   * the async version limits the functionality of the runtime.
-   *
-   * Implements conversion of value to payload
-   *
-   * @param value JS value to convert.
-   * @return converted value or `undefined` if unable to convert.
-   * @throws DataConverterException if conversion of the value passed as parameter failed for any
-   *     reason.
-   */
-  toDataSync(value: unknown): Payload | undefined;
-
-  /**
-   * Synchronous version of {@link fromData}, used in the Workflow runtime because
-   * the async version limits the functionality of the runtime.
-   *
-   * Implements conversion of payload to value.
-   *
-   * @param content Serialized value to convert to a JS value.
-   * @return converted JS value
-   * @throws DataConverterException if conversion of the data passed as parameter failed for any
-   *     reason.
-   */
-  fromDataSync<T>(content: Payload): T;
+  fromPayload<T>(payload: Payload): T;
 }
 
-export abstract class AsyncFacadePayloadConverter implements PayloadConverter {
-  abstract encodingType: string;
-  abstract toDataSync(value: unknown): Payload | undefined;
-  abstract fromDataSync<T>(content: Payload): T;
-
-  public async toData(value: unknown): Promise<Payload | undefined> {
-    return this.toDataSync(value);
-  }
-
-  public async fromData<T>(content: Payload): Promise<T> {
-    return this.fromDataSync(content);
-  }
-}
-
-/**
- * Converts between JS undefined and NULL Payload
- */
-export class UndefinedPayloadConverter extends AsyncFacadePayloadConverter {
-  public encodingType = encodingTypes.METADATA_ENCODING_NULL;
-
-  public toDataSync(value: unknown): Payload | undefined {
-    if (value !== undefined) return undefined; // Can't encode
-    return {
-      metadata: {
-        [METADATA_ENCODING_KEY]: encodingKeys.METADATA_ENCODING_NULL,
-      },
-    };
-  }
-
-  public fromDataSync<T>(_content: Payload): T {
-    return undefined as any; // Just return undefined
-  }
-}
-
-/**
- * Converts between non-undefined values and serialized JSON Payload
- */
-export class JsonPayloadConverter extends AsyncFacadePayloadConverter {
-  public encodingType = encodingTypes.METADATA_ENCODING_JSON;
-
-  public toDataSync(value: unknown): Payload | undefined {
-    if (value === undefined) return undefined; // Should be encoded with the UndefinedPayloadConverter
-    return {
-      metadata: {
-        [METADATA_ENCODING_KEY]: encodingKeys.METADATA_ENCODING_JSON,
-      },
-      data: u8(JSON.stringify(value)),
-    };
-  }
-
-  public fromDataSync<T>(content: Payload): T {
-    if (content.data === undefined || content.data === null) {
-      throw new ValueError('Got payload with no data');
-    }
-    return JSON.parse(str(content.data));
-  }
-}
-
-/**
- * Converts between binary data types and RAW Payload
- */
-export class BinaryPayloadConverter extends AsyncFacadePayloadConverter {
-  public encodingType = encodingTypes.METADATA_ENCODING_RAW;
-
-  public toDataSync(value: unknown): Payload | undefined {
-    // TODO: support any DataView or ArrayBuffer?
-    if (!(value instanceof Uint8Array)) {
-      return undefined;
-    }
-    return {
-      metadata: {
-        [METADATA_ENCODING_KEY]: encodingKeys.METADATA_ENCODING_RAW,
-      },
-      data: value,
-    };
-  }
-
-  public fromDataSync<T>(content: Payload): T {
-    // TODO: support any DataView or ArrayBuffer?
-    return content.data as any;
-  }
-}
-
-abstract class ProtobufPayloadConverter extends AsyncFacadePayloadConverter {
-  protected readonly root: Root | undefined;
-
-  // Don't use type Root here because root.d.ts doesn't export Root, so users would have to type assert
-  constructor(root?: unknown) {
-    super();
-
-    if (root) {
-      if (!isRoot(root)) {
-        throw new TypeError('root must be an instance of a protobufjs Root');
-      }
-
-      this.root = root;
-    }
-  }
-
-  protected validatePayload(content: Payload): { messageType: Type; data: Uint8Array } {
-    if (content.data === undefined || content.data === null) {
-      throw new ValueError('Got payload with no data');
-    }
-    if (!content.metadata || !(METADATA_MESSAGE_TYPE_KEY in content.metadata)) {
-      throw new ValueError(`Got protobuf payload without metadata.${METADATA_MESSAGE_TYPE_KEY}`);
-    }
-    if (!this.root) {
-      throw new DataConverterError('Unable to deserialize protobuf message without `root` being provided');
-    }
-
-    const messageTypeName = str(content.metadata[METADATA_MESSAGE_TYPE_KEY]);
-    let messageType;
-    try {
-      messageType = this.root.lookupType(messageTypeName);
-    } catch (e) {
-      if (errorMessage(e)?.includes('no such type')) {
-        throw new DataConverterError(
-          `Got a \`${messageTypeName}\` protobuf message but cannot find corresponding message class in \`root\``
-        );
-      }
-
-      throw e;
-    }
-
-    return { messageType, data: content.data };
-  }
-
-  protected constructPayload({ messageTypeName, message }: { messageTypeName: string; message: Uint8Array }): Payload {
-    return {
-      metadata: {
-        [METADATA_ENCODING_KEY]: u8(this.encodingType),
-        [METADATA_MESSAGE_TYPE_KEY]: u8(messageTypeName),
-      },
-      data: message,
-    };
-  }
-}
-
-/**
- * Converts between protobufjs Message instances and serialized Protobuf Payload
- */
-export class ProtobufBinaryPayloadConverter extends ProtobufPayloadConverter {
-  public encodingType = encodingTypes.METADATA_ENCODING_PROTOBUF;
-
-  constructor(root?: unknown) {
-    super(root);
-  }
-
-  public toDataSync(value: unknown): Payload | undefined {
-    if (!isProtobufMessage(value)) {
-      return undefined;
-    }
-
-    return this.constructPayload({
-      messageTypeName: getNamespacedTypeName(value.$type),
-      message: value.$type.encode(value).finish(),
-    });
-  }
-
-  public fromDataSync<T>(content: Payload): T {
-    const { messageType, data } = this.validatePayload(content);
-    return messageType.decode(data) as unknown as T;
-  }
-}
-
-/**
- * Converts between protobufjs Message instances and serialized JSON Payload
- */
-export class ProtobufJsonPayloadConverter extends ProtobufPayloadConverter {
-  public encodingType = encodingTypes.METADATA_ENCODING_PROTOBUF_JSON;
-
-  constructor(root?: unknown) {
-    super(root);
-  }
-
-  public toDataSync(value: unknown): Payload | undefined {
-    if (!isProtobufMessage(value)) {
-      return undefined;
-    }
-
-    const jsonValue = protoJsonSerializer.toProto3JSON(value);
-
-    return this.constructPayload({
-      messageTypeName: getNamespacedTypeName(value.$type),
-      message: u8(JSON.stringify(jsonValue)),
-    });
-  }
-
-  public fromDataSync<T>(content: Payload): T {
-    const { messageType, data } = this.validatePayload(content);
-    return protoJsonSerializer.fromProto3JSON(messageType, JSON.parse(str(data))) as unknown as T;
-  }
-}
-
-function isProtobufType(type: unknown): type is Type {
-  return (
-    isRecord(type) &&
-    type.constructor.name === 'Type' &&
-    hasOwnProperties(type, ['parent', 'name', 'create', 'encode', 'decode']) &&
-    typeof type.name === 'string' &&
-    typeof type.create === 'function' &&
-    typeof type.encode === 'function' &&
-    typeof type.decode === 'function'
+const isValidPayloadConverter = (PayloadConverter: unknown): PayloadConverter is PayloadConverter =>
+  typeof PayloadConverter === 'object' &&
+  PayloadConverter !== null &&
+  ['toPayload', 'fromPayload'].every(
+    (method) => typeof (PayloadConverter as Record<string, unknown>)[method] === 'function'
   );
-}
 
-function isProtobufMessage(value: unknown): value is Message {
-  return isRecord(value) && hasOwnProperty(value, '$type') && isProtobufType(value.$type);
-}
+export class CompositePayloadConverter implements PayloadConverter {
+  readonly converters: PayloadConverterWithEncoding[];
+  readonly converterByEncoding: Map<string, PayloadConverterWithEncoding> = new Map();
 
-function getNamespacedTypeName(node: Type | Namespace): string {
-  if (node.parent && !isRoot(node.parent)) {
-    return getNamespacedTypeName(node.parent) + '.' + node.name;
-  } else {
-    return node.name;
+  constructor(...converters: PayloadConverterWithEncoding[]) {
+    this.converters = converters;
+    for (const converter of converters) {
+      this.converterByEncoding.set(converter.encodingType, converter);
+    }
+  }
+
+  public toPayload<T>(value: T): Payload {
+    for (const converter of this.converters) {
+      try {
+        const result = converter.toPayload(value);
+        return result;
+      } catch (e: unknown) {
+        if (e instanceof UnsupportedTypeError) {
+          continue;
+        } else {
+          throw e;
+        }
+      }
+    }
+    throw new ValueError(`Cannot serialize ${value}`);
+  }
+
+  public fromPayload<T>(payload: Payload): T {
+    if (payload.metadata === undefined || payload.metadata === null) {
+      throw new ValueError('Missing payload metadata');
+    }
+    const encoding = str(payload.metadata[METADATA_ENCODING_KEY]);
+    const converter = this.converterByEncoding.get(encoding);
+    if (converter === undefined) {
+      throw new ValueError(`Unknown encoding: ${encoding}`);
+    }
+    return converter.fromPayload(payload);
   }
 }
 
-function isRoot(root: unknown): root is Root {
-  return isRecord(root) && root.constructor.name === 'Root';
+/**
+ * Implements conversion of a list of values.
+ *
+ * @param converter
+ * @param values JS values to convert to Payloads.
+ * @return converted value
+ * @throws PayloadConverterError if conversion of the value passed as parameter failed for any
+ *     reason.
+ */
+export function toPayloads(converter: PayloadConverter, ...values: unknown[]): Payload[] | undefined {
+  if (values.length === 0) {
+    return undefined;
+  }
+  return values.map((value) => converter.toPayload(value));
 }
+
+/**
+ * Implements conversion of an array of values of different types. Useful for deserializing
+ * arguments of function invocations.
+ *
+ * @param converter
+ * @param index index of the value in the payloads
+ * @param payloads serialized value to convert to JS values.
+ * @return converted JS value
+ * @throws PayloadConverterError if conversion of the data passed as parameter failed for any
+ *     reason.
+ */
+export function fromPayloadsAtIndex<T>(converter: PayloadConverter, index: number, payloads?: Payload[] | null): T {
+  // To make adding arguments a backwards compatible change
+  if (payloads === undefined || payloads === null || index >= payloads.length) {
+    return undefined as any;
+  }
+  return converter.fromPayload(payloads[index]);
+}
+
+export async function importPayloadConverter(path: string): Promise<PayloadConverter> {
+  const module = await import(path);
+  if (hasOwnProperty(module, 'payloadConverter')) {
+    if (isValidPayloadConverter(module.payloadConverter)) {
+      return module.payloadConverter;
+    } else {
+      throw new ValueError(
+        `payloadConverter export at ${path} must be an object with toPayload and fromPayload methods`
+      );
+    }
+  } else {
+    throw new ValueError(`Module ${path} does not have a \`payloadConverter\` named export`);
+  }
+}
+
+// For use outside of the Workflow vm
+export function requirePayloadConverter(path: string): PayloadConverter {
+  const module = require(path); // eslint-disable-line @typescript-eslint/no-var-requires
+  if (hasOwnProperty(module, 'payloadConverter')) {
+    if (isValidPayloadConverter(module.payloadConverter)) {
+      return module.payloadConverter;
+    } else {
+      throw new ValueError(
+        `payloadConverter export at ${path} must be an object with toPayload and fromPayload methods`
+      );
+    }
+  } else {
+    throw new ValueError(`Module ${path} does not have a \`payloadConverter\` named export`);
+  }
+}
+
+export function arrayFromPayloads(converter: PayloadConverter, content?: Payload[] | null): unknown[] {
+  if (!content) {
+    return [];
+  }
+  return content.map((payload: Payload) => converter.fromPayload(payload));
+}
+
+export function mapToPayloads<K extends string>(
+  converter: PayloadConverter,
+  source: Record<K, any>
+): Record<K, Payload> {
+  return Object.fromEntries(
+    Object.entries(source).map(([k, v]): [K, Payload] => [k as K, converter.toPayload(v)])
+  ) as Record<K, Payload>;
+}
+
+export interface DefaultPayloadConverterOptions {
+  root?: Record<string, unknown>;
+}
+
+export class DefaultPayloadConverter extends CompositePayloadConverter {
+  constructor({ root }: DefaultPayloadConverterOptions = {}) {
+    // Match the order used in other SDKs
+    // Go SDK: https://github.com/temporalio/sdk-go/blob/5e5645f0c550dcf717c095ae32c76a7087d2e985/converter/default_data_converter.go#L28
+    super(
+      new UndefinedPayloadConverter(),
+      new BinaryPayloadConverter(),
+      new ProtobufJsonPayloadConverter(root),
+      new ProtobufBinaryPayloadConverter(root),
+      new JsonPayloadConverter()
+    );
+  }
+}
+
+export const defaultPayloadConverter = new DefaultPayloadConverter();

@@ -6,6 +6,14 @@ export class DataConverterError extends Error {
   public readonly name: string = 'DataConverterError';
 }
 
+export class PayloadConverterError extends Error {
+  public readonly name: string = 'DataConverterError';
+}
+
+export class UnsupportedTypeError extends PayloadConverterError {
+  public readonly name: string = 'UnsupportedTypeError';
+}
+
 /**
  * Used in different parts of the project to signal that something unexpected has happened
  */

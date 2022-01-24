@@ -1,7 +1,7 @@
 import os from 'os';
 import fs from 'fs';
 import { resolve, dirname } from 'path';
-import { ActivityInterface, msToNumber } from '@temporalio/common';
+import { ActivityInterface, msToNumber, DataConverter } from '@temporalio/common';
 import { WorkerInterceptors } from './interceptors';
 import { InjectedSinks } from './sinks';
 import { GiB } from './utils';
@@ -75,9 +75,9 @@ export interface WorkerOptions {
   shutdownSignals?: NodeJS.Signals[];
 
   /**
-   * Path of a module with a `dataConverter` named export. `dataConverter` should be an instance of a class that implements {@link DataConverter}.
+   * Provide a custom {@link DataConverter}.
    */
-  dataConverterPath?: string;
+  dataConverter?: DataConverter;
 
   /**
    * Maximum number of Activity tasks to execute concurrently.

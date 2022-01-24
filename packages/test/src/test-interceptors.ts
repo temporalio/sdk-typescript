@@ -11,7 +11,7 @@ import dedent from 'dedent';
 import { Core, DefaultLogger, Worker } from '@temporalio/worker';
 import { ApplicationFailure, TerminatedFailure } from '@temporalio/common';
 import { Connection, WorkflowClient, WorkflowFailedError } from '@temporalio/client';
-import { defaultDataConverter, WorkflowInfo } from '@temporalio/workflow';
+import { defaultPayloadConverter, WorkflowInfo } from '@temporalio/workflow';
 import { defaultOptions } from './mock-native-worker';
 import { cleanStackTrace, RUN_INTEGRATION_TESTS } from './helpers';
 import {
@@ -39,7 +39,7 @@ if (RUN_INTEGRATION_TESTS) {
           () => ({
             async execute(input, next) {
               const encoded = input.headers.message;
-              const receivedMessage = encoded ? defaultDataConverter.fromPayload(encoded) : '';
+              const receivedMessage = encoded ? defaultPayloadConverter.fromPayload(encoded) : '';
               return next({ ...input, args: [receivedMessage] });
             },
           }),
@@ -58,7 +58,7 @@ if (RUN_INTEGRATION_TESTS) {
                 ...input,
                 headers: {
                   ...input.headers,
-                  message: await defaultDataConverter.toPayload(message),
+                  message: defaultPayloadConverter.toPayload(message),
                 },
               });
             },
@@ -75,7 +75,7 @@ if (RUN_INTEGRATION_TESTS) {
                 signalArgs: [encoded],
                 headers: {
                   ...input.headers,
-                  message: await defaultDataConverter.toPayload(message),
+                  message: defaultPayloadConverter.toPayload(message),
                 },
               });
             },

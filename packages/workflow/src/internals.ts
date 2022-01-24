@@ -6,8 +6,8 @@ import {
   optionalFailureToOptionalError,
   IllegalStateError,
   WorkflowSignalType,
-  DataConverter,
-  defaultDataConverter,
+  PayloadConverter,
+  defaultPayloadConverter,
   arrayFromPayloadsSync,
   Workflow,
   WorkflowQueryType,
@@ -119,11 +119,11 @@ export class Activator implements ActivationHandler {
       resolve(result);
     } else if (activation.result.failed) {
       const { failure } = activation.result.failed;
-      const err = await optionalFailureToOptionalError(failure, state.dataConverter);
+      const err = optionalFailureToOptionalError(failure, state.dataConverter);
       reject(err);
     } else if (activation.result.cancelled) {
       const { failure } = activation.result.cancelled;
-      const err = await optionalFailureToOptionalError(failure, state.dataConverter);
+      const err = optionalFailureToOptionalError(failure, state.dataConverter);
       reject(err);
     }
   }
@@ -155,7 +155,7 @@ export class Activator implements ActivationHandler {
       if (!activation.cancelled.failure) {
         throw new TypeError('Got no failure in cancelled variant');
       }
-      reject(await failureToError(activation.cancelled.failure, state.dataConverter));
+      reject(failureToError(activation.cancelled.failure, state.dataConverter));
     } else {
       throw new TypeError('Got ResolveChildWorkflowExecutionStart with no status');
     }
@@ -170,20 +170,20 @@ export class Activator implements ActivationHandler {
     const { resolve, reject } = consumeCompletion('childWorkflowComplete', getSeq(activation));
     if (activation.result.completed) {
       const completed = activation.result.completed;
-      const result = completed.result ? await state.dataConverter.fromPayload(completed.result) : undefined;
+      const result = completed.result ? state.dataConverter.fromPayload(completed.result) : undefined;
       resolve(result);
     } else if (activation.result.failed) {
       const { failure } = activation.result.failed;
       if (failure === undefined || failure === null) {
         throw new TypeError('Got failed result with no failure attribute');
       }
-      reject(await failureToError(failure, state.dataConverter));
+      reject(failureToError(failure, state.dataConverter));
     } else if (activation.result.cancelled) {
       const { failure } = activation.result.cancelled;
       if (failure === undefined || failure === null) {
         throw new TypeError('Got cancelled result with no failure attribute');
       }
-      reject(await failureToError(failure, state.dataConverter));
+      reject(failureToError(failure, state.dataConverter));
     }
   }
 
@@ -267,7 +267,7 @@ export class Activator implements ActivationHandler {
   ): Promise<void> {
     const { resolve, reject } = consumeCompletion('signalWorkflow', getSeq(activation));
     if (activation.failure) {
-      reject(await failureToError(activation.failure, state.dataConverter));
+      reject(failureToError(activation.failure, state.dataConverter));
     } else {
       resolve(undefined);
     }
@@ -278,7 +278,7 @@ export class Activator implements ActivationHandler {
   ): Promise<void> {
     const { resolve, reject } = consumeCompletion('cancelWorkflow', getSeq(activation));
     if (activation.failure) {
-      reject(await failureToError(activation.failure, state.dataConverter));
+      reject(failureToError(activation.failure, state.dataConverter));
     } else {
       resolve(undefined);
     }
@@ -438,7 +438,7 @@ export class State {
    */
   public importInterceptors?: InterceptorsImportFunc;
 
-  public dataConverter: DataConverter = defaultDataConverter;
+  public dataConverter: PayloadConverter = defaultPayloadConverter;
 
   /**
    * Patches we know the status of for this workflow, as in {@link patched}
@@ -505,7 +505,7 @@ export async function handleWorkflowFailure(error: unknown): Promise<void> {
     state.pushCommand(
       {
         failWorkflowExecution: {
-          failure: await errorToFailure(error, state.dataConverter),
+          failure: errorToFailure(error, state.dataConverter),
         },
       },
       true
@@ -521,7 +521,7 @@ function completeQuery(queryId: string, result: unknown) {
 
 async function failQuery(queryId: string, error: any) {
   state.pushCommand({
-    respondToQuery: { queryId, failed: await errorToFailure(ensureTemporalFailure(error), state.dataConverter) },
+    respondToQuery: { queryId, failed: errorToFailure(ensureTemporalFailure(error), state.dataConverter) },
   });
 }
 

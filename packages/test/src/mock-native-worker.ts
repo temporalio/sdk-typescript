@@ -2,7 +2,7 @@
 import { lastValueFrom } from 'rxjs';
 import { SpanContext } from '@opentelemetry/api';
 import { coresdk } from '@temporalio/proto';
-import { defaultDataConverter, DataConverter, msToTs } from '@temporalio/common';
+import { defaultPayloadConverter, DataConverter, msToTs } from '@temporalio/common';
 import { Worker as RealWorker, NativeWorkerLike, errors } from '@temporalio/worker/lib/worker';
 import {
   compileWorkerOptions,
@@ -131,7 +131,7 @@ export class MockNativeWorker implements NativeWorkerLike {
 
   public recordActivityHeartbeat(buffer: ArrayBuffer): void {
     const { taskToken, details } = coresdk.ActivityHeartbeat.decodeDelimited(new Uint8Array(buffer));
-    const arg = defaultDataConverter.fromPayloads(0, details);
+    const arg = defaultPayloadConverter.fromPayloads(0, details);
     this.activityHeartbeatCallback!(taskToken, arg);
   }
 

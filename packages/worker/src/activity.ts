@@ -2,7 +2,7 @@ import { AbortController } from 'abort-controller';
 import {
   ActivityFunction,
   composeInterceptors,
-  DataConverter,
+  PayloadConverter,
   ensureTemporalFailure,
   errorToFailure,
   CancelledFailure,
@@ -28,7 +28,7 @@ export class Activity {
   constructor(
     public readonly info: Info,
     public readonly fn: ActivityFunction<any[], any>,
-    public readonly dataConverter: DataConverter,
+    public readonly dataConverter: PayloadConverter,
     public readonly heartbeatCallback: Context['heartbeat'],
     interceptors?: {
       inbound?: ActivityInboundCallsInterceptorFactory[];
@@ -63,7 +63,7 @@ export class Activity {
       try {
         const execute = composeInterceptors(this.interceptors.inbound, 'execute', (inp) => this.execute(inp));
         const result = await execute(input);
-        return { completed: { result: await this.dataConverter.toPayload(result) } };
+        return { completed: { result: this.dataConverter.toPayload(result) } };
       } catch (err) {
         if (err instanceof Error && err.name === 'CompleteAsyncError') {
           return { willCompleteAsync: {} };
@@ -71,7 +71,7 @@ export class Activity {
         if (this.cancelRequested) {
           // Either a CancelledFailure that we threw or AbortError from AbortController
           if (err instanceof CancelledFailure) {
-            const failure = await errorToFailure(err, this.dataConverter);
+            const failure = errorToFailure(err, this.dataConverter);
             failure.stackTrace = undefined;
             return { cancelled: { failure } };
           } else if (err instanceof Error && err.name === 'AbortError') {
@@ -80,7 +80,7 @@ export class Activity {
         }
         return {
           failed: {
-            failure: await errorToFailure(ensureTemporalFailure(err), this.dataConverter),
+            failure: errorToFailure(ensureTemporalFailure(err), this.dataConverter),
           },
         };
       }

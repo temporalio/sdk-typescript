@@ -4,7 +4,7 @@ import { Worker } from '@temporalio/worker';
 import test, { ExecutionContext } from 'ava';
 import { v4 as uuid4 } from 'uuid';
 import { protoActivity } from './activities';
-import { dataConverter, messageInstance } from './data-converters/data-converter';
+import { payloadConverter, messageInstance } from './payload-converters/payload-converter';
 import { cleanStackTrace, RUN_INTEGRATION_TESTS } from './helpers';
 import { defaultOptions, isolateFreeWorker } from './mock-native-worker';
 import { protobufWorkflow } from './workflows';
@@ -32,12 +32,13 @@ function compareCompletion(
 }
 
 if (RUN_INTEGRATION_TESTS) {
-  test('Client and Worker work with provided dataConverter/dataConverterPath', async (t) => {
+  test('Client and Worker work with provided dataConverter', async (t) => {
+    const dataConverter = { payloadConverterPath: require.resolve('./payload-converters/payload-converter') };
     const taskQueue = 'test-custom-data-converter';
     const worker = await Worker.create({
       ...defaultOptions,
       taskQueue,
-      dataConverterPath: require.resolve('./data-converters/data-converter'),
+      dataConverter,
     });
     const connection = new Connection();
     const client = new WorkflowClient(connection.service, { dataConverter });
@@ -54,35 +55,35 @@ if (RUN_INTEGRATION_TESTS) {
   });
 }
 
-test('Worker throws on invalid dataConverterPath', async (t) => {
+test('Worker throws on invalid payloadConverterPath', async (t) => {
   await t.throwsAsync(
     isolateFreeWorker({
       ...defaultOptions,
-      dataConverterPath: './wrong-path',
+      dataConverter: { payloadConverterPath: './wrong-path' },
     }),
     {
-      message: /Could not find a file at the specified dataConverterPath/,
+      message: /Could not find a file at the specified payloadConverterPath/,
     }
   );
 
   await t.throwsAsync(
     isolateFreeWorker({
       ...defaultOptions,
-      dataConverterPath: require.resolve('./data-converters/data-converter-no-export'),
+      dataConverter: { payloadConverterPath: require.resolve('./payload-converters/payload-converter-no-export') },
     }),
     {
-      message: /The module at dataConverterPath .* does not have a `dataConverter` named export./,
+      message: /The module at payloadConverterPath .* does not have a `dataConverter` named export./,
     }
   );
 
   await t.throwsAsync(
     isolateFreeWorker({
       ...defaultOptions,
-      dataConverterPath: require.resolve('./data-converters/data-converter-bad-export'),
+      dataConverter: { payloadConverterPath: require.resolve('./payload-converters/payload-converter-bad-export') },
     }),
     {
       message:
-        /The `dataConverter` named export at dataConverterPath .* should be an instance of a class that implements the DataConverter interface./,
+        /The `dataConverter` named export at payloadConverterPath .* should be an instance of a class that implements the DataConverter interface./,
     }
   );
 });
@@ -90,7 +91,7 @@ test('Worker throws on invalid dataConverterPath', async (t) => {
 test('Worker with proto data converter runs an activity and reports completion', async (t) => {
   const worker = await isolateFreeWorker({
     ...defaultOptions,
-    dataConverterPath: require.resolve('./data-converters/data-converter'),
+    dataConverter: { payloadConverterPath: require.resolve('./payload-converters/payload-converter') },
   });
 
   await runWorker(worker, async () => {
@@ -99,11 +100,11 @@ test('Worker with proto data converter runs an activity and reports completion',
       taskToken,
       start: {
         activityType: 'protoActivity',
-        input: await dataConverter.toPayloads(messageInstance),
+        input: payloadConverter.toPayloads(messageInstance),
       },
     });
     compareCompletion(t, completion.result, {
-      completed: { result: await dataConverter.toPayload(await protoActivity(messageInstance)) },
+      completed: { result: payloadConverter.toPayload(await protoActivity(messageInstance)) },
     });
   });
 });

@@ -18,7 +18,7 @@ export * from './workflow-options';
 export * from './interceptors';
 export {
   DataConverter,
-  defaultDataConverter,
+  defaultPayloadConverter,
   ActivityFailure,
   ApplicationFailure,
   ChildWorkflowFailure,
