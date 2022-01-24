@@ -17,7 +17,7 @@ test.before(async (t) => {
   process.removeAllListeners('unhandledRejection');
   const logger = new DefaultLogger('DEBUG');
   // Use forwarded logging from core
-  const replayCore = await ReplayCore.install({ logger, telemetryOptions: { logForwardingLevel: 'DEBUG' } });
+  const replayCore = await ReplayCore.install({ logger, telemetryOptions: { logForwardingLevel: 'INFO' } });
   t.context = {
     replayCore,
   };
@@ -25,7 +25,7 @@ test.before(async (t) => {
 
 test('cancel-fake-progress-replay', async (t) => {
   const histBin = await fs.promises.readFile(
-    path.resolve(__dirname, '../src/history_files/cancel_fake_progress_history.bin')
+    path.resolve(__dirname, '../history_files/cancel_fake_progress_history.bin')
   );
   const hist = History.decode(histBin);
   await Worker.runReplayHistory(
@@ -40,7 +40,7 @@ test('cancel-fake-progress-replay', async (t) => {
 
 test('cancel-fake-progress-replay-nondeterministic', async (t) => {
   const histBin = await fs.promises.readFile(
-    path.resolve(__dirname, '../src/history_files/cancel_fake_progress_history.bin')
+    path.resolve(__dirname, '../history_files/cancel_fake_progress_history.bin')
   );
   const hist = History.decode(histBin);
 
@@ -64,7 +64,7 @@ test('cancel-fake-progress-replay-nondeterministic', async (t) => {
 
 test('workflow-task-failure-fails-replay', async (t) => {
   const histBin = await fs.promises.readFile(
-    path.resolve(__dirname, '../src/history_files/cancel_fake_progress_history.bin')
+    path.resolve(__dirname, '../history_files/cancel_fake_progress_history.bin')
   );
   const hist = History.decode(histBin);
 

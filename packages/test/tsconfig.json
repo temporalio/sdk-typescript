@@ -13,6 +13,8 @@
     { "path": "../worker" },
     { "path": "../workflow" }
   ],
-  "include": ["./src/**/*.ts", "./src/history_files/*.json"],
+  "include": ["./src/**/*.ts",
+    "./history_files/*.json"
+  ],
   "exclude": ["node_modules"]
 }
