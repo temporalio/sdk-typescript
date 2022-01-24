@@ -32,13 +32,12 @@ function compareCompletion(
 }
 
 if (RUN_INTEGRATION_TESTS) {
-  test.skip('Client and Worker work with provided dataConverter/dataConverterPath', async (t) => {
+  test('Client and Worker work with provided dataConverter/dataConverterPath', async (t) => {
     const taskQueue = 'custom-data-converter';
     const worker = await Worker.create({
       ...defaultOptions,
       taskQueue,
-
-      dataConverterPath: require.resolve('./data-converter'),
+      dataConverterPath: require.resolve('./data-converters/data-converter'),
     });
     const connection = new Connection();
     const client = new WorkflowClient(connection.service, { dataConverter });
@@ -48,11 +47,10 @@ if (RUN_INTEGRATION_TESTS) {
         workflowId: uuid4(),
         taskQueue,
       });
-      t.is(result, messageInstance);
+      t.deepEqual(result, messageInstance);
       worker.shutdown();
     };
     await Promise.all([worker.run(), runAndShutdown()]);
-    t.pass();
   });
 }
 

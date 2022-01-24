@@ -26,6 +26,7 @@ export interface WorkflowCreateOptions {
   randomnessSeed: number[];
   now: number;
   patches: string[];
+  useCustomDataConverter?: boolean;
 }
 
 export interface ImportFunctions {
@@ -110,7 +111,13 @@ export function overrideGlobals(): void {
  *
  * Sets required internal state and instantiates the workflow and interceptors.
  */
-export async function initRuntime({ info, randomnessSeed, now, patches }: WorkflowCreateOptions): Promise<void> {
+export async function initRuntime({
+  info,
+  randomnessSeed,
+  now,
+  patches,
+  useCustomDataConverter,
+}: WorkflowCreateOptions): Promise<void> {
   // Set the runId globally on the context so it can be retrieved in the case
   // of an unhandled promise rejection.
   (globalThis as any).__TEMPORAL__.runId = info.runId;
@@ -146,6 +153,13 @@ export async function initRuntime({ info, randomnessSeed, now, patches }: Workfl
       state.interceptors.outbound.push(...(interceptors.outbound ?? []));
       state.interceptors.internals.push(...(interceptors.internals ?? []));
     }
+  }
+
+  if (useCustomDataConverter) {
+    // @ts-expect-error this is a webpack alias to dataConverterPath
+    state.dataConverter = (await import('__temporal_custom_data_converter')).dataConverter;
+    // webpack doesn't know what to bundle given a dynamic import expression, so we can't do:
+    // state.dataConverter = (await import(dataConverterPath)).dataConverter;
   }
 
   let workflow: Workflow;

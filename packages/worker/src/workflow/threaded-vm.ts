@@ -121,6 +121,7 @@ export interface ThreadedVMWorkflowCreatorOptions {
   code: string;
   threadPoolSize: number;
   isolateExecutionTimeoutMs: number;
+  dataConverterPath?: string;
 }
 
 /**
@@ -130,7 +131,7 @@ export class ThreadedVMWorkflowCreator implements WorkflowCreator {
   protected workflowThreadIdx = 0;
 
   /**
-   * Create an instance of ThreadedVMWorkflowCreator asynchronouly.
+   * Create an instance of ThreadedVMWorkflowCreator asynchronously.
    *
    * This method creates and initializes the workflow-worker-thread instances.
    */
@@ -138,12 +139,15 @@ export class ThreadedVMWorkflowCreator implements WorkflowCreator {
     threadPoolSize,
     code,
     isolateExecutionTimeoutMs,
+    dataConverterPath,
   }: ThreadedVMWorkflowCreatorOptions): Promise<ThreadedVMWorkflowCreator> {
     const workerThreadClients = Array(threadPoolSize)
       .fill(0)
       .map(() => new WorkerThreadClient(new NodeWorker(require.resolve('./workflow-worker-thread'))));
     await Promise.all(
-      workerThreadClients.map((client) => client.send({ type: 'init', code, isolateExecutionTimeoutMs }))
+      workerThreadClients.map((client) =>
+        client.send({ type: 'init', code, isolateExecutionTimeoutMs, dataConverterPath })
+      )
     );
     return new this(workerThreadClients);
   }

@@ -190,12 +190,6 @@ export class Worker {
     const nativeWorker = await nativeWorkerCtor.create(compiledOptions);
     const dataConverter = await this.getDataConverter(options);
     try {
-      let dataConverter;
-      if (options.dataConverterPath) {
-        const dataConverterModule = await import(options.dataConverterPath);
-        dataConverter = dataConverterModule.dataConverter;
-      }
-
       let bundle: string | undefined = undefined;
       let workflowCreator: WorkflowCreator | undefined = undefined;
       // nodeModulesPaths should not be undefined if workflowsPath is provided
@@ -204,7 +198,8 @@ export class Worker {
           nativeWorker.logger,
           compiledOptions.nodeModulesPaths,
           compiledOptions.workflowsPath,
-          compiledOptions.interceptors?.workflowModules
+          compiledOptions.interceptors?.workflowModules,
+          options.dataConverterPath
         );
         bundle = await bundler.createBundle();
         nativeWorker.logger.info('Workflow bundle created', { size: `${toMB(bundle.length)}MB` });
@@ -219,12 +214,17 @@ export class Worker {
       }
       if (bundle) {
         if (compiledOptions.debugMode) {
-          workflowCreator = await VMWorkflowCreator.create(bundle, compiledOptions.isolateExecutionTimeoutMs);
+          workflowCreator = await VMWorkflowCreator.create(
+            bundle,
+            compiledOptions.isolateExecutionTimeoutMs,
+            options.dataConverterPath
+          );
         } else {
           workflowCreator = await ThreadedVMWorkflowCreator.create({
             code: bundle,
             threadPoolSize: compiledOptions.workflowThreadPoolSize,
             isolateExecutionTimeoutMs: compiledOptions.isolateExecutionTimeoutMs,
+            dataConverterPath: options.dataConverterPath,
           });
         }
       }
@@ -537,7 +537,7 @@ export class Worker {
   }
 
   /**
-   * Process workflow activations
+   * Process Workflow activations
    */
   protected workflowOperator(): OperatorFunction<ActivationWithContext, ContextAware<{ completion: Uint8Array }>> {
     const { workflowCreator } = this;
@@ -743,7 +743,7 @@ export class Worker {
       externalCalls.map(async ({ ifaceName, fnName, args }) => {
         const dep = sinks?.[ifaceName]?.[fnName];
         if (dep === undefined) {
-          this.log.error('Workflow referenced an unregistrered external sink', {
+          this.log.error('Workflow referenced an unregistered external sink', {
             ifaceName,
             fnName,
           });
@@ -905,7 +905,7 @@ export class Worker {
 
   protected activity$(): Observable<void> {
     // Note that we poll on activities even if there are no activities registered.
-    // This is so workflows invoking activities on this task queue get a non-retriable error.
+    // This is so workflows invoking activities on this task queue get a non-retryable error.
     return this.activityPoll$().pipe(
       this.activityOperator(),
       mergeMap(async ({ completion, parentSpan }) => {
@@ -949,7 +949,7 @@ export class Worker {
    */
   async run(): Promise<void> {
     if (this.state !== 'INITIALIZED') {
-      throw new IllegalStateError('Poller was aleady started');
+      throw new IllegalStateError('Poller was already started');
     }
     this.state = 'RUNNING';
 

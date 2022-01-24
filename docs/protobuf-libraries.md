@@ -51,7 +51,7 @@ A and B
 
 - Use `protobufjs` with `proto3-json-serializer`
 - Have users use runtime-loaded messages (not generated classes) and `Class.create` (not `new Class()`)
-- Patch `json-module` output (which adds `nested` attributes to lowercase namespaces [which causes TS error](https://github.com/protobufjs/protobuf.js/issues/1014))
+- Patch `json-module` output (which adds `nested` attributes to lowercase namespaces [which causes a TS error](https://github.com/protobufjs/protobuf.js/issues/1014))
 
 ```ts
 // json-module.js generated with:
@@ -69,7 +69,7 @@ module.exports = patchProtobufRoot(unpatchedRoot);
 import { foo } from '../protos/root';
 
 await client.start(protoWorkflow, {
-  args: [foo.bar.ProtoInput.create({ name: 'Proto', age: 1 })],
+  args: [foo.bar.ProtoInput.create({ name: 'Proto', age: 1 })], // can't use `new foo.bar.ProtoInput()`
   taskQueue: 'tutorial',
   workflowId: 'my-business-id',
 });
@@ -80,11 +80,17 @@ import { foo } from '../protos/root';
 export async function protoWorkflow(input: foo.bar.ProtoInput): Promise<foo.bar.ProtoResult> {
   return foo.bar.ProtoResult.create({ sentence: `Name is ${input.name}` });
 }
+
+// src/data-converter.ts
+import { DefaultDataConverter } from '@temporalio/common';
+import root from '../protos/root';
+
+export const dataConverter = new DefaultDataConverter({ root });
 ```
 
 We originally were thinking of this, but the namespaces in `json-module.js` get lost through `patchProtobufRoot()`:
 
-```
+```ts
 import * as generatedRoot from '../protos/json-module';
 
 const patchProtobufRoot = <T>(x: T): T => x;

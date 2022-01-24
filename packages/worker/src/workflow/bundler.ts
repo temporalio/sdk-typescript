@@ -20,7 +20,8 @@ export class WorkflowCodeBundler {
     public readonly logger: Logger,
     public readonly nodeModulesPaths: string[],
     public readonly workflowsPath: string,
-    public readonly workflowInterceptorModules: string[] = []
+    public readonly workflowInterceptorModules: string[] = [],
+    protected readonly dataConverterPath?: string
   ) {}
 
   /**
@@ -58,7 +59,7 @@ export class WorkflowCodeBundler {
     const entrypointPath = '/src/main.js';
 
     this.genEntrypoint(vol, entrypointPath);
-    await this.bundle(ufs, entrypointPath, distDir);
+    await this.bundle(ufs, entrypointPath, distDir, this.dataConverterPath);
     return ufs.readFileSync(path.join(distDir, 'main.js'), 'utf8');
   }
 
@@ -74,7 +75,7 @@ export class WorkflowCodeBundler {
 
     const code = dedent`
       import * as api from '@temporalio/workflow/lib/worker-interface.js';
-
+      
       // Bundle all Workflows and interceptor modules for lazy evaluation
       api.overrideGlobals();
       api.setImportFuncs({ 
@@ -101,11 +102,18 @@ export class WorkflowCodeBundler {
   /**
    * Run webpack
    */
-  protected async bundle(filesystem: typeof unionfs.ufs, entry: string, distDir: string): Promise<void> {
-    const compiler = webpack({
+  protected async bundle(
+    filesystem: typeof unionfs.ufs,
+    entry: string,
+    distDir: string,
+    dataConverterPath?: string
+  ): Promise<void> {
+    const webpackConfig: webpack.Configuration = {
       resolve: {
         modules: [path.resolve(__dirname, 'module-overrides'), ...this.nodeModulesPaths],
         extensions: ['.ts', '.js'],
+        // If we don't set an alias for this below, then it won't be imported, so webpack can safely ignore it
+        fallback: { __temporal_custom_data_converter: false },
       },
       module: {
         rules: [
@@ -125,7 +133,12 @@ export class WorkflowCodeBundler {
         filename: 'main.js',
         library: '__TEMPORAL__',
       },
-    });
+    };
+    if (dataConverterPath && webpackConfig.resolve) {
+      webpackConfig.resolve.alias = { __temporal_custom_data_converter$: dataConverterPath };
+    }
+
+    const compiler = webpack(webpackConfig);
 
     // Cast to any because the type declarations are inaccurate
     compiler.inputFileSystem = filesystem as any;
@@ -138,7 +151,7 @@ export class WorkflowCodeBundler {
             const hasError = stats.hasErrors();
             // To debug webpack build:
             // const lines = stats.toString({ preset: 'verbose' }).split('\n');
-            const lines = stats.toString({ chunks: false, colors: true }).split('\n');
+            const lines = stats.toString({ chunks: false, colors: true, errorDetails: true }).split('\n');
             for (const line of lines) {
               this.logger[hasError ? 'error' : 'info'](line);
             }
@@ -186,6 +199,11 @@ export interface BundleOptions {
    * Optional logger for logging Webpack output
    */
   logger?: Logger;
+  /**
+   * Path to a module with a `dataConverter` named export.
+   * `dataConverter` should be an instance of a class that extends `DataConverter`.
+   */
+  dataConverterPath?: string;
 }
 
 export async function bundleWorkflowCode(options: BundleOptions): Promise<{ code: string }> {
@@ -197,7 +215,8 @@ export async function bundleWorkflowCode(options: BundleOptions): Promise<{ code
     logger,
     nodeModulesPaths,
     options.workflowsPath,
-    options.workflowInterceptorModules
+    options.workflowInterceptorModules,
+    options.dataConverterPath
   );
   return { code: await bundler.createBundle() };
 }

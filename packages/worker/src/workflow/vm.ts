@@ -2,7 +2,7 @@ import vm from 'vm';
 import { coresdk } from '@temporalio/proto';
 import * as internals from '@temporalio/workflow/lib/worker-interface';
 import { WorkflowInfo } from '@temporalio/workflow';
-import { defaultDataConverter, errorToFailure, IllegalStateError } from '@temporalio/common';
+import { defaultDataConverter, DataConverter, errorToFailure, IllegalStateError } from '@temporalio/common';
 import { partition } from '../utils';
 import { Workflow, WorkflowCreator, WorkflowCreateOptions } from './interface';
 import { SinkCall } from '@temporalio/workflow/lib/sinks';
@@ -15,7 +15,12 @@ import assert from 'assert';
 export class VMWorkflowCreator implements WorkflowCreator {
   script?: vm.Script;
 
-  constructor(script: vm.Script, public readonly isolateExecutionTimeoutMs: number) {
+  constructor(
+    script: vm.Script,
+    public readonly isolateExecutionTimeoutMs: number,
+    protected readonly dataConverter: DataConverter,
+    protected readonly dataConverterPath?: string
+  ) {
     this.script = script;
   }
 
@@ -41,9 +46,9 @@ export class VMWorkflowCreator implements WorkflowCreator {
       }
     ) as any;
 
-    await workflowModule.initRuntime(options);
+    await workflowModule.initRuntime({ useCustomDataConverter: !!this.dataConverterPath, ...options });
 
-    return new VMWorkflow(options.info, context, workflowModule, isolateExecutionTimeoutMs);
+    return new VMWorkflow(options.info, context, workflowModule, isolateExecutionTimeoutMs, this.dataConverter);
   }
 
   protected async getContext(): Promise<vm.Context> {
@@ -78,10 +83,16 @@ export class VMWorkflowCreator implements WorkflowCreator {
   public static async create<T extends typeof VMWorkflowCreator>(
     this: T,
     code: string,
-    isolateExecutionTimeoutMs: number
+    isolateExecutionTimeoutMs: number,
+    dataConverterPath?: string
   ): Promise<InstanceType<T>> {
     const script = new vm.Script(code, { filename: 'workflow-isolate' });
-    return new this(script, isolateExecutionTimeoutMs) as InstanceType<T>;
+    let dataConverter = defaultDataConverter;
+    if (dataConverterPath) {
+      // dataConverterPath was validated in Worker.getDataConverter
+      dataConverter = (await import(dataConverterPath)).dataConverter;
+    }
+    return new this(script, isolateExecutionTimeoutMs, dataConverter, dataConverterPath) as InstanceType<T>;
   }
 
   /**
@@ -104,7 +115,8 @@ export class VMWorkflow implements Workflow {
     public readonly info: WorkflowInfo,
     protected context: vm.Context | undefined,
     readonly workflowModule: WorkflowModule,
-    public readonly isolateExecutionTimeoutMs: number
+    public readonly isolateExecutionTimeoutMs: number,
+    protected readonly dataConverter: DataConverter
   ) {}
 
   /**
@@ -175,7 +187,7 @@ export class VMWorkflow implements Workflow {
     if (this.unhandledRejection) {
       return coresdk.workflow_completion.WorkflowActivationCompletion.encodeDelimited({
         runId: activation.runId,
-        failed: { failure: await errorToFailure(this.unhandledRejection, defaultDataConverter) },
+        failed: { failure: await errorToFailure(this.unhandledRejection, this.dataConverter) },
       }).finish();
     }
     return coresdk.workflow_completion.WorkflowActivationCompletion.encodeDelimited(completion).finish();

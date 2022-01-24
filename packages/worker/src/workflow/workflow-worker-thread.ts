@@ -49,7 +49,11 @@ process.on('unhandledRejection', (err, promise) => {
 async function handleRequest({ requestId, input }: WorkerThreadRequest): Promise<WorkerThreadResponse> {
   switch (input.type) {
     case 'init':
-      workflowCreator = await VMWorkflowCreator.create(input.code, input.isolateExecutionTimeoutMs);
+      workflowCreator = await VMWorkflowCreator.create(
+        input.code,
+        input.isolateExecutionTimeoutMs,
+        input.dataConverterPath
+      );
       return ok(requestId);
     case 'destroy':
       await workflowCreator?.destroy();
