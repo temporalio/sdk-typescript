@@ -231,25 +231,12 @@ export class Worker {
     const runPromise = constructedWorker.run();
     const pollerShutdown = firstValueFrom(
       constructedWorker.workflowPollerStateSubject.pipe(filter((state) => state !== 'POLLING'))
-    ).then((_) => {
-      try {
-        constructedWorker.shutdown();
-      } catch {
-        // We may have already called shutdown from the eviction branch, so ignore
-        // errors if we're already shut down.
-      }
-    });
+    );
 
     const evictionPromise = firstValueFrom(
       constructedWorker.evictionsSubject.pipe(
         // Ignore self-induced shutdowns, as they are a legit and we'll terminate normally.
         filter((ev) => ev.evictJob != this.SELF_INDUCED_SHUTDOWN_EVICTION),
-        tap(async () => {
-          // Once we've seen an eviction, shutdown the worker and wait for running to end before
-          // we throw an appropriate error.
-          constructedWorker.shutdown();
-          await runPromise;
-        }),
         map((ev) => {
           if (ev.evictJob.reason === EvictionReason.NONDETERMINISM) {
             throw new DeterminismViolationError(
@@ -263,8 +250,13 @@ export class Worker {
       )
     );
 
-    await Promise.race([runPromise, evictionPromise]);
-    await pollerShutdown;
+    await Promise.race([runPromise, Promise.all([evictionPromise, pollerShutdown])]).finally(() => {
+      try {
+        constructedWorker.shutdown();
+      } catch {
+        // We may have already shut down and that's fine
+      }
+    });
   }
 
   protected static async bundleWorker(
