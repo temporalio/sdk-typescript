@@ -19,7 +19,4 @@ prost = "0.9"
 prost-types = "0.9"
 tokio = "1.13"
 once_cell = "1.7.2"
-# TODO: revert back to version *, can't now because of this error: prerelease package needs to be specified explicitly
-temporal-sdk-core = { version = "0.1.0-alpha.1", path = "./sdk-core/core" }
-temporal-sdk-core-api = { version = "0.1.0", path = "./sdk-core/core-api" }
-temporal-sdk-core-protos = { version = "0.1.0", path = "./sdk-core/sdk-core-protos" }
+temporal-sdk-core = { version = "*", path = "./sdk-core/core" }

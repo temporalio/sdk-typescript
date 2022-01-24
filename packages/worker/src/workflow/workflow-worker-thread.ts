@@ -1,6 +1,6 @@
 import { isMainThread, parentPort as parentPortOrNull } from 'worker_threads';
 import { IllegalStateError } from '@temporalio/common';
-import { VMWorkflow, VMWorkflowCreator } from './vm';
+import { setUnhandledRejectionHandler, VMWorkflow, VMWorkflowCreator } from './vm';
 import { WorkerThreadRequest } from './workflow-worker-thread/input';
 import { WorkerThreadResponse } from './workflow-worker-thread/output';
 import { coresdk } from '@temporalio/proto';
@@ -21,27 +21,8 @@ function ok(requestId: BigInt): WorkerThreadResponse {
 }
 
 let workflowCreator: VMWorkflowCreator | undefined;
-const workflowByRunId = new Map<string, VMWorkflow>();
 
-// Best effort to catch unhandled rejections from workflow code.
-// We crash the thread if we cannot find the culprit.
-process.on('unhandledRejection', (err, promise) => {
-  // Get the runId associated with the vm context.
-  // See for reference https://github.com/patriksimek/vm2/issues/32
-  const ctor = promise.constructor.constructor;
-  const runId = ctor('return globalThis.__TEMPORAL__?.runId')();
-  if (runId !== undefined) {
-    const workflow = workflowByRunId.get(runId);
-    if (workflow !== undefined) {
-      workflow.setUnhandledRejection(err);
-      return;
-    }
-  }
-  // The user's logger is not accessible in this thread,
-  // dump the error information to stderr and abort.
-  console.error('Unhandled rejection', { runId }, err);
-  process.exit(1);
-});
+setUnhandledRejectionHandler();
 
 /**
  * Process a `WorkerThreadRequest` and resolve with a `WorkerThreadResponse`.
@@ -59,11 +40,11 @@ async function handleRequest({ requestId, input }: WorkerThreadRequest): Promise
         throw new IllegalStateError('No WorkflowCreator in Worker thread');
       }
       const workflow = (await workflowCreator.createWorkflow(input.options)) as VMWorkflow;
-      workflowByRunId.set(input.options.info.runId, workflow);
+      VMWorkflowCreator.workflowByRunId.set(input.options.info.runId, workflow);
       return ok(requestId);
     }
     case 'activate-workflow': {
-      const workflow = workflowByRunId.get(input.runId);
+      const workflow = VMWorkflowCreator.workflowByRunId.get(input.runId);
       if (workflow === undefined) {
         throw new IllegalStateError(`Tried to activate non running workflow with runId: ${input.runId}`);
       }
@@ -75,7 +56,7 @@ async function handleRequest({ requestId, input }: WorkerThreadRequest): Promise
       };
     }
     case 'exteract-sink-calls': {
-      const workflow = workflowByRunId.get(input.runId);
+      const workflow = VMWorkflowCreator.workflowByRunId.get(input.runId);
       if (workflow === undefined) {
         throw new IllegalStateError(`Tried to activate non running workflow with runId: ${input.runId}`);
       }
@@ -86,11 +67,11 @@ async function handleRequest({ requestId, input }: WorkerThreadRequest): Promise
       };
     }
     case 'dispose-workflow': {
-      const workflow = workflowByRunId.get(input.runId);
+      const workflow = VMWorkflowCreator.workflowByRunId.get(input.runId);
       if (workflow === undefined) {
         throw new IllegalStateError(`Tried to dispose non running workflow with runId: ${input.runId}`);
       }
-      workflowByRunId.delete(input.runId);
+      VMWorkflowCreator.workflowByRunId.delete(input.runId);
       await workflow.dispose();
       return ok(requestId);
     }

@@ -1,9 +1,13 @@
 import fs from 'fs/promises';
 import { promisify } from 'util';
 import * as otel from '@opentelemetry/api';
+import { SpanContext } from '@opentelemetry/api';
 import {
   BehaviorSubject,
+  EMPTY,
+  firstValueFrom,
   from,
+  lastValueFrom,
   merge,
   MonoTypeOperatorFunction,
   Observable,
@@ -11,55 +15,57 @@ import {
   pipe,
   race,
   Subject,
-  lastValueFrom,
-  EMPTY,
 } from 'rxjs';
 import { delay, filter, first, ignoreElements, map, mergeMap, takeUntil, takeWhile, tap } from 'rxjs/operators';
 import * as native from '@temporalio/core-bridge';
-import { coresdk } from '@temporalio/proto';
+import { coresdk, temporal } from '@temporalio/proto';
 import { Info as ActivityInfo } from '@temporalio/activity';
 import {
-  IllegalStateError,
-  tsToMs,
-  errorToFailure,
   arrayFromPayloads,
   DataConverter,
   defaultDataConverter,
   errorMessage,
+  errorToFailure,
+  IllegalStateError,
+  tsToMs,
 } from '@temporalio/common';
 import {
   extractSpanContextFromHeaders,
   linkSpans,
-  RUN_ID_ATTR_KEY,
   NUM_JOBS_ATTR_KEY,
+  RUN_ID_ATTR_KEY,
   TASK_TOKEN_ATTR_KEY,
 } from '@temporalio/common/lib/otel';
 
 import { closeableGroupBy, mergeMapWithState } from './rxutils';
-import { toMB } from './utils';
+import { byteArrayToBuffer, toMB } from './utils';
 import { Workflow, WorkflowCreator } from './workflow/interface';
 import { WorkflowCodeBundler } from './workflow/bundler';
 import { Activity } from './activity';
 import { Logger } from './logger';
 import * as errors from './errors';
-import { childSpan, instrument, getTracer } from './tracing';
+import { childSpan, getTracer, instrument } from './tracing';
 import { ActivityExecuteInput } from './interceptors';
-export { IllegalStateError } from '@temporalio/common';
-export { DataConverter, defaultDataConverter, errors };
-import { Core } from './core';
-import { SpanContext } from '@opentelemetry/api';
-import IWorkflowActivationJob = coresdk.workflow_activation.IWorkflowActivationJob;
+import { Core, ReplayCore } from './core';
 import { ThreadedVMWorkflowCreator } from './workflow/threaded-vm';
-import { SinkCall, WorkflowInfo } from '@temporalio/workflow';
+import { DeterminismViolationError, SinkCall, WorkflowInfo } from '@temporalio/workflow';
 import {
   addDefaultWorkerOptions,
   CompiledWorkerOptions,
   compileWorkerOptions,
   isCodeBundleOption,
   isPathBundleOption,
+  ReplayWorkerOptions,
   WorkerOptions,
 } from './worker-options';
 import { VMWorkflowCreator } from './workflow/vm';
+import IWorkflowActivationJob = coresdk.workflow_activation.IWorkflowActivationJob;
+import History = temporal.api.history.v1.History;
+import EvictionReason = coresdk.workflow_activation.RemoveFromCache.EvictionReason;
+import IRemoveFromCache = coresdk.workflow_activation.IRemoveFromCache;
+
+export { IllegalStateError } from '@temporalio/common';
+export { DataConverter, defaultDataConverter, errors };
 
 native.registerErrors(errors);
 /**
@@ -116,6 +122,7 @@ export interface NativeWorkerLike {
 
 export interface WorkerConstructor {
   create(options: CompiledWorkerOptions): Promise<NativeWorkerLike>;
+  createReplay(options: CompiledWorkerOptions, history: History): Promise<NativeWorkerLike>;
 }
 
 export class NativeWorker implements NativeWorkerLike {
@@ -129,6 +136,12 @@ export class NativeWorker implements NativeWorkerLike {
   public static async create(options: CompiledWorkerOptions): Promise<NativeWorkerLike> {
     const core = await Core.instance();
     const nativeWorker = await core.registerWorker(options);
+    return new NativeWorker(core, nativeWorker);
+  }
+
+  public static async createReplay(options: CompiledWorkerOptions, history: History): Promise<NativeWorkerLike> {
+    const core = await ReplayCore.instance();
+    const nativeWorker = await core.createReplayWorker(options, history);
     return new NativeWorker(core, nativeWorker);
   }
 
@@ -170,12 +183,20 @@ export class Worker {
     details?: any;
   }>();
   protected readonly stateSubject = new BehaviorSubject<State>('INITIALIZED');
+  protected readonly workflowPollerStateSubject = new BehaviorSubject<'POLLING' | 'SHUTDOWN' | 'FAILED'>('POLLING');
   protected readonly numInFlightActivationsSubject = new BehaviorSubject<number>(0);
   protected readonly numInFlightActivitiesSubject = new BehaviorSubject<number>(0);
   protected readonly numRunningWorkflowInstancesSubject = new BehaviorSubject<number>(0);
+  protected readonly evictionsSubject = new Subject<{ runId: string; evictJob: IRemoveFromCache }>();
   private readonly runIdsToSpanContext = new Map<string, SpanContext>();
 
   protected static nativeWorkerCtor: WorkerConstructor = NativeWorker;
+  // Used to add uniqueness to replay worker task queue names
+  protected static replayWorkerCount = 0;
+  private static readonly SELF_INDUCED_SHUTDOWN_EVICTION: IRemoveFromCache = {
+    message: 'Shutting down',
+    reason: EvictionReason.FATAL,
+  };
   protected readonly tracer: otel.Tracer;
 
   /**
@@ -186,6 +207,62 @@ export class Worker {
     const nativeWorkerCtor: WorkerConstructor = this.nativeWorkerCtor;
     const compiledOptions = compileWorkerOptions(addDefaultWorkerOptions(options));
     const nativeWorker = await nativeWorkerCtor.create(compiledOptions);
+    return await this.bundleWorker(compiledOptions, nativeWorker);
+  }
+
+  /**
+   * Create a replay Worker, and run the provided history against it. Will resolve as soon as
+   * the history has finished being replayed, or if the workflow produces a nondeterminism error.
+   *
+   * @throws DeterminismViolationError if the workflow code is not compatible with the history.
+   */
+  public static async runReplayHistory(options: ReplayWorkerOptions, history: History): Promise<void> {
+    const nativeWorkerCtor: WorkerConstructor = this.nativeWorkerCtor;
+    const fixedUpOptions: WorkerOptions = {
+      taskQueue: options.replayName + '-' + this.replayWorkerCount,
+      debugMode: true,
+      ...options,
+    };
+    this.replayWorkerCount += 1;
+    const compiledOptions = compileWorkerOptions(addDefaultWorkerOptions(fixedUpOptions));
+    const replayWorker = await nativeWorkerCtor.createReplay(compiledOptions, history);
+    const constructedWorker = await this.bundleWorker(compiledOptions, replayWorker);
+
+    const runPromise = constructedWorker.run();
+    const pollerShutdown = firstValueFrom(
+      constructedWorker.workflowPollerStateSubject.pipe(filter((state) => state !== 'POLLING'))
+    );
+
+    const evictionPromise = firstValueFrom(
+      constructedWorker.evictionsSubject.pipe(
+        // Ignore self-induced shutdowns, as they are a legit and we'll terminate normally.
+        filter((ev) => ev.evictJob != this.SELF_INDUCED_SHUTDOWN_EVICTION),
+        map((ev) => {
+          if (ev.evictJob.reason === EvictionReason.NONDETERMINISM) {
+            throw new DeterminismViolationError(
+              'Replay failed with a nondeterminism error. This means that the workflow code as written ' +
+                `is not compatible with the history that was fed in. Details: ${ev.evictJob.message}`
+            );
+          } else {
+            throw new Error(`Replay failed. Details: ${ev.evictJob.message}`);
+          }
+        })
+      )
+    );
+
+    await Promise.race([runPromise, Promise.all([evictionPromise, pollerShutdown])]).finally(() => {
+      try {
+        constructedWorker.shutdown();
+      } catch {
+        // We may have already shut down and that's fine
+      }
+    });
+  }
+
+  protected static async bundleWorker(
+    compiledOptions: CompiledWorkerOptions,
+    nativeWorker: NativeWorkerLike
+  ): Promise<Worker> {
     try {
       let bundle: string | undefined = undefined;
       let workflowCreator: WorkflowCreator | undefined = undefined;
@@ -199,11 +276,11 @@ export class Worker {
         );
         bundle = await bundler.createBundle();
         nativeWorker.logger.info('Workflow bundle created', { size: `${toMB(bundle.length)}MB` });
-      } else if (options.workflowBundle) {
-        if (isCodeBundleOption(options.workflowBundle)) {
-          bundle = options.workflowBundle.code;
-        } else if (isPathBundleOption(options.workflowBundle)) {
-          bundle = await fs.readFile(options.workflowBundle.path, 'utf8');
+      } else if (compiledOptions.workflowBundle) {
+        if (isCodeBundleOption(compiledOptions.workflowBundle)) {
+          bundle = compiledOptions.workflowBundle.code;
+        } else if (isPathBundleOption(compiledOptions.workflowBundle)) {
+          bundle = await fs.readFile(compiledOptions.workflowBundle.path, 'utf8');
         } else {
           throw new TypeError('Invalid WorkflowOptions.workflowBundle');
         }
@@ -256,7 +333,7 @@ export class Worker {
   }
 
   /**
-   * An Observable which emits each time the number of in flight activations changes
+   * An Observable which emits each time the number of cached workflows changes
    */
   public get numRunningWorkflowInstances$(): Observable<number> {
     return this.numRunningWorkflowInstancesSubject;
@@ -305,7 +382,8 @@ export class Worker {
   }
 
   /**
-   * An observable which completes when state becomes DRAINED or throws if state transitions to STOPPING and remains that way for {@link this.options.shutdownGraceTimeMs}.
+   * An observable which completes when state becomes DRAINED or throws if state transitions to
+   * STOPPING and remains that way for {@link this.options.shutdownGraceTimeMs}.
    */
   protected gracefulShutdown$(): Observable<never> {
     return race(
@@ -512,16 +590,16 @@ export class Worker {
       mergeMap((group$) => {
         return merge(
           group$.pipe(map((act) => ({ ...act, synthetic: false }))),
-          this.stateSubject.pipe(
+          this.workflowPollerStateSubject.pipe(
             // Core has indicated that it will not return any more poll results, evict all cached WFs
-            filter((state) => state === 'DRAINING'),
+            filter((state) => state !== 'POLLING'),
             first(),
             map((): ContextAware<{ activation: coresdk.workflow_activation.WorkflowActivation; synthetic: true }> => {
               return {
                 parentSpan: this.tracer.startSpan('workflow.shutdown.evict'),
                 activation: new coresdk.workflow_activation.WorkflowActivation({
                   runId: group$.key,
-                  jobs: [{ removeFromCache: { reason: 'Shutting down' } }],
+                  jobs: [{ removeFromCache: Worker.SELF_INDUCED_SHUTDOWN_EVICTION }],
                 }),
                 synthetic: true,
               };
@@ -545,9 +623,18 @@ export class Worker {
                     numInFlightActivations: this.numInFlightActivationsSubject.value,
                     numRunningWorkflowInstances: this.numRunningWorkflowInstancesSubject.value,
                   });
-                  const jobs = activation.jobs.filter(({ removeFromCache }) => !removeFromCache);
-                  // Found a removeFromCache job
-                  const close = jobs.length < activation.jobs.length;
+                  const removeFromCacheIx = activation.jobs.findIndex(({ removeFromCache }) => removeFromCache);
+                  const close = removeFromCacheIx !== -1;
+                  const jobs = activation.jobs;
+                  if (close) {
+                    const asEvictJob = jobs.splice(removeFromCacheIx, 1)[0].removeFromCache;
+                    if (asEvictJob) {
+                      this.evictionsSubject.next({
+                        runId: activation.runId,
+                        evictJob: asEvictJob,
+                      });
+                    }
+                  }
                   activation.jobs = jobs;
                   if (jobs.length === 0) {
                     state?.workflow.dispose();
@@ -740,19 +827,22 @@ export class Worker {
           taskToken,
           details: [payload],
         }).finish();
-        this.nativeWorker.recordActivityHeartbeat(arr.buffer.slice(arr.byteOffset, arr.byteLength + arr.byteOffset));
+        this.nativeWorker.recordActivityHeartbeat(byteArrayToBuffer(arr));
       })
     );
   }
 
   /**
-   * Poll core for `WorkflowActivation`s while respecting worker state
+   * Poll core for `WorkflowActivation`s while respecting worker state.
    */
   protected workflowPoll$(): Observable<ActivationWithContext> {
     return this.pollLoop$(async () => {
       const parentSpan = this.tracer.startSpan('workflow.activation');
-      try {
-        return await instrument(this.tracer, parentSpan, 'workflow.poll', async (span) => {
+      return await instrument(
+        this.tracer,
+        parentSpan,
+        'workflow.poll',
+        async (span) => {
           const buffer = await this.nativeWorker.pollWorkflowActivation(span.spanContext());
           const activation = coresdk.workflow_activation.WorkflowActivation.decode(new Uint8Array(buffer));
           const { runId, ...rest } = activation;
@@ -762,12 +852,19 @@ export class Worker {
           await this.linkWorkflowSpans(runId, rest.jobs, parentSpan);
 
           return { activation, parentSpan };
-        });
-      } catch (err) {
-        parentSpan.setStatus({ code: otel.SpanStatusCode.ERROR }).end();
-        throw err;
-      }
-    });
+        },
+        (err) => err instanceof errors.ShutdownError
+      );
+    }).pipe(
+      tap({
+        complete: () => {
+          this.workflowPollerStateSubject.next('SHUTDOWN');
+        },
+        error: () => {
+          this.workflowPollerStateSubject.next('FAILED');
+        },
+      })
+    );
   }
 
   /**
@@ -823,17 +920,25 @@ export class Worker {
           root.end();
         }
       }),
-      tap({ complete: () => this.log.debug('Workflows complete') })
+      tap({
+        complete: () => {
+          this.log.debug('Workflows complete');
+        },
+      })
     );
   }
+
   /**
    * Poll core for `ActivityTask`s while respecting worker state
    */
   protected activityPoll$(): Observable<ActivityTaskWithContext> {
     return this.pollLoop$(async () => {
       const parentSpan = this.tracer.startSpan('activity.task');
-      try {
-        return await instrument(this.tracer, parentSpan, 'activity.poll', async (span) => {
+      return await instrument(
+        this.tracer,
+        parentSpan,
+        'activity.poll',
+        async (span) => {
           const buffer = await this.nativeWorker.pollActivityTask(span.spanContext());
           const task = coresdk.activity_task.ActivityTask.decode(new Uint8Array(buffer));
           const { taskToken, ...rest } = task;
@@ -854,11 +959,9 @@ export class Worker {
             linkSpans(parentSpan, ctx);
           }
           return { task, parentSpan, formattedTaskToken };
-        });
-      } catch (err) {
-        parentSpan.setStatus({ code: otel.SpanStatusCode.ERROR }).end();
-        throw err;
-      }
+        },
+        (err) => err instanceof errors.ShutdownError
+      );
     });
   }
 
@@ -908,7 +1011,7 @@ export class Worker {
    */
   async run(): Promise<void> {
     if (this.state !== 'INITIALIZED') {
-      throw new IllegalStateError('Poller was aleady started');
+      throw new IllegalStateError('Poller was already started');
     }
     this.state = 'RUNNING';
 

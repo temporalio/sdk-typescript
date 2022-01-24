@@ -6,13 +6,12 @@ use neon::{
     types::{JsNumber, JsString},
 };
 use opentelemetry::trace::{SpanContext, SpanId, TraceFlags, TraceId, TraceState};
-use std::net::SocketAddr;
-use std::{fmt::Display, str::FromStr, time::Duration};
+use std::{fmt::Display, net::SocketAddr, str::FromStr, time::Duration};
 use temporal_sdk_core::{
+    api::worker::{WorkerConfig, WorkerConfigBuilder},
     ClientTlsConfig, RetryConfig, ServerGatewayOptions, ServerGatewayOptionsBuilder,
     TelemetryOptions, TelemetryOptionsBuilder, TlsConfig, Url,
 };
-use temporal_sdk_core_api::worker::{WorkerConfig, WorkerConfigBuilder};
 
 macro_rules! js_value_getter {
     ($js_cx:expr, $js_obj:ident, $prop_name:expr, $js_type:ty) => {
@@ -194,15 +193,13 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
                     "maxInterval",
                     JsNumber
                 ) as u64),
-                max_elapsed_time: match js_optional_getter!(
+                max_elapsed_time: js_optional_getter!(
                     cx,
                     &retry_config,
                     "maxElapsedTime",
                     JsNumber
-                ) {
-                    None => None,
-                    Some(val) => Some(Duration::from_millis(val.value(cx) as u64)),
-                },
+                )
+                .map(|val| Duration::from_millis(val.value(cx) as u64)),
                 max_retries: js_value_getter!(cx, retry_config, "maxRetries", JsNumber) as usize,
             },
         };
