@@ -7,7 +7,7 @@
   "scripts": {
     "build-rust": "node ./scripts/build.js --force",
     "build": "npm run build-rust",
-    "install": "node ./scripts/build.js"
+    "build-rust-release": "npm run build-rust -- --release"
   },
   "keywords": [
     "temporal",
