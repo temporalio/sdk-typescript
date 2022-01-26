@@ -30,7 +30,8 @@ jobs:
       - uses: actions/setup-node@v1
         with:
           node-version: ${{ matrix.node }}
-      - run: npm ci
+      # Don't build during install phase since we're going to explicitly build
+      - run: npm ci --ignore-scripts
       - run: npm run build
 
       - name: Get Temporal docker-compose.yml
@@ -101,7 +102,8 @@ jobs:
           node-version: 16
       - name: Add ${{ matrix.target }} rust target
         run: rustup target add ${{ matrix.target }}
-      - run: npm ci
+      # Don't build during install phase since we're going to explicitly build
+      - run: npm ci --ignore-scripts
       - name: Compile build all non-rust code
         run: npm run ci-build-no-rust
       - name: Cross compile rust code
@@ -129,7 +131,8 @@ jobs:
       - uses: actions/setup-node@v1
         with:
           node-version: 16
-      - run: npm ci
+      # Don't build during install phase since we don't need builds for linting
+      - run: npm ci --ignore-scripts
       - run: npm run lint
       - run: npm run lint.prune
 
