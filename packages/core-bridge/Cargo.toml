@@ -10,6 +10,12 @@ exclude = ["index.node", "sdk-core"]
 name = "temporal_sdk_typescript_bridge"
 crate-type = ["cdylib"]
 
+[profile.release]
+opt-level = 3
+debug = false
+lto = true
+incremental = false
+
 [dependencies]
 futures = { version = "0.3", features = ["executor"] }
 log = "0.4"

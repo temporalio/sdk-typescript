@@ -27,6 +27,7 @@ const args = arg({
   '-h': '--help',
   '--version': Boolean,
   '-v': '--version',
+  '--release': Boolean,
   '--target': [String],
   '--force': Boolean,
   '-f': '--force',
@@ -41,7 +42,8 @@ Options:
 -h, --help     Show this help message and exit
 -v, --version  Show program's version number and exit
 -f, --force    Forces a build instead of using a prebuilt binary
--t, --target   Compilation targets, choose any of:
+--release      Build in release mode (or set BUILD_CORE_RELEASE env var)
+--target       Compilation targets, choose any of:
   ${targets.concat('all').join('\n  ')}
 
 Happy compiling!`;
@@ -54,7 +56,6 @@ if (args['--version']) {
   console.log(version);
   process.exit();
 }
-// });
 
 // prepare recompile options
 const targetsArg = args['--target'] || [];
@@ -65,9 +66,10 @@ if (unsupportedTargets.length) {
   process.exit(1);
 }
 const forceBuild = args['--force'];
+const buildRelease = args['--release'] || process.env.BUILD_CORE_RELEASE !== undefined;
 
 function compile(target) {
-  console.log('Compiling bridge', { target });
+  console.log('Compiling bridge', { target, buildRelease });
 
   const out = target ? `releases/${target}/index.node` : 'index.node';
   try {
@@ -87,7 +89,7 @@ function compile(target) {
     'cargo',
     'build',
     '--message-format=json-render-diagnostics',
-    '--release',
+    ...(buildRelease ? ['--release'] : []),
     ...(target ? ['--target', target] : []),
   ];
   const cmd = which.sync('cargo-cp-artifact');
@@ -114,7 +116,7 @@ function usePrebuilt() {
     throw new PrebuildError(`No prebuilt module for arch ${os.arch()}`);
   }
   const platform = platformMapping[os.platform()];
-  if (arch === undefined) {
+  if (platform === undefined) {
     throw new PrebuildError(`No prebuilt module for platform ${os.platform()}`);
   }
   const source = path.resolve(__dirname, '../releases', `${arch}-${platform}`, 'index.node');
