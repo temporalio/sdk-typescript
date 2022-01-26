@@ -105,7 +105,7 @@ jobs:
       - name: Compile build all non-rust code
         run: npm run ci-build-no-rust
       - name: Cross compile rust code
-        run: npx lerna run --stream build-rust -- -- --target ${{ matrix.target }}
+        run: npx lerna run --stream build-rust-release -- -- --target ${{ matrix.target }}
       # Restore the CLI JS only on Windows because Windows build changes the
       # file attributes causing publish to think the change is uncommitted
       - run: git restore packages/create-project/cli.js
