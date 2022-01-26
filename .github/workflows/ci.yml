@@ -104,7 +104,7 @@ jobs:
         run: rustup target add ${{ matrix.target }}
       # Don't build during install phase since we're going to explicitly build
       - run: npm ci --ignore-scripts
-      - name: Compile build all non-rust code
+      - name: Compile all non-rust code
         run: npm run ci-build-no-rust
       - name: Cross compile rust code
         run: npx lerna run --stream build-rust-release -- -- --target ${{ matrix.target }}
