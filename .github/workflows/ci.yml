@@ -33,6 +33,8 @@ jobs:
       # Don't build during install phase since we're going to explicitly build
       - run: npm ci --ignore-scripts
       - run: npm run build
+        env:
+          BUILD_CORE_RELEASE: true
 
       - name: Get Temporal docker-compose.yml
         run: wget https://raw.githubusercontent.com/temporalio/docker-compose/v1.13.0/docker-compose.yml
