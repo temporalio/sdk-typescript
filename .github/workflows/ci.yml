@@ -72,6 +72,24 @@ jobs:
           NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
           NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
 
+  # Run TS linting and ts-prune to find unused code
+  lint-and-prune:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          submodules: recursive
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+      - uses: actions/setup-node@v1
+        with:
+          node-version: 16
+      # Don't build during install phase since we don't need builds for linting
+      - run: npm ci --ignore-scripts
+      - run: npm run lint
+      - run: npm run lint.prune
+
   # Compile native bridge code and isolate extension for Windows, Mac and Linux.
   # Uploads the packages as a build artifact to be tested later.
   compile-binaries:
@@ -119,24 +137,6 @@ jobs:
         with:
           name: packages-${{ matrix.target }}
           path: /tmp/registry/storage
-
-  # Run TS linting and ts-prune to find unused code
-  lint-and-prune:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
-        with:
-          submodules: recursive
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-      - uses: actions/setup-node@v1
-        with:
-          node-version: 16
-      # Don't build during install phase since we don't need builds for linting
-      - run: npm ci --ignore-scripts
-      - run: npm run lint
-      - run: npm run lint.prune
 
   # Tests that npm init @temporalio results in a working worker and client
   # Note that the instances used here don't have the Rust toolchain installed which ensures use of prebuilt libs.
@@ -222,3 +222,47 @@ jobs:
         if: ${{ matrix.server == 'cloud' && env.TEMPORAL_CLIENT_CERT != '' }}
       - run: rm /tmp/temporal-certs/client.key
         if: ${{ matrix.server == 'cloud' && env.TEMPORAL_CLIENT_CERT != '' }}
+
+  # Run the sdk features repo tests with this repo's current SDK code
+  sdk-features-tests:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./sdk-ts
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          submodules: recursive
+          path: sdk-ts
+      - name: Checkout sdk-features repo
+        uses: actions/checkout@v2
+        with:
+          repository: temporalio/sdk-features
+          path: sdk-features
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+      - uses: actions/setup-node@v1
+        with:
+          node-version: 16
+      - uses: actions/setup-go@v2
+        with:
+          go-version: '^1.17'
+
+      # Don't build during install phase since we're going to explicitly build
+      - run: npm ci --ignore-scripts
+      - run: npm run build
+        env:
+          BUILD_CORE_RELEASE: true
+
+      - name: Get Temporal docker-compose.yml
+        run: wget https://raw.githubusercontent.com/temporalio/docker-compose/v1.13.0/docker-compose.yml
+      - name: Start Temporal Server
+        run: docker-compose up -d
+      - name: Wait for Temporal Server
+        run: npm run wait-namespace
+
+      - name: Run SDK-features tests
+        run: go run . run --lang ts --server localhost:7233 --namespace default --version "$(realpath ../sdk-ts)"
+        working-directory: ./sdk-features
+
