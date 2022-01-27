@@ -239,6 +239,8 @@ jobs:
         with:
           repository: temporalio/sdk-features
           path: sdk-features
+          # TODO: Undo this after making everything work
+          ref: ts-runner-fixes
       - uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
@@ -262,7 +264,9 @@ jobs:
       - name: Wait for Temporal Server
         run: npm run wait-namespace
 
+      - name: Build sdk-features go
+        run: go build
+        working-directory: ./sdk-features
       - name: Run SDK-features tests
         run: go run . run --lang ts --server localhost:7233 --namespace default --version "$(realpath ../sdk-ts)"
         working-directory: ./sdk-features
-
