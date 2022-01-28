@@ -12,8 +12,8 @@ import {
   Workflow,
   WorkflowQueryType,
   TemporalFailure,
-} from '@temporalio/common';
-import { checkExtends } from '@temporalio/common/lib/type-helpers';
+} from '@temporalio/workflow-common';
+import { checkExtends } from '@temporalio/workflow-common/lib/type-helpers';
 import type { coresdk } from '@temporalio/proto/lib/coresdk';
 import { alea, RNG } from './alea';
 import { ContinueAsNew, WorkflowInfo } from './interfaces';

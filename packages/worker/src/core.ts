@@ -13,7 +13,7 @@ import {
 import { compileServerOptions, getDefaultServerOptions, RequiredServerOptions, ServerOptions } from './server-options';
 import { DefaultLogger, Logger, LogEntry, LogTimestamp, timeOfDayToBigint } from './logger';
 import * as errors from './errors';
-import { MakeOptional } from '@temporalio/common/src/type-helpers';
+import { MakeOptional } from '@temporalio/workflow-common/src/type-helpers';
 
 export type TelemetryOptions = MakeOptional<RequiredTelemetryOptions, 'logForwardingLevel'>;
 

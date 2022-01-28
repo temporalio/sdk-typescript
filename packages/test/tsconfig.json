@@ -12,6 +12,5 @@
     { "path": "../worker" },
     { "path": "../workflow" }
   ],
-  "include": ["./src/**/*.ts"],
-  "exclude": ["node_modules"]
+  "include": ["./src/**/*.ts"]
 }

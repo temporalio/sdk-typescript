@@ -1,6 +1,6 @@
-# `@temporalio/proto`
+# `@temporalio/workflow-common`
 
-[![NPM](https://img.shields.io/npm/v/@temporalio/proto?style=for-the-badge)](https://www.npmjs.com/package/@temporalio/proto)
+[![NPM](https://img.shields.io/npm/v/@temporalio/workflow-common?style=for-the-badge)](https://www.npmjs.com/package/@temporalio/workflow-common)
 
 Part of [Temporal](https://temporal.io)'s TypeScript SDK (see [docs](https://docs.temporal.io/docs/typescript/introduction/) and [samples](https://github.com/temporalio/samples-typescript)).
 

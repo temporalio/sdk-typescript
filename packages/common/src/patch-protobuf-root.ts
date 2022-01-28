@@ -1,4 +1,4 @@
-import { isRecord } from '../type-helpers';
+import { isRecord } from '@temporalio/workflow-common/lib/type-helpers';
 
 export function patchProtobufRoot<T extends Record<string, unknown>>(root: T, name?: string): T {
   const newRoot = new (root.constructor as any)(isNamespace(root) ? name : {});

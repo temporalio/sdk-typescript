@@ -72,7 +72,7 @@ export {
   TerminatedFailure,
   TimeoutFailure,
   ValueError,
-} from '@temporalio/common';
+} from '@temporalio/workflow-common';
 export {
   ChildWorkflowOptions,
   ChildWorkflowCancellationType,

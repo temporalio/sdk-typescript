@@ -11,7 +11,7 @@ import {
   Workflow,
   ApplicationFailure,
   errorMessage,
-} from '@temporalio/common';
+} from '@temporalio/workflow-common';
 import type { coresdk } from '@temporalio/proto/lib/coresdk';
 import { WorkflowInfo } from './interfaces';
 import { handleWorkflowFailure, InterceptorsImportFunc, state, WorkflowsImportFunc } from './internals';

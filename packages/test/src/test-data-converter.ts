@@ -6,14 +6,14 @@ import {
   METADATA_MESSAGE_TYPE_KEY,
   encodingKeys,
   u8,
-} from '@temporalio/common/lib/converter/types';
+} from '@temporalio/workflow-common/lib/converter/types';
 import {
   UndefinedPayloadConverter,
   BinaryPayloadConverter,
   JsonPayloadConverter,
   ProtobufBinaryPayloadConverter,
   ProtobufJsonPayloadConverter,
-} from '@temporalio/common/lib/converter/payload-converter';
+} from '@temporalio/workflow-common/lib/converter/payload-converter';
 import root from '../protos/root';
 
 test('UndefinedPayloadConverter converts from undefined only', async (t) => {

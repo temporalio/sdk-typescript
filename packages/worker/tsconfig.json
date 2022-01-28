@@ -10,6 +10,5 @@
     { "path": "../workflow/tsconfig.json" },
     { "path": "../activity/tsconfig.json" }
   ],
-  "include": ["./src/**/*.ts"],
-  "exclude": ["node_modules"]
+  "include": ["./src/**/*.ts"]
 }

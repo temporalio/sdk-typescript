@@ -1,6 +1,6 @@
 import * as otel from '@opentelemetry/api';
-import { defaultDataConverter } from './converter/data-converter';
-import { Headers } from './interceptors';
+import { defaultDataConverter } from '@temporalio/workflow-common';
+import { Headers } from '@temporalio/workflow-common';
 
 /** Default trace header for opentelemetry interceptors */
 export const TRACE_HEADER = '_tracer-data';

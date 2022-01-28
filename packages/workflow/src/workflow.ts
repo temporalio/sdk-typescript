@@ -15,7 +15,7 @@ import {
   WorkflowReturnType,
   compileRetryPolicy,
   ActivityInterface,
-} from '@temporalio/common';
+} from '@temporalio/workflow-common';
 import {
   ChildWorkflowCancellationType,
   ChildWorkflowOptions,

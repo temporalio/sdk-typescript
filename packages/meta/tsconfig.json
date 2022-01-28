@@ -12,6 +12,5 @@
     { "path": "../worker/tsconfig.json" },
     { "path": "../workflow/tsconfig.json" }
   ],
-  "include": ["./src/**/*.ts"],
-  "exclude": ["node_modules"]
+  "include": ["./src/**/*.ts"]
 }
