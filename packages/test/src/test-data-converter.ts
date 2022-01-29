@@ -1,20 +1,28 @@
 /* eslint @typescript-eslint/no-non-null-assertion: 0 */
-import test from 'ava';
-import { defaultDataConverter, ValueError, DataConverterError, DefaultDataConverter } from '@temporalio/common';
+import { Connection, WorkflowClient } from '@temporalio/client';
+import { DataConverterError, defaultDataConverter, DefaultDataConverter, ValueError } from '@temporalio/common';
+import { Core, DefaultLogger, Worker } from '@temporalio/worker';
+import { CompositeDataConverter } from '@temporalio/workflow-common';
 import {
-  METADATA_ENCODING_KEY,
-  METADATA_MESSAGE_TYPE_KEY,
-  encodingKeys,
-  u8,
-} from '@temporalio/workflow-common/lib/converter/types';
-import {
-  UndefinedPayloadConverter,
   BinaryPayloadConverter,
   JsonPayloadConverter,
   ProtobufBinaryPayloadConverter,
   ProtobufJsonPayloadConverter,
+  UndefinedPayloadConverter,
 } from '@temporalio/workflow-common/lib/converter/payload-converter';
+import {
+  encodingKeys,
+  METADATA_ENCODING_KEY,
+  METADATA_MESSAGE_TYPE_KEY,
+  u8,
+} from '@temporalio/workflow-common/lib/converter/types';
+import test from 'ava';
+import { v4 as uuid4 } from 'uuid';
 import root from '../protos/root';
+import { messageInstance } from './data-converters/data-converter';
+import { RUN_INTEGRATION_TESTS } from './helpers';
+import { defaultOptions } from './mock-native-worker';
+import { protobufWorkflow } from './workflows';
 
 test('UndefinedPayloadConverter converts from undefined only', async (t) => {
   const converter = new UndefinedPayloadConverter();
@@ -155,6 +163,46 @@ test('ProtobufJSONPayloadConverter converts binary', async (t) => {
   const testInstance = await converter.fromData<root.BinaryMessage>(encoded!);
   t.deepEqual(testInstance.data, Buffer.from(instance.data));
 });
+
+if (RUN_INTEGRATION_TESTS) {
+  test('Worker throws decoding proto JSON without WorkerOptions.dataConverter', async (t) => {
+    t.timeout(5 * 1000);
+    let markErrorThrown: any;
+    const expectedErrorWasThrown = new Promise(function (resolve) {
+      markErrorThrown = resolve;
+    });
+    const logger = new DefaultLogger('ERROR', (entry) => {
+      if (
+        entry.meta?.error.stack.includes(
+          'DataConverterError: Unable to deserialize protobuf message without `root` being provided'
+        )
+      ) {
+        markErrorThrown();
+      }
+    });
+    await Core.install({ logger });
+
+    const taskQueue = 'test-data-converter';
+    const worker = await Worker.create({
+      ...defaultOptions,
+      taskQueue,
+      enableSDKTracing: true,
+    });
+    const connection = new Connection();
+    const client = new WorkflowClient(connection.service, {
+      dataConverter: new CompositeDataConverter(new ProtobufJsonPayloadConverter(root)),
+    });
+    worker.run();
+    client.execute(protobufWorkflow, {
+      args: [messageInstance],
+      workflowId: uuid4(),
+      taskQueue,
+    });
+    await expectedErrorWasThrown;
+    t.pass();
+    worker.shutdown();
+  });
+}
 
 test('DefaultDataConverter converts protobufs', async (t) => {
   const instance = root.ProtoActivityInput.create({ name: 'Proto', age: 1 });

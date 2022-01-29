@@ -134,8 +134,18 @@ export class WorkflowCodeBundler {
         library: '__TEMPORAL__',
       },
     };
-    if (dataConverterPath && webpackConfig.resolve) {
-      webpackConfig.resolve.alias = { __temporal_custom_data_converter$: dataConverterPath };
+    if (webpackConfig.resolve) {
+      if (dataConverterPath) {
+        webpackConfig.resolve.alias = {
+          __temporal_custom_data_converter$: dataConverterPath,
+        };
+      } else {
+        // Save 100KB from the bundle by not including the npm module,
+        // since we can't decode without a `root` anyway.
+        webpackConfig.resolve.alias = {
+          'proto3-json-serializer$': path.resolve(__dirname, 'empty-proto3-json-serializer.js'),
+        };
+      }
     }
 
     const compiler = webpack(webpackConfig);

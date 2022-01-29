@@ -33,7 +33,7 @@ function compareCompletion(
 
 if (RUN_INTEGRATION_TESTS) {
   test('Client and Worker work with provided dataConverter/dataConverterPath', async (t) => {
-    const taskQueue = 'custom-data-converter';
+    const taskQueue = 'test-custom-data-converter';
     const worker = await Worker.create({
       ...defaultOptions,
       taskQueue,
