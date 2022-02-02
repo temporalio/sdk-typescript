@@ -1,4 +1,5 @@
-import { DefaultLogger, ReplayCore, Core, Worker } from '@temporalio/worker';
+import { DefaultLogger, Core, Worker } from '@temporalio/worker';
+import { ReplayCore } from '@temporalio/worker/lib/core';
 import anyTest, { TestInterface } from 'ava';
 import { temporal } from '@temporalio/proto';
 const History = temporal.api.history.v1.History;
