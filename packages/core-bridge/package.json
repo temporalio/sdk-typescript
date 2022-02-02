@@ -36,6 +36,8 @@
     "sdk-core",
     "Cargo.toml",
     "Cargo.lock",
+    "index.js",
+    "common.js",
     "index.d.ts"
   ],
   "publishConfig": {
