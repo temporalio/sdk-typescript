@@ -18,7 +18,7 @@ import {
 } from 'rxjs';
 import { delay, filter, first, ignoreElements, map, mergeMap, takeUntil, takeWhile, tap } from 'rxjs/operators';
 import * as native from '@temporalio/core-bridge';
-import { coresdk, temporal } from '@temporalio/proto';
+import { coresdk } from '@temporalio/proto';
 import { Info as ActivityInfo } from '@temporalio/activity';
 import {
   arrayFromPayloads,
