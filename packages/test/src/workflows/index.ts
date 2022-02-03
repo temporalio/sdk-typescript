@@ -70,6 +70,7 @@ export * from './try-to-continue-after-completion';
 export * from './fail-unless-signaled-before-start';
 export * from './smorgasbord';
 export * from './condition';
+export * from './condition-completion-race';
 export * from './sleep-invalid-duration';
 export * from './signals-are-always-processed';
 export * from './async-activity-completion-tester';

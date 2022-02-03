@@ -104,8 +104,10 @@ export class Activator implements ActivationHandler {
   }
 
   public fireTimer(activation: coresdk.workflow_activation.IFireTimer): void {
-    const { resolve } = consumeCompletion('timer', getSeq(activation));
-    resolve(undefined);
+    // Timers are a special case where their completion might not be in Workflow state,
+    // this is due to immediate timer cancellation that doesn't go wait for Core.
+    const completion = maybeConsumeCompletion('timer', getSeq(activation));
+    completion?.resolve(undefined);
   }
 
   public async resolveActivity(activation: coresdk.workflow_activation.IResolveActivity): Promise<void> {
@@ -525,12 +527,21 @@ async function failQuery(queryId: string, error: any) {
   });
 }
 
-export function consumeCompletion(type: keyof State['completions'], taskSeq: number): Completion {
+/** Consume a completion if it exists in Workflow state */
+export function maybeConsumeCompletion(type: keyof State['completions'], taskSeq: number): Completion | undefined {
   const completion = state.completions[type].get(taskSeq);
+  if (completion !== undefined) {
+    state.completions[type].delete(taskSeq);
+  }
+  return completion;
+}
+
+/** Consume a completion if it exists in Workflow state, throws if it doesn't */
+export function consumeCompletion(type: keyof State['completions'], taskSeq: number): Completion {
+  const completion = maybeConsumeCompletion(type, taskSeq);
   if (completion === undefined) {
     throw new IllegalStateError(`No completion for taskSeq ${taskSeq}`);
   }
-  state.completions[type].delete(taskSeq);
   return completion;
 }
 
