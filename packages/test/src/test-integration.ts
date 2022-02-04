@@ -727,7 +727,54 @@ if (RUN_INTEGRATION_TESTS) {
         if (wftFailedEvent === undefined) {
           throw new Error('No WFT failed event');
         }
-        t.is(wftFailedEvent.workflowTaskFailedEventAttributes?.failure?.message, 'Error: unhandled rejection');
+        const failure = wftFailedEvent.workflowTaskFailedEventAttributes?.failure;
+        if (!failure) {
+          t.fail();
+          return;
+        }
+        t.is(failure.message, 'unhandled rejection');
+        t.true(
+          failure.stackTrace?.includes(
+            dedent`
+          Error: unhandled rejection
+              at eval (webpack-internal:///./lib/workflows/unhandled-rejection.js
+          `
+          )
+        );
+        t.is(failure.cause?.message, 'root failure');
+      },
+      { minTimeout: 300, factor: 1, retries: 100 }
+    );
+    await handle.terminate();
+  });
+
+  test('throwObject includes message and our stackTrace recommendation', async (t) => {
+    const { client } = t.context;
+    const workflowId = uuid4();
+    const handle = await client.start(workflows.throwObject, {
+      taskQueue: 'test',
+      workflowId,
+    });
+    await asyncRetry(
+      async () => {
+        const history = await client.service.getWorkflowExecutionHistory({
+          namespace: 'default',
+          execution: { workflowId },
+        });
+        const wftFailedEvent = history.history?.events?.find((ev) => ev.workflowTaskFailedEventAttributes);
+        if (wftFailedEvent === undefined) {
+          throw new Error('No WFT failed event');
+        }
+        const failure = wftFailedEvent.workflowTaskFailedEventAttributes?.failure;
+        if (!failure) {
+          t.fail();
+          return;
+        }
+        t.is(failure.message, '{"plainObject":true}');
+        t.is(
+          failure.stackTrace,
+          'A non-Error value was thrown from your code. We recommend throwing Error objects so that we can provide a stack trace.'
+        );
       },
       { minTimeout: 300, factor: 1, retries: 100 }
     );
