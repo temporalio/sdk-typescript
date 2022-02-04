@@ -748,7 +748,7 @@ if (RUN_INTEGRATION_TESTS) {
     await handle.terminate();
   });
 
-  test('throwObject includes message and our stackTrace recommendation', async (t) => {
+  test('throwObject includes message with our recommendation', async (t) => {
     const { client } = t.context;
     const workflowId = uuid4();
     const handle = await client.start(workflows.throwObject, {
@@ -770,10 +770,9 @@ if (RUN_INTEGRATION_TESTS) {
           t.fail();
           return;
         }
-        t.is(failure.message, '{"plainObject":true}');
         t.is(
-          failure.stackTrace,
-          'A non-Error value was thrown from your code. We recommend throwing Error objects so that we can provide a stack trace.'
+          failure.message,
+          '{"plainObject":true} [A non-Error value was thrown from your code. We recommend throwing Error objects so that we can provide a stack trace.]'
         );
       },
       { minTimeout: 300, factor: 1, retries: 100 }

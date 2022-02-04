@@ -338,13 +338,13 @@ export async function errorToFailure(err: unknown, dataConverter: DataConverter)
     };
   }
 
-  const stackTrace = `A non-Error value was thrown from your code. We recommend throwing Error objects so that we can provide a stack trace.`;
+  const recommendation = ` [A non-Error value was thrown from your code. We recommend throwing Error objects so that we can provide a stack trace.]`;
 
   if (typeof err === 'string') {
-    return { ...base, stackTrace, message: err };
+    return { ...base, message: err + recommendation };
   }
 
-  return { ...base, stackTrace, message: JSON.stringify(err) };
+  return { ...base, message: JSON.stringify(err) + recommendation };
 }
 
 /**
