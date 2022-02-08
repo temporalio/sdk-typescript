@@ -17,7 +17,8 @@ import * as errors from './errors';
 import { temporal } from '@temporalio/proto';
 import { byteArrayToBuffer } from './utils';
 import { MakeOptional } from '@temporalio/common/src/type-helpers';
-import History = temporal.api.history.v1.History;
+
+export type History = temporal.api.history.v1.IHistory;
 
 export type TelemetryOptions = MakeOptional<RequiredTelemetryOptions, 'logForwardingLevel'>;
 
@@ -282,6 +283,8 @@ export class Core {
 /**
  * An alternate version of Core which creates core instances that use mocks
  * rather than an actual server to replay histories.
+ *
+ * Intentionally not exported since Core will soon be deprecated.
  */
 export class ReplayCore extends Core {
   protected static _statics: CoreStatics<ReplayCore> = new CoreStatics((opts, cb) =>
@@ -294,7 +297,7 @@ export class ReplayCore extends Core {
     const worker = await promisify(native.newReplayWorker)(
       this.native,
       options,
-      byteArrayToBuffer(History.encodeDelimited(history).finish())
+      byteArrayToBuffer(temporal.api.history.v1.History.encodeDelimited(history).finish())
     );
     this.registeredWorkers.add(worker);
     return worker;

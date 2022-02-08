@@ -1706,3 +1706,28 @@ test('conditionWaiter', async (t) => {
     compareCompletion(t, completion, makeSuccess([makeCompleteWorkflowExecution()]));
   }
 });
+
+test('conditionRacer', async (t) => {
+  const { workflowType } = t.context;
+  {
+    const completion = await activate(t, makeStartWorkflow(workflowType));
+    compareCompletion(
+      t,
+      completion,
+      makeSuccess([makeStartTimerCommand({ seq: 1, startToFireTimeout: msToTs('1s') })])
+    );
+  }
+  {
+    const completion = await activate(
+      t,
+      makeActivation(
+        Date.now(),
+        {
+          signalWorkflow: { signalName: 'unblock', input: [] },
+        },
+        makeFireTimerJob(1)
+      )
+    );
+    compareCompletion(t, completion, makeSuccess([{ cancelTimer: { seq: 1 } }]));
+  }
+});

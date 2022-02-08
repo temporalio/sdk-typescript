@@ -18,7 +18,7 @@ import {
 } from 'rxjs';
 import { delay, filter, first, ignoreElements, map, mergeMap, takeUntil, takeWhile, tap } from 'rxjs/operators';
 import * as native from '@temporalio/core-bridge';
-import { coresdk, temporal } from '@temporalio/proto';
+import { coresdk } from '@temporalio/proto';
 import { Info as ActivityInfo } from '@temporalio/activity';
 import {
   arrayFromPayloads,
@@ -46,7 +46,7 @@ import { Logger } from './logger';
 import * as errors from './errors';
 import { childSpan, getTracer, instrument } from './tracing';
 import { ActivityExecuteInput } from './interceptors';
-import { Core, ReplayCore } from './core';
+import { Core, ReplayCore, History } from './core';
 import { ThreadedVMWorkflowCreator } from './workflow/threaded-vm';
 import { DeterminismViolationError, SinkCall, WorkflowInfo } from '@temporalio/workflow';
 import {
@@ -60,7 +60,6 @@ import {
 } from './worker-options';
 import { VMWorkflowCreator } from './workflow/vm';
 import IWorkflowActivationJob = coresdk.workflow_activation.IWorkflowActivationJob;
-import History = temporal.api.history.v1.History;
 import EvictionReason = coresdk.workflow_activation.RemoveFromCache.EvictionReason;
 import IRemoveFromCache = coresdk.workflow_activation.IRemoveFromCache;
 
