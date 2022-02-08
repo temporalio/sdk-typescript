@@ -1,18 +1,11 @@
 import * as otel from '@opentelemetry/api';
-import {
-  DataConverter,
-  defaultPayloadConverter,
-  Next,
-  WorkflowClientCallsInterceptor,
-  WorkflowStartInput,
-} from '@temporalio/client';
-import { SpanName, SPAN_DELIMITER } from '../workflow';
-import { instrument } from '../instrumentation';
+import { Next, WorkflowClientCallsInterceptor, WorkflowStartInput } from '@temporalio/client';
 import { headersWithContext, RUN_ID_ATTR_KEY } from '@temporalio/common/lib/otel';
+import { instrument } from '../instrumentation';
+import { SpanName, SPAN_DELIMITER } from '../workflow';
 
 export interface InterceptorOptions {
   readonly tracer?: otel.Tracer;
-  readonly dataConverter?: DataConverter;
 }
 
 /**
@@ -22,10 +15,8 @@ export interface InterceptorOptions {
  */
 export class OpenTelemetryWorkflowClientCallsInterceptor implements WorkflowClientCallsInterceptor {
   protected readonly tracer: otel.Tracer;
-  protected readonly dataConverter: DataConverter;
 
   constructor(options?: InterceptorOptions) {
-    this.dataConverter = options?.dataConverter ?? defaultPayloadConverter;
     this.tracer = options?.tracer ?? otel.trace.getTracer('@temporalio/interceptor-client');
   }
 

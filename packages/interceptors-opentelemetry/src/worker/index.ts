@@ -3,20 +3,12 @@ import { Resource } from '@opentelemetry/resources';
 import { ReadableSpan, SpanExporter } from '@opentelemetry/sdk-trace-base';
 import { Context as ActivityContext } from '@temporalio/activity';
 import { extractContextFromHeaders } from '@temporalio/common/lib/otel';
-import {
-  ActivityExecuteInput,
-  ActivityInboundCallsInterceptor,
-  DataConverter,
-  defaultPayloadConverter,
-  InjectedSink,
-  Next,
-} from '@temporalio/worker';
-import { OpenTelemetryWorkflowExporter, SerializableSpan, SpanName, SPAN_DELIMITER } from '../workflow';
+import { ActivityExecuteInput, ActivityInboundCallsInterceptor, InjectedSink, Next } from '@temporalio/worker';
 import { instrument } from '../instrumentation';
+import { OpenTelemetryWorkflowExporter, SerializableSpan, SpanName, SPAN_DELIMITER } from '../workflow';
 
 export interface InterceptorOptions {
   readonly tracer?: otel.Tracer;
-  readonly dataConverter?: DataConverter;
 }
 
 /**
@@ -27,10 +19,8 @@ export interface InterceptorOptions {
  */
 export class OpenTelemetryActivityInboundInterceptor implements ActivityInboundCallsInterceptor {
   protected readonly tracer: otel.Tracer;
-  protected readonly dataConverter: DataConverter;
 
   constructor(protected readonly ctx: ActivityContext, options?: InterceptorOptions) {
-    this.dataConverter = options?.dataConverter ?? defaultPayloadConverter;
     this.tracer = options?.tracer ?? otel.trace.getTracer('@temporalio/interceptor-activity');
   }
 
