@@ -31,13 +31,20 @@ See [sdk-structure.md](./docs/sdk-structure.md)
   npm ci
   ```
   This may take a few minutes, as it involves downloading and compiling Rust dependencies.
-  You should now be able to successfully do `npm run build`. If this fails, resetting your environment may help:
+- You should now be able to build:
+  ```sh
+  npm run build
+  ```
+
+If building fails, resetting your environment may help:
 
 ```
 npx lerna clean -y && npm ci
 ```
 
-To update your environment, run `git submodule update` to update to the latest version of the Core SDK, followed by `npm run build` to recompile.
+If `npm ci` fails in `@temporalio/core-bridge` on the command `node ./scripts/build.js`, you may need to do `rustup update`.
+
+To update to the latest version of the Core SDK, run `git submodule update` followed by `npm run build` to recompile.
 
 > For cross compilation on MacOS follow [these instructions](https://github.com/temporalio/sdk-typescript/blob/main/docs/building.md) (only required for publishing packages).
 
