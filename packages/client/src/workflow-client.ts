@@ -310,7 +310,7 @@ export class WorkflowClient {
     const interceptors = (this.options.interceptors.calls ?? []).map((ctor) => ctor({ workflowId }));
     const runId = await this._start(workflowTypeOrFunc, { ...options, workflowId }, interceptors);
     // runId is not used in handles created with `start*` calls because these
-    // handles should be allow interacting with the workflow if it continues as new.
+    // handles should allow interacting with the workflow if it continues as new.
     const handle = this._createWorkflowHandle({
       workflowId,
       runId: undefined,
