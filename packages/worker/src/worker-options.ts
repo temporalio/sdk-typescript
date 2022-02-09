@@ -53,6 +53,12 @@ export interface WorkerOptions {
   workflowBundle?: WorkflowBundle;
 
   /**
+   * @ignore
+   * Advanced option that allows setting the typescript loader context path for webpack.
+   */
+  typescriptContextPath?: string;
+
+  /**
    * Path for webpack to look up modules in for bundling the Workflow code.
    * Automatically discovered if {@link workflowsPath} is provided.
    */
