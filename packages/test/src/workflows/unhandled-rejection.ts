@@ -16,7 +16,10 @@ export async function throwUnhandledRejection({ crashWorker }: { crashWorker: bo
       const Promise = globalThis.constructor.constructor('return Promise')();
       Promise.reject(new Error('error to crash the worker'));
     } else {
-      throw new Error('unhandled rejection');
+      const cause = new Error('root failure');
+      const e: any = new Error('unhandled rejection');
+      e.cause = cause;
+      throw e;
     }
   })();
 

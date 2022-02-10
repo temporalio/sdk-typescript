@@ -39,6 +39,7 @@ export * from './signal-target';
 // The reason it is redefined is for completeness of the snippet.
 export { unblockOrCancel, isBlockedQuery } from './unblock-or-cancel';
 export * from './throw-async';
+export * from './throw-object';
 export * from './args-and-return';
 export * from './activity-failure';
 export * from './activity-failures';

@@ -1,6 +1,9 @@
 import { temporal } from '@temporalio/proto';
 
-export type WorkflowExecution = temporal.api.common.v1.IWorkflowExecution;
+export interface WorkflowExecution {
+  workflowId: string;
+  runId?: string;
+}
 export type StartWorkflowExecutionRequest = temporal.api.workflowservice.v1.IStartWorkflowExecutionRequest;
 export type GetWorkflowExecutionHistoryRequest = temporal.api.workflowservice.v1.IGetWorkflowExecutionHistoryRequest;
 export type DescribeWorkflowExecutionResponse = temporal.api.workflowservice.v1.IDescribeWorkflowExecutionResponse;

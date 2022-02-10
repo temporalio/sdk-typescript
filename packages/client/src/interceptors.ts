@@ -48,11 +48,13 @@ export interface WorkflowTerminateInput {
   readonly workflowExecution: WorkflowExecution;
   readonly reason?: string;
   readonly details?: unknown[];
+  readonly firstExecutionRunId?: string;
 }
 
 /** Input for WorkflowClientCallsInterceptor.cancel */
 export interface WorkflowCancelInput {
   readonly workflowExecution: WorkflowExecution;
+  readonly firstExecutionRunId?: string;
 }
 
 /**

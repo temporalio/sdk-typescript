@@ -13,6 +13,8 @@ import {
   TimeoutType,
   tsToMs,
   WorkflowExecution,
+  WorkflowExecutionAlreadyStartedError,
+  WorkflowNotFoundError,
 } from '@temporalio/common';
 import { Worker, DefaultLogger, Core } from '@temporalio/worker';
 import * as iface from '@temporalio/proto';
@@ -727,7 +729,53 @@ if (RUN_INTEGRATION_TESTS) {
         if (wftFailedEvent === undefined) {
           throw new Error('No WFT failed event');
         }
-        t.is(wftFailedEvent.workflowTaskFailedEventAttributes?.failure?.message, 'Error: unhandled rejection');
+        const failure = wftFailedEvent.workflowTaskFailedEventAttributes?.failure;
+        if (!failure) {
+          t.fail();
+          return;
+        }
+        t.is(failure.message, 'unhandled rejection');
+        t.true(
+          failure.stackTrace?.includes(
+            dedent`
+          Error: unhandled rejection
+              at eval (webpack-internal:///./lib/workflows/unhandled-rejection.js
+          `
+          )
+        );
+        t.is(failure.cause?.message, 'root failure');
+      },
+      { minTimeout: 300, factor: 1, retries: 100 }
+    );
+    await handle.terminate();
+  });
+
+  test('throwObject includes message with our recommendation', async (t) => {
+    const { client } = t.context;
+    const workflowId = uuid4();
+    const handle = await client.start(workflows.throwObject, {
+      taskQueue: 'test',
+      workflowId,
+    });
+    await asyncRetry(
+      async () => {
+        const history = await client.service.getWorkflowExecutionHistory({
+          namespace: 'default',
+          execution: { workflowId },
+        });
+        const wftFailedEvent = history.history?.events?.find((ev) => ev.workflowTaskFailedEventAttributes);
+        if (wftFailedEvent === undefined) {
+          throw new Error('No WFT failed event');
+        }
+        const failure = wftFailedEvent.workflowTaskFailedEventAttributes?.failure;
+        if (!failure) {
+          t.fail();
+          return;
+        }
+        t.is(
+          failure.message,
+          '{"plainObject":true} [A non-Error value was thrown from your code. We recommend throwing Error objects so that we can provide a stack trace.]'
+        );
       },
       { minTimeout: 300, factor: 1, retries: 100 }
     );
@@ -772,5 +820,121 @@ if (RUN_INTEGRATION_TESTS) {
       res.workflowExecutionInfo?.status,
       iface.temporal.api.enums.v1.WorkflowExecutionStatus.WORKFLOW_EXECUTION_STATUS_FAILED
     );
+  });
+
+  test('WorkflowClient.start fails with WorkflowExecutionAlreadyStartedError', async (t) => {
+    const { client } = t.context;
+    const workflowId = uuid4();
+    const handle = await client.start(workflows.sleeper, { taskQueue: 'test', workflowId, args: [10000000] });
+    try {
+      await t.throwsAsync(
+        client.start(workflows.sleeper, {
+          taskQueue: 'test',
+          workflowId,
+        }),
+        { instanceOf: WorkflowExecutionAlreadyStartedError, message: 'Workflow execution already started' }
+      );
+    } finally {
+      await handle.terminate();
+    }
+  });
+
+  test('Handle from WorkflowClient.start follows only own execution chain', async (t) => {
+    const { client } = t.context;
+    const workflowId = uuid4();
+    const handleFromThrowerStart = await client.start(workflows.throwAsync, { taskQueue: 'test', workflowId });
+    const handleFromGet = client.getHandle(workflowId);
+    await t.throwsAsync(handleFromGet.result(), { message: /.*/ });
+    const handleFromSleeperStart = await client.start(workflows.sleeper, {
+      taskQueue: 'test',
+      workflowId,
+      args: [1_000_000],
+    });
+    try {
+      await t.throwsAsync(handleFromThrowerStart.result(), { message: 'Workflow execution failed' });
+    } finally {
+      await handleFromSleeperStart.terminate();
+    }
+  });
+
+  test('Handle from WorkflowClient.signalWithStart follows only own execution chain', async (t) => {
+    const { client } = t.context;
+    const workflowId = uuid4();
+    const handleFromThrowerStart = await client.signalWithStart(workflows.throwAsync, {
+      taskQueue: 'test',
+      workflowId,
+      signal: 'unblock',
+      signalArgs: [],
+    });
+    const handleFromGet = client.getHandle(workflowId);
+    await t.throwsAsync(handleFromGet.result(), { message: /.*/ });
+    const handleFromSleeperStart = await client.start(workflows.sleeper, {
+      taskQueue: 'test',
+      workflowId,
+      args: [1_000_000],
+    });
+    try {
+      await t.throwsAsync(handleFromThrowerStart.result(), { message: 'Workflow execution failed' });
+    } finally {
+      await handleFromSleeperStart.terminate();
+    }
+  });
+
+  test('Handle from WorkflowClient.getHandle follows only own execution chain', async (t) => {
+    const { client } = t.context;
+    const workflowId = uuid4();
+    const handleFromThrowerStart = await client.start(workflows.throwAsync, {
+      taskQueue: 'test',
+      workflowId,
+    });
+    const handleFromGet = client.getHandle(workflowId, undefined, {
+      firstExecutionRunId: handleFromThrowerStart.originalRunId,
+    });
+    await t.throwsAsync(handleFromThrowerStart.result(), { message: /.*/ });
+    const handleFromSleeperStart = await client.start(workflows.sleeper, {
+      taskQueue: 'test',
+      workflowId,
+      args: [1_000_000],
+    });
+    try {
+      await t.throwsAsync(handleFromGet.result(), { message: 'Workflow execution failed' });
+    } finally {
+      await handleFromSleeperStart.terminate();
+    }
+  });
+
+  test('Handle from WorkflowClient.start terminates run after continue as new', async (t) => {
+    const { client } = t.context;
+    const workflowId = uuid4();
+    const handleFromStart = await client.start(workflows.continueAsNewToDifferentWorkflow, {
+      taskQueue: 'test',
+      workflowId,
+      args: [1_000_000],
+    });
+    const handleFromGet = client.getHandle(workflowId, handleFromStart.originalRunId, { followRuns: false });
+    await t.throwsAsync(handleFromGet.result(), { instanceOf: WorkflowContinuedAsNewError });
+    await handleFromStart.terminate();
+    await t.throwsAsync(handleFromStart.result(), { message: 'Workflow execution terminated' });
+  });
+
+  test('Handle from WorkflowClient.getHandle does not terminate run after continue as new if given runId', async (t) => {
+    const { client } = t.context;
+    const workflowId = uuid4();
+    const handleFromStart = await client.start(workflows.continueAsNewToDifferentWorkflow, {
+      taskQueue: 'test',
+      workflowId,
+      args: [1_000_000],
+      followRuns: false,
+    });
+    const handleFromGet = client.getHandle(workflowId, handleFromStart.originalRunId);
+    await t.throwsAsync(handleFromStart.result(), { instanceOf: WorkflowContinuedAsNewError });
+    try {
+      await t.throwsAsync(handleFromGet.terminate(), {
+        instanceOf: WorkflowNotFoundError,
+        message: 'workflow execution already completed',
+      });
+    } finally {
+      await client.getHandle(workflowId).terminate();
+    }
   });
 }
