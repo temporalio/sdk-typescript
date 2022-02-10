@@ -4,6 +4,37 @@ All notable changes to this project will be documented in this file.
 
 Breaking changes marked with a :boom:
 
+## [0.18.0] - 2022-02-10
+
+### Bug Fixes
+
+- :boom: Improve failure details ([#467](https://github.com/temporalio/sdk-typescript/pull/467))
+
+  BREAKING CHANGE: Most `failure.message` fields are no longer prefixed with `'Error: '`, so places in which you're checking `failure.message === 'Error: a message'` likely need to be changed to `failure.message === 'a message'`.
+- [`workflow`] Fix startChild options type ([#447](https://github.com/temporalio/sdk-typescript/pull/447))
+- [`workflow`] Fix error when timer is cancelled and immediately fired in the same activation ([#466](https://github.com/temporalio/sdk-typescript/pull/466))
+
+### Features
+
+- Replay history from files ([#449](https://github.com/temporalio/sdk-typescript/pull/449))
+  - Provides a way to exercise existing histories against local workflow code
+- [`core`] Make Core portable ([#458](https://github.com/temporalio/sdk-typescript/pull/458))
+- Accept IHistory for history replay ([#460](https://github.com/temporalio/sdk-typescript/pull/460))
+- [`client`] Use `runId` only in handles created with `getHandle` ([#468](https://github.com/temporalio/sdk-typescript/pull/468))
+  - In addition:
+    - Adds safety to `terminate` and `cancel` so handles created with `start` can't accidentally affect workflows that are not part of the same execution chain
+    - Adds optional `firstExecutionRunId` param to `getHandle` for added safety
+  - Closes [#464](https://github.com/temporalio/sdk-typescript/pull/464)
+  - Closes [#377](https://github.com/temporalio/sdk-typescript/pull/377)
+  - Closes [#365](https://github.com/temporalio/sdk-typescript/pull/365)
+
+### Miscellaneous Tasks
+
+- Handle proto renaming / repackaging updates from core ([#446](https://github.com/temporalio/sdk-typescript/pull/446))
+- Add MakeOptional and Replace type helpers ([#401](https://github.com/temporalio/sdk-typescript/pull/401))
+- Fix core-bridge main entry in package.json ([#463](https://github.com/temporalio/sdk-typescript/pull/463))
+
+
 ## [0.17.2] - 2021-12-28
 
 ### Bug Fixes

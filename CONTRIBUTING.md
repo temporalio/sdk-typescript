@@ -105,3 +105,49 @@ chore(samples): upgrade commander module
 ```
 
 The `scope` options are listed in [commitlint.config.js](https://github.com/temporalio/sdk-typescript/blob/main/commitlint.config.js).
+
+### Publishing
+
+```sh
+cargo install git-cliff
+```
+
+```sh
+# git-cliff --tag <new version> <current version>..HEAD | pbcopy
+git-cliff --tag 0.18.0 v0.17.2..HEAD | pbcopy
+```
+
+- Paste into [CHANGELOG.md](CHANGELOG.md)
+- Clean up formatting
+- Add any important missing details
+- Replace PR numbers with links:
+
+```
+#(\d{3})
+[#$1](https://github.com/temporalio/sdk-typescript/pull/$1)
+```
+
+- Download the artifacts from [GitHub Actions](https://github.com/temporalio/sdk-typescript/actions)
+- Decompress and copy:
+
+```sh
+for f in ~/Downloads/packages-*.zip; do mkdir "$HOME/Downloads/$(basename -s .zip $f)"; (cd "$HOME/Downloads/$(basename -s .zip $f)" && unzip $f && tar -xvzf @temporalio/core-bridge/core-bridge-*.tgz package/releases/ && cp -r package/releases/* ~/temporal/sdk-typescript/packages/core-bridge/releases/); done
+```
+
+- Log in to npm as `temporal-sdk-team`
+- Publish:
+
+```sh
+#!/bin/bash
+set -euo pipefail
+
+git clean -fdx
+npm ci
+npm run build
+export CC_aarch64_unknown_linux_gnu=aarch64-unknown-linux-gnu-gcc
+export CC_x86_64_unknown_linux_gnu=x86_64-unknown-linux-gnu-gcc
+export TEMPORAL_WORKER_BUILD_TARGETS=aarch64-unknown-linux-gnu
+npx lerna run --stream build-rust -- -- --target ${TEMPORAL_WORKER_BUILD_TARGETS}
+npx lerna version minor
+npx lerna publish from-git
+```
