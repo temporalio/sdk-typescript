@@ -239,8 +239,6 @@ jobs:
         with:
           repository: temporalio/sdk-features
           path: sdk-features
-          # TODO: Undo this after making everything work
-          ref: ts-runner-fixes
       - uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
