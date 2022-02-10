@@ -11,6 +11,7 @@ Breaking changes marked with a :boom:
 - :boom: Improve failure details ([#467](https://github.com/temporalio/sdk-typescript/pull/467))
 
   BREAKING CHANGE: Most `failure.message` fields are no longer prefixed with `'Error: '`, so places in which you're checking `failure.message === 'Error: a message'` likely need to be changed to `failure.message === 'a message'`.
+
 - [`workflow`] Fix startChild options type ([#447](https://github.com/temporalio/sdk-typescript/pull/447))
 - [`workflow`] Fix error when timer is cancelled and immediately fired in the same activation ([#466](https://github.com/temporalio/sdk-typescript/pull/466))
 
@@ -33,7 +34,6 @@ Breaking changes marked with a :boom:
 - Handle proto renaming / repackaging updates from core ([#446](https://github.com/temporalio/sdk-typescript/pull/446))
 - Add MakeOptional and Replace type helpers ([#401](https://github.com/temporalio/sdk-typescript/pull/401))
 - Fix core-bridge main entry in package.json ([#463](https://github.com/temporalio/sdk-typescript/pull/463))
-
 
 ## [0.17.2] - 2021-12-28
 
