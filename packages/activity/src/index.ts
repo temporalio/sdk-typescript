@@ -3,7 +3,7 @@
  *
  * Import this module from Activity code - must **not** be used in Workflows.
  *
- * Any function can be used as an Activity as long as its parameters and return value are serialiable using a [`DataConverter`](../interfaces/worker.DataConverter.md).
+ * Any function can be used as an Activity as long as its parameters and return value are serializable using a [`DataConverter`](../interfaces/worker.DataConverter.md).
  *
  * ### Cancellation
  * Activities may be cancelled only if they [emit heartbeats](../classes/activity.Context.md#heartbeat).<br/>

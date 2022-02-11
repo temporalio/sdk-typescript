@@ -1,15 +1,16 @@
-import { AbortController } from 'abort-controller';
+import { asyncLocalStorage, Context, Info } from '@temporalio/activity';
 import {
   ActivityFunction,
-  composeInterceptors,
-  PayloadConverter,
-  ensureTemporalFailure,
-  errorToFailure,
   CancelledFailure,
+  composeInterceptors,
+  encodeErrorToFailure,
+  encodeToPayload,
+  ensureTemporalFailure,
   FAILURE_SOURCE,
 } from '@temporalio/common';
 import { coresdk } from '@temporalio/proto';
-import { asyncLocalStorage, Context, Info } from '@temporalio/activity';
+import { LoadedDataConverter } from '@temporalio/workflow-common';
+import { AbortController } from 'abort-controller';
 import {
   ActivityExecuteInput,
   ActivityInboundCallsInterceptor,
@@ -28,7 +29,7 @@ export class Activity {
   constructor(
     public readonly info: Info,
     public readonly fn: ActivityFunction<any[], any>,
-    public readonly dataConverter: PayloadConverter,
+    public readonly dataConverter: LoadedDataConverter,
     public readonly heartbeatCallback: Context['heartbeat'],
     interceptors?: {
       inbound?: ActivityInboundCallsInterceptorFactory[];
@@ -63,7 +64,7 @@ export class Activity {
       try {
         const execute = composeInterceptors(this.interceptors.inbound, 'execute', (inp) => this.execute(inp));
         const result = await execute(input);
-        return { completed: { result: this.dataConverter.toPayload(result) } };
+        return { completed: { result: await encodeToPayload(this.dataConverter, result) } };
       } catch (err) {
         if (err instanceof Error && err.name === 'CompleteAsyncError') {
           return { willCompleteAsync: {} };
@@ -71,7 +72,7 @@ export class Activity {
         if (this.cancelRequested) {
           // Either a CancelledFailure that we threw or AbortError from AbortController
           if (err instanceof CancelledFailure) {
-            const failure = errorToFailure(err, this.dataConverter);
+            const failure = await encodeErrorToFailure(this.dataConverter, err);
             failure.stackTrace = undefined;
             return { cancelled: { failure } };
           } else if (err instanceof Error && err.name === 'AbortError') {
@@ -80,7 +81,7 @@ export class Activity {
         }
         return {
           failed: {
-            failure: errorToFailure(ensureTemporalFailure(err), this.dataConverter),
+            failure: await encodeErrorToFailure(this.dataConverter, ensureTemporalFailure(err)),
           },
         };
       }

@@ -61,7 +61,7 @@ export {
   rootCause,
   IllegalStateError,
   defaultPayloadConverter,
-  PayloadConverter as DataConverter,
+  PayloadConverter,
   WorkflowIdReusePolicy,
   ActivityFailure,
   ApplicationFailure,

@@ -30,13 +30,6 @@ export interface PayloadConverter {
   fromPayload<T>(payload: Payload): T;
 }
 
-const isValidPayloadConverter = (PayloadConverter: unknown): PayloadConverter is PayloadConverter =>
-  typeof PayloadConverter === 'object' &&
-  PayloadConverter !== null &&
-  ['toPayload', 'fromPayload'].every(
-    (method) => typeof (PayloadConverter as Record<string, unknown>)[method] === 'function'
-  );
-
 export class CompositePayloadConverter implements PayloadConverter {
   readonly converters: PayloadConverterWithEncoding[];
   readonly converterByEncoding: Map<string, PayloadConverterWithEncoding> = new Map();
@@ -110,37 +103,6 @@ export function fromPayloadsAtIndex<T>(converter: PayloadConverter, index: numbe
     return undefined as any;
   }
   return converter.fromPayload(payloads[index]);
-}
-
-export async function importPayloadConverter(path: string): Promise<PayloadConverter> {
-  const module = await import(path);
-  if (hasOwnProperty(module, 'payloadConverter')) {
-    if (isValidPayloadConverter(module.payloadConverter)) {
-      return module.payloadConverter;
-    } else {
-      throw new ValueError(
-        `payloadConverter export at ${path} must be an object with toPayload and fromPayload methods`
-      );
-    }
-  } else {
-    throw new ValueError(`Module ${path} does not have a \`payloadConverter\` named export`);
-  }
-}
-
-// For use outside of the Workflow vm
-export function requirePayloadConverter(path: string): PayloadConverter {
-  const module = require(path); // eslint-disable-line @typescript-eslint/no-var-requires
-  if (hasOwnProperty(module, 'payloadConverter')) {
-    if (isValidPayloadConverter(module.payloadConverter)) {
-      return module.payloadConverter;
-    } else {
-      throw new ValueError(
-        `payloadConverter export at ${path} must be an object with toPayload and fromPayload methods`
-      );
-    }
-  } else {
-    throw new ValueError(`Module ${path} does not have a \`payloadConverter\` named export`);
-  }
 }
 
 export function arrayFromPayloads(converter: PayloadConverter, content?: Payload[] | null): unknown[] {

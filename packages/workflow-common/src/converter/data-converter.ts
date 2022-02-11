@@ -1,4 +1,5 @@
 import { PayloadCodec } from './payload-codec';
+import { PayloadConverter } from './payload-converter';
 
 /**
  * When your data (arguments and return values) is sent over the wire and stored by Temporal Server,
@@ -29,4 +30,9 @@ export interface DataConverter {
    * A {@link PayloadCodec} instance. The default codec is a no-op.
    */
   payloadCodec?: PayloadCodec;
+}
+
+export interface LoadedDataConverter {
+  payloadConverter: PayloadConverter;
+  payloadCodec: PayloadCodec;
 }

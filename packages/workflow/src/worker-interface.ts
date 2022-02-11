@@ -26,7 +26,7 @@ export interface WorkflowCreateOptions {
   randomnessSeed: number[];
   now: number;
   patches: string[];
-  useCustomDataConverter?: boolean;
+  useCustomPayloadConverter?: boolean;
 }
 
 export interface ImportFunctions {
@@ -116,7 +116,7 @@ export async function initRuntime({
   randomnessSeed,
   now,
   patches,
-  useCustomDataConverter,
+  useCustomPayloadConverter,
 }: WorkflowCreateOptions): Promise<void> {
   // Set the runId globally on the context so it can be retrieved in the case
   // of an unhandled promise rejection.
@@ -155,11 +155,12 @@ export async function initRuntime({
     }
   }
 
-  if (useCustomDataConverter) {
-    // @ts-expect-error this is a webpack alias to payloadConverterPath
-    state.dataConverter = (await import('__temporal_custom_data_converter')).dataConverter;
+  if (useCustomPayloadConverter) {
     // webpack doesn't know what to bundle given a dynamic import expression, so we can't do:
-    // state.dataConverter = (await import(payloadConverterPath)).dataConverter;
+    // state.payloadConverter = (await import(payloadConverterPath)).payloadConverter;
+    // @ts-expect-error this is a webpack alias to payloadConverterPath
+    state.payloadConverter = (await import('__temporal_custom_payload_converter')).payloadConverter;
+    // The `payloadConverter` export is validated in the Worker
   }
 
   let workflow: Workflow;

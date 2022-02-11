@@ -137,13 +137,14 @@ export class WorkflowCodeBundler {
     if (webpackConfig.resolve) {
       if (payloadConverterPath) {
         webpackConfig.resolve.alias = {
-          __temporal_custom_data_converter$: payloadConverterPath,
+          __temporal_custom_payload_converter$: payloadConverterPath,
         };
       } else {
         // Save 100KB from the bundle by not including the npm module,
         // since we can't decode without a `root` anyway.
         webpackConfig.resolve.alias = {
           'proto3-json-serializer$': path.resolve(__dirname, 'empty-proto3-json-serializer.js'),
+          __temporal_custom_payload_converter$: path.resolve(__dirname, 'empty-module.js'),
         };
       }
     }

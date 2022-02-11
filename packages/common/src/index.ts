@@ -4,6 +4,8 @@
  * @module
  */
 export * from '@temporalio/workflow-common';
+export * from './codec-helpers';
+export * from './data-converter-helpers';
 export * from './patch-protobuf-root';
 export * from './tls-config';
 export * from './utils';

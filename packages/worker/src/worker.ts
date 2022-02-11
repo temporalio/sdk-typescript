@@ -1,9 +1,35 @@
-import fs from 'fs/promises';
-import { promisify } from 'util';
 import * as otel from '@opentelemetry/api';
+import { SpanContext } from '@opentelemetry/api';
+import { Info as ActivityInfo } from '@temporalio/activity';
+import {
+  DataConverter,
+  decodeArrayFromPayloads,
+  decodeFromPayloadsAtIndex,
+  defaultPayloadConverter,
+  encodeErrorToFailure,
+  encodeToPayload,
+  errorMessage,
+  IllegalStateError,
+  loadDataConverter,
+  tsToMs,
+} from '@temporalio/common';
+import {
+  extractSpanContextFromHeaders,
+  linkSpans,
+  NUM_JOBS_ATTR_KEY,
+  RUN_ID_ATTR_KEY,
+  TASK_TOKEN_ATTR_KEY,
+} from '@temporalio/common/lib/otel';
+import * as native from '@temporalio/core-bridge';
+import { coresdk } from '@temporalio/proto';
+import { SinkCall, WorkflowInfo } from '@temporalio/workflow';
+import { LoadedDataConverter } from '@temporalio/workflow-common';
+import fs from 'fs/promises';
 import {
   BehaviorSubject,
+  EMPTY,
   from,
+  lastValueFrom,
   merge,
   MonoTypeOperatorFunction,
   Observable,
@@ -11,48 +37,17 @@ import {
   pipe,
   race,
   Subject,
-  lastValueFrom,
-  EMPTY,
 } from 'rxjs';
 import { delay, filter, first, ignoreElements, map, mergeMap, takeUntil, takeWhile, tap } from 'rxjs/operators';
-import * as native from '@temporalio/core-bridge';
-import { coresdk } from '@temporalio/proto';
-import { Info as ActivityInfo } from '@temporalio/activity';
-import {
-  IllegalStateError,
-  tsToMs,
-  errorToFailure,
-  arrayFromPayloads,
-  PayloadConverter,
-  defaultPayloadConverter,
-  isValidDataConverter,
-  errorMessage,
-  errorCode,
-} from '@temporalio/common';
-import {
-  extractSpanContextFromHeaders,
-  linkSpans,
-  RUN_ID_ATTR_KEY,
-  NUM_JOBS_ATTR_KEY,
-  TASK_TOKEN_ATTR_KEY,
-} from '@temporalio/common/lib/otel';
-
-import { closeableGroupBy, mergeMapWithState } from './rxutils';
-import { toMB } from './utils';
-import { Workflow, WorkflowCreator } from './workflow/interface';
-import { WorkflowCodeBundler } from './workflow/bundler';
+import { promisify } from 'util';
 import { Activity } from './activity';
-import { Logger } from './logger';
-import * as errors from './errors';
-import { childSpan, instrument, getTracer } from './tracing';
-import { ActivityExecuteInput } from './interceptors';
-export { IllegalStateError } from '@temporalio/common';
-export { PayloadConverter as DataConverter, defaultPayloadConverter, errors };
 import { Core } from './core';
-import { SpanContext } from '@opentelemetry/api';
-import IWorkflowActivationJob = coresdk.workflow_activation.IWorkflowActivationJob;
-import { ThreadedVMWorkflowCreator } from './workflow/threaded-vm';
-import { SinkCall, WorkflowInfo } from '@temporalio/workflow';
+import * as errors from './errors';
+import { ActivityExecuteInput } from './interceptors';
+import { Logger } from './logger';
+import { closeableGroupBy, mergeMapWithState } from './rxutils';
+import { childSpan, getTracer, instrument } from './tracing';
+import { toMB } from './utils';
 import {
   addDefaultWorkerOptions,
   CompiledWorkerOptions,
@@ -61,7 +56,15 @@ import {
   isPathBundleOption,
   WorkerOptions,
 } from './worker-options';
+import { WorkflowCodecRunner } from './workflow-codec-runner';
+import { WorkflowCodeBundler } from './workflow/bundler';
+import { Workflow, WorkflowCreator } from './workflow/interface';
+import { ThreadedVMWorkflowCreator } from './workflow/threaded-vm';
 import { VMWorkflowCreator } from './workflow/vm';
+
+export { IllegalStateError } from '@temporalio/common';
+export { DataConverter, defaultPayloadConverter, errors };
+import IWorkflowActivationJob = coresdk.workflow_activation.IWorkflowActivationJob;
 
 native.registerErrors(errors);
 /**
@@ -179,6 +182,7 @@ export class Worker {
 
   protected static nativeWorkerCtor: WorkerConstructor = NativeWorker;
   protected readonly tracer: otel.Tracer;
+  protected readonly workflowCodecRunner: WorkflowCodecRunner;
 
   /**
    * Create a new Worker.
@@ -188,7 +192,7 @@ export class Worker {
     const nativeWorkerCtor: WorkerConstructor = this.nativeWorkerCtor;
     const compiledOptions = compileWorkerOptions(addDefaultWorkerOptions(options));
     const nativeWorker = await nativeWorkerCtor.create(compiledOptions);
-    const dataConverter = await this.getDataConverter(options);
+    const dataConverter = loadDataConverter(options.dataConverter);
     try {
       let bundle: string | undefined = undefined;
       let workflowCreator: WorkflowCreator | undefined = undefined;
@@ -236,39 +240,6 @@ export class Worker {
     }
   }
 
-  public static async getDataConverter(options: WorkerOptions): Promise<PayloadConverter> {
-    if (options.dataConverter?.payloadConverterPath) {
-      let dataConverter: PayloadConverter;
-
-      try {
-        const dataConverterModule = await import(options.dataConverter?.payloadConverterPath);
-        dataConverter = dataConverterModule.dataConverter;
-      } catch (error) {
-        if (errorCode(error) === 'MODULE_NOT_FOUND') {
-          throw new Error(
-            `Could not find a file at the specified payloadConverterPath: '${options.dataConverter?.payloadConverterPath}'.`
-          );
-        }
-        throw error;
-      }
-
-      if (dataConverter === undefined) {
-        throw new Error(
-          `The module at payloadConverterPath ('${options.dataConverter?.payloadConverterPath}') does not have a \`dataConverter\` named export.`
-        );
-      }
-      if (!isValidDataConverter(dataConverter)) {
-        throw new Error(
-          `The \`dataConverter\` named export at payloadConverterPath (${options.dataConverter?.payloadConverterPath}) should be an instance of a class that implements the DataConverter interface.`
-        );
-      }
-
-      return dataConverter;
-    }
-
-    return defaultPayloadConverter;
-  }
-
   /**
    * Create a new Worker from nativeWorker.
    */
@@ -279,9 +250,10 @@ export class Worker {
      */
     protected readonly workflowCreator: WorkflowCreator | undefined,
     public readonly options: CompiledWorkerOptions,
-    protected readonly dataConverter: PayloadConverter = defaultPayloadConverter
+    protected readonly dataConverter: LoadedDataConverter
   ) {
     this.tracer = getTracer(options.enableSDKTracing);
+    this.workflowCodecRunner = new WorkflowCodecRunner(dataConverter.payloadCodec);
   }
 
   /**
@@ -447,7 +419,7 @@ export class Worker {
                     }
                     let args: unknown[];
                     try {
-                      args = await arrayFromPayloads(this.dataConverter, task.start?.input);
+                      args = await decodeArrayFromPayloads(this.dataConverter, task.start?.input);
                     } catch (err) {
                       output = {
                         type: 'result',
@@ -672,7 +644,9 @@ export class Worker {
 
                   let isFatalError = false;
                   try {
-                    const completion = await state.workflow.activate(activation);
+                    await this.workflowCodecRunner.decodeActivation(activation);
+                    const unencodedCompletion = await state.workflow.activate(activation);
+                    const completion = await this.workflowCodecRunner.encodeCompletion(unencodedCompletion);
                     this.log.debug('Completed activation', {
                       runId: activation.runId,
                     });
@@ -705,7 +679,7 @@ export class Worker {
                 const completion = coresdk.workflow_completion.WorkflowActivationCompletion.encodeDelimited({
                   runId: activation.runId,
                   failed: {
-                    failure: errorToFailure(error, this.dataConverter),
+                    failure: await encodeErrorToFailure(this.dataConverter, error),
                   },
                 }).finish();
                 // We do not dispose of the Workflow yet, wait to be evicted from Core.
@@ -778,7 +752,7 @@ export class Worker {
         complete: () => this.log.debug('Heartbeats complete'),
       }),
       mergeMap(async ({ taskToken, details }) => {
-        const payload = this.dataConverter.toPayload(details);
+        const payload = await encodeToPayload(this.dataConverter, details);
         const arr = coresdk.ActivityHeartbeat.encodeDelimited({
           taskToken,
           details: [payload],
@@ -1005,7 +979,7 @@ type NonNullableObject<T> = { [P in keyof T]-?: NonNullable<T[P]> };
 async function extractActivityInfo(
   task: coresdk.activity_task.IActivityTask,
   isLocal: boolean,
-  dataConverter: PayloadConverter,
+  dataConverter: LoadedDataConverter,
   activityNamespace: string
 ): Promise<ActivityInfo> {
   // NOTE: We trust core to supply all of these fields instead of checking for null and undefined everywhere
@@ -1020,7 +994,7 @@ async function extractActivityInfo(
     isLocal,
     activityType: start.activityType,
     workflowType: start.workflowType,
-    heartbeatDetails: dataConverter.fromPayloads(0, start.heartbeatDetails),
+    heartbeatDetails: await decodeFromPayloadsAtIndex(dataConverter, 0, start.heartbeatDetails),
     activityNamespace,
     workflowNamespace: start.workflowNamespace,
     scheduledTimestampMs: tsToMs(start.scheduledTime),

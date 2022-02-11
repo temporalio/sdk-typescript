@@ -1,35 +1,35 @@
-import os from 'os';
-import { temporal } from '@temporalio/proto';
-import { WorkflowClientInterceptors } from './interceptors';
-import { v4 as uuid4 } from 'uuid';
 import {
-  arrayFromPayloads,
-  mapToPayloads,
-  DataConverter,
-  PayloadConverter,
-  defaultPayloadConverter,
-  requirePayloadConverter,
-  PayloadCodec,
-  defaultPayloadCodec,
-  composeInterceptors,
-  optionalFailureToOptionalError,
-  Workflow,
   BaseWorkflowHandle,
-  QueryDefinition,
-  SignalDefinition,
-  WorkflowResultType,
-  WithWorkflowArgs,
   CancelledFailure,
-  TerminatedFailure,
+  compileRetryPolicy,
+  composeInterceptors,
+  DataConverter,
+  decodeArrayFromPayloads,
+  decodeFromPayloadsAtIndex,
+  decodeOptionalFailureToOptionalError,
+  encodeMapToPayloads,
+  encodeToPayloads,
+  loadDataConverter,
+  LoadedDataConverter,
+  QueryDefinition,
   RetryState,
+  SignalDefinition,
+  TerminatedFailure,
   TimeoutFailure,
   TimeoutType,
-  compileRetryPolicy,
+  WithWorkflowArgs,
+  Workflow,
+  WorkflowResultType,
 } from '@temporalio/common';
-import { WorkflowOptions, compileWorkflowOptions, WorkflowSignalWithStartOptions } from './workflow-options';
+import { temporal } from '@temporalio/proto';
+import os from 'os';
+import { v4 as uuid4 } from 'uuid';
+import { Connection, WorkflowService } from './connection';
+import { WorkflowContinuedAsNewError, WorkflowFailedError } from './errors';
 import {
   WorkflowCancelInput,
   WorkflowClientCallsInterceptor,
+  WorkflowClientInterceptors,
   WorkflowQueryInput,
   WorkflowSignalInput,
   WorkflowSignalWithStartInput,
@@ -37,14 +37,13 @@ import {
   WorkflowTerminateInput,
 } from './interceptors';
 import {
-  GetWorkflowExecutionHistoryRequest,
   DescribeWorkflowExecutionResponse,
+  GetWorkflowExecutionHistoryRequest,
+  RequestCancelWorkflowExecutionResponse,
   StartWorkflowExecutionRequest,
   TerminateWorkflowExecutionResponse,
-  RequestCancelWorkflowExecutionResponse,
 } from './types';
-import { WorkflowFailedError, WorkflowContinuedAsNewError } from './errors';
-import { Connection, WorkflowService } from './connection';
+import { compileWorkflowOptions, WorkflowOptions, WorkflowSignalWithStartOptions } from './workflow-options';
 
 /**
  * A client side handle to a single Workflow instance.
@@ -207,14 +206,10 @@ export type WorkflowStartOptions<T extends Workflow = Workflow> = WithWorkflowAr
  */
 export class WorkflowClient {
   public readonly options: WorkflowClientOptionsWithDefaults;
-  protected readonly payloadConverter: PayloadConverter = defaultPayloadConverter;
-  protected readonly payloadCodec: PayloadCodec;
+  protected readonly dataConverter: LoadedDataConverter;
 
   constructor(public readonly service: WorkflowService = new Connection().service, options?: WorkflowClientOptions) {
-    if (options?.dataConverter?.payloadConverterPath) {
-      this.payloadConverter = requirePayloadConverter(options.dataConverter.payloadConverterPath);
-    }
-    this.payloadCodec = options?.dataConverter?.payloadCodec || defaultPayloadCodec;
+    this.dataConverter = loadDataConverter(options?.dataConverter);
     this.options = { ...defaultWorkflowClientOptions(), ...options };
   }
 
@@ -376,8 +371,8 @@ export class WorkflowClient {
         }
         // Note that we can only return one value from our workflow function in JS.
         // Ignore any other payloads in result
-        const [result] = await arrayFromPayloads(
-          this.payloadConverter,
+        const [result] = await decodeArrayFromPayloads(
+          this.dataConverter,
           ev.workflowExecutionCompletedEventAttributes.result?.payloads
         );
         return result as any;
@@ -390,13 +385,16 @@ export class WorkflowClient {
         const { failure } = ev.workflowExecutionFailedEventAttributes;
         throw new WorkflowFailedError(
           'Workflow execution failed',
-          optionalFailureToOptionalError(failure, this.payloadConverter),
+          await decodeOptionalFailureToOptionalError(this.dataConverter, failure),
           RetryState.RETRY_STATE_NON_RETRYABLE_FAILURE
         );
       } else if (ev.workflowExecutionCanceledEventAttributes) {
         const failure = new CancelledFailure(
           'Workflow canceled',
-          await arrayFromPayloads(this.payloadConverter, ev.workflowExecutionCanceledEventAttributes.details?.payloads)
+          await decodeArrayFromPayloads(
+            this.dataConverter,
+            ev.workflowExecutionCanceledEventAttributes.details?.payloads
+          )
         );
         failure.stack = '';
         throw new WorkflowFailedError(
@@ -458,7 +456,7 @@ export class WorkflowClient {
       execution: input.workflowExecution,
       query: {
         queryType: input.queryType,
-        queryArgs: { payloads: this.payloadConverter.toPayloads(...input.args) },
+        queryArgs: { payloads: await encodeToPayloads(this.dataConverter, ...input.args) },
       },
     });
     if (response.queryRejected) {
@@ -471,7 +469,7 @@ export class WorkflowClient {
       throw new TypeError('Invalid response from server');
     }
     // We ignore anything but the first result
-    return this.payloadConverter.fromPayloads(0, response.queryResult?.payloads);
+    return await decodeFromPayloadsAtIndex(this.dataConverter, 0, response.queryResult?.payloads);
   }
 
   /**
@@ -487,7 +485,7 @@ export class WorkflowClient {
       requestId: uuid4(),
       // control is unused,
       signalName: input.signalName,
-      input: { payloads: this.payloadConverter.toPayloads(...input.args) },
+      input: { payloads: await encodeToPayloads(this.dataConverter, ...input.args) },
     });
   }
 
@@ -497,7 +495,7 @@ export class WorkflowClient {
    * Used as the final function of the signalWithStart interceptor chain
    */
   protected async _signalWithStartWorkflowHandler(input: WorkflowSignalWithStartInput): Promise<string> {
-    const { identity, dataConverter } = this.options;
+    const { identity } = this.options;
     const { options, workflowType, signalName, signalArgs, headers } = input;
     const { runId } = await this.service.signalWithStartWorkflowExecution({
       namespace: this.options.namespace,
@@ -506,9 +504,9 @@ export class WorkflowClient {
       workflowId: options.workflowId,
       workflowIdReusePolicy: options.workflowIdReusePolicy,
       workflowType: { name: workflowType },
-      input: { payloads: dataConverter.toPayloads(...options.args) },
+      input: { payloads: await encodeToPayloads(this.dataConverter, ...options.args) },
       signalName,
-      signalInput: { payloads: dataConverter.toPayloads(...signalArgs) },
+      signalInput: { payloads: await encodeToPayloads(this.dataConverter, ...signalArgs) },
       taskQueue: {
         kind: temporal.api.enums.v1.TaskQueueKind.TASK_QUEUE_KIND_UNSPECIFIED,
         name: options.taskQueue,
@@ -517,10 +515,10 @@ export class WorkflowClient {
       workflowRunTimeout: options.workflowRunTimeout,
       workflowTaskTimeout: options.workflowTaskTimeout,
       retryPolicy: options.retry ? compileRetryPolicy(options.retry) : undefined,
-      memo: options.memo ? { fields: mapToPayloads(dataConverter, options.memo) } : undefined,
+      memo: options.memo ? { fields: await encodeMapToPayloads(this.dataConverter, options.memo) } : undefined,
       searchAttributes: options.searchAttributes
         ? {
-            indexedFields: mapToPayloads(dataConverter, options.searchAttributes),
+            indexedFields: await encodeMapToPayloads(this.dataConverter, options.searchAttributes),
           }
         : undefined,
       cronSchedule: options.cronSchedule,
@@ -536,7 +534,7 @@ export class WorkflowClient {
    */
   protected async _startWorkflowHandler(input: WorkflowStartInput): Promise<string> {
     const { options: opts, workflowType: name, headers } = input;
-    const { identity, dataConverter } = this.options;
+    const { identity } = this.options;
     const req: StartWorkflowExecutionRequest = {
       namespace: this.options.namespace,
       identity,
@@ -544,7 +542,7 @@ export class WorkflowClient {
       workflowId: opts.workflowId,
       workflowIdReusePolicy: opts.workflowIdReusePolicy,
       workflowType: { name },
-      input: { payloads: dataConverter.toPayloads(...opts.args) },
+      input: { payloads: await encodeToPayloads(this.dataConverter, ...opts.args) },
       taskQueue: {
         kind: temporal.api.enums.v1.TaskQueueKind.TASK_QUEUE_KIND_UNSPECIFIED,
         name: opts.taskQueue,
@@ -553,10 +551,10 @@ export class WorkflowClient {
       workflowRunTimeout: opts.workflowRunTimeout,
       workflowTaskTimeout: opts.workflowTaskTimeout,
       retryPolicy: opts.retry ? compileRetryPolicy(opts.retry) : undefined,
-      memo: opts.memo ? { fields: mapToPayloads(dataConverter, opts.memo) } : undefined,
+      memo: opts.memo ? { fields: await encodeMapToPayloads(this.dataConverter, opts.memo) } : undefined,
       searchAttributes: opts.searchAttributes
         ? {
-            indexedFields: mapToPayloads(dataConverter, opts.searchAttributes),
+            indexedFields: await encodeMapToPayloads(this.dataConverter, opts.searchAttributes),
           }
         : undefined,
       cronSchedule: opts.cronSchedule,
@@ -578,7 +576,7 @@ export class WorkflowClient {
       namespace: this.options.namespace,
       identity: this.options.identity,
       ...input,
-      details: { payloads: this.payloadConverter.toPayloads(input.details) },
+      details: { payloads: input.details ? await encodeToPayloads(this.dataConverter, ...input.details) : undefined },
     });
   }
 

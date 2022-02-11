@@ -2,14 +2,14 @@
 import { Connection, WorkflowClient } from '@temporalio/client';
 import { DataConverterError, defaultPayloadConverter, DefaultPayloadConverter, ValueError } from '@temporalio/common';
 import { Core, DefaultLogger, Worker } from '@temporalio/worker';
-import { CompositeDataConverter } from '@temporalio/workflow-common';
+import { CompositePayloadConverter } from '@temporalio/workflow-common';
 import {
   BinaryPayloadConverter,
   JsonPayloadConverter,
   ProtobufBinaryPayloadConverter,
   ProtobufJsonPayloadConverter,
   UndefinedPayloadConverter,
-} from '@temporalio/workflow-common/lib/converter/payload-converter';
+} from '@temporalio/workflow-common/lib/converter/payload-converters';
 import {
   encodingKeys,
   METADATA_ENCODING_KEY,
@@ -26,29 +26,29 @@ import { protobufWorkflow } from './workflows';
 
 test('UndefinedPayloadConverter converts from undefined only', async (t) => {
   const converter = new UndefinedPayloadConverter();
-  t.is(await converter.toData(null), undefined);
-  t.is(await converter.toData({}), undefined);
-  t.is(await converter.toData(1), undefined);
-  t.is(await converter.toData(0), undefined);
-  t.is(await converter.toData('abc'), undefined);
-  t.deepEqual(await converter.toData(undefined), {
+  t.is(await converter.toPayload(null), undefined);
+  t.is(await converter.toPayload({}), undefined);
+  t.is(await converter.toPayload(1), undefined);
+  t.is(await converter.toPayload(0), undefined);
+  t.is(await converter.toPayload('abc'), undefined);
+  t.deepEqual(await converter.toPayload(undefined), {
     metadata: { [METADATA_ENCODING_KEY]: encodingKeys.METADATA_ENCODING_NULL },
   });
 });
 
 test('UndefinedPayloadConverter converts to undefined', async (t) => {
   const converter = new UndefinedPayloadConverter();
-  t.is(await converter.fromData((await converter.toData(undefined))!), undefined);
+  t.is(await converter.fromPayload((await converter.toPayload(undefined))!), undefined);
 });
 
 test('BinaryPayloadConverter converts from Uint8Array', async (t) => {
   const converter = new BinaryPayloadConverter();
-  t.is(await converter.toData(null), undefined);
-  t.is(await converter.toData({}), undefined);
-  t.is(await converter.toData(1), undefined);
-  t.is(await converter.toData(0), undefined);
-  t.is(await converter.toData('abc'), undefined);
-  t.deepEqual(await converter.toData(u8('abc')), {
+  t.is(await converter.toPayload(null), undefined);
+  t.is(await converter.toPayload({}), undefined);
+  t.is(await converter.toPayload(1), undefined);
+  t.is(await converter.toPayload(0), undefined);
+  t.is(await converter.toPayload('abc'), undefined);
+  t.deepEqual(await converter.toPayload(u8('abc')), {
     metadata: { [METADATA_ENCODING_KEY]: encodingKeys.METADATA_ENCODING_RAW },
     data: u8('abc'),
   });
@@ -56,7 +56,7 @@ test('BinaryPayloadConverter converts from Uint8Array', async (t) => {
 
 test('BinaryPayloadConverter converts to Uint8Array', async (t) => {
   const converter = new BinaryPayloadConverter();
-  t.deepEqual(await converter.fromData((await converter.toData(u8('abc')))!), u8('abc'));
+  t.deepEqual(await converter.fromPayload((await converter.toPayload(u8('abc')))!), u8('abc'));
 });
 
 test('JsonPayloadConverter converts from non undefined', async (t) => {
@@ -65,23 +65,23 @@ test('JsonPayloadConverter converts from non undefined', async (t) => {
     data: u8(JSON.stringify(val)),
   });
   const converter = new JsonPayloadConverter();
-  t.deepEqual(await converter.toData(null), payload(null));
-  t.deepEqual(await converter.toData({ a: 1 }), payload({ a: 1 }));
-  t.deepEqual(await converter.toData(1), payload(1));
-  t.deepEqual(await converter.toData(0), payload(0));
-  t.deepEqual(await converter.toData('abc'), payload('abc'));
-  t.is(await converter.toData(undefined), undefined);
+  t.deepEqual(await converter.toPayload(null), payload(null));
+  t.deepEqual(await converter.toPayload({ a: 1 }), payload({ a: 1 }));
+  t.deepEqual(await converter.toPayload(1), payload(1));
+  t.deepEqual(await converter.toPayload(0), payload(0));
+  t.deepEqual(await converter.toPayload('abc'), payload('abc'));
+  t.is(await converter.toPayload(undefined), undefined);
 });
 
 test('JsonPayloadConverter converts to object', async (t) => {
   const converter = new JsonPayloadConverter();
-  t.deepEqual(await converter.fromData((await converter.toData({ a: 1 }))!), { a: 1 });
+  t.deepEqual(await converter.fromPayload((await converter.toPayload({ a: 1 }))!), { a: 1 });
 });
 
 test('ProtobufBinaryPayloadConverter converts from an instance', async (t) => {
   const instance = root.ProtoActivityInput.create({ name: 'Proto', age: 1 });
   const converter = new ProtobufBinaryPayloadConverter(root);
-  t.deepEqual(await converter.toData(instance), {
+  t.deepEqual(await converter.toPayload(instance), {
     metadata: {
       [METADATA_ENCODING_KEY]: encodingKeys.METADATA_ENCODING_PROTOBUF,
       [METADATA_MESSAGE_TYPE_KEY]: u8('ProtoActivityInput'),
@@ -93,7 +93,7 @@ test('ProtobufBinaryPayloadConverter converts from an instance', async (t) => {
 test('ProtobufBinaryPayloadConverter converts to an instance', async (t) => {
   const instance = root.ProtoActivityInput.create({ name: 'Proto', age: 1 });
   const converter = new ProtobufBinaryPayloadConverter(root);
-  const testInstance = await converter.fromData((await converter.toData(instance))!);
+  const testInstance = await converter.fromPayload((await converter.toPayload(instance))!);
   // tests that both are instances of the same class with the same properties
   t.deepEqual(testInstance, instance);
 });
@@ -104,7 +104,7 @@ test('ProtobufBinaryPayloadConverter throws detailed errors', async (t) => {
 
   await t.throwsAsync(
     async () =>
-      await converter.fromData({
+      await converter.fromPayload({
         metadata: { [METADATA_ENCODING_KEY]: encodingKeys.METADATA_ENCODING_PROTOBUF },
         data: root.ProtoActivityInput.encode(instance).finish(),
       }),
@@ -112,7 +112,7 @@ test('ProtobufBinaryPayloadConverter throws detailed errors', async (t) => {
   );
   await t.throwsAsync(
     async () =>
-      await converter.fromData({
+      await converter.fromPayload({
         metadata: {
           [METADATA_ENCODING_KEY]: encodingKeys.METADATA_ENCODING_PROTOBUF,
           [METADATA_MESSAGE_TYPE_KEY]: u8('NonExistentMessageClass'),
@@ -129,7 +129,7 @@ test('ProtobufBinaryPayloadConverter throws detailed errors', async (t) => {
 test('ProtobufJSONPayloadConverter converts from an instance to JSON', async (t) => {
   const instance = root.foo.bar.ProtoActivityInput.create({ name: 'Proto', age: 1 });
   const converter = new ProtobufJsonPayloadConverter(root);
-  t.deepEqual(await converter.toData(instance), {
+  t.deepEqual(await converter.toPayload(instance), {
     metadata: {
       [METADATA_ENCODING_KEY]: encodingKeys.METADATA_ENCODING_PROTOBUF_JSON,
       [METADATA_MESSAGE_TYPE_KEY]: u8('foo.bar.ProtoActivityInput'),
@@ -141,7 +141,7 @@ test('ProtobufJSONPayloadConverter converts from an instance to JSON', async (t)
 test('ProtobufJSONPayloadConverter converts to an instance from JSON', async (t) => {
   const instance = root.foo.bar.ProtoActivityInput.create({ name: 'Proto', age: 1 });
   const converter = new ProtobufJsonPayloadConverter(root);
-  const testInstance = await converter.fromData((await converter.toData(instance))!);
+  const testInstance = await converter.fromPayload((await converter.toPayload(instance))!);
   // tests that both are instances of the same class with the same properties
   t.deepEqual(testInstance, instance);
 });
@@ -151,7 +151,7 @@ test('ProtobufJSONPayloadConverter converts binary', async (t) => {
   // https://developers.google.com/protocol-buffers/docs/proto3#json
   const instance = root.BinaryMessage.create({ data: u8('abc') });
   const converter = new ProtobufJsonPayloadConverter(root);
-  const encoded = await converter.toData(instance);
+  const encoded = await converter.toPayload(instance);
   t.deepEqual(encoded, {
     metadata: {
       [METADATA_ENCODING_KEY]: encodingKeys.METADATA_ENCODING_PROTOBUF_JSON,
@@ -160,7 +160,7 @@ test('ProtobufJSONPayloadConverter converts binary', async (t) => {
     data: u8(JSON.stringify({ data: Buffer.from('abc').toString('base64') })),
   });
 
-  const testInstance = await converter.fromData<root.BinaryMessage>(encoded!);
+  const testInstance = await converter.fromPayload<root.BinaryMessage>(encoded!);
   t.deepEqual(testInstance.data, Buffer.from(instance.data));
 });
 
@@ -190,7 +190,7 @@ if (RUN_INTEGRATION_TESTS) {
     });
     const connection = new Connection();
     const client = new WorkflowClient(connection.service, {
-      dataConverter: new CompositeDataConverter(new ProtobufJsonPayloadConverter(root)),
+      dataConverter: { payloadConverterPath: './payload-converters/payload-converter' },
     });
     worker.run();
     client.execute(protobufWorkflow, {
@@ -210,17 +210,20 @@ test('DefaultPayloadConverter converts protobufs', async (t) => {
   t.deepEqual(
     defaultPayloadConverterWithProtos.toPayload(instance),
     // It will always use JSON because it appears before binary in the list
-    await new ProtobufJsonPayloadConverter(root).toData(instance)
+    await new ProtobufJsonPayloadConverter(root).toPayload(instance)
   );
 });
 
 test('defaultPayloadConverter converts to payload by trying each converter in order', async (t) => {
   const instance = root.ProtoActivityInput.create({ name: 'Proto', age: 1 });
-  t.deepEqual(defaultPayloadConverter.toPayload(instance), await new ProtobufJsonPayloadConverter().toData(instance));
+  t.deepEqual(
+    defaultPayloadConverter.toPayload(instance),
+    await new ProtobufJsonPayloadConverter().toPayload(instance)
+  );
 
-  t.deepEqual(defaultPayloadConverter.toPayload('abc'), await new JsonPayloadConverter().toData('abc'));
-  t.deepEqual(defaultPayloadConverter.toPayload(undefined), await new UndefinedPayloadConverter().toData(undefined));
-  t.deepEqual(defaultPayloadConverter.toPayload(u8('abc')), await new BinaryPayloadConverter().toData(u8('abc')));
+  t.deepEqual(defaultPayloadConverter.toPayload('abc'), await new JsonPayloadConverter().toPayload('abc'));
+  t.deepEqual(defaultPayloadConverter.toPayload(undefined), await new UndefinedPayloadConverter().toPayload(undefined));
+  t.deepEqual(defaultPayloadConverter.toPayload(u8('abc')), await new BinaryPayloadConverter().toPayload(u8('abc')));
   await t.throws(() => defaultPayloadConverter.toPayload(0n), {
     instanceOf: TypeError,
     message: 'Do not know how to serialize a BigInt',
@@ -228,9 +231,9 @@ test('defaultPayloadConverter converts to payload by trying each converter in or
 });
 
 test('defaultPayloadConverter converts from payload by payload type', async (t) => {
-  t.deepEqual(defaultPayloadConverter.fromPayload(new JsonPayloadConverter().toData('abc')!), 'abc');
-  t.deepEqual(defaultPayloadConverter.fromPayload(new UndefinedPayloadConverter().toData(undefined)!), undefined);
-  t.deepEqual(defaultPayloadConverter.fromPayload(new BinaryPayloadConverter().toData(u8('abc'))!), u8('abc'));
+  t.deepEqual(defaultPayloadConverter.fromPayload(new JsonPayloadConverter().toPayload('abc')!), 'abc');
+  t.deepEqual(defaultPayloadConverter.fromPayload(new UndefinedPayloadConverter().toPayload(undefined)!), undefined);
+  t.deepEqual(defaultPayloadConverter.fromPayload(new BinaryPayloadConverter().toPayload(u8('abc'))!), u8('abc'));
   await t.throwsAsync(
     async () => defaultPayloadConverter.fromPayload({ metadata: { [METADATA_ENCODING_KEY]: u8('not-supported') } }),
     { instanceOf: ValueError, message: 'Unknown encoding: not-supported' }
@@ -249,11 +252,11 @@ test('defaultPayloadConverter converts from payload by payload type', async (t) 
     message: 'Unable to deserialize protobuf message without `root` being provided',
   };
   await t.throwsAsync(
-    async () => defaultPayloadConverter.fromPayload(new ProtobufBinaryPayloadConverter(root).toData(instance)!),
+    async () => defaultPayloadConverter.fromPayload(new ProtobufBinaryPayloadConverter(root).toPayload(instance)!),
     protoError
   );
   await t.throwsAsync(
-    async () => defaultPayloadConverter.fromPayload(new ProtobufJsonPayloadConverter(root).toData(instance)!),
+    async () => defaultPayloadConverter.fromPayload(new ProtobufJsonPayloadConverter(root).toPayload(instance)!),
     protoError
   );
 });

@@ -1,1 +1,1 @@
-export const dataConverter = { toPayload: Function.prototype };
+export const payloadConverter = { toPayload: Function.prototype };

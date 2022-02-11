@@ -7,7 +7,7 @@ import {
   msOptionalToTs,
   Workflow,
   composeInterceptors,
-  mapToPayloadsSync,
+  mapToPayloads,
   WorkflowResultType,
   SignalDefinition,
   QueryDefinition,
@@ -15,6 +15,7 @@ import {
   WorkflowReturnType,
   compileRetryPolicy,
   ActivityInterface,
+  toPayloads,
 } from '@temporalio/workflow-common';
 import {
   ChildWorkflowCancellationType,
@@ -158,7 +159,7 @@ async function scheduleActivityNextHandler({
         seq,
         activityId: options.activityId ?? `${seq}`,
         activityType,
-        arguments: state.dataConverter.toPayloadsSync(...args),
+        arguments: toPayloads(state.payloadConverter, ...args),
         retryPolicy: options.retry ? compileRetryPolicy(options.retry) : undefined,
         taskQueue: options.taskQueue || state.info?.taskQueue,
         heartbeatTimeout: msOptionalToTs(options.heartbeatTimeout),
@@ -238,7 +239,7 @@ async function startChildWorkflowExecutionNextHandler({
         seq,
         workflowId,
         workflowType,
-        input: state.dataConverter.toPayloadsSync(...options.args),
+        input: toPayloads(state.payloadConverter, ...options.args),
         retryPolicy: options.retry ? compileRetryPolicy(options.retry) : undefined,
         taskQueue: options.taskQueue || state.info?.taskQueue,
         workflowExecutionTimeout: msOptionalToTs(options.workflowExecutionTimeout),
@@ -251,9 +252,9 @@ async function startChildWorkflowExecutionNextHandler({
         parentClosePolicy: options.parentClosePolicy,
         cronSchedule: options.cronSchedule,
         searchAttributes: options.searchAttributes
-          ? mapToPayloadsSync(state.dataConverter, options.searchAttributes)
+          ? mapToPayloads(state.payloadConverter, options.searchAttributes)
           : undefined,
-        memo: options.memo && mapToPayloadsSync(state.dataConverter, options.memo),
+        memo: options.memo && mapToPayloads(state.payloadConverter, options.memo),
       },
     });
   });
@@ -295,7 +296,7 @@ function signalWorkflowNextHandler({ seq, signalName, args, target }: SignalWork
     state.pushCommand({
       signalExternalWorkflowExecution: {
         seq,
-        args: state.dataConverter.toPayloadsSync(...args),
+        args: toPayloads(state.payloadConverter, ...args),
         signalName,
         ...(target.type === 'external'
           ? {
@@ -692,7 +693,7 @@ export function makeContinueAsNewFunc<F extends Workflow>(
       const { headers, args, options } = input;
       throw new ContinueAsNew({
         workflowType: options.workflowType,
-        arguments: state.dataConverter.toPayloads(...args),
+        arguments: toPayloads(state.payloadConverter, ...args),
         header: headers,
         taskQueue: options.taskQueue,
         memo: options.memo,

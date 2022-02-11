@@ -27,32 +27,35 @@ Given the possibility of switching or adding other isolation methods in future, 
 
 ### General flow
 
-When `WorkerOptions.dataConverterPath` is provided, the code at that location is loaded into the main thread, the worker threads, and the webpack Workflow bundle.
+When `WorkerOptions.dataConverter.payloadConverterPath` is provided, the code at that location is loaded into the main thread, the worker threads, and the webpack Workflow bundle.
 
 ### Specific flow
 
-Worker main thread:
+`Worker.create`:
+*main thread*
 
-- imports and validates `dataConverterPath`
-- passes `dataConverterPath` to either `ThreadedVMWorkflowCreator.create` or `VMWorkflowCreator.create`
-- passes `dataConverterPath` to `WorkflowCodeBundler`
+- imports and validates `options.dataConverter.payloadConverterPath`
+- passes `payloadConverterPath` to either `ThreadedVMWorkflowCreator.create` or `VMWorkflowCreator.create`
+- passes `payloadConverterPath` to `WorkflowCodeBundler`
 
 `ThreadedVMWorkflowCreator.create`:
+*main thread*
 
-- sends `dataConverterPath` to each worker thread
-- thread sends `dataConverterPath` to VMWorkflowCreator.create
+- sends `payloadConverterPath` to each worker thread
+- thread sends `payloadConverterPath` to VMWorkflowCreator.create
 
 `VMWorkflowCreator.create`:
-(This is usually running in a worker thread, but in debug mode is running in the main thread)
+*worker thread (unless in debug mode)*
 
-- imports `dataConverterPath`
-- passes `dataConverterPath` to `VMWorkflowCreator` constructor
+- imports `payloadConverterPath`
+- passes `payloadConverterPath` to `VMWorkflowCreator` constructor
 
 `VMWorkflowCreator.createWorkflow`:
+*worker thread (unless in debug mode)*
 
-- passes `useCustomDataConverter` to `initRuntime` inside Workflow vm
+- passes `useCustomPayloadConverter` to `initRuntime` inside Workflow vm
 
 `worker-interface.ts#initRuntime`:
-(Inside vm)
+*workflow vm*
 
-- if `useCustomDataConverter`, imports `__temporal_custom_data_converter` and sets `state.dataConverter`
+- if `useCustomPayloadConverter`, imports `__temporal_custom_payload_converter` and sets `state.payloadConverter`

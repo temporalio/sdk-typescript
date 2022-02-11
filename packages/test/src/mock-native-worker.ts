@@ -1,18 +1,19 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
-import { lastValueFrom } from 'rxjs';
 import { SpanContext } from '@opentelemetry/api';
+import { defaultPayloadConverter, loadDataConverter, msToTs } from '@temporalio/common';
 import { coresdk } from '@temporalio/proto';
-import { defaultPayloadConverter, DataConverter, msToTs } from '@temporalio/common';
-import { Worker as RealWorker, NativeWorkerLike, errors } from '@temporalio/worker/lib/worker';
-import {
-  compileWorkerOptions,
-  CompiledWorkerOptions,
-  WorkerOptions,
-  addDefaultWorkerOptions,
-} from '@temporalio/worker/lib/worker-options';
 import { DefaultLogger } from '@temporalio/worker';
-import * as activities from './activities';
+import { errors, NativeWorkerLike, Worker as RealWorker } from '@temporalio/worker/lib/worker';
+import {
+  addDefaultWorkerOptions,
+  CompiledWorkerOptions,
+  compileWorkerOptions,
+  WorkerOptions,
+} from '@temporalio/worker/lib/worker-options';
 import { WorkflowCreator } from '@temporalio/worker/src/workflow/interface';
+import { fromPayloadsAtIndex, LoadedDataConverter } from '@temporalio/workflow-common';
+import { lastValueFrom } from 'rxjs';
+import * as activities from './activities';
 
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -131,7 +132,7 @@ export class MockNativeWorker implements NativeWorkerLike {
 
   public recordActivityHeartbeat(buffer: ArrayBuffer): void {
     const { taskToken, details } = coresdk.ActivityHeartbeat.decodeDelimited(new Uint8Array(buffer));
-    const arg = defaultPayloadConverter.fromPayloads(0, details);
+    const arg = fromPayloadsAtIndex(defaultPayloadConverter, 0, details);
     this.activityHeartbeatCallback!(taskToken, arg);
   }
 
@@ -153,7 +154,11 @@ export class Worker extends RealWorker {
     return this.nativeWorker as MockNativeWorker;
   }
 
-  public constructor(workflowCreator: WorkflowCreator, opts: CompiledWorkerOptions, dataConverter: DataConverter) {
+  public constructor(
+    workflowCreator: WorkflowCreator,
+    opts: CompiledWorkerOptions,
+    dataConverter: LoadedDataConverter
+  ) {
     const nativeWorker = new MockNativeWorker();
     super(nativeWorker, workflowCreator, opts, dataConverter);
   }
@@ -171,7 +176,7 @@ export const defaultOptions: WorkerOptions = {
 };
 
 export async function isolateFreeWorker(options: WorkerOptions = defaultOptions): Promise<Worker> {
-  const dataConverter = await RealWorker.getDataConverter(options);
+  const dataConverter = await loadDataConverter(options.dataConverter);
   return new Worker(
     {
       async createWorkflow() {

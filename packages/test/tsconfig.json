@@ -5,6 +5,7 @@
     "rootDir": "./src"
   },
   "references": [
+    { "path": "../workflow-common" },
     { "path": "../activity" },
     { "path": "../client" },
     { "path": "../common" },

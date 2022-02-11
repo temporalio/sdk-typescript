@@ -8,6 +8,7 @@ import { payloadConverter, messageInstance } from './payload-converters/payload-
 import { cleanStackTrace, RUN_INTEGRATION_TESTS } from './helpers';
 import { defaultOptions, isolateFreeWorker } from './mock-native-worker';
 import { protobufWorkflow } from './workflows';
+import { toPayloads } from '@temporalio/workflow-common';
 
 export async function runWorker(worker: Worker, fn: () => Promise<any>): Promise<void> {
   const promise = worker.run();
@@ -100,7 +101,7 @@ test('Worker with proto data converter runs an activity and reports completion',
       taskToken,
       start: {
         activityType: 'protoActivity',
-        input: payloadConverter.toPayloads(messageInstance),
+        input: toPayloads(payloadConverter, messageInstance),
       },
     });
     compareCompletion(t, completion.result, {

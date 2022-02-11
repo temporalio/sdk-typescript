@@ -7,7 +7,7 @@ export class DataConverterError extends Error {
 }
 
 export class PayloadConverterError extends Error {
-  public readonly name: string = 'DataConverterError';
+  public readonly name: string = 'PayloadConverterError';
 }
 
 export class UnsupportedTypeError extends PayloadConverterError {

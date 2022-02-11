@@ -27,6 +27,7 @@ import * as workflows from './workflows';
 import { u8, RUN_INTEGRATION_TESTS, cleanStackTrace } from './helpers';
 import { withZeroesHTTPServer } from './zeroes-http-server';
 import asyncRetry from 'async-retry';
+import { fromPayloadsAtIndex } from '@temporalio/workflow-common';
 
 const { EVENT_TYPE_TIMER_STARTED, EVENT_TYPE_TIMER_FIRED, EVENT_TYPE_TIMER_CANCELED } =
   iface.temporal.api.enums.v1.EventType;
@@ -653,7 +654,8 @@ if (RUN_INTEGRATION_TESTS) {
       namespace,
       execution: { workflowId: workflow.workflowId, runId: err.newExecutionRunId },
     });
-    const timeSlept = defaultPayloadConverter.fromPayloads(
+    const timeSlept = fromPayloadsAtIndex(
+      defaultPayloadConverter,
       0,
       history?.events?.[0].workflowExecutionStartedEventAttributes?.input?.payloads
     );
@@ -748,8 +750,8 @@ if (RUN_INTEGRATION_TESTS) {
       },
     });
     await t.throwsAsync(handle.result());
-    const handleForSecondAtttempt = client.getHandle(workflowId);
-    const { workflowExecutionInfo } = await handleForSecondAtttempt.describe();
+    const handleForSecondAttempt = client.getHandle(workflowId);
+    const { workflowExecutionInfo } = await handleForSecondAttempt.describe();
     t.not(workflowExecutionInfo?.execution?.runId, handle.originalRunId);
   });
 
