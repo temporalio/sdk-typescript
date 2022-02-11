@@ -15,6 +15,10 @@ Breaking changes marked with a :boom:
 - [`workflow`] Fix startChild options type ([#447](https://github.com/temporalio/sdk-typescript/pull/447))
 - [`workflow`] Fix error when timer is cancelled and immediately fired in the same activation ([#466](https://github.com/temporalio/sdk-typescript/pull/466))
 
+- Upgrade Core to receive recent fixes ([#475](https://github.com/temporalio/sdk-typescript/pull/475))
+  - Replay mock client wasn't allowing completes ([sdk-core#269](https://github.com/temporalio/sdk-core/pull/269))
+  - Fix heartbeats not flushing on activity completion ([sdk-core#266](https://github.com/temporalio/sdk-core/pull/266))
+
 ### Features
 
 - Replay history from files ([#449](https://github.com/temporalio/sdk-typescript/pull/449))
