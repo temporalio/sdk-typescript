@@ -127,6 +127,8 @@ git-cliff --tag 0.18.0 v0.17.2..HEAD | pbcopy
 [#$1](https://github.com/temporalio/sdk-typescript/pull/$1)
 ```
 
+We're [working on automating](https://github.com/temporalio/sdk-typescript/pull/395) the rest of the process:
+
 - Download the artifacts from [GitHub Actions](https://github.com/temporalio/sdk-typescript/actions)
 - Decompress and copy:
 
@@ -144,10 +146,11 @@ set -euo pipefail
 git clean -fdx
 npm ci
 npm run build
+# we don't build for aarch64-linux in CI, so we build for it now
 export CC_aarch64_unknown_linux_gnu=aarch64-unknown-linux-gnu-gcc
 export CC_x86_64_unknown_linux_gnu=x86_64-unknown-linux-gnu-gcc
 export TEMPORAL_WORKER_BUILD_TARGETS=aarch64-unknown-linux-gnu
 npx lerna run --stream build-rust -- -- --target ${TEMPORAL_WORKER_BUILD_TARGETS}
-npx lerna version minor
+npx lerna version patch # or major|minor
 npx lerna publish from-git
 ```

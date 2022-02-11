@@ -18,8 +18,9 @@ Breaking changes marked with a :boom:
 ### Features
 
 - Replay history from files ([#449](https://github.com/temporalio/sdk-typescript/pull/449))
-  - Provides a way to exercise existing histories against local workflow code
+  - Provides a way to exercise existing histories against local workflow code. See [video tutorial](https://www.youtube.com/watch?v=fN5bIL7wc5M) and [sample code](https://github.com/temporalio/samples-typescript/pull/99).
 - [`core`] Make Core portable ([#458](https://github.com/temporalio/sdk-typescript/pull/458))
+  - Installing the SDK on one OS / architecture now works if used on different OS / arch.
 - Accept IHistory for history replay ([#460](https://github.com/temporalio/sdk-typescript/pull/460))
 - [`client`] Use `runId` only in handles created with `getHandle` ([#468](https://github.com/temporalio/sdk-typescript/pull/468))
   - In addition:
