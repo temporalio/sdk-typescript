@@ -2,21 +2,25 @@ import { promisify } from 'util';
 import Heap from 'heap-js';
 import { BehaviorSubject, lastValueFrom, of } from 'rxjs';
 import { concatMap, delay, map, repeat } from 'rxjs/operators';
-import { IllegalStateError, normalizeTlsConfig, filterNullAndUndefined } from '@temporalio/common';
+import { filterNullAndUndefined, IllegalStateError, normalizeTlsConfig } from '@temporalio/common';
 import * as native from '@temporalio/core-bridge';
 import {
   corePollLogs,
   coreShutdown,
   newCore,
+  newReplayCore,
   TelemetryOptions as RequiredTelemetryOptions,
 } from '@temporalio/core-bridge';
 import { compileServerOptions, getDefaultServerOptions, RequiredServerOptions, ServerOptions } from './server-options';
-import { DefaultLogger, Logger, LogEntry, LogTimestamp, timeOfDayToBigint } from './logger';
+import { DefaultLogger, LogEntry, Logger, LogTimestamp, timeOfDayToBigint } from './logger';
 import * as errors from './errors';
+import { temporal } from '@temporalio/proto';
+import { byteArrayToBuffer } from './utils';
+import { MakeOptional } from '@temporalio/common/src/type-helpers';
 
-export type TelemetryOptions = Omit<RequiredTelemetryOptions, 'logForwardingLevel'> & {
-  logForwardingLevel?: RequiredTelemetryOptions['logForwardingLevel'];
-};
+export type History = temporal.api.history.v1.IHistory;
+
+export type TelemetryOptions = MakeOptional<RequiredTelemetryOptions, 'logForwardingLevel'>;
 
 export interface CoreOptions {
   /** Options for communicating with the Temporal server */
@@ -60,6 +64,22 @@ export class CoreLogger extends DefaultLogger {
 }
 
 /**
+ * Holds bag-o-statics for different core types to ensure that they get independent instances of all
+ * statics.
+ */
+class CoreStatics<T extends Core> {
+  instance?: Promise<T>;
+  instantiator?: 'install' | 'instance';
+  /**
+   * Default options get overridden when Core is installed and are remembered in case Core is
+   * re-instantiated after being shut down
+   */
+  defaultOptions: CoreOptions = {};
+
+  constructor(readonly instanceCtor: (options: native.CoreOptions, callback: native.CoreCallback) => void) {}
+}
+
+/**
  * Core singleton representing an instance of the Rust Core SDK
  *
  * Use {@link install} in order to customize the server connection options or other global process options.
@@ -71,7 +91,12 @@ export class Core {
   protected readonly logPollPromise: Promise<void>;
   public readonly logger: Logger;
 
-  protected constructor(public readonly native: native.Core, public readonly options: CompiledCoreOptions) {
+  protected static _statics: CoreStatics<Core> = new CoreStatics(newCore);
+
+  /**
+   * @ignore
+   */
+  constructor(public readonly native: native.Core, public readonly options: CompiledCoreOptions) {
     if (this.isForwardingLogs()) {
       const logger = (this.logger = new CoreLogger(this.options.logger));
       this.logPollPromise = this.initLogPolling(logger);
@@ -81,20 +106,65 @@ export class Core {
     }
   }
 
-  protected isForwardingLogs(): boolean {
-    return this.options.telemetryOptions.logForwardingLevel !== 'OFF';
+  /**
+   * Instantiate a new Core object and set it as the singleton instance
+   *
+   * If Core has already been instantiated with {@link instance} or this method,
+   * will throw a {@link IllegalStateError}.
+   */
+  public static async install<T extends typeof Core>(this: T, options: CoreOptions): Promise<InstanceType<T>> {
+    if (this._statics.instance !== undefined) {
+      if (this._statics.instantiator === 'install') {
+        throw new IllegalStateError('Core singleton has already been installed');
+      } else if (this._statics.instantiator === 'instance') {
+        throw new IllegalStateError(
+          'Core singleton has already been instantiated. Did you start a Worker before calling `install`?'
+        );
+      }
+    }
+    return (await this.create(options, 'install').catch((err) => {
+      // Unset the singleton in case creation failed
+      delete this._statics.instance;
+      throw err;
+    })) as InstanceType<T>;
   }
 
   /**
-   * Default options get overridden when Core is installed and are remembered in case Core is
-   * re-instantiated after being shut down
+   * Get or instantiate the singleton Core object
+   *
+   * If Core has not been instantiated with {@link install} or this method,
+   * a new Core instance will be installed and configured to connect to
+   * a local server.
    */
-  protected static defaultOptions: CoreOptions = {};
+  public static async instance<T extends typeof Core>(this: T): Promise<InstanceType<T>> {
+    const existingInst = this._statics.instance;
+    if (existingInst !== undefined) {
+      return existingInst as InstanceType<T>;
+    }
+    return (await this.create(this._statics.defaultOptions, 'instance')) as InstanceType<T>;
+  }
 
   /**
    * Factory function for creating a new Core instance, not exposed because Core is meant to be used as a singleton
    */
-  protected static async create(options: CoreOptions): Promise<Core> {
+  protected static async create<T extends typeof Core>(
+    this: T,
+    options: CoreOptions,
+    instantiator: 'install' | 'instance'
+  ): Promise<InstanceType<T>> {
+    // Remember the provided options in case Core is reinstantiated after being shut down
+    this._statics.defaultOptions = options;
+    this._statics.instantiator = instantiator;
+
+    const compiledOptions = this.compileOptions(options);
+    this._statics.instance = promisify(this._statics.instanceCtor)(compiledOptions).then((native) => {
+      return new this(native, compiledOptions);
+    });
+    return (await this._statics.instance) as InstanceType<T>;
+  }
+
+  // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
+  protected static compileOptions(options: CoreOptions) {
     const compiledServerOptions = compileServerOptions({
       ...getDefaultServerOptions(),
       ...filterNullAndUndefined(options.serverOptions ?? {}),
@@ -103,7 +173,7 @@ export class Core {
       ...defaultTelemetryOptions(),
       ...filterNullAndUndefined(options.telemetryOptions ?? {}),
     };
-    const compiledOptions = {
+    return {
       serverOptions: {
         ...compiledServerOptions,
         tls: normalizeTlsConfig(compiledServerOptions.tls),
@@ -114,9 +184,6 @@ export class Core {
       telemetryOptions,
       logger: options.logger ?? new DefaultLogger('INFO'),
     };
-    const native = await promisify(newCore)(compiledOptions);
-
-    return new this(native, compiledOptions);
   }
 
   protected async initLogPolling(logger: CoreLogger): Promise<void> {
@@ -156,6 +223,10 @@ export class Core {
     }
   }
 
+  protected isForwardingLogs(): boolean {
+    return this.options.telemetryOptions.logForwardingLevel !== 'OFF';
+  }
+
   /**
    * Flush any buffered logs.
    *
@@ -167,51 +238,6 @@ export class Core {
       const logger = this.logger as CoreLogger;
       logger.flush();
     }
-  }
-
-  protected static _instance?: Promise<Core>;
-  protected static instantiator?: 'install' | 'instance';
-
-  /**
-   * Instantiate a new Core object and set it as the singleton instance
-   *
-   * If Core has already been instantiated with {@link instance} or this method,
-   * will throw a {@link IllegalStateError}.
-   */
-  public static async install(options: CoreOptions): Promise<Core> {
-    // Remember the provided options in case Core is reinstantiated after being shut down
-    this.defaultOptions = options;
-    if (this._instance !== undefined) {
-      if (this.instantiator === 'install') {
-        throw new IllegalStateError('Core singleton has already been installed');
-      } else if (this.instantiator === 'instance') {
-        throw new IllegalStateError(
-          'Core singleton has already been instantiated. Did you start a Worker before calling `install`?'
-        );
-      }
-    }
-    this.instantiator = 'install';
-    this._instance = this.create(options).catch((err) => {
-      // Unset the singleton in case creation failed
-      delete this._instance;
-      throw err;
-    });
-    return this._instance;
-  }
-
-  /**
-   * Get or instantiate the singleton Core object
-   *
-   * If Core has not been instantiated with {@link install} or this method,
-   * a new Core instance will be installed and configured to connect to
-   * the local docker compose setup.
-   */
-  public static async instance(): Promise<Core> {
-    if (this._instance === undefined) {
-      this.instantiator = 'instance';
-      this._instance = this.create(this.defaultOptions);
-    }
-    return this._instance;
   }
 
   /**
@@ -250,6 +276,30 @@ export class Core {
     await promisify(coreShutdown)(this.native);
     // This will effectively drain all logs
     await this.logPollPromise;
-    delete Core._instance;
+    delete Core._statics.instance;
+  }
+}
+
+/**
+ * An alternate version of Core which creates core instances that use mocks
+ * rather than an actual server to replay histories.
+ *
+ * Intentionally not exported since Core will soon be deprecated.
+ */
+export class ReplayCore extends Core {
+  protected static _statics: CoreStatics<ReplayCore> = new CoreStatics((opts, cb) =>
+    newReplayCore(opts.telemetryOptions, cb)
+  );
+
+  // TODO: accept either history or JSON or binary
+  /** @hidden */
+  public async createReplayWorker(options: native.WorkerOptions, history: History): Promise<native.Worker> {
+    const worker = await promisify(native.newReplayWorker)(
+      this.native,
+      options,
+      byteArrayToBuffer(temporal.api.history.v1.History.encodeDelimited(history).finish())
+    );
+    this.registeredWorkers.add(worker);
+    return worker;
   }
 }

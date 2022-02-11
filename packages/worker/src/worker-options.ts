@@ -253,6 +253,27 @@ export interface CompiledWorkerOptions extends Omit<WorkerOptionsWithDefaults, '
   defaultHeartbeatThrottleIntervalMs: number;
 }
 
+/**
+ * {@link WorkerOptions} with inapplicable-to-replay fields removed.
+ */
+export interface ReplayWorkerOptions
+  extends Omit<
+    WorkerOptions,
+    | 'taskQueue'
+    | 'activities'
+    | 'maxConcurrentActivityTaskExecutions'
+    | 'maxConcurrentActivityTaskPolls'
+    | 'maxHeartbeatThrottleInterval'
+    | 'defaultHeartbeatThrottleInterval'
+    | 'debugMode'
+  > {
+  /**
+   *  A name for this replay worker. It will be combined with a short random ID to form a unique
+   *  task queue for the replay worker.
+   */
+  replayName: string;
+}
+
 function statIfExists(filesystem: typeof fs, path: string): fs.Stats | undefined {
   try {
     return filesystem.statSync(path);

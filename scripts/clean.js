@@ -59,14 +59,8 @@ function cleanCompiledRustFiles() {
   spawnSync('cargo', ['clean'], { cwd: bridgeDir, stdio: 'inherit' });
 }
 
-function cleanCompiledCppFiles() {
-  console.log('Cleaning compiled C++ files');
-  spawnSync('node-gyp', ['clean'], { cwd: workerDir, stdio: 'inherit' });
-}
-
 const { '--only': only } = arg({ '--only': [String] });
 const components = new Set(only === undefined || only.length === 0 ? ['ts', 'proto', 'rust', 'cpp'] : only);
 if (components.has('ts')) cleanTsGeneratedFiles();
 if (components.has('proto')) cleanProtoGeneratedFiles();
 if (components.has('rust')) cleanCompiledRustFiles();
-if (components.has('cpp')) cleanCompiledCppFiles();

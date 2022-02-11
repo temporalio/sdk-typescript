@@ -31,13 +31,20 @@ See [sdk-structure.md](./docs/sdk-structure.md)
   npm ci
   ```
   This may take a few minutes, as it involves downloading and compiling Rust dependencies.
-  You should now be able to successfully do `npm run build`. If this fails, resetting your environment may help:
+- You should now be able to build:
+  ```sh
+  npm run build
+  ```
+
+If building fails, resetting your environment may help:
 
 ```
 npx lerna clean -y && npm ci
 ```
 
-To update your environment, run `git submodule update` to update to the latest version of the Core SDK, followed by `npm run build` to recompile.
+If `npm ci` fails in `@temporalio/core-bridge` on the command `node ./scripts/build.js`, you may need to do `rustup update`.
+
+To update to the latest version of the Core SDK, run `git submodule update` followed by `npm run build` to recompile.
 
 > For cross compilation on MacOS follow [these instructions](https://github.com/temporalio/sdk-typescript/blob/main/docs/building.md) (only required for publishing packages).
 
@@ -98,3 +105,52 @@ chore(samples): upgrade commander module
 ```
 
 The `scope` options are listed in [commitlint.config.js](https://github.com/temporalio/sdk-typescript/blob/main/commitlint.config.js).
+
+### Publishing
+
+```sh
+cargo install git-cliff
+```
+
+```sh
+# git-cliff --tag <new version> <current version>..HEAD | pbcopy
+git-cliff --tag 0.18.0 v0.17.2..HEAD | pbcopy
+```
+
+- Paste into [CHANGELOG.md](CHANGELOG.md)
+- Clean up formatting
+- Add any important missing details
+- Replace PR numbers with links:
+
+```
+#(\d{3})
+[#$1](https://github.com/temporalio/sdk-typescript/pull/$1)
+```
+
+We're [working on automating](https://github.com/temporalio/sdk-typescript/pull/395) the rest of the process:
+
+- Download the artifacts from [GitHub Actions](https://github.com/temporalio/sdk-typescript/actions)
+- Decompress and copy:
+
+```sh
+for f in ~/Downloads/packages-*.zip; do mkdir "$HOME/Downloads/$(basename -s .zip $f)"; (cd "$HOME/Downloads/$(basename -s .zip $f)" && unzip $f && tar -xvzf @temporalio/core-bridge/core-bridge-*.tgz package/releases/ && cp -r package/releases/* ~/temporal/sdk-typescript/packages/core-bridge/releases/); done
+```
+
+- Log in to npm as `temporal-sdk-team`
+- Publish:
+
+```sh
+#!/bin/bash
+set -euo pipefail
+
+git clean -fdx
+npm ci
+npm run build
+# we don't build for aarch64-linux in CI, so we build for it now
+export CC_aarch64_unknown_linux_gnu=aarch64-unknown-linux-gnu-gcc
+export CC_x86_64_unknown_linux_gnu=x86_64-unknown-linux-gnu-gcc
+export TEMPORAL_WORKER_BUILD_TARGETS=aarch64-unknown-linux-gnu
+npx lerna run --stream build-rust -- -- --target ${TEMPORAL_WORKER_BUILD_TARGETS}
+npx lerna version patch # or major|minor
+npx lerna publish from-git
+```

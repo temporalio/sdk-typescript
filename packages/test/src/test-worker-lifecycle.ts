@@ -21,7 +21,7 @@ if (RUN_INTEGRATION_TESTS) {
     t.is(worker.getState(), 'STOPPING');
     await p;
     t.is(worker.getState(), 'STOPPED');
-    await t.throwsAsync(worker.run(), { message: 'Poller was aleady started' });
+    await t.throwsAsync(worker.run(), { message: 'Poller was already started' });
   });
 }
 
@@ -37,7 +37,7 @@ test.serial('Mocked run shuts down gracefully', async (t) => {
   t.is(worker.getState(), 'STOPPING');
   await p;
   t.is(worker.getState(), 'STOPPED');
-  await t.throwsAsync(worker.run(), { message: 'Poller was aleady started' });
+  await t.throwsAsync(worker.run(), { message: 'Poller was already started' });
 });
 
 test('Mocked run throws if not shut down gracefully', async (t) => {
@@ -55,5 +55,5 @@ test('Mocked run throws if not shut down gracefully', async (t) => {
     message: 'Timed out while waiting for worker to shutdown gracefully',
   });
   t.is(worker.getState(), 'FAILED');
-  await t.throwsAsync(worker.run(), { message: 'Poller was aleady started' });
+  await t.throwsAsync(worker.run(), { message: 'Poller was already started' });
 });

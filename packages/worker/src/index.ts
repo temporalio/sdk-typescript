@@ -11,7 +11,7 @@
 export { State, Worker, DataConverter, defaultDataConverter, errors } from './worker';
 export { WorkerOptions, CompiledWorkerOptions } from './worker-options';
 export { ServerOptions, TLSConfig } from './server-options';
-export { Core, CoreOptions } from './core';
+export { Core, CompiledCoreOptions, CoreOptions, TelemetryOptions, History } from './core';
 export * from './logger';
 export * from './sinks';
 export * from './interceptors';

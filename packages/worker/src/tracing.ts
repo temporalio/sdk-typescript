@@ -24,24 +24,33 @@ export function childSpan(tracer: otel.Tracer, parent: otel.Span, name: string, 
 
 /**
  * Wraps `fn` in a span which ends when function returns or throws
+ *
+ * @param acceptableErrors If this function returns true, we will not mark
+ * the span as failed for such errors
  */
 export async function instrument<T>(
   tracer: otel.Tracer,
   parent: otel.Span,
   name: string,
-  fn: (span: otel.Span) => Promise<T>
+  fn: (span: otel.Span) => Promise<T>,
+  acceptableErrors?: (err: unknown) => boolean
 ): Promise<T> {
   const context = otel.trace.setSpan(otel.context.active(), parent);
   return otel.context.with(context, async () => {
     const span = tracer.startSpan(name, undefined);
+    let didSetErr = false;
     try {
-      const ret = await fn(span);
-      span.setStatus({ code: otel.SpanStatusCode.OK });
-      return ret;
+      return await fn(span);
     } catch (err) {
-      span.setStatus({ code: otel.SpanStatusCode.ERROR, message: errorMessage(err) });
+      if (acceptableErrors === undefined || !acceptableErrors(err)) {
+        didSetErr = true;
+        span.setStatus({ code: otel.SpanStatusCode.ERROR, message: errorMessage(err) });
+      }
       throw err;
     } finally {
+      if (!didSetErr) {
+        span.setStatus({ code: otel.SpanStatusCode.OK });
+      }
       span.end();
     }
   });

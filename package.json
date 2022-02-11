@@ -32,6 +32,7 @@
     "pidusage": "^2.0.21",
     "prettier": "^2.3.2",
     "tail": "^2.2.3",
+    "ts-prune": "^0.10.3",
     "typescript": "^4.4.2"
   },
   "scripts": {
@@ -40,11 +41,13 @@
     "build.watch": "lerna run --stream build.watch",
     "test": "lerna run --stream test",
     "test.watch": "lerna run --stream test.watch",
+    "ci-build-no-rust": "lerna run --ignore @temporalio/core-bridge --stream build",
     "ci-load": "node ./packages/test/lib/load/all-in-one.js --server-address $TEMPORAL_TESTING_SERVER_URL --iterations 10000 --otel-url='' --max-cached-wfs 500",
     "ci-nightly-longrun": "node ./packages/test/lib/load/all-in-one.js --server-address $TEMPORAL_TESTING_SERVER_URL --for-seconds 14400 --min-wfs-per-sec 5 --concurrent-wf-clients 10 --otel-url=''",
     "ci-nightly-sampler": "node ./packages/test/lib/load/all-in-one.js --server-address $TEMPORAL_TESTING_SERVER_URL --otel-url='' --iterations 1000 --min-wfs-per-sec 5 --max-cached-wfs 500 --workflow yummy-sampler-mode",
     "wait-namespace": "node ./scripts/wait-on-temporal.mjs",
     "lint": "eslint packages/*/src --ext .ts --no-error-on-unmatched-pattern && prettier --end-of-line auto --check .",
+    "lint.prune": "ts-prune -p tsconfig.prune.json --ignore \"used in module\" --skip \".d.ts\"",
     "commitlint": "commitlint --from origin/main",
     "format": "prettier --write .",
     "clean": "node ./scripts/clean.js",

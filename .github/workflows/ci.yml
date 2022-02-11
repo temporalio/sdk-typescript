@@ -7,8 +7,7 @@ on: # rebuild any PRs and main branch changes
       - 'releases/*'
 
 jobs:
-  # Build and test the project
-  build-lint-test:
+  build-and-test:
     strategy:
       fail-fast: true
       matrix:
@@ -31,9 +30,12 @@ jobs:
       - uses: actions/setup-node@v1
         with:
           node-version: ${{ matrix.node }}
-      - run: npm ci
+      # Don't build during install phase since we're going to explicitly build
+      - run: npm ci --ignore-scripts
       - run: npm run build
-      - run: npm run lint
+        env:
+          BUILD_CORE_RELEASE: true
+
       - name: Get Temporal docker-compose.yml
         run: wget https://raw.githubusercontent.com/temporalio/docker-compose/v1.13.0/docker-compose.yml
         if: ${{ startsWith(matrix.os, 'ubuntu') }}
@@ -43,10 +45,13 @@ jobs:
       - name: Wait for Temporal Server
         run: npm run wait-namespace
         if: ${{ startsWith(matrix.os, 'ubuntu') }}
+
       - run: npm test
         env:
           # TODO: Run integration tests on MacOS / Windows probably using temporalite
           RUN_INTEGRATION_TESTS: ${{ startsWith(matrix.os, 'ubuntu') }}
+
+      # Do docs stuff (only on one host)
       - name: Build docs
         if: ${{ matrix.docsTarget }}
         run: npm run docs
@@ -99,10 +104,12 @@ jobs:
           node-version: 16
       - name: Add ${{ matrix.target }} rust target
         run: rustup target add ${{ matrix.target }}
-      - run: npm ci
-      - run: npm run build
+      # Don't build during install phase since we're going to explicitly build
+      - run: npm ci --ignore-scripts
+      - name: Compile all non-rust code
+        run: npm run ci-build-no-rust
       - name: Cross compile rust code
-        run: npx lerna run --stream build-rust -- -- --target ${{ matrix.target }}
+        run: npx lerna run --stream build-rust-release -- -- --target ${{ matrix.target }}
       # Restore the CLI JS only on Windows because Windows build changes the
       # file attributes causing publish to think the change is uncommitted
       - run: git restore packages/create-project/cli.js
@@ -112,6 +119,25 @@ jobs:
         with:
           name: packages-${{ matrix.target }}
           path: /tmp/registry/storage
+
+  # Run TS linting and ts-prune to find unused code
+  lint-and-prune:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          submodules: recursive
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+      - uses: actions/setup-node@v1
+        with:
+          node-version: 16
+      # Don't build during install phase since we don't need builds for linting
+      - run: npm ci --ignore-scripts
+      - run: npm run lint
+      - run: npm run lint.prune
+
   # Tests that npm init @temporalio results in a working worker and client
   # Note that the instances used here don't have the Rust toolchain installed which ensures use of prebuilt libs.
   test-npm-init:
@@ -146,7 +172,7 @@ jobs:
       TEMPORAL_CLIENT_CERT: ${{ secrets.TEMPORAL_CLIENT_CERT }}
       TEMPORAL_CLIENT_KEY: ${{ secrets.TEMPORAL_CLIENT_KEY }}
     steps:
-      # We don't need the core submodule here since bridge since we don't build the project
+      # We don't need the core submodule here since we don't build the project
       - uses: actions/checkout@v2
         if: ${{ matrix.server != 'cloud' || env.TEMPORAL_CLIENT_CERT != '' }}
       - uses: actions/setup-node@v1
