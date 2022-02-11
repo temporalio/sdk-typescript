@@ -23,39 +23,56 @@ function workflowInclusiveInstanceOf(instance: unknown, type: Function): boolean
 
 ## Decision
 
-Given the possibility of switching or adding other isolation methods in future, we opted for inside the vm. We'll also have another data transformer / payload interceptor layer that runs outside the vm, can use node modules and Promises, and operates on Payloads.
+Given the possibility of switching or adding other isolation methods in future, we opted to convert to/from Payloads inside the vm (`PayloadConverter`). We also added another transformer layer called `PayloadCodec` that runs outside the vm, can use node modules and Promises, and operates on Payloads. A `DataConverter` is a `PayloadConverter` and a `PayloadCodec`:
 
-### General flow
+```ts
+export interface DataConverter {
+  payloadConverterPath?: string;
+  payloadCodec?: PayloadCodec;
+}
+
+export interface PayloadConverter {
+  toPayload<T>(value: T): Payload;
+  fromPayload<T>(payload: Payload): T;
+}
+
+export interface PayloadCodec {
+  encode(payloads: Payload[]): Promise<Payload[]>;
+  decode(payloads: Payload[]): Promise<Payload[]>;
+}
+```
+
+### Worker converter flow
+
+`PayloadCodec` only runs in the main thread.
 
 When `WorkerOptions.dataConverter.payloadConverterPath` is provided, the code at that location is loaded into the main thread, the worker threads, and the webpack Workflow bundle.
 
-### Specific flow
-
 `Worker.create`:
-*main thread*
+_main thread_
 
 - imports and validates `options.dataConverter.payloadConverterPath`
 - passes `payloadConverterPath` to either `ThreadedVMWorkflowCreator.create` or `VMWorkflowCreator.create`
 - passes `payloadConverterPath` to `WorkflowCodeBundler`
 
 `ThreadedVMWorkflowCreator.create`:
-*main thread*
+_main thread_
 
 - sends `payloadConverterPath` to each worker thread
 - thread sends `payloadConverterPath` to VMWorkflowCreator.create
 
 `VMWorkflowCreator.create`:
-*worker thread (unless in debug mode)*
+_worker thread (unless in debug mode)_
 
 - imports `payloadConverterPath`
 - passes `payloadConverterPath` to `VMWorkflowCreator` constructor
 
 `VMWorkflowCreator.createWorkflow`:
-*worker thread (unless in debug mode)*
+_worker thread (unless in debug mode)_
 
 - passes `useCustomPayloadConverter` to `initRuntime` inside Workflow vm
 
 `worker-interface.ts#initRuntime`:
-*workflow vm*
+_workflow vm_
 
 - if `useCustomPayloadConverter`, imports `__temporal_custom_payload_converter` and sets `state.payloadConverter`

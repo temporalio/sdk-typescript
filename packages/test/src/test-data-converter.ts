@@ -2,7 +2,6 @@
 import { Connection, WorkflowClient } from '@temporalio/client';
 import { DataConverterError, defaultPayloadConverter, DefaultPayloadConverter, ValueError } from '@temporalio/common';
 import { Core, DefaultLogger, Worker } from '@temporalio/worker';
-import { CompositePayloadConverter } from '@temporalio/workflow-common';
 import {
   BinaryPayloadConverter,
   JsonPayloadConverter,
@@ -19,9 +18,9 @@ import {
 import test from 'ava';
 import { v4 as uuid4 } from 'uuid';
 import root from '../protos/root';
-import { messageInstance } from './payload-converters/payload-converter';
 import { RUN_INTEGRATION_TESTS } from './helpers';
 import { defaultOptions } from './mock-native-worker';
+import { messageInstance } from './payload-converters/payload-converter';
 import { protobufWorkflow } from './workflows';
 
 test('UndefinedPayloadConverter converts from undefined only', async (t) => {

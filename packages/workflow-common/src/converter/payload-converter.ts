@@ -1,14 +1,13 @@
-import { ValueError, UnsupportedTypeError } from '../errors';
-import { str, METADATA_ENCODING_KEY, Payload } from './types';
+import { UnsupportedTypeError, ValueError } from '../errors';
 import {
-  PayloadConverterWithEncoding,
-  UndefinedPayloadConverter,
   BinaryPayloadConverter,
   JsonPayloadConverter,
-  ProtobufJsonPayloadConverter,
+  PayloadConverterWithEncoding,
   ProtobufBinaryPayloadConverter,
+  ProtobufJsonPayloadConverter,
+  UndefinedPayloadConverter,
 } from './payload-converters';
-import { hasOwnProperty } from '../type-helpers';
+import { METADATA_ENCODING_KEY, Payload, str } from './types';
 
 /**
  * Used by the framework to serialize/deserialize parameters and return values that need to be
