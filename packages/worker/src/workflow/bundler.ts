@@ -113,7 +113,7 @@ export class WorkflowCodeBundler {
         modules: [path.resolve(__dirname, 'module-overrides'), ...this.nodeModulesPaths],
         extensions: ['.ts', '.js'],
         // If we don't set an alias for this below, then it won't be imported, so webpack can safely ignore it
-        fallback: { __temporal_custom_data_converter: false },
+        fallback: { __temporal_custom_payload_converter: false },
       },
       module: {
         rules: [
@@ -144,7 +144,6 @@ export class WorkflowCodeBundler {
         // since we can't decode without a `root` anyway.
         webpackConfig.resolve.alias = {
           'proto3-json-serializer$': path.resolve(__dirname, 'empty-proto3-json-serializer.js'),
-          __temporal_custom_payload_converter$: path.resolve(__dirname, 'empty-module.js'),
         };
       }
     }
