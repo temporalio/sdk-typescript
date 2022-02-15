@@ -191,7 +191,7 @@ if (RUN_INTEGRATION_TESTS) {
     const client = new WorkflowClient(connection.service, {
       dataConverter: { payloadConverterPath: './payload-converters/payload-converter' },
     });
-    worker.run();
+    const runPromise = worker.run();
     client.execute(protobufWorkflow, {
       args: [messageInstance],
       workflowId: uuid4(),
@@ -200,6 +200,7 @@ if (RUN_INTEGRATION_TESTS) {
     await expectedErrorWasThrown;
     t.pass();
     worker.shutdown();
+    await runPromise;
   });
 }
 

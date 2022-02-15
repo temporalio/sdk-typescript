@@ -2,11 +2,14 @@ import { decodeFailure, encodeFailure, Payload } from '@temporalio/common';
 import { coresdk, temporal } from '@temporalio/proto';
 import { PayloadCodec, ProtoFailure } from '@temporalio/workflow-common';
 
+/**
+ * Helper class for decoding Workflow activations and encoding Workflow completions.
+ */
 export class WorkflowCodecRunner {
   constructor(protected readonly codec: PayloadCodec) {}
 
   /**
-   * Run codec.decode on the Payloads in the Activation message
+   * Run codec.decode on the Payloads in the Activation message.
    */
   public async decodeActivation(activation: coresdk.workflow_activation.IWorkflowActivation): Promise<void> {
     if (activation.jobs?.length) {
@@ -64,14 +67,14 @@ export class WorkflowCodecRunner {
     const accessibleFailureParent = failureParent as Record<string, unknown>;
     if (!accessibleFailureParent.failure) return;
 
-    accessibleFailureParent['failure'] = await decodeFailure(
+    accessibleFailureParent.failure = await decodeFailure(
       this.codec,
-      accessibleFailureParent['failure'] as temporal.api.failure.v1.IFailure
+      accessibleFailureParent.failure as temporal.api.failure.v1.IFailure
     );
   }
 
   /**
-   * Run codec.encode on the Payloads inside the Completion message
+   * Run codec.encode on the Payloads inside the Completion message.
    */
   public async encodeCompletion(completionBytes: Uint8Array): Promise<Uint8Array> {
     const completion = coresdk.workflow_completion.WorkflowActivationCompletion.decode(completionBytes);

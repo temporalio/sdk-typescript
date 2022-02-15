@@ -9,7 +9,7 @@
     "workflow",
     "worker"
   ],
-  "author": "Roey Berman <roey@temporal.io>",
+  "author": "Loren Sands-Ramshaw <loren@temporal.io>",
   "license": "MIT",
   "dependencies": {
     "long": "^4.0.0",

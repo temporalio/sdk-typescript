@@ -48,9 +48,12 @@ async function main() {
   await compileProtos(protosPath, moduleOutputFile, '--target', 'json-module', '--root', 'test');
 
   console.log(`Creating protobuf TS definitions from ${protosPath}`);
-  await compileProtos(protosPath, tempFile, '--target', 'static-module');
-  await promisify(pbts.main)(['--out', typesOutputFile, tempFile]);
-  await rm(tempFile);
+  try {
+    await compileProtos(protosPath, tempFile, '--target', 'static-module');
+    await promisify(pbts.main)(['--out', typesOutputFile, tempFile]);
+  } finally {
+    await rm(tempFile);
+  }
 
   console.log('Done');
 }

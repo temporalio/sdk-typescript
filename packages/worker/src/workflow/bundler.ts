@@ -59,7 +59,7 @@ export class WorkflowCodeBundler {
     const entrypointPath = '/src/main.js';
 
     this.genEntrypoint(vol, entrypointPath);
-    await this.bundle(ufs, entrypointPath, distDir, this.payloadConverterPath);
+    await this.bundle(ufs, entrypointPath, distDir);
     return ufs.readFileSync(path.join(distDir, 'main.js'), 'utf8');
   }
 
@@ -102,18 +102,26 @@ export class WorkflowCodeBundler {
   /**
    * Run webpack
    */
-  protected async bundle(
-    filesystem: typeof unionfs.ufs,
-    entry: string,
-    distDir: string,
-    payloadConverterPath?: string
-  ): Promise<void> {
-    const webpackConfig: webpack.Configuration = {
+  protected async bundle(filesystem: typeof unionfs.ufs, entry: string, distDir: string): Promise<void> {
+    const compiler = webpack({
       resolve: {
         modules: [path.resolve(__dirname, 'module-overrides'), ...this.nodeModulesPaths],
         extensions: ['.ts', '.js'],
         // If we don't set an alias for this below, then it won't be imported, so webpack can safely ignore it
         fallback: { __temporal_custom_payload_converter: false },
+        ...(this.payloadConverterPath
+          ? {
+              alias: {
+                __temporal_custom_payload_converter$: this.payloadConverterPath,
+              },
+            }
+          : {
+              alias: {
+                // Save 100KB from the bundle by not including the npm module,
+                // since we can't decode without a `root` anyway.
+                'proto3-json-serializer$': path.resolve(__dirname, 'empty-proto3-json-serializer.js'),
+              },
+            }),
       },
       module: {
         rules: [
@@ -133,22 +141,7 @@ export class WorkflowCodeBundler {
         filename: 'main.js',
         library: '__TEMPORAL__',
       },
-    };
-    if (webpackConfig.resolve) {
-      if (payloadConverterPath) {
-        webpackConfig.resolve.alias = {
-          __temporal_custom_payload_converter$: payloadConverterPath,
-        };
-      } else {
-        // Save 100KB from the bundle by not including the npm module,
-        // since we can't decode without a `root` anyway.
-        webpackConfig.resolve.alias = {
-          'proto3-json-serializer$': path.resolve(__dirname, 'empty-proto3-json-serializer.js'),
-        };
-      }
-    }
-
-    const compiler = webpack(webpackConfig);
+    });
 
     // Cast to any because the type declarations are inaccurate
     compiler.inputFileSystem = filesystem as any;
