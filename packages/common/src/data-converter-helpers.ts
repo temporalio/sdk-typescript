@@ -40,6 +40,11 @@ function requirePayloadConverter(path: string): PayloadConverter {
   }
 }
 
+/**
+ * If {@link DataConverter.payloadConverterPath} is specified, `require()` it and validate that the module has a `payloadConverter` named export.
+ * If not, use {@link defaultPayloadConverter}.
+ * If {@link DataConverter.payloadCodec} is unspecified, use {@link defaultPayloadCodec}.
+ */
 export function loadDataConverter(dataConverter?: DataConverter): LoadedDataConverter {
   let payloadConverter: PayloadConverter = defaultPayloadConverter;
   if (dataConverter?.payloadConverterPath) {

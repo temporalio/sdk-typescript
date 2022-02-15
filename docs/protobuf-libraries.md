@@ -12,7 +12,7 @@ A and B, but not C.
 
 - Most popular lib (5M downloads/wk)
 - Fairly inactive maintainers (infrequent updates, many open PRs & issues)
-- Non-standard JSON serialization
+- [Non-standard](https://github.com/protobufjs/protobuf.js/issues/1304) JSON serialization
 - Message classes with generated types and runtime-checkable instances
 
 ### proto3-json-serializer
@@ -50,7 +50,7 @@ A and B
 ## Current solution
 
 - Use `protobufjs` with `proto3-json-serializer`
-- Have users use runtime-loaded messages (not generated classes) and `Class.create` (not `new Class()`)
+- Have users use runtime-loaded messages (not generated classes) and `Class.create` (not `new Class()`, which doesn't work with runtime-loaded messages)
 - Patch `json-module` output (which adds `nested` attributes to lowercase namespaces [which causes a TS error](https://github.com/protobufjs/protobuf.js/issues/1014))
 
 ```ts
@@ -65,9 +65,22 @@ module.exports = patchProtobufRoot(unpatchedRoot);
 // root.d.ts generated with:
 // pbjs -t static-module *.proto | pbts -o root.d.ts -
 
+// src/data-converter.ts
+import { DefaultDataConverter } from '@temporalio/common';
+import root from '../protos/root';
+
+export const dataConverter = new DefaultDataConverter({ root });
+
+// src/worker.ts
+import { dataConverter } from './data-converter';
+
+const worker = Worker.create({ dataConverter, ... });
+
 // src/client.ts
 import { foo } from '../protos/root';
+import { dataConverter } from './data-converter';
 
+const client = new WorkflowClient(connection.service, { dataConverter });
 await client.start(protoWorkflow, {
   args: [foo.bar.ProtoInput.create({ name: 'Proto', age: 1 })], // can't use `new foo.bar.ProtoInput()`
   taskQueue: 'tutorial',
@@ -80,12 +93,6 @@ import { foo } from '../protos/root';
 export async function protoWorkflow(input: foo.bar.ProtoInput): Promise<foo.bar.ProtoResult> {
   return foo.bar.ProtoResult.create({ sentence: `Name is ${input.name}` });
 }
-
-// src/data-converter.ts
-import { DefaultDataConverter } from '@temporalio/common';
-import root from '../protos/root';
-
-export const dataConverter = new DefaultDataConverter({ root });
 ```
 
 We originally were thinking of this, but the namespaces in `json-module.js` get lost through `patchProtobufRoot()`:

@@ -151,6 +151,9 @@ abstract class ProtobufPayloadConverter implements PayloadConverterWithEncoding 
 export class ProtobufBinaryPayloadConverter extends ProtobufPayloadConverter {
   public encodingType = encodingTypes.METADATA_ENCODING_PROTOBUF;
 
+  /**
+   * @param root The value returned from {@link patchProtobufRoot}
+   */
   constructor(root?: unknown) {
     super(root);
   }
@@ -178,6 +181,9 @@ export class ProtobufBinaryPayloadConverter extends ProtobufPayloadConverter {
 export class ProtobufJsonPayloadConverter extends ProtobufPayloadConverter {
   public encodingType = encodingTypes.METADATA_ENCODING_PROTOBUF_JSON;
 
+  /**
+   * @param root The value returned from {@link patchProtobufRoot}
+   */
   constructor(root?: unknown) {
     super(root);
   }

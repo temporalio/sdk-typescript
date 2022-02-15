@@ -205,7 +205,7 @@ if (RUN_INTEGRATION_TESTS) {
 
 test('DefaultPayloadConverter converts protobufs', async (t) => {
   const instance = root.ProtoActivityInput.create({ name: 'Proto', age: 1 });
-  const defaultPayloadConverterWithProtos = new DefaultPayloadConverter({ root });
+  const defaultPayloadConverterWithProtos = new DefaultPayloadConverter({ protobufRoot: root });
   t.deepEqual(
     defaultPayloadConverterWithProtos.toPayload(instance),
     // It will always use JSON because it appears before binary in the list

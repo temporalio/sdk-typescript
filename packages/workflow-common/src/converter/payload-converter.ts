@@ -40,6 +40,11 @@ export class CompositePayloadConverter implements PayloadConverter {
     }
   }
 
+  /**
+   * Tries to run `.toPayload(value)` on each converter in the order provided at construction.
+   * Returns the first successful result.
+   * @throws {@link ValueError} if no converter can convert the value
+   */
   public toPayload<T>(value: T): Payload {
     for (const converter of this.converters) {
       try {
@@ -56,6 +61,9 @@ export class CompositePayloadConverter implements PayloadConverter {
     throw new ValueError(`Cannot serialize ${value}`);
   }
 
+  /**
+   * Run {@link PayloadConverterWithEncoding.fromPayload} based on the {@link encodingTypes | encoding type} of the {@link Payload}.
+   */
   public fromPayload<T>(payload: Payload): T {
     if (payload.metadata === undefined || payload.metadata === null) {
       throw new ValueError('Missing payload metadata');
@@ -104,38 +112,52 @@ export function fromPayloadsAtIndex<T>(converter: PayloadConverter, index: numbe
   return converter.fromPayload(payloads[index]);
 }
 
-export function arrayFromPayloads(converter: PayloadConverter, content?: Payload[] | null): unknown[] {
-  if (!content) {
+/**
+ * Run {@link PayloadConverter.fromPayload} on each value in the array.
+ */
+export function arrayFromPayloads(converter: PayloadConverter, payloads?: Payload[] | null): unknown[] {
+  if (!payloads) {
     return [];
   }
-  return content.map((payload: Payload) => converter.fromPayload(payload));
+  return payloads.map((payload: Payload) => converter.fromPayload(payload));
 }
 
-export function mapToPayloads<K extends string>(
-  converter: PayloadConverter,
-  source: Record<K, any>
-): Record<K, Payload> {
+/**
+ * Run {@link PayloadConverter.toPayload} on each value in the map.
+ */
+export function mapToPayloads<K extends string>(converter: PayloadConverter, map: Record<K, any>): Record<K, Payload> {
   return Object.fromEntries(
-    Object.entries(source).map(([k, v]): [K, Payload] => [k as K, converter.toPayload(v)])
+    Object.entries(map).map(([k, v]): [K, Payload] => [k as K, converter.toPayload(v)])
   ) as Record<K, Payload>;
 }
 
 export interface DefaultPayloadConverterOptions {
-  root?: Record<string, unknown>;
+  /**
+   * The `root` provided to {@link ProtobufJsonPayloadConverter} and {@link ProtobufBinaryPayloadConverter}
+   */
+  protobufRoot?: Record<string, unknown>;
 }
 
 export class DefaultPayloadConverter extends CompositePayloadConverter {
-  constructor({ root }: DefaultPayloadConverterOptions = {}) {
+  constructor({ protobufRoot }: DefaultPayloadConverterOptions = {}) {
     // Match the order used in other SDKs
     // Go SDK: https://github.com/temporalio/sdk-go/blob/5e5645f0c550dcf717c095ae32c76a7087d2e985/converter/default_data_converter.go#L28
     super(
       new UndefinedPayloadConverter(),
       new BinaryPayloadConverter(),
-      new ProtobufJsonPayloadConverter(root),
-      new ProtobufBinaryPayloadConverter(root),
+      new ProtobufJsonPayloadConverter(protobufRoot),
+      new ProtobufBinaryPayloadConverter(protobufRoot),
       new JsonPayloadConverter()
     );
   }
 }
 
+/**
+ * The default {@link PayloadConverter} used by the SDK.
+ * Supports `Uint8Array` and JSON serializables (so if [`JSON.stringify(yourArgOrRetval)`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/JSON/stringify#description) works, the default payload converter will work).
+ *
+ * To also support Protobufs, create a custom payload converter with {@link DefaultPayloadConverter}:
+ *
+ * `const myConverter = new DefaultPayloadConverter({ protobufRoot })`
+ */
 export const defaultPayloadConverter = new DefaultPayloadConverter();

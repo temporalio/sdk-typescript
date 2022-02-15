@@ -11,6 +11,9 @@ import {
   toPayloads,
 } from '@temporalio/workflow-common';
 
+/**
+ * Decode `payloads` and then return {@link fromPayloadsAtIndex}.
+ */
 export async function decodeFromPayloadsAtIndex<T>(
   converter: LoadedDataConverter,
   index: number,
@@ -20,18 +23,24 @@ export async function decodeFromPayloadsAtIndex<T>(
   return fromPayloadsAtIndex(payloadConverter, index, payloads ? await payloadCodec.decode(payloads) : payloads);
 }
 
+/**
+ * Decode `payloads` and then return {@link arrayFromPayloads}`.
+ */
 export async function decodeArrayFromPayloads(
   converter: LoadedDataConverter,
-  content?: Payload[] | null
+  payloads?: Payload[] | null
 ): Promise<unknown[]> {
   const { payloadConverter, payloadCodec } = converter;
-  let decodedPayloads = content;
-  if (content) {
-    decodedPayloads = await payloadCodec.decode(content);
+  let decodedPayloads = payloads;
+  if (payloads) {
+    decodedPayloads = await payloadCodec.decode(payloads);
   }
   return arrayFromPayloads(payloadConverter, decodedPayloads);
 }
 
+/**
+ * Run {@link decodeFailure} and then return {@link failureToError}.
+ */
 export async function decodeOptionalFailureToOptionalError(
   converter: LoadedDataConverter,
   failure: ProtoFailure | undefined | null
@@ -40,27 +49,18 @@ export async function decodeOptionalFailureToOptionalError(
   return failure ? failureToError(await decodeFailure(payloadCodec, failure), payloadConverter) : undefined;
 }
 
-export async function encodeMapToPayloads<K extends string>(
-  converter: LoadedDataConverter,
-  source: Record<K, any>
-): Promise<Record<K, Payload>> {
-  const { payloadConverter, payloadCodec } = converter;
-  return Object.fromEntries(
-    await Promise.all(
-      Object.entries(source).map(async ([k, v]): Promise<[K, Payload]> => {
-        const [payload] = await payloadCodec.encode([payloadConverter.toPayload(v)]);
-        return [k as K, payload];
-      })
-    )
-  ) as Record<K, Payload>;
-}
-
+/**
+ * Run {@link PayloadConverter.toPayload} on value, and then encode it.
+ */
 export async function encodeToPayload(converter: LoadedDataConverter, value: unknown): Promise<Payload> {
   const { payloadConverter, payloadCodec } = converter;
   const [payload] = await payloadCodec.encode([payloadConverter.toPayload(value)]);
   return payload;
 }
 
+/**
+ * Run {@link PayloadConverter.toPayload} on values, and then encode them.
+ */
 export async function encodeToPayloads(
   converter: LoadedDataConverter,
   ...values: unknown[]
@@ -73,6 +73,27 @@ export async function encodeToPayloads(
   return payloads ? await payloadCodec.encode(payloads) : undefined;
 }
 
+/**
+ * Run {@link PayloadConverter.toPayload} and {@link PayloadCodec.encode} on values in `map`.
+ */
+export async function encodeMapToPayloads<K extends string>(
+  converter: LoadedDataConverter,
+  map: Record<K, any>
+): Promise<Record<K, Payload>> {
+  const { payloadConverter, payloadCodec } = converter;
+  return Object.fromEntries(
+    await Promise.all(
+      Object.entries(map).map(async ([k, v]): Promise<[K, Payload]> => {
+        const [payload] = await payloadCodec.encode([payloadConverter.toPayload(v)]);
+        return [k as K, payload];
+      })
+    )
+  ) as Record<K, Payload>;
+}
+
+/**
+ * Run {@link errorToFailure} on `error`, and then {@link encodeFailure}.
+ */
 export async function encodeErrorToFailure(dataConverter: LoadedDataConverter, error: unknown): Promise<ProtoFailure> {
   const { payloadConverter, payloadCodec } = dataConverter;
   return await encodeFailure(payloadCodec, errorToFailure(error, payloadConverter));
