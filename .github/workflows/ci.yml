@@ -223,48 +223,8 @@ jobs:
       - run: rm /tmp/temporal-certs/client.key
         if: ${{ matrix.server == 'cloud' && env.TEMPORAL_CLIENT_CERT != '' }}
 
-  # Run the sdk features repo tests with this repo's current SDK code
+  # Runs the sdk features repo tests with this repo's current SDK code
   sdk-features-tests:
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ./sdk-ts
-    steps:
-      - uses: actions/checkout@v2
-        with:
-          submodules: recursive
-          path: sdk-ts
-      - name: Checkout sdk-features repo
-        uses: actions/checkout@v2
-        with:
-          repository: temporalio/sdk-features
-          path: sdk-features
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-      - uses: actions/setup-node@v1
-        with:
-          node-version: 16
-      - uses: actions/setup-go@v2
-        with:
-          go-version: '^1.17'
-
-      # Don't build during install phase since we're going to explicitly build
-      - run: npm ci --ignore-scripts
-      - run: npm run build
-        env:
-          BUILD_CORE_RELEASE: true
-
-      - name: Get Temporal docker-compose.yml
-        run: wget https://raw.githubusercontent.com/temporalio/docker-compose/v1.13.0/docker-compose.yml
-      - name: Start Temporal Server
-        run: docker-compose up -d
-      - name: Wait for Temporal Server
-        run: npm run wait-namespace
-
-      - name: Build sdk-features go
-        run: go build
-        working-directory: ./sdk-features
-      - name: Run SDK-features tests
-        run: go run . run --lang ts --server localhost:7233 --namespace default --version "$(realpath ../sdk-ts)"
-        working-directory: ./sdk-features
+    uses: temporalio/sdk-features/.github/workflows/typescript.yaml@reusable-ts-workflow
+    with:
+      typescript-repo-ref: ${{ github.head_ref }}
