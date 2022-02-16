@@ -21,8 +21,7 @@ export class WorkflowCodeBundler {
     public readonly logger: Logger,
     public readonly nodeModulesPaths: string[],
     public readonly workflowsPath: string,
-    public readonly workflowInterceptorModules: string[] = [],
-    public readonly typescriptContextPath?: string
+    public readonly workflowInterceptorModules: string[] = []
   ) {}
 
   /**
@@ -104,12 +103,6 @@ export class WorkflowCodeBundler {
    * Run webpack
    */
   protected async bundle(filesystem: typeof unionfs.ufs, entry: string, distDir: string): Promise<void> {
-    const options = this.typescriptContextPath
-      ? {
-          context: this.typescriptContextPath,
-          configFile: path.join(this.typescriptContextPath, '/tsconfig.json'),
-        }
-      : undefined;
     const compiler = webpack({
       resolve: {
         modules: this.nodeModulesPaths,
@@ -121,7 +114,6 @@ export class WorkflowCodeBundler {
             test: /\.ts$/,
             loader: 'ts-loader',
             exclude: /node_modules/,
-            options,
           },
         ],
       },

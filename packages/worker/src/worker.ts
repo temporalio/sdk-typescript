@@ -271,8 +271,7 @@ export class Worker {
           nativeWorker.logger,
           compiledOptions.nodeModulesPaths,
           compiledOptions.workflowsPath,
-          compiledOptions.interceptors?.workflowModules,
-          compiledOptions.typescriptContextPath
+          compiledOptions.interceptors?.workflowModules
         );
         bundle = await bundler.createBundle();
         nativeWorker.logger.info('Workflow bundle created', { size: `${toMB(bundle.length)}MB` });
