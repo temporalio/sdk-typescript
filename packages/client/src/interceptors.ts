@@ -7,7 +7,12 @@
 import { Next, Headers } from '@temporalio/common';
 import { temporal } from '@temporalio/proto';
 import { CompiledWorkflowOptions } from './workflow-options';
-import { RequestCancelWorkflowExecutionResponse, TerminateWorkflowExecutionResponse, WorkflowExecution } from './types';
+import {
+  DescribeWorkflowExecutionResponse,
+  RequestCancelWorkflowExecutionResponse,
+  TerminateWorkflowExecutionResponse,
+  WorkflowExecution
+} from './types';
 
 export { Next, Headers };
 
@@ -57,6 +62,11 @@ export interface WorkflowCancelInput {
   readonly firstExecutionRunId?: string;
 }
 
+export interface WorkflowDescribeInput {
+  readonly workflowExecution: WorkflowExecution;
+  readonly firstExecutionRunId?: string;
+}
+
 /**
  * Implement any of these methods to intercept WorkflowClient outbound calls
  */
@@ -94,6 +104,10 @@ export interface WorkflowClientCallsInterceptor {
    * Intercept a service call to requestCancelWorkflowExecution
    */
   cancel?: (input: WorkflowCancelInput, next: Next<this, 'cancel'>) => Promise<RequestCancelWorkflowExecutionResponse>;
+  /**
+   * Intercept a service call to describeWorkflowExecution
+   */
+  describe?: (input: WorkflowDescribeInput, next: Next<this, 'cancel'>) => Promise<DescribeWorkflowExecutionResponse>;
 }
 
 interface WorkflowClientCallsInterceptorFactoryInput {
