@@ -13,7 +13,8 @@
   "author": "Roey Berman <roey@temporal.io>",
   "license": "MIT",
   "dependencies": {
-    "@temporalio/workflow-common": "file:../workflow-common"
+    "@temporalio/workflow-common": "file:../workflow-common",
+    "lodash": "^4.17.21"
   },
   "bugs": {
     "url": "https://github.com/temporalio/sdk-typescript/issues"
@@ -21,5 +22,8 @@
   "homepage": "https://github.com/temporalio/sdk-typescript/tree/main/packages/common",
   "publishConfig": {
     "access": "public"
+  },
+  "devDependencies": {
+    "@types/lodash": "^4.14.178"
   }
 }

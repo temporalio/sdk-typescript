@@ -10,6 +10,7 @@ import {
   TemporalFailure,
   toPayloads,
 } from '@temporalio/workflow-common';
+import { clone, setWith } from 'lodash';
 
 /**
  * Decode `payloads` and then return {@link fromPayloadsAtIndex}.
@@ -100,59 +101,89 @@ export async function encodeErrorToFailure(dataConverter: LoadedDataConverter, e
 }
 
 /**
- * Run `codec.encode()` on the {@link Payload}s in a {@link ProtoFailure}. Mutates `failure`.
+ * Return a new {@link ProtoFailure} with `codec.encode()` run on all the {@link Payload}s.
  */
 export async function encodeFailure(codec: PayloadCodec, failure: ProtoFailure): Promise<ProtoFailure> {
+  const encodedFailure = { ...failure };
   if (failure.cause) {
-    await encodeFailure(codec, failure.cause);
+    encodedFailure.cause = await encodeFailure(codec, failure.cause);
   }
 
-  if (failure.applicationFailureInfo?.details?.payloads?.length) {
-    failure.applicationFailureInfo.details.payloads = await codec.encode(
-      failure.applicationFailureInfo.details.payloads
+  if (encodedFailure.applicationFailureInfo?.details?.payloads?.length) {
+    setWith(
+      encodedFailure,
+      'applicationFailureInfo.details.payloads',
+      await codec.encode(encodedFailure.applicationFailureInfo.details.payloads),
+      clone
     );
   }
-  if (failure.timeoutFailureInfo?.lastHeartbeatDetails?.payloads?.length) {
-    failure.timeoutFailureInfo.lastHeartbeatDetails.payloads = await codec.encode(
-      failure.timeoutFailureInfo.lastHeartbeatDetails.payloads
+  if (encodedFailure.timeoutFailureInfo?.lastHeartbeatDetails?.payloads?.length) {
+    setWith(
+      encodedFailure,
+      'timeoutFailureInfo.lastHeartbeatDetails.payloads',
+      await codec.encode(encodedFailure.timeoutFailureInfo.lastHeartbeatDetails.payloads),
+      clone
     );
   }
-  if (failure.canceledFailureInfo?.details?.payloads?.length) {
-    failure.canceledFailureInfo.details.payloads = await codec.encode(failure.canceledFailureInfo.details.payloads);
-  }
-  if (failure.resetWorkflowFailureInfo?.lastHeartbeatDetails?.payloads?.length) {
-    failure.resetWorkflowFailureInfo.lastHeartbeatDetails.payloads = await codec.encode(
-      failure.resetWorkflowFailureInfo.lastHeartbeatDetails.payloads
+  if (encodedFailure.canceledFailureInfo?.details?.payloads?.length) {
+    setWith(
+      encodedFailure,
+      'canceledFailureInfo.details.payloads',
+      await codec.encode(encodedFailure.canceledFailureInfo.details.payloads),
+      clone
     );
   }
-  return failure;
+  if (encodedFailure.resetWorkflowFailureInfo?.lastHeartbeatDetails?.payloads?.length) {
+    setWith(
+      encodedFailure,
+      'resetWorkflowFailureInfo.lastHeartbeatDetails.payloads',
+      await codec.encode(encodedFailure.resetWorkflowFailureInfo.lastHeartbeatDetails.payloads),
+      clone
+    );
+  }
+  return encodedFailure;
 }
 
 /**
- * Run `codec.decode()` on the {@link Payload}s in a {@link ProtoFailure}. Mutates `failure`.
+ * Return a new {@link ProtoFailure} with `codec.decode()` run on all the {@link Payload}s.
  */
 export async function decodeFailure(codec: PayloadCodec, failure: ProtoFailure): Promise<ProtoFailure> {
+  const decodedFailure = { ...failure };
   if (failure.cause) {
-    await decodeFailure(codec, failure.cause);
+    decodedFailure.cause = await decodeFailure(codec, failure.cause);
   }
 
-  if (failure.applicationFailureInfo?.details?.payloads?.length) {
-    failure.applicationFailureInfo.details.payloads = await codec.decode(
-      failure.applicationFailureInfo.details.payloads
+  if (decodedFailure.applicationFailureInfo?.details?.payloads?.length) {
+    setWith(
+      decodedFailure,
+      'applicationFailureInfo.details.payloads',
+      await codec.decode(decodedFailure.applicationFailureInfo.details.payloads),
+      clone
     );
   }
-  if (failure.timeoutFailureInfo?.lastHeartbeatDetails?.payloads?.length) {
-    failure.timeoutFailureInfo.lastHeartbeatDetails.payloads = await codec.decode(
-      failure.timeoutFailureInfo.lastHeartbeatDetails.payloads
+  if (decodedFailure.timeoutFailureInfo?.lastHeartbeatDetails?.payloads?.length) {
+    setWith(
+      decodedFailure,
+      'timeoutFailureInfo.lastHeartbeatDetails.payloads',
+      await codec.decode(decodedFailure.timeoutFailureInfo.lastHeartbeatDetails.payloads),
+      clone
     );
   }
-  if (failure.canceledFailureInfo?.details?.payloads?.length) {
-    failure.canceledFailureInfo.details.payloads = await codec.decode(failure.canceledFailureInfo.details.payloads);
-  }
-  if (failure.resetWorkflowFailureInfo?.lastHeartbeatDetails?.payloads?.length) {
-    failure.resetWorkflowFailureInfo.lastHeartbeatDetails.payloads = await codec.decode(
-      failure.resetWorkflowFailureInfo.lastHeartbeatDetails.payloads
+  if (decodedFailure.canceledFailureInfo?.details?.payloads?.length) {
+    setWith(
+      decodedFailure,
+      'canceledFailureInfo.details.payloads',
+      await codec.decode(decodedFailure.canceledFailureInfo.details.payloads),
+      clone
     );
   }
-  return failure;
+  if (decodedFailure.resetWorkflowFailureInfo?.lastHeartbeatDetails?.payloads?.length) {
+    setWith(
+      decodedFailure,
+      'resetWorkflowFailureInfo.lastHeartbeatDetails.payloads',
+      await codec.decode(decodedFailure.resetWorkflowFailureInfo.lastHeartbeatDetails.payloads),
+      clone
+    );
+  }
+  return decodedFailure;
 }
