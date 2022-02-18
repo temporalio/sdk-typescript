@@ -644,8 +644,8 @@ export class Worker {
 
                   let isFatalError = false;
                   try {
-                    await this.workflowCodecRunner.decodeActivation(activation);
-                    const unencodedCompletion = await state.workflow.activate(activation);
+                    const decodedActivation = await this.workflowCodecRunner.decodeActivation(activation);
+                    const unencodedCompletion = await state.workflow.activate(decodedActivation);
                     const completion = await this.workflowCodecRunner.encodeCompletion(unencodedCompletion);
                     this.log.debug('Completed activation', {
                       runId: activation.runId,
