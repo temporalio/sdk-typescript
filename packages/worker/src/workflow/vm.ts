@@ -2,7 +2,7 @@ import vm from 'vm';
 import { coresdk } from '@temporalio/proto';
 import * as internals from '@temporalio/workflow/lib/worker-interface';
 import { WorkflowInfo } from '@temporalio/workflow';
-import { defaultPayloadConverter, PayloadConverter, errorToFailure, IllegalStateError } from '@temporalio/common';
+import { IllegalStateError } from '@temporalio/common';
 import { partition } from '../utils';
 import { Workflow, WorkflowCreator, WorkflowCreateOptions } from './interface';
 import { SinkCall } from '@temporalio/workflow/lib/sinks';
@@ -18,7 +18,6 @@ export class VMWorkflowCreator implements WorkflowCreator {
   constructor(
     script: vm.Script,
     public readonly isolateExecutionTimeoutMs: number,
-    protected readonly payloadConverter: PayloadConverter,
     protected readonly useCustomPayloadConverter: boolean
   ) {
     this.script = script;
@@ -48,7 +47,7 @@ export class VMWorkflowCreator implements WorkflowCreator {
 
     await workflowModule.initRuntime({ useCustomPayloadConverter: this.useCustomPayloadConverter, ...options });
 
-    return new VMWorkflow(options.info, context, workflowModule, isolateExecutionTimeoutMs, this.payloadConverter);
+    return new VMWorkflow(options.info, context, workflowModule, isolateExecutionTimeoutMs);
   }
 
   protected async getContext(): Promise<vm.Context> {
@@ -84,16 +83,10 @@ export class VMWorkflowCreator implements WorkflowCreator {
     this: T,
     code: string,
     isolateExecutionTimeoutMs: number,
-    payloadConverterPath?: string
+    useCustomPayloadConverter = false
   ): Promise<InstanceType<T>> {
     const script = new vm.Script(code, { filename: 'workflow-isolate' });
-    let payloadConverter = defaultPayloadConverter;
-    if (payloadConverterPath) {
-      // payloadConverterPath was validated in Worker.create
-      payloadConverter = (await import(payloadConverterPath)).payloadConverter;
-    }
-
-    return new this(script, isolateExecutionTimeoutMs, payloadConverter, !!payloadConverterPath) as InstanceType<T>;
+    return new this(script, isolateExecutionTimeoutMs, useCustomPayloadConverter) as InstanceType<T>;
   }
 
   /**
@@ -116,8 +109,7 @@ export class VMWorkflow implements Workflow {
     public readonly info: WorkflowInfo,
     protected context: vm.Context | undefined,
     readonly workflowModule: WorkflowModule,
-    public readonly isolateExecutionTimeoutMs: number,
-    protected readonly payloadConverter: PayloadConverter
+    public readonly isolateExecutionTimeoutMs: number
   ) {}
 
   /**
@@ -188,7 +180,7 @@ export class VMWorkflow implements Workflow {
     if (this.unhandledRejection) {
       return coresdk.workflow_completion.WorkflowActivationCompletion.encodeDelimited({
         runId: activation.runId,
-        failed: { failure: errorToFailure(this.unhandledRejection, this.payloadConverter) },
+        failed: { failure: this.workflowModule.errorToFailure(this.unhandledRejection) },
       }).finish();
     }
     return coresdk.workflow_completion.WorkflowActivationCompletion.encodeDelimited(completion).finish();

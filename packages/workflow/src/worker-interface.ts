@@ -11,6 +11,8 @@ import {
   Workflow,
   ApplicationFailure,
   errorMessage,
+  errorToFailure as _errorToFailure,
+  ProtoFailure,
 } from '@temporalio/workflow-common';
 import type { coresdk } from '@temporalio/proto/lib/coresdk';
 import { WorkflowInfo } from './interfaces';
@@ -295,4 +297,8 @@ export async function dispose(): Promise<void> {
     storage.disable();
   });
   await dispose({});
+}
+
+export function errorToFailure(err: unknown): ProtoFailure {
+  return _errorToFailure(err, state.payloadConverter);
 }

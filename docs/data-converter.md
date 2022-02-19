@@ -52,20 +52,19 @@ When `WorkerOptions.dataConverter.payloadConverterPath` is provided, the code at
 _main thread_
 
 - imports and validates `options.dataConverter.payloadConverterPath`
-- passes `payloadConverterPath` to either `ThreadedVMWorkflowCreator.create` or `VMWorkflowCreator.create`
+- passes `useCustomPayloadConverter` to either `ThreadedVMWorkflowCreator.create` or `VMWorkflowCreator.create`
 - passes `payloadConverterPath` to `WorkflowCodeBundler`
 
 `ThreadedVMWorkflowCreator.create`:
 _main thread_
 
-- sends `payloadConverterPath` to each worker thread
-- thread sends `payloadConverterPath` to VMWorkflowCreator.create
+- sends `useCustomPayloadConverter` to each worker thread
+- thread sends `useCustomPayloadConverter` to VMWorkflowCreator.create
 
 `VMWorkflowCreator.create`:
 _worker thread (unless in debug mode)_
 
-- imports `payloadConverterPath`
-- passes `payloadConverterPath` to `VMWorkflowCreator` constructor
+- passes `useCustomPayloadConverter` to `VMWorkflowCreator` constructor
 
 `VMWorkflowCreator.createWorkflow`:
 _worker thread (unless in debug mode)_
