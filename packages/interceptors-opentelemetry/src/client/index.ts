@@ -30,15 +30,15 @@ export class OpenTelemetryWorkflowClientCallsInterceptor implements WorkflowClie
   }
 
   async start(input: WorkflowStartInput, next: Next<WorkflowClientCallsInterceptor, 'start'>): Promise<string> {
-    return await instrument(
-      this.tracer,
-      `${SpanName.WORKFLOW_START}${SPAN_DELIMITER}${input.workflowType}`,
-      async (span) => {
+    return await instrument({
+      tracer: this.tracer,
+      spanName: `${SpanName.WORKFLOW_START}${SPAN_DELIMITER}${input.workflowType}`,
+      fn: async (span) => {
         const headers = await headersWithContext(input.headers);
         const runId = await next({ ...input, headers });
         span.setAttribute(RUN_ID_ATTR_KEY, runId);
         return runId;
-      }
-    );
+      },
+    });
   }
 }
