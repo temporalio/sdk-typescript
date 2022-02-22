@@ -31,6 +31,7 @@
     "nan": "^2.15.0",
     "protobufjs": "^6.11.2",
     "rxjs": "^7.3.0",
+    "semver": "^7.3.5",
     "ts-loader": "^9.2.5",
     "unionfs": "^4.4.0",
     "uuid": "^8.3.2",
@@ -47,5 +48,8 @@
   ],
   "publishConfig": {
     "access": "public"
+  },
+  "devDependencies": {
+    "@types/semver": "^7.3.9"
   }
 }

@@ -734,10 +734,7 @@ test('asyncFailSignalWorkflow', async (t) => {
           dedent`
           ApplicationFailure: Signal failed
               at Function.nonRetryable
-              at eval
-              at runNextTicks
-              at listOnTimeout
-              at processTimers`,
+              at eval`,
           'Error'
         ),
       ])
