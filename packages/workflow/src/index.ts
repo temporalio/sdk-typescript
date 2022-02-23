@@ -79,6 +79,7 @@ export {
   ContinueAsNewOptions,
   ParentClosePolicy,
   WorkflowInfo,
+  ContinueAsNew,
 } from './interfaces';
 export * from './errors';
 export * from './workflow';
