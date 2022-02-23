@@ -109,19 +109,11 @@ export class WorkflowCodeBundler {
         extensions: ['.ts', '.js'],
         // If we don't set an alias for this below, then it won't be imported, so webpack can safely ignore it
         fallback: { __temporal_custom_payload_converter: false },
-        ...(this.payloadConverterPath
-          ? {
-              alias: {
-                __temporal_custom_payload_converter$: this.payloadConverterPath,
-              },
-            }
-          : {
-              alias: {
-                // Save 100KB from the bundle by not including the npm module,
-                // since we can't decode without a `root` anyway.
-                'proto3-json-serializer$': path.resolve(__dirname, 'empty-proto3-json-serializer.js'),
-              },
-            }),
+        ...(this.payloadConverterPath && {
+          alias: {
+            __temporal_custom_payload_converter$: this.payloadConverterPath,
+          },
+        }),
       },
       module: {
         rules: [

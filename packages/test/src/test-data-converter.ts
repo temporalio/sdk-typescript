@@ -1,14 +1,17 @@
 /* eslint @typescript-eslint/no-non-null-assertion: 0 */
 import { Connection, WorkflowClient } from '@temporalio/client';
-import { DataConverterError, defaultPayloadConverter, DefaultPayloadConverter, ValueError } from '@temporalio/common';
-import { Core, DefaultLogger, Worker } from '@temporalio/worker';
 import {
-  BinaryPayloadConverter,
-  JsonPayloadConverter,
+  DataConverterError,
+  defaultPayloadConverter,
+  DefaultPayloadConverterWithProtobufs,
+  ValueError,
+} from '@temporalio/common';
+import { Core, DefaultLogger, Worker } from '@temporalio/worker';
+import { BinaryPayloadConverter, JsonPayloadConverter, UndefinedPayloadConverter } from '@temporalio/workflow-common';
+import {
   ProtobufBinaryPayloadConverter,
   ProtobufJsonPayloadConverter,
-  UndefinedPayloadConverter,
-} from '@temporalio/workflow-common/lib/converter/payload-converters';
+} from '@temporalio/workflow-common/lib/converter/protobufs';
 import {
   encodingKeys,
   METADATA_ENCODING_KEY,
@@ -206,7 +209,7 @@ if (RUN_INTEGRATION_TESTS) {
 
 test('DefaultPayloadConverter converts protobufs', async (t) => {
   const instance = root.ProtoActivityInput.create({ name: 'Proto', age: 1 });
-  const defaultPayloadConverterWithProtos = new DefaultPayloadConverter({ protobufRoot: root });
+  const defaultPayloadConverterWithProtos = new DefaultPayloadConverterWithProtobufs({ protobufRoot: root });
   t.deepEqual(
     defaultPayloadConverterWithProtos.toPayload(instance),
     // It will always use JSON because it appears before binary in the list
