@@ -1,6 +1,4 @@
 import os from 'os';
-import fs from 'fs';
-import { resolve, dirname } from 'path';
 import { ActivityInterface, DataConverter, defaultDataConverter, msToNumber } from '@temporalio/common';
 import { WorkerInterceptors } from './interceptors';
 import { InjectedSinks } from './sinks';
@@ -51,12 +49,6 @@ export interface WorkerOptions {
    * See https://docs.temporal.io/docs/typescript/production-deploy#pre-build-code for more information.
    */
   workflowBundle?: WorkflowBundle;
-
-  /**
-   * Path for webpack to look up modules in for bundling the Workflow code.
-   * Automatically discovered if {@link workflowsPath} is provided.
-   */
-  nodeModulesPaths?: string[];
 
   /**
    * Time to wait for pending tasks to drain after shutdown was requested.
@@ -274,46 +266,9 @@ export interface ReplayWorkerOptions
   replayName: string;
 }
 
-function statIfExists(filesystem: typeof fs, path: string): fs.Stats | undefined {
-  try {
-    return filesystem.statSync(path);
-  } catch (err: any) {
-    if (err.code !== 'ENOENT') {
-      throw err;
-    }
-  }
-  return undefined;
-}
-
-export function resolveNodeModulesPaths(filesystem: typeof fs, workflowsPath: string): string[] {
-  let currentDir = workflowsPath;
-  const stat = filesystem.statSync(workflowsPath);
-  if (stat.isFile()) {
-    currentDir = dirname(currentDir);
-  }
-  for (;;) {
-    const candidate = resolve(currentDir, 'node_modules');
-    const stat = statIfExists(filesystem, candidate);
-    if (stat?.isDirectory()) {
-      return [candidate];
-    }
-    // Check if we've reached the FS root
-    const prevDir = currentDir;
-    currentDir = dirname(prevDir);
-    if (currentDir === prevDir) {
-      throw new Error(
-        `Failed to automatically locate node_modules relative to given workflowsPath: ${workflowsPath}, pass the nodeModulesPaths Worker option to run Workflows`
-      );
-    }
-  }
-}
-
 export function addDefaultWorkerOptions(options: WorkerOptions): WorkerOptionsWithDefaults {
   const { maxCachedWorkflows, debugMode, ...rest } = options;
   return {
-    nodeModulesPaths:
-      options.nodeModulesPaths ??
-      (options.workflowsPath ? resolveNodeModulesPaths(fs, options.workflowsPath) : undefined),
     shutdownGraceTime: '5s',
     shutdownSignals: ['SIGINT', 'SIGTERM', 'SIGQUIT', 'SIGUSR2'],
     dataConverter: defaultDataConverter,

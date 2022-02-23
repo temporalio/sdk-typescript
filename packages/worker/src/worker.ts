@@ -265,11 +265,9 @@ export class Worker {
     try {
       let bundle: string | undefined = undefined;
       let workflowCreator: WorkflowCreator | undefined = undefined;
-      // nodeModulesPaths should not be undefined if workflowsPath is provided
-      if (compiledOptions.workflowsPath && compiledOptions.nodeModulesPaths) {
+      if (compiledOptions.workflowsPath) {
         const bundler = new WorkflowCodeBundler(
           nativeWorker.logger,
-          compiledOptions.nodeModulesPaths,
           compiledOptions.workflowsPath,
           compiledOptions.interceptors?.workflowModules
         );
