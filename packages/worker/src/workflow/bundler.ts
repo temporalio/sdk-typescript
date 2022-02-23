@@ -78,7 +78,7 @@ export class WorkflowCodeBundler {
 
       // Bundle all Workflows and interceptor modules for lazy evaluation
       api.overrideGlobals();
-      api.setImportFuncs({ 
+      api.setImportFuncs({
         importWorkflows: () => {
           return import(/* webpackMode: "eager" */ ${JSON.stringify(this.workflowsPath)});
         },
@@ -105,7 +105,10 @@ export class WorkflowCodeBundler {
   protected async bundle(filesystem: typeof unionfs.ufs, entry: string, distDir: string): Promise<void> {
     const compiler = webpack({
       resolve: {
-        modules: this.nodeModulesPaths,
+        modules: [
+          ...this.nodeModulesPaths,
+          ...(!this.nodeModulesPaths.includes('node_modules') ? ['node_modules'] : []),
+        ],
         extensions: ['.ts', '.js'],
       },
       module: {
