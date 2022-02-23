@@ -1652,13 +1652,10 @@ test('patchedTopLevel', async (t) => {
   t.deepEqual(logs, [[['Patches cannot be used before Workflow starts']]]);
 });
 
-test.only('tryToContinueAfterCompletion', async (t) => {
+test('tryToContinueAfterCompletion', async (t) => {
   const { workflowType } = t.context;
   {
-    const failure = await activate(t, makeStartWorkflow(workflowType));
-    console.log('failure:', failure);
-
-    const completion = cleanWorkflowFailureStackTrace(failure);
+    const completion = cleanWorkflowFailureStackTrace(await activate(t, makeStartWorkflow(workflowType)));
     compareCompletion(
       t,
       completion,
