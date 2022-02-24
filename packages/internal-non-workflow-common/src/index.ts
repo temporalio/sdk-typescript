@@ -4,14 +4,13 @@
  * @module
  */
 export * from '@temporalio/workflow-common';
-export * from './codec-helpers';
-export * from './data-converter-helpers';
-export * from './patch-protobuf-root';
-export * from './tls-config';
-export * from './utils';
 export {
-  ProtobufBinaryPayloadConverter,
-  ProtobufJsonPayloadConverter,
   DefaultPayloadConverterWithProtobufs,
   DefaultPayloadConverterWithProtobufsOptions,
+  ProtobufBinaryPayloadConverter,
+  ProtobufJsonPayloadConverter,
 } from '@temporalio/workflow-common/lib/converter/protobufs';
+export * from './codec-helpers';
+export * from './data-converter-helpers';
+export * from './tls-config';
+export * from './utils';

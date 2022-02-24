@@ -5,6 +5,7 @@
  */
 export * from './activity-options';
 export * from './converter/data-converter';
+export * from './converter/patch-protobuf-root';
 export * from './converter/payload-codec';
 export * from './converter/payload-converter';
 export * from './converter/payload-converters';
