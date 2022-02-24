@@ -1,6 +1,6 @@
+import { checkExtends } from '@temporalio/internal-workflow-common';
 import type { temporal } from '@temporalio/proto/lib/coresdk';
 import { arrayFromPayloads, fromPayloadsAtIndex, PayloadConverter, toPayloads } from './converter/payload-converter';
-import { checkExtends } from './type-helpers';
 
 export const FAILURE_SOURCE = 'TypeScriptSDK';
 export type ProtoFailure = temporal.api.failure.v1.IFailure;

@@ -1,4 +1,4 @@
-import { UnsupportedTypeError, ValueError } from '../errors';
+import { UnsupportedTypeError, ValueError } from '@temporalio/internal-workflow-common';
 import { PayloadConverter } from './payload-converter';
 import { encodingKeys, EncodingType, encodingTypes, METADATA_ENCODING_KEY, Payload, str, u8 } from './types';
 

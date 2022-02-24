@@ -1,6 +1,6 @@
-import { decodeFailure, encodeFailure, Payload } from '@temporalio/common';
+import { Payload, PayloadCodec, ProtoFailure } from '@temporalio/common';
+import { decodeFailure, encodeFailure } from '@temporalio/internal-non-workflow-common';
 import { coresdk } from '@temporalio/proto';
-import { PayloadCodec, ProtoFailure } from '@temporalio/workflow-common';
 import { clone, setWith } from 'lodash';
 
 /**

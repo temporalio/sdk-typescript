@@ -1,26 +1,30 @@
 import {
-  BaseWorkflowHandle,
   CancelledFailure,
-  compileRetryPolicy,
-  composeInterceptors,
   DataConverter,
+  LoadedDataConverter,
+  RetryState,
+  TerminatedFailure,
+  TimeoutFailure,
+  TimeoutType,
+} from '@temporalio/common';
+import {
   decodeArrayFromPayloads,
   decodeFromPayloadsAtIndex,
   decodeOptionalFailureToOptionalError,
   encodeMapToPayloads,
   encodeToPayloads,
   loadDataConverter,
-  LoadedDataConverter,
+} from '@temporalio/internal-non-workflow-common';
+import {
+  BaseWorkflowHandle,
+  compileRetryPolicy,
+  composeInterceptors,
   QueryDefinition,
-  RetryState,
   SignalDefinition,
-  TerminatedFailure,
-  TimeoutFailure,
-  TimeoutType,
   WithWorkflowArgs,
   Workflow,
   WorkflowResultType,
-} from '@temporalio/common';
+} from '@temporalio/internal-workflow-common';
 import { temporal } from '@temporalio/proto';
 import os from 'os';
 import { v4 as uuid4 } from 'uuid';

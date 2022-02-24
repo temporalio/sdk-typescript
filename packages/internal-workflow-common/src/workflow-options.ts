@@ -1,9 +1,8 @@
 import type { coresdk, google } from '@temporalio/proto/lib/coresdk';
 import { Workflow } from './interfaces';
-import { falsyMsToTs } from './time';
-import { Replace } from './type-helpers';
 import { RetryPolicy } from './retry-policy';
-import { checkExtends } from './type-helpers';
+import { falsyMsToTs } from './time';
+import { checkExtends, Replace } from './type-helpers';
 
 // Avoid importing the proto implementation to reduce workflow bundle size
 // Copied from coresdk.common.WorkflowIdReusePolicy

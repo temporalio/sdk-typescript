@@ -1,4 +1,4 @@
-import { UnsupportedTypeError, ValueError } from '../errors';
+import { UnsupportedTypeError, ValueError } from '@temporalio/internal-workflow-common';
 import {
   BinaryPayloadConverter,
   JsonPayloadConverter,

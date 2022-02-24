@@ -6,9 +6,12 @@
     "rootDir": "./src"
   },
   "references": [
-    { "path": "../client/tsconfig.json" },
-    { "path": "../workflow/tsconfig.json" },
-    { "path": "../activity/tsconfig.json" }
+    { "path": "../client" },
+    { "path": "../workflow" },
+    { "path": "../activity" },
+    { "path": "../common" },
+    { "path": "../internal-workflow-common" },
+    { "path": "../internal-non-workflow-common" }
   ],
   "include": ["./src/**/*.ts"]
 }

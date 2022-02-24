@@ -1,4 +1,4 @@
-import { CancelledFailure, ActivityFailure, ChildWorkflowFailure } from '@temporalio/workflow-common';
+import { CancelledFailure, ActivityFailure, ChildWorkflowFailure } from '@temporalio/common';
 
 /**
  * Base class for all workflow errors

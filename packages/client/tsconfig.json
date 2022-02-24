@@ -4,6 +4,10 @@
     "outDir": "./lib",
     "rootDir": "./src"
   },
-  "references": [{ "path": "../common/tsconfig.json" }],
+  "references": [
+    { "path": "../common" },
+    { "path": "../internal-workflow-common" },
+    { "path": "../internal-non-workflow-common" }
+  ],
   "include": ["./src/**/*.ts"]
 }

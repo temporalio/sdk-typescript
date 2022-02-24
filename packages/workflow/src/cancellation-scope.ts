@@ -1,4 +1,4 @@
-import { CancelledFailure, IllegalStateError } from '@temporalio/workflow-common';
+import { CancelledFailure, IllegalStateError } from '@temporalio/common';
 import type { AsyncLocalStorage as ALS } from 'async_hooks';
 
 // AsyncLocalStorage is injected via vm module into global scope.

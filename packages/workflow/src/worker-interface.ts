@@ -3,25 +3,23 @@
  *
  * @module
  */
+import { ApplicationFailure, errorToFailure as _errorToFailure, ProtoFailure } from '@temporalio/common';
 import {
+  composeInterceptors,
+  errorMessage,
   IllegalStateError,
   msToTs,
   tsToMs,
-  composeInterceptors,
   Workflow,
-  ApplicationFailure,
-  errorMessage,
-  errorToFailure as _errorToFailure,
-  ProtoFailure,
-} from '@temporalio/workflow-common';
+} from '@temporalio/internal-workflow-common';
 import type { coresdk } from '@temporalio/proto/lib/coresdk';
+import { alea } from './alea';
+import { storage } from './cancellation-scope';
+import { DeterminismViolationError } from './errors';
+import { WorkflowInterceptorsFactory } from './interceptors';
 import { WorkflowInfo } from './interfaces';
 import { handleWorkflowFailure, InterceptorsImportFunc, state, WorkflowsImportFunc } from './internals';
-import { storage } from './cancellation-scope';
-import { alea } from './alea';
-import { DeterminismViolationError } from './errors';
 import { SinkCall } from './sinks';
-import { WorkflowInterceptorsFactory } from './interceptors';
 
 export interface WorkflowCreateOptions {
   info: WorkflowInfo;

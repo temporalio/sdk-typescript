@@ -1,6 +1,8 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
 import { SpanContext } from '@opentelemetry/api';
-import { defaultPayloadConverter, loadDataConverter, msToTs } from '@temporalio/common';
+import { defaultPayloadConverter, fromPayloadsAtIndex, LoadedDataConverter } from '@temporalio/common';
+import { loadDataConverter } from '@temporalio/internal-non-workflow-common';
+import { msToTs } from '@temporalio/internal-workflow-common';
 import { coresdk } from '@temporalio/proto';
 import { DefaultLogger } from '@temporalio/worker';
 import { errors, NativeWorkerLike, Worker as RealWorker } from '@temporalio/worker/lib/worker';
@@ -11,7 +13,6 @@ import {
   WorkerOptions,
 } from '@temporalio/worker/lib/worker-options';
 import { WorkflowCreator } from '@temporalio/worker/src/workflow/interface';
-import { fromPayloadsAtIndex, LoadedDataConverter } from '@temporalio/workflow-common';
 import { lastValueFrom } from 'rxjs';
 import * as activities from './activities';
 

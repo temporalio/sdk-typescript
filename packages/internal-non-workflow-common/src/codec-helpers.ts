@@ -9,7 +9,7 @@ import {
   ProtoFailure,
   TemporalFailure,
   toPayloads,
-} from '@temporalio/workflow-common';
+} from '@temporalio/common';
 import { clone, setWith } from 'lodash';
 
 /**

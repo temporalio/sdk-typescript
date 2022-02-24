@@ -51,39 +51,41 @@
  */
 
 export {
-  Workflow,
-  WorkflowResultType,
-  ActivityCancellationType,
-  ActivityFunction,
-  ActivityInterface,
-  ActivityOptions,
-  RetryPolicy,
-  rootCause,
-  IllegalStateError,
-  defaultPayloadConverter,
-  PayloadConverter,
-  WorkflowIdReusePolicy,
   ActivityFailure,
   ApplicationFailure,
   CancelledFailure,
   ChildWorkflowFailure,
+  defaultPayloadConverter,
+  PayloadConverter,
+  rootCause,
   ServerFailure,
   TemporalFailure,
   TerminatedFailure,
   TimeoutFailure,
-  ValueError,
-} from '@temporalio/workflow-common';
+} from '@temporalio/common';
 export {
-  ChildWorkflowOptions,
+  ActivityCancellationType,
+  ActivityFunction,
+  ActivityInterface,
+  ActivityOptions,
+  IllegalStateError,
+  RetryPolicy,
+  ValueError,
+  Workflow,
+  WorkflowIdReusePolicy,
+  WorkflowResultType,
+} from '@temporalio/internal-workflow-common';
+export { AsyncLocalStorage, CancellationScope, CancellationScopeOptions, ROOT_SCOPE } from './cancellation-scope';
+export * from './errors';
+export * from './interceptors';
+export {
   ChildWorkflowCancellationType,
+  ChildWorkflowOptions,
   ContinueAsNewOptions,
   ParentClosePolicy,
   WorkflowInfo,
 } from './interfaces';
-export * from './errors';
-export * from './workflow';
-export * from './interceptors';
-export { AsyncLocalStorage, ROOT_SCOPE, CancellationScope, CancellationScopeOptions } from './cancellation-scope';
+export { Sink, SinkCall, SinkFunction, Sinks } from './sinks';
 export { Trigger } from './trigger';
-export { SinkFunction, Sink, Sinks, SinkCall } from './sinks';
+export * from './workflow';
 export { ChildWorkflowHandle, ExternalWorkflowHandle } from './workflow-handle';

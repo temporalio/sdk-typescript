@@ -1,4 +1,4 @@
-import { isRecord } from '@temporalio/workflow-common/lib/type-helpers';
+import { isRecord } from '@temporalio/internal-workflow-common';
 
 /**
  * Create a version of `root` with non-nested namespaces to match the generated types.

@@ -1,14 +1,14 @@
 import { Connection, WorkflowClient } from '@temporalio/client';
+import { toPayloads } from '@temporalio/common';
 import { coresdk } from '@temporalio/proto';
 import { Worker } from '@temporalio/worker';
 import test, { ExecutionContext } from 'ava';
 import { v4 as uuid4 } from 'uuid';
 import { protoActivity } from './activities';
-import { payloadConverter, messageInstance } from './payload-converters/payload-converter';
 import { cleanStackTrace, RUN_INTEGRATION_TESTS } from './helpers';
 import { defaultOptions, isolateFreeWorker } from './mock-native-worker';
+import { messageInstance, payloadConverter } from './payload-converters/payload-converter';
 import { protobufWorkflow } from './workflows';
-import { toPayloads } from '@temporalio/workflow-common';
 
 export async function runWorker(worker: Worker, fn: () => Promise<any>): Promise<void> {
   const promise = worker.run();

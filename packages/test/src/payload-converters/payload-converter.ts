@@ -1,4 +1,4 @@
-import { DefaultPayloadConverterWithProtobufs } from '@temporalio/common';
+import { DefaultPayloadConverterWithProtobufs } from '@temporalio/common/lib/protobufs';
 import root, { foo } from '../../protos/root';
 
 // Used in tests

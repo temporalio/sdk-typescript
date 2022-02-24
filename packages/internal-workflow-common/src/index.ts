@@ -1,17 +1,10 @@
 /**
- * Common library for both isolated Workflow and normal non-Workflow code
+ * Internal SDK library: users should usually use other packages instead. Included in Workflow bundle.
  *
  * @module
  */
 export * from './activity-options';
-export * from './converter/data-converter';
-export * from './converter/patch-protobuf-root';
-export * from './converter/payload-codec';
-export * from './converter/payload-converter';
-export * from './converter/payload-converters';
-export * from './converter/types';
 export * from './errors';
-export * from './failure';
 export * from './interceptors';
 export * from './interfaces';
 export * from './retry-policy';

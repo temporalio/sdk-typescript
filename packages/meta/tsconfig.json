@@ -6,11 +6,11 @@
     "rootDir": "./src"
   },
   "references": [
-    { "path": "../activity/tsconfig.json" },
-    { "path": "../client/tsconfig.json" },
-    { "path": "../common/tsconfig.json" },
-    { "path": "../worker/tsconfig.json" },
-    { "path": "../workflow/tsconfig.json" }
+    { "path": "../activity" },
+    { "path": "../client" },
+    { "path": "../common" },
+    { "path": "../worker" },
+    { "path": "../workflow" }
   ],
   "include": ["./src/**/*.ts"]
 }

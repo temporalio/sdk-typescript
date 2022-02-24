@@ -1,6 +1,6 @@
 import arg from 'arg';
 import { Connection } from '@temporalio/client';
-import { msToTs } from '@temporalio/common';
+import { msToTs } from '@temporalio/internal-workflow-common';
 import { SetupArgSpec, setupArgSpec, getRequired } from './args';
 
 async function createNamespace(connection: Connection, namespace: string, maxAttempts = 100, retryIntervalSecs = 1) {

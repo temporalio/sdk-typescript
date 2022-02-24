@@ -1,7 +1,7 @@
 {
-  "name": "@temporalio/common",
+  "name": "@temporalio/internal-non-workflow-common",
   "version": "0.17.2",
-  "description": "Temporal.io SDK common library for use in Workflow and normal code",
+  "description": "Internal SDK library: users should usually use other packages instead. Not included in Workflow bundle.",
   "main": "lib/index.js",
   "types": "./lib/index.d.ts",
   "keywords": [
@@ -13,13 +13,14 @@
   "author": "Roey Berman <roey@temporal.io>",
   "license": "MIT",
   "dependencies": {
-    "@temporalio/workflow-common": "file:../workflow-common",
+    "@temporalio/common": "file:../common",
+    "@temporalio/internal-workflow-common": "file:../internal-workflow-common",
     "lodash": "^4.17.21"
   },
   "bugs": {
     "url": "https://github.com/temporalio/sdk-typescript/issues"
   },
-  "homepage": "https://github.com/temporalio/sdk-typescript/tree/main/packages/common",
+  "homepage": "https://github.com/temporalio/sdk-typescript/tree/main/packages/internal-non-workflow-common",
   "publishConfig": {
     "access": "public"
   },

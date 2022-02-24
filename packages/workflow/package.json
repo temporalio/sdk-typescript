@@ -20,7 +20,7 @@
   ],
   "scripts": {},
   "dependencies": {
-    "@temporalio/workflow-common": "file:../workflow-common"
+    "@temporalio/internal-workflow-common": "file:../internal-workflow-common"
   },
   "devDependencies": {
     "@temporalio/proto": "file:../proto"

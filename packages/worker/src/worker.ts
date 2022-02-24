@@ -3,27 +3,29 @@ import { SpanContext } from '@opentelemetry/api';
 import { Info as ActivityInfo } from '@temporalio/activity';
 import {
   DataConverter,
-  decodeArrayFromPayloads,
-  decodeFromPayloadsAtIndex,
   defaultPayloadConverter,
-  encodeErrorToFailure,
-  encodeToPayload,
   errorMessage,
   IllegalStateError,
-  loadDataConverter,
-  tsToMs,
+  LoadedDataConverter,
 } from '@temporalio/common';
+import * as native from '@temporalio/core-bridge';
+import {
+  decodeArrayFromPayloads,
+  decodeFromPayloadsAtIndex,
+  encodeErrorToFailure,
+  encodeToPayload,
+  loadDataConverter,
+} from '@temporalio/internal-non-workflow-common';
 import {
   extractSpanContextFromHeaders,
   linkSpans,
   NUM_JOBS_ATTR_KEY,
   RUN_ID_ATTR_KEY,
   TASK_TOKEN_ATTR_KEY,
-} from '@temporalio/common/lib/otel';
-import * as native from '@temporalio/core-bridge';
+} from '@temporalio/internal-non-workflow-common/lib/otel';
+import { tsToMs } from '@temporalio/internal-workflow-common';
 import { coresdk } from '@temporalio/proto';
 import { SinkCall, WorkflowInfo } from '@temporalio/workflow';
-import { LoadedDataConverter } from '@temporalio/workflow-common';
 import fs from 'fs/promises';
 import {
   BehaviorSubject,

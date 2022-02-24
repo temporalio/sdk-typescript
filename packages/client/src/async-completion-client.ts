@@ -1,14 +1,12 @@
 import { ServerErrorResponse } from '@grpc/grpc-js';
 import { Status } from '@grpc/grpc-js/build/src/constants';
+import { DataConverter, ensureTemporalFailure, LoadedDataConverter } from '@temporalio/common';
 import {
-  DataConverter,
   encodeErrorToFailure,
   encodeToPayloads,
-  ensureTemporalFailure,
   filterNullAndUndefined,
   loadDataConverter,
-  LoadedDataConverter,
-} from '@temporalio/common';
+} from '@temporalio/internal-non-workflow-common';
 import os from 'os';
 import { Connection, WorkflowService } from './connection';
 

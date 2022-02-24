@@ -1,17 +1,23 @@
-import anyTest, { ExecutionContext, TestInterface } from 'ava';
-import vm from 'vm';
-import path from 'path';
-import Long from 'long';
-import dedent from 'dedent';
+import {
+  ApplicationFailure,
+  defaultPayloadConverter,
+  errorToFailure,
+  RetryState,
+  toPayloads,
+} from '@temporalio/common';
+import { msToTs } from '@temporalio/internal-workflow-common';
 import { coresdk } from '@temporalio/proto';
-import { ApplicationFailure, defaultPayloadConverter, errorToFailure, msToTs, RetryState } from '@temporalio/common';
+import { DefaultLogger } from '@temporalio/worker/lib/logger';
 import { WorkflowCodeBundler } from '@temporalio/worker/lib/workflow/bundler';
 import { VMWorkflow, VMWorkflowCreator } from '@temporalio/worker/lib/workflow/vm';
-import { DefaultLogger } from '@temporalio/worker/lib/logger';
+import { WorkflowInfo } from '@temporalio/workflow';
+import anyTest, { ExecutionContext, TestInterface } from 'ava';
+import dedent from 'dedent';
+import Long from 'long';
+import path from 'path';
+import vm from 'vm';
 import * as activityFunctions from './activities';
 import { u8 } from './helpers';
-import { WorkflowInfo } from '@temporalio/workflow';
-import { toPayloads } from '@temporalio/workflow-common';
 
 export interface Context {
   workflow: VMWorkflow;

@@ -1,8 +1,4 @@
-import { promisify } from 'util';
-import Heap from 'heap-js';
-import { BehaviorSubject, lastValueFrom, of } from 'rxjs';
-import { concatMap, delay, map, repeat } from 'rxjs/operators';
-import { IllegalStateError, normalizeTlsConfig, filterNullAndUndefined } from '@temporalio/common';
+import { IllegalStateError } from '@temporalio/common';
 import * as native from '@temporalio/core-bridge';
 import {
   corePollLogs,
@@ -10,10 +6,15 @@ import {
   newCore,
   TelemetryOptions as RequiredTelemetryOptions,
 } from '@temporalio/core-bridge';
-import { compileServerOptions, getDefaultServerOptions, RequiredServerOptions, ServerOptions } from './server-options';
-import { DefaultLogger, Logger, LogEntry, LogTimestamp, timeOfDayToBigint } from './logger';
+import { filterNullAndUndefined, normalizeTlsConfig } from '@temporalio/internal-non-workflow-common';
+import { MakeOptional } from '@temporalio/internal-workflow-common';
+import Heap from 'heap-js';
+import { BehaviorSubject, lastValueFrom, of } from 'rxjs';
+import { concatMap, delay, map, repeat } from 'rxjs/operators';
+import { promisify } from 'util';
 import * as errors from './errors';
-import { MakeOptional } from '@temporalio/workflow-common/src/type-helpers';
+import { DefaultLogger, LogEntry, Logger, LogTimestamp, timeOfDayToBigint } from './logger';
+import { compileServerOptions, getDefaultServerOptions, RequiredServerOptions, ServerOptions } from './server-options';
 
 export type TelemetryOptions = MakeOptional<RequiredTelemetryOptions, 'logForwardingLevel'>;
 

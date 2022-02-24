@@ -2,12 +2,13 @@
 /* eslint-disable @typescript-eslint/explicit-module-boundary-types */
 import { Context } from '@temporalio/activity';
 import { Connection, LOCAL_DOCKER_TARGET, WorkflowClient } from '@temporalio/client';
-import { fakeProgress as fakeProgressInner } from './fake-progress';
+import { ApplicationFailure } from '@temporalio/common';
+import { QueryDefinition } from '@temporalio/internal-workflow-common';
+import { ProtoActivityInput, ProtoActivityResult } from '../../protos/root';
 import { cancellableFetch as cancellableFetchInner } from './cancellable-fetch';
-import { ApplicationFailure, QueryDefinition } from '@temporalio/common';
+import { fakeProgress as fakeProgressInner } from './fake-progress';
 
 export { throwSpecificError } from './failure-tester';
-import { ProtoActivityInput, ProtoActivityResult } from '../../protos/root';
 
 // TODO: Get rid of this by providing client via activity context
 function getTestConnection(): Connection {

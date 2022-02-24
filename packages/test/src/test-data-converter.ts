@@ -1,23 +1,25 @@
 /* eslint @typescript-eslint/no-non-null-assertion: 0 */
 import { Connection, WorkflowClient } from '@temporalio/client';
 import {
+  BinaryPayloadConverter,
   DataConverterError,
   defaultPayloadConverter,
-  DefaultPayloadConverterWithProtobufs,
+  JsonPayloadConverter,
+  UndefinedPayloadConverter,
   ValueError,
 } from '@temporalio/common';
-import { Core, DefaultLogger, Worker } from '@temporalio/worker';
-import { BinaryPayloadConverter, JsonPayloadConverter, UndefinedPayloadConverter } from '@temporalio/workflow-common';
 import {
+  DefaultPayloadConverterWithProtobufs,
   ProtobufBinaryPayloadConverter,
   ProtobufJsonPayloadConverter,
-} from '@temporalio/workflow-common/lib/converter/protobufs';
+} from '@temporalio/common/lib/protobufs';
 import {
   encodingKeys,
   METADATA_ENCODING_KEY,
   METADATA_MESSAGE_TYPE_KEY,
   u8,
-} from '@temporalio/workflow-common/lib/converter/types';
+} from '@temporalio/common/lib/converter/types';
+import { Core, DefaultLogger, Worker } from '@temporalio/worker';
 import test from 'ava';
 import { v4 as uuid4 } from 'uuid';
 import root from '../protos/root';

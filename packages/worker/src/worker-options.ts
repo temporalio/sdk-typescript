@@ -1,7 +1,8 @@
-import os from 'os';
+import { DataConverter } from '@temporalio/common';
+import { ActivityInterface, msToNumber } from '@temporalio/internal-workflow-common';
 import fs from 'fs';
-import { resolve, dirname } from 'path';
-import { ActivityInterface, msToNumber, DataConverter } from '@temporalio/common';
+import os from 'os';
+import { dirname, resolve } from 'path';
 import { WorkerInterceptors } from './interceptors';
 import { InjectedSinks } from './sinks';
 import { GiB } from './utils';

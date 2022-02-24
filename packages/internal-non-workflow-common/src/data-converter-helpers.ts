@@ -2,12 +2,10 @@ import {
   DataConverter,
   defaultPayloadCodec,
   defaultPayloadConverter,
-  errorCode,
-  hasOwnProperty,
   LoadedDataConverter,
   PayloadConverter,
-  ValueError,
-} from '@temporalio/workflow-common';
+} from '@temporalio/common';
+import { errorCode, hasOwnProperty, ValueError } from '@temporalio/internal-workflow-common';
 
 const isValidPayloadConverter = (PayloadConverter: unknown): PayloadConverter is PayloadConverter =>
   typeof PayloadConverter === 'object' &&

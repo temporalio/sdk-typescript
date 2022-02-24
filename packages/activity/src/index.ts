@@ -26,11 +26,11 @@
  * @module
  */
 
-import { AsyncLocalStorage } from 'async_hooks';
+import { msToNumber } from '@temporalio/internal-workflow-common';
 import { AbortSignal } from 'abort-controller';
-import { msToNumber } from '@temporalio/common';
-
-export { ActivityFunction, ActivityInterface, CancelledFailure } from '@temporalio/common';
+import { AsyncLocalStorage } from 'async_hooks';
+export { CancelledFailure } from '@temporalio/common';
+export { ActivityFunction, ActivityInterface } from '@temporalio/internal-workflow-common';
 
 /**
  * Throw this error from an Activity in order to make the Worker

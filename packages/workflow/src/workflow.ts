@@ -1,22 +1,23 @@
+import { mapToPayloads, toPayloads } from '@temporalio/common';
 import {
   ActivityFunction,
+  ActivityInterface,
   ActivityOptions,
+  compileRetryPolicy,
+  composeInterceptors,
   IllegalStateError,
+  msOptionalToTs,
   msToNumber,
   msToTs,
-  msOptionalToTs,
-  Workflow,
-  composeInterceptors,
-  mapToPayloads,
-  WorkflowResultType,
-  SignalDefinition,
   QueryDefinition,
+  SignalDefinition,
   WithWorkflowArgs,
+  Workflow,
+  WorkflowResultType,
   WorkflowReturnType,
-  compileRetryPolicy,
-  ActivityInterface,
-  toPayloads,
-} from '@temporalio/workflow-common';
+} from '@temporalio/internal-workflow-common';
+import { CancellationScope, registerSleepImplementation } from './cancellation-scope';
+import { ActivityInput, SignalWorkflowInput, StartChildWorkflowExecutionInput, TimerInput } from './interceptors';
 import {
   ChildWorkflowCancellationType,
   ChildWorkflowOptions,
@@ -26,10 +27,8 @@ import {
   WorkflowInfo,
 } from './interfaces';
 import { state } from './internals';
-import { ActivityInput, StartChildWorkflowExecutionInput, SignalWorkflowInput, TimerInput } from './interceptors';
 import { Sinks } from './sinks';
-import { CancellationScope, registerSleepImplementation } from './cancellation-scope';
-import { ExternalWorkflowHandle, ChildWorkflowHandle } from './workflow-handle';
+import { ChildWorkflowHandle, ExternalWorkflowHandle } from './workflow-handle';
 
 // Avoid a circular dependency
 registerSleepImplementation(sleep);

@@ -1,22 +1,25 @@
 import {
-  composeInterceptors,
-  errorToFailure,
+  arrayFromPayloads,
+  defaultPayloadConverter,
   ensureTemporalFailure,
+  errorToFailure,
   failureToError,
   optionalFailureToOptionalError,
-  IllegalStateError,
-  WorkflowSignalType,
   PayloadConverter,
-  defaultPayloadConverter,
-  arrayFromPayloads,
+  TemporalFailure,
+} from '@temporalio/common';
+import {
+  checkExtends,
+  composeInterceptors,
+  IllegalStateError,
   Workflow,
   WorkflowQueryType,
-  TemporalFailure,
-} from '@temporalio/workflow-common';
-import { checkExtends } from '@temporalio/workflow-common/lib/type-helpers';
+  WorkflowSignalType,
+} from '@temporalio/internal-workflow-common';
 import type { coresdk } from '@temporalio/proto/lib/coresdk';
 import { alea, RNG } from './alea';
-import { ContinueAsNew, WorkflowInfo } from './interfaces';
+import { ROOT_SCOPE } from './cancellation-scope';
+import { DeterminismViolationError, isCancellation, WorkflowExecutionAlreadyStartedError } from './errors';
 import {
   QueryInput,
   SignalInput,
@@ -24,9 +27,8 @@ import {
   WorkflowInterceptors,
   WorkflowInterceptorsFactory,
 } from './interceptors';
-import { DeterminismViolationError, WorkflowExecutionAlreadyStartedError, isCancellation } from './errors';
+import { ContinueAsNew, WorkflowInfo } from './interfaces';
 import { SinkCall } from './sinks';
-import { ROOT_SCOPE } from './cancellation-scope';
 
 enum StartChildWorkflowExecutionFailedCause {
   START_CHILD_WORKFLOW_EXECUTION_FAILED_CAUSE_UNSPECIFIED = 0,
