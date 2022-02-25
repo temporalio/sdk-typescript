@@ -156,3 +156,9 @@ npx lerna run --stream build-rust -- -- --target ${TEMPORAL_WORKER_BUILD_TARGETS
 npx lerna version patch # or major|minor|etc
 npx lerna publish from-git
 ```
+
+- Cleanup:
+
+```sh
+rm $HOME/Downloads/packages-*
+```

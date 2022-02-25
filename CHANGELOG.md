@@ -4,6 +4,36 @@ All notable changes to this project will be documented in this file.
 
 Breaking changes marked with a :boom:
 
+## [0.19.0-rc.0] - 2022-02-25
+
+### Bug Fixes
+
+- :boom: [`workflow-bundler`] Enable resolution of modules in Webpack based on Node's regular algorithm ([#498](https://github.com/temporalio/sdk-typescript/pull/498), thank you [@mjameswh](https://github.com/mjameswh) 🙏)
+
+  BREAKING CHANGE: [`Worker.create`](https://typescript.temporal.io/api/classes/worker.Worker#create) no longer takes `nodeModulesPaths`. Instead, it resolves modules like Node does, relative to [`workflowsPath`](https://typescript.temporal.io/api/interfaces/worker.WorkerOptions#workflowspath).
+
+  This fixes [#489](https://github.com/temporalio/sdk-typescript/issues/489) and may fix issues with monorepos.
+
+- [`workflow`] Fix ContinueAsNew error message and name ([#487](https://github.com/temporalio/sdk-typescript/pull/487))
+
+  - Treat ContinueAsNew as success in otel interceptor span status
+
+- [`workflow-bundler`] Improve resolving of webpack's `ts-loader` ([#492](https://github.com/temporalio/sdk-typescript/pull/492), thank you [@jameslnewell](https://github.com/jameslnewell) 🙏)
+  - Addresses issues where it's not found in complex workspaces like a yarn workspaces monorepo
+
+### Documentation
+
+- Link to `building.md` from `# Publishing` section ([#479](https://github.com/temporalio/sdk-typescript/pull/479))
+- Specify default Workflow Execution retry behavior ([#495](https://github.com/temporalio/sdk-typescript/pull/495))
+- Add breaking change notice to `CHANGELOG` for `v0.18.0` ([#494](https://github.com/temporalio/sdk-typescript/pull/494))
+  - Closes [#493](https://github.com/temporalio/sdk-typescript/pull/493)
+- Remove inaccurate `startChild` typedoc notes ([#448](https://github.com/temporalio/sdk-typescript/pull/448))
+
+### Testing
+
+- Add integration with sdk-features repo ([#453](https://github.com/temporalio/sdk-typescript/pull/453))
+- Pass repo into sdk-features workflow ([#486](https://github.com/temporalio/sdk-typescript/pull/486))
+
 ## [0.18.0] - 2022-02-10
 
 ### Bug Fixes
