@@ -97,7 +97,8 @@ if (requestedTargets.length > 0) {
 } else {
   if (!forceBuild) {
     try {
-      getPrebuiltPath();
+      const binary = getPrebuiltPath();
+      console.log('Found prebuilt bridge module', { binary });
     } catch (err) {
       if (err instanceof PrebuildError) {
         console.warn(err.message);
