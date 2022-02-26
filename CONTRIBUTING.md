@@ -153,8 +153,8 @@ export CC_aarch64_unknown_linux_gnu=aarch64-unknown-linux-gnu-gcc
 export CC_x86_64_unknown_linux_gnu=x86_64-unknown-linux-gnu-gcc
 export TEMPORAL_WORKER_BUILD_TARGETS=aarch64-unknown-linux-gnu
 npx lerna run --stream build-rust -- -- --target ${TEMPORAL_WORKER_BUILD_TARGETS}
-npx lerna version patch # or major|minor|etc
-npx lerna publish from-git
+npx lerna version patch # or major|minor|etc, or leave out to be prompted. either way, you get a confirmation dialog.
+npx lerna publish from-git # add `--dist-tag next` for pre-release versions
 ```
 
 - Cleanup:
