@@ -20,6 +20,7 @@ Breaking changes marked with a :boom:
 
 - [`workflow-bundler`] Improve resolving of webpack's `ts-loader` ([#492](https://github.com/temporalio/sdk-typescript/pull/492), thank you [@jameslnewell](https://github.com/jameslnewell) 🙏)
   - Addresses issues where it's not found in complex workspaces like a yarn workspaces monorepo
+- Remove `console.log` emitted from core bridge ([#500](https://github.com/temporalio/sdk-typescript/pull/500))
 
 ### Documentation
 
