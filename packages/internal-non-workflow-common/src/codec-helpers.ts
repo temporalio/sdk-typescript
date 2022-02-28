@@ -70,7 +70,7 @@ export async function encodeToPayloads(
   if (values.length === 0) {
     return undefined;
   }
-  const payloads = toPayloads(payloadConverter, values);
+  const payloads = toPayloads(payloadConverter, ...values);
   return payloads ? await payloadCodec.encode(payloads) : undefined;
 }
 

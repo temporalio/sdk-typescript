@@ -4,6 +4,7 @@ import { coresdk } from '@temporalio/proto';
 import { Worker } from '@temporalio/worker';
 import test, { ExecutionContext } from 'ava';
 import { v4 as uuid4 } from 'uuid';
+import { ProtoActivityResult } from '../protos/root';
 import { protoActivity } from './activities';
 import { cleanStackTrace, RUN_INTEGRATION_TESTS } from './helpers';
 import { defaultOptions, isolateFreeWorker } from './mock-native-worker';
@@ -35,7 +36,7 @@ function compareCompletion(
 if (RUN_INTEGRATION_TESTS) {
   test('Client and Worker work with provided dataConverter', async (t) => {
     const dataConverter = { payloadConverterPath: require.resolve('./payload-converters/payload-converter') };
-    const taskQueue = 'test-custom-data-converter';
+    const taskQueue = 'test-custom-payload-converter';
     const worker = await Worker.create({
       ...defaultOptions,
       taskQueue,
@@ -49,7 +50,8 @@ if (RUN_INTEGRATION_TESTS) {
         workflowId: uuid4(),
         taskQueue,
       });
-      t.deepEqual(result, messageInstance);
+
+      t.deepEqual(result, ProtoActivityResult.create({ sentence: `Proto is 1 years old.` }));
       worker.shutdown();
     };
     await Promise.all([worker.run(), runAndShutdown()]);

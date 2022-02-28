@@ -77,3 +77,4 @@ export * from './unhandled-rejection';
 export * from './protobufs';
 export { interceptorExample } from './interceptor-example';
 export { internalsInterceptorExample } from './internals-interceptor-example';
+export * from './two-strings';
