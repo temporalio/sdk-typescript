@@ -6,6 +6,7 @@ import {
   defaultPayloadConverter,
   JsonPayloadConverter,
   UndefinedPayloadConverter,
+  UnsupportedTypeError,
   ValueError,
 } from '@temporalio/common';
 import {
@@ -30,11 +31,27 @@ import { protobufWorkflow } from './workflows';
 
 test('UndefinedPayloadConverter converts from undefined only', async (t) => {
   const converter = new UndefinedPayloadConverter();
-  t.is(await converter.toPayload(null), undefined);
-  t.is(await converter.toPayload({}), undefined);
-  t.is(await converter.toPayload(1), undefined);
-  t.is(await converter.toPayload(0), undefined);
-  t.is(await converter.toPayload('abc'), undefined);
+  await t.throwsAsync(async () => await converter.toPayload(null), {
+    instanceOf: UnsupportedTypeError,
+    message: 'Can only encode undefined',
+  });
+  await t.throwsAsync(async () => await converter.toPayload({}), {
+    instanceOf: UnsupportedTypeError,
+    message: 'Can only encode undefined',
+  });
+  await t.throwsAsync(async () => await converter.toPayload(1), {
+    instanceOf: UnsupportedTypeError,
+    message: 'Can only encode undefined',
+  });
+  await t.throwsAsync(async () => await converter.toPayload(0), {
+    instanceOf: UnsupportedTypeError,
+    message: 'Can only encode undefined',
+  });
+
+  await t.throwsAsync(async () => await converter.toPayload('abc'), {
+    instanceOf: UnsupportedTypeError,
+    message: 'Can only encode undefined',
+  });
   t.deepEqual(await converter.toPayload(undefined), {
     metadata: { [METADATA_ENCODING_KEY]: encodingKeys.METADATA_ENCODING_NULL },
   });

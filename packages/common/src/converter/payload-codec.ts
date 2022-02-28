@@ -2,7 +2,8 @@ import { Payload } from './types';
 
 /**
  * `PayloadCodec` is an optional step that happens between the wire and the {@link PayloadConverter}:
- * Temporal Server ↔️ Wire ↔️ PayloadCodec ↔️ PayloadConverter ↔️ User code
+ *
+ * Temporal Server ↔️ Wire ↔️ `PayloadCodec` ↔️ `PayloadConverter` ↔️ User code
  *
  * Implement this to transform an array of {@link Payload}s to/from the format sent over the wire and stored by Temporal Server.
  * Common transformations are encryption and compression.

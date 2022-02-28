@@ -13,7 +13,7 @@ export class UndefinedPayloadConverter implements PayloadConverterWithEncoding {
   public encodingType = encodingTypes.METADATA_ENCODING_NULL;
 
   public toPayload(value: unknown): Payload {
-    if (value !== undefined) throw new UnsupportedTypeError(); // Can't encode
+    if (value !== undefined) throw new UnsupportedTypeError('Can only encode undefined'); // Can't encode
     return {
       metadata: {
         [METADATA_ENCODING_KEY]: encodingKeys.METADATA_ENCODING_NULL,
