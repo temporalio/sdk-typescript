@@ -6,12 +6,20 @@ export class DataConverterError extends Error {
   public readonly name: string = 'DataConverterError';
 }
 
-export class PayloadConverterError extends Error {
+export class PayloadConverterError extends DataConverterError {
   public readonly name: string = 'PayloadConverterError';
 }
 
 export class UnsupportedTypeError extends PayloadConverterError {
   public readonly name: string = 'UnsupportedTypeError';
+}
+
+export class UnsupportedJsonTypeError extends UnsupportedTypeError {
+  public readonly name: string = 'UnsupportedJsonTypeError';
+
+  constructor(message: string | undefined, public readonly cause?: Error) {
+    super(message ?? undefined);
+  }
 }
 
 /**

@@ -56,7 +56,7 @@ export class CompositePayloadConverter implements PayloadConverter {
         }
       }
     }
-    throw new ValueError(`Cannot serialize ${value}`);
+    throw new ValueError(`Cannot serialize ${value} of type ${typeof value}`);
   }
 
   /**

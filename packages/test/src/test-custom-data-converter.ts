@@ -73,7 +73,7 @@ test('Worker throws on invalid payloadConverterPath', async (t) => {
       dataConverter: { payloadConverterPath: require.resolve('./payload-converters/payload-converter-no-export') },
     }),
     {
-      message: /The module at payloadConverterPath .* does not have a `dataConverter` named export./,
+      message: /Module .* does not have a `payloadConverter` named export/,
     }
   );
 
@@ -83,8 +83,7 @@ test('Worker throws on invalid payloadConverterPath', async (t) => {
       dataConverter: { payloadConverterPath: require.resolve('./payload-converters/payload-converter-bad-export') },
     }),
     {
-      message:
-        /The `dataConverter` named export at payloadConverterPath .* should be an instance of a class that implements the DataConverter interface./,
+      message: /payloadConverter export at .* must be an object with toPayload and fromPayload methods/,
     }
   );
 });

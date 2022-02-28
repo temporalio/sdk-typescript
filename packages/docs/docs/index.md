@@ -14,5 +14,5 @@ slug: /
 | [`@temporalio/workflow`](./api/namespaces/workflow)      | Workflow runtime library                                                                      |
 | [`@temporalio/activity`](./api/namespaces/activity)      | Access to current activity context                                                            |
 | [`@temporalio/client`](./api/namespaces/client)          | Communicate with the Temporal service for things like administration and scheduling workflows |
-| [`@temporalio/common`](./api/namespaces/common)          | Utility functions and class which can be used in both Workflow and non Workflow code          |
+| [`@temporalio/common`](./api/namespaces/common)          | Common library for code that's used across the Client, Worker, and/or Workflow          |
 | [`@temporalio/proto`](./api/namespaces/proto)            | Compiled protobuf definitions                                                                 |

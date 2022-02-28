@@ -1,4 +1,9 @@
-import { UnsupportedTypeError, ValueError } from '@temporalio/internal-workflow-common';
+import {
+  errorMessage,
+  UnsupportedJsonTypeError,
+  UnsupportedTypeError,
+  ValueError,
+} from '@temporalio/internal-workflow-common';
 import { PayloadConverter } from './payload-converter';
 import { encodingKeys, EncodingType, encodingTypes, METADATA_ENCODING_KEY, Payload, str, u8 } from './types';
 
@@ -33,12 +38,26 @@ export class JsonPayloadConverter implements PayloadConverterWithEncoding {
   public encodingType = encodingTypes.METADATA_ENCODING_JSON;
 
   public toPayload(value: unknown): Payload {
-    if (value === undefined) throw new UnsupportedTypeError(); // Should be encoded with the UndefinedPayloadConverter
+    if (value === undefined)
+      throw new UnsupportedTypeError("Can't encode undefined. Use UndefinedPayloadConverter instead.");
+
+    let json;
+    try {
+      json = JSON.stringify(value);
+    } catch (e) {
+      throw new UnsupportedJsonTypeError(
+        `Can't run JSON.stringify on this value: ${value}. Either convert it (or its properties) to JSON-serializable values (see https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/JSON/stringify#description ), or use a custom data converter: https://docs.temporal.io/docs/typescript/data-converters . JSON.stringify error message: ${errorMessage(
+          e
+        )}`,
+        e as Error
+      );
+    }
+
     return {
       metadata: {
         [METADATA_ENCODING_KEY]: encodingKeys.METADATA_ENCODING_JSON,
       },
-      data: u8(JSON.stringify(value)),
+      data: u8(json),
     };
   }
 
@@ -59,7 +78,7 @@ export class BinaryPayloadConverter implements PayloadConverterWithEncoding {
   public toPayload(value: unknown): Payload {
     // TODO: support any DataView or ArrayBuffer?
     if (!(value instanceof Uint8Array)) {
-      throw new UnsupportedTypeError();
+      throw new UnsupportedTypeError('Can only encode Uint8Array');
     }
     return {
       metadata: {
