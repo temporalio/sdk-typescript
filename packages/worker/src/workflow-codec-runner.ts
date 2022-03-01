@@ -52,14 +52,14 @@ export class WorkflowCodecRunner {
               clone
             );
           }
-          if (decodedJob.startWorkflow?.headers) {
-            await Promise.all(
-              Object.entries(decodedJob.startWorkflow.headers).map(async ([header, payload]) => {
-                const [decodedPayload] = await this.codec.decode([payload]);
-                setWith(decodedJob, `startWorkflow.headers.${header}`, decodedPayload, clone);
-              })
-            );
-          }
+          // if (decodedJob.startWorkflow?.headers) {
+          //   await Promise.all(
+          //     Object.entries(decodedJob.startWorkflow.headers).map(async ([header, payload]) => {
+          //       const [decodedPayload] = await this.codec.decode([payload]);
+          //       setWith(decodedJob, `startWorkflow.headers.${header}`, decodedPayload, clone);
+          //     })
+          //   );
+          // }
           if (decodedJob.resolveActivity?.result?.completed?.result) {
             const [decodedResult] = await this.codec.decode([decodedJob.resolveActivity.result.completed.result]);
             setWith(decodedJob, 'resolveActivity.result.completed.result', decodedResult, clone);
@@ -123,13 +123,13 @@ export class WorkflowCodecRunner {
    * Run codec.encode on the Payloads inside the Completion message.
    */
   public async encodeCompletion(completionBytes: Uint8Array): Promise<Uint8Array> {
-    const completion = coresdk.workflow_completion.WorkflowActivationCompletion.decode(completionBytes);
+    const completion = coresdk.workflow_completion.WorkflowActivationCompletion.decodeDelimited(completionBytes);
 
     await Promise.all([
       ...(completion.successful?.commands?.flatMap((command) =>
         command
           ? [
-              ...this.encodeMap(command.scheduleActivity, 'headerFields'),
+              // ...this.encodeMap(command.scheduleActivity, 'headerFields'),
               this.encodeArray(command.scheduleActivity, 'arguments'),
               this.encodeField(command.respondToQuery?.succeeded, 'response'),
               this.encodeFailure(command.respondToQuery, 'failed'),
@@ -137,11 +137,11 @@ export class WorkflowCodecRunner {
               this.encodeFailure(command.failWorkflowExecution, 'failure'),
               this.encodeArray(command.continueAsNewWorkflowExecution, 'arguments'),
               ...this.encodeMap(command.continueAsNewWorkflowExecution, 'memo'),
-              ...this.encodeMap(command.continueAsNewWorkflowExecution, 'header'),
+              // ...this.encodeMap(command.continueAsNewWorkflowExecution, 'header'),
               ...this.encodeMap(command.continueAsNewWorkflowExecution, 'searchAttributes'),
               this.encodeArray(command.startChildWorkflowExecution, 'input'),
               ...this.encodeMap(command.startChildWorkflowExecution, 'memo'),
-              ...this.encodeMap(command.startChildWorkflowExecution, 'header'),
+              // ...this.encodeMap(command.startChildWorkflowExecution, 'header'),
               ...this.encodeMap(command.startChildWorkflowExecution, 'searchAttributes'),
               this.encodeArray(command.signalExternalWorkflowExecution, 'args'),
             ]
