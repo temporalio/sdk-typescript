@@ -1,4 +1,3 @@
-import { ServerErrorResponse } from '@grpc/grpc-js';
 import { Status } from '@grpc/grpc-js/build/src/constants';
 import { DataConverter, ensureTemporalFailure, LoadedDataConverter } from '@temporalio/common';
 import {
@@ -9,6 +8,7 @@ import {
 } from '@temporalio/internal-non-workflow-common';
 import os from 'os';
 import { Connection, WorkflowService } from './connection';
+import { isServerErrorResponse } from './errors';
 
 /**
  * Thrown by {@link AsyncCompletionClient} when trying to complete or heartbeat
@@ -32,14 +32,6 @@ export class ActivityCompletionError extends Error {
  */
 export class ActivityCancelledError extends Error {
   public readonly name = 'ActivityCancelledError';
-}
-
-/**
- * Type assertion helper, assertion is mostly empty because any additional
- * properties are optional.
- */
-function isServerErrorResponse(err: unknown): err is ServerErrorResponse {
-  return err instanceof Error;
 }
 
 /**

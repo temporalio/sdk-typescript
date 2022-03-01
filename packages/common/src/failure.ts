@@ -1,4 +1,4 @@
-import { checkExtends } from '@temporalio/internal-workflow-common';
+import { checkExtends, hasOwnProperties, isRecord } from '@temporalio/internal-workflow-common';
 import type { temporal } from '@temporalio/proto/lib/coresdk';
 import { arrayFromPayloads, fromPayloadsAtIndex, PayloadConverter, toPayloads } from './converter/payload-converter';
 
@@ -221,7 +221,7 @@ export function optionalErrorToOptionalFailure(
 /**
  * Stack traces will be cutoff when on of these patterns is matched
  */
-const CUTTOFF_STACK_PATTERNS = [
+const CUTOFF_STACK_PATTERNS = [
   /** Activity execution */
   /\s+at Activity\.execute \(.*[\\/]worker[\\/](?:src|lib)[\\/]activity\.[jt]s:\d+:\d+\)/,
   /** Workflow activation */
@@ -235,7 +235,7 @@ export function cutoffStackTrace(stack?: string): string {
   const lines = (stack ?? '').split(/\r?\n/);
   const acc = Array<string>();
   lineLoop: for (const line of lines) {
-    for (const pattern of CUTTOFF_STACK_PATTERNS) {
+    for (const pattern of CUTOFF_STACK_PATTERNS) {
       if (pattern.test(line)) break lineLoop;
     }
     acc.push(line);
@@ -326,15 +326,22 @@ export function errorToFailure(err: unknown, payloadConverter: PayloadConverter)
     source: FAILURE_SOURCE,
   };
 
-  if (err instanceof Error) {
-    return { ...base, message: err.message ?? '', stackTrace: cutoffStackTrace(err.stack) };
+  if (isRecord(err) && hasOwnProperties(err, ['message', 'stack'])) {
+    return {
+      ...base,
+      message: String(err.message) ?? '',
+      stackTrace: cutoffStackTrace(String(err.stack)),
+      cause: optionalErrorToOptionalFailure(err.cause, payloadConverter),
+    };
   }
+
+  const recommendation = ` [A non-Error value was thrown from your code. We recommend throwing Error objects so that we can provide a stack trace.]`;
 
   if (typeof err === 'string') {
-    return { ...base, message: err };
+    return { ...base, message: err + recommendation };
   }
 
-  return { ...base, message: String(err) };
+  return { ...base, message: JSON.stringify(err) + recommendation };
 }
 
 /**

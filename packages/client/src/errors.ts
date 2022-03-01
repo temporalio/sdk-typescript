@@ -1,4 +1,19 @@
+import { ServerErrorResponse } from '@grpc/grpc-js';
 import { RetryState, TemporalFailure } from '@temporalio/common';
+export { WorkflowExecutionAlreadyStartedError } from '@temporalio/common';
+
+/**
+ * Generic Error class for errors coming from the service
+ */
+export class ServiceError extends Error {
+  public readonly name: string = 'ServiceError';
+  public readonly cause?: Error;
+
+  constructor(message: string, opts?: { cause: Error }) {
+    super(message);
+    this.cause = opts?.cause;
+  }
+}
 
 /**
  * Thrown by the client while waiting on Workflow execution result if execution
@@ -31,4 +46,12 @@ export class WorkflowContinuedAsNewError extends Error {
   public constructor(message: string, public readonly newExecutionRunId: string) {
     super(message);
   }
+}
+
+/**
+ * Type assertion helper, assertion is mostly empty because any additional
+ * properties are optional.
+ */
+export function isServerErrorResponse(err: unknown): err is ServerErrorResponse {
+  return err instanceof Error;
 }

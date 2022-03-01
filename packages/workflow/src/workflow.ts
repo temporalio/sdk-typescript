@@ -423,8 +423,6 @@ export function getExternalWorkflowHandle(workflowId: string, runId?: string): E
 /**
  * Start a child Workflow execution
  *
- * **Override for Workflows that accept no arguments**.
- *
  * - Returns a client-side handle that implements a child Workflow interface.
  * - By default, a child will be scheduled on the same task queue as its parent.
  *
@@ -438,8 +436,6 @@ export async function startChild<T extends Workflow>(
 
 /**
  * Start a child Workflow execution
- *
- * **Override for Workflows that accept no arguments**.
  *
  * - Returns a client-side handle that implements a child Workflow interface.
  * - Deduces the Workflow type and signature from provided Workflow function.

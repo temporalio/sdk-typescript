@@ -10,6 +10,7 @@ import {
   WorkflowExecuteInput,
   workflowInfo,
   ContinueAsNewInput,
+  ContinueAsNew,
   WorkflowInternalsInterceptor,
 } from '@temporalio/workflow';
 import { extractContextFromHeaders, headersWithContext } from '@temporalio/internal-non-workflow-common/lib/otel';
@@ -51,8 +52,13 @@ export class OpenTelemetryInboundInterceptor implements WorkflowInboundCallsInte
     next: Next<WorkflowInboundCallsInterceptor, 'execute'>
   ): Promise<unknown> {
     const context = await extractContextFromHeaders(input.headers);
-    const spanName = `${SpanName.WORKFLOW_EXECUTE}${SPAN_DELIMITER}${workflowInfo().workflowType}`;
-    return await instrument(this.tracer, spanName, () => next(input), context);
+    return await instrument({
+      tracer: this.tracer,
+      spanName: `${SpanName.WORKFLOW_EXECUTE}${SPAN_DELIMITER}${workflowInfo().workflowType}`,
+      fn: () => next(input),
+      context,
+      acceptableErrors: (err) => err instanceof ContinueAsNew,
+    });
   }
 }
 
@@ -68,51 +74,52 @@ export class OpenTelemetryOutboundInterceptor implements WorkflowOutboundCallsIn
     input: ActivityInput,
     next: Next<WorkflowOutboundCallsInterceptor, 'scheduleActivity'>
   ): Promise<unknown> {
-    return await instrument(
-      this.tracer,
-      `${SpanName.ACTIVITY_START}${SPAN_DELIMITER}${input.activityType}`,
-      async () => {
+    return await instrument({
+      tracer: this.tracer,
+      spanName: `${SpanName.ACTIVITY_START}${SPAN_DELIMITER}${input.activityType}`,
+      fn: async () => {
         const headers = await headersWithContext(input.headers);
         return next({
           ...input,
           headers,
         });
-      }
-    );
+      },
+    });
   }
 
   public async startChildWorkflowExecution(
     input: StartChildWorkflowExecutionInput,
     next: Next<WorkflowOutboundCallsInterceptor, 'startChildWorkflowExecution'>
   ): Promise<[Promise<string>, Promise<unknown>]> {
-    return await instrument(
-      this.tracer,
-      `${SpanName.CHILD_WORKFLOW_START}${SPAN_DELIMITER}${input.workflowType}`,
-      async () => {
+    return await instrument({
+      tracer: this.tracer,
+      spanName: `${SpanName.CHILD_WORKFLOW_START}${SPAN_DELIMITER}${input.workflowType}`,
+      fn: async () => {
         const headers = await headersWithContext(input.headers);
         return next({
           ...input,
           headers,
         });
-      }
-    );
+      },
+    });
   }
 
   public async continueAsNew(
     input: ContinueAsNewInput,
     next: Next<WorkflowOutboundCallsInterceptor, 'continueAsNew'>
   ): Promise<never> {
-    return await instrument(
-      this.tracer,
-      `${SpanName.CONTINUE_AS_NEW}${SPAN_DELIMITER}${input.options.workflowType}`,
-      async () => {
+    return await instrument({
+      tracer: this.tracer,
+      spanName: `${SpanName.CONTINUE_AS_NEW}${SPAN_DELIMITER}${input.options.workflowType}`,
+      fn: async () => {
         const headers = await headersWithContext(input.headers);
         return next({
           ...input,
           headers,
         });
-      }
-    );
+      },
+      acceptableErrors: (err) => err instanceof ContinueAsNew,
+    });
   }
 }
 

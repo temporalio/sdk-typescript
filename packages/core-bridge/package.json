@@ -1,12 +1,13 @@
 {
   "name": "@temporalio/core-bridge",
-  "version": "0.17.2",
+  "version": "0.19.0-rc.0",
   "description": "Temporal.io SDK Core<>Node bridge",
-  "main": "index.node",
+  "main": "index.js",
   "types": "index.d.ts",
   "scripts": {
     "build-rust": "node ./scripts/build.js --force",
     "build": "npm run build-rust",
+    "build-rust-release": "npm run build-rust -- --release",
     "install": "node ./scripts/build.js"
   },
   "keywords": [
@@ -35,6 +36,8 @@
     "sdk-core",
     "Cargo.toml",
     "Cargo.lock",
+    "index.js",
+    "common.js",
     "index.d.ts"
   ],
   "publishConfig": {

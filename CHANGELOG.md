@@ -4,6 +4,104 @@ All notable changes to this project will be documented in this file.
 
 Breaking changes marked with a :boom:
 
+## [0.19.0-rc.0] - 2022-02-25
+
+### Bug Fixes
+
+- :boom: [`workflow-bundler`] Enable resolution of modules in Webpack based on Node's regular algorithm ([#498](https://github.com/temporalio/sdk-typescript/pull/498), thank you [@mjameswh](https://github.com/mjameswh) 🙏)
+
+  BREAKING CHANGE: [`Worker.create`](https://typescript.temporal.io/api/classes/worker.Worker#create) no longer takes `nodeModulesPaths`. Instead, it resolves modules like Node does, relative to [`workflowsPath`](https://typescript.temporal.io/api/interfaces/worker.WorkerOptions#workflowspath).
+
+  This fixes [#489](https://github.com/temporalio/sdk-typescript/issues/489) and may fix issues with monorepos.
+
+- [`workflow`] Fix ContinueAsNew error message and name ([#487](https://github.com/temporalio/sdk-typescript/pull/487))
+
+  - Treat ContinueAsNew as success in otel interceptor span status
+
+- [`workflow-bundler`] Improve resolving of webpack's `ts-loader` ([#492](https://github.com/temporalio/sdk-typescript/pull/492), thank you [@jameslnewell](https://github.com/jameslnewell) 🙏)
+  - Addresses issues where it's not found in complex workspaces like a yarn workspaces monorepo
+- Remove `console.log` emitted from core bridge ([#500](https://github.com/temporalio/sdk-typescript/pull/500))
+
+### Documentation
+
+- Link to `building.md` from `# Publishing` section ([#479](https://github.com/temporalio/sdk-typescript/pull/479))
+- Specify default Workflow Execution retry behavior ([#495](https://github.com/temporalio/sdk-typescript/pull/495))
+- Add breaking change notice to `CHANGELOG` for `v0.18.0` ([#494](https://github.com/temporalio/sdk-typescript/pull/494))
+  - Closes [#493](https://github.com/temporalio/sdk-typescript/pull/493)
+- Remove inaccurate `startChild` typedoc notes ([#448](https://github.com/temporalio/sdk-typescript/pull/448))
+
+### Testing
+
+- Add integration with sdk-features repo ([#453](https://github.com/temporalio/sdk-typescript/pull/453))
+- Pass repo into sdk-features workflow ([#486](https://github.com/temporalio/sdk-typescript/pull/486))
+
+## [0.18.0] - 2022-02-10
+
+### Bug Fixes
+
+- :boom: Improve failure details ([#467](https://github.com/temporalio/sdk-typescript/pull/467))
+
+  BREAKING CHANGE: Most `failure.message` fields are no longer prefixed with `'Error: '`, so places in which you're checking `failure.message === 'Error: a message'` likely need to be changed to `failure.message === 'a message'`.
+
+- [`workflow`] Fix startChild options type ([#447](https://github.com/temporalio/sdk-typescript/pull/447))
+- [`workflow`] Fix error when timer is cancelled and immediately fired in the same activation ([#466](https://github.com/temporalio/sdk-typescript/pull/466))
+
+- Upgrade Core to receive recent fixes ([#475](https://github.com/temporalio/sdk-typescript/pull/475))
+
+  - Replay mock client wasn't allowing completes ([sdk-core#269](https://github.com/temporalio/sdk-core/pull/269))
+  - Fix heartbeats not flushing on activity completion ([sdk-core#266](https://github.com/temporalio/sdk-core/pull/266))
+
+- Don't register errors more than once, allowing for multiple module imports w/o panic ([#474](https://github.com/temporalio/sdk-typescript/pull/474))
+
+### Features
+
+- :boom: [`client`] Use `runId` only in handles created with `getHandle` ([#468](https://github.com/temporalio/sdk-typescript/pull/468))
+
+  - In addition:
+    - Adds safety to `terminate` and `cancel` so handles created with `start` can't accidentally affect workflows that are not part of the same execution chain
+    - Adds optional `firstExecutionRunId` param to `getHandle` for added safety
+  - Closes [#464](https://github.com/temporalio/sdk-typescript/pull/464)
+  - Closes [#377](https://github.com/temporalio/sdk-typescript/pull/377)
+  - Closes [#365](https://github.com/temporalio/sdk-typescript/pull/365)
+
+  BREAKING CHANGE: Some gRPC errors are no longer being thrown from `WorkflowClient`. These errors are thrown in their place: [`WorkflowExecutionAlreadyStartedError`](https://typescript.temporal.io/api/classes/common.workflowexecutionalreadystartederror/) and [`WorkflowNotFoundError`](https://typescript.temporal.io/api/classes/common.workflownotfounderror/). This means that, for example, code like this:
+
+  ```ts
+  try {
+    await client.start(example, { workflowId: '123' });
+  } catch (e: any) {
+    if (e.code === ALREADY_EXISTS) {
+      console.log('Already started workflow 123');
+    }
+  }
+  ```
+
+  Needs to be changed to:
+
+  ```ts
+  import { WorkflowExecutionAlreadyStartedError } from '@temporalio/common';
+
+  try {
+    await client.start(example, { workflowId: '123' });
+  } catch (e: any) {
+    if (e instanceof WorkflowExecutionAlreadyStartedError) {
+      console.log('Already started workflow 123');
+    }
+  }
+  ```
+
+- Replay history from files ([#449](https://github.com/temporalio/sdk-typescript/pull/449))
+  - Provides a way to exercise existing histories against local workflow code. See [video tutorial](https://www.youtube.com/watch?v=fN5bIL7wc5M) and [sample code](https://github.com/temporalio/samples-typescript/pull/99).
+- [`core`] Make Core portable ([#458](https://github.com/temporalio/sdk-typescript/pull/458))
+  - Installing the SDK on one OS / architecture now works if used on different OS / arch.
+- Accept IHistory for history replay ([#460](https://github.com/temporalio/sdk-typescript/pull/460))
+
+### Miscellaneous Tasks
+
+- Handle proto renaming / repackaging updates from core ([#446](https://github.com/temporalio/sdk-typescript/pull/446))
+- Add MakeOptional and Replace type helpers ([#401](https://github.com/temporalio/sdk-typescript/pull/401))
+- Fix core-bridge main entry in package.json ([#463](https://github.com/temporalio/sdk-typescript/pull/463))
+
 ## [0.17.2] - 2021-12-28
 
 ### Bug Fixes

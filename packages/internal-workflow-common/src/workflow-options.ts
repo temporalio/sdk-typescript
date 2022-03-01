@@ -28,10 +28,10 @@ export interface BaseWorkflowOptions {
   workflowIdReusePolicy?: WorkflowIdReusePolicy;
 
   /**
-   * Controls how a Workflow is retried.
+   * Controls how a Workflow Execution is retried.
    *
-   * Workflows should typically use the system default, do not set this unless
-   * you know what you're doing.
+   * By default, Workflow Executions are not retried. Do not override this behavior unless you know what you're doing.
+   * [More information](https://docs.temporal.io/docs/concepts/what-is-a-retry-policy/).
    */
   retry?: RetryPolicy;
 

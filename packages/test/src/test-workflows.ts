@@ -46,8 +46,7 @@ const test = anyTest as TestInterface<Context>;
 test.before(async (t) => {
   const logger = new DefaultLogger('INFO');
   const workflowsPath = path.join(__dirname, 'workflows');
-  const nodeModulesPath = path.join(__dirname, '../../../node_modules');
-  const bundler = new WorkflowCodeBundler(logger, [nodeModulesPath], workflowsPath);
+  const bundler = new WorkflowCodeBundler(logger, workflowsPath);
   const bundle = await bundler.createBundle();
   t.context.workflowCreator = await TestVMWorkflowCreator.create(bundle, 100);
 });
@@ -1707,5 +1706,30 @@ test('conditionWaiter', async (t) => {
   {
     const completion = await activate(t, makeFireTimer(2));
     compareCompletion(t, completion, makeSuccess([makeCompleteWorkflowExecution()]));
+  }
+});
+
+test('conditionRacer', async (t) => {
+  const { workflowType } = t.context;
+  {
+    const completion = await activate(t, makeStartWorkflow(workflowType));
+    compareCompletion(
+      t,
+      completion,
+      makeSuccess([makeStartTimerCommand({ seq: 1, startToFireTimeout: msToTs('1s') })])
+    );
+  }
+  {
+    const completion = await activate(
+      t,
+      makeActivation(
+        Date.now(),
+        {
+          signalWorkflow: { signalName: 'unblock', input: [] },
+        },
+        makeFireTimerJob(1)
+      )
+    );
+    compareCompletion(t, completion, makeSuccess([{ cancelTimer: { seq: 1 } }]));
   }
 });
