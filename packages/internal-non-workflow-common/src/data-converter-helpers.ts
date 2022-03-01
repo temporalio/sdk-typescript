@@ -5,7 +5,7 @@ import {
   LoadedDataConverter,
   PayloadConverter,
 } from '@temporalio/common';
-import { errorCode, hasOwnProperty, ValueError } from '@temporalio/internal-workflow-common';
+import { errorCode, hasOwnProperty, isRecord, ValueError } from '@temporalio/internal-workflow-common';
 
 const isValidPayloadConverter = (PayloadConverter: unknown): PayloadConverter is PayloadConverter =>
   typeof PayloadConverter === 'object' &&
@@ -25,7 +25,7 @@ function requirePayloadConverter(path: string): PayloadConverter {
     throw error;
   }
 
-  if (hasOwnProperty(module, 'payloadConverter')) {
+  if (isRecord(module) && hasOwnProperty(module, 'payloadConverter')) {
     if (isValidPayloadConverter(module.payloadConverter)) {
       return module.payloadConverter;
     } else {
