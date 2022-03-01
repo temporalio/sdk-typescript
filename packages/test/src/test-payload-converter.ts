@@ -218,11 +218,7 @@ if (RUN_INTEGRATION_TESTS) {
       markErrorThrown = resolve;
     });
     const logger = new DefaultLogger('ERROR', (entry) => {
-      if (
-        entry.meta?.error.stack.includes(
-          'DataConverterError: Unable to deserialize protobuf message without `root` being provided'
-        )
-      ) {
+      if (entry.meta?.error.stack.includes('ValueError: Unknown encoding: json/protobuf')) {
         markErrorThrown();
       }
     });
@@ -236,7 +232,7 @@ if (RUN_INTEGRATION_TESTS) {
     });
     const connection = new Connection();
     const client = new WorkflowClient(connection.service, {
-      dataConverter: { payloadConverterPath: './payload-converters/payload-converter' },
+      dataConverter: { payloadConverterPath: require.resolve('./payload-converters/payload-converter') },
     });
     const runPromise = worker.run();
     client.execute(protobufWorkflow, {

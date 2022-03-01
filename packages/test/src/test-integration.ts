@@ -729,7 +729,7 @@ if (RUN_INTEGRATION_TESTS) {
         if (wftFailedEvent === undefined) {
           throw new Error('No WFT failed event');
         }
-        t.is(wftFailedEvent.workflowTaskFailedEventAttributes?.failure?.message, 'Error: unhandled rejection');
+        t.is(wftFailedEvent.workflowTaskFailedEventAttributes?.failure?.message, 'unhandled rejection');
       },
       { minTimeout: 300, factor: 1, retries: 100 }
     );
