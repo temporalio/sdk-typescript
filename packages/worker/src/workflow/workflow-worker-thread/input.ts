@@ -7,7 +7,6 @@ export interface Init {
   type: 'init';
   isolateExecutionTimeoutMs: number;
   code: string;
-  useCustomPayloadConverter: boolean;
 }
 
 /**

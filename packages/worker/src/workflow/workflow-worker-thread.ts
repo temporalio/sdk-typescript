@@ -30,11 +30,7 @@ setUnhandledRejectionHandler();
 async function handleRequest({ requestId, input }: WorkerThreadRequest): Promise<WorkerThreadResponse> {
   switch (input.type) {
     case 'init':
-      workflowCreator = await VMWorkflowCreator.create(
-        input.code,
-        input.isolateExecutionTimeoutMs,
-        input.useCustomPayloadConverter
-      );
+      workflowCreator = await VMWorkflowCreator.create(input.code, input.isolateExecutionTimeoutMs);
       return ok(requestId);
     case 'destroy':
       await workflowCreator?.destroy();

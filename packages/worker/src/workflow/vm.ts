@@ -40,11 +40,7 @@ export class VMWorkflowCreator implements WorkflowCreator {
 
   script?: vm.Script;
 
-  constructor(
-    script: vm.Script,
-    public readonly isolateExecutionTimeoutMs: number,
-    protected readonly useCustomPayloadConverter: boolean
-  ) {
+  constructor(script: vm.Script, public readonly isolateExecutionTimeoutMs: number) {
     if (!VMWorkflowCreator.unhandledRejectionHandlerHasBeenSet) {
       setUnhandledRejectionHandler();
       VMWorkflowCreator.unhandledRejectionHandlerHasBeenSet = true;
@@ -75,7 +71,7 @@ export class VMWorkflowCreator implements WorkflowCreator {
       }
     ) as any;
 
-    await workflowModule.initRuntime({ useCustomPayloadConverter: this.useCustomPayloadConverter, ...options });
+    await workflowModule.initRuntime(options);
 
     const newVM = new VMWorkflow(options.info, context, workflowModule, isolateExecutionTimeoutMs);
     VMWorkflowCreator.workflowByRunId.set(options.info.runId, newVM);
@@ -114,11 +110,10 @@ export class VMWorkflowCreator implements WorkflowCreator {
   public static async create<T extends typeof VMWorkflowCreator>(
     this: T,
     code: string,
-    isolateExecutionTimeoutMs: number,
-    useCustomPayloadConverter = false
+    isolateExecutionTimeoutMs: number
   ): Promise<InstanceType<T>> {
     const script = new vm.Script(code, { filename: 'workflow-isolate' });
-    return new this(script, isolateExecutionTimeoutMs, useCustomPayloadConverter) as InstanceType<T>;
+    return new this(script, isolateExecutionTimeoutMs) as InstanceType<T>;
   }
 
   /**

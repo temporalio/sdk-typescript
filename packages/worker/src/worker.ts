@@ -293,17 +293,12 @@ export class Worker {
       }
       if (bundle) {
         if (compiledOptions.debugMode) {
-          workflowCreator = await VMWorkflowCreator.create(
-            bundle,
-            compiledOptions.isolateExecutionTimeoutMs,
-            !!compiledOptions.dataConverter?.payloadConverterPath
-          );
+          workflowCreator = await VMWorkflowCreator.create(bundle, compiledOptions.isolateExecutionTimeoutMs);
         } else {
           workflowCreator = await ThreadedVMWorkflowCreator.create({
             code: bundle,
             threadPoolSize: compiledOptions.workflowThreadPoolSize,
             isolateExecutionTimeoutMs: compiledOptions.isolateExecutionTimeoutMs,
-            useCustomPayloadConverter: !!compiledOptions.dataConverter?.payloadConverterPath,
           });
         }
       }

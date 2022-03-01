@@ -13,7 +13,7 @@ import { coresdk } from '@temporalio/proto';
 import { IllegalStateError, SinkCall } from '@temporalio/workflow';
 import { Worker as NodeWorker } from 'worker_threads';
 import { UnexpectedError } from '../errors';
-import { Workflow, WorkflowCreator, WorkflowCreateOptions } from './interface';
+import { Workflow, WorkflowCreateOptions, WorkflowCreator } from './interface';
 import { WorkerThreadInput, WorkerThreadRequest } from './workflow-worker-thread/input';
 import { WorkerThreadOutput, WorkerThreadResponse } from './workflow-worker-thread/output';
 
@@ -121,7 +121,6 @@ export interface ThreadedVMWorkflowCreatorOptions {
   code: string;
   threadPoolSize: number;
   isolateExecutionTimeoutMs: number;
-  useCustomPayloadConverter: boolean;
 }
 
 /**
@@ -139,15 +138,12 @@ export class ThreadedVMWorkflowCreator implements WorkflowCreator {
     threadPoolSize,
     code,
     isolateExecutionTimeoutMs,
-    useCustomPayloadConverter,
   }: ThreadedVMWorkflowCreatorOptions): Promise<ThreadedVMWorkflowCreator> {
     const workerThreadClients = Array(threadPoolSize)
       .fill(0)
       .map(() => new WorkerThreadClient(new NodeWorker(require.resolve('./workflow-worker-thread'))));
     await Promise.all(
-      workerThreadClients.map((client) =>
-        client.send({ type: 'init', code, isolateExecutionTimeoutMs, useCustomPayloadConverter })
-      )
+      workerThreadClients.map((client) => client.send({ type: 'init', code, isolateExecutionTimeoutMs }))
     );
     return new this(workerThreadClients);
   }
