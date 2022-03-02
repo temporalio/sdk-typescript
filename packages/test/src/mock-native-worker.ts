@@ -1,7 +1,6 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
 import { SpanContext } from '@opentelemetry/api';
-import { defaultPayloadConverter, fromPayloadsAtIndex, LoadedDataConverter } from '@temporalio/common';
-import { loadDataConverter } from '@temporalio/internal-non-workflow-common';
+import { defaultPayloadConverter, fromPayloadsAtIndex } from '@temporalio/common';
 import { msToTs } from '@temporalio/internal-workflow-common';
 import { coresdk } from '@temporalio/proto';
 import { DefaultLogger } from '@temporalio/worker';
@@ -160,13 +159,9 @@ export class Worker extends RealWorker {
     return this.nativeWorker as MockNativeWorker;
   }
 
-  public constructor(
-    workflowCreator: WorkflowCreator,
-    opts: CompiledWorkerOptions,
-    dataConverter: LoadedDataConverter
-  ) {
+  public constructor(workflowCreator: WorkflowCreator, opts: CompiledWorkerOptions) {
     const nativeWorker = new MockNativeWorker();
-    super(nativeWorker, workflowCreator, opts, dataConverter);
+    super(nativeWorker, workflowCreator, opts);
   }
 
   public runWorkflows(...args: Parameters<Worker['workflow$']>): Promise<void> {
@@ -182,7 +177,6 @@ export const defaultOptions: WorkerOptions = {
 };
 
 export async function isolateFreeWorker(options: WorkerOptions = defaultOptions): Promise<Worker> {
-  const dataConverter = await loadDataConverter(options.dataConverter);
   return new Worker(
     {
       async createWorkflow() {
@@ -192,7 +186,6 @@ export async function isolateFreeWorker(options: WorkerOptions = defaultOptions)
         /* Nothing to destroy */
       },
     },
-    compileWorkerOptions(addDefaultWorkerOptions(options)),
-    dataConverter
+    compileWorkerOptions(addDefaultWorkerOptions(options))
   );
 }

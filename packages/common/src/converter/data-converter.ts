@@ -2,18 +2,25 @@ import { PayloadCodec } from './payload-codec';
 import { PayloadConverter } from './payload-converter';
 
 /**
- * When your data (arguments and return values) is sent over the wire and stored by Temporal Server,
- * it is encoded in binary in a {@link Payload} Protobuf message.
+ * When your data (arguments and return values) is sent over the wire and stored by Temporal Server, it is encoded in
+ * binary in a {@link Payload} Protobuf message.
  *
- * The default `DataConverter` supports `Uint8Array`, and JSON serializables (so if [`JSON.stringify(yourArgOrRetval)`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/JSON/stringify#description) works, the default data converter will work).
+ * The default `DataConverter` supports `Uint8Array`, and JSON serializables (so if
+ * [`JSON.stringify(yourArgOrRetval)`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/JSON/stringify#description)
+ * works, the default data converter will work). Protobufs are supported via [this
+ * API](https://docs.temporal.io/docs/typescript/data-converters#protobufs).
  *
- * Use a custom `DataConverter` to control the contents of your {@link Payload}s.
- * Common reasons for using a custom `DataConverter` are:
- * - Converting values that are not supported by the default `DataConverter` (for example, `JSON.stringify()` doesn't handle `BigInt`s, so if you want to return `{ total: 1000n }` from a Workflow, Signal, or Activity, you need your own `DataConverter`).
- * - Encrypting values that may contain private information that you don't want stored in plaintext in Temporal Server's database.
+ * Use a custom `DataConverter` to control the contents of your {@link Payload}s. Common reasons for using a custom
+ * `DataConverter` are:
+ * - Converting values that are not supported by the default `DataConverter` (for example, `JSON.stringify()` doesn't
+ *   handle `BigInt`s, so if you want to return `{ total: 1000n }` from a Workflow, Signal, or Activity, you need your
+ *   own `DataConverter`).
+ * - Encrypting values that may contain private information that you don't want stored in plaintext in Temporal Server's
+ *   database.
  * - Compressing values to reduce disk or network usage.
  *
- * To use your custom `DataConverter`, provide it to the {@link WorkflowClient}, {@link Worker}, and {@link bundleWorkflowCode} (if you use it):
+ * To use your custom `DataConverter`, provide it to the {@link WorkflowClient}, {@link Worker}, and
+ * {@link bundleWorkflowCode} (if you use it):
  * - `new WorkflowClient({ ..., dataConverter })`
  * - `Worker.create({ ..., dataConverter })`
  * - `bundleWorkflowCode({ ..., payloadConverterPath })`

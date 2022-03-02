@@ -20,9 +20,7 @@
   ],
   "scripts": {},
   "dependencies": {
-    "@temporalio/internal-workflow-common": "file:../internal-workflow-common"
-  },
-  "devDependencies": {
+    "@temporalio/internal-workflow-common": "file:../internal-workflow-common",
     "@temporalio/proto": "file:../proto"
   },
   "publishConfig": {

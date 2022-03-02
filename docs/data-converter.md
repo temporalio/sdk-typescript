@@ -23,7 +23,7 @@ function workflowInclusiveInstanceOf(instance: unknown, type: Function): boolean
 
 ## Decision
 
-Given the possibility of switching or adding other isolation methods in future, we opted to convert to/from Payloads inside the vm (`PayloadConverter`). We also added another transformer layer called `PayloadCodec` that runs outside the vm, can use node modules and Promises, and operates on Payloads. A `DataConverter` is a `PayloadConverter` and a `PayloadCodec`:
+Given the possibility of switching or adding other isolation methods in future, we opted to convert to/from Payloads inside the vm (`PayloadConverter`). We also added another transformer layer called `PayloadCodec` that runs outside the vm, can use node APIs and Promises, and operates on Payloads. A `DataConverter` is a `PayloadConverter` and a `PayloadCodec`:
 
 ```ts
 export interface DataConverter {
@@ -46,28 +46,13 @@ export interface PayloadCodec {
 
 `PayloadCodec` only runs in the main thread.
 
-When `WorkerOptions.dataConverter.payloadConverterPath` is provided, the code at that location is loaded into the main thread, the worker threads, and the webpack Workflow bundle.
+When `WorkerOptions.dataConverter.payloadConverterPath` is provided, the code at that location is loaded into the main thread and the webpack Workflow bundle.
 
 `Worker.create`:
 _main thread_
 
 - imports and validates `options.dataConverter.payloadConverterPath`
 - passes `payloadConverterPath` to `WorkflowCodeBundler`
-
-Execution goes to either:
-
-- `ThreadedVMWorkflowCreator.create`
-  _main thread_
-
-- `VMWorkflowCreator.create`
-  _worker thread (unless in debug mode)_
-
-And then to:
-
-- `VMWorkflowCreator.createWorkflow`
-  _worker thread (unless in debug mode)_
-
-And then to:
 
 `worker-interface.ts#initRuntime`:
 _workflow vm_

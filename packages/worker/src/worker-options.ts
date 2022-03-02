@@ -1,4 +1,5 @@
-import { DataConverter } from '@temporalio/common';
+import { DataConverter, LoadedDataConverter } from '@temporalio/common';
+import { loadDataConverter } from '@temporalio/internal-non-workflow-common';
 import { ActivityInterface, msToNumber } from '@temporalio/internal-workflow-common';
 import os from 'os';
 import { WorkerInterceptors } from './interceptors';
@@ -243,6 +244,7 @@ export interface CompiledWorkerOptions extends Omit<WorkerOptionsWithDefaults, '
   stickyQueueScheduleToStartTimeoutMs: number;
   maxHeartbeatThrottleIntervalMs: number;
   defaultHeartbeatThrottleIntervalMs: number;
+  loadedDataConverter: LoadedDataConverter;
 }
 
 /**
@@ -297,5 +299,6 @@ export function compileWorkerOptions(opts: WorkerOptionsWithDefaults): CompiledW
     isolateExecutionTimeoutMs: msToNumber(opts.isolateExecutionTimeout),
     maxHeartbeatThrottleIntervalMs: msToNumber(opts.maxHeartbeatThrottleInterval),
     defaultHeartbeatThrottleIntervalMs: msToNumber(opts.defaultHeartbeatThrottleInterval),
+    loadedDataConverter: loadDataConverter(opts.dataConverter),
   };
 }

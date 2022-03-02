@@ -52,7 +52,7 @@ if (RUN_INTEGRATION_TESTS) {
     const worker = await Worker.create({
       ...defaultOptions,
       taskQueue,
-      dataConverter, // TODO { payloadCodec: defaultPayloadCodec }
+      dataConverter,
       sinks,
     });
     const client = new WorkflowClient(new Connection().service, { dataConverter });
@@ -63,11 +63,11 @@ if (RUN_INTEGRATION_TESTS) {
         taskQueue,
       });
 
-      t.is(result, 'encoded');
+      t.is(result, 'encoded'); // workflow retval encoded by worker
       worker.shutdown();
     };
     await Promise.all([worker.run(), runAndShutdown()]);
-    t.is(logs[0], 'encodedencoded');
+    t.is(logs[0], 'encodedencoded'); // workflow args encoded by client
   });
 
   test('Workflow arguments and retvals are decoded', async (t) => {
@@ -87,7 +87,7 @@ if (RUN_INTEGRATION_TESTS) {
     const worker = await Worker.create({
       ...defaultOptions,
       taskQueue,
-      dataConverter, // TODO { payloadCodec: defaultPayloadCodec }
+      dataConverter,
       sinks,
     });
     const client = new WorkflowClient(new Connection().service, { dataConverter });
@@ -98,11 +98,11 @@ if (RUN_INTEGRATION_TESTS) {
         taskQueue,
       });
 
-      t.is(result, 'decoded');
+      t.is(result, 'decoded'); // workflow retval decoded by client
       worker.shutdown();
     };
     await Promise.all([worker.run(), runAndShutdown()]);
-    t.is(logs[0], 'decodeddecoded');
+    t.is(logs[0], 'decodeddecoded'); // workflow args decoded by worker
   });
 
   test('Activity arguments and retvals are encoded', async (t) => {
@@ -129,17 +129,15 @@ if (RUN_INTEGRATION_TESTS) {
     });
     const client = new WorkflowClient(new Connection().service, { dataConverter });
     const runAndShutdown = async () => {
-      const result = await client.execute(twoStringsActivity, {
+      await client.execute(twoStringsActivity, {
         workflowId: uuid4(),
         taskQueue,
       });
-
-      t.is(result, 'encoded');
       worker.shutdown();
     };
     await Promise.all([worker.run(), runAndShutdown()]);
-    t.is(workflowLogs[0], 'encoded');
-    t.is(activityLogs[0], 'Activityencodedencoded');
+    t.is(workflowLogs[0], 'encoded'); // activity retval encoded by worker
+    t.is(activityLogs[0], 'Activityencodedencoded'); // activity args encoded by worker
   });
 
   test('Activity arguments and retvals are decoded', async (t) => {
@@ -166,16 +164,14 @@ if (RUN_INTEGRATION_TESTS) {
     });
     const client = new WorkflowClient(new Connection().service, { dataConverter });
     const runAndShutdown = async () => {
-      const result = await client.execute(twoStringsActivity, {
+      await client.execute(twoStringsActivity, {
         workflowId: uuid4(),
         taskQueue,
       });
-
-      t.is(result, 'decoded');
       worker.shutdown();
     };
     await Promise.all([worker.run(), runAndShutdown()]);
-    t.is(workflowLogs[0], 'decoded');
-    t.is(activityLogs[0], 'Activitydecodeddecoded');
+    t.is(workflowLogs[0], 'decoded'); // activity retval decoded by worker
+    t.is(activityLogs[0], 'Activitydecodeddecoded'); // activity args decoded by worker
   });
 }

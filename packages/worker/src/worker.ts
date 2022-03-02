@@ -14,7 +14,6 @@ import {
   decodeFromPayloadsAtIndex,
   encodeErrorToFailure,
   encodeToPayload,
-  loadDataConverter,
 } from '@temporalio/internal-non-workflow-common';
 import {
   extractSpanContextFromHeaders,
@@ -270,7 +269,6 @@ export class Worker {
     nativeWorker: NativeWorkerLike
   ): Promise<Worker> {
     try {
-      const dataConverter = loadDataConverter(compiledOptions.dataConverter);
       let bundle: string | undefined = undefined;
       let workflowCreator: WorkflowCreator | undefined = undefined;
       if (compiledOptions.workflowsPath) {
@@ -302,7 +300,7 @@ export class Worker {
           });
         }
       }
-      return new this(nativeWorker, workflowCreator, compiledOptions, dataConverter);
+      return new this(nativeWorker, workflowCreator, compiledOptions);
     } catch (err) {
       // Deregister our worker in case Worker creation (Webpack) failed
       await nativeWorker.completeShutdown();
@@ -319,11 +317,10 @@ export class Worker {
      * Optional WorkflowCreator - if not provided, Worker will not poll on Workflows
      */
     protected readonly workflowCreator: WorkflowCreator | undefined,
-    public readonly options: CompiledWorkerOptions,
-    protected readonly dataConverter: LoadedDataConverter
+    public readonly options: CompiledWorkerOptions
   ) {
     this.tracer = getTracer(options.enableSDKTracing);
-    this.workflowCodecRunner = new WorkflowCodecRunner(dataConverter.payloadCodec);
+    this.workflowCodecRunner = new WorkflowCodecRunner(options.loadedDataConverter.payloadCodec);
   }
 
   /**
@@ -466,7 +463,7 @@ export class Worker {
                     const info = await extractActivityInfo(
                       task,
                       false,
-                      this.dataConverter,
+                      this.options.loadedDataConverter,
                       this.nativeWorker.namespace
                     );
                     const { activityType } = info;
@@ -490,7 +487,7 @@ export class Worker {
                     }
                     let args: unknown[];
                     try {
-                      args = await decodeArrayFromPayloads(this.dataConverter, task.start?.input);
+                      args = await decodeArrayFromPayloads(this.options.loadedDataConverter, task.start?.input);
                     } catch (err) {
                       output = {
                         type: 'result',
@@ -522,7 +519,7 @@ export class Worker {
                     activity = new Activity(
                       info,
                       fn,
-                      this.dataConverter,
+                      this.options.loadedDataConverter,
                       (details) =>
                         this.activityHeartbeatSubject.next({
                           taskToken,
@@ -759,7 +756,7 @@ export class Worker {
                 const completion = coresdk.workflow_completion.WorkflowActivationCompletion.encodeDelimited({
                   runId: activation.runId,
                   failed: {
-                    failure: await encodeErrorToFailure(this.dataConverter, error),
+                    failure: await encodeErrorToFailure(this.options.loadedDataConverter, error),
                   },
                 }).finish();
                 // We do not dispose of the Workflow yet, wait to be evicted from Core.
@@ -832,7 +829,7 @@ export class Worker {
         complete: () => this.log.debug('Heartbeats complete'),
       }),
       mergeMap(async ({ taskToken, details }) => {
-        const payload = await encodeToPayload(this.dataConverter, details);
+        const payload = await encodeToPayload(this.options.loadedDataConverter, details);
         const arr = coresdk.ActivityHeartbeat.encodeDelimited({
           taskToken,
           details: [payload],

@@ -129,6 +129,15 @@ export async function initRuntime({ info, randomnessSeed, now, patches }: Workfl
     }
   }
 
+  // webpack doesn't know what to bundle given a dynamic import expression, so we can't do:
+  // state.payloadConverter = (await import(payloadConverterPath)).payloadConverter;
+  // @ts-expect-error this is a webpack alias to payloadConverterPath
+  const customPayloadConverter = (await import('__temporal_custom_payload_converter')).payloadConverter;
+  // The `payloadConverter` export is validated in the Worker
+  if (customPayloadConverter !== undefined) {
+    state.payloadConverter = customPayloadConverter;
+  }
+
   const { importWorkflows, importInterceptors } = state;
   if (importWorkflows === undefined || importInterceptors === undefined) {
     throw new IllegalStateError('Workflow has not been initialized');
@@ -146,15 +155,6 @@ export async function initRuntime({ info, randomnessSeed, now, patches }: Workfl
       state.interceptors.outbound.push(...(interceptors.outbound ?? []));
       state.interceptors.internals.push(...(interceptors.internals ?? []));
     }
-  }
-
-  // webpack doesn't know what to bundle given a dynamic import expression, so we can't do:
-  // state.payloadConverter = (await import(payloadConverterPath)).payloadConverter;
-  // @ts-expect-error this is a webpack alias to payloadConverterPath
-  const customPayloadConverter = (await import('__temporal_custom_payload_converter')).payloadConverter;
-  // The `payloadConverter` export is validated in the Worker
-  if (customPayloadConverter !== undefined) {
-    state.payloadConverter = customPayloadConverter;
   }
 
   let workflow: Workflow;

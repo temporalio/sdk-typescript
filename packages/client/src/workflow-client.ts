@@ -166,6 +166,9 @@ export interface WorkflowClientOptions {
 }
 
 export type WorkflowClientOptionsWithDefaults = Required<WorkflowClientOptions>;
+export type LoadedWorkflowClientOptions = WorkflowClientOptionsWithDefaults & {
+  loadedDataConverter: LoadedDataConverter;
+};
 
 export function defaultWorkflowClientOptions(): WorkflowClientOptionsWithDefaults {
   return {
@@ -243,12 +246,14 @@ export type WorkflowStartOptions<T extends Workflow = Workflow> = WithWorkflowAr
  * Client for starting Workflow executions and creating Workflow handles
  */
 export class WorkflowClient {
-  public readonly options: WorkflowClientOptionsWithDefaults;
-  protected readonly dataConverter: LoadedDataConverter;
+  public readonly options: LoadedWorkflowClientOptions;
 
   constructor(public readonly service: WorkflowService = new Connection().service, options?: WorkflowClientOptions) {
-    this.dataConverter = loadDataConverter(options?.dataConverter);
-    this.options = { ...defaultWorkflowClientOptions(), ...options };
+    this.options = {
+      ...defaultWorkflowClientOptions(),
+      ...options,
+      loadedDataConverter: loadDataConverter(options?.dataConverter),
+    };
   }
 
   /**
@@ -429,7 +434,7 @@ export class WorkflowClient {
         // Note that we can only return one value from our workflow function in JS.
         // Ignore any other payloads in result
         const [result] = await decodeArrayFromPayloads(
-          this.dataConverter,
+          this.options.loadedDataConverter,
           ev.workflowExecutionCompletedEventAttributes.result?.payloads
         );
         return result as any;
@@ -442,14 +447,14 @@ export class WorkflowClient {
         const { failure, retryState } = ev.workflowExecutionFailedEventAttributes;
         throw new WorkflowFailedError(
           'Workflow execution failed',
-          await decodeOptionalFailureToOptionalError(this.dataConverter, failure),
+          await decodeOptionalFailureToOptionalError(this.options.loadedDataConverter, failure),
           retryState ?? RetryState.RETRY_STATE_UNSPECIFIED
         );
       } else if (ev.workflowExecutionCanceledEventAttributes) {
         const failure = new CancelledFailure(
           'Workflow canceled',
           await decodeArrayFromPayloads(
-            this.dataConverter,
+            this.options.loadedDataConverter,
             ev.workflowExecutionCanceledEventAttributes.details?.payloads
           )
         );
@@ -529,7 +534,7 @@ export class WorkflowClient {
         execution: input.workflowExecution,
         query: {
           queryType: input.queryType,
-          queryArgs: { payloads: await encodeToPayloads(this.dataConverter, ...input.args) },
+          queryArgs: { payloads: await encodeToPayloads(this.options.loadedDataConverter, ...input.args) },
         },
       });
     } catch (err) {
@@ -545,7 +550,7 @@ export class WorkflowClient {
       throw new TypeError('Invalid response from server');
     }
     // We ignore anything but the first result
-    return await decodeFromPayloadsAtIndex(this.dataConverter, 0, response.queryResult?.payloads);
+    return await decodeFromPayloadsAtIndex(this.options.loadedDataConverter, 0, response.queryResult?.payloads);
   }
 
   /**
@@ -562,7 +567,7 @@ export class WorkflowClient {
         requestId: uuid4(),
         // control is unused,
         signalName: input.signalName,
-        input: { payloads: await encodeToPayloads(this.dataConverter, ...input.args) },
+        input: { payloads: await encodeToPayloads(this.options.loadedDataConverter, ...input.args) },
       });
     } catch (err) {
       this.rethrowGrpcError(err, input.workflowExecution, 'Failed to signal Workflow');
@@ -585,9 +590,9 @@ export class WorkflowClient {
         workflowId: options.workflowId,
         workflowIdReusePolicy: options.workflowIdReusePolicy,
         workflowType: { name: workflowType },
-        input: { payloads: await encodeToPayloads(this.dataConverter, ...options.args) },
+        input: { payloads: await encodeToPayloads(this.options.loadedDataConverter, ...options.args) },
         signalName,
-        signalInput: { payloads: await encodeToPayloads(this.dataConverter, ...signalArgs) },
+        signalInput: { payloads: await encodeToPayloads(this.options.loadedDataConverter, ...signalArgs) },
         taskQueue: {
           kind: temporal.api.enums.v1.TaskQueueKind.TASK_QUEUE_KIND_UNSPECIFIED,
           name: options.taskQueue,
@@ -596,10 +601,12 @@ export class WorkflowClient {
         workflowRunTimeout: options.workflowRunTimeout,
         workflowTaskTimeout: options.workflowTaskTimeout,
         retryPolicy: options.retry ? compileRetryPolicy(options.retry) : undefined,
-        memo: options.memo ? { fields: await encodeMapToPayloads(this.dataConverter, options.memo) } : undefined,
+        memo: options.memo
+          ? { fields: await encodeMapToPayloads(this.options.loadedDataConverter, options.memo) }
+          : undefined,
         searchAttributes: options.searchAttributes
           ? {
-              indexedFields: await encodeMapToPayloads(this.dataConverter, options.searchAttributes),
+              indexedFields: await encodeMapToPayloads(this.options.loadedDataConverter, options.searchAttributes),
             }
           : undefined,
         cronSchedule: options.cronSchedule,
@@ -626,7 +633,7 @@ export class WorkflowClient {
       workflowId: opts.workflowId,
       workflowIdReusePolicy: opts.workflowIdReusePolicy,
       workflowType: { name: workflowType },
-      input: { payloads: await encodeToPayloads(this.dataConverter, ...opts.args) },
+      input: { payloads: await encodeToPayloads(this.options.loadedDataConverter, ...opts.args) },
       taskQueue: {
         kind: temporal.api.enums.v1.TaskQueueKind.TASK_QUEUE_KIND_UNSPECIFIED,
         name: opts.taskQueue,
@@ -635,10 +642,10 @@ export class WorkflowClient {
       workflowRunTimeout: opts.workflowRunTimeout,
       workflowTaskTimeout: opts.workflowTaskTimeout,
       retryPolicy: opts.retry ? compileRetryPolicy(opts.retry) : undefined,
-      memo: opts.memo ? { fields: await encodeMapToPayloads(this.dataConverter, opts.memo) } : undefined,
+      memo: opts.memo ? { fields: await encodeMapToPayloads(this.options.loadedDataConverter, opts.memo) } : undefined,
       searchAttributes: opts.searchAttributes
         ? {
-            indexedFields: await encodeMapToPayloads(this.dataConverter, opts.searchAttributes),
+            indexedFields: await encodeMapToPayloads(this.options.loadedDataConverter, opts.searchAttributes),
           }
         : undefined,
       cronSchedule: opts.cronSchedule,
@@ -672,7 +679,11 @@ export class WorkflowClient {
         namespace: this.options.namespace,
         identity: this.options.identity,
         ...input,
-        details: { payloads: input.details ? await encodeToPayloads(this.dataConverter, ...input.details) : undefined },
+        details: {
+          payloads: input.details
+            ? await encodeToPayloads(this.options.loadedDataConverter, ...input.details)
+            : undefined,
+        },
         firstExecutionRunId: input.firstExecutionRunId,
       });
     } catch (err) {
