@@ -18,6 +18,13 @@ export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
 }
 
+export function hasOwnProperty<X extends Record<string, unknown>, Y extends PropertyKey>(
+  record: X,
+  prop: Y
+): record is X & Record<Y, unknown> {
+  return prop in record;
+}
+
 export function hasOwnProperties<X extends Record<string, unknown>, Y extends PropertyKey>(
   record: X,
   props: Y[]

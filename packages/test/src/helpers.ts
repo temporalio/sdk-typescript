@@ -20,3 +20,8 @@ export async function sleep(ms: number): Promise<void> {
 export function cleanStackTrace(stackTrace: string | undefined | null): string | undefined {
   return stackTrace?.replace(/ \([^)]+\)|-isolate:\d+:\d+/g, '');
 }
+
+export function containsMatching(strings: string[], regex: RegExp): boolean {
+  console.log('strings:', strings);
+  return strings.some((str) => regex.test(str));
+}

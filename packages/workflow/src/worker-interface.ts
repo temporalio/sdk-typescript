@@ -3,23 +3,23 @@
  *
  * @module
  */
+import { ApplicationFailure, errorToFailure as _errorToFailure, ProtoFailure } from '@temporalio/common';
 import {
+  composeInterceptors,
+  errorMessage,
   IllegalStateError,
   msToTs,
   tsToMs,
-  composeInterceptors,
   Workflow,
-  ApplicationFailure,
-  errorMessage,
-} from '@temporalio/common';
+} from '@temporalio/internal-workflow-common';
 import type { coresdk } from '@temporalio/proto/lib/coresdk';
+import { alea } from './alea';
+import { storage } from './cancellation-scope';
+import { DeterminismViolationError } from './errors';
+import { WorkflowInterceptorsFactory } from './interceptors';
 import { WorkflowInfo } from './interfaces';
 import { handleWorkflowFailure, InterceptorsImportFunc, state, WorkflowsImportFunc } from './internals';
-import { storage } from './cancellation-scope';
-import { alea } from './alea';
-import { DeterminismViolationError } from './errors';
 import { SinkCall } from './sinks';
-import { WorkflowInterceptorsFactory } from './interceptors';
 
 export interface WorkflowCreateOptions {
   info: WorkflowInfo;
@@ -43,11 +43,11 @@ export function overrideGlobals(): void {
   // WeakRef is implemented in V8 8.4 which is embedded in node >=14.6.0.
   // Workflow developer will get a meaningful exception if they try to use these.
   global.WeakRef = function () {
-    throw new DeterminismViolationError('WeakRef cannot be used in workflows because v8 GC is non-deterministic');
+    throw new DeterminismViolationError('WeakRef cannot be used in Workflows because v8 GC is non-deterministic');
   };
   global.FinalizationRegistry = function () {
     throw new DeterminismViolationError(
-      'FinalizationRegistry cannot be used in workflows because v8 GC is non-deterministic'
+      'FinalizationRegistry cannot be used in Workflows because v8 GC is non-deterministic'
     );
   };
 
@@ -118,7 +118,7 @@ export async function initRuntime({ info, randomnessSeed, now, patches }: Workfl
   // Globals are overridden while building the isolate before loading user code.
   // For some reason the `WeakRef` mock is not restored properly when creating an isolate from snapshot in node 14 (at least on ubuntu), override again.
   (globalThis as any).WeakRef = function () {
-    throw new DeterminismViolationError('WeakRef cannot be used in workflows because v8 GC is non-deterministic');
+    throw new DeterminismViolationError('WeakRef cannot be used in Workflows because v8 GC is non-deterministic');
   };
   state.info = info;
   state.now = now;
@@ -127,6 +127,15 @@ export async function initRuntime({ info, randomnessSeed, now, patches }: Workfl
     for (const patch of patches) {
       state.knownPresentPatches.add(patch);
     }
+  }
+
+  // webpack doesn't know what to bundle given a dynamic import expression, so we can't do:
+  // state.payloadConverter = (await import(payloadConverterPath)).payloadConverter;
+  // @ts-expect-error this is a webpack alias to payloadConverterPath
+  const customPayloadConverter = (await import('__temporal_custom_payload_converter')).payloadConverter;
+  // The `payloadConverter` export is validated in the Worker
+  if (customPayloadConverter !== undefined) {
+    state.payloadConverter = customPayloadConverter;
   }
 
   const { importWorkflows, importInterceptors } = state;
@@ -280,4 +289,8 @@ export async function dispose(): Promise<void> {
     storage.disable();
   });
   await dispose({});
+}
+
+export function errorToFailure(err: unknown): ProtoFailure {
+  return _errorToFailure(err, state.payloadConverter);
 }

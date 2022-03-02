@@ -13,7 +13,7 @@ import {
   ContinueAsNew,
   WorkflowInternalsInterceptor,
 } from '@temporalio/workflow';
-import { extractContextFromHeaders, headersWithContext } from '@temporalio/common/lib/otel';
+import { extractContextFromHeaders, headersWithContext } from '@temporalio/internal-non-workflow-common/lib/otel';
 import { ContextManager } from './context-manager';
 import { SpanExporter } from './span-exporter';
 import { SpanName, SPAN_DELIMITER } from './definitions';

@@ -6,7 +6,8 @@
  * @module
  */
 
-import { ActivityOptions, WorkflowExecution, Headers, Next } from '@temporalio/common';
+import { WorkflowExecution } from '@temporalio/common';
+import { ActivityOptions, Headers, Next } from '@temporalio/internal-workflow-common';
 import type { coresdk } from '@temporalio/proto/lib/coresdk';
 import { ChildWorkflowOptionsWithDefaults, ContinueAsNewOptions } from './interfaces';
 

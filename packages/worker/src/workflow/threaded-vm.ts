@@ -1,5 +1,6 @@
 /**
- * Wrapper for starting VM Workflows in Worker threads.
+ * Wrapper for starting VM Workflows in Node Worker threads.
+ * https://nodejs.org/api/worker_threads.html
  *
  * Worker threads are used here because creating vm contexts is a long running
  * operation which blocks the Node.js event loop causing the SDK Worker to
@@ -10,9 +11,9 @@
 
 import { coresdk } from '@temporalio/proto';
 import { IllegalStateError, SinkCall } from '@temporalio/workflow';
-import { Worker } from 'worker_threads';
+import { Worker as NodeWorker } from 'worker_threads';
 import { UnexpectedError } from '../errors';
-import { Workflow, WorkflowCreator, WorkflowCreateOptions } from './interface';
+import { Workflow, WorkflowCreateOptions, WorkflowCreator } from './interface';
 import { WorkerThreadInput, WorkerThreadRequest } from './workflow-worker-thread/input';
 import { WorkerThreadOutput, WorkerThreadResponse } from './workflow-worker-thread/output';
 
@@ -51,7 +52,7 @@ export class WorkerThreadClient {
   shutDownRequested = false;
   workerExited = false;
 
-  constructor(protected workerThread: Worker) {
+  constructor(protected workerThread: NodeWorker) {
     workerThread.on('message', ({ requestId, result }: WorkerThreadResponse) => {
       const completion = this.requestIdToCompletion.get(requestId);
       if (completion === undefined) {
@@ -129,7 +130,7 @@ export class ThreadedVMWorkflowCreator implements WorkflowCreator {
   protected workflowThreadIdx = 0;
 
   /**
-   * Create an instance of ThreadedVMWorkflowCreator asynchronouly.
+   * Create an instance of ThreadedVMWorkflowCreator asynchronously.
    *
    * This method creates and initializes the workflow-worker-thread instances.
    */
@@ -140,7 +141,7 @@ export class ThreadedVMWorkflowCreator implements WorkflowCreator {
   }: ThreadedVMWorkflowCreatorOptions): Promise<ThreadedVMWorkflowCreator> {
     const workerThreadClients = Array(threadPoolSize)
       .fill(0)
-      .map(() => new WorkerThreadClient(new Worker(require.resolve('./workflow-worker-thread'))));
+      .map(() => new WorkerThreadClient(new NodeWorker(require.resolve('./workflow-worker-thread'))));
     await Promise.all(
       workerThreadClients.map((client) => client.send({ type: 'init', code, isolateExecutionTimeoutMs }))
     );
@@ -189,7 +190,7 @@ export class VMWorkflowThreadProxy implements Workflow {
    */
   async getAndResetSinkCalls(): Promise<SinkCall[]> {
     const output = await this.workerThreadClient.send({
-      type: 'exteract-sink-calls',
+      type: 'extract-sink-calls',
       runId: this.runId,
     });
     if (output?.type !== 'sink-calls') {
