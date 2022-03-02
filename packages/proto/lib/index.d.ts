@@ -23,7 +23,7 @@
  * const retryPolicy: temporal.api.common.v1.IRetryPolicy = { ... };
  * ```
  * 
- * The source protos are in the [api repo](https://github.com/temporalio/api/), for example [`RetryPolicy` in `temporal/api/common/v1/message.proto`](https://github.com/temporalio/api/blob/eff34dc3a970cdbf3a10a7be827edf1b1528b125/temporal/api/common/v1/message.proto#L96).
+ * The source protos are in [sdk-core/protos/api_upstream/temporal/api/](https://github.com/temporalio/sdk-core/tree/ts-release/protos/api_upstream/temporal/api), for example [`RetryPolicy` in `temporal/api/common/v1/message.proto`](https://github.com/temporalio/sdk-core/blob/85454935e39f789aaaa81f8a05773f8e2cdbcde2/protos/api_upstream/temporal/api/common/v1/message.proto#L96).
  * 
  * The gRPC service methods are documented in the proto comments and in the corresponding [`tctl` docs](https://docs.temporal.io/docs/tctl/).
  * @module
