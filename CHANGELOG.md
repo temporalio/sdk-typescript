@@ -17,6 +17,7 @@ Breaking changes marked with a :boom:
   BREAKING CHANGE: [`DataConverter`](https://typescript.temporal.io/api/interfaces/worker.DataConverter) interface has changed, and some things that were exported from `common` no longer are. If it's no longer exported (see [list of exports](https://typescript.temporal.io/api/namespaces/common)), try importing from `@temporalio/activity|client|worker|workflow`. If you're unable to find it, open an issue for us to fix it, and in the meantime import from [`internal-workflow-common`](https://github.com/temporalio/sdk-typescript/tree/main/packages/internal-workflow-common) or [`internal-non-workflow-common`](https://github.com/temporalio/sdk-typescript/tree/main/packages/internal-non-workflow-common).
 
   - Adds custom data converter feature and changes the DataConverter API. Design doc: https://github.com/temporalio/sdk-typescript/tree/main/docs/data-converter.md
+
     ```ts
     interface DataConverter {
       payloadConverterPath?: string;
@@ -33,7 +34,9 @@ Breaking changes marked with a :boom:
       decode(payloads: Payload[]): Promise<Payload[]>;
     }
     ```
+
     Note: Codec is not yet run on Payloads in interceptor headers.
+
   - Separated `common` package into:
     ```
     common
