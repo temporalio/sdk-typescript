@@ -129,6 +129,8 @@ git-cliff --tag 0.18.0 v0.17.2..HEAD | pbcopy
 [#$1](https://github.com/temporalio/sdk-typescript/pull/$1)
 ```
 
+- Open PR with CHANGELOG change
+
 We're [working on automating](https://github.com/temporalio/sdk-typescript/pull/395) the rest of the process:
 
 - Download the artifacts from [GitHub Actions](https://github.com/temporalio/sdk-typescript/actions)

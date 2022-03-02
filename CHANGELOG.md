@@ -4,6 +4,53 @@ All notable changes to this project will be documented in this file.
 
 Breaking changes marked with a :boom:
 
+## [0.19.0-rc.1] - 2022-03-02
+
+### Documentation
+
+- Add info to publishing notes ([#503](https://github.com/temporalio/sdk-typescript/pull/503))
+
+### Features
+
+- :boom: Custom and protobuf data converters ([#477](https://github.com/temporalio/sdk-typescript/pull/477))
+
+  BREAKING CHANGE: [`DataConverter`](https://typescript.temporal.io/api/interfaces/worker.DataConverter) interface has changed, and some things that were exported from `common` no longer are. If it's no longer exported (see [list of exports](https://typescript.temporal.io/api/namespaces/common)), try importing from `@temporalio/activity|client|worker|workflow`. If you're unable to find it, open an issue for us to fix it, and in the meantime import from [`internal-workflow-common`](https://github.com/temporalio/sdk-typescript/tree/main/packages/internal-workflow-common) or [`internal-non-workflow-common`](https://github.com/temporalio/sdk-typescript/tree/main/packages/internal-non-workflow-common).
+
+  - Adds custom data converter feature and changes the DataConverter API. Design doc: https://github.com/temporalio/sdk-typescript/tree/main/docs/data-converter.md
+    ```ts
+    interface DataConverter {
+      payloadConverterPath?: string;
+      payloadCodec?: PayloadCodec;
+    }
+
+    interface PayloadConverter {
+      toPayload<T>(value: T): Payload | undefined;
+      fromPayload<T>(payload: Payload): T;
+    }
+
+    interface PayloadCodec {
+      encode(payloads: Payload[]): Promise<Payload[]>;
+      decode(payloads: Payload[]): Promise<Payload[]>;
+    }
+    ```
+    Note: Codec is not yet run on Payloads in interceptor headers.
+  - Separated `common` package into:
+    ```
+    common
+    internal-workflow-common
+    internal-non-workflow-common
+    ```
+    The new `common` only exports things you might want to use in your own common code (shared between client/worker/workflow) like data converters, failures, and errors. The default exports of `common` and `internal-workflow-common` are included in the Workflow bundle.
+  - Unreverts [#430](https://github.com/temporalio/sdk-typescript/pull/430) and modified the Protobuf data converter API: https://github.com/temporalio/sdk-typescript/tree/main/docs/protobuf-libraries.md#current-solution
+  - Make `assert` available to Workflows.
+  - Closes [#130](https://github.com/temporalio/sdk-typescript/issues/130)
+  - Closes [#237](https://github.com/temporalio/sdk-typescript/issues/237)
+  - Closes [#434](https://github.com/temporalio/sdk-typescript/issues/434)
+
+### Miscellaneous Tasks
+
+- Fix linting on test-otel ([#504](https://github.com/temporalio/sdk-typescript/pull/504))
+
 ## [0.19.0-rc.0] - 2022-02-25
 
 ### Bug Fixes
