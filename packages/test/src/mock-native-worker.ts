@@ -176,7 +176,7 @@ export const defaultOptions: WorkerOptions = {
   taskQueue: 'test',
 };
 
-export async function isolateFreeWorker(options: WorkerOptions = defaultOptions): Promise<Worker> {
+export function isolateFreeWorker(options: WorkerOptions = defaultOptions): Worker {
   return new Worker(
     {
       async createWorkflow() {

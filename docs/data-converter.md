@@ -23,7 +23,7 @@ function workflowInclusiveInstanceOf(instance: unknown, type: Function): boolean
 
 ## Decision
 
-Given the possibility of switching or adding other isolation methods in future, we opted to convert to/from Payloads inside the vm (`PayloadConverter`). We also added another transformer layer called `PayloadCodec` that runs outside the vm, can use node APIs and Promises, and operates on Payloads. A `DataConverter` is a `PayloadConverter` and a `PayloadCodec`:
+Given the possibility of switching or adding other isolation methods in future, we opted to convert to/from Payloads inside the vm (`PayloadConverter`). We also added another transformer layer called `PayloadCodec` that runs outside the vm, can use node async APIs (like `zlib.gzip` for compression or `crypto.scrypt` for encryption), and operates on Payloads. A `DataConverter` is a `PayloadConverter` and a `PayloadCodec`:
 
 ```ts
 export interface DataConverter {

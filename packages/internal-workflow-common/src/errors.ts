@@ -2,11 +2,7 @@ export class ValueError extends Error {
   public readonly name: string = 'ValueError';
 }
 
-export class DataConverterError extends Error {
-  public readonly name: string = 'DataConverterError';
-}
-
-export class PayloadConverterError extends DataConverterError {
+export class PayloadConverterError extends ValueError {
   public readonly name: string = 'PayloadConverterError';
 }
 

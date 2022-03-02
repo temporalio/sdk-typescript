@@ -223,7 +223,7 @@ test('DefaultPayloadConverter converts protobufs', (t) => {
   );
 });
 
-test('DefaultPayloadConverter converts to payload by trying each converter in order', (t) => {
+test('DefaultPayloadConverter converts to payload by trying each converter in order', async (t) => {
   const defaultPayloadConverterWithProtos = new DefaultPayloadConverterWithProtobufs({ protobufRoot: root });
   const instance = root.ProtoActivityInput.create({ name: 'Proto', age: 1 });
   t.deepEqual(
@@ -240,7 +240,9 @@ test('DefaultPayloadConverter converts to payload by trying each converter in or
     defaultPayloadConverterWithProtos.toPayload(u8('abc')),
     new BinaryPayloadConverter().toPayload(u8('abc'))
   );
-  t.is(defaultPayloadConverterWithProtos.toPayload(0n), undefined);
+  await t.throwsAsync(async () => defaultPayloadConverterWithProtos.toPayload(0n), {
+    instanceOf: UnsupportedJsonTypeError,
+  });
 });
 
 test('defaultPayloadConverter converts from payload by payload type', async (t) => {

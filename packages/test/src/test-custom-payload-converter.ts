@@ -59,31 +59,34 @@ if (RUN_INTEGRATION_TESTS) {
 }
 
 test('Worker throws on invalid payloadConverterPath', async (t) => {
-  await t.throwsAsync(
-    isolateFreeWorker({
-      ...defaultOptions,
-      dataConverter: { payloadConverterPath: './wrong-path' },
-    }),
+  await t.throws(
+    () =>
+      isolateFreeWorker({
+        ...defaultOptions,
+        dataConverter: { payloadConverterPath: './wrong-path' },
+      }),
     {
       message: /Could not find a file at the specified payloadConverterPath/,
     }
   );
 
-  await t.throwsAsync(
-    isolateFreeWorker({
-      ...defaultOptions,
-      dataConverter: { payloadConverterPath: require.resolve('./payload-converters/payload-converter-no-export') },
-    }),
+  await t.throws(
+    () =>
+      isolateFreeWorker({
+        ...defaultOptions,
+        dataConverter: { payloadConverterPath: require.resolve('./payload-converters/payload-converter-no-export') },
+      }),
     {
       message: /Module .* does not have a `payloadConverter` named export/,
     }
   );
 
-  await t.throwsAsync(
-    isolateFreeWorker({
-      ...defaultOptions,
-      dataConverter: { payloadConverterPath: require.resolve('./payload-converters/payload-converter-bad-export') },
-    }),
+  await t.throws(
+    () =>
+      isolateFreeWorker({
+        ...defaultOptions,
+        dataConverter: { payloadConverterPath: require.resolve('./payload-converters/payload-converter-bad-export') },
+      }),
     {
       message: /payloadConverter export at .* must be an object with toPayload and fromPayload methods/,
     }

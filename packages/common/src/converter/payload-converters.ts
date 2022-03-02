@@ -28,6 +28,8 @@ export class UndefinedPayloadConverter implements PayloadConverterWithEncoding {
 
 /**
  * Converts between non-undefined values and serialized JSON Payload
+ *
+ * @throws UnsupportedJsonTypeError
  */
 export class JsonPayloadConverter implements PayloadConverterWithEncoding {
   public encodingType = encodingTypes.METADATA_ENCODING_JSON;

@@ -40,20 +40,14 @@ export class CompositePayloadConverter implements PayloadConverter {
   /**
    * Tries to run `.toPayload(value)` on each converter in the order provided at construction.
    * Returns the first successful result, or `undefined` if there is no converter that can handle the value.
+   *
+   * @throws UnsupportedJsonTypeError
    */
   public toPayload<T>(value: T): Payload | undefined {
     for (const converter of this.converters) {
-      try {
-        const result = converter.toPayload(value);
-        if (result !== undefined) {
-          return result;
-        }
-      } catch (e: unknown) {
-        if (e instanceof PayloadConverterError) {
-          continue;
-        } else {
-          throw e;
-        }
+      const result = converter.toPayload(value);
+      if (result !== undefined) {
+        return result;
       }
     }
     return undefined;
