@@ -148,11 +148,15 @@ set -euo pipefail
 git clean -fdx
 npm ci
 npm run build
+
 # we don't build for aarch64-linux in CI, so we build for it now
 export CC_aarch64_unknown_linux_gnu=aarch64-unknown-linux-gnu-gcc
 export CC_x86_64_unknown_linux_gnu=x86_64-unknown-linux-gnu-gcc
 export TEMPORAL_WORKER_BUILD_TARGETS=aarch64-unknown-linux-gnu
 npx lerna run --stream build-rust -- -- --target ${TEMPORAL_WORKER_BUILD_TARGETS}
+# we should now have all 5 build targets
+ls packages/core-bridge/releases/
+
 npx lerna version patch # or major|minor|etc, or leave out to be prompted. either way, you get a confirmation dialog.
 npx lerna publish from-git # add `--dist-tag next` for pre-release versions
 ```
