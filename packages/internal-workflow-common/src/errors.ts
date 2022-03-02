@@ -2,8 +2,16 @@ export class ValueError extends Error {
   public readonly name: string = 'ValueError';
 }
 
-export class DataConverterError extends Error {
-  public readonly name: string = 'DataConverterError';
+export class PayloadConverterError extends ValueError {
+  public readonly name: string = 'PayloadConverterError';
+}
+
+export class UnsupportedJsonTypeError extends PayloadConverterError {
+  public readonly name: string = 'UnsupportedJsonTypeError';
+
+  constructor(message: string | undefined, public readonly cause?: Error) {
+    super(message ?? undefined);
+  }
 }
 
 /**
@@ -56,5 +64,23 @@ export function errorMessage(err: unknown): string | undefined {
   if (err instanceof Error) {
     return err.message;
   }
+  return undefined;
+}
+
+interface ErrorWithCode {
+  code: string;
+}
+/**
+ * Get error code from an Error or return undefined
+ */
+export function errorCode(error: unknown): string | undefined {
+  if (
+    typeof error === 'object' &&
+    (error as ErrorWithCode).code !== undefined &&
+    typeof (error as ErrorWithCode).code === 'string'
+  ) {
+    return (error as ErrorWithCode).code;
+  }
+
   return undefined;
 }

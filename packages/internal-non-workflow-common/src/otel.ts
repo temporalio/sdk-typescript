@@ -1,6 +1,6 @@
 import * as otel from '@opentelemetry/api';
-import { defaultDataConverter } from './converter/data-converter';
-import { Headers } from './interceptors';
+import { defaultPayloadConverter, toPayload } from '@temporalio/common';
+import { Headers } from '@temporalio/internal-workflow-common';
 
 /** Default trace header for opentelemetry interceptors */
 export const TRACE_HEADER = '_tracer-data';
@@ -19,7 +19,7 @@ export async function extractContextFromHeaders(headers: Headers): Promise<otel.
   if (encodedSpanContext === undefined) {
     return undefined;
   }
-  const textMap: Record<string, string> = await defaultDataConverter.fromPayload(encodedSpanContext);
+  const textMap: Record<string, string> = defaultPayloadConverter.fromPayload(encodedSpanContext);
   return otel.propagation.extract(otel.context.active(), textMap, otel.defaultTextMapGetter);
 }
 
@@ -41,7 +41,7 @@ export async function extractSpanContextFromHeaders(headers: Headers): Promise<o
 export async function headersWithContext(headers: Headers): Promise<Headers> {
   const carrier = {};
   otel.propagation.inject(otel.context.active(), carrier, otel.defaultTextMapSetter);
-  return { ...headers, [TRACE_HEADER]: await defaultDataConverter.toPayload(carrier) };
+  return { ...headers, [TRACE_HEADER]: toPayload(defaultPayloadConverter, carrier) };
 }
 
 /**

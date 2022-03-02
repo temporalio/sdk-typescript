@@ -6,6 +6,8 @@
     "resolveJsonModule": true
   },
   "references": [
+    { "path": "../internal-workflow-common" },
+    { "path": "../internal-non-workflow-common" },
     { "path": "../activity" },
     { "path": "../client" },
     { "path": "../common" },
@@ -13,6 +15,5 @@
     { "path": "../worker" },
     { "path": "../workflow" }
   ],
-  "include": ["./src/**/*.ts"],
-  "exclude": ["node_modules"]
+  "include": ["./src/**/*.ts"]
 }

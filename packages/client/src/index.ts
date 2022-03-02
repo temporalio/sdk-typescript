@@ -9,24 +9,24 @@
  * @module
  */
 
-export * from './workflow-client';
-export * from './async-completion-client';
-export * from './connection';
-export * from './types';
-export * from './errors';
-export * from './workflow-options';
-export * from './interceptors';
 export {
-  DataConverter,
-  defaultDataConverter,
   ActivityFailure,
   ApplicationFailure,
-  ChildWorkflowFailure,
   CancelledFailure,
+  ChildWorkflowFailure,
+  DataConverter,
+  defaultPayloadConverter,
+  ProtoFailure,
   ServerFailure,
   TemporalFailure,
   TerminatedFailure,
   TimeoutFailure,
-  ProtoFailure,
-  RetryPolicy,
 } from '@temporalio/common';
+export { RetryPolicy } from '@temporalio/internal-workflow-common';
+export * from './async-completion-client';
+export * from './connection';
+export * from './errors';
+export * from './interceptors';
+export * from './types';
+export * from './workflow-client';
+export * from './workflow-options';

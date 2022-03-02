@@ -1,21 +1,23 @@
+import { mapToPayloads, toPayloads } from '@temporalio/common';
 import {
   ActivityFunction,
+  ActivityInterface,
   ActivityOptions,
+  compileRetryPolicy,
+  composeInterceptors,
   IllegalStateError,
+  msOptionalToTs,
   msToNumber,
   msToTs,
-  msOptionalToTs,
-  Workflow,
-  composeInterceptors,
-  mapToPayloadsSync,
-  WorkflowResultType,
-  SignalDefinition,
   QueryDefinition,
+  SignalDefinition,
   WithWorkflowArgs,
+  Workflow,
+  WorkflowResultType,
   WorkflowReturnType,
-  compileRetryPolicy,
-  ActivityInterface,
-} from '@temporalio/common';
+} from '@temporalio/internal-workflow-common';
+import { CancellationScope, registerSleepImplementation } from './cancellation-scope';
+import { ActivityInput, SignalWorkflowInput, StartChildWorkflowExecutionInput, TimerInput } from './interceptors';
 import {
   ChildWorkflowCancellationType,
   ChildWorkflowOptions,
@@ -25,10 +27,8 @@ import {
   WorkflowInfo,
 } from './interfaces';
 import { state } from './internals';
-import { ActivityInput, StartChildWorkflowExecutionInput, SignalWorkflowInput, TimerInput } from './interceptors';
 import { Sinks } from './sinks';
-import { CancellationScope, registerSleepImplementation } from './cancellation-scope';
-import { ExternalWorkflowHandle, ChildWorkflowHandle } from './workflow-handle';
+import { ChildWorkflowHandle, ExternalWorkflowHandle } from './workflow-handle';
 
 // Avoid a circular dependency
 registerSleepImplementation(sleep);
@@ -158,7 +158,7 @@ async function scheduleActivityNextHandler({
         seq,
         activityId: options.activityId ?? `${seq}`,
         activityType,
-        arguments: state.dataConverter.toPayloadsSync(...args),
+        arguments: toPayloads(state.payloadConverter, ...args),
         retryPolicy: options.retry ? compileRetryPolicy(options.retry) : undefined,
         taskQueue: options.taskQueue || state.info?.taskQueue,
         heartbeatTimeout: msOptionalToTs(options.heartbeatTimeout),
@@ -238,7 +238,7 @@ async function startChildWorkflowExecutionNextHandler({
         seq,
         workflowId,
         workflowType,
-        input: state.dataConverter.toPayloadsSync(...options.args),
+        input: toPayloads(state.payloadConverter, ...options.args),
         retryPolicy: options.retry ? compileRetryPolicy(options.retry) : undefined,
         taskQueue: options.taskQueue || state.info?.taskQueue,
         workflowExecutionTimeout: msOptionalToTs(options.workflowExecutionTimeout),
@@ -251,9 +251,9 @@ async function startChildWorkflowExecutionNextHandler({
         parentClosePolicy: options.parentClosePolicy,
         cronSchedule: options.cronSchedule,
         searchAttributes: options.searchAttributes
-          ? mapToPayloadsSync(state.dataConverter, options.searchAttributes)
+          ? mapToPayloads(state.payloadConverter, options.searchAttributes)
           : undefined,
-        memo: options.memo && mapToPayloadsSync(state.dataConverter, options.memo),
+        memo: options.memo && mapToPayloads(state.payloadConverter, options.memo),
       },
     });
   });
@@ -295,7 +295,7 @@ function signalWorkflowNextHandler({ seq, signalName, args, target }: SignalWork
     state.pushCommand({
       signalExternalWorkflowExecution: {
         seq,
-        args: state.dataConverter.toPayloadsSync(...args),
+        args: toPayloads(state.payloadConverter, ...args),
         signalName,
         ...(target.type === 'external'
           ? {
@@ -688,7 +688,7 @@ export function makeContinueAsNewFunc<F extends Workflow>(
       const { headers, args, options } = input;
       throw new ContinueAsNew({
         workflowType: options.workflowType,
-        arguments: await state.dataConverter.toPayloads(...args),
+        arguments: toPayloads(state.payloadConverter, ...args),
         header: headers,
         taskQueue: options.taskQueue,
         memo: options.memo,

@@ -1,16 +1,15 @@
-import path from 'path';
-import util from 'util';
 import dedent from 'dedent';
-import webpack from 'webpack';
-import { v4 as uuid4 } from 'uuid';
 import * as realFS from 'fs';
 import * as memfs from 'memfs';
+import path from 'path';
 import * as unionfs from 'unionfs';
+import util from 'util';
+import { v4 as uuid4 } from 'uuid';
+import webpack from 'webpack';
 import { DefaultLogger, Logger } from '../logger';
 
 /**
  * Builds a V8 Isolate by bundling provided Workflows using webpack.
- * Activities are replaced with stubs.
  *
  * @param workflowsPath all Workflows found in path will be put in the bundle
  * @param workflowInterceptorModules list of interceptor modules to register on Workflow creation
@@ -19,7 +18,8 @@ export class WorkflowCodeBundler {
   constructor(
     public readonly logger: Logger,
     public readonly workflowsPath: string,
-    public readonly workflowInterceptorModules: string[] = []
+    public readonly workflowInterceptorModules: string[] = [],
+    protected readonly payloadConverterPath?: string
   ) {}
 
   /**
@@ -86,7 +86,7 @@ export class WorkflowCodeBundler {
 
     const code = dedent`
       import * as api from '@temporalio/workflow/lib/worker-interface.js';
-
+      
       // Bundle all Workflows and interceptor modules for lazy evaluation
       api.overrideGlobals();
       api.setImportFuncs({
@@ -116,7 +116,16 @@ export class WorkflowCodeBundler {
   protected async bundle(filesystem: typeof unionfs.ufs, entry: string, distDir: string): Promise<void> {
     const compiler = webpack({
       resolve: {
+        // https://webpack.js.org/configuration/resolve/#resolvemodules
+        modules: [path.resolve(__dirname, 'module-overrides'), 'node_modules'],
         extensions: ['.ts', '.js'],
+        // If we don't set an alias for this below, then it won't be imported, so webpack can safely ignore it
+        fallback: { __temporal_custom_payload_converter: false },
+        ...(this.payloadConverterPath && {
+          alias: {
+            __temporal_custom_payload_converter$: this.payloadConverterPath,
+          },
+        }),
       },
       module: {
         rules: [
@@ -147,7 +156,9 @@ export class WorkflowCodeBundler {
         compiler.run((err, stats) => {
           if (stats !== undefined) {
             const hasError = stats.hasErrors();
-            const lines = stats.toString({ chunks: false, colors: true }).split('\n');
+            // To debug webpack build:
+            // const lines = stats.toString({ preset: 'verbose' }).split('\n');
+            const lines = stats.toString({ chunks: false, colors: true, errorDetails: true }).split('\n');
             for (const line of lines) {
               this.logger[hasError ? 'error' : 'info'](line);
             }
@@ -190,12 +201,22 @@ export interface BundleOptions {
    * Optional logger for logging Webpack output
    */
   logger?: Logger;
+  /**
+   * Path to a module with a `payloadConverter` named export.
+   * `payloadConverter` should be an instance of a class that extends {@link DataConverter}.
+   */
+  payloadConverterPath?: string;
 }
 
 export async function bundleWorkflowCode(options: BundleOptions): Promise<{ code: string }> {
   let { logger } = options;
 
   logger ??= new DefaultLogger('INFO');
-  const bundler = new WorkflowCodeBundler(logger, options.workflowsPath, options.workflowInterceptorModules);
+  const bundler = new WorkflowCodeBundler(
+    logger,
+    options.workflowsPath,
+    options.workflowInterceptorModules,
+    options.payloadConverterPath
+  );
   return { code: await bundler.createBundle() };
 }

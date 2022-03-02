@@ -3,7 +3,7 @@
  *
  * Import this module from Activity code - must **not** be used in Workflows.
  *
- * Any function can be used as an Activity as long as its parameters and return value are serialiable using a [`DataConverter`](../interfaces/worker.DataConverter.md).
+ * Any function can be used as an Activity as long as its parameters and return value are serializable using a [`DataConverter`](../interfaces/worker.DataConverter.md).
  *
  * ### Cancellation
  * Activities may be cancelled only if they [emit heartbeats](../classes/activity.Context.md#heartbeat).<br/>
@@ -26,11 +26,11 @@
  * @module
  */
 
-import { AsyncLocalStorage } from 'async_hooks';
+import { msToNumber } from '@temporalio/internal-workflow-common';
 import { AbortSignal } from 'abort-controller';
-import { msToNumber } from '@temporalio/common';
-
-export { ActivityFunction, ActivityInterface, CancelledFailure } from '@temporalio/common';
+import { AsyncLocalStorage } from 'async_hooks';
+export { CancelledFailure } from '@temporalio/common';
+export { ActivityFunction, ActivityInterface } from '@temporalio/internal-workflow-common';
 
 /**
  * Throw this error from an Activity in order to make the Worker

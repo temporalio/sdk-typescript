@@ -29,6 +29,7 @@
     "json5": "^2.2.0",
     "lerna": "^4.0.0",
     "long": "^4.0.0",
+    "npm-run-all": "^4.1.5",
     "pidusage": "^2.0.21",
     "prettier": "^2.3.2",
     "tail": "^2.2.3",
@@ -73,6 +74,8 @@
   "dependencies": {
     "@temporalio/client": "file:packages/client",
     "@temporalio/common": "file:packages/common",
+    "@temporalio/internal-workflow-common": "file:packages/internal-workflow-common",
+    "@temporalio/internal-non-workflow-common": "file:packages/internal-non-workflow-common",
     "@temporalio/create": "file:packages/create-project",
     "@temporalio/interceptors-opentelemetry": "file:packages/interceptors-opentelemetry",
     "@temporalio/proto": "file:packages/proto",

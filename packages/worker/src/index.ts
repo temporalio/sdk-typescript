@@ -8,7 +8,7 @@
  * @module
  */
 
-export { State, Worker, DataConverter, defaultDataConverter, errors } from './worker';
+export { State, Worker, DataConverter, defaultPayloadConverter, errors } from './worker';
 export { WorkerOptions, CompiledWorkerOptions } from './worker-options';
 export { ServerOptions, TLSConfig } from './server-options';
 export { Core, CompiledCoreOptions, CoreOptions, TelemetryOptions, History } from './core';

@@ -1,5 +1,7 @@
+import { DataConverter, LoadedDataConverter } from '@temporalio/common';
+import { loadDataConverter } from '@temporalio/internal-non-workflow-common';
+import { ActivityInterface, msToNumber } from '@temporalio/internal-workflow-common';
 import os from 'os';
-import { ActivityInterface, DataConverter, defaultDataConverter, msToNumber } from '@temporalio/common';
 import { WorkerInterceptors } from './interceptors';
 import { InjectedSinks } from './sinks';
 import { GiB } from './utils';
@@ -67,7 +69,7 @@ export interface WorkerOptions {
   shutdownSignals?: NodeJS.Signals[];
 
   /**
-   * TODO: document, figure out how to propagate this to the workflow isolate
+   * Provide a custom {@link DataConverter}.
    */
   dataConverter?: DataConverter;
 
@@ -194,7 +196,6 @@ export type WorkerOptionsWithDefaults = WorkerOptions &
       WorkerOptions,
       | 'shutdownGraceTime'
       | 'shutdownSignals'
-      | 'dataConverter'
       | 'maxConcurrentActivityTaskExecutions'
       | 'maxConcurrentWorkflowTaskExecutions'
       | 'maxConcurrentActivityTaskPolls'
@@ -243,6 +244,7 @@ export interface CompiledWorkerOptions extends Omit<WorkerOptionsWithDefaults, '
   stickyQueueScheduleToStartTimeoutMs: number;
   maxHeartbeatThrottleIntervalMs: number;
   defaultHeartbeatThrottleIntervalMs: number;
+  loadedDataConverter: LoadedDataConverter;
 }
 
 /**
@@ -271,7 +273,6 @@ export function addDefaultWorkerOptions(options: WorkerOptions): WorkerOptionsWi
   return {
     shutdownGraceTime: '5s',
     shutdownSignals: ['SIGINT', 'SIGTERM', 'SIGQUIT', 'SIGUSR2'],
-    dataConverter: defaultDataConverter,
     maxConcurrentActivityTaskExecutions: 100,
     maxConcurrentWorkflowTaskExecutions: 100,
     maxConcurrentActivityTaskPolls: 5,
@@ -298,5 +299,6 @@ export function compileWorkerOptions(opts: WorkerOptionsWithDefaults): CompiledW
     isolateExecutionTimeoutMs: msToNumber(opts.isolateExecutionTimeout),
     maxHeartbeatThrottleIntervalMs: msToNumber(opts.maxHeartbeatThrottleInterval),
     defaultHeartbeatThrottleIntervalMs: msToNumber(opts.defaultHeartbeatThrottleInterval),
+    loadedDataConverter: loadDataConverter(opts.dataConverter),
   };
 }

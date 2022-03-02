@@ -1,7 +1,31 @@
-import fs from 'fs/promises';
-import { promisify } from 'util';
 import * as otel from '@opentelemetry/api';
 import { SpanContext } from '@opentelemetry/api';
+import { Info as ActivityInfo } from '@temporalio/activity';
+import {
+  DataConverter,
+  defaultPayloadConverter,
+  errorMessage,
+  IllegalStateError,
+  LoadedDataConverter,
+} from '@temporalio/common';
+import * as native from '@temporalio/core-bridge';
+import {
+  decodeArrayFromPayloads,
+  decodeFromPayloadsAtIndex,
+  encodeErrorToFailure,
+  encodeToPayload,
+} from '@temporalio/internal-non-workflow-common';
+import {
+  extractSpanContextFromHeaders,
+  linkSpans,
+  NUM_JOBS_ATTR_KEY,
+  RUN_ID_ATTR_KEY,
+  TASK_TOKEN_ATTR_KEY,
+} from '@temporalio/internal-non-workflow-common/lib/otel';
+import { tsToMs } from '@temporalio/internal-workflow-common';
+import { coresdk } from '@temporalio/proto';
+import { DeterminismViolationError, SinkCall, WorkflowInfo } from '@temporalio/workflow';
+import fs from 'fs/promises';
 import {
   BehaviorSubject,
   EMPTY,
@@ -17,38 +41,15 @@ import {
   Subject,
 } from 'rxjs';
 import { delay, filter, first, ignoreElements, map, mergeMap, takeUntil, takeWhile, tap } from 'rxjs/operators';
-import * as native from '@temporalio/core-bridge';
-import { coresdk } from '@temporalio/proto';
-import { Info as ActivityInfo } from '@temporalio/activity';
-import {
-  arrayFromPayloads,
-  DataConverter,
-  defaultDataConverter,
-  errorMessage,
-  errorToFailure,
-  IllegalStateError,
-  tsToMs,
-} from '@temporalio/common';
-import {
-  extractSpanContextFromHeaders,
-  linkSpans,
-  NUM_JOBS_ATTR_KEY,
-  RUN_ID_ATTR_KEY,
-  TASK_TOKEN_ATTR_KEY,
-} from '@temporalio/common/lib/otel';
-
-import { closeableGroupBy, mergeMapWithState } from './rxutils';
-import { byteArrayToBuffer, toMB } from './utils';
-import { Workflow, WorkflowCreator } from './workflow/interface';
-import { WorkflowCodeBundler } from './workflow/bundler';
+import { promisify } from 'util';
 import { Activity } from './activity';
-import { Logger } from './logger';
+import { Core, History, ReplayCore } from './core';
 import * as errors from './errors';
-import { childSpan, getTracer, instrument } from './tracing';
 import { ActivityExecuteInput } from './interceptors';
-import { Core, ReplayCore, History } from './core';
-import { ThreadedVMWorkflowCreator } from './workflow/threaded-vm';
-import { DeterminismViolationError, SinkCall, WorkflowInfo } from '@temporalio/workflow';
+import { Logger } from './logger';
+import { closeableGroupBy, mergeMapWithState } from './rxutils';
+import { childSpan, getTracer, instrument } from './tracing';
+import { byteArrayToBuffer, toMB } from './utils';
 import {
   addDefaultWorkerOptions,
   CompiledWorkerOptions,
@@ -58,13 +59,17 @@ import {
   ReplayWorkerOptions,
   WorkerOptions,
 } from './worker-options';
+import { WorkflowCodecRunner } from './workflow-codec-runner';
+import { WorkflowCodeBundler } from './workflow/bundler';
+import { Workflow, WorkflowCreator } from './workflow/interface';
+import { ThreadedVMWorkflowCreator } from './workflow/threaded-vm';
 import { VMWorkflowCreator } from './workflow/vm';
+
 import IWorkflowActivationJob = coresdk.workflow_activation.IWorkflowActivationJob;
 import EvictionReason = coresdk.workflow_activation.RemoveFromCache.EvictionReason;
 import IRemoveFromCache = coresdk.workflow_activation.IRemoveFromCache;
 
-export { IllegalStateError } from '@temporalio/common';
-export { DataConverter, defaultDataConverter, errors };
+export { DataConverter, defaultPayloadConverter, errors };
 
 native.registerErrors(errors);
 /**
@@ -174,7 +179,7 @@ function formatTaskToken(taskToken: Uint8Array) {
 }
 
 /**
- * The temporal worker connects to the service and runs workflows and activities.
+ * The temporal Worker connects to Temporal Server and runs Workflows and Activities.
  */
 export class Worker {
   protected readonly activityHeartbeatSubject = new Subject<{
@@ -197,6 +202,7 @@ export class Worker {
     reason: EvictionReason.FATAL,
   };
   protected readonly tracer: otel.Tracer;
+  protected readonly workflowCodecRunner: WorkflowCodecRunner;
 
   /**
    * Create a new Worker.
@@ -269,7 +275,8 @@ export class Worker {
         const bundler = new WorkflowCodeBundler(
           nativeWorker.logger,
           compiledOptions.workflowsPath,
-          compiledOptions.interceptors?.workflowModules
+          compiledOptions.interceptors?.workflowModules,
+          compiledOptions.dataConverter?.payloadConverterPath
         );
         bundle = await bundler.createBundle();
         nativeWorker.logger.info('Workflow bundle created', { size: `${toMB(bundle.length)}MB` });
@@ -307,12 +314,13 @@ export class Worker {
   protected constructor(
     protected readonly nativeWorker: NativeWorkerLike,
     /**
-     * Optional WorkflowCreator - if not provided, Worker will not poll on workflows
+     * Optional WorkflowCreator - if not provided, Worker will not poll on Workflows
      */
     protected readonly workflowCreator: WorkflowCreator | undefined,
     public readonly options: CompiledWorkerOptions
   ) {
     this.tracer = getTracer(options.enableSDKTracing);
+    this.workflowCodecRunner = new WorkflowCodecRunner(options.loadedDataConverter.payloadCodec);
   }
 
   /**
@@ -455,7 +463,7 @@ export class Worker {
                     const info = await extractActivityInfo(
                       task,
                       false,
-                      this.options.dataConverter,
+                      this.options.loadedDataConverter,
                       this.nativeWorker.namespace
                     );
                     const { activityType } = info;
@@ -479,7 +487,7 @@ export class Worker {
                     }
                     let args: unknown[];
                     try {
-                      args = await arrayFromPayloads(this.options.dataConverter, task.start?.input);
+                      args = await decodeArrayFromPayloads(this.options.loadedDataConverter, task.start?.input);
                     } catch (err) {
                       output = {
                         type: 'result',
@@ -511,7 +519,7 @@ export class Worker {
                     activity = new Activity(
                       info,
                       fn,
-                      this.options.dataConverter,
+                      this.options.loadedDataConverter,
                       (details) =>
                         this.activityHeartbeatSubject.next({
                           taskToken,
@@ -571,7 +579,7 @@ export class Worker {
   }
 
   /**
-   * Process workflow activations
+   * Process Workflow activations
    */
   protected workflowOperator(): OperatorFunction<ActivationWithContext, ContextAware<{ completion: Uint8Array }>> {
     const { workflowCreator } = this;
@@ -713,7 +721,9 @@ export class Worker {
 
                   let isFatalError = false;
                   try {
-                    const completion = await state.workflow.activate(activation);
+                    const decodedActivation = await this.workflowCodecRunner.decodeActivation(activation);
+                    const unencodedCompletion = await state.workflow.activate(decodedActivation);
+                    const completion = await this.workflowCodecRunner.encodeCompletion(unencodedCompletion);
                     this.log.debug('Completed activation', {
                       runId: activation.runId,
                     });
@@ -746,7 +756,7 @@ export class Worker {
                 const completion = coresdk.workflow_completion.WorkflowActivationCompletion.encodeDelimited({
                   runId: activation.runId,
                   failed: {
-                    failure: await errorToFailure(error, this.options.dataConverter),
+                    failure: await encodeErrorToFailure(this.options.loadedDataConverter, error),
                   },
                 }).finish();
                 // We do not dispose of the Workflow yet, wait to be evicted from Core.
@@ -786,7 +796,7 @@ export class Worker {
       externalCalls.map(async ({ ifaceName, fnName, args }) => {
         const dep = sinks?.[ifaceName]?.[fnName];
         if (dep === undefined) {
-          this.log.error('Workflow referenced an unregistrered external sink', {
+          this.log.error('Workflow referenced an unregistered external sink', {
             ifaceName,
             fnName,
           });
@@ -819,7 +829,7 @@ export class Worker {
         complete: () => this.log.debug('Heartbeats complete'),
       }),
       mergeMap(async ({ taskToken, details }) => {
-        const payload = await this.options.dataConverter.toPayload(details);
+        const payload = await encodeToPayload(this.options.loadedDataConverter, details);
         const arr = coresdk.ActivityHeartbeat.encodeDelimited({
           taskToken,
           details: [payload],
@@ -964,7 +974,7 @@ export class Worker {
 
   protected activity$(): Observable<void> {
     // Note that we poll on activities even if there are no activities registered.
-    // This is so workflows invoking activities on this task queue get a non-retriable error.
+    // This is so workflows invoking activities on this task queue get a non-retryable error.
     return this.activityPoll$().pipe(
       this.activityOperator(),
       mergeMap(async ({ completion, parentSpan }) => {
@@ -1062,7 +1072,7 @@ type NonNullableObject<T> = { [P in keyof T]-?: NonNullable<T[P]> };
 async function extractActivityInfo(
   task: coresdk.activity_task.IActivityTask,
   isLocal: boolean,
-  dataConverter: DataConverter,
+  dataConverter: LoadedDataConverter,
   activityNamespace: string
 ): Promise<ActivityInfo> {
   // NOTE: We trust core to supply all of these fields instead of checking for null and undefined everywhere
@@ -1077,7 +1087,7 @@ async function extractActivityInfo(
     isLocal,
     activityType: start.activityType,
     workflowType: start.workflowType,
-    heartbeatDetails: await dataConverter.fromPayloads(0, start.heartbeatDetails),
+    heartbeatDetails: await decodeFromPayloadsAtIndex(dataConverter, 0, start.heartbeatDetails),
     activityNamespace,
     workflowNamespace: start.workflowNamespace,
     scheduledTimestampMs: tsToMs(start.scheduledTime),

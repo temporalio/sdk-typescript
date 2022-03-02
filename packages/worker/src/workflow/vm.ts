@@ -1,12 +1,13 @@
-import vm from 'vm';
+import { IllegalStateError } from '@temporalio/common';
 import { coresdk } from '@temporalio/proto';
-import * as internals from '@temporalio/workflow/lib/worker-interface';
 import { WorkflowInfo } from '@temporalio/workflow';
-import { defaultDataConverter, errorToFailure, IllegalStateError } from '@temporalio/common';
-import { partition } from '../utils';
-import { Workflow, WorkflowCreator, WorkflowCreateOptions } from './interface';
 import { SinkCall } from '@temporalio/workflow/lib/sinks';
+import * as internals from '@temporalio/workflow/lib/worker-interface';
+import assert from 'assert';
 import { AsyncLocalStorage } from 'async_hooks';
+import vm from 'vm';
+import { partition } from '../utils';
+import { Workflow, WorkflowCreateOptions, WorkflowCreator } from './interface';
 
 // Best effort to catch unhandled rejections from workflow code.
 // We crash the thread if we cannot find the culprit.
@@ -81,7 +82,7 @@ export class VMWorkflowCreator implements WorkflowCreator {
     if (this.script === undefined) {
       throw new IllegalStateError('Isolate context provider was destroyed');
     }
-    const context = vm.createContext({ AsyncLocalStorage });
+    const context = vm.createContext({ AsyncLocalStorage, assert });
     this.script.runInContext(context);
     return context;
   }
@@ -116,7 +117,7 @@ export class VMWorkflowCreator implements WorkflowCreator {
   }
 
   /**
-   * Cleanup the precompiled script
+   * Cleanup the pre-compiled script
    */
   public async destroy(): Promise<void> {
     delete this.script;
@@ -193,7 +194,7 @@ export class VMWorkflow implements Workflow {
     if (this.unhandledRejection) {
       return coresdk.workflow_completion.WorkflowActivationCompletion.encodeDelimited({
         runId: activation.runId,
-        failed: { failure: await errorToFailure(this.unhandledRejection, defaultDataConverter) },
+        failed: { failure: this.workflowModule.errorToFailure(this.unhandledRejection) },
       }).finish();
     }
     return coresdk.workflow_completion.WorkflowActivationCompletion.encodeDelimited(completion).finish();
