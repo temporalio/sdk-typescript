@@ -1,19 +1,20 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
-import { lastValueFrom } from 'rxjs';
 import { SpanContext } from '@opentelemetry/api';
+import { defaultPayloadConverter, fromPayloadsAtIndex } from '@temporalio/common';
+import { msToTs } from '@temporalio/internal-workflow-common';
 import { coresdk } from '@temporalio/proto';
-import { defaultDataConverter, msToTs } from '@temporalio/common';
-import { Worker as RealWorker, NativeWorkerLike, errors } from '@temporalio/worker/lib/worker';
-import {
-  compileWorkerOptions,
-  CompiledWorkerOptions,
-  WorkerOptions,
-  addDefaultWorkerOptions,
-} from '@temporalio/worker/lib/worker-options';
 import { DefaultLogger } from '@temporalio/worker';
 import { byteArrayToBuffer } from '@temporalio/worker/lib/utils';
-import * as activities from './activities';
+import { errors, NativeWorkerLike, Worker as RealWorker } from '@temporalio/worker/lib/worker';
+import {
+  addDefaultWorkerOptions,
+  CompiledWorkerOptions,
+  compileWorkerOptions,
+  WorkerOptions,
+} from '@temporalio/worker/lib/worker-options';
 import { WorkflowCreator } from '@temporalio/worker/src/workflow/interface';
+import { lastValueFrom } from 'rxjs';
+import * as activities from './activities';
 
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -136,7 +137,7 @@ export class MockNativeWorker implements NativeWorkerLike {
 
   public recordActivityHeartbeat(buffer: ArrayBuffer): void {
     const { taskToken, details } = coresdk.ActivityHeartbeat.decodeDelimited(new Uint8Array(buffer));
-    const arg = defaultDataConverter.fromPayloads(0, details);
+    const arg = fromPayloadsAtIndex(defaultPayloadConverter, 0, details);
     this.activityHeartbeatCallback!(taskToken, arg);
   }
 

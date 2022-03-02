@@ -2,9 +2,11 @@
 /* eslint-disable @typescript-eslint/explicit-module-boundary-types */
 import { Context } from '@temporalio/activity';
 import { Connection, LOCAL_DOCKER_TARGET, WorkflowClient } from '@temporalio/client';
-import { fakeProgress as fakeProgressInner } from './fake-progress';
+import { ApplicationFailure } from '@temporalio/common';
+import { QueryDefinition } from '@temporalio/internal-workflow-common';
+import { ProtoActivityInput, ProtoActivityResult } from '../../protos/root';
 import { cancellableFetch as cancellableFetchInner } from './cancellable-fetch';
-import { ApplicationFailure, QueryDefinition } from '@temporalio/common';
+import { fakeProgress as fakeProgressInner } from './fake-progress';
 
 export { throwSpecificError } from './failure-tester';
 
@@ -105,4 +107,8 @@ export async function queryOwnWf<R, A extends any[]>(queryDef: QueryDefinition<R
   } catch (e) {
     console.log(`Workflow ${JSON.stringify(we)} query err`, e);
   }
+}
+
+export async function protoActivity(args: ProtoActivityInput): Promise<ProtoActivityResult> {
+  return ProtoActivityResult.create({ sentence: `${args.name} is ${args.age} years old.` });
 }

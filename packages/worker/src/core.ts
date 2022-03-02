@@ -1,8 +1,3 @@
-import { promisify } from 'util';
-import Heap from 'heap-js';
-import { BehaviorSubject, lastValueFrom, of } from 'rxjs';
-import { concatMap, delay, map, repeat } from 'rxjs/operators';
-import { filterNullAndUndefined, IllegalStateError, normalizeTlsConfig } from '@temporalio/common';
 import * as native from '@temporalio/core-bridge';
 import {
   corePollLogs,
@@ -11,12 +6,17 @@ import {
   newReplayCore,
   TelemetryOptions as RequiredTelemetryOptions,
 } from '@temporalio/core-bridge';
-import { compileServerOptions, getDefaultServerOptions, RequiredServerOptions, ServerOptions } from './server-options';
-import { DefaultLogger, LogEntry, Logger, LogTimestamp, timeOfDayToBigint } from './logger';
-import * as errors from './errors';
+import { filterNullAndUndefined, normalizeTlsConfig } from '@temporalio/internal-non-workflow-common';
+import { IllegalStateError, MakeOptional } from '@temporalio/internal-workflow-common';
 import { temporal } from '@temporalio/proto';
+import Heap from 'heap-js';
+import { BehaviorSubject, lastValueFrom, of } from 'rxjs';
+import { concatMap, delay, map, repeat } from 'rxjs/operators';
+import { promisify } from 'util';
+import * as errors from './errors';
+import { DefaultLogger, LogEntry, Logger, LogTimestamp, timeOfDayToBigint } from './logger';
+import { compileServerOptions, getDefaultServerOptions, RequiredServerOptions, ServerOptions } from './server-options';
 import { byteArrayToBuffer } from './utils';
-import { MakeOptional } from '@temporalio/common/src/type-helpers';
 
 export type History = temporal.api.history.v1.IHistory;
 

@@ -1,9 +1,9 @@
+import { WorkflowClient } from '@temporalio/client';
+import { Worker } from '@temporalio/worker';
 import test from 'ava';
 import { v4 as uuid4 } from 'uuid';
-import { Worker } from '@temporalio/worker';
-import { WorkflowClient } from '@temporalio/client';
-import { defaultOptions } from './mock-native-worker';
 import { RUN_INTEGRATION_TESTS } from './helpers';
+import { defaultOptions } from './mock-native-worker';
 import { runActivityInDifferentTaskQueue } from './workflows';
 
 if (RUN_INTEGRATION_TESTS) {

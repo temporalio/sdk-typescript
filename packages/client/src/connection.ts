@@ -1,6 +1,6 @@
 import * as grpc from '@grpc/grpc-js';
 import { temporal } from '@temporalio/proto';
-import { TLSConfig, normalizeTlsConfig } from '@temporalio/common';
+import { TLSConfig, normalizeTlsConfig } from '@temporalio/internal-non-workflow-common';
 import { defaultGrpcRetryOptions, makeGrpcRetryInterceptor } from './grpc-retry';
 
 export type WorkflowService = temporal.api.workflowservice.v1.WorkflowService;

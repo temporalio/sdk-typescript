@@ -9,6 +9,7 @@
     "./packages/activity/src/index.ts",
     "./packages/client/src/index.ts",
     "./packages/common/src/index.ts",
+    "./packages/workflow-common/src/index.ts",
     "./packages/create-project/src/index.ts",
     "./packages/meta/src/index.ts",
     "./packages/worker/src/index.ts",

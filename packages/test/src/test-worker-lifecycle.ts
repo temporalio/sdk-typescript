@@ -26,7 +26,7 @@ if (RUN_INTEGRATION_TESTS) {
 }
 
 test.serial('Mocked run shuts down gracefully', async (t) => {
-  const worker = isolateFreeWorker({
+  const worker = await isolateFreeWorker({
     shutdownGraceTime: '500ms',
     taskQueue: 'shutdown-test',
   });
@@ -41,7 +41,7 @@ test.serial('Mocked run shuts down gracefully', async (t) => {
 });
 
 test('Mocked run throws if not shut down gracefully', async (t) => {
-  const worker = isolateFreeWorker({
+  const worker = await isolateFreeWorker({
     shutdownGraceTime: '5ms',
     taskQueue: 'shutdown-test',
   });

@@ -40,7 +40,7 @@ export interface ActivateWorkflow {
  * Extract buffered sink calls from Workflow by runId
  */
 export interface ExtractSinkCalls {
-  type: 'exteract-sink-calls';
+  type: 'extract-sink-calls';
   runId: string;
 }
 

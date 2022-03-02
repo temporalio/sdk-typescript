@@ -2,27 +2,27 @@
   "name": "@temporalio/workflow",
   "version": "0.19.0-rc.0",
   "description": "Temporal.io SDK Workflow sub-package",
-  "main": "lib/index.js",
-  "types": "lib/index.d.ts",
-  "scripts": {},
   "keywords": [
     "temporal",
     "workflow",
     "isolate"
   ],
-  "author": "Roey Berman <roey@temporal.io>",
-  "license": "MIT",
-  "dependencies": {
-    "@temporalio/common": "file:../common",
-    "@temporalio/proto": "file:../proto"
-  },
+  "homepage": "https://github.com/temporalio/sdk-typescript/tree/main/packages/workflow",
   "bugs": {
     "url": "https://github.com/temporalio/sdk-typescript/issues"
   },
-  "homepage": "https://github.com/temporalio/sdk-typescript/tree/main/packages/workflow",
+  "license": "MIT",
+  "author": "Roey Berman <roey@temporal.io>",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
   "files": [
     "lib"
   ],
+  "scripts": {},
+  "dependencies": {
+    "@temporalio/internal-workflow-common": "file:../internal-workflow-common",
+    "@temporalio/proto": "file:../proto"
+  },
   "publishConfig": {
     "access": "public"
   }
