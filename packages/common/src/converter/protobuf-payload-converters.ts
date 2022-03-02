@@ -4,7 +4,6 @@ import {
   hasOwnProperty,
   isRecord,
   PayloadConverterError,
-  UnsupportedTypeError,
   ValueError,
 } from '@temporalio/internal-workflow-common';
 import * as protoJsonSerializer from 'proto3-json-serializer';
@@ -30,7 +29,7 @@ abstract class ProtobufPayloadConverter implements PayloadConverterWithEncoding 
   protected readonly root: Root | undefined;
   public abstract encodingType: EncodingType;
 
-  public abstract toPayload<T>(value: T): Payload;
+  public abstract toPayload<T>(value: T): Payload | undefined;
   public abstract fromPayload<T>(payload: Payload): T;
 
   // Don't use type Root here because root.d.ts doesn't export Root, so users would have to type assert
@@ -96,10 +95,8 @@ export class ProtobufBinaryPayloadConverter extends ProtobufPayloadConverter {
     super(root);
   }
 
-  public toPayload(value: unknown): Payload {
-    if (!isProtobufMessage(value)) {
-      throw new UnsupportedTypeError();
-    }
+  public toPayload(value: unknown): Payload | undefined {
+    if (!isProtobufMessage(value)) return undefined;
 
     return this.constructPayload({
       messageTypeName: getNamespacedTypeName(value.$type),
@@ -126,10 +123,8 @@ export class ProtobufJsonPayloadConverter extends ProtobufPayloadConverter {
     super(root);
   }
 
-  public toPayload(value: unknown): Payload {
-    if (!isProtobufMessage(value)) {
-      throw new UnsupportedTypeError();
-    }
+  public toPayload(value: unknown): Payload | undefined {
+    if (!isProtobufMessage(value)) return undefined;
 
     const jsonValue = protoJsonSerializer.toProto3JSON(value);
 

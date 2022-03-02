@@ -1,4 +1,4 @@
-import { UnsupportedTypeError, ValueError } from '@temporalio/internal-workflow-common';
+import { PayloadConverterError, ValueError } from '@temporalio/internal-workflow-common';
 import {
   BinaryPayloadConverter,
   JsonPayloadConverter,
@@ -8,8 +8,7 @@ import {
 import { METADATA_ENCODING_KEY, Payload, str } from './types';
 
 /**
- * Used by the framework to serialize/deserialize parameters and return values that need to be
- * sent over the wire.
+ * Used by the framework to serialize/deserialize parameters and return values.
  *
  * This is called inside the [Workflow isolate](https://docs.temporal.io/docs/typescript/determinism).
  * To write async code or use Node APIs (or use packages that use Node APIs), use a {@link PayloadCodec}.
@@ -19,7 +18,7 @@ export interface PayloadConverter {
    * Converts a value to a {@link Payload}.
    * @param value The value to convert. Example values include the Workflow args sent by the client and the values returned by a Workflow or Activity.
    */
-  toPayload<T>(value: T): Payload;
+  toPayload<T>(value: T): Payload | undefined;
 
   /**
    * Converts a {@link Payload} back to a value.
@@ -40,23 +39,24 @@ export class CompositePayloadConverter implements PayloadConverter {
 
   /**
    * Tries to run `.toPayload(value)` on each converter in the order provided at construction.
-   * Returns the first successful result.
-   * @throws {@link ValueError} if no converter can convert the value
+   * Returns the first successful result, or `undefined` if there is no converter that can handle the value.
    */
-  public toPayload<T>(value: T): Payload {
+  public toPayload<T>(value: T): Payload | undefined {
     for (const converter of this.converters) {
       try {
         const result = converter.toPayload(value);
-        return result;
+        if (result !== undefined) {
+          return result;
+        }
       } catch (e: unknown) {
-        if (e instanceof UnsupportedTypeError) {
+        if (e instanceof PayloadConverterError) {
           continue;
         } else {
           throw e;
         }
       }
     }
-    throw new ValueError(`Cannot serialize ${value} of type ${typeof value}`);
+    return undefined;
   }
 
   /**
@@ -76,11 +76,24 @@ export class CompositePayloadConverter implements PayloadConverter {
 }
 
 /**
+ * Tries to convert `value` to a {@link Payload}. Throws if conversion fails.
+ *
+ * @throws {@link PayloadConverterError}
+ */
+export function toPayload(converter: PayloadConverter, value: unknown): Payload {
+  const payload = converter.toPayload(value);
+  if (payload === undefined) {
+    throw new PayloadConverterError(`Failed to convert value: ${value}`);
+  }
+  return payload;
+}
+
+/**
  * Implements conversion of a list of values.
  *
  * @param converter
- * @param values JS values to convert to Payloads.
- * @return converted value
+ * @param values JS values to convert to Payloads
+ * @return converted values
  * @throws PayloadConverterError if conversion of the value passed as parameter failed for any
  *     reason.
  */
@@ -88,7 +101,19 @@ export function toPayloads(converter: PayloadConverter, ...values: unknown[]): P
   if (values.length === 0) {
     return undefined;
   }
-  return values.map((value) => converter.toPayload(value));
+
+  return values.map((value) => toPayload(converter, value));
+}
+
+/**
+ * Run {@link PayloadConverter.toPayload} on each value in the map.
+ *
+ * @throws {@link PayloadConverterError} if conversion of any value in the map fails
+ */
+export function mapToPayloads<K extends string>(converter: PayloadConverter, map: Record<K, any>): Record<K, Payload> {
+  return Object.fromEntries(
+    Object.entries(map).map(([k, v]): [K, Payload] => [k as K, toPayload(converter, v)])
+  ) as Record<K, Payload>;
 }
 
 /**
@@ -99,7 +124,7 @@ export function toPayloads(converter: PayloadConverter, ...values: unknown[]): P
  * @param index index of the value in the payloads
  * @param payloads serialized value to convert to JS values.
  * @return converted JS value
- * @throws PayloadConverterError if conversion of the data passed as parameter failed for any
+ * @throws {@link PayloadConverterError} if conversion of the data passed as parameter failed for any
  *     reason.
  */
 export function fromPayloadsAtIndex<T>(converter: PayloadConverter, index: number, payloads?: Payload[] | null): T {
@@ -118,15 +143,6 @@ export function arrayFromPayloads(converter: PayloadConverter, payloads?: Payloa
     return [];
   }
   return payloads.map((payload: Payload) => converter.fromPayload(payload));
-}
-
-/**
- * Run {@link PayloadConverter.toPayload} on each value in the map.
- */
-export function mapToPayloads<K extends string>(converter: PayloadConverter, map: Record<K, any>): Record<K, Payload> {
-  return Object.fromEntries(
-    Object.entries(map).map(([k, v]): [K, Payload] => [k as K, converter.toPayload(v)])
-  ) as Record<K, Payload>;
 }
 
 export class DefaultPayloadConverter extends CompositePayloadConverter {

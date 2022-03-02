@@ -1,9 +1,4 @@
-import {
-  errorMessage,
-  UnsupportedJsonTypeError,
-  UnsupportedTypeError,
-  ValueError,
-} from '@temporalio/internal-workflow-common';
+import { errorMessage, UnsupportedJsonTypeError, ValueError } from '@temporalio/internal-workflow-common';
 import { PayloadConverter } from './payload-converter';
 import { encodingKeys, EncodingType, encodingTypes, METADATA_ENCODING_KEY, Payload, str, u8 } from './types';
 
@@ -17,8 +12,8 @@ export interface PayloadConverterWithEncoding extends PayloadConverter {
 export class UndefinedPayloadConverter implements PayloadConverterWithEncoding {
   public encodingType = encodingTypes.METADATA_ENCODING_NULL;
 
-  public toPayload(value: unknown): Payload {
-    if (value !== undefined) throw new UnsupportedTypeError('Can only encode undefined'); // Can't encode
+  public toPayload(value: unknown): Payload | undefined {
+    if (value !== undefined) return undefined; // Can't encode
     return {
       metadata: {
         [METADATA_ENCODING_KEY]: encodingKeys.METADATA_ENCODING_NULL,
@@ -37,9 +32,8 @@ export class UndefinedPayloadConverter implements PayloadConverterWithEncoding {
 export class JsonPayloadConverter implements PayloadConverterWithEncoding {
   public encodingType = encodingTypes.METADATA_ENCODING_JSON;
 
-  public toPayload(value: unknown): Payload {
-    if (value === undefined)
-      throw new UnsupportedTypeError("Can't encode undefined. Use UndefinedPayloadConverter instead.");
+  public toPayload(value: unknown): Payload | undefined {
+    if (value === undefined) return undefined;
 
     let json;
     try {
@@ -75,11 +69,9 @@ export class JsonPayloadConverter implements PayloadConverterWithEncoding {
 export class BinaryPayloadConverter implements PayloadConverterWithEncoding {
   public encodingType = encodingTypes.METADATA_ENCODING_RAW;
 
-  public toPayload(value: unknown): Payload {
+  public toPayload(value: unknown): Payload | undefined {
     // TODO: support any DataView or ArrayBuffer?
-    if (!(value instanceof Uint8Array)) {
-      throw new UnsupportedTypeError('Can only encode Uint8Array');
-    }
+    if (!(value instanceof Uint8Array)) return undefined;
     return {
       metadata: {
         [METADATA_ENCODING_KEY]: encodingKeys.METADATA_ENCODING_RAW,

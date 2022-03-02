@@ -6,8 +6,10 @@ import {
   LoadedDataConverter,
   Payload,
   PayloadCodec,
+  PayloadConverterError,
   ProtoFailure,
   TemporalFailure,
+  toPayload,
   toPayloads,
 } from '@temporalio/common';
 import { clone, setWith } from 'lodash';
@@ -55,8 +57,8 @@ export async function decodeOptionalFailureToOptionalError(
  */
 export async function encodeToPayload(converter: LoadedDataConverter, value: unknown): Promise<Payload> {
   const { payloadConverter, payloadCodec } = converter;
-  const [payload] = await payloadCodec.encode([payloadConverter.toPayload(value)]);
-  return payload;
+  const [encoded] = await payloadCodec.encode([toPayload(payloadConverter, value)]);
+  return encoded;
 }
 
 /**
@@ -85,8 +87,10 @@ export async function encodeMapToPayloads<K extends string>(
   return Object.fromEntries(
     await Promise.all(
       Object.entries(map).map(async ([k, v]): Promise<[K, Payload]> => {
-        const [payload] = await payloadCodec.encode([payloadConverter.toPayload(v)]);
-        return [k as K, payload];
+        const payload = payloadConverter.toPayload(v);
+        if (payload === undefined) throw new PayloadConverterError(`Failed to encode entry: ${k}: ${v}`);
+        const [encodedPayload] = await payloadCodec.encode([payload]);
+        return [k as K, encodedPayload];
       })
     )
   ) as Record<K, Payload>;

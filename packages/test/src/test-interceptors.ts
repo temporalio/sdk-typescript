@@ -5,19 +5,19 @@
  * @module
  */
 
-import test from 'ava';
-import { v4 as uuid4 } from 'uuid';
-import dedent from 'dedent';
-import { Core, DefaultLogger, Worker } from '@temporalio/worker';
-import { ApplicationFailure, TerminatedFailure } from '@temporalio/common';
 import { Connection, WorkflowClient, WorkflowFailedError } from '@temporalio/client';
+import { ApplicationFailure, TerminatedFailure, toPayload } from '@temporalio/common';
+import { Core, DefaultLogger, Worker } from '@temporalio/worker';
 import { defaultPayloadConverter, WorkflowInfo } from '@temporalio/workflow';
-import { defaultOptions } from './mock-native-worker';
+import test from 'ava';
+import dedent from 'dedent';
+import { v4 as uuid4 } from 'uuid';
 import { cleanStackTrace, RUN_INTEGRATION_TESTS } from './helpers';
+import { defaultOptions } from './mock-native-worker';
 import {
+  continueAsNewToDifferentWorkflow,
   interceptorExample,
   internalsInterceptorExample,
-  continueAsNewToDifferentWorkflow,
   unblockOrCancel,
 } from './workflows';
 import { getSecretQuery, unblockWithSecretSignal } from './workflows/interceptor-example';
@@ -58,7 +58,7 @@ if (RUN_INTEGRATION_TESTS) {
                 ...input,
                 headers: {
                   ...input.headers,
-                  message: defaultPayloadConverter.toPayload(message),
+                  message: toPayload(defaultPayloadConverter, message),
                 },
               });
             },
@@ -75,7 +75,7 @@ if (RUN_INTEGRATION_TESTS) {
                 signalArgs: [encoded],
                 headers: {
                   ...input.headers,
-                  message: defaultPayloadConverter.toPayload(message),
+                  message: toPayload(defaultPayloadConverter, message),
                 },
               });
             },

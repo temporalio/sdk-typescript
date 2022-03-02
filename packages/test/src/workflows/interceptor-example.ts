@@ -1,13 +1,14 @@
+import { toPayload } from '@temporalio/common';
 import {
-  executeChild,
-  WorkflowInterceptors,
-  defaultPayloadConverter,
-  sleep,
-  condition,
-  defineSignal,
-  defineQuery,
-  setHandler,
   ApplicationFailure,
+  condition,
+  defaultPayloadConverter,
+  defineQuery,
+  defineSignal,
+  executeChild,
+  setHandler,
+  sleep,
+  WorkflowInterceptors,
 } from '@temporalio/workflow';
 import { echo } from './configured-activities';
 
@@ -71,7 +72,7 @@ export const interceptors = (): WorkflowInterceptors => ({
       async scheduleActivity(input, next) {
         return next({
           ...input,
-          headers: { ...input.headers, message: defaultPayloadConverter.toPayload(receivedMessage) },
+          headers: { ...input.headers, message: toPayload(defaultPayloadConverter, receivedMessage) },
         });
       },
       async startTimer(input, next) {

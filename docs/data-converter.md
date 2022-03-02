@@ -32,7 +32,7 @@ export interface DataConverter {
 }
 
 export interface PayloadConverter {
-  toPayload<T>(value: T): Payload;
+  toPayload<T>(value: T): Payload | undefined;
   fromPayload<T>(payload: Payload): T;
 }
 

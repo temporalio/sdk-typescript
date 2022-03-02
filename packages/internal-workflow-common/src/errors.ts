@@ -10,11 +10,7 @@ export class PayloadConverterError extends DataConverterError {
   public readonly name: string = 'PayloadConverterError';
 }
 
-export class UnsupportedTypeError extends PayloadConverterError {
-  public readonly name: string = 'UnsupportedTypeError';
-}
-
-export class UnsupportedJsonTypeError extends UnsupportedTypeError {
+export class UnsupportedJsonTypeError extends PayloadConverterError {
   public readonly name: string = 'UnsupportedJsonTypeError';
 
   constructor(message: string | undefined, public readonly cause?: Error) {
