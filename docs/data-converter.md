@@ -42,6 +42,10 @@ export interface PayloadCodec {
 }
 ```
 
+`PayloadCodec` is an optional step that happens between the wire and the `PayloadConverter`:
+
+Temporal Server <--> Wire <--> `PayloadCodec` <--> `PayloadConverter` <--> User code
+
 ### Worker converter flow
 
 `PayloadCodec` only runs in the main thread.
