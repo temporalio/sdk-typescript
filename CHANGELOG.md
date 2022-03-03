@@ -6,10 +6,6 @@ Breaking changes marked with a :boom:
 
 ## [0.19.0-rc.1] - 2022-03-02
 
-### Documentation
-
-- Add info to publishing notes ([#503](https://github.com/temporalio/sdk-typescript/pull/503))
-
 ### Features
 
 - :boom: Custom and protobuf data converters ([#477](https://github.com/temporalio/sdk-typescript/pull/477))
@@ -50,9 +46,18 @@ Breaking changes marked with a :boom:
   - Closes [#237](https://github.com/temporalio/sdk-typescript/issues/237)
   - Closes [#434](https://github.com/temporalio/sdk-typescript/issues/434)
 
+### Bug Fixes
+
+- Re-export possibly-shared-use things in common (#509)
+
 ### Miscellaneous Tasks
 
 - Fix linting on test-otel ([#504](https://github.com/temporalio/sdk-typescript/pull/504))
+
+### Documentation
+
+- Add info to publishing notes ([#503](https://github.com/temporalio/sdk-typescript/pull/503))
+- Link to source proto; improve Publishing ([#507](https://github.com/temporalio/sdk-typescript/pull/507))
 
 ## [0.19.0-rc.0] - 2022-02-25
 
