@@ -1,6 +1,6 @@
 {
   "name": "@temporalio/common",
-  "version": "0.19.0-rc.0",
+  "version": "0.19.0-rc.1",
   "description": "Common library for code that's used across the Client, Worker, and/or Workflow",
   "main": "lib/index.js",
   "types": "./lib/index.d.ts",
@@ -12,8 +12,8 @@
   "author": "Loren Sands-Ramshaw <loren@temporal.io>",
   "license": "MIT",
   "dependencies": {
-    "proto3-json-serializer": "^0.1.6",
-    "@temporalio/internal-workflow-common": "file:../internal-workflow-common"
+    "@temporalio/internal-workflow-common": "file:../internal-workflow-common",
+    "proto3-json-serializer": "^0.1.6"
   },
   "bugs": {
     "url": "https://github.com/temporalio/sdk-typescript/issues"
