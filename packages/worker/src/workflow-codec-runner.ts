@@ -138,11 +138,13 @@ export class WorkflowCodecRunner {
               this.encodeArray(command.continueAsNewWorkflowExecution, 'arguments'),
               ...this.encodeMap(command.continueAsNewWorkflowExecution, 'memo'),
               // ...this.encodeMap(command.continueAsNewWorkflowExecution, 'header'),
-              ...this.encodeMap(command.continueAsNewWorkflowExecution, 'searchAttributes'),
+              // Don't encode searchAttributes, since Temporal Server need to deserialize them, and it uses the default Data Converter
+              // ...this.encodeMap(command.continueAsNewWorkflowExecution, 'searchAttributes'),
               this.encodeArray(command.startChildWorkflowExecution, 'input'),
               ...this.encodeMap(command.startChildWorkflowExecution, 'memo'),
               // ...this.encodeMap(command.startChildWorkflowExecution, 'header'),
-              ...this.encodeMap(command.startChildWorkflowExecution, 'searchAttributes'),
+              // Don't encode searchAttributes, since Temporal Server need to deserialize them, and it uses the default Data Converter
+              // ...this.encodeMap(command.startChildWorkflowExecution, 'searchAttributes'),
               this.encodeArray(command.signalExternalWorkflowExecution, 'args'),
             ]
           : []

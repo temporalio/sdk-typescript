@@ -589,7 +589,9 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
     );
     t.deepEqual(await fromPayload(execution.workflowExecutionInfo!.memo!.fields!.a!), 'b');
     t.deepEqual(
-      await fromPayload(execution.workflowExecutionInfo!.searchAttributes!.indexedFields!.CustomIntField!),
+      await defaultPayloadConverter.fromPayload(
+        execution.workflowExecutionInfo!.searchAttributes!.indexedFields!.CustomIntField!
+      ),
       3
     );
     t.is(execution.executionConfig?.taskQueue?.name, 'test2');
