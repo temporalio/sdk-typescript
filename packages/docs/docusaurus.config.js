@@ -79,11 +79,6 @@ module.exports = {
       ],
       copyright: `Copyright © ${new Date().getFullYear()} Temporal Technologies Inc.`,
     },
-    gtag: {
-      trackingID: 'UA-163137879-1',
-      // Optional fields.
-      anonymizeIP: true, // Should IPs be anonymized?
-    },
     algolia: {
       apiKey: 'f0437b275747f3b6bd2cff61e1e3a796',
       indexName: 'typescript-temporal',
@@ -104,6 +99,11 @@ module.exports = {
         sitemap: {
           changefreq: 'weekly',
           priority: 0.5,
+        },
+        gtag: {
+          trackingID: 'UA-163137879-1',
+          // Optional fields.
+          anonymizeIP: true, // Should IPs be anonymized?
         },
       },
     ],
