@@ -2,12 +2,14 @@
 /**
  * Manual tests to inspect tracing output
  */
-import test from 'ava';
-import { v4 as uuid4 } from 'uuid';
-import { Core, DefaultLogger, InjectedSinks, Worker } from '@temporalio/worker';
-import { ExportResultCode } from '@opentelemetry/core';
-import { CollectorTraceExporter } from '@opentelemetry/exporter-collector-grpc';
-
+import { context, propagation, SpanStatusCode } from '@opentelemetry/api';
+import {
+  CompositePropagator,
+  ExportResultCode,
+  W3CBaggagePropagator,
+  W3CTraceContextPropagator,
+} from '@opentelemetry/core';
+import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-grpc';
 import * as opentelemetry from '@opentelemetry/sdk-node';
 import { SemanticResourceAttributes } from '@opentelemetry/semantic-conventions';
 import { WorkflowClient } from '@temporalio/client';
@@ -17,15 +19,23 @@ import {
   OpenTelemetryActivityInboundInterceptor,
 } from '@temporalio/interceptors-opentelemetry/lib/worker';
 import { OpenTelemetrySinks, SpanName, SPAN_DELIMITER } from '@temporalio/interceptors-opentelemetry/lib/workflow';
-
+import { Core, DefaultLogger, InjectedSinks, Worker } from '@temporalio/worker';
+import test from 'ava';
+import { v4 as uuid4 } from 'uuid';
 import * as activities from './activities';
-import * as workflows from './workflows';
 import { RUN_INTEGRATION_TESTS } from './helpers';
-import { SpanStatusCode } from '@opentelemetry/api';
+import * as workflows from './workflows';
 
 if (RUN_INTEGRATION_TESTS) {
   test.serial('Otel interceptor spans are connected and complete', async (t) => {
     const spans = Array<opentelemetry.tracing.ReadableSpan>();
+
+    const composite = new CompositePropagator({
+      propagators: [new W3CTraceContextPropagator(), new W3CBaggagePropagator()],
+    });
+    propagation.setGlobalPropagator(composite);
+    const baggage = propagation.createBaggage({ test: { value: 'true' } });
+    propagation.setBaggage(context.active(), baggage);
 
     const staticResource = new opentelemetry.resources.Resource({
       [SemanticResourceAttributes.SERVICE_NAME]: 'ts-test-otel-worker',
@@ -42,6 +52,7 @@ if (RUN_INTEGRATION_TESTS) {
     const otel = new opentelemetry.NodeSDK({
       resource: staticResource,
       traceExporter,
+      textMapPropagator: composite,
     });
     await otel.start();
 
@@ -138,7 +149,7 @@ if (RUN_INTEGRATION_TESTS) {
   // Un-skip this test and run it by hand to inspect outputted traces
   test.serial.skip('Otel spans connected', async (t) => {
     const oTelUrl = 'grpc://localhost:4317';
-    const exporter = new CollectorTraceExporter({ url: oTelUrl });
+    const exporter = new OTLPTraceExporter({ url: oTelUrl });
     const staticResource = new opentelemetry.resources.Resource({
       [SemanticResourceAttributes.SERVICE_NAME]: 'ts-test-otel-worker',
     });

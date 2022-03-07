@@ -7,7 +7,7 @@
     "@commitlint/cli": "^13.1.0",
     "@commitlint/config-conventional": "^13.1.0",
     "@opentelemetry/api": "^1.0.3",
-    "@opentelemetry/sdk-node": "^0.25.0",
+    "@opentelemetry/sdk-node": "^0.27.0",
     "@tsconfig/node14": "^1.0.1",
     "@types/dedent": "^0.7.0",
     "@types/fs-extra": "^9.0.12",

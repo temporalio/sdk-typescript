@@ -25,7 +25,9 @@
   "author": "Roey Berman <roey@temporal.io>",
   "license": "MIT",
   "dependencies": {
-    "@opentelemetry/exporter-collector-grpc": "^0.25.0",
+    "@opentelemetry/core": "^1.0.1",
+    "@opentelemetry/exporter-trace-otlp-grpc": "^0.27.0",
+    "@opentelemetry/semantic-conventions": "^1.0.1",
     "@temporalio/activity": "file:../activity",
     "@temporalio/client": "file:../client",
     "@temporalio/common": "file:../common",

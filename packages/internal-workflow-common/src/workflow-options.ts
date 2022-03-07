@@ -54,7 +54,9 @@ export interface BaseWorkflowOptions {
 
   /**
    * Specifies additional indexed information in result of list workflow. The type of value should
-   * be a primitive (e.g. string, number, boolean), for dates use Date.toISOString();
+   * be a primitive (e.g. string, number, boolean). For dates, use Date.toISOString()
+   *
+   * Values are always converted using {@link defaultPayloadConverter}, even when a custom data converter is provided.
    */
   searchAttributes?: Record<string, string | number | boolean>;
 }
