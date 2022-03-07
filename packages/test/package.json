@@ -26,6 +26,7 @@
   "license": "MIT",
   "dependencies": {
     "@opentelemetry/core": "^1.0.1",
+    "@opentelemetry/sdk-node": "^0.27.0",
     "@opentelemetry/exporter-trace-otlp-grpc": "^0.27.0",
     "@opentelemetry/semantic-conventions": "^1.0.1",
     "@temporalio/activity": "file:../activity",
