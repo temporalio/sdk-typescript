@@ -2,13 +2,8 @@
 /**
  * Manual tests to inspect tracing output
  */
-import { context, propagation, SpanStatusCode } from '@opentelemetry/api';
-import {
-  CompositePropagator,
-  ExportResultCode,
-  W3CBaggagePropagator,
-  W3CTraceContextPropagator,
-} from '@opentelemetry/core';
+import { SpanStatusCode } from '@opentelemetry/api';
+import { ExportResultCode } from '@opentelemetry/core';
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-grpc';
 import * as opentelemetry from '@opentelemetry/sdk-node';
 import { SemanticResourceAttributes } from '@opentelemetry/semantic-conventions';
@@ -30,13 +25,6 @@ if (RUN_INTEGRATION_TESTS) {
   test.serial('Otel interceptor spans are connected and complete', async (t) => {
     const spans = Array<opentelemetry.tracing.ReadableSpan>();
 
-    const composite = new CompositePropagator({
-      propagators: [new W3CTraceContextPropagator(), new W3CBaggagePropagator()],
-    });
-    propagation.setGlobalPropagator(composite);
-    const baggage = propagation.createBaggage({ test: { value: 'true' } });
-    propagation.setBaggage(context.active(), baggage);
-
     const staticResource = new opentelemetry.resources.Resource({
       [SemanticResourceAttributes.SERVICE_NAME]: 'ts-test-otel-worker',
     });
@@ -52,7 +40,6 @@ if (RUN_INTEGRATION_TESTS) {
     const otel = new opentelemetry.NodeSDK({
       resource: staticResource,
       traceExporter,
-      textMapPropagator: composite,
     });
     await otel.start();
 
