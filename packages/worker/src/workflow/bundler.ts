@@ -19,7 +19,8 @@ export class WorkflowCodeBundler {
     public readonly logger: Logger,
     public readonly workflowsPath: string,
     public readonly workflowInterceptorModules: string[] = [],
-    protected readonly payloadConverterPath?: string
+    protected readonly payloadConverterPath?: string,
+    protected readonly ignoreModules: string[] = []
   ) {}
 
   /**
@@ -86,7 +87,7 @@ export class WorkflowCodeBundler {
 
     const code = dedent`
       import * as api from '@temporalio/workflow/lib/worker-interface.js';
-      
+
       // Bundle all Workflows and interceptor modules for lazy evaluation
       api.overrideGlobals();
       api.setImportFuncs({
@@ -119,13 +120,10 @@ export class WorkflowCodeBundler {
         // https://webpack.js.org/configuration/resolve/#resolvemodules
         modules: [path.resolve(__dirname, 'module-overrides'), 'node_modules'],
         extensions: ['.ts', '.js'],
-        // If we don't set an alias for this below, then it won't be imported, so webpack can safely ignore it
-        fallback: { __temporal_custom_payload_converter: false },
-        ...(this.payloadConverterPath && {
-          alias: {
-            __temporal_custom_payload_converter$: this.payloadConverterPath,
-          },
-        }),
+        alias: {
+          __temporal_custom_payload_converter$: this.payloadConverterPath ?? false,
+          ...Object.fromEntries(this.ignoreModules.map((m) => [m, false])),
+        },
       },
       module: {
         rules: [
@@ -206,6 +204,10 @@ export interface BundleOptions {
    * `payloadConverter` should be an instance of a class that extends {@link DataConverter}.
    */
   payloadConverterPath?: string;
+  /**
+   * List of modules to be excluded from the workflows bundle.
+   */
+  ignoreModules?: string[];
 }
 
 export async function bundleWorkflowCode(options: BundleOptions): Promise<{ code: string }> {
@@ -216,7 +218,8 @@ export async function bundleWorkflowCode(options: BundleOptions): Promise<{ code
     logger,
     options.workflowsPath,
     options.workflowInterceptorModules,
-    options.payloadConverterPath
+    options.payloadConverterPath,
+    options.ignoreModules
   );
   return { code: await bundler.createBundle() };
 }

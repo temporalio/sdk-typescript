@@ -11,6 +11,7 @@ import { WorkflowClient } from '@temporalio/client';
 import { bundleWorkflowCode, Worker } from '@temporalio/worker';
 import { RUN_INTEGRATION_TESTS } from './helpers';
 import { successString } from './workflows';
+import { issue516 } from './mocks/workflows-with-node-dependencies/issue-516';
 
 if (RUN_INTEGRATION_TESTS) {
   test('Worker can be created from bundle code', async (t) => {
@@ -63,6 +64,30 @@ if (RUN_INTEGRATION_TESTS) {
     } finally {
       unlink(path);
     }
+    t.pass();
+  });
+
+  test('Workflow bundle can be created from code using ignoreModules', async (t) => {
+    const taskQueue = `${t.title}-${uuid4()}`;
+    const workflowBundle = await bundleWorkflowCode({
+      workflowsPath: require.resolve('./mocks/workflows-with-node-dependencies/issue-516'),
+      // ignoreModules: ['dns'],
+    });
+    const worker = await Worker.create({
+      taskQueue,
+      workflowBundle,
+    });
+    const client = new WorkflowClient();
+    await Promise.all([
+      worker.run(),
+      (async () => {
+        try {
+          await client.execute(issue516, { taskQueue, workflowId: uuid4() });
+        } finally {
+          worker.shutdown();
+        }
+      })(),
+    ]);
     t.pass();
   });
 }
