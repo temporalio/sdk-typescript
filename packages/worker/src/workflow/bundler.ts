@@ -8,6 +8,59 @@ import { v4 as uuid4 } from 'uuid';
 import webpack from 'webpack';
 import { DefaultLogger, Logger } from '../logger';
 
+const nodejsBuiltinModules: string[] = [
+  // assert, // A remplacement module is injected through module-overrides
+  'async_hooks',
+  'buffer',
+  'child_process',
+  'cluster',
+  'console',
+  'constants',
+  'crypto',
+  'dgram',
+  'diagnostics_channel',
+  'dns',
+  'dns/promises',
+  'domain',
+  'events',
+  'fs',
+  'fs/promises',
+  'http',
+  'http2',
+  'https',
+  'inspector',
+  'module',
+  'net',
+  'os',
+  'path',
+  'path/posix',
+  'path/win32',
+  'perf_hooks',
+  'process',
+  'punycode',
+  'querystring',
+  'readline',
+  'repl',
+  'stream',
+  'stream/promises',
+  'stream/web',
+  'string_decoder',
+  'sys',
+  'timers',
+  'timers/promises',
+  'tls',
+  'trace_events',
+  'tty',
+  'url',
+  'util',
+  'util/types',
+  'v8',
+  'vm',
+  'wasi',
+  'worker_threads',
+  'zlib',
+];
+
 /**
  * Builds a V8 Isolate by bundling provided Workflows using webpack.
  *
@@ -15,6 +68,8 @@ import { DefaultLogger, Logger } from '../logger';
  * @param workflowInterceptorModules list of interceptor modules to register on Workflow creation
  */
 export class WorkflowCodeBundler {
+  private foundProblematicModules = new Set<string>();
+
   constructor(
     public readonly logger: Logger,
     public readonly workflowsPath: string,
@@ -115,6 +170,22 @@ export class WorkflowCodeBundler {
    * Run webpack
    */
   protected async bundle(filesystem: typeof unionfs.ufs, entry: string, distDir: string): Promise<void> {
+    const captureProblematicModules: webpack.Configuration['externals'] = async (
+      data,
+      _callback
+    ): Promise<undefined> => {
+      // Ignore the "node:" prefix if any.
+      const module: string = data.request?.startsWith('node:')
+        ? data.request.slice('node:'.length)
+        : data.request ?? '';
+
+      if (nodejsBuiltinModules.includes(module) && !this.ignoreModules.includes(module)) {
+        this.foundProblematicModules.add(module);
+      }
+
+      return undefined;
+    };
+
     const compiler = webpack({
       resolve: {
         // https://webpack.js.org/configuration/resolve/#resolvemodules
@@ -122,9 +193,10 @@ export class WorkflowCodeBundler {
         extensions: ['.ts', '.js'],
         alias: {
           __temporal_custom_payload_converter$: this.payloadConverterPath ?? false,
-          ...Object.fromEntries(this.ignoreModules.map((m) => [m, false])),
+          ...Object.fromEntries([...this.ignoreModules, ...nodejsBuiltinModules].map((m) => [m, false])),
         },
       },
+      externals: captureProblematicModules,
       module: {
         rules: [
           {
@@ -167,6 +239,7 @@ export class WorkflowCodeBundler {
                 )
               );
             }
+            this.reportProblematicModules(this.foundProblematicModules);
           }
           if (err) {
             reject(err);
@@ -178,6 +251,22 @@ export class WorkflowCodeBundler {
     } finally {
       await util.promisify(compiler.close).bind(compiler)();
     }
+  }
+
+  protected reportProblematicModules(foundProblematicModules: Set<string>): void {
+    if (!foundProblematicModules.size) return;
+
+    this.logger.warn(
+      `Your Workflow code (or a library used by your Workflow code) is importing the following built-in Node modules:\n` +
+        Array.from(foundProblematicModules)
+          .map((module) => `  - '${module}'\n`)
+          .join('') +
+        `Workflow code don't have access to built-in Node modules (in order to help enforce determinism). If your are certain ` +
+        `these modules will not be used at runtime, then you may add their names to 'BundleOptions.ignoreModules' in order to ` +
+        `dismiss this warning. However, if your code execution actually depends on these modules, then you must change the code` +
+        `or remove the library.\n` +
+        `See https://typescript.temporal.io/api/namespaces/worker/#bundleworkflowcode for details.`
+    );
   }
 }
 
