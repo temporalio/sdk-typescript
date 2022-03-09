@@ -14,6 +14,15 @@ export type Replace<Base, New> = Omit<Base, keyof New> & New;
 
 export type MakeOptional<Base, Keys extends keyof Base> = Omit<Base, Keys> & Partial<Pick<Base, Keys>>;
 
+/** An object T with any nested values of type ToReplace replaced with ReplaceWith */
+export type ReplaceNested<T, ToReplace, ReplaceWith> = T extends (...args: any[]) => any
+  ? T
+  : T extends ToReplace
+  ? ReplaceWith | Exclude<T, ToReplace>
+  : {
+      [P in keyof T]: ReplaceNested<T[P], ToReplace, ReplaceWith>;
+    };
+
 export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
 }

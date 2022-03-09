@@ -1,7 +1,15 @@
+import { ReplaceNested } from '@temporalio/internal-workflow-common';
 import type * as iface from '@temporalio/proto/lib/coresdk';
-import { TextEncoder, TextDecoder } from './encoding';
+import { TextDecoder, TextEncoder } from './encoding';
 
 export type Payload = iface.coresdk.common.IPayload;
+
+export interface EncodedPayload extends Payload {
+  encoded: true;
+}
+
+/** Replace `Payload`s with `EncodedPayload`s */
+export type Encoded<T> = ReplaceNested<T, Payload, EncodedPayload>;
 
 /**
  * Transform an *ascii* string into a Uint8Array

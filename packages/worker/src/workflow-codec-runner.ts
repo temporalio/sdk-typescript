@@ -1,7 +1,15 @@
-import { Payload, PayloadCodec, ProtoFailure } from '@temporalio/common';
-import { decodeFailure, encodeFailure } from '@temporalio/internal-non-workflow-common';
+import { defaultPayloadCodec, Encoded, PayloadCodec } from '@temporalio/common';
+import {
+  decodeFailure,
+  encodeMap,
+  encodeOptional,
+  encodeOptionalFailure,
+  encodeOptionalSingle,
+} from '@temporalio/internal-non-workflow-common';
 import { coresdk } from '@temporalio/proto';
 import { clone, setWith } from 'lodash';
+
+type EncodedCompletion = Encoded<coresdk.workflow_completion.IWorkflowActivationCompletion>;
 
 /**
  * Helper class for decoding Workflow activations and encoding Workflow completions.
@@ -124,70 +132,86 @@ export class WorkflowCodecRunner {
    */
   public async encodeCompletion(completionBytes: Uint8Array): Promise<Uint8Array> {
     const completion = coresdk.workflow_completion.WorkflowActivationCompletion.decodeDelimited(completionBytes);
+    const encodedCompletion: EncodedCompletion = {
+      ...completion,
+      ...(completion.failed?.failure && {
+        failed: { failure: await encodeOptionalFailure(this.codec, completion.failed.failure) },
+      }),
+      ...(completion.successful && {
+        successful: {
+          ...completion.successful,
+          commands: await Promise.all(
+            completion.successful?.commands?.map(async (command) => ({
+              ...command,
+              ...(command.scheduleActivity && {
+                scheduleActivity: {
+                  ...command.scheduleActivity,
+                  arguments: await encodeOptional(this.codec, command.scheduleActivity.arguments),
+                  // use no-op codec on headers
+                  headerFields: await encodeMap(defaultPayloadCodec, command.scheduleActivity.headerFields),
+                },
+              }),
+              ...(command.respondToQuery && {
+                respondToQuery: {
+                  ...command.respondToQuery,
+                  succeeded: {
+                    response: await encodeOptionalSingle(this.codec, command.respondToQuery.succeeded?.response),
+                  },
+                  failed: await encodeOptionalFailure(this.codec, command.respondToQuery.failed),
+                },
+              }),
+              ...(command.completeWorkflowExecution && {
+                completeWorkflowExecution: {
+                  ...command.completeWorkflowExecution,
+                  result: await encodeOptionalSingle(this.codec, command.completeWorkflowExecution.result),
+                },
+              }),
+              ...(command.failWorkflowExecution && {
+                failWorkflowExecution: {
+                  ...command.failWorkflowExecution,
+                  failure: await encodeOptionalFailure(this.codec, command.failWorkflowExecution.failure),
+                },
+              }),
+              ...(command.continueAsNewWorkflowExecution && {
+                continueAsNewWorkflowExecution: {
+                  ...command.continueAsNewWorkflowExecution,
+                  arguments: await encodeOptional(this.codec, command.continueAsNewWorkflowExecution.arguments),
+                  memo: await encodeMap(this.codec, command.continueAsNewWorkflowExecution.memo),
+                  // use no-op codec on headers
+                  header: await encodeMap(defaultPayloadCodec, command.continueAsNewWorkflowExecution.header),
+                  // use no-op codec on searchAttributes
+                  searchAttributes: await encodeMap(
+                    defaultPayloadCodec,
+                    command.continueAsNewWorkflowExecution.searchAttributes
+                  ),
+                },
+              }),
+              ...(command.startChildWorkflowExecution && {
+                startChildWorkflowExecution: {
+                  ...command.startChildWorkflowExecution,
+                  input: await encodeOptional(this.codec, command.startChildWorkflowExecution.input),
+                  memo: await encodeMap(this.codec, command.startChildWorkflowExecution.memo),
+                  // use no-op codec on headers
+                  header: await encodeMap(defaultPayloadCodec, command.startChildWorkflowExecution.header),
+                  // use no-op codec on searchAttributes
+                  searchAttributes: await encodeMap(
+                    defaultPayloadCodec,
+                    command.startChildWorkflowExecution.searchAttributes
+                  ),
+                },
+              }),
+              ...(command.signalExternalWorkflowExecution && {
+                signalExternalWorkflowExecution: {
+                  ...command.signalExternalWorkflowExecution,
+                  args: await encodeOptional(this.codec, command.signalExternalWorkflowExecution.args),
+                },
+              }),
+            })) ?? []
+          ),
+        },
+      }),
+    };
 
-    await Promise.all([
-      ...(completion.successful?.commands?.flatMap((command) =>
-        command
-          ? [
-              // ...this.encodeMap(command.scheduleActivity, 'headerFields'),
-              this.encodeArray(command.scheduleActivity, 'arguments'),
-              this.encodeField(command.respondToQuery?.succeeded, 'response'),
-              this.encodeFailure(command.respondToQuery, 'failed'),
-              this.encodeField(command.completeWorkflowExecution, 'result'),
-              this.encodeFailure(command.failWorkflowExecution, 'failure'),
-              this.encodeArray(command.continueAsNewWorkflowExecution, 'arguments'),
-              ...this.encodeMap(command.continueAsNewWorkflowExecution, 'memo'),
-              // ...this.encodeMap(command.continueAsNewWorkflowExecution, 'header'),
-              // Don't encode searchAttributes, since Temporal Server need to deserialize them, and it uses the default Data Converter
-              // ...this.encodeMap(command.continueAsNewWorkflowExecution, 'searchAttributes'),
-              this.encodeArray(command.startChildWorkflowExecution, 'input'),
-              ...this.encodeMap(command.startChildWorkflowExecution, 'memo'),
-              // ...this.encodeMap(command.startChildWorkflowExecution, 'header'),
-              // Don't encode searchAttributes, since Temporal Server need to deserialize them, and it uses the default Data Converter
-              // ...this.encodeMap(command.startChildWorkflowExecution, 'searchAttributes'),
-              this.encodeArray(command.signalExternalWorkflowExecution, 'args'),
-            ]
-          : []
-      ) ?? []),
-      this.encodeFailure(completion, 'failed'),
-    ]);
-
-    return coresdk.workflow_completion.WorkflowActivationCompletion.encodeDelimited(completion).finish();
-  }
-
-  protected async encodeField(object: unknown, field: string): Promise<void> {
-    if (!object) return;
-    const record = object as Record<string, unknown>;
-    if (!(field in record)) return;
-
-    const [encodedPayload] = await this.codec.encode([record[field] as Payload]);
-    record[field] = encodedPayload;
-  }
-
-  protected async encodeArray(object: unknown, field: string): Promise<void> {
-    if (!object) return;
-    const record = object as Record<string, unknown>;
-    if (!record[field]) return;
-
-    record[field] = await this.codec.encode(record[field] as Payload[]);
-  }
-
-  protected encodeMap(object: unknown, field: string): Promise<void>[] {
-    if (!object) return [];
-    const record = object as Record<string, unknown>;
-    if (!record[field]) return [];
-
-    return Object.entries(record[field] as Record<string, Payload>).map(async ([k, v]) => {
-      const [encodedPayload] = await this.codec.encode([v]);
-      (record[field] as Record<string, unknown>)[k] = encodedPayload;
-    });
-  }
-
-  protected async encodeFailure(object: unknown, field: string): Promise<void> {
-    if (!object) return;
-    const record = object as Record<string, unknown>;
-    if (!record[field]) return;
-
-    record[field] = await encodeFailure(this.codec, record[field] as ProtoFailure);
+    return coresdk.workflow_completion.WorkflowActivationCompletion.encodeDelimited(encodedCompletion).finish();
   }
 }
