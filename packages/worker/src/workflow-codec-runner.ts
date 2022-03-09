@@ -1,10 +1,12 @@
-import { defaultPayloadCodec, Encoded, PayloadCodec } from '@temporalio/common';
+import { Encoded, PayloadCodec } from '@temporalio/common';
 import {
   decodeFailure,
   encodeMap,
   encodeOptional,
   encodeOptionalFailure,
   encodeOptionalSingle,
+  noopEncodeMap,
+  TypecheckedPayloadCodec,
 } from '@temporalio/internal-non-workflow-common';
 import { coresdk } from '@temporalio/proto';
 import { clone, setWith } from 'lodash';
@@ -15,7 +17,11 @@ type EncodedCompletion = Encoded<coresdk.workflow_completion.IWorkflowActivation
  * Helper class for decoding Workflow activations and encoding Workflow completions.
  */
 export class WorkflowCodecRunner {
-  constructor(protected readonly codec: PayloadCodec) {}
+  protected readonly codec: TypecheckedPayloadCodec;
+
+  constructor(codec: PayloadCodec) {
+    this.codec = codec as TypecheckedPayloadCodec;
+  }
 
   /**
    * Run codec.decode on the Payloads in the Activation message.
@@ -134,82 +140,90 @@ export class WorkflowCodecRunner {
     const completion = coresdk.workflow_completion.WorkflowActivationCompletion.decodeDelimited(completionBytes);
     const encodedCompletion: EncodedCompletion = {
       ...completion,
-      ...(completion.failed?.failure && {
-        failed: { failure: await encodeOptionalFailure(this.codec, completion.failed.failure) },
-      }),
-      ...(completion.successful && {
-        successful: {
-          ...completion.successful,
-          commands: await Promise.all(
-            completion.successful?.commands?.map(async (command) => ({
-              ...command,
-              ...(command.scheduleActivity && {
-                scheduleActivity: {
-                  ...command.scheduleActivity,
-                  arguments: await encodeOptional(this.codec, command.scheduleActivity.arguments),
-                  // use no-op codec on headers
-                  headerFields: await encodeMap(defaultPayloadCodec, command.scheduleActivity.headerFields),
-                },
-              }),
-              ...(command.respondToQuery && {
-                respondToQuery: {
-                  ...command.respondToQuery,
-                  succeeded: {
-                    response: await encodeOptionalSingle(this.codec, command.respondToQuery.succeeded?.response),
-                  },
-                  failed: await encodeOptionalFailure(this.codec, command.respondToQuery.failed),
-                },
-              }),
-              ...(command.completeWorkflowExecution && {
-                completeWorkflowExecution: {
-                  ...command.completeWorkflowExecution,
-                  result: await encodeOptionalSingle(this.codec, command.completeWorkflowExecution.result),
-                },
-              }),
-              ...(command.failWorkflowExecution && {
-                failWorkflowExecution: {
-                  ...command.failWorkflowExecution,
-                  failure: await encodeOptionalFailure(this.codec, command.failWorkflowExecution.failure),
-                },
-              }),
-              ...(command.continueAsNewWorkflowExecution && {
-                continueAsNewWorkflowExecution: {
-                  ...command.continueAsNewWorkflowExecution,
-                  arguments: await encodeOptional(this.codec, command.continueAsNewWorkflowExecution.arguments),
-                  memo: await encodeMap(this.codec, command.continueAsNewWorkflowExecution.memo),
-                  // use no-op codec on headers
-                  header: await encodeMap(defaultPayloadCodec, command.continueAsNewWorkflowExecution.header),
-                  // use no-op codec on searchAttributes
-                  searchAttributes: await encodeMap(
-                    defaultPayloadCodec,
-                    command.continueAsNewWorkflowExecution.searchAttributes
-                  ),
-                },
-              }),
-              ...(command.startChildWorkflowExecution && {
-                startChildWorkflowExecution: {
-                  ...command.startChildWorkflowExecution,
-                  input: await encodeOptional(this.codec, command.startChildWorkflowExecution.input),
-                  memo: await encodeMap(this.codec, command.startChildWorkflowExecution.memo),
-                  // use no-op codec on headers
-                  header: await encodeMap(defaultPayloadCodec, command.startChildWorkflowExecution.header),
-                  // use no-op codec on searchAttributes
-                  searchAttributes: await encodeMap(
-                    defaultPayloadCodec,
-                    command.startChildWorkflowExecution.searchAttributes
-                  ),
-                },
-              }),
-              ...(command.signalExternalWorkflowExecution && {
-                signalExternalWorkflowExecution: {
-                  ...command.signalExternalWorkflowExecution,
-                  args: await encodeOptional(this.codec, command.signalExternalWorkflowExecution.args),
-                },
-              }),
-            })) ?? []
-          ),
-        },
-      }),
+      failed: completion.failed
+        ? { failure: await encodeOptionalFailure(this.codec, completion?.failed?.failure) }
+        : null,
+      successful: completion.successful
+        ? {
+            commands: completion.successful.commands
+              ? await Promise.all(
+                  completion.successful.commands.map(async (command) => ({
+                    ...command,
+                    scheduleActivity: command.scheduleActivity
+                      ? {
+                          ...command.scheduleActivity,
+                          arguments: await encodeOptional(this.codec, command.scheduleActivity?.arguments),
+                          // don't encode headers
+                          headerFields: noopEncodeMap(command.scheduleActivity?.headerFields),
+                        }
+                      : undefined,
+                    respondToQuery: command.respondToQuery
+                      ? {
+                          ...command.respondToQuery,
+                          succeeded: {
+                            response: await encodeOptionalSingle(
+                              this.codec,
+                              command.respondToQuery.succeeded?.response
+                            ),
+                          },
+                          failed: await encodeOptionalFailure(this.codec, command.respondToQuery.failed),
+                        }
+                      : undefined,
+
+                    completeWorkflowExecution: command.completeWorkflowExecution
+                      ? {
+                          ...command.completeWorkflowExecution,
+                          result: await encodeOptionalSingle(this.codec, command.completeWorkflowExecution.result),
+                        }
+                      : undefined,
+                    failWorkflowExecution: command.failWorkflowExecution
+                      ? {
+                          ...command.failWorkflowExecution,
+                          failure: await encodeOptionalFailure(this.codec, command.failWorkflowExecution.failure),
+                        }
+                      : undefined,
+                    continueAsNewWorkflowExecution: command.continueAsNewWorkflowExecution
+                      ? {
+                          ...command.continueAsNewWorkflowExecution,
+                          arguments: await encodeOptional(this.codec, command.continueAsNewWorkflowExecution.arguments),
+                          memo: await encodeMap(this.codec, command.continueAsNewWorkflowExecution.memo),
+                          // don't encode headers
+                          header: noopEncodeMap(command.continueAsNewWorkflowExecution.header),
+                          // don't encode searchAttributes
+                          searchAttributes: noopEncodeMap(command.continueAsNewWorkflowExecution.searchAttributes),
+                        }
+                      : undefined,
+                    startChildWorkflowExecution: command.startChildWorkflowExecution
+                      ? {
+                          ...command.startChildWorkflowExecution,
+                          input: await encodeOptional(this.codec, command.startChildWorkflowExecution.input),
+                          memo: await encodeMap(this.codec, command.startChildWorkflowExecution.memo),
+                          // don't encode headers
+                          header: noopEncodeMap(command.startChildWorkflowExecution.header),
+                          // don't encode searchAttributes
+                          searchAttributes: noopEncodeMap(command.startChildWorkflowExecution.searchAttributes),
+                        }
+                      : undefined,
+                    signalExternalWorkflowExecution: command.signalExternalWorkflowExecution
+                      ? {
+                          ...command.signalExternalWorkflowExecution,
+                          args: await encodeOptional(this.codec, command.signalExternalWorkflowExecution.args),
+                        }
+                      : undefined,
+                    cancelWorkflowExecution: command.cancelWorkflowExecution ? { encoded: true } : undefined,
+                    scheduleLocalActivity: command.scheduleLocalActivity
+                      ? {
+                          ...command.scheduleLocalActivity,
+                          arguments: await encodeOptional(this.codec, command.scheduleLocalActivity.arguments),
+                          // don't encode headers
+                          headerFields: noopEncodeMap(command.scheduleLocalActivity.headerFields),
+                        }
+                      : undefined,
+                  })) ?? []
+                )
+              : null,
+          }
+        : null,
     };
 
     return coresdk.workflow_completion.WorkflowActivationCompletion.encodeDelimited(encodedCompletion).finish();

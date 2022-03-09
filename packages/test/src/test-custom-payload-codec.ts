@@ -1,5 +1,5 @@
 import { Connection, WorkflowClient } from '@temporalio/client';
-import { EncodedPayload, Payload, PayloadCodec } from '@temporalio/common';
+import { Payload, PayloadCodec } from '@temporalio/common';
 import { InjectedSinks, Worker } from '@temporalio/worker';
 import test from 'ava';
 import { v4 as uuid4 } from 'uuid';
@@ -9,12 +9,11 @@ import { defaultOptions } from './mock-native-worker';
 import { LogSinks, twoStrings, twoStringsActivity } from './workflows';
 
 class TestEncodeCodec implements PayloadCodec {
-  async encode(payloads: Payload[]): Promise<EncodedPayload[]> {
-    return payloads.map((payload) => ({
-      ...payload,
-      data: u8('"encoded"'),
-      encoded: true,
-    }));
+  async encode(payloads: Payload[]): Promise<Payload[]> {
+    return payloads.map((payload) => {
+      payload.data = u8('"encoded"');
+      return payload;
+    });
   }
 
   async decode(payloads: Payload[]): Promise<Payload[]> {
@@ -23,8 +22,8 @@ class TestEncodeCodec implements PayloadCodec {
 }
 
 class TestDecodeCodec implements PayloadCodec {
-  async encode(payloads: Payload[]): Promise<EncodedPayload[]> {
-    return payloads as EncodedPayload[];
+  async encode(payloads: Payload[]): Promise<Payload[]> {
+    return payloads;
   }
 
   async decode(payloads: Payload[]): Promise<Payload[]> {

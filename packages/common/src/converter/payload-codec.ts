@@ -1,4 +1,4 @@
-import { EncodedPayload, Payload } from './types';
+import { Payload } from './types';
 
 /**
  * `PayloadCodec` is an optional step that happens between the wire and the {@link PayloadConverter}:
@@ -13,7 +13,7 @@ export interface PayloadCodec {
    * Encode an array of {@link Payload}s for sending over the wire.
    * @param payloads May have length 0.
    */
-  encode(payloads: Payload[]): Promise<EncodedPayload[]>;
+  encode(payloads: Payload[]): Promise<Payload[]>;
 
   /**
    * Decode an array of {@link Payload}s received from the wire.
@@ -25,6 +25,6 @@ export interface PayloadCodec {
  * No-op implementation of {@link PayloadCodec}.
  */
 export const defaultPayloadCodec = {
-  encode: async (payloads: Payload[]): Promise<EncodedPayload[]> => payloads as EncodedPayload[],
+  encode: async (payloads: Payload[]): Promise<Payload[]> => payloads,
   decode: async (payloads: Payload[]): Promise<Payload[]> => payloads,
 };

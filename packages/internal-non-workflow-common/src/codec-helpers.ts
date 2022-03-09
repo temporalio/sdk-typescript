@@ -16,6 +16,11 @@ import {
 } from '@temporalio/common';
 import { clone, setWith } from 'lodash';
 
+export interface TypecheckedPayloadCodec {
+  encode(payloads: Payload[]): Promise<EncodedPayload[]>;
+  decode(payloads: Payload[]): Promise<Payload[]>;
+}
+
 /**
  * Decode `payloads` and then return {@link fromPayloadsAtIndex}.
  */
@@ -60,12 +65,12 @@ export async function encodeOptional(
   payloads: Payload[] | null | undefined
 ): Promise<EncodedPayload[] | null | undefined> {
   if (!payloads) return payloads;
-  return await codec.encode(payloads);
+  return (await codec.encode(payloads)) as EncodedPayload[];
 }
 
 async function encodeSingle(codec: PayloadCodec, payload: Payload): Promise<EncodedPayload> {
   const encodedPayloads = await codec.encode([payload]);
-  return encodedPayloads[0];
+  return encodedPayloads[0] as EncodedPayload;
 }
 
 /** Run {@link PayloadCodec.encode} on a single Payload */
@@ -146,7 +151,8 @@ export async function encodeErrorToFailure(dataConverter: LoadedDataConverter, e
 /**
  * Return a new {@link ProtoFailure} with `codec.encode()` run on all the {@link Payload}s.
  */
-export async function encodeFailure(codec: PayloadCodec, failure: ProtoFailure): Promise<EncodedProtoFailure> {
+export async function encodeFailure(_codec: PayloadCodec, failure: ProtoFailure): Promise<EncodedProtoFailure> {
+  const codec = _codec as TypecheckedPayloadCodec;
   return {
     ...failure,
     cause: failure.cause ? await encodeFailure(codec, failure.cause) : null,
@@ -234,4 +240,15 @@ export async function decodeFailure(codec: PayloadCodec, failure: ProtoFailure):
     );
   }
   return decodedFailure;
+}
+
+/**
+ * Mark all values in the map as encoded.
+ * Use this for headers and searchAttributes, which we don't encode.
+ */
+export function noopEncodeMap<K extends string>(
+  map: Record<K, Payload> | null | undefined
+): Record<K, EncodedPayload> | null | undefined {
+  if (!map) return map;
+  return map as Record<K, EncodedPayload>;
 }
