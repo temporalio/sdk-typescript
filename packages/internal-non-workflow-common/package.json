@@ -14,8 +14,7 @@
   "license": "MIT",
   "dependencies": {
     "@temporalio/common": "file:../common",
-    "@temporalio/internal-workflow-common": "file:../internal-workflow-common",
-    "lodash": "^4.17.21"
+    "@temporalio/internal-workflow-common": "file:../internal-workflow-common"
   },
   "bugs": {
     "url": "https://github.com/temporalio/sdk-typescript/issues"
