@@ -180,34 +180,52 @@ export async function encodeFailure(_codec: PayloadCodec, failure: ProtoFailure)
   return {
     ...failure,
     cause: failure.cause ? await encodeFailure(codec, failure.cause) : null,
-    applicationFailureInfo: {
-      ...failure.activityFailureInfo,
-      details: {
-        payloads: await codec.encode(failure.applicationFailureInfo?.details?.payloads ?? []),
-      },
-    },
-    timeoutFailureInfo: {
-      ...failure.timeoutFailureInfo,
-      lastHeartbeatDetails: {
-        payloads: await codec.encode(failure.timeoutFailureInfo?.lastHeartbeatDetails?.payloads ?? []),
-      },
-    },
-    canceledFailureInfo: {
-      ...failure.canceledFailureInfo,
-      details: {
-        payloads: await codec.encode(failure.canceledFailureInfo?.details?.payloads ?? []),
-      },
-    },
-    terminatedFailureInfo: {
-      ...failure.terminatedFailureInfo,
-      encoded: true,
-    },
-    resetWorkflowFailureInfo: {
-      ...failure.resetWorkflowFailureInfo,
-      lastHeartbeatDetails: {
-        payloads: await codec.encode(failure.resetWorkflowFailureInfo?.lastHeartbeatDetails?.payloads ?? []),
-      },
-    },
+    applicationFailureInfo: failure.applicationFailureInfo
+      ? {
+          ...failure.applicationFailureInfo,
+          details: failure.applicationFailureInfo.details
+            ? {
+                payloads: await codec.encode(failure.applicationFailureInfo.details.payloads ?? []),
+              }
+            : undefined,
+        }
+      : undefined,
+    timeoutFailureInfo: failure.timeoutFailureInfo
+      ? {
+          ...failure.timeoutFailureInfo,
+          lastHeartbeatDetails: failure.timeoutFailureInfo.lastHeartbeatDetails
+            ? {
+                payloads: await codec.encode(failure.timeoutFailureInfo.lastHeartbeatDetails.payloads ?? []),
+              }
+            : undefined,
+        }
+      : undefined,
+    canceledFailureInfo: failure.canceledFailureInfo
+      ? {
+          ...failure.canceledFailureInfo,
+          details: failure.canceledFailureInfo.details
+            ? {
+                payloads: await codec.encode(failure.canceledFailureInfo.details.payloads ?? []),
+              }
+            : undefined,
+        }
+      : undefined,
+    terminatedFailureInfo: failure.terminatedFailureInfo
+      ? {
+          ...failure.terminatedFailureInfo,
+          encoded: true,
+        }
+      : undefined,
+    resetWorkflowFailureInfo: failure.resetWorkflowFailureInfo
+      ? {
+          ...failure.resetWorkflowFailureInfo,
+          lastHeartbeatDetails: failure.resetWorkflowFailureInfo.lastHeartbeatDetails
+            ? {
+                payloads: await codec.encode(failure.resetWorkflowFailureInfo.lastHeartbeatDetails.payloads ?? []),
+              }
+            : undefined,
+        }
+      : undefined,
   };
 }
 
@@ -241,34 +259,52 @@ export async function decodeFailure(_codec: PayloadCodec, failure: ProtoFailure)
   return {
     ...failure,
     cause: failure.cause ? await decodeFailure(codec, failure.cause) : null,
-    applicationFailureInfo: {
-      ...failure.activityFailureInfo,
-      details: {
-        payloads: await codec.decode(failure.applicationFailureInfo?.details?.payloads ?? []),
-      },
-    },
-    timeoutFailureInfo: {
-      ...failure.timeoutFailureInfo,
-      lastHeartbeatDetails: {
-        payloads: await codec.decode(failure.timeoutFailureInfo?.lastHeartbeatDetails?.payloads ?? []),
-      },
-    },
-    canceledFailureInfo: {
-      ...failure.canceledFailureInfo,
-      details: {
-        payloads: await codec.decode(failure.canceledFailureInfo?.details?.payloads ?? []),
-      },
-    },
-    terminatedFailureInfo: {
-      ...failure.terminatedFailureInfo,
-      decoded: true,
-    },
-    resetWorkflowFailureInfo: {
-      ...failure.resetWorkflowFailureInfo,
-      lastHeartbeatDetails: {
-        payloads: await codec.decode(failure.resetWorkflowFailureInfo?.lastHeartbeatDetails?.payloads ?? []),
-      },
-    },
+    applicationFailureInfo: failure.applicationFailureInfo
+      ? {
+          ...failure.applicationFailureInfo,
+          details: failure.applicationFailureInfo.details
+            ? {
+                payloads: await codec.decode(failure.applicationFailureInfo.details.payloads ?? []),
+              }
+            : undefined,
+        }
+      : undefined,
+    timeoutFailureInfo: failure.timeoutFailureInfo
+      ? {
+          ...failure.timeoutFailureInfo,
+          lastHeartbeatDetails: failure.timeoutFailureInfo.lastHeartbeatDetails
+            ? {
+                payloads: await codec.decode(failure.timeoutFailureInfo.lastHeartbeatDetails.payloads ?? []),
+              }
+            : undefined,
+        }
+      : undefined,
+    canceledFailureInfo: failure.canceledFailureInfo
+      ? {
+          ...failure.canceledFailureInfo,
+          details: failure.canceledFailureInfo.details
+            ? {
+                payloads: await codec.decode(failure.canceledFailureInfo.details.payloads ?? []),
+              }
+            : undefined,
+        }
+      : undefined,
+    terminatedFailureInfo: failure.terminatedFailureInfo
+      ? {
+          ...failure.terminatedFailureInfo,
+          decoded: true,
+        }
+      : undefined,
+    resetWorkflowFailureInfo: failure.resetWorkflowFailureInfo
+      ? {
+          ...failure.resetWorkflowFailureInfo,
+          lastHeartbeatDetails: failure.resetWorkflowFailureInfo.lastHeartbeatDetails
+            ? {
+                payloads: await codec.decode(failure.resetWorkflowFailureInfo.lastHeartbeatDetails.payloads ?? []),
+              }
+            : undefined,
+        }
+      : undefined,
   };
 }
 
