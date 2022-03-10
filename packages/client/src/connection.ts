@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from 'async_hooks';
 import * as grpc from '@grpc/grpc-js';
 import { temporal } from '@temporalio/proto';
 import { TLSConfig, normalizeTlsConfig } from '@temporalio/internal-non-workflow-common';
@@ -64,6 +65,25 @@ export function defaultConnectionOpts(): ConnectionOptionsWithDefaults {
 }
 
 /**
+ * Mapping of string to valid gRPC metadata value
+ */
+export type Metadata = Record<string, grpc.MetadataValue>;
+
+/**
+ * User defined context for gRPC client calls
+ */
+export interface CallContext {
+  /**
+   * {@link Deadline | https://grpc.io/blog/deadlines/} for gRPC client calls
+   */
+  deadline?: number | Date;
+  /**
+   * Metadata to set on gRPC requests
+   */
+  metadata?: Metadata;
+}
+
+/**
  * - Convert {@link ConnectionOptions.tls} to {@link grpc.ChannelCredentials}
  * - Add the grpc.ssl_target_name_override GRPC {@link ConnectionOptions.channelArgs | channel arg}
  * - Add default port to address if port not specified
@@ -119,18 +139,77 @@ export class Connection {
     };
     this.client = new Connection.Client(this.options.address, this.options.credentials, this.options.channelArgs);
     const rpcImpl = (method: { name: string }, requestData: any, callback: grpc.requestCallback<any>) => {
+      const metadataContainer = new grpc.Metadata();
+      const { metadata, deadline } = this.callContextStorage.getStore() ?? {};
+      if (metadata != null) {
+        for (const [k, v] of Object.entries(metadata)) {
+          metadataContainer.set(k, v);
+        }
+      }
       return this.client.makeUnaryRequest(
         `/temporal.api.workflowservice.v1.WorkflowService/${method.name}`,
         (arg: any) => arg,
         (arg: any) => arg,
         requestData,
-        // TODO: allow adding metadata and call options
-        new grpc.Metadata(),
-        { interceptors: this.options.interceptors },
+        metadataContainer,
+        { interceptors: this.options.interceptors, deadline },
         callback
       );
     };
     this.service = new WorkflowService(rpcImpl, false, false);
+  }
+
+  readonly callContextStorage = new AsyncLocalStorage<CallContext>();
+
+  /**
+   * Set the deadline for any service requests executed in `fn`'s scope.
+   */
+  async withDeadline<R>(deadline: number | Date, fn: () => Promise<R>): Promise<R> {
+    const cc = this.callContextStorage.getStore();
+    return await this.callContextStorage.run({ deadline, metadata: cc?.metadata }, fn);
+  }
+
+  /**
+   * Set metadata for any service requests executed in `fn`'s scope.
+   *
+   * @returns returned value of `fn`
+   */
+  async withMetadata<R>(metadata: Metadata, fn: () => Promise<R>): Promise<R>;
+
+  /**
+   * Set metadata for any service requests executed in `fn`'s scope.
+   *
+   * @param metadataFn function that gets current context metadata and returns new metadata
+   *
+   * @returns returned value of `fn`
+   */
+  async withMetadata<R>(metadataFn: (meta: Metadata) => Metadata, fn: () => Promise<R>): Promise<R>;
+
+  async withMetadata<R>(metadata: Metadata | ((meta: Metadata) => Metadata), fn: () => Promise<R>): Promise<R> {
+    const cc = this.callContextStorage.getStore();
+    metadata = typeof metadata === 'function' ? metadata(cc?.metadata ?? {}) : metadata;
+    return await this.callContextStorage.run({ metadata, deadline: cc?.deadline }, fn);
+  }
+
+  /**
+   * Set the {@link CallContext} for any service requests executed in `fn`'s scope.
+   *
+   * @returns returned value of `fn`
+   */
+  async withCallContext<R>(cx: CallContext, fn: () => Promise<R>): Promise<R>;
+
+  /**
+   * Set the {@link CallContext} for any service requests executed in `fn`'s scope.
+   *
+   * @param cxFn function that gets current context and returns new context
+   *
+   * @returns returned value of `fn`
+   */
+  async withCallContext<R>(cxFn: (cx?: CallContext) => CallContext, fn: () => Promise<R>): Promise<R>;
+
+  async withCallContext<R>(cx: CallContext | ((cx?: CallContext) => CallContext), fn: () => Promise<R>): Promise<R> {
+    cx = typeof cx === 'function' ? cx(this.callContextStorage.getStore()) : cx;
+    return await this.callContextStorage.run(cx, fn);
   }
 
   /**
