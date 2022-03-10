@@ -7,7 +7,9 @@
     "@commitlint/cli": "^13.1.0",
     "@commitlint/config-conventional": "^13.1.0",
     "@opentelemetry/api": "^1.0.3",
-    "@opentelemetry/sdk-node": "^0.25.0",
+    "@opentelemetry/core": "^1.0.1",
+    "@opentelemetry/sdk-node": "^0.27.0",
+    "@opentelemetry/semantic-conventions": "^1.0.1",
     "@tsconfig/node14": "^1.0.1",
     "@types/dedent": "^0.7.0",
     "@types/fs-extra": "^9.0.12",
@@ -19,6 +21,7 @@
     "@types/uuid": "^8.3.1",
     "@typescript-eslint/eslint-plugin": "^4.30.0",
     "@typescript-eslint/parser": "^4.30.0",
+    "arg": "^5.0.1",
     "ava": "^3.15.0",
     "dedent": "^0.7.0",
     "eslint": "^7.32.0",
@@ -34,7 +37,8 @@
     "prettier": "^2.3.2",
     "tail": "^2.2.3",
     "ts-prune": "^0.10.3",
-    "typescript": "^4.4.2"
+    "typescript": "^4.4.2",
+    "uuid": "^3.4.0"
   },
   "scripts": {
     "rebuild": "npm run clean && npm run build",
@@ -74,17 +78,15 @@
   "dependencies": {
     "@temporalio/client": "file:packages/client",
     "@temporalio/common": "file:packages/common",
-    "@temporalio/internal-workflow-common": "file:packages/internal-workflow-common",
-    "@temporalio/internal-non-workflow-common": "file:packages/internal-non-workflow-common",
     "@temporalio/create": "file:packages/create-project",
     "@temporalio/interceptors-opentelemetry": "file:packages/interceptors-opentelemetry",
+    "@temporalio/internal-non-workflow-common": "file:packages/internal-non-workflow-common",
+    "@temporalio/internal-workflow-common": "file:packages/internal-workflow-common",
     "@temporalio/proto": "file:packages/proto",
     "@temporalio/test": "file:packages/test",
     "@temporalio/worker": "file:packages/worker",
     "@temporalio/workflow": "file:packages/workflow",
-    "arg": "^5.0.1",
-    "temporalio": "file:packages/meta",
-    "uuid": "^3.4.0"
+    "temporalio": "file:packages/meta"
   },
   "engines": {
     "node": ">= 14.0.0",
