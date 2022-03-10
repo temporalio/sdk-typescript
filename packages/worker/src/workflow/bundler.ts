@@ -1,27 +1,25 @@
-import path from 'path';
-import util from 'util';
 import dedent from 'dedent';
-import webpack from 'webpack';
 import * as realFS from 'fs';
 import * as memfs from 'memfs';
+import path from 'path';
 import * as unionfs from 'unionfs';
+import util from 'util';
+import { v4 as uuid4 } from 'uuid';
+import webpack from 'webpack';
 import { DefaultLogger, Logger } from '../logger';
-import { resolveNodeModulesPaths } from '../worker-options';
 
 /**
  * Builds a V8 Isolate by bundling provided Workflows using webpack.
- * Activities are replaced with stubs.
  *
- * @param nodeModulesPath node_modules path with required Workflow dependencies
  * @param workflowsPath all Workflows found in path will be put in the bundle
  * @param workflowInterceptorModules list of interceptor modules to register on Workflow creation
  */
 export class WorkflowCodeBundler {
   constructor(
     public readonly logger: Logger,
-    public readonly nodeModulesPaths: string[],
     public readonly workflowsPath: string,
-    public readonly workflowInterceptorModules: string[] = []
+    public readonly workflowInterceptorModules: string[] = [],
+    protected readonly payloadConverterPath?: string
   ) {}
 
   /**
@@ -56,11 +54,24 @@ export class WorkflowCodeBundler {
     // Cast because the type definitions are inaccurate
     ufs.use(memfs.createFsFromVolume(vol) as any).use({ ...realFS, readdir: readdir as any });
     const distDir = '/dist';
-    const entrypointPath = '/src/main.js';
+    const entrypointPath = this.makeEntrypointPath(ufs, this.workflowsPath);
 
     this.genEntrypoint(vol, entrypointPath);
     await this.bundle(ufs, entrypointPath, distDir);
     return ufs.readFileSync(path.join(distDir, 'main.js'), 'utf8');
+  }
+
+  protected makeEntrypointPath(fs: typeof unionfs.ufs, workflowsPath: string): string {
+    const stat = fs.statSync(workflowsPath);
+    if (stat.isFile()) {
+      // workflowsPath is a file; make the entrypoint a sibling of that file
+      const { root, dir, name } = path.parse(workflowsPath);
+      return path.format({ root, dir, base: `${name}-entrypoint-${uuid4()}.js` });
+    } else {
+      // workflowsPath is a directory; make the entrypoint a sibling of that directory
+      const { root, dir, base } = path.parse(workflowsPath);
+      return path.format({ root, dir, base: `${base}-entrypoint-${uuid4()}.js` });
+    }
   }
 
   /**
@@ -75,10 +86,10 @@ export class WorkflowCodeBundler {
 
     const code = dedent`
       import * as api from '@temporalio/workflow/lib/worker-interface.js';
-
+      
       // Bundle all Workflows and interceptor modules for lazy evaluation
       api.overrideGlobals();
-      api.setImportFuncs({ 
+      api.setImportFuncs({
         importWorkflows: () => {
           return import(/* webpackMode: "eager" */ ${JSON.stringify(this.workflowsPath)});
         },
@@ -105,14 +116,22 @@ export class WorkflowCodeBundler {
   protected async bundle(filesystem: typeof unionfs.ufs, entry: string, distDir: string): Promise<void> {
     const compiler = webpack({
       resolve: {
-        modules: this.nodeModulesPaths,
+        // https://webpack.js.org/configuration/resolve/#resolvemodules
+        modules: [path.resolve(__dirname, 'module-overrides'), 'node_modules'],
         extensions: ['.ts', '.js'],
+        // If we don't set an alias for this below, then it won't be imported, so webpack can safely ignore it
+        fallback: { __temporal_custom_payload_converter: false },
+        ...(this.payloadConverterPath && {
+          alias: {
+            __temporal_custom_payload_converter$: this.payloadConverterPath,
+          },
+        }),
       },
       module: {
         rules: [
           {
             test: /\.ts$/,
-            loader: 'ts-loader',
+            loader: require.resolve('ts-loader'),
             exclude: /node_modules/,
           },
         ],
@@ -137,7 +156,9 @@ export class WorkflowCodeBundler {
         compiler.run((err, stats) => {
           if (stats !== undefined) {
             const hasError = stats.hasErrors();
-            const lines = stats.toString({ chunks: false, colors: true }).split('\n');
+            // To debug webpack build:
+            // const lines = stats.toString({ preset: 'verbose' }).split('\n');
+            const lines = stats.toString({ chunks: false, colors: true, errorDetails: true }).split('\n');
             for (const line of lines) {
               this.logger[hasError ? 'error' : 'info'](line);
             }
@@ -171,11 +192,6 @@ export interface BundleOptions {
    */
   workflowsPath: string;
   /**
-   * Path for webpack to look up modules in for bundling the Workflow code.
-   * Automatically discovered if undefined.
-   */
-  nodeModulesPaths?: string[];
-  /**
    * List of modules to import Workflow interceptors from
    * - Modules should export an `interceptors` variable of type {@link WorkflowInterceptorsFactory}
    * - The same list must be provided to {@link Worker.create} to actually use the interceptors
@@ -185,18 +201,22 @@ export interface BundleOptions {
    * Optional logger for logging Webpack output
    */
   logger?: Logger;
+  /**
+   * Path to a module with a `payloadConverter` named export.
+   * `payloadConverter` should be an instance of a class that extends {@link DataConverter}.
+   */
+  payloadConverterPath?: string;
 }
 
 export async function bundleWorkflowCode(options: BundleOptions): Promise<{ code: string }> {
-  let { logger, nodeModulesPaths } = options;
+  let { logger } = options;
 
-  nodeModulesPaths ??= resolveNodeModulesPaths(realFS, options.workflowsPath);
   logger ??= new DefaultLogger('INFO');
   const bundler = new WorkflowCodeBundler(
     logger,
-    nodeModulesPaths,
     options.workflowsPath,
-    options.workflowInterceptorModules
+    options.workflowInterceptorModules,
+    options.payloadConverterPath
   );
   return { code: await bundler.createBundle() };
 }

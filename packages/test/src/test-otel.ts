@@ -1,12 +1,10 @@
+/* eslint-disable @typescript-eslint/no-non-null-assertion */
 /**
  * Manual tests to inspect tracing output
  */
-import test from 'ava';
-import { v4 as uuid4 } from 'uuid';
-import { Core, DefaultLogger, InjectedSinks, Worker } from '@temporalio/worker';
+import { SpanStatusCode } from '@opentelemetry/api';
 import { ExportResultCode } from '@opentelemetry/core';
-import { CollectorTraceExporter } from '@opentelemetry/exporter-collector-grpc';
-
+import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-grpc';
 import * as opentelemetry from '@opentelemetry/sdk-node';
 import { SemanticResourceAttributes } from '@opentelemetry/semantic-conventions';
 import { WorkflowClient } from '@temporalio/client';
@@ -16,10 +14,12 @@ import {
   OpenTelemetryActivityInboundInterceptor,
 } from '@temporalio/interceptors-opentelemetry/lib/worker';
 import { OpenTelemetrySinks, SpanName, SPAN_DELIMITER } from '@temporalio/interceptors-opentelemetry/lib/workflow';
-
+import { Core, DefaultLogger, InjectedSinks, Worker } from '@temporalio/worker';
+import test from 'ava';
+import { v4 as uuid4 } from 'uuid';
 import * as activities from './activities';
-import * as workflows from './workflows';
 import { RUN_INTEGRATION_TESTS } from './helpers';
+import * as workflows from './workflows';
 
 if (RUN_INTEGRATION_TESTS) {
   test.serial('Otel interceptor spans are connected and complete', async (t) => {
@@ -80,12 +80,14 @@ if (RUN_INTEGRATION_TESTS) {
         parentSpanId === originalSpan?.spanContext().spanId
     );
     t.true(firstExecuteSpan !== undefined);
+    t.true(firstExecuteSpan!.status.code === SpanStatusCode.OK);
     const continueAsNewSpan = spans.find(
       ({ name, parentSpanId }) =>
         name === `${SpanName.CONTINUE_AS_NEW}${SPAN_DELIMITER}smorgasbord` &&
         parentSpanId === firstExecuteSpan?.spanContext().spanId
     );
     t.true(continueAsNewSpan !== undefined);
+    t.true(continueAsNewSpan!.status.code === SpanStatusCode.OK);
     const parentExecuteSpan = spans.find(
       ({ name, parentSpanId }) =>
         name === `${SpanName.WORKFLOW_EXECUTE}${SPAN_DELIMITER}smorgasbord` &&
@@ -134,7 +136,7 @@ if (RUN_INTEGRATION_TESTS) {
   // Un-skip this test and run it by hand to inspect outputted traces
   test.serial.skip('Otel spans connected', async (t) => {
     const oTelUrl = 'grpc://localhost:4317';
-    const exporter = new CollectorTraceExporter({ url: oTelUrl });
+    const exporter = new OTLPTraceExporter({ url: oTelUrl });
     const staticResource = new opentelemetry.resources.Resource({
       [SemanticResourceAttributes.SERVICE_NAME]: 'ts-test-otel-worker',
     });

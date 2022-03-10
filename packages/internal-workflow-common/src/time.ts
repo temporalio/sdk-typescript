@@ -1,6 +1,6 @@
+import type * as iface from '@temporalio/proto/lib/coresdk';
 import Long from 'long';
 import ms from 'ms';
-import type * as iface from '@temporalio/proto/lib/coresdk';
 import { ValueError } from './errors';
 
 // NOTE: these are the same interface in JS

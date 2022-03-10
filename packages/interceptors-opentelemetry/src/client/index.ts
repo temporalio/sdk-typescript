@@ -1,18 +1,11 @@
 import * as otel from '@opentelemetry/api';
-import {
-  DataConverter,
-  defaultDataConverter,
-  Next,
-  WorkflowClientCallsInterceptor,
-  WorkflowStartInput,
-} from '@temporalio/client';
-import { SpanName, SPAN_DELIMITER } from '../workflow';
+import { Next, WorkflowClientCallsInterceptor, WorkflowStartInput } from '@temporalio/client';
+import { headersWithContext, RUN_ID_ATTR_KEY } from '@temporalio/internal-non-workflow-common/lib/otel';
 import { instrument } from '../instrumentation';
-import { headersWithContext, RUN_ID_ATTR_KEY } from '@temporalio/common/lib/otel';
+import { SpanName, SPAN_DELIMITER } from '../workflow';
 
 export interface InterceptorOptions {
   readonly tracer?: otel.Tracer;
-  readonly dataConverter?: DataConverter;
 }
 
 /**
@@ -22,23 +15,21 @@ export interface InterceptorOptions {
  */
 export class OpenTelemetryWorkflowClientCallsInterceptor implements WorkflowClientCallsInterceptor {
   protected readonly tracer: otel.Tracer;
-  protected readonly dataConverter: DataConverter;
 
   constructor(options?: InterceptorOptions) {
-    this.dataConverter = options?.dataConverter ?? defaultDataConverter;
     this.tracer = options?.tracer ?? otel.trace.getTracer('@temporalio/interceptor-client');
   }
 
   async start(input: WorkflowStartInput, next: Next<WorkflowClientCallsInterceptor, 'start'>): Promise<string> {
-    return await instrument(
-      this.tracer,
-      `${SpanName.WORKFLOW_START}${SPAN_DELIMITER}${input.workflowType}`,
-      async (span) => {
+    return await instrument({
+      tracer: this.tracer,
+      spanName: `${SpanName.WORKFLOW_START}${SPAN_DELIMITER}${input.workflowType}`,
+      fn: async (span) => {
         const headers = await headersWithContext(input.headers);
         const runId = await next({ ...input, headers });
         span.setAttribute(RUN_ID_ATTR_KEY, runId);
         return runId;
-      }
-    );
+      },
+    });
   }
 }

@@ -1,5 +1,6 @@
 import test from 'ava';
-import { compileRetryPolicy, msToTs, ValueError } from '@temporalio/common';
+import { ValueError } from '@temporalio/common';
+import { compileRetryPolicy, msToTs } from '@temporalio/internal-workflow-common';
 
 test('compileRetryPolicy validates intervals are not 0', (t) => {
   t.throws(() => compileRetryPolicy({ initialInterval: 0 }), {

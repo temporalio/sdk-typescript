@@ -40,7 +40,6 @@ function getPrebuiltPath() {
   }
   const binary = path.resolve(__dirname, 'releases', `${arch}-${platform}`, 'index.node');
   if (fs.existsSync(binary)) {
-    console.log('Found prebuilt bridge module', { binary });
     return binary;
   } else {
     throw new PrebuildError(`No prebuilt module found at ${binary}`);

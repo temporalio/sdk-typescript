@@ -7,3 +7,5 @@ build/
 commonjs/
 es2020/
 lerna*.log
+packages/test/protos/json-module.js
+packages/test/protos/root.d.ts

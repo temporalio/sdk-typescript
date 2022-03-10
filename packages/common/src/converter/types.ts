@@ -1,5 +1,5 @@
 import type * as iface from '@temporalio/proto/lib/coresdk';
-import { TextEncoder, TextDecoder } from '../encoding';
+import { TextEncoder, TextDecoder } from './encoding';
 
 export type Payload = iface.coresdk.common.IPayload;
 
@@ -22,6 +22,7 @@ export const encodingTypes = {
   METADATA_ENCODING_PROTOBUF_JSON: 'json/protobuf',
   METADATA_ENCODING_PROTOBUF: 'binary/protobuf',
 } as const;
+export type EncodingType = typeof encodingTypes[keyof typeof encodingTypes];
 
 export const encodingKeys = {
   METADATA_ENCODING_NULL: u8(encodingTypes.METADATA_ENCODING_NULL),
@@ -30,3 +31,5 @@ export const encodingKeys = {
   METADATA_ENCODING_PROTOBUF_JSON: u8(encodingTypes.METADATA_ENCODING_PROTOBUF_JSON),
   METADATA_ENCODING_PROTOBUF: u8(encodingTypes.METADATA_ENCODING_PROTOBUF),
 } as const;
+
+export const METADATA_MESSAGE_TYPE_KEY = 'messageType';

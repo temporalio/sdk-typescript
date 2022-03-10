@@ -1,6 +1,6 @@
 import type { coresdk } from '@temporalio/proto/lib/coresdk';
-import { CommonWorkflowOptions } from '@temporalio/common';
-import { checkExtends } from '@temporalio/common/lib/type-helpers';
+import { CommonWorkflowOptions } from '@temporalio/internal-workflow-common';
+import { checkExtends } from '@temporalio/internal-workflow-common';
 
 /**
  * Workflow execution information
@@ -41,10 +41,10 @@ export interface WorkflowInfo {
  * Not an actual error, used by the Workflow runtime to abort execution when {@link continueAsNew} is called
  */
 export class ContinueAsNew extends Error {
-  public readonly type = 'ContinueAsNew';
+  public readonly name = 'ContinueAsNew';
 
   constructor(public readonly command: coresdk.workflow_commands.IContinueAsNewWorkflowExecution) {
-    super();
+    super('Workflow continued as new');
   }
 }
 

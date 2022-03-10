@@ -1,9 +1,9 @@
-import { isMainThread, parentPort as parentPortOrNull } from 'worker_threads';
 import { IllegalStateError } from '@temporalio/common';
+import { coresdk } from '@temporalio/proto';
+import { isMainThread, parentPort as parentPortOrNull } from 'worker_threads';
 import { setUnhandledRejectionHandler, VMWorkflow, VMWorkflowCreator } from './vm';
 import { WorkerThreadRequest } from './workflow-worker-thread/input';
 import { WorkerThreadResponse } from './workflow-worker-thread/output';
-import { coresdk } from '@temporalio/proto';
 
 if (isMainThread) {
   throw new IllegalStateError(`Imported ${__filename} from main thread`);
@@ -55,7 +55,7 @@ async function handleRequest({ requestId, input }: WorkerThreadRequest): Promise
         result: { type: 'ok', output: { type: 'activation-completion', completion } },
       };
     }
-    case 'exteract-sink-calls': {
+    case 'extract-sink-calls': {
       const workflow = VMWorkflowCreator.workflowByRunId.get(input.runId);
       if (workflow === undefined) {
         throw new IllegalStateError(`Tried to activate non running workflow with runId: ${input.runId}`);

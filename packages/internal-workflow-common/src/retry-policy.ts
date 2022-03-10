@@ -1,5 +1,5 @@
 import type { temporal } from '@temporalio/proto';
-import { ValueError } from '.';
+import { ValueError } from './errors';
 import { msOptionalToNumber, msOptionalToTs, msToNumber, msToTs } from './time';
 
 /**

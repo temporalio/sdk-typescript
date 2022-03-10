@@ -1,12 +1,12 @@
-import os from 'os';
 import { Status } from '@grpc/grpc-js/build/src/constants';
+import { DataConverter, ensureTemporalFailure, LoadedDataConverter } from '@temporalio/common';
 import {
-  DataConverter,
-  defaultDataConverter,
-  ensureTemporalFailure,
-  errorToFailure,
+  encodeErrorToFailure,
+  encodeToPayloads,
   filterNullAndUndefined,
-} from '@temporalio/common';
+  loadDataConverter,
+} from '@temporalio/internal-non-workflow-common';
+import os from 'os';
 import { Connection, WorkflowService } from './connection';
 import { isServerErrorResponse } from './errors';
 
@@ -62,7 +62,7 @@ export type AsyncCompletionClientOptionsWithDefaults = Required<AsyncCompletionC
 
 export function defaultAsyncCompletionClientOptions(): AsyncCompletionClientOptionsWithDefaults {
   return {
-    dataConverter: defaultDataConverter,
+    dataConverter: {},
     identity: `${process.pid}@${os.hostname()}`,
     namespace: 'default',
   };
@@ -86,11 +86,13 @@ export interface FullActivityId {
  */
 export class AsyncCompletionClient {
   public readonly options: AsyncCompletionClientOptionsWithDefaults;
+  protected readonly dataConverter: LoadedDataConverter;
 
   constructor(
     public readonly service: WorkflowService = new Connection().service,
     options?: AsyncCompletionClientOptions
   ) {
+    this.dataConverter = loadDataConverter(options?.dataConverter);
     this.options = { ...defaultAsyncCompletionClientOptions(), ...filterNullAndUndefined(options ?? {}) };
   }
 
@@ -104,7 +106,7 @@ export class AsyncCompletionClient {
       }
       throw new ActivityCompletionError(err.details || err.message);
     }
-    throw new ActivityCompletionError('Unexpeced failure');
+    throw new ActivityCompletionError('Unexpected failure');
   }
 
   /**
@@ -123,14 +125,14 @@ export class AsyncCompletionClient {
           identity: this.options.identity,
           namespace: this.options.namespace,
           taskToken: taskTokenOrFullActivityId,
-          result: { payloads: await this.options.dataConverter.toPayloads(result) },
+          result: { payloads: await encodeToPayloads(this.dataConverter, result) },
         });
       } else {
         await this.service.respondActivityTaskCompletedById({
           identity: this.options.identity,
           namespace: this.options.namespace,
           ...taskTokenOrFullActivityId,
-          result: { payloads: await this.options.dataConverter.toPayloads(result) },
+          result: { payloads: await encodeToPayloads(this.dataConverter, result) },
         });
       }
     } catch (err) {
@@ -154,14 +156,14 @@ export class AsyncCompletionClient {
           identity: this.options.identity,
           namespace: this.options.namespace,
           taskToken: taskTokenOrFullActivityId,
-          failure: await errorToFailure(ensureTemporalFailure(err), this.options.dataConverter),
+          failure: await encodeErrorToFailure(this.dataConverter, ensureTemporalFailure(err)),
         });
       } else {
         await this.service.respondActivityTaskFailedById({
           identity: this.options.identity,
           namespace: this.options.namespace,
           ...taskTokenOrFullActivityId,
-          failure: await errorToFailure(err, this.options.dataConverter),
+          failure: await encodeErrorToFailure(this.dataConverter, err),
         });
       }
     } catch (err) {
@@ -185,14 +187,14 @@ export class AsyncCompletionClient {
           identity: this.options.identity,
           namespace: this.options.namespace,
           taskToken: taskTokenOrFullActivityId,
-          details: { payloads: await this.options.dataConverter.toPayloads(details) },
+          details: { payloads: await encodeToPayloads(this.dataConverter, details) },
         });
       } else {
         await this.service.respondActivityTaskCanceledById({
           identity: this.options.identity,
           namespace: this.options.namespace,
           ...taskTokenOrFullActivityId,
-          details: { payloads: await this.options.dataConverter.toPayloads(details) },
+          details: { payloads: await encodeToPayloads(this.dataConverter, details) },
         });
       }
     } catch (err) {
@@ -216,7 +218,7 @@ export class AsyncCompletionClient {
           identity: this.options.identity,
           namespace: this.options.namespace,
           taskToken: taskTokenOrFullActivityId,
-          details: { payloads: await this.options.dataConverter.toPayloads(details) },
+          details: { payloads: await encodeToPayloads(this.dataConverter, details) },
         });
         if (cancelRequested) {
           throw new ActivityCancelledError('cancelled');
@@ -226,7 +228,7 @@ export class AsyncCompletionClient {
           identity: this.options.identity,
           namespace: this.options.namespace,
           ...taskTokenOrFullActivityId,
-          details: { payloads: await this.options.dataConverter.toPayloads(details) },
+          details: { payloads: await encodeToPayloads(this.dataConverter, details) },
         });
         if (cancelRequested) {
           throw new ActivityCancelledError('cancelled');

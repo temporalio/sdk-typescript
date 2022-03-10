@@ -1,9 +1,8 @@
 import type { coresdk, google } from '@temporalio/proto/lib/coresdk';
 import { Workflow } from './interfaces';
-import { falsyMsToTs } from './time';
-import { Replace } from './type-helpers';
 import { RetryPolicy } from './retry-policy';
-import { checkExtends } from './type-helpers';
+import { falsyMsToTs } from './time';
+import { checkExtends, Replace } from './type-helpers';
 
 // Avoid importing the proto implementation to reduce workflow bundle size
 // Copied from coresdk.common.WorkflowIdReusePolicy
@@ -29,10 +28,10 @@ export interface BaseWorkflowOptions {
   workflowIdReusePolicy?: WorkflowIdReusePolicy;
 
   /**
-   * Controls how a Workflow is retried.
+   * Controls how a Workflow Execution is retried.
    *
-   * Workflows should typically use the system default, do not set this unless
-   * you know what you're doing.
+   * By default, Workflow Executions are not retried. Do not override this behavior unless you know what you're doing.
+   * [More information](https://docs.temporal.io/docs/concepts/what-is-a-retry-policy/).
    */
   retry?: RetryPolicy;
 
@@ -55,7 +54,9 @@ export interface BaseWorkflowOptions {
 
   /**
    * Specifies additional indexed information in result of list workflow. The type of value should
-   * be a primitive (e.g. string, number, boolean), for dates use Date.toISOString();
+   * be a primitive (e.g. string, number, boolean). For dates, use Date.toISOString()
+   *
+   * Values are always converted using {@link defaultPayloadConverter}, even when a custom data converter is provided.
    */
   searchAttributes?: Record<string, string | number | boolean>;
 }

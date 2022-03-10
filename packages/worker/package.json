@@ -1,6 +1,6 @@
 {
   "name": "@temporalio/worker",
-  "version": "0.18.0",
+  "version": "0.19.0-rc.1",
   "description": "Temporal.io SDK Worker sub-package",
   "main": "lib/index.js",
   "types": "./lib/index.d.ts",
@@ -17,6 +17,8 @@
     "@temporalio/activity": "file:../activity",
     "@temporalio/common": "file:../common",
     "@temporalio/core-bridge": "file:../core-bridge",
+    "@temporalio/internal-non-workflow-common": "file:../internal-non-workflow-common",
+    "@temporalio/internal-workflow-common": "file:../internal-workflow-common",
     "@temporalio/proto": "file:../proto",
     "@temporalio/workflow": "file:../workflow",
     "abort-controller": "^3.0.0",

@@ -1,13 +1,13 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
-import anyTest, { TestInterface, ExecutionContext } from 'ava';
-import { v4 as uuid4 } from 'uuid';
-import dedent from 'dedent';
+import { defaultPayloadConverter, toPayloads } from '@temporalio/common';
 import { coresdk } from '@temporalio/proto';
-import { defaultDataConverter } from '@temporalio/common';
+import anyTest, { ExecutionContext, TestInterface } from 'ava';
+import dedent from 'dedent';
+import { v4 as uuid4 } from 'uuid';
 import { httpGet } from './activities';
-import { Worker, isolateFreeWorker, defaultOptions } from './mock-native-worker';
-import { withZeroesHTTPServer } from './zeroes-http-server';
 import { cleanStackTrace } from './helpers';
+import { defaultOptions, isolateFreeWorker, Worker } from './mock-native-worker';
+import { withZeroesHTTPServer } from './zeroes-http-server';
 
 export interface Context {
   worker: Worker;
@@ -24,7 +24,7 @@ export async function runWorker(t: ExecutionContext<Context>, fn: () => Promise<
 }
 
 test.beforeEach(async (t) => {
-  const worker = isolateFreeWorker(defaultOptions);
+  const worker = await isolateFreeWorker(defaultOptions);
 
   t.context = {
     worker,
@@ -55,11 +55,11 @@ test('Worker runs an activity and reports completion', async (t) => {
       taskToken,
       start: {
         activityType: 'httpGet',
-        input: await defaultDataConverter.toPayloads(url),
+        input: toPayloads(defaultPayloadConverter, url),
       },
     });
     compareCompletion(t, completion.result, {
-      completed: { result: await defaultDataConverter.toPayload(await httpGet(url)) },
+      completed: { result: defaultPayloadConverter.toPayload(await httpGet(url)) },
     });
   });
 });
@@ -73,7 +73,7 @@ test('Worker runs an activity and reports failure', async (t) => {
       taskToken,
       start: {
         activityType: 'throwAnError',
-        input: await defaultDataConverter.toPayloads(false, message),
+        input: toPayloads(defaultPayloadConverter, false, message),
       },
     });
     compareCompletion(t, completion.result, {
@@ -101,7 +101,7 @@ test('Worker cancels activity and reports cancellation', async (t) => {
         taskToken,
         start: {
           activityType: 'waitForCancellation',
-          input: await defaultDataConverter.toPayloads(),
+          input: toPayloads(defaultPayloadConverter),
         },
       },
     });
@@ -125,7 +125,7 @@ test('Activity Context AbortSignal cancels a fetch request', async (t) => {
           taskToken,
           start: {
             activityType: 'cancellableFetch',
-            input: await defaultDataConverter.toPayloads(`http://127.0.0.1:${port}`, false),
+            input: toPayloads(defaultPayloadConverter, `http://127.0.0.1:${port}`, false),
           },
         },
       });
@@ -148,7 +148,7 @@ test('Activity Context heartbeat is sent to core', async (t) => {
       taskToken,
       start: {
         activityType: 'progressiveSleep',
-        input: await defaultDataConverter.toPayloads(),
+        input: toPayloads(defaultPayloadConverter),
       },
     });
     console.log('waiting heartbeat 1');
@@ -158,7 +158,7 @@ test('Activity Context heartbeat is sent to core', async (t) => {
     t.is(await worker.native.untilHeartbeat(taskToken), 3);
     console.log('waiting completion');
     compareCompletion(t, (await completionPromise).result, {
-      completed: { result: await defaultDataConverter.toPayload(undefined) },
+      completed: { result: defaultPayloadConverter.toPayload(undefined) },
     });
   });
 });
@@ -171,7 +171,7 @@ test('Worker fails activity with proper message when it is not registered', asyn
       taskToken,
       start: {
         activityType: 'notFound',
-        input: await defaultDataConverter.toPayloads(),
+        input: toPayloads(defaultPayloadConverter),
       },
     });
     t.regex(

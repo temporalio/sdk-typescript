@@ -1,13 +1,13 @@
+import { WorkflowClient, WorkflowFailedError } from '@temporalio/client';
+import { ApplicationFailure, CancelledFailure } from '@temporalio/common';
+import { Worker } from '@temporalio/worker';
 import anyTest, { Constructor, Macro, TestInterface } from 'ava';
 import { v4 as uuid4 } from 'uuid';
-import { WorkflowClient, WorkflowFailedError } from '@temporalio/client';
-import { Worker } from '@temporalio/worker';
-import { ApplicationFailure, CancelledFailure } from '@temporalio/common';
-import { RUN_INTEGRATION_TESTS } from './helpers';
 import * as activities from './activities';
+import { RUN_INTEGRATION_TESTS } from './helpers';
 import {
-  workflowCancellationScenarios,
   WorkflowCancellationScenarioOutcome,
+  workflowCancellationScenarios,
   WorkflowCancellationScenarioTiming,
 } from './workflows';
 

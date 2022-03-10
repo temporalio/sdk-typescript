@@ -4,6 +4,92 @@ All notable changes to this project will be documented in this file.
 
 Breaking changes marked with a :boom:
 
+## [0.19.0-rc.1] - 2022-03-02
+
+### Features
+
+- :boom: Custom and protobuf data converters ([#477](https://github.com/temporalio/sdk-typescript/pull/477))
+
+  BREAKING CHANGE: [`DataConverter`](https://typescript.temporal.io/api/interfaces/worker.DataConverter) interface has changed, and some things that were exported from `common` no longer are. If it's no longer exported (see [list of exports](https://typescript.temporal.io/api/namespaces/common)), try importing from `@temporalio/activity|client|worker|workflow`. If you're unable to find it, open an issue for us to fix it, and in the meantime import from [`internal-workflow-common`](https://github.com/temporalio/sdk-typescript/tree/main/packages/internal-workflow-common) or [`internal-non-workflow-common`](https://github.com/temporalio/sdk-typescript/tree/main/packages/internal-non-workflow-common).
+
+  - Adds custom data converter feature and changes the DataConverter API. Design doc: https://github.com/temporalio/sdk-typescript/tree/main/docs/data-converter.md#decision
+
+    ```ts
+    interface DataConverter {
+      payloadConverterPath?: string;
+      payloadCodec?: PayloadCodec;
+    }
+
+    interface PayloadConverter {
+      toPayload<T>(value: T): Payload | undefined;
+      fromPayload<T>(payload: Payload): T;
+    }
+
+    interface PayloadCodec {
+      encode(payloads: Payload[]): Promise<Payload[]>;
+      decode(payloads: Payload[]): Promise<Payload[]>;
+    }
+    ```
+
+    Note: Codec is not yet run on Payloads in interceptor headers.
+
+  - Separated `common` package into:
+    ```
+    common
+    internal-workflow-common
+    internal-non-workflow-common
+    ```
+    The new `common` only exports things you might want to use in your own common code (shared between client/worker/workflow) like data converters, failures, and errors. The default exports of `common` and `internal-workflow-common` are included in the Workflow bundle.
+  - Unreverts [#430](https://github.com/temporalio/sdk-typescript/pull/430) and modified the Protobuf data converter API: https://github.com/temporalio/sdk-typescript/tree/main/docs/protobuf-libraries.md#current-solution
+  - Make `assert` available to Workflows.
+  - Closes [#130](https://github.com/temporalio/sdk-typescript/issues/130)
+  - Closes [#237](https://github.com/temporalio/sdk-typescript/issues/237)
+  - Closes [#434](https://github.com/temporalio/sdk-typescript/issues/434)
+
+### Bug Fixes
+
+- Re-export possibly-shared-use things in common (#509)
+
+### Miscellaneous Tasks
+
+- Fix linting on test-otel ([#504](https://github.com/temporalio/sdk-typescript/pull/504))
+
+### Documentation
+
+- Add info to publishing notes ([#503](https://github.com/temporalio/sdk-typescript/pull/503))
+- Link to source proto; improve Publishing ([#507](https://github.com/temporalio/sdk-typescript/pull/507))
+
+## [0.19.0-rc.0] - 2022-02-25
+
+### Bug Fixes
+
+- :boom: [`workflow-bundler`] Enable resolution of modules in Webpack based on Node's regular algorithm ([#498](https://github.com/temporalio/sdk-typescript/pull/498), thank you [@mjameswh](https://github.com/mjameswh) 🙏)
+
+  BREAKING CHANGE: [`Worker.create`](https://typescript.temporal.io/api/classes/worker.Worker#create) no longer takes `nodeModulesPaths`. Instead, it resolves modules like Node does, relative to [`workflowsPath`](https://typescript.temporal.io/api/interfaces/worker.WorkerOptions#workflowspath).
+
+  This fixes [#489](https://github.com/temporalio/sdk-typescript/issues/489) and may fix issues with monorepos.
+
+- [`workflow`] Fix ContinueAsNew error message and name ([#487](https://github.com/temporalio/sdk-typescript/pull/487))
+
+  - Treat ContinueAsNew as success in otel interceptor span status
+
+- [`workflow-bundler`] Improve resolving of webpack's `ts-loader` ([#492](https://github.com/temporalio/sdk-typescript/pull/492), thank you [@jameslnewell](https://github.com/jameslnewell) 🙏)
+  - Addresses issues where it's not found in complex workspaces like a yarn workspaces monorepo
+- Remove `console.log` emitted from core bridge ([#500](https://github.com/temporalio/sdk-typescript/pull/500))
+
+### Documentation
+
+- Link to `building.md` from `# Publishing` section ([#479](https://github.com/temporalio/sdk-typescript/pull/479))
+- Specify default Workflow Execution retry behavior ([#495](https://github.com/temporalio/sdk-typescript/pull/495))
+- Add breaking change notice to `CHANGELOG` for `v0.18.0` ([#494](https://github.com/temporalio/sdk-typescript/pull/494))
+  - Closes [#493](https://github.com/temporalio/sdk-typescript/pull/493)
+- Remove inaccurate `startChild` typedoc notes ([#448](https://github.com/temporalio/sdk-typescript/pull/448))
+
+### Testing
+
+- Add integration with sdk-features repo ([#453](https://github.com/temporalio/sdk-typescript/pull/453))
+- Pass repo into sdk-features workflow ([#486](https://github.com/temporalio/sdk-typescript/pull/486))
+
 ## [0.18.0] - 2022-02-10
 
 ### Bug Fixes
@@ -24,18 +110,46 @@ Breaking changes marked with a :boom:
 
 ### Features
 
-- Replay history from files ([#449](https://github.com/temporalio/sdk-typescript/pull/449))
-  - Provides a way to exercise existing histories against local workflow code. See [video tutorial](https://www.youtube.com/watch?v=fN5bIL7wc5M) and [sample code](https://github.com/temporalio/samples-typescript/pull/99).
-- [`core`] Make Core portable ([#458](https://github.com/temporalio/sdk-typescript/pull/458))
-  - Installing the SDK on one OS / architecture now works if used on different OS / arch.
-- Accept IHistory for history replay ([#460](https://github.com/temporalio/sdk-typescript/pull/460))
-- [`client`] Use `runId` only in handles created with `getHandle` ([#468](https://github.com/temporalio/sdk-typescript/pull/468))
+- :boom: [`client`] Use `runId` only in handles created with `getHandle` ([#468](https://github.com/temporalio/sdk-typescript/pull/468))
+
   - In addition:
     - Adds safety to `terminate` and `cancel` so handles created with `start` can't accidentally affect workflows that are not part of the same execution chain
     - Adds optional `firstExecutionRunId` param to `getHandle` for added safety
   - Closes [#464](https://github.com/temporalio/sdk-typescript/pull/464)
   - Closes [#377](https://github.com/temporalio/sdk-typescript/pull/377)
   - Closes [#365](https://github.com/temporalio/sdk-typescript/pull/365)
+
+  BREAKING CHANGE: Some gRPC errors are no longer being thrown from `WorkflowClient`. These errors are thrown in their place: [`WorkflowExecutionAlreadyStartedError`](https://typescript.temporal.io/api/classes/common.workflowexecutionalreadystartederror/) and [`WorkflowNotFoundError`](https://typescript.temporal.io/api/classes/common.workflownotfounderror/). This means that, for example, code like this:
+
+  ```ts
+  try {
+    await client.start(example, { workflowId: '123' });
+  } catch (e: any) {
+    if (e.code === ALREADY_EXISTS) {
+      console.log('Already started workflow 123');
+    }
+  }
+  ```
+
+  Needs to be changed to:
+
+  ```ts
+  import { WorkflowExecutionAlreadyStartedError } from '@temporalio/common';
+
+  try {
+    await client.start(example, { workflowId: '123' });
+  } catch (e: any) {
+    if (e instanceof WorkflowExecutionAlreadyStartedError) {
+      console.log('Already started workflow 123');
+    }
+  }
+  ```
+
+- Replay history from files ([#449](https://github.com/temporalio/sdk-typescript/pull/449))
+  - Provides a way to exercise existing histories against local workflow code. See [video tutorial](https://www.youtube.com/watch?v=fN5bIL7wc5M) and [sample code](https://github.com/temporalio/samples-typescript/pull/99).
+- [`core`] Make Core portable ([#458](https://github.com/temporalio/sdk-typescript/pull/458))
+  - Installing the SDK on one OS / architecture now works if used on different OS / arch.
+- Accept IHistory for history replay ([#460](https://github.com/temporalio/sdk-typescript/pull/460))
 
 ### Miscellaneous Tasks
 

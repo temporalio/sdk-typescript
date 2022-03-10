@@ -4,7 +4,7 @@
  * @module
  */
 
-import { Next, Headers } from '@temporalio/common';
+import { Next, Headers } from '@temporalio/internal-workflow-common';
 import { temporal } from '@temporalio/proto';
 import { CompiledWorkflowOptions } from './workflow-options';
 import {
