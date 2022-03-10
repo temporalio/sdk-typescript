@@ -546,7 +546,7 @@ export class Worker {
                               message: `Activity function ${activityType} is not registered on this Worker, available activities: ${JSON.stringify(
                                 Object.keys(this.options.activities ?? {})
                               )}`,
-                              applicationFailureInfo: { type: 'NotFoundError', nonRetryable: true },
+                              applicationFailureInfo: { type: 'NotFoundError', nonRetryable: false },
                             },
                           },
                         },
@@ -568,7 +568,7 @@ export class Worker {
                               )}`,
                               applicationFailureInfo: {
                                 type: err instanceof Error ? err.name : undefined,
-                                nonRetryable: true,
+                                nonRetryable: false,
                               },
                             },
                           },
