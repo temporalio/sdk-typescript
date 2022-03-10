@@ -31,7 +31,7 @@
     "nan": "^2.15.0",
     "protobufjs": "^6.11.2",
     "rxjs": "^7.3.0",
-    "ts-loader": "^9.2.5",
+    "swc-loader": "^0.1.15",
     "unionfs": "^4.4.0",
     "uuid": "^8.3.2",
     "webpack": "^5.51.1"
