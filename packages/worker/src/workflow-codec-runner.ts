@@ -239,7 +239,6 @@ export class WorkflowCodecRunner {
                           args: await encodeOptional(this.codec, command.signalExternalWorkflowExecution.args),
                         }
                       : undefined,
-                    cancelWorkflowExecution: command.cancelWorkflowExecution ? { encoded: true } : undefined,
                     scheduleLocalActivity: command.scheduleLocalActivity
                       ? {
                           ...command.scheduleLocalActivity,

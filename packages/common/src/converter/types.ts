@@ -14,6 +14,8 @@ export interface DecodedPayload extends Payload {
 /** An object T with any nested values of type ToReplace replaced with ReplaceWith */
 export type ReplaceNested<T, ToReplace, ReplaceWith> = T extends (...args: any[]) => any
   ? T
+  : [keyof T] extends [never]
+  ? T
   : T extends { [k: string]: coresdk.common.IPayload } | null
   ? {
       [P in keyof T]: ReplaceNested<T[P], ToReplace, ReplaceWith>;

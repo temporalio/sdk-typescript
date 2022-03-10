@@ -210,12 +210,6 @@ export async function encodeFailure(_codec: PayloadCodec, failure: ProtoFailure)
             : undefined,
         }
       : undefined,
-    terminatedFailureInfo: failure.terminatedFailureInfo
-      ? {
-          ...failure.terminatedFailureInfo,
-          encoded: true,
-        }
-      : undefined,
     resetWorkflowFailureInfo: failure.resetWorkflowFailureInfo
       ? {
           ...failure.resetWorkflowFailureInfo,
@@ -287,12 +281,6 @@ export async function decodeFailure(_codec: PayloadCodec, failure: ProtoFailure)
                 payloads: await codec.decode(failure.canceledFailureInfo.details.payloads ?? []),
               }
             : undefined,
-        }
-      : undefined,
-    terminatedFailureInfo: failure.terminatedFailureInfo
-      ? {
-          ...failure.terminatedFailureInfo,
-          decoded: true,
         }
       : undefined,
     resetWorkflowFailureInfo: failure.resetWorkflowFailureInfo
