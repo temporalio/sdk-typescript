@@ -1,11 +1,11 @@
-import arg from 'arg';
+import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-grpc';
 import * as opentelemetry from '@opentelemetry/sdk-node';
 import { SemanticResourceAttributes } from '@opentelemetry/semantic-conventions';
-import { Core, Worker, DefaultLogger } from '@temporalio/worker';
-import { CollectorTraceExporter } from '@opentelemetry/exporter-collector-grpc';
-import { WorkerArgSpec, workerArgSpec, getRequired } from './args';
 import { TelemetryOptions } from '@temporalio/core-bridge';
+import { Core, DefaultLogger, Worker } from '@temporalio/worker';
+import arg from 'arg';
 import * as activities from '../activities';
+import { getRequired, WorkerArgSpec, workerArgSpec } from './args';
 
 async function main() {
   const args = arg<WorkerArgSpec>(workerArgSpec);
@@ -24,7 +24,7 @@ async function main() {
   let telemetryOptions: TelemetryOptions | undefined = undefined;
   let otel;
   if (oTelUrl) {
-    exporter = new CollectorTraceExporter({ url: oTelUrl });
+    exporter = new OTLPTraceExporter({ url: oTelUrl });
     telemetryOptions = {
       oTelCollectorUrl: oTelUrl,
       tracingFilter: 'temporal_sdk_core=DEBUG',
