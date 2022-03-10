@@ -7,6 +7,7 @@ import {
   errorMessage,
   IllegalStateError,
   LoadedDataConverter,
+  Payload,
 } from '@temporalio/common';
 import * as native from '@temporalio/core-bridge';
 import {
@@ -186,6 +187,7 @@ interface Heartbeat {
   base64TaskToken: string;
   taskToken: Uint8Array;
   details?: any;
+  onError: (reason: string) => void;
 }
 
 /**
@@ -595,6 +597,9 @@ export class Worker {
                           taskToken,
                           base64TaskToken,
                           details,
+                          onError(reason) {
+                            activity?.cancel(true, reason); // activity must be defined
+                          },
                         }),
                       { inbound: this.options.interceptors?.activityInbound }
                     );
@@ -612,7 +617,10 @@ export class Worker {
                     // NOTE: activity will not be considered cancelled until it confirms cancellation
                     this.log.debug('Cancelling activity', { taskToken: base64TaskToken });
                     span.setAttribute('found', true);
-                    activity.cancel();
+                    if (!task.cancel?.reason) {
+                      throw new TypeError('Got cancel activity cancel task with no reason');
+                    }
+                    activity.cancel(false, coresdk.activity_task.ActivityCancelReason[task.cancel.reason]);
                     break;
                   }
                 }
@@ -976,10 +984,10 @@ export class Worker {
                     return { state: { ...state, completionCallback: input.callback }, output: null };
                   } else {
                     if (state.pending) {
-                      // const { state, out
                       // Flush the final heartbeat and store the completion callback
                       return process({ ...state, completionCallback: input.callback }, state.pending);
                     } else {
+                      // Nothing to flush, complete and call back
                       return complete(input.callback);
                     }
                   }
@@ -994,14 +1002,27 @@ export class Worker {
             }
           }),
           takeWhile((out): out is HeartbeatSendRequest => out.type !== 'close'),
-          mergeMap(async ({ heartbeat: { base64TaskToken, taskToken, details } }) => {
-            const payload = await encodeToPayload(this.options.loadedDataConverter, details);
-            const arr = coresdk.ActivityHeartbeat.encodeDelimited({
-              taskToken,
-              details: [payload],
-            }).finish();
-            this.nativeWorker.recordActivityHeartbeat(byteArrayToBuffer(arr));
-            this.activityHeartbeatSubject.next({ type: 'flush', base64TaskToken });
+          mergeMap(async ({ heartbeat: { base64TaskToken, taskToken, details, onError } }) => {
+            let payload: Payload;
+            try {
+              try {
+                payload = await encodeToPayload(this.options.loadedDataConverter, details);
+              } catch (error: any) {
+                this.log.warn('Failed to encode heartbeat details, cancelling Activity', {
+                  error,
+                  taskToken: base64TaskToken,
+                });
+                onError(error.toString());
+                return;
+              }
+              const arr = coresdk.ActivityHeartbeat.encodeDelimited({
+                taskToken,
+                details: [payload],
+              }).finish();
+              this.nativeWorker.recordActivityHeartbeat(byteArrayToBuffer(arr));
+            } finally {
+              this.activityHeartbeatSubject.next({ type: 'flush', base64TaskToken });
+            }
           }),
           tap({ complete: group$.close })
         )

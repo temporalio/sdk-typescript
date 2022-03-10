@@ -3,12 +3,13 @@ import { Subject, firstValueFrom } from 'rxjs';
 import { v4 as uuid4 } from 'uuid';
 import { Context } from '@temporalio/activity';
 import { isolateFreeWorker, Worker } from './mock-native-worker';
+import { coresdk } from '@temporalio/proto';
 
-async function runActivity(worker: Worker, callback?: () => void) {
+async function runActivity(worker: Worker, callback?: (completion: coresdk.ActivityTaskCompletion) => void) {
   const taskToken = Buffer.from(uuid4());
   const p = worker.run();
-  await worker.native.runActivityTask({ taskToken, start: { activityType: 'rapidHeartbeater' } });
-  callback?.();
+  const completion = await worker.native.runActivityTask({ taskToken, start: { activityType: 'rapidHeartbeater' } });
+  callback?.(completion);
   worker.shutdown();
   await p;
 }
@@ -102,4 +103,42 @@ test('Worker ignores last heartbeat if activity succeeds', async (t) => {
   };
   await runActivity(worker, () => subj.next());
   t.deepEqual(heartbeatsSeen, [1]);
+});
+
+test('Activity gets cancelled if heartbeat fails', async (t) => {
+  const codecErr = new Error('Refuse to encode data for test');
+
+  const worker = isolateFreeWorker({
+    taskQueue: 'unused',
+    dataConverter: {
+      payloadCodec: {
+        async encode(p) {
+          // Fail to encode heartbeat details.
+          // data will be undefined when this method gets the activity result for completion.
+          if (p[0].data !== undefined) {
+            throw codecErr;
+          }
+          return p;
+        },
+        async decode(p) {
+          return p;
+        },
+      },
+    },
+    activities: {
+      async rapidHeartbeater() {
+        Context.current().heartbeat(1);
+        await Context.current().cancelled;
+      },
+    },
+  });
+
+  const heartbeatsSeen = Array<number>();
+  worker.native.activityHeartbeatCallback = (_tt, details) => {
+    heartbeatsSeen.push(details);
+  };
+  await runActivity(worker, (completion) => {
+    t.is(completion.result?.failed?.failure?.message, codecErr.toString());
+  });
+  t.deepEqual(heartbeatsSeen, []);
 });
