@@ -1,4 +1,4 @@
-import { GroupedObservable, OperatorFunction, ObservableInput, pipe, Subject } from 'rxjs';
+import { GroupedObservable, ObservableInput, OperatorFunction, pipe, Subject } from 'rxjs';
 import { groupBy, map, mergeScan, scan } from 'rxjs/operators';
 
 interface StateAndOptionalOutput<T, O> {
@@ -45,7 +45,8 @@ export interface CloseableGroupedObservable<K, T> extends GroupedObservable<K, T
 }
 
 /**
- * An RX OperatorFunction similiar to groupBy, the returned GroupedObservable has a close() method
+ * An RX OperatorFunction similar to `groupBy`.
+ * The returned GroupedObservable has a `close()` method.
  */
 export function closeableGroupBy<K extends string | number | undefined, T>(
   keyFunc: (t: T) => K
