@@ -24,7 +24,7 @@ export async function runWorker(t: ExecutionContext<Context>, fn: () => Promise<
 }
 
 test.beforeEach(async (t) => {
-  const worker = await isolateFreeWorker(defaultOptions);
+  const worker = isolateFreeWorker(defaultOptions);
 
   t.context = {
     worker,
