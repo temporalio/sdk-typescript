@@ -5,7 +5,7 @@ import { PayloadConverter } from './payload-converter';
  * When your data (arguments and return values) is sent over the wire and stored by Temporal Server, it is encoded in
  * binary in a {@link Payload} Protobuf message.
  *
- * The default `DataConverter` supports `Uint8Array`, and JSON serializables (so if
+ * The default `DataConverter` supports `undefined`, `Uint8Array`, and JSON serializables (so if
  * [`JSON.stringify(yourArgOrRetval)`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/JSON/stringify#description)
  * works, the default data converter will work). Protobufs are supported via [this
  * API](https://docs.temporal.io/docs/typescript/data-converters#protobufs).
