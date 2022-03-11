@@ -55,6 +55,10 @@ export const asyncLocalStorage = new AsyncLocalStorage<Context>();
  */
 export interface Info {
   taskToken: Uint8Array;
+  /**
+   * Base64 encoded `taskToken`
+   */
+  base64TaskToken: string;
   activityId: string;
   /**
    * Exposed Activity function name
