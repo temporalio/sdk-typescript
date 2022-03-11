@@ -13,7 +13,7 @@ import {
 export class Activity {
   protected cancelRequested = false;
   public readonly context: Context;
-  public cancel: (reason?: any) => void = () => undefined;
+  public cancel: (resolveAsFailure: boolean, reason?: string) => void = () => undefined;
   public readonly abortController: AbortController = new AbortController();
   public readonly interceptors: {
     inbound: ActivityInboundCallsInterceptor[];
@@ -29,8 +29,10 @@ export class Activity {
     }
   ) {
     const promise = new Promise<never>((_, reject) => {
-      this.cancel = (reason?: any) => {
-        this.cancelRequested = true;
+      this.cancel = (resolveAsFailure: boolean, reason?: string) => {
+        if (!resolveAsFailure) {
+          this.cancelRequested = true;
+        }
         this.abortController.abort();
         reject(new CancelledFailure(reason));
       };

@@ -79,7 +79,7 @@ export class ServerFailure extends TemporalFailure {
  * Any unhandled exception which doesn't extend {@link TemporalFailure} is converted to an
  * instance of this class before being returned to a caller.
  *
- * The {@link type} property is used by {@link io.temporal.common.RetryOptions} to determine if
+ * The {@link type} property is used by {@link temporal.common.RetryOptions} to determine if
  * an instance of this exception is non retryable. Another way to avoid retrying an exception of
  * this type is by setting {@link nonRetryable} flag to `true`.
  *

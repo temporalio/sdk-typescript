@@ -1,5 +1,5 @@
-import { TLSConfig } from '@temporalio/common';
 import { SpanContext } from '@opentelemetry/api';
+import { TLSConfig } from '@temporalio/internal-non-workflow-common';
 
 export { TLSConfig };
 
