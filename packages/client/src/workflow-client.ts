@@ -44,7 +44,6 @@ import {
   WorkflowClientInterceptors,
   WorkflowDescribeInput,
   WorkflowQueryInput,
-  WorkflowResultInput,
   WorkflowSignalInput,
   WorkflowSignalWithStartInput,
   WorkflowStartInput,
@@ -729,18 +728,6 @@ export class WorkflowClient {
   }
 
   /**
-   * Uses given input to call `WorkflowClient.result`
-   *
-   * Used as the final function of the result interceptor chain
-   */
-  protected async _resultWorkflowHandler<T extends Workflow>(
-    input: WorkflowResultInput
-  ): Promise<WorkflowResultType<T>> {
-    return this.result(input.workflowExecution.workflowId, input.runIdForResult, input.resultOptions);
-    // this.rethrowGrpcError(err, input.workflowExecution, 'Failed to describe workflow');
-  }
-
-  /**
    * Create a new workflow handle for new or existing Workflow execution
    */
   protected _createWorkflowHandle<T extends Workflow>({
@@ -755,13 +742,7 @@ export class WorkflowClient {
       client: this,
       workflowId,
       async result(): Promise<WorkflowResultType<T>> {
-        const next = this.client._resultWorkflowHandler.bind(this.client);
-        const fn = interceptors.length ? composeInterceptors(interceptors, 'result', next) : next;
-        return await fn({
-          workflowExecution: { workflowId, runId },
-          runIdForResult,
-          resultOptions,
-        });
+        return this.client.result(workflowId, runIdForResult, resultOptions);
       },
       async terminate(reason?: string) {
         const next = this.client._terminateWorkflowHandler.bind(this.client);
@@ -785,6 +766,7 @@ export class WorkflowClient {
         const fn = interceptors.length ? composeInterceptors(interceptors, 'describe', next) : next;
         return await fn({
           workflowExecution: { workflowId, runId },
+          firstExecutionRunId,
         });
       },
       async signal<Args extends any[]>(def: SignalDefinition<Args> | string, ...args: Args): Promise<void> {
