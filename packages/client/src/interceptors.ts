@@ -62,6 +62,7 @@ export interface WorkflowCancelInput {
   readonly firstExecutionRunId?: string;
 }
 
+/** Input for WorkflowClientCallsInterceptor.describe */
 export interface WorkflowDescribeInput {
   readonly workflowExecution: WorkflowExecution;
   readonly firstExecutionRunId?: string;
