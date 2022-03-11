@@ -2,10 +2,10 @@
  * Test the various states of a Worker.
  * Most tests use a mocked core, some tests run serially because they emit signals to the process
  */
-import test from 'ava';
 import { Worker } from '@temporalio/worker';
-import { isolateFreeWorker, defaultOptions } from './mock-native-worker';
+import test from 'ava';
 import { RUN_INTEGRATION_TESTS } from './helpers';
+import { defaultOptions, isolateFreeWorker } from './mock-native-worker';
 
 if (RUN_INTEGRATION_TESTS) {
   test.serial('run shuts down gracefully', async (t) => {
