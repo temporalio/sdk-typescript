@@ -107,10 +107,12 @@ test('Worker cancels activity and reports cancellation', async (t) => {
     });
     const completion = await worker.native.runActivityTask({
       taskToken,
-      cancel: {},
+      cancel: {
+        reason: coresdk.activity_task.ActivityCancelReason.CANCELLED,
+      },
     });
     compareCompletion(t, completion.result, {
-      cancelled: { failure: { source: 'TypeScriptSDK', message: '', canceledFailureInfo: {} } },
+      cancelled: { failure: { source: 'TypeScriptSDK', message: 'CANCELLED', canceledFailureInfo: {} } },
     });
   });
 });
@@ -131,7 +133,9 @@ test('Activity Context AbortSignal cancels a fetch request', async (t) => {
       });
       const completion = await worker.native.runActivityTask({
         taskToken,
-        cancel: {},
+        cancel: {
+          reason: coresdk.activity_task.ActivityCancelReason.CANCELLED,
+        },
       });
       compareCompletion(t, completion.result, {
         cancelled: { failure: { source: 'TypeScriptSDK', canceledFailureInfo: {} } },
