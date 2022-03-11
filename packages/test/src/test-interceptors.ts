@@ -5,8 +5,21 @@
  * @module
  */
 
-import { Connection, WorkflowClient, WorkflowFailedError } from '@temporalio/client';
-import { ApplicationFailure, TerminatedFailure, toPayload } from '@temporalio/common';
+import {
+  Connection,
+  WorkflowClient,
+  WorkflowClientCallsInterceptor,
+  WorkflowFailedError,
+  WorkflowResultInput,
+} from '@temporalio/client';
+import {
+  ApplicationFailure,
+  Next,
+  TerminatedFailure,
+  toPayload,
+  Workflow,
+  WorkflowResultType,
+} from '@temporalio/common';
 import { Core, DefaultLogger, Worker } from '@temporalio/worker';
 import { defaultPayloadConverter, WorkflowInfo } from '@temporalio/workflow';
 import test from 'ava';
@@ -83,6 +96,13 @@ if (RUN_INTEGRATION_TESTS) {
               const result: string = (await next(input)) as any;
               return [...result].reverse().join('');
             },
+            async result<T extends Workflow>(
+              input: WorkflowResultInput,
+              next: Next<WorkflowClientCallsInterceptor, 'result'>
+            ) {
+              const result = await next(input);
+              return (result + '-intercepted') as WorkflowResultType<T>;
+            },
           }),
         ],
       },
@@ -99,7 +119,7 @@ if (RUN_INTEGRATION_TESTS) {
           wf.query(getSecretQuery).then((result) => t.is(result, '12345')),
         ]);
         const result = await wf.result();
-        t.is(result, message);
+        t.is(result, message + '-intercepted');
       }
       {
         const wf = await client.signalWithStart(interceptorExample, {
@@ -109,7 +129,7 @@ if (RUN_INTEGRATION_TESTS) {
           signalArgs: ['12345'],
         });
         const result = await wf.result();
-        t.is(result, message);
+        t.is(result, message + '-intercepted');
       }
     } finally {
       worker.shutdown();
