@@ -766,7 +766,6 @@ export class WorkflowClient {
         const fn = interceptors.length ? composeInterceptors(interceptors, 'describe', next) : next;
         return await fn({
           workflowExecution: { workflowId, runId },
-          firstExecutionRunId,
         });
       },
       async signal<Args extends any[]>(def: SignalDefinition<Args> | string, ...args: Args): Promise<void> {

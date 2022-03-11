@@ -4,15 +4,15 @@
  * @module
  */
 
-import { Next, Headers } from '@temporalio/internal-workflow-common';
+import { Headers, Next } from '@temporalio/internal-workflow-common';
 import { temporal } from '@temporalio/proto';
-import { CompiledWorkflowOptions } from './workflow-options';
 import {
   DescribeWorkflowExecutionResponse,
   RequestCancelWorkflowExecutionResponse,
   TerminateWorkflowExecutionResponse,
-  WorkflowExecution
+  WorkflowExecution,
 } from './types';
+import { CompiledWorkflowOptions } from './workflow-options';
 
 export { Next, Headers };
 
@@ -65,7 +65,6 @@ export interface WorkflowCancelInput {
 /** Input for WorkflowClientCallsInterceptor.describe */
 export interface WorkflowDescribeInput {
   readonly workflowExecution: WorkflowExecution;
-  readonly firstExecutionRunId?: string;
 }
 
 /**
