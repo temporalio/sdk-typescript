@@ -107,7 +107,7 @@ export interface WorkflowClientCallsInterceptor {
   /**
    * Intercept a service call to describeWorkflowExecution
    */
-  describe?: (input: WorkflowDescribeInput, next: Next<this, 'cancel'>) => Promise<DescribeWorkflowExecutionResponse>;
+  describe?: (input: WorkflowDescribeInput, next: Next<this, 'describe'>) => Promise<DescribeWorkflowExecutionResponse>;
 }
 
 interface WorkflowClientCallsInterceptorFactoryInput {
