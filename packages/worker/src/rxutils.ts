@@ -1,5 +1,5 @@
-import { GroupedObservable, OperatorFunction, ObservableInput, pipe, Subject } from 'rxjs';
-import { groupBy, map, mergeScan } from 'rxjs/operators';
+import { GroupedObservable, ObservableInput, OperatorFunction, pipe, Subject } from 'rxjs';
+import { groupBy, map, mergeScan, scan } from 'rxjs/operators';
 
 interface StateAndOptionalOutput<T, O> {
   state: T;
@@ -27,12 +27,26 @@ export function mergeMapWithState<T, I, O>(
   );
 }
 
+export function mapWithState<T, I, O>(
+  fn: (state: T, input: I) => StateAndOutput<T, O>,
+  initialState: T
+): OperatorFunction<I, O> {
+  return pipe(
+    scan(({ state }: StateAndOptionalOutput<T, O>, input: I): StateAndOptionalOutput<T, O> => fn(state, input), {
+      state: initialState,
+    }),
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    map(({ output }) => output!)
+  );
+}
+
 export interface CloseableGroupedObservable<K, T> extends GroupedObservable<K, T> {
   close(): void;
 }
 
 /**
- * An RX OperatorFunction similiar to groupBy, the returned GroupedObservable has a close() method
+ * An RX OperatorFunction similar to `groupBy`.
+ * The returned GroupedObservable has a `close()` method.
  */
 export function closeableGroupBy<K extends string | number | undefined, T>(
   keyFunc: (t: T) => K
