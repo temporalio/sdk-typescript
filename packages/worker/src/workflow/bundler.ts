@@ -131,7 +131,7 @@ export class WorkflowCodeBundler {
         rules: [
           {
             test: /\.ts$/,
-            loader: require.resolve('ts-loader'),
+            loader: require.resolve('swc-loader'),
             exclude: /node_modules/,
           },
         ],
