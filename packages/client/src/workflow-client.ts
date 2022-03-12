@@ -43,6 +43,7 @@ import {
   WorkflowCancelInput,
   WorkflowClientCallsInterceptor,
   WorkflowClientInterceptors,
+  WorkflowDescribeInput,
   WorkflowQueryInput,
   WorkflowSignalInput,
   WorkflowSignalWithStartInput,
@@ -712,6 +713,22 @@ export class WorkflowClient {
   }
 
   /**
+   * Uses given input to make describeWorkflowExecution call to the service
+   *
+   * Used as the final function of the describe interceptor chain
+   */
+  protected async _describeWorkflowHandler(input: WorkflowDescribeInput): Promise<DescribeWorkflowExecutionResponse> {
+    try {
+      return await this.service.describeWorkflowExecution({
+        namespace: this.options.namespace,
+        execution: input.workflowExecution,
+      });
+    } catch (err) {
+      this.rethrowGrpcError(err, input.workflowExecution, 'Failed to describe workflow');
+    }
+  }
+
+  /**
    * Create a new workflow handle for new or existing Workflow execution
    */
   protected _createWorkflowHandle<T extends Workflow>({
@@ -722,8 +739,6 @@ export class WorkflowClient {
     runIdForResult,
     ...resultOptions
   }: WorkflowHandleOptions): WorkflowHandle<T> {
-    const namespace = this.options.namespace;
-
     return {
       client: this,
       workflowId,
@@ -748,12 +763,10 @@ export class WorkflowClient {
         });
       },
       async describe() {
-        return this.client.service.describeWorkflowExecution({
-          namespace,
-          execution: {
-            runId,
-            workflowId,
-          },
+        const next = this.client._describeWorkflowHandler.bind(this.client);
+        const fn = interceptors.length ? composeInterceptors(interceptors, 'describe', next) : next;
+        return await fn({
+          workflowExecution: { workflowId, runId },
         });
       },
       async signal<Args extends any[]>(def: SignalDefinition<Args> | string, ...args: Args): Promise<void> {
