@@ -4,7 +4,7 @@ import {
   coreShutdown,
   newCore,
   newReplayCore,
-  TelemetryOptions as _TelemetryOptions,
+  TelemetryOptions as RequiredTelemetryOptions,
 } from '@temporalio/core-bridge';
 import { filterNullAndUndefined, normalizeTlsConfig } from '@temporalio/internal-non-workflow-common';
 import { IllegalStateError, MakeOptional } from '@temporalio/internal-workflow-common';
@@ -20,7 +20,7 @@ import { byteArrayToBuffer } from './utils';
 
 export type History = temporal.api.history.v1.IHistory;
 
-export type RequiredTelemetryOptions = _TelemetryOptions;
+export { RequiredTelemetryOptions };
 export type TelemetryOptions = MakeOptional<RequiredTelemetryOptions, 'logForwardingLevel'>;
 
 export interface CoreOptions {
