@@ -1,6 +1,6 @@
 {
   "name": "@temporalio/docs",
-  "version": "0.19.0-rc.1",
+  "version": "0.19.0",
   "private": true,
   "scripts": {
     "docusaurus": "docusaurus",
