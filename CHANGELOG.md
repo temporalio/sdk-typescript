@@ -43,7 +43,7 @@ Breaking changes marked with a :boom:
 
   - Closes [#482](https://github.com/temporalio/sdk-typescript/issues/482)
 
-- [`worker`] Use `swc-loader` instead of `ts-loader` ([#525](https://github.com/temporalio/sdk-typescript/pull/525), thank you [@julianocomg](https://github.com/jameslnewell) 🙏)
+- [`worker`] Use `swc-loader` instead of `ts-loader` ([#525](https://github.com/temporalio/sdk-typescript/pull/525), thank you [@julianocomg](https://github.com/julianocomg) 🙏)
 - [`client`] Add methods to set grpc metadata and deadline for service calls ([#513](https://github.com/temporalio/sdk-typescript/pull/513))
 - [`client`] Minor connection improvements ([#533](https://github.com/temporalio/sdk-typescript/pull/533))
   - Upgrade grpc-js dependency to ^1.5.7
