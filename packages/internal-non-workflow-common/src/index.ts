@@ -4,6 +4,7 @@
  * @module
  */
 export * from './codec-helpers';
+export * from './codec-types';
 export * from './data-converter-helpers';
 export * from './tls-config';
 export * from './utils';
