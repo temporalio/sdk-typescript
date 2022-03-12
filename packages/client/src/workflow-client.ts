@@ -2,6 +2,7 @@ import { status as grpcStatus } from '@grpc/grpc-js';
 import {
   CancelledFailure,
   DataConverter,
+  defaultDataConverter,
   LoadedDataConverter,
   RetryState,
   TerminatedFailure,
@@ -607,7 +608,7 @@ export class WorkflowClient {
           : undefined,
         searchAttributes: options.searchAttributes
           ? {
-              indexedFields: await encodeMapToPayloads(this.options.loadedDataConverter, options.searchAttributes),
+              indexedFields: await encodeMapToPayloads(defaultDataConverter, options.searchAttributes),
             }
           : undefined,
         cronSchedule: options.cronSchedule,
@@ -646,7 +647,7 @@ export class WorkflowClient {
       memo: opts.memo ? { fields: await encodeMapToPayloads(this.options.loadedDataConverter, opts.memo) } : undefined,
       searchAttributes: opts.searchAttributes
         ? {
-            indexedFields: await encodeMapToPayloads(this.options.loadedDataConverter, opts.searchAttributes),
+            indexedFields: await encodeMapToPayloads(defaultDataConverter, opts.searchAttributes),
           }
         : undefined,
       cronSchedule: opts.cronSchedule,

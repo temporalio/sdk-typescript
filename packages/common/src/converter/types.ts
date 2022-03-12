@@ -1,7 +1,7 @@
-import type * as iface from '@temporalio/proto/lib/coresdk';
-import { TextEncoder, TextDecoder } from './encoding';
+import type { coresdk } from '@temporalio/proto/lib/coresdk';
+import { TextDecoder, TextEncoder } from './encoding';
 
-export type Payload = iface.coresdk.common.IPayload;
+export type Payload = coresdk.common.IPayload;
 
 /**
  * Transform an *ascii* string into a Uint8Array
