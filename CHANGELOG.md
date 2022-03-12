@@ -35,7 +35,6 @@ Breaking changes marked with a :boom:
 - [`workflow`] Properly wait for vm microtasks ([#524](https://github.com/temporalio/sdk-typescript/pull/524))
   - Use `microtaskMode=afterEvaluate` to ensure `isolateExecutionTimeoutMs` includes microtask processing too.
 
-
 ### Features
 
 - :boom: [`client`] Return a friendly type from `handle.describe()` ([#532](https://github.com/temporalio/sdk-typescript/pull/532))
@@ -52,7 +51,6 @@ Breaking changes marked with a :boom:
   - Use more exact type for `ConnectionOptions.channelArgs`
   - Set `grpc.default_authority` channel arg if `serverNameOverride` is
     provided (closes [#455](https://github.com/temporalio/sdk-typescript/issues/455))
-
 
 ### Miscellaneous Tasks
 
