@@ -3,35 +3,6 @@ import { TextDecoder, TextEncoder } from './encoding';
 
 export type Payload = coresdk.common.IPayload;
 
-export interface EncodedPayload extends Payload {
-  encoded: true;
-}
-
-export interface DecodedPayload extends Payload {
-  decoded: true;
-}
-
-/** An object T with any nested values of type ToReplace replaced with ReplaceWith */
-export type ReplaceNested<T, ToReplace, ReplaceWith> = T extends (...args: any[]) => any
-  ? T
-  : [keyof T] extends [never]
-  ? T
-  : T extends { [k: string]: coresdk.common.IPayload } | null
-  ? {
-      [P in keyof T]: ReplaceNested<T[P], ToReplace, ReplaceWith>;
-    }
-  : T extends ToReplace
-  ? ReplaceWith | Exclude<T, ToReplace>
-  : {
-      [P in keyof T]: ReplaceNested<T[P], ToReplace, ReplaceWith>;
-    };
-
-/** Replace `Payload`s with `EncodedPayload`s */
-export type Encoded<T> = ReplaceNested<T, Payload, EncodedPayload>;
-
-/** Replace `Payload`s with `DecodedPayload`s */
-export type Decoded<T> = ReplaceNested<T, Payload, DecodedPayload>;
-
 /**
  * Transform an *ascii* string into a Uint8Array
  */

@@ -1,9 +1,5 @@
 import {
   arrayFromPayloads,
-  DecodedPayload,
-  DecodedProtoFailure,
-  EncodedPayload,
-  EncodedProtoFailure,
   errorToFailure,
   failureToError,
   fromPayloadsAtIndex,
@@ -16,6 +12,8 @@ import {
   toPayload,
   toPayloads,
 } from '@temporalio/common';
+
+import { DecodedPayload, DecodedProtoFailure, EncodedPayload, EncodedProtoFailure } from './codec-types';
 
 export interface TypecheckedPayloadCodec {
   encode(payloads: Payload[]): Promise<EncodedPayload[]>;

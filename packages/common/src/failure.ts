@@ -1,12 +1,9 @@
 import { checkExtends, hasOwnProperties, isRecord } from '@temporalio/internal-workflow-common';
 import type { temporal } from '@temporalio/proto/lib/coresdk';
 import { arrayFromPayloads, fromPayloadsAtIndex, PayloadConverter, toPayloads } from './converter/payload-converter';
-import { Decoded, Encoded } from './converter/types';
 
 export const FAILURE_SOURCE = 'TypeScriptSDK';
 export type ProtoFailure = temporal.api.failure.v1.IFailure;
-export type EncodedProtoFailure = Encoded<ProtoFailure>;
-export type DecodedProtoFailure = Decoded<ProtoFailure>;
 
 // Avoid importing the proto implementation to reduce workflow bundle size
 // Copied from temporal.api.enums.v1.TimeoutType

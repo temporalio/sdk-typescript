@@ -1,8 +1,10 @@
-import { Decoded, Encoded, PayloadCodec } from '@temporalio/common';
+import { PayloadCodec } from '@temporalio/common';
 import {
+  Decoded,
   decodeOptional,
   decodeOptionalFailure,
   decodeOptionalSingle,
+  Encoded,
   encodeMap,
   encodeOptional,
   encodeOptionalFailure,
