@@ -14,15 +14,15 @@ export type RequestCancelWorkflowExecutionResponse =
 export interface WorkflowExecutionDescription {
   type: string;
   workflowId: string;
-  runId?: string;
+  runId: string;
   taskQueue: string;
   status: temporal.api.enums.v1.WorkflowExecutionStatus;
   historyLength: Long;
   startTime: Date;
   executionTime?: Date;
   closeTime?: Date;
-  memo?: temporal.api.common.v1.IMemo;
-  searchAttributes?: temporal.api.common.v1.ISearchAttributes;
-  parentExecution?: temporal.api.common.v1.IWorkflowExecution;
+  memo?: Record<string, unknown>;
+  searchAttributes?: Record<string, unknown>;
+  parentExecution?: Required<temporal.api.common.v1.IWorkflowExecution>;
   raw: DescribeWorkflowExecutionResponse;
 }

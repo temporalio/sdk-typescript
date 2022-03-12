@@ -12,6 +12,7 @@ import {
 import {
   decodeArrayFromPayloads,
   decodeFromPayloadsAtIndex,
+  decodeMapFromPayloads,
   decodeOptionalFailureToOptionalError,
   encodeMapToPayloads,
   encodeToPayloads,
@@ -782,9 +783,20 @@ export class WorkflowClient {
           startTime: tsToDate(raw.workflowExecutionInfo!.startTime!),
           executionTime: optionalTsToDate(raw.workflowExecutionInfo!.executionTime),
           closeTime: optionalTsToDate(raw.workflowExecutionInfo!.closeTime),
-          memo: raw.workflowExecutionInfo!.memo ?? undefined,
-          searchAttributes: raw.workflowExecutionInfo!.searchAttributes ?? undefined,
-          parentExecution: raw.workflowExecutionInfo!.parentExecution ?? undefined,
+          memo: await decodeMapFromPayloads(
+            this.client.options.loadedDataConverter,
+            raw.workflowExecutionInfo!.memo?.fields
+          ),
+          searchAttributes: await decodeMapFromPayloads(
+            defaultDataConverter,
+            raw.workflowExecutionInfo!.searchAttributes?.indexedFields
+          ),
+          parentExecution: raw.workflowExecutionInfo!.parentExecution
+            ? {
+                workflowId: raw.workflowExecutionInfo!.parentExecution!.workflowId!,
+                runId: raw.workflowExecutionInfo!.parentExecution!.runId!,
+              }
+            : undefined,
           raw,
         };
       },

@@ -538,6 +538,28 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
     t.regex(event.workflowTaskCompletedEventAttributes!.binaryChecksum!, /@temporalio\/worker@\d+\.\d+\.\d+/);
   });
 
+  test('WorkflowHandle.describe result is wrapped', async (t) => {
+    const { client } = t.context;
+    const workflow = await client.start(workflows.argsAndReturn, {
+      args: ['hey', undefined, Buffer.from('def')],
+      taskQueue: 'test',
+      workflowId: uuid4(),
+      searchAttributes: {
+        CustomKeywordField: 'test-value',
+      },
+      memo: {
+        note: 'foo',
+      },
+    });
+    await workflow.result();
+    const execution = await workflow.describe();
+    t.deepEqual(execution.type, 'argsAndReturn');
+    t.deepEqual(execution.memo, { note: 'foo' });
+    t.true(execution.startTime instanceof Date);
+    t.is(execution.searchAttributes!.CustomKeywordField, 'test-value');
+    t.regex((execution.searchAttributes!.BinaryChecksums as string[])[0], /@temporalio\/worker@/);
+  });
+
   test('WorkflowOptions are passed correctly with defaults', async (t) => {
     const { client } = t.context;
     const workflow = await client.start(workflows.argsAndReturn, {
@@ -548,8 +570,6 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
     await workflow.result();
     const execution = await workflow.describe();
     t.deepEqual(execution.type, 'argsAndReturn');
-    t.deepEqual(execution.memo, new iface.temporal.api.common.v1.Memo({ fields: {} }));
-    t.true(execution.startTime instanceof Date);
     t.deepEqual(Object.keys(execution.raw.workflowExecutionInfo!.searchAttributes!.indexedFields!), [
       'BinaryChecksums',
     ]);
