@@ -4,6 +4,49 @@ All notable changes to this project will be documented in this file.
 
 Breaking changes marked with a :boom:
 
+## [0.19.0] - 2022-03-12
+
+- :boom: This release includes the breaking changes listed in [`0.19.0-rc.1`](https://github.com/temporalio/sdk-typescript/blob/main/CHANGELOG.md#0190-rc1---2022-03-02) and [`0.19.0-rc.0`](https://github.com/temporalio/sdk-typescript/blob/main/CHANGELOG.md#0190-rc0---2022-02-25)
+
+### Bug Fixes
+
+- :boom: [`worker`] Mark activity errors retryable ([#522](https://github.com/temporalio/sdk-typescript/pull/522))
+
+  BREAKING CHANGE: Before this fix, the `ApplicationFailures` returned by the Worker in these
+  two circumstances were not retryable:
+
+  - Activity not found
+  - Failed to parse Activity args
+
+- [`worker`] Enhance and fix heartbeat behavior ([#523](https://github.com/temporalio/sdk-typescript/pull/523))
+
+  - Flush last heartbeat on Activity failure
+  - Ensure ordering of heartbeats when custom payload codec is used
+  - Discard heartbeats if activity sends them faster than payload codec
+    can process them
+  - Make heartbeat details codec errors fail the activity
+
+- Update `TLSConfig` import location ([#518](https://github.com/temporalio/sdk-typescript/pull/518))
+- Use default data converter for search attributes ([#511](https://github.com/temporalio/sdk-typescript/pull/511))
+- Add `reason` to cancellation tasks in tests ([#526](https://github.com/temporalio/sdk-typescript/pull/526))
+
+### Features
+
+- [`client`] Add methods to set grpc metadata and deadline for service calls ([#513](https://github.com/temporalio/sdk-typescript/pull/513))
+- [`worker`] Use `swc-loader` instead of `ts-loader` ([#525](https://github.com/temporalio/sdk-typescript/pull/525), thank you [@julianocomg](https://github.com/jameslnewell) 🙏)
+
+### Miscellaneous Tasks
+
+- Get static checking of encoding Failures and Completions ([#520](https://github.com/temporalio/sdk-typescript/pull/520))
+- Make forks work with sdk-features ([#502](https://github.com/temporalio/sdk-typescript/pull/502))
+- Update otel packages ([#515](https://github.com/temporalio/sdk-typescript/pull/515))
+
+### Documentation
+
+- Fix order in publishing script ([#510](https://github.com/temporalio/sdk-typescript/pull/510))
+- Update docusaurus ([#512](https://github.com/temporalio/sdk-typescript/pull/512))
+- Add undefined to supported data types ([#517](https://github.com/temporalio/sdk-typescript/pull/517))
+
 ## [0.19.0-rc.1] - 2022-03-02
 
 ### Features
