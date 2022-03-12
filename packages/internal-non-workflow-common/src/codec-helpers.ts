@@ -12,7 +12,13 @@ import {
   toPayload,
   toPayloads,
 } from '@temporalio/common';
-import { clone, setWith } from 'lodash';
+
+import { DecodedPayload, DecodedProtoFailure, EncodedPayload, EncodedProtoFailure } from './codec-types';
+
+export interface TypecheckedPayloadCodec {
+  encode(payloads: Payload[]): Promise<EncodedPayload[]>;
+  decode(payloads: Payload[]): Promise<DecodedPayload[]>;
+}
 
 /**
  * Decode `payloads` and then return {@link fromPayloadsAtIndex}.
@@ -52,13 +58,58 @@ export async function decodeOptionalFailureToOptionalError(
   return failure ? failureToError(await decodeFailure(payloadCodec, failure), payloadConverter) : undefined;
 }
 
+/** Run {@link PayloadCodec.encode} on `payloads` */
+export async function encodeOptional(
+  codec: PayloadCodec,
+  payloads: Payload[] | null | undefined
+): Promise<EncodedPayload[] | null | undefined> {
+  if (!payloads) return payloads;
+  return (await codec.encode(payloads)) as EncodedPayload[];
+}
+
+/** Run {@link PayloadCodec.decode} on `payloads` */
+export async function decodeOptional(
+  codec: PayloadCodec,
+  payloads: Payload[] | null | undefined
+): Promise<DecodedPayload[] | null | undefined> {
+  if (!payloads) return payloads;
+  return (await codec.decode(payloads)) as DecodedPayload[];
+}
+
+async function encodeSingle(codec: PayloadCodec, payload: Payload): Promise<EncodedPayload> {
+  const encodedPayloads = await codec.encode([payload]);
+  return encodedPayloads[0] as EncodedPayload;
+}
+
+/** Run {@link PayloadCodec.encode} on a single Payload */
+export async function encodeOptionalSingle(
+  codec: PayloadCodec,
+  payload: Payload | null | undefined
+): Promise<EncodedPayload | null | undefined> {
+  if (!payload) return payload;
+  return await encodeSingle(codec, payload);
+}
+
+async function decodeSingle(codec: PayloadCodec, payload: Payload): Promise<DecodedPayload> {
+  const decodedPayloads = await codec.decode([payload]);
+  return decodedPayloads[0] as DecodedPayload;
+}
+
+/** Run {@link PayloadCodec.decode} on a single Payload */
+export async function decodeOptionalSingle(
+  codec: PayloadCodec,
+  payload: Payload | null | undefined
+): Promise<DecodedPayload | null | undefined> {
+  if (!payload) return payload;
+  return await decodeSingle(codec, payload);
+}
+
 /**
  * Run {@link PayloadConverter.toPayload} on value, and then encode it.
  */
 export async function encodeToPayload(converter: LoadedDataConverter, value: unknown): Promise<Payload> {
   const { payloadConverter, payloadCodec } = converter;
-  const [encoded] = await payloadCodec.encode([toPayload(payloadConverter, value)]);
-  return encoded;
+  return await encodeSingle(payloadCodec, toPayload(payloadConverter, value));
 }
 
 /**
@@ -74,6 +125,21 @@ export async function encodeToPayloads(
   }
   const payloads = toPayloads(payloadConverter, ...values);
   return payloads ? await payloadCodec.encode(payloads) : undefined;
+}
+
+/** Run {@link PayloadCodec.encode} on all values in `map` */
+export async function encodeMap<K extends string>(
+  codec: PayloadCodec,
+  map: Record<K, Payload> | null | undefined
+): Promise<Record<K, EncodedPayload> | null | undefined> {
+  if (!map) return map;
+  return Object.fromEntries(
+    await Promise.all(
+      Object.entries(map).map(async ([k, payload]): Promise<[K, EncodedPayload]> => {
+        return [k as K, await encodeSingle(codec, payload as Payload)];
+      })
+    )
+  ) as Record<K, EncodedPayload>;
 }
 
 /**
@@ -107,87 +173,145 @@ export async function encodeErrorToFailure(dataConverter: LoadedDataConverter, e
 /**
  * Return a new {@link ProtoFailure} with `codec.encode()` run on all the {@link Payload}s.
  */
-export async function encodeFailure(codec: PayloadCodec, failure: ProtoFailure): Promise<ProtoFailure> {
-  const encodedFailure = { ...failure };
-  if (failure.cause) {
-    encodedFailure.cause = await encodeFailure(codec, failure.cause);
-  }
+export async function encodeFailure(_codec: PayloadCodec, failure: ProtoFailure): Promise<EncodedProtoFailure> {
+  const codec = _codec as TypecheckedPayloadCodec;
+  return {
+    ...failure,
+    cause: failure.cause ? await encodeFailure(codec, failure.cause) : null,
+    applicationFailureInfo: failure.applicationFailureInfo
+      ? {
+          ...failure.applicationFailureInfo,
+          details: failure.applicationFailureInfo.details
+            ? {
+                payloads: await codec.encode(failure.applicationFailureInfo.details.payloads ?? []),
+              }
+            : undefined,
+        }
+      : undefined,
+    timeoutFailureInfo: failure.timeoutFailureInfo
+      ? {
+          ...failure.timeoutFailureInfo,
+          lastHeartbeatDetails: failure.timeoutFailureInfo.lastHeartbeatDetails
+            ? {
+                payloads: await codec.encode(failure.timeoutFailureInfo.lastHeartbeatDetails.payloads ?? []),
+              }
+            : undefined,
+        }
+      : undefined,
+    canceledFailureInfo: failure.canceledFailureInfo
+      ? {
+          ...failure.canceledFailureInfo,
+          details: failure.canceledFailureInfo.details
+            ? {
+                payloads: await codec.encode(failure.canceledFailureInfo.details.payloads ?? []),
+              }
+            : undefined,
+        }
+      : undefined,
+    resetWorkflowFailureInfo: failure.resetWorkflowFailureInfo
+      ? {
+          ...failure.resetWorkflowFailureInfo,
+          lastHeartbeatDetails: failure.resetWorkflowFailureInfo.lastHeartbeatDetails
+            ? {
+                payloads: await codec.encode(failure.resetWorkflowFailureInfo.lastHeartbeatDetails.payloads ?? []),
+              }
+            : undefined,
+        }
+      : undefined,
+  };
+}
 
-  if (encodedFailure.applicationFailureInfo?.details?.payloads?.length) {
-    setWith(
-      encodedFailure,
-      'applicationFailureInfo.details.payloads',
-      await codec.encode(encodedFailure.applicationFailureInfo.details.payloads),
-      clone
-    );
-  }
-  if (encodedFailure.timeoutFailureInfo?.lastHeartbeatDetails?.payloads?.length) {
-    setWith(
-      encodedFailure,
-      'timeoutFailureInfo.lastHeartbeatDetails.payloads',
-      await codec.encode(encodedFailure.timeoutFailureInfo.lastHeartbeatDetails.payloads),
-      clone
-    );
-  }
-  if (encodedFailure.canceledFailureInfo?.details?.payloads?.length) {
-    setWith(
-      encodedFailure,
-      'canceledFailureInfo.details.payloads',
-      await codec.encode(encodedFailure.canceledFailureInfo.details.payloads),
-      clone
-    );
-  }
-  if (encodedFailure.resetWorkflowFailureInfo?.lastHeartbeatDetails?.payloads?.length) {
-    setWith(
-      encodedFailure,
-      'resetWorkflowFailureInfo.lastHeartbeatDetails.payloads',
-      await codec.encode(encodedFailure.resetWorkflowFailureInfo.lastHeartbeatDetails.payloads),
-      clone
-    );
-  }
-  return encodedFailure;
+/**
+ * Return a new {@link ProtoFailure} with `codec.encode()` run on all the {@link Payload}s.
+ */
+export async function encodeOptionalFailure(
+  codec: PayloadCodec,
+  failure: ProtoFailure | null | undefined
+): Promise<EncodedProtoFailure | null | undefined> {
+  if (!failure) return failure;
+  return await encodeFailure(codec, failure);
+}
+
+/**
+ * Return a new {@link ProtoFailure} with `codec.encode()` run on all the {@link Payload}s.
+ */
+export async function decodeOptionalFailure(
+  codec: PayloadCodec,
+  failure: ProtoFailure | null | undefined
+): Promise<DecodedProtoFailure | null | undefined> {
+  if (!failure) return failure;
+  return await decodeFailure(codec, failure);
 }
 
 /**
  * Return a new {@link ProtoFailure} with `codec.decode()` run on all the {@link Payload}s.
  */
-export async function decodeFailure(codec: PayloadCodec, failure: ProtoFailure): Promise<ProtoFailure> {
-  const decodedFailure = { ...failure };
-  if (failure.cause) {
-    decodedFailure.cause = await decodeFailure(codec, failure.cause);
-  }
+export async function decodeFailure(_codec: PayloadCodec, failure: ProtoFailure): Promise<DecodedProtoFailure> {
+  const codec = _codec as TypecheckedPayloadCodec;
+  return {
+    ...failure,
+    cause: failure.cause ? await decodeFailure(codec, failure.cause) : null,
+    applicationFailureInfo: failure.applicationFailureInfo
+      ? {
+          ...failure.applicationFailureInfo,
+          details: failure.applicationFailureInfo.details
+            ? {
+                payloads: await codec.decode(failure.applicationFailureInfo.details.payloads ?? []),
+              }
+            : undefined,
+        }
+      : undefined,
+    timeoutFailureInfo: failure.timeoutFailureInfo
+      ? {
+          ...failure.timeoutFailureInfo,
+          lastHeartbeatDetails: failure.timeoutFailureInfo.lastHeartbeatDetails
+            ? {
+                payloads: await codec.decode(failure.timeoutFailureInfo.lastHeartbeatDetails.payloads ?? []),
+              }
+            : undefined,
+        }
+      : undefined,
+    canceledFailureInfo: failure.canceledFailureInfo
+      ? {
+          ...failure.canceledFailureInfo,
+          details: failure.canceledFailureInfo.details
+            ? {
+                payloads: await codec.decode(failure.canceledFailureInfo.details.payloads ?? []),
+              }
+            : undefined,
+        }
+      : undefined,
+    resetWorkflowFailureInfo: failure.resetWorkflowFailureInfo
+      ? {
+          ...failure.resetWorkflowFailureInfo,
+          lastHeartbeatDetails: failure.resetWorkflowFailureInfo.lastHeartbeatDetails
+            ? {
+                payloads: await codec.decode(failure.resetWorkflowFailureInfo.lastHeartbeatDetails.payloads ?? []),
+              }
+            : undefined,
+        }
+      : undefined,
+  };
+}
 
-  if (decodedFailure.applicationFailureInfo?.details?.payloads?.length) {
-    setWith(
-      decodedFailure,
-      'applicationFailureInfo.details.payloads',
-      await codec.decode(decodedFailure.applicationFailureInfo.details.payloads),
-      clone
-    );
-  }
-  if (decodedFailure.timeoutFailureInfo?.lastHeartbeatDetails?.payloads?.length) {
-    setWith(
-      decodedFailure,
-      'timeoutFailureInfo.lastHeartbeatDetails.payloads',
-      await codec.decode(decodedFailure.timeoutFailureInfo.lastHeartbeatDetails.payloads),
-      clone
-    );
-  }
-  if (decodedFailure.canceledFailureInfo?.details?.payloads?.length) {
-    setWith(
-      decodedFailure,
-      'canceledFailureInfo.details.payloads',
-      await codec.decode(decodedFailure.canceledFailureInfo.details.payloads),
-      clone
-    );
-  }
-  if (decodedFailure.resetWorkflowFailureInfo?.lastHeartbeatDetails?.payloads?.length) {
-    setWith(
-      decodedFailure,
-      'resetWorkflowFailureInfo.lastHeartbeatDetails.payloads',
-      await codec.decode(decodedFailure.resetWorkflowFailureInfo.lastHeartbeatDetails.payloads),
-      clone
-    );
-  }
-  return decodedFailure;
+/**
+ * Mark all values in the map as encoded.
+ * Use this for headers and searchAttributes, which we don't encode.
+ */
+export function noopEncodeMap<K extends string>(
+  map: Record<K, Payload> | null | undefined
+): Record<K, EncodedPayload> | null | undefined {
+  if (!map) return map;
+  return map as Record<K, EncodedPayload>;
+}
+
+/**
+ * Mark all values in the map as decoded.
+ * Use this for headers and searchAttributes, which we don't encode.
+ */
+export function noopDecodeMap<K extends string>(
+  map: Record<K, Payload> | null | undefined
+): Record<K, DecodedPayload> | null | undefined {
+  if (!map) return map;
+  return map as Record<K, DecodedPayload>;
 }
