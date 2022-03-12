@@ -227,7 +227,7 @@ const CUTOFF_STACK_PATTERNS = [
   /** Workflow activation */
   /\s+at Activator\.\S+NextHandler \(webpack-internal:\/\/\/.*\/internals\.[jt]s:\d+:\d+\)/,
   /** Workflow run anything in context */
-  /\s+at Script\.runInContext \(node:vm:\d+:\d+\)/,
+  /\s+at Script\.runInContext/,
 ];
 
 /**
