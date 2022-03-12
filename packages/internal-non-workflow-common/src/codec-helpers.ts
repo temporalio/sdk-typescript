@@ -12,7 +12,6 @@ import {
   toPayload,
   toPayloads,
 } from '@temporalio/common';
-
 import { DecodedPayload, DecodedProtoFailure, EncodedPayload, EncodedProtoFailure } from './codec-types';
 
 export interface TypecheckedPayloadCodec {
@@ -63,7 +62,8 @@ export async function encodeOptional(
   codec: PayloadCodec,
   payloads: Payload[] | null | undefined
 ): Promise<EncodedPayload[] | null | undefined> {
-  if (!payloads) return payloads;
+  if (payloads === null) return null;
+  if (payloads === undefined) return undefined;
   return (await codec.encode(payloads)) as EncodedPayload[];
 }
 
@@ -72,7 +72,8 @@ export async function decodeOptional(
   codec: PayloadCodec,
   payloads: Payload[] | null | undefined
 ): Promise<DecodedPayload[] | null | undefined> {
-  if (!payloads) return payloads;
+  if (payloads === null) return null;
+  if (payloads === undefined) return undefined;
   return (await codec.decode(payloads)) as DecodedPayload[];
 }
 
@@ -86,7 +87,8 @@ export async function encodeOptionalSingle(
   codec: PayloadCodec,
   payload: Payload | null | undefined
 ): Promise<EncodedPayload | null | undefined> {
-  if (!payload) return payload;
+  if (payload === null) return null;
+  if (payload === undefined) return undefined;
   return await encodeSingle(codec, payload);
 }
 
@@ -100,7 +102,9 @@ export async function decodeOptionalSingle(
   codec: PayloadCodec,
   payload: Payload | null | undefined
 ): Promise<DecodedPayload | null | undefined> {
-  if (!payload) return payload;
+  if (payload === null) return null;
+  if (payload === undefined) return undefined;
+
   return await decodeSingle(codec, payload);
 }
 
@@ -127,12 +131,33 @@ export async function encodeToPayloads(
   return payloads ? await payloadCodec.encode(payloads) : undefined;
 }
 
+/**
+ * Run {@link PayloadCodec.decode} and then {@link PayloadConverter.fromPayload} on values in `map`.
+ */
+export async function decodeMapFromPayloads<K extends string>(
+  converter: LoadedDataConverter,
+  map: Record<K, Payload> | null | undefined
+): Promise<Record<K, unknown> | undefined> {
+  if (!map) return undefined;
+  const { payloadConverter, payloadCodec } = converter;
+  return Object.fromEntries(
+    await Promise.all(
+      Object.entries(map).map(async ([k, payload]): Promise<[K, unknown]> => {
+        const [decodedPayload] = await payloadCodec.decode([payload as Payload]);
+        const value = payloadConverter.fromPayload(decodedPayload);
+        return [k as K, value];
+      })
+    )
+  ) as Record<K, unknown>;
+}
+
 /** Run {@link PayloadCodec.encode} on all values in `map` */
 export async function encodeMap<K extends string>(
   codec: PayloadCodec,
   map: Record<K, Payload> | null | undefined
 ): Promise<Record<K, EncodedPayload> | null | undefined> {
-  if (!map) return map;
+  if (map === null) return null;
+  if (map === undefined) return undefined;
   return Object.fromEntries(
     await Promise.all(
       Object.entries(map).map(async ([k, payload]): Promise<[K, EncodedPayload]> => {
@@ -143,11 +168,11 @@ export async function encodeMap<K extends string>(
 }
 
 /**
- * Run {@link PayloadConverter.toPayload} and {@link PayloadCodec.encode} on values in `map`.
+ * Run {@link PayloadConverter.toPayload} and then {@link PayloadCodec.encode} on values in `map`.
  */
 export async function encodeMapToPayloads<K extends string>(
   converter: LoadedDataConverter,
-  map: Record<K, any>
+  map: Record<K, unknown>
 ): Promise<Record<K, Payload>> {
   const { payloadConverter, payloadCodec } = converter;
   return Object.fromEntries(
@@ -228,7 +253,8 @@ export async function encodeOptionalFailure(
   codec: PayloadCodec,
   failure: ProtoFailure | null | undefined
 ): Promise<EncodedProtoFailure | null | undefined> {
-  if (!failure) return failure;
+  if (failure === null) return null;
+  if (failure === undefined) return undefined;
   return await encodeFailure(codec, failure);
 }
 
@@ -239,7 +265,8 @@ export async function decodeOptionalFailure(
   codec: PayloadCodec,
   failure: ProtoFailure | null | undefined
 ): Promise<DecodedProtoFailure | null | undefined> {
-  if (!failure) return failure;
+  if (failure === null) return null;
+  if (failure === undefined) return undefined;
   return await decodeFailure(codec, failure);
 }
 
@@ -301,7 +328,8 @@ export async function decodeFailure(_codec: PayloadCodec, failure: ProtoFailure)
 export function noopEncodeMap<K extends string>(
   map: Record<K, Payload> | null | undefined
 ): Record<K, EncodedPayload> | null | undefined {
-  if (!map) return map;
+  if (map === null) return null;
+  if (map === undefined) return undefined;
   return map as Record<K, EncodedPayload>;
 }
 
@@ -312,6 +340,7 @@ export function noopEncodeMap<K extends string>(
 export function noopDecodeMap<K extends string>(
   map: Record<K, Payload> | null | undefined
 ): Record<K, DecodedPayload> | null | undefined {
-  if (!map) return map;
+  if (map === null) return null;
+  if (map === undefined) return undefined;
   return map as Record<K, DecodedPayload>;
 }

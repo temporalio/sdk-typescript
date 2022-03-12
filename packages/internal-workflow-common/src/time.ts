@@ -74,3 +74,14 @@ export function msToNumber(val: string | number): number {
   }
   return ms(val);
 }
+
+export function tsToDate(ts: Timestamp): Date {
+  return new Date(tsToMs(ts));
+}
+
+export function optionalTsToDate(ts: Timestamp | null | undefined): Date | undefined {
+  if (ts === undefined || ts === null) {
+    return undefined;
+  }
+  return new Date(tsToMs(ts));
+}

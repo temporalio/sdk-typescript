@@ -538,6 +538,28 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
     t.regex(event.workflowTaskCompletedEventAttributes!.binaryChecksum!, /@temporalio\/worker@\d+\.\d+\.\d+/);
   });
 
+  test('WorkflowHandle.describe result is wrapped', async (t) => {
+    const { client } = t.context;
+    const workflow = await client.start(workflows.argsAndReturn, {
+      args: ['hey', undefined, Buffer.from('def')],
+      taskQueue: 'test',
+      workflowId: uuid4(),
+      searchAttributes: {
+        CustomKeywordField: 'test-value',
+      },
+      memo: {
+        note: 'foo',
+      },
+    });
+    await workflow.result();
+    const execution = await workflow.describe();
+    t.deepEqual(execution.type, 'argsAndReturn');
+    t.deepEqual(execution.memo, { note: 'foo' });
+    t.true(execution.startTime instanceof Date);
+    t.is(execution.searchAttributes!.CustomKeywordField, 'test-value');
+    t.regex((execution.searchAttributes!.BinaryChecksums as string[])[0], /@temporalio\/worker@/);
+  });
+
   test('WorkflowOptions are passed correctly with defaults', async (t) => {
     const { client } = t.context;
     const workflow = await client.start(workflows.argsAndReturn, {
@@ -547,22 +569,23 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
     });
     await workflow.result();
     const execution = await workflow.describe();
-    t.deepEqual(
-      execution.workflowExecutionInfo?.type,
-      new iface.temporal.api.common.v1.WorkflowType({ name: 'argsAndReturn' })
-    );
-    t.deepEqual(execution.workflowExecutionInfo?.memo, new iface.temporal.api.common.v1.Memo({ fields: {} }));
-    t.deepEqual(Object.keys(execution.workflowExecutionInfo!.searchAttributes!.indexedFields!), ['BinaryChecksums']);
+    t.deepEqual(execution.type, 'argsAndReturn');
+    t.deepEqual(Object.keys(execution.raw.workflowExecutionInfo!.searchAttributes!.indexedFields!), [
+      'BinaryChecksums',
+    ]);
 
     const checksums = defaultPayloadConverter.fromPayload(
-      execution.workflowExecutionInfo!.searchAttributes!.indexedFields!.BinaryChecksums!
+      execution.raw.workflowExecutionInfo!.searchAttributes!.indexedFields!.BinaryChecksums!
     );
     t.true(checksums instanceof Array && checksums.length === 1);
     t.regex((checksums as string[])[0], /@temporalio\/worker@\d+\.\d+\.\d+/);
-    t.is(execution.executionConfig?.taskQueue?.name, 'test');
-    t.is(execution.executionConfig?.taskQueue?.kind, iface.temporal.api.enums.v1.TaskQueueKind.TASK_QUEUE_KIND_NORMAL);
-    t.is(execution.executionConfig?.workflowRunTimeout, null);
-    t.is(execution.executionConfig?.workflowExecutionTimeout, null);
+    t.is(execution.raw.executionConfig?.taskQueue?.name, 'test');
+    t.is(
+      execution.raw.executionConfig?.taskQueue?.kind,
+      iface.temporal.api.enums.v1.TaskQueueKind.TASK_QUEUE_KIND_NORMAL
+    );
+    t.is(execution.raw.executionConfig?.workflowRunTimeout, null);
+    t.is(execution.raw.executionConfig?.workflowExecutionTimeout, null);
   });
 
   test('WorkflowOptions are passed correctly', async (t) => {
@@ -584,22 +607,25 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
     });
     const execution = await workflow.describe();
     t.deepEqual(
-      execution.workflowExecutionInfo?.type,
+      execution.raw.workflowExecutionInfo?.type,
       new iface.temporal.api.common.v1.WorkflowType({ name: 'sleeper' })
     );
-    t.deepEqual(await fromPayload(execution.workflowExecutionInfo!.memo!.fields!.a!), 'b');
+    t.deepEqual(await fromPayload(execution.raw.workflowExecutionInfo!.memo!.fields!.a!), 'b');
     t.deepEqual(
       await defaultPayloadConverter.fromPayload(
-        execution.workflowExecutionInfo!.searchAttributes!.indexedFields!.CustomIntField!
+        execution.raw.workflowExecutionInfo!.searchAttributes!.indexedFields!.CustomIntField!
       ),
       3
     );
-    t.is(execution.executionConfig?.taskQueue?.name, 'test2');
-    t.is(execution.executionConfig?.taskQueue?.kind, iface.temporal.api.enums.v1.TaskQueueKind.TASK_QUEUE_KIND_NORMAL);
+    t.is(execution.raw.executionConfig?.taskQueue?.name, 'test2');
+    t.is(
+      execution.raw.executionConfig?.taskQueue?.kind,
+      iface.temporal.api.enums.v1.TaskQueueKind.TASK_QUEUE_KIND_NORMAL
+    );
 
-    t.is(tsToMs(execution.executionConfig!.workflowRunTimeout!), ms(options.workflowRunTimeout));
-    t.is(tsToMs(execution.executionConfig!.workflowExecutionTimeout!), ms(options.workflowExecutionTimeout));
-    t.is(tsToMs(execution.executionConfig!.defaultWorkflowTaskTimeout!), ms(options.workflowTaskTimeout));
+    t.is(tsToMs(execution.raw.executionConfig!.workflowRunTimeout!), ms(options.workflowRunTimeout));
+    t.is(tsToMs(execution.raw.executionConfig!.workflowExecutionTimeout!), ms(options.workflowExecutionTimeout));
+    t.is(tsToMs(execution.raw.executionConfig!.defaultWorkflowTaskTimeout!), ms(options.workflowTaskTimeout));
   });
 
   test('WorkflowHandle.result() throws if terminated', async (t) => {
@@ -667,7 +693,7 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
     });
     await workflow.result();
     const info = await workflow.describe();
-    t.is(info.workflowExecutionInfo?.type?.name, 'sleeper');
+    t.is(info.raw.workflowExecutionInfo?.type?.name, 'sleeper');
     const { history } = await client.service.getWorkflowExecutionHistory({
       namespace,
       execution: { workflowId: workflow.workflowId, runId: err.newExecutionRunId },
@@ -753,14 +779,7 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
           return;
         }
         t.is(failure.message, 'unhandled rejection');
-        t.true(
-          failure.stackTrace?.includes(
-            dedent`
-          Error: unhandled rejection
-              at eval (webpack-internal:///./lib/workflows/unhandled-rejection.js
-          `
-          )
-        );
+        t.true(failure.stackTrace?.includes(`Error: unhandled rejection`));
         t.is(failure.cause?.message, 'root failure');
       },
       { minTimeout: 300, factor: 1, retries: 100 }
@@ -815,8 +834,8 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
     });
     await t.throwsAsync(handle.result());
     const handleForSecondAttempt = client.getHandle(workflowId);
-    const { workflowExecutionInfo } = await handleForSecondAttempt.describe();
-    t.not(workflowExecutionInfo?.execution?.runId, handle.originalRunId);
+    const { raw } = await handleForSecondAttempt.describe();
+    t.not(raw.workflowExecutionInfo?.execution?.runId, handle.originalRunId);
   });
 
   test('Workflow RetryPolicy ignored with nonRetryable failure', async (t) => {
@@ -835,7 +854,7 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
     await t.throwsAsync(handle.result());
     const res = await handle.describe();
     t.is(
-      res.workflowExecutionInfo?.status,
+      res.raw.workflowExecutionInfo?.status,
       iface.temporal.api.enums.v1.WorkflowExecutionStatus.WORKFLOW_EXECUTION_STATUS_FAILED
     );
   });

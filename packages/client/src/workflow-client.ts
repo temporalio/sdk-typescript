@@ -12,6 +12,7 @@ import {
 import {
   decodeArrayFromPayloads,
   decodeFromPayloadsAtIndex,
+  decodeMapFromPayloads,
   decodeOptionalFailureToOptionalError,
   encodeMapToPayloads,
   encodeToPayloads,
@@ -21,8 +22,10 @@ import {
   BaseWorkflowHandle,
   compileRetryPolicy,
   composeInterceptors,
+  optionalTsToDate,
   QueryDefinition,
   SignalDefinition,
+  tsToDate,
   WithWorkflowArgs,
   Workflow,
   WorkflowNotFoundError,
@@ -57,6 +60,7 @@ import {
   StartWorkflowExecutionRequest,
   TerminateWorkflowExecutionResponse,
   WorkflowExecution,
+  WorkflowExecutionDescription,
 } from './types';
 import { compileWorkflowOptions, WorkflowOptions, WorkflowSignalWithStartOptions } from './workflow-options';
 
@@ -113,7 +117,7 @@ export interface WorkflowHandle<T extends Workflow = Workflow> extends BaseWorkf
   /**
    * Describe the current workflow execution
    */
-  describe(): Promise<DescribeWorkflowExecutionResponse>;
+  describe(): Promise<WorkflowExecutionDescription>;
 
   /**
    * Readonly accessor to the underlying WorkflowClient
@@ -765,9 +769,36 @@ export class WorkflowClient {
       async describe() {
         const next = this.client._describeWorkflowHandler.bind(this.client);
         const fn = interceptors.length ? composeInterceptors(interceptors, 'describe', next) : next;
-        return await fn({
+        const raw = await fn({
           workflowExecution: { workflowId, runId },
         });
+        return {
+          /* eslint-disable @typescript-eslint/no-non-null-assertion */
+          type: raw.workflowExecutionInfo!.type!.name!,
+          workflowId: raw.workflowExecutionInfo!.execution!.workflowId!,
+          runId: raw.workflowExecutionInfo!.execution!.runId!,
+          taskQueue: raw.workflowExecutionInfo!.taskQueue!,
+          status: raw.workflowExecutionInfo!.status!,
+          historyLength: raw.workflowExecutionInfo!.historyLength!,
+          startTime: tsToDate(raw.workflowExecutionInfo!.startTime!),
+          executionTime: optionalTsToDate(raw.workflowExecutionInfo!.executionTime),
+          closeTime: optionalTsToDate(raw.workflowExecutionInfo!.closeTime),
+          memo: await decodeMapFromPayloads(
+            this.client.options.loadedDataConverter,
+            raw.workflowExecutionInfo!.memo?.fields
+          ),
+          searchAttributes: await decodeMapFromPayloads(
+            defaultDataConverter,
+            raw.workflowExecutionInfo!.searchAttributes?.indexedFields
+          ),
+          parentExecution: raw.workflowExecutionInfo!.parentExecution
+            ? {
+                workflowId: raw.workflowExecutionInfo!.parentExecution!.workflowId!,
+                runId: raw.workflowExecutionInfo!.parentExecution!.runId!,
+              }
+            : undefined,
+          raw,
+        };
       },
       async signal<Args extends any[]>(def: SignalDefinition<Args> | string, ...args: Args): Promise<void> {
         const next = this.client._signalWorkflowHandler.bind(this.client);
