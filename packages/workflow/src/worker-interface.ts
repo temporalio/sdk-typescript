@@ -173,10 +173,6 @@ export async function initRuntime({ info, randomnessSeed, now, patches }: Workfl
   state.workflow = workflow;
 }
 
-export interface ActivationResult {
-  numBlockedConditions: number;
-}
-
 /**
  * Run a chunk of activation jobs
  * @returns a boolean indicating whether job was processed or ignored
@@ -184,7 +180,7 @@ export interface ActivationResult {
 export async function activate(
   activation: coresdk.workflow_activation.WorkflowActivation,
   batchIndex: number
-): Promise<ActivationResult> {
+): Promise<void> {
   const intercept = composeInterceptors(
     state.interceptors.internals,
     'activate',
@@ -233,10 +229,6 @@ export async function activate(
     activation,
     batchIndex,
   });
-
-  return {
-    numBlockedConditions: state.blockedConditions.size,
-  };
 }
 
 /**

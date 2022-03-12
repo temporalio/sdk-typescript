@@ -38,9 +38,9 @@ export interface ConnectionOptions {
   /**
    * GRPC Channel arguments
    *
-   * @see options {@link https://grpc.github.io/grpc/core/group__grpc__arg__keys.html | here}
+   * @see option descriptions {@link https://grpc.github.io/grpc/core/group__grpc__arg__keys.html | here}
    */
-  channelArgs?: Record<string, any>;
+  channelArgs?: grpc.ChannelOptions;
 
   /**
    * Grpc interceptors which will be applied to every RPC call performed by this connection. By
@@ -110,7 +110,12 @@ function normalizeGRPCConfig(options?: ConnectionOptions): ConnectionOptions {
       ),
       channelArgs: {
         ...rest.channelArgs,
-        ...(tls.serverNameOverride ? { 'grpc.ssl_target_name_override': tls.serverNameOverride } : undefined),
+        ...(tls.serverNameOverride
+          ? {
+              'grpc.ssl_target_name_override': tls.serverNameOverride,
+              'grpc.default_authority': tls.serverNameOverride,
+            }
+          : undefined),
       },
     };
   } else {

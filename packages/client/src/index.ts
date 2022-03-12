@@ -26,6 +26,7 @@ export { RetryPolicy } from '@temporalio/internal-workflow-common';
 export * from './async-completion-client';
 export * from './connection';
 export * from './errors';
+export * from './grpc-retry';
 export * from './interceptors';
 export * from './types';
 export * from './workflow-client';

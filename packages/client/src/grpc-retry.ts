@@ -41,12 +41,12 @@ const retryableCodes = new Set([
   grpc.status.OUT_OF_RANGE,
 ]);
 
-function isRetryableError(status: StatusObject): boolean {
+export function isRetryableError(status: StatusObject): boolean {
   return retryableCodes.has(status.code);
 }
 
-// Return backoff amount in ms
-function backOffAmount(attempt: number): number {
+/** Return backoff amount in ms */
+export function backOffAmount(attempt: number): number {
   return 2 ** attempt * 20;
 }
 
@@ -62,7 +62,7 @@ export function makeGrpcRetryInterceptor(retryOptions: GrpcRetryOptions): Interc
     let savedReceiveMessage: any;
     let savedMessageNext: any;
     const requester = new RequesterBuilder()
-      .withStart(function (metadata, listener, next) {
+      .withStart(function (metadata, _listener, next) {
         savedMetadata = metadata;
         const newListener = new ListenerBuilder()
           .withOnReceiveMessage((message, next) => {
