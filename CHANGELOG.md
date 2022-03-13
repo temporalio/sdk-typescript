@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 Breaking changes marked with a :boom:
 
+## [0.19.1] - 2022-03-12
+
+### Bug Fixes
+
+- Revert "use swc-loader instead of ts-loader (#525)" ([#535](https://github.com/temporalio/sdk-typescript/pull/535))
+  - `swc-loader` was causing a webpack build error when using `ts-node` (see [#534](https://github.com/temporalio/sdk-typescript/issues/534))
+
 ## [0.19.0] - 2022-03-12
 
 - :boom: This release includes the breaking changes listed in:
