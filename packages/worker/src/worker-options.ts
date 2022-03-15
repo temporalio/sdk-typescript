@@ -180,6 +180,18 @@ export interface WorkerOptions {
    * @default false
    */
   debugMode?: boolean;
+
+  bundlerOptions?: {
+    /**
+     * List of modules to be excluded from the Workflows bundle.
+     *
+     * Use this option when your Workflow code references an import that cannot be used in isolation,
+     * e.g. a Node.js built-in module. Modules listed here **MUST** not be used at runtime.
+     *
+     * > NOTE: This is an advanced option that should be used with care.
+     */
+    ignoreModules?: string[];
+  };
   // TODO: implement all of these
   // maxConcurrentLocalActivityExecutions?: number; // defaults to 200
   // maxTaskQueueActivitiesPerSecond?: number;

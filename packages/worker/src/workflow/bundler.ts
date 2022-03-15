@@ -9,7 +9,7 @@ import webpack from 'webpack';
 import { DefaultLogger, Logger } from '../logger';
 
 const nodejsBuiltinModules: string[] = [
-  // assert, // A remplacement module is injected through module-overrides
+  // assert, // A replacement module is injected through module-overrides
   'async_hooks',
   'buffer',
   'child_process',
@@ -70,13 +70,25 @@ const nodejsBuiltinModules: string[] = [
 export class WorkflowCodeBundler {
   private foundProblematicModules = new Set<string>();
 
-  constructor(
-    public readonly logger: Logger,
-    public readonly workflowsPath: string,
-    public readonly workflowInterceptorModules: string[] = [],
-    protected readonly payloadConverterPath?: string,
-    protected readonly ignoreModules: string[] = []
-  ) {}
+  public readonly logger: Logger;
+  public readonly workflowsPath: string;
+  public readonly workflowInterceptorModules: string[];
+  protected readonly payloadConverterPath?: string;
+  protected readonly ignoreModules: string[];
+
+  constructor({
+    logger,
+    workflowsPath,
+    payloadConverterPath,
+    workflowInterceptorModules,
+    ignoreModules,
+  }: BundleOptions) {
+    this.logger = logger ?? new DefaultLogger('INFO');
+    this.workflowsPath = workflowsPath;
+    this.payloadConverterPath = payloadConverterPath;
+    this.workflowInterceptorModules = workflowInterceptorModules ?? [];
+    this.ignoreModules = ignoreModules ?? [];
+  }
 
   /**
    * @return a string representation of the bundled Workflow code
@@ -294,21 +306,17 @@ export interface BundleOptions {
    */
   payloadConverterPath?: string;
   /**
-   * List of modules to be excluded from the workflows bundle.
+   * List of modules to be excluded from the Workflows bundle.
+   *
+   * Use this option when your Workflow code references an import that cannot be used in isolation,
+   * e.g. a Node.js built-in module. Modules listed here **MUST** not be used at runtime.
+   *
+   * > NOTE: This is an advanced option that should be used with care.
    */
   ignoreModules?: string[];
 }
 
 export async function bundleWorkflowCode(options: BundleOptions): Promise<{ code: string }> {
-  let { logger } = options;
-
-  logger ??= new DefaultLogger('INFO');
-  const bundler = new WorkflowCodeBundler(
-    logger,
-    options.workflowsPath,
-    options.workflowInterceptorModules,
-    options.payloadConverterPath,
-    options.ignoreModules
-  );
+  const bundler = new WorkflowCodeBundler(options);
   return { code: await bundler.createBundle() };
 }

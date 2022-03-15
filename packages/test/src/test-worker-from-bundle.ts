@@ -107,6 +107,5 @@ if (RUN_INTEGRATION_TESTS) {
       logs.some((entry) => entry.message.match(/'dns'/) && entry.message.match(/'BundleOptions.ignoreModules'/)),
       "Bundler reported a warning message about package 'dns'"
     );
-    t.pass();
   });
 }
