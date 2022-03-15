@@ -24,7 +24,7 @@ export async function runWorker(t: ExecutionContext<Context>, fn: () => Promise<
 }
 
 test.beforeEach(async (t) => {
-  const worker = await isolateFreeWorker(defaultOptions);
+  const worker = isolateFreeWorker(defaultOptions);
 
   t.context = {
     worker,
@@ -107,10 +107,12 @@ test('Worker cancels activity and reports cancellation', async (t) => {
     });
     const completion = await worker.native.runActivityTask({
       taskToken,
-      cancel: {},
+      cancel: {
+        reason: coresdk.activity_task.ActivityCancelReason.CANCELLED,
+      },
     });
     compareCompletion(t, completion.result, {
-      cancelled: { failure: { source: 'TypeScriptSDK', message: '', canceledFailureInfo: {} } },
+      cancelled: { failure: { source: 'TypeScriptSDK', message: 'CANCELLED', canceledFailureInfo: {} } },
     });
   });
 });
@@ -131,7 +133,9 @@ test('Activity Context AbortSignal cancels a fetch request', async (t) => {
       });
       const completion = await worker.native.runActivityTask({
         taskToken,
-        cancel: {},
+        cancel: {
+          reason: coresdk.activity_task.ActivityCancelReason.CANCELLED,
+        },
       });
       compareCompletion(t, completion.result, {
         cancelled: { failure: { source: 'TypeScriptSDK', canceledFailureInfo: {} } },

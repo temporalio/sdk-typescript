@@ -20,6 +20,7 @@ import { byteArrayToBuffer } from './utils';
 
 export type History = temporal.api.history.v1.IHistory;
 
+export { RequiredTelemetryOptions };
 export type TelemetryOptions = MakeOptional<RequiredTelemetryOptions, 'logForwardingLevel'>;
 
 export interface CoreOptions {

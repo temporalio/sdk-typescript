@@ -1,5 +1,5 @@
-import { PayloadCodec } from './payload-codec';
-import { PayloadConverter } from './payload-converter';
+import { defaultPayloadCodec, PayloadCodec } from './payload-codec';
+import { defaultPayloadConverter, PayloadConverter } from './payload-converter';
 
 /**
  * When your data (arguments and return values) is sent over the wire and stored by Temporal Server, it is encoded in
@@ -46,3 +46,8 @@ export interface LoadedDataConverter {
   payloadConverter: PayloadConverter;
   payloadCodec: PayloadCodec;
 }
+
+export const defaultDataConverter: LoadedDataConverter = {
+  payloadConverter: defaultPayloadConverter,
+  payloadCodec: defaultPayloadCodec,
+};

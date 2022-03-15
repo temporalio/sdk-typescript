@@ -2,6 +2,7 @@ import { status as grpcStatus } from '@grpc/grpc-js';
 import {
   CancelledFailure,
   DataConverter,
+  defaultDataConverter,
   LoadedDataConverter,
   RetryState,
   TerminatedFailure,
@@ -11,6 +12,7 @@ import {
 import {
   decodeArrayFromPayloads,
   decodeFromPayloadsAtIndex,
+  decodeMapFromPayloads,
   decodeOptionalFailureToOptionalError,
   encodeMapToPayloads,
   encodeToPayloads,
@@ -20,8 +22,10 @@ import {
   BaseWorkflowHandle,
   compileRetryPolicy,
   composeInterceptors,
+  optionalTsToDate,
   QueryDefinition,
   SignalDefinition,
+  tsToDate,
   WithWorkflowArgs,
   Workflow,
   WorkflowNotFoundError,
@@ -42,6 +46,7 @@ import {
   WorkflowCancelInput,
   WorkflowClientCallsInterceptor,
   WorkflowClientInterceptors,
+  WorkflowDescribeInput,
   WorkflowQueryInput,
   WorkflowSignalInput,
   WorkflowSignalWithStartInput,
@@ -55,6 +60,7 @@ import {
   StartWorkflowExecutionRequest,
   TerminateWorkflowExecutionResponse,
   WorkflowExecution,
+  WorkflowExecutionDescription,
 } from './types';
 import { compileWorkflowOptions, WorkflowOptions, WorkflowSignalWithStartOptions } from './workflow-options';
 
@@ -111,7 +117,7 @@ export interface WorkflowHandle<T extends Workflow = Workflow> extends BaseWorkf
   /**
    * Describe the current workflow execution
    */
-  describe(): Promise<DescribeWorkflowExecutionResponse>;
+  describe(): Promise<WorkflowExecutionDescription>;
 
   /**
    * Readonly accessor to the underlying WorkflowClient
@@ -606,7 +612,7 @@ export class WorkflowClient {
           : undefined,
         searchAttributes: options.searchAttributes
           ? {
-              indexedFields: await encodeMapToPayloads(this.options.loadedDataConverter, options.searchAttributes),
+              indexedFields: await encodeMapToPayloads(defaultDataConverter, options.searchAttributes),
             }
           : undefined,
         cronSchedule: options.cronSchedule,
@@ -645,7 +651,7 @@ export class WorkflowClient {
       memo: opts.memo ? { fields: await encodeMapToPayloads(this.options.loadedDataConverter, opts.memo) } : undefined,
       searchAttributes: opts.searchAttributes
         ? {
-            indexedFields: await encodeMapToPayloads(this.options.loadedDataConverter, opts.searchAttributes),
+            indexedFields: await encodeMapToPayloads(defaultDataConverter, opts.searchAttributes),
           }
         : undefined,
       cronSchedule: opts.cronSchedule,
@@ -711,6 +717,22 @@ export class WorkflowClient {
   }
 
   /**
+   * Uses given input to make describeWorkflowExecution call to the service
+   *
+   * Used as the final function of the describe interceptor chain
+   */
+  protected async _describeWorkflowHandler(input: WorkflowDescribeInput): Promise<DescribeWorkflowExecutionResponse> {
+    try {
+      return await this.service.describeWorkflowExecution({
+        namespace: this.options.namespace,
+        execution: input.workflowExecution,
+      });
+    } catch (err) {
+      this.rethrowGrpcError(err, input.workflowExecution, 'Failed to describe workflow');
+    }
+  }
+
+  /**
    * Create a new workflow handle for new or existing Workflow execution
    */
   protected _createWorkflowHandle<T extends Workflow>({
@@ -721,8 +743,6 @@ export class WorkflowClient {
     runIdForResult,
     ...resultOptions
   }: WorkflowHandleOptions): WorkflowHandle<T> {
-    const namespace = this.options.namespace;
-
     return {
       client: this,
       workflowId,
@@ -747,13 +767,38 @@ export class WorkflowClient {
         });
       },
       async describe() {
-        return this.client.service.describeWorkflowExecution({
-          namespace,
-          execution: {
-            runId,
-            workflowId,
-          },
+        const next = this.client._describeWorkflowHandler.bind(this.client);
+        const fn = interceptors.length ? composeInterceptors(interceptors, 'describe', next) : next;
+        const raw = await fn({
+          workflowExecution: { workflowId, runId },
         });
+        return {
+          /* eslint-disable @typescript-eslint/no-non-null-assertion */
+          type: raw.workflowExecutionInfo!.type!.name!,
+          workflowId: raw.workflowExecutionInfo!.execution!.workflowId!,
+          runId: raw.workflowExecutionInfo!.execution!.runId!,
+          taskQueue: raw.workflowExecutionInfo!.taskQueue!,
+          status: raw.workflowExecutionInfo!.status!,
+          historyLength: raw.workflowExecutionInfo!.historyLength!,
+          startTime: tsToDate(raw.workflowExecutionInfo!.startTime!),
+          executionTime: optionalTsToDate(raw.workflowExecutionInfo!.executionTime),
+          closeTime: optionalTsToDate(raw.workflowExecutionInfo!.closeTime),
+          memo: await decodeMapFromPayloads(
+            this.client.options.loadedDataConverter,
+            raw.workflowExecutionInfo!.memo?.fields
+          ),
+          searchAttributes: await decodeMapFromPayloads(
+            defaultDataConverter,
+            raw.workflowExecutionInfo!.searchAttributes?.indexedFields
+          ),
+          parentExecution: raw.workflowExecutionInfo!.parentExecution
+            ? {
+                workflowId: raw.workflowExecutionInfo!.parentExecution!.workflowId!,
+                runId: raw.workflowExecutionInfo!.parentExecution!.runId!,
+              }
+            : undefined,
+          raw,
+        };
       },
       async signal<Args extends any[]>(def: SignalDefinition<Args> | string, ...args: Args): Promise<void> {
         const next = this.client._signalWorkflowHandler.bind(this.client);

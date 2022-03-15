@@ -7,6 +7,7 @@ import {
   errorMessage,
   IllegalStateError,
   LoadedDataConverter,
+  Payload,
 } from '@temporalio/common';
 import * as native from '@temporalio/core-bridge';
 import {
@@ -47,7 +48,7 @@ import { Core, History, ReplayCore } from './core';
 import * as errors from './errors';
 import { ActivityExecuteInput } from './interceptors';
 import { Logger } from './logger';
-import { closeableGroupBy, mergeMapWithState } from './rxutils';
+import { closeableGroupBy, mapWithState, mergeMapWithState } from './rxutils';
 import { childSpan, getTracer, instrument } from './tracing';
 import { byteArrayToBuffer, toMB } from './utils';
 import {
@@ -108,7 +109,7 @@ export type ActivationWithContext = ContextAware<{
 }>;
 export type ActivityTaskWithContext = ContextAware<{
   task: coresdk.activity_task.ActivityTask;
-  formattedTaskToken: string;
+  base64TaskToken: string;
 }>;
 
 export interface NativeWorkerLike {
@@ -179,13 +180,83 @@ function formatTaskToken(taskToken: Uint8Array) {
 }
 
 /**
+ * Heartbeat request used as input to {@link Worker.activityHeartbeatSubject}
+ */
+interface Heartbeat {
+  type: 'heartbeat';
+  base64TaskToken: string;
+  taskToken: Uint8Array;
+  details?: any;
+  onError: (reason: string) => void;
+}
+
+/**
+ * Notifies that an activity has been complete, used as input to {@link Worker.activityHeartbeatSubject}
+ */
+interface ActivityCompleteNotification {
+  type: 'completion';
+  flushRequired: boolean;
+  callback?: () => void;
+  base64TaskToken: string;
+}
+
+/**
+ * Notifies that an Activity heartbeat has been flushed, used as input to {@link Worker.activityHeartbeatSubject}
+ */
+interface HeartbeatFlushNotification {
+  type: 'flush';
+  base64TaskToken: string;
+}
+
+/**
+ * Input for the {@link Worker.activityHeartbeatSubject}
+ */
+type HeartbeatInput = Heartbeat | ActivityCompleteNotification | HeartbeatFlushNotification;
+
+/**
+ * State for managing a single Activity's heartbeat sending
+ */
+interface HeartbeatState {
+  closed: boolean;
+  processing: boolean;
+  completionCallback?: () => void;
+  pending?: Heartbeat;
+}
+
+/**
+ * Request to send a heartbeat, used as output from the Activity heartbeat state mapper
+ */
+interface HeartbeatSendRequest {
+  type: 'send';
+  heartbeat: Heartbeat;
+}
+
+/**
+ * Request to close an Activity heartbeat stream, used as output from the Activity heartbeat state mapper
+ */
+interface HeartbeatGroupCloseRequest {
+  type: 'close';
+  completionCallback?: () => void;
+}
+
+/**
+ * Output from the Activity heartbeat state mapper
+ */
+type HeartbeatOutput = HeartbeatSendRequest | HeartbeatGroupCloseRequest;
+
+/**
+ * Used as the return type of the Activity heartbeat state mapper
+ */
+interface HeartbeatStateAndOutput {
+  state: HeartbeatState;
+  output: HeartbeatOutput | null;
+}
+
+/**
  * The temporal Worker connects to Temporal Server and runs Workflows and Activities.
  */
 export class Worker {
-  protected readonly activityHeartbeatSubject = new Subject<{
-    taskToken: Uint8Array;
-    details?: any;
-  }>();
+  protected readonly activityHeartbeatSubject = new Subject<HeartbeatInput>();
   protected readonly stateSubject = new BehaviorSubject<State>('INITIALIZED');
   protected readonly workflowPollerStateSubject = new BehaviorSubject<'POLLING' | 'SHUTDOWN' | 'FAILED'>('POLLING');
   protected readonly numInFlightActivationsSubject = new BehaviorSubject<number>(0);
@@ -331,7 +402,7 @@ export class Worker {
   }
 
   /**
-   * An Observable which emits each time the number of in flight activity tasks changes
+   * An Observable which emits each time the number of in flight Activity tasks changes
    */
   public get numInFlightActivities$(): Observable<number> {
     return this.numInFlightActivitiesSubject;
@@ -430,15 +501,15 @@ export class Worker {
   }
 
   /**
-   * Process activity tasks
+   * Process Activity tasks
    */
   protected activityOperator(): OperatorFunction<ActivityTaskWithContext, ContextAware<{ completion: Uint8Array }>> {
     return pipe(
-      closeableGroupBy(({ formattedTaskToken }) => formattedTaskToken),
+      closeableGroupBy(({ base64TaskToken }) => base64TaskToken),
       mergeMap((group$) => {
         return group$.pipe(
           mergeMapWithState(
-            async (activity: Activity | undefined, { task, parentSpan, formattedTaskToken }) => {
+            async (activity: Activity | undefined, { task, parentSpan, base64TaskToken }) => {
               const { taskToken, variant } = task;
               if (!variant) {
                 throw new TypeError('Got an activity task without a "variant" attribute');
@@ -457,7 +528,7 @@ export class Worker {
                   case 'start': {
                     if (activity !== undefined) {
                       throw new IllegalStateError(
-                        `Got start event for an already running activity: ${formattedTaskToken}`
+                        `Got start event for an already running activity: ${base64TaskToken}`
                       );
                     }
                     const info = await extractActivityInfo(
@@ -522,8 +593,13 @@ export class Worker {
                       this.options.loadedDataConverter,
                       (details) =>
                         this.activityHeartbeatSubject.next({
+                          type: 'heartbeat',
                           taskToken,
+                          base64TaskToken,
                           details,
+                          onError(reason) {
+                            activity?.cancel(true, reason); // activity must be defined
+                          },
                         }),
                       { inbound: this.options.interceptors?.activityInbound }
                     );
@@ -534,14 +610,17 @@ export class Worker {
                   case 'cancel': {
                     output = { type: 'ignore', parentSpan };
                     if (activity === undefined) {
-                      this.log.error('Tried to cancel a non-existing activity', { formattedTaskToken });
+                      this.log.error('Tried to cancel a non-existing activity', { taskToken: base64TaskToken });
                       span.setAttribute('found', false);
                       break;
                     }
                     // NOTE: activity will not be considered cancelled until it confirms cancellation
-                    this.log.debug('Cancelling activity', { formattedTaskToken });
+                    this.log.debug('Cancelling activity', { taskToken: base64TaskToken });
                     span.setAttribute('found', true);
-                    activity.cancel();
+                    if (!task.cancel?.reason) {
+                      throw new TypeError('Got cancel activity cancel task with no reason');
+                    }
+                    activity.cancel(false, coresdk.activity_task.ActivityCancelReason[task.cancel.reason]);
                     break;
                   }
                 }
@@ -562,7 +641,33 @@ export class Worker {
               const result = await output.activity.run(output.input);
               const status = result.failed ? 'failed' : result.completed ? 'completed' : 'cancelled';
               span.setAttributes({ status });
-              this.log.debug('Activity resolved', { activityId: output.activity.info.activityId, status });
+
+              if (status === 'failed') {
+                // Make sure to flush the last heartbeat
+                this.log.debug('Activity failed, waiting for heartbeats to be flushed', {
+                  activityId: output.activity.info.activityId,
+                  status,
+                });
+                await new Promise<void>((resolve) => {
+                  this.activityHeartbeatSubject.next({
+                    type: 'completion',
+                    flushRequired: true,
+                    base64TaskToken: output.activity.info.base64TaskToken,
+                    callback: resolve,
+                  });
+                });
+              } else {
+                // Notify the Activity heartbeat state mapper that the Activity has completed
+                this.activityHeartbeatSubject.next({
+                  type: 'completion',
+                  flushRequired: false,
+                  base64TaskToken: output.activity.info.base64TaskToken,
+                });
+              }
+              this.log.debug('Activity resolved', {
+                activityId: output.activity.info.activityId,
+                status,
+              });
               return { taskToken, result, parentSpan: output.parentSpan };
             });
           }),
@@ -821,21 +926,107 @@ export class Worker {
    * Errors from core responses are translated to cancellation requests and fed back via the activityFeedbackSubject.
    */
   protected activityHeartbeat$(): Observable<void> {
+    function process(state: HeartbeatState, heartbeat: Heartbeat): HeartbeatStateAndOutput {
+      return { state: { ...state, processing: true, pending: undefined }, output: { type: 'send', heartbeat } };
+    }
+
+    function storePending(state: HeartbeatState, heartbeat: Heartbeat): HeartbeatStateAndOutput {
+      return { state: { ...state, pending: heartbeat }, output: null };
+    }
+
+    function complete(callback?: () => void): HeartbeatStateAndOutput {
+      return {
+        state: { pending: undefined, completionCallback: undefined, processing: false, closed: true },
+        output: { type: 'close', completionCallback: callback },
+      };
+    }
+
     return this.activityHeartbeatSubject.pipe(
       // The only way for this observable to be closed is by state changing to DRAINED meaning that all in-flight activities have been resolved and thus there should not be any heartbeats to send.
       this.takeUntilState('DRAINED'),
       tap({
-        next: ({ taskToken }) => this.log.trace('Got activity heartbeat', { taskToken: formatTaskToken(taskToken) }),
+        next: ({ base64TaskToken }) => this.log.trace('Got activity heartbeat', { taskToken: base64TaskToken }),
         complete: () => this.log.debug('Heartbeats complete'),
       }),
-      mergeMap(async ({ taskToken, details }) => {
-        const payload = await encodeToPayload(this.options.loadedDataConverter, details);
-        const arr = coresdk.ActivityHeartbeat.encodeDelimited({
-          taskToken,
-          details: [payload],
-        }).finish();
-        this.nativeWorker.recordActivityHeartbeat(byteArrayToBuffer(arr));
-      })
+      closeableGroupBy(({ base64TaskToken }) => base64TaskToken),
+      mergeMap((group$) =>
+        group$.pipe(
+          mapWithState(
+            (state: HeartbeatState, input: HeartbeatInput): HeartbeatStateAndOutput => {
+              // Ignore any input if we've marked this activity heartbeat stream as closed
+              if (state.closed) return { state, output: null };
+
+              switch (input.type) {
+                case 'heartbeat':
+                  if (state.processing) {
+                    // We're already processing a heartbeat, mark this one as pending
+                    return storePending(state, input);
+                  } else {
+                    // Ready to send heartbeat, mark that we're now processing
+                    return process(state, input);
+                  }
+                case 'flush':
+                  if (state.pending) {
+                    // Send pending heartbeat
+                    return process(state, state.pending);
+                  } else if (state.completionCallback) {
+                    // We were asked to complete, fulfill that request
+                    return complete(state.completionCallback);
+                  } else {
+                    // Nothing to do, wait for completion or heartbeat
+                    return { state: { ...state, processing: false }, output: null };
+                  }
+                case 'completion':
+                  if (!input.flushRequired) {
+                    return complete(input.callback);
+                  } else if (state.processing) {
+                    // Store the completion callback until heartbeat has been flushed
+                    return { state: { ...state, completionCallback: input.callback }, output: null };
+                  } else {
+                    if (state.pending) {
+                      // Flush the final heartbeat and store the completion callback
+                      return process({ ...state, completionCallback: input.callback }, state.pending);
+                    } else {
+                      // Nothing to flush, complete and call back
+                      return complete(input.callback);
+                    }
+                  }
+              }
+            },
+            { processing: false, closed: false }
+          ),
+          filter((out): out is HeartbeatOutput => out != null),
+          tap((out) => {
+            if (out.type === 'close') {
+              out.completionCallback?.();
+            }
+          }),
+          takeWhile((out): out is HeartbeatSendRequest => out.type !== 'close'),
+          mergeMap(async ({ heartbeat: { base64TaskToken, taskToken, details, onError } }) => {
+            let payload: Payload;
+            try {
+              try {
+                payload = await encodeToPayload(this.options.loadedDataConverter, details);
+              } catch (error: any) {
+                this.log.warn('Failed to encode heartbeat details, cancelling Activity', {
+                  error,
+                  taskToken: base64TaskToken,
+                });
+                onError(error.toString());
+                return;
+              }
+              const arr = coresdk.ActivityHeartbeat.encodeDelimited({
+                taskToken,
+                details: [payload],
+              }).finish();
+              this.nativeWorker.recordActivityHeartbeat(byteArrayToBuffer(arr));
+            } finally {
+              this.activityHeartbeatSubject.next({ type: 'flush', base64TaskToken });
+            }
+          }),
+          tap({ complete: group$.close })
+        )
+      )
     );
   }
 
@@ -949,14 +1140,14 @@ export class Worker {
           const buffer = await this.nativeWorker.pollActivityTask(span.spanContext());
           const task = coresdk.activity_task.ActivityTask.decode(new Uint8Array(buffer));
           const { taskToken, ...rest } = task;
-          const formattedTaskToken = formatTaskToken(taskToken);
-          this.log.debug('Got activity task', { taskToken: formattedTaskToken, ...rest });
+          const base64TaskToken = formatTaskToken(taskToken);
+          this.log.debug('Got activity task', { taskToken: base64TaskToken, ...rest });
           const { variant } = task;
           if (variant === undefined) {
             throw new TypeError('Got an activity task without a "variant" attribute');
           }
           parentSpan.setAttributes({
-            [TASK_TOKEN_ATTR_KEY]: formattedTaskToken,
+            [TASK_TOKEN_ATTR_KEY]: base64TaskToken,
             variant,
             [RUN_ID_ATTR_KEY]: task.start?.workflowExecution?.runId ?? 'unknown',
           });
@@ -965,7 +1156,7 @@ export class Worker {
             const ctx = await extractSpanContextFromHeaders(task.start.headerFields);
             linkSpans(parentSpan, ctx);
           }
-          return { task, parentSpan, formattedTaskToken };
+          return { task, parentSpan, base64TaskToken };
         },
         (err) => err instanceof errors.ShutdownError
       );
@@ -1081,6 +1272,7 @@ async function extractActivityInfo(
   const activityId = start.activityId;
   return {
     taskToken,
+    base64TaskToken: formatTaskToken(taskToken),
     activityId,
     workflowExecution: start.workflowExecution as NonNullableObject<coresdk.common.WorkflowExecution>,
     attempt: start.attempt,

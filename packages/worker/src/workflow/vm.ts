@@ -1,3 +1,5 @@
+import vm from 'vm';
+import semver from 'semver';
 import { IllegalStateError } from '@temporalio/common';
 import { coresdk } from '@temporalio/proto';
 import { WorkflowInfo } from '@temporalio/workflow';
@@ -5,7 +7,6 @@ import { SinkCall } from '@temporalio/workflow/lib/sinks';
 import * as internals from '@temporalio/workflow/lib/worker-interface';
 import assert from 'assert';
 import { AsyncLocalStorage } from 'async_hooks';
-import vm from 'vm';
 import { partition } from '../utils';
 import { Workflow, WorkflowCreateOptions, WorkflowCreator } from './interface';
 
@@ -37,6 +38,7 @@ export function setUnhandledRejectionHandler(): void {
 export class VMWorkflowCreator implements WorkflowCreator {
   private static unhandledRejectionHandlerHasBeenSet = false;
   static workflowByRunId = new Map<string, VMWorkflow>();
+  readonly hasSeparateMicrotaskQueue: boolean;
 
   script?: vm.Script;
 
@@ -45,6 +47,10 @@ export class VMWorkflowCreator implements WorkflowCreator {
       setUnhandledRejectionHandler();
       VMWorkflowCreator.unhandledRejectionHandlerHasBeenSet = true;
     }
+
+    // https://nodejs.org/api/vm.html#vmcreatecontextcontextobject-options
+    // microtaskMode=afterEvaluate was added in 14.6.0
+    this.hasSeparateMicrotaskQueue = semver.gte(process.versions.node, '14.6.0');
 
     this.script = script;
   }
@@ -55,17 +61,27 @@ export class VMWorkflowCreator implements WorkflowCreator {
   async createWorkflow(options: WorkflowCreateOptions): Promise<Workflow> {
     const context = await this.getContext();
     this.injectConsole(context, options.info);
-    const { isolateExecutionTimeoutMs } = this;
+    const { hasSeparateMicrotaskQueue, isolateExecutionTimeoutMs } = this;
     const workflowModule: WorkflowModule = new Proxy(
       {},
       {
         get(_: any, fn: string) {
           return (...args: any[]) => {
             context.args = args;
-            return vm.runInContext(`__TEMPORAL__.api.${fn}(...globalThis.args)`, context, {
+            const ret = vm.runInContext(`__TEMPORAL__.api.${fn}(...globalThis.args)`, context, {
               timeout: isolateExecutionTimeoutMs,
               displayErrors: true,
             });
+            // When running with microtaskMode `afterEvaluate`, promises from context cannot be directly awaited outside of it.
+            if (
+              hasSeparateMicrotaskQueue &&
+              typeof ret === 'object' &&
+              ret != null &&
+              ret.constructor.name === 'Promise'
+            ) {
+              return new Promise((resolve, reject) => ret.then(resolve, reject));
+            }
+            return ret;
           };
         },
       }
@@ -73,7 +89,13 @@ export class VMWorkflowCreator implements WorkflowCreator {
 
     await workflowModule.initRuntime(options);
 
-    const newVM = new VMWorkflow(options.info, context, workflowModule, isolateExecutionTimeoutMs);
+    const newVM = new VMWorkflow(
+      options.info,
+      context,
+      workflowModule,
+      isolateExecutionTimeoutMs,
+      this.hasSeparateMicrotaskQueue
+    );
     VMWorkflowCreator.workflowByRunId.set(options.info.runId, newVM);
     return newVM;
   }
@@ -82,7 +104,12 @@ export class VMWorkflowCreator implements WorkflowCreator {
     if (this.script === undefined) {
       throw new IllegalStateError('Isolate context provider was destroyed');
     }
-    const context = vm.createContext({ AsyncLocalStorage, assert });
+    let context;
+    if (this.hasSeparateMicrotaskQueue) {
+      context = vm.createContext({ AsyncLocalStorage, assert }, { microtaskMode: 'afterEvaluate' });
+    } else {
+      context = vm.createContext({ AsyncLocalStorage, assert });
+    }
     this.script.runInContext(context);
     return context;
   }
@@ -136,7 +163,8 @@ export class VMWorkflow implements Workflow {
     public readonly info: WorkflowInfo,
     protected context: vm.Context | undefined,
     readonly workflowModule: WorkflowModule,
-    public readonly isolateExecutionTimeoutMs: number
+    public readonly isolateExecutionTimeoutMs: number,
+    public readonly hasSeparateMicrotaskQueue: boolean
   ) {}
 
   /**
@@ -177,20 +205,15 @@ export class VMWorkflow implements Workflow {
       if (jobs.length === 0) {
         continue;
       }
-      const { numBlockedConditions } = await this.workflowModule.activate(
+      await this.workflowModule.activate(
         coresdk.workflow_activation.WorkflowActivation.fromObject({ ...activation, jobs }),
         batchIndex++
       );
-      if (numBlockedConditions > 0) {
-        await this.tryUnblockConditions();
-      }
-      // Wait for microtasks to be processed
-      await new Promise((resolve) => process.nextTick(resolve));
+      await this.tryUnblockConditions();
     }
     const completion = this.workflowModule.concludeActivation();
-    // Give unhandledRejection handler a chance to process.
-    // Apparently nextTick does not get it triggered so we use setTimeout here.
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    // Give unhandledRejection handler a chance to be triggered.
+    await new Promise(setImmediate);
     if (this.unhandledRejection) {
       return coresdk.workflow_completion.WorkflowActivationCompletion.encodeDelimited({
         runId: activation.runId,
@@ -215,10 +238,15 @@ export class VMWorkflow implements Workflow {
    */
   protected async tryUnblockConditions(): Promise<void> {
     for (;;) {
+      if (!this.hasSeparateMicrotaskQueue) {
+        // Wait for microtasks to be processed
+        // This is only required if the context doesn't have a separate microtask queue
+        // because when it does we guarantee to wait for microtasks to be processed every
+        // time we enter the context.
+        await new Promise(setImmediate);
+      }
       const numUnblocked = this.workflowModule.tryUnblockConditions();
       if (numUnblocked === 0) break;
-      // Wait for microtasks to be processed
-      await new Promise((resolve) => process.nextTick(resolve));
     }
   }
 

@@ -188,7 +188,7 @@ jobs:
           name: packages-${{ matrix.target }}
           path: /tmp/registry/storage
         if: ${{ matrix.server != 'cloud' || env.TEMPORAL_CLIENT_CERT != '' }}
-      - run: node scripts/init-from-verdaccio.js --registry-dir /tmp/registry --sample https://github.com/temporalio/samples-typescript/tree/next/${{ matrix.sample }}
+      - run: node scripts/init-from-verdaccio.js --registry-dir /tmp/registry --sample https://github.com/temporalio/samples-typescript/tree/main/${{ matrix.sample }}
         if: ${{ matrix.server != 'cloud' || env.TEMPORAL_CLIENT_CERT != '' }}
       - name: Get Temporal docker-compose.yml
         run: wget https://raw.githubusercontent.com/temporalio/docker-compose/v1.13.0/docker-compose.yml
