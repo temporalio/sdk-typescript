@@ -5,11 +5,7 @@
     "outDir": "./lib",
     "rootDir": "./src"
   },
-  "references": [
-    { "path": "../client/tsconfig.json" },
-    { "path": "../worker/tsconfig.json" },
-    { "path": "../activity/tsconfig.json" }
-  ],
+  "references": [{ "path": "../client" }, { "path": "../worker" }, { "path": "../activity" }],
   "include": ["./src/**/*.ts"],
   "exclude": ["node_modules"]
 }

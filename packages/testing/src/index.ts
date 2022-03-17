@@ -3,28 +3,41 @@ import { AsyncCompletionClient, Connection, WorkflowClient } from '@temporalio/c
 import { ActivityFunction, CancelledFailure } from '@temporalio/common';
 import { Core, Logger, DefaultLogger } from '@temporalio/worker';
 import path from 'path';
+import os from 'os';
 import { AbortController } from 'abort-controller';
-import { ChildProcess, spawn } from 'child_process';
+import { ChildProcess, spawn, StdioOptions } from 'child_process';
 import events from 'events';
 import { kill, waitOnChild } from './child-process';
 import type getPortType from 'get-port';
+
+const TEST_SERVER_EXECUTABLE_NAME = os.platform() === 'win32' ? 'test-server.exe' : 'test-server';
 
 /**
  * Options for {@link TestWorkflowEnvironment.create}
  */
 export interface TestWorkflowEnvironmentOptions {
+  /**
+   * If `testServerSpawner` is not provided, use this value for child process stdio
+   */
+  testServerStdio?: StdioOptions;
   testServerSpawner?(port: number): ChildProcess;
   logger?: Logger;
 }
 
-function defaultTestWorkflowEnvironmentOptions(): Required<TestWorkflowEnvironmentOptions> {
+function addDefaults({
+  testServerStdio = 'ignore',
+  testServerSpawner,
+  logger,
+}: TestWorkflowEnvironmentOptions): Required<TestWorkflowEnvironmentOptions> {
   return {
-    testServerSpawner(port: number) {
-      return spawn(path.join(__dirname, '../test-server'), [`${port}`], {
-        stdio: 'ignore',
-      });
-    },
-    logger: new DefaultLogger('INFO'),
+    testServerSpawner:
+      testServerSpawner ??
+      ((port: number) =>
+        spawn(path.join(__dirname, `../${TEST_SERVER_EXECUTABLE_NAME}`), [`${port}`], {
+          stdio: testServerStdio,
+        })),
+    logger: logger ?? new DefaultLogger('INFO'),
+    testServerStdio,
   };
 }
 
@@ -39,7 +52,26 @@ const _importDynamic = new Function('modulePath', 'return import(modulePath)');
  * By default, the Java test server is used which supports time skipping.
  */
 export class TestWorkflowEnvironment {
-  protected constructor(protected readonly serverProc: ChildProcess, protected readonly conn: Connection) {}
+  /**
+   * Get an extablished {@link Connection} to the test server
+   */
+  public readonly connection: Connection;
+
+  /**
+   * An {@link AsyncCompletionClient} for interacting with the test server
+   */
+  public readonly asyncCompletionClient: AsyncCompletionClient;
+
+  /**
+   * A {@link WorkflowClient} for interacting with the test server
+   */
+  public readonly workflowClient: WorkflowClient;
+
+  protected constructor(protected readonly serverProc: ChildProcess, connection: Connection) {
+    this.connection = connection;
+    this.workflowClient = new WorkflowClient(this.connection.service);
+    this.asyncCompletionClient = new AsyncCompletionClient(this.connection.service);
+  }
 
   /**
    * Create a new test environment
@@ -49,7 +81,7 @@ export class TestWorkflowEnvironment {
     const getPort = (await _importDynamic('get-port')).default as typeof getPortType;
     const port = await getPort();
 
-    const { testServerSpawner, logger } = { ...defaultTestWorkflowEnvironmentOptions(), ...opts };
+    const { testServerSpawner, logger } = addDefaults(opts ?? {});
 
     const child = testServerSpawner(port);
 
@@ -79,31 +111,10 @@ export class TestWorkflowEnvironment {
   }
 
   /**
-   * Get an established {@link Connection} to the test server
-   */
-  get connection(): Connection {
-    return this.conn;
-  }
-
-  /**
-   * Get an {@link AsyncCompletionClient} for interacting with the test server
-   */
-  get asyncCompletionClient(): AsyncCompletionClient {
-    return new AsyncCompletionClient(this.conn.service);
-  }
-
-  /**
-   * Get a {@link WorkflowClient} for interacting with the test server
-   */
-  get workflowClient(): WorkflowClient {
-    return new WorkflowClient(this.conn.service);
-  }
-
-  /**
-   * Kill the test server process
+   * Kill the test server process and close the connection to it
    */
   async teardown(): Promise<void> {
-    this.conn.client.close();
+    this.connection.client.close();
     // TODO: the server should return exit code 0
     await kill(this.serverProc, 'SIGINT', { validReturnCodes: [0, 130] });
   }
