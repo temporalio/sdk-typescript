@@ -1,7 +1,7 @@
 import * as activity from '@temporalio/activity';
 import { AsyncCompletionClient, Connection, WorkflowClient } from '@temporalio/client';
 import { ActivityFunction, CancelledFailure } from '@temporalio/common';
-import { Core } from '@temporalio/worker';
+import { Core, Logger, DefaultLogger } from '@temporalio/worker';
 import path from 'path';
 import { AbortController } from 'abort-controller';
 import { ChildProcess, spawn } from 'child_process';
@@ -14,6 +14,7 @@ import type getPortType from 'get-port';
  */
 interface TestWorkflowEnvironmentOptions {
   testServerSpawner?(port: number): ChildProcess;
+  logger?: Logger;
 }
 
 function defaultTestWorkflowEnvironmentOptions(): Required<TestWorkflowEnvironmentOptions> {
@@ -23,6 +24,7 @@ function defaultTestWorkflowEnvironmentOptions(): Required<TestWorkflowEnvironme
         stdio: 'ignore',
       });
     },
+    logger: new DefaultLogger('INFO'),
   };
 }
 
@@ -47,7 +49,7 @@ export class TestWorkflowEnvironment {
     const getPort = (await _importDynamic('get-port')).default as typeof getPortType;
     const port = await getPort();
 
-    const { testServerSpawner } = { ...defaultTestWorkflowEnvironmentOptions(), ...opts };
+    const { testServerSpawner, logger } = { ...defaultTestWorkflowEnvironmentOptions(), ...opts };
 
     const child = testServerSpawner(port);
 
@@ -58,11 +60,15 @@ export class TestWorkflowEnvironment {
       await Promise.race([
         conn.untilReady(),
         waitOnChild(child).then(() => {
-          throw new Error('Child exited prematurely');
+          throw new Error('Test server child process exited prematurely');
         }),
       ]);
     } catch (err) {
-      await kill(child);
+      try {
+        await kill(child);
+      } catch (error) {
+        logger.error('Failed to kill test server child process', { error });
+      }
       throw err;
     }
 
