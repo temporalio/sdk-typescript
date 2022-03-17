@@ -12,7 +12,7 @@ import type getPortType from 'get-port';
 /**
  * Options for {@link TestWorkflowEnvironment.create}
  */
-interface TestWorkflowEnvironmentOptions {
+export interface TestWorkflowEnvironmentOptions {
   testServerSpawner?(port: number): ChildProcess;
   logger?: Logger;
 }
