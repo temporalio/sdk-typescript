@@ -26,7 +26,7 @@ export async function waitOnChild(child: ChildProcess, opts?: WaitOptions): Prom
   });
 }
 
-export async function kill(child: ChildProcess, signal: NodeJS.Signals = 'SIGINT', opts?: WaitOptions) {
+export async function kill(child: ChildProcess, signal: NodeJS.Signals = 'SIGINT', opts?: WaitOptions): Promise<void> {
   if (child.pid === undefined) {
     throw new TypeError('Expected child with pid');
   }

@@ -42,7 +42,7 @@ export class TestWorkflowEnvironment {
   /**
    * Create a new test environment
    */
-  static async create(opts?: TestWorkflowEnvironmentOptions) {
+  static async create(opts?: TestWorkflowEnvironmentOptions): Promise<TestWorkflowEnvironment> {
     // No, we're not going to compile this to ESM for one dependency
     const getPort = (await _importDynamic('get-port')).default as typeof getPortType;
     const port = await getPort();
@@ -96,7 +96,7 @@ export class TestWorkflowEnvironment {
   /**
    * Kill the test server process
    */
-  async teardown() {
+  async teardown(): Promise<void> {
     this.conn.client.close();
     // TODO: the server should return exit code 0
     await kill(this.serverProc, 'SIGINT', { validReturnCodes: [0, 130] });
