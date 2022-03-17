@@ -10,7 +10,8 @@
     "testing"
   ],
   "scripts": {
-    "install": "node ./scripts/download-test-server.mjs"
+    "install": "node ./scripts/download-test-server.mjs",
+    "build": "node ./scripts/download-test-server.mjs"
   },
   "author": "Temporal Technologies Inc. <sdk@temporal.io>",
   "license": "MIT",
