@@ -84,6 +84,7 @@
     "@temporalio/internal-workflow-common": "file:packages/internal-workflow-common",
     "@temporalio/proto": "file:packages/proto",
     "@temporalio/test": "file:packages/test",
+    "@temporalio/testing": "file:packages/testing",
     "@temporalio/worker": "file:packages/worker",
     "@temporalio/workflow": "file:packages/workflow",
     "temporalio": "file:packages/meta"

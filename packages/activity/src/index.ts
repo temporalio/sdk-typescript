@@ -126,7 +126,6 @@ export class Context {
    * Holds information about the current executing Activity.
    */
   public info: Info;
-  protected cancel: (reason?: any) => void = () => undefined;
   /**
    * Await this promise in an Activity to get notified of cancellation.
    *

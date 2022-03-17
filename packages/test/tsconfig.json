@@ -12,6 +12,7 @@
     { "path": "../client" },
     { "path": "../common" },
     { "path": "../interceptors-opentelemetry" },
+    { "path": "../testing" },
     { "path": "../worker" },
     { "path": "../workflow" }
   ],

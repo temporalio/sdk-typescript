@@ -1,0 +1,38 @@
+{
+  "name": "@temporalio/testing",
+  "version": "0.19.1",
+  "description": "Temporal.io SDK Testing sub-package",
+  "main": "lib/index.js",
+  "types": "./lib/index.d.ts",
+  "keywords": [
+    "temporal",
+    "workflow",
+    "testing"
+  ],
+  "scripts": {
+    "install": "node ./scripts/download-test-server.mjs",
+    "build": "node ./scripts/download-test-server.mjs"
+  },
+  "author": "Temporal Technologies Inc. <sdk@temporal.io>",
+  "license": "MIT",
+  "dependencies": {
+    "@temporalio/activity": "file:../activity",
+    "@temporalio/client": "file:../client",
+    "@temporalio/worker": "file:../worker",
+    "abort-controller": "^3.0.0",
+    "get-port": "^6.1.2",
+    "got": "^12.0.1",
+    "tar-stream": "^2.2.0",
+    "unzipper": "^0.10.11"
+  },
+  "bugs": {
+    "url": "https://github.com/temporalio/sdk-typescript/issues"
+  },
+  "homepage": "https://github.com/temporalio/sdk-typescript/tree/main/packages/testing",
+  "files": [
+    "lib"
+  ],
+  "publishConfig": {
+    "access": "public"
+  }
+}
