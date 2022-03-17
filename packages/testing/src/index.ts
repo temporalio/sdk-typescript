@@ -79,7 +79,7 @@ export class TestWorkflowEnvironment {
   }
 
   /**
-   * Get an extablished {@link Connection} to the test server
+   * Get an established {@link Connection} to the test server
    */
   get connection(): Connection {
     return this.conn;
