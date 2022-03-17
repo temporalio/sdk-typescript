@@ -8,6 +8,59 @@ import { v4 as uuid4 } from 'uuid';
 import webpack from 'webpack';
 import { DefaultLogger, Logger } from '../logger';
 
+const nodejsBuiltinModules: string[] = [
+  // assert, // A replacement module is injected through module-overrides
+  'async_hooks',
+  'buffer',
+  'child_process',
+  'cluster',
+  'console',
+  'constants',
+  'crypto',
+  'dgram',
+  'diagnostics_channel',
+  'dns',
+  'dns/promises',
+  'domain',
+  'events',
+  'fs',
+  'fs/promises',
+  'http',
+  'http2',
+  'https',
+  'inspector',
+  'module',
+  'net',
+  'os',
+  'path',
+  'path/posix',
+  'path/win32',
+  'perf_hooks',
+  'process',
+  'punycode',
+  'querystring',
+  'readline',
+  'repl',
+  'stream',
+  'stream/promises',
+  'stream/web',
+  'string_decoder',
+  'sys',
+  'timers',
+  'timers/promises',
+  'tls',
+  'trace_events',
+  'tty',
+  'url',
+  'util',
+  'util/types',
+  'v8',
+  'vm',
+  'wasi',
+  'worker_threads',
+  'zlib',
+];
+
 /**
  * Builds a V8 Isolate by bundling provided Workflows using webpack.
  *
@@ -15,12 +68,27 @@ import { DefaultLogger, Logger } from '../logger';
  * @param workflowInterceptorModules list of interceptor modules to register on Workflow creation
  */
 export class WorkflowCodeBundler {
-  constructor(
-    public readonly logger: Logger,
-    public readonly workflowsPath: string,
-    public readonly workflowInterceptorModules: string[] = [],
-    protected readonly payloadConverterPath?: string
-  ) {}
+  private foundProblematicModules = new Set<string>();
+
+  public readonly logger: Logger;
+  public readonly workflowsPath: string;
+  public readonly workflowInterceptorModules: string[];
+  protected readonly payloadConverterPath?: string;
+  protected readonly ignoreModules: string[];
+
+  constructor({
+    logger,
+    workflowsPath,
+    payloadConverterPath,
+    workflowInterceptorModules,
+    ignoreModules,
+  }: BundleOptions) {
+    this.logger = logger ?? new DefaultLogger('INFO');
+    this.workflowsPath = workflowsPath;
+    this.payloadConverterPath = payloadConverterPath;
+    this.workflowInterceptorModules = workflowInterceptorModules ?? [];
+    this.ignoreModules = ignoreModules ?? [];
+  }
 
   /**
    * @return a string representation of the bundled Workflow code
@@ -86,7 +154,7 @@ export class WorkflowCodeBundler {
 
     const code = dedent`
       import * as api from '@temporalio/workflow/lib/worker-interface.js';
-      
+
       // Bundle all Workflows and interceptor modules for lazy evaluation
       api.overrideGlobals();
       api.setImportFuncs({
@@ -114,19 +182,33 @@ export class WorkflowCodeBundler {
    * Run webpack
    */
   protected async bundle(filesystem: typeof unionfs.ufs, entry: string, distDir: string): Promise<void> {
+    const captureProblematicModules: webpack.Configuration['externals'] = async (
+      data,
+      _callback
+    ): Promise<undefined> => {
+      // Ignore the "node:" prefix if any.
+      const module: string = data.request?.startsWith('node:')
+        ? data.request.slice('node:'.length)
+        : data.request ?? '';
+
+      if (nodejsBuiltinModules.includes(module) && !this.ignoreModules.includes(module)) {
+        this.foundProblematicModules.add(module);
+      }
+
+      return undefined;
+    };
+
     const compiler = webpack({
       resolve: {
         // https://webpack.js.org/configuration/resolve/#resolvemodules
         modules: [path.resolve(__dirname, 'module-overrides'), 'node_modules'],
         extensions: ['.ts', '.js'],
-        // If we don't set an alias for this below, then it won't be imported, so webpack can safely ignore it
-        fallback: { __temporal_custom_payload_converter: false },
-        ...(this.payloadConverterPath && {
-          alias: {
-            __temporal_custom_payload_converter$: this.payloadConverterPath,
-          },
-        }),
+        alias: {
+          __temporal_custom_payload_converter$: this.payloadConverterPath ?? false,
+          ...Object.fromEntries([...this.ignoreModules, ...nodejsBuiltinModules].map((m) => [m, false])),
+        },
       },
+      externals: captureProblematicModules,
       module: {
         rules: [
           {
@@ -169,6 +251,7 @@ export class WorkflowCodeBundler {
                 )
               );
             }
+            this.reportProblematicModules(this.foundProblematicModules);
           }
           if (err) {
             reject(err);
@@ -180,6 +263,22 @@ export class WorkflowCodeBundler {
     } finally {
       await util.promisify(compiler.close).bind(compiler)();
     }
+  }
+
+  protected reportProblematicModules(foundProblematicModules: Set<string>): void {
+    if (!foundProblematicModules.size) return;
+
+    this.logger.warn(
+      `Your Workflow code (or a library used by your Workflow code) is importing the following built-in Node modules:\n` +
+        Array.from(foundProblematicModules)
+          .map((module) => `  - '${module}'\n`)
+          .join('') +
+        `Workflow code doesn't have access to built-in Node modules (in order to help enforce determinism). If you are certain ` +
+        `these modules will not be used at runtime, then you may add their names to 'WorkerOptions.bundlerOptions.ignoreModules' in order to ` +
+        `dismiss this warning. However, if your code execution actually depends on these modules, then you must change the code` +
+        `or remove the library.\n` +
+        `See https://typescript.temporal.io/api/interfaces/worker.workeroptions/#bundleroptions for details.`
+    );
   }
 }
 
@@ -206,17 +305,18 @@ export interface BundleOptions {
    * `payloadConverter` should be an instance of a class that extends {@link DataConverter}.
    */
   payloadConverterPath?: string;
+  /**
+   * List of modules to be excluded from the Workflows bundle.
+   *
+   * Use this option when your Workflow code references an import that cannot be used in isolation,
+   * e.g. a Node.js built-in module. Modules listed here **MUST** not be used at runtime.
+   *
+   * > NOTE: This is an advanced option that should be used with care.
+   */
+  ignoreModules?: string[];
 }
 
 export async function bundleWorkflowCode(options: BundleOptions): Promise<{ code: string }> {
-  let { logger } = options;
-
-  logger ??= new DefaultLogger('INFO');
-  const bundler = new WorkflowCodeBundler(
-    logger,
-    options.workflowsPath,
-    options.workflowInterceptorModules,
-    options.payloadConverterPath
-  );
+  const bundler = new WorkflowCodeBundler(options);
   return { code: await bundler.createBundle() };
 }

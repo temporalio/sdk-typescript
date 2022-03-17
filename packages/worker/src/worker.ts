@@ -343,12 +343,13 @@ export class Worker {
       let bundle: string | undefined = undefined;
       let workflowCreator: WorkflowCreator | undefined = undefined;
       if (compiledOptions.workflowsPath) {
-        const bundler = new WorkflowCodeBundler(
-          nativeWorker.logger,
-          compiledOptions.workflowsPath,
-          compiledOptions.interceptors?.workflowModules,
-          compiledOptions.dataConverter?.payloadConverterPath
-        );
+        const bundler = new WorkflowCodeBundler({
+          logger: nativeWorker.logger,
+          workflowsPath: compiledOptions.workflowsPath,
+          workflowInterceptorModules: compiledOptions.interceptors?.workflowModules,
+          payloadConverterPath: compiledOptions.dataConverter?.payloadConverterPath,
+          ignoreModules: compiledOptions.bundlerOptions?.ignoreModules,
+        });
         bundle = await bundler.createBundle();
         nativeWorker.logger.info('Workflow bundle created', { size: `${toMB(bundle.length)}MB` });
       } else if (compiledOptions.workflowBundle) {

@@ -8,7 +8,6 @@ import {
 } from '@temporalio/common';
 import { msToTs } from '@temporalio/internal-workflow-common';
 import { coresdk } from '@temporalio/proto';
-import { DefaultLogger } from '@temporalio/worker/lib/logger';
 import { WorkflowCodeBundler } from '@temporalio/worker/lib/workflow/bundler';
 import { VMWorkflow, VMWorkflowCreator } from '@temporalio/worker/lib/workflow/vm';
 import { WorkflowInfo } from '@temporalio/workflow';
@@ -45,9 +44,8 @@ class TestVMWorkflowCreator extends VMWorkflowCreator {
 const test = anyTest as TestInterface<Context>;
 
 test.before(async (t) => {
-  const logger = new DefaultLogger('INFO');
   const workflowsPath = path.join(__dirname, 'workflows');
-  const bundler = new WorkflowCodeBundler(logger, workflowsPath);
+  const bundler = new WorkflowCodeBundler({ workflowsPath });
   const bundle = await bundler.createBundle();
   t.context.workflowCreator = await TestVMWorkflowCreator.create(bundle, 100);
 });
