@@ -3,7 +3,7 @@ import util from 'node:util';
 import os from 'node:os';
 import zlib from 'node:zlib';
 import fs from 'node:fs';
-import { URL } from 'node:url';
+import { URL, fileURLToPath } from 'node:url';
 import got from 'got';
 import tar from 'tar-stream';
 import unzipper from 'unzipper';
@@ -27,7 +27,7 @@ if (!systemArch) {
 }
 
 const ext = systemPlatform === 'windows' ? '.exe' : '';
-const outputPath = new URL(`../test-server${ext}`, import.meta.url).pathname;
+const outputPath = fileURLToPath(new URL(`../test-server${ext}`, import.meta.url));
 
 const latestReleaseRes = await got('https://api.github.com/repos/temporalio/sdk-java/releases/latest', {
   headers: {
