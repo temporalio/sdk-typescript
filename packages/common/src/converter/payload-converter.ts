@@ -139,6 +139,21 @@ export function arrayFromPayloads(converter: PayloadConverter, payloads?: Payloa
   return payloads.map((payload: Payload) => converter.fromPayload(payload));
 }
 
+export function mapFromPayloads<K extends string>(
+  converter: PayloadConverter,
+  map?: Record<K, Payload> | null | undefined
+): Record<K, unknown> | null | undefined {
+  if (map === undefined || map === null) return map;
+  return Object.fromEntries(
+    Object.entries(map).map(([k, payload]): [K, unknown] => {
+      const value = converter.fromPayload(payload as Payload);
+      return [k as K, value];
+    })
+  ) as Record<K, unknown>;
+}
+
+export const searchAttributePayloadConverter = new JsonPayloadConverter();
+
 export class DefaultPayloadConverter extends CompositePayloadConverter {
   // Match the order used in other SDKs, but exclude Protobuf converters so that the code, including
   // `proto3-json-serializer`, doesn't take space in Workflow bundles that don't use Protobufs. To use Protobufs, use
