@@ -1,0 +1,144 @@
+import anyTest, { TestInterface } from 'ava';
+import { v4 as uuid4 } from 'uuid';
+import { TestWorkflowEnvironment, workflowInterceptorModules } from '@temporalio/testing';
+import { Worker } from '@temporalio/worker';
+import { WorkflowFailedError } from '@temporalio/client';
+import { assertFromWorkflow, sleep, raceActivityAndTimer } from './workflows/testenv-test-workflows';
+
+interface Context {
+  testEnv: TestWorkflowEnvironment;
+}
+
+async function withWorker<R>(worker: Worker, fn: () => Promise<R>): Promise<R> {
+  const runAndShutdown = async () => {
+    try {
+      return await fn();
+    } finally {
+      worker.shutdown();
+    }
+  };
+  const [_, ret] = await Promise.all([worker.run(), runAndShutdown()]);
+  return ret;
+}
+
+const test = anyTest as TestInterface<Context>;
+
+test.before(async (t) => {
+  t.context = {
+    testEnv: await TestWorkflowEnvironment.create({
+      testServer: {
+        stdio: 'inherit',
+      },
+    }),
+  };
+});
+
+test.after.always(async (t) => {
+  await t.context.testEnv?.teardown();
+});
+
+test.serial('TestEnvironment sets up test server and is able to run a Workflow with time skipping', async (t) => {
+  const { workflowClient, nativeConnection } = t.context.testEnv;
+  const worker = await Worker.create({
+    connection: nativeConnection,
+    taskQueue: 'test',
+    workflowsPath: require.resolve('./workflows/testenv-test-workflows'),
+  });
+  await withWorker(worker, async () => {
+    await workflowClient.execute(sleep, {
+      workflowId: uuid4(),
+      taskQueue: 'test',
+      args: [1_000_000],
+    });
+  });
+  t.pass();
+});
+
+test.serial('TestEnvironment can toggle between normal and skipped time', async (t) => {
+  const { workflowClient, nativeConnection } = t.context.testEnv;
+
+  const worker = await Worker.create({
+    connection: nativeConnection,
+    taskQueue: 'test',
+    workflowsPath: require.resolve('./workflows/testenv-test-workflows'),
+  });
+
+  const race = (runInNormalTime: boolean) =>
+    Promise.race([
+      workflowClient
+        .execute(sleep, {
+          workflowId: uuid4(),
+          taskQueue: 'test',
+          args: [1_000_000],
+          runInNormalTime,
+        })
+        .then(() => 'fake time'),
+      // Hopefully 5 seconds will be enough in CI
+      new Promise((resolve) => setTimeout(resolve, 5000)).then(() => 'real time'),
+    ]);
+
+  await withWorker(worker, async () => {
+    t.is(await race(true), 'real time');
+    t.is(await race(false), 'fake time');
+  });
+});
+
+test.serial('TestEnvironment sleep can be used to delay activity completion', async (t) => {
+  const { workflowClient, nativeConnection, sleep } = t.context.testEnv;
+
+  const worker = await Worker.create({
+    connection: nativeConnection,
+    taskQueue: 'test',
+    activities: {
+      async sleep(duration: number) {
+        await sleep(duration);
+      },
+    },
+    workflowsPath: require.resolve('./workflows/testenv-test-workflows'),
+  });
+
+  const run = async (expectedWinner: 'timer' | 'activity') => {
+    const winner = await workflowClient.execute(raceActivityAndTimer, {
+      workflowId: uuid4(),
+      taskQueue: 'test',
+      args: [expectedWinner],
+    });
+    t.is(winner, expectedWinner);
+  };
+  await withWorker(worker, async () => {
+    // TODO: there's an issue with the Java test server where if an activity
+    // does not complete before its scheduling workflow, time skipping stays
+    // locked.
+    // If the order of the below 2 statements is reversed, this test will hang.
+    await run('activity');
+    await run('timer');
+  });
+  t.pass();
+});
+
+test.serial('Workflow code can run assertions', async (t) => {
+  const { workflowClient, nativeConnection } = t.context.testEnv;
+
+  const worker = await Worker.create({
+    connection: nativeConnection,
+    taskQueue: 'test',
+    workflowsPath: require.resolve('./workflows/testenv-test-workflows'),
+    interceptors: {
+      workflowModules: workflowInterceptorModules,
+    },
+  });
+
+  await withWorker(worker, async () => {
+    const err: WorkflowFailedError = await t.throwsAsync(
+      workflowClient.execute(assertFromWorkflow, {
+        workflowId: uuid4(),
+        taskQueue: 'test',
+        args: [6],
+      }),
+      {
+        instanceOf: WorkflowFailedError,
+      }
+    );
+    t.is(err.cause?.message, 'Expected values to be strictly equal:\n\n6 !== 7\n');
+  });
+});

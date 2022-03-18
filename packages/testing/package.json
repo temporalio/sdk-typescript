@@ -11,17 +11,23 @@
   ],
   "scripts": {
     "install": "node ./scripts/download-test-server.mjs",
-    "build": "node ./scripts/download-test-server.mjs"
+    "build": "npm-run-all build:protos install",
+    "build:protos": "node ./scripts/compile-proto.mjs"
   },
   "author": "Temporal Technologies Inc. <sdk@temporal.io>",
   "license": "MIT",
   "dependencies": {
+    "@grpc/grpc-js": "^1.5.7",
     "@temporalio/activity": "file:../activity",
     "@temporalio/client": "file:../client",
+    "@temporalio/common": "file:../common",
     "@temporalio/worker": "file:../worker",
+    "@types/long": "^4.0.1",
     "abort-controller": "^3.0.0",
     "get-port": "^6.1.2",
     "got": "^12.0.1",
+    "long": "^4.0.0",
+    "protobufjs": "^6.11.2",
     "tar-stream": "^2.2.0",
     "unzipper": "^0.10.11"
   },
@@ -30,7 +36,8 @@
   },
   "homepage": "https://github.com/temporalio/sdk-typescript/tree/main/packages/testing",
   "files": [
-    "lib"
+    "lib",
+    "generated-protos"
   ],
   "publishConfig": {
     "access": "public"

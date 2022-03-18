@@ -99,8 +99,8 @@ export class TextDecoder {
         case 0:
           tmpBufferU16[pos] = cp0;
           continue;*/
-          default:
-            tmpBufferU16[pos] = cp0; // fill with invalid replacement character
+          default: // fill with invalid replacement character
+            tmpBufferU16[pos] = cp0;
             continue;
           case 11:
           case 10:

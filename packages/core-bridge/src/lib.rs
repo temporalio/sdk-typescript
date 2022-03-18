@@ -792,6 +792,13 @@ fn worker_shutdown(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     }
 }
 
+/// Drop a reference to a Client, once all references are dropped, the Client will be closed.
+fn client_close(mut cx: FunctionContext) -> JsResult<JsUndefined> {
+    let client = cx.argument::<BoxedClient>(0)?;
+    drop(client);
+    Ok(cx.undefined())
+}
+
 /// Convert Rust SystemTime into a JS array with 2 numbers (seconds, nanos)
 fn system_time_to_js<'a, C>(cx: &mut C, time: SystemTime) -> NeonResult<Handle<'a, JsArray>>
 where
@@ -824,6 +831,7 @@ fn main(mut cx: ModuleContext) -> NeonResult<()> {
     cx.export_function("newWorker", worker_new)?;
     cx.export_function("newReplayWorker", replay_worker_new)?;
     cx.export_function("workerShutdown", worker_shutdown)?;
+    cx.export_function("clientClose", client_close)?;
     cx.export_function("runtimeShutdown", runtime_shutdown)?;
     cx.export_function("pollLogs", poll_logs)?;
     cx.export_function(

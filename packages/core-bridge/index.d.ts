@@ -162,6 +162,7 @@ export declare function newReplayWorker(
   callback: WorkerCallback
 ): void;
 export declare function workerShutdown(worker: Worker, callback: VoidCallback): void;
+export declare function clientClose(client: Client): void;
 export declare function runtimeShutdown(runtime: Runtime, callback: VoidCallback): void;
 export declare function pollLogs(runtime: Runtime, callback: LogsCallback): void;
 export declare function workerPollWorkflowActivation(

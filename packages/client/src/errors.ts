@@ -25,7 +25,7 @@ export class ServiceError extends Error {
  * {@link CancelledFailure}.
  */
 export class WorkflowFailedError extends Error {
-  public readonly name: string = 'WorkflowExecutionFailedError';
+  public readonly name: string = 'WorkflowFailedError';
   public constructor(
     message: string,
     public readonly cause: TemporalFailure | undefined,

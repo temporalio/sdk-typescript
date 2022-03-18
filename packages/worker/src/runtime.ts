@@ -70,6 +70,8 @@ export class CoreLogger extends DefaultLogger {
  * Use {@link install} in order to customize the server connection options or other global process options.
  */
 export class Runtime {
+  /** Track the registered clients to automatically shutdown when all have been deregistered */
+  protected readonly registeredClients = new Set<native.Client>();
   /** Track the registered workers to automatically shutdown when all have been deregistered */
   protected readonly registeredWorkers = new Set<native.Worker>();
   protected readonly shouldPollForLogs = new BehaviorSubject<boolean>(false);
@@ -104,10 +106,10 @@ export class Runtime {
   public static install(options: RuntimeOptions): Runtime {
     if (this._instance !== undefined) {
       if (this.instantiator === 'install') {
-        throw new IllegalStateError('Core singleton has already been installed');
+        throw new IllegalStateError('Runtime singleton has already been installed');
       } else if (this.instantiator === 'instance') {
         throw new IllegalStateError(
-          'Core singleton has already been instantiated. Did you start a Worker before calling `install`?'
+          'Runtime singleton has already been instantiated. Did you start a Worker before calling `install`?'
         );
       }
     }
@@ -228,7 +230,17 @@ export class Runtime {
       tls: normalizeTlsConfig(compiledServerOptions.tls),
       url: options?.tls ? `https://${compiledServerOptions.address}` : `http://${compiledServerOptions.address}`,
     };
-    return await promisify(newClient)(this.native, clientOptions);
+    const client = await promisify(newClient)(this.native, clientOptions);
+    this.registeredClients.add(client);
+    return client;
+  }
+
+  public async closeNativeClient(client: native.Client): Promise<void> {
+    this.registeredClients.delete(client);
+    native.clientClose(client);
+    if (this.canShutdown()) {
+      await this.shutdown();
+    }
   }
 
   /**
@@ -251,22 +263,28 @@ export class Runtime {
    */
   public async deregisterWorker(worker: native.Worker): Promise<void> {
     this.registeredWorkers.delete(worker);
-    if (this.registeredWorkers.size === 0) {
+    if (this.canShutdown()) {
       await this.shutdown();
     }
   }
 
+  protected canShutdown(): boolean {
+    return this.registeredClients.size === 0 && this.registeredWorkers.size === 0;
+  }
+
   /**
    * Shutdown and unset the singleton instance.
+   *
+   * If the runtime is polling on Core logs, wait for those logs to be collected.
    *
    * Hidden in the docs because it is only meant to be used for testing.
    * @hidden
    */
   public async shutdown(): Promise<void> {
     this.shouldPollForLogs.next(false);
-    await promisify(runtimeShutdown)(this.native);
     // This will effectively drain all logs
     await this.logPollPromise;
+    await promisify(runtimeShutdown)(this.native);
     delete Runtime._instance;
   }
 

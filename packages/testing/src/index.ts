@@ -1,6 +1,12 @@
 import * as activity from '@temporalio/activity';
-import { AsyncCompletionClient, Connection, WorkflowClient } from '@temporalio/client';
-import { ActivityFunction, CancelledFailure } from '@temporalio/common';
+import {
+  AsyncCompletionClient,
+  WorkflowClient as BaseWorkflowClient,
+  WorkflowClientOptions,
+  WorkflowResultOptions as BaseWorkflowResultOptions,
+  WorkflowStartOptions as BaseWorkflowStartOptions,
+} from '@temporalio/client';
+import { ActivityFunction, CancelledFailure, msToTs, Workflow, WorkflowResultType } from '@temporalio/common';
 import { NativeConnection, Logger, DefaultLogger } from '@temporalio/worker';
 import path from 'path';
 import os from 'os';
@@ -9,35 +15,137 @@ import { ChildProcess, spawn, StdioOptions } from 'child_process';
 import events from 'events';
 import { kill, waitOnChild } from './child-process';
 import type getPortType from 'get-port';
+import { Connection, TestService } from './test-service-client';
+import { temporal } from '@temporalio/proto';
 
 const TEST_SERVER_EXECUTABLE_NAME = os.platform() === 'win32' ? 'test-server.exe' : 'test-server';
+
+export const DEFAULT_TEST_SERVER_PATH = path.join(__dirname, `../${TEST_SERVER_EXECUTABLE_NAME}`);
+
+/**
+ * Options passed to {@link WorkflowClient.result}, these are the same as the
+ * {@link BaseWorkflowResultOptions} with an additional option that controls
+ * whether to toggle time skipping in the Test server while waiting on a
+ * Workflow's result.
+ */
+export interface WorkflowResultOptions extends BaseWorkflowResultOptions {
+  /**
+   * If set to `true`, waiting for the result does not unlock time skipping
+   */
+  runInNormalTime?: boolean;
+}
+
+/**
+ * Options passed to {@link WorkflowClient.execute}, these are the same as the
+ * {@link BaseWorkflowStartOptions} with an additional option that controls
+ * whether to toggle time skipping in the Test server while waiting on a
+ * Workflow's result.
+ */
+export type WorkflowStartOptions<T extends Workflow> = BaseWorkflowStartOptions<T> & {
+  /**
+   * If set to `true`, waiting for the result does not unlock time skipping
+   */
+  runInNormalTime?: boolean;
+};
+
+/**
+ * A client with the exact same API as the "normal" client with 1 exception,
+ * When this client waits on a Workflow's result, it will unlock time skipping
+ * in the test server.
+ */
+export class WorkflowClient extends BaseWorkflowClient {
+  constructor(
+    protected readonly testService: TestService,
+    workflowService?: temporal.api.workflowservice.v1.WorkflowService,
+    options?: WorkflowClientOptions | undefined
+  ) {
+    super(workflowService, options);
+  }
+
+  /**
+   * Execute a Workflow and wait for completion.
+   *
+   * @see {@link BaseWorkflowClient.execute}
+   */
+  public async execute<T extends Workflow>(
+    workflowTypeOrFunc: string | T,
+    options: WorkflowStartOptions<T>
+  ): Promise<WorkflowResultType<T>> {
+    return super.execute(workflowTypeOrFunc, options);
+  }
+
+  /**
+   * Gets the result of a Workflow execution.
+   *
+   * @see {@link BaseWorkflowClient.result}
+   */
+  override async result<T>(
+    workflowId: string,
+    runId?: string | undefined,
+    opts?: WorkflowResultOptions | undefined
+  ): Promise<T> {
+    if (opts?.runInNormalTime) {
+      return await super.result(workflowId, runId, opts);
+    }
+    await this.testService.unlockTimeSkipping({});
+    try {
+      return await super.result(workflowId, runId, opts);
+    } finally {
+      await this.testService.lockTimeSkipping({});
+    }
+  }
+}
+
+/**
+ * Convenience workflow interceptors
+ *
+ * Contains a single interceptor for transforming `AssertionError`s into non
+ * retryable `ApplicationFailure`s.
+ */
+export const workflowInterceptorModules = [path.join(__dirname, 'assert-to-failure-interceptor')];
+
+export interface TestServerSpawnerOptions {
+  /**
+   * @default {@link DEFAULT_TEST_SERVER_PATH}
+   */
+  path?: string;
+  /**
+   * @default ignore
+   */
+  stdio?: StdioOptions;
+}
+
+/**
+ * A generic callback that returns a child process
+ */
+export type TestServerSpawner = (port: number) => ChildProcess;
 
 /**
  * Options for {@link TestWorkflowEnvironment.create}
  */
 export interface TestWorkflowEnvironmentOptions {
-  /**
-   * If `testServerSpawner` is not provided, use this value for child process stdio
-   */
-  testServerStdio?: StdioOptions;
-  testServerSpawner?(port: number): ChildProcess;
+  testServer?: TestServerSpawner | TestServerSpawnerOptions;
   logger?: Logger;
 }
 
+interface TestWorkflowEnvironmentOptionsWithDefaults {
+  testServerSpawner: TestServerSpawner;
+  logger: Logger;
+}
+
 function addDefaults({
-  testServerStdio = 'ignore',
-  testServerSpawner,
+  testServer,
   logger,
-}: TestWorkflowEnvironmentOptions): Required<TestWorkflowEnvironmentOptions> {
+}: TestWorkflowEnvironmentOptions): TestWorkflowEnvironmentOptionsWithDefaults {
   return {
     testServerSpawner:
-      testServerSpawner ??
-      ((port: number) =>
-        spawn(path.join(__dirname, `../${TEST_SERVER_EXECUTABLE_NAME}`), [`${port}`], {
-          stdio: testServerStdio,
-        })),
+      typeof testServer === 'function'
+        ? testServer
+        : (port: number) =>
+            spawn(testServer?.path || DEFAULT_TEST_SERVER_PATH, [`${port}`], {
+              stdio: testServer?.stdio || 'ignore',
+            }),
     logger: logger ?? new DefaultLogger('INFO'),
-    testServerStdio,
   };
 }
 
@@ -81,7 +189,7 @@ export class TestWorkflowEnvironment {
   ) {
     this.connection = connection;
     this.nativeConnection = nativeConnection;
-    this.workflowClient = new WorkflowClient(this.connection.service);
+    this.workflowClient = new WorkflowClient(this.connection.testService, this.connection.service);
     this.asyncCompletionClient = new AsyncCompletionClient(this.connection.service);
   }
 
@@ -129,8 +237,26 @@ export class TestWorkflowEnvironment {
     // TODO: the server should return exit code 0
     await kill(this.serverProc, 'SIGINT', { validReturnCodes: [0, 130] });
   }
+
+  /**
+   * Wait for `durationMs` in "test server time".
+   *
+   * The test server toggles between skipped time and normal time dependnding on what it needs to execute.
+   *
+   * This method is likely to resolve in less than `durationMs` of "real time".
+   *
+   * Useful for simulating events far into the future like completion of long running activities.
+   *
+   * @param durationMs {@link https://www.npmjs.com/package/ms | ms} formatted string or number of milliseconds
+   */
+  sleep = async (durationMs: number | string): Promise<void> => {
+    await this.connection.testService.unlockTimeSkippingWithSleep({ duration: msToTs(durationMs) });
+  };
 }
 
+/**
+ * Used as the default activity info for Activities executed in the {@link MockActivityEnvironment}
+ */
 export const defaultActivityInfo: activity.Info = {
   attempt: 1,
   isLocal: false,
