@@ -159,7 +159,11 @@ export class WorkflowCodeBundler {
       api.overrideGlobals();
       api.setImportFuncs({
         importWorkflows: () => {
-          return import(/* webpackMode: "eager" */ ${JSON.stringify(this.workflowsPath)});
+          let workflows = await import(/* webpackMode: "eager" */ ${JSON.stringify(this.workflowsPath)});
+          if (workflows.default && typeof workflows.default === 'function) {
+            workflows = workflows.default();
+          }
+          return workflows;
         },
         importInterceptors: () => {
           return Promise.all([
