@@ -613,7 +613,7 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
     );
     t.deepEqual(await fromPayload(execution.raw.workflowExecutionInfo!.memo!.fields!.a!), 'b');
     t.deepEqual(
-      await searchAttributePayloadConverter.fromPayload(
+      searchAttributePayloadConverter.fromPayload(
         execution.raw.workflowExecutionInfo!.searchAttributes!.indexedFields!.CustomIntField!
       ),
       3
