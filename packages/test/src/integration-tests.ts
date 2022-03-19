@@ -14,6 +14,7 @@ import {
   Payload,
   PayloadCodec,
   RetryState,
+  searchAttributePayloadConverter,
   TerminatedFailure,
   TimeoutFailure,
   TimeoutType,
@@ -574,7 +575,7 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
       'BinaryChecksums',
     ]);
 
-    const checksums = defaultPayloadConverter.fromPayload(
+    const checksums = searchAttributePayloadConverter.fromPayload(
       execution.raw.workflowExecutionInfo!.searchAttributes!.indexedFields!.BinaryChecksums!
     );
     t.true(checksums instanceof Array && checksums.length === 1);
@@ -612,7 +613,7 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
     );
     t.deepEqual(await fromPayload(execution.raw.workflowExecutionInfo!.memo!.fields!.a!), 'b');
     t.deepEqual(
-      await defaultPayloadConverter.fromPayload(
+      searchAttributePayloadConverter.fromPayload(
         execution.raw.workflowExecutionInfo!.searchAttributes!.indexedFields!.CustomIntField!
       ),
       3
