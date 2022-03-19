@@ -158,10 +158,10 @@ export class WorkflowCodeBundler {
       // Bundle all Workflows and interceptor modules for lazy evaluation
       api.overrideGlobals();
       api.setImportFuncs({
-        importWorkflows: () => {
+        importWorkflows: async () => {
           let workflows = await import(/* webpackMode: "eager" */ ${JSON.stringify(this.workflowsPath)});
-          if (workflows.default && typeof workflows.default === 'function) {
-            workflows = workflows.default();
+          if (workflows.default && typeof workflows.default === 'function') {
+            return workflows.default();
           }
           return workflows;
         },
