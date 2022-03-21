@@ -1,11 +1,11 @@
-import { DefaultLogger, Core, Worker } from '@temporalio/worker';
-import { ReplayCore } from '@temporalio/worker/lib/core';
-import anyTest, { TestInterface } from 'ava';
 import { temporal } from '@temporalio/proto';
-const History = temporal.api.history.v1.History;
-import path from 'path';
-import * as fs from 'fs';
+import { Core, DefaultLogger, Worker } from '@temporalio/worker';
+import { ReplayCore } from '@temporalio/worker/lib/core';
 import { DeterminismViolationError } from '@temporalio/workflow';
+import anyTest, { TestInterface } from 'ava';
+import * as fs from 'fs';
+import path from 'path';
+const History = temporal.api.history.v1.History;
 
 export interface Context {
   replayCore: Core;
@@ -18,7 +18,11 @@ test.before(async (t) => {
   process.removeAllListeners('unhandledRejection');
   const logger = new DefaultLogger('DEBUG');
   // Use forwarded logging from core
-  const replayCore = await ReplayCore.install({ logger, telemetryOptions: { logForwardingLevel: 'INFO' } });
+  const replayCore = await ReplayCore.install({
+    logger,
+    telemetryOptions: { logForwardingLevel: 'DEBUG', tracingFilter: 'temporal_sdk_core=DEBUG' },
+  });
+
   t.context = {
     replayCore,
   };
