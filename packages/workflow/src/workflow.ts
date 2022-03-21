@@ -1,4 +1,4 @@
-import { defaultPayloadConverter, mapToPayloads, toPayloads } from '@temporalio/common';
+import { mapToPayloads, searchAttributePayloadConverter, toPayloads } from '@temporalio/common';
 import {
   ActivityFunction,
   ActivityInterface,
@@ -251,7 +251,7 @@ async function startChildWorkflowExecutionNextHandler({
         parentClosePolicy: options.parentClosePolicy,
         cronSchedule: options.cronSchedule,
         searchAttributes: options.searchAttributes
-          ? mapToPayloads(defaultPayloadConverter, options.searchAttributes)
+          ? mapToPayloads(searchAttributePayloadConverter, options.searchAttributes)
           : undefined,
         memo: options.memo && mapToPayloads(state.payloadConverter, options.memo),
       },
