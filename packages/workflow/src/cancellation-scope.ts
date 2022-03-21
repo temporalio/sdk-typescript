@@ -51,7 +51,7 @@ export interface CancellationScopeOptions {
  * await CancellationScope.cancellable(async () => {
  *   const promise = someActivity();
  *   CancellationScope.current().cancel(); // Cancels the activity
- *   await promise; // Throws CancelledFailure
+ *   await promise; // Throws `ActivityFailure` with `cause` set to `CancelledFailure`
  * });
  * ```
  *
@@ -61,7 +61,7 @@ export interface CancellationScopeOptions {
  * const scope = new CancellationScope();
  * const promise = scope.run(someActivity);
  * scope.cancel(); // Cancels the activity
- * await promise; // Throws CancelledFailure
+ * await promise; // Throws `ActivityFailure` with `cause` set to `CancelledFailure`
  * ```
  */
 export class CancellationScope {
