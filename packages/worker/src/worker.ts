@@ -522,7 +522,11 @@ export class Worker {
                 // We don't run the activity directly in this operator because we need to return the activity in the state
                 // so it can be cancelled if requested
                 let output:
-                  | { type: 'result'; result: coresdk.activity_result.IActivityExecutionResult; parentSpan: otel.Span }
+                  | {
+                      type: 'result';
+                      result: coresdk.activity_result.IActivityExecutionResult;
+                      parentSpan: otel.Span;
+                    }
                   | { type: 'run'; activity: Activity; input: ActivityExecuteInput; parentSpan: otel.Span }
                   | { type: 'ignore'; parentSpan: otel.Span };
                 switch (variant) {
@@ -708,7 +712,7 @@ export class Worker {
             map((): ContextAware<{ activation: coresdk.workflow_activation.WorkflowActivation; synthetic: true }> => {
               return {
                 parentSpan: this.tracer.startSpan('workflow.shutdown.evict'),
-                activation: new coresdk.workflow_activation.WorkflowActivation({
+                activation: coresdk.workflow_activation.WorkflowActivation.create({
                   runId: group$.key,
                   jobs: [{ removeFromCache: Worker.SELF_INDUCED_SHUTDOWN_EVICTION }],
                 }),

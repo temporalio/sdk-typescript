@@ -1,3 +1,4 @@
+const { rm } = require('fs/promises');
 const { resolve } = require('path');
 const { promisify } = require('util');
 const dedent = require('dedent');
@@ -7,8 +8,9 @@ const pbjs = require('protobufjs/cli/pbjs');
 const pbts = require('protobufjs/cli/pbts');
 
 const outputDir = resolve(__dirname, '../lib');
-const coresdkJsOutputFile = resolve(outputDir, 'coresdk.js');
-const serviceJsOutputFile = resolve(outputDir, 'temporal.js');
+const coresdkJsOutputFile = resolve(outputDir, 'coresdk-json-module.js');
+const serviceJsOutputFile = resolve(outputDir, 'temporal-json-module.js');
+const tempFile = resolve(outputDir, 'temp.js');
 const protoBaseDir = resolve(__dirname, '../../core-bridge/sdk-core/protos');
 
 const coreProtoPath = resolve(protoBaseDir, 'local/temporal/sdk/core/core_interface.proto');
@@ -25,26 +27,21 @@ function mtime(path) {
   }
 }
 
-async function compileProtos(protoPath, jsOutputFile, dtsOutputFile, ...args) {
-  console.log(`Creating protobuf JS definitions from ${protoPath}`);
+async function compileProtos(protoPath, jsOutputFile, root, dtsOutputFile, ...args) {
+  // Use --root to avoid conflicting with user's root
+  // and to avoid this error: https://github.com/protobufjs/protobuf.js/issues/1114
+  const pbjsArgs = [...args, '--wrap', 'commonjs', '--force-long', '--no-verify', '--root', root, protoPath];
 
-  const pbjsArgs = [
-    ...args,
-    '--wrap',
-    'commonjs',
-    '--target',
-    'static-module',
-    '--force-long',
-    '--no-verify',
-    '--no-create',
-    '--out',
-    jsOutputFile,
-    protoPath,
-  ];
-  await promisify(pbjs.main)(pbjsArgs);
+  console.log(`Creating protobuf JS definitions from ${protoPath}`);
+  await promisify(pbjs.main)([...pbjsArgs, '--target', 'json-module', '--out', jsOutputFile]);
 
   console.log(`Creating protobuf TS definitions from ${protoPath}`);
-  await promisify(pbts.main)(['--out', dtsOutputFile, jsOutputFile]);
+  try {
+    await promisify(pbjs.main)([...pbjsArgs, '--target', 'static-module', '--out', tempFile]);
+    await promisify(pbts.main)(['--out', dtsOutputFile, tempFile]);
+  } finally {
+    await rm(tempFile);
+  }
 
   // Fix issue where Long is not found in TS definitions (https://github.com/protobufjs/protobuf.js/issues/1533)
   const pbtsOutput = readFileSync(dtsOutputFile, 'utf8');
@@ -80,6 +77,7 @@ async function main() {
   await compileProtos(
     coreProtoPath,
     coresdkJsOutputFile,
+    '__coresdk',
     resolve(outputDir, 'coresdk.d.ts'),
     '--path',
     resolve(protoBaseDir, 'api_upstream'),
@@ -89,6 +87,7 @@ async function main() {
   await compileProtos(
     serviceProtoPath,
     serviceJsOutputFile,
+    '__temporal',
     resolve(outputDir, 'temporal.d.ts'),
     '--path',
     resolve(protoBaseDir, 'api_upstream')

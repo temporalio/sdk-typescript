@@ -1,5 +1,17 @@
 import { isRecord } from '@temporalio/internal-workflow-common';
 
+const ROOT_PROPS = [
+  'options',
+  'parsedOptions',
+  'name',
+  'parent',
+  'resolved',
+  'comment',
+  'filename',
+  'nested',
+  '_nestedArray',
+];
+
 /**
  * Create a version of `root` with non-nested namespaces to match the generated types.
  * For more information, see:
@@ -20,9 +32,11 @@ function _patchProtobufRoot<T extends Record<string, unknown>>(root: T, name?: s
   if (isRecord(root.nested)) {
     for (const typeOrNamespace in root.nested) {
       const value = root.nested[typeOrNamespace];
-      if (typeOrNamespace in root && !(isType(root[typeOrNamespace]) || isNamespace(root[typeOrNamespace]))) {
+      if (ROOT_PROPS.includes(typeOrNamespace)) {
         console.log(
-          `patchRoot warning: overriding property '${typeOrNamespace}' that is used by protobufjs with the '${typeOrNamespace}' protobuf namespace. This may result in protobufjs not working property.`
+          `patchProtobufRoot warning: overriding property '${typeOrNamespace}' that is used by protobufjs with the '${typeOrNamespace}' protobuf ${
+            isNamespace(value) ? 'namespace' : 'type'
+          }. This may result in protobufjs not working property.`
         );
       }
 

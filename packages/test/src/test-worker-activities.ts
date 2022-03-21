@@ -41,8 +41,8 @@ function compareCompletion(
     actual = { failed: { failure: { stackTrace: cleanStackTrace(stackTrace), ...rest } } };
   }
   t.deepEqual(
-    new coresdk.activity_result.ActivityExecutionResult(actual ?? undefined).toJSON(),
-    new coresdk.activity_result.ActivityExecutionResult(expected).toJSON()
+    coresdk.activity_result.ActivityExecutionResult.create(actual ?? undefined).toJSON(),
+    coresdk.activity_result.ActivityExecutionResult.create(expected).toJSON()
   );
 }
 

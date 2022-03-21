@@ -1,11 +1,15 @@
-import { AsyncLocalStorage } from 'async_hooks';
 import * as grpc from '@grpc/grpc-js';
-import { temporal } from '@temporalio/proto';
-import { TLSConfig, normalizeTlsConfig } from '@temporalio/internal-non-workflow-common';
+import { normalizeTlsConfig, TLSConfig } from '@temporalio/internal-non-workflow-common';
+import root, { temporal } from '@temporalio/proto';
+import { AsyncLocalStorage } from 'async_hooks';
+import type { Root } from 'protobufjs';
 import { defaultGrpcRetryOptions, makeGrpcRetryInterceptor } from './grpc-retry';
 
 export type WorkflowService = temporal.api.workflowservice.v1.WorkflowService;
-export const { WorkflowService } = temporal.api.workflowservice.v1;
+
+// use `root.lookupService` because imported `WorkflowService` doesn't have `create` method
+const WorkflowService = (root as unknown as Root).lookupService('temporal.api.workflowservice.v1.WorkflowService');
+export { WorkflowService };
 
 /**
  * GRPC + Temporal server connection options
@@ -135,7 +139,7 @@ export class Connection {
    *
    * **NOTE**: The namespace provided in {@link options} is **not** automatically set on requests made to the service.
    */
-  public readonly service: WorkflowService;
+  public readonly service: temporal.api.workflowservice.v1.WorkflowService;
 
   constructor(options?: ConnectionOptions) {
     this.options = {
@@ -161,7 +165,7 @@ export class Connection {
         callback
       );
     };
-    this.service = new WorkflowService(rpcImpl, false, false);
+    this.service = WorkflowService.create(rpcImpl, false, false) as WorkflowService;
   }
 
   readonly callContextStorage = new AsyncLocalStorage<CallContext>();

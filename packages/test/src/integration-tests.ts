@@ -608,7 +608,7 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
     const execution = await workflow.describe();
     t.deepEqual(
       execution.raw.workflowExecutionInfo?.type,
-      new iface.temporal.api.common.v1.WorkflowType({ name: 'sleeper' })
+      iface.temporal.api.common.v1.WorkflowType.create({ name: 'sleeper' })
     );
     t.deepEqual(await fromPayload(execution.raw.workflowExecutionInfo!.memo!.fields!.a!), 'b');
     t.deepEqual(
