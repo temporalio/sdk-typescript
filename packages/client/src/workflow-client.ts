@@ -825,10 +825,14 @@ export class WorkflowClient {
   }
 
   /**
-   * Creates a Workflow handle for existing Workflow using `workflowId` and optional `runId`.
+   * Create a handle to an existing Workflow.
+   *
+   * If only `workflowId` is passed, and there are multiple Workflow Executions with that ID, the handle will refer to
+   * the most recent one. If `runId` is also passed, the handle will refer to the specific Workflow Execution with that
+   * Run ID.
    *
    * This method does not validate `workflowId`. If there is no Workflow Execution with the given `workflowId`, handle
-   * methods like `handle.describe()` will throw a `NOT_FOUND` error.
+   * methods like `handle.describe()` will throw a {@link WorkflowNotFoundError} error.
    */
   public getHandle<T extends Workflow>(
     workflowId: string,
