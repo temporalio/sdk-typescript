@@ -46,7 +46,7 @@ jobs:
         run: npm run wait-namespace
         if: ${{ startsWith(matrix.os, 'ubuntu') }}
 
-      - run: npm test
+      - run: npx ava packages/test/lib/test-replay.js
         env:
           # TODO: Run integration tests on MacOS / Windows probably using temporalite
           RUN_INTEGRATION_TESTS: ${{ startsWith(matrix.os, 'ubuntu') }}
