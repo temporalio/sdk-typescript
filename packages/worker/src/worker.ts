@@ -342,6 +342,7 @@ export class Worker {
     try {
       let bundle: string | undefined = undefined;
       let workflowCreator: WorkflowCreator | undefined = undefined;
+      console.log('compiledOptions:', compiledOptions);
       if (compiledOptions.workflowsPath) {
         const bundler = new WorkflowCodeBundler({
           logger: nativeWorker.logger,
@@ -351,6 +352,7 @@ export class Worker {
           ignoreModules: compiledOptions.bundlerOptions?.ignoreModules,
         });
         bundle = await bundler.createBundle();
+        console.log('bundle:', !!bundle, bundle.length);
         nativeWorker.logger.info('Workflow bundle created', { size: `${toMB(bundle.length)}MB` });
       } else if (compiledOptions.workflowBundle) {
         if (isCodeBundleOption(compiledOptions.workflowBundle)) {

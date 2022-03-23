@@ -120,12 +120,14 @@ export class WorkflowCodeBundler {
     }
 
     // Cast because the type definitions are inaccurate
-    ufs.use(memfs.createFsFromVolume(vol) as any).use({ ...realFS, readdir: readdir as any });
+    const memoryFs = memfs.createFsFromVolume(vol);
+    ufs.use(memoryFs as any).use({ ...realFS, readdir: readdir as any });
     const distDir = '/dist';
     const entrypointPath = this.makeEntrypointPath(ufs, this.workflowsPath);
 
     this.genEntrypoint(vol, entrypointPath);
-    await this.bundle(ufs, entrypointPath, distDir);
+    await this.bundle(ufs, memoryFs, entrypointPath, distDir);
+    console.log('dist stats: ', ufs.statSync(path.join(distDir, 'main.js')));
     return ufs.readFileSync(path.join(distDir, 'main.js'), 'utf8');
   }
 
@@ -172,16 +174,24 @@ export class WorkflowCodeBundler {
     `;
     try {
       vol.mkdirSync(path.dirname(target), { recursive: true });
+      console.log('mkdirSync');
     } catch (err: any) {
       if (err.code !== 'EEXIST') throw err;
     }
     vol.writeFileSync(target, code);
+    console.log('writeFileSync:', target, code.length);
   }
 
   /**
    * Run webpack
    */
-  protected async bundle(filesystem: typeof unionfs.ufs, entry: string, distDir: string): Promise<void> {
+  protected async bundle(
+    inputFilesystem: typeof unionfs.ufs,
+    outputFilesystem: memfs.IFs,
+    entry: string,
+    distDir: string
+  ): Promise<void> {
+    console.log('bundling');
     const captureProblematicModules: webpack.Configuration['externals'] = async (
       data,
       _callback
@@ -230,8 +240,8 @@ export class WorkflowCodeBundler {
     });
 
     // Cast to any because the type declarations are inaccurate
-    compiler.inputFileSystem = filesystem as any;
-    compiler.outputFileSystem = filesystem as any;
+    compiler.inputFileSystem = inputFilesystem as any;
+    compiler.outputFileSystem = outputFilesystem as any;
 
     try {
       await new Promise<void>((resolve, reject) => {
