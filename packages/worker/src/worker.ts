@@ -342,7 +342,6 @@ export class Worker {
     try {
       let bundle: string | undefined = undefined;
       let workflowCreator: WorkflowCreator | undefined = undefined;
-      console.log('compiledOptions:', compiledOptions);
       if (compiledOptions.workflowsPath) {
         const bundler = new WorkflowCodeBundler({
           logger: nativeWorker.logger,
@@ -352,7 +351,6 @@ export class Worker {
           ignoreModules: compiledOptions.bundlerOptions?.ignoreModules,
         });
         bundle = await bundler.createBundle();
-        console.log('bundle:', !!bundle, bundle.length);
         nativeWorker.logger.info('Workflow bundle created', { size: `${toMB(bundle.length)}MB` });
       } else if (compiledOptions.workflowBundle) {
         if (isCodeBundleOption(compiledOptions.workflowBundle)) {
@@ -1037,16 +1035,13 @@ export class Worker {
    * Poll core for `WorkflowActivation`s while respecting worker state.
    */
   protected workflowPoll$(): Observable<ActivationWithContext> {
-    console.log('workflowPoll$:');
     return this.pollLoop$(async () => {
-      console.log('pollLoop$:');
       const parentSpan = this.tracer.startSpan('workflow.activation');
       return await instrument(
         this.tracer,
         parentSpan,
         'workflow.poll',
         async (span) => {
-          console.log('pollWorkflowActivation:');
           const buffer = await this.nativeWorker.pollWorkflowActivation(span.spanContext());
           const activation = coresdk.workflow_activation.WorkflowActivation.decode(new Uint8Array(buffer));
           const { runId, ...rest } = activation;
@@ -1103,8 +1098,6 @@ export class Worker {
    * Poll for Workflow activations, handle them, and report completions.
    */
   protected workflow$(): Observable<void> {
-    console.log('LLL workflow$');
-    console.log('workflowCreator:', this.workflowCreator);
     if (this.workflowCreator === undefined) {
       return EMPTY;
     }
