@@ -44,7 +44,8 @@ import {
 import { delay, filter, first, ignoreElements, map, mergeMap, takeUntil, takeWhile, tap } from 'rxjs/operators';
 import { promisify } from 'util';
 import { Activity } from './activity';
-import { Core, History, ReplayCore } from './core';
+import { Runtime, History } from './runtime';
+import { extractNativeClient, NativeConnection } from './connection';
 import * as errors from './errors';
 import { ActivityExecuteInput } from './interceptors';
 import { Logger } from './logger';
@@ -121,12 +122,11 @@ export interface NativeWorkerLike {
   completeWorkflowActivation: Promisify<OmitFirstParam<typeof native.workerCompleteWorkflowActivation>>;
   completeActivityTask: Promisify<OmitFirstParam<typeof native.workerCompleteActivityTask>>;
   recordActivityHeartbeat: OmitFirstParam<typeof native.workerRecordActivityHeartbeat>;
-  namespace: string;
   logger: Logger;
 }
 
 export interface WorkerConstructor {
-  create(options: CompiledWorkerOptions): Promise<NativeWorkerLike>;
+  create(connection: NativeConnection, options: CompiledWorkerOptions): Promise<NativeWorkerLike>;
   createReplay(options: CompiledWorkerOptions, history: History): Promise<NativeWorkerLike>;
 }
 
@@ -138,19 +138,19 @@ export class NativeWorker implements NativeWorkerLike {
   public readonly recordActivityHeartbeat: OmitFirstParam<typeof native.workerRecordActivityHeartbeat>;
   public readonly shutdown: Promisify<OmitFirstParam<typeof native.workerShutdown>>;
 
-  public static async create(options: CompiledWorkerOptions): Promise<NativeWorkerLike> {
-    const core = await Core.instance();
-    const nativeWorker = await core.registerWorker(options);
-    return new NativeWorker(core, nativeWorker);
+  public static async create(connection: NativeConnection, options: CompiledWorkerOptions): Promise<NativeWorkerLike> {
+    const runtime = Runtime.instance();
+    const nativeWorker = await runtime.registerWorker(extractNativeClient(connection), options);
+    return new NativeWorker(runtime, nativeWorker);
   }
 
   public static async createReplay(options: CompiledWorkerOptions, history: History): Promise<NativeWorkerLike> {
-    const core = await ReplayCore.instance();
-    const nativeWorker = await core.createReplayWorker(options, history);
-    return new NativeWorker(core, nativeWorker);
+    const runtime = Runtime.instance();
+    const nativeWorker = await runtime.createReplayWorker(options, history);
+    return new NativeWorker(runtime, nativeWorker);
   }
 
-  protected constructor(protected readonly core: Core, protected readonly nativeWorker: native.Worker) {
+  protected constructor(protected readonly runtime: Runtime, protected readonly nativeWorker: native.Worker) {
     this.pollWorkflowActivation = promisify(native.workerPollWorkflowActivation).bind(undefined, nativeWorker);
     this.pollActivityTask = promisify(native.workerPollActivityTask).bind(undefined, nativeWorker);
     this.completeWorkflowActivation = promisify(native.workerCompleteWorkflowActivation).bind(undefined, nativeWorker);
@@ -158,20 +158,17 @@ export class NativeWorker implements NativeWorkerLike {
     this.recordActivityHeartbeat = native.workerRecordActivityHeartbeat.bind(undefined, nativeWorker);
     this.shutdown = promisify(native.workerShutdown).bind(undefined, nativeWorker);
   }
+
   flushCoreLogs(): void {
-    this.core.flushLogs();
+    this.runtime.flushLogs();
   }
 
   public async completeShutdown(): Promise<void> {
-    await this.core.deregisterWorker(this.nativeWorker);
-  }
-
-  public get namespace(): string {
-    return this.core.options.serverOptions.namespace;
+    await this.runtime.deregisterWorker(this.nativeWorker);
   }
 
   public get logger(): Logger {
-    return this.core.logger;
+    return this.runtime.logger;
   }
 }
 
@@ -282,7 +279,8 @@ export class Worker {
   public static async create(options: WorkerOptions): Promise<Worker> {
     const nativeWorkerCtor: WorkerConstructor = this.nativeWorkerCtor;
     const compiledOptions = compileWorkerOptions(addDefaultWorkerOptions(options));
-    const nativeWorker = await nativeWorkerCtor.create(compiledOptions);
+    const connection = options.connection ?? (await NativeConnection.create());
+    const nativeWorker = await nativeWorkerCtor.create(connection, compiledOptions);
     return await this.bundleWorker(compiledOptions, nativeWorker);
   }
 
@@ -536,7 +534,7 @@ export class Worker {
                       task,
                       false,
                       this.options.loadedDataConverter,
-                      this.nativeWorker.namespace
+                      this.options.namespace
                     );
                     const { activityType } = info;
                     const fn = this.options.activities?.[activityType];
@@ -797,7 +795,7 @@ export class Worker {
                         workflowType,
                         runId: activation.runId,
                         workflowId,
-                        namespace: this.nativeWorker.namespace,
+                        namespace: this.options.namespace,
                         taskQueue: this.options.taskQueue,
                         isReplaying: activation.isReplaying,
                       };

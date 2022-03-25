@@ -27,7 +27,7 @@ import {
   WorkflowNotFoundError,
 } from '@temporalio/internal-workflow-common';
 import * as iface from '@temporalio/proto';
-import { Core, DefaultLogger, Worker } from '@temporalio/worker';
+import { Runtime, DefaultLogger, Worker } from '@temporalio/worker';
 import asyncRetry from 'async-retry';
 import anyTest, { Implementation, TestInterface } from 'ava';
 import dedent from 'dedent';
@@ -65,7 +65,7 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
   _test.before(async (t) => {
     const logger = new DefaultLogger('DEBUG');
     // Use forwarded logging from core
-    await Core.install({ logger, telemetryOptions: { logForwardingLevel: 'INFO' } });
+    Runtime.install({ logger, telemetryOptions: { logForwardingLevel: 'INFO' } });
     const worker = await Worker.create({
       workflowsPath: require.resolve('./workflows'),
       activities,

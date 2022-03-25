@@ -1,18 +1,26 @@
 /**
- * Test the lifecycle of the Core singleton.
- * Tests run serially because Core is a singleton.
+ * Test the lifecycle of the Runtime singleton.
+ * Tests run serially because Runtime is a singleton.
  */
 import test from 'ava';
 import { v4 as uuid4 } from 'uuid';
-import { Worker, Core } from '@temporalio/worker';
+import { Worker, Runtime, DefaultLogger } from '@temporalio/worker';
 import { WorkflowClient } from '@temporalio/client';
 import { defaultOptions } from './mock-native-worker';
 import * as workflows from './workflows';
 import { RUN_INTEGRATION_TESTS } from './helpers';
 
 if (RUN_INTEGRATION_TESTS) {
-  test.serial('Core tracks registered workers, shuts down and restarts as expected', async (t) => {
-    // Create 2 Workers and verify Core keeps running after first Worker deregisteration
+  test.serial('Runtime can be started and stopped', async (t) => {
+    Runtime.install({});
+    await Runtime.instance().shutdown();
+    t.pass();
+  });
+
+  test.serial('Runtime tracks registered workers, shuts down and restarts as expected', async (t) => {
+    Runtime.install({});
+
+    // Create 2 Workers and verify Runtime keeps running after first Worker deregisteration
     const worker1 = await Worker.create({
       ...defaultOptions,
       taskQueue: 'q1',
@@ -31,9 +39,9 @@ if (RUN_INTEGRATION_TESTS) {
     worker2.shutdown();
     await worker2Drained;
 
-    // Core is supposed to shutdown after all Workers have deregistered.
-    // Core.install() would fail if a Core instance was already registered.
-    await Core.install({});
+    // Runtime is supposed to shutdown after all Workers have deregistered.
+    // Runtime.install() would fail if a Runtime instance was already registered.
+    Runtime.install({});
 
     const worker3 = await Worker.create({
       ...defaultOptions,
@@ -49,13 +57,14 @@ if (RUN_INTEGRATION_TESTS) {
   });
 
   // Stopping and starting Workers is probably not a common pattern but if we don't remember what
-  // Core configuration was installed, creating a new Worker after Core shutdown we would fallback
+  // Runtime configuration was installed, creating a new Worker after Runtime shutdown we would fallback
   // to the default configuration (localhost) which is surprising behavior.
-  test.serial('Core.instance() remembers installed options after it has been shut down', async (t) => {
-    await Core.install({ serverOptions: { workerBinaryId: 'test-id' } });
+  test.serial('Runtime.instance() remembers installed options after it has been shut down', async (t) => {
+    const logger = new DefaultLogger('DEBUG');
+    Runtime.install({ logger });
     {
-      const core = await Core.instance();
-      t.is(core.options.serverOptions.workerBinaryId, 'test-id');
+      const runtime = Runtime.instance();
+      t.is(runtime.options.logger, logger);
     }
     const worker = await Worker.create({
       ...defaultOptions,
@@ -65,42 +74,28 @@ if (RUN_INTEGRATION_TESTS) {
     worker.shutdown();
     await workerDrained;
     {
-      const core = await Core.instance();
-      t.is(core.options.serverOptions.workerBinaryId, 'test-id');
-      await core.shutdown();
+      const runtime = Runtime.instance();
+      t.is(runtime.options.logger, logger);
+      await runtime.shutdown();
     }
   });
 
-  test.serial('Core.instance() throws meaningful error when passed invalid address', async (t) => {
-    await t.throwsAsync(Core.install({ serverOptions: { address: ':invalid' } }), {
-      instanceOf: TypeError,
-      message: 'Invalid serverOptions.address',
-    });
-  });
-
-  test.serial('Core.instance() throws meaningful error when passed invalid clientCertPair', async (t) => {
-    await t.throwsAsync(Core.install({ serverOptions: { tls: { clientCertPair: {} as any } } }), {
-      instanceOf: TypeError,
-      message: 'Invalid or missing serverOptions.tls.clientCertPair.crt',
-    });
-  });
-
-  test.serial('Core.instance() throws meaningful error when passed invalid oTelCollectorUrl', async (t) => {
-    await t.throwsAsync(Core.install({ telemetryOptions: { oTelCollectorUrl: ':invalid' } }), {
+  test.serial('Runtime.instance() throws meaningful error when passed invalid oTelCollectorUrl', (t) => {
+    t.throws(() => Runtime.install({ telemetryOptions: { oTelCollectorUrl: ':invalid' } }), {
       instanceOf: TypeError,
       message: 'Invalid telemetryOptions.oTelCollectorUrl',
     });
   });
 
-  test.serial('Core.instance() throws meaningful error when passed invalid prometheusMetricsBindAddress', async (t) => {
-    await t.throwsAsync(Core.install({ telemetryOptions: { prometheusMetricsBindAddress: ':invalid' } }), {
+  test.serial('Runtime.instance() throws meaningful error when passed invalid prometheusMetricsBindAddress', (t) => {
+    t.throws(() => Runtime.install({ telemetryOptions: { prometheusMetricsBindAddress: ':invalid' } }), {
       instanceOf: TypeError,
       message: 'Invalid telemetryOptions.prometheusMetricsBindAddress',
     });
   });
 
-  test.serial('Core.instance() throws meaningful error when passed invalid tracingFilter', async (t) => {
-    await t.throwsAsync(Core.install({ telemetryOptions: { tracingFilter: 2 as any } }), {
+  test.serial('Runtime.instance() throws meaningful error when passed invalid tracingFilter', (t) => {
+    t.throws(() => Runtime.install({ telemetryOptions: { tracingFilter: 2 as any } }), {
       instanceOf: TypeError,
       message: 'Invalid tracingFilter',
     });

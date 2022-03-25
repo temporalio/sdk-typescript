@@ -1,7 +1,7 @@
 import * as activity from '@temporalio/activity';
 import { AsyncCompletionClient, Connection, WorkflowClient } from '@temporalio/client';
 import { ActivityFunction, CancelledFailure } from '@temporalio/common';
-import { Core, Logger, DefaultLogger } from '@temporalio/worker';
+import { NativeConnection, Logger, DefaultLogger } from '@temporalio/worker';
 import path from 'path';
 import os from 'os';
 import { AbortController } from 'abort-controller';
@@ -67,8 +67,20 @@ export class TestWorkflowEnvironment {
    */
   public readonly workflowClient: WorkflowClient;
 
-  protected constructor(protected readonly serverProc: ChildProcess, connection: Connection) {
+  /**
+   * A {@link NativeConnection} for interacting with the test server.
+   *
+   * Use this client when creating Workers for testing.
+   */
+  public readonly nativeConnection: NativeConnection;
+
+  protected constructor(
+    protected readonly serverProc: ChildProcess,
+    connection: Connection,
+    nativeConnection: NativeConnection
+  ) {
     this.connection = connection;
+    this.nativeConnection = nativeConnection;
     this.workflowClient = new WorkflowClient(this.connection.service);
     this.asyncCompletionClient = new AsyncCompletionClient(this.connection.service);
   }
@@ -104,10 +116,9 @@ export class TestWorkflowEnvironment {
       throw err;
     }
 
-    // TODO: Core is a singleton at the moment, once the bridge is refactored this will change.
-    await Core.install({ serverOptions: { address } });
+    const nativeConnection = await NativeConnection.create({ address });
 
-    return new this(child, conn);
+    return new this(child, conn, nativeConnection);
   }
 
   /**

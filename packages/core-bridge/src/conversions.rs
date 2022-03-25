@@ -9,8 +9,8 @@ use opentelemetry::trace::{SpanContext, SpanId, TraceFlags, TraceId, TraceState}
 use std::{fmt::Display, net::SocketAddr, str::FromStr, time::Duration};
 use temporal_sdk_core::{
     api::worker::{WorkerConfig, WorkerConfigBuilder},
-    ClientTlsConfig, RetryConfig, ServerGatewayOptions, ServerGatewayOptionsBuilder,
-    TelemetryOptions, TelemetryOptionsBuilder, TlsConfig, Url,
+    ClientOptions, ClientOptionsBuilder, ClientTlsConfig, RetryConfig, TelemetryOptions,
+    TelemetryOptionsBuilder, TlsConfig, Url,
 };
 
 macro_rules! js_value_getter {
@@ -105,10 +105,7 @@ where
 
 pub(crate) trait ObjectHandleConversionsExt {
     fn as_otel_span_context(&self, ctx: &mut FunctionContext) -> NeonResult<SpanContext>;
-    fn as_server_gateway_options(
-        &self,
-        ctx: &mut FunctionContext,
-    ) -> NeonResult<ServerGatewayOptions>;
+    fn as_client_options(&self, ctx: &mut FunctionContext) -> NeonResult<ClientOptions>;
     fn as_telemetry_options(&self, cx: &mut FunctionContext) -> NeonResult<TelemetryOptions>;
     fn as_worker_config(&self, cx: &mut FunctionContext) -> NeonResult<WorkerConfig>;
 }
@@ -127,10 +124,7 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
         ))
     }
 
-    fn as_server_gateway_options(
-        &self,
-        cx: &mut FunctionContext,
-    ) -> NeonResult<ServerGatewayOptions> {
+    fn as_client_options(&self, cx: &mut FunctionContext) -> NeonResult<ClientOptions> {
         let url = match Url::parse(&js_value_getter!(cx, self, "url", JsString)) {
             Ok(url) => url,
             // Note that address is what's used in the Node side.
@@ -204,7 +198,7 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
             },
         };
 
-        let mut gateway_opts = ServerGatewayOptionsBuilder::default();
+        let mut gateway_opts = ClientOptionsBuilder::default();
         if let Some(tls_cfg) = tls_cfg {
             gateway_opts.tls_cfg(tls_cfg);
         }
@@ -212,7 +206,6 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
             .client_name("temporal-typescript".to_string())
             .client_version(js_value_getter!(cx, self, "sdkVersion", JsString))
             .target_url(url)
-            .namespace(js_value_getter!(cx, self, "namespace", JsString))
             .identity(js_value_getter!(cx, self, "identity", JsString))
             .worker_binary_id(js_value_getter!(cx, self, "workerBinaryId", JsString))
             .retry_config(retry_config)
@@ -255,6 +248,7 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
     }
 
     fn as_worker_config(&self, cx: &mut FunctionContext) -> NeonResult<WorkerConfig> {
+        let namespace = js_value_getter!(cx, self, "namespace", JsString);
         let task_queue = js_value_getter!(cx, self, "taskQueue", JsString);
         let max_outstanding_activities =
             js_value_getter!(cx, self, "maxConcurrentActivityTaskExecutions", JsNumber) as usize;
@@ -298,6 +292,7 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
             .max_cached_workflows(max_cached_workflows)
             .nonsticky_to_sticky_poll_ratio(nonsticky_to_sticky_poll_ratio)
             .sticky_queue_schedule_to_start_timeout(sticky_queue_schedule_to_start_timeout)
+            .namespace(namespace)
             .task_queue(task_queue)
             .max_heartbeat_throttle_interval(max_heartbeat_throttle_interval)
             .default_heartbeat_throttle_interval(default_heartbeat_throttle_interval)

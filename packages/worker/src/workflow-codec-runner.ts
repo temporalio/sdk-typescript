@@ -2,6 +2,7 @@ import { PayloadCodec } from '@temporalio/common';
 import {
   Decoded,
   decodeOptional,
+  decodeOptionalMap,
   decodeOptionalFailure,
   decodeOptionalSingle,
   Encoded,
@@ -45,12 +46,27 @@ export class WorkflowCodecRunner {
                     ...job.startWorkflow,
                     arguments: await decodeOptional(this.codec, job.startWorkflow.arguments),
                     headers: noopDecodeMap(job.startWorkflow.headers),
+                    continuedFailure: await decodeOptionalFailure(this.codec, job.startWorkflow.continuedFailure),
+                    memo: {
+                      fields: await decodeOptionalMap(this.codec, job.startWorkflow.memo?.fields),
+                    },
+                    lastCompletionResult: {
+                      payloads: await decodeOptional(this.codec, job.startWorkflow.lastCompletionResult?.payloads),
+                    },
+                    searchAttributes: job.startWorkflow.searchAttributes
+                      ? {
+                          indexedFields: job.startWorkflow.searchAttributes.indexedFields
+                            ? noopDecodeMap(job.startWorkflow.searchAttributes?.indexedFields)
+                            : undefined,
+                        }
+                      : undefined,
                   }
                 : null,
               queryWorkflow: job.queryWorkflow
                 ? {
                     ...job.queryWorkflow,
                     arguments: await decodeOptional(this.codec, job.queryWorkflow.arguments),
+                    headers: noopDecodeMap(job.queryWorkflow.headers),
                   }
                 : null,
               cancelWorkflow: job.cancelWorkflow
@@ -63,6 +79,7 @@ export class WorkflowCodecRunner {
                 ? {
                     ...job.signalWorkflow,
                     input: await decodeOptional(this.codec, job.signalWorkflow.input),
+                    headers: noopDecodeMap(job.signalWorkflow.headers),
                   }
                 : null,
               resolveActivity: job.resolveActivity
@@ -185,9 +202,18 @@ export class WorkflowCodecRunner {
                           ...command.scheduleActivity,
                           arguments: await encodeOptional(this.codec, command.scheduleActivity?.arguments),
                           // don't encode headers
-                          headerFields: noopEncodeMap(command.scheduleActivity?.headerFields),
+                          headers: noopEncodeMap(command.scheduleActivity?.headers),
                         }
                       : undefined,
+                    upsertWorkflowSearchAttributesCommandAttributes:
+                      command.upsertWorkflowSearchAttributesCommandAttributes
+                        ? {
+                            ...command.upsertWorkflowSearchAttributesCommandAttributes,
+                            searchAttributes: noopEncodeMap(
+                              command.upsertWorkflowSearchAttributesCommandAttributes.searchAttributes
+                            ),
+                          }
+                        : undefined,
                     respondToQuery: command.respondToQuery
                       ? {
                           ...command.respondToQuery,
@@ -219,7 +245,7 @@ export class WorkflowCodecRunner {
                           arguments: await encodeOptional(this.codec, command.continueAsNewWorkflowExecution.arguments),
                           memo: await encodeMap(this.codec, command.continueAsNewWorkflowExecution.memo),
                           // don't encode headers
-                          header: noopEncodeMap(command.continueAsNewWorkflowExecution.header),
+                          headers: noopEncodeMap(command.continueAsNewWorkflowExecution.headers),
                           // don't encode searchAttributes
                           searchAttributes: noopEncodeMap(command.continueAsNewWorkflowExecution.searchAttributes),
                         }
@@ -230,7 +256,7 @@ export class WorkflowCodecRunner {
                           input: await encodeOptional(this.codec, command.startChildWorkflowExecution.input),
                           memo: await encodeMap(this.codec, command.startChildWorkflowExecution.memo),
                           // don't encode headers
-                          header: noopEncodeMap(command.startChildWorkflowExecution.header),
+                          headers: noopEncodeMap(command.startChildWorkflowExecution.headers),
                           // don't encode searchAttributes
                           searchAttributes: noopEncodeMap(command.startChildWorkflowExecution.searchAttributes),
                         }
@@ -239,6 +265,7 @@ export class WorkflowCodecRunner {
                       ? {
                           ...command.signalExternalWorkflowExecution,
                           args: await encodeOptional(this.codec, command.signalExternalWorkflowExecution.args),
+                          headers: noopEncodeMap(command.signalExternalWorkflowExecution.headers),
                         }
                       : undefined,
                     scheduleLocalActivity: command.scheduleLocalActivity
@@ -246,7 +273,7 @@ export class WorkflowCodecRunner {
                           ...command.scheduleLocalActivity,
                           arguments: await encodeOptional(this.codec, command.scheduleLocalActivity.arguments),
                           // don't encode headers
-                          headerFields: noopEncodeMap(command.scheduleLocalActivity.headerFields),
+                          headers: noopEncodeMap(command.scheduleLocalActivity.headers),
                         }
                       : undefined,
                   })) ?? []

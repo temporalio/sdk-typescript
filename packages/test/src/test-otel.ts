@@ -14,7 +14,7 @@ import {
   OpenTelemetryActivityInboundInterceptor,
 } from '@temporalio/interceptors-opentelemetry/lib/worker';
 import { OpenTelemetrySinks, SpanName, SPAN_DELIMITER } from '@temporalio/interceptors-opentelemetry/lib/workflow';
-import { Core, DefaultLogger, InjectedSinks, Worker } from '@temporalio/worker';
+import { Runtime, DefaultLogger, InjectedSinks, Worker } from '@temporalio/worker';
 import test from 'ava';
 import { v4 as uuid4 } from 'uuid';
 import * as activities from './activities';
@@ -147,7 +147,7 @@ if (RUN_INTEGRATION_TESTS) {
     await otel.start();
 
     const logger = new DefaultLogger('DEBUG');
-    await Core.install({
+    Runtime.install({
       logger,
       telemetryOptions: {
         oTelCollectorUrl: oTelUrl,
