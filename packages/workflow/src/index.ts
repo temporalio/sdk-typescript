@@ -27,11 +27,6 @@
  * To add query handlers to a Workflow, add a queries property to the exported `workflow` object.
  * Query handlers must **not** mutate any variables or generate any commands (like Activities or Timers), they run synchronously and thus **must** return a `Promise`.
  *
- * #### Interface
- *
- * <!--SNIPSTART typescript-workflow-signal-interface-->
- * <!--SNIPEND-->
- *
  * #### Implementation
  *
  * <!--SNIPSTART typescript-workflow-signal-implementation-->
