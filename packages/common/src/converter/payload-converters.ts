@@ -1,4 +1,4 @@
-import { UnsupportedTypeError, ValueError } from '@temporalio/internal-workflow-common';
+import { PayloadConverterError, UnsupportedTypeError, ValueError } from '@temporalio/internal-workflow-common';
 import { PayloadConverter } from './payload-converter';
 import { encodingKeys, EncodingType, encodingTypes, METADATA_ENCODING_KEY, Payload, str, u8 } from './types';
 
@@ -17,6 +17,10 @@ export class CompositePayloadConverter implements PayloadConverter {
   readonly converterByEncoding: Map<string, PayloadConverterWithEncoding> = new Map();
 
   constructor(...converters: PayloadConverterWithEncoding[]) {
+    if (converters.length === 0) {
+      throw new PayloadConverterError('Must provide at least one PayloadConverterWithEncoding');
+    }
+
     this.converters = converters;
     for (const converter of converters) {
       this.converterByEncoding.set(converter.encodingType, converter);
