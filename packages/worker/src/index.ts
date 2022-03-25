@@ -8,12 +8,12 @@
  * @module
  */
 
-export { State, Worker, DataConverter, defaultPayloadConverter, errors } from './worker';
-export { WorkerOptions, CompiledWorkerOptions } from './worker-options';
-export { ServerOptions, TLSConfig } from './server-options';
-export { Core, CompiledCoreOptions, CoreOptions, TelemetryOptions, History } from './core';
-export * from './logger';
-export * from './sinks';
-export * from './interceptors';
-export { bundleWorkflowCode, BundleOptions } from './workflow/bundler';
+export { CompiledCoreOptions, Core, CoreOptions, History, RequiredTelemetryOptions, TelemetryOptions } from './core';
 export * from './errors';
+export * from './interceptors';
+export * from './logger';
+export { ServerOptions, TLSConfig } from './server-options';
+export * from './sinks';
+export { DataConverter, defaultPayloadConverter, errors, State, Worker } from './worker';
+export { CompiledWorkerOptions, WorkerOptions } from './worker-options';
+export { BundleOptions, bundleWorkflowCode } from './workflow/bundler';
