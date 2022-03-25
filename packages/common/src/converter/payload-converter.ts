@@ -1,11 +1,5 @@
-import { PayloadConverterError, ValueError } from '@temporalio/internal-workflow-common';
-import {
-  BinaryPayloadConverter,
-  JsonPayloadConverter,
-  PayloadConverterWithEncoding,
-  UndefinedPayloadConverter,
-} from './payload-converters';
-import { METADATA_ENCODING_KEY, Payload, str } from './types';
+import { PayloadConverterError } from '@temporalio/internal-workflow-common';
+import { Payload } from './types';
 
 /**
  * Used by the framework to serialize/deserialize parameters and return values.
@@ -24,49 +18,6 @@ export interface PayloadConverter {
    * Converts a {@link Payload} back to a value.
    */
   fromPayload<T>(payload: Payload): T;
-}
-
-export class CompositePayloadConverter implements PayloadConverter {
-  readonly converters: PayloadConverterWithEncoding[];
-  readonly converterByEncoding: Map<string, PayloadConverterWithEncoding> = new Map();
-
-  constructor(...converters: PayloadConverterWithEncoding[]) {
-    this.converters = converters;
-    for (const converter of converters) {
-      this.converterByEncoding.set(converter.encodingType, converter);
-    }
-  }
-
-  /**
-   * Tries to run `.toPayload(value)` on each converter in the order provided at construction.
-   * Returns the first successful result, or `undefined` if there is no converter that can handle the value.
-   *
-   * @throws UnsupportedJsonTypeError
-   */
-  public toPayload<T>(value: T): Payload | undefined {
-    for (const converter of this.converters) {
-      const result = converter.toPayload(value);
-      if (result !== undefined) {
-        return result;
-      }
-    }
-    return undefined;
-  }
-
-  /**
-   * Run {@link PayloadConverterWithEncoding.fromPayload} based on the {@link encodingTypes | encoding type} of the {@link Payload}.
-   */
-  public fromPayload<T>(payload: Payload): T {
-    if (payload.metadata === undefined || payload.metadata === null) {
-      throw new ValueError('Missing payload metadata');
-    }
-    const encoding = str(payload.metadata[METADATA_ENCODING_KEY]);
-    const converter = this.converterByEncoding.get(encoding);
-    if (converter === undefined) {
-      throw new ValueError(`Unknown encoding: ${encoding}`);
-    }
-    return converter.fromPayload(payload);
-  }
 }
 
 /**
@@ -151,27 +102,3 @@ export function mapFromPayloads<K extends string>(
     })
   ) as Record<K, unknown>;
 }
-
-export const searchAttributePayloadConverter = new JsonPayloadConverter();
-
-export class DefaultPayloadConverter extends CompositePayloadConverter {
-  // Match the order used in other SDKs, but exclude Protobuf converters so that the code, including
-  // `proto3-json-serializer`, doesn't take space in Workflow bundles that don't use Protobufs. To use Protobufs, use
-  // {@link DefaultPayloadConverterWithProtobufs}.
-  //
-  // Go SDK:
-  // https://github.com/temporalio/sdk-go/blob/5e5645f0c550dcf717c095ae32c76a7087d2e985/converter/default_data_converter.go#L28
-  constructor() {
-    super(new UndefinedPayloadConverter(), new BinaryPayloadConverter(), new JsonPayloadConverter());
-  }
-}
-
-/**
- * The default {@link PayloadConverter} used by the SDK.
- * Supports `Uint8Array` and JSON serializables (so if [`JSON.stringify(yourArgOrRetval)`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/JSON/stringify#description) works, the default payload converter will work).
- *
- * To also support Protobufs, create a custom payload converter with {@link DefaultPayloadConverter}:
- *
- * `const myConverter = new DefaultPayloadConverter({ protobufRoot })`
- */
-export const defaultPayloadConverter = new DefaultPayloadConverter();

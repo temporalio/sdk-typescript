@@ -6,12 +6,8 @@ export class PayloadConverterError extends ValueError {
   public readonly name: string = 'PayloadConverterError';
 }
 
-export class UnsupportedJsonTypeError extends PayloadConverterError {
-  public readonly name: string = 'UnsupportedJsonTypeError';
-
-  constructor(message: string | undefined, public readonly cause?: Error) {
-    super(message ?? undefined);
-  }
+export class UnsupportedTypeError extends PayloadConverterError {
+  public readonly name: string = 'UnsupportedTypeError';
 }
 
 /**

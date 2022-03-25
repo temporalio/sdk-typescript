@@ -1,5 +1,6 @@
 import { defaultPayloadCodec, PayloadCodec } from './payload-codec';
-import { defaultPayloadConverter, PayloadConverter } from './payload-converter';
+import { PayloadConverter } from './payload-converter';
+import { defaultPayloadConverter } from './payload-converters';
 
 /**
  * When your data (arguments and return values) is sent over the wire and stored by Temporal Server, it is encoded in
