@@ -2,6 +2,8 @@
  * All-in-one sample showing cancellation, signals and queries
  * @module
  */
+
+// @@@SNIPSTART typescript-workflow-signal-implementation
 import { CancelledFailure, defineQuery, setHandler, condition } from '@temporalio/workflow';
 import { unblockSignal } from './definitions';
 
@@ -23,3 +25,4 @@ export async function unblockOrCancel(): Promise<void> {
     console.log('Cancelled');
   }
 }
+// @@@SNIPEND
