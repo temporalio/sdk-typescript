@@ -71,20 +71,19 @@ export {
   IllegalStateError,
   RetryPolicy,
   ValueError,
-  Workflow,
-  WorkflowIdReusePolicy,
-  WorkflowResultType,
 } from '@temporalio/internal-workflow-common';
+export * from '@temporalio/internal-workflow-common/lib/interfaces';
+export * from '@temporalio/internal-workflow-common/lib/workflow-options';
 export { AsyncLocalStorage, CancellationScope, CancellationScopeOptions, ROOT_SCOPE } from './cancellation-scope';
 export * from './errors';
 export * from './interceptors';
 export {
   ChildWorkflowCancellationType,
   ChildWorkflowOptions,
+  ContinueAsNew,
   ContinueAsNewOptions,
   ParentClosePolicy,
   WorkflowInfo,
-  ContinueAsNew,
 } from './interfaces';
 export { Sink, SinkCall, SinkFunction, Sinks } from './sinks';
 export { Trigger } from './trigger';

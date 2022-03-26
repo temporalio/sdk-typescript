@@ -4,7 +4,7 @@ import {
   WithCompiledWorkflowDurationOptions,
 } from '@temporalio/internal-workflow-common';
 
-export { compileWorkflowOptions, WithCompiledWorkflowDurationOptions } from '@temporalio/internal-workflow-common';
+export * from '@temporalio/internal-workflow-common/lib/workflow-options';
 
 export interface CompiledWorkflowOptions extends WithCompiledWorkflowDurationOptions<WorkflowOptions> {
   args: unknown[];
