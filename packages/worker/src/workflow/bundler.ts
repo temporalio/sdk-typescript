@@ -237,6 +237,8 @@ export class WorkflowCodeBundler {
 
     // Cast to any because the type declarations are inaccurate
     compiler.inputFileSystem = inputFilesystem as any;
+    // Don't use ufs due to a strange bug on Windows:
+    // https://github.com/temporalio/sdk-typescript/pull/554
     compiler.outputFileSystem = outputFilesystem as any;
 
     try {
