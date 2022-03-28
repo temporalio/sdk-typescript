@@ -1,3 +1,4 @@
+import { errorCode } from '@temporalio/internal-workflow-common';
 import dedent from 'dedent';
 import * as realFS from 'fs';
 import * as memfs from 'memfs';
@@ -126,6 +127,33 @@ export class WorkflowCodeBundler {
     const entrypointPath = this.makeEntrypointPath(ufs, this.workflowsPath);
 
     this.genEntrypoint(vol, entrypointPath);
+    try {
+      console.log(memoryFs.statSync('/dist'));
+    } catch (e) {
+      if (errorCode(e) === 'ENOENT') {
+        console.log('memoryFs: No /dist');
+      } else {
+        console.log('Error stating memoryFs: ', e);
+      }
+    }
+    try {
+      console.log(realFS.statSync('/dist'));
+    } catch (e) {
+      if (errorCode(e) === 'ENOENT') {
+        console.log('realFS: No /dist');
+      } else {
+        console.log('Error stating realFS: ', e);
+      }
+    }
+    try {
+      console.log(ufs.statSync('/dist'));
+    } catch (e) {
+      if (errorCode(e) === 'ENOENT') {
+        console.log('ufs: No /dist');
+      } else {
+        console.log('Error stating ufs: ', e);
+      }
+    }
     await this.bundle(ufs, memoryFs, entrypointPath, distDir);
     return ufs.readFileSync(path.join(distDir, 'main.js'), 'utf8');
   }
