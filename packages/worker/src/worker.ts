@@ -618,10 +618,11 @@ export class Worker {
                     // NOTE: activity will not be considered cancelled until it confirms cancellation
                     this.log.debug('Cancelling activity', { taskToken: base64TaskToken });
                     span.setAttribute('found', true);
-                    if (!task.cancel?.reason) {
+                    const reason = task.cancel?.reason;
+                    if (reason === undefined || reason === null) {
                       throw new TypeError('Got cancel activity cancel task with no reason');
                     }
-                    activity.cancel(false, coresdk.activity_task.ActivityCancelReason[task.cancel.reason]);
+                    activity.cancel(false, coresdk.activity_task.ActivityCancelReason[reason]);
                     break;
                   }
                 }

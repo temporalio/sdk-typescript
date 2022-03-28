@@ -144,6 +144,33 @@ test('Activity Context AbortSignal cancels a fetch request', async (t) => {
   });
 });
 
+test('Activity cancel with reason "NOT_FOUND" is valid', async (t) => {
+  const { worker } = t.context;
+  await runWorker(t, async () => {
+    await withZeroesHTTPServer(async (port) => {
+      const taskToken = Buffer.from(uuid4());
+      worker.native.emit({
+        activity: {
+          taskToken,
+          start: {
+            activityType: 'cancellableFetch',
+            input: toPayloads(defaultPayloadConverter, `http://127.0.0.1:${port}`, false),
+          },
+        },
+      });
+      const completion = await worker.native.runActivityTask({
+        taskToken,
+        cancel: {
+          reason: coresdk.activity_task.ActivityCancelReason.NOT_FOUND,
+        },
+      });
+      compareCompletion(t, completion.result, {
+        cancelled: { failure: { source: 'TypeScriptSDK', canceledFailureInfo: {} } },
+      });
+    });
+  });
+});
+
 test('Activity Context heartbeat is sent to core', async (t) => {
   const { worker } = t.context;
   await runWorker(t, async () => {
