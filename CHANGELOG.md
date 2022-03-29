@@ -4,6 +4,31 @@ All notable changes to this project will be documented in this file.
 
 Breaking changes marked with a :boom:
 
+## [0.19.2] - 2022-03-29
+
+### Bug Fixes
+
+- [`worker`] Fix crash when Activity is cancelled with reason `NOT_FOUND` ([#565](https://github.com/temporalio/sdk-typescript/pull/565))
+- Export more things from client and worker packages ([#559](https://github.com/temporalio/sdk-typescript/pull/559))
+- Use `JsonPayloadConverter` for search attributes ([#546](https://github.com/temporalio/sdk-typescript/pull/546))
+  - Temporal doesn't support Null or Binary Payloads for search attributes.
+- [`worker`] Fix Windows bundle-writing bug ([#554](https://github.com/temporalio/sdk-typescript/pull/554))
+  - Sometimes on Windows in CI, we were getting empty Workflow bundles.
+
+### Features
+
+- [`workflow-bundler`] Allow ignoring modules for Webpack build ([#540](https://github.com/temporalio/sdk-typescript/pull/540))
+- Add testing framework ([#543](https://github.com/temporalio/sdk-typescript/pull/543))
+  - Initial work, missing features:
+    - No ability to fast forward time outside of a workflow
+    - No ability to toggle normal / time skipped mode
+
+### Documentation
+
+- [`client`] Add to `getHandle` documentation ([#550](https://github.com/temporalio/sdk-typescript/pull/550))
+- Improve Workflow API reference index ([#560](https://github.com/temporalio/sdk-typescript/pull/560))
+  - Use example with both signals and queries for Workflow "Signals and Queries" section
+
 ## [0.19.1] - 2022-03-12
 
 ### Bug Fixes
