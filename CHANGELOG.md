@@ -17,7 +17,7 @@ Breaking changes marked with a :boom:
 
 ### Features
 
-- [`workflow-bundler`] Allow ignoring modules for Webpack build ([#540](https://github.com/temporalio/sdk-typescript/pull/540))
+- [`workflow-bundler`] Allow ignoring modules for Webpack build ([#540](https://github.com/temporalio/sdk-typescript/pull/540), thanks to [`@mjameswh`](https://github.com/mjameswh) 🙏)
 - Add testing framework ([#543](https://github.com/temporalio/sdk-typescript/pull/543))
   - Initial work, missing features:
     - No ability to fast forward time outside of a workflow
