@@ -56,6 +56,7 @@ export interface WorkerOptions {
    * Time to wait for pending tasks to drain after shutdown was requested.
    *
    * @format {@link https://www.npmjs.com/package/ms | ms} formatted string or number of milliseconds
+   * @default 5s
    */
   shutdownGraceTime?: string | number;
 
@@ -168,6 +169,8 @@ export interface WorkerOptions {
    *
    * For completeness the Rust Core also generates opentelemetry spans which connect to the Worker's spans.
    * Configure {@link CoreOptions.telemetryOptions} to enable tracing in Core.
+   *
+   * @default false
    */
   enableSDKTracing?: boolean;
 
