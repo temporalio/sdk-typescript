@@ -7,7 +7,7 @@ import { Runtime } from './runtime';
  *
  * A Worker must use this class to connect to the server.
  *
- * Do not confuse this Connection class with the `@temporalio/client`'s Connection.
+ * Do not confuse this connection class with `@temporalio/client`'s Connection.
  */
 export class NativeConnection {
   // nativeClient is intentionally left private, framework code can access it with `extractNativeClient` (below)

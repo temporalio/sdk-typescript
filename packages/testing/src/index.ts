@@ -70,7 +70,7 @@ export class TestWorkflowEnvironment {
   /**
    * A {@link NativeConnection} for interacting with the test server.
    *
-   * Use this client when creating Workers for testing.
+   * Use this connection when creating Workers for testing.
    */
   public readonly nativeConnection: NativeConnection;
 

@@ -43,7 +43,7 @@ enum Request {
     },
     /// A request to create a client in a runtime
     CreateClient {
-        runtime: Arc<ThreadRuntime>,
+        runtime: Arc<RuntimeHandle>,
         options: ClientOptions,
         /// Used to send the result back into JS
         callback: Root<JsFunction>,
@@ -57,7 +57,7 @@ enum Request {
     },
     /// A request to create a new Worker using a connected client
     InitWorker {
-        runtime: Arc<ThreadRuntime>,
+        runtime: Arc<RuntimeHandle>,
         /// Worker configuration e.g. limits and task queue
         config: WorkerConfig,
         /// A client created with a [CreateClient] request
@@ -67,7 +67,7 @@ enum Request {
     },
     /// A request to register a replay worker
     InitReplayWorker {
-        runtime: Arc<ThreadRuntime>,
+        runtime: Arc<RuntimeHandle>,
         /// Worker configuration. Must have unique task queue name.
         config: WorkerConfig,
         /// The history this worker should replay
@@ -117,17 +117,17 @@ enum Request {
     },
 }
 
-struct ThreadRuntime {
+struct RuntimeHandle {
     sender: UnboundedSender<Request>,
 }
 
 /// Box it so we can use the runtime from JS
-type BoxedRuntime = JsBox<Arc<ThreadRuntime>>;
-impl Finalize for ThreadRuntime {}
+type BoxedRuntime = JsBox<Arc<RuntimeHandle>>;
+impl Finalize for RuntimeHandle {}
 
 #[derive(Clone)]
 struct Client {
-    runtime: Arc<ThreadRuntime>,
+    runtime: Arc<RuntimeHandle>,
     core_client: Arc<RetryClient<CoreClient>>,
 }
 
@@ -137,7 +137,7 @@ impl Finalize for Client {}
 /// Worker struct, hold a reference for the channel sender responsible for sending requests from
 /// JS to a bridge thread which forwards them to core
 struct Worker {
-    runtime: Arc<ThreadRuntime>,
+    runtime: Arc<RuntimeHandle>,
     core_worker: Arc<dyn CoreWorker>,
 }
 
@@ -186,7 +186,7 @@ where
     });
 }
 
-/// Call [callback] with given error
+/// Call `callback` with given error
 fn callback_with_error<'a, C, E, F>(
     cx: &mut C,
     callback: Handle<JsFunction>,
@@ -205,7 +205,7 @@ where
     Ok(())
 }
 
-/// Call [callback] with an UnexpectedError created from [err]
+/// Call `callback` with an UnexpectedError created from `err`
 fn callback_with_unexpected_error<'a, C, E>(
     cx: &mut C,
     callback: Handle<JsFunction>,
@@ -246,7 +246,7 @@ async fn void_future_to_js<E, F, ER, EF>(
 
 /// Builds a tokio runtime and starts polling on [Request]s via an internal channel.
 /// Bridges requests from JS to core and sends responses back to JS using a neon::EventQueue.
-/// Blocks current thread until a [BreakPoller] request is received in channel.
+/// Blocks current thread until a [Shutdown] request is received in channel.
 fn start_bridge_loop(event_queue: Arc<EventQueue>, receiver: &mut UnboundedReceiver<Request>) {
     tokio_runtime().block_on(async {
         loop {
@@ -556,11 +556,11 @@ fn runtime_new(mut cx: FunctionContext) -> JsResult<BoxedRuntime> {
 
     std::thread::spawn(move || start_bridge_loop(queue, &mut receiver));
 
-    Ok(cx.boxed(Arc::new(ThreadRuntime { sender })))
+    Ok(cx.boxed(Arc::new(RuntimeHandle { sender })))
 }
 
-/// Create a connected gRPC client which can be used to initialize workers with.
-/// Client will be returned in the supplied [callback].
+/// Create a connected gRPC client which can be used to initialize workers.
+/// Client will be returned in the supplied `callback`.
 fn client_new(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     let runtime = cx.argument::<BoxedRuntime>(0)?;
     let client_options = cx.argument::<JsObject>(1)?.as_client_options(&mut cx)?;
@@ -579,7 +579,7 @@ fn client_new(mut cx: FunctionContext) -> JsResult<JsUndefined> {
 }
 
 /// Create a new worker asynchronously.
-/// Worker uses the provided connection and returned to JS using supplied [callback].
+/// Worker uses the provided connection and returned to JS using supplied `callback`.
 fn worker_new(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     let client = cx.argument::<BoxedClient>(0)?;
     let worker_options = cx.argument::<JsObject>(1)?;

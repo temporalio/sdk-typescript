@@ -31,7 +31,7 @@ export interface WorkerOptions {
   /**
    * The namespace this worker will connect to
    *
-   * @default default
+   * @default `"default"`
    */
   namespace?: string;
 
