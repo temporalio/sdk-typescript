@@ -13,7 +13,9 @@ use std::{
     sync::Arc,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
-use temporal_client::ClientInitError;
+use temporal_client::{
+    AnyClient, ClientInitError, ConfiguredClient, WorkflowServiceClientWithMetrics,
+};
 use temporal_sdk_core::{
     api::{
         errors::{CompleteActivityError, CompleteWfError, PollActivityError, PollWfError},
@@ -27,12 +29,14 @@ use temporal_sdk_core::{
         },
         temporal::api::history::v1::History,
     },
-    telemetry_init, Client as CoreClient, ClientOptions, RetryClient, WorkerConfig,
+    telemetry_init, ClientOptions, RetryClient, WorkerConfig,
 };
 use tokio::{
     runtime::Runtime,
     sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender},
 };
+
+type RawClient = RetryClient<ConfiguredClient<WorkflowServiceClientWithMetrics>>;
 
 /// A request from JS to bridge to core
 enum Request {
@@ -61,7 +65,7 @@ enum Request {
         /// Worker configuration e.g. limits and task queue
         config: WorkerConfig,
         /// A client created with a [CreateClient] request
-        client: Arc<RetryClient<CoreClient>>,
+        client: Arc<RawClient>,
         /// Used to send the result back into JS
         callback: Root<JsFunction>,
     },
@@ -128,7 +132,7 @@ impl Finalize for RuntimeHandle {}
 #[derive(Clone)]
 struct Client {
     runtime: Arc<RuntimeHandle>,
-    core_client: Arc<RetryClient<CoreClient>>,
+    core_client: Arc<RawClient>,
 }
 
 type BoxedClient = JsBox<Client>;
@@ -268,13 +272,11 @@ fn start_bridge_loop(event_queue: Arc<EventQueue>, receiver: &mut UnboundedRecei
                     options,
                     callback,
                 } => {
-                    // The namespace here isn't really used, the Client is repurposed when a Worker
-                    // is created, hardcode to default.
                     // `metrics_meter` (second arg) can be None here since we don't use the
                     // returned client directly at the moment, when we repurpose the client to be
                     // used by a Worker, `init_worker` will attach the correct metrics meter for
                     // us.
-                    match options.connect("default", None).await {
+                    match options.connect_no_namespace(None).await {
                         Err(err) => {
                             send_error(event_queue.clone(), callback, |cx| match err {
                                 ClientInitError::SystemInfoCallError(e) => TRANSPORT_ERROR
@@ -335,7 +337,9 @@ fn start_bridge_loop(event_queue: Arc<EventQueue>, receiver: &mut UnboundedRecei
                     client,
                     callback,
                 } => {
-                    let worker = init_worker(config, client);
+                    let client = (*client).clone();
+                    let worker =
+                        init_worker(config, AnyClient::LowLevel(Box::new(client.into_inner())));
                     send_result(event_queue.clone(), callback, |cx| {
                         Ok(cx.boxed(Worker {
                             core_worker: Arc::new(worker),
