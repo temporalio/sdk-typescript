@@ -22,11 +22,11 @@ test.after.always(async (t) => {
 });
 
 test('TestEnvironment sets up test server and is able to run a Workflow with time skipping', async (t) => {
-  const worker = await Worker.create(defaultOptions);
-  const client = t.context.testEnv.workflowClient;
+  const { workflowClient, nativeConnection } = t.context.testEnv;
+  const worker = await Worker.create({ connection: nativeConnection, ...defaultOptions });
   const runAndShutdown = async () => {
     try {
-      await client.execute(sleeper, {
+      await workflowClient.execute(sleeper, {
         workflowId: uuid4(),
         taskQueue: 'test',
         args: [1_000_000],

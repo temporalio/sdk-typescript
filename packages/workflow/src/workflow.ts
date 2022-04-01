@@ -166,7 +166,7 @@ async function scheduleActivityNextHandler({
         startToCloseTimeout: msOptionalToTs(options.startToCloseTimeout),
         scheduleToStartTimeout: msOptionalToTs(options.scheduleToStartTimeout),
         namespace: options.namespace,
-        headerFields: headers,
+        headers,
         cancellationType: options.cancellationType,
       },
     });
@@ -245,7 +245,7 @@ async function startChildWorkflowExecutionNextHandler({
         workflowRunTimeout: msOptionalToTs(options.workflowRunTimeout),
         workflowTaskTimeout: msOptionalToTs(options.workflowTaskTimeout),
         namespace: workflowInfo().namespace, // Not configurable
-        header: headers,
+        headers,
         cancellationType: options.cancellationType,
         workflowIdReusePolicy: options.workflowIdReusePolicy,
         parentClosePolicy: options.parentClosePolicy,
@@ -689,7 +689,7 @@ export function makeContinueAsNewFunc<F extends Workflow>(
       throw new ContinueAsNew({
         workflowType: options.workflowType,
         arguments: toPayloads(state.payloadConverter, ...args),
-        header: headers,
+        headers,
         taskQueue: options.taskQueue,
         memo: options.memo,
         searchAttributes: options.searchAttributes,
