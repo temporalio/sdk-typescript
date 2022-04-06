@@ -4,6 +4,66 @@ All notable changes to this project will be documented in this file.
 
 Breaking changes marked with a :boom:
 
+## [0.20.0] - 2022-04-06
+
+### Features
+
+- :boom: [`worker`] Refactor Core bridge for top level Worker API (#568)
+
+  - Implements the Worker part of [proposal #56](https://github.com/temporalio/proposals/blob/050825aba0e2e6cde91bae81945dce082bd47622/typescript/connections.md)
+  - Break down `Core` into `Runtime` and `NativeConnection`
+  - Workers now require a `NativeConnection` instance instead of using the singleton `Core` connection
+  - By default Core logs are not forwarded into node anymore
+  - Various [bug fixes and features](https://github.com/temporalio/sdk-core/compare/85454935e39f789aaaa81f8a05773f8e2cdbcde2...dcae3d6fd66fb22f727ffa14da100f0c08b6a2c8) from updating `sdk-core`
+
+  Before:
+
+  ```ts
+  import { Core, Worker } from '@temporalio/worker';
+
+  await Core.install({
+    telemetryOptions: ...
+    logger: ...
+    serverOptions: {
+      address: ...
+      namespace: ...
+    }
+  });
+
+  // Worker uses connection of singleton Core
+  await Worker.create({
+    taskQueue: ...,
+    ...
+  });
+  ```
+
+  After:
+
+  ```ts
+  import { Runtime, NativeConnection, Worker } from '@temporalio/worker';
+
+  Runtime.install({
+    telemetryOptions: ...
+    logger: ...
+  });
+
+  const connection = await NativeConnection.create({
+    address: ...
+  });
+
+  // Worker uses connection of singleton Core
+  await Worker.create({
+    connection,
+    namespace: ...
+    taskQueue: ...,
+    ...
+  });
+  ```
+
+### Documentation
+
+- [`worker`] Add missing WorkerOptions defaults (#567)
+
 ## [0.19.2] - 2022-03-29
 
 ### Bug Fixes
