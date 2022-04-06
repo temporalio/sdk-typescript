@@ -51,7 +51,6 @@ Breaking changes marked with a :boom:
     address: ...
   });
 
-  // Worker uses connection of singleton Core
   await Worker.create({
     connection,
     namespace: ...
