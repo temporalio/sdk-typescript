@@ -1,13 +1,11 @@
 .idea/
 node_modules/
 lib/
-workflow-lib/commonjs/
 *.tsbuildinfo
 build/
-commonjs/
-es2020/
 lerna*.log
 packages/test/protos/json-module.js
 packages/test/protos/root.d.ts
 packages/testing/test-server*
 packages/testing/generated-protos/
+packages/core-bridge/releases
