@@ -249,13 +249,18 @@ interface HeartbeatStateAndOutput {
   output: HeartbeatOutput | null;
 }
 
+type PollerState = 'POLLING' | 'SHUTDOWN' | 'FAILED';
+
 /**
  * The temporal Worker connects to Temporal Server and runs Workflows and Activities.
  */
 export class Worker {
   protected readonly activityHeartbeatSubject = new Subject<HeartbeatInput>();
   protected readonly stateSubject = new BehaviorSubject<State>('INITIALIZED');
-  protected readonly workflowPollerStateSubject = new BehaviorSubject<'POLLING' | 'SHUTDOWN' | 'FAILED'>('POLLING');
+
+  protected readonly workflowPollerStateSubject = new BehaviorSubject<PollerState>('POLLING');
+  protected readonly activityPollerStateSubject = new BehaviorSubject<PollerState>('POLLING');
+
   protected readonly numInFlightActivationsSubject = new BehaviorSubject<number>(0);
   protected readonly numInFlightActivitiesSubject = new BehaviorSubject<number>(0);
   protected readonly numRunningWorkflowInstancesSubject = new BehaviorSubject<number>(0);
@@ -506,7 +511,26 @@ export class Worker {
     return pipe(
       closeableGroupBy(({ base64TaskToken }) => base64TaskToken),
       mergeMap((group$) => {
-        return group$.pipe(
+        return merge(
+          group$,
+          this.activityPollerStateSubject.pipe(
+            // Core has indicated that it will not return any more poll results, evict all cached WFs
+            filter((state) => state !== 'POLLING'),
+            first(),
+            map((): ActivityTaskWithContext => {
+              return {
+                parentSpan: this.tracer.startSpan('activity.shutdown.evict'),
+                task: new coresdk.activity_task.ActivityTask({
+                  // NOTE: taskToken and cancel reason are not sent here.
+                  // We assume that if the task is cancelled with no reason it
+                  // means that the worker is being shut down.
+                  cancel: {},
+                }),
+                base64TaskToken: group$.key,
+              };
+            })
+          )
+        ).pipe(
           mergeMapWithState(
             async (activity: Activity | undefined, { task, parentSpan, base64TaskToken }) => {
               const { taskToken, variant } = task;
@@ -613,14 +637,16 @@ export class Worker {
                       span.setAttribute('found', false);
                       break;
                     }
-                    // NOTE: activity will not be considered cancelled until it confirms cancellation
+                    // NOTE: activity will not be considered cancelled until it confirms cancellation (by throwing a CancelledFailure)
                     this.log.debug('Cancelling activity', { taskToken: base64TaskToken });
                     span.setAttribute('found', true);
                     const reason = task.cancel?.reason;
                     if (reason === undefined || reason === null) {
-                      throw new TypeError('Got cancel activity cancel task with no reason');
+                      // Special case of Lang side cancellation during shutdown (see above)
+                      activity.cancel(true, 'Worker shutdown');
+                    } else {
+                      activity.cancel(false, coresdk.activity_task.ActivityCancelReason[reason]);
                     }
-                    activity.cancel(false, coresdk.activity_task.ActivityCancelReason[reason]);
                     break;
                   }
                 }
@@ -1160,7 +1186,16 @@ export class Worker {
         },
         (err) => err instanceof errors.ShutdownError
       );
-    });
+    }).pipe(
+      tap({
+        complete: () => {
+          this.activityPollerStateSubject.next('SHUTDOWN');
+        },
+        error: () => {
+          this.activityPollerStateSubject.next('FAILED');
+        },
+      })
+    );
   }
 
   protected activity$(): Observable<void> {
