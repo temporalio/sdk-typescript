@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
 import { defaultPayloadConverter, toPayloads } from '@temporalio/common';
 import { coresdk } from '@temporalio/proto';
+import * as activity from '@temporalio/activity';
 import anyTest, { ExecutionContext, TestInterface } from 'ava';
 import dedent from 'dedent';
 import { v4 as uuid4 } from 'uuid';
@@ -15,12 +16,15 @@ export interface Context {
 
 export const test = anyTest as TestInterface<Context>;
 
-export async function runWorker(t: ExecutionContext<Context>, fn: () => Promise<any>): Promise<void> {
+export async function runWorker<T>(t: ExecutionContext<Context>, fn: () => Promise<T>): Promise<T> {
   const { worker } = t.context;
   const promise = worker.run();
-  await fn();
-  worker.shutdown();
-  await promise;
+  try {
+    return await fn();
+  } finally {
+    worker.shutdown();
+    await promise;
+  }
 }
 
 test.beforeEach(async (t) => {
@@ -210,4 +214,40 @@ test('Worker fails activity with proper message when it is not registered', asyn
       /^Activity function notFound is not registered on this Worker, available activities: \[.*"progressiveSleep".*\]/
     );
   });
+});
+
+test('Worker cancels activities after shutdown', async (t) => {
+  let activityCancelled = false;
+  const worker = isolateFreeWorker({
+    ...defaultOptions,
+    activities: {
+      async cancellationSnitch() {
+        try {
+          await activity.Context.current().cancelled;
+        } catch (err) {
+          activityCancelled = true;
+          throw err;
+        }
+      },
+    },
+  });
+  t.context.worker = worker;
+
+  const { promise } = await runWorker(t, async () => {
+    const taskToken = Buffer.from(uuid4());
+    return {
+      promise: worker.native.runActivityTask({
+        taskToken,
+        start: {
+          activityType: 'cancellationSnitch',
+          input: toPayloads(defaultPayloadConverter),
+        },
+      }),
+    };
+  });
+  const { result } = await promise;
+  // The result is failed because an activity shouldn't be resolved as cancelled
+  // unless cancellation was requested.
+  t.truthy(result?.failed);
+  t.true(activityCancelled);
 });
