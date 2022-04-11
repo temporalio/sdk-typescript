@@ -273,7 +273,7 @@ export interface WorkerStatus {
    */
   hasOutstandingWorkflowPoll: boolean;
   /**
-   * Whether or not this worker has an outstanding Activity poll request
+   * Whether this Worker has an outstanding Activity poll request
    */
   hasOutstandingActivityPoll: boolean;
 
