@@ -44,7 +44,8 @@ import {
 import { delay, filter, first, ignoreElements, map, mergeMap, takeUntil, takeWhile, tap } from 'rxjs/operators';
 import { promisify } from 'util';
 import { Activity } from './activity';
-import { Core, History, ReplayCore } from './core';
+import { Runtime, History } from './runtime';
+import { extractNativeClient, NativeConnection } from './connection';
 import * as errors from './errors';
 import { ActivityExecuteInput } from './interceptors';
 import { Logger } from './logger';
@@ -121,12 +122,11 @@ export interface NativeWorkerLike {
   completeWorkflowActivation: Promisify<OmitFirstParam<typeof native.workerCompleteWorkflowActivation>>;
   completeActivityTask: Promisify<OmitFirstParam<typeof native.workerCompleteActivityTask>>;
   recordActivityHeartbeat: OmitFirstParam<typeof native.workerRecordActivityHeartbeat>;
-  namespace: string;
   logger: Logger;
 }
 
 export interface WorkerConstructor {
-  create(options: CompiledWorkerOptions): Promise<NativeWorkerLike>;
+  create(connection: NativeConnection, options: CompiledWorkerOptions): Promise<NativeWorkerLike>;
   createReplay(options: CompiledWorkerOptions, history: History): Promise<NativeWorkerLike>;
 }
 
@@ -138,19 +138,19 @@ export class NativeWorker implements NativeWorkerLike {
   public readonly recordActivityHeartbeat: OmitFirstParam<typeof native.workerRecordActivityHeartbeat>;
   public readonly shutdown: Promisify<OmitFirstParam<typeof native.workerShutdown>>;
 
-  public static async create(options: CompiledWorkerOptions): Promise<NativeWorkerLike> {
-    const core = await Core.instance();
-    const nativeWorker = await core.registerWorker(options);
-    return new NativeWorker(core, nativeWorker);
+  public static async create(connection: NativeConnection, options: CompiledWorkerOptions): Promise<NativeWorkerLike> {
+    const runtime = Runtime.instance();
+    const nativeWorker = await runtime.registerWorker(extractNativeClient(connection), options);
+    return new NativeWorker(runtime, nativeWorker);
   }
 
   public static async createReplay(options: CompiledWorkerOptions, history: History): Promise<NativeWorkerLike> {
-    const core = await ReplayCore.instance();
-    const nativeWorker = await core.createReplayWorker(options, history);
-    return new NativeWorker(core, nativeWorker);
+    const runtime = Runtime.instance();
+    const nativeWorker = await runtime.createReplayWorker(options, history);
+    return new NativeWorker(runtime, nativeWorker);
   }
 
-  protected constructor(protected readonly core: Core, protected readonly nativeWorker: native.Worker) {
+  protected constructor(protected readonly runtime: Runtime, protected readonly nativeWorker: native.Worker) {
     this.pollWorkflowActivation = promisify(native.workerPollWorkflowActivation).bind(undefined, nativeWorker);
     this.pollActivityTask = promisify(native.workerPollActivityTask).bind(undefined, nativeWorker);
     this.completeWorkflowActivation = promisify(native.workerCompleteWorkflowActivation).bind(undefined, nativeWorker);
@@ -158,20 +158,17 @@ export class NativeWorker implements NativeWorkerLike {
     this.recordActivityHeartbeat = native.workerRecordActivityHeartbeat.bind(undefined, nativeWorker);
     this.shutdown = promisify(native.workerShutdown).bind(undefined, nativeWorker);
   }
+
   flushCoreLogs(): void {
-    this.core.flushLogs();
+    this.runtime.flushLogs();
   }
 
   public async completeShutdown(): Promise<void> {
-    await this.core.deregisterWorker(this.nativeWorker);
-  }
-
-  public get namespace(): string {
-    return this.core.options.serverOptions.namespace;
+    await this.runtime.deregisterWorker(this.nativeWorker);
   }
 
   public get logger(): Logger {
-    return this.core.logger;
+    return this.runtime.logger;
   }
 }
 
@@ -252,16 +249,69 @@ interface HeartbeatStateAndOutput {
   output: HeartbeatOutput | null;
 }
 
+export type PollerState = 'POLLING' | 'SHUTDOWN' | 'FAILED';
+
+/**
+ * Status overview of a Worker.
+ * Useful for troubleshooting issues and overall obeservability.
+ */
+export interface WorkerStatus {
+  /**
+   * General run state of a Worker
+   */
+  runState: State;
+  /**
+   * General state of the Workflow poller
+   */
+  workflowPollerState: PollerState;
+  /**
+   * General state of the Activity poller
+   */
+  activityPollerState: PollerState;
+  /**
+   * Whether this Worker has an outstanding Workflow poll request
+   */
+  hasOutstandingWorkflowPoll: boolean;
+  /**
+   * Whether this Worker has an outstanding Activity poll request
+   */
+  hasOutstandingActivityPoll: boolean;
+
+  /**
+   * Number of in-flight (currently actively processed) Workflow activations
+   */
+  numInFlightWorkflowActivations: number;
+  /**
+   * Number of in-flight (currently actively processed) Activities
+   */
+  numInFlightActivities: number;
+  /**
+   * Number of Workflow executions cached in Worker memory
+   */
+  numCachedWorkflows: number;
+}
+
 /**
  * The temporal Worker connects to Temporal Server and runs Workflows and Activities.
  */
 export class Worker {
   protected readonly activityHeartbeatSubject = new Subject<HeartbeatInput>();
   protected readonly stateSubject = new BehaviorSubject<State>('INITIALIZED');
-  protected readonly workflowPollerStateSubject = new BehaviorSubject<'POLLING' | 'SHUTDOWN' | 'FAILED'>('POLLING');
+
+  protected readonly workflowPollerStateSubject = new BehaviorSubject<PollerState>('POLLING');
+  protected readonly activityPollerStateSubject = new BehaviorSubject<PollerState>('POLLING');
+  /**
+   * Whether or not this worker has an outstanding workflow poll request
+   */
+  protected hasOutstandingWorkflowPoll = false;
+  /**
+   * Whether or not this worker has an outstanding activity poll request
+   */
+  protected hasOutstandingActivityPoll = false;
+
   protected readonly numInFlightActivationsSubject = new BehaviorSubject<number>(0);
   protected readonly numInFlightActivitiesSubject = new BehaviorSubject<number>(0);
-  protected readonly numRunningWorkflowInstancesSubject = new BehaviorSubject<number>(0);
+  protected readonly numCachedWorkflowsSubject = new BehaviorSubject<number>(0);
   protected readonly evictionsSubject = new Subject<{ runId: string; evictJob: IRemoveFromCache }>();
   private readonly runIdsToSpanContext = new Map<string, SpanContext>();
 
@@ -282,7 +332,8 @@ export class Worker {
   public static async create(options: WorkerOptions): Promise<Worker> {
     const nativeWorkerCtor: WorkerConstructor = this.nativeWorkerCtor;
     const compiledOptions = compileWorkerOptions(addDefaultWorkerOptions(options));
-    const nativeWorker = await nativeWorkerCtor.create(compiledOptions);
+    const connection = options.connection ?? (await NativeConnection.create());
+    const nativeWorker = await nativeWorkerCtor.create(connection, compiledOptions);
     return await this.bundleWorker(compiledOptions, nativeWorker);
   }
 
@@ -413,7 +464,7 @@ export class Worker {
    * An Observable which emits each time the number of cached workflows changes
    */
   public get numRunningWorkflowInstances$(): Observable<number> {
-    return this.numRunningWorkflowInstancesSubject;
+    return this.numCachedWorkflowsSubject;
   }
 
   protected get log(): Logger {
@@ -426,6 +477,22 @@ export class Worker {
   public getState(): State {
     // Setters and getters require the same visibility, add this public getter function
     return this.stateSubject.getValue();
+  }
+
+  /**
+   * Get a status overview of this Worker
+   */
+  public getStatus(): WorkerStatus {
+    return {
+      runState: this.state,
+      workflowPollerState: this.workflowPollerStateSubject.value,
+      activityPollerState: this.activityPollerStateSubject.value,
+      hasOutstandingWorkflowPoll: this.hasOutstandingWorkflowPoll,
+      hasOutstandingActivityPoll: this.hasOutstandingActivityPoll,
+      numCachedWorkflows: this.numCachedWorkflowsSubject.value,
+      numInFlightWorkflowActivations: this.numInFlightActivationsSubject.value,
+      numInFlightActivities: this.numInFlightActivitiesSubject.value,
+    };
   }
 
   protected get state(): State {
@@ -508,7 +575,26 @@ export class Worker {
     return pipe(
       closeableGroupBy(({ base64TaskToken }) => base64TaskToken),
       mergeMap((group$) => {
-        return group$.pipe(
+        return merge(
+          group$,
+          this.activityPollerStateSubject.pipe(
+            // Core has indicated that it will not return any more poll results, evict all cached WFs
+            filter((state) => state !== 'POLLING'),
+            first(),
+            map((): ActivityTaskWithContext => {
+              return {
+                parentSpan: this.tracer.startSpan('activity.shutdown.evict'),
+                task: new coresdk.activity_task.ActivityTask({
+                  // NOTE: taskToken and cancel reason are not sent here.
+                  // We assume that if the task is cancelled with no reason it
+                  // means that the worker is being shut down.
+                  cancel: {},
+                }),
+                base64TaskToken: group$.key,
+              };
+            })
+          )
+        ).pipe(
           mergeMapWithState(
             async (activity: Activity | undefined, { task, parentSpan, base64TaskToken }) => {
               const { taskToken, variant } = task;
@@ -536,7 +622,7 @@ export class Worker {
                       task,
                       false,
                       this.options.loadedDataConverter,
-                      this.nativeWorker.namespace
+                      this.options.namespace
                     );
                     const { activityType } = info;
                     const fn = this.options.activities?.[activityType];
@@ -615,13 +701,16 @@ export class Worker {
                       span.setAttribute('found', false);
                       break;
                     }
-                    // NOTE: activity will not be considered cancelled until it confirms cancellation
+                    // NOTE: activity will not be considered cancelled until it confirms cancellation (by throwing a CancelledFailure)
                     this.log.debug('Cancelling activity', { taskToken: base64TaskToken });
                     span.setAttribute('found', true);
-                    if (!task.cancel?.reason) {
-                      throw new TypeError('Got cancel activity cancel task with no reason');
+                    const reason = task.cancel?.reason;
+                    if (reason === undefined || reason === null) {
+                      // Special case of Lang side cancellation during shutdown (see `activity.shutdown.evict` above)
+                      activity.cancel(true, 'Worker shutdown');
+                    } else {
+                      activity.cancel(false, coresdk.activity_task.ActivityCancelReason[reason]);
                     }
-                    activity.cancel(false, coresdk.activity_task.ActivityCancelReason[task.cancel.reason]);
                     break;
                   }
                 }
@@ -732,7 +821,7 @@ export class Worker {
                 return await instrument(this.tracer, parentSpan, 'workflow.process', async (span) => {
                   span.setAttributes({
                     numInFlightActivations: this.numInFlightActivationsSubject.value,
-                    numRunningWorkflowInstances: this.numRunningWorkflowInstancesSubject.value,
+                    numCachedWorkflows: this.numCachedWorkflowsSubject.value,
                   });
                   const removeFromCacheIx = activation.jobs.findIndex(({ removeFromCache }) => removeFromCache);
                   const close = removeFromCacheIx !== -1;
@@ -791,12 +880,12 @@ export class Worker {
                         workflowId,
                         runId: activation.runId,
                       });
-                      this.numRunningWorkflowInstancesSubject.next(this.numRunningWorkflowInstancesSubject.value + 1);
+                      this.numCachedWorkflowsSubject.next(this.numCachedWorkflowsSubject.value + 1);
                       const workflowInfo = {
                         workflowType,
                         runId: activation.runId,
                         workflowId,
-                        namespace: this.nativeWorker.namespace,
+                        namespace: this.options.namespace,
                         taskQueue: this.options.taskQueue,
                         isReplaying: activation.isReplaying,
                       };
@@ -877,7 +966,7 @@ export class Worker {
             if (close) {
               group$.close();
               this.runIdsToSpanContext.delete(group$.key);
-              this.numRunningWorkflowInstancesSubject.next(this.numRunningWorkflowInstancesSubject.value - 1);
+              this.numCachedWorkflowsSubject.next(this.numCachedWorkflowsSubject.value - 1);
             }
           }),
           takeWhile(({ close }) => !close, true /* inclusive */)
@@ -1042,7 +1131,13 @@ export class Worker {
         parentSpan,
         'workflow.poll',
         async (span) => {
-          const buffer = await this.nativeWorker.pollWorkflowActivation(span.spanContext());
+          this.hasOutstandingWorkflowPoll = true;
+          let buffer: ArrayBuffer;
+          try {
+            buffer = await this.nativeWorker.pollWorkflowActivation(span.spanContext());
+          } finally {
+            this.hasOutstandingWorkflowPoll = false;
+          }
           const activation = coresdk.workflow_activation.WorkflowActivation.decode(new Uint8Array(buffer));
           const { runId, ...rest } = activation;
           this.log.debug('Got workflow activation', { runId, ...rest });
@@ -1098,7 +1193,9 @@ export class Worker {
    * Poll for Workflow activations, handle them, and report completions.
    */
   protected workflow$(): Observable<void> {
+    // This Worker did not register any workflows, return early
     if (this.workflowCreator === undefined) {
+      this.workflowPollerStateSubject.next('SHUTDOWN');
       return EMPTY;
     }
     return this.workflowPoll$().pipe(
@@ -1138,7 +1235,13 @@ export class Worker {
         parentSpan,
         'activity.poll',
         async (span) => {
-          const buffer = await this.nativeWorker.pollActivityTask(span.spanContext());
+          this.hasOutstandingActivityPoll = true;
+          let buffer: ArrayBuffer;
+          try {
+            buffer = await this.nativeWorker.pollActivityTask(span.spanContext());
+          } finally {
+            this.hasOutstandingActivityPoll = false;
+          }
           const task = coresdk.activity_task.ActivityTask.decode(new Uint8Array(buffer));
           const { taskToken, ...rest } = task;
           const base64TaskToken = formatTaskToken(taskToken);
@@ -1161,7 +1264,16 @@ export class Worker {
         },
         (err) => err instanceof errors.ShutdownError
       );
-    });
+    }).pipe(
+      tap({
+        complete: () => {
+          this.activityPollerStateSubject.next('SHUTDOWN');
+        },
+        error: () => {
+          this.activityPollerStateSubject.next('FAILED');
+        },
+      })
+    );
   }
 
   protected activity$(): Observable<void> {

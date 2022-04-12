@@ -3,7 +3,7 @@ import test from 'ava';
 import { v4 as uuid4 } from 'uuid';
 import { WorkflowInfo } from '@temporalio/workflow';
 import { WorkflowClient } from '@temporalio/client';
-import { Worker, DefaultLogger, Core, InjectedSinks } from '@temporalio/worker';
+import { Worker, DefaultLogger, Runtime, InjectedSinks } from '@temporalio/worker';
 import { defaultOptions } from './mock-native-worker';
 import { RUN_INTEGRATION_TESTS } from './helpers';
 import * as workflows from './workflows';
@@ -22,8 +22,8 @@ class DependencyError extends Error {
 
 if (RUN_INTEGRATION_TESTS) {
   const recordedLogs: any[] = [];
-  test.before(async (_) => {
-    await Core.install({
+  test.before((_) => {
+    Runtime.install({
       logger: new DefaultLogger('DEBUG', ({ level, message, meta }) => {
         if (message === 'External sink function threw an error') recordedLogs.push({ level, message, meta });
       }),

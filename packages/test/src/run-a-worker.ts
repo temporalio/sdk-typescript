@@ -1,5 +1,5 @@
 import arg from 'arg';
-import { Worker, Core, DefaultLogger } from '@temporalio/worker';
+import { Worker, Runtime, DefaultLogger } from '@temporalio/worker';
 import * as activities from './activities';
 
 async function main() {
@@ -7,7 +7,7 @@ async function main() {
     '--debug': Boolean,
   });
   if (argv['--debug']) {
-    await Core.install({
+    Runtime.install({
       logger: new DefaultLogger('DEBUG'),
       telemetryOptions: {
         logForwardingLevel: 'DEBUG',
