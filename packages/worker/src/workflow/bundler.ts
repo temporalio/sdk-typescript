@@ -300,8 +300,8 @@ export interface BundleOptions {
   workflowsPath: string;
   /**
    * List of modules to import Workflow interceptors from
-   * - Modules should export an `interceptors` variable of type {@link WorkflowInterceptorsFactory}
-   * - The same list must be provided to {@link Worker.create} to actually use the interceptors
+   *
+   * Modules should export an `interceptors` variable of type {@link WorkflowInterceptorsFactory}.
    */
   workflowInterceptorModules?: string[];
   /**
