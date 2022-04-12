@@ -4,6 +4,29 @@ All notable changes to this project will be documented in this file.
 
 Breaking changes marked with a :boom:
 
+## [0.20.1] - 2022-04-12
+
+### Bug Fixes
+
+- [`worker`] Update Core submodule to receive fix for potential deadlock ([#583](https://github.com/temporalio/sdk-typescript/pull/583))
+
+  This is a critical fix. Without it, Workers might get "stuck" with no apparent symptoms.
+
+### Features
+
+- [`worker`] Cancel activities on shutdown ([#579](https://github.com/temporalio/sdk-typescript/pull/579))
+
+  Before this change, Activities were oblivious to Worker shutdown. With this change, Activities are notified
+  via cancellation when their Worker is shutdown. It is up to the Activity implementor to handle cancellation.
+
+- [`worker`] Add Worker.getStatus() method ([#581](https://github.com/temporalio/sdk-typescript/pull/581))
+
+  Helper for exposing the overall status of a Worker. Useful for troubleshooting problems and observability.
+
+### Documentation
+
+- Update workflow interceptors API reference ([#563](https://github.com/temporalio/sdk-typescript/pull/563))
+
 ## [0.20.0] - 2022-04-06
 
 ### Features
