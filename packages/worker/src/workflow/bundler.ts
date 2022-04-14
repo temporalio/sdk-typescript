@@ -8,7 +8,7 @@ import { v4 as uuid4 } from 'uuid';
 import webpack from 'webpack';
 import { DefaultLogger, Logger } from '../logger';
 
-const nodejsBuiltinModules: string[] = [
+export const nodejsBuiltinModules: string[] = [
   // assert, // A replacement module is injected through module-overrides
   'async_hooks',
   'buffer',
