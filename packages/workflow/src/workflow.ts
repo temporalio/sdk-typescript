@@ -132,6 +132,11 @@ export function validateActivityOptions(options: ActivityOptions): void {
 const validateLocalActivityOptions = validateActivityOptions;
 
 /**
+ * Hooks up activity promise to current cancellation scope and completion callbacks.
+ *
+ * Returns `false` if the current scope is already cancelled.
+ */
+/**
  * Push a scheduleActivity command into state accumulator and register completion
  */
 async function scheduleActivityNextHandler({
@@ -225,7 +230,8 @@ async function scheduleLocalActivityNextHandler({
         seq,
         attempt,
         originalScheduleTime,
-        activityId: options.activityId ?? `${seq}`,
+        // Intentionally not exposing activityId as an option
+        activityId: `${seq}`,
         activityType,
         arguments: toPayloads(state.payloadConverter, ...args),
         retryPolicy: options.retry ? compileRetryPolicy(options.retry) : {},
@@ -273,10 +279,8 @@ export async function scheduleLocalActivity<R>(
     throw new TypeError('Got empty activity options');
   }
 
+  let attempt = 1;
   let originalScheduleTime = undefined;
-
-  // TODO: is the inital attempt 0 or 1?
-  let attempt = 0;
 
   for (;;) {
     const seq = state.nextSeqs.activity++;

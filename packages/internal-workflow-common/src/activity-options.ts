@@ -85,16 +85,8 @@ Note that the Temporal Server doesn't detect Worker process failures directly. I
  */
 export interface LocalActivityOptions {
   /**
-   * Identifier to use for tracking the activity in Workflow history.
-   * The `activityId` can be accessed by the activity function.
-   * Does not need to be unique.
-   *
-   * @default an incremental sequence number
-   */
-  activityId?: string;
-
-  /**
-   * RetryPolicy that define how activity is retried in case of failure. If this is not set, then the server-defined default activity retry policy will be used. To ensure zero retries, set maximum attempts to 1.
+   * RetryPolicy that define how activity is retried in case of failure. If this is not set, then the SDK-defined default activity retry policy will be used.
+   * Note that local activities are always executed at least once, even if maximum attempts is set to 1 due to Workflow task retries.
    */
   retry?: RetryPolicy;
 
@@ -134,9 +126,8 @@ export interface LocalActivityOptions {
   scheduleToCloseTimeout?: string | number;
 
   /**
-   * If the activity is retrying and backoff would exceed this value, lang will be told to
-   * schedule a timer and retry the activity after. Otherwise, backoff will happen internally in
-   * core.
+   * If the activity is retrying and backoff would exceed this value, a server side timer will be scheduled for the next attempt.
+   * Otherwise, backoff will happen internally in the SDK.
    *
    * @default 1 minute
    * @format {@link https://www.npmjs.com/package/ms | ms} formatted string or number of milliseconds

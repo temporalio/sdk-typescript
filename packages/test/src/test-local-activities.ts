@@ -3,7 +3,6 @@ import { Subject, firstValueFrom } from 'rxjs';
 import { v4 as uuid4 } from 'uuid';
 import { temporal } from '@temporalio/proto';
 import { Worker } from '@temporalio/worker';
-import * as activity from '@temporalio/activity';
 import { ApplicationFailure, defaultPayloadConverter, WorkflowClient, WorkflowFailedError } from '@temporalio/client';
 import { RUN_INTEGRATION_TESTS } from './helpers';
 import * as activities from './activities';
