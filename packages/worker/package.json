@@ -1,6 +1,6 @@
 {
   "name": "@temporalio/worker",
-  "version": "0.20.1",
+  "version": "0.20.2",
   "description": "Temporal.io SDK Worker sub-package",
   "main": "lib/index.js",
   "types": "./lib/index.d.ts",
