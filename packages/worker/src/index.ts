@@ -8,13 +8,12 @@
  * @module
  */
 
+export { NativeConnection as NativeConnection } from './connection';
+export { NativeConnectionOptions, RequiredNativeConnectionOptions, TLSConfig } from './connection-options';
 export * from './errors';
 export * from './interceptors';
-export { NativeConnectionOptions, RequiredNativeConnectionOptions, TLSConfig } from './connection-options';
-export { Runtime, RuntimeOptions, TelemetryOptions, History } from './runtime';
-export { NativeConnection as NativeConnection } from './connection';
 export * from './logger';
-export { ServerOptions, TLSConfig } from './server-options';
+export { History, Runtime, RuntimeOptions, TelemetryOptions } from './runtime';
 export * from './sinks';
 export { DataConverter, defaultPayloadConverter, errors, State, Worker } from './worker';
 export { CompiledWorkerOptions, WorkerOptions } from './worker-options';
