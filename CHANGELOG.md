@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 
 Breaking changes marked with a :boom:
 
+## [0.20.2] - 2022-04-14
+
+### Bug Fixes
+
+- [`core`] Don't eat up a workflow task permit if when evicting a missing run ([#598](https://github.com/temporalio/sdk-typescript/pull/598))
+- Compile linux binary linked to older glibc ([#590](https://github.com/temporalio/sdk-typescript/pull/590))
+
+### Features
+
+- [`worker`] Use swc-loader instead of ts-loader ([#588](https://github.com/temporalio/sdk-typescript/pull/588))
+
+  Original work started in ([#525](https://github.com/temporalio/sdk-typescript/pull/525)) and was reverted.
+
+### Miscellaneous Tasks
+
+- [`deps`] Update dependency @svgr/webpack to v6 (main) ([#575](https://github.com/temporalio/sdk-typescript/pull/575))
+
 ## [0.20.1] - 2022-04-12
 
 ### Bug Fixes
