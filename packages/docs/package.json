@@ -18,7 +18,7 @@
     "@docusaurus/core": "^2.0.0-beta.15",
     "@docusaurus/preset-classic": "^2.0.0-beta.15",
     "@mdx-js/react": "^1.6.22",
-    "@svgr/webpack": "^5.5.0",
+    "@svgr/webpack": "^6.0.0",
     "clsx": "^1.1.1",
     "docusaurus-plugin-snipsync": "^1.0.0",
     "docusaurus-plugin-typedoc": "^0.15.3",
