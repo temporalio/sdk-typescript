@@ -97,7 +97,7 @@ jobs:
       fail-fast: true
       matrix:
         include:
-          - os: ubuntu-latest
+          - os: ubuntu-18.04
             target: x86_64-unknown-linux-gnu
           # TODO: this compliation target fails
           # https://github.com/temporalio/sdk-typescript/runs/4241087289?check_suite_focus=true#step:8:119
@@ -122,6 +122,9 @@ jobs:
           node-version: 16
       - name: Add ${{ matrix.target }} rust target
         run: rustup target add ${{ matrix.target }}
+      - name: Print libc version
+        run: ldd --version
+        if: ${{ matrix.os == 'ubuntu-18.04' }}
       # Don't build during install phase since we're going to explicitly build
       - run: npm ci --ignore-scripts
       - name: Compile all non-rust code
