@@ -21,15 +21,11 @@ export interface RetryOptions {
   maxRetries: number;
 }
 
-export interface ServerOptions {
+export interface ClientOptions {
   /**
    * The URL of the Temporal server to connect to
    */
   url: string;
-  /**
-   * What namespace will we operate under
-   */
-  namespace: string;
 
   /**
    * A human-readable string that can identify your worker
@@ -55,20 +51,6 @@ export interface ServerOptions {
    * Optional retry options for server requests.
    */
   retry?: RetryOptions;
-}
-
-/**
- * Configure a Core instance
- */
-export interface CoreOptions {
-  /**
-   * Options for communicating with the Temporal server
-   */
-  serverOptions: ServerOptions;
-  /**
-   * Telemetry options
-   */
-  telemetryOptions: TelemetryOptions;
 }
 
 export interface TelemetryOptions {
@@ -158,28 +140,30 @@ export interface LogEntry {
 }
 
 export interface Worker {}
-export interface Core {}
+export interface Runtime {}
+export interface Client {}
 
 export declare type PollCallback = (err: Error, result: ArrayBuffer) => void;
 export declare type WorkerCallback = (err: Error, result: Worker) => void;
-export declare type CoreCallback = (err: Error, result: Core) => void;
+export declare type ClientCallback = (err: Error, result: Client) => void;
 export declare type VoidCallback = (err: Error, result: void) => void;
 export declare type LogsCallback = (err: Error, result: LogEntry[]) => void;
 
 // TODO: improve type, for some reason Error is not accepted here
 export declare function registerErrors(errors: Record<string, any>): void;
-export declare function newCore(coreOptions: CoreOptions, callback: CoreCallback): void;
-export declare function newReplayCore(telemOptions: TelemetryOptions, callback: CoreCallback): void;
-export declare function newWorker(core: Core, workerOptions: WorkerOptions, callback: WorkerCallback): void;
+export declare function initTelemetry(telemOptions: TelemetryOptions): void;
+export declare function newRuntime(): Runtime;
+export declare function newClient(runtime: Runtime, clientOptions: ClientOptions, callback: ClientCallback): void;
+export declare function newWorker(client: Client, workerOptions: WorkerOptions, callback: WorkerCallback): void;
 export declare function newReplayWorker(
-  core: Core,
+  runtime: Runtime,
   workerOptions: WorkerOptions,
   history: ArrayBuffer,
   callback: WorkerCallback
 ): void;
 export declare function workerShutdown(worker: Worker, callback: VoidCallback): void;
-export declare function coreShutdown(core: Core, callback: VoidCallback): void;
-export declare function corePollLogs(core: Core, callback: LogsCallback): void;
+export declare function runtimeShutdown(runtime: Runtime, callback: VoidCallback): void;
+export declare function pollLogs(runtime: Runtime, callback: LogsCallback): void;
 export declare function workerPollWorkflowActivation(
   worker: Worker,
   spanContext: SpanContext,

@@ -7,7 +7,7 @@
 
 import { Connection, WorkflowClient, WorkflowFailedError } from '@temporalio/client';
 import { ApplicationFailure, TerminatedFailure, toPayload } from '@temporalio/common';
-import { Core, DefaultLogger, Worker } from '@temporalio/worker';
+import { Runtime, DefaultLogger, Worker } from '@temporalio/worker';
 import { defaultPayloadConverter, WorkflowInfo } from '@temporalio/workflow';
 import test from 'ava';
 import dedent from 'dedent';
@@ -23,8 +23,8 @@ import {
 import { getSecretQuery, unblockWithSecretSignal } from './workflows/interceptor-example';
 
 if (RUN_INTEGRATION_TESTS) {
-  test.before(async () => {
-    await Core.install({ logger: new DefaultLogger('DEBUG') });
+  test.before(() => {
+    Runtime.install({ logger: new DefaultLogger('DEBUG') });
   });
 
   test.serial('Tracing can be implemented using interceptors', async (t) => {

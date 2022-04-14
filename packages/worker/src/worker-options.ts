@@ -5,6 +5,7 @@ import os from 'os';
 import { WorkerInterceptors } from './interceptors';
 import { InjectedSinks } from './sinks';
 import { GiB } from './utils';
+import { NativeConnection } from './connection';
 
 export type WorkflowBundle = { code: string } | { path: string };
 
@@ -20,6 +21,20 @@ export function isPathBundleOption(bundleOpt: WorkflowBundle): bundleOpt is { pa
  * Options to configure the {@link Worker}
  */
 export interface WorkerOptions {
+  /**
+   * A connected {@link NativeConnection} instance.
+   *
+   * If not provided, the worker will default to connect insecurely to `localhost:7233`.
+   */
+  connection?: NativeConnection;
+
+  /**
+   * The namespace this worker will connect to
+   *
+   * @default `"default"`
+   */
+  namespace?: string;
+
   /**
    * The task queue the worker will pull from
    */
@@ -56,6 +71,7 @@ export interface WorkerOptions {
    * Time to wait for pending tasks to drain after shutdown was requested.
    *
    * @format {@link https://www.npmjs.com/package/ms | ms} formatted string or number of milliseconds
+   * @default 5s
    */
   shutdownGraceTime?: string | number;
 
@@ -168,6 +184,8 @@ export interface WorkerOptions {
    *
    * For completeness the Rust Core also generates opentelemetry spans which connect to the Worker's spans.
    * Configure {@link CoreOptions.telemetryOptions} to enable tracing in Core.
+   *
+   * @default false
    */
   enableSDKTracing?: boolean;
 
@@ -206,6 +224,7 @@ export type WorkerOptionsWithDefaults = WorkerOptions &
   Required<
     Pick<
       WorkerOptions,
+      | 'namespace'
       | 'shutdownGraceTime'
       | 'shutdownSignals'
       | 'maxConcurrentActivityTaskExecutions'
@@ -265,6 +284,8 @@ export interface CompiledWorkerOptions extends Omit<WorkerOptionsWithDefaults, '
 export interface ReplayWorkerOptions
   extends Omit<
     WorkerOptions,
+    | 'connection'
+    | 'namespace'
     | 'taskQueue'
     | 'activities'
     | 'maxConcurrentActivityTaskExecutions'
@@ -283,6 +304,7 @@ export interface ReplayWorkerOptions
 export function addDefaultWorkerOptions(options: WorkerOptions): WorkerOptionsWithDefaults {
   const { maxCachedWorkflows, debugMode, ...rest } = options;
   return {
+    namespace: 'default',
     shutdownGraceTime: '5s',
     shutdownSignals: ['SIGINT', 'SIGTERM', 'SIGQUIT', 'SIGUSR2'],
     maxConcurrentActivityTaskExecutions: 100,

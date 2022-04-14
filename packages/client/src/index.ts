@@ -23,6 +23,7 @@ export {
   TimeoutFailure,
 } from '@temporalio/common';
 export { RetryPolicy } from '@temporalio/internal-workflow-common';
+export * from '@temporalio/internal-workflow-common/lib/interfaces';
 export * from './async-completion-client';
 export * from './connection';
 export * from './errors';

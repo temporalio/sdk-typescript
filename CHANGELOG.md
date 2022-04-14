@@ -4,6 +4,113 @@ All notable changes to this project will be documented in this file.
 
 Breaking changes marked with a :boom:
 
+## [0.20.1] - 2022-04-12
+
+### Bug Fixes
+
+- [`worker`] Update Core submodule to receive fix for potential deadlock ([#583](https://github.com/temporalio/sdk-typescript/pull/583))
+
+  This is a critical fix. Without it, Workers might get "stuck" with no apparent symptoms.
+
+### Features
+
+- [`worker`] Cancel activities on shutdown ([#579](https://github.com/temporalio/sdk-typescript/pull/579))
+
+  Before this change, Activities were oblivious to Worker shutdown. With this change, Activities are notified
+  via cancellation when their Worker is shutdown. It is up to the Activity implementor to handle cancellation.
+
+- [`worker`] Add Worker.getStatus() method ([#581](https://github.com/temporalio/sdk-typescript/pull/581))
+
+  Helper for exposing the overall status of a Worker. Useful for troubleshooting problems and observability.
+
+### Documentation
+
+- Update workflow interceptors API reference ([#563](https://github.com/temporalio/sdk-typescript/pull/563))
+
+## [0.20.0] - 2022-04-06
+
+### Features
+
+- :boom: [`worker`] Refactor Core bridge for top level Worker API (#568)
+
+  - Implements the Worker part of [proposal #56](https://github.com/temporalio/proposals/blob/050825aba0e2e6cde91bae81945dce082bd47622/typescript/connections.md)
+  - Break down `Core` into `Runtime` and `NativeConnection`
+  - Workers now require a `NativeConnection` instance instead of using the singleton `Core` connection
+  - By default Core logs are not forwarded into node anymore
+  - Various [bug fixes and features](https://github.com/temporalio/sdk-core/compare/85454935e39f789aaaa81f8a05773f8e2cdbcde2...dcae3d6fd66fb22f727ffa14da100f0c08b6a2c8) from updating `sdk-core`
+
+  Before:
+
+  ```ts
+  import { Core, Worker } from '@temporalio/worker';
+
+  await Core.install({
+    telemetryOptions: ...
+    logger: ...
+    serverOptions: {
+      address: ...
+      namespace: ...
+    }
+  });
+
+  // Worker uses connection of singleton Core
+  await Worker.create({
+    taskQueue: ...,
+    ...
+  });
+  ```
+
+  After:
+
+  ```ts
+  import { Runtime, NativeConnection, Worker } from '@temporalio/worker';
+
+  Runtime.install({
+    telemetryOptions: ...
+    logger: ...
+  });
+
+  const connection = await NativeConnection.create({
+    address: ...
+  });
+
+  await Worker.create({
+    connection,
+    namespace: ...
+    taskQueue: ...,
+    ...
+  });
+  ```
+
+### Documentation
+
+- [`worker`] Add missing WorkerOptions defaults (#567)
+
+## [0.19.2] - 2022-03-29
+
+### Bug Fixes
+
+- [`worker`] Fix crash when Activity is cancelled with reason `NOT_FOUND` ([#565](https://github.com/temporalio/sdk-typescript/pull/565))
+- Export more things from client and worker packages ([#559](https://github.com/temporalio/sdk-typescript/pull/559))
+- Use `JsonPayloadConverter` for search attributes ([#546](https://github.com/temporalio/sdk-typescript/pull/546))
+  - Temporal doesn't support Null or Binary Payloads for search attributes.
+- [`worker`] Fix Windows bundle-writing bug ([#554](https://github.com/temporalio/sdk-typescript/pull/554))
+  - Sometimes on Windows in CI, we were getting empty Workflow bundles.
+
+### Features
+
+- [`workflow-bundler`] Allow ignoring modules for Webpack build ([#540](https://github.com/temporalio/sdk-typescript/pull/540), thanks to [`@mjameswh`](https://github.com/mjameswh) 🙏)
+- Add testing framework ([#543](https://github.com/temporalio/sdk-typescript/pull/543))
+  - Initial work, missing features:
+    - No ability to fast forward time outside of a workflow
+    - No ability to toggle normal / time skipped mode
+
+### Documentation
+
+- [`client`] Add to `getHandle` documentation ([#550](https://github.com/temporalio/sdk-typescript/pull/550))
+- Improve Workflow API reference index ([#560](https://github.com/temporalio/sdk-typescript/pull/560))
+  - Use example with both signals and queries for Workflow "Signals and Queries" section
+
 ## [0.19.1] - 2022-03-12
 
 ### Bug Fixes

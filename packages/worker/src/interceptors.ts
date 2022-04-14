@@ -49,7 +49,7 @@ export interface WorkerInterceptors {
    * - Modules should export an `interceptors` variable of type {@link WorkflowInterceptorsFactory}
    * - Workflow interceptors run in the Workflow isolate
    *
-   * **NOTE**: This options is not used if worker is provided with pre-built bundle.
+   * **NOTE**: This option is not used if Worker is provided with pre-built bundle ({@link WorkerOptions.workflowBundle}).
    */
   workflowModules?: string[];
 }

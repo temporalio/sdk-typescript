@@ -20,7 +20,7 @@ import {
   ProtobufBinaryPayloadConverter,
   ProtobufJsonPayloadConverter,
 } from '@temporalio/common/lib/protobufs';
-import { Core, DefaultLogger, Worker } from '@temporalio/worker';
+import { Runtime, DefaultLogger, Worker } from '@temporalio/worker';
 import test from 'ava';
 import { v4 as uuid4 } from 'uuid';
 import root from '../protos/root';
@@ -185,7 +185,7 @@ if (RUN_INTEGRATION_TESTS) {
         markErrorThrown();
       }
     });
-    Core.install({ logger });
+    Runtime.install({ logger });
 
     const taskQueue = 'test-data-converter';
     const worker = await Worker.create({

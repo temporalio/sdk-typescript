@@ -8,9 +8,11 @@
  * @module
  */
 
-export { CompiledCoreOptions, Core, CoreOptions, History, RequiredTelemetryOptions, TelemetryOptions } from './core';
 export * from './errors';
 export * from './interceptors';
+export { NativeConnectionOptions, RequiredNativeConnectionOptions, TLSConfig } from './connection-options';
+export { Runtime, RuntimeOptions, TelemetryOptions, History } from './runtime';
+export { NativeConnection as NativeConnection } from './connection';
 export * from './logger';
 export { ServerOptions, TLSConfig } from './server-options';
 export * from './sinks';

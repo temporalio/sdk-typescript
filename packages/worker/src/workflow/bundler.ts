@@ -120,12 +120,13 @@ export class WorkflowCodeBundler {
     }
 
     // Cast because the type definitions are inaccurate
-    ufs.use(memfs.createFsFromVolume(vol) as any).use({ ...realFS, readdir: readdir as any });
+    const memoryFs = memfs.createFsFromVolume(vol);
+    ufs.use(memoryFs as any).use({ ...realFS, readdir: readdir as any });
     const distDir = '/dist';
     const entrypointPath = this.makeEntrypointPath(ufs, this.workflowsPath);
 
     this.genEntrypoint(vol, entrypointPath);
-    await this.bundle(ufs, entrypointPath, distDir);
+    await this.bundle(ufs, memoryFs, entrypointPath, distDir);
     return ufs.readFileSync(path.join(distDir, 'main.js'), 'utf8');
   }
 
@@ -181,7 +182,12 @@ export class WorkflowCodeBundler {
   /**
    * Run webpack
    */
-  protected async bundle(filesystem: typeof unionfs.ufs, entry: string, distDir: string): Promise<void> {
+  protected async bundle(
+    inputFilesystem: typeof unionfs.ufs,
+    outputFilesystem: memfs.IFs,
+    entry: string,
+    distDir: string
+  ): Promise<void> {
     const captureProblematicModules: webpack.Configuration['externals'] = async (
       data,
       _callback
@@ -230,8 +236,10 @@ export class WorkflowCodeBundler {
     });
 
     // Cast to any because the type declarations are inaccurate
-    compiler.inputFileSystem = filesystem as any;
-    compiler.outputFileSystem = filesystem as any;
+    compiler.inputFileSystem = inputFilesystem as any;
+    // Don't use ufs due to a strange bug on Windows:
+    // https://github.com/temporalio/sdk-typescript/pull/554
+    compiler.outputFileSystem = outputFilesystem as any;
 
     try {
       await new Promise<void>((resolve, reject) => {
@@ -292,8 +300,8 @@ export interface BundleOptions {
   workflowsPath: string;
   /**
    * List of modules to import Workflow interceptors from
-   * - Modules should export an `interceptors` variable of type {@link WorkflowInterceptorsFactory}
-   * - The same list must be provided to {@link Worker.create} to actually use the interceptors
+   *
+   * Modules should export an `interceptors` variable of type {@link WorkflowInterceptorsFactory}.
    */
   workflowInterceptorModules?: string[];
   /**

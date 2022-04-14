@@ -9,14 +9,14 @@
 import test from 'ava';
 import { v4 as uuid4 } from 'uuid';
 import { WorkflowClient } from '@temporalio/client';
-import { Worker, DefaultLogger, Core, InjectedSinks } from '@temporalio/worker';
+import { Worker, DefaultLogger, Runtime, InjectedSinks } from '@temporalio/worker';
 import { defaultOptions } from './mock-native-worker';
 import { RUN_INTEGRATION_TESTS } from './helpers';
 import * as workflows from './workflows';
 
 if (RUN_INTEGRATION_TESTS) {
   test.before(async () => {
-    await Core.install({ logger: new DefaultLogger('DEBUG') });
+    Runtime.install({ logger: new DefaultLogger('DEBUG') });
   });
 
   test('Signals are always delivered', async (t) => {
