@@ -241,7 +241,7 @@ export class TestWorkflowEnvironment {
   /**
    * Wait for `durationMs` in "test server time".
    *
-   * The test server toggles between skipped time and normal time dependnding on what it needs to execute.
+   * The test server toggles between skipped time and normal time depending on what it needs to execute.
    *
    * This method is likely to resolve in less than `durationMs` of "real time".
    *

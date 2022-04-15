@@ -8,9 +8,10 @@ use once_cell::sync::OnceCell;
 use opentelemetry::trace::{FutureExt, SpanContext, TraceContextExt};
 use prost::Message;
 use std::{
+    cell::RefCell,
     fmt::Display,
     future::Future,
-    sync::{Arc, Mutex},
+    sync::Arc,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 use temporal_client::{
@@ -135,7 +136,7 @@ struct Client {
     core_client: Arc<RawClient>,
 }
 
-type BoxedClient = JsBox<Mutex<Option<Client>>>;
+type BoxedClient = JsBox<RefCell<Option<Client>>>;
 impl Finalize for Client {}
 
 /// Worker struct, hold a reference for the channel sender responsible for sending requests from
@@ -291,7 +292,7 @@ fn start_bridge_loop(event_queue: Arc<EventQueue>, receiver: &mut UnboundedRecei
                         }
                         Ok(client) => {
                             send_result(event_queue.clone(), callback, |cx| {
-                                Ok(cx.boxed(Mutex::new(Some(Client {
+                                Ok(cx.boxed(RefCell::new(Some(Client {
                                     runtime,
                                     core_client: Arc::new(client),
                                 }))))
@@ -586,12 +587,11 @@ fn client_new(mut cx: FunctionContext) -> JsResult<JsUndefined> {
 /// Worker uses the provided connection and returned to JS using supplied `callback`.
 fn worker_new(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     let client = cx.argument::<BoxedClient>(0)?;
-    let client = client.lock().expect("Client lock should not be dropped");
     let worker_options = cx.argument::<JsObject>(1)?;
     let callback = cx.argument::<JsFunction>(2)?;
 
     let config = worker_options.as_worker_config(&mut cx)?;
-    match client.as_ref() {
+    match &*client.borrow() {
         None => {
             callback_with_error(&mut cx, callback, move |cx| {
                 UNEXPECTED_ERROR.from_string(cx, "Tried to use closed Client".to_string())
@@ -806,8 +806,7 @@ fn worker_shutdown(mut cx: FunctionContext) -> JsResult<JsUndefined> {
 /// Drop a reference to a Client, once all references are dropped, the Client will be closed.
 fn client_close(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     let client = cx.argument::<BoxedClient>(0)?;
-    let mut client = client.lock().expect("Client lock should not be dropped");
-    if client.take().is_none() {
+    if client.replace(None).is_none() {
         ILLEGAL_STATE_ERROR
             .from_error(&mut cx, "Client already closed")
             .and_then(|err| cx.throw(err))?;

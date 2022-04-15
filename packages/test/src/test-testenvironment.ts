@@ -3,7 +3,13 @@ import { v4 as uuid4 } from 'uuid';
 import { TestWorkflowEnvironment, workflowInterceptorModules } from '@temporalio/testing';
 import { Worker } from '@temporalio/worker';
 import { WorkflowFailedError } from '@temporalio/client';
-import { assertFromWorkflow, sleep, raceActivityAndTimer } from './workflows/testenv-test-workflows';
+import {
+  assertFromWorkflow,
+  sleep,
+  raceActivityAndTimer,
+  waitOnSignalWithTimeout,
+  unblockSignal,
+} from './workflows/testenv-test-workflows';
 
 interface Context {
   testEnv: TestWorkflowEnvironment;
@@ -117,6 +123,33 @@ test.serial('TestEnvironment sleep can be used to delay activity completion', as
     // If the order of the below 2 statements is reversed, this test will hang.
     await run('activity');
     await run('timer');
+  });
+  t.pass();
+});
+
+test.serial('TestEnvironment sleep can be used to delay sending a signal', async (t) => {
+  const { workflowClient, nativeConnection, sleep } = t.context.testEnv;
+  // TODO: due to the test server issue mentioned in the test avove we need to manually unlock time skipping
+  // for the current test to balance out the time skipping lock counter.
+  await t.context.testEnv.connection.testService.unlockTimeSkipping({});
+
+  const worker = await Worker.create({
+    connection: nativeConnection,
+    taskQueue: 'test',
+    workflowsPath: require.resolve('./workflows/testenv-test-workflows'),
+  });
+
+  await withWorker(worker, async () => {
+    const handle = await workflowClient.start(waitOnSignalWithTimeout, {
+      workflowId: uuid4(),
+      taskQueue: 'test',
+    });
+    console.log('Before sleep');
+    await sleep(1_000_000); // Time is skipped
+    console.log('After sleep');
+    await handle.signal(unblockSignal);
+    console.log('After signal');
+    await handle.result(); // Time is skipped
   });
   t.pass();
 });
