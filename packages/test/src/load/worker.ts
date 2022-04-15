@@ -64,6 +64,7 @@ async function main() {
   console.log('Created worker with options', worker.options);
 
   await worker.run();
+  await connection.close();
   if (otel) {
     await otel.shutdown().catch(console.error);
   }

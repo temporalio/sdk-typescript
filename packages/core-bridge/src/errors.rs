@@ -10,6 +10,8 @@ pub static SHUTDOWN_ERROR: OnceCell<Root<JsFunction>> = OnceCell::new();
 pub static NO_WORKER_ERROR: OnceCell<Root<JsFunction>> = OnceCell::new();
 /// Something unexpected happened, considered fatal
 pub static UNEXPECTED_ERROR: OnceCell<Root<JsFunction>> = OnceCell::new();
+/// Used in different parts of the project to signal that something unexpected has happened
+pub static ILLEGAL_STATE_ERROR: OnceCell<Root<JsFunction>> = OnceCell::new();
 
 static ALREADY_REGISTERED_ERRORS: OnceCell<bool> = OnceCell::new();
 
@@ -70,9 +72,9 @@ pub fn register_errors(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     let res = ALREADY_REGISTERED_ERRORS.set(true);
     if res.is_err() {
         // Don't do anything if errors are already registered
-        return Ok(cx.undefined())
+        return Ok(cx.undefined());
     }
-    
+
     let mapping = cx.argument::<JsObject>(0)?;
     let shutdown_error = mapping
         .get(&mut cx, "ShutdownError")?
@@ -90,11 +92,16 @@ pub fn register_errors(mut cx: FunctionContext) -> JsResult<JsUndefined> {
         .get(&mut cx, "UnexpectedError")?
         .downcast_or_throw::<JsFunction, FunctionContext>(&mut cx)?
         .root(&mut cx);
+    let illegal_state_error = mapping
+        .get(&mut cx, "IllegalStateError")?
+        .downcast_or_throw::<JsFunction, FunctionContext>(&mut cx)?
+        .root(&mut cx);
 
     TRANSPORT_ERROR.get_or_try_init(|| Ok(transport_error))?;
     SHUTDOWN_ERROR.get_or_try_init(|| Ok(shutdown_error))?;
     NO_WORKER_ERROR.get_or_try_init(|| Ok(no_worker_error))?;
     UNEXPECTED_ERROR.get_or_try_init(|| Ok(unexpected_error))?;
+    ILLEGAL_STATE_ERROR.get_or_try_init(|| Ok(illegal_state_error))?;
 
     Ok(cx.undefined())
 }
