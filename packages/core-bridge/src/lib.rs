@@ -10,7 +10,7 @@ use prost::Message;
 use std::{
     fmt::Display,
     future::Future,
-    sync::Arc,
+    sync::{Arc, Mutex},
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 use temporal_client::{
@@ -135,7 +135,7 @@ struct Client {
     core_client: Arc<RawClient>,
 }
 
-type BoxedClient = JsBox<Client>;
+type BoxedClient = JsBox<Mutex<Option<Client>>>;
 impl Finalize for Client {}
 
 /// Worker struct, hold a reference for the channel sender responsible for sending requests from
@@ -291,10 +291,10 @@ fn start_bridge_loop(event_queue: Arc<EventQueue>, receiver: &mut UnboundedRecei
                         }
                         Ok(client) => {
                             send_result(event_queue.clone(), callback, |cx| {
-                                Ok(cx.boxed(Client {
+                                Ok(cx.boxed(Mutex::new(Some(Client {
                                     runtime,
                                     core_client: Arc::new(client),
-                                }))
+                                }))))
                             });
                         }
                     }
@@ -586,19 +586,28 @@ fn client_new(mut cx: FunctionContext) -> JsResult<JsUndefined> {
 /// Worker uses the provided connection and returned to JS using supplied `callback`.
 fn worker_new(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     let client = cx.argument::<BoxedClient>(0)?;
+    let client = client.lock().expect("Client lock should not be dropped");
     let worker_options = cx.argument::<JsObject>(1)?;
     let callback = cx.argument::<JsFunction>(2)?;
 
     let config = worker_options.as_worker_config(&mut cx)?;
-
-    let request = Request::InitWorker {
-        client: client.core_client.clone(),
-        runtime: client.runtime.clone(),
-        config,
-        callback: callback.root(&mut cx),
-    };
-    if let Err(err) = client.runtime.sender.send(request) {
-        callback_with_unexpected_error(&mut cx, callback, err)?;
+    match client.as_ref() {
+        None => {
+            callback_with_error(&mut cx, callback, move |cx| {
+                UNEXPECTED_ERROR.from_string(cx, "Tried to use closed Client".to_string())
+            })?;
+        }
+        Some(client) => {
+            let request = Request::InitWorker {
+                client: client.core_client.clone(),
+                runtime: client.runtime.clone(),
+                config,
+                callback: callback.root(&mut cx),
+            };
+            if let Err(err) = client.runtime.sender.send(request) {
+                callback_with_unexpected_error(&mut cx, callback, err)?;
+            };
+        }
     };
 
     Ok(cx.undefined())
@@ -783,19 +792,26 @@ fn worker_record_activity_heartbeat(mut cx: FunctionContext) -> JsResult<JsUndef
 fn worker_shutdown(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     let worker = cx.argument::<BoxedWorker>(0)?;
     let callback = cx.argument::<JsFunction>(1)?;
-    match worker.runtime.sender.send(Request::ShutdownWorker {
+    if let Err(err) = worker.runtime.sender.send(Request::ShutdownWorker {
         worker: worker.core_worker.clone(),
         callback: callback.root(&mut cx),
     }) {
-        Err(err) => cx.throw_error(format!("{}", err)),
-        _ => Ok(cx.undefined()),
-    }
+        UNEXPECTED_ERROR
+            .from_error(&mut cx, err)
+            .and_then(|err| cx.throw(err))?;
+    };
+    Ok(cx.undefined())
 }
 
 /// Drop a reference to a Client, once all references are dropped, the Client will be closed.
 fn client_close(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     let client = cx.argument::<BoxedClient>(0)?;
-    drop(client);
+    let mut client = client.lock().expect("Client lock should not be dropped");
+    if client.take().is_none() {
+        ILLEGAL_STATE_ERROR
+            .from_error(&mut cx, "Client already closed")
+            .and_then(|err| cx.throw(err))?;
+    };
     Ok(cx.undefined())
 }
 

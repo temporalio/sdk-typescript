@@ -30,7 +30,7 @@ export const DEFAULT_TEST_SERVER_PATH = path.join(__dirname, `../${TEST_SERVER_E
  */
 export interface WorkflowResultOptions extends BaseWorkflowResultOptions {
   /**
-   * If set to `true`, waiting for the result does not unlock time skipping
+   * If set to `true`, waiting for the result does not enable time skipping
    */
   runInNormalTime?: boolean;
 }
@@ -43,14 +43,14 @@ export interface WorkflowResultOptions extends BaseWorkflowResultOptions {
  */
 export type WorkflowStartOptions<T extends Workflow> = BaseWorkflowStartOptions<T> & {
   /**
-   * If set to `true`, waiting for the result does not unlock time skipping
+   * If set to `true`, waiting for the result does not enable time skipping
    */
   runInNormalTime?: boolean;
 };
 
 /**
  * A client with the exact same API as the "normal" client with 1 exception,
- * When this client waits on a Workflow's result, it will unlock time skipping
+ * When this client waits on a Workflow's result, it will enable time skipping
  * in the test server.
  */
 export class WorkflowClient extends BaseWorkflowClient {
@@ -248,6 +248,35 @@ export class TestWorkflowEnvironment {
    * Useful for simulating events far into the future like completion of long running activities.
    *
    * @param durationMs {@link https://www.npmjs.com/package/ms | ms} formatted string or number of milliseconds
+   *
+   * @example
+   *
+   * `workflow.ts`
+   *
+   * ```ts
+   * const activities = proxyActivities({ startToCloseTimeout: 2_000_000 });
+   *
+   * export async function raceActivityAndTimer(): Promise<string> {
+   *   return await Promise.race([
+   *     wf.sleep(500_000).then(() => 'timer'),
+   *     activities.longRunning().then(() => 'activity'),
+   *   ]);
+   * }
+   * ```
+   *
+   * `test.ts`
+   *
+   * ```ts
+   * const worker = await Worker.create({
+   *   connection: testEnv.nativeConnection,
+   *   activities: {
+   *     async longRunning() {
+   *       await testEnv.sleep(1_000_000); // <-- sleep called here
+   *     },
+   *   },
+   *   // ...
+   * });
+   * ```
    */
   sleep = async (durationMs: number | string): Promise<void> => {
     await this.connection.testService.unlockTimeSkippingWithSleep({ duration: msToTs(durationMs) });

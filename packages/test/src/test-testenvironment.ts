@@ -63,24 +63,29 @@ test.serial('TestEnvironment can toggle between normal and skipped time', async 
     workflowsPath: require.resolve('./workflows/testenv-test-workflows'),
   });
 
-  const race = (runInNormalTime: boolean) =>
-    Promise.race([
-      workflowClient
-        .execute(sleep, {
-          workflowId: uuid4(),
-          taskQueue: 'test',
-          args: [1_000_000],
-          runInNormalTime,
-        })
-        .then(() => 'fake time'),
-      // Hopefully 5 seconds will be enough in CI
-      new Promise((resolve) => setTimeout(resolve, 5000)).then(() => 'real time'),
-    ]);
+  const race = async (runInNormalTime: boolean) => {
+    const wfSleepDuration = runInNormalTime ? 3000 : 1_000_000;
+
+    const t0 = process.hrtime.bigint();
+    await workflowClient.execute(sleep, {
+      workflowId: uuid4(),
+      taskQueue: 'test',
+      args: [wfSleepDuration],
+      runInNormalTime,
+    });
+    const realDuration = Number((process.hrtime.bigint() - t0) / 1_000_000n);
+    if (runInNormalTime && realDuration < wfSleepDuration) {
+      t.fail(`Workflow execution took ${realDuration}, sleep duration was: ${wfSleepDuration}`);
+    } else if (!runInNormalTime && wfSleepDuration < realDuration) {
+      t.fail(`Workflow execution took ${realDuration}, sleep duration was: ${wfSleepDuration}`);
+    }
+  };
 
   await withWorker(worker, async () => {
-    t.is(await race(true), 'real time');
-    t.is(await race(false), 'fake time');
+    await race(true);
+    await race(false);
   });
+  t.pass();
 });
 
 test.serial('TestEnvironment sleep can be used to delay activity completion', async (t) => {
