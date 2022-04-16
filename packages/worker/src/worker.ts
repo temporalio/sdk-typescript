@@ -23,7 +23,7 @@ import {
   RUN_ID_ATTR_KEY,
   TASK_TOKEN_ATTR_KEY,
 } from '@temporalio/internal-non-workflow-common/lib/otel';
-import { tsToMs } from '@temporalio/internal-workflow-common';
+import { optionalTsToMs, tsToMs } from '@temporalio/internal-workflow-common';
 import { coresdk } from '@temporalio/proto';
 import { DeterminismViolationError, SinkCall, WorkflowInfo } from '@temporalio/workflow';
 import fs from 'fs/promises';
@@ -1411,6 +1411,6 @@ async function extractActivityInfo(
     workflowNamespace: start.workflowNamespace,
     scheduledTimestampMs: tsToMs(start.scheduledTime),
     startToCloseTimeoutMs: tsToMs(start.startToCloseTimeout),
-    scheduleToCloseTimeoutMs: tsToMs(start.scheduleToCloseTimeout),
+    scheduleToCloseTimeoutMs: optionalTsToMs(start.scheduleToCloseTimeout),
   };
 }

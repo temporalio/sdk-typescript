@@ -13,8 +13,7 @@ export enum ActivityCancellationType {
 checkExtends<coresdk.workflow_commands.ActivityCancellationType, ActivityCancellationType>();
 
 /**
- * Options for remote activity invocation - will be processed from a task queue.
- * @see https://www.javadoc.io/doc/io.temporal/temporal-sdk/latest/io/temporal/activity/ActivityOptions.Builder.html
+ * Options for remote activity invocation
  */
 export interface ActivityOptions {
   /**
@@ -25,12 +24,6 @@ export interface ActivityOptions {
    * @default an incremental sequence number
    */
   activityId?: string;
-
-  /**
-   * Namespace to schedule this activity in.
-   * @default current worker namespace
-   */
-  namespace?: string;
 
   /**
    * Task queue name.
@@ -75,6 +68,71 @@ Note that the Temporal Server doesn't detect Worker process failures directly. I
    * @format {@link https://www.npmjs.com/package/ms | ms} formatted string or number of milliseconds
    */
   scheduleToCloseTimeout?: string | number;
+
+  /**
+   * Determines what the SDK does when the Activity is cancelled.
+   * - `TRY_CANCEL` - Initiate a cancellation request and immediately report cancellation to the workflow.
+   * - `WAIT_CANCELLATION_COMPLETED` - Wait for activity cancellation completion. Note that activity must heartbeat to receive a
+   *   cancellation notification. This can block the cancellation for a long time if activity doesn't
+   *   heartbeat or chooses to ignore the cancellation request.
+   * - `ABANDON` - Do not request cancellation of the activity and immediately report cancellation to the workflow.
+   */
+  cancellationType?: coresdk.workflow_commands.ActivityCancellationType;
+}
+
+/**
+ * Options for local activity invocation
+ */
+export interface LocalActivityOptions {
+  /**
+   * RetryPolicy that defines how an activity is retried in case of failure. If this is not set, then the SDK-defined default activity retry policy will be used.
+   * Note that local activities are always executed at least once, even if maximum attempts is set to 1 due to Workflow task retries.
+   */
+  retry?: RetryPolicy;
+
+  /**
+   * Maximum time the local activity is allowed to execute after the task is dispatched. This
+   * timeout is always retryable.
+   *
+   * Either this option or {@link scheduleToCloseTimeout} is required.
+   * If set, this must be <= {@link scheduleToCloseTimeout}, otherwise, it will be clamped down.
+   *
+   * @format {@link https://www.npmjs.com/package/ms | ms} formatted string or number of milliseconds
+   */
+  startToCloseTimeout?: string | number;
+
+  /**
+   * Limits time the local activity can idle internally before being executed. That can happen if
+   * the worker is currently at max concurrent local activity executions. This timeout is always
+   * non retryable as all a retry would achieve is to put it back into the same queue. Defaults
+   * to {@link scheduleToCloseTimeout} if not specified and that is set. Must be <=
+   * {@link scheduleToCloseTimeout} when set, otherwise, it will be clamped down.
+   *
+   * @default unlimited
+   * @format {@link https://www.npmjs.com/package/ms | ms} formatted string or number of milliseconds
+   */
+  scheduleToStartTimeout?: string | number;
+
+  /**
+   * Indicates how long the caller is willing to wait for local activity completion. Limits how
+   * long retries will be attempted. When not specified defaults to the workflow execution
+   * timeout (which may be unset).
+   *
+   * Either this option or {@link startToCloseTimeout} is required.
+   *
+   * @default unlimited
+   * @format {@link https://www.npmjs.com/package/ms | ms} formatted string or number of milliseconds
+   */
+  scheduleToCloseTimeout?: string | number;
+
+  /**
+   * If the activity is retrying and backoff would exceed this value, a server side timer will be scheduled for the next attempt.
+   * Otherwise, backoff will happen internally in the SDK.
+   *
+   * @default 1 minute
+   * @format {@link https://www.npmjs.com/package/ms | ms} formatted string or number of milliseconds
+   **/
+  localRetryThreshold?: string | number;
 
   /**
    * Determines what the SDK does when the Activity is cancelled.
