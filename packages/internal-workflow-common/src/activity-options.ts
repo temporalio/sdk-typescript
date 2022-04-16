@@ -85,7 +85,7 @@ Note that the Temporal Server doesn't detect Worker process failures directly. I
  */
 export interface LocalActivityOptions {
   /**
-   * RetryPolicy that define how activity is retried in case of failure. If this is not set, then the SDK-defined default activity retry policy will be used.
+   * RetryPolicy that defines how an activity is retried in case of failure. If this is not set, then the SDK-defined default activity retry policy will be used.
    * Note that local activities are always executed at least once, even if maximum attempts is set to 1 due to Workflow task retries.
    */
   retry?: RetryPolicy;
