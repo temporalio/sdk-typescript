@@ -228,8 +228,6 @@ export class WorkflowCodeBundler {
                   // match tsc defaults
                   parser: {
                     syntax: 'typescript',
-                    jsx: true,
-                    tsx: true,
                     decorators: true,
                   },
                 },
