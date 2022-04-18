@@ -225,6 +225,13 @@ export class WorkflowCodeBundler {
               options: {
                 jsc: {
                   target: 'es2017',
+                  // match tsc defaults
+                  parser: {
+                    syntax: 'typescript',
+                    jsx: true,
+                    tsx: true,
+                    decorators: true,
+                  },
                 },
               },
             },

@@ -54,7 +54,13 @@ function cleanProtoGeneratedFiles() {
 function cleanCompiledRustFiles() {
   const bridgeDir = resolve(packagesPath, 'core-bridge');
   console.log('Cleaning compiled rust files');
-  rmSync(resolve(bridgeDir, 'releases'), { recursive: true });
+  try {
+    rmSync(resolve(bridgeDir, 'releases'), { recursive: true });
+  } catch (e) {
+    if (e?.code !== 'ENOENT') {
+      throw e;
+    }
+  }
   spawnSync('cargo', ['clean'], { cwd: bridgeDir, stdio: 'inherit' });
 }
 
