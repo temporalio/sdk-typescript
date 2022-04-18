@@ -23,7 +23,7 @@ import {
   RUN_ID_ATTR_KEY,
   TASK_TOKEN_ATTR_KEY,
 } from '@temporalio/internal-non-workflow-common/lib/otel';
-import { tsToMs } from '@temporalio/internal-workflow-common';
+import { optionalTsToMs, tsToMs } from '@temporalio/internal-workflow-common';
 import { coresdk } from '@temporalio/proto';
 import { DeterminismViolationError, SinkCall, WorkflowInfo } from '@temporalio/workflow';
 import fs from 'fs/promises';
@@ -45,7 +45,7 @@ import { delay, filter, first, ignoreElements, map, mergeMap, takeUntil, takeWhi
 import { promisify } from 'util';
 import { Activity } from './activity';
 import { Runtime, History } from './runtime';
-import { extractNativeClient, NativeConnection } from './connection';
+import { extractNativeClient, extractReferenceHolders, InternalNativeConnection, NativeConnection } from './connection';
 import * as errors from './errors';
 import { ActivityExecuteInput } from './interceptors';
 import { Logger } from './logger';
@@ -332,9 +332,12 @@ export class Worker {
   public static async create(options: WorkerOptions): Promise<Worker> {
     const nativeWorkerCtor: WorkerConstructor = this.nativeWorkerCtor;
     const compiledOptions = compileWorkerOptions(addDefaultWorkerOptions(options));
-    const connection = options.connection ?? (await NativeConnection.create());
+    // Create a new connection if one is not provided with no CREATOR reference
+    // so it can be automatically closed when this Worker shuts down.
+    const connection = options.connection ?? (await InternalNativeConnection.create());
     const nativeWorker = await nativeWorkerCtor.create(connection, compiledOptions);
-    return await this.bundleWorker(compiledOptions, nativeWorker);
+    extractReferenceHolders(connection).add(nativeWorker);
+    return await this.bundleWorker(compiledOptions, nativeWorker, connection);
   }
 
   /**
@@ -388,7 +391,8 @@ export class Worker {
 
   protected static async bundleWorker(
     compiledOptions: CompiledWorkerOptions,
-    nativeWorker: NativeWorkerLike
+    nativeWorker: NativeWorkerLike,
+    connection?: NativeConnection
   ): Promise<Worker> {
     try {
       let bundle: string | undefined = undefined;
@@ -423,7 +427,7 @@ export class Worker {
           });
         }
       }
-      return new this(nativeWorker, workflowCreator, compiledOptions);
+      return new this(nativeWorker, workflowCreator, compiledOptions, connection);
     } catch (err) {
       // Deregister our worker in case Worker creation (Webpack) failed
       await nativeWorker.completeShutdown();
@@ -440,7 +444,8 @@ export class Worker {
      * Optional WorkflowCreator - if not provided, Worker will not poll on Workflows
      */
     protected readonly workflowCreator: WorkflowCreator | undefined,
-    public readonly options: CompiledWorkerOptions
+    public readonly options: CompiledWorkerOptions,
+    protected readonly connection?: NativeConnection
   ) {
     this.tracer = getTracer(options.enableSDKTracing);
     this.workflowCodecRunner = new WorkflowCodecRunner(options.loadedDataConverter.payloadCodec);
@@ -1358,6 +1363,15 @@ export class Worker {
       // A new process must be created in order to instantiate a new Rust Core.
       // TODO: force shutdown in core?
       await this.nativeWorker.completeShutdown();
+
+      // Only exists in non-replay Worker
+      if (this.connection) {
+        extractReferenceHolders(this.connection).delete(this.nativeWorker);
+        // Only close if this worker is the creator of the connection
+        if (this.connection instanceof InternalNativeConnection) {
+          await this.connection.close();
+        }
+      }
     } finally {
       try {
         await this.workflowCreator?.destroy();
@@ -1397,6 +1411,6 @@ async function extractActivityInfo(
     workflowNamespace: start.workflowNamespace,
     scheduledTimestampMs: tsToMs(start.scheduledTime),
     startToCloseTimeoutMs: tsToMs(start.startToCloseTimeout),
-    scheduleToCloseTimeoutMs: tsToMs(start.scheduleToCloseTimeout),
+    scheduleToCloseTimeoutMs: optionalTsToMs(start.scheduleToCloseTimeout),
   };
 }

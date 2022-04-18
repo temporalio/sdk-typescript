@@ -70,10 +70,14 @@ export class CoreLogger extends DefaultLogger {
  * Use {@link install} in order to customize the server connection options or other global process options.
  */
 export class Runtime {
+  /** Track the registered clients to automatically shutdown when all have been deregistered */
+  protected readonly registeredClients = new Set<native.Client>();
   /** Track the registered workers to automatically shutdown when all have been deregistered */
   protected readonly registeredWorkers = new Set<native.Worker>();
   protected readonly shouldPollForLogs = new BehaviorSubject<boolean>(false);
   protected readonly logPollPromise: Promise<void>;
+  /** Track the number of pending calls into the tokio runtime to prevent shut down */
+  protected pendingCalls = 0;
   public readonly logger: Logger;
 
   static _instance?: Runtime;
@@ -104,10 +108,10 @@ export class Runtime {
   public static install(options: RuntimeOptions): Runtime {
     if (this._instance !== undefined) {
       if (this.instantiator === 'install') {
-        throw new IllegalStateError('Core singleton has already been installed');
+        throw new IllegalStateError('Runtime singleton has already been installed');
       } else if (this.instantiator === 'instance') {
         throw new IllegalStateError(
-          'Core singleton has already been instantiated. Did you start a Worker before calling `install`?'
+          'Runtime singleton has already been instantiated. Did you start a Worker before calling `install`?'
         );
       }
     }
@@ -228,7 +232,35 @@ export class Runtime {
       tls: normalizeTlsConfig(compiledServerOptions.tls),
       url: options?.tls ? `https://${compiledServerOptions.address}` : `http://${compiledServerOptions.address}`,
     };
-    return await promisify(newClient)(this.native, clientOptions);
+    this.pendingCalls++;
+    try {
+      const client = await promisify(newClient)(this.native, clientOptions);
+      this.registeredClients.add(client);
+      return client;
+    } catch (err) {
+      // Attempt to shutdown the runtime in case there's an error creating the
+      // client to avoid leaving an idle Runtime.
+      if (this.canShutdown()) {
+        await this.shutdown();
+      }
+      throw err;
+    } finally {
+      this.pendingCalls--;
+    }
+  }
+
+  /**
+   * Close a native Client, if this is the last registered Client or Worker, shutdown the core and unset the singleton instance
+   *
+   * Hidden in the docs because it is only meant to be used internally by the Worker.
+   * @hidden
+   */
+  public async closeNativeClient(client: native.Client): Promise<void> {
+    this.registeredClients.delete(client);
+    native.clientClose(client);
+    if (this.canShutdown()) {
+      await this.shutdown();
+    }
   }
 
   /**
@@ -238,36 +270,49 @@ export class Runtime {
    * @hidden
    */
   public async registerWorker(client: native.Client, options: native.WorkerOptions): Promise<native.Worker> {
-    const worker = await promisify(native.newWorker)(client, options);
-    this.registeredWorkers.add(worker);
-    return worker;
+    this.pendingCalls++;
+    try {
+      const worker = await promisify(native.newWorker)(client, options);
+      this.registeredWorkers.add(worker);
+      return worker;
+    } finally {
+      this.pendingCalls--;
+    }
   }
 
   /**
-   * Deregister a Worker, if this is the last registered Worker, shutdown the core and unset the singleton instance
+   * Deregister a Worker, if this is the last registered Worker or Client, shutdown the core and unset the singleton instance
    *
    * Hidden in the docs because it is only meant to be used internally by the Worker.
    * @hidden
    */
   public async deregisterWorker(worker: native.Worker): Promise<void> {
     this.registeredWorkers.delete(worker);
-    if (this.registeredWorkers.size === 0) {
+    // NOTE: only replay workers require registration since they don't have an associated connection
+    // but we track all Workers for simplicity.
+    if (this.canShutdown()) {
       await this.shutdown();
     }
+  }
+
+  protected canShutdown(): boolean {
+    return this.pendingCalls === 0 && this.registeredClients.size === 0 && this.registeredWorkers.size === 0;
   }
 
   /**
    * Shutdown and unset the singleton instance.
    *
+   * If the runtime is polling on Core logs, wait for those logs to be collected.
+   *
    * Hidden in the docs because it is only meant to be used for testing.
    * @hidden
    */
   public async shutdown(): Promise<void> {
+    delete Runtime._instance;
     this.shouldPollForLogs.next(false);
-    await promisify(runtimeShutdown)(this.native);
     // This will effectively drain all logs
     await this.logPollPromise;
-    delete Runtime._instance;
+    await promisify(runtimeShutdown)(this.native);
   }
 
   // TODO: accept either history or JSON or binary

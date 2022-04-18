@@ -29,6 +29,7 @@
     "eslint-plugin-deprecation": "^1.2.1",
     "eslint-plugin-tsdoc": "^0.2.14",
     "fs-extra": "^10.0.0",
+    "jsdoc": "^3.6.10",
     "json5": "^2.2.0",
     "lerna": "^4.0.0",
     "long": "^4.0.0",
@@ -55,7 +56,7 @@
     "lint.prune": "ts-prune -p tsconfig.prune.json --ignore \"used in module\" --skip \".d.ts\"",
     "commitlint": "commitlint --from origin/main",
     "format": "prettier --write .",
-    "clean": "node ./scripts/clean.js",
+    "clean": "node ./scripts/clean.mjs",
     "docs": "lerna run --stream maybe-install-deps-and-build-docs"
   },
   "repository": {

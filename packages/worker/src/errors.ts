@@ -1,3 +1,5 @@
+export { IllegalStateError } from '@temporalio/common';
+
 /**
  * The worker has been shut down
  */

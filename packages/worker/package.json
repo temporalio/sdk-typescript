@@ -1,6 +1,6 @@
 {
   "name": "@temporalio/worker",
-  "version": "0.20.1",
+  "version": "0.20.2",
   "description": "Temporal.io SDK Worker sub-package",
   "main": "lib/index.js",
   "types": "./lib/index.d.ts",
@@ -14,6 +14,7 @@
   "license": "MIT",
   "dependencies": {
     "@opentelemetry/api": "^1.0.3",
+    "@swc/core": "^1.2.152",
     "@temporalio/activity": "file:../activity",
     "@temporalio/common": "file:../common",
     "@temporalio/core-bridge": "file:../core-bridge",
@@ -32,7 +33,7 @@
     "protobufjs": "^6.11.2",
     "rxjs": "^7.3.0",
     "semver": "^7.3.5",
-    "ts-loader": "^9.2.5",
+    "swc-loader": "^0.1.15",
     "unionfs": "^4.4.0",
     "uuid": "^8.3.2",
     "webpack": "^5.51.1"

@@ -8,6 +8,7 @@ use once_cell::sync::OnceCell;
 use opentelemetry::trace::{FutureExt, SpanContext, TraceContextExt};
 use prost::Message;
 use std::{
+    cell::RefCell,
     fmt::Display,
     future::Future,
     sync::Arc,
@@ -135,7 +136,7 @@ struct Client {
     core_client: Arc<RawClient>,
 }
 
-type BoxedClient = JsBox<Client>;
+type BoxedClient = JsBox<RefCell<Option<Client>>>;
 impl Finalize for Client {}
 
 /// Worker struct, hold a reference for the channel sender responsible for sending requests from
@@ -291,10 +292,10 @@ fn start_bridge_loop(event_queue: Arc<EventQueue>, receiver: &mut UnboundedRecei
                         }
                         Ok(client) => {
                             send_result(event_queue.clone(), callback, |cx| {
-                                Ok(cx.boxed(Client {
+                                Ok(cx.boxed(RefCell::new(Some(Client {
                                     runtime,
                                     core_client: Arc::new(client),
-                                }))
+                                }))))
                             });
                         }
                     }
@@ -590,15 +591,23 @@ fn worker_new(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     let callback = cx.argument::<JsFunction>(2)?;
 
     let config = worker_options.as_worker_config(&mut cx)?;
-
-    let request = Request::InitWorker {
-        client: client.core_client.clone(),
-        runtime: client.runtime.clone(),
-        config,
-        callback: callback.root(&mut cx),
-    };
-    if let Err(err) = client.runtime.sender.send(request) {
-        callback_with_unexpected_error(&mut cx, callback, err)?;
+    match &*client.borrow() {
+        None => {
+            callback_with_error(&mut cx, callback, move |cx| {
+                UNEXPECTED_ERROR.from_string(cx, "Tried to use closed Client".to_string())
+            })?;
+        }
+        Some(client) => {
+            let request = Request::InitWorker {
+                client: client.core_client.clone(),
+                runtime: client.runtime.clone(),
+                config,
+                callback: callback.root(&mut cx),
+            };
+            if let Err(err) = client.runtime.sender.send(request) {
+                callback_with_unexpected_error(&mut cx, callback, err)?;
+            };
+        }
     };
 
     Ok(cx.undefined())
@@ -783,13 +792,26 @@ fn worker_record_activity_heartbeat(mut cx: FunctionContext) -> JsResult<JsUndef
 fn worker_shutdown(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     let worker = cx.argument::<BoxedWorker>(0)?;
     let callback = cx.argument::<JsFunction>(1)?;
-    match worker.runtime.sender.send(Request::ShutdownWorker {
+    if let Err(err) = worker.runtime.sender.send(Request::ShutdownWorker {
         worker: worker.core_worker.clone(),
         callback: callback.root(&mut cx),
     }) {
-        Err(err) => cx.throw_error(format!("{}", err)),
-        _ => Ok(cx.undefined()),
-    }
+        UNEXPECTED_ERROR
+            .from_error(&mut cx, err)
+            .and_then(|err| cx.throw(err))?;
+    };
+    Ok(cx.undefined())
+}
+
+/// Drop a reference to a Client, once all references are dropped, the Client will be closed.
+fn client_close(mut cx: FunctionContext) -> JsResult<JsUndefined> {
+    let client = cx.argument::<BoxedClient>(0)?;
+    if client.replace(None).is_none() {
+        ILLEGAL_STATE_ERROR
+            .from_error(&mut cx, "Client already closed")
+            .and_then(|err| cx.throw(err))?;
+    };
+    Ok(cx.undefined())
 }
 
 /// Convert Rust SystemTime into a JS array with 2 numbers (seconds, nanos)
@@ -824,6 +846,7 @@ fn main(mut cx: ModuleContext) -> NeonResult<()> {
     cx.export_function("newWorker", worker_new)?;
     cx.export_function("newReplayWorker", replay_worker_new)?;
     cx.export_function("workerShutdown", worker_shutdown)?;
+    cx.export_function("clientClose", client_close)?;
     cx.export_function("runtimeShutdown", runtime_shutdown)?;
     cx.export_function("pollLogs", poll_logs)?;
     cx.export_function(

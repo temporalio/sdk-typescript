@@ -385,6 +385,7 @@ export class WorkflowClient {
     const interceptors = (this.options.interceptors.calls ?? []).map((ctor) => ctor({ workflowId }));
     await this._start(workflowTypeOrFunc, options, interceptors);
     return await this.result(workflowId, undefined, {
+      ...options,
       followRuns: options.followRuns ?? true,
     });
   }
