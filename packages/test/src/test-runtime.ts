@@ -11,15 +11,12 @@ import * as workflows from './workflows';
 import { RUN_INTEGRATION_TESTS } from './helpers';
 
 if (RUN_INTEGRATION_TESTS) {
-  test.serial('Runtime can be started and stopped', async (t) => {
-    Runtime.install({});
+  test.serial('Runtime can be created and disposed', async (t) => {
     await Runtime.instance().shutdown();
     t.pass();
   });
 
   test.serial('Runtime tracks registered workers, shuts down and restarts as expected', async (t) => {
-    Runtime.install({});
-
     // Create 2 Workers and verify Runtime keeps running after first Worker deregisteration
     const worker1 = await Worker.create({
       ...defaultOptions,
@@ -39,10 +36,6 @@ if (RUN_INTEGRATION_TESTS) {
     worker2.shutdown();
     await worker2Drained;
 
-    // Runtime is supposed to shutdown after all Workers have deregistered.
-    // Runtime.install() would fail if a Runtime instance was already registered.
-    Runtime.install({});
-
     const worker3 = await Worker.create({
       ...defaultOptions,
       taskQueue: 'q1', // Same as the first Worker created
@@ -52,7 +45,7 @@ if (RUN_INTEGRATION_TESTS) {
     await connection.execute('sleeper', { taskQueue: 'q1', workflowId: uuid4(), args: [1] });
     worker3.shutdown();
     await worker3Drained;
-    // No exceptions, test passes
+    // No exceptions, test passes, Runtime is implicitly shut down
     t.pass();
   });
 

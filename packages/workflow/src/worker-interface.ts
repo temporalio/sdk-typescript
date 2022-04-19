@@ -203,26 +203,24 @@ export async function activate(
       // This is safe because we know that activation is a proto class.
       const jobs = activation.jobs as coresdk.workflow_activation.WorkflowActivationJob[];
 
-      await Promise.all(
-        jobs.map(async (job) => {
-          if (job.variant === undefined) {
-            throw new TypeError('Expected job.variant to be defined');
-          }
+      for (const job of jobs) {
+        if (job.variant === undefined) {
+          throw new TypeError('Expected job.variant to be defined');
+        }
 
-          const variant = job[job.variant];
-          if (!variant) {
-            throw new TypeError(`Expected job.${job.variant} to be set`);
-          }
-          // The only job that can be executed on a completed workflow is a query.
-          // We might get other jobs after completion for instance when a single
-          // activation contains multiple jobs and the first one completes the workflow.
-          if (state.completed && job.variant !== 'queryWorkflow') {
-            return;
-          }
-          await state.activator[job.variant](variant as any /* TS can't infer this type */);
-          tryUnblockConditions();
-        })
-      );
+        const variant = job[job.variant];
+        if (!variant) {
+          throw new TypeError(`Expected job.${job.variant} to be set`);
+        }
+        // The only job that can be executed on a completed workflow is a query.
+        // We might get other jobs after completion for instance when a single
+        // activation contains multiple jobs and the first one completes the workflow.
+        if (state.completed && job.variant !== 'queryWorkflow') {
+          return;
+        }
+        state.activator[job.variant](variant as any /* TS can't infer this type */);
+        tryUnblockConditions();
+      }
     }
   );
   await intercept({

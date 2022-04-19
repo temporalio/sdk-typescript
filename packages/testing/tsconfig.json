@@ -5,7 +5,7 @@
     "outDir": "./lib",
     "rootDir": "./src"
   },
-  "references": [{ "path": "../client" }, { "path": "../worker" }, { "path": "../activity" }],
+  "references": [{ "path": "../client" }, { "path": "../common" }, { "path": "../worker" }, { "path": "../activity" }],
   "include": ["./src/**/*.ts"],
   "exclude": ["node_modules"]
 }

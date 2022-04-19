@@ -13,6 +13,8 @@ lerna.json
 README.md
 packages/test/protos/root.d.ts
 packages/test/protos/json-module.js
+packages/testing/generated-protos/*
+packages/testing/proto/*
 
 # Ignored since it fails Windows CI
 packages/create-project/cli.js
