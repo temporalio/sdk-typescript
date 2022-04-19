@@ -1,3 +1,3 @@
-const { patchProtobufRoot } = require('@temporalio/common/lib/converter/patch-protobuf-root');
-const unpatchedRoot = require('./coresdk-json-module');
-module.exports = patchProtobufRoot(unpatchedRoot);
+module.exports = require('./root').coresdk;
+module.exports.temporal = require('./root').temporal;
+module.exports.google = require('./root').google;

@@ -29,6 +29,4 @@
  * @module
  */
 
-export { coresdk } from './coresdk';
-export * from './temporal';
-
+export * from './root';

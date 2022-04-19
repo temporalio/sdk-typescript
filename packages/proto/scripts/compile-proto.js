@@ -8,8 +8,7 @@ const pbjs = require('protobufjs/cli/pbjs');
 const pbts = require('protobufjs/cli/pbts');
 
 const outputDir = resolve(__dirname, '../lib');
-const coresdkJsOutputFile = resolve(outputDir, 'coresdk-json-module.js');
-const serviceJsOutputFile = resolve(outputDir, 'temporal-json-module.js');
+const jsOutputFile = resolve(outputDir, 'json-module.js');
 const tempFile = resolve(outputDir, 'temp.js');
 const protoBaseDir = resolve(__dirname, '../../core-bridge/sdk-core/protos');
 
@@ -27,15 +26,25 @@ function mtime(path) {
   }
 }
 
-async function compileProtos(protoPath, jsOutputFile, root, dtsOutputFile, ...args) {
+async function compileProtos(dtsOutputFile, ...args) {
   // Use --root to avoid conflicting with user's root
   // and to avoid this error: https://github.com/protobufjs/protobuf.js/issues/1114
-  const pbjsArgs = [...args, '--wrap', 'commonjs', '--force-long', '--no-verify', '--root', root, protoPath];
+  const pbjsArgs = [
+    ...args,
+    '--wrap',
+    'commonjs',
+    '--force-long',
+    '--no-verify',
+    '--root',
+    '__temporal',
+    coreProtoPath,
+    serviceProtoPath,
+  ];
 
-  console.log(`Creating protobuf JS definitions from ${protoPath}`);
+  console.log(`Creating protobuf JS definitions from ${coreProtoPath} and ${serviceProtoPath}`);
   await promisify(pbjs.main)([...pbjsArgs, '--target', 'json-module', '--out', jsOutputFile]);
 
-  console.log(`Creating protobuf TS definitions from ${protoPath}`);
+  console.log(`Creating protobuf TS definitions from ${coreProtoPath} and ${serviceProtoPath}`);
   try {
     await promisify(pbjs.main)([...pbjsArgs, '--target', 'static-module', '--out', tempFile]);
     await promisify(pbts.main)(['--out', dtsOutputFile, tempFile]);
@@ -67,7 +76,7 @@ async function main() {
 
   const protoFiles = glob.sync(resolve(protoBaseDir, '**/*.proto'));
   const protosMTime = Math.max(...protoFiles.map(mtime));
-  const genMTime = Math.min(mtime(coresdkJsOutputFile), mtime(serviceJsOutputFile));
+  const genMTime = mtime(jsOutputFile);
 
   if (protosMTime < genMTime) {
     console.log('Assuming protos are up to date');
@@ -75,22 +84,11 @@ async function main() {
   }
 
   await compileProtos(
-    coreProtoPath,
-    coresdkJsOutputFile,
-    '__coresdk',
-    resolve(outputDir, 'coresdk.d.ts'),
+    resolve(outputDir, 'root.d.ts'),
     '--path',
     resolve(protoBaseDir, 'api_upstream'),
     '--path',
     resolve(protoBaseDir, 'local')
-  );
-  await compileProtos(
-    serviceProtoPath,
-    serviceJsOutputFile,
-    '__temporal',
-    resolve(outputDir, 'temporal.d.ts'),
-    '--path',
-    resolve(protoBaseDir, 'api_upstream')
   );
 
   console.log('Done');
