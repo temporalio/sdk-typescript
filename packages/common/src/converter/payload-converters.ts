@@ -41,7 +41,7 @@ export class CompositePayloadConverter implements PayloadConverter {
       }
     }
     let errorMessage = `Unable to serialize value: ${value}. None of the configured \`PayloadConverter\`s support converting this value to a Payload. Either use serializable values or create a custom data converter: https://docs.temporal.io/docs/typescript/data-converters`;
-    if (this.converters.at(-1) instanceof JsonPayloadConverter) {
+    if (this.converters[this.converters.length - 1] instanceof JsonPayloadConverter) {
       errorMessage = `Can't run JSON.stringify on this value: ${value}. Either convert it (or its properties) to JSON-serializable values (see https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/JSON/stringify#description ), or use a custom data converter: https://docs.temporal.io/docs/typescript/data-converters`;
     }
 
