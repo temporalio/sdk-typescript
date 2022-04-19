@@ -1,4 +1,4 @@
-import type { coresdk, google } from '@temporalio/proto/lib/coresdk';
+import type { coresdk, google } from '@temporalio/proto';
 import { Workflow } from './interfaces';
 import { RetryPolicy } from './retry-policy';
 import { falsyMsToTs } from './time';

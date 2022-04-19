@@ -1,14 +1,14 @@
-import type * as iface from '@temporalio/proto/lib/coresdk';
+import type { google } from '@temporalio/proto';
 import Long from 'long';
 import ms from 'ms';
 import { ValueError } from './errors';
 
 // NOTE: these are the same interface in JS
-// iface.google.protobuf.IDuration;
-// iface.google.protobuf.ITimestamp;
+// google.protobuf.IDuration;
+// google.protobuf.ITimestamp;
 // The conversion functions below should work for both
 
-export type Timestamp = iface.google.protobuf.ITimestamp;
+export type Timestamp = google.protobuf.ITimestamp;
 
 /**
  * Lossy conversion function from Timestamp to number due to possible overflow.

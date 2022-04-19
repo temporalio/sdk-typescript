@@ -1,4 +1,4 @@
-import type { coresdk } from '@temporalio/proto/lib/coresdk';
+import type { coresdk } from '@temporalio/proto';
 import { RetryPolicy } from './retry-policy';
 import { checkExtends } from './type-helpers';
 

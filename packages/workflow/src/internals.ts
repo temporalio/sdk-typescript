@@ -16,7 +16,7 @@ import {
   WorkflowQueryType,
   WorkflowSignalType,
 } from '@temporalio/internal-workflow-common';
-import type { coresdk } from '@temporalio/proto/lib/coresdk';
+import type { coresdk } from '@temporalio/proto';
 import { alea, RNG } from './alea';
 import { ROOT_SCOPE } from './cancellation-scope';
 import { DeterminismViolationError, isCancellation, WorkflowExecutionAlreadyStartedError } from './errors';
