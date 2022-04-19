@@ -834,9 +834,9 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
       },
     });
     await t.throwsAsync(handle.result());
-    const handleForSecondAttempt = client.getHandle(workflowId);
-    const { raw } = await handleForSecondAttempt.describe();
-    t.not(raw.workflowExecutionInfo?.execution?.runId, handle.originalRunId);
+    // Verify retry happened
+    const { runId } = await handle.describe();
+    t.not(runId, handle.originalRunId);
   });
 
   test('Workflow RetryPolicy ignored with nonRetryable failure', async (t) => {
@@ -858,6 +858,9 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
       res.raw.workflowExecutionInfo?.status,
       iface.temporal.api.enums.v1.WorkflowExecutionStatus.WORKFLOW_EXECUTION_STATUS_FAILED
     );
+    // Verify retry did not happen
+    const { runId } = await handle.describe();
+    t.is(runId, handle.originalRunId);
   });
 
   test('WorkflowClient.start fails with WorkflowExecutionAlreadyStartedError', async (t) => {
