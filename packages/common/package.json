@@ -13,6 +13,7 @@
   "license": "MIT",
   "dependencies": {
     "@temporalio/internal-workflow-common": "file:../internal-workflow-common",
+    "@temporalio/proto": "file:../proto",
     "proto3-json-serializer": "^0.1.6"
   },
   "bugs": {
@@ -23,7 +24,6 @@
     "access": "public"
   },
   "devDependencies": {
-    "@temporalio/proto": "file:../proto",
     "protobufjs": "^6.11.2"
   }
 }
