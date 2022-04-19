@@ -6,10 +6,12 @@ import type { Root } from 'protobufjs';
 import { defaultGrpcRetryOptions, makeGrpcRetryInterceptor } from './grpc-retry';
 
 export type WorkflowService = temporal.api.workflowservice.v1.WorkflowService;
+export { TLSConfig };
 
 // use `root.lookupService` because imported `WorkflowService` doesn't have `create` method
-const WorkflowService = (root as unknown as Root).lookupService('temporal.api.workflowservice.v1.WorkflowService');
-export { WorkflowService };
+export const WorkflowService = (root as unknown as Root).lookupService(
+  'temporal.api.workflowservice.v1.WorkflowService'
+);
 
 /**
  * GRPC + Temporal server connection options

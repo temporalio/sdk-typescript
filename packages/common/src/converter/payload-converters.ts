@@ -1,9 +1,9 @@
 import { errorMessage, UnsupportedJsonTypeError, ValueError } from '@temporalio/internal-workflow-common';
 import { PayloadConverter } from './payload-converter';
-import { encodingKeys, EncodingType, encodingTypes, METADATA_ENCODING_KEY, Payload, str, u8 } from './types';
+import { encodingKeys, encodingTypes, METADATA_ENCODING_KEY, Payload, str, u8 } from './types';
 
 export interface PayloadConverterWithEncoding extends PayloadConverter {
-  readonly encodingType: EncodingType;
+  readonly encodingType: string;
 }
 
 /**
