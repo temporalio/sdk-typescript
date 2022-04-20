@@ -1,14 +1,14 @@
-import anyTest, { TestInterface } from 'ava';
-import { v4 as uuid4 } from 'uuid';
+import { WorkflowFailedError } from '@temporalio/client';
 import { TestWorkflowEnvironment, workflowInterceptorModules } from '@temporalio/testing';
 import { Worker } from '@temporalio/worker';
-import { WorkflowFailedError } from '@temporalio/client';
+import anyTest, { TestInterface } from 'ava';
+import { v4 as uuid4 } from 'uuid';
 import {
   assertFromWorkflow,
-  sleep,
   raceActivityAndTimer,
-  waitOnSignalWithTimeout,
+  sleep,
   unblockSignal,
+  waitOnSignalWithTimeout,
 } from './workflows/testenv-test-workflows';
 
 interface Context {
@@ -94,7 +94,7 @@ test.serial('TestEnvironment can toggle between normal and skipped time', async 
   t.pass();
 });
 
-test.serial('TestEnvironment sleep can be used to delay activity completion', async (t) => {
+test.serial.skip('TestEnvironment sleep can be used to delay activity completion', async (t) => {
   const { workflowClient, nativeConnection, sleep } = t.context.testEnv;
 
   const worker = await Worker.create({
@@ -127,7 +127,7 @@ test.serial('TestEnvironment sleep can be used to delay activity completion', as
   t.pass();
 });
 
-test.serial('TestEnvironment sleep can be used to delay sending a signal', async (t) => {
+test.serial.skip('TestEnvironment sleep can be used to delay sending a signal', async (t) => {
   const { workflowClient, nativeConnection, sleep } = t.context.testEnv;
   // TODO: due to the test server issue mentioned in the test avove we need to manually unlock time skipping
   // for the current test to balance out the time skipping lock counter.
