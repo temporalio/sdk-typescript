@@ -27,7 +27,7 @@ import {
   WorkflowNotFoundError,
 } from '@temporalio/internal-workflow-common';
 import * as iface from '@temporalio/proto';
-import { Core, DefaultLogger, Worker } from '@temporalio/worker';
+import { Runtime, DefaultLogger, Worker } from '@temporalio/worker';
 import asyncRetry from 'async-retry';
 import anyTest, { Implementation, TestInterface } from 'ava';
 import dedent from 'dedent';
@@ -65,7 +65,7 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
   _test.before(async (t) => {
     const logger = new DefaultLogger('DEBUG');
     // Use forwarded logging from core
-    await Core.install({ logger, telemetryOptions: { logForwardingLevel: 'INFO' } });
+    Runtime.install({ logger, telemetryOptions: { logForwardingLevel: 'INFO' } });
     const worker = await Worker.create({
       workflowsPath: require.resolve('./workflows'),
       activities,
@@ -834,9 +834,9 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
       },
     });
     await t.throwsAsync(handle.result());
-    const handleForSecondAttempt = client.getHandle(workflowId);
-    const { raw } = await handleForSecondAttempt.describe();
-    t.not(raw.workflowExecutionInfo?.execution?.runId, handle.originalRunId);
+    // Verify retry happened
+    const { runId } = await handle.describe();
+    t.not(runId, handle.originalRunId);
   });
 
   test('Workflow RetryPolicy ignored with nonRetryable failure', async (t) => {
@@ -858,6 +858,9 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
       res.raw.workflowExecutionInfo?.status,
       iface.temporal.api.enums.v1.WorkflowExecutionStatus.WORKFLOW_EXECUTION_STATUS_FAILED
     );
+    // Verify retry did not happen
+    const { runId } = await handle.describe();
+    t.is(runId, handle.originalRunId);
   });
 
   test('WorkflowClient.start fails with WorkflowExecutionAlreadyStartedError', async (t) => {

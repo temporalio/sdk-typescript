@@ -7,7 +7,7 @@
  */
 
 import { WorkflowExecution } from '@temporalio/common';
-import { ActivityOptions, Headers, Next } from '@temporalio/internal-workflow-common';
+import { ActivityOptions, Headers, LocalActivityOptions, Next, Timestamp } from '@temporalio/internal-workflow-common';
 import type { coresdk } from '@temporalio/proto';
 import { ChildWorkflowOptionsWithDefaults, ContinueAsNewOptions } from './interfaces';
 
@@ -69,6 +69,17 @@ export interface ActivityInput {
   readonly seq: number;
 }
 
+/** Input for WorkflowOutboundCallsInterceptor.scheduleLocalActivity */
+export interface LocalActivityInput {
+  readonly activityType: string;
+  readonly args: unknown[];
+  readonly options: LocalActivityOptions;
+  readonly headers: Headers;
+  readonly seq: number;
+  readonly originalScheduleTime?: Timestamp;
+  readonly attempt: number;
+}
+
 /** Input for WorkflowOutboundCallsInterceptor.startChildWorkflowExecution */
 export interface StartChildWorkflowExecutionInput {
   readonly workflowType: string;
@@ -121,6 +132,13 @@ export interface WorkflowOutboundCallsInterceptor {
    * @return result of the activity execution
    */
   scheduleActivity?: (input: ActivityInput, next: Next<this, 'scheduleActivity'>) => Promise<unknown>;
+
+  /**
+   * Called when Workflow schedules a local Activity
+   *
+   * @return result of the activity execution
+   */
+  scheduleLocalActivity?: (input: LocalActivityInput, next: Next<this, 'scheduleLocalActivity'>) => Promise<unknown>;
 
   /**
    * Called when Workflow starts a timer

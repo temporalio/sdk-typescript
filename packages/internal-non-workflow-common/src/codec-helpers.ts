@@ -97,6 +97,17 @@ async function decodeSingle(codec: PayloadCodec, payload: Payload): Promise<Deco
   return decodedPayloads[0] as DecodedPayload;
 }
 
+export async function decodeOptionalMap(
+  codec: PayloadCodec,
+  payloads: Record<string, Payload> | null | undefined
+): Promise<Record<string, DecodedPayload> | null | undefined> {
+  if (payloads === null) return null;
+  if (payloads === undefined) return undefined;
+  return Object.fromEntries(
+    await Promise.all(Object.entries(payloads).map(async ([k, v]) => [k, await codec.decode([v])]))
+  );
+}
+
 /** Run {@link PayloadCodec.decode} on a single Payload */
 export async function decodeOptionalSingle(
   codec: PayloadCodec,

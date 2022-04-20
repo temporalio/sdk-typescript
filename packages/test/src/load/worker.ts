@@ -2,7 +2,7 @@ import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-grpc';
 import * as opentelemetry from '@opentelemetry/sdk-node';
 import { SemanticResourceAttributes } from '@opentelemetry/semantic-conventions';
 import { TelemetryOptions } from '@temporalio/core-bridge';
-import { Core, DefaultLogger, Worker } from '@temporalio/worker';
+import { Runtime, DefaultLogger, Worker, NativeConnection } from '@temporalio/worker';
 import arg from 'arg';
 import * as activities from '../activities';
 import { getRequired, WorkerArgSpec, workerArgSpec } from './args';
@@ -40,16 +40,18 @@ async function main() {
     await otel.start();
   }
 
-  await Core.install({
-    serverOptions: {
-      namespace,
-      address: serverAddress,
-    },
+  Runtime.install({
     telemetryOptions,
     logger: new DefaultLogger(logLevel as any),
   });
 
+  const connection = await NativeConnection.create({
+    address: serverAddress,
+  });
+
   const worker = await Worker.create({
+    connection,
+    namespace,
     activities,
     workflowsPath: require.resolve('../workflows'),
     taskQueue,
@@ -62,6 +64,7 @@ async function main() {
   console.log('Created worker with options', worker.options);
 
   await worker.run();
+  await connection.close();
   if (otel) {
     await otel.shutdown().catch(console.error);
   }

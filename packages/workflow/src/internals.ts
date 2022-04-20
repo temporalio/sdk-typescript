@@ -50,9 +50,17 @@ export interface Condition {
   resolve(): void;
 }
 
+/**
+ * A class that acts as a marker for this special result type
+ */
+export class LocalActivityDoBackoff {
+  public readonly name = 'LocalActivityDoBackoff';
+  constructor(public readonly backoff: coresdk.activity_result.IDoBackoff) {}
+}
+
 export type ActivationHandlerFunction<K extends keyof coresdk.workflow_activation.IWorkflowActivationJob> = (
   activation: NonNullable<coresdk.workflow_activation.IWorkflowActivationJob[K]>
-) => Promise<void> | void;
+) => void;
 
 export type ActivationHandler = {
   [P in keyof coresdk.workflow_activation.IWorkflowActivationJob]: ActivationHandlerFunction<P>;
@@ -112,7 +120,7 @@ export class Activator implements ActivationHandler {
     completion?.resolve(undefined);
   }
 
-  public async resolveActivity(activation: coresdk.workflow_activation.IResolveActivity): Promise<void> {
+  public resolveActivity(activation: coresdk.workflow_activation.IResolveActivity): void {
     if (!activation.result) {
       throw new TypeError('Got ResolveActivity activation with no result');
     }
@@ -129,12 +137,14 @@ export class Activator implements ActivationHandler {
       const { failure } = activation.result.cancelled;
       const err = optionalFailureToOptionalError(failure, state.payloadConverter);
       reject(err);
+    } else if (activation.result.backoff) {
+      reject(new LocalActivityDoBackoff(activation.result.backoff));
     }
   }
 
-  public async resolveChildWorkflowExecutionStart(
+  public resolveChildWorkflowExecutionStart(
     activation: coresdk.workflow_activation.IResolveChildWorkflowExecutionStart
-  ): Promise<void> {
+  ): void {
     const { resolve, reject } = consumeCompletion('childWorkflowStart', getSeq(activation));
     if (activation.succeeded) {
       resolve(activation.succeeded.runId);
@@ -165,9 +175,7 @@ export class Activator implements ActivationHandler {
     }
   }
 
-  public async resolveChildWorkflowExecution(
-    activation: coresdk.workflow_activation.IResolveChildWorkflowExecution
-  ): Promise<void> {
+  public resolveChildWorkflowExecution(activation: coresdk.workflow_activation.IResolveChildWorkflowExecution): void {
     if (!activation.result) {
       throw new TypeError('Got ResolveChildWorkflowExecution activation with no result');
     }
@@ -235,7 +243,7 @@ export class Activator implements ActivationHandler {
     if (fn === undefined) {
       throw new IllegalStateError(`No registered signal handler for signal ${signalName}`);
     }
-    return fn(...args);
+    return await fn(...args);
   }
 
   public signalWorkflow(activation: coresdk.workflow_activation.ISignalWorkflow): void {
@@ -266,9 +274,7 @@ export class Activator implements ActivationHandler {
     }).catch(handleWorkflowFailure);
   }
 
-  public async resolveSignalExternalWorkflow(
-    activation: coresdk.workflow_activation.IResolveSignalExternalWorkflow
-  ): Promise<void> {
+  public resolveSignalExternalWorkflow(activation: coresdk.workflow_activation.IResolveSignalExternalWorkflow): void {
     const { resolve, reject } = consumeCompletion('signalWorkflow', getSeq(activation));
     if (activation.failure) {
       reject(failureToError(activation.failure, state.payloadConverter));
@@ -277,9 +283,9 @@ export class Activator implements ActivationHandler {
     }
   }
 
-  public async resolveRequestCancelExternalWorkflow(
+  public resolveRequestCancelExternalWorkflow(
     activation: coresdk.workflow_activation.IResolveRequestCancelExternalWorkflow
-  ): Promise<void> {
+  ): void {
     const { resolve, reject } = consumeCompletion('cancelWorkflow', getSeq(activation));
     if (activation.failure) {
       reject(failureToError(activation.failure, state.payloadConverter));

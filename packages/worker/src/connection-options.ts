@@ -6,7 +6,7 @@ type TLSConfig = native.TLSConfig;
 
 export { TLSConfig };
 
-export interface ServerOptions {
+export interface NativeConnectionOptions {
   /**
    * The host and optional port of the Temporal server to connect to.
    * Port defaults to 7233 if address contains only host.
@@ -14,11 +14,6 @@ export interface ServerOptions {
    * @default localhost:7233
    */
   address?: string;
-  /**
-   * What namespace will we operate under
-   * @default default
-   */
-  namespace?: string;
 
   /**
    * A human-readable string that can identify your worker
@@ -40,22 +35,21 @@ export interface ServerOptions {
   tls?: TLSConfig | boolean | null;
 }
 
-export type RequiredServerOptions = Omit<Required<ServerOptions>, 'tls'> & {
-  tls?: ServerOptions['tls'];
+export type RequiredNativeConnectionOptions = Omit<Required<NativeConnectionOptions>, 'tls'> & {
+  tls?: NativeConnectionOptions['tls'];
   sdkVersion: string;
 };
 
-export function getDefaultServerOptions(): RequiredServerOptions {
+export function getDefaultConnectionOptions(): RequiredNativeConnectionOptions {
   return {
     address: 'localhost:7233',
     identity: `${process.pid}@${os.hostname()}`,
-    namespace: 'default',
     workerBinaryId: `${pkg.name}@${pkg.version}`,
     sdkVersion: pkg.version,
   };
 }
 
-export function compileServerOptions(options: RequiredServerOptions): RequiredServerOptions {
+export function compileConnectionOptions(options: RequiredNativeConnectionOptions): RequiredNativeConnectionOptions {
   const { address, ...rest } = options;
   // eslint-disable-next-line prefer-const
   let [host, port] = address.split(':', 2);

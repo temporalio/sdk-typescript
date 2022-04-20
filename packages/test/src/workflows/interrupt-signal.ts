@@ -1,4 +1,3 @@
-// @@@SNIPSTART typescript-workflow-signal-implementation
 import { defineSignal, setHandler, ApplicationFailure } from '@temporalio/workflow';
 
 export const interruptSignal = defineSignal<[string]>('interrupt');
@@ -9,4 +8,3 @@ export async function interruptableWorkflow(): Promise<void> {
     setHandler(interruptSignal, (reason) => reject(ApplicationFailure.retryable(reason)));
   });
 }
-// @@@SNIPEND

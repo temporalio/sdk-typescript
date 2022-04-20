@@ -164,3 +164,34 @@ npx lerna publish from-git # add `--dist-tag next` for pre-release versions
 ```sh
 rm $HOME/Downloads/packages-*
 ```
+
+### Updating the Java test server proto files
+
+[These files](https://github.com/temporalio/sdk-java/tree/master/temporal-test-server/src/main/proto) are taken from the `sdk-java` repo.
+
+```sh
+# Add sdk-java as a git remote
+git remote get-url sdk-java || git remote add sdk-java git@github.com:temporalio/sdk-java.git
+
+# Checkout and pull sdk-java master
+git checkout -B sdk-java-master sdk-java/master
+git pull
+
+# Delete this branch in case it already exists
+git branch -D sdk-java-master-proto-only
+
+# Pick only the 'proto' directory
+git subtree split --squash --prefix=temporal-test-server/src/main/proto/ -b sdk-java-master-proto-only
+
+# Fix the proto paths so they can be checked out into the proper location
+gco sdk-java-master-proto-only
+mkdir -p packages/testing/proto
+git mv $(git ls-files | cut -d / -f 1 | uniq) packages/testing/proto
+git commit -m 'Move protos to testing package'
+
+# Checkout the destination branch (the below command creates a new branch but this is not required)
+git checkout -b my-branch-for-pull-request
+
+# Checkout all proto changes into current branch
+gco sdk-java-master-proto-only packages/testing
+```

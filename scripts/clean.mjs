@@ -1,17 +1,16 @@
-const { resolve } = require('path');
-const { readdirSync } = require('fs');
-const { spawnSync } = require('child_process');
-const { removeSync, readFileSync } = require('fs-extra');
-const arg = require('arg');
-const JSON5 = require('json5');
+import { resolve } from 'node:path';
+import { readdirSync, readFileSync, rmSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { URL, fileURLToPath } from 'node:url';
+import arg from 'arg';
+import JSON5 from 'json5';
+import * as testing from '../packages/testing/scripts/common.mjs';
 
-const packagesPath = resolve(__dirname, '../packages');
-const workerDir = resolve(packagesPath, 'worker');
-const bridgeDir = resolve(packagesPath, 'core-bridge');
+const packagesPath = fileURLToPath(new URL('../packages', import.meta.url));
 
 function cleanTsGeneratedFiles() {
-  for (const package of readdirSync(packagesPath)) {
-    const packagePath = resolve(packagesPath, package);
+  for (const pkg of readdirSync(packagesPath)) {
+    const packagePath = resolve(packagesPath, pkg);
 
     let files;
     try {
@@ -33,10 +32,10 @@ function cleanTsGeneratedFiles() {
         if (outDir) {
           const outPath = resolve(packagePath, outDir);
           console.log(`Removing ${outPath}`);
-          removeSync(outPath);
+          rmSync(outPath, { recursive: true, force: true });
           const buildInfoPath = filePath.replace(/json$/, 'tsbuildinfo');
           console.log(`Removing ${buildInfoPath}`);
-          removeSync(buildInfoPath);
+          rmSync(buildInfoPath, { recursive: true, force: true });
         }
       }
     }
@@ -51,14 +50,23 @@ function cleanProtoGeneratedFiles() {
 }
 
 function cleanCompiledRustFiles() {
+  const bridgeDir = resolve(packagesPath, 'core-bridge');
   console.log('Cleaning compiled rust files');
-  removeSync(resolve(bridgeDir, 'releases'));
-  removeSync(resolve(bridgeDir, 'index.node'));
+  rmSync(resolve(bridgeDir, 'releases'), { recursive: true });
   spawnSync('cargo', ['clean'], { cwd: bridgeDir, stdio: 'inherit' });
 }
 
+function cleanTestServer() {
+  console.log(`Removing test server executable at ${testing.outputPath}`);
+  rmSync(testing.outputPath, { force: true });
+  const protosOutputDir = resolve(packagesPath, 'testing/generated-protos');
+  console.log(`Removing generated files in ${protosOutputDir}`);
+  rmSync(protosOutputDir, { recursive: true, force: true });
+}
+
 const { '--only': only } = arg({ '--only': [String] });
-const components = new Set(only === undefined || only.length === 0 ? ['ts', 'proto', 'rust', 'cpp'] : only);
+const components = new Set(only === undefined || only.length === 0 ? ['ts', 'proto', 'rust', 'test-server'] : only);
 if (components.has('ts')) cleanTsGeneratedFiles();
 if (components.has('proto')) cleanProtoGeneratedFiles();
 if (components.has('rust')) cleanCompiledRustFiles();
+if (components.has('test-server')) cleanTestServer();

@@ -1,7 +1,8 @@
 import * as grpc from '@grpc/grpc-js';
-import { normalizeTlsConfig, TLSConfig } from '@temporalio/internal-non-workflow-common';
+import { TLSConfig } from '@temporalio/internal-non-workflow-common';
 import { temporal } from '@temporalio/proto';
 import { AsyncLocalStorage } from 'async_hooks';
+import type { RPCImpl } from 'protobufjs';
 import { defaultGrpcRetryOptions, makeGrpcRetryInterceptor } from './grpc-retry';
 
 export type WorkflowService = temporal.api.workflowservice.v1.WorkflowService;
@@ -136,6 +137,7 @@ export class Connection {
    * **NOTE**: The namespace provided in {@link options} is **not** automatically set on requests made to the service.
    */
   public readonly service: WorkflowService;
+  readonly callContextStorage = new AsyncLocalStorage<CallContext>();
 
   constructor(options?: ConnectionOptions) {
     this.options = {
@@ -143,7 +145,12 @@ export class Connection {
       ...normalizeGRPCConfig(options),
     };
     this.client = new Connection.Client(this.options.address, this.options.credentials, this.options.channelArgs);
-    const rpcImpl = (method: { name: string }, requestData: any, callback: grpc.requestCallback<any>) => {
+    const rpcImpl = this.generateRPCImplementation('temporal.api.workflowservice.v1.WorkflowService');
+    this.service = new WorkflowService(rpcImpl, false, false);
+  }
+
+  protected generateRPCImplementation(serviceName: string): RPCImpl {
+    return (method: { name: string }, requestData: any, callback: grpc.requestCallback<any>) => {
       const metadataContainer = new grpc.Metadata();
       const { metadata, deadline } = this.callContextStorage.getStore() ?? {};
       if (metadata != null) {
@@ -152,7 +159,7 @@ export class Connection {
         }
       }
       return this.client.makeUnaryRequest(
-        `/temporal.api.workflowservice.v1.WorkflowService/${method.name}`,
+        `/${serviceName}/${method.name}`,
         (arg: any) => arg,
         (arg: any) => arg,
         requestData,
@@ -161,10 +168,11 @@ export class Connection {
         callback
       );
     };
+<<<<<<< HEAD
     this.service = WorkflowService.create(rpcImpl, false, false);
+=======
+>>>>>>> main
   }
-
-  readonly callContextStorage = new AsyncLocalStorage<CallContext>();
 
   /**
    * Set the deadline for any service requests executed in `fn`'s scope.

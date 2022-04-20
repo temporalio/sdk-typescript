@@ -1,33 +1,28 @@
 import stream from 'node:stream';
 import util from 'node:util';
-import os from 'node:os';
 import zlib from 'node:zlib';
 import fs from 'node:fs';
-import { URL, fileURLToPath } from 'node:url';
 import got from 'got';
 import tar from 'tar-stream';
 import unzipper from 'unzipper';
+import { outputPath, systemArch, systemPlatform } from './common.mjs';
+
+try {
+  if (fs.statSync(outputPath).isFile) {
+    console.log('Found existing test server executable', { path: outputPath });
+    process.exit(0);
+  }
+} catch (err) {
+  if (err.code !== 'ENOENT') {
+    throw err;
+  }
+}
 
 const pipeline = util.promisify(stream.pipeline);
 
-const platformMapping = { darwin: 'macOS', linux: 'linux', win32: 'windows' };
-const archAlias = { x64: 'amd64', arm64: 'aarch64' };
 const defaultHeaders = {
   'User-Agent': '@temporalio/testing installer',
 };
-
-const systemPlatform = platformMapping[os.platform()];
-if (!systemPlatform) {
-  throw new Error(`Unsupported platform ${os.platform()}`);
-}
-
-const systemArch = archAlias[os.arch()];
-if (!systemArch) {
-  throw new Error(`Unsupported architecture ${os.arch()}`);
-}
-
-const ext = systemPlatform === 'windows' ? '.exe' : '';
-const outputPath = fileURLToPath(new URL(`../test-server${ext}`, import.meta.url));
 
 const latestReleaseRes = await got('https://api.github.com/repos/temporalio/sdk-java/releases/latest', {
   headers: {
@@ -40,7 +35,7 @@ function findTestServerAsset(assets) {
   for (const asset of assets) {
     const m = asset.name.match(/^temporal-test-server_[^_]+_([^_]+)_([^.]+)\.(?:zip|tar.gz)$/);
     if (m) {
-      const [_, assetPlatform, assetArch] = m;
+      const [_, assetPlatform, _assetArch] = m;
       if (assetPlatform === systemPlatform) {
         // TODO: assetArch === systemArch (no arm builds for test server yet)
         return asset;
@@ -53,7 +48,7 @@ function findTestServerAsset(assets) {
 const asset = findTestServerAsset(latestReleaseRes.assets);
 console.log('Downloading test server', { asset: asset.name, outputPath });
 
-if (asset.content_type === 'application/x-gzip') {
+if (asset.content_type === 'application/x-gzip' || asset.content_type === 'application/x-gtar') {
   const extract = tar.extract();
   extract.on('entry', (_headers, stream, next) => {
     stream.pipe(fs.createWriteStream(outputPath));
@@ -84,4 +79,6 @@ if (asset.content_type === 'application/x-gzip') {
         entry.autodrain();
       }
     });
+} else {
+  throw new Error(`Unexpected content type for Test server download: ${asset.content_type}`);
 }

@@ -6,9 +6,11 @@ import {
   compileRetryPolicy,
   composeInterceptors,
   IllegalStateError,
+  LocalActivityOptions,
   msOptionalToTs,
   msToNumber,
   msToTs,
+  tsToMs,
   QueryDefinition,
   SignalDefinition,
   WithWorkflowArgs,
@@ -17,7 +19,13 @@ import {
   WorkflowReturnType,
 } from '@temporalio/internal-workflow-common';
 import { CancellationScope, registerSleepImplementation } from './cancellation-scope';
-import { ActivityInput, SignalWorkflowInput, StartChildWorkflowExecutionInput, TimerInput } from './interceptors';
+import {
+  ActivityInput,
+  LocalActivityInput,
+  SignalWorkflowInput,
+  StartChildWorkflowExecutionInput,
+  TimerInput,
+} from './interceptors';
 import {
   ChildWorkflowCancellationType,
   ChildWorkflowOptions,
@@ -26,7 +34,7 @@ import {
   ContinueAsNewOptions,
   WorkflowInfo,
 } from './interfaces';
-import { state } from './internals';
+import { LocalActivityDoBackoff, state } from './internals';
 import { Sinks } from './sinks';
 import { ChildWorkflowHandle, ExternalWorkflowHandle } from './workflow-handle';
 
@@ -120,6 +128,14 @@ export function validateActivityOptions(options: ActivityOptions): void {
   }
 }
 
+// Use same validation we use for normal activities
+const validateLocalActivityOptions = validateActivityOptions;
+
+/**
+ * Hooks up activity promise to current cancellation scope and completion callbacks.
+ *
+ * Returns `false` if the current scope is already cancelled.
+ */
 /**
  * Push a scheduleActivity command into state accumulator and register completion
  */
@@ -165,8 +181,65 @@ async function scheduleActivityNextHandler({
         scheduleToCloseTimeout: msOptionalToTs(options.scheduleToCloseTimeout),
         startToCloseTimeout: msOptionalToTs(options.startToCloseTimeout),
         scheduleToStartTimeout: msOptionalToTs(options.scheduleToStartTimeout),
-        namespace: options.namespace,
-        headerFields: headers,
+        headers,
+        cancellationType: options.cancellationType,
+      },
+    });
+  });
+}
+
+/**
+ * Push a scheduleActivity command into state accumulator and register completion
+ */
+async function scheduleLocalActivityNextHandler({
+  options,
+  args,
+  headers,
+  seq,
+  activityType,
+  attempt,
+  originalScheduleTime,
+}: LocalActivityInput): Promise<unknown> {
+  validateLocalActivityOptions(options);
+
+  return new Promise((resolve, reject) => {
+    const scope = CancellationScope.current();
+    if (scope.consideredCancelled) {
+      scope.cancelRequested.catch(reject);
+      return;
+    }
+    if (scope.cancellable) {
+      scope.cancelRequested.catch(() => {
+        if (!state.completions.activity.has(seq)) {
+          return; // Already resolved
+        }
+        state.pushCommand({
+          requestCancelLocalActivity: {
+            seq,
+          },
+        });
+      });
+    }
+    state.completions.activity.set(seq, {
+      resolve,
+      reject,
+    });
+
+    state.pushCommand({
+      scheduleLocalActivity: {
+        seq,
+        attempt,
+        originalScheduleTime,
+        // Intentionally not exposing activityId as an option
+        activityId: `${seq}`,
+        activityType,
+        arguments: toPayloads(state.payloadConverter, ...args),
+        retryPolicy: options.retry ? compileRetryPolicy(options.retry) : {},
+        scheduleToCloseTimeout: msOptionalToTs(options.scheduleToCloseTimeout),
+        startToCloseTimeout: msOptionalToTs(options.startToCloseTimeout),
+        scheduleToStartTimeout: msOptionalToTs(options.scheduleToStartTimeout),
+        localRetryThreshold: msOptionalToTs(options.localRetryThreshold),
+        headers,
         cancellationType: options.cancellationType,
       },
     });
@@ -191,6 +264,55 @@ export function scheduleActivity<R>(activityType: string, args: any[], options: 
     args,
     seq,
   }) as Promise<R>;
+}
+
+/**
+ * Schedule an activity and run outbound interceptors
+ * @hidden
+ */
+export async function scheduleLocalActivity<R>(
+  activityType: string,
+  args: any[],
+  options: LocalActivityOptions
+): Promise<R> {
+  if (options === undefined) {
+    throw new TypeError('Got empty activity options');
+  }
+
+  let attempt = 1;
+  let originalScheduleTime = undefined;
+
+  for (;;) {
+    const seq = state.nextSeqs.activity++;
+    const execute = composeInterceptors(
+      state.interceptors.outbound,
+      'scheduleLocalActivity',
+      scheduleLocalActivityNextHandler
+    );
+
+    try {
+      return (await execute({
+        activityType,
+        headers: {},
+        options,
+        args,
+        seq,
+        attempt,
+        originalScheduleTime,
+      })) as Promise<R>;
+    } catch (err) {
+      if (err instanceof LocalActivityDoBackoff) {
+        await sleep(tsToMs(err.backoff.backoffDuration));
+        if (typeof err.backoff.attempt !== 'number') {
+          throw new TypeError('Invalid backoff attempt type');
+        }
+        attempt = err.backoff.attempt;
+        originalScheduleTime = err.backoff.originalScheduleTime ?? undefined;
+      } else {
+        throw err;
+      }
+    }
+  }
 }
 
 async function startChildWorkflowExecutionNextHandler({
@@ -245,7 +367,7 @@ async function startChildWorkflowExecutionNextHandler({
         workflowRunTimeout: msOptionalToTs(options.workflowRunTimeout),
         workflowTaskTimeout: msOptionalToTs(options.workflowTaskTimeout),
         namespace: workflowInfo().namespace, // Not configurable
-        header: headers,
+        headers,
         cancellationType: options.cancellationType,
         workflowIdReusePolicy: options.workflowIdReusePolicy,
         parentClosePolicy: options.parentClosePolicy,
@@ -369,6 +491,39 @@ export function proxyActivities<A extends ActivityInterface>(options: ActivityOp
         }
         return (...args: unknown[]) => {
           return scheduleActivity(activityType, args, options);
+        };
+      },
+    }
+  ) as any;
+}
+
+/**
+ * Configure Local Activity functions with given {@link LocalActivityOptions}.
+ *
+ * This method may be called multiple times to setup Activities with different options.
+ *
+ * @return a [Proxy](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Proxy)
+ *         for which each attribute is a callable Activity function
+ *
+ * @typeparam A An {@link ActivityInterface} - mapping of name to function
+ *
+ * See {@link proxyActivities} for examples
+ */
+export function proxyLocalActivities<A extends ActivityInterface>(options: LocalActivityOptions): A {
+  if (options === undefined) {
+    throw new TypeError('options must be defined');
+  }
+  // Validate as early as possible for immediate user feedback
+  validateLocalActivityOptions(options);
+  return new Proxy(
+    {},
+    {
+      get(_, activityType) {
+        if (typeof activityType !== 'string') {
+          throw new TypeError(`Only strings are supported for Activity types, got: ${String(activityType)}`);
+        }
+        return (...args: unknown[]) => {
+          return scheduleLocalActivity(activityType, args, options);
         };
       },
     }
@@ -689,7 +844,7 @@ export function makeContinueAsNewFunc<F extends Workflow>(
       throw new ContinueAsNew({
         workflowType: options.workflowType,
         arguments: toPayloads(state.payloadConverter, ...args),
-        header: headers,
+        headers,
         taskQueue: options.taskQueue,
         memo: options.memo,
         searchAttributes: options.searchAttributes,

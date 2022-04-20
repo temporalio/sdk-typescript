@@ -10,8 +10,9 @@
 
 export { State, Worker, DataConverter, defaultPayloadConverter, errors } from './worker';
 export { WorkerOptions, CompiledWorkerOptions } from './worker-options';
-export { ServerOptions, TLSConfig } from './server-options';
-export { Core, CompiledCoreOptions, CoreOptions, TelemetryOptions, History } from './core';
+export { NativeConnectionOptions, RequiredNativeConnectionOptions, TLSConfig } from './connection-options';
+export { Runtime, RuntimeOptions, TelemetryOptions, History } from './runtime';
+export { NativeConnection as NativeConnection } from './connection';
 export * from './logger';
 export * from './sinks';
 export * from './interceptors';

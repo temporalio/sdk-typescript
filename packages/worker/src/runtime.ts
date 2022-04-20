@@ -1,9 +1,10 @@
 import * as native from '@temporalio/core-bridge';
 import {
-  corePollLogs,
-  coreShutdown,
-  newCore,
-  newReplayCore,
+  pollLogs,
+  runtimeShutdown,
+  newClient,
+  newRuntime,
+  initTelemetry,
   TelemetryOptions as RequiredTelemetryOptions,
 } from '@temporalio/core-bridge';
 import { filterNullAndUndefined, normalizeTlsConfig } from '@temporalio/internal-non-workflow-common';
@@ -15,7 +16,7 @@ import { concatMap, delay, map, repeat } from 'rxjs/operators';
 import { promisify } from 'util';
 import * as errors from './errors';
 import { DefaultLogger, LogEntry, Logger, LogTimestamp, timeOfDayToBigint } from './logger';
-import { compileServerOptions, getDefaultServerOptions, RequiredServerOptions, ServerOptions } from './server-options';
+import { compileConnectionOptions, getDefaultConnectionOptions, NativeConnectionOptions } from './connection-options';
 import { byteArrayToBuffer } from './utils';
 
 export type History = temporal.api.history.v1.IHistory;
@@ -23,9 +24,10 @@ export type History = temporal.api.history.v1.IHistory;
 export { RequiredTelemetryOptions };
 export type TelemetryOptions = MakeOptional<RequiredTelemetryOptions, 'logForwardingLevel'>;
 
-export interface CoreOptions {
-  /** Options for communicating with the Temporal server */
-  serverOptions?: ServerOptions;
+/**
+ * Options used to create a Core runtime
+ */
+export interface RuntimeOptions {
   /** Telemetry options for traces/metrics/logging */
   telemetryOptions?: TelemetryOptions;
   /**
@@ -35,16 +37,14 @@ export interface CoreOptions {
   logger?: Logger;
 }
 
-export interface CompiledCoreOptions extends CoreOptions {
+export interface CompiledRuntimeOptions {
   telemetryOptions: RequiredTelemetryOptions;
-  /** Options for communicating with the Temporal server */
-  serverOptions: RequiredServerOptions;
   logger: Logger;
 }
 
 function defaultTelemetryOptions(): RequiredTelemetryOptions {
   return {
-    logForwardingLevel: 'INFO',
+    logForwardingLevel: 'OFF',
   };
 }
 
@@ -65,39 +65,31 @@ export class CoreLogger extends DefaultLogger {
 }
 
 /**
- * Holds bag-o-statics for different core types to ensure that they get independent instances of all
- * statics.
- */
-class CoreStatics<T extends Core> {
-  instance?: Promise<T>;
-  instantiator?: 'install' | 'instance';
-  /**
-   * Default options get overridden when Core is installed and are remembered in case Core is
-   * re-instantiated after being shut down
-   */
-  defaultOptions: CoreOptions = {};
-
-  constructor(readonly instanceCtor: (options: native.CoreOptions, callback: native.CoreCallback) => void) {}
-}
-
-/**
  * Core singleton representing an instance of the Rust Core SDK
  *
  * Use {@link install} in order to customize the server connection options or other global process options.
  */
-export class Core {
+export class Runtime {
+  /** Track the registered clients to automatically shutdown when all have been deregistered */
+  protected readonly registeredClients = new Set<native.Client>();
   /** Track the registered workers to automatically shutdown when all have been deregistered */
   protected readonly registeredWorkers = new Set<native.Worker>();
   protected readonly shouldPollForLogs = new BehaviorSubject<boolean>(false);
   protected readonly logPollPromise: Promise<void>;
+  /** Track the number of pending calls into the tokio runtime to prevent shut down */
+  protected pendingCalls = 0;
   public readonly logger: Logger;
 
-  protected static _statics: CoreStatics<Core> = new CoreStatics(newCore);
+  static _instance?: Runtime;
+  static instantiator?: 'install' | 'instance';
 
   /**
-   * @ignore
+   * Default options get overridden when Core is installed and are remembered in case Core is
+   * re-instantiated after being shut down
    */
-  constructor(public readonly native: native.Core, public readonly options: CompiledCoreOptions) {
+  static defaultOptions: RuntimeOptions = {};
+
+  protected constructor(public readonly native: native.Runtime, public readonly options: CompiledRuntimeOptions) {
     if (this.isForwardingLogs()) {
       const logger = (this.logger = new CoreLogger(this.options.logger));
       this.logPollPromise = this.initLogPolling(logger);
@@ -113,21 +105,17 @@ export class Core {
    * If Core has already been instantiated with {@link instance} or this method,
    * will throw a {@link IllegalStateError}.
    */
-  public static async install<T extends typeof Core>(this: T, options: CoreOptions): Promise<InstanceType<T>> {
-    if (this._statics.instance !== undefined) {
-      if (this._statics.instantiator === 'install') {
-        throw new IllegalStateError('Core singleton has already been installed');
-      } else if (this._statics.instantiator === 'instance') {
+  public static install(options: RuntimeOptions): Runtime {
+    if (this._instance !== undefined) {
+      if (this.instantiator === 'install') {
+        throw new IllegalStateError('Runtime singleton has already been installed');
+      } else if (this.instantiator === 'instance') {
         throw new IllegalStateError(
-          'Core singleton has already been instantiated. Did you start a Worker before calling `install`?'
+          'Runtime singleton has already been instantiated. Did you start a Worker before calling `install`?'
         );
       }
     }
-    return (await this.create(options, 'install').catch((err) => {
-      // Unset the singleton in case creation failed
-      delete this._statics.instance;
-      throw err;
-    })) as InstanceType<T>;
+    return this.create(options, 'install');
   }
 
   /**
@@ -137,51 +125,38 @@ export class Core {
    * a new Core instance will be installed and configured to connect to
    * a local server.
    */
-  public static async instance<T extends typeof Core>(this: T): Promise<InstanceType<T>> {
-    const existingInst = this._statics.instance;
+  public static instance(): Runtime {
+    const existingInst = this._instance;
     if (existingInst !== undefined) {
-      return existingInst as InstanceType<T>;
+      return existingInst;
     }
-    return (await this.create(this._statics.defaultOptions, 'instance')) as InstanceType<T>;
+    return this.create(this.defaultOptions, 'instance');
   }
 
   /**
    * Factory function for creating a new Core instance, not exposed because Core is meant to be used as a singleton
    */
-  protected static async create<T extends typeof Core>(
-    this: T,
-    options: CoreOptions,
-    instantiator: 'install' | 'instance'
-  ): Promise<InstanceType<T>> {
+  protected static create(options: RuntimeOptions, instantiator: 'install' | 'instance'): Runtime {
     // Remember the provided options in case Core is reinstantiated after being shut down
-    this._statics.defaultOptions = options;
-    this._statics.instantiator = instantiator;
+    this.defaultOptions = options;
+    this.instantiator = instantiator;
 
     const compiledOptions = this.compileOptions(options);
-    this._statics.instance = promisify(this._statics.instanceCtor)(compiledOptions).then((native) => {
-      return new this(native, compiledOptions);
-    });
-    return (await this._statics.instance) as InstanceType<T>;
+    if (compiledOptions.telemetryOptions) {
+      initTelemetry(compiledOptions.telemetryOptions);
+    }
+    const runtime = newRuntime();
+    this._instance = new this(runtime, compiledOptions);
+    return this._instance;
   }
 
   // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
-  protected static compileOptions(options: CoreOptions) {
-    const compiledServerOptions = compileServerOptions({
-      ...getDefaultServerOptions(),
-      ...filterNullAndUndefined(options.serverOptions ?? {}),
-    });
+  protected static compileOptions(options: RuntimeOptions): CompiledRuntimeOptions {
     const telemetryOptions = {
       ...defaultTelemetryOptions(),
       ...filterNullAndUndefined(options.telemetryOptions ?? {}),
     };
     return {
-      serverOptions: {
-        ...compiledServerOptions,
-        tls: normalizeTlsConfig(compiledServerOptions.tls),
-        url: options.serverOptions?.tls
-          ? `https://${compiledServerOptions.address}`
-          : `http://${compiledServerOptions.address}`,
-      },
       telemetryOptions,
       logger: options.logger ?? new DefaultLogger('INFO'),
     };
@@ -193,7 +168,7 @@ export class Core {
     if (!this.isForwardingLogs()) {
       return;
     }
-    const poll = promisify(corePollLogs);
+    const poll = promisify(pollLogs);
     try {
       await lastValueFrom(
         of(this.shouldPollForLogs).pipe(
@@ -242,55 +217,103 @@ export class Core {
   }
 
   /**
+   * Create a Core Connection object to power Workers
+   *
+   * Hidden in the docs because it is only meant to be used internally by the Worker.
+   * @hidden
+   */
+  public async createNativeClient(options?: NativeConnectionOptions): Promise<native.Client> {
+    const compiledServerOptions = compileConnectionOptions({
+      ...getDefaultConnectionOptions(),
+      ...filterNullAndUndefined(options ?? {}),
+    });
+    const clientOptions = {
+      ...compiledServerOptions,
+      tls: normalizeTlsConfig(compiledServerOptions.tls),
+      url: options?.tls ? `https://${compiledServerOptions.address}` : `http://${compiledServerOptions.address}`,
+    };
+    this.pendingCalls++;
+    try {
+      const client = await promisify(newClient)(this.native, clientOptions);
+      this.registeredClients.add(client);
+      return client;
+    } catch (err) {
+      // Attempt to shutdown the runtime in case there's an error creating the
+      // client to avoid leaving an idle Runtime.
+      if (this.canShutdown()) {
+        await this.shutdown();
+      }
+      throw err;
+    } finally {
+      this.pendingCalls--;
+    }
+  }
+
+  /**
+   * Close a native Client, if this is the last registered Client or Worker, shutdown the core and unset the singleton instance
+   *
+   * Hidden in the docs because it is only meant to be used internally by the Worker.
+   * @hidden
+   */
+  public async closeNativeClient(client: native.Client): Promise<void> {
+    this.registeredClients.delete(client);
+    native.clientClose(client);
+    if (this.canShutdown()) {
+      await this.shutdown();
+    }
+  }
+
+  /**
    * Register a Worker, this is required for automatically shutting down when all Workers have been deregistered
    *
    * Hidden in the docs because it is only meant to be used internally by the Worker.
    * @hidden
    */
-  public async registerWorker(options: native.WorkerOptions): Promise<native.Worker> {
-    const worker = await promisify(native.newWorker)(this.native, options);
-    this.registeredWorkers.add(worker);
-    return worker;
+  public async registerWorker(client: native.Client, options: native.WorkerOptions): Promise<native.Worker> {
+    this.pendingCalls++;
+    try {
+      const worker = await promisify(native.newWorker)(client, options);
+      this.registeredWorkers.add(worker);
+      return worker;
+    } finally {
+      this.pendingCalls--;
+    }
   }
 
   /**
-   * Deregister a Worker, if this is the last registered Worker, shutdown the core and unset the singleton instance
+   * Deregister a Worker, if this is the last registered Worker or Client, shutdown the core and unset the singleton instance
    *
    * Hidden in the docs because it is only meant to be used internally by the Worker.
    * @hidden
    */
   public async deregisterWorker(worker: native.Worker): Promise<void> {
     this.registeredWorkers.delete(worker);
-    if (this.registeredWorkers.size === 0) {
+    // NOTE: only replay workers require registration since they don't have an associated connection
+    // but we track all Workers for simplicity.
+    if (this.canShutdown()) {
       await this.shutdown();
     }
+  }
+
+  protected canShutdown(): boolean {
+    return this.pendingCalls === 0 && this.registeredClients.size === 0 && this.registeredWorkers.size === 0;
   }
 
   /**
    * Shutdown and unset the singleton instance.
    *
+   * If the runtime is polling on Core logs, wait for those logs to be collected.
+   *
    * Hidden in the docs because it is only meant to be used for testing.
    * @hidden
    */
   public async shutdown(): Promise<void> {
+    delete Runtime._instance;
     this.shouldPollForLogs.next(false);
-    await promisify(coreShutdown)(this.native);
     // This will effectively drain all logs
     await this.logPollPromise;
-    delete Core._statics.instance;
+    await promisify(runtimeShutdown)(this.native);
   }
-}
-
-/**
- * An alternate version of Core which creates core instances that use mocks
- * rather than an actual server to replay histories.
- *
- * Intentionally not exported since Core will soon be deprecated.
- */
-export class ReplayCore extends Core {
-  protected static _statics: CoreStatics<ReplayCore> = new CoreStatics((opts, cb) =>
-    newReplayCore(opts.telemetryOptions, cb)
-  );
 
   // TODO: accept either history or JSON or binary
   /** @hidden */
