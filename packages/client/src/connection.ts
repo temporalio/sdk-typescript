@@ -1,5 +1,5 @@
 import * as grpc from '@grpc/grpc-js';
-import { TLSConfig } from '@temporalio/internal-non-workflow-common';
+import { normalizeTlsConfig, TLSConfig } from '@temporalio/internal-non-workflow-common';
 import { temporal } from '@temporalio/proto';
 import { AsyncLocalStorage } from 'async_hooks';
 import type { RPCImpl } from 'protobufjs';
@@ -146,7 +146,7 @@ export class Connection {
     };
     this.client = new Connection.Client(this.options.address, this.options.credentials, this.options.channelArgs);
     const rpcImpl = this.generateRPCImplementation('temporal.api.workflowservice.v1.WorkflowService');
-    this.service = new WorkflowService(rpcImpl, false, false);
+    this.service = WorkflowService.create(rpcImpl, false, false);
   }
 
   protected generateRPCImplementation(serviceName: string): RPCImpl {
@@ -168,10 +168,6 @@ export class Connection {
         callback
       );
     };
-<<<<<<< HEAD
-    this.service = WorkflowService.create(rpcImpl, false, false);
-=======
->>>>>>> main
   }
 
   /**
