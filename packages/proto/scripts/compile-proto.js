@@ -7,7 +7,7 @@ const { statSync, mkdirsSync, readFileSync, writeFileSync } = require('fs-extra'
 const pbjs = require('protobufjs/cli/pbjs');
 const pbts = require('protobufjs/cli/pbts');
 
-const outputDir = resolve(__dirname, '../lib');
+const outputDir = resolve(__dirname, '../protos');
 const jsOutputFile = resolve(outputDir, 'json-module.js');
 const tempFile = resolve(outputDir, 'temp.js');
 const protoBaseDir = resolve(__dirname, '../../core-bridge/sdk-core/protos');

@@ -31,12 +31,9 @@ function cleanTsGeneratedFiles() {
         const tsconfig = JSON5.parse(readFileSync(filePath));
         const { outDir } = tsconfig.compilerOptions;
         if (outDir) {
-          // Skip over proto/lib, which contains source files
-          if (package !== 'proto') {
-            const outPath = resolve(packagePath, outDir);
-            console.log(`Removing ${outPath}`);
-            removeSync(outPath);
-          }
+          const outPath = resolve(packagePath, outDir);
+          console.log(`Removing ${outPath}`);
+          removeSync(outPath);
           const buildInfoPath = filePath.replace(/json$/, 'tsbuildinfo');
           console.log(`Removing ${buildInfoPath}`);
           removeSync(buildInfoPath);
@@ -47,7 +44,7 @@ function cleanTsGeneratedFiles() {
 }
 
 function cleanProtoGeneratedFiles() {
-  const protosOutputDir = resolve(packagesPath, 'proto/lib');
+  const protosOutputDir = resolve(packagesPath, 'proto/protos');
   console.log(`Removing generated files in ${protosOutputDir}`);
   removeSync(resolve(protosOutputDir, 'json-module.js'));
   removeSync(resolve(protosOutputDir, 'root.d.ts'));
