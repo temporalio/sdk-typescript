@@ -1,13 +1,13 @@
-import anyTest, { TestInterface } from 'ava';
-import { Subject, firstValueFrom } from 'rxjs';
-import { v4 as uuid4 } from 'uuid';
+import { ApplicationFailure, defaultPayloadConverter, WorkflowClient, WorkflowFailedError } from '@temporalio/client';
 import { temporal } from '@temporalio/proto';
 import { Worker } from '@temporalio/worker';
-import { ApplicationFailure, defaultPayloadConverter, WorkflowClient, WorkflowFailedError } from '@temporalio/client';
-import { RUN_INTEGRATION_TESTS } from './helpers';
-import * as activities from './activities';
-import * as workflows from './workflows/local-activity-testers';
 import { isCancellation } from '@temporalio/workflow';
+import anyTest, { TestInterface } from 'ava';
+import { firstValueFrom, Subject } from 'rxjs';
+import { v4 as uuid4 } from 'uuid';
+import * as activities from './activities';
+import { RUN_INTEGRATION_TESTS } from './helpers';
+import * as workflows from './workflows/local-activity-testers';
 
 interface Context {
   taskQueue: string;
@@ -123,7 +123,6 @@ if (RUN_INTEGRATION_TESTS) {
       const handle = await client.start(workflows.runSerialLocalActivities, {
         workflowId: uuid4(),
         taskQueue,
-        workflowTaskTimeout: '3s',
       });
       await handle.result();
       const { history } = await client.service.getWorkflowExecutionHistory({
