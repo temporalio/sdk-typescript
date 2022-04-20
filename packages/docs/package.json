@@ -1,6 +1,6 @@
 {
   "name": "@temporalio/docs",
-  "version": "0.20.2",
+  "version": "0.21.0",
   "private": true,
   "scripts": {
     "docusaurus": "docusaurus",
@@ -15,18 +15,19 @@
     "write-heading-ids": "docusaurus write-heading-ids"
   },
   "dependencies": {
-    "@docusaurus/core": "^2.0.0-beta.15",
-    "@docusaurus/preset-classic": "^2.0.0-beta.15",
+    "@docusaurus/core": "^2.0.0-beta.18",
+    "@docusaurus/preset-classic": "^2.0.0-beta.18",
     "@mdx-js/react": "^1.6.22",
     "@svgr/webpack": "^6.0.0",
     "clsx": "^1.1.1",
     "docusaurus-plugin-snipsync": "^1.0.0",
-    "docusaurus-plugin-typedoc": "^0.15.3",
+    "docusaurus-plugin-typedoc": "^0.17.3",
+    "dotenv": "^16.0.0",
     "prism-react-renderer": "^1.2.1",
     "react": "^17.0.2",
     "react-dom": "^17.0.2",
-    "typedoc": "^0.21.6",
-    "typedoc-plugin-markdown": "^3.10.4"
+    "typedoc": "^0.22.15",
+    "typedoc-plugin-markdown": "^3.12.0"
   },
   "browserslist": {
     "production": [

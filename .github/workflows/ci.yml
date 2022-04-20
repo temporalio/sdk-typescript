@@ -55,6 +55,8 @@ jobs:
       - name: Build docs
         if: ${{ matrix.docsTarget }}
         run: npm run docs
+        env:
+          ALGOLIA_API_KEY: ${{ secrets.ALGOLIA_API_KEY }}
       - name: Deploy prod docs
         if: ${{ github.ref == 'refs/heads/main' && matrix.docsTarget }}
         uses: netlify/actions/cli@master
