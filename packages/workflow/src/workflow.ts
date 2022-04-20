@@ -507,6 +507,8 @@ export function proxyActivities<A extends ActivityInterface>(options: ActivityOp
  *
  * @typeparam A An {@link ActivityInterface} - mapping of name to function
  *
+ * @experimental
+ *
  * See {@link proxyActivities} for examples
  */
 export function proxyLocalActivities<A extends ActivityInterface>(options: LocalActivityOptions): A {
