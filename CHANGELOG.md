@@ -4,6 +4,30 @@ All notable changes to this project will be documented in this file.
 
 Breaking changes marked with a :boom:
 
+## [0.21.0] - 2022-04-20
+
+### Bug Fixes
+
+- Update Core with fix where workflows could get stuck if queried and not in cache ([#599](https://github.com/temporalio/sdk-typescript/pull/599))
+
+### Features
+
+- Complete test framework ([#547](https://github.com/temporalio/sdk-typescript/pull/547))
+
+  - Add `NativeConnection.close()` method for explicitly closing a
+    connection - before this change NativeConnection would be invalidated
+    when all Workers are shutdown because their Runtime would implicitly
+    be shutdown.
+
+- :boom: Implement local activities ([#585](https://github.com/temporalio/sdk-typescript/pull/585))
+
+  - BREAKING CHANGE: `ActivityOptions` no longer accepts `namespace`
+  - NOTE: This feature is considered experimental and requires some time in production before considered stable
+
+### Testing
+
+- Verify that workflow is not retried if it throws non retryable failure ([#596](https://github.com/temporalio/sdk-typescript/pull/596))
+
 ## [0.20.2] - 2022-04-14
 
 ### Bug Fixes
