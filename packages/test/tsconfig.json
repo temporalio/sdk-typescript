@@ -4,7 +4,7 @@
     "outDir": "./lib",
     "rootDir": "./src",
     "resolveJsonModule": true,
-    "experimentalDecorators": true,
+    "experimentalDecorators": true
   },
   "references": [
     { "path": "../internal-workflow-common" },

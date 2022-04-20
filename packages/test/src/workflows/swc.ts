@@ -5,9 +5,9 @@ function sealed(constructor: Function) {
 }
 
 function decorate() {
-  console.log('decorate(): factory evaluated');
+  // console.log('decorate(): factory evaluated');
   return function (_target: any, _propertyKey: string, _descriptor: PropertyDescriptor) {
-    console.log('decorate(): called');
+    // console.log('decorate(): called');
   };
 }
 
