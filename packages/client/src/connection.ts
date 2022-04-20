@@ -6,7 +6,6 @@ import { defaultGrpcRetryOptions, makeGrpcRetryInterceptor } from './grpc-retry'
 
 export type WorkflowService = temporal.api.workflowservice.v1.WorkflowService;
 export const { WorkflowService } = temporal.api.workflowservice.v1;
-export { TLSConfig };
 
 /**
  * GRPC + Temporal server connection options
