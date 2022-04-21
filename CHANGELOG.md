@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 Breaking changes marked with a :boom:
 
+## [0.21.1] - 2022-04-21
+
+### Bug Fixes
+
+- [`core`] Fix worker responding with empty commands during query of uncached workflow ([#602](https://github.com/temporalio/sdk-typescript/pull/602))
+
+### Miscellaneous Tasks
+
+- [`deps`] Update dependency typedoc to ^0.22.0 (main) ([#578](https://github.com/temporalio/sdk-typescript/pull/578))
+
 ## [0.21.0] - 2022-04-20
 
 ### Bug Fixes
