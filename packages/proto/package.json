@@ -4,6 +4,10 @@
   "description": "Temporal.io SDK compiled protobuf definitions",
   "main": "protos/index.js",
   "types": "protos/index.d.ts",
+  "files": [
+    "protos/",
+    "lib/"
+  ],
   "scripts": {
     "build": "node ./scripts/compile-proto.js"
   },
