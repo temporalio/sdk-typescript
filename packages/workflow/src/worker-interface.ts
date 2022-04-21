@@ -12,7 +12,7 @@ import {
   tsToMs,
   Workflow,
 } from '@temporalio/internal-workflow-common';
-import type { coresdk } from '@temporalio/proto/lib/coresdk';
+import type { coresdk } from '@temporalio/proto';
 import { alea } from './alea';
 import { storage } from './cancellation-scope';
 import { DeterminismViolationError } from './errors';

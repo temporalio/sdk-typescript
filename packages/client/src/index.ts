@@ -22,6 +22,7 @@ export {
   TerminatedFailure,
   TimeoutFailure,
 } from '@temporalio/common';
+export { TLSConfig } from '@temporalio/internal-non-workflow-common';
 export { RetryPolicy } from '@temporalio/internal-workflow-common';
 export * from '@temporalio/internal-workflow-common/lib/interfaces';
 export * from './async-completion-client';

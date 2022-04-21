@@ -1,4 +1,4 @@
-import type { coresdk } from '@temporalio/proto/lib/coresdk';
+import type { coresdk } from '@temporalio/proto';
 import { TextDecoder, TextEncoder } from './encoding';
 
 export type Payload = coresdk.common.IPayload;

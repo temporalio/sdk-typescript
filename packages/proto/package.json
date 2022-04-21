@@ -2,8 +2,12 @@
   "name": "@temporalio/proto",
   "version": "0.21.0",
   "description": "Temporal.io SDK compiled protobuf definitions",
-  "main": "lib/index.js",
-  "types": "lib/index.d.ts",
+  "main": "protos/index.js",
+  "types": "protos/index.d.ts",
+  "files": [
+    "protos/",
+    "lib/"
+  ],
   "scripts": {
     "build": "node ./scripts/compile-proto.js"
   },

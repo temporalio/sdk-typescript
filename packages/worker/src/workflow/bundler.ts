@@ -290,7 +290,7 @@ export class WorkflowCodeBundler {
           .join('') +
         `Workflow code doesn't have access to built-in Node modules (in order to help enforce determinism). If you are certain ` +
         `these modules will not be used at runtime, then you may add their names to 'WorkerOptions.bundlerOptions.ignoreModules' in order to ` +
-        `dismiss this warning. However, if your code execution actually depends on these modules, then you must change the code` +
+        `dismiss this warning. However, if your code execution actually depends on these modules, then you must change the code ` +
         `or remove the library.\n` +
         `See https://typescript.temporal.io/api/interfaces/worker.workeroptions/#bundleroptions for details.`
     );

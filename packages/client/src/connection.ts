@@ -1,8 +1,8 @@
-import { AsyncLocalStorage } from 'async_hooks';
 import * as grpc from '@grpc/grpc-js';
-import type { RPCImpl } from 'protobufjs';
+import { normalizeTlsConfig, TLSConfig } from '@temporalio/internal-non-workflow-common';
 import { temporal } from '@temporalio/proto';
-import { TLSConfig, normalizeTlsConfig } from '@temporalio/internal-non-workflow-common';
+import { AsyncLocalStorage } from 'async_hooks';
+import type { RPCImpl } from 'protobufjs';
 import { defaultGrpcRetryOptions, makeGrpcRetryInterceptor } from './grpc-retry';
 
 export type WorkflowService = temporal.api.workflowservice.v1.WorkflowService;
@@ -146,7 +146,7 @@ export class Connection {
     };
     this.client = new Connection.Client(this.options.address, this.options.credentials, this.options.channelArgs);
     const rpcImpl = this.generateRPCImplementation('temporal.api.workflowservice.v1.WorkflowService');
-    this.service = new WorkflowService(rpcImpl, false, false);
+    this.service = WorkflowService.create(rpcImpl, false, false);
   }
 
   protected generateRPCImplementation(serviceName: string): RPCImpl {

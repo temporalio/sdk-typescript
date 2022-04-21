@@ -1,6 +1,5 @@
-import type { coresdk } from '@temporalio/proto/lib/coresdk';
-import { CommonWorkflowOptions } from '@temporalio/internal-workflow-common';
-import { checkExtends } from '@temporalio/internal-workflow-common';
+import { checkExtends, CommonWorkflowOptions } from '@temporalio/internal-workflow-common';
+import type { coresdk } from '@temporalio/proto';
 
 /**
  * Workflow execution information
