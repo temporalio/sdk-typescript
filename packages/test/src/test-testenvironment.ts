@@ -94,7 +94,12 @@ test.serial('TestEnvironment can toggle between normal and skipped time', async 
   t.pass();
 });
 
-test.serial.skip('TestEnvironment sleep can be used to delay activity completion', async (t) => {
+test.serial('TestEnvironment sleep can be used to delay activity completion', async (t) => {
+  // TODO: check why this fails on windows
+  if (process.platform === 'win32') {
+    t.pass();
+    return;
+  }
   const { workflowClient, nativeConnection, sleep } = t.context.testEnv;
 
   const worker = await Worker.create({
@@ -127,7 +132,12 @@ test.serial.skip('TestEnvironment sleep can be used to delay activity completion
   t.pass();
 });
 
-test.serial.skip('TestEnvironment sleep can be used to delay sending a signal', async (t) => {
+test.serial('TestEnvironment sleep can be used to delay sending a signal', async (t) => {
+  // TODO: check why this fails on windows
+  if (process.platform === 'win32') {
+    t.pass();
+    return;
+  }
   const { workflowClient, nativeConnection, sleep } = t.context.testEnv;
   // TODO: due to the test server issue mentioned in the test avove we need to manually unlock time skipping
   // for the current test to balance out the time skipping lock counter.
