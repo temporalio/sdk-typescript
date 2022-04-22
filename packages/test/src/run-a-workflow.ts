@@ -14,7 +14,7 @@ async function main() {
   }
   console.log('running', { workflowType, args });
 
-  const client = new WorkflowClient();
+  const client = await WorkflowClient.forLocalServer();
   const result = await client.execute(workflowType, {
     workflowId,
     taskQueue: 'test',

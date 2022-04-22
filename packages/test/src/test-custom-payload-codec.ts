@@ -1,4 +1,4 @@
-import { Connection, WorkflowClient } from '@temporalio/client';
+import { WorkflowClient } from '@temporalio/client';
 import { Payload, PayloadCodec, str } from '@temporalio/common';
 import { InjectedSinks, Worker } from '@temporalio/worker';
 import test from 'ava';
@@ -55,7 +55,7 @@ if (RUN_INTEGRATION_TESTS) {
       dataConverter,
       sinks,
     });
-    const client = new WorkflowClient(new Connection().service, { dataConverter });
+    const client = await WorkflowClient.forLocalServer({ dataConverter });
     const runAndShutdown = async () => {
       const result = await client.execute(twoStrings, {
         args: ['arg1', 'arg2'],
@@ -90,7 +90,7 @@ if (RUN_INTEGRATION_TESTS) {
       dataConverter,
       sinks,
     });
-    const client = new WorkflowClient(new Connection().service, { dataConverter });
+    const client = await WorkflowClient.forLocalServer({ dataConverter });
     const runAndShutdown = async () => {
       const result = await client.execute(twoStrings, {
         args: ['arg1', 'arg2'],
@@ -127,7 +127,7 @@ if (RUN_INTEGRATION_TESTS) {
       dataConverter,
       sinks,
     });
-    const client = new WorkflowClient(new Connection().service, { dataConverter });
+    const client = await WorkflowClient.forLocalServer({ dataConverter });
     const runAndShutdown = async () => {
       await client.execute(twoStringsActivity, {
         workflowId: uuid4(),
@@ -162,7 +162,7 @@ if (RUN_INTEGRATION_TESTS) {
       dataConverter,
       sinks,
     });
-    const client = new WorkflowClient(new Connection().service, { dataConverter });
+    const client = await WorkflowClient.forLocalServer({ dataConverter });
     const runAndShutdown = async () => {
       await client.execute(twoStringsActivity, {
         workflowId: uuid4(),
@@ -211,7 +211,7 @@ if (RUN_INTEGRATION_TESTS) {
       dataConverter,
       sinks,
     });
-    const client = new WorkflowClient(new Connection().service, { dataConverter });
+    const client = await WorkflowClient.forLocalServer({ dataConverter });
     const runAndShutdown = async () => {
       const result = await client.execute(twoStrings, {
         args: ['arg1', 'arg2'],
@@ -263,7 +263,7 @@ if (RUN_INTEGRATION_TESTS) {
       dataConverter,
       sinks,
     });
-    const client = new WorkflowClient(new Connection().service, { dataConverter });
+    const client = await WorkflowClient.forLocalServer({ dataConverter });
     const runAndShutdown = async () => {
       const result = await client.execute(twoStrings, {
         args: ['arg1', 'arg2'],

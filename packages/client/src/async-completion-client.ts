@@ -88,12 +88,18 @@ export class AsyncCompletionClient {
   public readonly options: AsyncCompletionClientOptionsWithDefaults;
   protected readonly dataConverter: LoadedDataConverter;
 
-  constructor(
-    public readonly service: WorkflowService = new Connection().service,
-    options?: AsyncCompletionClientOptions
-  ) {
+  constructor(public readonly connection: Connection, options?: AsyncCompletionClientOptions) {
     this.dataConverter = loadDataConverter(options?.dataConverter);
     this.options = { ...defaultAsyncCompletionClientOptions(), ...filterNullAndUndefined(options ?? {}) };
+  }
+
+  static async forLocalServer(options?: AsyncCompletionClientOptions): Promise<AsyncCompletionClient> {
+    const connection = await Connection.create();
+    return new this(connection, options);
+  }
+
+  get workflowService(): WorkflowService {
+    return this.connection.workflowService;
   }
 
   /**
@@ -121,14 +127,14 @@ export class AsyncCompletionClient {
   async complete(taskTokenOrFullActivityId: Uint8Array | FullActivityId, result: unknown): Promise<void> {
     try {
       if (taskTokenOrFullActivityId instanceof Uint8Array) {
-        await this.service.respondActivityTaskCompleted({
+        await this.workflowService.respondActivityTaskCompleted({
           identity: this.options.identity,
           namespace: this.options.namespace,
           taskToken: taskTokenOrFullActivityId,
           result: { payloads: await encodeToPayloads(this.dataConverter, result) },
         });
       } else {
-        await this.service.respondActivityTaskCompletedById({
+        await this.workflowService.respondActivityTaskCompletedById({
           identity: this.options.identity,
           namespace: this.options.namespace,
           ...taskTokenOrFullActivityId,
@@ -152,14 +158,14 @@ export class AsyncCompletionClient {
   async fail(taskTokenOrFullActivityId: Uint8Array | FullActivityId, err: unknown): Promise<void> {
     try {
       if (taskTokenOrFullActivityId instanceof Uint8Array) {
-        await this.service.respondActivityTaskFailed({
+        await this.workflowService.respondActivityTaskFailed({
           identity: this.options.identity,
           namespace: this.options.namespace,
           taskToken: taskTokenOrFullActivityId,
           failure: await encodeErrorToFailure(this.dataConverter, ensureTemporalFailure(err)),
         });
       } else {
-        await this.service.respondActivityTaskFailedById({
+        await this.workflowService.respondActivityTaskFailedById({
           identity: this.options.identity,
           namespace: this.options.namespace,
           ...taskTokenOrFullActivityId,
@@ -183,14 +189,14 @@ export class AsyncCompletionClient {
   async reportCancellation(taskTokenOrFullActivityId: Uint8Array | FullActivityId, details?: unknown): Promise<void> {
     try {
       if (taskTokenOrFullActivityId instanceof Uint8Array) {
-        await this.service.respondActivityTaskCanceled({
+        await this.workflowService.respondActivityTaskCanceled({
           identity: this.options.identity,
           namespace: this.options.namespace,
           taskToken: taskTokenOrFullActivityId,
           details: { payloads: await encodeToPayloads(this.dataConverter, details) },
         });
       } else {
-        await this.service.respondActivityTaskCanceledById({
+        await this.workflowService.respondActivityTaskCanceledById({
           identity: this.options.identity,
           namespace: this.options.namespace,
           ...taskTokenOrFullActivityId,
@@ -214,7 +220,7 @@ export class AsyncCompletionClient {
   async heartbeat(taskTokenOrFullActivityId: Uint8Array | FullActivityId, details?: unknown): Promise<void> {
     try {
       if (taskTokenOrFullActivityId instanceof Uint8Array) {
-        const { cancelRequested } = await this.service.recordActivityTaskHeartbeat({
+        const { cancelRequested } = await this.workflowService.recordActivityTaskHeartbeat({
           identity: this.options.identity,
           namespace: this.options.namespace,
           taskToken: taskTokenOrFullActivityId,
@@ -224,7 +230,7 @@ export class AsyncCompletionClient {
           throw new ActivityCancelledError('cancelled');
         }
       } else {
-        const { cancelRequested } = await this.service.recordActivityTaskHeartbeatById({
+        const { cancelRequested } = await this.workflowService.recordActivityTaskHeartbeatById({
           identity: this.options.identity,
           namespace: this.options.namespace,
           ...taskTokenOrFullActivityId,

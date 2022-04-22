@@ -16,7 +16,6 @@ import events from 'events';
 import { kill, waitOnChild } from './child-process';
 import type getPortType from 'get-port';
 import { Connection, TestService } from './test-service-client';
-import { temporal } from '@temporalio/proto';
 
 const TEST_SERVER_EXECUTABLE_NAME = os.platform() === 'win32' ? 'test-server.exe' : 'test-server';
 
@@ -54,12 +53,11 @@ export type WorkflowStartOptions<T extends Workflow> = BaseWorkflowStartOptions<
  * in the test server.
  */
 export class WorkflowClient extends BaseWorkflowClient {
-  constructor(
-    protected readonly testService: TestService,
-    workflowService?: temporal.api.workflowservice.v1.WorkflowService,
-    options?: WorkflowClientOptions | undefined
-  ) {
-    super(workflowService, options);
+  protected readonly testService: TestService;
+
+  constructor(connection: Connection, options?: WorkflowClientOptions | undefined) {
+    super(connection, options);
+    this.testService = connection.testService;
   }
 
   /**
@@ -189,8 +187,8 @@ export class TestWorkflowEnvironment {
   ) {
     this.connection = connection;
     this.nativeConnection = nativeConnection;
-    this.workflowClient = new WorkflowClient(this.connection.testService, this.connection.service);
-    this.asyncCompletionClient = new AsyncCompletionClient(this.connection.service);
+    this.workflowClient = new WorkflowClient(this.connection);
+    this.asyncCompletionClient = new AsyncCompletionClient(this.connection);
   }
 
   /**
@@ -206,11 +204,11 @@ export class TestWorkflowEnvironment {
     const child = testServerSpawner(port);
 
     const address = `127.0.0.1:${port}`;
-    const conn = new Connection({ address });
+    const connPromise = Connection.create({ address });
 
     try {
       await Promise.race([
-        conn.untilReady(),
+        connPromise,
         waitOnChild(child).then(() => {
           throw new Error('Test server child process exited prematurely');
         }),
@@ -224,6 +222,7 @@ export class TestWorkflowEnvironment {
       throw err;
     }
 
+    const conn = await connPromise;
     const nativeConnection = await NativeConnection.create({ address });
 
     return new this(child, conn, nativeConnection);

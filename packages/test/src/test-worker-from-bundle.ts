@@ -30,7 +30,7 @@ if (RUN_INTEGRATION_TESTS) {
       taskQueue,
       workflowBundle,
     });
-    const client = new WorkflowClient();
+    const client = await WorkflowClient.forLocalServer();
     await Promise.all([
       worker.run(),
       (async () => {
@@ -56,7 +56,7 @@ if (RUN_INTEGRATION_TESTS) {
       taskQueue,
       workflowBundle,
     });
-    const client = new WorkflowClient();
+    const client = await WorkflowClient.forLocalServer();
     try {
       await Promise.all([
         worker.run(),
@@ -84,7 +84,7 @@ if (RUN_INTEGRATION_TESTS) {
       taskQueue,
       workflowBundle,
     });
-    const client = new WorkflowClient();
+    const client = await WorkflowClient.forLocalServer();
     await Promise.all([
       worker.run(),
       (async () => {

@@ -57,7 +57,7 @@ if (RUN_INTEGRATION_TESTS) {
       sinks,
     });
 
-    const client = new WorkflowClient(undefined, {
+    const client = await WorkflowClient.forLocalServer({
       interceptors: {
         calls: [() => new OpenTelemetryWorkflowClientCallsInterceptor()],
       },
@@ -171,7 +171,7 @@ if (RUN_INTEGRATION_TESTS) {
       sinks,
     });
 
-    const client = new WorkflowClient(undefined, {
+    const client = await WorkflowClient.forLocalServer({
       interceptors: {
         calls: [() => new OpenTelemetryWorkflowClientCallsInterceptor()],
       },

@@ -11,7 +11,7 @@ if (RUN_INTEGRATION_TESTS) {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { activities, taskQueue, ...rest } = defaultOptions;
     const worker = await Worker.create({ taskQueue: 'only-workflows', ...rest });
-    const client = new WorkflowClient();
+    const client = await WorkflowClient.forLocalServer();
     const runAndShutdown = async () => {
       const result = await client.execute(successString, {
         workflowId: uuid4(),

@@ -11,7 +11,7 @@ if (RUN_INTEGRATION_TESTS) {
     // To debug Workflows with this worker run the test with `ava debug` and add breakpoints to your Workflows
     const taskQueue = 'debug-mode';
     const worker = await Worker.create({ ...defaultOptions, taskQueue, debugMode: true });
-    const client = new WorkflowClient();
+    const client = await WorkflowClient.forLocalServer();
     const runAndShutdown = async () => {
       const result = await client.execute(successString, {
         workflowId: uuid4(),

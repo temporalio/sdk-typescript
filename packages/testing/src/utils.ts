@@ -10,7 +10,7 @@ export async function waitOnNamespace(
   const runId = '12345678-dead-beef-1234-1234567890ab';
   for (let attempt = 1; attempt <= maxAttempts; ++attempt) {
     try {
-      await connection.service.getWorkflowExecutionHistory({
+      await connection.workflowService.getWorkflowExecutionHistory({
         namespace,
         execution: { workflowId: 'fake', runId },
       });
@@ -34,7 +34,10 @@ export async function createNamespace(
 ): Promise<void> {
   for (let attempt = 1; attempt <= maxAttempts; ++attempt) {
     try {
-      await connection.service.registerNamespace({ namespace, workflowExecutionRetentionPeriod: msToTs('1 day') });
+      await connection.workflowService.registerNamespace({
+        namespace,
+        workflowExecutionRetentionPeriod: msToTs('1 day'),
+      });
       break;
     } catch (err: any) {
       if (err.details === 'Namespace already exists.') {

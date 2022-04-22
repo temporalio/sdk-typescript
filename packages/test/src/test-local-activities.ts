@@ -28,10 +28,10 @@ test.beforeEach(async (t) => {
   const taskQueue = `test-local-activities-${title}`;
   if (title.startsWith('[no-setup]')) {
     t.context.taskQueue = taskQueue;
-    t.context.client = new WorkflowClient();
+    t.context.client = await WorkflowClient.forLocalServer();
     return;
   }
-  t.context = { client: new WorkflowClient(), taskQueue };
+  t.context = { client: await WorkflowClient.forLocalServer(), taskQueue };
 });
 
 async function defaultWorker(taskQueue: string) {
@@ -70,7 +70,7 @@ if (RUN_INTEGRATION_TESTS) {
       t.deepEqual(res, args);
 
       // Double check we have all local activity markers in history
-      const { history } = await client.service.getWorkflowExecutionHistory({
+      const { history } = await client.workflowService.getWorkflowExecutionHistory({
         namespace: 'default',
         execution: { workflowId: handle.workflowId },
       });
@@ -142,7 +142,7 @@ if (RUN_INTEGRATION_TESTS) {
         taskQueue,
       });
       await handle.result();
-      const { history } = await client.service.getWorkflowExecutionHistory({
+      const { history } = await client.workflowService.getWorkflowExecutionHistory({
         namespace: 'default',
         execution: { workflowId: handle.workflowId },
       });
@@ -226,7 +226,7 @@ if (RUN_INTEGRATION_TESTS) {
         workflowTaskTimeout: '3s',
       });
       await handle.result();
-      const { history } = await client.service.getWorkflowExecutionHistory({
+      const { history } = await client.workflowService.getWorkflowExecutionHistory({
         namespace: 'default',
         execution: { workflowId: handle.workflowId },
       });

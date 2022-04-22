@@ -11,10 +11,10 @@ import { fakeProgress as fakeProgressInner } from './fake-progress';
 export { throwSpecificError } from './failure-tester';
 
 // TODO: Get rid of this by providing client via activity context
-function getTestConnection(): Connection {
+async function getTestConnection(): Promise<Connection> {
   // TODO: reuse connection
   const address = process.env.TEMPORAL_TESTING_SERVER_URL || LOCAL_DOCKER_TARGET;
-  return new Connection({ address });
+  return await Connection.create({ address });
 }
 
 /**
@@ -69,8 +69,8 @@ export async function waitForCancellation(): Promise<void> {
 async function withSchedulingWorkflowHandle<R>(fn: (handle: WorkflowHandle) => Promise<R>): Promise<R> {
   const { info } = Context.current();
   const { workflowExecution } = info;
-  const conn = getTestConnection();
-  const client = new WorkflowClient(conn.service, { namespace: info.workflowNamespace });
+  const conn = await getTestConnection();
+  const client = new WorkflowClient(conn, { namespace: info.workflowNamespace });
   const handle = client.getHandle(workflowExecution.workflowId, workflowExecution.runId);
   try {
     return await fn(handle);

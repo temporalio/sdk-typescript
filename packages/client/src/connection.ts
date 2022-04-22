@@ -3,6 +3,7 @@ import { normalizeTlsConfig, TLSConfig } from '@temporalio/internal-non-workflow
 import { temporal } from '@temporalio/proto';
 import { AsyncLocalStorage } from 'async_hooks';
 import type { RPCImpl } from 'protobufjs';
+import { isServerErrorResponse, ServiceError } from './errors';
 import { defaultGrpcRetryOptions, makeGrpcRetryInterceptor } from './grpc-retry';
 
 export type WorkflowService = temporal.api.workflowservice.v1.WorkflowService;
@@ -124,47 +125,123 @@ function normalizeGRPCConfig(options?: ConnectionOptions): ConnectionOptions {
   }
 }
 
-/**
- * Client connection to the Temporal Service
- */
-export class Connection {
-  public static readonly Client = grpc.makeGenericClientConstructor({}, 'WorkflowService', {});
-  public readonly options: ConnectionOptionsWithDefaults;
-  public readonly client: grpc.Client;
+export interface RPCImplOptions {
+  serviceName: string;
+  client: grpc.Client;
+  callContextStorage: AsyncLocalStorage<CallContext>;
+  interceptors?: grpc.Interceptor[];
+}
+
+export interface ConnectionCtorOptions {
+  readonly options: ConnectionOptionsWithDefaults;
+  readonly client: grpc.Client;
   /**
    * Raw gRPC access to the Temporal service.
    *
    * **NOTE**: The namespace provided in {@link options} is **not** automatically set on requests made to the service.
    */
-  public readonly service: WorkflowService;
-  readonly callContextStorage = new AsyncLocalStorage<CallContext>();
+  readonly workflowService: WorkflowService;
+  readonly callContextStorage: AsyncLocalStorage<CallContext>;
+  readonly capabilities: temporal.api.workflowservice.v1.GetSystemInfoResponse.ICapabilities;
+}
 
-  constructor(options?: ConnectionOptions) {
-    this.options = {
+/**
+ * Client connection to the Temporal Service
+ */
+export class Connection {
+  public static readonly Client = grpc.makeGenericClientConstructor({}, 'WorkflowService', {});
+
+  public readonly options: ConnectionOptionsWithDefaults;
+  public readonly client: grpc.Client;
+  public readonly capabilities: temporal.api.workflowservice.v1.GetSystemInfoResponse.ICapabilities;
+
+  /**
+   * Raw gRPC access to the Temporal service.
+   *
+   * **NOTE**: The namespace provided in {@link options} is **not** automatically set on requests made to the service.
+   */
+  public readonly workflowService: WorkflowService;
+  readonly callContextStorage: AsyncLocalStorage<CallContext>;
+
+  protected static async createCtorOptions(options?: ConnectionOptions): Promise<ConnectionCtorOptions> {
+    const optionsWithDefaults = {
       ...defaultConnectionOpts(),
       ...normalizeGRPCConfig(options),
     };
-    this.client = new Connection.Client(this.options.address, this.options.credentials, this.options.channelArgs);
-    const rpcImpl = this.generateRPCImplementation('temporal.api.workflowservice.v1.WorkflowService');
-    this.service = WorkflowService.create(rpcImpl, false, false);
+    const client = new this.Client(
+      optionsWithDefaults.address,
+      optionsWithDefaults.credentials,
+      optionsWithDefaults.channelArgs
+    );
+    const callContextStorage = new AsyncLocalStorage<CallContext>();
+
+    const rpcImpl = this.generateRPCImplementation({
+      serviceName: 'temporal.api.workflowservice.v1.WorkflowService',
+      client,
+      callContextStorage,
+      interceptors: optionsWithDefaults?.interceptors,
+    });
+    const workflowService = WorkflowService.create(rpcImpl, false, false);
+
+    await this.untilReady(client);
+    let capabilities: temporal.api.workflowservice.v1.GetSystemInfoResponse.ICapabilities = {};
+
+    try {
+      const systemInfo = await workflowService.getSystemInfo({});
+      capabilities = systemInfo.capabilities ?? {};
+    } catch (err) {
+      if (isServerErrorResponse(err)) {
+        // Ignore old servers
+        if (err.code !== grpc.status.UNIMPLEMENTED) {
+          throw new ServiceError('Failed to connect to the server', { cause: err });
+        }
+      } else {
+        throw err;
+      }
+    }
+
+    return {
+      client,
+      callContextStorage,
+      workflowService,
+      options: optionsWithDefaults,
+      capabilities,
+    };
   }
 
-  protected generateRPCImplementation(serviceName: string): RPCImpl {
+  static async create(options?: ConnectionOptions): Promise<Connection> {
+    return new this(await this.createCtorOptions(options));
+  }
+
+  protected constructor({ options, client, workflowService, callContextStorage, capabilities }: ConnectionCtorOptions) {
+    this.options = options;
+    this.client = client;
+    this.workflowService = workflowService;
+    this.callContextStorage = callContextStorage;
+    this.capabilities = capabilities;
+  }
+
+  protected static generateRPCImplementation({
+    serviceName,
+    client,
+    callContextStorage,
+    interceptors,
+  }: RPCImplOptions): RPCImpl {
     return (method: { name: string }, requestData: any, callback: grpc.requestCallback<any>) => {
       const metadataContainer = new grpc.Metadata();
-      const { metadata, deadline } = this.callContextStorage.getStore() ?? {};
+      const { metadata, deadline } = callContextStorage.getStore() ?? {};
       if (metadata != null) {
         for (const [k, v] of Object.entries(metadata)) {
           metadataContainer.set(k, v);
         }
       }
-      return this.client.makeUnaryRequest(
+      return client.makeUnaryRequest(
         `/${serviceName}/${method.name}`,
         (arg: any) => arg,
         (arg: any) => arg,
         requestData,
         metadataContainer,
-        { interceptors: this.options.interceptors, deadline },
+        { interceptors, deadline },
         callback
       );
     };
@@ -228,9 +305,9 @@ export class Connection {
    *
    * @see https://grpc.github.io/grpc/node/grpc.Client.html#waitForReady__anchor
    */
-  public async untilReady(waitTimeMs = 5000): Promise<void> {
+  protected static async untilReady(client: grpc.Client, waitTimeMs = 5000): Promise<void> {
     return new Promise<void>((resolve, reject) => {
-      this.client.waitForReady(Date.now() + waitTimeMs, (err) => {
+      client.waitForReady(Date.now() + waitTimeMs, (err) => {
         if (err) {
           reject(err);
         } else {
