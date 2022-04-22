@@ -13,12 +13,6 @@ import { ChildWorkflowOptionsWithDefaults, ContinueAsNewOptions } from './interf
 
 export { Next, Headers };
 
-/** Input for WorkflowInboundCallsInterceptor.create */
-export interface WorkflowCreateInput {
-  readonly args: unknown[];
-  readonly headers: Headers;
-}
-
 /** Input for WorkflowInboundCallsInterceptor.execute */
 export interface WorkflowExecuteInput {
   readonly args: unknown[];
@@ -29,6 +23,7 @@ export interface WorkflowExecuteInput {
 export interface SignalInput {
   readonly signalName: string;
   readonly args: unknown[];
+  readonly headers: Headers;
 }
 
 /** Input for WorkflowInboundCallsInterceptor.handleQuery */
@@ -36,6 +31,7 @@ export interface QueryInput {
   readonly queryId: string;
   readonly queryName: string;
   readonly args: unknown[];
+  readonly headers: Headers;
 }
 
 /**
@@ -101,24 +97,25 @@ export type ContinueAsNewInputOptions = ContinueAsNewOptions & Required<Pick<Con
 
 /** Input for WorkflowOutboundCallsInterceptor.continueAsNew */
 export interface ContinueAsNewInput {
-  args: unknown[];
-  headers: Headers;
-  options: ContinueAsNewInputOptions;
+  readonly args: unknown[];
+  readonly headers: Headers;
+  readonly options: ContinueAsNewInputOptions;
 }
 
 /** Input for WorkflowOutboundCallsInterceptor.signalWorkflow */
 export interface SignalWorkflowInput {
-  seq: number;
-  signalName: string;
-  args: unknown[];
-  target:
+  readonly seq: number;
+  readonly signalName: string;
+  readonly args: unknown[];
+  readonly headers: Headers;
+  readonly target:
     | {
-        type: 'external';
-        workflowExecution: WorkflowExecution;
+        readonly type: 'external';
+        readonly workflowExecution: WorkflowExecution;
       }
     | {
-        type: 'child';
-        childWorkflowId: string;
+        readonly type: 'child';
+        readonly childWorkflowId: string;
       };
 }
 

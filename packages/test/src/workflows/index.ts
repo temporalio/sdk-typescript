@@ -39,7 +39,7 @@ export * from './global-overrides';
 export * from './handle-external-workflow-cancellation-while-activity-running';
 export * from './http';
 export * from './importer';
-export { interceptorExample } from './interceptor-example';
+export { interceptorExample, interceptedChild } from './interceptor-example';
 export { internalsInterceptorExample } from './internals-interceptor-example';
 export * from './interrupt-signal';
 export * from './invalid-or-failed-queries';

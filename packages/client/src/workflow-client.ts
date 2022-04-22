@@ -544,6 +544,7 @@ export class WorkflowClient {
         query: {
           queryType: input.queryType,
           queryArgs: { payloads: await encodeToPayloads(this.options.loadedDataConverter, ...input.args) },
+          header: { fields: input.headers },
         },
       });
     } catch (err) {
@@ -576,6 +577,7 @@ export class WorkflowClient {
         requestId: uuid4(),
         // control is unused,
         signalName: input.signalName,
+        header: { fields: input.headers },
         input: { payloads: await encodeToPayloads(this.options.loadedDataConverter, ...input.args) },
       });
     } catch (err) {
@@ -810,6 +812,7 @@ export class WorkflowClient {
           workflowExecution: { workflowId, runId },
           signalName: typeof def === 'string' ? def : def.name,
           args,
+          headers: {},
         });
       },
       async query<Ret, Args extends any[]>(def: QueryDefinition<Ret, Args> | string, ...args: Args): Promise<Ret> {
@@ -820,6 +823,7 @@ export class WorkflowClient {
           queryRejectCondition: this.client.options.queryRejectCondition,
           queryType: typeof def === 'string' ? def : def.name,
           args,
+          headers: {},
         }) as Promise<Ret>;
       },
     };
