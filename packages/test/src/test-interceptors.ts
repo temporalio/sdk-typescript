@@ -5,7 +5,7 @@
  * @module
  */
 
-import { Connection, WorkflowClient, WorkflowFailedError } from '@temporalio/client';
+import { WorkflowClient, WorkflowFailedError } from '@temporalio/client';
 import { ApplicationFailure, TerminatedFailure } from '@temporalio/common';
 import { DefaultLogger, Runtime, Worker } from '@temporalio/worker';
 import { defaultPayloadConverter, WorkflowInfo } from '@temporalio/workflow';
@@ -48,8 +48,7 @@ if (RUN_INTEGRATION_TESTS) {
       },
     });
     const workerDrained = worker.run();
-    const conn = new Connection();
-    const client = new WorkflowClient(conn.service, {
+    const client = await WorkflowClient.forLocalServer({
       interceptors: {
         calls: [
           () => ({
@@ -140,8 +139,7 @@ if (RUN_INTEGRATION_TESTS) {
       taskQueue,
     });
     const workerDrained = worker.run();
-    const conn = new Connection();
-    const client = new WorkflowClient(conn.service, {
+    const client = await WorkflowClient.forLocalServer({
       interceptors: {
         calls: [
           () => ({
@@ -190,7 +188,7 @@ if (RUN_INTEGRATION_TESTS) {
         workflowModules: [require.resolve('./workflows/interceptor-example')],
       },
     });
-    const client = new WorkflowClient();
+    const client = await WorkflowClient.forLocalServer();
     const [_, err] = await Promise.all([
       worker.run(),
       (await t.throwsAsync(
@@ -247,7 +245,7 @@ if (RUN_INTEGRATION_TESTS) {
         },
       },
     });
-    const client = new WorkflowClient();
+    const client = await WorkflowClient.forLocalServer();
     await Promise.all([
       worker.run(),
       client

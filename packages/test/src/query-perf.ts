@@ -9,8 +9,8 @@ async function main() {
     throw new Error(`Usage ${process.argv[1]} --visiblity-query QUERY --workflow-query QUERY`);
   }
 
-  const client = new WorkflowClient();
-  const { executions } = await client.service.listWorkflowExecutions({
+  const client = await WorkflowClient.forLocalServer();
+  const { executions } = await client.workflowService.listWorkflowExecutions({
     namespace: 'default',
     query: args['--visibility-query'],
   });

@@ -272,12 +272,21 @@ export type WorkflowStartOptions<T extends Workflow = Workflow> = WithWorkflowAr
 export class WorkflowClient {
   public readonly options: LoadedWorkflowClientOptions;
 
-  constructor(public readonly service: WorkflowService = new Connection().service, options?: WorkflowClientOptions) {
+  constructor(public readonly connection: Connection, options?: WorkflowClientOptions) {
     this.options = {
       ...defaultWorkflowClientOptions(),
       ...options,
       loadedDataConverter: loadDataConverter(options?.dataConverter),
     };
+  }
+
+  static async forLocalServer(options?: WorkflowClientOptions): Promise<WorkflowClient> {
+    const connection = await Connection.create();
+    return new this(connection, options);
+  }
+
+  get workflowService(): WorkflowService {
+    return this.connection.workflowService;
   }
 
   /**
@@ -430,7 +439,7 @@ export class WorkflowClient {
     for (;;) {
       let res: temporal.api.workflowservice.v1.GetWorkflowExecutionHistoryResponse;
       try {
-        res = await this.service.getWorkflowExecutionHistory(req);
+        res = await this.workflowService.getWorkflowExecutionHistory(req);
       } catch (err) {
         this.rethrowGrpcError(err, { workflowId, runId }, 'Failed to get Workflow execution history');
       }
@@ -553,7 +562,7 @@ export class WorkflowClient {
   protected async _queryWorkflowHandler(input: WorkflowQueryInput): Promise<unknown> {
     let response: temporal.api.workflowservice.v1.QueryWorkflowResponse;
     try {
-      response = await this.service.queryWorkflow({
+      response = await this.workflowService.queryWorkflow({
         queryRejectCondition: input.queryRejectCondition,
         namespace: this.options.namespace,
         execution: input.workflowExecution,
@@ -586,7 +595,7 @@ export class WorkflowClient {
    */
   protected async _signalWorkflowHandler(input: WorkflowSignalInput): Promise<void> {
     try {
-      await this.service.signalWorkflowExecution({
+      await this.workflowService.signalWorkflowExecution({
         identity: this.options.identity,
         namespace: this.options.namespace,
         workflowExecution: input.workflowExecution,
@@ -610,7 +619,7 @@ export class WorkflowClient {
     const { identity } = this.options;
     const { options, workflowType, signalName, signalArgs, headers } = input;
     try {
-      const { runId } = await this.service.signalWithStartWorkflowExecution({
+      const { runId } = await this.workflowService.signalWithStartWorkflowExecution({
         namespace: this.options.namespace,
         identity,
         requestId: uuid4(),
@@ -679,7 +688,7 @@ export class WorkflowClient {
       header: { fields: headers },
     };
     try {
-      const res = await this.service.startWorkflowExecution(req);
+      const res = await this.workflowService.startWorkflowExecution(req);
       return res.runId;
     } catch (err: any) {
       if (err.code === grpcStatus.ALREADY_EXISTS) {
@@ -702,7 +711,7 @@ export class WorkflowClient {
     input: WorkflowTerminateInput
   ): Promise<TerminateWorkflowExecutionResponse> {
     try {
-      return await this.service.terminateWorkflowExecution({
+      return await this.workflowService.terminateWorkflowExecution({
         namespace: this.options.namespace,
         identity: this.options.identity,
         ...input,
@@ -725,7 +734,7 @@ export class WorkflowClient {
    */
   protected async _cancelWorkflowHandler(input: WorkflowCancelInput): Promise<RequestCancelWorkflowExecutionResponse> {
     try {
-      return await this.service.requestCancelWorkflowExecution({
+      return await this.workflowService.requestCancelWorkflowExecution({
         namespace: this.options.namespace,
         identity: this.options.identity,
         requestId: uuid4(),
@@ -744,7 +753,7 @@ export class WorkflowClient {
    */
   protected async _describeWorkflowHandler(input: WorkflowDescribeInput): Promise<DescribeWorkflowExecutionResponse> {
     try {
-      return await this.service.describeWorkflowExecution({
+      return await this.workflowService.describeWorkflowExecution({
         namespace: this.options.namespace,
         execution: input.workflowExecution,
       });

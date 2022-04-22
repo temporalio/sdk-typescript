@@ -1,5 +1,5 @@
 /* eslint @typescript-eslint/no-non-null-assertion: 0 */
-import { Connection, WorkflowClient } from '@temporalio/client';
+import { WorkflowClient } from '@temporalio/client';
 import {
   BinaryPayloadConverter,
   defaultPayloadConverter,
@@ -193,20 +193,23 @@ if (RUN_INTEGRATION_TESTS) {
       taskQueue,
       enableSDKTracing: true,
     });
-    const connection = new Connection();
-    const client = new WorkflowClient(connection.service, {
+    const client = await WorkflowClient.forLocalServer({
       dataConverter: { payloadConverterPath: require.resolve('./payload-converters/proto-payload-converter') },
     });
-    const runPromise = worker.run();
-    client.execute(protobufWorkflow, {
-      args: [messageInstance],
-      workflowId: uuid4(),
-      taskQueue,
-    });
-    expectedErrorWasThrown;
+
+    await Promise.all([
+      worker.run(),
+      (async () => {
+        await client.execute(protobufWorkflow, {
+          args: [messageInstance],
+          workflowId: uuid4(),
+          taskQueue,
+        });
+        worker.shutdown();
+      })(),
+      expectedErrorWasThrown,
+    ]);
     t.pass();
-    worker.shutdown();
-    runPromise;
   });
 }
 

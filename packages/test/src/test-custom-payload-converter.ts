@@ -1,4 +1,4 @@
-import { Connection, WorkflowClient } from '@temporalio/client';
+import { WorkflowClient } from '@temporalio/client';
 import { toPayloads } from '@temporalio/common';
 import { coresdk } from '@temporalio/proto';
 import { Worker } from '@temporalio/worker';
@@ -44,8 +44,7 @@ if (RUN_INTEGRATION_TESTS) {
       taskQueue,
       dataConverter,
     });
-    const connection = new Connection();
-    const client = new WorkflowClient(connection.service, { dataConverter });
+    const client = await WorkflowClient.forLocalServer({ dataConverter });
     const runAndShutdown = async () => {
       const result = await client.execute(protobufWorkflow, {
         args: [messageInstance],
@@ -66,8 +65,7 @@ if (RUN_INTEGRATION_TESTS) {
 
     const runPromise = worker.run();
 
-    const connection = new Connection();
-    const client = new WorkflowClient(connection.service, {
+    const client = await WorkflowClient.forLocalServer({
       dataConverter: {
         payloadConverterPath: require.resolve('./payload-converters/payload-converter-throws-from-payload'),
       },

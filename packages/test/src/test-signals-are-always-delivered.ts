@@ -21,7 +21,7 @@ if (RUN_INTEGRATION_TESTS) {
 
   test('Signals are always delivered', async (t) => {
     const taskQueue = 'test-signal-delivery';
-    const conn = new WorkflowClient();
+    const conn = await WorkflowClient.forLocalServer();
     const wf = await conn.start(workflows.signalsAreAlwaysProcessed, { taskQueue, workflowId: uuid4() });
 
     const sinks: InjectedSinks<workflows.SignalProcessTestSinks> = {

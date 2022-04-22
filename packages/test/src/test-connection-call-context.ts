@@ -35,7 +35,7 @@ test('withCallContext sets the CallContext for RPC call', async (t) => {
       }
       const receivedDeadline = call.getDeadline();
       // For some reason the deadline the server gets is slightly different from the one we send in the client
-      if (typeof receivedDeadline === 'number' && receivedDeadline > deadline && receivedDeadline - deadline < 1000) {
+      if (typeof receivedDeadline === 'number' && receivedDeadline >= deadline && receivedDeadline - deadline < 1000) {
         gotDeadline = true;
       }
       callback(null, {});
@@ -46,13 +46,13 @@ test('withCallContext sets the CallContext for RPC call', async (t) => {
     grpc.ServerCredentials.createInsecure()
   );
   server.start();
-  const conn = new Connection({ address: `127.0.0.1:${port}` });
+  const conn = await Connection.create({ address: `127.0.0.1:${port}` });
   await conn.withCallContext(
     { metadata: { test: 'tr' } },
     async () =>
       await conn.withMetadata(
         ({ test }) => ({ test: (test ?? '') + 'ue' }),
-        async () => await conn.withDeadline(deadline, () => conn.service.registerNamespace({}))
+        async () => await conn.withDeadline(deadline, () => conn.workflowService.registerNamespace({}))
       )
   );
   t.true(gotTestHeader);
