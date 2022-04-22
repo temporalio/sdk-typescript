@@ -218,7 +218,7 @@ export class Activator implements ActivationHandler {
       return;
     }
 
-    const { queryType, queryId } = activation;
+    const { queryType, queryId, headers } = activation;
     if (!(queryType && queryId)) {
       throw new TypeError('Missing query activation attributes');
     }
@@ -232,6 +232,7 @@ export class Activator implements ActivationHandler {
       queryName: queryType,
       args: arrayFromPayloads(state.payloadConverter, activation.arguments),
       queryId,
+      headers: headers ?? {},
     }).then(
       (result) => completeQuery(queryId, result),
       (reason) => failQuery(queryId, reason)
@@ -247,7 +248,7 @@ export class Activator implements ActivationHandler {
   }
 
   public signalWorkflow(activation: coresdk.workflow_activation.ISignalWorkflow): void {
-    const { signalName } = activation;
+    const { signalName, headers } = activation;
     if (!signalName) {
       throw new TypeError('Missing activation signalName');
     }
@@ -271,6 +272,7 @@ export class Activator implements ActivationHandler {
     execute({
       args: arrayFromPayloads(state.payloadConverter, activation.input),
       signalName,
+      headers: headers ?? {},
     }).catch(handleWorkflowFailure);
   }
 

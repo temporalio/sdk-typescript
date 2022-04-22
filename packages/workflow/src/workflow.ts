@@ -395,7 +395,7 @@ async function startChildWorkflowExecutionNextHandler({
   return [startPromise, completePromise];
 }
 
-function signalWorkflowNextHandler({ seq, signalName, args, target }: SignalWorkflowInput) {
+function signalWorkflowNextHandler({ seq, signalName, args, target, headers }: SignalWorkflowInput) {
   return new Promise<any>((resolve, reject) => {
     if (state.info === undefined) {
       throw new IllegalStateError('Workflow uninitialized');
@@ -418,6 +418,7 @@ function signalWorkflowNextHandler({ seq, signalName, args, target }: SignalWork
       signalExternalWorkflowExecution: {
         seq,
         args: toPayloads(state.payloadConverter, ...args),
+        headers,
         signalName,
         ...(target.type === 'external'
           ? {
@@ -572,6 +573,7 @@ export function getExternalWorkflowHandle(workflowId: string, runId?: string): E
           type: 'external',
           workflowExecution: { workflowId, runId },
         },
+        headers: {},
       });
     },
   };
@@ -677,6 +679,7 @@ export async function startChild<T extends Workflow>(
           type: 'child',
           childWorkflowId: optionsWithDefaults.workflowId,
         },
+        headers: {},
       });
     },
   };
