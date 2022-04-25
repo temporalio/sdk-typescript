@@ -23,6 +23,8 @@ export interface StarterArgSpec extends arg.Spec {
   '--concurrent-wf-clients': typeof Number;
   '--server-address': typeof String;
   '--worker-pid': typeof Number;
+  '--do-query': typeof String;
+  '--ms-between-queries': typeof Number;
 }
 
 export const starterArgSpec: StarterArgSpec = {
@@ -35,6 +37,8 @@ export const starterArgSpec: StarterArgSpec = {
   '--concurrent-wf-clients': Number,
   '--server-address': String,
   '--worker-pid': Number,
+  '--do-query': String,
+  '--ms-between-queries': Number,
 };
 
 export interface WorkerArgSpec extends arg.Spec {

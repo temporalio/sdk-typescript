@@ -880,7 +880,7 @@ export class Worker {
                           )}`
                         );
                       }
-                      if (activation.timestamp === undefined) {
+                      if (activation.timestamp == null) {
                         throw new TypeError('Got activation with no timestamp, cannot create a new Workflow instance');
                       }
                       const { workflowId, randomnessSeed, workflowType } = startWorkflow;

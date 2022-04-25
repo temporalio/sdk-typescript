@@ -4,12 +4,44 @@ import pidusage from 'pidusage';
 import { v4 as uuid4 } from 'uuid';
 import { interval, range, Observable, OperatorFunction, ReplaySubject, pipe, lastValueFrom } from 'rxjs';
 import { bufferTime, map, mergeMap, tap, takeUntil } from 'rxjs/operators';
-import { Connection, WorkflowClient } from '@temporalio/client';
+import { Connection, isServerErrorResponse, ServiceError, WorkflowClient } from '@temporalio/client';
 import { toMB } from '@temporalio/worker/lib/utils';
 import { StarterArgSpec, starterArgSpec, getRequired } from './args';
 
-async function runWorkflow(client: WorkflowClient, name: string, taskQueue: string) {
-  await client.execute(name, { args: [], taskQueue, workflowId: uuid4() });
+async function runWorkflow(client: WorkflowClient, name: string, taskQueue: string, queryingOptions?: QueryingOptions) {
+  const handle = await client.start(name, { args: [], taskQueue, workflowId: uuid4() });
+
+  let wfDoneProm = handle.result();
+  let wfRunning = true;
+  const proms = [];
+
+  if (queryingOptions) {
+    wfDoneProm = wfDoneProm.then(() => (wfRunning = false));
+    const queryProm = (async () => {
+      while (wfRunning) {
+        await new Promise((resolve) => setTimeout(resolve, queryingOptions.queryInterval));
+        try {
+          await handle.query(queryingOptions.queryName);
+        } catch (err) {
+          if (err instanceof ServiceError && isServerErrorResponse(err.cause)) {
+            if (err.cause.code === 5) {
+              console.warn('Got not found response to query');
+              continue;
+            }
+            if (err.cause.code === 4) {
+              console.warn('Got deadline exceeded response to query');
+              continue;
+            }
+          }
+          throw err;
+        }
+      }
+    })();
+    proms.push(queryProm);
+  }
+  proms.push(wfDoneProm);
+
+  await Promise.all(proms);
 }
 
 class NumberOfWorkflows {
@@ -30,6 +62,12 @@ interface RunWorkflowOptions {
   concurrency: number;
   minWFPS: number;
   workerPid?: number;
+  queryingOptions?: QueryingOptions;
+}
+
+interface QueryingOptions {
+  queryName: string;
+  queryInterval: number;
 }
 
 async function runWorkflows({
@@ -40,12 +78,13 @@ async function runWorkflows({
   concurrency,
   workerPid,
   minWFPS,
+  queryingOptions,
 }: RunWorkflowOptions): Promise<void> {
   let observable: Observable<any>;
 
   if (stopCondition instanceof NumberOfWorkflows) {
     observable = range(0, stopCondition.num).pipe(
-      mergeMap(() => runWorkflow(client, name, taskQueue), concurrency),
+      mergeMap(() => runWorkflow(client, name, taskQueue, queryingOptions), concurrency),
       followProgress(),
       mergeMap(async (progress) => ({ progress, workerResources: workerPid ? await pidusage(workerPid) : undefined })),
       tap(({ progress: { numComplete, wfsPerSecond, overallWfsPerSecond }, workerResources }) => {
@@ -66,7 +105,7 @@ async function runWorkflows({
 
     observable = subj.pipe(
       takeUntil(interval(stopCondition.seconds * 1000)),
-      mergeMap(() => runWorkflow(client, name, taskQueue)),
+      mergeMap(() => runWorkflow(client, name, taskQueue, queryingOptions)),
       tap(subj),
       followProgress(),
       mergeMap(async (progress) => ({ progress, workerResources: workerPid ? await pidusage(workerPid) : undefined })),
@@ -136,6 +175,8 @@ async function main() {
   const runForSeconds = args['--for-seconds'];
   const concurrentWFClients = args['--concurrent-wf-clients'] || 100;
   const minWFPS = args['--min-wfs-per-sec'] || 35;
+  const queryName = args['--do-query'];
+  const queryInterval = args['--ms-between-queries'] || 2000;
   const serverAddress = getRequired(args, '--server-address');
   const namespace = getRequired(args, '--ns');
   const taskQueue = getRequired(args, '--task-queue');
@@ -144,6 +185,8 @@ async function main() {
   const connection = new Connection({ address: serverAddress });
   const client = new WorkflowClient(connection.service, { namespace });
   const stopCondition = runForSeconds ? new UntilSecondsElapsed(runForSeconds) : new NumberOfWorkflows(iterations);
+  const queryingOptions = queryName ? { queryName, queryInterval } : undefined;
+
   console.log(`Starting tests on machine with ${toMB(os.totalmem(), 0)}MB of RAM and ${os.cpus().length} CPUs`);
 
   let workflowsToRun: string[];
@@ -166,6 +209,7 @@ async function main() {
       concurrency: concurrentWFClients,
       minWFPS,
       workerPid,
+      queryingOptions,
     });
   }
 }

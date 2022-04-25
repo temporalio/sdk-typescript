@@ -51,6 +51,7 @@
     "ci-load": "node ./packages/test/lib/load/all-in-one.js --server-address $TEMPORAL_TESTING_SERVER_URL --iterations 10000 --otel-url='' --max-cached-wfs 500",
     "ci-nightly-longrun": "node ./packages/test/lib/load/all-in-one.js --server-address $TEMPORAL_TESTING_SERVER_URL --for-seconds 14400 --min-wfs-per-sec 5 --concurrent-wf-clients 10 --otel-url=''",
     "ci-nightly-sampler": "node ./packages/test/lib/load/all-in-one.js --server-address $TEMPORAL_TESTING_SERVER_URL --otel-url='' --iterations 1000 --min-wfs-per-sec 5 --max-cached-wfs 500 --workflow yummy-sampler-mode",
+    "ci-stress": "node ./packages/test/lib/load/all-in-one.js --server-address $TEMPORAL_TESTING_SERVER_URL --otel-url '' --for-seconds 60 --max-cached-wfs 5 --max-concurrent-wft-executions 5 --ns default --workflow smorgasbord --do-query step",
     "wait-namespace": "node ./scripts/wait-on-temporal.mjs",
     "lint": "eslint packages/*/src --ext .ts --no-error-on-unmatched-pattern && prettier --end-of-line auto --check .",
     "lint.prune": "ts-prune -p tsconfig.prune.json --ignore \"used in module\" --skip \".d.ts\"",
