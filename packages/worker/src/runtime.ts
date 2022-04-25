@@ -28,6 +28,15 @@ export type TelemetryOptions = MakeOptional<RequiredTelemetryOptions, 'logForwar
  * Options used to create a Core runtime
  */
 export interface RuntimeOptions {
+  /**
+   * Automatically shut down on any of these signals.
+   * @default
+   * ```ts
+   * ['SIGINT', 'SIGTERM', 'SIGQUIT', 'SIGUSR2']
+   * ```
+   */
+
+  shutdownSignals?: NodeJS.Signals[];
   /** Telemetry options for traces/metrics/logging */
   telemetryOptions?: TelemetryOptions;
   /**
@@ -38,6 +47,7 @@ export interface RuntimeOptions {
 }
 
 export interface CompiledRuntimeOptions {
+  shutdownSignals: NodeJS.Signals[];
   telemetryOptions: RequiredTelemetryOptions;
   logger: Logger;
 }
@@ -79,6 +89,7 @@ export class Runtime {
   /** Track the number of pending calls into the tokio runtime to prevent shut down */
   protected pendingCalls = 0;
   public readonly logger: Logger;
+  protected readonly shutdownSignalCallbacks = new Set<() => void>();
 
   static _instance?: Runtime;
   static instantiator?: 'install' | 'instance';
@@ -97,6 +108,7 @@ export class Runtime {
       this.logger = this.options.logger;
       this.logPollPromise = Promise.resolve();
     }
+    this.setupShutdownHook();
   }
 
   /**
@@ -157,6 +169,7 @@ export class Runtime {
       ...filterNullAndUndefined(options.telemetryOptions ?? {}),
     };
     return {
+      shutdownSignals: options.shutdownSignals ?? ['SIGINT', 'SIGTERM', 'SIGQUIT', 'SIGUSR2'],
       telemetryOptions,
       logger: options.logger ?? new DefaultLogger('INFO'),
     };
@@ -309,6 +322,7 @@ export class Runtime {
    */
   public async shutdown(): Promise<void> {
     delete Runtime._instance;
+    this.teardownShutdownHook();
     this.shouldPollForLogs.next(false);
     // This will effectively drain all logs
     await this.logPollPromise;
@@ -326,4 +340,53 @@ export class Runtime {
     this.registeredWorkers.add(worker);
     return worker;
   }
+
+  /**
+   * Used by Workers to register for shutdown signals
+   *
+   * Hidden in the docs because it is only meant to be used internally by the Worker.
+   * @hidden
+   */
+  public async registerShutdownSignalCallback(callback: () => void): Promise<void> {
+    this.shutdownSignalCallbacks.add(callback);
+  }
+
+  /**
+   * Used by Workers to deregister handlers registered with {@link registerShutdownSignalCallback}
+   *
+   * Hidden in the docs because it is only meant to be used internally by the Worker.
+   * @hidden
+   */
+  public async deregisterShutdownSignalCallback(callback: () => void): Promise<void> {
+    this.shutdownSignalCallbacks.delete(callback);
+  }
+
+  /**
+   * Set up the shutdown hook, listen on shutdownSignals
+   */
+  protected setupShutdownHook(): void {
+    for (const signal of this.options.shutdownSignals) {
+      process.on(signal, this.startShutdownSequence);
+    }
+  }
+
+  /**
+   * Stop listening on shutdownSignals
+   */
+  protected teardownShutdownHook(): void {
+    for (const signal of this.options.shutdownSignals) {
+      process.off(signal, this.startShutdownSequence);
+    }
+  }
+
+  /**
+   * Bound to `this` for use with `process.on` and `process.off`
+   */
+  protected startShutdownSequence = (): void => {
+    this.teardownShutdownHook();
+    for (const callback of this.shutdownSignalCallbacks) {
+      queueMicrotask(callback); // Run later
+      this.deregisterShutdownSignalCallback(callback);
+    }
+  };
 }

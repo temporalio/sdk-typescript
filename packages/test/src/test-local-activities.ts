@@ -36,8 +36,6 @@ test.beforeEach(async (t) => {
 
 async function defaultWorker(taskQueue: string) {
   return await Worker.create({
-    // Avoid creating too many signal handlers
-    shutdownSignals: [],
     taskQueue,
     workflowsPath: require.resolve('./workflows/local-activity-testers'),
     activities,
