@@ -1733,3 +1733,57 @@ test('conditionRacer', async (t) => {
     compareCompletion(t, completion, makeSuccess([{ cancelTimer: { seq: 1 } }]));
   }
 });
+
+test('signalHandlersCanBeCleared', async (t) => {
+  const { workflowType } = t.context;
+  {
+    const completion = await activate(t, makeStartWorkflow(workflowType));
+    compareCompletion(
+      t,
+      completion,
+      makeSuccess([makeStartTimerCommand({ seq: 1, startToFireTimeout: msToTs('20ms') })])
+    );
+  }
+  {
+    const completion = await activate(
+      t,
+      makeActivation(
+        Date.now(),
+        {
+          signalWorkflow: { signalName: 'unblock', input: [] },
+        },
+        {
+          signalWorkflow: { signalName: 'unblock', input: [] },
+        },
+        {
+          signalWorkflow: { signalName: 'unblock', input: [] },
+        }
+      )
+    );
+    compareCompletion(t, completion, makeSuccess([]));
+  }
+  {
+    const completion = await activate(t, makeFireTimer(1));
+    compareCompletion(
+      t,
+      completion,
+      makeSuccess([makeStartTimerCommand({ seq: 2, startToFireTimeout: msToTs('1ms') })])
+    );
+  }
+  {
+    const completion = await activate(t, makeFireTimer(2));
+    compareCompletion(
+      t,
+      completion,
+      makeSuccess([makeStartTimerCommand({ seq: 3, startToFireTimeout: msToTs('1ms') })])
+    );
+  }
+  {
+    const completion = await activate(t, makeFireTimer(3));
+    compareCompletion(
+      t,
+      completion,
+      makeSuccess([makeCompleteWorkflowExecution(toPayload(defaultPayloadConverter, 111))])
+    );
+  }
+});
