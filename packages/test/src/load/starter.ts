@@ -15,7 +15,7 @@ async function runWorkflow({ client, workflowName, taskQueue, queryingOptions }:
   const handle = await client.start(workflowName, { args: [], taskQueue, workflowId: uuid4() });
 
   let wfRunning = true;
-  let wfDoneProm = handle.result().finally(() => (wfRunning = false));
+  const wfDoneProm = handle.result().finally(() => (wfRunning = false));
   const proms = [wfDoneProm];
 
   if (queryingOptions) {

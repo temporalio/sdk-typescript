@@ -1,4 +1,5 @@
 import { Spec, AllInOneArgSpec } from './args';
+import * as workflows from '../workflows';
 
 export type EvaluatedArgs<T extends Spec> = {
   [K in keyof T]?: ReturnType<T[K]>;
@@ -16,17 +17,28 @@ const baseArgs: Args = {
   '--otel-url': '',
 };
 
+const smallCacheArgs: Args = {
+  '--max-cached-wfs': 3,
+  '--max-concurrent-wft-executions': 3,
+};
+
 export const activityCancellation10kIters: Args = {
   ...baseArgs,
   '--iterations': 10_000,
-  '--workflow': 'cancelFakeProgress',
   '--max-cached-wfs': 500,
+  '--workflow': workflows.cancelFakeProgress.name,
 };
 
 export const queryWithSmallCache1kIters: Args = {
   ...baseArgs,
+  ...smallCacheArgs,
   '--iterations': 1000,
-  '--workflow': 'smorgasbord',
-  '--max-cached-wfs': 5,
-  '--max-concurrent-wft-executions': 5,
+  '--workflow': workflows.smorgasbord.name,
+};
+
+export const longHistoriesWithSmallCache100Iters: Args = {
+  ...baseArgs,
+  ...smallCacheArgs,
+  '--iterations': 100,
+  '--workflow': workflows.longHistoryGenerator.name,
 };

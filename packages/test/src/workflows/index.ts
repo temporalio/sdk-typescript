@@ -44,6 +44,7 @@ export { internalsInterceptorExample } from './internals-interceptor-example';
 export * from './interrupt-signal';
 export * from './invalid-or-failed-queries';
 export * from './log-before-timing-out';
+export * from './long-history-generator';
 export * from './multiple-activities-single-timeout';
 export * from './nested-cancellation';
 export * from './non-cancellable-shields-children';
