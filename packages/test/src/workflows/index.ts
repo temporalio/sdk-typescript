@@ -63,6 +63,7 @@ export * from './shared-promise-scopes';
 export * from './shield-awaited-in-root-scope';
 export * from './shield-in-shield';
 export * from './signal-target';
+export * from './signal-handlers-clear';
 export * from './signals-are-always-processed';
 export * from './sinks';
 export * from './sleep';
