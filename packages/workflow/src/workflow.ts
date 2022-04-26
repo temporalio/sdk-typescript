@@ -1080,16 +1080,16 @@ export type Handler<
  */
 export function setHandler<Ret, Args extends any[], T extends SignalDefinition<Args> | QueryDefinition<Ret, Args>>(
   def: T,
-  handler: Handler<Ret, Args, T>
+  handler: Handler<Ret, Args, T> | undefined
 ): void {
   if (def.type === 'signal') {
     state.signalHandlers.set(def.name, handler as any);
     const bufferedSignals = state.bufferedSignals.get(def.name);
-    if (bufferedSignals !== undefined) {
+    if (bufferedSignals !== undefined && handler !== undefined) {
+      state.bufferedSignals.delete(def.name);
       for (const signal of bufferedSignals) {
         state.activator.signalWorkflow(signal);
       }
-      state.bufferedSignals.delete(def.name);
     }
   } else if (def.type === 'query') {
     state.queryHandlers.set(def.name, handler as any);
