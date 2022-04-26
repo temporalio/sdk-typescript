@@ -978,18 +978,4 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
       await client.getHandle(workflowId).terminate();
     }
   });
-
-  test('signal handlers can be cleared', async (t) => {
-    const { client } = t.context;
-    const workflow = await client.start(workflows.signalHandlersCanBeCleared, {
-      taskQueue: 'test',
-      workflowId: uuid4(),
-    });
-
-    await workflow.signal(workflows.unblockSignal);
-    await workflow.signal(workflows.unblockSignal);
-    await workflow.signal(workflows.unblockSignal);
-
-    t.is(await workflow.result(), 111);
-  });
 }
