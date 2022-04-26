@@ -3,7 +3,7 @@ steps:
     agents:
       queue: 'default'
       docker: '*'
-    timeout_in_minutes: 15
+    timeout_in_minutes: 30
     commands:
       - '.buildkite/docker/build.sh'
       - 'npm run ci-load'
