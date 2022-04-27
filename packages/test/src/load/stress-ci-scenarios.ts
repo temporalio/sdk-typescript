@@ -29,10 +29,10 @@ export const activityCancellation10kIters: Args = {
   '--workflow': workflows.cancelFakeProgress.name,
 };
 
-export const queryWithSmallCache1kIters: Args = {
+export const queryWithSmallCache100Iters: Args = {
   ...baseArgs,
   ...smallCacheArgs,
-  '--iterations': 1000,
+  '--iterations': 100,
   '--workflow': workflows.smorgasbord.name,
 };
 
