@@ -39,6 +39,6 @@ export const queryWithSmallCache1kIters: Args = {
 export const longHistoriesWithSmallCache100Iters: Args = {
   ...baseArgs,
   ...smallCacheArgs,
-  '--iterations': 100,
+  '--iterations': 50,
   '--workflow': workflows.longHistoryGenerator.name,
 };
