@@ -577,7 +577,7 @@ export class Worker {
           try {
             yield await pollFn();
           } catch (err) {
-            if (err instanceof errors.ShutdownError) {
+            if (err.name == 'ShutdownError') {
               break;
             }
             throw err;

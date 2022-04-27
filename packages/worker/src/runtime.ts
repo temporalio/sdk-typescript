@@ -210,7 +210,7 @@ export class Runtime {
       );
     } catch (error) {
       // Prevent unhandled rejection
-      if (error instanceof errors.ShutdownError) return;
+      if (error.name == 'ShutdownError') return;
       // Log using the original logger instead of buffering
       this.options.logger.warn('Error gathering forwarded logs from core', { error });
     } finally {
