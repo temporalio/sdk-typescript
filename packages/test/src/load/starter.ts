@@ -1,15 +1,50 @@
 import arg from 'arg';
 import os from 'os';
 import pidusage from 'pidusage';
+import * as grpc from '@grpc/grpc-js';
 import { v4 as uuid4 } from 'uuid';
 import { interval, range, Observable, OperatorFunction, ReplaySubject, pipe, lastValueFrom } from 'rxjs';
 import { bufferTime, map, mergeMap, tap, takeUntil } from 'rxjs/operators';
-import { Connection, WorkflowClient } from '@temporalio/client';
+import { Connection, isServerErrorResponse, ServiceError, WorkflowClient } from '@temporalio/client';
 import { toMB } from '@temporalio/worker/lib/utils';
 import { StarterArgSpec, starterArgSpec, getRequired } from './args';
 
-async function runWorkflow(client: WorkflowClient, name: string, taskQueue: string) {
-  await client.execute(name, { args: [], taskQueue, workflowId: uuid4() });
+const ACCEPTABLE_QUERY_ERROR_CODES = [grpc.status.NOT_FOUND, grpc.status.DEADLINE_EXCEEDED];
+
+async function runWorkflow({ client, workflowName, taskQueue, queryingOptions }: RunWorkflowOptions) {
+  const handle = await client.start(workflowName, { args: [], taskQueue, workflowId: uuid4() });
+
+  let wfRunning = true;
+  const wfDoneProm = handle.result().finally(() => (wfRunning = false));
+  const proms = [wfDoneProm];
+
+  if (queryingOptions) {
+    const queryProm = (async () => {
+      await new Promise((resolve) => setTimeout(resolve, queryingOptions.initialQueryDelayMs));
+      while (wfRunning) {
+        try {
+          await handle.query(queryingOptions.queryName);
+        } catch (err) {
+          if (
+            err instanceof ServiceError &&
+            isServerErrorResponse(err.cause) &&
+            err.cause.code !== undefined &&
+            ACCEPTABLE_QUERY_ERROR_CODES.includes(err.cause.code)
+          ) {
+            console.warn(`Got ${grpc.status[err.cause.code]} response to query`);
+          } else {
+            throw err;
+          }
+        }
+        if (queryingOptions.queryIntervalMs) {
+          await new Promise((resolve) => setTimeout(resolve, queryingOptions.queryIntervalMs));
+        }
+      }
+    })();
+    proms.push(queryProm);
+  }
+
+  await Promise.all(proms);
 }
 
 class NumberOfWorkflows {
@@ -18,6 +53,12 @@ class NumberOfWorkflows {
 
 class UntilSecondsElapsed {
   constructor(readonly seconds: number = 0) {}
+}
+
+interface QueryingOptions {
+  queryName: string;
+  initialQueryDelayMs?: number;
+  queryIntervalMs?: number;
 }
 
 interface RunWorkflowOptions {
@@ -30,22 +71,16 @@ interface RunWorkflowOptions {
   concurrency: number;
   minWFPS: number;
   workerPid?: number;
+  queryingOptions?: QueryingOptions;
 }
 
-async function runWorkflows({
-  client,
-  workflowName: name,
-  taskQueue,
-  stopCondition,
-  concurrency,
-  workerPid,
-  minWFPS,
-}: RunWorkflowOptions): Promise<void> {
+async function runWorkflows(options: RunWorkflowOptions): Promise<void> {
+  const { workflowName, stopCondition, concurrency, workerPid, minWFPS } = options;
   let observable: Observable<any>;
 
   if (stopCondition instanceof NumberOfWorkflows) {
     observable = range(0, stopCondition.num).pipe(
-      mergeMap(() => runWorkflow(client, name, taskQueue), concurrency),
+      mergeMap(() => runWorkflow(options), concurrency),
       followProgress(),
       mergeMap(async (progress) => ({ progress, workerResources: workerPid ? await pidusage(workerPid) : undefined })),
       tap(({ progress: { numComplete, wfsPerSecond, overallWfsPerSecond }, workerResources }) => {
@@ -66,7 +101,7 @@ async function runWorkflows({
 
     observable = subj.pipe(
       takeUntil(interval(stopCondition.seconds * 1000)),
-      mergeMap(() => runWorkflow(client, name, taskQueue)),
+      mergeMap(() => runWorkflow(options)),
       tap(subj),
       followProgress(),
       mergeMap(async (progress) => ({ progress, workerResources: workerPid ? await pidusage(workerPid) : undefined })),
@@ -91,7 +126,7 @@ async function runWorkflows({
   const finalWfsPerSec = numComplete / totalTime;
   if (finalWfsPerSec < minWFPS) {
     throw new Error(
-      `Insufficient overall workflows per second upon test completion: ${finalWfsPerSec} less than ${minWFPS} for workflow ${name}`
+      `Insufficient overall workflows per second upon test completion: ${finalWfsPerSec} less than ${minWFPS} for workflow ${workflowName}`
     );
   }
 }
@@ -136,6 +171,9 @@ async function main() {
   const runForSeconds = args['--for-seconds'];
   const concurrentWFClients = args['--concurrent-wf-clients'] || 100;
   const minWFPS = args['--min-wfs-per-sec'] || 35;
+  const queryName = args['--do-query'];
+  const queryIntervalMs = args['--query-interval-ms'];
+  const initialQueryDelayMs = args['--initial-query-delay-ms'] || queryIntervalMs;
   const serverAddress = getRequired(args, '--server-address');
   const namespace = getRequired(args, '--ns');
   const taskQueue = getRequired(args, '--task-queue');
@@ -144,6 +182,8 @@ async function main() {
   const connection = new Connection({ address: serverAddress });
   const client = new WorkflowClient(connection.service, { namespace });
   const stopCondition = runForSeconds ? new UntilSecondsElapsed(runForSeconds) : new NumberOfWorkflows(iterations);
+  const queryingOptions = queryName ? { queryName, queryIntervalMs, initialQueryDelayMs } : undefined;
+
   console.log(`Starting tests on machine with ${toMB(os.totalmem(), 0)}MB of RAM and ${os.cpus().length} CPUs`);
 
   let workflowsToRun: string[];
@@ -166,6 +206,7 @@ async function main() {
       concurrency: concurrentWFClients,
       minWFPS,
       workerPid,
+      queryingOptions,
     });
   }
 }
