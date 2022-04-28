@@ -127,7 +127,9 @@ export class WorkflowCodeBundler {
 
     this.genEntrypoint(vol, entrypointPath);
     await this.bundle(ufs, memoryFs, entrypointPath, distDir);
-    return ufs.readFileSync(path.join(distDir, 'main.js'), 'utf8');
+
+    // Cast because the type definitions are inaccurate
+    return memoryFs.readFileSync(path.join(distDir, 'main.js'), 'utf8') as string;
   }
 
   protected makeEntrypointPath(fs: typeof unionfs.ufs, workflowsPath: string): string {
