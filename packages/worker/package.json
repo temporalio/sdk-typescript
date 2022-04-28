@@ -24,7 +24,6 @@
     "@temporalio/workflow": "file:../workflow",
     "abort-controller": "^3.0.0",
     "cargo-cp-artifact": "^0.1.4",
-    "dedent": "^0.7.0",
     "fs-extra": "^10.0.0",
     "heap-js": "^2.1.6",
     "memfs": "^3.2.2",
@@ -34,6 +33,7 @@
     "rxjs": "^7.3.0",
     "semver": "^7.3.5",
     "swc-loader": "^0.1.15",
+    "ts-dedent": "^2.2.0",
     "unionfs": "^4.4.0",
     "uuid": "^8.3.2",
     "webpack": "^5.51.1"

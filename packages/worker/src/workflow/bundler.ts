@@ -1,4 +1,4 @@
-import dedent from 'dedent';
+import dedent from 'ts-dedent';
 import * as realFS from 'fs';
 import * as memfs from 'memfs';
 import path from 'path';
