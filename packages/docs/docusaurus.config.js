@@ -133,7 +133,11 @@ module.exports = {
             {
               origins: [
                 {
-                  files: ['../*/src/**/*.ts', '../create-project/samples/*.ts'],
+                  files: ['../*/src/**/*.ts', '../*/src/*.ts', '../create-project/samples/*.ts'],
+                },
+                {
+                  owner: 'temporalio',
+                  repo: 'samples-typescript',
                 },
               ],
               targets: ['docs'],
