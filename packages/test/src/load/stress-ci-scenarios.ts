@@ -36,7 +36,7 @@ export const queryWithSmallCache100Iters: Args = {
   '--workflow': workflows.smorgasbord.name,
 };
 
-export const longHistoriesWithSmallCache100Iters: Args = {
+export const longHistoriesWithSmallCache50Iters: Args = {
   ...baseArgs,
   ...smallCacheArgs,
   '--iterations': 50,

@@ -59,8 +59,10 @@ export interface WorkerArgSpec extends Spec {
   // NOTE: this is not supported yet by Core
   '--max-concurrent-wft-polls': typeof Number;
   '--log-level': typeof String;
+  '--log-file': typeof String;
   '--server-address': typeof String;
   '--otel-url': typeof String;
+  '--status-port': typeof Number;
 }
 
 export const workerArgSpec: WorkerArgSpec = {
@@ -75,8 +77,10 @@ export const workerArgSpec: WorkerArgSpec = {
   // NOTE: this is not supported yet by Core
   '--max-concurrent-wft-polls': Number,
   '--log-level': String,
+  '--log-file': String,
   '--server-address': String,
   '--otel-url': String,
+  '--status-port': Number,
 };
 
 export type AllInOneArgSpec = SetupArgSpec & StarterArgSpec & WorkerArgSpec;
