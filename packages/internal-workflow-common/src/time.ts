@@ -44,10 +44,6 @@ export function msNumberToTs(millis: number): Timestamp {
   return { seconds: Long.fromNumber(seconds), nanos };
 }
 
-export function falsyMsToTs(str: string | number | undefined): Timestamp | undefined {
-  return str ? msToTs(str) : undefined;
-}
-
 export function msToTs(str: string | number): Timestamp {
   if (typeof str === 'number') {
     return msNumberToTs(str);
@@ -56,11 +52,7 @@ export function msToTs(str: string | number): Timestamp {
 }
 
 export function msOptionalToTs(str: string | number | undefined): Timestamp | undefined {
-  if (str === undefined) return undefined;
-  if (typeof str === 'number') {
-    return msNumberToTs(str);
-  }
-  return msNumberToTs(ms(str));
+  return str ? msToTs(str) : undefined;
 }
 
 export function msOptionalToNumber(val: string | number | undefined): number | undefined {
