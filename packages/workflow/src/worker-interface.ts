@@ -3,22 +3,15 @@
  *
  * @module
  */
-import { ApplicationFailure, errorToFailure as _errorToFailure, ProtoFailure } from '@temporalio/common';
-import {
-  composeInterceptors,
-  errorMessage,
-  IllegalStateError,
-  msToTs,
-  tsToMs,
-  Workflow,
-} from '@temporalio/internal-workflow-common';
+import { errorToFailure as _errorToFailure, ProtoFailure } from '@temporalio/common';
+import { composeInterceptors, IllegalStateError, msToTs, tsToMs, Workflow } from '@temporalio/internal-workflow-common';
 import type { coresdk } from '@temporalio/proto';
 import { alea } from './alea';
 import { storage } from './cancellation-scope';
 import { DeterminismViolationError } from './errors';
 import { WorkflowInterceptorsFactory } from './interceptors';
 import { WorkflowInfo } from './interfaces';
-import { handleWorkflowFailure, InterceptorsImportFunc, state, WorkflowsImportFunc } from './internals';
+import { InterceptorsImportFunc, state, WorkflowsImportFunc } from './internals';
 import { SinkCall } from './sinks';
 
 export interface WorkflowCreateOptions {
@@ -157,9 +150,8 @@ export async function initRuntime({ info, randomnessSeed, now, patches }: Workfl
     }
   }
 
-  let workflow: Workflow;
   const mod = await importWorkflows();
-  workflow = mod[info.workflowType];
+  const workflow = mod[info.workflowType];
   if (typeof workflow !== 'function') {
     throw new TypeError(`'${info.workflowType}' is not a function`);
   }
