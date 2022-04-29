@@ -158,17 +158,10 @@ export async function initRuntime({ info, randomnessSeed, now, patches }: Workfl
   }
 
   let workflow: Workflow;
-  try {
-    const mod = await importWorkflows();
-    workflow = mod[info.workflowType];
-    if (typeof workflow !== 'function') {
-      throw new TypeError(`'${info.workflowType}' is not a function`);
-    }
-  } catch (err) {
-    const failure = ApplicationFailure.nonRetryable(errorMessage(err), 'ReferenceError');
-    failure.stack = failure.stack?.split('\n')[0];
-    handleWorkflowFailure(failure);
-    return;
+  const mod = await importWorkflows();
+  workflow = mod[info.workflowType];
+  if (typeof workflow !== 'function') {
+    throw new TypeError(`'${info.workflowType}' is not a function`);
   }
   state.workflow = workflow;
 }
