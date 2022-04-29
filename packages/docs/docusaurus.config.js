@@ -137,8 +137,8 @@ module.exports = {
                 },
                 {
                   owner: 'temporalio',
-                  repo: 'samples-typescript'
-                }
+                  repo: 'samples-typescript',
+                },
               ],
               targets: ['docs'],
               features: {
