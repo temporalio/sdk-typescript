@@ -993,4 +993,14 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
       await client.getHandle(workflowId).terminate();
     }
   });
+
+  test('Runtime does not issue cancellations for activities and timers that throw during validation', async (t) => {
+    const { client } = t.context;
+    const workflowId = uuid4();
+    await client.execute(workflows.cancelScopeOnFailedValidation, {
+      taskQueue: 'test',
+      workflowId,
+    });
+    t.pass();
+  });
 }

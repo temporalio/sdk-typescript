@@ -69,7 +69,7 @@ function timerNextHandler(input: TimerInput) {
     if (scope.cancellable) {
       scope.cancelRequested.catch((err) => {
         if (!state.completions.timer.delete(input.seq)) {
-          return; // Already resolved
+          return; // Already resolved or never scheduled
         }
         state.pushCommand({
           cancelTimer: {
@@ -79,15 +79,15 @@ function timerNextHandler(input: TimerInput) {
         reject(err);
       });
     }
-    state.completions.timer.set(input.seq, {
-      resolve,
-      reject,
-    });
     state.pushCommand({
       startTimer: {
         seq: input.seq,
         startToFireTimeout: msToTs(input.durationMs),
       },
+    });
+    state.completions.timer.set(input.seq, {
+      resolve,
+      reject,
     });
   });
 }
@@ -156,7 +156,7 @@ async function scheduleActivityNextHandler({
     if (scope.cancellable) {
       scope.cancelRequested.catch(() => {
         if (!state.completions.activity.has(seq)) {
-          return; // Already resolved
+          return; // Already resolved or never scheduled
         }
         state.pushCommand({
           requestCancelActivity: {
@@ -165,10 +165,6 @@ async function scheduleActivityNextHandler({
         });
       });
     }
-    state.completions.activity.set(seq, {
-      resolve,
-      reject,
-    });
     state.pushCommand({
       scheduleActivity: {
         seq,
@@ -184,6 +180,10 @@ async function scheduleActivityNextHandler({
         headers,
         cancellationType: options.cancellationType,
       },
+    });
+    state.completions.activity.set(seq, {
+      resolve,
+      reject,
     });
   });
 }
@@ -211,7 +211,7 @@ async function scheduleLocalActivityNextHandler({
     if (scope.cancellable) {
       scope.cancelRequested.catch(() => {
         if (!state.completions.activity.has(seq)) {
-          return; // Already resolved
+          return; // Already resolved or never scheduled
         }
         state.pushCommand({
           requestCancelLocalActivity: {
@@ -220,11 +220,6 @@ async function scheduleLocalActivityNextHandler({
         });
       });
     }
-    state.completions.activity.set(seq, {
-      resolve,
-      reject,
-    });
-
     state.pushCommand({
       scheduleLocalActivity: {
         seq,
@@ -242,6 +237,10 @@ async function scheduleLocalActivityNextHandler({
         headers,
         cancellationType: options.cancellationType,
       },
+    });
+    state.completions.activity.set(seq, {
+      resolve,
+      reject,
     });
   });
 }
@@ -351,10 +350,6 @@ async function startChildWorkflowExecutionNextHandler({
         // Nothing to cancel otherwise
       });
     }
-    state.completions.childWorkflowStart.set(seq, {
-      resolve,
-      reject,
-    });
     state.pushCommand({
       startChildWorkflowExecution: {
         seq,
@@ -377,6 +372,10 @@ async function startChildWorkflowExecutionNextHandler({
           : undefined,
         memo: options.memo && mapToPayloads(state.payloadConverter, options.memo),
       },
+    });
+    state.completions.childWorkflowStart.set(seq, {
+      resolve,
+      reject,
     });
   });
 
@@ -1076,7 +1075,7 @@ export type Handler<
  * If this function is called multiple times for a given signal or query name the last handler will overwrite any previous calls.
  *
  * @param def a {@link SignalDefinition} or {@link QueryDefinition} as returned by {@link defineSignal} or {@link defineQuery} respectively.
- * @param handler  a compatible handler function for the given definition.
+ * @param handler a compatible handler function for the given definition or `undefined` to unset the handler.
  */
 export function setHandler<Ret, Args extends any[], T extends SignalDefinition<Args> | QueryDefinition<Ret, Args>>(
   def: T,

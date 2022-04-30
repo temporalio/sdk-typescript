@@ -129,13 +129,13 @@ if (RUN_INTEGRATION_TESTS) {
         namespace: 'default',
         execution: { workflowId: handle.workflowId },
       });
-      // WorkflowExecutionStarted
-      // WorkflowTaskScheduled
-      // WorkflowTaskStarted
-      // MarkerRecorded x 3
-      // WorkflowTaskCompleted
-      // WorkflowExecutionCompleted
-      t.is(history?.events?.length, 8);
+      if (history?.events == null) {
+        throw new Error('Expected non null events');
+      }
+      // Last 3 events before completing the workflow should be MarkerRecorded
+      t.truthy(history.events[history.events.length - 2].markerRecordedEventAttributes);
+      t.truthy(history.events[history.events.length - 3].markerRecordedEventAttributes);
+      t.truthy(history.events[history.events.length - 4].markerRecordedEventAttributes);
     });
   });
 

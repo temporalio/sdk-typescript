@@ -1,7 +1,7 @@
 import type { coresdk, google } from '@temporalio/proto';
 import { Workflow } from './interfaces';
 import { RetryPolicy } from './retry-policy';
-import { falsyMsToTs } from './time';
+import { msOptionalToTs } from './time';
 import { checkExtends, Replace } from './type-helpers';
 
 // Avoid importing the proto implementation to reduce workflow bundle size
@@ -122,8 +122,8 @@ export function compileWorkflowOptions<T extends WorkflowDurationOptions>(
 
   return {
     ...rest,
-    workflowExecutionTimeout: falsyMsToTs(workflowExecutionTimeout),
-    workflowRunTimeout: falsyMsToTs(workflowRunTimeout),
-    workflowTaskTimeout: falsyMsToTs(workflowTaskTimeout),
+    workflowExecutionTimeout: msOptionalToTs(workflowExecutionTimeout),
+    workflowRunTimeout: msOptionalToTs(workflowRunTimeout),
+    workflowTaskTimeout: msOptionalToTs(workflowTaskTimeout),
   };
 }
