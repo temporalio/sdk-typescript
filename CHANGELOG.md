@@ -4,6 +4,61 @@ All notable changes to this project will be documented in this file.
 
 Breaking changes marked with a :boom:
 
+## [0.22.0] - 2022-05-02
+
+### Bug Fixes
+
+- [`bundler`] Fix bundler edge cases on Windows ([#619](https://github.com/temporalio/sdk-typescript/pull/619))
+- [`workflow`] Fail workflow task instead of run on workflow not found ([#622](https://github.com/temporalio/sdk-typescript/pull/622))
+
+  NOTE: This could be considered backwards incompatible if you were relying on this behavior.
+  The new behavior is safer because Temporal will automatically retry these Workflows.
+
+- [`workflow`] Fix case where activity or timer would try to be cancelled without being scheduled ([#621](https://github.com/temporalio/sdk-typescript/pull/621))
+- Do not patch global object in otel runtime if not in workflow context ([#626](https://github.com/temporalio/sdk-typescript/pull/626))
+- [`core`] Update Core to receive recent fixes ([#627](https://github.com/temporalio/sdk-typescript/pull/627))
+
+### Features
+
+- Support headers to signals and queries with interceptors ([#609](https://github.com/temporalio/sdk-typescript/pull/609))
+- :boom: [`worker`]: Move shutdownSignals to RuntimeOptions ([#611](https://github.com/temporalio/sdk-typescript/pull/611))
+
+  BREAKING CHANGE: Move `shutdownSignals` from `WorkerOptions` to [`RuntimeOptions`](https://typescript.temporal.io/api/interfaces/worker.runtimeoptions/):
+
+  ```ts
+  // old
+  Worker.create({ shutdownSignals: ['SIGINT'], ... })
+
+  // new
+  Runtime.install({ shutdownSignals: ['SIGINT'], ... })
+  ```
+
+- [`workflow`] Allow signal handlers to be cleared ([#613](https://github.com/temporalio/sdk-typescript/pull/613))
+
+### Documentation
+
+- Add activation sequence diagram ([#605](https://github.com/temporalio/sdk-typescript/pull/605))
+- Make snipsync pull from samples-typescript ([#623](https://github.com/temporalio/sdk-typescript/pull/623))
+
+### Refactor
+
+- :boom: [`proto`] Use protobufjs json-modules ([#551](https://github.com/temporalio/sdk-typescript/pull/551))
+
+  BREAKING CHANGE: The `@temporalio/proto` package no longer has files `lib/coresdk` and `lib/temporal`. Any imports from those files must be updated:
+
+  ```ts
+  // old
+  import type { coresdk } from '@temporalio/proto/lib/coresdk';
+
+  // new
+  import type { coresdk } from '@temporalio/proto';
+  ```
+
+### Testing
+
+- Add more load test scenarios to CI ([#615](https://github.com/temporalio/sdk-typescript/pull/615))
+- Add some additional options to the load test worker script ([#624](https://github.com/temporalio/sdk-typescript/pull/624))
+
 ## [0.21.1] - 2022-04-21
 
 ### Bug Fixes
