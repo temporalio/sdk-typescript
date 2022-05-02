@@ -2,12 +2,17 @@
  * Sets global variables required for importing opentelemetry in isolate
  * @module
  */
+import { inWorkflowContext } from '@temporalio/workflow';
 
-// Required by opentelemetry (pretend to be a browser)
-(globalThis as any).performance = {
-  timeOrigin: Date.now(),
-  now() {
-    return Date.now() - this.timeOrigin;
-  },
-};
-(globalThis as any).window = globalThis;
+if (inWorkflowContext()) {
+  // Required by opentelemetry (pretend to be a browser)
+  Object.assign(globalThis, {
+    performance: {
+      timeOrigin: Date.now(),
+      now() {
+        return Date.now() - this.timeOrigin;
+      },
+    },
+    window: globalThis,
+  });
+}

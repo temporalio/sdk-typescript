@@ -771,6 +771,24 @@ export function workflowInfo(): WorkflowInfo {
 }
 
 /**
+ * Returns whether or not code is executing in workflow context
+ */
+export function inWorkflowContext(): boolean {
+  try {
+    workflowInfo();
+    return true;
+  } catch (err: any) {
+    // Use string comparison in case multiple versions of @temporalio/common are
+    // installed in which case an instanceof check would fail.
+    if (err.name === 'IllegalStateError') {
+      return false;
+    } else {
+      throw err;
+    }
+  }
+}
+
+/**
  * Get a reference to Sinks for exporting data out of the Workflow.
  *
  * These Sinks **must** be registered with the Worker in order for this
