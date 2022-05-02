@@ -179,7 +179,8 @@ if (RUN_INTEGRATION_TESTS) {
       );
       t.is(err.cause?.message, 'tesssst');
     });
-    t.is(attempts, 2);
+    // Might be more than 2 if workflow task times out (CI I'm looking at you)
+    t.true(attempts >= 2);
   });
 
   test('Local activity backs off with timer', async (t) => {
