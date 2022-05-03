@@ -229,7 +229,7 @@ async function scheduleLocalActivityNextHandler({
         activityId: `${seq}`,
         activityType,
         arguments: toPayloads(state.payloadConverter, ...args),
-        retryPolicy: options.retry ? compileRetryPolicy(options.retry) : {},
+        retryPolicy: options.retry ? compileRetryPolicy(options.retry) : undefined,
         scheduleToCloseTimeout: msOptionalToTs(options.scheduleToCloseTimeout),
         startToCloseTimeout: msOptionalToTs(options.startToCloseTimeout),
         scheduleToStartTimeout: msOptionalToTs(options.scheduleToStartTimeout),

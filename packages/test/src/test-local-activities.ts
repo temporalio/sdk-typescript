@@ -106,6 +106,25 @@ if (RUN_INTEGRATION_TESTS) {
           workflowId: uuid4(),
           taskQueue,
           workflowTaskTimeout: '3s',
+          args: ['waitForCancellation'],
+        }),
+        { instanceOf: WorkflowFailedError }
+      );
+      t.true(isCancellation(err.cause));
+      t.is(err.cause?.message, 'Activity cancelled');
+    });
+  });
+
+  test('Failing local activity can be cancelled', async (t) => {
+    const { client, taskQueue } = t.context;
+    const worker = await defaultWorker(taskQueue);
+    await runWorker(worker, async () => {
+      const err: WorkflowFailedError = await t.throwsAsync(
+        client.execute(workflows.cancelALocalActivity, {
+          workflowId: uuid4(),
+          taskQueue,
+          workflowTaskTimeout: '3s',
+          args: ['throwAnError'],
         }),
         { instanceOf: WorkflowFailedError }
       );
@@ -279,6 +298,7 @@ if (RUN_INTEGRATION_TESTS) {
       workflowId: uuid4(),
       taskQueue,
       workflowTaskTimeout: '3s',
+      args: ['waitForCancellation'],
     });
     const p = worker.run();
     await firstValueFrom(subj);
