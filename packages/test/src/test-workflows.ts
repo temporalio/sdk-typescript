@@ -1787,3 +1787,19 @@ test('signalHandlersCanBeCleared', async (t) => {
     );
   }
 });
+
+test('waitOnUser', async (t) => {
+  const { workflowType } = t.context;
+  {
+    const completion = await activate(t, makeStartWorkflow(workflowType));
+    compareCompletion(
+      t,
+      completion,
+      makeSuccess([makeStartTimerCommand({ seq: 1, startToFireTimeout: msToTs('30 days') })])
+    );
+  }
+  {
+    const completion = await activate(t, await makeSignalWorkflow('completeUserInteraction', []));
+    compareCompletion(t, completion, makeSuccess());
+  }
+});

@@ -9,23 +9,8 @@ import { CancellationScope } from './cancellation-scope';
  * Useful for e.g. waiting for unblocking a Workflow from a Signal.
  *
  * @example
- * ```ts
- * import { Trigger, sleep, defineSignal } from '@temporalio/workflow';
- *
- * const userInteraction = new Trigger<boolean>();
- * const completeUserInteraction = defineSignal('completeUserInteraction');
- *
- * export async function myWorkflow(userId: string) {
- *   setHandler(completeUserInteraction, () => userInteraction.resolve(true)); // programmatic resolve
- *   const userInteracted = await Promise.race([
- *     userInteraction,
- *     sleep('30 days'),
- *   ]);
- *   if (!userInteracted) {
- *     await sendReminderEmail(userId);
- *   }
- * }
- * ```
+ * <!--SNIPSTART typescript-trigger-workflow-->
+ * <!--SNIPEND-->
  */
 export class Trigger<T> implements PromiseLike<T> {
   public readonly then: <TResult1 = T, TResult2 = never>(
