@@ -1,6 +1,6 @@
 {
   "name": "@temporalio/testing",
-  "version": "0.21.1",
+  "version": "0.22.0",
   "description": "Temporal.io SDK Testing sub-package",
   "main": "lib/index.js",
   "types": "./lib/index.d.ts",

@@ -1,6 +1,6 @@
 {
   "name": "@temporalio/internal-workflow-common",
-  "version": "0.21.0",
+  "version": "0.22.0",
   "description": "Internal SDK library: users should usually use other packages instead. Included in Workflow bundle.",
   "main": "lib/index.js",
   "types": "./lib/index.d.ts",

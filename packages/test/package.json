@@ -1,7 +1,7 @@
 {
   "private": true,
   "name": "@temporalio/test",
-  "version": "0.21.1",
+  "version": "0.22.0",
   "description": "Temporal.io SDK Tests",
   "scripts": {
     "build": "npm-run-all build:protos build:ts",
