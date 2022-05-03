@@ -3,14 +3,29 @@ import { CancellationScope } from './cancellation-scope';
 /**
  * A `PromiseLike` helper which exposes its `resolve` and `reject` methods.
  *
- * Trigger is CancellationScope aware, it is linked to the current scope on
+ * Trigger is CancellationScope-aware: it is linked to the current scope on
  * construction and throws when that scope is cancelled.
  *
- * Useful for e.g. waiting for unblocking a Workflow from a signal.
+ * Useful for e.g. waiting for unblocking a Workflow from a Signal.
  *
  * @example
- * <!--SNIPSTART typescript-blocked-workflow-->
- * <!--SNIPEND-->
+ * ```ts
+ * import { Trigger, sleep, defineSignal } from '@temporalio/workflow';
+ *
+ * const userInteraction = new Trigger<boolean>();
+ * const completeUserInteraction = defineSignal('completeUserInteraction');
+ *
+ * export async function myWorkflow(userId: string) {
+ *   setHandler(completeUserInteraction, () => userInteraction.resolve(true)); // programmatic resolve
+ *   const userInteracted = await Promise.race([
+ *     userInteraction,
+ *     sleep('30 days'),
+ *   ]);
+ *   if (!userInteracted) {
+ *     await sendReminderEmail(userId);
+ *   }
+ * }
+ * ```
  */
 export class Trigger<T> implements PromiseLike<T> {
   public readonly then: <TResult1 = T, TResult2 = never>(
