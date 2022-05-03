@@ -66,6 +66,7 @@ export async function throwAnErrorWithBackoff(): Promise<void> {
 }
 
 export async function runANonExisitingLocalActivity(): Promise<void> {
+  // TODO: default behavior should be to not retry activities that are not found
   const { activityNotFound } = wf.proxyLocalActivities({
     startToCloseTimeout: '1m',
     retry: { maximumAttempts: 1 },
