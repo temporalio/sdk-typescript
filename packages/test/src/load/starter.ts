@@ -38,6 +38,8 @@ async function runWorkflow({ client, workflowName, taskQueue, queryingOptions }:
         }
         if (queryingOptions.queryIntervalMs) {
           await new Promise((resolve) => setTimeout(resolve, queryingOptions.queryIntervalMs));
+        } else {
+          break;
         }
       }
     })();
