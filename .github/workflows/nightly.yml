@@ -38,7 +38,7 @@ jobs:
         run: npm run wait-namespace
       # end:docker-compose
 
-      - run: npm ci-nightly
+      - run: npm run ci-nightly
 
       # TODO: set up alerting and preserve worker logs
       # TODO: record test durations and other metrics like memory usage / cache utilization / CPU
