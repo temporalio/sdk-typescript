@@ -8,13 +8,13 @@
  * @module
  */
 
-export { State, Worker, DataConverter, defaultPayloadConverter, errors } from './worker';
-export { WorkerOptions, CompiledWorkerOptions } from './worker-options';
-export { NativeConnectionOptions, RequiredNativeConnectionOptions, TLSConfig } from './connection-options';
-export { Runtime, RuntimeOptions, TelemetryOptions, History } from './runtime';
 export { NativeConnection as NativeConnection } from './connection';
-export * from './logger';
-export * from './sinks';
-export * from './interceptors';
-export { bundleWorkflowCode, BundleOptions } from './workflow/bundler';
+export { NativeConnectionOptions, RequiredNativeConnectionOptions, TLSConfig } from './connection-options';
 export * from './errors';
+export * from './interceptors';
+export * from './logger';
+export { History, Runtime, RuntimeOptions, TelemetryOptions } from './runtime';
+export * from './sinks';
+export { DataConverter, defaultPayloadConverter, errors, State, Worker } from './worker';
+export { CompiledWorkerOptions, WorkerOptions } from './worker-options';
+export { BundleOptions, bundleWorkflowCode } from './workflow/bundler';

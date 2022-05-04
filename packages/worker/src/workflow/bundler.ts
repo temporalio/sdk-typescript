@@ -1,5 +1,6 @@
 import * as realFS from 'fs';
 import * as memfs from 'memfs';
+import { builtinModules } from 'module';
 import path from 'path';
 import dedent from 'ts-dedent';
 import * as unionfs from 'unionfs';
@@ -8,58 +9,12 @@ import { v4 as uuid4 } from 'uuid';
 import webpack from 'webpack';
 import { DefaultLogger, Logger } from '../logger';
 
-const nodejsBuiltinModules: string[] = [
-  // assert, // A replacement module is injected through module-overrides
-  'async_hooks',
-  'buffer',
-  'child_process',
-  'cluster',
-  'console',
-  'constants',
-  'crypto',
-  'dgram',
-  'diagnostics_channel',
-  'dns',
-  'dns/promises',
-  'domain',
-  'events',
-  'fs',
-  'fs/promises',
-  'http',
-  'http2',
-  'https',
-  'inspector',
-  'module',
-  'net',
-  'os',
-  'path',
-  'path/posix',
-  'path/win32',
-  'perf_hooks',
-  'process',
-  'punycode',
-  'querystring',
-  'readline',
-  'repl',
-  'stream',
-  'stream/promises',
-  'stream/web',
-  'string_decoder',
-  'sys',
-  'timers',
-  'timers/promises',
-  'tls',
-  'trace_events',
-  'tty',
-  'url',
-  'util',
-  'util/types',
-  'v8',
-  'vm',
-  'wasi',
-  'worker_threads',
-  'zlib',
-];
+export const allowedBuiltinModules = ['assert'];
+export const disallowedBuiltinModules = builtinModules.filter((module) => !allowedBuiltinModules.includes(module));
+
+export function moduleMatches(userModule: string, modules: string[]): boolean {
+  return modules.some((module) => userModule === module || userModule.startsWith(`${module}/`));
+}
 
 /**
  * Builds a V8 Isolate by bundling provided Workflows using webpack.
@@ -199,7 +154,7 @@ export class WorkflowCodeBundler {
         ? data.request.slice('node:'.length)
         : data.request ?? '';
 
-      if (nodejsBuiltinModules.includes(module) && !this.ignoreModules.includes(module)) {
+      if (moduleMatches(module, disallowedBuiltinModules) && !moduleMatches(module, this.ignoreModules)) {
         this.foundProblematicModules.add(module);
       }
 
@@ -213,7 +168,7 @@ export class WorkflowCodeBundler {
         extensions: ['.ts', '.js'],
         alias: {
           __temporal_custom_payload_converter$: this.payloadConverterPath ?? false,
-          ...Object.fromEntries([...this.ignoreModules, ...nodejsBuiltinModules].map((m) => [m, false])),
+          ...Object.fromEntries([...this.ignoreModules, ...disallowedBuiltinModules].map((m) => [m, false])),
         },
       },
       externals: captureProblematicModules,

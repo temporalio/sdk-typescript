@@ -2,16 +2,23 @@
  * Test the various states of a Worker.
  * Most tests use a mocked core, some tests run serially because they emit signals to the process
  */
-import test from 'ava';
-import { join as pathJoin } from 'path';
-import { unlink, writeFile } from 'fs/promises';
-import os from 'os';
-import { v4 as uuid4 } from 'uuid';
 import { WorkflowClient } from '@temporalio/client';
 import { bundleWorkflowCode, DefaultLogger, LogEntry, Worker } from '@temporalio/worker';
+import { moduleMatches } from '@temporalio/worker/lib/workflow/bundler';
+import test from 'ava';
+import { unlink, writeFile } from 'fs/promises';
+import os from 'os';
+import { join as pathJoin } from 'path';
+import { v4 as uuid4 } from 'uuid';
 import { RUN_INTEGRATION_TESTS } from './helpers';
-import { successString } from './workflows';
 import { issue516 } from './mocks/workflows-with-node-dependencies/issue-516';
+import { successString } from './workflows';
+
+test('moduleMatches works', (t) => {
+  t.true(moduleMatches('fs', ['fs']));
+  t.true(moduleMatches('fs/lib/foo', ['fs']));
+  t.false(moduleMatches('fs', ['foo']));
+});
 
 if (RUN_INTEGRATION_TESTS) {
   test('Worker can be created from bundle code', async (t) => {
