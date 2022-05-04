@@ -1,7 +1,7 @@
-import dedent from 'ts-dedent';
 import * as realFS from 'fs';
 import * as memfs from 'memfs';
 import path from 'path';
+import dedent from 'ts-dedent';
 import * as unionfs from 'unionfs';
 import util from 'util';
 import { v4 as uuid4 } from 'uuid';
@@ -227,7 +227,6 @@ export class WorkflowCodeBundler {
               options: {
                 jsc: {
                   target: 'es2017',
-                  // match tsc defaults
                   parser: {
                     syntax: 'typescript',
                     decorators: true,
