@@ -545,12 +545,15 @@ export function getExternalWorkflowHandle(workflowId: string, runId?: string): E
         if (state.info === undefined) {
           throw new IllegalStateError('Uninitialized workflow');
         }
-        const scope = CancellationScope.current();
-        if (scope.cancellable) {
-          scope.cancelRequested.catch(reject);
-        }
-        if (scope.consideredCancelled) {
-          return;
+        // TODO: deprecate this patch after "enough" time has passed
+        if (patched('__temporal_internal_connect_external_handle_cancel_to_scope')) {
+          const scope = CancellationScope.current();
+          if (scope.cancellable) {
+            scope.cancelRequested.catch(reject);
+          }
+          if (scope.consideredCancelled) {
+            return;
+          }
         }
 
         const seq = state.nextSeqs.cancelWorkflow++;
