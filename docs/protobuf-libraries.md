@@ -65,22 +65,23 @@ module.exports = patchProtobufRoot(unpatchedRoot);
 // root.d.ts generated with:
 // pbjs -t static-module *.proto | pbts -o root.d.ts -
 
-// src/data-converter.ts
+// src/payload-converter.ts
 import { DefaultPayloadConverterWithProtobufs } from '@temporalio/common/lib/protobufs';
 import root from '../protos/root';
 
-export const dataConverter = new DefaultPayloadConverterWithProtobufs({ protobufRoot: root });
+export const payloadConverter = new DefaultPayloadConverterWithProtobufs({ protobufRoot: root });
 
 // src/worker.ts
-import { dataConverter } from './data-converter';
-
-const worker = Worker.create({ dataConverter, ... });
+const worker = Worker.create({ dataConverter: { payloadConverterPath: require.resolve('./payload-converter') }, ... });
 
 // src/client.ts
 import { foo } from '../protos/root';
-import { dataConverter } from './data-converter';
+import { dataConverter } from './payload-converter';
 
-const client = new WorkflowClient(connection.service, { dataConverter });
+const client = new WorkflowClient(connection.service, {
+  dataConverter: { payloadConverterPath: require.resolve('./payload-converter') }
+});
+
 await client.start(protoWorkflow, {
   args: [foo.bar.ProtoInput.create({ name: 'Proto', age: 1 })], // can't use `new foo.bar.ProtoInput()`
   taskQueue: 'tutorial',

@@ -1,5 +1,5 @@
 import { checkExtends, hasOwnProperties, isRecord } from '@temporalio/internal-workflow-common';
-import type { temporal } from '@temporalio/proto/lib/coresdk';
+import type { temporal } from '@temporalio/proto';
 import { arrayFromPayloads, fromPayloadsAtIndex, PayloadConverter, toPayloads } from './converter/payload-converter';
 
 export const FAILURE_SOURCE = 'TypeScriptSDK';

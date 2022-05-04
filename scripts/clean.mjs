@@ -43,24 +43,16 @@ function cleanTsGeneratedFiles() {
 }
 
 function cleanProtoGeneratedFiles() {
-  const protosOutputDir = resolve(packagesPath, 'proto/lib');
+  const protosOutputDir = resolve(packagesPath, 'proto/protos');
   console.log(`Removing generated files in ${protosOutputDir}`);
-  rmSync(resolve(protosOutputDir, 'coresdk.js'), { force: true });
-  rmSync(resolve(protosOutputDir, 'coresdk.d.ts'), { force: true });
-  rmSync(resolve(protosOutputDir, 'temporal.js'), { force: true });
-  rmSync(resolve(protosOutputDir, 'temporal.d.ts'), { force: true });
+  rmSync(resolve(protosOutputDir, 'json-module.js'));
+  rmSync(resolve(protosOutputDir, 'root.d.ts'));
 }
 
 function cleanCompiledRustFiles() {
   const bridgeDir = resolve(packagesPath, 'core-bridge');
   console.log('Cleaning compiled rust files');
-  try {
-    rmSync(resolve(bridgeDir, 'releases'), { recursive: true });
-  } catch (e) {
-    if (e?.code !== 'ENOENT') {
-      throw e;
-    }
-  }
+  rmSync(resolve(bridgeDir, 'releases'), { recursive: true, force: true });
   spawnSync('cargo', ['clean'], { cwd: bridgeDir, stdio: 'inherit' });
 }
 

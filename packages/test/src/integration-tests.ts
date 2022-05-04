@@ -117,23 +117,38 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
     await t.context.runPromise;
   });
 
-  test('Workflow not found results in failure', async (t) => {
+  test('Workflow not found results in task retry', async (t) => {
     const { client } = t.context;
-    const promise = client.execute('not-found', {
+    const handle = await client.start('not-found', {
       taskQueue: 'test',
       workflowId: uuid4(),
     });
-    const err: WorkflowFailedError = await t.throwsAsync(() => promise, {
-      instanceOf: WorkflowFailedError,
-    });
-    if (!(err.cause instanceof ApplicationFailure)) {
-      t.fail('Expected err.cause to be an instance of ApplicationFailure');
-      return;
+
+    try {
+      await asyncRetry(
+        async () => {
+          const { history } = await client.service.getWorkflowExecutionHistory({
+            namespace: 'default',
+            execution: { workflowId: handle.workflowId },
+          });
+          if (
+            !history?.events?.some(
+              ({ workflowTaskFailedEventAttributes }) =>
+                workflowTaskFailedEventAttributes?.failure?.message === "'not-found' is not a function"
+            )
+          ) {
+            throw new Error('Cannot find workflow task failed event');
+          }
+        },
+        {
+          retries: 60,
+          maxTimeout: 1000,
+        }
+      );
+    } finally {
+      await handle.terminate();
     }
-    t.is(err.cause.type, 'ReferenceError');
-    t.is(err.cause.message, "'not-found' is not a function");
-    t.true(err.cause.nonRetryable);
-    t.is(err.cause.stack, "ApplicationFailure: 'not-found' is not a function");
+    t.pass();
   });
 
   test('args-and-return', async (t) => {
@@ -609,7 +624,7 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
     const execution = await workflow.describe();
     t.deepEqual(
       execution.raw.workflowExecutionInfo?.type,
-      new iface.temporal.api.common.v1.WorkflowType({ name: 'sleeper' })
+      iface.temporal.api.common.v1.WorkflowType.create({ name: 'sleeper' })
     );
     t.deepEqual(await fromPayload(execution.raw.workflowExecutionInfo!.memo!.fields!.a!), 'b');
     t.deepEqual(
@@ -977,5 +992,15 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
     } finally {
       await client.getHandle(workflowId).terminate();
     }
+  });
+
+  test('Runtime does not issue cancellations for activities and timers that throw during validation', async (t) => {
+    const { client } = t.context;
+    const workflowId = uuid4();
+    await client.execute(workflows.cancelScopeOnFailedValidation, {
+      taskQueue: 'test',
+      workflowId,
+    });
+    t.pass();
   });
 }

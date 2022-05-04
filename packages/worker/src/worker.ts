@@ -44,11 +44,11 @@ import {
 import { delay, filter, first, ignoreElements, map, mergeMap, takeUntil, takeWhile, tap } from 'rxjs/operators';
 import { promisify } from 'util';
 import { Activity } from './activity';
-import { Runtime, History } from './runtime';
 import { extractNativeClient, extractReferenceHolders, InternalNativeConnection, NativeConnection } from './connection';
 import * as errors from './errors';
 import { ActivityExecuteInput } from './interceptors';
 import { Logger } from './logger';
+import { History, Runtime } from './runtime';
 import { closeableGroupBy, mapWithState, mergeMapWithState } from './rxutils';
 import { childSpan, getTracer, instrument } from './tracing';
 import { byteArrayToBuffer, toMB } from './utils';
@@ -589,7 +589,7 @@ export class Worker {
             map((): ActivityTaskWithContext => {
               return {
                 parentSpan: this.tracer.startSpan('activity.shutdown.evict'),
-                task: new coresdk.activity_task.ActivityTask({
+                task: coresdk.activity_task.ActivityTask.create({
                   // NOTE: taskToken and cancel reason are not sent here.
                   // We assume that if the task is cancelled with no reason it
                   // means that the worker is being shut down.
@@ -613,7 +613,11 @@ export class Worker {
                 // We don't run the activity directly in this operator because we need to return the activity in the state
                 // so it can be cancelled if requested
                 let output:
-                  | { type: 'result'; result: coresdk.activity_result.IActivityExecutionResult; parentSpan: otel.Span }
+                  | {
+                      type: 'result';
+                      result: coresdk.activity_result.IActivityExecutionResult;
+                      parentSpan: otel.Span;
+                    }
                   | { type: 'run'; activity: Activity; input: ActivityExecuteInput; parentSpan: otel.Span }
                   | { type: 'ignore'; parentSpan: otel.Span };
                 switch (variant) {
@@ -802,7 +806,7 @@ export class Worker {
             map((): ContextAware<{ activation: coresdk.workflow_activation.WorkflowActivation; synthetic: true }> => {
               return {
                 parentSpan: this.tracer.startSpan('workflow.shutdown.evict'),
-                activation: new coresdk.workflow_activation.WorkflowActivation({
+                activation: coresdk.workflow_activation.WorkflowActivation.create({
                   runId: group$.key,
                   jobs: [{ removeFromCache: Worker.SELF_INDUCED_SHUTDOWN_EVICTION }],
                 }),
@@ -876,7 +880,7 @@ export class Worker {
                           )}`
                         );
                       }
-                      if (activation.timestamp === undefined) {
+                      if (activation.timestamp == null) {
                         throw new TypeError('Got activation with no timestamp, cannot create a new Workflow instance');
                       }
                       const { workflowId, randomnessSeed, workflowType } = startWorkflow;
@@ -1306,18 +1310,6 @@ export class Worker {
     return takeUntil(this.stateSubject.pipe(filter((value) => value === state)));
   }
 
-  protected setupShutdownHook(): void {
-    const startShutdownSequence = () => {
-      for (const signal of this.options.shutdownSignals) {
-        process.off(signal, startShutdownSequence);
-      }
-      this.shutdown();
-    };
-    for (const signal of this.options.shutdownSignals) {
-      process.on(signal, startShutdownSequence);
-    }
-  }
-
   /**
    * Start polling on tasks, completes after graceful shutdown.
    * Throws on a fatal error or failure to shutdown gracefully.
@@ -1331,39 +1323,43 @@ export class Worker {
     }
     this.state = 'RUNNING';
 
-    this.setupShutdownHook();
+    const shutdownCallback = () => this.shutdown();
+    Runtime.instance().registerShutdownSignalCallback(shutdownCallback);
 
     try {
-      await lastValueFrom(
-        merge(
-          this.gracefulShutdown$(),
-          this.activityHeartbeat$(),
-          merge(this.workflow$(), this.activity$()).pipe(
+      try {
+        await lastValueFrom(
+          merge(
+            this.gracefulShutdown$(),
+            this.activityHeartbeat$(),
+            merge(this.workflow$(), this.activity$()).pipe(
+              tap({
+                complete: () => {
+                  this.state = 'DRAINED';
+                },
+              })
+            )
+          ).pipe(
             tap({
               complete: () => {
-                this.state = 'DRAINED';
+                this.state = 'STOPPED';
+              },
+              error: (error) => {
+                this.log.error('Worker failed', { error });
+                this.state = 'FAILED';
               },
             })
-          )
-        ).pipe(
-          tap({
-            complete: () => {
-              this.state = 'STOPPED';
-            },
-            error: (error) => {
-              this.log.error('Worker failed', { error });
-              this.state = 'FAILED';
-            },
-          })
-        ),
-        { defaultValue: undefined }
-      );
+          ),
+          { defaultValue: undefined }
+        );
+      } finally {
+        Runtime.instance().deregisterShutdownSignalCallback(shutdownCallback);
+      }
       // Only shutdown the native worker if we completed without an error.
       // Otherwise Rust / TS are in an unknown state and shutdown might hang.
       // A new process must be created in order to instantiate a new Rust Core.
       // TODO: force shutdown in core?
       await this.nativeWorker.completeShutdown();
-
       // Only exists in non-replay Worker
       if (this.connection) {
         extractReferenceHolders(this.connection).delete(this.nativeWorker);

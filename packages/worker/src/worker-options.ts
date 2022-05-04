@@ -76,15 +76,6 @@ export interface WorkerOptions {
   shutdownGraceTime?: string | number;
 
   /**
-   * Automatically shut down worker on any of these signals.
-   * @default
-   * ```ts
-   * ['SIGINT', 'SIGTERM', 'SIGQUIT', 'SIGUSR2']
-   * ```
-   */
-  shutdownSignals?: NodeJS.Signals[];
-
-  /**
    * Provide a custom {@link DataConverter}.
    */
   dataConverter?: DataConverter;
@@ -226,7 +217,6 @@ export type WorkerOptionsWithDefaults = WorkerOptions &
       WorkerOptions,
       | 'namespace'
       | 'shutdownGraceTime'
-      | 'shutdownSignals'
       | 'maxConcurrentActivityTaskExecutions'
       | 'maxConcurrentWorkflowTaskExecutions'
       | 'maxConcurrentActivityTaskPolls'
@@ -306,7 +296,6 @@ export function addDefaultWorkerOptions(options: WorkerOptions): WorkerOptionsWi
   return {
     namespace: 'default',
     shutdownGraceTime: '5s',
-    shutdownSignals: ['SIGINT', 'SIGTERM', 'SIGQUIT', 'SIGUSR2'],
     maxConcurrentActivityTaskExecutions: 100,
     maxConcurrentWorkflowTaskExecutions: 100,
     maxConcurrentActivityTaskPolls: 5,

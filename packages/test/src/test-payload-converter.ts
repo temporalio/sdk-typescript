@@ -20,7 +20,7 @@ import {
   ProtobufBinaryPayloadConverter,
   ProtobufJsonPayloadConverter,
 } from '@temporalio/common/lib/protobufs';
-import { Runtime, DefaultLogger, Worker } from '@temporalio/worker';
+import { DefaultLogger, Runtime, Worker } from '@temporalio/worker';
 import test from 'ava';
 import { v4 as uuid4 } from 'uuid';
 import root from '../protos/root';
@@ -178,7 +178,7 @@ test('ProtobufJSONPayloadConverter converts binary', async (t) => {
 
 if (RUN_INTEGRATION_TESTS) {
   test('Worker throws decoding proto JSON without WorkerOptions.dataConverter', async (t) => {
-    t.timeout(5 * 1000);
+    t.timeout(10 * 1000);
     let markErrorThrown: any;
     const expectedErrorWasThrown = new Promise(function (resolve) {
       markErrorThrown = resolve;

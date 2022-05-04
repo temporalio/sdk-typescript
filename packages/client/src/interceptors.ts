@@ -29,6 +29,7 @@ export interface WorkflowSignalInput {
   readonly signalName: string;
   readonly args: unknown[];
   readonly workflowExecution: WorkflowExecution;
+  readonly headers: Headers;
 }
 
 /** Input for WorkflowClientCallsInterceptor.signalWithStart */
@@ -46,6 +47,7 @@ export interface WorkflowQueryInput {
   readonly args: unknown[];
   readonly workflowExecution: WorkflowExecution;
   readonly queryRejectCondition?: temporal.api.enums.v1.QueryRejectCondition;
+  readonly headers: Headers;
 }
 
 /** Input for WorkflowClientCallsInterceptor.terminate */

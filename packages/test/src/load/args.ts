@@ -3,7 +3,12 @@
 
 import arg from 'arg';
 
-export interface SetupArgSpec extends arg.Spec {
+/**
+ * Simplified version of `arg.Spec`, required to construct typed options
+ */
+export type Spec = Record<string, () => any>;
+
+export interface SetupArgSpec extends Spec {
   '--ns': typeof String;
   '--server-address': typeof String;
 }
@@ -13,7 +18,7 @@ export const setupArgSpec: SetupArgSpec = {
   '--server-address': String,
 };
 
-export interface StarterArgSpec extends arg.Spec {
+export interface StarterArgSpec extends Spec {
   '--min-wfs-per-sec': typeof Number;
   '--iterations': typeof Number;
   '--for-seconds': typeof Number;
@@ -23,6 +28,9 @@ export interface StarterArgSpec extends arg.Spec {
   '--concurrent-wf-clients': typeof Number;
   '--server-address': typeof String;
   '--worker-pid': typeof Number;
+  '--do-query': typeof String;
+  '--initial-query-delay-ms': typeof Number;
+  '--query-interval-ms': typeof Number;
 }
 
 export const starterArgSpec: StarterArgSpec = {
@@ -35,9 +43,12 @@ export const starterArgSpec: StarterArgSpec = {
   '--concurrent-wf-clients': Number,
   '--server-address': String,
   '--worker-pid': Number,
+  '--do-query': String,
+  '--initial-query-delay-ms': Number,
+  '--query-interval-ms': Number,
 };
 
-export interface WorkerArgSpec extends arg.Spec {
+export interface WorkerArgSpec extends Spec {
   '--ns': typeof String;
   '--task-queue': typeof String;
   '--max-cached-wfs': typeof Number;
@@ -48,8 +59,10 @@ export interface WorkerArgSpec extends arg.Spec {
   // NOTE: this is not supported yet by Core
   '--max-concurrent-wft-polls': typeof Number;
   '--log-level': typeof String;
+  '--log-file': typeof String;
   '--server-address': typeof String;
   '--otel-url': typeof String;
+  '--status-port': typeof Number;
 }
 
 export const workerArgSpec: WorkerArgSpec = {
@@ -64,9 +77,14 @@ export const workerArgSpec: WorkerArgSpec = {
   // NOTE: this is not supported yet by Core
   '--max-concurrent-wft-polls': Number,
   '--log-level': String,
+  '--log-file': String,
   '--server-address': String,
   '--otel-url': String,
+  '--status-port': Number,
 };
+
+export type AllInOneArgSpec = SetupArgSpec & StarterArgSpec & WorkerArgSpec;
+export const allInOneArgSpec: AllInOneArgSpec = { ...setupArgSpec, ...starterArgSpec, ...workerArgSpec };
 
 export function getRequired<T extends arg.Spec, K extends keyof T>(
   args: arg.Result<T>,

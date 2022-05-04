@@ -1,7 +1,7 @@
 import path from 'path';
 import arg from 'arg';
 import { waitOnChild, shell, kill } from '@temporalio/testing/lib/child-process';
-import { setupArgSpec, starterArgSpec, workerArgSpec } from './args';
+import { setupArgSpec, starterArgSpec, workerArgSpec, allInOneArgSpec } from './args';
 import { spawn } from 'child_process';
 
 export function addDefaults(args: arg.Result<any>): arg.Result<any> {
@@ -22,7 +22,7 @@ function argsToForward(spec: arg.Spec, args: arg.Result<arg.Spec>): string[] {
 }
 
 async function main() {
-  const args = addDefaults(arg({ ...setupArgSpec, ...starterArgSpec, ...workerArgSpec }));
+  const args = addDefaults(arg(allInOneArgSpec));
 
   const setupArgs = argsToForward(setupArgSpec, args);
   const setup = spawn('node', [path.resolve(__dirname, 'setup.js'), ...setupArgs], { shell, stdio: 'inherit' });

@@ -1,10 +1,10 @@
-import { DefaultLogger, Worker, Runtime } from '@temporalio/worker';
-import anyTest, { TestInterface } from 'ava';
 import { temporal } from '@temporalio/proto';
-const History = temporal.api.history.v1.History;
-import path from 'path';
-import * as fs from 'fs';
+import { DefaultLogger, Runtime, Worker } from '@temporalio/worker';
 import { DeterminismViolationError } from '@temporalio/workflow';
+import anyTest, { TestInterface } from 'ava';
+import * as fs from 'fs';
+import path from 'path';
+const History = temporal.api.history.v1.History;
 
 export interface Context {
   runtime: Runtime;
