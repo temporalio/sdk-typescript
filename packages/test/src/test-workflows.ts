@@ -1803,3 +1803,25 @@ test('waitOnUser', async (t) => {
     compareCompletion(t, completion, makeSuccess());
   }
 });
+
+test('scopeCancelledWhileWaitingOnExternalWorkflowCancellation', async (t) => {
+  const { workflowType } = t.context;
+  {
+    const completion = await activate(t, makeStartWorkflow(workflowType));
+    compareCompletion(
+      t,
+      completion,
+      makeSuccess([
+        {
+          requestCancelExternalWorkflowExecution: {
+            seq: 1,
+            workflowExecution: { namespace: 'default', workflowId: 'irrelevant' },
+          },
+        },
+        {
+          completeWorkflowExecution: { result: defaultPayloadConverter.toPayload(undefined) },
+        },
+      ])
+    );
+  }
+});

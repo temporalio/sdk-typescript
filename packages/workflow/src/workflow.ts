@@ -545,6 +545,14 @@ export function getExternalWorkflowHandle(workflowId: string, runId?: string): E
         if (state.info === undefined) {
           throw new IllegalStateError('Uninitialized workflow');
         }
+        const scope = CancellationScope.current();
+        if (scope.cancellable) {
+          scope.cancelRequested.catch(reject);
+        }
+        if (scope.consideredCancelled) {
+          return;
+        }
+
         const seq = state.nextSeqs.cancelWorkflow++;
         state.pushCommand({
           requestCancelExternalWorkflowExecution: {
@@ -657,15 +665,9 @@ export async function startChild<T extends Workflow>(
     workflowId: optionsWithDefaults.workflowId,
     originalRunId,
     result(): Promise<WorkflowResultType<T>> {
-      if (completed === undefined) {
-        throw new IllegalStateError('Child Workflow was not started');
-      }
       return completed as any;
     },
     async signal<Args extends any[]>(def: SignalDefinition<Args> | string, ...args: Args): Promise<void> {
-      if (started === undefined) {
-        throw new IllegalStateError('Workflow execution not started');
-      }
       return composeInterceptors(
         state.interceptors.outbound,
         'signalWorkflow',
