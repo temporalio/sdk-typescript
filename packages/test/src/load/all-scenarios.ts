@@ -9,12 +9,10 @@ export type EvaluatedArgs<T extends Spec> = {
 type Args = EvaluatedArgs<AllInOneArgSpec>;
 
 const TEMPORAL_TESTING_SERVER_URL = process.env.TEMPORAL_TESTING_SERVER_URL;
-if (TEMPORAL_TESTING_SERVER_URL == null) {
-  throw new Error('Missing TEMPORAL_TESTING_SERVER_URL env var');
-}
 
+// Use the default unless provided
 const baseArgs: Args = {
-  '--server-address': TEMPORAL_TESTING_SERVER_URL,
+  ...(TEMPORAL_TESTING_SERVER_URL ? { '--server-address': TEMPORAL_TESTING_SERVER_URL } : undefined),
 };
 
 const smallCacheArgs: Args = {
