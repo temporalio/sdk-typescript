@@ -62,11 +62,6 @@ if (RUN_INTEGRATION_TESTS) {
                 },
               });
             },
-            async signal(input, next) {
-              const [decoded] = input.args;
-              const encoded = [...(decoded as any as string)].reverse().join('');
-              return next({ ...input, args: [encoded] });
-            },
             async signalWithStart(input, next) {
               const [decoded] = input.signalArgs;
               const encoded = [...(decoded as any as string)].reverse().join('');
@@ -76,11 +71,30 @@ if (RUN_INTEGRATION_TESTS) {
                 headers: {
                   ...input.headers,
                   message: toPayload(defaultPayloadConverter, message),
+                  marker: toPayload(defaultPayloadConverter, true),
+                },
+              });
+            },
+            async signal(input, next) {
+              const [decoded] = input.args;
+              const encoded = [...(decoded as any as string)].reverse().join('');
+              return next({
+                ...input,
+                args: [encoded],
+                headers: {
+                  ...input.headers,
+                  marker: toPayload(defaultPayloadConverter, true),
                 },
               });
             },
             async query(input, next) {
-              const result: string = (await next(input)) as any;
+              const result: string = (await next({
+                ...input,
+                headers: {
+                  ...input.headers,
+                  marker: toPayload(defaultPayloadConverter, true),
+                },
+              })) as any;
               return [...result].reverse().join('');
             },
           }),

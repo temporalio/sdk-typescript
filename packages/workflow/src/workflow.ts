@@ -69,7 +69,7 @@ function timerNextHandler(input: TimerInput) {
     if (scope.cancellable) {
       scope.cancelRequested.catch((err) => {
         if (!state.completions.timer.delete(input.seq)) {
-          return; // Already resolved
+          return; // Already resolved or never scheduled
         }
         state.pushCommand({
           cancelTimer: {
@@ -79,15 +79,15 @@ function timerNextHandler(input: TimerInput) {
         reject(err);
       });
     }
-    state.completions.timer.set(input.seq, {
-      resolve,
-      reject,
-    });
     state.pushCommand({
       startTimer: {
         seq: input.seq,
         startToFireTimeout: msToTs(input.durationMs),
       },
+    });
+    state.completions.timer.set(input.seq, {
+      resolve,
+      reject,
     });
   });
 }
@@ -156,7 +156,7 @@ async function scheduleActivityNextHandler({
     if (scope.cancellable) {
       scope.cancelRequested.catch(() => {
         if (!state.completions.activity.has(seq)) {
-          return; // Already resolved
+          return; // Already resolved or never scheduled
         }
         state.pushCommand({
           requestCancelActivity: {
@@ -165,10 +165,6 @@ async function scheduleActivityNextHandler({
         });
       });
     }
-    state.completions.activity.set(seq, {
-      resolve,
-      reject,
-    });
     state.pushCommand({
       scheduleActivity: {
         seq,
@@ -184,6 +180,10 @@ async function scheduleActivityNextHandler({
         headers,
         cancellationType: options.cancellationType,
       },
+    });
+    state.completions.activity.set(seq, {
+      resolve,
+      reject,
     });
   });
 }
@@ -211,7 +211,7 @@ async function scheduleLocalActivityNextHandler({
     if (scope.cancellable) {
       scope.cancelRequested.catch(() => {
         if (!state.completions.activity.has(seq)) {
-          return; // Already resolved
+          return; // Already resolved or never scheduled
         }
         state.pushCommand({
           requestCancelLocalActivity: {
@@ -220,11 +220,6 @@ async function scheduleLocalActivityNextHandler({
         });
       });
     }
-    state.completions.activity.set(seq, {
-      resolve,
-      reject,
-    });
-
     state.pushCommand({
       scheduleLocalActivity: {
         seq,
@@ -234,7 +229,7 @@ async function scheduleLocalActivityNextHandler({
         activityId: `${seq}`,
         activityType,
         arguments: toPayloads(state.payloadConverter, ...args),
-        retryPolicy: options.retry ? compileRetryPolicy(options.retry) : {},
+        retryPolicy: options.retry ? compileRetryPolicy(options.retry) : undefined,
         scheduleToCloseTimeout: msOptionalToTs(options.scheduleToCloseTimeout),
         startToCloseTimeout: msOptionalToTs(options.startToCloseTimeout),
         scheduleToStartTimeout: msOptionalToTs(options.scheduleToStartTimeout),
@@ -242,6 +237,10 @@ async function scheduleLocalActivityNextHandler({
         headers,
         cancellationType: options.cancellationType,
       },
+    });
+    state.completions.activity.set(seq, {
+      resolve,
+      reject,
     });
   });
 }
@@ -351,10 +350,6 @@ async function startChildWorkflowExecutionNextHandler({
         // Nothing to cancel otherwise
       });
     }
-    state.completions.childWorkflowStart.set(seq, {
-      resolve,
-      reject,
-    });
     state.pushCommand({
       startChildWorkflowExecution: {
         seq,
@@ -378,6 +373,10 @@ async function startChildWorkflowExecutionNextHandler({
         memo: options.memo && mapToPayloads(state.payloadConverter, options.memo),
       },
     });
+    state.completions.childWorkflowStart.set(seq, {
+      resolve,
+      reject,
+    });
   });
 
   // We construct a Promise for the completion of the child Workflow before we know
@@ -395,7 +394,7 @@ async function startChildWorkflowExecutionNextHandler({
   return [startPromise, completePromise];
 }
 
-function signalWorkflowNextHandler({ seq, signalName, args, target }: SignalWorkflowInput) {
+function signalWorkflowNextHandler({ seq, signalName, args, target, headers }: SignalWorkflowInput) {
   return new Promise<any>((resolve, reject) => {
     if (state.info === undefined) {
       throw new IllegalStateError('Workflow uninitialized');
@@ -418,6 +417,7 @@ function signalWorkflowNextHandler({ seq, signalName, args, target }: SignalWork
       signalExternalWorkflowExecution: {
         seq,
         args: toPayloads(state.payloadConverter, ...args),
+        headers,
         signalName,
         ...(target.type === 'external'
           ? {
@@ -507,6 +507,8 @@ export function proxyActivities<A extends ActivityInterface>(options: ActivityOp
  *
  * @typeparam A An {@link ActivityInterface} - mapping of name to function
  *
+ * @experimental
+ *
  * See {@link proxyActivities} for examples
  */
 export function proxyLocalActivities<A extends ActivityInterface>(options: LocalActivityOptions): A {
@@ -570,6 +572,7 @@ export function getExternalWorkflowHandle(workflowId: string, runId?: string): E
           type: 'external',
           workflowExecution: { workflowId, runId },
         },
+        headers: {},
       });
     },
   };
@@ -675,6 +678,7 @@ export async function startChild<T extends Workflow>(
           type: 'child',
           childWorkflowId: optionsWithDefaults.workflowId,
         },
+        headers: {},
       });
     },
   };
@@ -764,6 +768,24 @@ export function workflowInfo(): WorkflowInfo {
     throw new IllegalStateError('Workflow uninitialized');
   }
   return state.info;
+}
+
+/**
+ * Returns whether or not code is executing in workflow context
+ */
+export function inWorkflowContext(): boolean {
+  try {
+    workflowInfo();
+    return true;
+  } catch (err: any) {
+    // Use string comparison in case multiple versions of @temporalio/common are
+    // installed in which case an instanceof check would fail.
+    if (err.name === 'IllegalStateError') {
+      return false;
+    } else {
+      throw err;
+    }
+  }
 }
 
 /**
@@ -1071,20 +1093,20 @@ export type Handler<
  * If this function is called multiple times for a given signal or query name the last handler will overwrite any previous calls.
  *
  * @param def a {@link SignalDefinition} or {@link QueryDefinition} as returned by {@link defineSignal} or {@link defineQuery} respectively.
- * @param handler  a compatible handler function for the given definition.
+ * @param handler a compatible handler function for the given definition or `undefined` to unset the handler.
  */
 export function setHandler<Ret, Args extends any[], T extends SignalDefinition<Args> | QueryDefinition<Ret, Args>>(
   def: T,
-  handler: Handler<Ret, Args, T>
+  handler: Handler<Ret, Args, T> | undefined
 ): void {
   if (def.type === 'signal') {
     state.signalHandlers.set(def.name, handler as any);
     const bufferedSignals = state.bufferedSignals.get(def.name);
-    if (bufferedSignals !== undefined) {
+    if (bufferedSignals !== undefined && handler !== undefined) {
+      state.bufferedSignals.delete(def.name);
       for (const signal of bufferedSignals) {
         state.activator.signalWorkflow(signal);
       }
-      state.bufferedSignals.delete(def.name);
     }
   } else if (def.type === 'query') {
     state.queryHandlers.set(def.name, handler as any);

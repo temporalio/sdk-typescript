@@ -1,4 +1,5 @@
 /** @type {import('@docusaurus/types').DocusaurusConfig} */
+require('dotenv').config();
 const lightCodeTheme = require('prism-react-renderer/themes/github');
 const darkCodeTheme = require('prism-react-renderer/themes/dracula');
 
@@ -80,7 +81,8 @@ module.exports = {
       copyright: `Copyright © ${new Date().getFullYear()} Temporal Technologies Inc.`,
     },
     algolia: {
-      apiKey: 'f0437b275747f3b6bd2cff61e1e3a796',
+      appId: 'FL5BOEA5LF',
+      apiKey: process.env.ALGOLIA_API_KEY,
       indexName: 'typescript-temporal',
       algoliaOptions: { facetFilters: ['type:$TYPE'] },
     },
@@ -131,7 +133,11 @@ module.exports = {
             {
               origins: [
                 {
-                  files: ['../*/src/**/*.ts', '../create-project/samples/*.ts'],
+                  files: ['../*/src/**/*.ts', '../*/src/*.ts', '../create-project/samples/*.ts'],
+                },
+                {
+                  owner: 'temporalio',
+                  repo: 'samples-typescript',
                 },
               ],
               targets: ['docs'],

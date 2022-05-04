@@ -3,7 +3,7 @@
  * Used in the documentation site.
  */
 // @@@SNIPSTART typescript-cancel-requested-with-non-cancellable
-import { CancelledFailure, CancellationScope, proxyActivities } from '@temporalio/workflow';
+import { CancellationScope, CancelledFailure, proxyActivities } from '@temporalio/workflow';
 import type * as activities from '../activities';
 
 const { httpGetJSON } = proxyActivities<typeof activities>({

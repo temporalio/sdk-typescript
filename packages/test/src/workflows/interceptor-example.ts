@@ -5,9 +5,10 @@ import {
   defaultPayloadConverter,
   defineQuery,
   defineSignal,
-  executeChild,
+  startChild,
   setHandler,
   sleep,
+  getExternalWorkflowHandle,
   WorkflowInterceptors,
 } from '@temporalio/workflow';
 import { echo } from './configured-activities';
@@ -22,7 +23,7 @@ export async function interceptorExample(): Promise<string> {
   setHandler(unblockWithSecretSignal, (secret: string) => {
     if (secret !== '12345') {
       // Workflow execution should fail
-      throw new Error('Wrong unblock secret');
+      throw ApplicationFailure.nonRetryable('Wrong unblock secret');
     }
     unblocked = true;
   });
@@ -38,12 +39,26 @@ export async function interceptorExample(): Promise<string> {
   }
   await sleep(2);
   await condition(() => unblocked);
-  // Untyped because we intercept the result
-  const result = await executeChild('successString', {});
-  if (result !== 3) {
-    throw new Error('expected interceptor to change child workflow result');
+  const handle = await startChild(interceptedChild);
+  await handle.signal(unblockWithSecretSignal, '456');
+  await getExternalWorkflowHandle(handle.workflowId).signal(unblockWithSecretSignal, '123');
+
+  const result = await handle.result();
+  if (result !== receivedMessage) {
+    throw ApplicationFailure.nonRetryable('expected child workflow to return receivedMessage via interceptor');
   }
   return await echo(); // Do not pass message in, done in Activity interceptor
+}
+
+/**
+ * A workflow that is used to verify child workflow start and signals work
+ */
+export async function interceptedChild(): Promise<string> {
+  let accumulatedSecret = '';
+  setHandler(unblockWithSecretSignal, (secret: string) => void (accumulatedSecret += secret));
+  // Input is reversed in interceptor
+  await condition(() => accumulatedSecret === '654321');
+  return receivedMessage;
 }
 
 let receivedMessage = '';
@@ -57,11 +72,19 @@ export const interceptors = (): WorkflowInterceptors => ({
         return next(input);
       },
       async handleSignal(input, next) {
+        // We get the marker header from client signal
+        // We get the marker header (and the message header) from client signalWithStart
+        if (!(input.headers.marker && defaultPayloadConverter.fromPayload(input.headers.marker) === true)) {
+          throw ApplicationFailure.nonRetryable('Expected signal to have "marker" header');
+        }
         const [encoded] = input.args;
         const decoded = [...(encoded as any as string)].reverse().join('');
         return next({ ...input, args: [decoded] });
       },
       async handleQuery(input, next) {
+        if (!(input.headers.marker && defaultPayloadConverter.fromPayload(input.headers.marker) === true)) {
+          throw ApplicationFailure.nonRetryable('Expected query to have "marker" header');
+        }
         const secret: string = (await next(input)) as any;
         return [...secret].reverse().join('');
       },
@@ -89,8 +112,16 @@ export const interceptors = (): WorkflowInterceptors => ({
         return next(input);
       },
       async startChildWorkflowExecution(input, next) {
-        const [started, completed] = await next(input);
-        return [started, completed.then(() => 3)];
+        return await next({
+          ...input,
+          headers: { ...input.headers, message: toPayload(defaultPayloadConverter, receivedMessage) },
+        });
+      },
+      async signalWorkflow(input, next) {
+        return await next({
+          ...input,
+          headers: { ...input.headers, marker: toPayload(defaultPayloadConverter, true) },
+        });
       },
     },
   ],

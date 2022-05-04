@@ -15,7 +15,6 @@ export async function waitOnNamespace(
         execution: { workflowId: 'fake', runId },
       });
     } catch (err: any) {
-      console.log(err);
       if (err.details.includes('workflow history not found') || err.details.includes(runId)) {
         break;
       }

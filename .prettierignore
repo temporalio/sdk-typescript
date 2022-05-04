@@ -11,6 +11,8 @@ packages/docs/docs/api
 typedoc-sidebar.js
 lerna.json
 README.md
+packages/proto/protos/root.d.ts
+packages/proto/protos/json-module.js
 packages/test/protos/root.d.ts
 packages/test/protos/json-module.js
 packages/testing/generated-protos/*

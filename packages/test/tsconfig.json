@@ -3,9 +3,11 @@
   "compilerOptions": {
     "outDir": "./lib",
     "rootDir": "./src",
-    "resolveJsonModule": true
+    "resolveJsonModule": true,
+    "experimentalDecorators": true
   },
   "references": [
+    { "path": "../proto" },
     { "path": "../internal-workflow-common" },
     { "path": "../internal-non-workflow-common" },
     { "path": "../activity" },

@@ -1,13 +1,13 @@
-import anyTest, { TestInterface } from 'ava';
-import { Subject, firstValueFrom } from 'rxjs';
-import { v4 as uuid4 } from 'uuid';
+import { ApplicationFailure, defaultPayloadConverter, WorkflowClient, WorkflowFailedError } from '@temporalio/client';
 import { temporal } from '@temporalio/proto';
 import { Worker } from '@temporalio/worker';
-import { ApplicationFailure, defaultPayloadConverter, WorkflowClient, WorkflowFailedError } from '@temporalio/client';
-import { RUN_INTEGRATION_TESTS } from './helpers';
-import * as activities from './activities';
-import * as workflows from './workflows/local-activity-testers';
 import { isCancellation } from '@temporalio/workflow';
+import anyTest, { TestInterface } from 'ava';
+import { firstValueFrom, Subject } from 'rxjs';
+import { v4 as uuid4 } from 'uuid';
+import * as activities from './activities';
+import { RUN_INTEGRATION_TESTS } from './helpers';
+import * as workflows from './workflows/local-activity-testers';
 
 interface Context {
   taskQueue: string;
@@ -36,8 +36,6 @@ test.beforeEach(async (t) => {
 
 async function defaultWorker(taskQueue: string) {
   return await Worker.create({
-    // Avoid creating too many signal handlers
-    shutdownSignals: [],
     taskQueue,
     workflowsPath: require.resolve('./workflows/local-activity-testers'),
     activities,
@@ -108,6 +106,25 @@ if (RUN_INTEGRATION_TESTS) {
           workflowId: uuid4(),
           taskQueue,
           workflowTaskTimeout: '3s',
+          args: ['waitForCancellation'],
+        }),
+        { instanceOf: WorkflowFailedError }
+      );
+      t.true(isCancellation(err.cause));
+      t.is(err.cause?.message, 'Activity cancelled');
+    });
+  });
+
+  test('Failing local activity can be cancelled', async (t) => {
+    const { client, taskQueue } = t.context;
+    const worker = await defaultWorker(taskQueue);
+    await runWorker(worker, async () => {
+      const err: WorkflowFailedError = await t.throwsAsync(
+        client.execute(workflows.cancelALocalActivity, {
+          workflowId: uuid4(),
+          taskQueue,
+          workflowTaskTimeout: '3s',
+          args: ['throwAnError'],
         }),
         { instanceOf: WorkflowFailedError }
       );
@@ -123,20 +140,19 @@ if (RUN_INTEGRATION_TESTS) {
       const handle = await client.start(workflows.runSerialLocalActivities, {
         workflowId: uuid4(),
         taskQueue,
-        workflowTaskTimeout: '3s',
       });
       await handle.result();
       const { history } = await client.service.getWorkflowExecutionHistory({
         namespace: 'default',
         execution: { workflowId: handle.workflowId },
       });
-      // WorkflowExecutionStarted
-      // WorkflowTaskScheduled
-      // WorkflowTaskStarted
-      // MarkerRecorded x 3
-      // WorkflowTaskCompleted
-      // WorkflowExecutionCompleted
-      t.is(history?.events?.length, 8);
+      if (history?.events == null) {
+        throw new Error('Expected non null events');
+      }
+      // Last 3 events before completing the workflow should be MarkerRecorded
+      t.truthy(history.events[history.events.length - 2].markerRecordedEventAttributes);
+      t.truthy(history.events[history.events.length - 3].markerRecordedEventAttributes);
+      t.truthy(history.events[history.events.length - 4].markerRecordedEventAttributes);
     });
   });
 
@@ -182,7 +198,8 @@ if (RUN_INTEGRATION_TESTS) {
       );
       t.is(err.cause?.message, 'tesssst');
     });
-    t.is(attempts, 2);
+    // Might be more than 2 if workflow task times out (CI I'm looking at you)
+    t.true(attempts >= 2);
   });
 
   test('Local activity backs off with timer', async (t) => {
@@ -281,6 +298,7 @@ if (RUN_INTEGRATION_TESTS) {
       workflowId: uuid4(),
       taskQueue,
       workflowTaskTimeout: '3s',
+      args: ['waitForCancellation'],
     });
     const p = worker.run();
     await firstValueFrom(subj);

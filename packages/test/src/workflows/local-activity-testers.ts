@@ -40,9 +40,9 @@ export async function throwARetryableErrorWithASingleRetry(message: string): Pro
   await throwAnError(false, message);
 }
 
-export async function cancelALocalActivity(): Promise<void> {
+export async function cancelALocalActivity(activityType: 'waitForCancellation' | 'throwAnError'): Promise<void> {
   await wf.CancellationScope.cancellable(async () => {
-    const p = waitForCancellation();
+    const p = activityType === 'waitForCancellation' ? waitForCancellation() : throwAnError(false, 'Retry me');
     await wf.sleep(1);
     wf.CancellationScope.current().cancel();
     await p;
@@ -66,6 +66,7 @@ export async function throwAnErrorWithBackoff(): Promise<void> {
 }
 
 export async function runANonExisitingLocalActivity(): Promise<void> {
+  // TODO: default behavior should be to not retry activities that are not found
   const { activityNotFound } = wf.proxyLocalActivities({
     startToCloseTimeout: '1m',
     retry: { maximumAttempts: 1 },
