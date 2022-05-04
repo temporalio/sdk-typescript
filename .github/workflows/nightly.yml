@@ -5,7 +5,7 @@ on:
     - cron: '00 19 * * *'
 
 jobs:
-  stress-test:
+  nightly:
     runs-on: self-hosted
     steps:
       - uses: actions/checkout@v2
@@ -29,16 +29,16 @@ jobs:
         with:
           repository: temporalio/docker-compose
           path: docker-compose
-        if: ${{ startsWith(matrix.os, 'ubuntu') }}
 
       - name: Start Temporal Server
         run: docker-compose up -d
         working-directory: docker-compose
-        if: ${{ startsWith(matrix.os, 'ubuntu') }}
 
       - name: Wait for Temporal Server
         run: npm run wait-namespace
-        if: ${{ startsWith(matrix.os, 'ubuntu') }}
       # end:docker-compose
 
-      - run: npm ci-stress
+      - run: npm ci-nightly
+
+      # TODO: set up alerting and preserve worker logs
+      # TODO: record test durations and other metrics like memory usage / cache utilization / CPU

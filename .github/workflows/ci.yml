@@ -253,3 +253,41 @@ jobs:
     with:
       typescript-repo-path: ${{github.event.pull_request.head.repo.full_name}}
       typescript-repo-ref: ${{github.event.pull_request.head.ref}}
+
+  stress-tests:
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          submodules: recursive
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+      - uses: actions/setup-node@v1
+        with:
+          node-version: ${{ matrix.node }}
+      # Don't build during install phase since we're going to explicitly build
+      - run: npm ci --ignore-scripts
+      - run: npm run build
+        env:
+          BUILD_CORE_RELEASE: true
+
+      # docker-compose
+      - name: Checkout docker-compose repo
+        uses: actions/checkout@v2
+        with:
+          repository: temporalio/docker-compose
+          path: docker-compose
+
+      - name: Start Temporal Server
+        run: docker-compose up -d
+        working-directory: docker-compose
+
+      - name: Wait for Temporal Server
+        run: npm run wait-namespace
+      # end:docker-compose
+
+      - run: npm ci-stress
+
+      # TODO: set up alerting and preserve worker logs
+      # TODO: record test durations and other metrics like memory usage / cache utilization / CPU
