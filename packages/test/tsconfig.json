@@ -3,7 +3,8 @@
   "compilerOptions": {
     "outDir": "./lib",
     "rootDir": "./src",
-    "resolveJsonModule": true
+    "resolveJsonModule": true,
+    "experimentalDecorators": true
   },
   "references": [
     { "path": "../proto" },
