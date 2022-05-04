@@ -1,4 +1,4 @@
-import dedent from 'dedent';
+import dedent from 'ts-dedent';
 import * as realFS from 'fs';
 import * as memfs from 'memfs';
 import { builtinModules } from 'module';
@@ -82,7 +82,9 @@ export class WorkflowCodeBundler {
 
     this.genEntrypoint(vol, entrypointPath);
     await this.bundle(ufs, memoryFs, entrypointPath, distDir);
-    return ufs.readFileSync(path.join(distDir, 'main.js'), 'utf8');
+
+    // Cast because the type definitions are inaccurate
+    return memoryFs.readFileSync(path.join(distDir, 'main.js'), 'utf8') as string;
   }
 
   protected makeEntrypointPath(fs: typeof unionfs.ufs, workflowsPath: string): string {
@@ -245,7 +247,7 @@ export class WorkflowCodeBundler {
           .join('') +
         `Workflow code doesn't have access to built-in Node modules (in order to help enforce determinism). If you are certain ` +
         `these modules will not be used at runtime, then you may add their names to 'WorkerOptions.bundlerOptions.ignoreModules' in order to ` +
-        `dismiss this warning. However, if your code execution actually depends on these modules, then you must change the code` +
+        `dismiss this warning. However, if your code execution actually depends on these modules, then you must change the code ` +
         `or remove the library.\n` +
         `See https://typescript.temporal.io/api/interfaces/worker.workeroptions/#bundleroptions for details.`
     );

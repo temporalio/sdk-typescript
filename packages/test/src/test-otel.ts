@@ -185,4 +185,9 @@ if (RUN_INTEGRATION_TESTS) {
     await new Promise((resolve) => setTimeout(resolve, 5000));
     t.pass();
   });
+
+  test('Otel workflow module does not patch node window object', (t) => {
+    // Importing the otel workflow modules above should patch globalThis
+    t.falsy((globalThis as any).window);
+  });
 }

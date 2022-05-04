@@ -1,7 +1,10 @@
 import { BaseWorkflowHandle, SignalDefinition, Workflow } from '@temporalio/internal-workflow-common';
 
 /**
- * Handle representing an external Workflow execution
+ * Handle representing an external Workflow Execution.
+ *
+ * This handle only has methods `cancel` and `signal`. To call other methods, like `query` and `result`, use
+ * {@link WorkflowClient.getHandle} inside an Activity.
  */
 export interface ExternalWorkflowHandle {
   /**

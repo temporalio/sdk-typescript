@@ -66,9 +66,13 @@ export interface TelemetryOptions {
    * Which determines what tracing data is collected in the Core SDK
    */
   tracingFilter?: string;
-  /** What level, if any, logs should be forwarded from core at */
+  /**
+   * What level, if any, logs should be forwarded from core at
+   *
+   * @default OFF
+   */
   // These strings should match the log::LevelFilter enum in rust
-  logForwardingLevel: 'OFF' | LogLevel;
+  logForwardingLevel?: 'OFF' | LogLevel;
   /** If set, metrics will be exposed on an http server in this process for direct scraping by
    *  prometheus. If used in conjunction with the OTel collector, metrics will *not* be exported
    *  to the collector, but traces will be.
