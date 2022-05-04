@@ -1,13 +1,15 @@
-// eslint-disable-next-line @typescript-eslint/ban-types
-function sealed(constructor: Function) {
+interface Constructor {
+  new (): any;
+}
+
+function sealed(constructor: Constructor) {
   Object.seal(constructor);
   Object.seal(constructor.prototype);
 }
 
 function decorate() {
-  // console.log('decorate(): factory evaluated');
   return function (_target: any, _propertyKey: string, _descriptor: PropertyDescriptor) {
-    // console.log('decorate(): called');
+    // empty
   };
 }
 
