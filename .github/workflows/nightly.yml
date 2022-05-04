@@ -6,7 +6,7 @@ on:
 
 jobs:
   nightly:
-    runs-on: self-hosted
+    runs-on: [self-hosted, Linux, x86]
     steps:
       - uses: actions/checkout@v2
         with:
