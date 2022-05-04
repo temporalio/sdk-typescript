@@ -72,6 +72,7 @@ export * from './sleep';
 export * from './sleep-invalid-duration';
 export * from './smorgasbord';
 export * from './success-string';
+export * from './swc';
 export * from './tasks-and-microtasks';
 export * from './throw-async';
 export * from './throw-object';
