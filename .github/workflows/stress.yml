@@ -52,9 +52,11 @@ jobs:
 
       # Tail the logs and upload as artifact on cancel or failure
       - run: mkdir $TEMPORAL_TESTING_LOG_DIR/tails && for f in $TEMPORAL_TESTING_LOG_DIR/*.log; do tail -20000 $f > $TEMPORAL_TESTING_LOG_DIR/tails/$(basename $f); done
-        if: ${{ cancelled() || failure() }}
+        # if: ${{ cancelled() || failure() }}
+        if: ${{ always() }}
       - uses: actions/upload-artifact@v2
-        if: ${{ cancelled() || failure() }}
+        # if: ${{ cancelled() || failure() }}
+        if: ${{ always() }}
         with:
           name: worker-logs
           path: $TEMPORAL_TESTING_LOG_DIR/tails
