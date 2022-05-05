@@ -38,6 +38,8 @@ async function runWorkflow({ client, workflowName, taskQueue, queryingOptions }:
         }
         if (queryingOptions.queryIntervalMs) {
           await new Promise((resolve) => setTimeout(resolve, queryingOptions.queryIntervalMs));
+        } else {
+          break;
         }
       }
     })();
@@ -166,7 +168,7 @@ function followProgress(): OperatorFunction<any, Progress> {
 
 async function main() {
   const args = arg<StarterArgSpec>(starterArgSpec);
-  const workflowName = args['--workflow'] || 'cancelFakeProgress';
+  const workflowName = getRequired(args, '--workflow');
   const iterations = args['--iterations'] || 1000;
   const runForSeconds = args['--for-seconds'];
   const concurrentWFClients = args['--concurrent-wf-clients'] || 100;
@@ -186,29 +188,17 @@ async function main() {
 
   console.log(`Starting tests on machine with ${toMB(os.totalmem(), 0)}MB of RAM and ${os.cpus().length} CPUs`);
 
-  let workflowsToRun: string[];
-  if (workflowName === 'yummy-sampler-mode') {
-    // Special workflow alias to run many different load tests sequentially.
-    // Expected wf/sec should be set low since some of these by their nature have
-    // higher latency.
-    workflowsToRun = ['cancelFakeProgress', 'childWorkflowCancel', 'childWorkflowSignals', 'smorgasbord'];
-  } else {
-    workflowsToRun = [workflowName];
-  }
-
-  for (const wfName of workflowsToRun) {
-    console.log(`+++ Starting test for ${wfName} workflows`);
-    await runWorkflows({
-      client,
-      workflowName: wfName,
-      taskQueue,
-      stopCondition,
-      concurrency: concurrentWFClients,
-      minWFPS,
-      workerPid,
-      queryingOptions,
-    });
-  }
+  console.log(`+++ Starting test for ${workflowName} workflows`);
+  await runWorkflows({
+    client,
+    workflowName,
+    taskQueue,
+    stopCondition,
+    concurrency: concurrentWFClients,
+    minWFPS,
+    workerPid,
+    queryingOptions,
+  });
 }
 
 main().catch((err) => {
