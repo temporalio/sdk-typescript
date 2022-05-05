@@ -24,6 +24,20 @@ const defaultHeaders = {
   'User-Agent': '@temporalio/testing installer',
 };
 
+const { GITHUB_TOKEN } = process.env;
+if (GITHUB_TOKEN) {
+  console.log(`Using GITHUB_TOKEN ${GITHUB_TOKEN}`);
+  defaultHeaders['Authorization'] = `Bearer ${GITHUB_TOKEN}`;
+}
+
+const rateLimitResult = await got('https://api.github.com/rate_limit', {
+  headers: {
+    ...defaultHeaders,
+    Accept: 'application/vnd.github.v3+json',
+  },
+}).json();
+console.log(`Rate limit status: ${rateLimitResult?.rate?.remaining} requests remaining`);
+
 const latestReleaseRes = await got('https://api.github.com/repos/temporalio/sdk-java/releases/latest', {
   headers: {
     ...defaultHeaders,
