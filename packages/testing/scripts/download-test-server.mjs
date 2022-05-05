@@ -26,7 +26,7 @@ const defaultHeaders = {
 
 const { GITHUB_TOKEN } = process.env;
 if (GITHUB_TOKEN) {
-  console.log(`Using GITHUB_TOKEN ${GITHUB_TOKEN}`);
+  console.log(`Using GITHUB_TOKEN`);
   defaultHeaders['Authorization'] = `Bearer ${GITHUB_TOKEN}`;
 }
 
