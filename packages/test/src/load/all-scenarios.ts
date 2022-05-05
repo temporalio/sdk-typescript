@@ -87,9 +87,16 @@ export function runScenarios(scenarios: Record<string, Args>): void {
     console.log('Running test scenario:', name, { config });
     console.log('*'.repeat(120));
 
-    spawnSync('node', [require.resolve('./all-in-one'), ...Object.entries(config).flatMap(([k, v]) => [k, `${v}`])], {
-      stdio: 'inherit',
-    });
+    const { error, signal, status } = spawnSync(
+      'node',
+      [require.resolve('./all-in-one'), ...Object.entries(config).flatMap(([k, v]) => [k, `${v}`])],
+      {
+        stdio: 'inherit',
+      }
+    );
+    if (status !== 0) {
+      throw new Error(`Test failed with status: ${status}, signal: ${signal}, error: ${error?.message}`);
+    }
 
     console.log('*'.repeat(120));
     console.log('End test scenario:', name);
