@@ -1,6 +1,8 @@
+import ms from 'ms';
+import { spawnSync } from 'node:child_process';
+import path from 'node:path';
 import { Spec, AllInOneArgSpec } from './args';
 import * as workflows from '../workflows';
-import ms from 'ms';
 
 export type EvaluatedArgs<T extends Spec> = {
   [K in keyof T]?: ReturnType<T[K]>;
@@ -9,6 +11,7 @@ export type EvaluatedArgs<T extends Spec> = {
 type Args = EvaluatedArgs<AllInOneArgSpec>;
 
 const TEMPORAL_TESTING_SERVER_URL = process.env.TEMPORAL_TESTING_SERVER_URL;
+const TEMPORAL_TESTING_LOG_DIR = process.env.TEMPORAL_TESTING_LOG_DIR;
 
 // Use the default unless provided
 const baseArgs: Args = {
@@ -18,6 +21,7 @@ const baseArgs: Args = {
 const smallCacheArgs: Args = {
   '--max-cached-wfs': 3,
   '--max-concurrent-wft-executions': 3,
+  '--status-port': 6666,
 };
 
 export const activityCancellation10kIters: Args = {
@@ -68,3 +72,27 @@ export const samplers = Object.fromEntries(
     },
   ])
 );
+
+export function runScenarios(scenarios: Record<string, Args>): void {
+  for (const [name, origConfig] of Object.entries(scenarios)) {
+    let config = origConfig;
+    if (TEMPORAL_TESTING_LOG_DIR) {
+      config = {
+        ...origConfig,
+        '--log-file': path.join(TEMPORAL_TESTING_LOG_DIR, `${name}.log`),
+        '--log-level': 'DEBUG',
+      };
+    }
+    console.log('*'.repeat(120));
+    console.log('Running test scenario:', name, { config });
+    console.log('*'.repeat(120));
+
+    spawnSync('node', [require.resolve('./all-in-one'), ...Object.entries(config).flatMap(([k, v]) => [k, `${v}`])], {
+      stdio: 'inherit',
+    });
+
+    console.log('*'.repeat(120));
+    console.log('End test scenario:', name);
+    console.log('*'.repeat(120));
+  }
+}
