@@ -52,11 +52,9 @@ jobs:
       - run: 'timeout ${{ inputs.test-timeout-minutes }}m npm run ${{ inputs.test-type }}'
       # Tail the logs and upload as artifact on cancel or failure
       - run: for f in $TEMPORAL_TESTING_LOG_DIR/*.log; do tail -20000 $f > $TEMPORAL_TESTING_LOG_DIR/tails/$(basename $f); done
-        # if: ${{ cancelled() || failure() }}
-        if: ${{ always() }}
+        if: ${{ cancelled() || failure() }}
       - uses: actions/upload-artifact@v2
-        # if: ${{ cancelled() || failure() }}
-        if: ${{ always() }}
+        if: ${{ cancelled() || failure() }}
         with:
           name: worker-logs
           path: ${{ env.TEMPORAL_TESTING_LOG_DIR }}/tails
