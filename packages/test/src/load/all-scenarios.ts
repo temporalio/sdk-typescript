@@ -73,10 +73,15 @@ export const samplers = Object.fromEntries(
   ])
 );
 
-export function runScenarios(scenarios: Record<string, Args>) {
-  for (let [name, config] of Object.entries(scenarios)) {
+export function runScenarios(scenarios: Record<string, Args>): void {
+  for (const [name, origConfig] of Object.entries(scenarios)) {
+    let config = origConfig;
     if (TEMPORAL_TESTING_LOG_DIR) {
-      config = { ...config, '--log-file': path.join(TEMPORAL_TESTING_LOG_DIR, `${name}.log`), '--log-level': 'DEBUG' };
+      config = {
+        ...origConfig,
+        '--log-file': path.join(TEMPORAL_TESTING_LOG_DIR, `${name}.log`),
+        '--log-level': 'DEBUG',
+      };
     }
     console.log('*'.repeat(120));
     console.log('Running test scenario:', name, { config });
