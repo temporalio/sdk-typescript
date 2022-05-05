@@ -1,4 +1,9 @@
-import { PayloadConverterError, UnsupportedTypeError, ValueError } from '@temporalio/internal-workflow-common';
+import {
+  errorMessage,
+  PayloadConverterError,
+  UnsupportedTypeError,
+  ValueError,
+} from '@temporalio/internal-workflow-common';
 import { PayloadConverter } from './payload-converter';
 import { encodingKeys, encodingTypes, METADATA_ENCODING_KEY, Payload, str, u8 } from './types';
 
@@ -31,21 +36,24 @@ export class CompositePayloadConverter implements PayloadConverter {
    * Tries to run `.toPayload(value)` on each converter in the order provided at construction.
    * Returns the first successful result, or `undefined` if there is no converter that can handle the value.
    *
-   * @throws UnsupportedTypeError
+   * @throws {@link ValueError}
    */
   public toPayload<T>(value: T): Payload {
+    let lastError: unknown;
     for (const converter of this.converters) {
-      const result = converter.toPayload(value);
-      if (result !== undefined) {
-        return result;
+      try {
+        return converter.toPayload(value);
+      } catch (e) {
+        lastError = e;
       }
     }
-    let errorMessage = `Unable to serialize value: ${value}. None of the configured \`PayloadConverter\`s support converting this value to a Payload. Either use serializable values or create a custom data converter: https://docs.temporal.io/docs/typescript/data-converters`;
-    if (this.converters[this.converters.length - 1] instanceof JsonPayloadConverter) {
-      errorMessage = `Can't run JSON.stringify on this value: ${value}. Either convert it (or its properties) to JSON-serializable values (see https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/JSON/stringify#description ), or use a custom data converter: https://docs.temporal.io/docs/typescript/data-converters`;
-    }
 
-    throw new UnsupportedTypeError(errorMessage);
+    throw new ValueError(
+      `Unable to serialize value: ${value} of type ${typeof value}. None of the configured \`PayloadConverter\`s support converting this value to a Payload. Either use serializable values or create a custom data converter: https://docs.temporal.io/docs/typescript/data-converters . The last \`PayloadConverter\`'s error was: ${errorMessage(
+        lastError
+      )}`,
+      lastError
+    );
   }
 
   /**
@@ -70,8 +78,11 @@ export class CompositePayloadConverter implements PayloadConverter {
 export class UndefinedPayloadConverter implements PayloadConverterWithEncoding {
   public encodingType = encodingTypes.METADATA_ENCODING_NULL;
 
-  public toPayload(value: unknown): Payload | undefined {
-    if (value !== undefined) return undefined; // Can't encode
+  public toPayload(value: unknown): Payload {
+    if (value !== undefined)
+      throw new UnsupportedTypeError(
+        `UndefinedPayloadConverter can only convert undefined. Received value: ${value} of type ${typeof value}.`
+      );
     return {
       metadata: {
         [METADATA_ENCODING_KEY]: encodingKeys.METADATA_ENCODING_NULL,
@@ -90,14 +101,22 @@ export class UndefinedPayloadConverter implements PayloadConverterWithEncoding {
 export class JsonPayloadConverter implements PayloadConverterWithEncoding {
   public encodingType = encodingTypes.METADATA_ENCODING_JSON;
 
-  public toPayload(value: unknown): Payload | undefined {
-    if (value === undefined) return undefined;
+  /*
+   * @throws {@link UnsupportedTypeError}
+   */
+  public toPayload(value: unknown): Payload {
+    if (value === undefined) throw new UnsupportedTypeError(`JsonPayloadConverter can't convert undefined.`);
 
     let json;
     try {
       json = JSON.stringify(value);
     } catch (e) {
-      return undefined;
+      throw new UnsupportedTypeError(
+        `Can't run JSON.stringify on this value: ${value}. Either convert it (or its properties) to JSON-serializable values (see https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/JSON/stringify#description ), or use a custom data converter: https://docs.temporal.io/docs/typescript/data-converters . JSON.stringify error message: ${errorMessage(
+          e
+        )}`,
+        e
+      );
     }
 
     return {
@@ -122,9 +141,13 @@ export class JsonPayloadConverter implements PayloadConverterWithEncoding {
 export class BinaryPayloadConverter implements PayloadConverterWithEncoding {
   public encodingType = encodingTypes.METADATA_ENCODING_RAW;
 
-  public toPayload(value: unknown): Payload | undefined {
+  public toPayload(value: unknown): Payload {
     // TODO: support any DataView or ArrayBuffer?
-    if (!(value instanceof Uint8Array)) return undefined;
+    if (!(value instanceof Uint8Array))
+      throw new UnsupportedTypeError(
+        `BinaryPayloadConverter can only convert \`Uint8Array\`s. Received value: ${value} of type ${typeof value}.`
+      );
+
     return {
       metadata: {
         [METADATA_ENCODING_KEY]: encodingKeys.METADATA_ENCODING_RAW,

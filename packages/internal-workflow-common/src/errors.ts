@@ -1,5 +1,9 @@
 export class ValueError extends Error {
   public readonly name: string = 'ValueError';
+
+  constructor(message: string | undefined, public readonly cause?: unknown) {
+    super(message ?? undefined);
+  }
 }
 
 export class PayloadConverterError extends ValueError {

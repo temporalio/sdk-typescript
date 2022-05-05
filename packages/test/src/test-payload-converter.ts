@@ -31,11 +31,11 @@ import { protobufWorkflow } from './workflows';
 
 test('UndefinedPayloadConverter converts from undefined only', (t) => {
   const converter = new UndefinedPayloadConverter();
-  t.is(converter.toPayload(null), undefined);
-  t.is(converter.toPayload({}), undefined);
-  t.is(converter.toPayload(1), undefined);
-  t.is(converter.toPayload(0), undefined);
-  t.is(converter.toPayload('abc'), undefined);
+  t.throws(() => converter.toPayload(null), { instanceOf: UnsupportedTypeError });
+  t.throws(() => converter.toPayload({}), { instanceOf: UnsupportedTypeError });
+  t.throws(() => converter.toPayload(1), { instanceOf: UnsupportedTypeError });
+  t.throws(() => converter.toPayload(0), { instanceOf: UnsupportedTypeError });
+  t.throws(() => converter.toPayload('abc'), { instanceOf: UnsupportedTypeError });
 
   t.deepEqual(converter.toPayload(undefined), {
     metadata: { [METADATA_ENCODING_KEY]: encodingKeys.METADATA_ENCODING_NULL },
@@ -49,11 +49,11 @@ test('UndefinedPayloadConverter converts to undefined', (t) => {
 
 test('BinaryPayloadConverter converts from Uint8Array', (t) => {
   const converter = new BinaryPayloadConverter();
-  t.is(converter.toPayload(null), undefined);
-  t.is(converter.toPayload({}), undefined);
-  t.is(converter.toPayload(1), undefined);
-  t.is(converter.toPayload(0), undefined);
-  t.is(converter.toPayload('abc'), undefined);
+  t.throws(() => converter.toPayload(null), { instanceOf: UnsupportedTypeError });
+  t.throws(() => converter.toPayload({}), { instanceOf: UnsupportedTypeError });
+  t.throws(() => converter.toPayload(1), { instanceOf: UnsupportedTypeError });
+  t.throws(() => converter.toPayload(0), { instanceOf: UnsupportedTypeError });
+  t.throws(() => converter.toPayload('abc'), { instanceOf: UnsupportedTypeError });
 
   t.deepEqual(converter.toPayload(u8('abc')), {
     metadata: { [METADATA_ENCODING_KEY]: encodingKeys.METADATA_ENCODING_RAW },
@@ -78,8 +78,8 @@ test('JsonPayloadConverter converts from non undefined', (t) => {
   t.deepEqual(converter.toPayload(0), payload(0));
   t.deepEqual(converter.toPayload('abc'), payload('abc'));
 
-  t.is(converter.toPayload(undefined), undefined);
-  t.is(converter.toPayload(0n), undefined);
+  t.throws(() => converter.toPayload(undefined), { instanceOf: UnsupportedTypeError });
+  t.throws(() => converter.toPayload(0n), { instanceOf: UnsupportedTypeError });
 });
 
 test('JsonPayloadConverter converts to object', (t) => {
@@ -238,7 +238,7 @@ test('DefaultPayloadConverterWithProtobufs converts to payload by trying each co
     new BinaryPayloadConverter().toPayload(u8('abc'))
   );
   t.throws(() => defaultPayloadConverterWithProtos.toPayload(0n), {
-    instanceOf: UnsupportedTypeError,
+    instanceOf: ValueError,
   });
 });
 

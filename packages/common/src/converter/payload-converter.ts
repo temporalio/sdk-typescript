@@ -1,8 +1,7 @@
-import { PayloadConverterError } from '@temporalio/internal-workflow-common';
 import { Payload } from './types';
 
 /**
- * Used by the framework to serialize/deserialize parameters and return values.
+ * Used by the framework to serialize/deserialize data like parameters and return values.
  *
  * This is called inside the [Workflow isolate](https://docs.temporal.io/docs/typescript/determinism).
  * To write async code or use Node APIs (or use packages that use Node APIs), use a {@link PayloadCodec}.
@@ -10,9 +9,11 @@ import { Payload } from './types';
 export interface PayloadConverter {
   /**
    * Converts a value to a {@link Payload}.
-   * @param value The value to convert. Example values include the Workflow args sent by the client and the values returned by a Workflow or Activity.
+   *
+   * @param value The value to convert. Example values include the Workflow args sent from the Client and the values returned by a Workflow or Activity.
+   * @throws {@link ValueError} if `value` cannot be converted.
    */
-  toPayload<T>(value: T): Payload | undefined;
+  toPayload<T>(value: T): Payload;
 
   /**
    * Converts a {@link Payload} back to a value.
@@ -23,14 +24,10 @@ export interface PayloadConverter {
 /**
  * Tries to convert `value` to a {@link Payload}. Throws if conversion fails.
  *
- * @throws {@link PayloadConverterError}
+ * @throws {@link ValueError}
  */
 export function toPayload(converter: PayloadConverter, value: unknown): Payload {
-  const payload = converter.toPayload(value);
-  if (payload === undefined) {
-    throw new PayloadConverterError(`Failed to convert value: ${value}`);
-  }
-  return payload;
+  return converter.toPayload(value);
 }
 
 /**
@@ -38,8 +35,8 @@ export function toPayload(converter: PayloadConverter, value: unknown): Payload 
  *
  * @param converter
  * @param values JS values to convert to Payloads
- * @return converted values
- * @throws PayloadConverterError if conversion of the value passed as parameter failed for any
+ * @return list of {@link Payload}s
+ * @throws {@link ValueError} if conversion of the value passed as parameter failed for any
  *     reason.
  */
 export function toPayloads(converter: PayloadConverter, ...values: unknown[]): Payload[] | undefined {
@@ -53,7 +50,7 @@ export function toPayloads(converter: PayloadConverter, ...values: unknown[]): P
 /**
  * Run {@link PayloadConverter.toPayload} on each value in the map.
  *
- * @throws {@link PayloadConverterError} if conversion of any value in the map fails
+ * @throws {@link ValueError} if conversion of any value in the map fails
  */
 export function mapToPayloads<K extends string>(converter: PayloadConverter, map: Record<K, any>): Record<K, Payload> {
   return Object.fromEntries(
