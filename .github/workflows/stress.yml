@@ -16,6 +16,8 @@ jobs:
   stress-test:
     runs-on: [self-hosted, Linux, X64]
     steps:
+      - name: Print build info
+        run: 'echo test-type: ${{ inputs.test-type }}, test-timeout-minutes: ${{ inputs.test-timeout-minutes }}'
       - uses: actions/checkout@v2
         with:
           submodules: recursive
@@ -46,12 +48,10 @@ jobs:
         run: npm run wait-namespace
       # end:docker-compose
 
-      - run: mkdir $TEMPORAL_TESTING_LOG_DIR
-      - run: npm run ${{ github.event.inputs.test-type }}
-        timeout-minutes: ${{ github.event.inputs.test-timeout-minutes }}
-
+      - run: mkdir -p $TEMPORAL_TESTING_LOG_DIR/tails
+      - run: 'timeout ${{ inputs.test-timeout-minutes }}m npm run ${{ inputs.test-type }}'
       # Tail the logs and upload as artifact on cancel or failure
-      - run: mkdir $TEMPORAL_TESTING_LOG_DIR/tails && for f in $TEMPORAL_TESTING_LOG_DIR/*.log; do tail -20000 $f > $TEMPORAL_TESTING_LOG_DIR/tails/$(basename $f); done
+      - run: for f in $TEMPORAL_TESTING_LOG_DIR/*.log; do tail -20000 $f > $TEMPORAL_TESTING_LOG_DIR/tails/$(basename $f); done
         # if: ${{ cancelled() || failure() }}
         if: ${{ always() }}
       - uses: actions/upload-artifact@v2
@@ -59,7 +59,7 @@ jobs:
         if: ${{ always() }}
         with:
           name: worker-logs
-          path: $TEMPORAL_TESTING_LOG_DIR/tails
+          path: ${{ env.TEMPORAL_TESTING_LOG_DIR }}/tails
 
       # TODO: set up alerting
       # TODO: record test durations and other metrics like memory usage / cache utilization / CPU
