@@ -8,7 +8,7 @@ jobs:
   nightly:
     # GH actions is a bit limited here and won't accept the current ref.
     # When changing stress.yaml, make sure to update the branch name below.
-    uses: temporalio/sdk-typescript/.github/workflows/stress.yml@stress-test-logs
+    uses: temporalio/sdk-typescript/.github/workflows/stress.yml@main
     with:
       test-type: ci-nightly
       test-timeout-minutes: 360 # yes, 6 hours
