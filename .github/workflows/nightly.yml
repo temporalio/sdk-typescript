@@ -6,39 +6,9 @@ on:
 
 jobs:
   nightly:
-    runs-on: [self-hosted, Linux, X64]
-    steps:
-      - uses: actions/checkout@v2
-        with:
-          submodules: recursive
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-      - uses: actions/setup-node@v1
-        with:
-          node-version: ${{ matrix.node }}
-      # Don't build during install phase since we're going to explicitly build
-      - run: npm ci --ignore-scripts
-      - run: npm run build
-        env:
-          BUILD_CORE_RELEASE: true
-
-      # docker-compose
-      - name: Checkout docker-compose repo
-        uses: actions/checkout@v2
-        with:
-          repository: temporalio/docker-compose
-          path: docker-compose
-
-      - name: Start Temporal Server
-        run: docker-compose up -d
-        working-directory: docker-compose
-
-      - name: Wait for Temporal Server
-        run: npm run wait-namespace
-      # end:docker-compose
-
-      - run: npm run ci-nightly
-
-      # TODO: set up alerting and preserve worker logs
-      # TODO: record test durations and other metrics like memory usage / cache utilization / CPU
+    # GH actions is a bit limited here and won't accept the current ref.
+    # When changing stress.yaml, make sure to update the branch name below.
+    uses: temporalio/sdk-typescript/.github/workflows/stress.yml@stress-test-logs
+    with:
+      test-type: ci-nightly
+      test-timeout-minutes: 360 # yes, 6 hours
