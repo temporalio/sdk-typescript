@@ -10,7 +10,7 @@ class TestPayloadConverter implements PayloadConverter {
     };
   }
 
-  public fromPayload<T>(content: Payload): T {
+  public fromPayload<T>(_content: Payload): T {
     throw new Error('test fromPayload');
   }
 }
