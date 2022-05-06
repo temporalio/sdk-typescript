@@ -106,8 +106,6 @@ test('Worker ignores last heartbeat if activity succeeds', async (t) => {
 });
 
 test('Activity gets cancelled if heartbeat fails', async (t) => {
-  const codecErr = new Error('Refuse to encode data for test');
-
   const worker = isolateFreeWorker({
     taskQueue: 'unused',
     dataConverter: {
@@ -116,7 +114,7 @@ test('Activity gets cancelled if heartbeat fails', async (t) => {
           // Fail to encode heartbeat details.
           // data will be undefined when this method gets the activity result for completion.
           if (p[0].data !== undefined) {
-            throw codecErr;
+            throw new Error('Refuse to encode data for test');
           }
           return p;
         },
@@ -138,7 +136,7 @@ test('Activity gets cancelled if heartbeat fails', async (t) => {
     heartbeatsSeen.push(details);
   };
   await runActivity(worker, (completion) => {
-    t.is(completion.result?.failed?.failure?.message, codecErr.toString());
+    t.is(completion.result?.failed?.failure?.message, 'HEARTBEAT_DETAILS_CONVERSION_FAILED');
   });
   t.deepEqual(heartbeatsSeen, []);
 });

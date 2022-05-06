@@ -716,7 +716,7 @@ export class Worker {
                     const reason = task.cancel?.reason;
                     if (reason === undefined || reason === null) {
                       // Special case of Lang side cancellation during shutdown (see `activity.shutdown.evict` above)
-                      activity.cancel('WORKER SHUTDOWN' as CancelReason);
+                      activity.cancel('WORKER_SHUTDOWN');
                     } else {
                       activity.cancel(coresdk.activity_task.ActivityCancelReason[reason] as CancelReason);
                     }
