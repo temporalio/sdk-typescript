@@ -24,6 +24,12 @@ const defaultHeaders = {
   'User-Agent': '@temporalio/testing installer',
 };
 
+const { GITHUB_TOKEN } = process.env;
+if (GITHUB_TOKEN) {
+  console.log(`Using GITHUB_TOKEN`);
+  defaultHeaders['Authorization'] = `Bearer ${GITHUB_TOKEN}`;
+}
+
 const latestReleaseRes = await got('https://api.github.com/repos/temporalio/sdk-java/releases/latest', {
   headers: {
     ...defaultHeaders,

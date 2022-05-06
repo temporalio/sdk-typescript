@@ -1,10 +1,14 @@
 name: Continuous Integration
+
 on: # rebuild any PRs and main branch changes
   pull_request:
   push:
     branches:
       - main
       - 'releases/*'
+
+env:
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
 jobs:
   build-and-test:
