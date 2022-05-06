@@ -43,7 +43,7 @@ import {
 } from 'rxjs';
 import { delay, filter, first, ignoreElements, map, mergeMap, takeUntil, takeWhile, tap } from 'rxjs/operators';
 import { promisify } from 'util';
-import { Activity } from './activity';
+import { Activity, CancelReason } from './activity';
 import { extractNativeClient, extractReferenceHolders, InternalNativeConnection, NativeConnection } from './connection';
 import * as errors from './errors';
 import { ActivityExecuteInput } from './interceptors';
@@ -184,7 +184,7 @@ interface Heartbeat {
   base64TaskToken: string;
   taskToken: Uint8Array;
   details?: any;
-  onError: (reason: string) => void;
+  onError: () => void;
 }
 
 /**
@@ -693,8 +693,8 @@ export class Worker {
                           taskToken,
                           base64TaskToken,
                           details,
-                          onError(reason) {
-                            activity?.cancel(true, reason); // activity must be defined
+                          onError() {
+                            activity?.cancel('HEARTBEAT_DETAILS_CONVERSION_FAILED'); // activity must be defined
                           },
                         }),
                       { inbound: this.options.interceptors?.activityInbound }
@@ -716,9 +716,9 @@ export class Worker {
                     const reason = task.cancel?.reason;
                     if (reason === undefined || reason === null) {
                       // Special case of Lang side cancellation during shutdown (see `activity.shutdown.evict` above)
-                      activity.cancel(true, 'Worker shutdown');
+                      activity.cancel('WORKER SHUTDOWN' as CancelReason);
                     } else {
-                      activity.cancel(false, coresdk.activity_task.ActivityCancelReason[reason]);
+                      activity.cancel(coresdk.activity_task.ActivityCancelReason[reason] as CancelReason);
                     }
                     break;
                   }
@@ -1111,7 +1111,7 @@ export class Worker {
                   error,
                   taskToken: base64TaskToken,
                 });
-                onError(error.toString());
+                onError();
                 return;
               }
               const arr = coresdk.ActivityHeartbeat.encodeDelimited({
