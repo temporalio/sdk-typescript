@@ -1813,13 +1813,13 @@ test('scopeCancelledWhileWaitingOnExternalWorkflowCancellation', async (t) => {
       completion,
       makeSuccess([
         {
-          setPatchMarker: { deprecated: false, patchId: '__temporal_internal_connect_external_handle_cancel_to_scope' },
-        },
-        {
           requestCancelExternalWorkflowExecution: {
             seq: 1,
             workflowExecution: { namespace: 'default', workflowId: 'irrelevant' },
           },
+        },
+        {
+          setPatchMarker: { deprecated: false, patchId: '__temporal_internal_connect_external_handle_cancel_to_scope' },
         },
         {
           completeWorkflowExecution: { result: defaultPayloadConverter.toPayload(undefined) },

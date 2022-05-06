@@ -532,6 +532,9 @@ export function proxyLocalActivities<A extends ActivityInterface>(options: Local
   ) as any;
 }
 
+// TODO: deprecate this patch after "enough" time has passed
+const EXTERNAL_WF_CANCEL_PATCH = '__temporal_internal_connect_external_handle_cancel_to_scope';
+
 /**
  * Returns a client-side handle that can be used to signal and cancel an existing Workflow execution.
  * It takes a Workflow ID and optional run ID.
@@ -545,13 +548,24 @@ export function getExternalWorkflowHandle(workflowId: string, runId?: string): E
         if (state.info === undefined) {
           throw new IllegalStateError('Uninitialized workflow');
         }
-        // TODO: deprecate this patch after "enough" time has passed
-        if (patched('__temporal_internal_connect_external_handle_cancel_to_scope')) {
-          const scope = CancellationScope.current();
-          if (scope.cancellable) {
-            scope.cancelRequested.catch(reject);
-          }
-          if (scope.consideredCancelled) {
+
+        // Connect this cancel operation to the current cancellation scope.
+        // This is behavior was introduced after v0.22.0 and is incompatible
+        // with histories generated with previous SDK versions and thus requires
+        // patching.
+        //
+        // We try to delay patching as much as possible to avoid polluting
+        // histories unless strictly required.
+        const scope = CancellationScope.current();
+        if (scope.cancellable) {
+          scope.cancelRequested.catch((err) => {
+            if (patched(EXTERNAL_WF_CANCEL_PATCH)) {
+              reject(err);
+            }
+          });
+        }
+        if (scope.consideredCancelled) {
+          if (patched(EXTERNAL_WF_CANCEL_PATCH)) {
             return;
           }
         }
