@@ -1,4 +1,5 @@
 import { Payload } from './types';
+import { WrappedPayloadConverter } from './wrapped-payload-converter';
 
 /**
  * Used by the framework to serialize/deserialize data like parameters and return values.
@@ -26,7 +27,7 @@ export interface PayloadConverter {
  *
  * @throws {@link ValueError}
  */
-export function toPayload(converter: PayloadConverter, value: unknown): Payload {
+export function toPayload(converter: WrappedPayloadConverter, value: unknown): Payload {
   return converter.toPayload(value);
 }
 
@@ -39,7 +40,7 @@ export function toPayload(converter: PayloadConverter, value: unknown): Payload 
  * @throws {@link ValueError} if conversion of the value passed as parameter failed for any
  *     reason.
  */
-export function toPayloads(converter: PayloadConverter, ...values: unknown[]): Payload[] | undefined {
+export function toPayloads(converter: WrappedPayloadConverter, ...values: unknown[]): Payload[] | undefined {
   if (values.length === 0) {
     return undefined;
   }
@@ -52,7 +53,10 @@ export function toPayloads(converter: PayloadConverter, ...values: unknown[]): P
  *
  * @throws {@link ValueError} if conversion of any value in the map fails
  */
-export function mapToPayloads<K extends string>(converter: PayloadConverter, map: Record<K, any>): Record<K, Payload> {
+export function mapToPayloads<K extends string>(
+  converter: WrappedPayloadConverter,
+  map: Record<K, any>
+): Record<K, Payload> {
   return Object.fromEntries(
     Object.entries(map).map(([k, v]): [K, Payload] => [k as K, toPayload(converter, v)])
   ) as Record<K, Payload>;
@@ -69,7 +73,11 @@ export function mapToPayloads<K extends string>(converter: PayloadConverter, map
  * @throws {@link PayloadConverterError} if conversion of the data passed as parameter failed for any
  *     reason.
  */
-export function fromPayloadsAtIndex<T>(converter: PayloadConverter, index: number, payloads?: Payload[] | null): T {
+export function fromPayloadsAtIndex<T>(
+  converter: WrappedPayloadConverter,
+  index: number,
+  payloads?: Payload[] | null
+): T {
   // To make adding arguments a backwards compatible change
   if (payloads === undefined || payloads === null || index >= payloads.length) {
     return undefined as any;
@@ -80,7 +88,7 @@ export function fromPayloadsAtIndex<T>(converter: PayloadConverter, index: numbe
 /**
  * Run {@link PayloadConverter.fromPayload} on each value in the array.
  */
-export function arrayFromPayloads(converter: PayloadConverter, payloads?: Payload[] | null): unknown[] {
+export function arrayFromPayloads(converter: WrappedPayloadConverter, payloads?: Payload[] | null): unknown[] {
   if (!payloads) {
     return [];
   }
@@ -88,7 +96,7 @@ export function arrayFromPayloads(converter: PayloadConverter, payloads?: Payloa
 }
 
 export function mapFromPayloads<K extends string>(
-  converter: PayloadConverter,
+  converter: WrappedPayloadConverter,
   map?: Record<K, Payload> | null | undefined
 ): Record<K, unknown> | undefined {
   if (map === undefined || map === null) return undefined;

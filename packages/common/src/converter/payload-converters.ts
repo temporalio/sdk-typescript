@@ -1,6 +1,7 @@
 import { PayloadConverterError, ValueError } from '@temporalio/internal-workflow-common';
 import { PayloadConverter } from './payload-converter';
 import { encodingKeys, encodingTypes, METADATA_ENCODING_KEY, Payload, str, u8 } from './types';
+import { WrappedPayloadConverter } from './wrapped-payload-converter';
 
 export interface PayloadConverterWithEncoding extends PayloadConverter {
   readonly encodingType: string;
@@ -141,7 +142,7 @@ export class BinaryPayloadConverter implements PayloadConverterWithEncoding {
   }
 }
 
-export const searchAttributePayloadConverter = new JsonPayloadConverter();
+export const searchAttributePayloadConverter = new WrappedPayloadConverter(new JsonPayloadConverter());
 
 export class DefaultPayloadConverter extends CompositePayloadConverter {
   // Match the order used in other SDKs, but exclude Protobuf converters so that the code, including
@@ -163,4 +164,4 @@ export class DefaultPayloadConverter extends CompositePayloadConverter {
  *
  * `const myConverter = new DefaultPayloadConverter({ protobufRoot })`
  */
-export const defaultPayloadConverter = new DefaultPayloadConverter();
+export const defaultPayloadConverter = new WrappedPayloadConverter(new DefaultPayloadConverter());

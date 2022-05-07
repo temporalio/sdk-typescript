@@ -2,6 +2,10 @@ import { hasOwnProperty, isRecord, ValueError } from '@temporalio/internal-workf
 import { PayloadConverter } from './payload-converter';
 import { Payload } from './types';
 
+/**
+ * When we call {@link PayloadConverter.toPayload}, we want it to either throw or return a Payload, so we wrap Payload
+ * Converters with this class before using them.
+ */
 export class WrappedPayloadConverter implements PayloadConverter {
   constructor(private readonly payloadConverter: PayloadConverter) {}
 
@@ -22,6 +26,6 @@ export class WrappedPayloadConverter implements PayloadConverter {
   }
 }
 
-function isPayload(payload: unknown): boolean {
+function isPayload(payload: unknown): payload is Payload {
   return isRecord(payload) && (hasOwnProperty(payload, 'metadata') || hasOwnProperty(payload, 'data'));
 }
