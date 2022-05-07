@@ -64,6 +64,7 @@ if (RUN_INTEGRATION_TESTS) {
   // Workflow should throw when running toPayload on "success" retval
   test('toPayload throwing results in task retry', async (t) => {
     const taskQueue = 'toPayload throwing results in task retry';
+    console.log('taskQueue:', taskQueue);
     const client = new WorkflowClient();
     const handle = await client.start(workflows.successString, {
       taskQueue,
@@ -105,7 +106,8 @@ if (RUN_INTEGRATION_TESTS) {
           if (
             !history?.events?.some(
               ({ workflowTaskFailedEventAttributes }) =>
-                workflowTaskFailedEventAttributes?.failure?.message === 'Custom PayloadConverter must return a Payload'
+                workflowTaskFailedEventAttributes?.failure?.message ===
+                'The Payload Converter method TestPayloadConverter.toPayload must return a Payload. Received `undefined` of type `undefined` when trying to convert `success` of type `string`.'
             )
           ) {
             throw new Error('Cannot find workflow task failed event');
@@ -140,7 +142,8 @@ if (RUN_INTEGRATION_TESTS) {
       }),
       {
         instanceOf: ValueError,
-        message: 'Custom PayloadConverter must return a Payload',
+        message:
+          'The Payload Converter method TestPayloadConverter.toPayload must return a Payload. Received `undefined` of type `undefined` when trying to convert `hello` of type `string`.',
       }
     );
   });
@@ -246,7 +249,10 @@ test('Custom payload converter that returns undefined results in thrown Error', 
         input: toPayloads(payloadConverter, 'message'),
       },
     });
-    t.is(completion.result?.failed?.failure?.message, 'Custom PayloadConverter must return a Payload');
+    t.is(
+      completion.result?.failed?.failure?.message,
+      'The Payload Converter method TestPayloadConverter.toPayload must return a Payload. Received `undefined` of type `undefined` when trying to convert `message` of type `string`.'
+    );
     // is retryable
     t.false(completion.result?.failed?.failure?.applicationFailureInfo?.nonRetryable);
   });

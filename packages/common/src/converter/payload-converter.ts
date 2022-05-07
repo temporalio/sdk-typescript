@@ -1,3 +1,4 @@
+import { hasOwnProperty, isRecord, ValueError } from '@temporalio/internal-workflow-common';
 import { Payload } from './types';
 
 /**
@@ -11,9 +12,9 @@ export interface PayloadConverter {
    * Converts a value to a {@link Payload}.
    *
    * @param value The value to convert. Example values include the Workflow args sent from the Client and the values returned by a Workflow or Activity.
-   * @throws {@link ValueError} if `value` cannot be converted.
+   * @returns The {@link Payload}, or `undefined` if unable to convert.
    */
-  toPayload<T>(value: T): Payload;
+  toPayload<T>(value: T): Payload | undefined;
 
   /**
    * Converts a {@link Payload} back to a value.
@@ -24,10 +25,20 @@ export interface PayloadConverter {
 /**
  * Tries to convert `value` to a {@link Payload}. Throws if conversion fails.
  *
+ * Used internally by the SDK instead of calling {@link PayloadConverter.toPayload} directly.
+ *
  * @throws {@link ValueError}
  */
 export function toPayload(converter: PayloadConverter, value: unknown): Payload {
-  return converter.toPayload(value);
+  const result = converter.toPayload(value);
+  if (!isPayload(result)) {
+    throw new ValueError(
+      `The Payload Converter method ${
+        Object.getPrototypeOf(converter).constructor.name
+      }.toPayload must return a Payload. Received \`${result}\` of type \`${typeof result}\` when trying to convert \`${value}\` of type \`${typeof value}\`.`
+    );
+  }
+  return result;
 }
 
 /**
@@ -98,4 +109,8 @@ export function mapFromPayloads<K extends string>(
       return [k as K, value];
     })
   ) as Record<K, unknown>;
+}
+
+function isPayload(payload: unknown): payload is Payload {
+  return isRecord(payload) && (hasOwnProperty(payload, 'metadata') || hasOwnProperty(payload, 'data'));
 }

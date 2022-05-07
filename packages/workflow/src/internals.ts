@@ -7,6 +7,7 @@ import {
   optionalFailureToOptionalError,
   PayloadConverter,
   TemporalFailure,
+  toPayload,
 } from '@temporalio/common';
 import {
   checkExtends,
@@ -491,7 +492,7 @@ function completeWorkflow(result: any) {
   state.pushCommand(
     {
       completeWorkflowExecution: {
-        result: state.payloadConverter.toPayload(result),
+        result: toPayload(state.payloadConverter, result),
       },
     },
     true
