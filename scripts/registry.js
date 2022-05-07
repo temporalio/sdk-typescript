@@ -53,6 +53,15 @@ class Registry {
           let contents;
           try {
             contents = await readFile(logPath, 'utf8');
+            // Sometimes (mostly in Windows) tail can miss updates.
+            // Use this workaround as a last resort to recover and avoid failing CI.
+            const found = contents
+              .split('\n')
+              .map(JSON.parse)
+              .find((parsed) => parsed.addr);
+            if (found) {
+              resolve();
+            }
           } catch (e) {
             contents = `Error ${e}`;
           }

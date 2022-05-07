@@ -61,6 +61,7 @@ export * from './random';
 export * from './reject-promise';
 export * from './run-activity-in-different-task-queue';
 export * from './set-timeout-after-microtasks';
+export * from './scope-cancelled-while-waiting-on-external-workflow-cancellation';
 export * from './shared-promise-scopes';
 export * from './shield-awaited-in-root-scope';
 export * from './shield-in-shield';
