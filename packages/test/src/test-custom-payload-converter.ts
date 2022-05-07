@@ -64,7 +64,6 @@ if (RUN_INTEGRATION_TESTS) {
   // Workflow should throw when running toPayload on "success" retval
   test('toPayload throwing results in task retry', async (t) => {
     const taskQueue = 'toPayload throwing results in task retry';
-    console.log('taskQueue:', taskQueue);
     const client = new WorkflowClient();
     const handle = await client.start(workflows.successString, {
       taskQueue,

@@ -1,4 +1,3 @@
-import { hasOwnProperty, isRecord, ValueError } from '@temporalio/internal-workflow-common';
 import { Payload } from './types';
 
 /**
@@ -25,20 +24,10 @@ export interface PayloadConverter {
 /**
  * Tries to convert `value` to a {@link Payload}. Throws if conversion fails.
  *
- * Used internally by the SDK instead of calling {@link PayloadConverter.toPayload} directly.
- *
  * @throws {@link ValueError}
  */
 export function toPayload(converter: PayloadConverter, value: unknown): Payload {
-  const result = converter.toPayload(value);
-  if (!isPayload(result)) {
-    throw new ValueError(
-      `The Payload Converter method ${
-        Object.getPrototypeOf(converter).constructor.name
-      }.toPayload must return a Payload. Received \`${result}\` of type \`${typeof result}\` when trying to convert \`${value}\` of type \`${typeof value}\`.`
-    );
-  }
-  return result;
+  return converter.toPayload(value);
 }
 
 /**
@@ -109,8 +98,4 @@ export function mapFromPayloads<K extends string>(
       return [k as K, value];
     })
   ) as Record<K, unknown>;
-}
-
-function isPayload(payload: unknown): payload is Payload {
-  return isRecord(payload) && (hasOwnProperty(payload, 'metadata') || hasOwnProperty(payload, 'data'));
 }
