@@ -451,7 +451,7 @@ export class State {
    */
   public importInterceptors?: InterceptorsImportFunc;
 
-  public payloadConverter: WrappedPayloadConverter = defaultPayloadConverter;
+  public payloadConverter: WrappedPayloadConverter = new WrappedPayloadConverter(defaultPayloadConverter);
 
   /**
    * Patches we know the status of for this workflow, as in {@link patched}

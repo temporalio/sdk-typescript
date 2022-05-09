@@ -1,11 +1,4 @@
-import {
-  ApplicationFailure,
-  defaultPayloadConverter,
-  errorToFailure,
-  RetryState,
-  toPayload,
-  toPayloads,
-} from '@temporalio/common';
+import { ApplicationFailure, errorToFailure, RetryState, toPayload, toPayloads } from '@temporalio/common';
 import { msToTs } from '@temporalio/internal-workflow-common';
 import { coresdk } from '@temporalio/proto';
 import { WorkflowCodeBundler } from '@temporalio/worker/lib/workflow/bundler';
@@ -18,6 +11,7 @@ import path from 'path';
 import vm from 'vm';
 import * as activityFunctions from './activities';
 import { u8 } from './helpers';
+import { wrappedDefaultPayloadConverter } from './payload-converters/payload-converter';
 
 export interface Context {
   workflow: VMWorkflow;
@@ -219,7 +213,7 @@ async function makeQueryWorkflowJob(
     queryWorkflow: {
       queryId,
       queryType,
-      arguments: toPayloads(defaultPayloadConverter, ...queryArgs),
+      arguments: toPayloads(wrappedDefaultPayloadConverter, ...queryArgs),
     },
   };
 }
@@ -230,7 +224,7 @@ async function makeSignalWorkflow(
   timestamp: number = Date.now()
 ): Promise<coresdk.workflow_activation.IWorkflowActivation> {
   return makeActivation(timestamp, {
-    signalWorkflow: { signalName, input: toPayloads(defaultPayloadConverter, ...args) },
+    signalWorkflow: { signalName, input: toPayloads(wrappedDefaultPayloadConverter, ...args) },
   });
 }
 
@@ -327,7 +321,7 @@ test('successString', async (t) => {
   compareCompletion(
     t,
     req,
-    makeSuccess([makeCompleteWorkflowExecution(toPayload(defaultPayloadConverter, 'success'))])
+    makeSuccess([makeCompleteWorkflowExecution(toPayload(wrappedDefaultPayloadConverter, 'success'))])
   );
 });
 
@@ -391,7 +385,11 @@ test('date', async (t) => {
 test('asyncWorkflow', async (t) => {
   const { workflowType } = t.context;
   const req = await activate(t, makeStartWorkflow(workflowType));
-  compareCompletion(t, req, makeSuccess([makeCompleteWorkflowExecution(toPayload(defaultPayloadConverter, 'async'))]));
+  compareCompletion(
+    t,
+    req,
+    makeSuccess([makeCompleteWorkflowExecution(toPayload(wrappedDefaultPayloadConverter, 'async'))])
+  );
 });
 
 test('deferredResolve', async (t) => {
@@ -417,7 +415,7 @@ test('sleeper', async (t) => {
 test('with ms string - sleeper', async (t) => {
   const { logs, workflowType } = t.context;
   {
-    const req = await activate(t, makeStartWorkflow(workflowType, [toPayload(defaultPayloadConverter, '10s')]));
+    const req = await activate(t, makeStartWorkflow(workflowType, [toPayload(wrappedDefaultPayloadConverter, '10s')]));
     compareCompletion(t, req, makeSuccess([makeStartTimerCommand({ seq: 1, startToFireTimeout: msToTs('10s') })]));
   }
   {
@@ -496,7 +494,7 @@ test('trailingTimer', async (t) => {
       completion,
       makeSuccess([
         makeStartTimerCommand({ seq: 3, startToFireTimeout: msToTs(1) }),
-        makeCompleteWorkflowExecution(toPayload(defaultPayloadConverter, 'first')),
+        makeCompleteWorkflowExecution(toPayload(wrappedDefaultPayloadConverter, 'first')),
       ])
     );
   }
@@ -744,7 +742,7 @@ test('cancelWorkflow', async (t) => {
   const url = 'https://temporal.io';
   const { workflowType } = t.context;
   {
-    const req = await activate(t, makeStartWorkflow(workflowType, toPayloads(defaultPayloadConverter, url)));
+    const req = await activate(t, makeStartWorkflow(workflowType, toPayloads(wrappedDefaultPayloadConverter, url)));
     compareCompletion(
       t,
       req,
@@ -753,7 +751,7 @@ test('cancelWorkflow', async (t) => {
           seq: 1,
           activityId: '1',
           activityType: 'httpGet',
-          arguments: toPayloads(defaultPayloadConverter, url),
+          arguments: toPayloads(wrappedDefaultPayloadConverter, url),
           startToCloseTimeout: msToTs('10m'),
           taskQueue: 'test',
         }),
@@ -786,14 +784,14 @@ test('cancelWorkflow', async (t) => {
           seq: 3,
           activityId: '3',
           activityType: 'httpGet',
-          arguments: toPayloads(defaultPayloadConverter, url),
+          arguments: toPayloads(wrappedDefaultPayloadConverter, url),
           startToCloseTimeout: msToTs('10m'),
           taskQueue: 'test',
         }),
       ])
     );
   }
-  const result = toPayload(defaultPayloadConverter, await activityFunctions.httpGet(url));
+  const result = toPayload(wrappedDefaultPayloadConverter, await activityFunctions.httpGet(url));
   {
     const req = await activate(
       t,
@@ -835,7 +833,7 @@ test('unblock - unblockOrCancel', async (t) => {
       makeSuccess([
         makeRespondToQueryCommand({
           queryId: '1',
-          succeeded: { response: toPayload(defaultPayloadConverter, true) },
+          succeeded: { response: toPayload(wrappedDefaultPayloadConverter, true) },
         }),
       ])
     );
@@ -852,7 +850,7 @@ test('unblock - unblockOrCancel', async (t) => {
       makeSuccess([
         makeRespondToQueryCommand({
           queryId: '2',
-          succeeded: { response: toPayload(defaultPayloadConverter, false) },
+          succeeded: { response: toPayload(wrappedDefaultPayloadConverter, false) },
         }),
       ])
     );
@@ -892,9 +890,12 @@ test('cancelTimerAltImpl', async (t) => {
 test('nonCancellable', async (t) => {
   const { workflowType } = t.context;
   const url = 'https://temporal.io';
-  const result = toPayload(defaultPayloadConverter, { test: true });
+  const result = toPayload(wrappedDefaultPayloadConverter, { test: true });
   {
-    const completion = await activate(t, makeStartWorkflow(workflowType, [toPayload(defaultPayloadConverter, url)]));
+    const completion = await activate(
+      t,
+      makeStartWorkflow(workflowType, [toPayload(wrappedDefaultPayloadConverter, url)])
+    );
     compareCompletion(
       t,
       completion,
@@ -903,7 +904,7 @@ test('nonCancellable', async (t) => {
           seq: 1,
           activityId: '1',
           activityType: 'httpGetJSON',
-          arguments: toPayloads(defaultPayloadConverter, url),
+          arguments: toPayloads(wrappedDefaultPayloadConverter, url),
           startToCloseTimeout: msToTs('10m'),
           taskQueue: 'test',
         }),
@@ -919,9 +920,12 @@ test('nonCancellable', async (t) => {
 test('resumeAfterCancellation', async (t) => {
   const { workflowType } = t.context;
   const url = 'https://temporal.io';
-  const result = toPayload(defaultPayloadConverter, { test: true });
+  const result = toPayload(wrappedDefaultPayloadConverter, { test: true });
   {
-    const completion = await activate(t, makeStartWorkflow(workflowType, [toPayload(defaultPayloadConverter, url)]));
+    const completion = await activate(
+      t,
+      makeStartWorkflow(workflowType, [toPayload(wrappedDefaultPayloadConverter, url)])
+    );
     compareCompletion(
       t,
       completion,
@@ -930,7 +934,7 @@ test('resumeAfterCancellation', async (t) => {
           seq: 1,
           activityId: '1',
           activityType: 'httpGetJSON',
-          arguments: toPayloads(defaultPayloadConverter, url),
+          arguments: toPayloads(wrappedDefaultPayloadConverter, url),
           startToCloseTimeout: msToTs('10m'),
           taskQueue: 'test',
         }),
@@ -955,7 +959,7 @@ test('handleExternalWorkflowCancellationWhileActivityRunning', async (t) => {
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     const completion = await activate(
       t,
-      makeStartWorkflow(workflowType, toPayloads(defaultPayloadConverter, url, data) ?? [])
+      makeStartWorkflow(workflowType, toPayloads(wrappedDefaultPayloadConverter, url, data) ?? [])
     );
 
     compareCompletion(
@@ -966,7 +970,7 @@ test('handleExternalWorkflowCancellationWhileActivityRunning', async (t) => {
           seq: 1,
           activityId: '1',
           activityType: 'httpPostJSON',
-          arguments: toPayloads(defaultPayloadConverter, url, data),
+          arguments: toPayloads(wrappedDefaultPayloadConverter, url, data),
           startToCloseTimeout: msToTs('10m'),
           taskQueue: 'test',
         }),
@@ -990,7 +994,7 @@ test('handleExternalWorkflowCancellationWhileActivityRunning', async (t) => {
           seq: 2,
           activityId: '2',
           activityType: 'cleanup',
-          arguments: toPayloads(defaultPayloadConverter, url),
+          arguments: toPayloads(wrappedDefaultPayloadConverter, url),
           startToCloseTimeout: msToTs('10m'),
           taskQueue: 'test',
         }),
@@ -1000,7 +1004,7 @@ test('handleExternalWorkflowCancellationWhileActivityRunning', async (t) => {
   {
     const completion = await activate(
       t,
-      makeResolveActivity(2, { completed: { result: toPayload(defaultPayloadConverter, undefined) } })
+      makeResolveActivity(2, { completed: { result: toPayload(wrappedDefaultPayloadConverter, undefined) } })
     );
     compareCompletion(t, completion, makeSuccess([{ cancelWorkflowExecution: {} }]));
   }
@@ -1010,7 +1014,10 @@ test('nestedCancellation', async (t) => {
   const { workflowType } = t.context;
   const url = 'https://temporal.io';
   {
-    const completion = await activate(t, makeStartWorkflow(workflowType, [toPayload(defaultPayloadConverter, url)]));
+    const completion = await activate(
+      t,
+      makeStartWorkflow(workflowType, [toPayload(wrappedDefaultPayloadConverter, url)])
+    );
 
     compareCompletion(
       t,
@@ -1029,7 +1036,7 @@ test('nestedCancellation', async (t) => {
   {
     const completion = await activate(
       t,
-      makeResolveActivity(1, { completed: { result: toPayload(defaultPayloadConverter, undefined) } })
+      makeResolveActivity(1, { completed: { result: toPayload(wrappedDefaultPayloadConverter, undefined) } })
     );
 
     compareCompletion(
@@ -1041,7 +1048,7 @@ test('nestedCancellation', async (t) => {
           seq: 2,
           activityId: '2',
           activityType: 'httpPostJSON',
-          arguments: toPayloads(defaultPayloadConverter, url, { some: 'data' }),
+          arguments: toPayloads(wrappedDefaultPayloadConverter, url, { some: 'data' }),
           startToCloseTimeout: msToTs('10m'),
           taskQueue: 'test',
         }),
@@ -1063,7 +1070,7 @@ test('nestedCancellation', async (t) => {
           activityId: '3',
           seq: 3,
           activityType: 'cleanup',
-          arguments: toPayloads(defaultPayloadConverter, url),
+          arguments: toPayloads(wrappedDefaultPayloadConverter, url),
           startToCloseTimeout: msToTs('10m'),
           taskQueue: 'test',
         }),
@@ -1073,7 +1080,7 @@ test('nestedCancellation', async (t) => {
   {
     const completion = await activate(
       t,
-      makeResolveActivity(3, { completed: { result: toPayload(defaultPayloadConverter, undefined) } })
+      makeResolveActivity(3, { completed: { result: toPayload(wrappedDefaultPayloadConverter, undefined) } })
     );
     compareCompletion(
       t,
@@ -1102,7 +1109,7 @@ test('sharedScopes', async (t) => {
               seq: idx,
               activityId: `${idx}`,
               activityType: 'httpGetJSON',
-              arguments: toPayloads(defaultPayloadConverter, `http://url${idx}.ninja`),
+              arguments: toPayloads(wrappedDefaultPayloadConverter, `http://url${idx}.ninja`),
               startToCloseTimeout: msToTs('10m'),
               taskQueue: 'test',
             })
@@ -1114,12 +1121,12 @@ test('sharedScopes', async (t) => {
   {
     const completion = await activate(
       t,
-      makeResolveActivity(2, { completed: { result: toPayload(defaultPayloadConverter, result) } })
+      makeResolveActivity(2, { completed: { result: toPayload(wrappedDefaultPayloadConverter, result) } })
     );
     compareCompletion(
       t,
       completion,
-      makeSuccess([makeCompleteWorkflowExecution(toPayload(defaultPayloadConverter, result))])
+      makeSuccess([makeCompleteWorkflowExecution(toPayload(wrappedDefaultPayloadConverter, result))])
     );
   }
 });
@@ -1137,7 +1144,7 @@ test('shieldAwaitedInRootScope', async (t) => {
           seq: 1,
           activityId: '1',
           activityType: 'httpGetJSON',
-          arguments: toPayloads(defaultPayloadConverter, `http://example.com`),
+          arguments: toPayloads(wrappedDefaultPayloadConverter, `http://example.com`),
           startToCloseTimeout: msToTs('10m'),
           taskQueue: 'test',
         }),
@@ -1152,12 +1159,12 @@ test('shieldAwaitedInRootScope', async (t) => {
   {
     const completion = await activate(
       t,
-      makeResolveActivity(1, { completed: { result: toPayload(defaultPayloadConverter, result) } })
+      makeResolveActivity(1, { completed: { result: toPayload(wrappedDefaultPayloadConverter, result) } })
     );
     compareCompletion(
       t,
       completion,
-      makeSuccess([makeCompleteWorkflowExecution(toPayload(defaultPayloadConverter, result))])
+      makeSuccess([makeCompleteWorkflowExecution(toPayload(wrappedDefaultPayloadConverter, result))])
     );
   }
 });
@@ -1321,7 +1328,7 @@ test('cancelActivityAfterFirstCompletion', async (t) => {
   const url = 'https://temporal.io';
   const { workflowType, logs } = t.context;
   {
-    const req = await activate(t, makeStartWorkflow(workflowType, toPayloads(defaultPayloadConverter, url)));
+    const req = await activate(t, makeStartWorkflow(workflowType, toPayloads(wrappedDefaultPayloadConverter, url)));
     compareCompletion(
       t,
       req,
@@ -1330,7 +1337,7 @@ test('cancelActivityAfterFirstCompletion', async (t) => {
           seq: 1,
           activityId: '1',
           activityType: 'httpGet',
-          arguments: toPayloads(defaultPayloadConverter, url),
+          arguments: toPayloads(wrappedDefaultPayloadConverter, url),
           startToCloseTimeout: msToTs('10m'),
           taskQueue: 'test',
         }),
@@ -1340,7 +1347,7 @@ test('cancelActivityAfterFirstCompletion', async (t) => {
   {
     const req = await activate(
       t,
-      makeResolveActivity(1, { completed: { result: toPayload(defaultPayloadConverter, 'response1') } })
+      makeResolveActivity(1, { completed: { result: toPayload(wrappedDefaultPayloadConverter, 'response1') } })
     );
     compareCompletion(
       t,
@@ -1350,7 +1357,7 @@ test('cancelActivityAfterFirstCompletion', async (t) => {
           seq: 2,
           activityId: '2',
           activityType: 'httpGet',
-          arguments: toPayloads(defaultPayloadConverter, url),
+          arguments: toPayloads(wrappedDefaultPayloadConverter, url),
           startToCloseTimeout: msToTs('10m'),
           taskQueue: 'test',
         }),
@@ -1364,12 +1371,14 @@ test('cancelActivityAfterFirstCompletion', async (t) => {
   {
     const req = await activate(
       t,
-      makeResolveActivity(2, { completed: { result: toPayload(defaultPayloadConverter, 'response2') } })
+      makeResolveActivity(2, { completed: { result: toPayload(wrappedDefaultPayloadConverter, 'response2') } })
     );
     compareCompletion(
       t,
       req,
-      makeSuccess([makeCompleteWorkflowExecution(toPayload(defaultPayloadConverter, ['response1', 'response2']))])
+      makeSuccess([
+        makeCompleteWorkflowExecution(toPayload(wrappedDefaultPayloadConverter, ['response1', 'response2'])),
+      ])
     );
   }
   t.deepEqual(logs, [['Workflow cancelled while waiting on non cancellable scope']]);
@@ -1381,7 +1390,7 @@ test('multipleActivitiesSingleTimeout', async (t) => {
   {
     const completion = await activate(
       t,
-      makeStartWorkflow(workflowType, toPayloads(defaultPayloadConverter, urls, 1000))
+      makeStartWorkflow(workflowType, toPayloads(wrappedDefaultPayloadConverter, urls, 1000))
     );
     compareCompletion(
       t,
@@ -1394,7 +1403,7 @@ test('multipleActivitiesSingleTimeout', async (t) => {
               seq: index + 1,
               activityId: `${index + 1}`,
               activityType: 'httpGetJSON',
-              arguments: toPayloads(defaultPayloadConverter, url),
+              arguments: toPayloads(wrappedDefaultPayloadConverter, url),
               startToCloseTimeout: msToTs('1s'),
               taskQueue: 'test',
             })
@@ -1434,7 +1443,7 @@ test('resolve activity with result - http', async (t) => {
           seq: 1,
           activityId: '1',
           activityType: 'httpGet',
-          arguments: toPayloads(defaultPayloadConverter, 'https://temporal.io'),
+          arguments: toPayloads(wrappedDefaultPayloadConverter, 'https://temporal.io'),
           startToCloseTimeout: msToTs('1 minute'),
           taskQueue: 'test',
         }),
@@ -1445,13 +1454,13 @@ test('resolve activity with result - http', async (t) => {
   {
     const completion = await activate(
       t,
-      makeResolveActivity(1, { completed: { result: toPayload(defaultPayloadConverter, result) } })
+      makeResolveActivity(1, { completed: { result: toPayload(wrappedDefaultPayloadConverter, result) } })
     );
 
     compareCompletion(
       t,
       completion,
-      makeSuccess([makeCompleteWorkflowExecution(toPayload(defaultPayloadConverter, result))])
+      makeSuccess([makeCompleteWorkflowExecution(toPayload(wrappedDefaultPayloadConverter, result))])
     );
   }
 });
@@ -1468,7 +1477,7 @@ test('resolve activity with failure - http', async (t) => {
           seq: 1,
           activityId: '1',
           activityType: 'httpGet',
-          arguments: toPayloads(defaultPayloadConverter, 'https://temporal.io'),
+          arguments: toPayloads(wrappedDefaultPayloadConverter, 'https://temporal.io'),
           startToCloseTimeout: msToTs('1 minute'),
           taskQueue: 'test',
         }),
@@ -1484,7 +1493,7 @@ test('resolve activity with failure - http', async (t) => {
       t,
       makeResolveActivity(1, {
         failed: {
-          failure: errorToFailure(failure, defaultPayloadConverter),
+          failure: errorToFailure(failure, wrappedDefaultPayloadConverter),
         },
       })
     );
@@ -1534,7 +1543,7 @@ test('continueAsNewSameWorkflow', async (t) => {
           continueAsNewWorkflowExecution: {
             workflowType,
             taskQueue: 'test',
-            arguments: toPayloads(defaultPayloadConverter, 'signal'),
+            arguments: toPayloads(wrappedDefaultPayloadConverter, 'signal'),
           },
         },
       ])
@@ -1783,7 +1792,7 @@ test('signalHandlersCanBeCleared', async (t) => {
     compareCompletion(
       t,
       completion,
-      makeSuccess([makeCompleteWorkflowExecution(toPayload(defaultPayloadConverter, 111))])
+      makeSuccess([makeCompleteWorkflowExecution(toPayload(wrappedDefaultPayloadConverter, 111))])
     );
   }
 });

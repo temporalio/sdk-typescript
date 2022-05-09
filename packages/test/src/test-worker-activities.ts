@@ -1,13 +1,14 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
+import * as activity from '@temporalio/activity';
 import { defaultPayloadConverter, toPayloads } from '@temporalio/common';
 import { coresdk } from '@temporalio/proto';
-import * as activity from '@temporalio/activity';
 import anyTest, { ExecutionContext, TestInterface } from 'ava';
 import dedent from 'dedent';
 import { v4 as uuid4 } from 'uuid';
 import { httpGet } from './activities';
 import { cleanStackTrace } from './helpers';
 import { defaultOptions, isolateFreeWorker, Worker } from './mock-native-worker';
+import { wrappedDefaultPayloadConverter } from './payload-converters/payload-converter';
 import { withZeroesHTTPServer } from './zeroes-http-server';
 
 export interface Context {
@@ -59,7 +60,7 @@ test('Worker runs an activity and reports completion', async (t) => {
       taskToken,
       start: {
         activityType: 'httpGet',
-        input: toPayloads(defaultPayloadConverter, url),
+        input: toPayloads(wrappedDefaultPayloadConverter, url),
       },
     });
     compareCompletion(t, completion.result, {
@@ -77,7 +78,7 @@ test('Worker runs an activity and reports failure', async (t) => {
       taskToken,
       start: {
         activityType: 'throwAnError',
-        input: toPayloads(defaultPayloadConverter, false, message),
+        input: toPayloads(wrappedDefaultPayloadConverter, false, message),
       },
     });
     compareCompletion(t, completion.result, {
@@ -105,7 +106,7 @@ test('Worker cancels activity and reports cancellation', async (t) => {
         taskToken,
         start: {
           activityType: 'waitForCancellation',
-          input: toPayloads(defaultPayloadConverter),
+          input: toPayloads(wrappedDefaultPayloadConverter),
         },
       },
     });
@@ -131,7 +132,7 @@ test('Activity Context AbortSignal cancels a fetch request', async (t) => {
           taskToken,
           start: {
             activityType: 'cancellableFetch',
-            input: toPayloads(defaultPayloadConverter, `http://127.0.0.1:${port}`, false),
+            input: toPayloads(wrappedDefaultPayloadConverter, `http://127.0.0.1:${port}`, false),
           },
         },
       });
@@ -158,7 +159,7 @@ test('Activity cancel with reason "NOT_FOUND" is valid', async (t) => {
           taskToken,
           start: {
             activityType: 'cancellableFetch',
-            input: toPayloads(defaultPayloadConverter, `http://127.0.0.1:${port}`, false),
+            input: toPayloads(wrappedDefaultPayloadConverter, `http://127.0.0.1:${port}`, false),
           },
         },
       });
@@ -183,7 +184,7 @@ test('Activity Context heartbeat is sent to core', async (t) => {
       taskToken,
       start: {
         activityType: 'progressiveSleep',
-        input: toPayloads(defaultPayloadConverter),
+        input: toPayloads(wrappedDefaultPayloadConverter),
       },
     });
     console.log('waiting heartbeat 1');
@@ -206,7 +207,7 @@ test('Worker fails activity with proper message when it is not registered', asyn
       taskToken,
       start: {
         activityType: 'notFound',
-        input: toPayloads(defaultPayloadConverter),
+        input: toPayloads(wrappedDefaultPayloadConverter),
       },
     });
     t.regex(
@@ -240,7 +241,7 @@ test('Worker cancels activities after shutdown', async (t) => {
         taskToken,
         start: {
           activityType: 'cancellationSnitch',
-          input: toPayloads(defaultPayloadConverter),
+          input: toPayloads(wrappedDefaultPayloadConverter),
         },
       }),
     };

@@ -49,6 +49,6 @@ export interface LoadedDataConverter {
 }
 
 export const defaultDataConverter: LoadedDataConverter = {
-  payloadConverter: defaultPayloadConverter,
+  payloadConverter: new WrappedPayloadConverter(defaultPayloadConverter),
   payloadCodec: defaultPayloadCodec,
 };

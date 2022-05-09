@@ -45,12 +45,12 @@ function requirePayloadConverter(path: string): PayloadConverter {
  * If {@link DataConverter.payloadCodec} is unspecified, use {@link defaultPayloadCodec}.
  */
 export function loadDataConverter(dataConverter?: DataConverter): LoadedDataConverter {
-  let payloadConverter = defaultPayloadConverter;
+  let payloadConverter: PayloadConverter = defaultPayloadConverter;
   if (dataConverter?.payloadConverterPath) {
-    payloadConverter = new WrappedPayloadConverter(requirePayloadConverter(dataConverter.payloadConverterPath));
+    payloadConverter = requirePayloadConverter(dataConverter.payloadConverterPath);
   }
   return {
-    payloadConverter,
+    payloadConverter: new WrappedPayloadConverter(payloadConverter),
     payloadCodec: dataConverter?.payloadCodec ?? defaultPayloadCodec,
   };
 }

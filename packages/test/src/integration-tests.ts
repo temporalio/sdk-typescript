@@ -27,7 +27,7 @@ import {
   WorkflowNotFoundError,
 } from '@temporalio/internal-workflow-common';
 import * as iface from '@temporalio/proto';
-import { Runtime, DefaultLogger, Worker } from '@temporalio/worker';
+import { DefaultLogger, Runtime, Worker } from '@temporalio/worker';
 import asyncRetry from 'async-retry';
 import anyTest, { Implementation, TestInterface } from 'ava';
 import dedent from 'dedent';
@@ -35,6 +35,7 @@ import ms from 'ms';
 import { v4 as uuid4 } from 'uuid';
 import * as activities from './activities';
 import { cleanStackTrace, u8 } from './helpers';
+import { wrappedDefaultPayloadConverter } from './payload-converters/payload-converter';
 import * as workflows from './workflows';
 import { withZeroesHTTPServer } from './zeroes-http-server';
 
@@ -56,7 +57,10 @@ const namespace = 'default';
 export function runIntegrationTests(codec?: PayloadCodec): void {
   const test = (name: string, fn: Implementation<Context>) => _test(codec ? 'With codec—' + name : name, fn);
   const dataConverter = { payloadCodec: codec ?? defaultPayloadCodec };
-  const loadedDataConverter = { payloadConverter: defaultPayloadConverter, payloadCodec: codec ?? defaultPayloadCodec };
+  const loadedDataConverter = {
+    payloadConverter: wrappedDefaultPayloadConverter,
+    payloadCodec: codec ?? defaultPayloadCodec,
+  };
   async function fromPayload(payload: Payload) {
     const [decodedPayload] = await dataConverter.payloadCodec.decode([payload]);
     return defaultPayloadConverter.fromPayload(decodedPayload);

@@ -164,4 +164,4 @@ export class DefaultPayloadConverter extends CompositePayloadConverter {
  *
  * `const myConverter = new DefaultPayloadConverter({ protobufRoot })`
  */
-export const defaultPayloadConverter = new WrappedPayloadConverter(new DefaultPayloadConverter());
+export const defaultPayloadConverter = new DefaultPayloadConverter();

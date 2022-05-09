@@ -1,5 +1,6 @@
 import * as otel from '@opentelemetry/api';
 import { defaultPayloadConverter, toPayload } from '@temporalio/common';
+import { WrappedPayloadConverter } from '@temporalio/common/lib/converter/wrapped-payload-converter';
 import { Headers } from '@temporalio/internal-workflow-common';
 
 /** Default trace header for opentelemetry interceptors */
@@ -11,6 +12,8 @@ export const TASK_TOKEN_ATTR_KEY = 'task_token';
 /** Number of jobs in a workflow activation */
 export const NUM_JOBS_ATTR_KEY = 'num_jobs';
 
+const payloadConverter = new WrappedPayloadConverter(defaultPayloadConverter);
+
 /**
  * If found, return an otel Context deserialized from the provided headers
  */
@@ -19,7 +22,7 @@ export async function extractContextFromHeaders(headers: Headers): Promise<otel.
   if (encodedSpanContext === undefined) {
     return undefined;
   }
-  const textMap: Record<string, string> = defaultPayloadConverter.fromPayload(encodedSpanContext);
+  const textMap: Record<string, string> = payloadConverter.fromPayload(encodedSpanContext);
   return otel.propagation.extract(otel.context.active(), textMap, otel.defaultTextMapGetter);
 }
 
@@ -41,7 +44,7 @@ export async function extractSpanContextFromHeaders(headers: Headers): Promise<o
 export async function headersWithContext(headers: Headers): Promise<Headers> {
   const carrier = {};
   otel.propagation.inject(otel.context.active(), carrier, otel.defaultTextMapSetter);
-  return { ...headers, [TRACE_HEADER]: toPayload(defaultPayloadConverter, carrier) };
+  return { ...headers, [TRACE_HEADER]: toPayload(payloadConverter, carrier) };
 }
 
 /**
