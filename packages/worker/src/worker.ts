@@ -448,7 +448,7 @@ export class Worker {
     protected readonly connection?: NativeConnection
   ) {
     this.tracer = getTracer(options.enableSDKTracing);
-    this.workflowCodecRunner = new WorkflowCodecRunner(options.loadedDataConverter.payloadCodec);
+    this.workflowCodecRunner = new WorkflowCodecRunner(options.loadedDataConverter.payloadCodecs);
   }
 
   /**
