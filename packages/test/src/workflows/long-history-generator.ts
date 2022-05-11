@@ -6,7 +6,7 @@ const { echo } = wf.proxyActivities<typeof activities>({ startToCloseTimeout: '1
 /**
  * Simple workflow that generates a lot of sequential activities for testing long histories
  */
-export async function longHistoryGenerator(numIterations = 200, pauseAfterCompletion = true): Promise<void> {
+export async function longHistoryGenerator(numIterations = 200, pauseAfterCompletion = false): Promise<void> {
   let i = 0;
   wf.setHandler(wf.defineQuery('iteration'), () => i);
 

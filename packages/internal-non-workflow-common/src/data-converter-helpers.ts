@@ -1,10 +1,4 @@
-import {
-  DataConverter,
-  defaultPayloadCodec,
-  defaultPayloadConverter,
-  LoadedDataConverter,
-  PayloadConverter,
-} from '@temporalio/common';
+import { DataConverter, defaultPayloadConverter, LoadedDataConverter, PayloadConverter } from '@temporalio/common';
 import { WrappedPayloadConverter } from '@temporalio/common/lib/converter/wrapped-payload-converter';
 import { errorCode, hasOwnProperty, isRecord, ValueError } from '@temporalio/internal-workflow-common';
 
@@ -42,7 +36,7 @@ function requirePayloadConverter(path: string): PayloadConverter {
 /**
  * If {@link DataConverter.payloadConverterPath} is specified, `require()` it and validate that the module has a `payloadConverter` named export.
  * If not, use {@link defaultPayloadConverter}.
- * If {@link DataConverter.payloadCodec} is unspecified, use {@link defaultPayloadCodec}.
+ * If {@link DataConverter.payloadCodecs} is unspecified, use an empty array.
  */
 export function loadDataConverter(dataConverter?: DataConverter): LoadedDataConverter {
   let payloadConverter: PayloadConverter = defaultPayloadConverter;
@@ -51,6 +45,6 @@ export function loadDataConverter(dataConverter?: DataConverter): LoadedDataConv
   }
   return {
     payloadConverter: new WrappedPayloadConverter(payloadConverter),
-    payloadCodec: dataConverter?.payloadCodec ?? defaultPayloadCodec,
+    payloadCodecs: dataConverter?.payloadCodecs ?? [],
   };
 }

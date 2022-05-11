@@ -1,5 +1,11 @@
 import { asyncLocalStorage, Context, Info } from '@temporalio/activity';
-import { CancelledFailure, ensureTemporalFailure, FAILURE_SOURCE, LoadedDataConverter } from '@temporalio/common';
+import {
+  ApplicationFailure,
+  CancelledFailure,
+  ensureTemporalFailure,
+  FAILURE_SOURCE,
+  LoadedDataConverter,
+} from '@temporalio/common';
 import { encodeErrorToFailure, encodeToPayload } from '@temporalio/internal-non-workflow-common';
 import { ActivityFunction, composeInterceptors } from '@temporalio/internal-workflow-common';
 import { coresdk } from '@temporalio/proto';
@@ -10,10 +16,15 @@ import {
   ActivityInboundCallsInterceptorFactory,
 } from './interceptors';
 
+export type CancelReason =
+  | keyof typeof coresdk.activity_task.ActivityCancelReason
+  | 'WORKER_SHUTDOWN'
+  | 'HEARTBEAT_DETAILS_CONVERSION_FAILED';
+
 export class Activity {
-  protected cancelRequested = false;
+  protected cancelReason?: CancelReason;
   public readonly context: Context;
-  public cancel: (resolveAsFailure: boolean, reason?: string) => void = () => undefined;
+  public cancel: (reason: CancelReason) => void = () => undefined;
   public readonly abortController: AbortController = new AbortController();
   public readonly interceptors: {
     inbound: ActivityInboundCallsInterceptor[];
@@ -29,10 +40,8 @@ export class Activity {
     }
   ) {
     const promise = new Promise<never>((_, reject) => {
-      this.cancel = (resolveAsFailure: boolean, reason?: string) => {
-        if (!resolveAsFailure) {
-          this.cancelRequested = true;
-        }
+      this.cancel = (reason: CancelReason) => {
+        this.cancelReason = reason;
         this.abortController.abort();
         reject(new CancelledFailure(reason));
       };
@@ -64,7 +73,15 @@ export class Activity {
         if (err instanceof Error && err.name === 'CompleteAsyncError') {
           return { willCompleteAsync: {} };
         }
-        if (this.cancelRequested) {
+        if (this.cancelReason === 'WORKER_SHUTDOWN' || this.cancelReason === 'HEARTBEAT_DETAILS_CONVERSION_FAILED') {
+          // Ignore actual failure, it is likely a CancelledFailure but server
+          // expects activity to only fail with ApplicationFailure
+          return {
+            failed: {
+              failure: ApplicationFailure.retryable(this.cancelReason, 'CancelledFailure'),
+            },
+          };
+        } else if (this.cancelReason) {
           // Either a CancelledFailure that we threw or AbortError from AbortController
           if (err instanceof CancelledFailure) {
             const failure = await encodeErrorToFailure(this.dataConverter, err);

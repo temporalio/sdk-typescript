@@ -246,7 +246,9 @@ test('Worker cancels activities after shutdown', async (t) => {
       }),
     };
   });
+  // Worker has been shutdown, wait for activity to complete
   const { result } = await promise;
+
   // The result is failed because an activity shouldn't be resolved as cancelled
   // unless cancellation was requested.
   t.truthy(result?.failed);

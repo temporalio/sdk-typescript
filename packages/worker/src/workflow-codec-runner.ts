@@ -2,8 +2,8 @@ import { PayloadCodec } from '@temporalio/common';
 import {
   Decoded,
   decodeOptional,
-  decodeOptionalMap,
   decodeOptionalFailure,
+  decodeOptionalMap,
   decodeOptionalSingle,
   Encoded,
   encodeMap,
@@ -12,7 +12,6 @@ import {
   encodeOptionalSingle,
   noopDecodeMap,
   noopEncodeMap,
-  TypecheckedPayloadCodec,
 } from '@temporalio/internal-non-workflow-common';
 import { coresdk } from '@temporalio/proto';
 
@@ -23,11 +22,7 @@ type DecodedActivation = Decoded<coresdk.workflow_activation.IWorkflowActivation
  * Helper class for decoding Workflow activations and encoding Workflow completions.
  */
 export class WorkflowCodecRunner {
-  protected readonly codec: TypecheckedPayloadCodec;
-
-  constructor(codec: PayloadCodec) {
-    this.codec = codec as TypecheckedPayloadCodec;
-  }
+  constructor(protected readonly codecs: PayloadCodec[]) {}
 
   /**
    * Run codec.decode on the Payloads in the Activation message.
@@ -44,14 +39,14 @@ export class WorkflowCodecRunner {
               startWorkflow: job.startWorkflow
                 ? {
                     ...job.startWorkflow,
-                    arguments: await decodeOptional(this.codec, job.startWorkflow.arguments),
+                    arguments: await decodeOptional(this.codecs, job.startWorkflow.arguments),
                     headers: noopDecodeMap(job.startWorkflow.headers),
-                    continuedFailure: await decodeOptionalFailure(this.codec, job.startWorkflow.continuedFailure),
+                    continuedFailure: await decodeOptionalFailure(this.codecs, job.startWorkflow.continuedFailure),
                     memo: {
-                      fields: await decodeOptionalMap(this.codec, job.startWorkflow.memo?.fields),
+                      fields: await decodeOptionalMap(this.codecs, job.startWorkflow.memo?.fields),
                     },
                     lastCompletionResult: {
-                      payloads: await decodeOptional(this.codec, job.startWorkflow.lastCompletionResult?.payloads),
+                      payloads: await decodeOptional(this.codecs, job.startWorkflow.lastCompletionResult?.payloads),
                     },
                     searchAttributes: job.startWorkflow.searchAttributes
                       ? {
@@ -65,20 +60,20 @@ export class WorkflowCodecRunner {
               queryWorkflow: job.queryWorkflow
                 ? {
                     ...job.queryWorkflow,
-                    arguments: await decodeOptional(this.codec, job.queryWorkflow.arguments),
+                    arguments: await decodeOptional(this.codecs, job.queryWorkflow.arguments),
                     headers: noopDecodeMap(job.queryWorkflow.headers),
                   }
                 : null,
               cancelWorkflow: job.cancelWorkflow
                 ? {
                     ...job.cancelWorkflow,
-                    details: await decodeOptional(this.codec, job.cancelWorkflow.details),
+                    details: await decodeOptional(this.codecs, job.cancelWorkflow.details),
                   }
                 : null,
               signalWorkflow: job.signalWorkflow
                 ? {
                     ...job.signalWorkflow,
-                    input: await decodeOptional(this.codec, job.signalWorkflow.input),
+                    input: await decodeOptional(this.codecs, job.signalWorkflow.input),
                     headers: noopDecodeMap(job.signalWorkflow.headers),
                   }
                 : null,
@@ -91,7 +86,7 @@ export class WorkflowCodecRunner {
                           completed: job.resolveActivity.result.completed
                             ? {
                                 result: await decodeOptionalSingle(
-                                  this.codec,
+                                  this.codecs,
                                   job.resolveActivity.result.completed.result
                                 ),
                               }
@@ -99,7 +94,7 @@ export class WorkflowCodecRunner {
                           failed: job.resolveActivity.result.failed
                             ? {
                                 failure: await decodeOptionalFailure(
-                                  this.codec,
+                                  this.codecs,
                                   job.resolveActivity.result.failed.failure
                                 ),
                               }
@@ -107,7 +102,7 @@ export class WorkflowCodecRunner {
                           cancelled: job.resolveActivity.result.cancelled
                             ? {
                                 failure: await decodeOptionalFailure(
-                                  this.codec,
+                                  this.codecs,
                                   job.resolveActivity.result.cancelled.failure
                                 ),
                               }
@@ -125,7 +120,7 @@ export class WorkflowCodecRunner {
                           completed: job.resolveChildWorkflowExecution.result.completed
                             ? {
                                 result: await decodeOptionalSingle(
-                                  this.codec,
+                                  this.codecs,
                                   job.resolveChildWorkflowExecution.result.completed.result
                                 ),
                               }
@@ -133,7 +128,7 @@ export class WorkflowCodecRunner {
                           failed: job.resolveChildWorkflowExecution.result.failed
                             ? {
                                 failure: await decodeOptionalFailure(
-                                  this.codec,
+                                  this.codecs,
                                   job.resolveChildWorkflowExecution.result.failed.failure
                                 ),
                               }
@@ -141,7 +136,7 @@ export class WorkflowCodecRunner {
                           cancelled: job.resolveChildWorkflowExecution.result.cancelled
                             ? {
                                 failure: await decodeOptionalFailure(
-                                  this.codec,
+                                  this.codecs,
                                   job.resolveChildWorkflowExecution.result.cancelled.failure
                                 ),
                               }
@@ -156,7 +151,7 @@ export class WorkflowCodecRunner {
                     cancelled: job.resolveChildWorkflowExecutionStart.cancelled
                       ? {
                           failure: await decodeOptionalFailure(
-                            this.codec,
+                            this.codecs,
                             job.resolveChildWorkflowExecutionStart.cancelled.failure
                           ),
                         }
@@ -166,13 +161,13 @@ export class WorkflowCodecRunner {
               resolveSignalExternalWorkflow: job.resolveSignalExternalWorkflow
                 ? {
                     ...job.resolveSignalExternalWorkflow,
-                    failure: await decodeOptionalFailure(this.codec, job.resolveSignalExternalWorkflow.failure),
+                    failure: await decodeOptionalFailure(this.codecs, job.resolveSignalExternalWorkflow.failure),
                   }
                 : null,
               resolveRequestCancelExternalWorkflow: job.resolveRequestCancelExternalWorkflow
                 ? {
                     ...job.resolveRequestCancelExternalWorkflow,
-                    failure: await decodeOptionalFailure(this.codec, job.resolveRequestCancelExternalWorkflow.failure),
+                    failure: await decodeOptionalFailure(this.codecs, job.resolveRequestCancelExternalWorkflow.failure),
                   }
                 : null,
             }))
@@ -189,7 +184,7 @@ export class WorkflowCodecRunner {
     const encodedCompletion: EncodedCompletion = {
       ...completion,
       failed: completion.failed
-        ? { failure: await encodeOptionalFailure(this.codec, completion?.failed?.failure) }
+        ? { failure: await encodeOptionalFailure(this.codecs, completion?.failed?.failure) }
         : null,
       successful: completion.successful
         ? {
@@ -200,7 +195,7 @@ export class WorkflowCodecRunner {
                     scheduleActivity: command.scheduleActivity
                       ? {
                           ...command.scheduleActivity,
-                          arguments: await encodeOptional(this.codec, command.scheduleActivity?.arguments),
+                          arguments: await encodeOptional(this.codecs, command.scheduleActivity?.arguments),
                           // don't encode headers
                           headers: noopEncodeMap(command.scheduleActivity?.headers),
                         }
@@ -219,31 +214,34 @@ export class WorkflowCodecRunner {
                           ...command.respondToQuery,
                           succeeded: {
                             response: await encodeOptionalSingle(
-                              this.codec,
+                              this.codecs,
                               command.respondToQuery.succeeded?.response
                             ),
                           },
-                          failed: await encodeOptionalFailure(this.codec, command.respondToQuery.failed),
+                          failed: await encodeOptionalFailure(this.codecs, command.respondToQuery.failed),
                         }
                       : undefined,
 
                     completeWorkflowExecution: command.completeWorkflowExecution
                       ? {
                           ...command.completeWorkflowExecution,
-                          result: await encodeOptionalSingle(this.codec, command.completeWorkflowExecution.result),
+                          result: await encodeOptionalSingle(this.codecs, command.completeWorkflowExecution.result),
                         }
                       : undefined,
                     failWorkflowExecution: command.failWorkflowExecution
                       ? {
                           ...command.failWorkflowExecution,
-                          failure: await encodeOptionalFailure(this.codec, command.failWorkflowExecution.failure),
+                          failure: await encodeOptionalFailure(this.codecs, command.failWorkflowExecution.failure),
                         }
                       : undefined,
                     continueAsNewWorkflowExecution: command.continueAsNewWorkflowExecution
                       ? {
                           ...command.continueAsNewWorkflowExecution,
-                          arguments: await encodeOptional(this.codec, command.continueAsNewWorkflowExecution.arguments),
-                          memo: await encodeMap(this.codec, command.continueAsNewWorkflowExecution.memo),
+                          arguments: await encodeOptional(
+                            this.codecs,
+                            command.continueAsNewWorkflowExecution.arguments
+                          ),
+                          memo: await encodeMap(this.codecs, command.continueAsNewWorkflowExecution.memo),
                           // don't encode headers
                           headers: noopEncodeMap(command.continueAsNewWorkflowExecution.headers),
                           // don't encode searchAttributes
@@ -253,8 +251,8 @@ export class WorkflowCodecRunner {
                     startChildWorkflowExecution: command.startChildWorkflowExecution
                       ? {
                           ...command.startChildWorkflowExecution,
-                          input: await encodeOptional(this.codec, command.startChildWorkflowExecution.input),
-                          memo: await encodeMap(this.codec, command.startChildWorkflowExecution.memo),
+                          input: await encodeOptional(this.codecs, command.startChildWorkflowExecution.input),
+                          memo: await encodeMap(this.codecs, command.startChildWorkflowExecution.memo),
                           // don't encode headers
                           headers: noopEncodeMap(command.startChildWorkflowExecution.headers),
                           // don't encode searchAttributes
@@ -264,14 +262,14 @@ export class WorkflowCodecRunner {
                     signalExternalWorkflowExecution: command.signalExternalWorkflowExecution
                       ? {
                           ...command.signalExternalWorkflowExecution,
-                          args: await encodeOptional(this.codec, command.signalExternalWorkflowExecution.args),
+                          args: await encodeOptional(this.codecs, command.signalExternalWorkflowExecution.args),
                           headers: noopEncodeMap(command.signalExternalWorkflowExecution.headers),
                         }
                       : undefined,
                     scheduleLocalActivity: command.scheduleLocalActivity
                       ? {
                           ...command.scheduleLocalActivity,
-                          arguments: await encodeOptional(this.codec, command.scheduleLocalActivity.arguments),
+                          arguments: await encodeOptional(this.codecs, command.scheduleLocalActivity.arguments),
                           // don't encode headers
                           headers: noopEncodeMap(command.scheduleLocalActivity.headers),
                         }

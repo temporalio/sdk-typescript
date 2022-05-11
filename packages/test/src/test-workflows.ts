@@ -1812,3 +1812,28 @@ test('waitOnUser', async (t) => {
     compareCompletion(t, completion, makeSuccess());
   }
 });
+
+test('scopeCancelledWhileWaitingOnExternalWorkflowCancellation', async (t) => {
+  const { workflowType } = t.context;
+  {
+    const completion = await activate(t, makeStartWorkflow(workflowType));
+    compareCompletion(
+      t,
+      completion,
+      makeSuccess([
+        {
+          requestCancelExternalWorkflowExecution: {
+            seq: 1,
+            workflowExecution: { namespace: 'default', workflowId: 'irrelevant' },
+          },
+        },
+        {
+          setPatchMarker: { deprecated: false, patchId: '__temporal_internal_connect_external_handle_cancel_to_scope' },
+        },
+        {
+          completeWorkflowExecution: { result: toPayload(wrappedDefaultPayloadConverter, undefined) },
+        },
+      ])
+    );
+  }
+});

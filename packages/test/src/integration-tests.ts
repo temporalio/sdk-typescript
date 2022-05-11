@@ -9,7 +9,6 @@ import {
 } from '@temporalio/client';
 import {
   ChildWorkflowFailure,
-  defaultPayloadCodec,
   defaultPayloadConverter,
   Payload,
   PayloadCodec,
@@ -20,7 +19,7 @@ import {
   TimeoutType,
   WorkflowExecution,
 } from '@temporalio/common';
-import { decodeFromPayloadsAtIndex } from '@temporalio/internal-non-workflow-common';
+import { decode, decodeFromPayloadsAtIndex } from '@temporalio/internal-non-workflow-common';
 import {
   tsToMs,
   WorkflowExecutionAlreadyStartedError,
@@ -56,13 +55,10 @@ const namespace = 'default';
 
 export function runIntegrationTests(codec?: PayloadCodec): void {
   const test = (name: string, fn: Implementation<Context>) => _test(codec ? 'With codec—' + name : name, fn);
-  const dataConverter = { payloadCodec: codec ?? defaultPayloadCodec };
-  const loadedDataConverter = {
-    payloadConverter: wrappedDefaultPayloadConverter,
-    payloadCodec: codec ?? defaultPayloadCodec,
-  };
+  const dataConverter = { payloadCodecs: codec ? [codec] : [] };
+  const loadedDataConverter = { payloadConverter: wrappedDefaultPayloadConverter, payloadCodecs: codec ? [codec] : [] };
   async function fromPayload(payload: Payload) {
-    const [decodedPayload] = await dataConverter.payloadCodec.decode([payload]);
+    const [decodedPayload] = await decode(dataConverter.payloadCodecs, [payload]);
     return defaultPayloadConverter.fromPayload(decodedPayload);
   }
 

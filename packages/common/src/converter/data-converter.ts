@@ -1,4 +1,4 @@
-import { defaultPayloadCodec, PayloadCodec } from './payload-codec';
+import { PayloadCodec } from './payload-codec';
 import { defaultPayloadConverter } from './payload-converters';
 import { WrappedPayloadConverter } from './wrapped-payload-converter';
 
@@ -35,9 +35,13 @@ export interface DataConverter {
   payloadConverterPath?: string;
 
   /**
-   * A {@link PayloadCodec} instance. The default codec is a no-op.
+   * An array of {@link PayloadCodec} instances.
+   *
+   * Payloads are encoded in the order of the array and decoded in the opposite order. For example, if you have a
+   * compression codec and an encryption codec, then you want data to be encoded with the compression codec first, so
+   * you'd do `payloadCodecs: [compressionCodec, encryptionCodec]`.
    */
-  payloadCodec?: PayloadCodec;
+  payloadCodecs?: PayloadCodec[];
 }
 
 /**
@@ -45,10 +49,10 @@ export interface DataConverter {
  */
 export interface LoadedDataConverter {
   payloadConverter: WrappedPayloadConverter;
-  payloadCodec: PayloadCodec;
+  payloadCodecs: PayloadCodec[];
 }
 
 export const defaultDataConverter: LoadedDataConverter = {
   payloadConverter: new WrappedPayloadConverter(defaultPayloadConverter),
-  payloadCodec: defaultPayloadCodec,
+  payloadCodecs: [],
 };

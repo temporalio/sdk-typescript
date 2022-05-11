@@ -1,9 +1,9 @@
-import test from 'ava';
-import { Subject, firstValueFrom } from 'rxjs';
-import { v4 as uuid4 } from 'uuid';
 import { Context } from '@temporalio/activity';
-import { isolateFreeWorker, Worker } from './mock-native-worker';
 import { coresdk } from '@temporalio/proto';
+import test from 'ava';
+import { firstValueFrom, Subject } from 'rxjs';
+import { v4 as uuid4 } from 'uuid';
+import { isolateFreeWorker, Worker } from './mock-native-worker';
 
 async function runActivity(worker: Worker, callback?: (completion: coresdk.ActivityTaskCompletion) => void) {
   const taskToken = Buffer.from(uuid4());
@@ -74,19 +74,21 @@ test('Worker ignores last heartbeat if activity succeeds', async (t) => {
   const worker = isolateFreeWorker({
     taskQueue: 'unused',
     dataConverter: {
-      payloadCodec: {
-        async encode(p) {
-          // Don't complete encoding heartbeat details until activity has completed.
-          // data will be undefined when this method gets the activity result for completion.
-          if (p[0].data !== undefined) {
-            await activityCompletePromise;
-          }
-          return p;
+      payloadCodecs: [
+        {
+          async encode(p) {
+            // Don't complete encoding heartbeat details until activity has completed.
+            // data will be undefined when this method gets the activity result for completion.
+            if (p[0].data !== undefined) {
+              await activityCompletePromise;
+            }
+            return p;
+          },
+          async decode(p) {
+            return p;
+          },
         },
-        async decode(p) {
-          return p;
-        },
-      },
+      ],
     },
     activities: {
       async rapidHeartbeater() {
@@ -106,24 +108,24 @@ test('Worker ignores last heartbeat if activity succeeds', async (t) => {
 });
 
 test('Activity gets cancelled if heartbeat fails', async (t) => {
-  const codecErr = new Error('Refuse to encode data for test');
-
   const worker = isolateFreeWorker({
     taskQueue: 'unused',
     dataConverter: {
-      payloadCodec: {
-        async encode(p) {
-          // Fail to encode heartbeat details.
-          // data will be undefined when this method gets the activity result for completion.
-          if (p[0].data !== undefined) {
-            throw codecErr;
-          }
-          return p;
+      payloadCodecs: [
+        {
+          async encode(p) {
+            // Fail to encode heartbeat details.
+            // data will be undefined when this method gets the activity result for completion.
+            if (p[0].data !== undefined) {
+              throw new Error('Refuse to encode data for test');
+            }
+            return p;
+          },
+          async decode(p) {
+            return p;
+          },
         },
-        async decode(p) {
-          return p;
-        },
-      },
+      ],
     },
     activities: {
       async rapidHeartbeater() {
@@ -138,7 +140,7 @@ test('Activity gets cancelled if heartbeat fails', async (t) => {
     heartbeatsSeen.push(details);
   };
   await runActivity(worker, (completion) => {
-    t.is(completion.result?.failed?.failure?.message, codecErr.toString());
+    t.is(completion.result?.failed?.failure?.message, 'HEARTBEAT_DETAILS_CONVERSION_FAILED');
   });
   t.deepEqual(heartbeatsSeen, []);
 });
