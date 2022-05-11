@@ -1,12 +1,14 @@
 mod conversions;
 mod errors;
 
-use crate::conversions::ObjectHandleConversionsExt;
+use crate::conversions::{get_optional, ObjectHandleConversionsExt};
 use errors::*;
 use neon::prelude::*;
 use once_cell::sync::OnceCell;
 use opentelemetry::trace::{FutureExt, SpanContext, TraceContextExt};
+use parking_lot::RwLock;
 use prost::Message;
+use std::collections::HashMap;
 use std::{
     cell::RefCell,
     fmt::Display,
@@ -50,6 +52,14 @@ enum Request {
     CreateClient {
         runtime: Arc<RuntimeHandle>,
         options: ClientOptions,
+        headers: Option<HashMap<String, String>>,
+        /// Used to send the result back into JS
+        callback: Root<JsFunction>,
+    },
+    /// A request to update a client's HTTP request headers
+    UpdateClientHeaders {
+        client: Arc<RawClient>,
+        headers: HashMap<String, String>,
         /// Used to send the result back into JS
         callback: Root<JsFunction>,
     },
@@ -271,13 +281,17 @@ fn start_bridge_loop(event_queue: Arc<EventQueue>, receiver: &mut UnboundedRecei
                 Request::CreateClient {
                     runtime,
                     options,
+                    headers,
                     callback,
                 } => {
                     // `metrics_meter` (second arg) can be None here since we don't use the
                     // returned client directly at the moment, when we repurpose the client to be
                     // used by a Worker, `init_worker` will attach the correct metrics meter for
                     // us.
-                    match options.connect_no_namespace(None).await {
+                    match options
+                        .connect_no_namespace(None, headers.map(|h| Arc::new(RwLock::new(h))))
+                        .await
+                    {
                         Err(err) => {
                             send_error(event_queue.clone(), callback, |cx| match err {
                                 ClientInitError::SystemInfoCallError(e) => TRANSPORT_ERROR
@@ -299,6 +313,14 @@ fn start_bridge_loop(event_queue: Arc<EventQueue>, receiver: &mut UnboundedRecei
                             });
                         }
                     }
+                }
+                Request::UpdateClientHeaders {
+                    client,
+                    headers,
+                    callback,
+                } => {
+                    client.get_client().set_headers(headers);
+                    send_result(event_queue.clone(), callback, |cx| Ok(cx.undefined()));
                 }
                 Request::PollLogs { callback } => {
                     let logs = fetch_global_buffered_logs();
@@ -568,17 +590,60 @@ fn runtime_new(mut cx: FunctionContext) -> JsResult<BoxedRuntime> {
 /// Client will be returned in the supplied `callback`.
 fn client_new(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     let runtime = cx.argument::<BoxedRuntime>(0)?;
-    let client_options = cx.argument::<JsObject>(1)?.as_client_options(&mut cx)?;
+    let opts = cx.argument::<JsObject>(1)?;
     let callback = cx.argument::<JsFunction>(2)?;
+
+    let client_options = opts.as_client_options(&mut cx)?;
+    let headers = match js_optional_getter!(&mut cx, &opts, "headers", JsObject) {
+        None => None,
+        Some(h) => Some(
+            h.as_hash_map_of_string_to_string(&mut cx)
+                .map_err(|reason| {
+                    cx.throw_type_error::<_, HashMap<String, String>>(format!(
+                        "Invalid headers: {}",
+                        reason
+                    ))
+                    .unwrap_err()
+                })?,
+        ),
+    };
 
     let request = Request::CreateClient {
         runtime: (**runtime).clone(),
         options: client_options,
+        headers,
         callback: callback.root(&mut cx),
     };
     if let Err(err) = runtime.sender.send(request) {
         callback_with_unexpected_error(&mut cx, callback, err)?;
     };
+
+    Ok(cx.undefined())
+}
+
+/// Update a Client's HTTP request headers
+fn client_update_headers(mut cx: FunctionContext) -> JsResult<JsUndefined> {
+    let client = cx.argument::<BoxedClient>(0)?;
+    let headers = cx
+        .argument::<JsObject>(1)?
+        .as_hash_map_of_string_to_string(&mut cx)?;
+    let callback = cx.argument::<JsFunction>(2)?;
+
+    match &*client.borrow() {
+        None => {
+            callback_with_unexpected_error(&mut cx, callback, "Tried to use closed Client")?;
+        }
+        Some(client) => {
+            let request = Request::UpdateClientHeaders {
+                client: client.core_client.clone(),
+                headers,
+                callback: callback.root(&mut cx),
+            };
+            if let Err(err) = client.runtime.sender.send(request) {
+                callback_with_unexpected_error(&mut cx, callback, err)?;
+            };
+        }
+    }
 
     Ok(cx.undefined())
 }
@@ -593,9 +658,7 @@ fn worker_new(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     let config = worker_options.as_worker_config(&mut cx)?;
     match &*client.borrow() {
         None => {
-            callback_with_error(&mut cx, callback, move |cx| {
-                UNEXPECTED_ERROR.from_string(cx, "Tried to use closed Client".to_string())
-            })?;
+            callback_with_unexpected_error(&mut cx, callback, "Tried to use closed Client")?;
         }
         Some(client) => {
             let request = Request::InitWorker {
@@ -843,6 +906,7 @@ fn main(mut cx: ModuleContext) -> NeonResult<()> {
     cx.export_function("initTelemetry", init_telemetry)?;
     cx.export_function("newRuntime", runtime_new)?;
     cx.export_function("newClient", client_new)?;
+    cx.export_function("clientUpdateHeaders", client_update_headers)?;
     cx.export_function("newWorker", worker_new)?;
     cx.export_function("newReplayWorker", replay_worker_new)?;
     cx.export_function("workerShutdown", worker_shutdown)?;

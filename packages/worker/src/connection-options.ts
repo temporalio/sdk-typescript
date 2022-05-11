@@ -20,6 +20,7 @@ export interface NativeConnectionOptions {
    * @default `${process.pid}@${os.hostname()}`
    */
   identity?: string;
+
   /**
    * A string that should be unique to the exact worker code/binary being executed
    * @default `@temporalio/worker` package name and version
@@ -33,10 +34,18 @@ export interface NativeConnectionOptions {
    * connect with TLS without any customization.
    */
   tls?: TLSConfig | boolean | null;
+
+  /**
+   * HTTP headers to send with each gRPC request.
+   *
+   * Set statically at connection time, can be replaced later using {@link NativeConnection.setHeaders}.
+   */
+  headers?: Record<string, string>;
 }
 
-export type RequiredNativeConnectionOptions = Omit<Required<NativeConnectionOptions>, 'tls'> & {
+export type RequiredNativeConnectionOptions = Omit<Required<NativeConnectionOptions>, 'tls' | 'headers'> & {
   tls?: NativeConnectionOptions['tls'];
+  headers?: NativeConnectionOptions['headers'];
   sdkVersion: string;
 };
 

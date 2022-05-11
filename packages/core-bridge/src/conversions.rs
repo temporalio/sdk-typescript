@@ -6,7 +6,7 @@ use neon::{
     types::{JsNumber, JsString},
 };
 use opentelemetry::trace::{SpanContext, SpanId, TraceFlags, TraceId, TraceState};
-use std::{fmt::Display, net::SocketAddr, str::FromStr, time::Duration};
+use std::{collections::HashMap, fmt::Display, net::SocketAddr, str::FromStr, time::Duration};
 use temporal_sdk_core::{
     api::worker::{WorkerConfig, WorkerConfigBuilder},
     ClientOptions, ClientOptionsBuilder, ClientTlsConfig, RetryConfig, TelemetryOptions,
@@ -27,6 +27,7 @@ macro_rules! js_value_getter {
     };
 }
 
+#[macro_export]
 macro_rules! js_optional_getter {
     ($js_cx:expr, $js_obj:expr, $prop_name:expr, $js_type:ty) => {
         match get_optional($js_cx, $js_obj, $prop_name) {
@@ -42,7 +43,7 @@ macro_rules! js_optional_getter {
 
 /// Helper for extracting an optional attribute from [obj].
 /// If [obj].[attr] is undefined or not present, None is returned
-fn get_optional<'a, C, K>(
+pub fn get_optional<'a, C, K>(
     cx: &mut C,
     obj: &Handle<JsObject>,
     attr: K,
@@ -108,6 +109,10 @@ pub(crate) trait ObjectHandleConversionsExt {
     fn as_client_options(&self, ctx: &mut FunctionContext) -> NeonResult<ClientOptions>;
     fn as_telemetry_options(&self, cx: &mut FunctionContext) -> NeonResult<TelemetryOptions>;
     fn as_worker_config(&self, cx: &mut FunctionContext) -> NeonResult<WorkerConfig>;
+    fn as_hash_map_of_string_to_string(
+        &self,
+        cx: &mut FunctionContext,
+    ) -> NeonResult<HashMap<String, String>>;
 }
 
 impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
@@ -122,6 +127,22 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
             false,
             TraceState::from_str("").expect("Trace state must be valid"),
         ))
+    }
+
+    fn as_hash_map_of_string_to_string(
+        &self,
+        cx: &mut FunctionContext,
+    ) -> NeonResult<HashMap<String, String>> {
+        let props = self.get_own_property_names(cx)?;
+        let props = props.to_vec(cx)?;
+        let mut map = HashMap::new();
+        for k in props {
+            let k = k.to_string(cx)?;
+            let v = self.get(cx, k)?.to_string(cx)?.value(cx);
+            let k = k.value(cx);
+            map.insert(k, v);
+        }
+        Ok(map)
     }
 
     fn as_client_options(&self, cx: &mut FunctionContext) -> NeonResult<ClientOptions> {
@@ -198,11 +219,12 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
             },
         };
 
-        let mut gateway_opts = ClientOptionsBuilder::default();
+        let mut client_options = ClientOptionsBuilder::default();
         if let Some(tls_cfg) = tls_cfg {
-            gateway_opts.tls_cfg(tls_cfg);
+            client_options.tls_cfg(tls_cfg);
         }
-        Ok(gateway_opts
+
+        Ok(client_options
             .client_name("temporal-typescript".to_string())
             .client_version(js_value_getter!(cx, self, "sdkVersion", JsString))
             .target_url(url)
