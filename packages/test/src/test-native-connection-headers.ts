@@ -66,6 +66,14 @@ test('NativeConnection passes headers provided in options', async (t) => {
 
   await connection.setHeaders({ update: 'true' });
   // Create a worker so it starts polling for activities so we can check our mock server got the "update" header
-  const worker = await Worker.create({ connection, taskQueue: 'tq', activities: { async noop() {} } });
+  const worker = await Worker.create({
+    connection,
+    taskQueue: 'tq',
+    activities: {
+      async noop() {
+        /* yes eslint this is meant to be empty */
+      },
+    },
+  });
   await Promise.all([firstValueFrom(updateSubject).then(() => worker.shutdown()), worker.run()]);
 });
