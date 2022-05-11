@@ -1,7 +1,10 @@
+import util from 'util';
 import { IllegalStateError } from '@temporalio/common';
-import { Client, Worker } from '@temporalio/core-bridge';
+import { Client, Worker, clientUpdateHeaders } from '@temporalio/core-bridge';
 import { NativeConnectionOptions } from './connection-options';
 import { Runtime } from './runtime';
+
+const updateHeaders = util.promisify(clientUpdateHeaders);
 
 /**
  * A Native Connection object that delegates calls to the Rust Core binary extension.
@@ -37,6 +40,15 @@ export class NativeConnection {
       throw new IllegalStateError('Cannot close connection while Workers hold a reference to it');
     }
     await Runtime.instance().closeNativeClient(this.nativeClient);
+  }
+
+  /**
+   * Set HTTP headers to be set in each gRPC request.
+   *
+   * Use {@link NativeConnectionOptions.headers} to set the initial headers for client creation.
+   */
+  async setHeaders(headers: Record<string, string>): Promise<void> {
+    await updateHeaders(this.nativeClient, headers);
   }
 }
 
