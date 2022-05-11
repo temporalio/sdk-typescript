@@ -147,7 +147,7 @@ if (RUN_INTEGRATION_TESTS) {
     );
   });
 
-  test('fromPayload throws from client.execute', async (t) => {
+  test('fromPayload throws on Client when receiving result from client.execute()', async (t) => {
     const worker = await Worker.create({
       ...defaultOptions,
     });
