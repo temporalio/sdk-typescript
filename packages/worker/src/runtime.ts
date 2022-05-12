@@ -5,10 +5,12 @@ import {
   newClient,
   newRuntime,
   initTelemetry,
-  TelemetryOptions as RequiredTelemetryOptions,
+  TelemetryOptions,
+  Logger as TelemLogger,
+  ForwardLogger,
 } from '@temporalio/core-bridge';
 import { filterNullAndUndefined, normalizeTlsConfig } from '@temporalio/internal-non-workflow-common';
-import { IllegalStateError, MakeOptional } from '@temporalio/internal-workflow-common';
+import { IllegalStateError } from '@temporalio/internal-workflow-common';
 import { temporal } from '@temporalio/proto';
 import Heap from 'heap-js';
 import { BehaviorSubject, lastValueFrom, of } from 'rxjs';
@@ -21,8 +23,9 @@ import { byteArrayToBuffer } from './utils';
 
 export type History = temporal.api.history.v1.IHistory;
 
-export { RequiredTelemetryOptions };
-export type TelemetryOptions = MakeOptional<RequiredTelemetryOptions, 'logForwardingLevel'>;
+function isForwardingLogger(opts: TelemLogger): opts is ForwardLogger {
+  return Object.hasOwnProperty.call(opts, 'forward');
+}
 
 /**
  * Options used to create a Core runtime
@@ -48,13 +51,16 @@ export interface RuntimeOptions {
 
 export interface CompiledRuntimeOptions {
   shutdownSignals: NodeJS.Signals[];
-  telemetryOptions: RequiredTelemetryOptions;
+  telemetryOptions: TelemetryOptions;
   logger: Logger;
 }
 
-function defaultTelemetryOptions(): RequiredTelemetryOptions {
+function defaultTelemetryOptions(): TelemetryOptions {
   return {
-    logForwardingLevel: 'OFF',
+    tracingFilter: 'temporal_sdk_core=WARN',
+    logging: {
+      console: {},
+    },
   };
 }
 
@@ -213,7 +219,8 @@ export class Runtime {
   }
 
   protected isForwardingLogs(): boolean {
-    return this.options.telemetryOptions.logForwardingLevel !== 'OFF';
+    const logger = this.options.telemetryOptions.logging;
+    return logger != null && isForwardingLogger(logger);
   }
 
   /**

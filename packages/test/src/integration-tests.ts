@@ -65,7 +65,7 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
   _test.before(async (t) => {
     const logger = new DefaultLogger('DEBUG');
     // Use forwarded logging from core
-    Runtime.install({ logger, telemetryOptions: { logForwardingLevel: 'INFO' } });
+    Runtime.install({ logger, telemetryOptions: { logging: { forward: { level: 'INFO' } } } });
     const worker = await Worker.create({
       workflowsPath: require.resolve('./workflows'),
       activities,

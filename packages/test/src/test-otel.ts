@@ -150,9 +150,10 @@ if (RUN_INTEGRATION_TESTS) {
     Runtime.install({
       logger,
       telemetryOptions: {
-        oTelCollectorUrl: oTelUrl,
         tracingFilter: 'temporal_sdk_core=DEBUG',
-        logForwardingLevel: 'INFO',
+        tracing: {
+          otel: { url: oTelUrl },
+        },
       },
     });
     const sinks: InjectedSinks<OpenTelemetrySinks> = {
