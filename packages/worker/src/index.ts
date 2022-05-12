@@ -8,6 +8,12 @@
  * @module
  */
 
+if ((globalThis as any).__TEMPORAL__ !== undefined) {
+  throw new Error(
+    "You are importing from '@temporalio/worker' in your Workflow code, which doesn't work. Workflow code should only import from '@temporalio/workflow' and '@temporalio/common'."
+  );
+}
+
 export { NativeConnection as NativeConnection } from './connection';
 export { NativeConnectionOptions, RequiredNativeConnectionOptions, TLSConfig } from './connection-options';
 export * from './errors';

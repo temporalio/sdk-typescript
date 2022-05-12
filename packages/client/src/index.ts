@@ -9,6 +9,12 @@
  * @module
  */
 
+if ((globalThis as any).__TEMPORAL__ !== undefined) {
+  throw new Error(
+    "You are importing from '@temporalio/client' in your Workflow code, which doesn't work. Workflow code should only import from '@temporalio/workflow' and '@temporalio/common'."
+  );
+}
+
 export {
   ActivityFailure,
   ApplicationFailure,
