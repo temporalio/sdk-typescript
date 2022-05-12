@@ -14,6 +14,7 @@ Breaking changes marked with a :boom:
 - :boom: Improve Payload Converter logic ([#558](https://github.com/temporalio/sdk-typescript/pull/558))
 
   BREAKING CHANGE:
+
   - `PayloadConverter.toPayload(value)` now returns `undefined` when `value` is not of a supported type.
   - The SDK now throws when it receives `undefined` from `toPayload`
 
