@@ -1,7 +1,8 @@
 import { Connection, WorkflowClient } from '@temporalio/client';
-import { toPayloads } from '@temporalio/common';
+import { toPayloads, ValueError } from '@temporalio/common';
 import { coresdk } from '@temporalio/proto';
-import { Worker } from '@temporalio/worker';
+import { InjectedSinks, Worker } from '@temporalio/worker';
+import asyncRetry from 'async-retry';
 import test, { ExecutionContext } from 'ava';
 import { v4 as uuid4 } from 'uuid';
 import { ProtoActivityResult } from '../protos/root';
@@ -9,7 +10,8 @@ import { protoActivity } from './activities';
 import { cleanStackTrace, RUN_INTEGRATION_TESTS } from './helpers';
 import { defaultOptions, isolateFreeWorker } from './mock-native-worker';
 import { messageInstance, payloadConverter } from './payload-converters/payload-converter';
-import { protobufWorkflow } from './workflows';
+import * as workflows from './workflows';
+import { LogSinks, protobufWorkflow } from './workflows';
 
 export async function runWorker(worker: Worker, fn: () => Promise<any>): Promise<void> {
   const promise = worker.run();
@@ -55,6 +57,122 @@ if (RUN_INTEGRATION_TESTS) {
       worker.shutdown();
     };
     await Promise.all([worker.run(), runAndShutdown()]);
+  });
+
+  // use default dataConverter for Client
+  // use payload-converter-returns-undefined for Worker
+  // Workflow should throw when running toPayload on "success" retval
+  test('toPayload throwing results in task retry', async (t) => {
+    const taskQueue = 'toPayload throwing results in task retry';
+    const client = new WorkflowClient();
+    const handle = await client.start(workflows.successString, {
+      taskQueue,
+      workflowId: uuid4(),
+    });
+
+    const logs: string[] = [];
+    const sinks: InjectedSinks<LogSinks> = {
+      logger: {
+        log: {
+          fn(_, message) {
+            logs.push(message);
+          },
+        },
+      },
+    };
+
+    const worker = await Worker.create({
+      ...defaultOptions,
+      taskQueue,
+      sinks,
+      dataConverter: {
+        payloadConverterPath: require.resolve('./payload-converters/payload-converter-returns-undefined'),
+      },
+    });
+
+    const runPromise = worker.run();
+    runPromise.catch((err: any) => {
+      console.error('Caught error while worker was running', err);
+    });
+
+    try {
+      await asyncRetry(
+        async () => {
+          const { history } = await client.service.getWorkflowExecutionHistory({
+            namespace: 'default',
+            execution: { workflowId: handle.workflowId },
+          });
+          if (
+            !history?.events?.some(
+              ({ workflowTaskFailedEventAttributes }) =>
+                workflowTaskFailedEventAttributes?.failure?.message ===
+                'The Payload Converter method TestPayloadConverter.toPayload must return a Payload. Received `undefined` of type `undefined` when trying to convert `success` of type `string`.'
+            )
+          ) {
+            throw new Error('Cannot find workflow task failed event');
+          }
+        },
+        {
+          retries: 60,
+          maxTimeout: 1000,
+        }
+      );
+    } finally {
+      await handle.terminate();
+    }
+    t.pass();
+
+    worker.shutdown();
+    await runPromise;
+  });
+
+  test('toPayload throws from client.start', async (t) => {
+    const connection = new Connection();
+    const client = new WorkflowClient(connection.service, {
+      dataConverter: {
+        payloadConverterPath: require.resolve('./payload-converters/payload-converter-returns-undefined'),
+      },
+    });
+    await t.throwsAsync(
+      client.start(workflows.twoStrings, {
+        taskQueue: 'test',
+        workflowId: uuid4(),
+        args: ['hello', 'world'],
+      }),
+      {
+        instanceOf: ValueError,
+        message:
+          'The Payload Converter method TestPayloadConverter.toPayload must return a Payload. Received `undefined` of type `undefined` when trying to convert `hello` of type `string`.',
+      }
+    );
+  });
+
+  test('fromPayload throws on Client when receiving result from client.execute()', async (t) => {
+    const worker = await Worker.create({
+      ...defaultOptions,
+    });
+
+    const runPromise = worker.run();
+
+    const connection = new Connection();
+    const client = new WorkflowClient(connection.service, {
+      dataConverter: {
+        payloadConverterPath: require.resolve('./payload-converters/payload-converter-throws-from-payload'),
+      },
+    });
+    await t.throwsAsync(
+      client.execute(workflows.successString, {
+        taskQueue: 'test',
+        workflowId: uuid4(),
+      }),
+      {
+        instanceOf: Error,
+        message: 'test fromPayload',
+      }
+    );
+
+    worker.shutdown();
+    await runPromise;
   });
 }
 
@@ -111,5 +229,30 @@ test('Worker with proto data converter runs an activity and reports completion',
     compareCompletion(t, completion.result, {
       completed: { result: payloadConverter.toPayload(await protoActivity(messageInstance)) },
     });
+  });
+});
+
+test('Custom payload converter that returns undefined results in thrown Error', async (t) => {
+  const worker = await isolateFreeWorker({
+    ...defaultOptions,
+    dataConverter: {
+      payloadConverterPath: require.resolve('./payload-converters/payload-converter-returns-undefined'),
+    },
+  });
+  await runWorker(worker, async () => {
+    const taskToken = Buffer.from(uuid4());
+    const completion = await worker.native.runActivityTask({
+      taskToken,
+      start: {
+        activityType: 'echo',
+        input: toPayloads(payloadConverter, 'message'),
+      },
+    });
+    t.is(
+      completion.result?.failed?.failure?.message,
+      'The Payload Converter method TestPayloadConverter.toPayload must return a Payload. Received `undefined` of type `undefined` when trying to convert `message` of type `string`.'
+    );
+    // is retryable
+    t.false(completion.result?.failed?.failure?.applicationFailureInfo?.nonRetryable);
   });
 });

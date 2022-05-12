@@ -5,12 +5,13 @@ import {
   defaultPayloadConverter,
   defineQuery,
   defineSignal,
-  startChild,
+  getExternalWorkflowHandle,
   setHandler,
   sleep,
-  getExternalWorkflowHandle,
+  startChild,
   WorkflowInterceptors,
 } from '@temporalio/workflow';
+import { wrappedDefaultPayloadConverter } from '../payload-converters/payload-converter';
 import { echo } from './configured-activities';
 
 class InvalidTimerDurationError extends Error {}
@@ -95,7 +96,7 @@ export const interceptors = (): WorkflowInterceptors => ({
       async scheduleActivity(input, next) {
         return next({
           ...input,
-          headers: { ...input.headers, message: toPayload(defaultPayloadConverter, receivedMessage) },
+          headers: { ...input.headers, message: toPayload(wrappedDefaultPayloadConverter, receivedMessage) },
         });
       },
       async startTimer(input, next) {
@@ -114,13 +115,13 @@ export const interceptors = (): WorkflowInterceptors => ({
       async startChildWorkflowExecution(input, next) {
         return await next({
           ...input,
-          headers: { ...input.headers, message: toPayload(defaultPayloadConverter, receivedMessage) },
+          headers: { ...input.headers, message: toPayload(wrappedDefaultPayloadConverter, receivedMessage) },
         });
       },
       async signalWorkflow(input, next) {
         return await next({
           ...input,
-          headers: { ...input.headers, marker: toPayload(defaultPayloadConverter, true) },
+          headers: { ...input.headers, marker: toPayload(wrappedDefaultPayloadConverter, true) },
         });
       },
     },

@@ -1,4 +1,5 @@
 import { DataConverter, defaultPayloadConverter, LoadedDataConverter, PayloadConverter } from '@temporalio/common';
+import { WrappedPayloadConverter } from '@temporalio/common/lib/converter/wrapped-payload-converter';
 import { errorCode, hasOwnProperty, isRecord, ValueError } from '@temporalio/internal-workflow-common';
 
 const isValidPayloadConverter = (PayloadConverter: unknown): PayloadConverter is PayloadConverter =>
@@ -43,7 +44,7 @@ export function loadDataConverter(dataConverter?: DataConverter): LoadedDataConv
     payloadConverter = requirePayloadConverter(dataConverter.payloadConverterPath);
   }
   return {
-    payloadConverter,
+    payloadConverter: new WrappedPayloadConverter(payloadConverter),
     payloadCodecs: dataConverter?.payloadCodecs ?? [],
   };
 }

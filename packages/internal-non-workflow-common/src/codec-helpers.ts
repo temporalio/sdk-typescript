@@ -201,7 +201,7 @@ export async function encodeMapToPayloads<K extends string>(
   return Object.fromEntries(
     await Promise.all(
       Object.entries(map).map(async ([k, v]): Promise<[K, Payload]> => {
-        const payload = payloadConverter.toPayload(v);
+        const payload = toPayload(payloadConverter, v);
         if (payload === undefined) throw new PayloadConverterError(`Failed to encode entry: ${k}: ${v}`);
         const [encodedPayload] = await encode(payloadCodecs, [payload]);
         return [k as K, encodedPayload];
