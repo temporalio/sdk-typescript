@@ -11,15 +11,17 @@ Breaking changes marked with a :boom:
 - [`workflow`] Use "correct" default retry policy for local activities ([#630](https://github.com/temporalio/sdk-typescript/pull/630))
 - [`activity`] Fix Activity resolved as cancelled in unsupported situations ([#640](https://github.com/temporalio/sdk-typescript/pull/640))
 - [`workflow`] Propagate scope cancellation while waiting on ExternalWorkflowHandle cancellation ([#633](https://github.com/temporalio/sdk-typescript/pull/633))
-- Improve Payload Converter logic ([#558](https://github.com/temporalio/sdk-typescript/pull/558))
-  - Return undefined from `PayloadConverter.toPayload(value)` when `value` is not of a supported type.
+- :boom: Improve Payload Converter logic ([#558](https://github.com/temporalio/sdk-typescript/pull/558))
+
+  BREAKING CHANGE:
+  - `PayloadConverter.toPayload(value)` now returns `undefined` when `value` is not of a supported type.
   - The SDK now throws when it receives `undefined` from `toPayload`
 
 ### Features
 
 - :boom: Allow for multiple `DataConverter.payloadCodecs` ([#643](https://github.com/temporalio/sdk-typescript/pull/643))
 
-  `DataConverter.payloadCodec` was changed to plural:
+  BREAKING CHANGE: `DataConverter.payloadCodec` was changed to plural:
 
   ```ts
   export interface DataConverter {
