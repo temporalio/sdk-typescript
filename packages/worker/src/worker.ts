@@ -41,7 +41,7 @@ import {
   race,
   Subject,
 } from 'rxjs';
-import { delay, filter, first, ignoreElements, map, mergeMap, takeUntil, takeWhile, tap } from 'rxjs/operators';
+import { delay, filter, first, ignoreElements, last, map, mergeMap, takeUntil, takeWhile, tap } from 'rxjs/operators';
 import { promisify } from 'util';
 import { Activity, CancelReason } from './activity';
 import { extractNativeClient, extractReferenceHolders, InternalNativeConnection, NativeConnection } from './connection';
@@ -177,6 +177,16 @@ function formatTaskToken(taskToken: Uint8Array) {
 }
 
 /**
+ * Notify that an activity has started, used as input to {@link Worker.activityHeartbeatSubject}
+ *
+ * Used to detect rouge activities.
+ */
+interface HeartbeatCreateNotification {
+  type: 'create';
+  base64TaskToken: string;
+}
+
+/**
  * Heartbeat request used as input to {@link Worker.activityHeartbeatSubject}
  */
 interface Heartbeat {
@@ -193,7 +203,7 @@ interface Heartbeat {
 interface ActivityCompleteNotification {
   type: 'completion';
   flushRequired: boolean;
-  callback?: () => void;
+  callback(): void;
   base64TaskToken: string;
 }
 
@@ -208,7 +218,11 @@ interface HeartbeatFlushNotification {
 /**
  * Input for the {@link Worker.activityHeartbeatSubject}
  */
-type HeartbeatInput = Heartbeat | ActivityCompleteNotification | HeartbeatFlushNotification;
+type HeartbeatInput =
+  | Heartbeat
+  | ActivityCompleteNotification
+  | HeartbeatFlushNotification
+  | HeartbeatCreateNotification;
 
 /**
  * State for managing a single Activity's heartbeat sending
@@ -597,7 +611,8 @@ export class Worker {
                 }),
                 base64TaskToken: group$.key,
               };
-            })
+            }),
+            takeUntil(group$.pipe(last(undefined, null)))
           )
         ).pipe(
           mergeMapWithState(
@@ -736,6 +751,13 @@ export class Worker {
             if (output.type === 'result') {
               return { taskToken, result: output.result, parentSpan: output.parentSpan };
             }
+            const { base64TaskToken } = output.activity.info;
+
+            this.activityHeartbeatSubject.next({
+              type: 'create',
+              base64TaskToken,
+            });
+
             return await instrument(this.tracer, output.parentSpan, 'activity.run', async (span) => {
               const result = await output.activity.run(output.input);
               const status = result.failed ? 'failed' : result.completed ? 'completed' : 'cancelled';
@@ -751,7 +773,7 @@ export class Worker {
                   this.activityHeartbeatSubject.next({
                     type: 'completion',
                     flushRequired: true,
-                    base64TaskToken: output.activity.info.base64TaskToken,
+                    base64TaskToken,
                     callback: resolve,
                   });
                 });
@@ -760,7 +782,8 @@ export class Worker {
                 this.activityHeartbeatSubject.next({
                   type: 'completion',
                   flushRequired: false,
-                  base64TaskToken: output.activity.info.base64TaskToken,
+                  base64TaskToken,
+                  callback: () => undefined,
                 });
               }
               this.log.debug('Activity resolved', {
@@ -812,7 +835,8 @@ export class Worker {
                 }),
                 synthetic: true,
               };
-            })
+            }),
+            takeUntil(group$.pipe(last(undefined, null)))
           )
         ).pipe(
           tap(() => {
@@ -1033,7 +1057,7 @@ export class Worker {
       return { state: { ...state, pending: heartbeat }, output: null };
     }
 
-    function complete(callback?: () => void): HeartbeatStateAndOutput {
+    function complete(callback: () => void): HeartbeatStateAndOutput {
       return {
         state: { pending: undefined, completionCallback: undefined, processing: false, closed: true },
         output: { type: 'close', completionCallback: callback },
@@ -1052,8 +1076,12 @@ export class Worker {
         group$.pipe(
           mapWithState(
             (state: HeartbeatState, input: HeartbeatInput): HeartbeatStateAndOutput => {
+              if (input.type === 'create') {
+                return { state: { processing: false, closed: false }, output: null };
+              }
               // Ignore any input if we've marked this activity heartbeat stream as closed
-              if (state.closed) return { state, output: null };
+              // (rogue heartbeat)
+              if (state.closed) return { state, output: { type: 'close' } };
 
               switch (input.type) {
                 case 'heartbeat':
@@ -1076,11 +1104,19 @@ export class Worker {
                     return { state: { ...state, processing: false }, output: null };
                   }
                 case 'completion':
-                  if (!input.flushRequired) {
-                    return complete(input.callback);
-                  } else if (state.processing) {
+                  if (state.processing) {
                     // Store the completion callback until heartbeat has been flushed
-                    return { state: { ...state, completionCallback: input.callback }, output: null };
+                    return {
+                      state: {
+                        ...state,
+                        // If flush isn't required, delete any pending heartbeat
+                        pending: input.flushRequired ? state.pending : undefined,
+                        completionCallback: input.callback,
+                      },
+                      output: null,
+                    };
+                  } else if (!input.flushRequired) {
+                    return complete(input.callback);
                   } else {
                     if (state.pending) {
                       // Flush the final heartbeat and store the completion callback
@@ -1092,7 +1128,10 @@ export class Worker {
                   }
               }
             },
-            { processing: false, closed: false }
+            // Start `closed`, wait for a `create` input to open the stream.
+            // This prevents rogue activities from heartbeating and keeping
+            // this stream open.
+            { processing: false, closed: true }
           ),
           filter((out): out is HeartbeatOutput => out != null),
           tap((out) => {

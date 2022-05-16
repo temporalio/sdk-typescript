@@ -144,3 +144,29 @@ test('Activity gets cancelled if heartbeat fails', async (t) => {
   });
   t.deepEqual(heartbeatsSeen, []);
 });
+
+test('No heartbeat is emitted with rouge activity', async (t) => {
+  const subj = new Subject<void>();
+  let cx: Context | undefined = undefined;
+
+  const worker = isolateFreeWorker({
+    taskQueue: 'unused',
+    activities: {
+      async rapidHeartbeater() {
+        cx = Context.current();
+        Context.current().heartbeat(1);
+      },
+    },
+  });
+
+  const heartbeatsSeen = Array<number>();
+  worker.native.activityHeartbeatCallback = (_tt, details) => {
+    heartbeatsSeen.push(details);
+  };
+  await runActivity(worker, () => {
+    subj.next();
+    t.truthy(cx);
+    cx?.heartbeat(2);
+  });
+  t.deepEqual(heartbeatsSeen, [1]);
+});
