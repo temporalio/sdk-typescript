@@ -27,12 +27,12 @@
  */
 
 if ((globalThis as any).__TEMPORAL__ !== undefined) {
-  throw new Error(
+  throw new IllegalStateError(
     "You are importing from '@temporalio/activity' in your Workflow code, which doesn't work. Workflow code should only import from '@temporalio/workflow' and '@temporalio/common'."
   );
 }
 
-import { msToNumber } from '@temporalio/internal-workflow-common';
+import { IllegalStateError, msToNumber } from '@temporalio/internal-workflow-common';
 import { AbortSignal } from 'abort-controller';
 import { AsyncLocalStorage } from 'async_hooks';
 export { CancelledFailure } from '@temporalio/common';

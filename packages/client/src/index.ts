@@ -9,8 +9,10 @@
  * @module
  */
 
+import { IllegalStateError } from '@temporalio/internal-workflow-common';
+
 if ((globalThis as any).__TEMPORAL__ !== undefined) {
-  throw new Error(
+  throw new IllegalStateError(
     "You are importing from '@temporalio/client' in your Workflow code, which doesn't work. Workflow code should only import from '@temporalio/workflow' and '@temporalio/common'."
   );
 }
