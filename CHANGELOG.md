@@ -4,6 +4,55 @@ All notable changes to this project will be documented in this file.
 
 Breaking changes marked with a :boom:
 
+## [0.23.0] - 2022-05-12
+
+### Bug Fixes
+
+- [`workflow`] Use "correct" default retry policy for local activities ([#630](https://github.com/temporalio/sdk-typescript/pull/630))
+- [`activity`] Fix Activity resolved as cancelled in unsupported situations ([#640](https://github.com/temporalio/sdk-typescript/pull/640))
+- [`workflow`] Propagate scope cancellation while waiting on ExternalWorkflowHandle cancellation ([#633](https://github.com/temporalio/sdk-typescript/pull/633))
+- :boom: Improve Payload Converter logic ([#558](https://github.com/temporalio/sdk-typescript/pull/558))
+
+  BREAKING CHANGE:
+
+  - `PayloadConverter.toPayload(value)` now returns `undefined` when `value` is not of a supported type.
+  - The SDK now throws when it receives `undefined` from `toPayload`
+
+### Features
+
+- :boom: Allow for multiple `DataConverter.payloadCodecs` ([#643](https://github.com/temporalio/sdk-typescript/pull/643))
+
+  BREAKING CHANGE: `DataConverter.payloadCodec` was changed to plural:
+
+  ```ts
+  export interface DataConverter {
+    ...
+    payloadCodecs?: PayloadCodec[];
+  }
+  ```
+
+- [`worker`] Support HTTP headers in `NativeConnection` ([#644](https://github.com/temporalio/sdk-typescript/pull/644))
+- :boom: [`worker`] Restructure `TelemetryOptions` ([#646](https://github.com/temporalio/sdk-typescript/pull/646))
+  - Also support passing HTTP headers to an OpenTelemetry Collector
+  - See the updated interface [here](https://github.com/temporalio/sdk-typescript/blob/6c9730bb5c1299885481fe3cf345001900398fd9/packages/core-bridge/index.d.ts#L123)
+
+### Documentation
+
+- [`workflow`] Fix Trigger example ([#631](https://github.com/temporalio/sdk-typescript/pull/631))
+
+### Miscellaneous Tasks
+
+- [`worker`] Update swc-loader options ([#598](https://github.com/temporalio/sdk-typescript/pull/598))
+- [`bundler`] Export allowed and disallowed builtin modules ([#591](https://github.com/temporalio/sdk-typescript/pull/591))
+- [`testing`] Use GITHUB_TOKEN in install script for higher rate limit ([#638](https://github.com/temporalio/sdk-typescript/pull/638))
+
+### Testing
+
+- Add query-perf script ([#632](https://github.com/temporalio/sdk-typescript/pull/632))
+- Collect worker logs in stress tests ([#634](https://github.com/temporalio/sdk-typescript/pull/634))
+- Actually fail stress test when child fails ([#636](https://github.com/temporalio/sdk-typescript/pull/636))
+- Fix activity heartbeat timeout crashing nightly ([#641](https://github.com/temporalio/sdk-typescript/pull/641))
+
 ## [0.22.0] - 2022-05-02
 
 ### Bug Fixes

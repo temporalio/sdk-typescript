@@ -9,8 +9,9 @@ use opentelemetry::trace::{SpanContext, SpanId, TraceFlags, TraceId, TraceState}
 use std::{collections::HashMap, fmt::Display, net::SocketAddr, str::FromStr, time::Duration};
 use temporal_sdk_core::{
     api::worker::{WorkerConfig, WorkerConfigBuilder},
-    ClientOptions, ClientOptionsBuilder, ClientTlsConfig, RetryConfig, TelemetryOptions,
-    TelemetryOptionsBuilder, TlsConfig, Url,
+    ClientOptions, ClientOptionsBuilder, ClientTlsConfig, Logger, MetricsExporter,
+    OtelCollectorOptions, RetryConfig, TelemetryOptions, TelemetryOptionsBuilder, TlsConfig,
+    TraceExporter, Url,
 };
 
 macro_rules! js_value_getter {
@@ -236,37 +237,85 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
     }
 
     fn as_telemetry_options(&self, cx: &mut FunctionContext) -> NeonResult<TelemetryOptions> {
-        let log_forwarding_level_str =
-            js_value_getter!(cx, self, "logForwardingLevel", JsString).replace("WARNING", "WARN");
-        let log_forwarding_level =
-            LevelFilter::from_str(&log_forwarding_level_str).unwrap_or(LevelFilter::Off);
         let mut telemetry_opts = TelemetryOptionsBuilder::default();
-        if let Some(url) = js_optional_getter!(cx, self, "oTelCollectorUrl", JsString) {
-            let url = match Url::parse(&url.value(cx)) {
-                Ok(url) => url,
-                Err(_) => cx.throw_type_error("Invalid telemetryOptions.oTelCollectorUrl")?,
-            };
-            telemetry_opts.otel_collector_url(url);
-        }
-        if let Some(addr) = js_optional_getter!(cx, self, "prometheusMetricsBindAddress", JsString)
-        {
-            match addr.value(cx).parse::<SocketAddr>() {
-                Ok(address) => telemetry_opts.prometheus_export_bind_address(address),
-                Err(_) => {
-                    cx.throw_type_error("Invalid telemetryOptions.prometheusMetricsBindAddress")?
-                }
-            };
-        }
+
         if let Some(tf) = js_optional_getter!(cx, self, "tracingFilter", JsString) {
             telemetry_opts.tracing_filter(tf.value(cx));
         }
-        telemetry_opts
-            .log_forwarding_level(log_forwarding_level)
-            .build()
-            .map_err(|reason| {
-                cx.throw_type_error::<_, TelemetryOptions>(format!("{}", reason))
-                    .unwrap_err()
-            })
+        if let Some(ref logging) = js_optional_getter!(cx, self, "logging", JsObject) {
+            if let Some(_) = get_optional(cx, logging, "console") {
+                telemetry_opts.logging(Logger::Console);
+            } else if let Some(forward) = js_optional_getter!(cx, logging, "forward", JsObject) {
+                let level = js_value_getter!(cx, forward, "level", JsString);
+                match LevelFilter::from_str(&level) {
+                    Ok(level) => {
+                        telemetry_opts.logging(Logger::Forward(level));
+                    }
+                    Err(err) => cx.throw_type_error(format!(
+                        "Invalid telemetryOptions.logging.forward.level: {}",
+                        err
+                    ))?,
+                }
+            } else {
+                cx.throw_type_error(format!(
+                    "Invalid telemetryOptions.logging, missing `console` or `forward` option"
+                ))?
+            }
+        }
+        if let Some(metrics) = js_optional_getter!(cx, self, "metrics", JsObject) {
+            if let Some(ref prom) = js_optional_getter!(cx, &metrics, "prometheus", JsObject) {
+                let addr = js_value_getter!(cx, prom, "bindAddress", JsString);
+                match addr.parse::<SocketAddr>() {
+                    Ok(address) => telemetry_opts.metrics(MetricsExporter::Prometheus(address)),
+                    Err(_) => cx.throw_type_error(
+                        "Invalid telemetryOptions.metrics.prometheus.bindAddress",
+                    )?,
+                };
+            } else if let Some(ref otel) = js_optional_getter!(cx, &metrics, "otel", JsObject) {
+                let url = js_value_getter!(cx, otel, "url", JsString);
+                let url = match Url::parse(&url) {
+                    Ok(url) => url,
+                    Err(_) => cx.throw_type_error("Invalid telemetryOptions.metrics.otel.url")?,
+                };
+                let headers =
+                    if let Some(headers) = js_optional_getter!(cx, otel, "headers", JsObject) {
+                        headers.as_hash_map_of_string_to_string(cx)?
+                    } else {
+                        Default::default()
+                    };
+                telemetry_opts
+                    .metrics(MetricsExporter::Otel(OtelCollectorOptions { url, headers }));
+            } else {
+                cx.throw_type_error(format!(
+                    "Invalid telemetryOptions.metrics, missing `prometheus` or `otel` option"
+                ))?
+            }
+        }
+
+        if let Some(tracing) = js_optional_getter!(cx, self, "tracing", JsObject) {
+            if let Some(ref otel) = js_optional_getter!(cx, &tracing, "otel", JsObject) {
+                let url = js_value_getter!(cx, otel, "url", JsString);
+                let url = match Url::parse(&url) {
+                    Ok(url) => url,
+                    Err(_) => cx.throw_type_error("Invalid telemetryOptions.tracing.otel.url")?,
+                };
+                let headers =
+                    if let Some(headers) = js_optional_getter!(cx, otel, "headers", JsObject) {
+                        headers.as_hash_map_of_string_to_string(cx)?
+                    } else {
+                        Default::default()
+                    };
+                telemetry_opts.tracing(TraceExporter::Otel(OtelCollectorOptions { url, headers }));
+            } else {
+                cx.throw_type_error(format!(
+                    "Invalid telemetryOptions.tracing, missing `otel` option"
+                ))?
+            }
+        }
+        telemetry_opts.build().map_err(|reason| {
+            cx.throw_type_error::<_, TelemetryOptions>(format!("{}", reason))
+                .unwrap_err()
+        })
     }
 
     fn as_worker_config(&self, cx: &mut FunctionContext) -> NeonResult<WorkerConfig> {

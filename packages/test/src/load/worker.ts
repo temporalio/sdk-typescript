@@ -108,9 +108,17 @@ async function main() {
   const statusPort = args['--status-port'];
 
   const telemetryOptions: TelemetryOptions = {
-    oTelCollectorUrl: oTelUrl,
     tracingFilter: `temporal_sdk_core=${logLevel}`,
-    logForwardingLevel: 'DEBUG',
+    logging: {
+      forward: { level: 'DEBUG' },
+    },
+    ...(oTelUrl
+      ? {
+          tracing: {
+            otel: { url: oTelUrl },
+          },
+        }
+      : undefined),
   };
 
   const logger = logFile
