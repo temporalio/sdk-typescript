@@ -145,7 +145,7 @@ test('Activity gets cancelled if heartbeat fails', async (t) => {
   t.deepEqual(heartbeatsSeen, []);
 });
 
-test('No heartbeat is emitted with rouge activity', async (t) => {
+test('No heartbeat is emitted with rogue activity', async (t) => {
   const subj = new Subject<void>();
   let cx: Context | undefined = undefined;
 
