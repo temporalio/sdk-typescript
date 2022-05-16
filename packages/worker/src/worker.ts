@@ -41,7 +41,7 @@ import {
   race,
   Subject,
 } from 'rxjs';
-import { delay, filter, first, ignoreElements, map, mergeMap, takeUntil, takeWhile, tap } from 'rxjs/operators';
+import { delay, filter, first, ignoreElements, last, map, mergeMap, takeUntil, takeWhile, tap } from 'rxjs/operators';
 import { promisify } from 'util';
 import { Activity, CancelReason } from './activity';
 import { extractNativeClient, extractReferenceHolders, InternalNativeConnection, NativeConnection } from './connection';
@@ -611,7 +611,8 @@ export class Worker {
                 }),
                 base64TaskToken: group$.key,
               };
-            })
+            }),
+            takeUntil(group$.pipe(last(undefined, null)))
           )
         ).pipe(
           mergeMapWithState(
@@ -834,7 +835,8 @@ export class Worker {
                 }),
                 synthetic: true,
               };
-            })
+            }),
+            takeUntil(group$.pipe(last(undefined, null)))
           )
         ).pipe(
           tap(() => {

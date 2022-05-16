@@ -29,7 +29,11 @@ async function main() {
   await waitOnChild(setup);
 
   const workerArgs = argsToForward(workerArgSpec, args);
-  const worker = spawn('node', [path.resolve(__dirname, 'worker.js'), ...workerArgs], { shell, stdio: 'inherit' });
+  const inspectArgs = args['--inspect'] ? ['--inspect'] : [];
+  const worker = spawn('node', [...inspectArgs, path.resolve(__dirname, 'worker.js'), ...workerArgs], {
+    shell,
+    stdio: 'inherit',
+  });
   process.once('SIGINT', () => kill(worker, 'SIGINT').catch(() => /* ignore */ undefined));
 
   try {
