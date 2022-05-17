@@ -11,11 +11,11 @@ class Timer {
   }
 }
 
-const MAX_ATTEMPTS = 100,
-  RETRY_INTERVAL_SECS = 1;
+const maxAttempts = 100;
+const retryIntervalSecs = 1;
 
 try {
-  for (let attempt = 1; attempt <= MAX_ATTEMPTS; ++attempt) {
+  for (let attempt = 1; attempt <= maxAttempts; ++attempt) {
     try {
       const client = new Connection();
       // Workaround for describeNamespace returning even though namespace is not registered yet
@@ -28,10 +28,10 @@ try {
       if (err.details.includes('workflow history not found') || err.details.includes('operation GetCurrentExecution')) {
         break;
       }
-      if (attempt === MAX_ATTEMPTS) {
+      if (attempt === maxAttempts) {
         throw err;
       }
-      await new Timer(RETRY_INTERVAL_SECS * 1000);
+      await new Timer(retryIntervalSecs * 1000);
     }
   }
 } catch (err) {
