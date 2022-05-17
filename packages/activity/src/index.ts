@@ -28,7 +28,7 @@
 
 if ((globalThis as any).__TEMPORAL__ !== undefined) {
   throw new IllegalStateError(
-    "You are importing from '@temporalio/activity' in your Workflow code, which doesn't work. Workflow code should only import from '@temporalio/workflow' and '@temporalio/common'."
+    "Importing from '@temporalio/activity' from Workflow code is not supported. Workflow code should only import from '@temporalio/workflow' and '@temporalio/common'. More information here: https://docs.temporal.io/docs/typescript/determinism/"
   );
 }
 
