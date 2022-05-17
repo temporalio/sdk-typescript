@@ -11,7 +11,10 @@ class Timer {
   }
 }
 
-async function main(maxAttempts = 100, retryIntervalSecs = 1) {
+const maxAttempts = 100;
+const retryIntervalSecs = 1;
+
+try {
   for (let attempt = 1; attempt <= maxAttempts; ++attempt) {
     try {
       const client = new Connection();
@@ -31,15 +34,10 @@ async function main(maxAttempts = 100, retryIntervalSecs = 1) {
       await new Timer(retryIntervalSecs * 1000);
     }
   }
+} catch (err) {
+  console.error('Failed to connect', err);
+  process.exit(1);
 }
 
-main().then(
-  () => {
-    console.log('Connected');
-    process.exit(0);
-  },
-  (err) => {
-    console.error('Failed to connect', err);
-    process.exit(1);
-  }
-);
+console.log('Connected');
+process.exit(0);
