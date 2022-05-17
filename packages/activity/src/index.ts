@@ -26,15 +26,13 @@
  * @module
  */
 
-if ((globalThis as any).__TEMPORAL__ !== undefined) {
-  throw new IllegalStateError(
-    "Importing from '@temporalio/activity' from Workflow code is not supported. Workflow code should only import from '@temporalio/workflow' and '@temporalio/common'. More information here: https://docs.temporal.io/docs/typescript/determinism/"
-  );
-}
-
-import { IllegalStateError, msToNumber } from '@temporalio/internal-workflow-common';
+import { assertNotInWorkflowEnv } from '@temporalio/internal-non-workflow-common';
+import { msToNumber } from '@temporalio/internal-workflow-common';
 import { AbortSignal } from 'abort-controller';
 import { AsyncLocalStorage } from 'async_hooks';
+
+assertNotInWorkflowEnv('activity');
+
 export { CancelledFailure } from '@temporalio/common';
 export { ActivityFunction, ActivityInterface } from '@temporalio/internal-workflow-common';
 

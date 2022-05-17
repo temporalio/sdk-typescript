@@ -8,15 +8,11 @@
  * @module
  */
 
-import { IllegalStateError } from '@temporalio/internal-workflow-common';
+import { assertNotInWorkflowEnv } from '@temporalio/internal-non-workflow-common';
 
-if ((globalThis as any).__TEMPORAL__ !== undefined) {
-  throw new IllegalStateError(
-    "You are importing from '@temporalio/worker' in your Workflow code, which doesn't work. Workflow code should only import from '@temporalio/workflow' and '@temporalio/common'."
-  );
-}
+assertNotInWorkflowEnv('worker');
 
-export { TelemetryOptions, Logger as TelemLogger, ForwardLogger, ConsoleLogger } from '@temporalio/core-bridge';
+export { ConsoleLogger, ForwardLogger, Logger as TelemLogger, TelemetryOptions } from '@temporalio/core-bridge';
 export { NativeConnection as NativeConnection } from './connection';
 export { NativeConnectionOptions, RequiredNativeConnectionOptions, TLSConfig } from './connection-options';
 export * from './errors';
