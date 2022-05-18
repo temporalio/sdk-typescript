@@ -288,31 +288,36 @@ fn start_bridge_loop(event_queue: Arc<EventQueue>, receiver: &mut UnboundedRecei
                     // returned client directly at the moment, when we repurpose the client to be
                     // used by a Worker, `init_worker` will attach the correct metrics meter for
                     // us.
-                    match options
-                        .connect_no_namespace(None, headers.map(|h| Arc::new(RwLock::new(h))))
-                        .await
-                    {
-                        Err(err) => {
-                            send_error(event_queue.clone(), callback, |cx| match err {
-                                ClientInitError::SystemInfoCallError(e) => TRANSPORT_ERROR
-                                    .from_error(cx, format!("Failed to call GetSystemInfo: {}", e)),
-                                ClientInitError::TonicTransportError(e) => {
-                                    TRANSPORT_ERROR.from_error(cx, e)
-                                }
-                                ClientInitError::InvalidUri(e) => {
-                                    Ok(JsError::type_error(cx, format!("{}", e))?.upcast())
-                                }
-                            });
+                    tokio::spawn(async move {
+                        match options
+                            .connect_no_namespace(None, headers.map(|h| Arc::new(RwLock::new(h))))
+                            .await
+                        {
+                            Err(err) => {
+                                send_error(event_queue.clone(), callback, |cx| match err {
+                                    ClientInitError::SystemInfoCallError(e) => TRANSPORT_ERROR
+                                        .from_error(
+                                            cx,
+                                            format!("Failed to call GetSystemInfo: {}", e),
+                                        ),
+                                    ClientInitError::TonicTransportError(e) => {
+                                        TRANSPORT_ERROR.from_error(cx, e)
+                                    }
+                                    ClientInitError::InvalidUri(e) => {
+                                        Ok(JsError::type_error(cx, format!("{}", e))?.upcast())
+                                    }
+                                });
+                            }
+                            Ok(client) => {
+                                send_result(event_queue.clone(), callback, |cx| {
+                                    Ok(cx.boxed(RefCell::new(Some(Client {
+                                        runtime,
+                                        core_client: Arc::new(client),
+                                    }))))
+                                });
+                            }
                         }
-                        Ok(client) => {
-                            send_result(event_queue.clone(), callback, |cx| {
-                                Ok(cx.boxed(RefCell::new(Some(Client {
-                                    runtime,
-                                    core_client: Arc::new(client),
-                                }))))
-                            });
-                        }
-                    }
+                    });
                 }
                 Request::UpdateClientHeaders {
                     client,

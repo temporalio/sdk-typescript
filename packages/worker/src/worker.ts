@@ -303,6 +303,11 @@ export interface WorkerStatus {
    * Number of Workflow executions cached in Worker memory
    */
   numCachedWorkflows: number;
+
+  /**
+   * Number of running Activities that have emitted a heartbeat
+   */
+  numHeartbeatingActivities: number;
 }
 
 /**
@@ -326,6 +331,7 @@ export class Worker {
   protected readonly numInFlightActivationsSubject = new BehaviorSubject<number>(0);
   protected readonly numInFlightActivitiesSubject = new BehaviorSubject<number>(0);
   protected readonly numCachedWorkflowsSubject = new BehaviorSubject<number>(0);
+  protected readonly numHeartbeatingActivitiesSubject = new BehaviorSubject<number>(0);
   protected readonly evictionsSubject = new Subject<{ runId: string; evictJob: IRemoveFromCache }>();
   private readonly runIdsToSpanContext = new Map<string, SpanContext>();
 
@@ -504,6 +510,7 @@ export class Worker {
   public getStatus(): WorkerStatus {
     return {
       runState: this.state,
+      numHeartbeatingActivities: this.numHeartbeatingActivitiesSubject.value,
       workflowPollerState: this.workflowPollerStateSubject.value,
       activityPollerState: this.activityPollerStateSubject.value,
       hasOutstandingWorkflowPoll: this.hasOutstandingWorkflowPoll,
@@ -576,8 +583,8 @@ export class Worker {
         for (;;) {
           try {
             yield await pollFn();
-          } catch (err) {
-            if (err instanceof errors.ShutdownError) {
+          } catch (err: any) {
+            if (err.name === 'ShutdownError') {
               break;
             }
             throw err;
@@ -648,6 +655,7 @@ export class Worker {
                       this.options.loadedDataConverter,
                       this.options.namespace
                     );
+
                     const { activityType } = info;
                     const fn = this.options.activities?.[activityType];
                     if (!(fn instanceof Function)) {
@@ -714,7 +722,6 @@ export class Worker {
                         }),
                       { inbound: this.options.interceptors?.activityInbound }
                     );
-                    this.numInFlightActivitiesSubject.next(this.numInFlightActivitiesSubject.value + 1);
                     output = { type: 'run', activity, input, parentSpan };
                     break;
                   }
@@ -759,7 +766,15 @@ export class Worker {
             });
 
             return await instrument(this.tracer, output.parentSpan, 'activity.run', async (span) => {
-              const result = await output.activity.run(output.input);
+              let result;
+
+              this.numInFlightActivitiesSubject.next(this.numInFlightActivitiesSubject.value + 1);
+              try {
+                result = await output.activity.run(output.input);
+              } finally {
+                this.numInFlightActivitiesSubject.next(this.numInFlightActivitiesSubject.value - 1);
+                group$.close();
+              }
               const status = result.failed ? 'failed' : result.completed ? 'completed' : 'cancelled';
               span.setAttributes({ status });
 
@@ -797,9 +812,7 @@ export class Worker {
           map(({ parentSpan, ...rest }) => ({
             completion: coresdk.ActivityTaskCompletion.encodeDelimited(rest).finish(),
             parentSpan,
-          })),
-          tap(group$.close), // Close the group after activity task completion
-          tap(() => void this.numInFlightActivitiesSubject.next(this.numInFlightActivitiesSubject.value - 1))
+          }))
         );
       })
     );
@@ -1077,6 +1090,7 @@ export class Worker {
           mapWithState(
             (state: HeartbeatState, input: HeartbeatInput): HeartbeatStateAndOutput => {
               if (input.type === 'create') {
+                this.numHeartbeatingActivitiesSubject.next(this.numHeartbeatingActivitiesSubject.value + 1);
                 return { state: { processing: false, closed: false }, output: null };
               }
               // Ignore any input if we've marked this activity heartbeat stream as closed
@@ -1136,6 +1150,7 @@ export class Worker {
           filter((out): out is HeartbeatOutput => out != null),
           tap((out) => {
             if (out.type === 'close') {
+              this.numHeartbeatingActivitiesSubject.next(this.numHeartbeatingActivitiesSubject.value - 1);
               out.completionCallback?.();
             }
           }),
@@ -1195,7 +1210,7 @@ export class Worker {
 
           return { activation, parentSpan };
         },
-        (err) => err instanceof errors.ShutdownError
+        (err) => err instanceof Error && err.name === 'ShutdownError'
       );
     }).pipe(
       tap({
@@ -1310,7 +1325,7 @@ export class Worker {
           }
           return { task, parentSpan, base64TaskToken };
         },
-        (err) => err instanceof errors.ShutdownError
+        (err) => err instanceof Error && err.name === 'ShutdownError'
       );
     }).pipe(
       tap({
