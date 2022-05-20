@@ -22,7 +22,7 @@ import { RUN_INTEGRATION_TESTS } from './helpers';
 import * as workflows from './workflows';
 
 if (RUN_INTEGRATION_TESTS) {
-  test.serial.skip('Otel interceptor spans are connected and complete', async (t) => {
+  test.serial('Otel interceptor spans are connected and complete', async (t) => {
     const spans = Array<opentelemetry.tracing.ReadableSpan>();
 
     const staticResource = new opentelemetry.resources.Resource({
