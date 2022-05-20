@@ -1,5 +1,3 @@
-import vm from 'vm';
-import semver from 'semver';
 import { IllegalStateError } from '@temporalio/common';
 import { coresdk } from '@temporalio/proto';
 import { WorkflowInfo } from '@temporalio/workflow';
@@ -7,6 +5,8 @@ import { SinkCall } from '@temporalio/workflow/lib/sinks';
 import * as internals from '@temporalio/workflow/lib/worker-interface';
 import assert from 'assert';
 import { AsyncLocalStorage } from 'async_hooks';
+import semver from 'semver';
+import vm from 'vm';
 import { partition } from '../utils';
 import { Workflow, WorkflowCreateOptions, WorkflowCreator } from './interface';
 
@@ -122,9 +122,9 @@ export class VMWorkflowCreator implements WorkflowCreator {
   protected injectConsole(context: vm.Context, info: WorkflowInfo): void {
     context.console = {
       log: (...args: any[]) => {
-        // info.isReplaying is mutated by the Workflow class on activation
-        if (info.isReplaying) return;
-        console.log(`[${info.workflowType}(${info.workflowId})]`, ...args);
+        // info.unsafe.isReplaying is mutated by the Workflow class on activation
+        if (info.unsafe.isReplaying) return;
+        console.log(`[${info.type}(${info.workflowId})]`, ...args);
       },
     };
   }
@@ -184,7 +184,7 @@ export class VMWorkflow implements Workflow {
     if (this.context === undefined) {
       throw new IllegalStateError('Workflow isolate context uninitialized');
     }
-    this.info.isReplaying = activation.isReplaying ?? false;
+    this.info.unsafe.isReplaying = activation.isReplaying ?? false;
     if (!activation.jobs) {
       throw new Error('Expected workflow activation jobs to be defined');
     }

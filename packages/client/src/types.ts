@@ -1,3 +1,4 @@
+import type { SearchAttributeValue } from '@temporalio/internal-workflow-common';
 import { temporal } from '@temporalio/proto';
 
 export interface WorkflowExecution {
@@ -22,7 +23,7 @@ export interface WorkflowExecutionDescription {
   executionTime?: Date;
   closeTime?: Date;
   memo?: Record<string, unknown>;
-  searchAttributes?: Record<string, unknown>;
+  searchAttributes?: Record<string, SearchAttributeValue>;
   parentExecution?: Required<temporal.api.common.v1.IWorkflowExecution>;
   raw: DescribeWorkflowExecutionResponse;
 }

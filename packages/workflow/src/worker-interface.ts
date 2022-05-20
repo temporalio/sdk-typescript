@@ -116,7 +116,8 @@ export async function initRuntime({ info, randomnessSeed, now, patches }: Workfl
   state.info = info;
   state.now = now;
   state.random = alea(randomnessSeed);
-  if (info.isReplaying) {
+
+  if (info.unsafe.isReplaying) {
     for (const patch of patches) {
       state.knownPresentPatches.add(patch);
     }
@@ -151,9 +152,9 @@ export async function initRuntime({ info, randomnessSeed, now, patches }: Workfl
   }
 
   const mod = await importWorkflows();
-  const workflow = mod[info.workflowType];
+  const workflow = mod[info.type];
   if (typeof workflow !== 'function') {
-    throw new TypeError(`'${info.workflowType}' is not a function`);
+    throw new TypeError(`'${info.type}' is not a function`);
   }
   state.workflow = workflow;
 }
@@ -181,7 +182,7 @@ export async function activate(
           // timestamp will not be updated for activation that contain only queries
           state.now = tsToMs(activation.timestamp);
         }
-        state.info.isReplaying = activation.isReplaying ?? false;
+        state.info.unsafe.isReplaying = activation.isReplaying ?? false;
       }
 
       // Cast from the interface to the class which has the `variant` attribute.

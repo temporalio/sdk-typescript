@@ -1,11 +1,11 @@
 /* eslint @typescript-eslint/no-non-null-assertion: 0 */
+import { WorkflowClient } from '@temporalio/client';
+import { DefaultLogger, InjectedSinks, Runtime, Worker } from '@temporalio/worker';
+import { WorkflowInfo } from '@temporalio/workflow';
 import test from 'ava';
 import { v4 as uuid4 } from 'uuid';
-import { WorkflowInfo } from '@temporalio/workflow';
-import { WorkflowClient } from '@temporalio/client';
-import { Worker, DefaultLogger, Runtime, InjectedSinks } from '@temporalio/worker';
-import { defaultOptions } from './mock-native-worker';
 import { RUN_INTEGRATION_TESTS } from './helpers';
+import { defaultOptions } from './mock-native-worker';
 import * as workflows from './workflows';
 
 interface RecordedCall {
@@ -79,12 +79,12 @@ if (RUN_INTEGRATION_TESTS) {
     worker.shutdown();
     await p;
     const info: WorkflowInfo = {
-      namespace: 'default',
+      more: { namespace: 'default', firstExecutionRunId: wf.originalRunId, attempt: 1 },
       taskQueue,
       workflowId: wf.workflowId,
       runId: wf.originalRunId,
-      workflowType: 'sinksWorkflow',
-      isReplaying: false,
+      type: 'sinksWorkflow',
+      unsafe: { isReplaying: false },
     };
 
     t.deepEqual(recordedCalls, [

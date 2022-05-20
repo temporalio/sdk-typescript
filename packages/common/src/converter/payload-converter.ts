@@ -132,6 +132,16 @@ export function fromPayloadsAtIndex<T>(converter: PayloadConverter, index: numbe
 /**
  * Run {@link PayloadConverter.fromPayload} on each value in the array.
  */
+export function fromPayloads(converter: PayloadConverter, payloads?: Payload[] | null): unknown[] | undefined {
+  if (payloads === undefined || payloads === null) {
+    return undefined;
+  }
+  return payloads.map((payload: Payload) => converter.fromPayload(payload));
+}
+
+/**
+ * Run {@link PayloadConverter.fromPayload} on each value in the array. Returns empty array if `payloads` is falsy.
+ */
 export function arrayFromPayloads(converter: PayloadConverter, payloads?: Payload[] | null): unknown[] {
   if (!payloads) {
     return [];

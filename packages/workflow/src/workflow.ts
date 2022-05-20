@@ -5,14 +5,16 @@ import {
   ActivityOptions,
   compileRetryPolicy,
   composeInterceptors,
+  convertSearchAttributeDatesToStrings,
   IllegalStateError,
   LocalActivityOptions,
   msOptionalToTs,
   msToNumber,
   msToTs,
-  tsToMs,
   QueryDefinition,
+  SearchAttributeValue,
   SignalDefinition,
+  tsToMs,
   WithWorkflowArgs,
   Workflow,
   WorkflowResultType,
@@ -361,7 +363,7 @@ async function startChildWorkflowExecutionNextHandler({
         workflowExecutionTimeout: msOptionalToTs(options.workflowExecutionTimeout),
         workflowRunTimeout: msOptionalToTs(options.workflowRunTimeout),
         workflowTaskTimeout: msOptionalToTs(options.workflowTaskTimeout),
-        namespace: workflowInfo().namespace, // Not configurable
+        namespace: workflowInfo().more.namespace, // Not configurable
         headers,
         cancellationType: options.cancellationType,
         workflowIdReusePolicy: options.workflowIdReusePolicy,
@@ -422,7 +424,7 @@ function signalWorkflowNextHandler({ seq, signalName, args, target, headers }: S
         ...(target.type === 'external'
           ? {
               workflowExecution: {
-                namespace: state.info.namespace,
+                namespace: state.info.more.namespace,
                 ...target.workflowExecution,
               },
             }
@@ -575,7 +577,7 @@ export function getExternalWorkflowHandle(workflowId: string, runId?: string): E
           requestCancelExternalWorkflowExecution: {
             seq,
             workflowExecution: {
-              namespace: state.info.namespace,
+              namespace: state.info.more.namespace,
               workflowId,
               runId,
             },
@@ -874,7 +876,7 @@ export function makeContinueAsNewFunc<F extends Workflow>(
   const info = workflowInfo();
   const { workflowType, taskQueue, ...rest } = options ?? {};
   const requiredOptions = {
-    workflowType: workflowType ?? info.workflowType,
+    workflowType: workflowType ?? info.type,
     taskQueue: taskQueue ?? info.taskQueue,
     ...rest,
   };
@@ -998,7 +1000,7 @@ function patchInternal(patchId: string, deprecated: boolean): boolean {
   // Patch operation does not support interception at the moment, if it did,
   // this would be the place to start the interception chain
 
-  const { isReplaying } = workflowInfo();
+  const { isReplaying } = workflowInfo().unsafe;
   if (state.workflow === undefined) {
     throw new IllegalStateError('Patches cannot be used before Workflow starts');
   }
@@ -1132,4 +1134,54 @@ export function setHandler<Ret, Args extends any[], T extends SignalDefinition<A
   } else {
     throw new TypeError(`Invalid definition type: ${(def as any).type}`);
   }
+}
+
+/**
+ * Updates this Workflow's Search Attributes by merging the provided `searchAttributes` with the existing Search
+ * Attributes, `workflowInfo().searchAttributes`.
+ *
+ * For example, this Workflow code:
+ *
+ * ```ts
+ * upsertSearchAttributes({
+ *   CustomIntField: 1,
+ *   CustomBoolField: true
+ * });
+ * upsertSearchAttributes({
+ *   CustomIntField: [2, 3],
+ *   CustomKeywordField: 'durable code'
+ * });
+ * ```
+ *
+ * would result in the Workflow having these Search Attributes:
+ *
+ * ```ts
+ * {
+ *   CustomIntField: [2, 3],
+ *   CustomBoolField: true,
+ *   CustomKeywordField: 'durable code'
+ * }
+ * ```
+ *
+ * @param searchAttributes The Record to merge. Use a value of `[]` to clear a Search Attribute.
+ */
+export function upsertSearchAttributes(searchAttributes: Record<string, SearchAttributeValue>): void {
+  if (!state.info) {
+    throw new IllegalStateError('`state.info` should be defined');
+  }
+
+  const mergedSearchAttributes = { ...state.info.searchAttributes, ...searchAttributes };
+  const searchAttributesWithStrings = convertSearchAttributeDatesToStrings(mergedSearchAttributes);
+  if (!searchAttributesWithStrings) {
+    throw new Error('searchAttributes must be a non-null Record<string, SearchAttributeValue>');
+  }
+
+  state.pushCommand({
+    upsertWorkflowSearchAttributesCommandAttributes: {
+      seq: state.nextSeqs.upsertSearchAttributes++,
+      searchAttributes: mapToPayloads(searchAttributePayloadConverter, searchAttributesWithStrings),
+    },
+  });
+
+  state.info.searchAttributes = mergedSearchAttributes;
 }

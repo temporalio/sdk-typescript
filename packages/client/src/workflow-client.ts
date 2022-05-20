@@ -22,8 +22,10 @@ import {
 } from '@temporalio/internal-non-workflow-common';
 import {
   BaseWorkflowHandle,
+  CompiledSearchAttributeValue,
   compileRetryPolicy,
   composeInterceptors,
+  convertSearchAttributeStringsToDates,
   optionalTsToDate,
   QueryDefinition,
   SignalDefinition,
@@ -792,9 +794,11 @@ export class WorkflowClient {
             this.client.options.loadedDataConverter,
             raw.workflowExecutionInfo!.memo?.fields
           ),
-          searchAttributes: mapFromPayloads(
-            searchAttributePayloadConverter,
-            raw.workflowExecutionInfo!.searchAttributes?.indexedFields
+          searchAttributes: convertSearchAttributeStringsToDates(
+            mapFromPayloads(
+              searchAttributePayloadConverter,
+              raw.workflowExecutionInfo!.searchAttributes?.indexedFields
+            ) as Record<string, CompiledSearchAttributeValue>
           ),
           parentExecution: raw.workflowExecutionInfo!.parentExecution
             ? {

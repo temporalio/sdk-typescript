@@ -7,12 +7,17 @@ import {
   errorMessage,
   IllegalStateError,
   LoadedDataConverter,
+  mapFromPayloads,
   Payload,
+  searchAttributePayloadConverter,
 } from '@temporalio/common';
 import * as native from '@temporalio/core-bridge';
 import {
   decodeArrayFromPayloads,
+  decodeFromPayloads,
   decodeFromPayloadsAtIndex,
+  decodeMapFromPayloads,
+  decodeOptionalFailureToOptionalError,
   encodeErrorToFailure,
   encodeToPayload,
 } from '@temporalio/internal-non-workflow-common';
@@ -23,9 +28,17 @@ import {
   RUN_ID_ATTR_KEY,
   TASK_TOKEN_ATTR_KEY,
 } from '@temporalio/internal-non-workflow-common/lib/otel';
-import { optionalTsToMs, tsToMs } from '@temporalio/internal-workflow-common';
+import {
+  CompiledSearchAttributeValue,
+  convertSearchAttributeStringsToDates,
+  optionalTsToDate,
+  optionalTsToMs,
+  tsToMs,
+  uncompileRetryPolicy,
+} from '@temporalio/internal-workflow-common';
 import { coresdk } from '@temporalio/proto';
 import { DeterminismViolationError, SinkCall, WorkflowInfo } from '@temporalio/workflow';
+import { updateParentType } from '@temporalio/workflow/src/interfaces';
 import fs from 'fs/promises';
 import {
   BehaviorSubject,
@@ -883,20 +896,77 @@ export class Worker {
                       if (activation.timestamp == null) {
                         throw new TypeError('Got activation with no timestamp, cannot create a new Workflow instance');
                       }
-                      const { workflowId, randomnessSeed, workflowType } = startWorkflow;
+                      const {
+                        workflowId,
+                        randomnessSeed,
+                        workflowType,
+                        parentWorkflowInfo,
+                        workflowExecutionTimeout,
+                        workflowRunTimeout,
+                        workflowTaskTimeout,
+                        continuedFromExecutionRunId,
+                        continuedFailure,
+                        lastCompletionResult,
+                        firstExecutionRunId,
+                        retryPolicy,
+                        attempt,
+                        cronSchedule,
+                        workflowExecutionExpirationTime,
+                        cronScheduleToScheduleInterval,
+                        memo,
+                        searchAttributes,
+                      } = startWorkflow;
+
+                      if (firstExecutionRunId === null || firstExecutionRunId === undefined) {
+                        throw new TypeError(`Unexpected value: \`firstExecutionRunId\` is ${firstExecutionRunId}`);
+                      }
+                      if (attempt === null || attempt === undefined) {
+                        throw new TypeError(`Unexpected value: \`attempt\` is ${attempt}`);
+                      }
+
                       this.log.debug('Creating workflow', {
                         workflowType,
                         workflowId,
                         runId: activation.runId,
                       });
                       this.numCachedWorkflowsSubject.next(this.numCachedWorkflowsSubject.value + 1);
-                      const workflowInfo = {
-                        workflowType,
-                        runId: activation.runId,
+                      const workflowInfo: WorkflowInfo = {
                         workflowId,
-                        namespace: this.options.namespace,
+                        runId: activation.runId,
+                        type: workflowType,
+                        searchAttributes: convertSearchAttributeStringsToDates(
+                          mapFromPayloads(searchAttributePayloadConverter, searchAttributes?.indexedFields) as Record<
+                            string,
+                            CompiledSearchAttributeValue
+                          >
+                        ),
+                        memo: await decodeMapFromPayloads(this.options.loadedDataConverter, memo?.fields),
+                        parent: updateParentType(parentWorkflowInfo),
+                        lastResult: await decodeFromPayloads(
+                          this.options.loadedDataConverter,
+                          lastCompletionResult?.payloads
+                        ),
+                        lastFailure: await decodeOptionalFailureToOptionalError(
+                          this.options.loadedDataConverter,
+                          continuedFailure
+                        ),
                         taskQueue: this.options.taskQueue,
-                        isReplaying: activation.isReplaying,
+                        more: {
+                          namespace: this.options.namespace,
+                          firstExecutionRunId,
+                          continuedFromExecutionRunId: continuedFromExecutionRunId ?? undefined,
+                          executionTimeout: optionalTsToMs(workflowExecutionTimeout),
+                          executionExpirationTime: optionalTsToDate(workflowExecutionExpirationTime),
+                          runTimeout: optionalTsToMs(workflowRunTimeout),
+                          taskTimeout: optionalTsToMs(workflowTaskTimeout),
+                          retryPolicy: uncompileRetryPolicy(retryPolicy),
+                          attempt,
+                          cronSchedule: cronSchedule ?? undefined,
+                          cronScheduleToScheduleInterval: optionalTsToMs(cronScheduleToScheduleInterval),
+                        },
+                        unsafe: {
+                          isReplaying: activation.isReplaying,
+                        },
                       };
                       const patchJobs = activation.jobs.filter((j): j is PatchJob => j.notifyHasPatch != null);
                       const patches = patchJobs.map(({ notifyHasPatch }) => {
@@ -1004,7 +1074,7 @@ export class Worker {
             ifaceName,
             fnName,
           });
-        } else if (dep.callDuringReplay || !info.isReplaying) {
+        } else if (dep.callDuringReplay || !info.unsafe.isReplaying) {
           try {
             await dep.fn(info, ...args);
           } catch (error) {

@@ -1,8 +1,9 @@
-import { checkExtends, CommonWorkflowOptions } from '@temporalio/internal-workflow-common';
+import { RetryPolicy, TemporalFailure } from '@temporalio/common';
+import { checkExtends, CommonWorkflowOptions, SearchAttributeValue } from '@temporalio/internal-workflow-common';
 import type { coresdk } from '@temporalio/proto';
 
 /**
- * Workflow execution information
+ * Workflow Execution information
  */
 export interface WorkflowInfo {
   /**
@@ -10,30 +11,154 @@ export interface WorkflowInfo {
    * A single Workflow may run multiple times e.g. when scheduled with cron.
    */
   workflowId: string;
+
   /**
    * ID of a single Workflow run
    */
   runId: string;
 
   /**
-   * Filename containing the Workflow code
+   * Workflow function's name
    */
-  workflowType: string;
+  type: string;
 
   /**
-   * Namespace this Workflow is scheduled in
+   * Indexed information attached to the Workflow Execution
    */
-  namespace: string;
+  searchAttributes?: Record<string, SearchAttributeValue>;
 
   /**
-   * Task queue this Workflow is scheduled in
+   * Non-indexed information attached to the Workflow Execution
+   */
+  memo?: Record<string, unknown>;
+
+  /**
+   * Parent Workflow info (present if this is a Child Workflow)
+   */
+  parent?: ParentWorkflowInfo;
+
+  /**
+   * Result from the previous Run (present if this is a Cron Workflow or was Continued As New).
+   *
+   * An array of values, since other SDKs may return multiple values from a Workflow.
+   */
+  lastResult?: unknown[];
+
+  /**
+   * Failure from the previous Run (present when this Run is a retry, or the last Run of a Cron Workflow failed)
+   */
+  lastFailure?: TemporalFailure;
+
+  /**
+   * Task queue this Workflow is executing on
    */
   taskQueue: string;
 
   /**
-   * Whether a Workflow is replaying history or processing new events
+   * Less commonly used information
    */
-  isReplaying: boolean;
+  more: {
+    /**
+     * Namespace this Workflow is executing in
+     */
+    namespace: string;
+
+    /**
+     * Run Id of the first Run in this Execution Chain
+     */
+    firstExecutionRunId: string;
+
+    /**
+     * The last Run Id in this Execution Chain
+     */
+    continuedFromExecutionRunId?: string;
+
+    // TODO expose from Core
+    /**
+     * Time at which the Workflow Run started
+     */
+    // startTime: Date;
+
+    /**
+     * Milliseconds after which the Workflow Execution is automatically terminated by Temporal Server. Set via {@link WorkflowOptions.workflowExecutionTimeout}.
+     */
+    executionTimeout?: number;
+
+    /**
+     * Time at which the Workflow Execution expires
+     */
+    executionExpirationTime?: Date;
+
+    /**
+     * Milliseconds after which the Workflow Run is automatically terminated by Temporal Server. Set via {@link WorkflowOptions.workflowRunTimeout}.
+     */
+    runTimeout?: number;
+
+    /**
+     * Maximum execution time of a Workflow Task in milliseconds. Set via {@link WorkflowOptions.workflowTaskTimeout}.
+     */
+    taskTimeout?: number;
+
+    /**
+     * Retry Policy for this Execution. Set via {@link WorkflowOptions.retry}.
+     */
+    retryPolicy?: RetryPolicy;
+
+    /**
+     * Starts at 1 and increments for every retry if there is a `retryPolicy`
+     */
+    attempt: number;
+
+    /**
+     * Cron Schedule for this Execution. Set via {@link WorkflowOptions.cronSchedule}.
+     */
+    cronSchedule?: string;
+
+    /**
+     * Milliseconds between Cron Runs
+     */
+    cronScheduleToScheduleInterval?: number;
+  };
+
+  /**
+   * These fields are non-deterministic. Workflow code should not do different things based on these fields.
+   */
+  unsafe: {
+    /**
+     * Whether a Workflow is replaying history or processing new events
+     */
+    isReplaying: boolean;
+  };
+}
+
+export interface ParentWorkflowInfo {
+  workflowId: string;
+  runId: string;
+  namespace: string;
+}
+
+// If we get use cases / user requests for this,
+// expose startWorkflow.continueInitiator as WorkflowInfo.initiator: Initiator
+// export enum Initiator {
+//   Unspecified = 0,
+//   ContinueAsNew = 1,
+//   Retry = 2,
+//   Cron = 3,
+// }
+
+export function updateParentType(
+  parent: coresdk.common.INamespacedWorkflowExecution | null | undefined
+): ParentWorkflowInfo | undefined {
+  if (!parent) {
+    return undefined;
+  }
+
+  return {
+    /* eslint-disable @typescript-eslint/no-non-null-assertion */
+    workflowId: parent.workflowId!,
+    runId: parent.runId!,
+    namespace: parent.namespace!,
+  };
 }
 
 /**

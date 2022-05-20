@@ -3,6 +3,7 @@ import {
   defaultPayloadConverter,
   errorToFailure,
   RetryState,
+  searchAttributePayloadConverter,
   toPayload,
   toPayloads,
 } from '@temporalio/common';
@@ -82,12 +83,12 @@ async function createWorkflow(
 ) {
   const workflow = (await workflowCreator.createWorkflow({
     info: {
-      workflowType,
+      type: workflowType,
       runId,
       workflowId: 'test-workflowId',
-      namespace: 'default',
+      more: { namespace: 'default', firstExecutionRunId: runId, attempt: 1 },
       taskQueue: 'test',
-      isReplaying: false,
+      unsafe: { isReplaying: false },
     },
     randomnessSeed: Long.fromInt(1337).toBytes(),
     now: startTime,
@@ -289,6 +290,14 @@ function makeRespondToQueryCommand(
 ): coresdk.workflow_commands.IWorkflowCommand {
   return {
     respondToQuery,
+  };
+}
+
+function makeUpsertSearchAttributesCommand(
+  attrs: coresdk.workflow_commands.IUpsertWorkflowSearchAttributes
+): coresdk.workflow_commands.IWorkflowCommand {
+  return {
+    upsertWorkflowSearchAttributesCommandAttributes: attrs,
   };
 }
 
@@ -1824,6 +1833,48 @@ test('scopeCancelledWhileWaitingOnExternalWorkflowCancellation', async (t) => {
         {
           completeWorkflowExecution: { result: defaultPayloadConverter.toPayload(undefined) },
         },
+      ])
+    );
+  }
+});
+
+test('upsertAndReadSearchAttributes', async (t) => {
+  const { workflowType } = t.context;
+  const now = Date.now();
+  {
+    const req = await activate(t, makeStartWorkflow(workflowType, [toPayload(defaultPayloadConverter, now)]));
+    compareCompletion(
+      t,
+      req,
+      makeSuccess([
+        makeUpsertSearchAttributesCommand({
+          seq: 1,
+          searchAttributes: {
+            CustomBoolField: toPayload(searchAttributePayloadConverter, true),
+            CustomIntField: toPayload(searchAttributePayloadConverter, 123),
+          },
+        }),
+        makeUpsertSearchAttributesCommand({
+          seq: 2,
+          searchAttributes: {
+            CustomBoolField: toPayload(searchAttributePayloadConverter, true),
+            CustomDatetimeField: toPayload(searchAttributePayloadConverter, new Date(now).toISOString()),
+            CustomDoubleField: toPayload(searchAttributePayloadConverter, 3.14),
+            CustomIntField: toPayload(searchAttributePayloadConverter, [2, 3]),
+            CustomKeywordField: toPayload(searchAttributePayloadConverter, 'durable code'),
+            CustomTextField: toPayload(searchAttributePayloadConverter, 'is useful'),
+          },
+        }),
+        makeCompleteWorkflowExecution(
+          toPayload(defaultPayloadConverter, {
+            CustomIntField: [2, 3],
+            CustomBoolField: true,
+            CustomKeywordField: 'durable code',
+            CustomTextField: 'is useful',
+            CustomDatetimeField: new Date(now),
+            CustomDoubleField: 3.14,
+          })
+        ),
       ])
     );
   }

@@ -2,6 +2,7 @@ import {
   arrayFromPayloads,
   errorToFailure,
   failureToError,
+  fromPayloads,
   fromPayloadsAtIndex,
   LoadedDataConverter,
   Payload,
@@ -29,6 +30,21 @@ export async function decodeFromPayloadsAtIndex<T>(
 ): Promise<T> {
   const { payloadConverter, payloadCodec } = converter;
   return fromPayloadsAtIndex(payloadConverter, index, payloads ? await payloadCodec.decode(payloads) : payloads);
+}
+
+/**
+ * Decode `payloads` and then return {@link fromPayloads}`.
+ */
+export async function decodeFromPayloads(
+  converter: LoadedDataConverter,
+  payloads?: Payload[] | null
+): Promise<unknown[] | undefined> {
+  const { payloadConverter, payloadCodec } = converter;
+  let decodedPayloads = payloads;
+  if (payloads) {
+    decodedPayloads = await payloadCodec.decode(payloads);
+  }
+  return fromPayloads(payloadConverter, decodedPayloads);
 }
 
 /**

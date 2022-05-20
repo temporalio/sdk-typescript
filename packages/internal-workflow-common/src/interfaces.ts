@@ -35,3 +35,5 @@ export interface QueryDefinition<_Ret, _Args extends any[] = []> {
 
 /** Get the "unwrapped" return type (without Promise) of the execute handler from Workflow type `W` */
 export type WorkflowResultType<W extends Workflow> = ReturnType<W> extends Promise<infer R> ? R : never;
+
+export type SearchAttributeValue = string | number | boolean | Date | string[] | number[] | boolean[] | Date[];

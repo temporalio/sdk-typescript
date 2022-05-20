@@ -1,6 +1,7 @@
 import type { coresdk, google } from '@temporalio/proto';
-import { Workflow } from './interfaces';
+import { SearchAttributeValue, Workflow } from './interfaces';
 import { RetryPolicy } from './retry-policy';
+import { CompiledSearchAttributeValue, convertSearchAttributeDatesToStrings } from './search-attributes';
 import { msOptionalToTs } from './time';
 import { checkExtends, Replace } from './type-helpers';
 
@@ -47,18 +48,18 @@ export interface BaseWorkflowOptions {
   cronSchedule?: string;
 
   /**
-   * Specifies additional non-indexed information in result of list workflow. The type of value
-   * can be any object that are serializable by `DataConverter`.
+   * Specifies additional non-indexed information to attach to the Workflow Execution. The values can be anything that
+   * is serializable by {@link DataConverter}.
    */
   memo?: Record<string, any>;
 
   /**
-   * Specifies additional indexed information in result of list workflow. The type of value should
-   * be a primitive (e.g. string, number, boolean). For dates, use Date.toISOString()
+   * Specifies additional indexed information to attach to the Workflow Execution. More info:
+   * https://docs.temporal.io/docs/typescript/search-attributes
    *
-   * Values are always converted using {@link defaultPayloadConverter}, even when a custom data converter is provided.
+   * Values are always converted using {@link JsonPayloadConverter}, even when a custom data converter is provided.
    */
-  searchAttributes?: Record<string, string | number | boolean>;
+  searchAttributes?: Record<string, SearchAttributeValue>;
 }
 
 export type WithWorkflowArgs<W extends Workflow, T> = T &
@@ -106,22 +107,22 @@ export interface WorkflowDurationOptions {
 
 export type CommonWorkflowOptions = BaseWorkflowOptions & WorkflowDurationOptions;
 
-export type WithCompiledWorkflowDurationOptions<T extends WorkflowDurationOptions> = Replace<
+export type WithCompiledWorkflowOptions<T extends CommonWorkflowOptions> = Replace<
   T,
   {
+    searchAttributes?: Record<string, CompiledSearchAttributeValue>;
     workflowExecutionTimeout?: google.protobuf.IDuration;
     workflowRunTimeout?: google.protobuf.IDuration;
     workflowTaskTimeout?: google.protobuf.IDuration;
   }
 >;
 
-export function compileWorkflowOptions<T extends WorkflowDurationOptions>(
-  options: T
-): WithCompiledWorkflowDurationOptions<T> {
-  const { workflowExecutionTimeout, workflowRunTimeout, workflowTaskTimeout, ...rest } = options;
+export function compileWorkflowOptions<T extends CommonWorkflowOptions>(options: T): WithCompiledWorkflowOptions<T> {
+  const { workflowExecutionTimeout, workflowRunTimeout, workflowTaskTimeout, searchAttributes, ...rest } = options;
 
   return {
     ...rest,
+    searchAttributes: convertSearchAttributeDatesToStrings(searchAttributes),
     workflowExecutionTimeout: msOptionalToTs(workflowExecutionTimeout),
     workflowRunTimeout: msOptionalToTs(workflowRunTimeout),
     workflowTaskTimeout: msOptionalToTs(workflowTaskTimeout),

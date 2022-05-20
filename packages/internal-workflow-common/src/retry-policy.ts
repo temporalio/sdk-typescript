@@ -1,6 +1,6 @@
 import type { temporal } from '@temporalio/proto';
 import { ValueError } from './errors';
-import { msOptionalToNumber, msOptionalToTs, msToNumber, msToTs } from './time';
+import { msOptionalToNumber, msOptionalToTs, msToNumber, msToTs, optionalTsToMs } from './time';
 
 /**
  * Options for retrying Workflows and Activities
@@ -69,5 +69,21 @@ export function compileRetryPolicy(retryPolicy: RetryPolicy): temporal.api.commo
     maximumInterval: msOptionalToTs(maximumInterval),
     backoffCoefficient: retryPolicy.backoffCoefficient,
     nonRetryableErrorTypes: retryPolicy.nonRetryableErrorTypes,
+  };
+}
+
+export function uncompileRetryPolicy(
+  retryPolicy?: temporal.api.common.v1.IRetryPolicy | null
+): RetryPolicy | undefined {
+  if (!retryPolicy) {
+    return undefined;
+  }
+
+  return {
+    backoffCoefficient: retryPolicy.backoffCoefficient ?? undefined,
+    maximumAttempts: retryPolicy.maximumAttempts ?? undefined,
+    maximumInterval: optionalTsToMs(retryPolicy.maximumInterval),
+    initialInterval: optionalTsToMs(retryPolicy.initialInterval),
+    nonRetryableErrorTypes: retryPolicy.nonRetryableErrorTypes ?? undefined,
   };
 }

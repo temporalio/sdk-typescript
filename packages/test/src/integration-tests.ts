@@ -27,7 +27,7 @@ import {
   WorkflowNotFoundError,
 } from '@temporalio/internal-workflow-common';
 import * as iface from '@temporalio/proto';
-import { Runtime, DefaultLogger, Worker } from '@temporalio/worker';
+import { DefaultLogger, Runtime, Worker } from '@temporalio/worker';
 import asyncRetry from 'async-retry';
 import anyTest, { Implementation, TestInterface } from 'ava';
 import dedent from 'dedent';
@@ -555,6 +555,7 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
   });
 
   test('WorkflowHandle.describe result is wrapped', async (t) => {
+    const date = new Date();
     const { client } = t.context;
     const workflow = await client.start(workflows.argsAndReturn, {
       args: ['hey', undefined, Buffer.from('def')],
@@ -562,6 +563,8 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
       workflowId: uuid4(),
       searchAttributes: {
         CustomKeywordField: 'test-value',
+        CustomIntField: [1, 2],
+        CustomDatetimeField: [date, date],
       },
       memo: {
         note: 'foo',
@@ -573,7 +576,44 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
     t.deepEqual(execution.memo, { note: 'foo' });
     t.true(execution.startTime instanceof Date);
     t.is(execution.searchAttributes!.CustomKeywordField, 'test-value');
+    t.deepEqual(execution.searchAttributes!.CustomIntField, [1, 2]);
+    t.true(
+      execution.searchAttributes!.CustomDatetimeField instanceof Array &&
+        execution.searchAttributes!.CustomDatetimeField[0] instanceof Date
+    );
+    t.is((execution.searchAttributes!.CustomDatetimeField as Date[])[0].getTime(), date.getTime());
     t.regex((execution.searchAttributes!.BinaryChecksums as string[])[0], /@temporalio\/worker@/);
+  });
+
+  test('Workflow can read Search Attributes set at start', async (t) => {
+    const date = new Date();
+    const { client } = t.context;
+    const workflow = await client.start(workflows.returnSearchAttributes, {
+      taskQueue: 'test',
+      workflowId: uuid4(),
+      searchAttributes: {
+        CustomKeywordField: 'test-value',
+        CustomIntField: [1, 2],
+        CustomDatetimeField: [date, date],
+      },
+    });
+    const result = await workflow.result();
+    t.deepEqual(result, {
+      CustomKeywordField: 'test-value',
+      CustomIntField: [1, 2],
+      // TODO
+      // CustomDatetimeField: [date, date],
+    });
+    // t.deepEqual(execution.memo, { note: 'foo' });
+    // t.true(execution.startTime instanceof Date);
+    // t.is(execution.searchAttributes!.CustomKeywordField, 'test-value');
+    // t.deepEqual(execution.searchAttributes!.CustomIntField, [1, 2]);
+    // t.true(
+    //   execution.searchAttributes!.CustomDatetimeField instanceof Array &&
+    //     execution.searchAttributes!.CustomDatetimeField[0] instanceof Date
+    // );
+    // t.is((execution.searchAttributes!.CustomDatetimeField as Date[])[0].getTime(), date.getTime());
+    // t.regex((execution.searchAttributes!.BinaryChecksums as string[])[0], /@temporalio\/worker@/);
   });
 
   test('WorkflowOptions are passed correctly with defaults', async (t) => {
