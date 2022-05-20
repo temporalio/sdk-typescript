@@ -16,8 +16,7 @@ test.before(async (t) => {
   // We don't want AVA to whine about unhandled rejections thrown by workflows
   process.removeAllListeners('unhandledRejection');
   const logger = new DefaultLogger('DEBUG');
-  // Use forwarded logging from core
-  const runtime = Runtime.install({ logger, telemetryOptions: { logForwardingLevel: 'INFO' } });
+  const runtime = Runtime.install({ logger });
   t.context = {
     runtime,
   };

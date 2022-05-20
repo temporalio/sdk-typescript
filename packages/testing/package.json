@@ -1,6 +1,6 @@
 {
   "name": "@temporalio/testing",
-  "version": "0.22.0",
+  "version": "0.23.3",
   "description": "Temporal.io SDK Testing sub-package",
   "main": "lib/index.js",
   "types": "./lib/index.d.ts",
@@ -37,7 +37,8 @@
   "homepage": "https://github.com/temporalio/sdk-typescript/tree/main/packages/testing",
   "files": [
     "lib",
-    "generated-protos"
+    "generated-protos",
+    "scripts"
   ],
   "publishConfig": {
     "access": "public"

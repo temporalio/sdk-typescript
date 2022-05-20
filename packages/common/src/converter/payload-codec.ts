@@ -20,11 +20,3 @@ export interface PayloadCodec {
    */
   decode(payloads: Payload[]): Promise<Payload[]>;
 }
-
-/**
- * No-op implementation of {@link PayloadCodec}.
- */
-export const defaultPayloadCodec = {
-  encode: async (payloads: Payload[]): Promise<Payload[]> => payloads,
-  decode: async (payloads: Payload[]): Promise<Payload[]> => payloads,
-};

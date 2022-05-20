@@ -8,9 +8,9 @@ import {
 } from '@temporalio/internal-workflow-common';
 import * as protoJsonSerializer from 'proto3-json-serializer';
 import type { Message, Namespace, Root, Type } from 'protobufjs';
-import { CompositePayloadConverter } from './payload-converter';
 import {
   BinaryPayloadConverter,
+  CompositePayloadConverter,
   JsonPayloadConverter,
   PayloadConverterWithEncoding,
   UndefinedPayloadConverter,
@@ -96,7 +96,9 @@ export class ProtobufBinaryPayloadConverter extends ProtobufPayloadConverter {
   }
 
   public toPayload(value: unknown): Payload | undefined {
-    if (!isProtobufMessage(value)) return undefined;
+    if (!isProtobufMessage(value)) {
+      return undefined;
+    }
 
     return this.constructPayload({
       messageTypeName: getNamespacedTypeName(value.$type),
@@ -124,7 +126,9 @@ export class ProtobufJsonPayloadConverter extends ProtobufPayloadConverter {
   }
 
   public toPayload(value: unknown): Payload | undefined {
-    if (!isProtobufMessage(value)) return undefined;
+    if (!isProtobufMessage(value)) {
+      return undefined;
+    }
 
     const jsonValue = protoJsonSerializer.toProto3JSON(value);
 

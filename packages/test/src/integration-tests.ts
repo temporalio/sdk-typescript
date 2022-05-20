@@ -9,7 +9,6 @@ import {
 } from '@temporalio/client';
 import {
   ChildWorkflowFailure,
-  defaultPayloadCodec,
   defaultPayloadConverter,
   Payload,
   PayloadCodec,
@@ -20,7 +19,7 @@ import {
   TimeoutType,
   WorkflowExecution,
 } from '@temporalio/common';
-import { decodeFromPayloadsAtIndex } from '@temporalio/internal-non-workflow-common';
+import { decode, decodeFromPayloadsAtIndex } from '@temporalio/internal-non-workflow-common';
 import {
   tsToMs,
   WorkflowExecutionAlreadyStartedError,
@@ -35,6 +34,7 @@ import ms from 'ms';
 import { v4 as uuid4 } from 'uuid';
 import * as activities from './activities';
 import { cleanStackTrace, u8 } from './helpers';
+import { wrappedDefaultPayloadConverter } from './payload-converters/payload-converter';
 import * as workflows from './workflows';
 import { withZeroesHTTPServer } from './zeroes-http-server';
 
@@ -55,17 +55,17 @@ const namespace = 'default';
 
 export function runIntegrationTests(codec?: PayloadCodec): void {
   const test = (name: string, fn: Implementation<Context>) => _test(codec ? 'With codec—' + name : name, fn);
-  const dataConverter = { payloadCodec: codec ?? defaultPayloadCodec };
-  const loadedDataConverter = { payloadConverter: defaultPayloadConverter, payloadCodec: codec ?? defaultPayloadCodec };
+  const dataConverter = { payloadCodecs: codec ? [codec] : [] };
+  const loadedDataConverter = { payloadConverter: wrappedDefaultPayloadConverter, payloadCodecs: codec ? [codec] : [] };
   async function fromPayload(payload: Payload) {
-    const [decodedPayload] = await dataConverter.payloadCodec.decode([payload]);
+    const [decodedPayload] = await decode(dataConverter.payloadCodecs, [payload]);
     return defaultPayloadConverter.fromPayload(decodedPayload);
   }
 
   _test.before(async (t) => {
     const logger = new DefaultLogger('DEBUG');
     // Use forwarded logging from core
-    Runtime.install({ logger, telemetryOptions: { logForwardingLevel: 'INFO' } });
+    Runtime.install({ logger, telemetryOptions: { logging: { forward: { level: 'INFO' } } } });
     const worker = await Worker.create({
       workflowsPath: require.resolve('./workflows'),
       activities,

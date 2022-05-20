@@ -10,8 +10,8 @@ async function main() {
     Runtime.install({
       logger: new DefaultLogger('DEBUG'),
       telemetryOptions: {
-        logForwardingLevel: 'DEBUG',
         tracingFilter: 'temporal_sdk_core=DEBUG',
+        logging: { forward: { level: 'DEBUG' } },
       },
     });
   }

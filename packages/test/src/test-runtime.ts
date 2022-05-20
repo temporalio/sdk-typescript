@@ -73,17 +73,17 @@ if (RUN_INTEGRATION_TESTS) {
     }
   });
 
-  test.serial('Runtime.instance() throws meaningful error when passed invalid oTelCollectorUrl', (t) => {
-    t.throws(() => Runtime.install({ telemetryOptions: { oTelCollectorUrl: ':invalid' } }), {
+  test.serial('Runtime.instance() throws meaningful error when passed invalid tracing.otel.url', (t) => {
+    t.throws(() => Runtime.install({ telemetryOptions: { tracing: { otel: { url: ':invalid' } } } }), {
       instanceOf: TypeError,
-      message: 'Invalid telemetryOptions.oTelCollectorUrl',
+      message: 'Invalid telemetryOptions.tracing.otel.url',
     });
   });
 
-  test.serial('Runtime.instance() throws meaningful error when passed invalid prometheusMetricsBindAddress', (t) => {
-    t.throws(() => Runtime.install({ telemetryOptions: { prometheusMetricsBindAddress: ':invalid' } }), {
+  test.serial('Runtime.instance() throws meaningful error when passed invalid metrics.prometheus.bindAddress', (t) => {
+    t.throws(() => Runtime.install({ telemetryOptions: { metrics: { prometheus: { bindAddress: ':invalid' } } } }), {
       instanceOf: TypeError,
-      message: 'Invalid telemetryOptions.prometheusMetricsBindAddress',
+      message: 'Invalid telemetryOptions.metrics.prometheus.bindAddress',
     });
   });
 

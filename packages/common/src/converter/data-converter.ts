@@ -1,5 +1,6 @@
-import { defaultPayloadCodec, PayloadCodec } from './payload-codec';
-import { defaultPayloadConverter, PayloadConverter } from './payload-converter';
+import { PayloadCodec } from './payload-codec';
+import { defaultPayloadConverter } from './payload-converters';
+import { WrappedPayloadConverter } from './wrapped-payload-converter';
 
 /**
  * When your data (arguments and return values) is sent over the wire and stored by Temporal Server, it is encoded in
@@ -34,20 +35,24 @@ export interface DataConverter {
   payloadConverterPath?: string;
 
   /**
-   * A {@link PayloadCodec} instance. The default codec is a no-op.
+   * An array of {@link PayloadCodec} instances.
+   *
+   * Payloads are encoded in the order of the array and decoded in the opposite order. For example, if you have a
+   * compression codec and an encryption codec, then you want data to be encoded with the compression codec first, so
+   * you'd do `payloadCodecs: [compressionCodec, encryptionCodec]`.
    */
-  payloadCodec?: PayloadCodec;
+  payloadCodecs?: PayloadCodec[];
 }
 
 /**
  * A {@link DataConverter} that has been loaded via {@link loadDataConverter}.
  */
 export interface LoadedDataConverter {
-  payloadConverter: PayloadConverter;
-  payloadCodec: PayloadCodec;
+  payloadConverter: WrappedPayloadConverter;
+  payloadCodecs: PayloadCodec[];
 }
 
 export const defaultDataConverter: LoadedDataConverter = {
-  payloadConverter: defaultPayloadConverter,
-  payloadCodec: defaultPayloadCodec,
+  payloadConverter: new WrappedPayloadConverter(defaultPayloadConverter),
+  payloadCodecs: [],
 };

@@ -5,9 +5,10 @@ import {
   errorToFailure,
   failureToError,
   optionalFailureToOptionalError,
-  PayloadConverter,
   TemporalFailure,
+  toPayload,
 } from '@temporalio/common';
+import { WrappedPayloadConverter } from '@temporalio/common/lib/converter/wrapped-payload-converter';
 import {
   checkExtends,
   composeInterceptors,
@@ -454,7 +455,7 @@ export class State {
    */
   public importInterceptors?: InterceptorsImportFunc;
 
-  public payloadConverter: PayloadConverter = defaultPayloadConverter;
+  public payloadConverter: WrappedPayloadConverter = new WrappedPayloadConverter(defaultPayloadConverter);
 
   /**
    * Patches we know the status of for this workflow, as in {@link patched}
@@ -495,7 +496,7 @@ function completeWorkflow(result: any) {
   state.pushCommand(
     {
       completeWorkflowExecution: {
-        result: state.payloadConverter.toPayload(result),
+        result: toPayload(state.payloadConverter, result),
       },
     },
     true

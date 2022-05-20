@@ -1,14 +1,8 @@
-import { PayloadConverterError, ValueError } from '@temporalio/internal-workflow-common';
-import {
-  BinaryPayloadConverter,
-  JsonPayloadConverter,
-  PayloadConverterWithEncoding,
-  UndefinedPayloadConverter,
-} from './payload-converters';
-import { METADATA_ENCODING_KEY, Payload, str } from './types';
+import { Payload } from './types';
+import { WrappedPayloadConverter } from './wrapped-payload-converter';
 
 /**
- * Used by the framework to serialize/deserialize parameters and return values.
+ * Used by the framework to serialize/deserialize data like parameters and return values.
  *
  * This is called inside the [Workflow isolate](https://docs.temporal.io/docs/typescript/determinism).
  * To write async code or use Node APIs (or use packages that use Node APIs), use a {@link PayloadCodec}.
@@ -16,7 +10,9 @@ import { METADATA_ENCODING_KEY, Payload, str } from './types';
 export interface PayloadConverter {
   /**
    * Converts a value to a {@link Payload}.
-   * @param value The value to convert. Example values include the Workflow args sent by the client and the values returned by a Workflow or Activity.
+   *
+   * @param value The value to convert. Example values include the Workflow args sent from the Client and the values returned by a Workflow or Activity.
+   * @returns The {@link Payload}, or `undefined` if unable to convert.
    */
   toPayload<T>(value: T): Payload | undefined;
 
@@ -26,60 +22,13 @@ export interface PayloadConverter {
   fromPayload<T>(payload: Payload): T;
 }
 
-export class CompositePayloadConverter implements PayloadConverter {
-  readonly converters: PayloadConverterWithEncoding[];
-  readonly converterByEncoding: Map<string, PayloadConverterWithEncoding> = new Map();
-
-  constructor(...converters: PayloadConverterWithEncoding[]) {
-    this.converters = converters;
-    for (const converter of converters) {
-      this.converterByEncoding.set(converter.encodingType, converter);
-    }
-  }
-
-  /**
-   * Tries to run `.toPayload(value)` on each converter in the order provided at construction.
-   * Returns the first successful result, or `undefined` if there is no converter that can handle the value.
-   *
-   * @throws UnsupportedJsonTypeError
-   */
-  public toPayload<T>(value: T): Payload | undefined {
-    for (const converter of this.converters) {
-      const result = converter.toPayload(value);
-      if (result !== undefined) {
-        return result;
-      }
-    }
-    return undefined;
-  }
-
-  /**
-   * Run {@link PayloadConverterWithEncoding.fromPayload} based on the {@link encodingTypes | encoding type} of the {@link Payload}.
-   */
-  public fromPayload<T>(payload: Payload): T {
-    if (payload.metadata === undefined || payload.metadata === null) {
-      throw new ValueError('Missing payload metadata');
-    }
-    const encoding = str(payload.metadata[METADATA_ENCODING_KEY]);
-    const converter = this.converterByEncoding.get(encoding);
-    if (converter === undefined) {
-      throw new ValueError(`Unknown encoding: ${encoding}`);
-    }
-    return converter.fromPayload(payload);
-  }
-}
-
 /**
  * Tries to convert `value` to a {@link Payload}. Throws if conversion fails.
  *
- * @throws {@link PayloadConverterError}
+ * @throws {@link ValueError}
  */
-export function toPayload(converter: PayloadConverter, value: unknown): Payload {
-  const payload = converter.toPayload(value);
-  if (payload === undefined) {
-    throw new PayloadConverterError(`Failed to convert value: ${value}`);
-  }
-  return payload;
+export function toPayload(converter: WrappedPayloadConverter, value: unknown): Payload {
+  return converter.toPayload(value);
 }
 
 /**
@@ -87,11 +36,11 @@ export function toPayload(converter: PayloadConverter, value: unknown): Payload 
  *
  * @param converter
  * @param values JS values to convert to Payloads
- * @return converted values
- * @throws PayloadConverterError if conversion of the value passed as parameter failed for any
+ * @return list of {@link Payload}s
+ * @throws {@link ValueError} if conversion of the value passed as parameter failed for any
  *     reason.
  */
-export function toPayloads(converter: PayloadConverter, ...values: unknown[]): Payload[] | undefined {
+export function toPayloads(converter: WrappedPayloadConverter, ...values: unknown[]): Payload[] | undefined {
   if (values.length === 0) {
     return undefined;
   }
@@ -102,9 +51,12 @@ export function toPayloads(converter: PayloadConverter, ...values: unknown[]): P
 /**
  * Run {@link PayloadConverter.toPayload} on each value in the map.
  *
- * @throws {@link PayloadConverterError} if conversion of any value in the map fails
+ * @throws {@link ValueError} if conversion of any value in the map fails
  */
-export function mapToPayloads<K extends string>(converter: PayloadConverter, map: Record<K, any>): Record<K, Payload> {
+export function mapToPayloads<K extends string>(
+  converter: WrappedPayloadConverter,
+  map: Record<K, any>
+): Record<K, Payload> {
   return Object.fromEntries(
     Object.entries(map).map(([k, v]): [K, Payload] => [k as K, toPayload(converter, v)])
   ) as Record<K, Payload>;
@@ -121,7 +73,11 @@ export function mapToPayloads<K extends string>(converter: PayloadConverter, map
  * @throws {@link PayloadConverterError} if conversion of the data passed as parameter failed for any
  *     reason.
  */
-export function fromPayloadsAtIndex<T>(converter: PayloadConverter, index: number, payloads?: Payload[] | null): T {
+export function fromPayloadsAtIndex<T>(
+  converter: WrappedPayloadConverter,
+  index: number,
+  payloads?: Payload[] | null
+): T {
   // To make adding arguments a backwards compatible change
   if (payloads === undefined || payloads === null || index >= payloads.length) {
     return undefined as any;
@@ -132,7 +88,7 @@ export function fromPayloadsAtIndex<T>(converter: PayloadConverter, index: numbe
 /**
  * Run {@link PayloadConverter.fromPayload} on each value in the array.
  */
-export function fromPayloads(converter: PayloadConverter, payloads?: Payload[] | null): unknown[] | undefined {
+export function fromPayloads(converter: WrappedPayloadConverter, payloads?: Payload[] | null): unknown[] | undefined {
   if (payloads === undefined || payloads === null) {
     return undefined;
   }
@@ -142,7 +98,7 @@ export function fromPayloads(converter: PayloadConverter, payloads?: Payload[] |
 /**
  * Run {@link PayloadConverter.fromPayload} on each value in the array. Returns empty array if `payloads` is falsy.
  */
-export function arrayFromPayloads(converter: PayloadConverter, payloads?: Payload[] | null): unknown[] {
+export function arrayFromPayloads(converter: WrappedPayloadConverter, payloads?: Payload[] | null): unknown[] {
   if (!payloads) {
     return [];
   }
@@ -150,7 +106,7 @@ export function arrayFromPayloads(converter: PayloadConverter, payloads?: Payloa
 }
 
 export function mapFromPayloads<K extends string>(
-  converter: PayloadConverter,
+  converter: WrappedPayloadConverter,
   map?: Record<K, Payload> | null | undefined
 ): Record<K, unknown> | undefined {
   if (map === undefined || map === null) return undefined;
@@ -161,27 +117,3 @@ export function mapFromPayloads<K extends string>(
     })
   ) as Record<K, unknown>;
 }
-
-export const searchAttributePayloadConverter = new JsonPayloadConverter();
-
-export class DefaultPayloadConverter extends CompositePayloadConverter {
-  // Match the order used in other SDKs, but exclude Protobuf converters so that the code, including
-  // `proto3-json-serializer`, doesn't take space in Workflow bundles that don't use Protobufs. To use Protobufs, use
-  // {@link DefaultPayloadConverterWithProtobufs}.
-  //
-  // Go SDK:
-  // https://github.com/temporalio/sdk-go/blob/5e5645f0c550dcf717c095ae32c76a7087d2e985/converter/default_data_converter.go#L28
-  constructor() {
-    super(new UndefinedPayloadConverter(), new BinaryPayloadConverter(), new JsonPayloadConverter());
-  }
-}
-
-/**
- * The default {@link PayloadConverter} used by the SDK.
- * Supports `Uint8Array` and JSON serializables (so if [`JSON.stringify(yourArgOrRetval)`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/JSON/stringify#description) works, the default payload converter will work).
- *
- * To also support Protobufs, create a custom payload converter with {@link DefaultPayloadConverter}:
- *
- * `const myConverter = new DefaultPayloadConverter({ protobufRoot })`
- */
-export const defaultPayloadConverter = new DefaultPayloadConverter();

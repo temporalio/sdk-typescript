@@ -83,8 +83,21 @@ export const workerArgSpec: WorkerArgSpec = {
   '--status-port': Number,
 };
 
-export type AllInOneArgSpec = SetupArgSpec & StarterArgSpec & WorkerArgSpec;
-export const allInOneArgSpec: AllInOneArgSpec = { ...setupArgSpec, ...starterArgSpec, ...workerArgSpec };
+export interface WrapperArgSpec extends Spec {
+  '--inspect': typeof Boolean;
+}
+
+export const wrapperArgSpec: WrapperArgSpec = {
+  '--inspect': Boolean,
+};
+
+export type AllInOneArgSpec = SetupArgSpec & StarterArgSpec & WorkerArgSpec & WrapperArgSpec;
+export const allInOneArgSpec: AllInOneArgSpec = {
+  ...setupArgSpec,
+  ...starterArgSpec,
+  ...workerArgSpec,
+  ...wrapperArgSpec,
+};
 
 export function getRequired<T extends arg.Spec, K extends keyof T>(
   args: arg.Result<T>,

@@ -4,6 +4,7 @@
  * @module
  */
 import { errorToFailure as _errorToFailure, ProtoFailure } from '@temporalio/common';
+import { WrappedPayloadConverter } from '@temporalio/common/lib/converter/wrapped-payload-converter';
 import { composeInterceptors, IllegalStateError, msToTs, tsToMs } from '@temporalio/internal-workflow-common';
 import type { coresdk } from '@temporalio/proto';
 import { alea } from './alea';
@@ -129,7 +130,7 @@ export async function initRuntime({ info, randomnessSeed, now, patches }: Workfl
   const customPayloadConverter = (await import('__temporal_custom_payload_converter')).payloadConverter;
   // The `payloadConverter` export is validated in the Worker
   if (customPayloadConverter !== undefined) {
-    state.payloadConverter = customPayloadConverter;
+    state.payloadConverter = new WrappedPayloadConverter(customPayloadConverter);
   }
 
   const { importWorkflows, importInterceptors } = state;

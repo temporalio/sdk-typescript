@@ -15,9 +15,21 @@ import {
 } from '@temporalio/common';
 import { DecodedPayload, DecodedProtoFailure, EncodedPayload, EncodedProtoFailure } from './codec-types';
 
-export interface TypecheckedPayloadCodec {
-  encode(payloads: Payload[]): Promise<EncodedPayload[]>;
-  decode(payloads: Payload[]): Promise<DecodedPayload[]>;
+/**
+ * Decode through each codec, starting with the last codec.
+ */
+export async function decode(codecs: PayloadCodec[], payloads: Payload[]): Promise<DecodedPayload[]> {
+  for (let i = codecs.length - 1; i >= 0; i--) {
+    payloads = await codecs[i].decode(payloads);
+  }
+  return payloads as DecodedPayload[];
+}
+
+export async function encode(codecs: PayloadCodec[], payloads: Payload[]): Promise<EncodedPayload[]> {
+  for (let i = 0; i < codecs.length; i++) {
+    payloads = await codecs[i].encode(payloads);
+  }
+  return payloads as EncodedPayload[];
 }
 
 /**
@@ -28,8 +40,8 @@ export async function decodeFromPayloadsAtIndex<T>(
   index: number,
   payloads?: Payload[] | null
 ): Promise<T> {
-  const { payloadConverter, payloadCodec } = converter;
-  return fromPayloadsAtIndex(payloadConverter, index, payloads ? await payloadCodec.decode(payloads) : payloads);
+  const { payloadConverter, payloadCodecs } = converter;
+  return fromPayloadsAtIndex(payloadConverter, index, payloads ? await decode(payloadCodecs, payloads) : payloads);
 }
 
 /**
@@ -39,10 +51,10 @@ export async function decodeFromPayloads(
   converter: LoadedDataConverter,
   payloads?: Payload[] | null
 ): Promise<unknown[] | undefined> {
-  const { payloadConverter, payloadCodec } = converter;
+  const { payloadConverter, payloadCodecs } = converter;
   let decodedPayloads = payloads;
   if (payloads) {
-    decodedPayloads = await payloadCodec.decode(payloads);
+    decodedPayloads = await decode(payloadCodecs, payloads);
   }
   return fromPayloads(payloadConverter, decodedPayloads);
 }
@@ -54,10 +66,10 @@ export async function decodeArrayFromPayloads(
   converter: LoadedDataConverter,
   payloads?: Payload[] | null
 ): Promise<unknown[]> {
-  const { payloadConverter, payloadCodec } = converter;
+  const { payloadConverter, payloadCodecs } = converter;
   let decodedPayloads = payloads;
   if (payloads) {
-    decodedPayloads = await payloadCodec.decode(payloads);
+    decodedPayloads = await decode(payloadCodecs, payloads);
   }
   return arrayFromPayloads(payloadConverter, decodedPayloads);
 }
@@ -69,78 +81,78 @@ export async function decodeOptionalFailureToOptionalError(
   converter: LoadedDataConverter,
   failure: ProtoFailure | undefined | null
 ): Promise<TemporalFailure | undefined> {
-  const { payloadConverter, payloadCodec } = converter;
-  return failure ? failureToError(await decodeFailure(payloadCodec, failure), payloadConverter) : undefined;
+  const { payloadConverter, payloadCodecs } = converter;
+  return failure ? failureToError(await decodeFailure(payloadCodecs, failure), payloadConverter) : undefined;
 }
 
 /** Run {@link PayloadCodec.encode} on `payloads` */
 export async function encodeOptional(
-  codec: PayloadCodec,
+  codecs: PayloadCodec[],
   payloads: Payload[] | null | undefined
 ): Promise<EncodedPayload[] | null | undefined> {
   if (payloads === null) return null;
   if (payloads === undefined) return undefined;
-  return (await codec.encode(payloads)) as EncodedPayload[];
+  return (await encode(codecs, payloads)) as EncodedPayload[];
 }
 
 /** Run {@link PayloadCodec.decode} on `payloads` */
 export async function decodeOptional(
-  codec: PayloadCodec,
+  codecs: PayloadCodec[],
   payloads: Payload[] | null | undefined
 ): Promise<DecodedPayload[] | null | undefined> {
   if (payloads === null) return null;
   if (payloads === undefined) return undefined;
-  return (await codec.decode(payloads)) as DecodedPayload[];
+  return (await decode(codecs, payloads)) as DecodedPayload[];
 }
 
-async function encodeSingle(codec: PayloadCodec, payload: Payload): Promise<EncodedPayload> {
-  const encodedPayloads = await codec.encode([payload]);
+async function encodeSingle(codecs: PayloadCodec[], payload: Payload): Promise<EncodedPayload> {
+  const encodedPayloads = await encode(codecs, [payload]);
   return encodedPayloads[0] as EncodedPayload;
 }
 
 /** Run {@link PayloadCodec.encode} on a single Payload */
 export async function encodeOptionalSingle(
-  codec: PayloadCodec,
+  codecs: PayloadCodec[],
   payload: Payload | null | undefined
 ): Promise<EncodedPayload | null | undefined> {
   if (payload === null) return null;
   if (payload === undefined) return undefined;
-  return await encodeSingle(codec, payload);
+  return await encodeSingle(codecs, payload);
 }
 
-async function decodeSingle(codec: PayloadCodec, payload: Payload): Promise<DecodedPayload> {
-  const decodedPayloads = await codec.decode([payload]);
+async function decodeSingle(codecs: PayloadCodec[], payload: Payload): Promise<DecodedPayload> {
+  const decodedPayloads = await decode(codecs, [payload]);
   return decodedPayloads[0] as DecodedPayload;
 }
 
 export async function decodeOptionalMap(
-  codec: PayloadCodec,
+  codecs: PayloadCodec[],
   payloads: Record<string, Payload> | null | undefined
 ): Promise<Record<string, DecodedPayload> | null | undefined> {
   if (payloads === null) return null;
   if (payloads === undefined) return undefined;
   return Object.fromEntries(
-    await Promise.all(Object.entries(payloads).map(async ([k, v]) => [k, await codec.decode([v])]))
+    await Promise.all(Object.entries(payloads).map(async ([k, v]) => [k, await decode(codecs, [v])]))
   );
 }
 
 /** Run {@link PayloadCodec.decode} on a single Payload */
 export async function decodeOptionalSingle(
-  codec: PayloadCodec,
+  codecs: PayloadCodec[],
   payload: Payload | null | undefined
 ): Promise<DecodedPayload | null | undefined> {
   if (payload === null) return null;
   if (payload === undefined) return undefined;
 
-  return await decodeSingle(codec, payload);
+  return await decodeSingle(codecs, payload);
 }
 
 /**
  * Run {@link PayloadConverter.toPayload} on value, and then encode it.
  */
 export async function encodeToPayload(converter: LoadedDataConverter, value: unknown): Promise<Payload> {
-  const { payloadConverter, payloadCodec } = converter;
-  return await encodeSingle(payloadCodec, toPayload(payloadConverter, value));
+  const { payloadConverter, payloadCodecs } = converter;
+  return await encodeSingle(payloadCodecs, toPayload(payloadConverter, value));
 }
 
 /**
@@ -150,12 +162,12 @@ export async function encodeToPayloads(
   converter: LoadedDataConverter,
   ...values: unknown[]
 ): Promise<Payload[] | undefined> {
-  const { payloadConverter, payloadCodec } = converter;
+  const { payloadConverter, payloadCodecs } = converter;
   if (values.length === 0) {
     return undefined;
   }
   const payloads = toPayloads(payloadConverter, ...values);
-  return payloads ? await payloadCodec.encode(payloads) : undefined;
+  return payloads ? await encode(payloadCodecs, payloads) : undefined;
 }
 
 /**
@@ -166,11 +178,11 @@ export async function decodeMapFromPayloads<K extends string>(
   map: Record<K, Payload> | null | undefined
 ): Promise<Record<K, unknown> | undefined> {
   if (!map) return undefined;
-  const { payloadConverter, payloadCodec } = converter;
+  const { payloadConverter, payloadCodecs } = converter;
   return Object.fromEntries(
     await Promise.all(
       Object.entries(map).map(async ([k, payload]): Promise<[K, unknown]> => {
-        const [decodedPayload] = await payloadCodec.decode([payload as Payload]);
+        const [decodedPayload] = await decode(payloadCodecs, [payload as Payload]);
         const value = payloadConverter.fromPayload(decodedPayload);
         return [k as K, value];
       })
@@ -180,7 +192,7 @@ export async function decodeMapFromPayloads<K extends string>(
 
 /** Run {@link PayloadCodec.encode} on all values in `map` */
 export async function encodeMap<K extends string>(
-  codec: PayloadCodec,
+  codecs: PayloadCodec[],
   map: Record<K, Payload> | null | undefined
 ): Promise<Record<K, EncodedPayload> | null | undefined> {
   if (map === null) return null;
@@ -188,7 +200,7 @@ export async function encodeMap<K extends string>(
   return Object.fromEntries(
     await Promise.all(
       Object.entries(map).map(async ([k, payload]): Promise<[K, EncodedPayload]> => {
-        return [k as K, await encodeSingle(codec, payload as Payload)];
+        return [k as K, await encodeSingle(codecs, payload as Payload)];
       })
     )
   ) as Record<K, EncodedPayload>;
@@ -201,13 +213,13 @@ export async function encodeMapToPayloads<K extends string>(
   converter: LoadedDataConverter,
   map: Record<K, unknown>
 ): Promise<Record<K, Payload>> {
-  const { payloadConverter, payloadCodec } = converter;
+  const { payloadConverter, payloadCodecs } = converter;
   return Object.fromEntries(
     await Promise.all(
       Object.entries(map).map(async ([k, v]): Promise<[K, Payload]> => {
-        const payload = payloadConverter.toPayload(v);
+        const payload = toPayload(payloadConverter, v);
         if (payload === undefined) throw new PayloadConverterError(`Failed to encode entry: ${k}: ${v}`);
-        const [encodedPayload] = await payloadCodec.encode([payload]);
+        const [encodedPayload] = await encode(payloadCodecs, [payload]);
         return [k as K, encodedPayload];
       })
     )
@@ -218,24 +230,23 @@ export async function encodeMapToPayloads<K extends string>(
  * Run {@link errorToFailure} on `error`, and then {@link encodeFailure}.
  */
 export async function encodeErrorToFailure(dataConverter: LoadedDataConverter, error: unknown): Promise<ProtoFailure> {
-  const { payloadConverter, payloadCodec } = dataConverter;
-  return await encodeFailure(payloadCodec, errorToFailure(error, payloadConverter));
+  const { payloadConverter, payloadCodecs } = dataConverter;
+  return await encodeFailure(payloadCodecs, errorToFailure(error, payloadConverter));
 }
 
 /**
  * Return a new {@link ProtoFailure} with `codec.encode()` run on all the {@link Payload}s.
  */
-export async function encodeFailure(_codec: PayloadCodec, failure: ProtoFailure): Promise<EncodedProtoFailure> {
-  const codec = _codec as TypecheckedPayloadCodec;
+export async function encodeFailure(codecs: PayloadCodec[], failure: ProtoFailure): Promise<EncodedProtoFailure> {
   return {
     ...failure,
-    cause: failure.cause ? await encodeFailure(codec, failure.cause) : null,
+    cause: failure.cause ? await encodeFailure(codecs, failure.cause) : null,
     applicationFailureInfo: failure.applicationFailureInfo
       ? {
           ...failure.applicationFailureInfo,
           details: failure.applicationFailureInfo.details
             ? {
-                payloads: await codec.encode(failure.applicationFailureInfo.details.payloads ?? []),
+                payloads: await encode(codecs, failure.applicationFailureInfo.details.payloads ?? []),
               }
             : undefined,
         }
@@ -245,7 +256,7 @@ export async function encodeFailure(_codec: PayloadCodec, failure: ProtoFailure)
           ...failure.timeoutFailureInfo,
           lastHeartbeatDetails: failure.timeoutFailureInfo.lastHeartbeatDetails
             ? {
-                payloads: await codec.encode(failure.timeoutFailureInfo.lastHeartbeatDetails.payloads ?? []),
+                payloads: await encode(codecs, failure.timeoutFailureInfo.lastHeartbeatDetails.payloads ?? []),
               }
             : undefined,
         }
@@ -255,7 +266,7 @@ export async function encodeFailure(_codec: PayloadCodec, failure: ProtoFailure)
           ...failure.canceledFailureInfo,
           details: failure.canceledFailureInfo.details
             ? {
-                payloads: await codec.encode(failure.canceledFailureInfo.details.payloads ?? []),
+                payloads: await encode(codecs, failure.canceledFailureInfo.details.payloads ?? []),
               }
             : undefined,
         }
@@ -265,7 +276,7 @@ export async function encodeFailure(_codec: PayloadCodec, failure: ProtoFailure)
           ...failure.resetWorkflowFailureInfo,
           lastHeartbeatDetails: failure.resetWorkflowFailureInfo.lastHeartbeatDetails
             ? {
-                payloads: await codec.encode(failure.resetWorkflowFailureInfo.lastHeartbeatDetails.payloads ?? []),
+                payloads: await encode(codecs, failure.resetWorkflowFailureInfo.lastHeartbeatDetails.payloads ?? []),
               }
             : undefined,
         }
@@ -277,40 +288,39 @@ export async function encodeFailure(_codec: PayloadCodec, failure: ProtoFailure)
  * Return a new {@link ProtoFailure} with `codec.encode()` run on all the {@link Payload}s.
  */
 export async function encodeOptionalFailure(
-  codec: PayloadCodec,
+  codecs: PayloadCodec[],
   failure: ProtoFailure | null | undefined
 ): Promise<EncodedProtoFailure | null | undefined> {
   if (failure === null) return null;
   if (failure === undefined) return undefined;
-  return await encodeFailure(codec, failure);
+  return await encodeFailure(codecs, failure);
 }
 
 /**
  * Return a new {@link ProtoFailure} with `codec.encode()` run on all the {@link Payload}s.
  */
 export async function decodeOptionalFailure(
-  codec: PayloadCodec,
+  codecs: PayloadCodec[],
   failure: ProtoFailure | null | undefined
 ): Promise<DecodedProtoFailure | null | undefined> {
   if (failure === null) return null;
   if (failure === undefined) return undefined;
-  return await decodeFailure(codec, failure);
+  return await decodeFailure(codecs, failure);
 }
 
 /**
  * Return a new {@link ProtoFailure} with `codec.decode()` run on all the {@link Payload}s.
  */
-export async function decodeFailure(_codec: PayloadCodec, failure: ProtoFailure): Promise<DecodedProtoFailure> {
-  const codec = _codec as TypecheckedPayloadCodec;
+export async function decodeFailure(codecs: PayloadCodec[], failure: ProtoFailure): Promise<DecodedProtoFailure> {
   return {
     ...failure,
-    cause: failure.cause ? await decodeFailure(codec, failure.cause) : null,
+    cause: failure.cause ? await decodeFailure(codecs, failure.cause) : null,
     applicationFailureInfo: failure.applicationFailureInfo
       ? {
           ...failure.applicationFailureInfo,
           details: failure.applicationFailureInfo.details
             ? {
-                payloads: await codec.decode(failure.applicationFailureInfo.details.payloads ?? []),
+                payloads: await decode(codecs, failure.applicationFailureInfo.details.payloads ?? []),
               }
             : undefined,
         }
@@ -320,7 +330,7 @@ export async function decodeFailure(_codec: PayloadCodec, failure: ProtoFailure)
           ...failure.timeoutFailureInfo,
           lastHeartbeatDetails: failure.timeoutFailureInfo.lastHeartbeatDetails
             ? {
-                payloads: await codec.decode(failure.timeoutFailureInfo.lastHeartbeatDetails.payloads ?? []),
+                payloads: await decode(codecs, failure.timeoutFailureInfo.lastHeartbeatDetails.payloads ?? []),
               }
             : undefined,
         }
@@ -330,7 +340,7 @@ export async function decodeFailure(_codec: PayloadCodec, failure: ProtoFailure)
           ...failure.canceledFailureInfo,
           details: failure.canceledFailureInfo.details
             ? {
-                payloads: await codec.decode(failure.canceledFailureInfo.details.payloads ?? []),
+                payloads: await decode(codecs, failure.canceledFailureInfo.details.payloads ?? []),
               }
             : undefined,
         }
@@ -340,7 +350,7 @@ export async function decodeFailure(_codec: PayloadCodec, failure: ProtoFailure)
           ...failure.resetWorkflowFailureInfo,
           lastHeartbeatDetails: failure.resetWorkflowFailureInfo.lastHeartbeatDetails
             ? {
-                payloads: await codec.decode(failure.resetWorkflowFailureInfo.lastHeartbeatDetails.payloads ?? []),
+                payloads: await decode(codecs, failure.resetWorkflowFailureInfo.lastHeartbeatDetails.payloads ?? []),
               }
             : undefined,
         }
