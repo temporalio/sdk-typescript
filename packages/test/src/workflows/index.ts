@@ -60,6 +60,7 @@ export * from './race';
 export * from './random';
 export * from './reject-promise';
 export * from './return-search-attributes';
+export * from './return-workflow-info';
 export * from './run-activity-in-different-task-queue';
 export * from './scope-cancelled-while-waiting-on-external-workflow-cancellation';
 export * from './set-timeout-after-microtasks';

@@ -79,12 +79,29 @@ if (RUN_INTEGRATION_TESTS) {
     worker.shutdown();
     await p;
     const info: WorkflowInfo = {
-      more: { namespace: 'default', firstExecutionRunId: wf.originalRunId, attempt: 1 },
+      more: {
+        namespace: 'default',
+        firstExecutionRunId: wf.originalRunId,
+        attempt: 1,
+        taskTimeout: 10000,
+        continuedFromExecutionRunId: undefined,
+        cronSchedule: undefined,
+        cronScheduleToScheduleInterval: undefined,
+        executionExpirationTime: undefined,
+        executionTimeout: undefined,
+        retryPolicy: undefined,
+        runTimeout: undefined,
+      },
       taskQueue,
       workflowId: wf.workflowId,
       runId: wf.originalRunId,
       type: 'sinksWorkflow',
       unsafe: { isReplaying: false },
+      lastFailure: undefined,
+      lastResult: undefined,
+      memo: undefined,
+      parent: undefined,
+      searchAttributes: undefined,
     };
 
     t.deepEqual(recordedCalls, [

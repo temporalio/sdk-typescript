@@ -38,7 +38,7 @@ import {
 } from '@temporalio/internal-workflow-common';
 import { coresdk } from '@temporalio/proto';
 import { DeterminismViolationError, SinkCall, WorkflowInfo } from '@temporalio/workflow';
-import { updateParentType } from '@temporalio/workflow/src/interfaces';
+import { updateParentType } from '@temporalio/workflow/lib/interfaces';
 import fs from 'fs/promises';
 import {
   BehaviorSubject,
@@ -947,7 +947,6 @@ export class Worker {
                       if (attempt === null || attempt === undefined) {
                         throw new TypeError(`Unexpected value: \`attempt\` is ${attempt}`);
                       }
-
                       this.log.debug('Creating workflow', {
                         workflowType,
                         workflowId,
@@ -978,15 +977,16 @@ export class Worker {
                         more: {
                           namespace: this.options.namespace,
                           firstExecutionRunId,
-                          continuedFromExecutionRunId: continuedFromExecutionRunId ?? undefined,
+                          continuedFromExecutionRunId: continuedFromExecutionRunId || undefined,
                           executionTimeout: optionalTsToMs(workflowExecutionTimeout),
                           executionExpirationTime: optionalTsToDate(workflowExecutionExpirationTime),
                           runTimeout: optionalTsToMs(workflowRunTimeout),
-                          taskTimeout: optionalTsToMs(workflowTaskTimeout),
+                          taskTimeout: tsToMs(workflowTaskTimeout),
                           retryPolicy: uncompileRetryPolicy(retryPolicy),
                           attempt,
-                          cronSchedule: cronSchedule ?? undefined,
-                          cronScheduleToScheduleInterval: optionalTsToMs(cronScheduleToScheduleInterval),
+                          cronSchedule: cronSchedule || undefined,
+                          // 0 is the default, and not a valid value, since crons are at least a minute apart
+                          cronScheduleToScheduleInterval: optionalTsToMs(cronScheduleToScheduleInterval) || undefined,
                         },
                         unsafe: {
                           isReplaying: activation.isReplaying,

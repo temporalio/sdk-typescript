@@ -601,19 +601,41 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
     t.deepEqual(result, {
       CustomKeywordField: 'test-value',
       CustomIntField: [1, 2],
-      // TODO
-      // CustomDatetimeField: [date, date],
+      CustomDatetimeField: [date.toISOString(), date.toISOString()],
+      datetimeInstanceofWorks: false,
+      datetimeType: 'Date',
     });
-    // t.deepEqual(execution.memo, { note: 'foo' });
-    // t.true(execution.startTime instanceof Date);
-    // t.is(execution.searchAttributes!.CustomKeywordField, 'test-value');
-    // t.deepEqual(execution.searchAttributes!.CustomIntField, [1, 2]);
-    // t.true(
-    //   execution.searchAttributes!.CustomDatetimeField instanceof Array &&
-    //     execution.searchAttributes!.CustomDatetimeField[0] instanceof Date
-    // );
-    // t.is((execution.searchAttributes!.CustomDatetimeField as Date[])[0].getTime(), date.getTime());
-    // t.regex((execution.searchAttributes!.BinaryChecksums as string[])[0], /@temporalio\/worker@/);
+  });
+
+  test('Workflow can read WorkflowInfo', async (t) => {
+    const { client } = t.context;
+    const workflowId = uuid4();
+    const workflow = await client.start(workflows.returnWorkflowInfo, {
+      taskQueue: 'test',
+      workflowId,
+      memo: {
+        nested: { object: true },
+      },
+    });
+    const result = await workflow.result();
+    t.deepEqual(result, {
+      memo: {
+        nested: { object: true },
+      },
+      more: {
+        attempt: 1,
+        firstExecutionRunId: workflow.originalRunId,
+        namespace: 'default',
+        taskTimeout: 10000,
+      },
+      runId: workflow.originalRunId,
+      taskQueue: 'test',
+      type: 'returnWorkflowInfo',
+      unsafe: {
+        isReplaying: false,
+      },
+      workflowId,
+    });
   });
 
   test('WorkflowOptions are passed correctly with defaults', async (t) => {
@@ -816,7 +838,7 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
     const handle = await client.start(workflows.throwUnhandledRejection, {
       taskQueue: 'test',
       workflowId,
-      // throw an exception that our worker can associate with an running workflow
+      // throw an exception that our worker can associate with a running workflow
       args: [{ crashWorker: false }],
     });
     await asyncRetry(

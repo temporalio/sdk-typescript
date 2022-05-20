@@ -97,7 +97,7 @@ export interface WorkflowInfo {
     /**
      * Maximum execution time of a Workflow Task in milliseconds. Set via {@link WorkflowOptions.workflowTaskTimeout}.
      */
-    taskTimeout?: number;
+    taskTimeout: number;
 
     /**
      * Retry Policy for this Execution. Set via {@link WorkflowOptions.retry}.

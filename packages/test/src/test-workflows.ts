@@ -86,7 +86,7 @@ async function createWorkflow(
       type: workflowType,
       runId,
       workflowId: 'test-workflowId',
-      more: { namespace: 'default', firstExecutionRunId: runId, attempt: 1 },
+      more: { namespace: 'default', firstExecutionRunId: runId, attempt: 1, taskTimeout: 1000 },
       taskQueue: 'test',
       unsafe: { isReplaying: false },
     },
