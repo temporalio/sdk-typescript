@@ -129,13 +129,13 @@ export interface WorkflowHandle<T extends Workflow = Workflow> extends BaseWorkf
 
 /**
  * This interface is exactly the same as {@link WorkflowHandle} except it
- * includes the `originalRunId` returned after starting a new Workflow.
+ * includes the `firstExecutionRunId` returned after starting a new Workflow.
  */
 export interface WorkflowHandleWithRunId<T extends Workflow = Workflow> extends WorkflowHandle<T> {
   /**
    * The runId of the initial run of the bound Workflow
    */
-  readonly originalRunId: string;
+  readonly firstExecutionRunId: string;
 }
 
 export interface WorkflowClientOptions {
@@ -340,8 +340,8 @@ export class WorkflowClient {
       runIdForResult: runId,
       interceptors,
       followRuns: options.followRuns ?? true,
-    }) as WorkflowHandleWithRunId<T>; // Cast is safe because we know we add the originalRunId below
-    (handle as any) /* readonly */.originalRunId = runId;
+    }) as WorkflowHandleWithRunId<T>; // Cast is safe because we know we add the firstExecutionRunId below
+    (handle as any) /* readonly */.firstExecutionRunId = runId;
     return handle;
   }
 
@@ -367,8 +367,8 @@ export class WorkflowClient {
       runIdForResult: runId,
       interceptors,
       followRuns: options.followRuns ?? true,
-    }) as WorkflowHandleWithRunId<T>; // Cast is safe because we know we add the originalRunId below
-    (handle as any) /* readonly */.originalRunId = runId;
+    }) as WorkflowHandleWithRunId<T>; // Cast is safe because we know we add the firstExecutionRunId below
+    (handle as any) /* readonly */.firstExecutionRunId = runId;
     return handle;
   }
 

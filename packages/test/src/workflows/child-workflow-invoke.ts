@@ -14,5 +14,5 @@ export async function childWorkflowInvoke(): Promise<{
 }> {
   const child = await startChild(successString, {});
   const execResult = await executeChild(successString, {});
-  return { workflowId: child.workflowId, runId: child.originalRunId, result: await child.result(), execResult };
+  return { workflowId: child.workflowId, runId: child.firstExecutionRunId, result: await child.result(), execResult };
 }

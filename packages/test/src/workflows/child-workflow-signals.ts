@@ -53,7 +53,7 @@ export async function childWorkflowSignals(): Promise<void> {
   {
     // Happy path
     const child = await startChild(signalTarget, {});
-    const external = getExternalWorkflowHandle(child.workflowId, child.originalRunId);
+    const external = getExternalWorkflowHandle(child.workflowId, child.firstExecutionRunId);
     // Args are transferred correctly
     await external.signal(argsTestSignal, 123, 'kid');
     await external.signal(unblockSignal);
@@ -62,7 +62,7 @@ export async function childWorkflowSignals(): Promise<void> {
   {
     // Cancel signal
     const child = await startChild(signalTarget, {});
-    const external = getExternalWorkflowHandle(child.workflowId, child.originalRunId);
+    const external = getExternalWorkflowHandle(child.workflowId, child.firstExecutionRunId);
 
     try {
       await CancellationScope.cancellable(async () => {

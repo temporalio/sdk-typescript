@@ -445,7 +445,7 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
     t.is(res, undefined);
     const execution = await client.service.getWorkflowExecutionHistory({
       namespace,
-      execution: { workflowId: workflow.workflowId, runId: workflow.originalRunId },
+      execution: { workflowId: workflow.workflowId, runId: workflow.firstExecutionRunId },
     });
     const timerEvents = execution.history!.events!.filter(({ eventType }) => timerEventTypes.has(eventType!));
     t.is(timerEvents.length, 2);
@@ -464,7 +464,7 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
     t.is(res, undefined);
     const execution = await client.service.getWorkflowExecutionHistory({
       namespace,
-      execution: { workflowId: workflow.workflowId, runId: workflow.originalRunId },
+      execution: { workflowId: workflow.workflowId, runId: workflow.firstExecutionRunId },
     });
     const timerEvents = execution.history!.events!.filter(({ eventType }) => timerEventTypes.has(eventType!));
     // Timer is cancelled before it is scheduled
@@ -481,7 +481,7 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
     t.is(res, undefined);
     const execution = await client.service.getWorkflowExecutionHistory({
       namespace,
-      execution: { workflowId: workflow.workflowId, runId: workflow.originalRunId },
+      execution: { workflowId: workflow.workflowId, runId: workflow.firstExecutionRunId },
     });
     const timerEvents = execution.history!.events!.filter(({ eventType }) => timerEventTypes.has(eventType!));
     t.is(timerEvents.length, 4);
@@ -503,7 +503,7 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
     t.is(res, undefined);
     const execution = await client.service.getWorkflowExecutionHistory({
       namespace,
-      execution: { workflowId: workflow.workflowId, runId: workflow.originalRunId },
+      execution: { workflowId: workflow.workflowId, runId: workflow.firstExecutionRunId },
     });
     const hasChangeEvents = execution.history!.events!.filter(
       ({ eventType }) => eventType === iface.temporal.api.enums.v1.EventType.EVENT_TYPE_MARKER_RECORDED
@@ -524,7 +524,7 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
     t.is(res, undefined);
     const execution = await client.service.getWorkflowExecutionHistory({
       namespace,
-      execution: { workflowId: workflow.workflowId, runId: workflow.originalRunId },
+      execution: { workflowId: workflow.workflowId, runId: workflow.firstExecutionRunId },
     });
     const hasChangeEvents = execution.history!.events!.filter(
       ({ eventType }) => eventType === iface.temporal.api.enums.v1.EventType.EVENT_TYPE_MARKER_RECORDED
@@ -543,7 +543,7 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
     await workflow.result();
     const execution = await client.service.getWorkflowExecutionHistory({
       namespace,
-      execution: { workflowId: workflow.workflowId, runId: workflow.originalRunId },
+      execution: { workflowId: workflow.workflowId, runId: workflow.firstExecutionRunId },
     });
     const events = execution.history!.events!.filter(
       ({ eventType }) => eventType === iface.temporal.api.enums.v1.EventType.EVENT_TYPE_WORKFLOW_TASK_COMPLETED
@@ -740,7 +740,10 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
       t.is(err.cause.message, 'interrupted from signalWithStart');
     }
     // Test returned runId
-    const workflow = client.getHandle<typeof workflows.interruptableWorkflow>(ogWF.workflowId, ogWF.originalRunId);
+    const workflow = client.getHandle<typeof workflows.interruptableWorkflow>(
+      ogWF.workflowId,
+      ogWF.firstExecutionRunId
+    );
     {
       const err: WorkflowFailedError = await t.throwsAsync(workflow.result(), {
         instanceOf: WorkflowFailedError,
@@ -851,7 +854,7 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
     await t.throwsAsync(handle.result());
     // Verify retry happened
     const { runId } = await handle.describe();
-    t.not(runId, handle.originalRunId);
+    t.not(runId, handle.firstExecutionRunId);
   });
 
   test('Workflow RetryPolicy ignored with nonRetryable failure', async (t) => {
@@ -875,7 +878,7 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
     );
     // Verify retry did not happen
     const { runId } = await handle.describe();
-    t.is(runId, handle.originalRunId);
+    t.is(runId, handle.firstExecutionRunId);
   });
 
   test('WorkflowClient.start fails with WorkflowExecutionAlreadyStartedError', async (t) => {
@@ -944,7 +947,7 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
       workflowId,
     });
     const handleFromGet = client.getHandle(workflowId, undefined, {
-      firstExecutionRunId: handleFromThrowerStart.originalRunId,
+      firstExecutionRunId: handleFromThrowerStart.firstExecutionRunId,
     });
     await t.throwsAsync(handleFromThrowerStart.result(), { message: /.*/ });
     const handleFromSleeperStart = await client.start(workflows.sleeper, {
@@ -967,7 +970,7 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
       workflowId,
       args: [1_000_000],
     });
-    const handleFromGet = client.getHandle(workflowId, handleFromStart.originalRunId, { followRuns: false });
+    const handleFromGet = client.getHandle(workflowId, handleFromStart.firstExecutionRunId, { followRuns: false });
     await t.throwsAsync(handleFromGet.result(), { instanceOf: WorkflowContinuedAsNewError });
     await handleFromStart.terminate();
     await t.throwsAsync(handleFromStart.result(), { message: 'Workflow execution terminated' });
@@ -982,7 +985,7 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
       args: [1_000_000],
       followRuns: false,
     });
-    const handleFromGet = client.getHandle(workflowId, handleFromStart.originalRunId);
+    const handleFromGet = client.getHandle(workflowId, handleFromStart.firstExecutionRunId);
     await t.throwsAsync(handleFromStart.result(), { instanceOf: WorkflowContinuedAsNewError });
     try {
       await t.throwsAsync(handleFromGet.terminate(), {

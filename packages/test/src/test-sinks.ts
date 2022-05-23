@@ -82,7 +82,7 @@ if (RUN_INTEGRATION_TESTS) {
       namespace: 'default',
       taskQueue,
       workflowId: wf.workflowId,
-      runId: wf.originalRunId,
+      runId: wf.firstExecutionRunId,
       workflowType: 'sinksWorkflow',
       isReplaying: false,
     };
