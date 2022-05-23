@@ -840,8 +840,8 @@ export class WorkflowClient {
    *   most recent Workflow Execution in the *Chain* that started with `firstExecutionRunId`.
    *
    * A *Chain* is a series of Workflow Executions that share the same Workflow ID and are connected by:
-   * - Being part of the same [Cron](https://docs.temporal.io/docs/typescript/clients#scheduling-cron-workflows)
-   * - [Continue As New](https://docs.temporal.io/docs/typescript/workflows#continueasnew)
+   * - Being part of the same [Cron](https://docs.temporal.io/typescript/clients#scheduling-cron-workflows)
+   * - [Continue As New](https://docs.temporal.io/typescript/workflows#continueasnew)
    * - [Retries](https://typescript.temporal.io/api/interfaces/client.workflowoptions/#retry)
    *
    * This method does not validate `workflowId`. If there is no Workflow Execution with the given `workflowId`, handle

@@ -14,7 +14,7 @@ See [sdk-structure.md](./docs/sdk-structure.md)
 
 ### Environment setup
 
-- Install the system dependencies listed in [Getting started > Step 0: Prerequisites](https://docs.temporal.io/docs/node/getting-started/#step-0-prerequisites)
+- Install the system dependencies listed in [Getting started > Step 0: Prerequisites](https://docs.temporal.io/node/getting-started/#step-0-prerequisites)
 - Install the [Rust toolchain](https://rustup.rs/)
 - Clone the [sdk-typescript](https://github.com/temporalio/sdk-typescript) repo:
   ```sh
