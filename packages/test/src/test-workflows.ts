@@ -1865,29 +1865,29 @@ test('upsertAndReadSearchAttributes', async (t) => {
         makeUpsertSearchAttributesCommand({
           seq: 1,
           searchAttributes: {
-            CustomBoolField: toPayload(searchAttributePayloadConverter, true),
-            CustomIntField: toPayload(searchAttributePayloadConverter, 123),
+            CustomBoolField: toPayload(searchAttributePayloadConverter, [true]),
+            CustomIntField: toPayload(searchAttributePayloadConverter, [123]),
           },
         }),
         makeUpsertSearchAttributesCommand({
           seq: 2,
           searchAttributes: {
-            CustomBoolField: toPayload(searchAttributePayloadConverter, true),
-            CustomDatetimeField: toPayload(searchAttributePayloadConverter, new Date(now).toISOString()),
-            CustomDoubleField: toPayload(searchAttributePayloadConverter, 3.14),
+            CustomBoolField: toPayload(searchAttributePayloadConverter, [true]),
+            CustomDatetimeField: toPayload(searchAttributePayloadConverter, [new Date(now).toISOString()]),
+            CustomDoubleField: toPayload(searchAttributePayloadConverter, [3.14]),
             CustomIntField: toPayload(searchAttributePayloadConverter, [2, 3]),
-            CustomKeywordField: toPayload(searchAttributePayloadConverter, 'durable code'),
-            CustomTextField: toPayload(searchAttributePayloadConverter, 'is useful'),
+            CustomKeywordField: toPayload(searchAttributePayloadConverter, ['durable code']),
+            CustomTextField: toPayload(searchAttributePayloadConverter, ['is useful']),
           },
         }),
         makeCompleteWorkflowExecution(
           toPayload(wrappedDefaultPayloadConverter, {
             CustomIntField: [2, 3],
-            CustomBoolField: true,
-            CustomKeywordField: 'durable code',
-            CustomTextField: 'is useful',
-            CustomDatetimeField: new Date(now),
-            CustomDoubleField: 3.14,
+            CustomBoolField: [true],
+            CustomKeywordField: ['durable code'],
+            CustomTextField: ['is useful'],
+            CustomDatetimeField: [new Date(now)],
+            CustomDoubleField: [3.14],
           })
         ),
       ])

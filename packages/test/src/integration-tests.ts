@@ -93,7 +93,7 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
             workflowId: uuid4(),
             taskQueue: 'no_one_cares_pointless_queue',
             workflowExecutionTimeout: 1000,
-            searchAttributes: { CustomIntField: 1 },
+            searchAttributes: { CustomIntField: [1] },
           });
           await handle.terminate();
         } catch (e: any) {
@@ -562,7 +562,7 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
       taskQueue: 'test',
       workflowId: uuid4(),
       searchAttributes: {
-        CustomKeywordField: 'test-value',
+        CustomKeywordField: ['test-value'],
         CustomIntField: [1, 2],
         CustomDatetimeField: [date, date],
       },
@@ -575,7 +575,7 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
     t.deepEqual(execution.type, 'argsAndReturn');
     t.deepEqual(execution.memo, { note: 'foo' });
     t.true(execution.startTime instanceof Date);
-    t.is(execution.searchAttributes!.CustomKeywordField, 'test-value');
+    t.deepEqual(execution.searchAttributes!.CustomKeywordField, ['test-value']);
     t.deepEqual(execution.searchAttributes!.CustomIntField, [1, 2]);
     t.true(
       execution.searchAttributes!.CustomDatetimeField instanceof Array &&
@@ -592,18 +592,18 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
       taskQueue: 'test',
       workflowId: uuid4(),
       searchAttributes: {
-        CustomKeywordField: 'test-value',
+        CustomKeywordField: ['test-value'],
         CustomIntField: [1, 2],
         CustomDatetimeField: [date, date],
       },
     });
     const result = await workflow.result();
     t.deepEqual(result, {
-      CustomKeywordField: 'test-value',
+      CustomKeywordField: ['test-value'],
       CustomIntField: [1, 2],
       CustomDatetimeField: [date.toISOString(), date.toISOString()],
-      datetimeInstanceofWorks: false,
-      datetimeType: 'Date',
+      datetimeInstanceofWorks: [false],
+      datetimeType: ['Date'],
     });
   });
 
@@ -671,7 +671,7 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
     const options = {
       taskQueue: 'test2',
       memo: { a: 'b' },
-      searchAttributes: { CustomIntField: 3 },
+      searchAttributes: { CustomIntField: [3] },
       workflowId: uuid4(),
       workflowRunTimeout: '2s',
       workflowExecutionTimeout: '3s',
@@ -693,7 +693,7 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
       searchAttributePayloadConverter.fromPayload(
         execution.raw.workflowExecutionInfo!.searchAttributes!.indexedFields!.CustomIntField!
       ),
-      3
+      [3]
     );
     t.is(execution.raw.executionConfig?.taskQueue?.name, 'test2');
     t.is(

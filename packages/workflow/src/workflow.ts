@@ -5,7 +5,6 @@ import {
   ActivityOptions,
   compileRetryPolicy,
   composeInterceptors,
-  convertSearchAttributeDatesToStrings,
   IllegalStateError,
   LocalActivityOptions,
   msOptionalToTs,
@@ -1144,12 +1143,12 @@ export function setHandler<Ret, Args extends any[], T extends SignalDefinition<A
  *
  * ```ts
  * upsertSearchAttributes({
- *   CustomIntField: 1,
- *   CustomBoolField: true
+ *   CustomIntField: [1],
+ *   CustomBoolField: [true]
  * });
  * upsertSearchAttributes({
  *   CustomIntField: [2, 3],
- *   CustomKeywordField: 'durable code'
+ *   CustomKeywordField: ['durable code']
  * });
  * ```
  *
@@ -1158,8 +1157,8 @@ export function setHandler<Ret, Args extends any[], T extends SignalDefinition<A
  * ```ts
  * {
  *   CustomIntField: [2, 3],
- *   CustomBoolField: true,
- *   CustomKeywordField: 'durable code'
+ *   CustomBoolField: [true],
+ *   CustomKeywordField: ['durable code']
  * }
  * ```
  *
@@ -1171,15 +1170,14 @@ export function upsertSearchAttributes(searchAttributes: Record<string, SearchAt
   }
 
   const mergedSearchAttributes = { ...state.info.searchAttributes, ...searchAttributes };
-  const searchAttributesWithStrings = convertSearchAttributeDatesToStrings(mergedSearchAttributes);
-  if (!searchAttributesWithStrings) {
+  if (!mergedSearchAttributes) {
     throw new Error('searchAttributes must be a non-null Record<string, SearchAttributeValue>');
   }
 
   state.pushCommand({
     upsertWorkflowSearchAttributesCommandAttributes: {
       seq: state.nextSeqs.upsertSearchAttributes++,
-      searchAttributes: mapToPayloads(searchAttributePayloadConverter, searchAttributesWithStrings),
+      searchAttributes: mapToPayloads(searchAttributePayloadConverter, mergedSearchAttributes),
     },
   });
 

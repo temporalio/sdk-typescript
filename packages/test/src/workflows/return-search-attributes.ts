@@ -5,7 +5,7 @@ export async function returnSearchAttributes(): Promise<Record<string, SearchAtt
   const datetime = (sa.CustomDatetimeField as Array<Date>)[0];
   return {
     ...sa,
-    datetimeType: Object.getPrototypeOf(datetime).constructor.name,
-    datetimeInstanceofWorks: datetime instanceof Date,
+    datetimeType: [Object.getPrototypeOf(datetime).constructor.name],
+    datetimeInstanceofWorks: [datetime instanceof Date],
   };
 }

@@ -1,7 +1,6 @@
 import type { coresdk, google } from '@temporalio/proto';
 import { SearchAttributeValue, Workflow } from './interfaces';
 import { RetryPolicy } from './retry-policy';
-import { CompiledSearchAttributeValue, convertSearchAttributeDatesToStrings } from './search-attributes';
 import { msOptionalToTs } from './time';
 import { checkExtends, Replace } from './type-helpers';
 
@@ -110,7 +109,6 @@ export type CommonWorkflowOptions = BaseWorkflowOptions & WorkflowDurationOption
 export type WithCompiledWorkflowOptions<T extends CommonWorkflowOptions> = Replace<
   T,
   {
-    searchAttributes?: Record<string, CompiledSearchAttributeValue>;
     workflowExecutionTimeout?: google.protobuf.IDuration;
     workflowRunTimeout?: google.protobuf.IDuration;
     workflowTaskTimeout?: google.protobuf.IDuration;
@@ -118,11 +116,10 @@ export type WithCompiledWorkflowOptions<T extends CommonWorkflowOptions> = Repla
 >;
 
 export function compileWorkflowOptions<T extends CommonWorkflowOptions>(options: T): WithCompiledWorkflowOptions<T> {
-  const { workflowExecutionTimeout, workflowRunTimeout, workflowTaskTimeout, searchAttributes, ...rest } = options;
+  const { workflowExecutionTimeout, workflowRunTimeout, workflowTaskTimeout, ...rest } = options;
 
   return {
     ...rest,
-    searchAttributes: convertSearchAttributeDatesToStrings(searchAttributes),
     workflowExecutionTimeout: msOptionalToTs(workflowExecutionTimeout),
     workflowRunTimeout: msOptionalToTs(workflowRunTimeout),
     workflowTaskTimeout: msOptionalToTs(workflowTaskTimeout),

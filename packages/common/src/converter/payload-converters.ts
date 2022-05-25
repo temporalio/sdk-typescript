@@ -1,6 +1,8 @@
 import { PayloadConverterError, ValueError } from '@temporalio/internal-workflow-common';
+import { JsonPayloadConverter } from './json-payload-converter';
 import { PayloadConverter } from './payload-converter';
-import { encodingKeys, encodingTypes, METADATA_ENCODING_KEY, Payload, str, u8 } from './types';
+import { SearchAttributePayloadConverter } from './search-attribute-payload-converter';
+import { encodingKeys, encodingTypes, METADATA_ENCODING_KEY, Payload, str } from './types';
 import { WrappedPayloadConverter } from './wrapped-payload-converter';
 
 export interface PayloadConverterWithEncoding extends PayloadConverter {
@@ -83,40 +85,6 @@ export class UndefinedPayloadConverter implements PayloadConverterWithEncoding {
 }
 
 /**
- * Converts between non-undefined values and serialized JSON Payload
- */
-export class JsonPayloadConverter implements PayloadConverterWithEncoding {
-  public encodingType = encodingTypes.METADATA_ENCODING_JSON;
-
-  public toPayload(value: unknown): Payload | undefined {
-    if (value === undefined) {
-      return undefined;
-    }
-
-    let json;
-    try {
-      json = JSON.stringify(value);
-    } catch (e) {
-      return undefined;
-    }
-
-    return {
-      metadata: {
-        [METADATA_ENCODING_KEY]: encodingKeys.METADATA_ENCODING_JSON,
-      },
-      data: u8(json),
-    };
-  }
-
-  public fromPayload<T>(content: Payload): T {
-    if (content.data === undefined || content.data === null) {
-      throw new ValueError('Got payload with no data');
-    }
-    return JSON.parse(str(content.data));
-  }
-}
-
-/**
  * Converts between binary data types and RAW Payload
  */
 export class BinaryPayloadConverter implements PayloadConverterWithEncoding {
@@ -142,7 +110,7 @@ export class BinaryPayloadConverter implements PayloadConverterWithEncoding {
   }
 }
 
-export const searchAttributePayloadConverter = new WrappedPayloadConverter(new JsonPayloadConverter());
+export const searchAttributePayloadConverter = new WrappedPayloadConverter(new SearchAttributePayloadConverter());
 
 export class DefaultPayloadConverter extends CompositePayloadConverter {
   // Match the order used in other SDKs, but exclude Protobuf converters so that the code, including

@@ -8,7 +8,6 @@ export * from './errors';
 export * from './interceptors';
 export * from './interfaces';
 export * from './retry-policy';
-export * from './search-attributes';
 export * from './time';
 export * from './type-helpers';
 export * from './workflow-handle';

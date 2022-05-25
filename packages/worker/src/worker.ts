@@ -29,10 +29,9 @@ import {
   TASK_TOKEN_ATTR_KEY,
 } from '@temporalio/internal-non-workflow-common/lib/otel';
 import {
-  CompiledSearchAttributeValue,
-  convertSearchAttributeStringsToDates,
   optionalTsToDate,
   optionalTsToMs,
+  SearchAttributeValue,
   tsToMs,
   uncompileRetryPolicy,
 } from '@temporalio/internal-workflow-common';
@@ -957,12 +956,10 @@ export class Worker {
                         workflowId,
                         runId: activation.runId,
                         type: workflowType,
-                        searchAttributes: convertSearchAttributeStringsToDates(
-                          mapFromPayloads(searchAttributePayloadConverter, searchAttributes?.indexedFields) as Record<
-                            string,
-                            CompiledSearchAttributeValue
-                          >
-                        ),
+                        searchAttributes: mapFromPayloads(
+                          searchAttributePayloadConverter,
+                          searchAttributes?.indexedFields
+                        ) as Record<string, SearchAttributeValue> | undefined,
                         memo: await decodeMapFromPayloads(this.options.loadedDataConverter, memo?.fields),
                         parent: updateParentType(parentWorkflowInfo),
                         lastResult: await decodeFromPayloads(
