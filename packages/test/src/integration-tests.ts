@@ -740,7 +740,7 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
       t.is(err.cause.message, 'interrupted from signalWithStart');
     }
     // Test returned runId
-    const workflow = client.getHandle<typeof workflows.interruptableWorkflow>(ogWF.workflowId, ogWF.originalRunId);
+    const workflow = client.getHandle<typeof workflows.interruptableWorkflow>(ogWF.workflowId, ogWF.signaledRunId);
     {
       const err: WorkflowFailedError = await t.throwsAsync(workflow.result(), {
         instanceOf: WorkflowFailedError,

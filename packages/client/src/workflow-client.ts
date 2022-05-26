@@ -140,16 +140,16 @@ export interface WorkflowHandleWithFirstExecutionRunId<T extends Workflow = Work
 
 /**
  * This interface is exactly the same as {@link WorkflowHandle} except it
- * includes the `originalRunId` returned from `signalWithStart`.
+ * includes the `signaledRunId` returned from `signalWithStart`.
  */
-export interface WorkflowHandleWithOriginalRunId<T extends Workflow = Workflow> extends WorkflowHandle<T> {
+export interface WorkflowHandleWithSignaledRunId<T extends Workflow = Workflow> extends WorkflowHandle<T> {
   /**
    * The Run Id of the bound Workflow at the time of {@link WorkflowClient.signalWithStart}.
    *
-   * Since `signalWithStart` may have signaled an existing Workflow Chain, `originalRunId` might not be the
+   * Since `signalWithStart` may have signaled an existing Workflow Chain, `signaledRunId` might not be the
    * `firstExecutionRunId`.
    */
-  readonly originalRunId: string;
+  readonly signaledRunId: string;
 }
 
 export interface WorkflowClientOptions {
@@ -368,7 +368,7 @@ export class WorkflowClient {
   public async signalWithStart<T extends Workflow, SA extends any[] = []>(
     workflowTypeOrFunc: string | T,
     options: WithWorkflowArgs<T, WorkflowSignalWithStartOptions<SA>>
-  ): Promise<WorkflowHandleWithOriginalRunId<T>> {
+  ): Promise<WorkflowHandleWithSignaledRunId<T>> {
     const { workflowId } = options;
     const interceptors = (this.options.interceptors.calls ?? []).map((ctor) => ctor({ workflowId }));
     const runId = await this._signalWithStart(workflowTypeOrFunc, options, interceptors);
@@ -381,8 +381,8 @@ export class WorkflowClient {
       runIdForResult: runId,
       interceptors,
       followRuns: options.followRuns ?? true,
-    }) as WorkflowHandleWithOriginalRunId<T>; // Cast is safe because we know we add the originalRunId below
-    (handle as any) /* readonly */.originalRunId = runId;
+    }) as WorkflowHandleWithSignaledRunId<T>; // Cast is safe because we know we add the signaledRunId below
+    (handle as any) /* readonly */.signaledRunId = runId;
     return handle;
   }
 
