@@ -41,7 +41,7 @@ export async function childWorkflowCancel(): Promise<void> {
   // Cancellation of external workflow
   try {
     const child = await startChild(signalTarget, {});
-    const external = getExternalWorkflowHandle(child.workflowId, child.originalRunId);
+    const external = getExternalWorkflowHandle(child.workflowId, child.firstExecutionRunId);
     await external.cancel();
     await child.result();
     throw new Error('ChildWorkflow was not cancelled');

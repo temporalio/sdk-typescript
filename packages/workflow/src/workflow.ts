@@ -676,11 +676,11 @@ export async function startChild<T extends Workflow>(
     headers: {},
     workflowType,
   });
-  const originalRunId = await started;
+  const firstExecutionRunId = await started;
 
   return {
     workflowId: optionsWithDefaults.workflowId,
-    originalRunId,
+    firstExecutionRunId,
     result(): Promise<WorkflowResultType<T>> {
       return completed as any;
     },
