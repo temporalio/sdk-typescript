@@ -129,13 +129,27 @@ export interface WorkflowHandle<T extends Workflow = Workflow> extends BaseWorkf
 
 /**
  * This interface is exactly the same as {@link WorkflowHandle} except it
- * includes the `firstExecutionRunId` returned after starting a new Workflow.
+ * includes the `firstExecutionRunId` returned from {@link WorkflowClient.start}.
  */
-export interface WorkflowHandleWithRunId<T extends Workflow = Workflow> extends WorkflowHandle<T> {
+export interface WorkflowHandleWithFirstExecutionRunId<T extends Workflow = Workflow> extends WorkflowHandle<T> {
   /**
-   * The runId of the initial run of the bound Workflow
+   * Run Id of the first Execution in the Workflow Execution Chain.
    */
   readonly firstExecutionRunId: string;
+}
+
+/**
+ * This interface is exactly the same as {@link WorkflowHandle} except it
+ * includes the `originalRunId` returned from `signalWithStart`.
+ */
+export interface WorkflowHandleWithOriginalRunId<T extends Workflow = Workflow> extends WorkflowHandle<T> {
+  /**
+   * The Run Id of the bound Workflow at the time of {@link WorkflowClient.signalWithStart}.
+   *
+   * Since `signalWithStart` may have signaled an existing Workflow Chain, `originalRunId` might not be the
+   * `firstExecutionRunId`.
+   */
+  readonly originalRunId: string;
 }
 
 export interface WorkflowClientOptions {
@@ -326,7 +340,7 @@ export class WorkflowClient {
   public async start<T extends Workflow>(
     workflowTypeOrFunc: string | T,
     options: WorkflowStartOptions<T>
-  ): Promise<WorkflowHandleWithRunId<T>> {
+  ): Promise<WorkflowHandleWithFirstExecutionRunId<T>> {
     const { workflowId } = options;
     // Cast is needed because it's impossible to deduce the type in this situation
     const interceptors = (this.options.interceptors.calls ?? []).map((ctor) => ctor({ workflowId }));
@@ -340,7 +354,7 @@ export class WorkflowClient {
       runIdForResult: runId,
       interceptors,
       followRuns: options.followRuns ?? true,
-    }) as WorkflowHandleWithRunId<T>; // Cast is safe because we know we add the firstExecutionRunId below
+    }) as WorkflowHandleWithFirstExecutionRunId<T>; // Cast is safe because we know we add the firstExecutionRunId below
     (handle as any) /* readonly */.firstExecutionRunId = runId;
     return handle;
   }
@@ -354,7 +368,7 @@ export class WorkflowClient {
   public async signalWithStart<T extends Workflow, SA extends any[] = []>(
     workflowTypeOrFunc: string | T,
     options: WithWorkflowArgs<T, WorkflowSignalWithStartOptions<SA>>
-  ): Promise<WorkflowHandleWithRunId<T>> {
+  ): Promise<WorkflowHandleWithOriginalRunId<T>> {
     const { workflowId } = options;
     const interceptors = (this.options.interceptors.calls ?? []).map((ctor) => ctor({ workflowId }));
     const runId = await this._signalWithStart(workflowTypeOrFunc, options, interceptors);
@@ -367,8 +381,8 @@ export class WorkflowClient {
       runIdForResult: runId,
       interceptors,
       followRuns: options.followRuns ?? true,
-    }) as WorkflowHandleWithRunId<T>; // Cast is safe because we know we add the firstExecutionRunId below
-    (handle as any) /* readonly */.firstExecutionRunId = runId;
+    }) as WorkflowHandleWithOriginalRunId<T>; // Cast is safe because we know we add the originalRunId below
+    (handle as any) /* readonly */.originalRunId = runId;
     return handle;
   }
 
