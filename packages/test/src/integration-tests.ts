@@ -14,12 +14,13 @@ import {
   PayloadCodec,
   RetryState,
   searchAttributePayloadConverter,
+  TemporalFailure,
   TerminatedFailure,
   TimeoutFailure,
   TimeoutType,
   WorkflowExecution,
 } from '@temporalio/common';
-import { decode, decodeFromPayloadsAtIndex } from '@temporalio/internal-non-workflow-common';
+import { assertNotInWorkflowEnv, decode, decodeFromPayloadsAtIndex } from '@temporalio/internal-non-workflow-common';
 import {
   tsToMs,
   WorkflowExecutionAlreadyStartedError,
@@ -55,6 +56,7 @@ const namespace = 'default';
 
 export function runIntegrationTests(codec?: PayloadCodec): void {
   const test = (name: string, fn: Implementation<Context>) => _test(codec ? 'With codec—' + name : name, fn);
+  test.only = (name: string, fn: Implementation<Context>) => _test.only(codec ? 'With codec—' + name : name, fn);
   const dataConverter = { payloadCodecs: codec ? [codec] : [] };
   const loadedDataConverter = { payloadConverter: wrappedDefaultPayloadConverter, payloadCodecs: codec ? [codec] : [] };
   async function fromPayload(payload: Payload) {
@@ -1002,5 +1004,28 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
       workflowId,
     });
     t.pass();
+  });
+
+  test('assertNotInWorkflowEnv works', async (t) => {
+    assertNotInWorkflowEnv('from-test');
+    const { client } = t.context;
+    const workflowId = uuid4();
+    const err: WorkflowFailedError = await t.throwsAsync(
+      client.execute(workflows.assertNotInWorkflowEnv, {
+        taskQueue: 'test',
+        workflowId,
+      }),
+      {
+        instanceOf: WorkflowFailedError,
+      }
+    );
+    if (!(err.cause instanceof ApplicationFailure)) {
+      t.fail('Expected err.cause to be an instance of ApplicationFailure');
+      return;
+    }
+    t.is(
+      (err.cause.cause as TemporalFailure).failure!.message,
+      "Importing from '@temporalio/testpkg' in Workflow code is not supported. Workflow code should only import from '@temporalio/workflow' and '@temporalio/common'. For more information: https://docs.temporal.io/docs/typescript/determinism/"
+    );
   });
 }

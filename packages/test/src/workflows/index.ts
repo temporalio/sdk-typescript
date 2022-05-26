@@ -1,6 +1,7 @@
 export * from './activity-failure';
 export * from './activity-failures';
 export * from './args-and-return';
+export * from './assert-not-in-workflow-env';
 export * from './async-activity-completion-tester';
 export * from './async-fail-signal';
 export * from './async-workflow';
@@ -60,8 +61,8 @@ export * from './race';
 export * from './random';
 export * from './reject-promise';
 export * from './run-activity-in-different-task-queue';
-export * from './set-timeout-after-microtasks';
 export * from './scope-cancelled-while-waiting-on-external-workflow-cancellation';
+export * from './set-timeout-after-microtasks';
 export * from './shared-promise-scopes';
 export * from './shield-awaited-in-root-scope';
 export * from './shield-in-shield';
