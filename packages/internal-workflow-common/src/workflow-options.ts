@@ -58,7 +58,7 @@ export interface BaseWorkflowOptions {
    *
    * Values are always converted using {@link JsonPayloadConverter}, even when a custom data converter is provided.
    */
-  searchAttributes?: Record<string, SearchAttributeValue>;
+  searchAttributes?: Record<string, SearchAttributeValue[]>;
 }
 
 export type WithWorkflowArgs<W extends Workflow, T> = T &
