@@ -796,7 +796,7 @@ export class WorkflowClient {
           searchAttributes: mapFromPayloads(
             searchAttributePayloadConverter,
             raw.workflowExecutionInfo!.searchAttributes?.indexedFields
-          ) as Record<string, SearchAttributeValue> | undefined,
+          ) as Record<string, SearchAttributeValue[]> | undefined,
           parentExecution: raw.workflowExecutionInfo!.parentExecution
             ? {
                 workflowId: raw.workflowExecutionInfo!.parentExecution!.workflowId!,

@@ -25,7 +25,7 @@ export interface WorkflowInfo {
   /**
    * Indexed information attached to the Workflow Execution
    */
-  searchAttributes?: Record<string, SearchAttributeValue>;
+  searchAttributes?: Record<string, SearchAttributeValue[]>;
 
   /**
    * Non-indexed information attached to the Workflow Execution
@@ -145,21 +145,6 @@ export interface ParentWorkflowInfo {
 //   Retry = 2,
 //   Cron = 3,
 // }
-
-export function updateParentType(
-  parent: coresdk.common.INamespacedWorkflowExecution | null | undefined
-): ParentWorkflowInfo | undefined {
-  if (!parent) {
-    return undefined;
-  }
-
-  return {
-    /* eslint-disable @typescript-eslint/no-non-null-assertion */
-    workflowId: parent.workflowId!,
-    runId: parent.runId!,
-    namespace: parent.namespace!,
-  };
-}
 
 /**
  * Not an actual error, used by the Workflow runtime to abort execution when {@link continueAsNew} is called

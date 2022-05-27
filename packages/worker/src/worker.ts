@@ -33,11 +33,11 @@ import {
   optionalTsToMs,
   SearchAttributeValue,
   tsToMs,
-  uncompileRetryPolicy,
+  decompileRetryPolicy,
 } from '@temporalio/internal-workflow-common';
 import { coresdk } from '@temporalio/proto';
 import { DeterminismViolationError, SinkCall, WorkflowInfo } from '@temporalio/workflow';
-import { updateParentType } from '@temporalio/workflow/lib/interfaces';
+import { convertToParentWorkflowType } from './utils';
 import fs from 'fs/promises';
 import {
   BehaviorSubject,
@@ -959,9 +959,9 @@ export class Worker {
                         searchAttributes: mapFromPayloads(
                           searchAttributePayloadConverter,
                           searchAttributes?.indexedFields
-                        ) as Record<string, SearchAttributeValue> | undefined,
+                        ) as Record<string, SearchAttributeValue[]> | undefined,
                         memo: await decodeMapFromPayloads(this.options.loadedDataConverter, memo?.fields),
-                        parent: updateParentType(parentWorkflowInfo),
+                        parent: convertToParentWorkflowType(parentWorkflowInfo),
                         lastResult: await decodeFromPayloads(
                           this.options.loadedDataConverter,
                           lastCompletionResult?.payloads
@@ -979,7 +979,7 @@ export class Worker {
                           executionExpirationTime: optionalTsToDate(workflowExecutionExpirationTime),
                           runTimeout: optionalTsToMs(workflowRunTimeout),
                           taskTimeout: tsToMs(workflowTaskTimeout),
-                          retryPolicy: uncompileRetryPolicy(retryPolicy),
+                          retryPolicy: decompileRetryPolicy(retryPolicy),
                           attempt,
                           cronSchedule: cronSchedule || undefined,
                           // 0 is the default, and not a valid value, since crons are at least a minute apart

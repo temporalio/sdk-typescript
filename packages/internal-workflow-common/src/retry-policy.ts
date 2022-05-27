@@ -43,7 +43,7 @@ export interface RetryPolicy {
 }
 
 /**
- * Turns a TS RetryPolicy into a proto compatible RetryPolicy
+ * Turn a TS RetryPolicy into a proto compatible RetryPolicy
  */
 export function compileRetryPolicy(retryPolicy: RetryPolicy): temporal.api.common.v1.IRetryPolicy {
   if (retryPolicy.backoffCoefficient != null && retryPolicy.backoffCoefficient <= 0) {
@@ -72,7 +72,10 @@ export function compileRetryPolicy(retryPolicy: RetryPolicy): temporal.api.commo
   };
 }
 
-export function uncompileRetryPolicy(
+/**
+ * Turn a proto compatible RetryPolicy into a TS RetryPolicy
+ */
+export function decompileRetryPolicy(
   retryPolicy?: temporal.api.common.v1.IRetryPolicy | null
 ): RetryPolicy | undefined {
   if (!retryPolicy) {

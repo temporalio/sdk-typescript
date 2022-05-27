@@ -6,17 +6,41 @@ import { Payload, str } from './types';
 const jsonConverter = new JsonPayloadConverter();
 
 /**
- *
+ * Converts Search Attribute values using JsonPayloadConverter
  */
 export class SearchAttributePayloadConverter implements PayloadConverter {
-  public toPayload(value: unknown): Payload | undefined {
-    if (value instanceof Array && value.length > 0 && value[0] instanceof Date) {
-      value = (value as Date[]).map((date) => date.toISOString());
+  public toPayload(values: unknown): Payload | undefined {
+    if (!(values instanceof Array)) {
+      throw new ValueError(`SearchAttribute value must be an array`);
     }
 
-    return jsonConverter.toPayload(value);
+    const firstValue = values[0];
+    const firstType = typeof firstValue;
+    if (firstType === 'object') {
+      for (const value of values) {
+        if (!(value instanceof Date)) {
+          throw new ValueError(
+            `SearchAttribute values must arrays of strings, numbers, booleans, or Dates. This value ${value} is a ${typeof value}.`
+          );
+        }
+      }
+    } else {
+      for (const value of values) {
+        if (typeof value !== firstType) {
+          throw new ValueError(
+            `All SearchAttribute array values must be of the same type. The first value ${firstValue} of type ${firstType} doesn't match value ${value} of type ${typeof value}.`
+          );
+        }
+      }
+    }
+
+    // JSON.stringify takes care of converting Dates to ISO strings
+    return jsonConverter.toPayload(values);
   }
 
+  /**
+   * Datetime Search Attribute values are converted to `Date`s
+   */
   public fromPayload<T>(payload: Payload): T {
     if (payload.metadata === undefined || payload.metadata === null) {
       throw new ValueError('Missing payload metadata');

@@ -2,7 +2,7 @@ import { SearchAttributeValue, upsertSearchAttributes, workflowInfo } from '@tem
 
 export async function upsertAndReadSearchAttributes(
   msSinceEpoch: number
-): Promise<Record<string, SearchAttributeValue> | undefined> {
+): Promise<Record<string, SearchAttributeValue[]> | undefined> {
   upsertSearchAttributes({
     CustomIntField: [123],
     CustomBoolField: [true],

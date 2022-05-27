@@ -577,11 +577,7 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
     t.true(execution.startTime instanceof Date);
     t.deepEqual(execution.searchAttributes!.CustomKeywordField, ['test-value']);
     t.deepEqual(execution.searchAttributes!.CustomIntField, [1, 2]);
-    t.true(
-      execution.searchAttributes!.CustomDatetimeField instanceof Array &&
-        execution.searchAttributes!.CustomDatetimeField[0] instanceof Date
-    );
-    t.is((execution.searchAttributes!.CustomDatetimeField as Date[])[0].getTime(), date.getTime());
+    t.deepEqual(execution.searchAttributes!.CustomDatetimeField, [date, date]);
     t.regex((execution.searchAttributes!.BinaryChecksums as string[])[0], /@temporalio\/worker@/);
   });
 
@@ -695,6 +691,7 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
       ),
       [3]
     );
+    t.deepEqual(execution.searchAttributes!.CustomIntField, [3]);
     t.is(execution.raw.executionConfig?.taskQueue?.name, 'test2');
     t.is(
       execution.raw.executionConfig?.taskQueue?.kind,
