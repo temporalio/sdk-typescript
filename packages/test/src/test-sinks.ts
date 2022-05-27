@@ -81,7 +81,7 @@ if (RUN_INTEGRATION_TESTS) {
     const info: WorkflowInfo = {
       more: {
         namespace: 'default',
-        firstExecutionRunId: wf.originalRunId,
+        firstExecutionRunId: wf.firstExecutionRunId,
         attempt: 1,
         taskTimeout: 10000,
         continuedFromExecutionRunId: undefined,

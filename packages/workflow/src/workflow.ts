@@ -1143,12 +1143,12 @@ export function setHandler<Ret, Args extends any[], T extends SignalDefinition<A
  *
  * ```ts
  * upsertSearchAttributes({
- *   CustomIntField: [1],
+ *   CustomIntField: [1, 2, 3],
  *   CustomBoolField: [true]
  * });
  * upsertSearchAttributes({
- *   CustomIntField: [2, 3],
- *   CustomKeywordField: ['durable code']
+ *   CustomIntField: [42],
+ *   CustomKeywordField: ['durable code', 'is great']
  * });
  * ```
  *
@@ -1156,9 +1156,9 @@ export function setHandler<Ret, Args extends any[], T extends SignalDefinition<A
  *
  * ```ts
  * {
- *   CustomIntField: [2, 3],
+ *   CustomIntField: [42],
  *   CustomBoolField: [true],
- *   CustomKeywordField: ['durable code']
+ *   CustomKeywordField: ['durable code', 'is great']
  * }
  * ```
  *

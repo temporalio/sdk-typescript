@@ -620,11 +620,11 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
       },
       more: {
         attempt: 1,
-        firstExecutionRunId: workflow.originalRunId,
+        firstExecutionRunId: workflow.firstExecutionRunId,
         namespace: 'default',
         taskTimeout: 10000,
       },
-      runId: workflow.originalRunId,
+      runId: workflow.firstExecutionRunId,
       taskQueue: 'test',
       type: 'returnWorkflowInfo',
       unsafe: {
