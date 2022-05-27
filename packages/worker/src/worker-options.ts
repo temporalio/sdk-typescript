@@ -53,7 +53,7 @@ export interface WorkerOptions {
    * This option is typically used for local development, for production it's preferred to pre-build the Workflow bundle
    * and pass that to {@link Worker.create} via the {@link workflowBundle} option.
    *
-   * See https://docs.temporal.io/docs/typescript/production-deploy#pre-build-code for more information.
+   * See https://docs.temporal.io/typescript/production-deploy#pre-build-code for more information.
    */
   workflowsPath?: string;
 
@@ -63,7 +63,7 @@ export interface WorkerOptions {
    *
    * This is the recommended way to deploy Workers to production.
    *
-   * See https://docs.temporal.io/docs/typescript/production-deploy#pre-build-code for more information.
+   * See https://docs.temporal.io/typescript/production-deploy#pre-build-code for more information.
    */
   workflowBundle?: WorkflowBundle;
 

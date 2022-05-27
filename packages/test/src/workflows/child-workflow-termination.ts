@@ -14,6 +14,6 @@ export async function childWorkflowTermination(): Promise<void> {
   setHandler(childExecutionQuery, () => workflowExecution);
 
   const child = await startChild(unblockOrCancel, {});
-  workflowExecution = { workflowId: child.workflowId, runId: child.originalRunId };
+  workflowExecution = { workflowId: child.workflowId, runId: child.firstExecutionRunId };
   await child.result();
 }

@@ -31,7 +31,7 @@ export interface BaseWorkflowOptions {
    * Controls how a Workflow Execution is retried.
    *
    * By default, Workflow Executions are not retried. Do not override this behavior unless you know what you're doing.
-   * [More information](https://docs.temporal.io/docs/concepts/what-is-a-retry-policy/).
+   * [More information](https://docs.temporal.io/concepts/what-is-a-retry-policy/).
    */
   retry?: RetryPolicy;
 

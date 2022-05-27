@@ -14,11 +14,11 @@ Temporal is a mature technology—it's a fork of Uber's Cadence. Temporal is bei
 
 ## Documentation
 
-Check out the [Getting started](https://docs.temporal.io/docs/typescript/introduction/#getting-started) page for a quick overview.
+Check out the [Getting started](https://docs.temporal.io/typescript/introduction/#getting-started) page for a quick overview.
 
 The documentation is divided into several sections:
 
-- [TypeScript SDK docs](https://docs.temporal.io/docs/typescript/introduction)
+- [TypeScript SDK docs](https://docs.temporal.io/typescript/introduction)
 - [TypeScript SDK API reference](https://typescript.temporal.io/)
 - [General Temporal docs](https://docs.temporal.io)
 
@@ -43,7 +43,7 @@ Notably these features are missing:
 
 ## Installation
 
-See the [getting started](https://docs.temporal.io/docs/typescript/introduction/#getting-started) guide for setting up a project on your laptop.
+See the [getting started](https://docs.temporal.io/typescript/introduction/#getting-started) guide for setting up a project on your laptop.
 
 ## Contributing
 

@@ -2,7 +2,7 @@
 
 [![NPM](https://img.shields.io/npm/v/@temporalio/internal-non-workflow-common?style=for-the-badge)](https://www.npmjs.com/package/@temporalio/internal-non-workflow-common)
 
-Part of [Temporal](https://temporal.io)'s TypeScript SDK (see [docs](https://docs.temporal.io/docs/typescript/introduction/) and [samples](https://github.com/temporalio/samples-typescript)).
+Part of [Temporal](https://temporal.io)'s TypeScript SDK (see [docs](https://docs.temporal.io/typescript/introduction/) and [samples](https://github.com/temporalio/samples-typescript)).
 
 You should usually not be using this package directly. Instead use:
 

@@ -94,7 +94,7 @@ if (RUN_INTEGRATION_TESTS) {
       },
       taskQueue,
       workflowId: wf.workflowId,
-      runId: wf.originalRunId,
+      runId: wf.firstExecutionRunId,
       type: 'sinksWorkflow',
       unsafe: { isReplaying: false },
       lastFailure: undefined,

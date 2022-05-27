@@ -677,11 +677,11 @@ export async function startChild<T extends Workflow>(
     headers: {},
     workflowType,
   });
-  const originalRunId = await started;
+  const firstExecutionRunId = await started;
 
   return {
     workflowId: optionsWithDefaults.workflowId,
-    originalRunId,
+    firstExecutionRunId,
     result(): Promise<WorkflowResultType<T>> {
       return completed as any;
     },
@@ -956,7 +956,7 @@ export function uuid4(): string {
 /**
  * Patch or upgrade workflow code by checking or stating that this workflow has a certain patch.
  *
- * See [docs page](https://docs.temporal.io/docs/typescript/versioning) for info.
+ * See [docs page](https://docs.temporal.io/typescript/versioning) for info.
  *
  * If the workflow is replaying an existing history, then this function returns true if that
  * history was produced by a worker which also had a `patched` call with the same `patchId`.
@@ -977,7 +977,7 @@ export function patched(patchId: string): boolean {
 /**
  * Indicate that a patch is being phased out.
  *
- * See [docs page](https://docs.temporal.io/docs/typescript/versioning) for info.
+ * See [docs page](https://docs.temporal.io/typescript/versioning) for info.
  *
  * Workflows with this call may be deployed alongside workflows with a {@link patched} call, but
  * they must *not* be deployed while any workers still exist running old code without a
