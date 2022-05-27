@@ -980,7 +980,7 @@ export class Worker {
                     // Fatal error means we cannot call into this workflow again unfortunately
                     if (!isFatalError) {
                       const externalCalls = await state.workflow.getAndResetSinkCalls();
-                      await this.processSinkCalls(externalCalls, state.info);
+                      await this.processSinkCalls(externalCalls, state.info, activation.isReplaying);
                     }
                   }
                 });
@@ -1031,7 +1031,7 @@ export class Worker {
    * This function does not throw, it will log in case of missing sinks
    * or failed sink function invocations.
    */
-  protected async processSinkCalls(externalCalls: SinkCall[], info: WorkflowInfo): Promise<void> {
+  protected async processSinkCalls(externalCalls: SinkCall[], info: WorkflowInfo, isReplaying: boolean): Promise<void> {
     const { sinks } = this.options;
     await Promise.all(
       externalCalls.map(async ({ ifaceName, fnName, args }) => {
@@ -1041,7 +1041,7 @@ export class Worker {
             ifaceName,
             fnName,
           });
-        } else if (dep.callDuringReplay || !info.isReplaying) {
+        } else if (dep.callDuringReplay || !isReplaying) {
           try {
             await dep.fn(info, ...args);
           } catch (error) {
