@@ -4,6 +4,7 @@ import { JsonPayloadConverter } from './json-payload-converter';
 import { Payload, str } from './types';
 
 const jsonConverter = new JsonPayloadConverter();
+const validNonDateTypes = ['string', 'number', 'boolean'];
 
 /**
  * Converts Search Attribute values using JsonPayloadConverter
@@ -25,6 +26,10 @@ export class SearchAttributePayloadConverter implements PayloadConverter {
         }
       }
     } else {
+      if (!validNonDateTypes.includes(firstType)) {
+        throw new ValueError(`SearchAttribute array values must be: string | number | boolean | Date`);
+      }
+
       for (const value of values) {
         if (typeof value !== firstType) {
           throw new ValueError(

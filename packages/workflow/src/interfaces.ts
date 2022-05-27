@@ -137,15 +137,6 @@ export interface ParentWorkflowInfo {
   namespace: string;
 }
 
-// If we get use cases / user requests for this,
-// expose startWorkflow.continueInitiator as WorkflowInfo.initiator: Initiator
-// export enum Initiator {
-//   Unspecified = 0,
-//   ContinueAsNew = 1,
-//   Retry = 2,
-//   Cron = 3,
-// }
-
 /**
  * Not an actual error, used by the Workflow runtime to abort execution when {@link continueAsNew} is called
  */
