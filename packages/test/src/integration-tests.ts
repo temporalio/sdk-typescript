@@ -34,7 +34,6 @@ import ms from 'ms';
 import { v4 as uuid4 } from 'uuid';
 import * as activities from './activities';
 import { cleanStackTrace, u8 } from './helpers';
-import { wrappedDefaultPayloadConverter } from './payload-converters/payload-converter';
 import * as workflows from './workflows';
 import { withZeroesHTTPServer } from './zeroes-http-server';
 
@@ -56,7 +55,7 @@ const namespace = 'default';
 export function runIntegrationTests(codec?: PayloadCodec): void {
   const test = (name: string, fn: Implementation<Context>) => _test(codec ? 'With codec—' + name : name, fn);
   const dataConverter = { payloadCodecs: codec ? [codec] : [] };
-  const loadedDataConverter = { payloadConverter: wrappedDefaultPayloadConverter, payloadCodecs: codec ? [codec] : [] };
+  const loadedDataConverter = { payloadConverter: defaultPayloadConverter, payloadCodecs: codec ? [codec] : [] };
   async function fromPayload(payload: Payload) {
     const [decodedPayload] = await decode(dataConverter.payloadCodecs, [payload]);
     return defaultPayloadConverter.fromPayload(decodedPayload);

@@ -1,9 +1,21 @@
 import { PayloadConverterError, ValueError } from '@temporalio/internal-workflow-common';
 import { PayloadConverter } from './payload-converter';
 import { encodingKeys, encodingTypes, METADATA_ENCODING_KEY, Payload, str, u8 } from './types';
-import { WrappedPayloadConverter } from './wrapped-payload-converter';
 
-export interface PayloadConverterWithEncoding extends PayloadConverter {
+export interface PayloadConverterWithEncoding {
+  /**
+   * Converts a value to a {@link Payload}.
+   *
+   * @param value The value to convert. Example values include the Workflow args sent from the Client and the values returned by a Workflow or Activity.
+   * @returns The {@link Payload}, or `undefined` if unable to convert.
+   */
+  toPayload<T>(value: T): Payload | undefined;
+
+  /**
+   * Converts a {@link Payload} back to a value.
+   */
+  fromPayload<T>(payload: Payload): T;
+
   readonly encodingType: string;
 }
 
@@ -30,9 +42,9 @@ export class CompositePayloadConverter implements PayloadConverter {
 
   /**
    * Tries to run `.toPayload(value)` on each converter in the order provided at construction.
-   * Returns the first successful result, or `undefined` if there is no converter that can handle the value.
+   * Returns the first successful result, throws {@link ValueError} if there is no converter that can handle the value.
    */
-  public toPayload<T>(value: T): Payload | undefined {
+  public toPayload<T>(value: T): Payload {
     for (const converter of this.converters) {
       const result = converter.toPayload(value);
       if (result !== undefined) {
@@ -40,7 +52,7 @@ export class CompositePayloadConverter implements PayloadConverter {
       }
     }
 
-    return undefined;
+    throw new ValueError(`Unable to convert ${value} to payload`);
   }
 
   /**
@@ -142,7 +154,24 @@ export class BinaryPayloadConverter implements PayloadConverterWithEncoding {
   }
 }
 
-export const searchAttributePayloadConverter = new WrappedPayloadConverter(new JsonPayloadConverter());
+/**
+ * WIP implementation to be replaced by work done in #657
+ */
+class SearchAttributesPayloadConverter implements PayloadConverter {
+  jsonConverter = new JsonPayloadConverter();
+
+  toPayload<T>(value: T): Payload {
+    const ret = this.jsonConverter.toPayload(value);
+    if (ret === undefined) throw new ValueError('Unable to convert');
+    return ret;
+  }
+
+  fromPayload<T>(payload: Payload): T {
+    return this.jsonConverter.fromPayload(payload);
+  }
+}
+
+export const searchAttributePayloadConverter = new SearchAttributesPayloadConverter();
 
 export class DefaultPayloadConverter extends CompositePayloadConverter {
   // Match the order used in other SDKs, but exclude Protobuf converters so that the code, including

@@ -1,6 +1,5 @@
 import { Connection, WorkflowClient } from '@temporalio/client';
 import { toPayloads, ValueError } from '@temporalio/common';
-import { WrappedPayloadConverter } from '@temporalio/common/lib/converter/wrapped-payload-converter';
 import { coresdk } from '@temporalio/proto';
 import { InjectedSinks, Worker } from '@temporalio/worker';
 import asyncRetry from 'async-retry';
@@ -10,12 +9,10 @@ import { ProtoActivityResult } from '../protos/root';
 import { protoActivity } from './activities';
 import { cleanStackTrace, RUN_INTEGRATION_TESTS } from './helpers';
 import { defaultOptions, isolateFreeWorker } from './mock-native-worker';
-import { messageInstance, payloadConverter as unwrappedConverter } from './payload-converters/proto-payload-converter';
+import { messageInstance, payloadConverter } from './payload-converters/proto-payload-converter';
 import * as workflows from './workflows';
 import { LogSinks } from './workflows';
 import { protobufWorkflow } from './workflows/protobufs';
-
-const payloadConverter = new WrappedPayloadConverter(unwrappedConverter);
 
 export async function runWorker(worker: Worker, fn: () => Promise<any>): Promise<void> {
   const promise = worker.run();
