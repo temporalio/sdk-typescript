@@ -1,5 +1,6 @@
 import { Connection, WorkflowClient } from '@temporalio/client';
 import { toPayloads, ValueError } from '@temporalio/common';
+import { WrappedPayloadConverter } from '@temporalio/common/lib/converter/wrapped-payload-converter';
 import { coresdk } from '@temporalio/proto';
 import { InjectedSinks, Worker } from '@temporalio/worker';
 import asyncRetry from 'async-retry';
@@ -9,9 +10,12 @@ import { ProtoActivityResult } from '../protos/root';
 import { protoActivity } from './activities';
 import { cleanStackTrace, RUN_INTEGRATION_TESTS } from './helpers';
 import { defaultOptions, isolateFreeWorker } from './mock-native-worker';
-import { messageInstance, payloadConverter } from './payload-converters/payload-converter';
+import { messageInstance, payloadConverter as unwrappedConverter } from './payload-converters/proto-payload-converter';
 import * as workflows from './workflows';
-import { LogSinks, protobufWorkflow } from './workflows';
+import { LogSinks } from './workflows';
+import { protobufWorkflow } from './workflows/protobufs';
+
+const payloadConverter = new WrappedPayloadConverter(unwrappedConverter);
 
 export async function runWorker(worker: Worker, fn: () => Promise<any>): Promise<void> {
   const promise = worker.run();
@@ -37,10 +41,11 @@ function compareCompletion(
 
 if (RUN_INTEGRATION_TESTS) {
   test('Client and Worker work with provided dataConverter', async (t) => {
-    const dataConverter = { payloadConverterPath: require.resolve('./payload-converters/payload-converter') };
+    const dataConverter = { payloadConverterPath: require.resolve('./payload-converters/proto-payload-converter') };
     const taskQueue = 'test-custom-payload-converter';
     const worker = await Worker.create({
       ...defaultOptions,
+      workflowsPath: require.resolve('./workflows/protobufs'),
       taskQueue,
       dataConverter,
     });
@@ -177,7 +182,7 @@ if (RUN_INTEGRATION_TESTS) {
 }
 
 test('Worker throws on invalid payloadConverterPath', async (t) => {
-  await t.throws(
+  t.throws(
     () =>
       isolateFreeWorker({
         ...defaultOptions,
@@ -188,7 +193,7 @@ test('Worker throws on invalid payloadConverterPath', async (t) => {
     }
   );
 
-  await t.throws(
+  t.throws(
     () =>
       isolateFreeWorker({
         ...defaultOptions,
@@ -199,7 +204,7 @@ test('Worker throws on invalid payloadConverterPath', async (t) => {
     }
   );
 
-  await t.throws(
+  t.throws(
     () =>
       isolateFreeWorker({
         ...defaultOptions,
@@ -212,9 +217,9 @@ test('Worker throws on invalid payloadConverterPath', async (t) => {
 });
 
 test('Worker with proto data converter runs an activity and reports completion', async (t) => {
-  const worker = await isolateFreeWorker({
+  const worker = isolateFreeWorker({
     ...defaultOptions,
-    dataConverter: { payloadConverterPath: require.resolve('./payload-converters/payload-converter') },
+    dataConverter: { payloadConverterPath: require.resolve('./payload-converters/proto-payload-converter') },
   });
 
   await runWorker(worker, async () => {
@@ -233,7 +238,7 @@ test('Worker with proto data converter runs an activity and reports completion',
 });
 
 test('Custom payload converter that returns undefined results in thrown Error', async (t) => {
-  const worker = await isolateFreeWorker({
+  const worker = isolateFreeWorker({
     ...defaultOptions,
     dataConverter: {
       payloadConverterPath: require.resolve('./payload-converters/payload-converter-returns-undefined'),
