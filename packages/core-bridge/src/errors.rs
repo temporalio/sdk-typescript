@@ -77,24 +77,19 @@ pub fn register_errors(mut cx: FunctionContext) -> JsResult<JsUndefined> {
 
     let mapping = cx.argument::<JsObject>(0)?;
     let shutdown_error = mapping
-        .get(&mut cx, "ShutdownError")?
-        .downcast_or_throw::<JsFunction, FunctionContext>(&mut cx)?
+        .get::<JsFunction, _, _>(&mut cx, "ShutdownError")?
         .root(&mut cx);
     let no_worker_error = mapping
-        .get(&mut cx, "NoWorkerRegisteredError")?
-        .downcast_or_throw::<JsFunction, FunctionContext>(&mut cx)?
+        .get::<JsFunction, _, _>(&mut cx, "NoWorkerRegisteredError")?
         .root(&mut cx);
     let transport_error = mapping
-        .get(&mut cx, "TransportError")?
-        .downcast_or_throw::<JsFunction, FunctionContext>(&mut cx)?
+        .get::<JsFunction, _, _>(&mut cx, "TransportError")?
         .root(&mut cx);
     let unexpected_error = mapping
-        .get(&mut cx, "UnexpectedError")?
-        .downcast_or_throw::<JsFunction, FunctionContext>(&mut cx)?
+        .get::<JsFunction, _, _>(&mut cx, "UnexpectedError")?
         .root(&mut cx);
     let illegal_state_error = mapping
-        .get(&mut cx, "IllegalStateError")?
-        .downcast_or_throw::<JsFunction, FunctionContext>(&mut cx)?
+        .get::<JsFunction, _, _>(&mut cx, "IllegalStateError")?
         .root(&mut cx);
 
     TRANSPORT_ERROR.get_or_try_init(|| Ok(transport_error))?;
