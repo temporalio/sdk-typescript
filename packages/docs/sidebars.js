@@ -24,8 +24,8 @@ function nestMarkdownFiles() {
             type: 'category',
             label: basename,
             link: { type: 'doc', id: `api/namespaces/${basename}` },
-            items: [url]
-          }
+            items: [url],
+          },
         ];
       }
       // Find the right place to insert this item
@@ -55,7 +55,7 @@ module.exports = {
       type: 'category',
       label: 'API',
       link: { type: 'doc', id: 'api/index' },
-      items: nestMarkdownFiles()
-    }
+      items: nestMarkdownFiles(),
+    },
   ],
 };
