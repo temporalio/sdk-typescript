@@ -237,7 +237,7 @@ test('DefaultPayloadConverterWithProtobufs converts to payload by trying each co
     defaultPayloadConverterWithProtos.toPayload(u8('abc')),
     new BinaryPayloadConverter().toPayload(u8('abc'))
   );
-  t.is(defaultPayloadConverterWithProtos.toPayload(0n), undefined);
+  t.throws(() => defaultPayloadConverterWithProtos.toPayload(0n), { instanceOf: ValueError });
 });
 
 test('defaultPayloadConverter converts from payload by payload type', (t) => {
