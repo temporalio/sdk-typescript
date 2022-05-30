@@ -12,13 +12,21 @@ function titleCase(str) {
 function nestMarkdownFiles() {
   return markdownFiles()
     .sort((a, b) => a.split('.').length - b.split('.').length)
-    .reduce((acc, f) => {
+    .reduce((acc, f, i) => {
       const url = path.relative(path.join(__dirname, 'docs'), f).replace(/\.md$/, '');
       const category = titleCase(url.split('/')[1]);
       const basename = path.basename(url);
       const parts = basename.split('.');
       if (parts.length === 1) {
-        return [...acc, { type: 'category', label: basename, items: [url] }];
+        return [
+          ...acc,
+          {
+            type: 'category',
+            label: basename,
+            link: { type: 'doc', id: `api/namespaces/${basename}` },
+            items: [url]
+          }
+        ];
       }
       // Find the right place to insert this item
       const items = parts
@@ -41,5 +49,13 @@ function nestMarkdownFiles() {
 }
 
 module.exports = {
-  referenceSidebar: ['index', { type: 'category', label: 'API', items: nestMarkdownFiles() }],
+  referenceSidebar: [
+    'index',
+    {
+      type: 'category',
+      label: 'API',
+      link: { type: 'doc', id: 'api/index' },
+      items: nestMarkdownFiles()
+    }
+  ],
 };
