@@ -54,7 +54,7 @@ export class OpenTelemetryInboundInterceptor implements WorkflowInboundCallsInte
     const context = await extractContextFromHeaders(input.headers);
     return await instrument({
       tracer: this.tracer,
-      spanName: `${SpanName.WORKFLOW_EXECUTE}${SPAN_DELIMITER}${workflowInfo().type}`,
+      spanName: `${SpanName.WORKFLOW_EXECUTE}${SPAN_DELIMITER}${workflowInfo().workflowType}`,
       fn: () => next(input),
       context,
       acceptableErrors: (err) => err instanceof ContinueAsNew,

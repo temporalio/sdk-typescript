@@ -20,7 +20,7 @@ export interface WorkflowInfo {
   /**
    * Workflow function's name
    */
-  type: string;
+  workflowType: string;
 
   /**
    * Indexed information attached to the Workflow Execution
@@ -55,80 +55,65 @@ export interface WorkflowInfo {
   taskQueue: string;
 
   /**
-   * Less commonly used information
+   * Namespace this Workflow is executing in
    */
-  more: {
-    /**
-     * Namespace this Workflow is executing in
-     */
-    namespace: string;
-
-    /**
-     * Run Id of the first Run in this Execution Chain
-     */
-    firstExecutionRunId: string;
-
-    /**
-     * The last Run Id in this Execution Chain
-     */
-    continuedFromExecutionRunId?: string;
-
-    // TODO expose from Core
-    /**
-     * Time at which the Workflow Run started
-     */
-    // startTime: Date;
-
-    /**
-     * Milliseconds after which the Workflow Execution is automatically terminated by Temporal Server. Set via {@link WorkflowOptions.workflowExecutionTimeout}.
-     */
-    executionTimeout?: number;
-
-    /**
-     * Time at which the Workflow Execution expires
-     */
-    executionExpirationTime?: Date;
-
-    /**
-     * Milliseconds after which the Workflow Run is automatically terminated by Temporal Server. Set via {@link WorkflowOptions.workflowRunTimeout}.
-     */
-    runTimeout?: number;
-
-    /**
-     * Maximum execution time of a Workflow Task in milliseconds. Set via {@link WorkflowOptions.workflowTaskTimeout}.
-     */
-    taskTimeout: number;
-
-    /**
-     * Retry Policy for this Execution. Set via {@link WorkflowOptions.retry}.
-     */
-    retryPolicy?: RetryPolicy;
-
-    /**
-     * Starts at 1 and increments for every retry if there is a `retryPolicy`
-     */
-    attempt: number;
-
-    /**
-     * Cron Schedule for this Execution. Set via {@link WorkflowOptions.cronSchedule}.
-     */
-    cronSchedule?: string;
-
-    /**
-     * Milliseconds between Cron Runs
-     */
-    cronScheduleToScheduleInterval?: number;
-  };
+  namespace: string;
 
   /**
-   * These fields are non-deterministic. Workflow code should not do different things based on these fields.
+   * Run Id of the first Run in this Execution Chain
    */
-  unsafe: {
-    /**
-     * Whether a Workflow is replaying history or processing new events
-     */
-    isReplaying: boolean;
-  };
+  firstExecutionRunId: string;
+
+  /**
+   * The last Run Id in this Execution Chain
+   */
+  continuedFromExecutionRunId?: string;
+
+  // TODO expose from Core
+  /**
+   * Time at which the Workflow Run started
+   */
+  // startTime: Date;
+
+  /**
+   * Milliseconds after which the Workflow Execution is automatically terminated by Temporal Server. Set via {@link WorkflowOptions.workflowExecutionTimeout}.
+   */
+  executionTimeout?: number;
+
+  /**
+   * Time at which the Workflow Execution expires
+   */
+  executionExpirationTime?: Date;
+
+  /**
+   * Milliseconds after which the Workflow Run is automatically terminated by Temporal Server. Set via {@link WorkflowOptions.workflowRunTimeout}.
+   */
+  runTimeout?: number;
+
+  /**
+   * Maximum execution time of a Workflow Task in milliseconds. Set via {@link WorkflowOptions.workflowTaskTimeout}.
+   */
+  taskTimeout: number;
+
+  /**
+   * Retry Policy for this Execution. Set via {@link WorkflowOptions.retry}.
+   */
+  retryPolicy?: RetryPolicy;
+
+  /**
+   * Starts at 1 and increments for every retry if there is a `retryPolicy`
+   */
+  attempt: number;
+
+  /**
+   * Cron Schedule for this Execution. Set via {@link WorkflowOptions.cronSchedule}.
+   */
+  cronSchedule?: string;
+
+  /**
+   * Milliseconds between Cron Runs
+   */
+  cronScheduleToScheduleInterval?: number;
 }
 
 export interface ParentWorkflowInfo {

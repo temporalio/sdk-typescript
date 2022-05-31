@@ -20,6 +20,7 @@ export interface WorkflowCreateOptions {
   randomnessSeed: number[];
   now: number;
   patches: string[];
+  isReplaying: boolean;
 }
 
 export interface ImportFunctions {
@@ -104,7 +105,13 @@ export function overrideGlobals(): void {
  *
  * Sets required internal state and instantiates the workflow and interceptors.
  */
-export async function initRuntime({ info, randomnessSeed, now, patches }: WorkflowCreateOptions): Promise<void> {
+export async function initRuntime({
+  info,
+  randomnessSeed,
+  now,
+  patches,
+  isReplaying,
+}: WorkflowCreateOptions): Promise<void> {
   // Set the runId globally on the context so it can be retrieved in the case
   // of an unhandled promise rejection.
   (globalThis as any).__TEMPORAL__.runId = info.runId;
@@ -118,7 +125,7 @@ export async function initRuntime({ info, randomnessSeed, now, patches }: Workfl
   state.now = now;
   state.random = alea(randomnessSeed);
 
-  if (info.unsafe.isReplaying) {
+  if (isReplaying) {
     for (const patch of patches) {
       state.knownPresentPatches.add(patch);
     }
@@ -153,9 +160,9 @@ export async function initRuntime({ info, randomnessSeed, now, patches }: Workfl
   }
 
   const mod = await importWorkflows();
-  const workflow = mod[info.type];
+  const workflow = mod[info.workflowType];
   if (typeof workflow !== 'function') {
-    throw new TypeError(`'${info.type}' is not a function`);
+    throw new TypeError(`'${info.workflowType}' is not a function`);
   }
   state.workflow = workflow;
 }
@@ -183,7 +190,7 @@ export async function activate(
           // timestamp will not be updated for activation that contain only queries
           state.now = tsToMs(activation.timestamp);
         }
-        state.info.unsafe.isReplaying = activation.isReplaying ?? false;
+        state.isReplaying = activation.isReplaying ?? false;
       }
 
       // Cast from the interface to the class which has the `variant` attribute.

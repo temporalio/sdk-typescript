@@ -435,6 +435,11 @@ export class State {
   public info?: WorkflowInfo;
 
   /**
+   * Whether a Workflow is replaying history or processing new events
+   */
+  isReplaying?: boolean;
+
+  /**
    * A deterministic RNG, used by the isolate's overridden Math.random
    */
   public random: RNG = function () {

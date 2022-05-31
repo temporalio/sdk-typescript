@@ -119,12 +119,12 @@ export class VMWorkflowCreator implements WorkflowCreator {
    *
    * Overridable for test purposes.
    */
-  protected injectConsole(context: vm.Context, info: WorkflowInfo): void {
+  protected injectConsole(context: vm.Context, info: WorkflowInfo, isReplaying: boolean): void {
     context.console = {
       log: (...args: any[]) => {
-        // info.unsafe.isReplaying is mutated by the Workflow class on activation
-        if (info.unsafe.isReplaying) return;
-        console.log(`[${info.type}(${info.workflowId})]`, ...args);
+        // isReplaying is mutated by the Workflow class on activation
+        if (isReplaying) return;
+        console.log(`[${info.workflowType}(${info.workflowId})]`, ...args);
       },
     };
   }
@@ -158,6 +158,7 @@ type WorkflowModule = typeof internals;
  */
 export class VMWorkflow implements Workflow {
   unhandledRejection: unknown;
+  isReplaying = false;
 
   constructor(
     public readonly info: WorkflowInfo,
@@ -184,7 +185,7 @@ export class VMWorkflow implements Workflow {
     if (this.context === undefined) {
       throw new IllegalStateError('Workflow isolate context uninitialized');
     }
-    this.info.unsafe.isReplaying = activation.isReplaying ?? false;
+    this.isReplaying = activation.isReplaying ?? false;
     if (!activation.jobs) {
       throw new Error('Expected workflow activation jobs to be defined');
     }

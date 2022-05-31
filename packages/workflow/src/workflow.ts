@@ -362,7 +362,7 @@ async function startChildWorkflowExecutionNextHandler({
         workflowExecutionTimeout: msOptionalToTs(options.workflowExecutionTimeout),
         workflowRunTimeout: msOptionalToTs(options.workflowRunTimeout),
         workflowTaskTimeout: msOptionalToTs(options.workflowTaskTimeout),
-        namespace: workflowInfo().more.namespace, // Not configurable
+        namespace: workflowInfo().namespace, // Not configurable
         headers,
         cancellationType: options.cancellationType,
         workflowIdReusePolicy: options.workflowIdReusePolicy,
@@ -423,7 +423,7 @@ function signalWorkflowNextHandler({ seq, signalName, args, target, headers }: S
         ...(target.type === 'external'
           ? {
               workflowExecution: {
-                namespace: state.info.more.namespace,
+                namespace: state.info.namespace,
                 ...target.workflowExecution,
               },
             }
@@ -576,7 +576,7 @@ export function getExternalWorkflowHandle(workflowId: string, runId?: string): E
           requestCancelExternalWorkflowExecution: {
             seq,
             workflowExecution: {
-              namespace: state.info.more.namespace,
+              namespace: state.info.namespace,
               workflowId,
               runId,
             },
@@ -875,7 +875,7 @@ export function makeContinueAsNewFunc<F extends Workflow>(
   const info = workflowInfo();
   const { workflowType, taskQueue, ...rest } = options ?? {};
   const requiredOptions = {
-    workflowType: workflowType ?? info.type,
+    workflowType: workflowType ?? info.workflowType,
     taskQueue: taskQueue ?? info.taskQueue,
     ...rest,
   };
@@ -999,11 +999,10 @@ function patchInternal(patchId: string, deprecated: boolean): boolean {
   // Patch operation does not support interception at the moment, if it did,
   // this would be the place to start the interception chain
 
-  const { isReplaying } = workflowInfo().unsafe;
   if (state.workflow === undefined) {
     throw new IllegalStateError('Patches cannot be used before Workflow starts');
   }
-  const usePatch = !isReplaying || state.knownPresentPatches.has(patchId);
+  const usePatch = !state.isReplaying || state.knownPresentPatches.has(patchId);
   // Avoid sending commands for patches core already knows about.
   // This optimization enables development of automatic patching tools.
   if (usePatch && !state.sentPatches.has(patchId)) {

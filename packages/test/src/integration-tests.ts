@@ -618,18 +618,13 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
       memo: {
         nested: { object: true },
       },
-      more: {
-        attempt: 1,
-        firstExecutionRunId: workflow.firstExecutionRunId,
-        namespace: 'default',
-        taskTimeout: 10000,
-      },
+      attempt: 1,
+      firstExecutionRunId: workflow.firstExecutionRunId,
+      namespace: 'default',
+      taskTimeout: 10000,
       runId: workflow.firstExecutionRunId,
       taskQueue: 'test',
-      type: 'returnWorkflowInfo',
-      unsafe: {
-        isReplaying: false,
-      },
+      workflowType: 'returnWorkflowInfo',
       workflowId,
     });
   });

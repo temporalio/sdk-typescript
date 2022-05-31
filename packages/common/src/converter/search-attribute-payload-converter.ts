@@ -15,26 +15,28 @@ export class SearchAttributePayloadConverter implements PayloadConverter {
       throw new ValueError(`SearchAttribute value must be an array`);
     }
 
-    const firstValue = values[0];
-    const firstType = typeof firstValue;
-    if (firstType === 'object') {
-      for (const value of values) {
-        if (!(value instanceof Date)) {
-          throw new ValueError(
-            `SearchAttribute values must arrays of strings, numbers, booleans, or Dates. This value ${value} is a ${typeof value}.`
-          );
+    if (values.length > 0) {
+      const firstValue = values[0];
+      const firstType = typeof firstValue;
+      if (firstType === 'object') {
+        for (const value of values) {
+          if (!(value instanceof Date)) {
+            throw new ValueError(
+              `SearchAttribute values must arrays of strings, numbers, booleans, or Dates. This value ${value} is a ${typeof value}.`
+            );
+          }
         }
-      }
-    } else {
-      if (!validNonDateTypes.includes(firstType)) {
-        throw new ValueError(`SearchAttribute array values must be: string | number | boolean | Date`);
-      }
+      } else {
+        if (!validNonDateTypes.includes(firstType)) {
+          throw new ValueError(`SearchAttribute array values must be: string | number | boolean | Date`);
+        }
 
-      for (const value of values) {
-        if (typeof value !== firstType) {
-          throw new ValueError(
-            `All SearchAttribute array values must be of the same type. The first value ${firstValue} of type ${firstType} doesn't match value ${value} of type ${typeof value}.`
-          );
+        for (const value of values) {
+          if (typeof value !== firstType) {
+            throw new ValueError(
+              `All SearchAttribute array values must be of the same type. The first value ${firstValue} of type ${firstType} doesn't match value ${value} of type ${typeof value}.`
+            );
+          }
         }
       }
     }

@@ -83,7 +83,7 @@ async function createWorkflow(
 ) {
   const workflow = (await workflowCreator.createWorkflow({
     info: {
-      type: workflowType,
+      workflowType,
       runId,
       workflowId: 'test-workflowId',
       more: { namespace: 'default', firstExecutionRunId: runId, attempt: 1, taskTimeout: 1000 },
@@ -1888,6 +1888,36 @@ test('upsertAndReadSearchAttributes', async (t) => {
             CustomTextField: ['is useful'],
             CustomDatetimeField: [new Date(now)],
             CustomDoubleField: [3.14],
+          })
+        ),
+      ])
+    );
+  }
+});
+
+test('clearSearchAttribute', async (t) => {
+  const { workflowType } = t.context;
+  {
+    const req = await activate(t, makeStartWorkflow(workflowType));
+    compareCompletion(
+      t,
+      req,
+      makeSuccess([
+        makeUpsertSearchAttributesCommand({
+          seq: 1,
+          searchAttributes: {
+            CustomIntField: toPayload(searchAttributePayloadConverter, [123]),
+          },
+        }),
+        makeUpsertSearchAttributesCommand({
+          seq: 2,
+          searchAttributes: {
+            CustomIntField: toPayload(searchAttributePayloadConverter, []),
+          },
+        }),
+        makeCompleteWorkflowExecution(
+          toPayload(wrappedDefaultPayloadConverter, {
+            CustomIntField: [],
           })
         ),
       ])
