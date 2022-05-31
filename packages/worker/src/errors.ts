@@ -8,17 +8,6 @@ export class ShutdownError extends Error {
 }
 
 /**
- * The worker never existed or already completed shutdown
- */
-export class NoWorkerRegisteredError extends Error {
-  public readonly name = 'NoWorkerRegisteredError';
-
-  public constructor(public readonly queue: string) {
-    super(`No worker for queue ${queue}`);
-  }
-}
-
-/**
  * Thrown after shutdown was requested as a response to a poll function, JS should stop polling
  * once this error is encountered
  */

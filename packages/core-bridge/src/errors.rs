@@ -6,8 +6,6 @@ pub static TRANSPORT_ERROR: OnceCell<Root<JsFunction>> = OnceCell::new();
 /// Thrown after shutdown was requested as a response to a poll function, JS should stop polling
 /// once this error is encountered
 pub static SHUTDOWN_ERROR: OnceCell<Root<JsFunction>> = OnceCell::new();
-/// Thrown when using a method for a worker that does not exist (never registered or already shut down)
-pub static NO_WORKER_ERROR: OnceCell<Root<JsFunction>> = OnceCell::new();
 /// Something unexpected happened, considered fatal
 pub static UNEXPECTED_ERROR: OnceCell<Root<JsFunction>> = OnceCell::new();
 /// Used in different parts of the project to signal that something unexpected has happened
@@ -79,9 +77,6 @@ pub fn register_errors(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     let shutdown_error = mapping
         .get::<JsFunction, _, _>(&mut cx, "ShutdownError")?
         .root(&mut cx);
-    let no_worker_error = mapping
-        .get::<JsFunction, _, _>(&mut cx, "NoWorkerRegisteredError")?
-        .root(&mut cx);
     let transport_error = mapping
         .get::<JsFunction, _, _>(&mut cx, "TransportError")?
         .root(&mut cx);
@@ -94,7 +89,6 @@ pub fn register_errors(mut cx: FunctionContext) -> JsResult<JsUndefined> {
 
     TRANSPORT_ERROR.get_or_try_init(|| Ok(transport_error))?;
     SHUTDOWN_ERROR.get_or_try_init(|| Ok(shutdown_error))?;
-    NO_WORKER_ERROR.get_or_try_init(|| Ok(no_worker_error))?;
     UNEXPECTED_ERROR.get_or_try_init(|| Ok(unexpected_error))?;
     ILLEGAL_STATE_ERROR.get_or_try_init(|| Ok(illegal_state_error))?;
 

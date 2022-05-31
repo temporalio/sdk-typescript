@@ -434,10 +434,6 @@ fn start_bridge_loop(channel: Arc<Channel>, receiver: &mut UnboundedReceiver<Req
                                 .await
                         },
                         |cx, err| match err {
-                            CompleteWfError::NoWorkerForQueue(queue_name) => {
-                                let args = vec![cx.string(queue_name).upcast()];
-                                NO_WORKER_ERROR.construct(cx, args)
-                            }
                             CompleteWfError::TonicError(_) => TRANSPORT_ERROR.from_error(cx, err),
                             CompleteWfError::MalformedWorkflowCompletion { reason, .. } => {
                                 Ok(JsError::type_error(cx, reason)?.upcast())
@@ -468,10 +464,6 @@ fn start_bridge_loop(channel: Arc<Channel>, receiver: &mut UnboundedReceiver<Req
                             } => Ok(JsError::type_error(cx, reason)?.upcast()),
                             CompleteActivityError::TonicError(_) => {
                                 TRANSPORT_ERROR.from_error(cx, err)
-                            }
-                            CompleteActivityError::NoWorkerForQueue(queue_name) => {
-                                let args = vec![cx.string(queue_name).upcast()];
-                                NO_WORKER_ERROR.construct(cx, args)
                             }
                         },
                     ));
@@ -511,9 +503,6 @@ async fn handle_poll_workflow_activation_request(
         Err(err) => {
             send_error(channel, callback, move |cx| match err {
                 PollWfError::ShutDown => SHUTDOWN_ERROR.from_error(cx, err),
-                PollWfError::AutocompleteError(CompleteWfError::NoWorkerForQueue(_)) => {
-                    UNEXPECTED_ERROR.from_error(cx, "TODO this error shouldn't exist")
-                }
                 PollWfError::TonicError(_)
                 | PollWfError::AutocompleteError(CompleteWfError::TonicError(_)) => {
                     TRANSPORT_ERROR.from_error(cx, err)
