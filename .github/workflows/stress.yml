@@ -12,6 +12,7 @@ on:
 
 env:
   TEMPORAL_TESTING_LOG_DIR: /tmp/worker-logs
+  TEMPORAL_TESTING_MEM_LOG_DIR: /tmp/worker-mem-logs
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
 jobs:
@@ -51,15 +52,21 @@ jobs:
       # end:docker-compose
 
       - run: mkdir -p $TEMPORAL_TESTING_LOG_DIR/tails
+      - run: mkdir -p $TEMPORAL_TESTING_MEM_LOG_DIR
       - run: 'timeout ${{ inputs.test-timeout-minutes }}m npm run ${{ inputs.test-type }}'
       # Tail the logs and upload as artifact on cancel or failure
       - run: for f in $TEMPORAL_TESTING_LOG_DIR/*.log; do tail -20000 $f > $TEMPORAL_TESTING_LOG_DIR/tails/$(basename $f); done
         if: ${{ cancelled() || failure() }}
-      - uses: actions/upload-artifact@v2
+      - uses: actions/upload-artifact@v3
         if: ${{ cancelled() || failure() }}
         with:
           name: worker-logs
           path: ${{ env.TEMPORAL_TESTING_LOG_DIR }}/tails
+      - uses: actions/upload-artifact@v3
+        if: ${{ always() }}
+        with:
+          name: worker-mem-logs
+          path: ${{ env.TEMPORAL_TESTING_MEM_LOG_DIR }}
 
       # TODO: set up alerting
       # TODO: record test durations and other metrics like memory usage / cache utilization / CPU

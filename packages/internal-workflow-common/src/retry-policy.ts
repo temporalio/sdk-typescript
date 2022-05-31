@@ -49,8 +49,14 @@ export function compileRetryPolicy(retryPolicy: RetryPolicy): temporal.api.commo
   if (retryPolicy.backoffCoefficient != null && retryPolicy.backoffCoefficient <= 0) {
     throw new ValueError('RetryPolicy.backoffCoefficient must be greater than 0');
   }
-  if (retryPolicy.maximumAttempts != null && retryPolicy.maximumAttempts <= 0) {
-    throw new ValueError('RetryPolicy.maximumAttempts must be greater than 0');
+  if (retryPolicy.maximumAttempts != null) {
+    if (retryPolicy.maximumAttempts <= 0) {
+      throw new ValueError('RetryPolicy.maximumAttempts must be greater than 0');
+    }
+
+    if (!Number.isInteger(retryPolicy.maximumAttempts)) {
+      throw new ValueError('RetryPolicy.maximumAttempts must be an integer');
+    }
   }
   const maximumInterval = msOptionalToNumber(retryPolicy.maximumInterval);
   const initialInterval = msToNumber(retryPolicy.initialInterval ?? 1000);

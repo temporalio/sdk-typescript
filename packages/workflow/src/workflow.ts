@@ -1182,3 +1182,13 @@ export function upsertSearchAttributes(searchAttributes: Record<string, SearchAt
 
   state.info.searchAttributes = mergedSearchAttributes;
 }
+
+export class Unsafe {
+  get isReplaying(): boolean {
+    if (state.isReplaying == null) {
+      throw new IllegalStateError('`state.isReplaying` should be defined');
+    }
+    return state.isReplaying;
+  }
+}
+export const unsafe = new Unsafe();

@@ -2,7 +2,6 @@ import {
   arrayFromPayloads,
   errorToFailure,
   failureToError,
-  fromPayloads,
   fromPayloadsAtIndex,
   LoadedDataConverter,
   Payload,
@@ -10,7 +9,6 @@ import {
   PayloadConverterError,
   ProtoFailure,
   TemporalFailure,
-  toPayload,
   toPayloads,
 } from '@temporalio/common';
 import { DecodedPayload, DecodedProtoFailure, EncodedPayload, EncodedProtoFailure } from './codec-types';
@@ -56,7 +54,7 @@ export async function decodeFromPayloads(
   if (payloads) {
     decodedPayloads = await decode(payloadCodecs, payloads);
   }
-  return fromPayloads(payloadConverter, decodedPayloads);
+  return arrayFromPayloads(payloadConverter, decodedPayloads);
 }
 
 /**
@@ -152,7 +150,7 @@ export async function decodeOptionalSingle(
  */
 export async function encodeToPayload(converter: LoadedDataConverter, value: unknown): Promise<Payload> {
   const { payloadConverter, payloadCodecs } = converter;
-  return await encodeSingle(payloadCodecs, toPayload(payloadConverter, value));
+  return await encodeSingle(payloadCodecs, payloadConverter.toPayload(value));
 }
 
 /**
@@ -217,7 +215,7 @@ export async function encodeMapToPayloads<K extends string>(
   return Object.fromEntries(
     await Promise.all(
       Object.entries(map).map(async ([k, v]): Promise<[K, Payload]> => {
-        const payload = toPayload(payloadConverter, v);
+        const payload = payloadConverter.toPayload(v);
         if (payload === undefined) throw new PayloadConverterError(`Failed to encode entry: ${k}: ${v}`);
         const [encodedPayload] = await encode(payloadCodecs, [payload]);
         return [k as K, encodedPayload];

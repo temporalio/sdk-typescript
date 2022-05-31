@@ -28,6 +28,7 @@ export interface StarterArgSpec extends Spec {
   '--concurrent-wf-clients': typeof Number;
   '--server-address': typeof String;
   '--worker-pid': typeof Number;
+  '--worker-memory-log-file': typeof String;
   '--do-query': typeof String;
   '--initial-query-delay-ms': typeof Number;
   '--query-interval-ms': typeof Number;
@@ -43,6 +44,7 @@ export const starterArgSpec: StarterArgSpec = {
   '--concurrent-wf-clients': Number,
   '--server-address': String,
   '--worker-pid': Number,
+  '--worker-memory-log-file': String,
   '--do-query': String,
   '--initial-query-delay-ms': Number,
   '--query-interval-ms': Number,

@@ -1,4 +1,4 @@
-import { ValueError } from '@temporalio/internal-workflow-common';
+import { IllegalStateError, ValueError } from '@temporalio/internal-workflow-common';
 import { PayloadConverter } from './payload-converter';
 import { JsonPayloadConverter } from './json-payload-converter';
 import { Payload, str } from './types';
@@ -10,7 +10,7 @@ const validNonDateTypes = ['string', 'number', 'boolean'];
  * Converts Search Attribute values using JsonPayloadConverter
  */
 export class SearchAttributePayloadConverter implements PayloadConverter {
-  public toPayload(values: unknown): Payload | undefined {
+  public toPayload(values: unknown): Payload {
     if (!(values instanceof Array)) {
       throw new ValueError(`SearchAttribute value must be an array`);
     }
@@ -42,7 +42,11 @@ export class SearchAttributePayloadConverter implements PayloadConverter {
     }
 
     // JSON.stringify takes care of converting Dates to ISO strings
-    return jsonConverter.toPayload(values);
+    const ret = jsonConverter.toPayload(values);
+    if (ret === undefined) {
+      throw new IllegalStateError('Could not convert search attributes to payloads');
+    }
+    return ret;
   }
 
   /**

@@ -1,7 +1,6 @@
 import { checkExtends, hasOwnProperties, isRecord } from '@temporalio/internal-workflow-common';
 import type { temporal } from '@temporalio/proto';
-import { arrayFromPayloads, fromPayloadsAtIndex, toPayloads } from './converter/payload-converter';
-import { WrappedPayloadConverter } from './converter/wrapped-payload-converter';
+import { PayloadConverter, arrayFromPayloads, fromPayloadsAtIndex, toPayloads } from './converter/payload-converter';
 
 export const FAILURE_SOURCE = 'TypeScriptSDK';
 export type ProtoFailure = temporal.api.failure.v1.IFailure;
@@ -214,7 +213,7 @@ export class ChildWorkflowFailure extends TemporalFailure {
  */
 export function optionalErrorToOptionalFailure(
   err: unknown,
-  payloadConverter: WrappedPayloadConverter
+  payloadConverter: PayloadConverter
 ): ProtoFailure | undefined {
   return err ? errorToFailure(err, payloadConverter) : undefined;
 }
@@ -249,7 +248,7 @@ export function cutoffStackTrace(stack?: string): string {
 /**
  * Converts a caught error to a Failure proto message
  */
-export function errorToFailure(err: unknown, payloadConverter: WrappedPayloadConverter): ProtoFailure {
+export function errorToFailure(err: unknown, payloadConverter: PayloadConverter): ProtoFailure {
   if (err instanceof TemporalFailure) {
     if (err.failure) return err.failure;
 
@@ -373,7 +372,7 @@ export function ensureTemporalFailure(err: unknown): TemporalFailure {
  */
 export function optionalFailureToOptionalError(
   failure: ProtoFailure | undefined | null,
-  payloadConverter: WrappedPayloadConverter
+  payloadConverter: PayloadConverter
 ): TemporalFailure | undefined {
   return failure ? failureToError(failure, payloadConverter) : undefined;
 }
@@ -383,7 +382,7 @@ export function optionalFailureToOptionalError(
  *
  * Does not set common properties, that is done in {@link failureToError}.
  */
-export function failureToErrorInner(failure: ProtoFailure, payloadConverter: WrappedPayloadConverter): TemporalFailure {
+export function failureToErrorInner(failure: ProtoFailure, payloadConverter: PayloadConverter): TemporalFailure {
   if (failure.applicationFailureInfo) {
     return new ApplicationFailure(
       failure.message ?? undefined,
@@ -463,7 +462,7 @@ export function failureToErrorInner(failure: ProtoFailure, payloadConverter: Wra
 /**
  * Converts a Failure proto message to a JS Error object.
  */
-export function failureToError(failure: ProtoFailure, payloadConverter: WrappedPayloadConverter): TemporalFailure {
+export function failureToError(failure: ProtoFailure, payloadConverter: PayloadConverter): TemporalFailure {
   const err = failureToErrorInner(failure, payloadConverter);
   err.stack = failure.stackTrace ?? '';
   err.failure = failure;

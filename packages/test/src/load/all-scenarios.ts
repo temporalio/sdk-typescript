@@ -12,16 +12,17 @@ type Args = EvaluatedArgs<AllInOneArgSpec>;
 
 const TEMPORAL_TESTING_SERVER_URL = process.env.TEMPORAL_TESTING_SERVER_URL;
 const TEMPORAL_TESTING_LOG_DIR = process.env.TEMPORAL_TESTING_LOG_DIR;
+const TEMPORAL_TESTING_MEM_LOG_DIR = process.env.TEMPORAL_TESTING_MEM_LOG_DIR;
 
 // Use the default unless provided
 const baseArgs: Args = {
   ...(TEMPORAL_TESTING_SERVER_URL ? { '--server-address': TEMPORAL_TESTING_SERVER_URL } : undefined),
+  '--status-port': 6666,
 };
 
 const smallCacheArgs: Args = {
   '--max-cached-wfs': 3,
   '--max-concurrent-wft-executions': 3,
-  '--status-port': 6666,
 };
 
 export const activityCancellation10kIters: Args = {
@@ -82,6 +83,9 @@ export function runScenarios(scenarios: Record<string, Args>): void {
         '--log-file': path.join(TEMPORAL_TESTING_LOG_DIR, `${name}.log`),
         '--log-level': 'DEBUG',
       };
+    }
+    if (TEMPORAL_TESTING_MEM_LOG_DIR) {
+      config['--worker-memory-log-file'] = path.join(TEMPORAL_TESTING_MEM_LOG_DIR, `${name}.log`);
     }
     console.log('*'.repeat(120));
     console.log('Running test scenario:', name, { config });

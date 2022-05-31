@@ -1,8 +1,8 @@
 import path from 'path';
 import arg from 'arg';
-import { waitOnChild, shell, kill } from '@temporalio/testing/lib/child-process';
+import { waitOnChild, shell, ChildProcessError, killIfExists } from '@temporalio/testing/lib/child-process';
 import { setupArgSpec, starterArgSpec, workerArgSpec, allInOneArgSpec } from './args';
-import { spawn } from 'child_process';
+import { ChildProcess, spawn } from 'child_process';
 
 export function addDefaults(args: arg.Result<any>): arg.Result<any> {
   const now = new Date().toISOString();
@@ -21,6 +21,24 @@ function argsToForward(spec: arg.Spec, args: arg.Result<arg.Spec>): string[] {
     .flat();
 }
 
+async function waitAndKillSibling(proc: ChildProcess, sibling: ChildProcess) {
+  let shouldKillSibling = true;
+  try {
+    await waitOnChild(proc);
+  } catch (err) {
+    // If proc was killed by SIGINT we expect sibling to be killed too
+    if (err instanceof ChildProcessError && err.signal === 'SIGINT') {
+      shouldKillSibling = false;
+    } else {
+      throw err;
+    }
+  } finally {
+    if (shouldKillSibling) {
+      await killIfExists(sibling);
+    }
+  }
+}
+
 async function main() {
   const args = addDefaults(arg(allInOneArgSpec));
 
@@ -34,28 +52,29 @@ async function main() {
     shell,
     stdio: 'inherit',
   });
-  process.once('SIGINT', () => kill(worker, 'SIGINT').catch(() => /* ignore */ undefined));
 
-  try {
-    const starterArgs = argsToForward(starterArgSpec, args);
-    const starter = spawn(
-      'node',
-      [path.resolve(__dirname, 'starter.js'), '--worker-pid', `${worker.pid ?? ''}`, ...starterArgs],
-      { shell, stdio: 'inherit' }
-    );
-    worker.on('exit', async (code, signal) => {
-      // If worker dies unceremoniously then also make sure we can exit and not hang
-      if (code !== 0) {
-        console.error('Killing starter because worker exited nonzero', { code, signal });
-        await kill(starter, 'SIGINT');
-      }
-    });
-    await waitOnChild(starter);
-  } finally {
-    await kill(worker);
+  const starterArgs = argsToForward(starterArgSpec, args);
+  const starter = spawn(
+    'node',
+    [path.resolve(__dirname, 'starter.js'), '--worker-pid', `${worker.pid ?? ''}`, ...starterArgs],
+    { shell, stdio: 'inherit' }
+  );
+
+  process.once('SIGINT', () => {
+    killIfExists(worker, 'SIGINT').catch(() => /* ignore */ undefined);
+    killIfExists(starter, 'SIGINT').catch(() => /* ignore */ undefined);
+  });
+
+  const results = await Promise.allSettled([waitAndKillSibling(starter, worker), waitAndKillSibling(worker, starter)]);
+  const errors = results
+    .filter((result): result is PromiseRejectedResult => result.status === 'rejected')
+    .map(({ reason }) => reason);
+
+  if (errors.length > 0) {
+    throw new Error(errors.map((err) => `${err}`).join('\n'));
   }
 
-  console.log('Completely done');
+  console.log('\nCompletely done');
 }
 
 main().catch((err) => {

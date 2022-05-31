@@ -1,9 +1,9 @@
 import {
   ApplicationFailure,
+  searchAttributePayloadConverter,
+  defaultPayloadConverter,
   errorToFailure,
   RetryState,
-  searchAttributePayloadConverter,
-  toPayload,
   toPayloads,
 } from '@temporalio/common';
 import { msToTs } from '@temporalio/internal-workflow-common';
@@ -18,7 +18,6 @@ import path from 'path';
 import vm from 'vm';
 import * as activityFunctions from './activities';
 import { u8 } from './helpers';
-import { wrappedDefaultPayloadConverter } from './payload-converters/payload-converter';
 
 export interface Context {
   workflow: VMWorkflow;
@@ -86,13 +85,16 @@ async function createWorkflow(
       workflowType,
       runId,
       workflowId: 'test-workflowId',
-      more: { namespace: 'default', firstExecutionRunId: runId, attempt: 1, taskTimeout: 1000 },
+      namespace: 'default',
+      firstExecutionRunId: runId,
+      attempt: 1,
+      taskTimeout: 1000,
       taskQueue: 'test',
-      unsafe: { isReplaying: false },
     },
     randomnessSeed: Long.fromInt(1337).toBytes(),
     now: startTime,
     patches: [],
+    isReplaying: false,
   })) as VMWorkflow;
   return workflow;
 }
@@ -220,7 +222,7 @@ async function makeQueryWorkflowJob(
     queryWorkflow: {
       queryId,
       queryType,
-      arguments: toPayloads(wrappedDefaultPayloadConverter, ...queryArgs),
+      arguments: toPayloads(defaultPayloadConverter, ...queryArgs),
     },
   };
 }
@@ -231,7 +233,7 @@ async function makeSignalWorkflow(
   timestamp: number = Date.now()
 ): Promise<coresdk.workflow_activation.IWorkflowActivation> {
   return makeActivation(timestamp, {
-    signalWorkflow: { signalName, input: toPayloads(wrappedDefaultPayloadConverter, ...args) },
+    signalWorkflow: { signalName, input: toPayloads(defaultPayloadConverter, ...args) },
   });
 }
 
@@ -333,11 +335,7 @@ test('random', async (t) => {
 test('successString', async (t) => {
   const { workflowType } = t.context;
   const req = await activate(t, makeStartWorkflow(workflowType));
-  compareCompletion(
-    t,
-    req,
-    makeSuccess([makeCompleteWorkflowExecution(toPayload(wrappedDefaultPayloadConverter, 'success'))])
-  );
+  compareCompletion(t, req, makeSuccess([makeCompleteWorkflowExecution(defaultPayloadConverter.toPayload('success'))]));
 });
 
 /**
@@ -400,11 +398,7 @@ test('date', async (t) => {
 test('asyncWorkflow', async (t) => {
   const { workflowType } = t.context;
   const req = await activate(t, makeStartWorkflow(workflowType));
-  compareCompletion(
-    t,
-    req,
-    makeSuccess([makeCompleteWorkflowExecution(toPayload(wrappedDefaultPayloadConverter, 'async'))])
-  );
+  compareCompletion(t, req, makeSuccess([makeCompleteWorkflowExecution(defaultPayloadConverter.toPayload('async'))]));
 });
 
 test('deferredResolve', async (t) => {
@@ -430,7 +424,7 @@ test('sleeper', async (t) => {
 test('with ms string - sleeper', async (t) => {
   const { logs, workflowType } = t.context;
   {
-    const req = await activate(t, makeStartWorkflow(workflowType, [toPayload(wrappedDefaultPayloadConverter, '10s')]));
+    const req = await activate(t, makeStartWorkflow(workflowType, [defaultPayloadConverter.toPayload('10s')]));
     compareCompletion(t, req, makeSuccess([makeStartTimerCommand({ seq: 1, startToFireTimeout: msToTs('10s') })]));
   }
   {
@@ -509,7 +503,7 @@ test('trailingTimer', async (t) => {
       completion,
       makeSuccess([
         makeStartTimerCommand({ seq: 3, startToFireTimeout: msToTs(1) }),
-        makeCompleteWorkflowExecution(toPayload(wrappedDefaultPayloadConverter, 'first')),
+        makeCompleteWorkflowExecution(defaultPayloadConverter.toPayload('first')),
       ])
     );
   }
@@ -757,7 +751,7 @@ test('cancelWorkflow', async (t) => {
   const url = 'https://temporal.io';
   const { workflowType } = t.context;
   {
-    const req = await activate(t, makeStartWorkflow(workflowType, toPayloads(wrappedDefaultPayloadConverter, url)));
+    const req = await activate(t, makeStartWorkflow(workflowType, toPayloads(defaultPayloadConverter, url)));
     compareCompletion(
       t,
       req,
@@ -766,7 +760,7 @@ test('cancelWorkflow', async (t) => {
           seq: 1,
           activityId: '1',
           activityType: 'httpGet',
-          arguments: toPayloads(wrappedDefaultPayloadConverter, url),
+          arguments: toPayloads(defaultPayloadConverter, url),
           startToCloseTimeout: msToTs('10m'),
           taskQueue: 'test',
         }),
@@ -799,14 +793,14 @@ test('cancelWorkflow', async (t) => {
           seq: 3,
           activityId: '3',
           activityType: 'httpGet',
-          arguments: toPayloads(wrappedDefaultPayloadConverter, url),
+          arguments: toPayloads(defaultPayloadConverter, url),
           startToCloseTimeout: msToTs('10m'),
           taskQueue: 'test',
         }),
       ])
     );
   }
-  const result = toPayload(wrappedDefaultPayloadConverter, await activityFunctions.httpGet(url));
+  const result = defaultPayloadConverter.toPayload(await activityFunctions.httpGet(url));
   {
     const req = await activate(
       t,
@@ -848,7 +842,7 @@ test('unblock - unblockOrCancel', async (t) => {
       makeSuccess([
         makeRespondToQueryCommand({
           queryId: '1',
-          succeeded: { response: toPayload(wrappedDefaultPayloadConverter, true) },
+          succeeded: { response: defaultPayloadConverter.toPayload(true) },
         }),
       ])
     );
@@ -865,7 +859,7 @@ test('unblock - unblockOrCancel', async (t) => {
       makeSuccess([
         makeRespondToQueryCommand({
           queryId: '2',
-          succeeded: { response: toPayload(wrappedDefaultPayloadConverter, false) },
+          succeeded: { response: defaultPayloadConverter.toPayload(false) },
         }),
       ])
     );
@@ -905,12 +899,9 @@ test('cancelTimerAltImpl', async (t) => {
 test('nonCancellable', async (t) => {
   const { workflowType } = t.context;
   const url = 'https://temporal.io';
-  const result = toPayload(wrappedDefaultPayloadConverter, { test: true });
+  const result = defaultPayloadConverter.toPayload({ test: true });
   {
-    const completion = await activate(
-      t,
-      makeStartWorkflow(workflowType, [toPayload(wrappedDefaultPayloadConverter, url)])
-    );
+    const completion = await activate(t, makeStartWorkflow(workflowType, [defaultPayloadConverter.toPayload(url)]));
     compareCompletion(
       t,
       completion,
@@ -919,7 +910,7 @@ test('nonCancellable', async (t) => {
           seq: 1,
           activityId: '1',
           activityType: 'httpGetJSON',
-          arguments: toPayloads(wrappedDefaultPayloadConverter, url),
+          arguments: toPayloads(defaultPayloadConverter, url),
           startToCloseTimeout: msToTs('10m'),
           taskQueue: 'test',
         }),
@@ -935,12 +926,9 @@ test('nonCancellable', async (t) => {
 test('resumeAfterCancellation', async (t) => {
   const { workflowType } = t.context;
   const url = 'https://temporal.io';
-  const result = toPayload(wrappedDefaultPayloadConverter, { test: true });
+  const result = defaultPayloadConverter.toPayload({ test: true });
   {
-    const completion = await activate(
-      t,
-      makeStartWorkflow(workflowType, [toPayload(wrappedDefaultPayloadConverter, url)])
-    );
+    const completion = await activate(t, makeStartWorkflow(workflowType, [defaultPayloadConverter.toPayload(url)]));
     compareCompletion(
       t,
       completion,
@@ -949,7 +937,7 @@ test('resumeAfterCancellation', async (t) => {
           seq: 1,
           activityId: '1',
           activityType: 'httpGetJSON',
-          arguments: toPayloads(wrappedDefaultPayloadConverter, url),
+          arguments: toPayloads(defaultPayloadConverter, url),
           startToCloseTimeout: msToTs('10m'),
           taskQueue: 'test',
         }),
@@ -974,7 +962,7 @@ test('handleExternalWorkflowCancellationWhileActivityRunning', async (t) => {
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     const completion = await activate(
       t,
-      makeStartWorkflow(workflowType, toPayloads(wrappedDefaultPayloadConverter, url, data) ?? [])
+      makeStartWorkflow(workflowType, toPayloads(defaultPayloadConverter, url, data) ?? [])
     );
 
     compareCompletion(
@@ -985,7 +973,7 @@ test('handleExternalWorkflowCancellationWhileActivityRunning', async (t) => {
           seq: 1,
           activityId: '1',
           activityType: 'httpPostJSON',
-          arguments: toPayloads(wrappedDefaultPayloadConverter, url, data),
+          arguments: toPayloads(defaultPayloadConverter, url, data),
           startToCloseTimeout: msToTs('10m'),
           taskQueue: 'test',
         }),
@@ -1009,7 +997,7 @@ test('handleExternalWorkflowCancellationWhileActivityRunning', async (t) => {
           seq: 2,
           activityId: '2',
           activityType: 'cleanup',
-          arguments: toPayloads(wrappedDefaultPayloadConverter, url),
+          arguments: toPayloads(defaultPayloadConverter, url),
           startToCloseTimeout: msToTs('10m'),
           taskQueue: 'test',
         }),
@@ -1019,7 +1007,7 @@ test('handleExternalWorkflowCancellationWhileActivityRunning', async (t) => {
   {
     const completion = await activate(
       t,
-      makeResolveActivity(2, { completed: { result: toPayload(wrappedDefaultPayloadConverter, undefined) } })
+      makeResolveActivity(2, { completed: { result: defaultPayloadConverter.toPayload(undefined) } })
     );
     compareCompletion(t, completion, makeSuccess([{ cancelWorkflowExecution: {} }]));
   }
@@ -1029,10 +1017,7 @@ test('nestedCancellation', async (t) => {
   const { workflowType } = t.context;
   const url = 'https://temporal.io';
   {
-    const completion = await activate(
-      t,
-      makeStartWorkflow(workflowType, [toPayload(wrappedDefaultPayloadConverter, url)])
-    );
+    const completion = await activate(t, makeStartWorkflow(workflowType, [defaultPayloadConverter.toPayload(url)]));
 
     compareCompletion(
       t,
@@ -1051,7 +1036,7 @@ test('nestedCancellation', async (t) => {
   {
     const completion = await activate(
       t,
-      makeResolveActivity(1, { completed: { result: toPayload(wrappedDefaultPayloadConverter, undefined) } })
+      makeResolveActivity(1, { completed: { result: defaultPayloadConverter.toPayload(undefined) } })
     );
 
     compareCompletion(
@@ -1063,7 +1048,7 @@ test('nestedCancellation', async (t) => {
           seq: 2,
           activityId: '2',
           activityType: 'httpPostJSON',
-          arguments: toPayloads(wrappedDefaultPayloadConverter, url, { some: 'data' }),
+          arguments: toPayloads(defaultPayloadConverter, url, { some: 'data' }),
           startToCloseTimeout: msToTs('10m'),
           taskQueue: 'test',
         }),
@@ -1085,7 +1070,7 @@ test('nestedCancellation', async (t) => {
           activityId: '3',
           seq: 3,
           activityType: 'cleanup',
-          arguments: toPayloads(wrappedDefaultPayloadConverter, url),
+          arguments: toPayloads(defaultPayloadConverter, url),
           startToCloseTimeout: msToTs('10m'),
           taskQueue: 'test',
         }),
@@ -1095,7 +1080,7 @@ test('nestedCancellation', async (t) => {
   {
     const completion = await activate(
       t,
-      makeResolveActivity(3, { completed: { result: toPayload(wrappedDefaultPayloadConverter, undefined) } })
+      makeResolveActivity(3, { completed: { result: defaultPayloadConverter.toPayload(undefined) } })
     );
     compareCompletion(
       t,
@@ -1124,7 +1109,7 @@ test('sharedScopes', async (t) => {
               seq: idx,
               activityId: `${idx}`,
               activityType: 'httpGetJSON',
-              arguments: toPayloads(wrappedDefaultPayloadConverter, `http://url${idx}.ninja`),
+              arguments: toPayloads(defaultPayloadConverter, `http://url${idx}.ninja`),
               startToCloseTimeout: msToTs('10m'),
               taskQueue: 'test',
             })
@@ -1136,12 +1121,12 @@ test('sharedScopes', async (t) => {
   {
     const completion = await activate(
       t,
-      makeResolveActivity(2, { completed: { result: toPayload(wrappedDefaultPayloadConverter, result) } })
+      makeResolveActivity(2, { completed: { result: defaultPayloadConverter.toPayload(result) } })
     );
     compareCompletion(
       t,
       completion,
-      makeSuccess([makeCompleteWorkflowExecution(toPayload(wrappedDefaultPayloadConverter, result))])
+      makeSuccess([makeCompleteWorkflowExecution(defaultPayloadConverter.toPayload(result))])
     );
   }
 });
@@ -1159,7 +1144,7 @@ test('shieldAwaitedInRootScope', async (t) => {
           seq: 1,
           activityId: '1',
           activityType: 'httpGetJSON',
-          arguments: toPayloads(wrappedDefaultPayloadConverter, `http://example.com`),
+          arguments: toPayloads(defaultPayloadConverter, `http://example.com`),
           startToCloseTimeout: msToTs('10m'),
           taskQueue: 'test',
         }),
@@ -1174,12 +1159,12 @@ test('shieldAwaitedInRootScope', async (t) => {
   {
     const completion = await activate(
       t,
-      makeResolveActivity(1, { completed: { result: toPayload(wrappedDefaultPayloadConverter, result) } })
+      makeResolveActivity(1, { completed: { result: defaultPayloadConverter.toPayload(result) } })
     );
     compareCompletion(
       t,
       completion,
-      makeSuccess([makeCompleteWorkflowExecution(toPayload(wrappedDefaultPayloadConverter, result))])
+      makeSuccess([makeCompleteWorkflowExecution(defaultPayloadConverter.toPayload(result))])
     );
   }
 });
@@ -1343,7 +1328,7 @@ test('cancelActivityAfterFirstCompletion', async (t) => {
   const url = 'https://temporal.io';
   const { workflowType, logs } = t.context;
   {
-    const req = await activate(t, makeStartWorkflow(workflowType, toPayloads(wrappedDefaultPayloadConverter, url)));
+    const req = await activate(t, makeStartWorkflow(workflowType, toPayloads(defaultPayloadConverter, url)));
     compareCompletion(
       t,
       req,
@@ -1352,7 +1337,7 @@ test('cancelActivityAfterFirstCompletion', async (t) => {
           seq: 1,
           activityId: '1',
           activityType: 'httpGet',
-          arguments: toPayloads(wrappedDefaultPayloadConverter, url),
+          arguments: toPayloads(defaultPayloadConverter, url),
           startToCloseTimeout: msToTs('10m'),
           taskQueue: 'test',
         }),
@@ -1362,7 +1347,7 @@ test('cancelActivityAfterFirstCompletion', async (t) => {
   {
     const req = await activate(
       t,
-      makeResolveActivity(1, { completed: { result: toPayload(wrappedDefaultPayloadConverter, 'response1') } })
+      makeResolveActivity(1, { completed: { result: defaultPayloadConverter.toPayload('response1') } })
     );
     compareCompletion(
       t,
@@ -1372,7 +1357,7 @@ test('cancelActivityAfterFirstCompletion', async (t) => {
           seq: 2,
           activityId: '2',
           activityType: 'httpGet',
-          arguments: toPayloads(wrappedDefaultPayloadConverter, url),
+          arguments: toPayloads(defaultPayloadConverter, url),
           startToCloseTimeout: msToTs('10m'),
           taskQueue: 'test',
         }),
@@ -1386,14 +1371,12 @@ test('cancelActivityAfterFirstCompletion', async (t) => {
   {
     const req = await activate(
       t,
-      makeResolveActivity(2, { completed: { result: toPayload(wrappedDefaultPayloadConverter, 'response2') } })
+      makeResolveActivity(2, { completed: { result: defaultPayloadConverter.toPayload('response2') } })
     );
     compareCompletion(
       t,
       req,
-      makeSuccess([
-        makeCompleteWorkflowExecution(toPayload(wrappedDefaultPayloadConverter, ['response1', 'response2'])),
-      ])
+      makeSuccess([makeCompleteWorkflowExecution(defaultPayloadConverter.toPayload(['response1', 'response2']))])
     );
   }
   t.deepEqual(logs, [['Workflow cancelled while waiting on non cancellable scope']]);
@@ -1405,7 +1388,7 @@ test('multipleActivitiesSingleTimeout', async (t) => {
   {
     const completion = await activate(
       t,
-      makeStartWorkflow(workflowType, toPayloads(wrappedDefaultPayloadConverter, urls, 1000))
+      makeStartWorkflow(workflowType, toPayloads(defaultPayloadConverter, urls, 1000))
     );
     compareCompletion(
       t,
@@ -1418,7 +1401,7 @@ test('multipleActivitiesSingleTimeout', async (t) => {
               seq: index + 1,
               activityId: `${index + 1}`,
               activityType: 'httpGetJSON',
-              arguments: toPayloads(wrappedDefaultPayloadConverter, url),
+              arguments: toPayloads(defaultPayloadConverter, url),
               startToCloseTimeout: msToTs('1s'),
               taskQueue: 'test',
             })
@@ -1458,7 +1441,7 @@ test('resolve activity with result - http', async (t) => {
           seq: 1,
           activityId: '1',
           activityType: 'httpGet',
-          arguments: toPayloads(wrappedDefaultPayloadConverter, 'https://temporal.io'),
+          arguments: toPayloads(defaultPayloadConverter, 'https://temporal.io'),
           startToCloseTimeout: msToTs('1 minute'),
           taskQueue: 'test',
         }),
@@ -1469,13 +1452,13 @@ test('resolve activity with result - http', async (t) => {
   {
     const completion = await activate(
       t,
-      makeResolveActivity(1, { completed: { result: toPayload(wrappedDefaultPayloadConverter, result) } })
+      makeResolveActivity(1, { completed: { result: defaultPayloadConverter.toPayload(result) } })
     );
 
     compareCompletion(
       t,
       completion,
-      makeSuccess([makeCompleteWorkflowExecution(toPayload(wrappedDefaultPayloadConverter, result))])
+      makeSuccess([makeCompleteWorkflowExecution(defaultPayloadConverter.toPayload(result))])
     );
   }
 });
@@ -1492,7 +1475,7 @@ test('resolve activity with failure - http', async (t) => {
           seq: 1,
           activityId: '1',
           activityType: 'httpGet',
-          arguments: toPayloads(wrappedDefaultPayloadConverter, 'https://temporal.io'),
+          arguments: toPayloads(defaultPayloadConverter, 'https://temporal.io'),
           startToCloseTimeout: msToTs('1 minute'),
           taskQueue: 'test',
         }),
@@ -1508,7 +1491,7 @@ test('resolve activity with failure - http', async (t) => {
       t,
       makeResolveActivity(1, {
         failed: {
-          failure: errorToFailure(failure, wrappedDefaultPayloadConverter),
+          failure: errorToFailure(failure, defaultPayloadConverter),
         },
       })
     );
@@ -1558,7 +1541,7 @@ test('continueAsNewSameWorkflow', async (t) => {
           continueAsNewWorkflowExecution: {
             workflowType,
             taskQueue: 'test',
-            arguments: toPayloads(wrappedDefaultPayloadConverter, 'signal'),
+            arguments: toPayloads(defaultPayloadConverter, 'signal'),
           },
         },
       ])
@@ -1807,7 +1790,7 @@ test('signalHandlersCanBeCleared', async (t) => {
     compareCompletion(
       t,
       completion,
-      makeSuccess([makeCompleteWorkflowExecution(toPayload(wrappedDefaultPayloadConverter, 111))])
+      makeSuccess([makeCompleteWorkflowExecution(defaultPayloadConverter.toPayload(111))])
     );
   }
 });
@@ -1846,7 +1829,7 @@ test('scopeCancelledWhileWaitingOnExternalWorkflowCancellation', async (t) => {
           setPatchMarker: { deprecated: false, patchId: '__temporal_internal_connect_external_handle_cancel_to_scope' },
         },
         {
-          completeWorkflowExecution: { result: toPayload(wrappedDefaultPayloadConverter, undefined) },
+          completeWorkflowExecution: { result: defaultPayloadConverter.toPayload(undefined) },
         },
       ])
     );
@@ -1857,7 +1840,7 @@ test('upsertAndReadSearchAttributes', async (t) => {
   const { workflowType } = t.context;
   const now = Date.now();
   {
-    const req = await activate(t, makeStartWorkflow(workflowType, [toPayload(wrappedDefaultPayloadConverter, now)]));
+    const req = await activate(t, makeStartWorkflow(workflowType, [defaultPayloadConverter.toPayload(now)]));
     compareCompletion(
       t,
       req,
@@ -1865,23 +1848,23 @@ test('upsertAndReadSearchAttributes', async (t) => {
         makeUpsertSearchAttributesCommand({
           seq: 1,
           searchAttributes: {
-            CustomBoolField: toPayload(searchAttributePayloadConverter, [true]),
-            CustomIntField: toPayload(searchAttributePayloadConverter, [123]),
+            CustomBoolField: searchAttributePayloadConverter.toPayload([true]),
+            CustomIntField: searchAttributePayloadConverter.toPayload([123]),
           },
         }),
         makeUpsertSearchAttributesCommand({
           seq: 2,
           searchAttributes: {
-            CustomBoolField: toPayload(searchAttributePayloadConverter, [true]),
-            CustomDatetimeField: toPayload(searchAttributePayloadConverter, [new Date(now).toISOString()]),
-            CustomDoubleField: toPayload(searchAttributePayloadConverter, [3.14]),
-            CustomIntField: toPayload(searchAttributePayloadConverter, [2, 3]),
-            CustomKeywordField: toPayload(searchAttributePayloadConverter, ['durable code']),
-            CustomTextField: toPayload(searchAttributePayloadConverter, ['is useful']),
+            CustomBoolField: searchAttributePayloadConverter.toPayload([true]),
+            CustomDatetimeField: searchAttributePayloadConverter.toPayload([new Date(now).toISOString()]),
+            CustomDoubleField: searchAttributePayloadConverter.toPayload([3.14]),
+            CustomIntField: searchAttributePayloadConverter.toPayload([2, 3]),
+            CustomKeywordField: searchAttributePayloadConverter.toPayload(['durable code']),
+            CustomTextField: searchAttributePayloadConverter.toPayload(['is useful']),
           },
         }),
         makeCompleteWorkflowExecution(
-          toPayload(wrappedDefaultPayloadConverter, {
+          defaultPayloadConverter.toPayload({
             CustomIntField: [2, 3],
             CustomBoolField: [true],
             CustomKeywordField: ['durable code'],
@@ -1906,17 +1889,17 @@ test('clearSearchAttribute', async (t) => {
         makeUpsertSearchAttributesCommand({
           seq: 1,
           searchAttributes: {
-            CustomIntField: toPayload(searchAttributePayloadConverter, [123]),
+            CustomIntField: searchAttributePayloadConverter.toPayload([123]),
           },
         }),
         makeUpsertSearchAttributesCommand({
           seq: 2,
           searchAttributes: {
-            CustomIntField: toPayload(searchAttributePayloadConverter, []),
+            CustomIntField: searchAttributePayloadConverter.toPayload([]),
           },
         }),
         makeCompleteWorkflowExecution(
-          toPayload(wrappedDefaultPayloadConverter, {
+          defaultPayloadConverter.toPayload({
             CustomIntField: [],
           })
         ),

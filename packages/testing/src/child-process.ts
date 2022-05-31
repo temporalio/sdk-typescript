@@ -43,4 +43,18 @@ export async function kill(child: ChildProcess, signal: NodeJS.Signals = 'SIGINT
   }
 }
 
+export async function killIfExists(
+  child: ChildProcess,
+  signal: NodeJS.Signals = 'SIGINT',
+  opts?: WaitOptions
+): Promise<void> {
+  try {
+    await kill(child, signal, opts);
+  } catch (err: any) {
+    if (err.code !== 'ESRCH') {
+      throw err;
+    }
+  }
+}
+
 export const shell = process.platform === 'win32';

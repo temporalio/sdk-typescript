@@ -8,12 +8,6 @@ import { RUN_INTEGRATION_TESTS } from './helpers';
 import { defaultOptions } from './mock-native-worker';
 import * as workflows from './workflows';
 
-interface RecordedCall {
-  info: WorkflowInfo;
-  counter: number;
-  fn: string;
-}
-
 class DependencyError extends Error {
   constructor(public readonly ifaceName: string, public readonly fnName: string) {
     super(`${ifaceName}.${fnName}`);
@@ -30,9 +24,16 @@ if (RUN_INTEGRATION_TESTS) {
     });
   });
 
-  test('Worker injects sinks', async (t) => {
+  // Must be serial because it uses the global Runtime to check for error messages
+  test.serial('Worker injects sinks', async (t) => {
+    interface RecordedCall {
+      info: WorkflowInfo;
+      counter: number;
+      fn: string;
+    }
+
     const recordedCalls: RecordedCall[] = [];
-    const taskQueue = 'test-sinks';
+    const taskQueue = `${__filename}-${t.title}`;
     const thrownErrors = Array<DependencyError>();
     const sinks: InjectedSinks<workflows.TestSinks> = {
       success: {
@@ -123,5 +124,78 @@ if (RUN_INTEGRATION_TESTS) {
     );
   });
 
-  test.todo('Sink functions are called during replay if callDuringReplay is set');
+  test('Sink functions are not called during replay if callDuringReplay is unset', async (t) => {
+    const recordedMessages = Array<string>();
+    const taskQueue = `${__filename}-${t.title}`;
+    const sinks: InjectedSinks<workflows.LoggerSinks> = {
+      logger: {
+        info: {
+          async fn(_info, message) {
+            recordedMessages.push(message);
+          },
+        },
+      },
+    };
+
+    const worker = await Worker.create({
+      ...defaultOptions,
+      taskQueue,
+      sinks,
+      maxCachedWorkflows: 1,
+      maxConcurrentWorkflowTaskExecutions: 1,
+    });
+    const conn = new WorkflowClient();
+    await Promise.all([
+      (async () => {
+        try {
+          await conn.execute(workflows.logSinkTester, { taskQueue, workflowId: uuid4() });
+        } finally {
+          worker.shutdown();
+        }
+      })(),
+      worker.run(),
+    ]);
+
+    t.deepEqual(recordedMessages, ['Workflow execution started', 'Workflow execution completed']);
+  });
+
+  test('Sink functions are called during replay if callDuringReplay is set', async (t) => {
+    const recordedMessages = Array<string>();
+    const taskQueue = `${__filename}-${t.title}`;
+    const sinks: InjectedSinks<workflows.LoggerSinks> = {
+      logger: {
+        info: {
+          async fn(_info, message) {
+            recordedMessages.push(message);
+          },
+          callDuringReplay: true,
+        },
+      },
+    };
+
+    const worker = await Worker.create({
+      ...defaultOptions,
+      taskQueue,
+      sinks,
+      maxCachedWorkflows: 1,
+      maxConcurrentWorkflowTaskExecutions: 1,
+    });
+    const conn = new WorkflowClient();
+    await Promise.all([
+      (async () => {
+        try {
+          await conn.execute(workflows.logSinkTester, { taskQueue, workflowId: uuid4() });
+        } finally {
+          worker.shutdown();
+        }
+      })(),
+      worker.run(),
+    ]);
+
+    t.deepEqual(recordedMessages, [
+      'Workflow execution started',
+      'Workflow execution started',
+      'Workflow execution completed',
+    ]);
+  });
 }

@@ -25,8 +25,8 @@ import { v4 as uuid4 } from 'uuid';
 import root from '../protos/root';
 import { RUN_INTEGRATION_TESTS } from './helpers';
 import { defaultOptions } from './mock-native-worker';
-import { messageInstance } from './payload-converters/payload-converter';
-import { protobufWorkflow } from './workflows';
+import { messageInstance } from './payload-converters/proto-payload-converter';
+import { protobufWorkflow } from './workflows/protobufs';
 
 test('UndefinedPayloadConverter converts from undefined only', (t) => {
   const converter = new UndefinedPayloadConverter();
@@ -189,12 +189,13 @@ if (RUN_INTEGRATION_TESTS) {
     const taskQueue = 'test-data-converter';
     const worker = await Worker.create({
       ...defaultOptions,
+      workflowsPath: require.resolve('./workflows/protobufs'),
       taskQueue,
       enableSDKTracing: true,
     });
     const connection = new Connection();
     const client = new WorkflowClient(connection.service, {
-      dataConverter: { payloadConverterPath: require.resolve('./payload-converters/payload-converter') },
+      dataConverter: { payloadConverterPath: require.resolve('./payload-converters/proto-payload-converter') },
     });
     const runPromise = worker.run();
     client.execute(protobufWorkflow, {
@@ -236,7 +237,7 @@ test('DefaultPayloadConverterWithProtobufs converts to payload by trying each co
     defaultPayloadConverterWithProtos.toPayload(u8('abc')),
     new BinaryPayloadConverter().toPayload(u8('abc'))
   );
-  t.is(defaultPayloadConverterWithProtos.toPayload(0n), undefined);
+  t.throws(() => defaultPayloadConverterWithProtos.toPayload(0n), { instanceOf: ValueError });
 });
 
 test('defaultPayloadConverter converts from payload by payload type', (t) => {
