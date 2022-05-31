@@ -86,39 +86,39 @@ export interface WorkerOptions {
    * @default 100
    */
   maxConcurrentActivityTaskExecutions?: number;
+
+  /**
+   * Maximum number of Activity tasks to execute concurrently.
+   * Adjust this to improve Worker resource consumption.
+   * @default 100
+   */
+  maxConcurrentLocalActivityExecutions?: number;
+
+  /**
+   * Whether or not to poll on the Activity task queue.
+   *
+   * If disabled and activities are registered on the Worker, it will run only local Activities.
+   *
+   * @default true
+   */
+  enableNonLocalActivities?: boolean;
+
+  /**
+   * Sets the maximum number of activities per second the task queue will dispatch, controlled
+   * server-side. Note that this only takes effect upon an activity poll request. If multiple
+   * workers on the same queue have different values set, they will thrash with the last poller
+   * winning.
+   *
+   * If unset, no rate limiting will be applied to the task queue.
+   */
+  maxTaskQueueActivitiesPerSecond?: number;
+
   /**
    * Maximum number of Workflow tasks to execute concurrently.
    * Adjust this to improve Worker resource consumption.
    * @default 100
    */
   maxConcurrentWorkflowTaskExecutions?: number;
-
-  /**
-   * Maximum number of concurrent poll Workflow task requests to perform at a time.
-   * Higher values will result in higher throughput and load on the Worker.
-   * If your Worker is overloaded, tasks might start timing out in which case, reduce this value.
-   *
-   * @default 5
-   */
-  maxConcurrentWorkflowTaskPolls?: number;
-  /**
-   * Maximum number of concurrent poll Activity task requests to perform at a time.
-   * Higher values will result in higher throughput and load on the Worker.
-   * If your Worker is overloaded, tasks might start timing out in which case, reduce this value.
-   *
-   * @default 5
-   */
-  maxConcurrentActivityTaskPolls?: number;
-
-  /**
-   * `maxConcurrentWorkflowTaskPolls` * this number = the number of max pollers that will
-   * be allowed for the nonsticky queue when sticky tasks are enabled. If both defaults are used,
-   * the sticky queue will allow 4 max pollers while the nonsticky queue will allow one. The
-   * minimum for either poller is 1, so if `max_concurrent_wft_polls` is 1 and sticky queues are
-   * enabled, there will be 2 concurrent polls.
-   * @default 0.2
-   */
-  nonStickyToStickyPollRatio?: number;
 
   /**
    * How long a workflow task is allowed to sit on the sticky queue before it is timed out
@@ -201,11 +201,6 @@ export interface WorkerOptions {
      */
     ignoreModules?: string[];
   };
-  // TODO: implement all of these
-  // maxConcurrentLocalActivityExecutions?: number; // defaults to 200
-  // maxTaskQueueActivitiesPerSecond?: number;
-  // maxWorkerActivitiesPerSecond?: number;
-  // isLocalActivityWorkerOnly?: boolean; // defaults to false
 }
 
 /**
@@ -218,10 +213,9 @@ export type WorkerOptionsWithDefaults = WorkerOptions &
       | 'namespace'
       | 'shutdownGraceTime'
       | 'maxConcurrentActivityTaskExecutions'
+      | 'maxConcurrentLocalActivityExecutions'
       | 'maxConcurrentWorkflowTaskExecutions'
-      | 'maxConcurrentActivityTaskPolls'
-      | 'maxConcurrentWorkflowTaskPolls'
-      | 'nonStickyToStickyPollRatio'
+      | 'enableNonLocalActivities'
       | 'stickyQueueScheduleToStartTimeout'
       | 'maxCachedWorkflows'
       | 'maxHeartbeatThrottleInterval'
@@ -279,7 +273,8 @@ export interface ReplayWorkerOptions
     | 'taskQueue'
     | 'activities'
     | 'maxConcurrentActivityTaskExecutions'
-    | 'maxConcurrentActivityTaskPolls'
+    | 'maxConcurrentLocalActivityExecutions'
+    | 'maxConcurrentWorkflowTaskExecutions'
     | 'maxHeartbeatThrottleInterval'
     | 'defaultHeartbeatThrottleInterval'
     | 'debugMode'
@@ -297,10 +292,9 @@ export function addDefaultWorkerOptions(options: WorkerOptions): WorkerOptionsWi
     namespace: 'default',
     shutdownGraceTime: '5s',
     maxConcurrentActivityTaskExecutions: 100,
+    maxConcurrentLocalActivityExecutions: 100,
+    enableNonLocalActivities: true,
     maxConcurrentWorkflowTaskExecutions: 100,
-    maxConcurrentActivityTaskPolls: 5,
-    maxConcurrentWorkflowTaskPolls: 5,
-    nonStickyToStickyPollRatio: 0.2,
     stickyQueueScheduleToStartTimeout: '10s',
     maxHeartbeatThrottleInterval: '60s',
     defaultHeartbeatThrottleInterval: '30s',

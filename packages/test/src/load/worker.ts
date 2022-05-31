@@ -96,8 +96,7 @@ async function main() {
   const args = arg<WorkerArgSpec>(workerArgSpec);
   const maxConcurrentActivityTaskExecutions = args['--max-concurrent-at-executions'] ?? 100;
   const maxConcurrentWorkflowTaskExecutions = args['--max-concurrent-wft-executions'] ?? 100;
-  const maxConcurrentActivityTaskPolls = args['--max-concurrent-at-polls'] ?? 20;
-  const maxConcurrentWorkflowTaskPolls = args['--max-concurrent-wft-polls'] ?? 20;
+  const maxConcurrentLocalActivityExecutions = args['--max-concurrent-la-executions'] ?? 100;
   const maxCachedWorkflows = args['--max-cached-wfs'];
   const oTelUrl = args['--otel-url'];
   const logLevel = (args['--log-level'] || 'INFO').toUpperCase();
@@ -141,9 +140,8 @@ async function main() {
       workflowsPath: require.resolve('../workflows'),
       taskQueue,
       maxConcurrentActivityTaskExecutions,
+      maxConcurrentLocalActivityExecutions,
       maxConcurrentWorkflowTaskExecutions,
-      maxConcurrentActivityTaskPolls,
-      maxConcurrentWorkflowTaskPolls,
       maxCachedWorkflows,
     });
     console.log('Created worker with options', worker.options);
