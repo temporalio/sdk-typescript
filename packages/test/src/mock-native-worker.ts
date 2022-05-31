@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
 import { SpanContext } from '@opentelemetry/api';
-import { fromPayloadsAtIndex } from '@temporalio/common';
+import { defaultPayloadConverter, fromPayloadsAtIndex } from '@temporalio/common';
 import { msToTs } from '@temporalio/internal-workflow-common';
 import { coresdk } from '@temporalio/proto';
 import { DefaultLogger } from '@temporalio/worker';
@@ -15,7 +15,6 @@ import {
 import { WorkflowCreator } from '@temporalio/worker/src/workflow/interface';
 import { lastValueFrom } from 'rxjs';
 import * as activities from './activities';
-import { wrappedDefaultPayloadConverter } from './payload-converters/payload-converter';
 
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -138,7 +137,7 @@ export class MockNativeWorker implements NativeWorkerLike {
 
   public recordActivityHeartbeat(buffer: ArrayBuffer): void {
     const { taskToken, details } = coresdk.ActivityHeartbeat.decodeDelimited(new Uint8Array(buffer));
-    const arg = fromPayloadsAtIndex(wrappedDefaultPayloadConverter, 0, details);
+    const arg = fromPayloadsAtIndex(defaultPayloadConverter, 0, details);
     this.activityHeartbeatCallback!(taskToken, arg);
   }
 
