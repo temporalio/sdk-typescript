@@ -173,7 +173,7 @@ fn tokio_runtime() -> &'static Runtime {
     })
 }
 
-/// Send a result to JS via callback using an [Channel]
+/// Send a result to JS via callback using a [Channel]
 fn send_result<F, T>(channel: Arc<Channel>, callback: Root<JsFunction>, res_fn: F)
 where
     F: for<'a> FnOnce(&mut TaskContext<'a>) -> NeonResult<Handle<'a, T>> + Send + 'static,
@@ -190,7 +190,7 @@ where
     });
 }
 
-/// Send an error to JS via callback using an [Channel]
+/// Send an error to JS via callback using a [Channel]
 fn send_error<E, F>(channel: Arc<Channel>, callback: Root<JsFunction>, error_ctor: F)
 where
     E: Object,
