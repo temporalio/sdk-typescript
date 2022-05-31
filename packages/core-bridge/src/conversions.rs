@@ -1,4 +1,5 @@
 use log::LevelFilter;
+use neon::types::buffer::TypedArray;
 use neon::{
     context::Context,
     handle::Handle,
@@ -14,30 +15,27 @@ use temporal_sdk_core::{
     TraceExporter, Url,
 };
 
-macro_rules! js_value_getter {
-    ($js_cx:expr, $js_obj:ident, $prop_name:expr, $js_type:ty) => {
-        $js_obj
-            .get($js_cx, $prop_name)?
-            .downcast::<$js_type, _>($js_cx)
-            .map_err(|_| {
-                $js_cx
-                    .throw_type_error::<_, Option<Vec<u8>>>(format!("Invalid {}", $prop_name))
-                    .unwrap_err()
-            })?
-            .value($js_cx)
-    };
-}
-
 #[macro_export]
 macro_rules! js_optional_getter {
     ($js_cx:expr, $js_obj:expr, $prop_name:expr, $js_type:ty) => {
         match get_optional($js_cx, $js_obj, $prop_name) {
-            Some(val) => Some(val.downcast::<$js_type, _>($js_cx).map_err(|_| {
-                $js_cx
-                    .throw_type_error::<_, Option<Vec<u8>>>(format!("Invalid {}", $prop_name))
-                    .unwrap_err()
-            })?),
             None => None,
+            Some(val) => {
+                if val.is_a::<$js_type, _>($js_cx) {
+                    Some(val.downcast_or_throw::<$js_type, _>($js_cx)?)
+                } else {
+                    Some($js_cx.throw_type_error(format!("Invalid {}", $prop_name))?)
+                }
+            }
+        }
+    };
+}
+
+macro_rules! js_value_getter {
+    ($js_cx:expr, $js_obj:expr, $prop_name:expr, $js_type:ty) => {
+        match js_optional_getter!($js_cx, $js_obj, $prop_name, $js_type) {
+            Some(val) => val.value($js_cx),
+            None => $js_cx.throw_type_error(format!("{} must be defined", $prop_name))?,
         }
     };
 }
@@ -53,7 +51,7 @@ where
     K: neon::object::PropertyKey,
     C: Context<'a>,
 {
-    match obj.get(cx, attr) {
+    match obj.get_value(cx, attr) {
         Err(_) => None,
         Ok(val) => match val.is_a::<JsUndefined, _>(cx) {
             true => None,
@@ -77,7 +75,7 @@ where
             cx.throw_type_error::<_, Option<Vec<u8>>>(format!("Invalid {}", attr))
                 .unwrap_err()
         })?;
-        Ok(Some(cx.borrow(&buf, |data| data.as_slice::<u8>().to_vec())))
+        Ok(Some(buf.as_slice(cx).to_vec()))
     } else {
         Ok(None)
     }
@@ -99,7 +97,7 @@ where
             cx.throw_type_error::<_, Option<Vec<u8>>>(format!("Invalid {}", attr))
                 .unwrap_err()
         })?;
-        Ok(cx.borrow(&buf, |data| data.as_slice::<u8>().to_vec()))
+        Ok(buf.as_slice(cx).to_vec())
     } else {
         cx.throw_type_error::<_, Vec<u8>>(format!("Invalid or missing {}", full_attr_path))
     }
@@ -139,7 +137,7 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
         let mut map = HashMap::new();
         for k in props {
             let k = k.to_string(cx)?;
-            let v = self.get(cx, k)?.to_string(cx)?.value(cx);
+            let v = self.get::<JsString, _, _>(cx, k)?.value(cx);
             let k = k.value(cx);
             map.insert(k, v);
         }
@@ -189,7 +187,7 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
 
         let retry_config = match js_optional_getter!(cx, self, "retry", JsObject) {
             None => RetryConfig::default(),
-            Some(retry_config) => RetryConfig {
+            Some(ref retry_config) => RetryConfig {
                 initial_interval: Duration::from_millis(js_value_getter!(
                     cx,
                     retry_config,
@@ -245,7 +243,8 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
         if let Some(ref logging) = js_optional_getter!(cx, self, "logging", JsObject) {
             if let Some(_) = get_optional(cx, logging, "console") {
                 telemetry_opts.logging(Logger::Console);
-            } else if let Some(forward) = js_optional_getter!(cx, logging, "forward", JsObject) {
+            } else if let Some(ref forward) = js_optional_getter!(cx, logging, "forward", JsObject)
+            {
                 let level = js_value_getter!(cx, forward, "level", JsString);
                 match LevelFilter::from_str(&level) {
                     Ok(level) => {
