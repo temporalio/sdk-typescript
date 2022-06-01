@@ -83,7 +83,7 @@ async function runWorkflows(options: RunWorkflowOptions): Promise<void> {
   let observable: Observable<any>;
   let recordMemUsage = (_mem: number) => undefined;
   if (workerMemoryLogFile) {
-    const stream = fs.createWriteStream('/tmp/worker-mem.log');
+    const stream = fs.createWriteStream(workerMemoryLogFile);
     recordMemUsage = (mem) => void stream.write(`${mem}\n`);
   }
 
