@@ -553,13 +553,19 @@ export class Worker {
       throw new IllegalStateError('Not running');
     }
     this.state = 'STOPPING';
-    this.nativeWorker.shutdown().then(() => {
-      // Core may have already returned a ShutdownError to our pollers in which
-      // case the state would transition to DRAINED
-      if (this.state === 'STOPPING') {
-        this.state = 'DRAINING';
-      }
-    });
+    this.nativeWorker
+      .shutdown()
+      .then(() => {
+        // Core may have already returned a ShutdownError to our pollers in which
+        // case the state would transition to DRAINED
+        if (this.state === 'STOPPING') {
+          this.state = 'DRAINING';
+        }
+      })
+      .catch((error) => {
+        this.log.error('Failed to shutdown native worker', { error });
+        this.state = 'FAILED';
+      });
   }
 
   /**

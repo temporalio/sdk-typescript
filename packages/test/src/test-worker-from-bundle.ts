@@ -62,14 +62,14 @@ if (RUN_INTEGRATION_TESTS) {
         worker.run(),
         (async () => {
           try {
-            client.execute(successString, { taskQueue, workflowId: uuid4() });
+            await client.execute(successString, { taskQueue, workflowId: uuid4() });
           } finally {
             worker.shutdown();
           }
         })(),
       ]);
     } finally {
-      unlink(path);
+      await unlink(path);
     }
     t.pass();
   });

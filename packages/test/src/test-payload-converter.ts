@@ -1,5 +1,5 @@
 /* eslint @typescript-eslint/no-non-null-assertion: 0 */
-import { WorkflowClient } from '@temporalio/client';
+import { WorkflowClient, WorkflowHandle } from '@temporalio/client';
 import {
   BinaryPayloadConverter,
   defaultPayloadConverter,
@@ -174,13 +174,12 @@ test('ProtobufJSONPayloadConverter converts binary', (t) => {
 
 if (RUN_INTEGRATION_TESTS) {
   test('Worker throws decoding proto JSON without WorkerOptions.dataConverter', async (t) => {
-    t.timeout(10 * 1000);
-    let markErrorThrown: any;
-    const expectedErrorWasThrown = new Promise(function (resolve) {
+    let markErrorThrown: () => void;
+    const expectedErrorWasThrown = new Promise<void>((resolve) => {
       markErrorThrown = resolve;
     });
     const logger = new DefaultLogger('ERROR', (entry) => {
-      if (entry.meta?.error.stack.includes('ValueError: Unknown encoding: json/protobuf')) {
+      if (entry.meta?.error.stack.startsWith('ValueError: Unknown encoding: json/protobuf')) {
         markErrorThrown();
       }
     });
@@ -191,23 +190,27 @@ if (RUN_INTEGRATION_TESTS) {
       ...defaultOptions,
       workflowsPath: require.resolve('./workflows/protobufs'),
       taskQueue,
-      enableSDKTracing: true,
     });
     const client = await WorkflowClient.forLocalServer({
       dataConverter: { payloadConverterPath: require.resolve('./payload-converters/proto-payload-converter') },
     });
 
+    const handle = await client.start(protobufWorkflow, {
+      args: [messageInstance],
+      workflowId: uuid4(),
+      taskQueue,
+    });
+
     await Promise.all([
       worker.run(),
       (async () => {
-        await client.execute(protobufWorkflow, {
-          args: [messageInstance],
-          workflowId: uuid4(),
-          taskQueue,
-        });
-        worker.shutdown();
+        try {
+          await expectedErrorWasThrown;
+        } finally {
+          await handle.terminate();
+          worker.shutdown();
+        }
       })(),
-      expectedErrorWasThrown,
     ]);
     t.pass();
   });
