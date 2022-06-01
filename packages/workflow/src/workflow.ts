@@ -1192,4 +1192,38 @@ export class Unsafe {
   }
 }
 
-export const unsafe = new Unsafe();
+/**
+ * Unsafe information about the currently executing Workflow Task.
+ *
+ * Never rely on this information in Workflow logic as it will cause non-deterministic behavior.
+ */
+export interface UnsafeTaskInfo {
+  isReplaying: boolean;
+}
+
+/**
+ * Information about the currently executing Workflow Task.
+ *
+ * Meant for advanced usage.
+ */
+export interface TaskInfo {
+  /**
+   * Length of Workflow history up until the current Workflow Task
+   */
+  historyLength: number;
+  unsafe: UnsafeTaskInfo;
+}
+
+export function taskInfo(): TaskInfo {
+  const { isReplaying } = state;
+  if (isReplaying == null) {
+    throw new IllegalStateError('Workflow uninitialized');
+  }
+
+  return {
+    historyLength: 0,
+    unsafe: {
+      isReplaying,
+    },
+  };
+}
