@@ -352,9 +352,11 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
         ) as u64);
 
         let max_worker_activities_per_second =
-            js_value_getter!(cx, self, "maxActivitiesPerSecond", JsNumber) as f64;
+            js_optional_getter!(cx, self, "maxActivitiesPerSecond", JsNumber)
+                .map(|num| num.value(cx) as f64);
         let max_task_queue_activities_per_second =
-            js_value_getter!(cx, self, "maxTaskQueueActivitiesPerSecond", JsNumber) as f64;
+            js_optional_getter!(cx, self, "maxTaskQueueActivitiesPerSecond", JsNumber)
+                .map(|num| num.value(cx) as f64);
 
         match WorkerConfigBuilder::default()
             .no_remote_activities(!enable_remote_activities)
