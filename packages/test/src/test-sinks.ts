@@ -1,11 +1,11 @@
 /* eslint @typescript-eslint/no-non-null-assertion: 0 */
+import { WorkflowClient } from '@temporalio/client';
+import { DefaultLogger, InjectedSinks, Runtime, Worker } from '@temporalio/worker';
+import { WorkflowInfo } from '@temporalio/workflow';
 import test from 'ava';
 import { v4 as uuid4 } from 'uuid';
-import { WorkflowInfo } from '@temporalio/workflow';
-import { WorkflowClient } from '@temporalio/client';
-import { Worker, DefaultLogger, Runtime, InjectedSinks } from '@temporalio/worker';
-import { defaultOptions } from './mock-native-worker';
 import { RUN_INTEGRATION_TESTS } from './helpers';
+import { defaultOptions } from './mock-native-worker';
 import * as workflows from './workflows';
 
 class DependencyError extends Error {
@@ -81,11 +81,25 @@ if (RUN_INTEGRATION_TESTS) {
     await p;
     const info: WorkflowInfo = {
       namespace: 'default',
+      firstExecutionRunId: wf.firstExecutionRunId,
+      attempt: 1,
+      taskTimeoutMs: 10_000,
+      continuedFromExecutionRunId: undefined,
+      cronSchedule: undefined,
+      cronScheduleToScheduleInterval: undefined,
+      executionExpirationTime: undefined,
+      executionTimeoutMs: undefined,
+      retryPolicy: undefined,
+      runTimeoutMs: undefined,
       taskQueue,
       workflowId: wf.workflowId,
       runId: wf.firstExecutionRunId,
       workflowType: 'sinksWorkflow',
-      isReplaying: false,
+      lastFailure: undefined,
+      lastResult: undefined,
+      memo: undefined,
+      parent: undefined,
+      searchAttributes: undefined,
     };
 
     t.deepEqual(recordedCalls, [
@@ -142,7 +156,10 @@ if (RUN_INTEGRATION_TESTS) {
       worker.run(),
     ]);
 
-    t.deepEqual(recordedMessages, ['Workflow execution started', 'Workflow execution completed']);
+    t.deepEqual(recordedMessages, [
+      'Workflow execution started, replaying: false, hl: 3',
+      'Workflow execution completed, replaying: false, hl: 12',
+    ]);
   });
 
   test('Sink functions are called during replay if callDuringReplay is set', async (t) => {
@@ -178,10 +195,11 @@ if (RUN_INTEGRATION_TESTS) {
       worker.run(),
     ]);
 
-    t.deepEqual(recordedMessages, [
-      'Workflow execution started',
-      'Workflow execution started',
-      'Workflow execution completed',
+    // Note that task may be replayed more than once and record the first messages multiple times.
+    t.deepEqual(recordedMessages.slice(0, 2), [
+      'Workflow execution started, replaying: false, hl: 3',
+      'Workflow execution started, replaying: true, hl: 3',
     ]);
+    t.is(recordedMessages[recordedMessages.length - 1], 'Workflow execution completed, replaying: false, hl: 12');
   });
 }

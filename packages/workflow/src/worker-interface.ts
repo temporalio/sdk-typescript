@@ -19,6 +19,8 @@ export interface WorkflowCreateOptions {
   randomnessSeed: number[];
   now: number;
   patches: string[];
+  isReplaying: boolean;
+  historyLength: number;
 }
 
 export interface ImportFunctions {
@@ -103,7 +105,14 @@ export function overrideGlobals(): void {
  *
  * Sets required internal state and instantiates the workflow and interceptors.
  */
-export async function initRuntime({ info, randomnessSeed, now, patches }: WorkflowCreateOptions): Promise<void> {
+export async function initRuntime({
+  info,
+  randomnessSeed,
+  now,
+  patches,
+  isReplaying,
+  historyLength,
+}: WorkflowCreateOptions): Promise<void> {
   // Set the runId globally on the context so it can be retrieved in the case
   // of an unhandled promise rejection.
   (globalThis as any).__TEMPORAL__.runId = info.runId;
@@ -116,7 +125,9 @@ export async function initRuntime({ info, randomnessSeed, now, patches }: Workfl
   state.info = info;
   state.now = now;
   state.random = alea(randomnessSeed);
-  if (info.isReplaying) {
+  state.historyLength = historyLength;
+
+  if (isReplaying) {
     for (const patch of patches) {
       state.knownPresentPatches.add(patch);
     }
@@ -181,7 +192,11 @@ export async function activate(
           // timestamp will not be updated for activation that contain only queries
           state.now = tsToMs(activation.timestamp);
         }
-        state.info.isReplaying = activation.isReplaying ?? false;
+        if (activation.historyLength == null) {
+          throw new TypeError('Got activation with no historyLength');
+        }
+        state.isReplaying = activation.isReplaying ?? false;
+        state.historyLength = activation.historyLength;
       }
 
       // Cast from the interface to the class which has the `variant` attribute.

@@ -1,5 +1,3 @@
-import vm from 'vm';
-import semver from 'semver';
 import { IllegalStateError } from '@temporalio/common';
 import { coresdk } from '@temporalio/proto';
 import { WorkflowInfo } from '@temporalio/workflow';
@@ -7,8 +5,14 @@ import { SinkCall } from '@temporalio/workflow/lib/sinks';
 import * as internals from '@temporalio/workflow/lib/worker-interface';
 import assert from 'assert';
 import { AsyncLocalStorage } from 'async_hooks';
+import semver from 'semver';
+import vm from 'vm';
 import { partition } from '../utils';
 import { Workflow, WorkflowCreateOptions, WorkflowCreator } from './interface';
+
+interface ActivationContext {
+  isReplaying: boolean;
+}
 
 // Best effort to catch unhandled rejections from workflow code.
 // We crash the thread if we cannot find the culprit.
@@ -60,7 +64,9 @@ export class VMWorkflowCreator implements WorkflowCreator {
    */
   async createWorkflow(options: WorkflowCreateOptions): Promise<Workflow> {
     const context = await this.getContext();
-    this.injectConsole(context, options.info);
+    const activationContext = { isReplaying: options.isReplaying }; // Uninitialized
+    // TODO: pass this on to the VMWorkflow instance to mutate
+    this.injectConsole(context, options.info, activationContext);
     const { hasSeparateMicrotaskQueue, isolateExecutionTimeoutMs } = this;
     const workflowModule: WorkflowModule = new Proxy(
       {},
@@ -94,7 +100,8 @@ export class VMWorkflowCreator implements WorkflowCreator {
       context,
       workflowModule,
       isolateExecutionTimeoutMs,
-      this.hasSeparateMicrotaskQueue
+      this.hasSeparateMicrotaskQueue,
+      activationContext
     );
     VMWorkflowCreator.workflowByRunId.set(options.info.runId, newVM);
     return newVM;
@@ -119,11 +126,11 @@ export class VMWorkflowCreator implements WorkflowCreator {
    *
    * Overridable for test purposes.
    */
-  protected injectConsole(context: vm.Context, info: WorkflowInfo): void {
+  protected injectConsole(context: vm.Context, info: WorkflowInfo, ac: ActivationContext): void {
     context.console = {
       log: (...args: any[]) => {
-        // info.isReplaying is mutated by the Workflow class on activation
-        if (info.isReplaying) return;
+        // isReplaying is mutated by the Workflow class on activation
+        if (ac.isReplaying) return;
         console.log(`[${info.workflowType}(${info.workflowId})]`, ...args);
       },
     };
@@ -164,7 +171,8 @@ export class VMWorkflow implements Workflow {
     protected context: vm.Context | undefined,
     readonly workflowModule: WorkflowModule,
     public readonly isolateExecutionTimeoutMs: number,
-    public readonly hasSeparateMicrotaskQueue: boolean
+    public readonly hasSeparateMicrotaskQueue: boolean,
+    public readonly activationContext: ActivationContext
   ) {}
 
   /**
@@ -184,7 +192,7 @@ export class VMWorkflow implements Workflow {
     if (this.context === undefined) {
       throw new IllegalStateError('Workflow isolate context uninitialized');
     }
-    this.info.isReplaying = activation.isReplaying ?? false;
+    this.activationContext.isReplaying = activation.isReplaying ?? false;
     if (!activation.jobs) {
       throw new Error('Expected workflow activation jobs to be defined');
     }

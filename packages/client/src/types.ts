@@ -1,3 +1,4 @@
+import type { SearchAttributeValue } from '@temporalio/internal-workflow-common';
 import { temporal } from '@temporalio/proto';
 
 export interface WorkflowExecution {
@@ -11,18 +12,29 @@ export type TerminateWorkflowExecutionResponse = temporal.api.workflowservice.v1
 export type RequestCancelWorkflowExecutionResponse =
   temporal.api.workflowservice.v1.IRequestCancelWorkflowExecutionResponse;
 
+export type WorkflowExecutionStatusName =
+  | 'UNSPECIFIED'
+  | 'RUNNING'
+  | 'COMPLETED'
+  | 'FAILED'
+  | 'CANCELLED'
+  | 'TERMINATED'
+  | 'CONTINUED_AS_NEW'
+  | 'TIMED_OUT'
+  | 'UNKNOWN'; // UNKNOWN is reserved for future enum values
+
 export interface WorkflowExecutionDescription {
   type: string;
   workflowId: string;
   runId: string;
   taskQueue: string;
-  status: temporal.api.enums.v1.WorkflowExecutionStatus;
+  status: { code: temporal.api.enums.v1.WorkflowExecutionStatus; name: WorkflowExecutionStatusName };
   historyLength: Long;
   startTime: Date;
   executionTime?: Date;
   closeTime?: Date;
   memo?: Record<string, unknown>;
-  searchAttributes?: Record<string, unknown>;
+  searchAttributes: Record<string, SearchAttributeValue[]>;
   parentExecution?: Required<temporal.api.common.v1.IWorkflowExecution>;
   raw: DescribeWorkflowExecutionResponse;
 }

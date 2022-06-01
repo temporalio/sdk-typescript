@@ -45,8 +45,8 @@ function cleanTsGeneratedFiles() {
 function cleanProtoGeneratedFiles() {
   const protosOutputDir = resolve(packagesPath, 'proto/protos');
   console.log(`Removing generated files in ${protosOutputDir}`);
-  rmSync(resolve(protosOutputDir, 'json-module.js'));
-  rmSync(resolve(protosOutputDir, 'root.d.ts'));
+  rmSync(resolve(protosOutputDir, 'json-module.js'), { force: true });
+  rmSync(resolve(protosOutputDir, 'root.d.ts'), { force: true });
 }
 
 function cleanCompiledRustFiles() {

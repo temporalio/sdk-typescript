@@ -85,12 +85,16 @@ async function createWorkflow(
       runId,
       workflowId: 'test-workflowId',
       namespace: 'default',
+      firstExecutionRunId: runId,
+      attempt: 1,
+      taskTimeoutMs: 1000,
       taskQueue: 'test',
-      isReplaying: false,
     },
     randomnessSeed: Long.fromInt(1337).toBytes(),
     now: startTime,
     patches: [],
+    isReplaying: false,
+    historyLength: 3,
   })) as VMWorkflow;
   return workflow;
 }

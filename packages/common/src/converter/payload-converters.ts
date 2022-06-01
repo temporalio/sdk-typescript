@@ -1,6 +1,8 @@
 import { PayloadConverterError, ValueError } from '@temporalio/internal-workflow-common';
+import { JsonPayloadConverter } from './json-payload-converter';
 import { PayloadConverter } from './payload-converter';
-import { encodingKeys, encodingTypes, METADATA_ENCODING_KEY, Payload, str, u8 } from './types';
+import { SearchAttributePayloadConverter } from './search-attribute-payload-converter';
+import { encodingKeys, encodingTypes, METADATA_ENCODING_KEY, Payload, str } from './types';
 
 export interface PayloadConverterWithEncoding {
   /**
@@ -95,40 +97,6 @@ export class UndefinedPayloadConverter implements PayloadConverterWithEncoding {
 }
 
 /**
- * Converts between non-undefined values and serialized JSON Payload
- */
-export class JsonPayloadConverter implements PayloadConverterWithEncoding {
-  public encodingType = encodingTypes.METADATA_ENCODING_JSON;
-
-  public toPayload(value: unknown): Payload | undefined {
-    if (value === undefined) {
-      return undefined;
-    }
-
-    let json;
-    try {
-      json = JSON.stringify(value);
-    } catch (e) {
-      return undefined;
-    }
-
-    return {
-      metadata: {
-        [METADATA_ENCODING_KEY]: encodingKeys.METADATA_ENCODING_JSON,
-      },
-      data: u8(json),
-    };
-  }
-
-  public fromPayload<T>(content: Payload): T {
-    if (content.data === undefined || content.data === null) {
-      throw new ValueError('Got payload with no data');
-    }
-    return JSON.parse(str(content.data));
-  }
-}
-
-/**
  * Converts between binary data types and RAW Payload
  */
 export class BinaryPayloadConverter implements PayloadConverterWithEncoding {
@@ -154,24 +122,7 @@ export class BinaryPayloadConverter implements PayloadConverterWithEncoding {
   }
 }
 
-/**
- * WIP implementation to be replaced by work done in #657
- */
-class SearchAttributesPayloadConverter implements PayloadConverter {
-  jsonConverter = new JsonPayloadConverter();
-
-  toPayload<T>(value: T): Payload {
-    const ret = this.jsonConverter.toPayload(value);
-    if (ret === undefined) throw new ValueError('Unable to convert');
-    return ret;
-  }
-
-  fromPayload<T>(payload: Payload): T {
-    return this.jsonConverter.fromPayload(payload);
-  }
-}
-
-export const searchAttributePayloadConverter = new SearchAttributesPayloadConverter();
+export const searchAttributePayloadConverter = new SearchAttributePayloadConverter();
 
 export class DefaultPayloadConverter extends CompositePayloadConverter {
   // Match the order used in other SDKs, but exclude Protobuf converters so that the code, including

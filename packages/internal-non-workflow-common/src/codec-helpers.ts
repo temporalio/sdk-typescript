@@ -23,11 +23,79 @@ export async function decode(codecs: PayloadCodec[], payloads: Payload[]): Promi
   return payloads as DecodedPayload[];
 }
 
+/**
+ * Encode through each codec, starting with the first codec.
+ */
 export async function encode(codecs: PayloadCodec[], payloads: Payload[]): Promise<EncodedPayload[]> {
   for (let i = 0; i < codecs.length; i++) {
     payloads = await codecs[i].encode(payloads);
   }
   return payloads as EncodedPayload[];
+}
+
+/** Run {@link PayloadCodec.encode} on `payloads` */
+export async function encodeOptional(
+  codecs: PayloadCodec[],
+  payloads: Payload[] | null | undefined
+): Promise<EncodedPayload[] | null | undefined> {
+  if (payloads == null) return payloads;
+  return await encode(codecs, payloads);
+}
+
+/** Run {@link PayloadCodec.decode} on `payloads` */
+export async function decodeOptional(
+  codecs: PayloadCodec[],
+  payloads: Payload[] | null | undefined
+): Promise<DecodedPayload[] | null | undefined> {
+  if (payloads == null) return payloads;
+  return await decode(codecs, payloads);
+}
+
+async function encodeSingle(codecs: PayloadCodec[], payload: Payload): Promise<EncodedPayload> {
+  const encodedPayloads = await encode(codecs, [payload]);
+  return encodedPayloads[0] as EncodedPayload;
+}
+
+async function decodeSingle(codecs: PayloadCodec[], payload: Payload): Promise<DecodedPayload> {
+  const [decodedPayload] = await decode(codecs, [payload]);
+  return decodedPayload;
+}
+
+/** Run {@link PayloadCodec.encode} on a single Payload */
+export async function encodeOptionalSingle(
+  codecs: PayloadCodec[],
+  payload: Payload | null | undefined
+): Promise<EncodedPayload | null | undefined> {
+  if (payload == null) return payload;
+  return await encodeSingle(codecs, payload);
+}
+
+/** Run {@link PayloadCodec.decode} on a single Payload */
+export async function decodeOptionalSingle(
+  codecs: PayloadCodec[],
+  payload: Payload | null | undefined
+): Promise<DecodedPayload | null | undefined> {
+  if (payload == null) return payload;
+  return await decodeSingle(codecs, payload);
+}
+
+/**
+ * Run {@link PayloadConverter.toPayload} on value, and then encode it.
+ */
+export async function encodeToPayload(converter: LoadedDataConverter, value: unknown): Promise<Payload> {
+  const { payloadConverter, payloadCodecs } = converter;
+  return await encodeSingle(payloadCodecs, payloadConverter.toPayload(value));
+}
+
+/**
+ * Decode `payloads` and then return {@link arrayFromPayloads}`.
+ */
+export async function decodeArrayFromPayloads(
+  converter: LoadedDataConverter,
+  payloads?: Payload[] | null
+): Promise<unknown[]> {
+  const { payloadConverter, payloadCodecs } = converter;
+  return arrayFromPayloads(payloadConverter, await decodeOptional(payloadCodecs, payloads));
 }
 
 /**
@@ -39,22 +107,7 @@ export async function decodeFromPayloadsAtIndex<T>(
   payloads?: Payload[] | null
 ): Promise<T> {
   const { payloadConverter, payloadCodecs } = converter;
-  return fromPayloadsAtIndex(payloadConverter, index, payloads ? await decode(payloadCodecs, payloads) : payloads);
-}
-
-/**
- * Decode `payloads` and then return {@link arrayFromPayloads}`.
- */
-export async function decodeArrayFromPayloads(
-  converter: LoadedDataConverter,
-  payloads?: Payload[] | null
-): Promise<unknown[]> {
-  const { payloadConverter, payloadCodecs } = converter;
-  let decodedPayloads = payloads;
-  if (payloads) {
-    decodedPayloads = await decode(payloadCodecs, payloads);
-  }
-  return arrayFromPayloads(payloadConverter, decodedPayloads);
+  return await fromPayloadsAtIndex(payloadConverter, index, await decodeOptional(payloadCodecs, payloads));
 }
 
 /**
@@ -68,74 +121,14 @@ export async function decodeOptionalFailureToOptionalError(
   return failure ? failureToError(await decodeFailure(payloadCodecs, failure), payloadConverter) : undefined;
 }
 
-/** Run {@link PayloadCodec.encode} on `payloads` */
-export async function encodeOptional(
-  codecs: PayloadCodec[],
-  payloads: Payload[] | null | undefined
-): Promise<EncodedPayload[] | null | undefined> {
-  if (payloads === null) return null;
-  if (payloads === undefined) return undefined;
-  return (await encode(codecs, payloads)) as EncodedPayload[];
-}
-
-/** Run {@link PayloadCodec.decode} on `payloads` */
-export async function decodeOptional(
-  codecs: PayloadCodec[],
-  payloads: Payload[] | null | undefined
-): Promise<DecodedPayload[] | null | undefined> {
-  if (payloads === null) return null;
-  if (payloads === undefined) return undefined;
-  return (await decode(codecs, payloads)) as DecodedPayload[];
-}
-
-async function encodeSingle(codecs: PayloadCodec[], payload: Payload): Promise<EncodedPayload> {
-  const encodedPayloads = await encode(codecs, [payload]);
-  return encodedPayloads[0] as EncodedPayload;
-}
-
-/** Run {@link PayloadCodec.encode} on a single Payload */
-export async function encodeOptionalSingle(
-  codecs: PayloadCodec[],
-  payload: Payload | null | undefined
-): Promise<EncodedPayload | null | undefined> {
-  if (payload === null) return null;
-  if (payload === undefined) return undefined;
-  return await encodeSingle(codecs, payload);
-}
-
-async function decodeSingle(codecs: PayloadCodec[], payload: Payload): Promise<DecodedPayload> {
-  const decodedPayloads = await decode(codecs, [payload]);
-  return decodedPayloads[0] as DecodedPayload;
-}
-
 export async function decodeOptionalMap(
   codecs: PayloadCodec[],
   payloads: Record<string, Payload> | null | undefined
 ): Promise<Record<string, DecodedPayload> | null | undefined> {
-  if (payloads === null) return null;
-  if (payloads === undefined) return undefined;
+  if (payloads == null) return payloads;
   return Object.fromEntries(
     await Promise.all(Object.entries(payloads).map(async ([k, v]) => [k, await decode(codecs, [v])]))
   );
-}
-
-/** Run {@link PayloadCodec.decode} on a single Payload */
-export async function decodeOptionalSingle(
-  codecs: PayloadCodec[],
-  payload: Payload | null | undefined
-): Promise<DecodedPayload | null | undefined> {
-  if (payload === null) return null;
-  if (payload === undefined) return undefined;
-
-  return await decodeSingle(codecs, payload);
-}
-
-/**
- * Run {@link PayloadConverter.toPayload} on value, and then encode it.
- */
-export async function encodeToPayload(converter: LoadedDataConverter, value: unknown): Promise<Payload> {
-  const { payloadConverter, payloadCodecs } = converter;
-  return await encodeSingle(payloadCodecs, payloadConverter.toPayload(value));
 }
 
 /**
@@ -268,30 +261,6 @@ export async function encodeFailure(codecs: PayloadCodec[], failure: ProtoFailur
 }
 
 /**
- * Return a new {@link ProtoFailure} with `codec.encode()` run on all the {@link Payload}s.
- */
-export async function encodeOptionalFailure(
-  codecs: PayloadCodec[],
-  failure: ProtoFailure | null | undefined
-): Promise<EncodedProtoFailure | null | undefined> {
-  if (failure === null) return null;
-  if (failure === undefined) return undefined;
-  return await encodeFailure(codecs, failure);
-}
-
-/**
- * Return a new {@link ProtoFailure} with `codec.encode()` run on all the {@link Payload}s.
- */
-export async function decodeOptionalFailure(
-  codecs: PayloadCodec[],
-  failure: ProtoFailure | null | undefined
-): Promise<DecodedProtoFailure | null | undefined> {
-  if (failure === null) return null;
-  if (failure === undefined) return undefined;
-  return await decodeFailure(codecs, failure);
-}
-
-/**
  * Return a new {@link ProtoFailure} with `codec.decode()` run on all the {@link Payload}s.
  */
 export async function decodeFailure(codecs: PayloadCodec[], failure: ProtoFailure): Promise<DecodedProtoFailure> {
@@ -342,25 +311,43 @@ export async function decodeFailure(codecs: PayloadCodec[], failure: ProtoFailur
 }
 
 /**
+ * Return a new {@link ProtoFailure} with `codec.encode()` run on all the {@link Payload}s.
+ */
+export async function encodeOptionalFailure(
+  codecs: PayloadCodec[],
+  failure: ProtoFailure | null | undefined
+): Promise<EncodedProtoFailure | null | undefined> {
+  if (failure == null) return failure;
+  return await encodeFailure(codecs, failure);
+}
+
+/**
+ * Return a new {@link ProtoFailure} with `codec.encode()` run on all the {@link Payload}s.
+ */
+export async function decodeOptionalFailure(
+  codecs: PayloadCodec[],
+  failure: ProtoFailure | null | undefined
+): Promise<DecodedProtoFailure | null | undefined> {
+  if (failure == null) return failure;
+  return await decodeFailure(codecs, failure);
+}
+
+/**
  * Mark all values in the map as encoded.
- * Use this for headers and searchAttributes, which we don't encode.
+ * Use this for headers, which we don't encode.
  */
 export function noopEncodeMap<K extends string>(
   map: Record<K, Payload> | null | undefined
 ): Record<K, EncodedPayload> | null | undefined {
-  if (map === null) return null;
-  if (map === undefined) return undefined;
-  return map as Record<K, EncodedPayload>;
+  return map as Record<K, EncodedPayload> | null | undefined;
 }
 
 /**
  * Mark all values in the map as decoded.
- * Use this for headers and searchAttributes, which we don't encode.
+ * Use this for headers, which we don't encode.
  */
 export function noopDecodeMap<K extends string>(
   map: Record<K, Payload> | null | undefined
 ): Record<K, DecodedPayload> | null | undefined {
-  if (map === null) return null;
-  if (map === undefined) return undefined;
-  return map as Record<K, DecodedPayload>;
+  return map as Record<K, DecodedPayload> | null | undefined;
 }

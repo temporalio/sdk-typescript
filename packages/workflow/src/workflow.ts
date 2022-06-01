@@ -10,9 +10,10 @@ import {
   msOptionalToTs,
   msToNumber,
   msToTs,
-  tsToMs,
   QueryDefinition,
+  SearchAttributeValue,
   SignalDefinition,
+  tsToMs,
   WithWorkflowArgs,
   Workflow,
   WorkflowResultType,
@@ -998,11 +999,10 @@ function patchInternal(patchId: string, deprecated: boolean): boolean {
   // Patch operation does not support interception at the moment, if it did,
   // this would be the place to start the interception chain
 
-  const { isReplaying } = workflowInfo();
   if (state.workflow === undefined) {
     throw new IllegalStateError('Patches cannot be used before Workflow starts');
   }
-  const usePatch = !isReplaying || state.knownPresentPatches.has(patchId);
+  const usePatch = !state.isReplaying || state.knownPresentPatches.has(patchId);
   // Avoid sending commands for patches core already knows about.
   // This optimization enables development of automatic patching tools.
   if (usePatch && !state.sentPatches.has(patchId)) {
@@ -1132,4 +1132,105 @@ export function setHandler<Ret, Args extends any[], T extends SignalDefinition<A
   } else {
     throw new TypeError(`Invalid definition type: ${(def as any).type}`);
   }
+}
+
+/**
+ * Updates this Workflow's Search Attributes by merging the provided `searchAttributes` with the existing Search
+ * Attributes, `workflowInfo().searchAttributes`.
+ *
+ * For example, this Workflow code:
+ *
+ * ```ts
+ * upsertSearchAttributes({
+ *   CustomIntField: [1, 2, 3],
+ *   CustomBoolField: [true]
+ * });
+ * upsertSearchAttributes({
+ *   CustomIntField: [42],
+ *   CustomKeywordField: ['durable code', 'is great']
+ * });
+ * ```
+ *
+ * would result in the Workflow having these Search Attributes:
+ *
+ * ```ts
+ * {
+ *   CustomIntField: [42],
+ *   CustomBoolField: [true],
+ *   CustomKeywordField: ['durable code', 'is great']
+ * }
+ * ```
+ *
+ * @param searchAttributes The Record to merge. Use a value of `[]` to clear a Search Attribute.
+ */
+export function upsertSearchAttributes(searchAttributes: Record<string, SearchAttributeValue[]>): void {
+  if (!state.info) {
+    throw new IllegalStateError('`state.info` should be defined');
+  }
+
+  const mergedSearchAttributes = { ...state.info.searchAttributes, ...searchAttributes };
+  if (!mergedSearchAttributes) {
+    throw new Error('searchAttributes must be a non-null Record<string, SearchAttributeValue[]>');
+  }
+
+  state.pushCommand({
+    upsertWorkflowSearchAttributesCommandAttributes: {
+      seq: state.nextSeqs.upsertSearchAttributes++,
+      searchAttributes: mapToPayloads(searchAttributePayloadConverter, searchAttributes),
+    },
+  });
+
+  state.info.searchAttributes = mergedSearchAttributes;
+}
+
+export class Unsafe {
+  get isReplaying(): boolean {
+    if (state.isReplaying == null) {
+      throw new IllegalStateError('Workflow uninitialized');
+    }
+    return state.isReplaying;
+  }
+}
+
+/**
+ * Unsafe information about the currently executing Workflow Task.
+ *
+ * Never rely on this information in Workflow logic as it will cause non-deterministic behavior.
+ */
+export interface UnsafeTaskInfo {
+  isReplaying: boolean;
+}
+
+/**
+ * Information about the currently executing Workflow Task.
+ *
+ * Meant for advanced usage.
+ */
+export interface TaskInfo {
+  /**
+   * Length of Workflow history up until the current Workflow Task.
+   *
+   * You may safely use this information to decide when to {@link continueAsNew}.
+   */
+  historyLength: number;
+  unsafe: UnsafeTaskInfo;
+}
+
+/**
+ * Get information about the currently executing Workflow Task.
+ *
+ * See {@link TaskInfo}
+ */
+export function taskInfo(): TaskInfo {
+  const { isReplaying, historyLength } = state;
+  if (isReplaying == null || historyLength == null) {
+    throw new IllegalStateError('Workflow uninitialized');
+  }
+
+  return {
+    historyLength,
+    unsafe: {
+      isReplaying,
+    },
+  };
 }

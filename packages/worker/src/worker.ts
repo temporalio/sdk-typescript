@@ -7,12 +7,16 @@ import {
   errorMessage,
   IllegalStateError,
   LoadedDataConverter,
+  mapFromPayloads,
   Payload,
+  searchAttributePayloadConverter,
 } from '@temporalio/common';
 import * as native from '@temporalio/core-bridge';
 import {
   decodeArrayFromPayloads,
   decodeFromPayloadsAtIndex,
+  decodeMapFromPayloads,
+  decodeOptionalFailureToOptionalError,
   encodeErrorToFailure,
   encodeToPayload,
 } from '@temporalio/internal-non-workflow-common';
@@ -23,9 +27,16 @@ import {
   RUN_ID_ATTR_KEY,
   TASK_TOKEN_ATTR_KEY,
 } from '@temporalio/internal-non-workflow-common/lib/otel';
-import { optionalTsToMs, tsToMs } from '@temporalio/internal-workflow-common';
+import {
+  optionalTsToDate,
+  optionalTsToMs,
+  SearchAttributeValue,
+  tsToMs,
+  decompileRetryPolicy,
+} from '@temporalio/internal-workflow-common';
 import { coresdk } from '@temporalio/proto';
 import { DeterminismViolationError, SinkCall, WorkflowInfo } from '@temporalio/workflow';
+import { convertToParentWorkflowType } from './utils';
 import fs from 'fs/promises';
 import {
   BehaviorSubject,
@@ -920,20 +931,71 @@ export class Worker {
                       if (activation.timestamp == null) {
                         throw new TypeError('Got activation with no timestamp, cannot create a new Workflow instance');
                       }
-                      const { workflowId, randomnessSeed, workflowType } = startWorkflow;
+                      const {
+                        workflowId,
+                        randomnessSeed,
+                        workflowType,
+                        parentWorkflowInfo,
+                        workflowExecutionTimeout,
+                        workflowRunTimeout,
+                        workflowTaskTimeout,
+                        continuedFromExecutionRunId,
+                        continuedFailure,
+                        lastCompletionResult,
+                        firstExecutionRunId,
+                        retryPolicy,
+                        attempt,
+                        cronSchedule,
+                        workflowExecutionExpirationTime,
+                        cronScheduleToScheduleInterval,
+                        memo,
+                        searchAttributes,
+                      } = startWorkflow;
+
+                      if (firstExecutionRunId === null || firstExecutionRunId === undefined) {
+                        throw new TypeError(`Unexpected value: \`firstExecutionRunId\` is ${firstExecutionRunId}`);
+                      }
+                      if (attempt === null || attempt === undefined) {
+                        throw new TypeError(`Unexpected value: \`attempt\` is ${attempt}`);
+                      }
                       this.log.debug('Creating workflow', {
                         workflowType,
                         workflowId,
                         runId: activation.runId,
                       });
                       this.numCachedWorkflowsSubject.next(this.numCachedWorkflowsSubject.value + 1);
-                      const workflowInfo = {
-                        workflowType,
-                        runId: activation.runId,
+                      const workflowInfo: WorkflowInfo = {
                         workflowId,
-                        namespace: this.options.namespace,
+                        runId: activation.runId,
+                        workflowType,
+                        searchAttributes: mapFromPayloads(
+                          searchAttributePayloadConverter,
+                          searchAttributes?.indexedFields
+                        ) as Record<string, SearchAttributeValue[]> | undefined,
+                        memo: await decodeMapFromPayloads(this.options.loadedDataConverter, memo?.fields),
+                        parent: convertToParentWorkflowType(parentWorkflowInfo),
+                        lastResult: await decodeFromPayloadsAtIndex(
+                          this.options.loadedDataConverter,
+                          0,
+                          lastCompletionResult?.payloads
+                        ),
+                        lastFailure: await decodeOptionalFailureToOptionalError(
+                          this.options.loadedDataConverter,
+                          continuedFailure
+                        ),
                         taskQueue: this.options.taskQueue,
-                        isReplaying: activation.isReplaying,
+                        namespace: this.options.namespace,
+                        firstExecutionRunId,
+                        continuedFromExecutionRunId: continuedFromExecutionRunId || undefined,
+                        executionTimeoutMs: optionalTsToMs(workflowExecutionTimeout),
+                        executionExpirationTime: optionalTsToDate(workflowExecutionExpirationTime),
+                        runTimeoutMs: optionalTsToMs(workflowRunTimeout),
+                        taskTimeoutMs: tsToMs(workflowTaskTimeout),
+                        retryPolicy: decompileRetryPolicy(retryPolicy),
+                        attempt,
+                        cronSchedule: cronSchedule || undefined,
+                        // 0 is the default, and not a valid value, since crons are at least a minute apart
+                        cronScheduleToScheduleInterval: optionalTsToMs(cronScheduleToScheduleInterval) || undefined,
                       };
                       const patchJobs = activation.jobs.filter((j): j is PatchJob => j.notifyHasPatch != null);
                       const patches = patchJobs.map(({ notifyHasPatch }) => {
@@ -950,6 +1012,8 @@ export class Worker {
                           randomnessSeed: randomnessSeed.toBytes(),
                           now: tsToMs(activation.timestamp),
                           patches,
+                          isReplaying: activation.isReplaying,
+                          historyLength: activation.historyLength,
                         });
                       });
                       state = { workflow, info: workflowInfo };

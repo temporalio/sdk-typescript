@@ -35,3 +35,10 @@ export interface QueryDefinition<_Ret, _Args extends any[] = []> {
 
 /** Get the "unwrapped" return type (without Promise) of the execute handler from Workflow type `W` */
 export type WorkflowResultType<W extends Workflow> = ReturnType<W> extends Promise<infer R> ? R : never;
+
+/**
+ * If another SDK creates a Search Attribute that's not an array, we wrap it in an array.
+ *
+ * Dates are serialized as ISO strings.
+ */
+export type SearchAttributeValue = string | number | boolean | Date;

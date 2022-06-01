@@ -26,6 +26,7 @@ import {
   composeInterceptors,
   optionalTsToDate,
   QueryDefinition,
+  SearchAttributeValue,
   SignalDefinition,
   tsToDate,
   WithWorkflowArgs,
@@ -63,6 +64,7 @@ import {
   TerminateWorkflowExecutionResponse,
   WorkflowExecution,
   WorkflowExecutionDescription,
+  WorkflowExecutionStatusName,
 } from './types';
 import { compileWorkflowOptions, WorkflowOptions, WorkflowSignalWithStartOptions } from './workflow-options';
 
@@ -797,7 +799,10 @@ export class WorkflowClient {
           workflowId: raw.workflowExecutionInfo!.execution!.workflowId!,
           runId: raw.workflowExecutionInfo!.execution!.runId!,
           taskQueue: raw.workflowExecutionInfo!.taskQueue!,
-          status: raw.workflowExecutionInfo!.status!,
+          status: {
+            code: raw.workflowExecutionInfo!.status!,
+            name: workflowStatusCodeToName(raw.workflowExecutionInfo!.status!),
+          },
           historyLength: raw.workflowExecutionInfo!.historyLength!,
           startTime: tsToDate(raw.workflowExecutionInfo!.startTime!),
           executionTime: optionalTsToDate(raw.workflowExecutionInfo!.executionTime),
@@ -808,12 +813,12 @@ export class WorkflowClient {
           ),
           searchAttributes: mapFromPayloads(
             searchAttributePayloadConverter,
-            raw.workflowExecutionInfo!.searchAttributes?.indexedFields
-          ),
-          parentExecution: raw.workflowExecutionInfo!.parentExecution
+            raw.workflowExecutionInfo!.searchAttributes?.indexedFields ?? {}
+          ) as Record<string, SearchAttributeValue[]>,
+          parentExecution: raw.workflowExecutionInfo?.parentExecution
             ? {
-                workflowId: raw.workflowExecutionInfo!.parentExecution!.workflowId!,
-                runId: raw.workflowExecutionInfo!.parentExecution!.runId!,
+                workflowId: raw.workflowExecutionInfo.parentExecution.workflowId!,
+                runId: raw.workflowExecutionInfo.parentExecution.runId!,
               }
             : undefined,
           raw,
@@ -883,5 +888,35 @@ export class QueryRejectedError extends Error {
   public readonly name: string = 'QueryRejectedError';
   constructor(public readonly status: temporal.api.enums.v1.WorkflowExecutionStatus) {
     super('Query rejected');
+  }
+}
+
+function workflowStatusCodeToName(code: temporal.api.enums.v1.WorkflowExecutionStatus): WorkflowExecutionStatusName {
+  return workflowStatusCodeToNameInternal(code) ?? 'UNKNOWN';
+}
+
+/**
+ * Intentionally leave out `default` branch to get compilation errors when new values are added
+ */
+function workflowStatusCodeToNameInternal(
+  code: temporal.api.enums.v1.WorkflowExecutionStatus
+): WorkflowExecutionStatusName {
+  switch (code) {
+    case temporal.api.enums.v1.WorkflowExecutionStatus.WORKFLOW_EXECUTION_STATUS_UNSPECIFIED:
+      return 'UNSPECIFIED';
+    case temporal.api.enums.v1.WorkflowExecutionStatus.WORKFLOW_EXECUTION_STATUS_RUNNING:
+      return 'RUNNING';
+    case temporal.api.enums.v1.WorkflowExecutionStatus.WORKFLOW_EXECUTION_STATUS_FAILED:
+      return 'FAILED';
+    case temporal.api.enums.v1.WorkflowExecutionStatus.WORKFLOW_EXECUTION_STATUS_TIMED_OUT:
+      return 'TIMED_OUT';
+    case temporal.api.enums.v1.WorkflowExecutionStatus.WORKFLOW_EXECUTION_STATUS_CANCELED:
+      return 'CANCELLED';
+    case temporal.api.enums.v1.WorkflowExecutionStatus.WORKFLOW_EXECUTION_STATUS_TERMINATED:
+      return 'TERMINATED';
+    case temporal.api.enums.v1.WorkflowExecutionStatus.WORKFLOW_EXECUTION_STATUS_COMPLETED:
+      return 'COMPLETED';
+    case temporal.api.enums.v1.WorkflowExecutionStatus.WORKFLOW_EXECUTION_STATUS_CONTINUED_AS_NEW:
+      return 'CONTINUED_AS_NEW';
   }
 }

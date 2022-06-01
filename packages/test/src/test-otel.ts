@@ -14,7 +14,7 @@ import {
   OpenTelemetryActivityInboundInterceptor,
 } from '@temporalio/interceptors-opentelemetry/lib/worker';
 import { OpenTelemetrySinks, SpanName, SPAN_DELIMITER } from '@temporalio/interceptors-opentelemetry/lib/workflow';
-import { Runtime, DefaultLogger, InjectedSinks, Worker } from '@temporalio/worker';
+import { DefaultLogger, InjectedSinks, Runtime, Worker } from '@temporalio/worker';
 import test from 'ava';
 import { v4 as uuid4 } from 'uuid';
 import * as activities from './activities';
