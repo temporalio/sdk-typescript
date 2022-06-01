@@ -4,7 +4,7 @@ use neon::{
     context::Context,
     handle::Handle,
     prelude::*,
-    types::{JsNumber, JsString},
+    types::{JsBoolean, JsNumber, JsString},
 };
 use opentelemetry::trace::{SpanContext, SpanId, TraceFlags, TraceId, TraceState};
 use std::{collections::HashMap, fmt::Display, net::SocketAddr, str::FromStr, time::Duration};
@@ -320,16 +320,14 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
     fn as_worker_config(&self, cx: &mut FunctionContext) -> NeonResult<WorkerConfig> {
         let namespace = js_value_getter!(cx, self, "namespace", JsString);
         let task_queue = js_value_getter!(cx, self, "taskQueue", JsString);
+        let enable_remote_activities =
+            js_value_getter!(cx, self, "enableNonLocalActivities", JsBoolean);
         let max_outstanding_activities =
             js_value_getter!(cx, self, "maxConcurrentActivityTaskExecutions", JsNumber) as usize;
+        let max_outstanding_local_activities =
+            js_value_getter!(cx, self, "maxConcurrentLocalActivityExecutions", JsNumber) as usize;
         let max_outstanding_workflow_tasks =
             js_value_getter!(cx, self, "maxConcurrentWorkflowTaskExecutions", JsNumber) as usize;
-        let max_concurrent_wft_polls =
-            js_value_getter!(cx, self, "maxConcurrentWorkflowTaskPolls", JsNumber) as usize;
-        let max_concurrent_at_polls =
-            js_value_getter!(cx, self, "maxConcurrentActivityTaskPolls", JsNumber) as usize;
-        let nonsticky_to_sticky_poll_ratio =
-            js_value_getter!(cx, self, "nonStickyToStickyPollRatio", JsNumber) as f32;
         let sticky_queue_schedule_to_start_timeout = Duration::from_millis(js_value_getter!(
             cx,
             self,
@@ -353,20 +351,26 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
             JsNumber
         ) as u64);
 
+        let max_worker_activities_per_second =
+            js_optional_getter!(cx, self, "maxActivitiesPerSecond", JsNumber)
+                .map(|num| num.value(cx) as f64);
+        let max_task_queue_activities_per_second =
+            js_optional_getter!(cx, self, "maxTaskQueueActivitiesPerSecond", JsNumber)
+                .map(|num| num.value(cx) as f64);
+
         match WorkerConfigBuilder::default()
-            .no_remote_activities(false) // TODO: make this configurable once Core implements local activities
-            .max_concurrent_at_polls(max_concurrent_at_polls)
-            .max_concurrent_wft_polls(max_concurrent_wft_polls)
+            .no_remote_activities(!enable_remote_activities)
             .max_outstanding_workflow_tasks(max_outstanding_workflow_tasks)
             .max_outstanding_activities(max_outstanding_activities)
+            .max_outstanding_local_activities(max_outstanding_local_activities)
             .max_cached_workflows(max_cached_workflows)
-            .nonsticky_to_sticky_poll_ratio(nonsticky_to_sticky_poll_ratio)
             .sticky_queue_schedule_to_start_timeout(sticky_queue_schedule_to_start_timeout)
             .namespace(namespace)
             .task_queue(task_queue)
             .max_heartbeat_throttle_interval(max_heartbeat_throttle_interval)
             .default_heartbeat_throttle_interval(default_heartbeat_throttle_interval)
-            .max_outstanding_local_activities(10_usize) // TODO: Pass in
+            .max_worker_activities_per_second(max_worker_activities_per_second)
+            .max_task_queue_activities_per_second(max_task_queue_activities_per_second)
             .build()
         {
             Ok(worker_cfg) => Ok(worker_cfg),

@@ -56,10 +56,7 @@ export interface WorkerArgSpec extends Spec {
   '--max-cached-wfs': typeof Number;
   '--max-concurrent-at-executions': typeof Number;
   '--max-concurrent-wft-executions': typeof Number;
-  // NOTE: this is not supported yet by Core
-  '--max-concurrent-at-polls': typeof Number;
-  // NOTE: this is not supported yet by Core
-  '--max-concurrent-wft-polls': typeof Number;
+  '--max-concurrent-la-executions': typeof Number;
   '--log-level': typeof String;
   '--log-file': typeof String;
   '--server-address': typeof String;
@@ -73,11 +70,8 @@ export const workerArgSpec: WorkerArgSpec = {
   '--max-cached-wfs': Number,
   '--max-concurrent-at-executions': Number,
   '--max-concurrent-wft-executions': Number,
+  '--max-concurrent-la-executions': Number,
   '--isolate-pool-size': Number,
-  // NOTE: this is not supported yet by Core
-  '--max-concurrent-at-polls': Number,
-  // NOTE: this is not supported yet by Core
-  '--max-concurrent-wft-polls': Number,
   '--log-level': String,
   '--log-file': String,
   '--server-address': String,
