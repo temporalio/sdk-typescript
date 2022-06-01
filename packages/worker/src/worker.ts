@@ -975,8 +975,9 @@ export class Worker {
                         ) as Record<string, SearchAttributeValue[]> | undefined,
                         memo: await decodeMapFromPayloads(this.options.loadedDataConverter, memo?.fields),
                         parent: convertToParentWorkflowType(parentWorkflowInfo),
-                        lastResult: await decodeFromPayloads(
+                        lastResult: await decodeFromPayloadsAtIndex(
                           this.options.loadedDataConverter,
+                          0,
                           lastCompletionResult?.payloads
                         ),
                         lastFailure: await decodeOptionalFailureToOptionalError(
@@ -987,10 +988,10 @@ export class Worker {
                         namespace: this.options.namespace,
                         firstExecutionRunId,
                         continuedFromExecutionRunId: continuedFromExecutionRunId || undefined,
-                        executionTimeout: optionalTsToMs(workflowExecutionTimeout),
+                        executionTimeoutMs: optionalTsToMs(workflowExecutionTimeout),
                         executionExpirationTime: optionalTsToDate(workflowExecutionExpirationTime),
-                        runTimeout: optionalTsToMs(workflowRunTimeout),
-                        taskTimeout: tsToMs(workflowTaskTimeout),
+                        runTimeoutMs: optionalTsToMs(workflowRunTimeout),
+                        taskTimeoutMs: tsToMs(workflowTaskTimeout),
                         retryPolicy: decompileRetryPolicy(retryPolicy),
                         attempt,
                         cronSchedule: cronSchedule || undefined,

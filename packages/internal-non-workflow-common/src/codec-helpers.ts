@@ -23,6 +23,9 @@ export async function decode(codecs: PayloadCodec[], payloads: Payload[]): Promi
   return payloads as DecodedPayload[];
 }
 
+/**
+ * Encode through each codec, starting with the first codec.
+ */
 export async function encode(codecs: PayloadCodec[], payloads: Payload[]): Promise<EncodedPayload[]> {
   for (let i = 0; i < codecs.length; i++) {
     payloads = await codecs[i].encode(payloads);
@@ -39,7 +42,11 @@ export async function decodeFromPayloadsAtIndex<T>(
   payloads?: Payload[] | null
 ): Promise<T> {
   const { payloadConverter, payloadCodecs } = converter;
-  return fromPayloadsAtIndex(payloadConverter, index, payloads ? await decode(payloadCodecs, payloads) : payloads);
+  return await fromPayloadsAtIndex(
+    payloadConverter,
+    index,
+    payloads ? await decode(payloadCodecs, payloads) : payloads
+  );
 }
 
 /**

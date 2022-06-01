@@ -42,7 +42,7 @@ export interface WorkflowInfo {
    *
    * An array of values, since other SDKs may return multiple values from a Workflow.
    */
-  lastResult?: unknown[];
+  lastResult?: unknown;
 
   /**
    * Failure from the previous Run (present when this Run is a retry, or the last Run of a Cron Workflow failed)
@@ -78,7 +78,7 @@ export interface WorkflowInfo {
   /**
    * Milliseconds after which the Workflow Execution is automatically terminated by Temporal Server. Set via {@link WorkflowOptions.workflowExecutionTimeout}.
    */
-  executionTimeout?: number;
+  executionTimeoutMs?: number;
 
   /**
    * Time at which the Workflow Execution expires
@@ -88,12 +88,12 @@ export interface WorkflowInfo {
   /**
    * Milliseconds after which the Workflow Run is automatically terminated by Temporal Server. Set via {@link WorkflowOptions.workflowRunTimeout}.
    */
-  runTimeout?: number;
+  runTimeoutMs?: number;
 
   /**
    * Maximum execution time of a Workflow Task in milliseconds. Set via {@link WorkflowOptions.workflowTaskTimeout}.
    */
-  taskTimeout: number;
+  taskTimeoutMs: number;
 
   /**
    * Retry Policy for this Execution. Set via {@link WorkflowOptions.retry}.

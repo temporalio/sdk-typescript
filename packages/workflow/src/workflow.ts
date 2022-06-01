@@ -1176,7 +1176,7 @@ export function upsertSearchAttributes(searchAttributes: Record<string, SearchAt
   state.pushCommand({
     upsertWorkflowSearchAttributesCommandAttributes: {
       seq: state.nextSeqs.upsertSearchAttributes++,
-      searchAttributes: mapToPayloads(searchAttributePayloadConverter, mergedSearchAttributes),
+      searchAttributes: mapToPayloads(searchAttributePayloadConverter, searchAttributes),
     },
   });
 
@@ -1186,7 +1186,7 @@ export function upsertSearchAttributes(searchAttributes: Record<string, SearchAt
 export class Unsafe {
   get isReplaying(): boolean {
     if (state.isReplaying == null) {
-      throw new IllegalStateError('`state.isReplaying` should be defined');
+      throw new IllegalStateError('Workflow uninitialized');
     }
     return state.isReplaying;
   }

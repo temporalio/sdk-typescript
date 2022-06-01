@@ -88,7 +88,7 @@ async function createWorkflow(
       namespace: 'default',
       firstExecutionRunId: runId,
       attempt: 1,
-      taskTimeout: 1000,
+      taskTimeoutMs: 1000,
       taskQueue: 'test',
     },
     randomnessSeed: Long.fromInt(1337).toBytes(),
@@ -1831,78 +1831,6 @@ test('scopeCancelledWhileWaitingOnExternalWorkflowCancellation', async (t) => {
         {
           completeWorkflowExecution: { result: defaultPayloadConverter.toPayload(undefined) },
         },
-      ])
-    );
-  }
-});
-
-test('upsertAndReadSearchAttributes', async (t) => {
-  const { workflowType } = t.context;
-  const now = Date.now();
-  {
-    const req = await activate(t, makeStartWorkflow(workflowType, [defaultPayloadConverter.toPayload(now)]));
-    compareCompletion(
-      t,
-      req,
-      makeSuccess([
-        makeUpsertSearchAttributesCommand({
-          seq: 1,
-          searchAttributes: {
-            CustomBoolField: searchAttributePayloadConverter.toPayload([true]),
-            CustomIntField: searchAttributePayloadConverter.toPayload([123]),
-          },
-        }),
-        makeUpsertSearchAttributesCommand({
-          seq: 2,
-          searchAttributes: {
-            CustomBoolField: searchAttributePayloadConverter.toPayload([true]),
-            CustomDatetimeField: searchAttributePayloadConverter.toPayload([new Date(now).toISOString()]),
-            CustomDoubleField: searchAttributePayloadConverter.toPayload([3.14]),
-            CustomIntField: searchAttributePayloadConverter.toPayload([2, 3]),
-            CustomKeywordField: searchAttributePayloadConverter.toPayload(['durable code']),
-            CustomTextField: searchAttributePayloadConverter.toPayload(['is useful']),
-          },
-        }),
-        makeCompleteWorkflowExecution(
-          defaultPayloadConverter.toPayload({
-            CustomIntField: [2, 3],
-            CustomBoolField: [true],
-            CustomKeywordField: ['durable code'],
-            CustomTextField: ['is useful'],
-            CustomDatetimeField: [new Date(now)],
-            CustomDoubleField: [3.14],
-          })
-        ),
-      ])
-    );
-  }
-});
-
-test('clearSearchAttribute', async (t) => {
-  const { workflowType } = t.context;
-  {
-    const req = await activate(t, makeStartWorkflow(workflowType));
-    compareCompletion(
-      t,
-      req,
-      makeSuccess([
-        makeUpsertSearchAttributesCommand({
-          seq: 1,
-          searchAttributes: {
-            CustomIntField: searchAttributePayloadConverter.toPayload([123]),
-          },
-        }),
-        makeUpsertSearchAttributesCommand({
-          seq: 2,
-          searchAttributes: {
-            CustomIntField: searchAttributePayloadConverter.toPayload([]),
-          },
-        }),
-        makeCompleteWorkflowExecution(
-          defaultPayloadConverter.toPayload({
-            CustomIntField: [],
-          })
-        ),
       ])
     );
   }

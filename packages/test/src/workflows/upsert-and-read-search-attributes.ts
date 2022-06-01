@@ -8,7 +8,7 @@ export async function upsertAndReadSearchAttributes(
     CustomBoolField: [true],
   });
   upsertSearchAttributes({
-    CustomIntField: [2, 3],
+    CustomIntField: [], // clear
     CustomKeywordField: ['durable code'],
     CustomTextField: ['is useful'],
     CustomDatetimeField: [new Date(msSinceEpoch)],

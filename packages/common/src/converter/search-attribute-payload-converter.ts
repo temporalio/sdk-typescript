@@ -19,10 +19,11 @@ export class SearchAttributePayloadConverter implements PayloadConverter {
       const firstValue = values[0];
       const firstType = typeof firstValue;
       if (firstType === 'object') {
-        for (const value of values) {
+        for (const idx in values) {
+          const value = values[idx];
           if (!(value instanceof Date)) {
             throw new ValueError(
-              `SearchAttribute values must arrays of strings, numbers, booleans, or Dates. This value ${value} is a ${typeof value}.`
+              `SearchAttribute values must arrays of strings, numbers, booleans, or Dates. The value ${value} at index ${idx} is of type ${typeof value}`
             );
           }
         }
@@ -31,10 +32,11 @@ export class SearchAttributePayloadConverter implements PayloadConverter {
           throw new ValueError(`SearchAttribute array values must be: string | number | boolean | Date`);
         }
 
-        for (const value of values) {
+        for (const idx in values) {
+          const value = values[idx];
           if (typeof value !== firstType) {
             throw new ValueError(
-              `All SearchAttribute array values must be of the same type. The first value ${firstValue} of type ${firstType} doesn't match value ${value} of type ${typeof value}.`
+              `All SearchAttribute array values must be of the same type. The first value ${firstValue} of type ${firstType} doesn't match value ${value} of type ${typeof value} at index ${idx}`
             );
           }
         }

@@ -27,6 +27,7 @@ import {
 } from '@temporalio/internal-workflow-common';
 import * as iface from '@temporalio/proto';
 import { DefaultLogger, Runtime, Worker } from '@temporalio/worker';
+import pkg from '@temporalio/worker/lib/pkg';
 import asyncRetry from 'async-retry';
 import anyTest, { Implementation, TestInterface } from 'ava';
 import dedent from 'dedent';
@@ -602,6 +603,35 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
     });
   });
 
+  test('Workflow can upsert Search Attributes', async (t) => {
+    const date = new Date();
+    const { client } = t.context;
+    const workflow = await client.start(workflows.upsertAndReadSearchAttributes, {
+      taskQueue: 'test',
+      workflowId: uuid4(),
+      args: [date.getTime()],
+    });
+    const result = await workflow.result();
+    t.deepEqual(result, {
+      CustomBoolField: [true],
+      CustomIntField: [], // clear
+      CustomKeywordField: ['durable code'],
+      CustomTextField: ['is useful'],
+      CustomDatetimeField: [date.toISOString()],
+      CustomDoubleField: [3.14],
+    });
+    const { searchAttributes } = await workflow.describe();
+    t.deepEqual(searchAttributes, {
+      BinaryChecksums: [`@temporalio/worker@${pkg.version}`],
+      CustomBoolField: [true],
+      CustomIntField: [], // clear
+      CustomKeywordField: ['durable code'],
+      CustomTextField: ['is useful'],
+      CustomDatetimeField: [date],
+      CustomDoubleField: [3.14],
+    });
+  });
+
   test('Workflow can read WorkflowInfo', async (t) => {
     const { client } = t.context;
     const workflowId = uuid4();
@@ -620,7 +650,7 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
       attempt: 1,
       firstExecutionRunId: workflow.firstExecutionRunId,
       namespace: 'default',
-      taskTimeout: 10000,
+      taskTimeoutMs: 10_000,
       runId: workflow.firstExecutionRunId,
       taskQueue: 'test',
       workflowType: 'returnWorkflowInfo',
