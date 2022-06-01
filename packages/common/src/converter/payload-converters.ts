@@ -2,7 +2,7 @@ import { PayloadConverterError, ValueError } from '@temporalio/internal-workflow
 import { JsonPayloadConverter } from './json-payload-converter';
 import { PayloadConverter } from './payload-converter';
 import { SearchAttributePayloadConverter } from './search-attribute-payload-converter';
-import { encodingKeys, encodingTypes, METADATA_ENCODING_KEY, Payload, str, u8 } from './types';
+import { encodingKeys, encodingTypes, METADATA_ENCODING_KEY, Payload, str } from './types';
 
 export interface PayloadConverterWithEncoding {
   /**

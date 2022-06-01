@@ -1,6 +1,5 @@
 import {
   ApplicationFailure,
-  searchAttributePayloadConverter,
   defaultPayloadConverter,
   errorToFailure,
   RetryState,
@@ -292,14 +291,6 @@ function makeRespondToQueryCommand(
 ): coresdk.workflow_commands.IWorkflowCommand {
   return {
     respondToQuery,
-  };
-}
-
-function makeUpsertSearchAttributesCommand(
-  attrs: coresdk.workflow_commands.IUpsertWorkflowSearchAttributes
-): coresdk.workflow_commands.IWorkflowCommand {
-  return {
-    upsertWorkflowSearchAttributesCommandAttributes: attrs,
   };
 }
 

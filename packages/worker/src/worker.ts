@@ -14,7 +14,6 @@ import {
 import * as native from '@temporalio/core-bridge';
 import {
   decodeArrayFromPayloads,
-  decodeFromPayloads,
   decodeFromPayloadsAtIndex,
   decodeMapFromPayloads,
   decodeOptionalFailureToOptionalError,
