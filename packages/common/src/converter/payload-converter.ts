@@ -84,8 +84,8 @@ export function arrayFromPayloads(converter: PayloadConverter, payloads?: Payloa
 export function mapFromPayloads<K extends string>(
   converter: PayloadConverter,
   map?: Record<K, Payload> | null | undefined
-): Record<K, unknown> | undefined {
-  if (map === undefined || map === null) return undefined;
+): Record<K, unknown> | undefined | null {
+  if (map == null) return map;
   return Object.fromEntries(
     Object.entries(map).map(([k, payload]): [K, unknown] => {
       const value = converter.fromPayload(payload as Payload);
