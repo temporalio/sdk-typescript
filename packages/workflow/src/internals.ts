@@ -439,6 +439,11 @@ export class State {
   isReplaying?: boolean;
 
   /**
+   * ID of last WorkflowTaskStarted event
+   */
+  historyLength?: number;
+
+  /**
    * A deterministic RNG, used by the isolate's overridden Math.random
    */
   public random: RNG = function () {

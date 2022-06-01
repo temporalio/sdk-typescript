@@ -1013,6 +1013,7 @@ export class Worker {
                           now: tsToMs(activation.timestamp),
                           patches,
                           isReplaying: activation.isReplaying,
+                          historyLength: activation.historyLength,
                         });
                       });
                       state = { workflow, info: workflowInfo };

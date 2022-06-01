@@ -94,6 +94,7 @@ async function createWorkflow(
     now: startTime,
     patches: [],
     isReplaying: false,
+    historyLength: 3,
   })) as VMWorkflow;
   return workflow;
 }

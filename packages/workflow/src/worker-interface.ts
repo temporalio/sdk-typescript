@@ -20,6 +20,7 @@ export interface WorkflowCreateOptions {
   now: number;
   patches: string[];
   isReplaying: boolean;
+  historyLength: number;
 }
 
 export interface ImportFunctions {
@@ -110,6 +111,7 @@ export async function initRuntime({
   now,
   patches,
   isReplaying,
+  historyLength,
 }: WorkflowCreateOptions): Promise<void> {
   // Set the runId globally on the context so it can be retrieved in the case
   // of an unhandled promise rejection.
@@ -123,6 +125,7 @@ export async function initRuntime({
   state.info = info;
   state.now = now;
   state.random = alea(randomnessSeed);
+  state.historyLength = historyLength;
 
   if (isReplaying) {
     for (const patch of patches) {
@@ -189,7 +192,11 @@ export async function activate(
           // timestamp will not be updated for activation that contain only queries
           state.now = tsToMs(activation.timestamp);
         }
+        if (activation.historyLength == null) {
+          throw new TypeError('Got activation with no historyLength');
+        }
         state.isReplaying = activation.isReplaying ?? false;
+        state.historyLength = activation.historyLength;
       }
 
       // Cast from the interface to the class which has the `variant` attribute.

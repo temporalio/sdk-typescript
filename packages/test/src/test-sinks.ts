@@ -156,7 +156,10 @@ if (RUN_INTEGRATION_TESTS) {
       worker.run(),
     ]);
 
-    t.deepEqual(recordedMessages, ['Workflow execution started', 'Workflow execution completed']);
+    t.deepEqual(recordedMessages, [
+      'Workflow execution started, replaying: false, hl: 3',
+      'Workflow execution completed, replaying: false, hl: 12',
+    ]);
   });
 
   test('Sink functions are called during replay if callDuringReplay is set', async (t) => {
@@ -192,10 +195,11 @@ if (RUN_INTEGRATION_TESTS) {
       worker.run(),
     ]);
 
-    t.deepEqual(recordedMessages, [
-      'Workflow execution started',
-      'Workflow execution started',
-      'Workflow execution completed',
+    // Note that task may be replayed more than once and record the first messages multiple times.
+    t.deepEqual(recordedMessages.slice(0, 2), [
+      'Workflow execution started, replaying: false, hl: 3',
+      'Workflow execution started, replaying: true, hl: 3',
     ]);
+    t.is(recordedMessages[recordedMessages.length - 1], 'Workflow execution completed, replaying: false, hl: 12');
   });
 }

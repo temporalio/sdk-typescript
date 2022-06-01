@@ -1208,20 +1208,27 @@ export interface UnsafeTaskInfo {
  */
 export interface TaskInfo {
   /**
-   * Length of Workflow history up until the current Workflow Task
+   * Length of Workflow history up until the current Workflow Task.
+   *
+   * You may safely use this information to decide when to {@link continueAsNew}.
    */
   historyLength: number;
   unsafe: UnsafeTaskInfo;
 }
 
+/**
+ * Get information about the currently executing Workflow Task.
+ *
+ * See {@link TaskInfo}
+ */
 export function taskInfo(): TaskInfo {
-  const { isReplaying } = state;
-  if (isReplaying == null) {
+  const { isReplaying, historyLength } = state;
+  if (isReplaying == null || historyLength == null) {
     throw new IllegalStateError('Workflow uninitialized');
   }
 
   return {
-    historyLength: 0,
+    historyLength,
     unsafe: {
       isReplaying,
     },
