@@ -104,6 +104,15 @@ export interface WorkerOptions {
   enableNonLocalActivities?: boolean;
 
   /**
+   * Limits the number of activities per second that this worker will process. The worker will
+   * not poll for new activities if by doing so it might receive and execute an activity which
+   * would cause it to exceed this limit. Must be a positive floating point number.
+   *
+   * If unset, no rate limiting will be applied to Worker's activities.
+   */
+  maxActivitiesPerSecond?: number;
+
+  /**
    * Sets the maximum number of activities per second the task queue will dispatch, controlled
    * server-side. Note that this only takes effect upon an activity poll request. If multiple
    * workers on the same queue have different values set, they will thrash with the last poller

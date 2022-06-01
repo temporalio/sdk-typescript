@@ -351,6 +351,8 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
             JsNumber
         ) as u64);
 
+        let max_worker_activities_per_second =
+            js_value_getter!(cx, self, "maxActivitiesPerSecond", JsNumber) as f64;
         let max_task_queue_activities_per_second =
             js_value_getter!(cx, self, "maxTaskQueueActivitiesPerSecond", JsNumber) as f64;
 
@@ -365,7 +367,7 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
             .task_queue(task_queue)
             .max_heartbeat_throttle_interval(max_heartbeat_throttle_interval)
             .default_heartbeat_throttle_interval(default_heartbeat_throttle_interval)
-            .max_outstanding_local_activities(10_usize) // TODO: Pass in
+            .max_worker_activities_per_second(max_worker_activities_per_second)
             .max_task_queue_activities_per_second(max_task_queue_activities_per_second)
             .build()
         {

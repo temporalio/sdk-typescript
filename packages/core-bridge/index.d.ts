@@ -201,6 +201,13 @@ export interface WorkerOptions {
    * winning.
    */
   maxTaskQueueActivitiesPerSecond?: number;
+
+  /**
+   * Limits the number of activities per second that this worker will process. The worker will
+   * not poll for new activities if by doing so it might receive and execute an activity which
+   * would cause it to exceed this limit. Must be a positive floating point number.
+   */
+  maxActivitiesPerSecond?: number;
 }
 
 /** Log level - must match rust log level names */
