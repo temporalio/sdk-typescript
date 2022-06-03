@@ -30,7 +30,7 @@ if (RUN_INTEGRATION_TESTS) {
     const worker2Drained = worker2.run();
     worker1.shutdown();
     await worker1Drained;
-    const client = await WorkflowClient.forLocalServer();
+    const client = new WorkflowClient();
     // Run a simple workflow
     await client.execute(workflows.sleeper, { taskQueue: 'q2', workflowId: uuid4(), args: [1] });
     worker2.shutdown();

@@ -61,8 +61,8 @@ if (RUN_INTEGRATION_TESTS) {
       worker,
       runPromise,
       activityStarted$: infoSubject,
-      workflowClient: await WorkflowClient.forLocalServer(),
-      asyncCompletionClient: await AsyncCompletionClient.forLocalServer(),
+      workflowClient: new WorkflowClient(),
+      asyncCompletionClient: new AsyncCompletionClient(),
     };
   });
 

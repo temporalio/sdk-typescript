@@ -128,7 +128,7 @@ async function main() {
     logger,
   });
 
-  const connection = await NativeConnection.create({
+  const connection = await NativeConnection.connect({
     address: serverAddress,
   });
 

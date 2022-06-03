@@ -1,5 +1,5 @@
 /* eslint @typescript-eslint/no-non-null-assertion: 0 */
-import { WorkflowClient, WorkflowHandle } from '@temporalio/client';
+import { WorkflowClient } from '@temporalio/client';
 import {
   BinaryPayloadConverter,
   defaultPayloadConverter,
@@ -191,7 +191,7 @@ if (RUN_INTEGRATION_TESTS) {
       workflowsPath: require.resolve('./workflows/protobufs'),
       taskQueue,
     });
-    const client = await WorkflowClient.forLocalServer({
+    const client = new WorkflowClient({
       dataConverter: { payloadConverterPath: require.resolve('./payload-converters/proto-payload-converter') },
     });
 

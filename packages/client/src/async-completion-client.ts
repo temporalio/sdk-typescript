@@ -6,9 +6,11 @@ import {
   filterNullAndUndefined,
   loadDataConverter,
 } from '@temporalio/internal-non-workflow-common';
+import { Replace } from '@temporalio/internal-workflow-common';
 import os from 'os';
-import { Connection, WorkflowService } from './connection';
+import { Connection } from './connection';
 import { isServerErrorResponse } from './errors';
+import { ConnectionLike, WorkflowService } from './types';
 
 /**
  * Thrown by {@link AsyncCompletionClient} when trying to complete or heartbeat
@@ -50,6 +52,8 @@ export interface AsyncCompletionClientOptions {
    */
   identity?: string;
 
+  connection?: ConnectionLike;
+
   /**
    * Server namespace
    *
@@ -58,7 +62,12 @@ export interface AsyncCompletionClientOptions {
   namespace?: string;
 }
 
-export type AsyncCompletionClientOptionsWithDefaults = Required<AsyncCompletionClientOptions>;
+export type AsyncCompletionClientOptionsWithDefaults = Replace<
+  Required<AsyncCompletionClientOptions>,
+  {
+    connection?: ConnectionLike;
+  }
+>;
 
 export function defaultAsyncCompletionClientOptions(): AsyncCompletionClientOptionsWithDefaults {
   return {
@@ -87,15 +96,12 @@ export interface FullActivityId {
 export class AsyncCompletionClient {
   public readonly options: AsyncCompletionClientOptionsWithDefaults;
   protected readonly dataConverter: LoadedDataConverter;
+  public readonly connection: ConnectionLike;
 
-  constructor(public readonly connection: Connection, options?: AsyncCompletionClientOptions) {
+  constructor(options?: AsyncCompletionClientOptions) {
+    this.connection = options?.connection ?? Connection.lazy();
     this.dataConverter = loadDataConverter(options?.dataConverter);
     this.options = { ...defaultAsyncCompletionClientOptions(), ...filterNullAndUndefined(options ?? {}) };
-  }
-
-  static async forLocalServer(options?: AsyncCompletionClientOptions): Promise<AsyncCompletionClient> {
-    const connection = await Connection.create();
-    return new this(connection, options);
   }
 
   get workflowService(): WorkflowService {

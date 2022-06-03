@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-empty-function */
 /* eslint-disable @typescript-eslint/explicit-module-boundary-types */
 import { Context } from '@temporalio/activity';
-import { Connection, LOCAL_DOCKER_TARGET, WorkflowClient, WorkflowHandle } from '@temporalio/client';
+import { Connection, LOCAL_TARGET, WorkflowClient, WorkflowHandle } from '@temporalio/client';
 import { ApplicationFailure } from '@temporalio/common';
 import { QueryDefinition } from '@temporalio/internal-workflow-common';
 import { ProtoActivityInput, ProtoActivityResult } from '../../protos/root';
@@ -13,8 +13,8 @@ export { throwSpecificError } from './failure-tester';
 // TODO: Get rid of this by providing client via activity context
 async function getTestConnection(): Promise<Connection> {
   // TODO: reuse connection
-  const address = process.env.TEMPORAL_TESTING_SERVER_URL || LOCAL_DOCKER_TARGET;
-  return await Connection.create({ address });
+  const address = process.env.TEMPORAL_TESTING_SERVER_URL || LOCAL_TARGET;
+  return await Connection.connect({ address });
 }
 
 /**
@@ -69,13 +69,13 @@ export async function waitForCancellation(): Promise<void> {
 async function withSchedulingWorkflowHandle<R>(fn: (handle: WorkflowHandle) => Promise<R>): Promise<R> {
   const { info } = Context.current();
   const { workflowExecution } = info;
-  const conn = await getTestConnection();
-  const client = new WorkflowClient(conn, { namespace: info.workflowNamespace });
+  const connection = await getTestConnection();
+  const client = new WorkflowClient({ connection, namespace: info.workflowNamespace });
   const handle = client.getHandle(workflowExecution.workflowId, workflowExecution.runId);
   try {
     return await fn(handle);
   } finally {
-    conn.client.close();
+    await connection.close();
   }
 }
 

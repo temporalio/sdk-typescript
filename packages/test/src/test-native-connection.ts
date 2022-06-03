@@ -3,15 +3,15 @@ import test from 'ava';
 import { IllegalStateError, NativeConnection, Worker } from '@temporalio/worker';
 import { RUN_INTEGRATION_TESTS } from './helpers';
 
-test('NativeConnection.create() throws meaningful error when passed invalid address', async (t) => {
-  await t.throwsAsync(NativeConnection.create({ address: ':invalid' }), {
+test('NativeConnection.connect() throws meaningful error when passed invalid address', async (t) => {
+  await t.throwsAsync(NativeConnection.connect({ address: ':invalid' }), {
     instanceOf: TypeError,
     message: 'Invalid serverOptions.address',
   });
 });
 
-test('NativeConnection.create() throws meaningful error when passed invalid clientCertPair', async (t) => {
-  await t.throwsAsync(NativeConnection.create({ tls: { clientCertPair: {} as any } }), {
+test('NativeConnection.connect() throws meaningful error when passed invalid clientCertPair', async (t) => {
+  await t.throwsAsync(NativeConnection.connect({ tls: { clientCertPair: {} as any } }), {
     instanceOf: TypeError,
     message: 'Invalid or missing serverOptions.tls.clientCertPair.crt',
   });
@@ -19,7 +19,7 @@ test('NativeConnection.create() throws meaningful error when passed invalid clie
 
 if (RUN_INTEGRATION_TESTS) {
   test('NativeConnection.close() throws when called a second time', async (t) => {
-    const conn = await NativeConnection.create();
+    const conn = await NativeConnection.connect();
     await conn.close();
     await t.throwsAsync(() => conn.close(), {
       instanceOf: IllegalStateError,
@@ -28,7 +28,7 @@ if (RUN_INTEGRATION_TESTS) {
   });
 
   test('NativeConnection.close() throws if being used by a Worker and succeeds if it has been shutdown', async (t) => {
-    const connection = await NativeConnection.create();
+    const connection = await NativeConnection.connect();
     const worker = await Worker.create({
       connection,
       taskQueue: 'default',

@@ -1,5 +1,6 @@
 import type { SearchAttributeValue } from '@temporalio/internal-workflow-common';
 import { temporal } from '@temporalio/proto';
+import type * as grpc from '@grpc/grpc-js';
 
 export interface WorkflowExecution {
   workflowId: string;
@@ -37,4 +38,69 @@ export interface WorkflowExecutionDescription {
   searchAttributes: Record<string, SearchAttributeValue[]>;
   parentExecution?: Required<temporal.api.common.v1.IWorkflowExecution>;
   raw: DescribeWorkflowExecutionResponse;
+}
+
+export type WorkflowService = temporal.api.workflowservice.v1.WorkflowService;
+export const { WorkflowService } = temporal.api.workflowservice.v1;
+
+/**
+ * Mapping of string to valid gRPC metadata value
+ */
+export type Metadata = Record<string, grpc.MetadataValue>;
+
+/**
+ * User defined context for gRPC client calls
+ */
+export interface CallContext {
+  /**
+   * {@link Deadline | https://grpc.io/blog/deadlines/} for gRPC client calls
+   */
+  deadline?: number | Date;
+  /**
+   * Metadata to set on gRPC requests
+   */
+  metadata?: Metadata;
+}
+
+// TODO: better name
+export interface ConnectionLike {
+  workflowService: WorkflowService;
+  close(): Promise<void>;
+  ensureConnected(): Promise<void>;
+  /**
+   * Set the deadline for any service requests executed in `fn`'s scope.
+   */
+  withDeadline<R>(deadline: number | Date, fn: () => Promise<R>): Promise<R>;
+
+  /**
+   * Set metadata for any service requests executed in `fn`'s scope.
+   *
+   * @returns returned value of `fn`
+   */
+  withMetadata<R>(metadata: Metadata, fn: () => Promise<R>): Promise<R>;
+
+  /**
+   * Set metadata for any service requests executed in `fn`'s scope.
+   *
+   * @param metadataFn function that gets current context metadata and returns new metadata
+   *
+   * @returns returned value of `fn`
+   */
+  withMetadata<R>(metadataFn: (meta: Metadata) => Metadata, fn: () => Promise<R>): Promise<R>;
+
+  /**
+   * Set the {@link CallContext} for any service requests executed in `fn`'s scope.
+   *
+   * @returns returned value of `fn`
+   */
+  withCallContext<R>(cx: CallContext, fn: () => Promise<R>): Promise<R>;
+
+  /**
+   * Set the {@link CallContext} for any service requests executed in `fn`'s scope.
+   *
+   * @param cxFn function that gets current context and returns new context
+   *
+   * @returns returned value of `fn`
+   */
+  withCallContext<R>(cxFn: (cx?: CallContext) => CallContext, fn: () => Promise<R>): Promise<R>;
 }

@@ -365,7 +365,7 @@ export class Worker {
     const compiledOptions = compileWorkerOptions(addDefaultWorkerOptions(options));
     // Create a new connection if one is not provided with no CREATOR reference
     // so it can be automatically closed when this Worker shuts down.
-    const connection = options.connection ?? (await InternalNativeConnection.create());
+    const connection = options.connection ?? (await InternalNativeConnection.connect());
     const nativeWorker = await nativeWorkerCtor.create(connection, compiledOptions);
     extractReferenceHolders(connection).add(nativeWorker);
     return await this.bundleWorker(compiledOptions, nativeWorker, connection);

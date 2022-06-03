@@ -191,8 +191,8 @@ async function main() {
   const workerPid = args['--worker-pid'];
   const workerMemoryLogFile = args['--worker-memory-log-file'];
 
-  const connection = await Connection.create({ address: serverAddress });
-  const client = new WorkflowClient(connection, { namespace });
+  const connection = await Connection.connect({ address: serverAddress });
+  const client = new WorkflowClient({ connection, namespace });
   const stopCondition = runForSeconds ? new UntilSecondsElapsed(runForSeconds) : new NumberOfWorkflows(iterations);
   const queryingOptions = queryName ? { queryName, queryIntervalMs, initialQueryDelayMs } : undefined;
 

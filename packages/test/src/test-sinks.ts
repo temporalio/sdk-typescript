@@ -74,7 +74,7 @@ if (RUN_INTEGRATION_TESTS) {
       sinks,
     });
     const p = worker.run();
-    const client = await WorkflowClient.forLocalServer();
+    const client = new WorkflowClient();
     const wf = await client.start(workflows.sinksWorkflow, { taskQueue, workflowId: uuid4() });
     await wf.result();
     worker.shutdown();
@@ -144,7 +144,7 @@ if (RUN_INTEGRATION_TESTS) {
       maxCachedWorkflows: 1,
       maxConcurrentWorkflowTaskExecutions: 1,
     });
-    const client = await WorkflowClient.forLocalServer();
+    const client = new WorkflowClient();
     await Promise.all([
       (async () => {
         try {
@@ -183,7 +183,7 @@ if (RUN_INTEGRATION_TESTS) {
       maxCachedWorkflows: 1,
       maxConcurrentWorkflowTaskExecutions: 1,
     });
-    const client = await WorkflowClient.forLocalServer();
+    const client = new WorkflowClient();
     await Promise.all([
       (async () => {
         try {
