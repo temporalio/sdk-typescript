@@ -193,7 +193,7 @@ if (RUN_INTEGRATION_TESTS) {
       taskQueue,
       enableSDKTracing: true,
     });
-    const client = await WorkflowClient.forLocalServer({
+    const client = new WorkflowClient({
       dataConverter: { payloadConverterPath: require.resolve('./payload-converters/proto-payload-converter') },
     });
 

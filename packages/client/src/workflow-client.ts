@@ -26,6 +26,7 @@ import {
   composeInterceptors,
   optionalTsToDate,
   QueryDefinition,
+  Replace,
   SearchAttributeValue,
   SignalDefinition,
   tsToDate,
@@ -37,7 +38,7 @@ import {
 import { temporal } from '@temporalio/proto';
 import os from 'os';
 import { v4 as uuid4 } from 'uuid';
-import { Connection, WorkflowService } from './connection';
+import { Connection } from './connection';
 import {
   isServerErrorResponse,
   ServiceError,
@@ -57,6 +58,7 @@ import {
   WorkflowTerminateInput,
 } from './interceptors';
 import {
+  ConnectionLike,
   DescribeWorkflowExecutionResponse,
   GetWorkflowExecutionHistoryRequest,
   RequestCancelWorkflowExecutionResponse,
@@ -65,6 +67,7 @@ import {
   WorkflowExecution,
   WorkflowExecutionDescription,
   WorkflowExecutionStatusName,
+  WorkflowService,
 } from './types';
 import { compileWorkflowOptions, WorkflowOptions, WorkflowSignalWithStartOptions } from './workflow-options';
 
@@ -175,6 +178,15 @@ export interface WorkflowClientOptions {
   identity?: string;
 
   /**
+   * Connection to use to communicate with the server.
+   *
+   * By default `WorkflowClient` connects to localhost.
+   *
+   * Connections are expensive to construct and should be reused.
+   */
+  connection?: ConnectionLike;
+
+  /**
    * Server namespace
    *
    * @default default
@@ -189,7 +201,12 @@ export interface WorkflowClientOptions {
   queryRejectCondition?: temporal.api.enums.v1.QueryRejectCondition;
 }
 
-export type WorkflowClientOptionsWithDefaults = Required<WorkflowClientOptions>;
+export type WorkflowClientOptionsWithDefaults = Replace<
+  Required<WorkflowClientOptions>,
+  {
+    connection?: ConnectionLike;
+  }
+>;
 export type LoadedWorkflowClientOptions = WorkflowClientOptionsWithDefaults & {
   loadedDataConverter: LoadedDataConverter;
 };
@@ -271,18 +288,15 @@ export type WorkflowStartOptions<T extends Workflow = Workflow> = WithWorkflowAr
  */
 export class WorkflowClient {
   public readonly options: LoadedWorkflowClientOptions;
+  public readonly connection: ConnectionLike;
 
-  constructor(public readonly connection: Connection, options?: WorkflowClientOptions) {
+  constructor(options?: WorkflowClientOptions) {
+    this.connection = options?.connection ?? Connection.lazy();
     this.options = {
       ...defaultWorkflowClientOptions(),
       ...options,
       loadedDataConverter: loadDataConverter(options?.dataConverter),
     };
-  }
-
-  static async forLocalServer(options?: WorkflowClientOptions): Promise<WorkflowClient> {
-    const connection = await Connection.create();
-    return new this(connection, options);
   }
 
   get workflowService(): WorkflowService {

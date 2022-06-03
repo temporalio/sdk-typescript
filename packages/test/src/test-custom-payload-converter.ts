@@ -44,7 +44,7 @@ if (RUN_INTEGRATION_TESTS) {
       taskQueue,
       dataConverter,
     });
-    const client = await WorkflowClient.forLocalServer({ dataConverter });
+    const client = new WorkflowClient({ dataConverter });
     const runAndShutdown = async () => {
       const result = await client.execute(protobufWorkflow, {
         args: [messageInstance],
@@ -65,7 +65,7 @@ if (RUN_INTEGRATION_TESTS) {
 
     const runPromise = worker.run();
 
-    const client = await WorkflowClient.forLocalServer({
+    const client = new WorkflowClient({
       dataConverter: {
         payloadConverterPath: require.resolve('./payload-converters/payload-converter-throws-from-payload'),
       },

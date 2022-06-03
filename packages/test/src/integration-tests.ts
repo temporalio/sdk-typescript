@@ -78,11 +78,11 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
     runPromise.catch((err) => {
       console.error('Caught error while worker was running', err);
     });
-    const connection = await Connection.create();
+    const connection = await Connection.connect();
     t.context = {
       worker,
       runPromise,
-      client: new WorkflowClient(connection, { dataConverter }),
+      client: new WorkflowClient({ connection, dataConverter }),
     };
 
     // The initialization of the custom search attributes is slooooow. Wait for it to finish

@@ -11,7 +11,7 @@ if (RUN_INTEGRATION_TESTS) {
     const { activities } = defaultOptions;
     const workflowlessWorker = await Worker.create({ taskQueue: 'only-activities', activities });
     const normalWorker = await Worker.create({ ...defaultOptions, taskQueue: 'also-workflows' });
-    const client = await WorkflowClient.forLocalServer();
+    const client = new WorkflowClient();
     const runAndShutdown = async () => {
       const result = await client.execute(runActivityInDifferentTaskQueue, {
         args: ['only-activities'],

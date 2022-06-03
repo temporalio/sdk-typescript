@@ -26,12 +26,7 @@ export async function runWorker(worker: Worker, fn: () => Promise<any>): Promise
 test.beforeEach(async (t) => {
   const title = t.title.replace('beforeEach hook for ', '');
   const taskQueue = `test-local-activities-${title}`;
-  if (title.startsWith('[no-setup]')) {
-    t.context.taskQueue = taskQueue;
-    t.context.client = await WorkflowClient.forLocalServer();
-    return;
-  }
-  t.context = { client: await WorkflowClient.forLocalServer(), taskQueue };
+  t.context = { client: new WorkflowClient(), taskQueue };
 });
 
 async function defaultWorker(taskQueue: string) {

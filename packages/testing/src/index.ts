@@ -2,7 +2,7 @@ import * as activity from '@temporalio/activity';
 import {
   AsyncCompletionClient,
   WorkflowClient as BaseWorkflowClient,
-  WorkflowClientOptions,
+  WorkflowClientOptions as BaseWorkflowClientOptions,
   WorkflowResultOptions as BaseWorkflowResultOptions,
   WorkflowStartOptions as BaseWorkflowStartOptions,
 } from '@temporalio/client';
@@ -47,6 +47,10 @@ export type WorkflowStartOptions<T extends Workflow> = BaseWorkflowStartOptions<
   runInNormalTime?: boolean;
 };
 
+export interface WorkflowClientOptions extends BaseWorkflowClientOptions {
+  connection: Connection;
+}
+
 /**
  * A client with the exact same API as the "normal" client with 1 exception,
  * When this client waits on a Workflow's result, it will enable time skipping
@@ -55,9 +59,9 @@ export type WorkflowStartOptions<T extends Workflow> = BaseWorkflowStartOptions<
 export class WorkflowClient extends BaseWorkflowClient {
   protected readonly testService: TestService;
 
-  constructor(connection: Connection, options?: WorkflowClientOptions | undefined) {
-    super(connection, options);
-    this.testService = connection.testService;
+  constructor(options: WorkflowClientOptions) {
+    super(options);
+    this.testService = options.connection.testService;
   }
 
   /**
@@ -187,8 +191,8 @@ export class TestWorkflowEnvironment {
   ) {
     this.connection = connection;
     this.nativeConnection = nativeConnection;
-    this.workflowClient = new WorkflowClient(this.connection);
-    this.asyncCompletionClient = new AsyncCompletionClient(this.connection);
+    this.workflowClient = new WorkflowClient({ connection });
+    this.asyncCompletionClient = new AsyncCompletionClient({ connection });
   }
 
   /**
@@ -223,7 +227,7 @@ export class TestWorkflowEnvironment {
     }
 
     const conn = await connPromise;
-    const nativeConnection = await NativeConnection.create({ address });
+    const nativeConnection = await NativeConnection.connect({ address });
 
     return new this(child, conn, nativeConnection);
   }
@@ -232,7 +236,8 @@ export class TestWorkflowEnvironment {
    * Kill the test server process and close the connection to it
    */
   async teardown(): Promise<void> {
-    this.connection.client.close();
+    await this.connection.close();
+    await this.nativeConnection.close();
     // TODO: the server should return exit code 0
     await kill(this.serverProc, 'SIGINT', { validReturnCodes: [0, 130] });
   }

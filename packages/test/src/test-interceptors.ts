@@ -48,7 +48,7 @@ if (RUN_INTEGRATION_TESTS) {
       },
     });
     const workerDrained = worker.run();
-    const client = await WorkflowClient.forLocalServer({
+    const client = new WorkflowClient({
       interceptors: {
         calls: [
           () => ({
@@ -139,7 +139,7 @@ if (RUN_INTEGRATION_TESTS) {
       taskQueue,
     });
     const workerDrained = worker.run();
-    const client = await WorkflowClient.forLocalServer({
+    const client = new WorkflowClient({
       interceptors: {
         calls: [
           () => ({
@@ -188,7 +188,7 @@ if (RUN_INTEGRATION_TESTS) {
         workflowModules: [require.resolve('./workflows/interceptor-example')],
       },
     });
-    const client = await WorkflowClient.forLocalServer();
+    const client = new WorkflowClient();
     const [_, err] = await Promise.all([
       worker.run(),
       (await t.throwsAsync(
@@ -245,7 +245,7 @@ if (RUN_INTEGRATION_TESTS) {
         },
       },
     });
-    const client = await WorkflowClient.forLocalServer();
+    const client = new WorkflowClient();
     await Promise.all([
       worker.run(),
       client

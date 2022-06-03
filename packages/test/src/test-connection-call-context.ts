@@ -46,7 +46,7 @@ test('withCallContext sets the CallContext for RPC call', async (t) => {
     grpc.ServerCredentials.createInsecure()
   );
   server.start();
-  const conn = await Connection.create({ address: `127.0.0.1:${port}` });
+  const conn = await Connection.connect({ address: `127.0.0.1:${port}` });
   await conn.withCallContext(
     { metadata: { test: 'tr' } },
     async () =>
