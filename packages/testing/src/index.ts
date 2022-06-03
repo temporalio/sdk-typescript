@@ -208,7 +208,7 @@ export class TestWorkflowEnvironment {
     const child = testServerSpawner(port);
 
     const address = `127.0.0.1:${port}`;
-    const connPromise = Connection.create({ address });
+    const connPromise = Connection.connect({ address });
 
     try {
       await Promise.race([

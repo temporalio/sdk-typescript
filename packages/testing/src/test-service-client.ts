@@ -17,8 +17,8 @@ export class Connection extends BaseConnection {
   public static readonly TestServiceClient = grpc.makeGenericClientConstructor({}, 'TestService', {});
   public readonly testService: TestService;
 
-  static async create(options?: ConnectionOptions): Promise<Connection> {
-    const ctorOptions = await this.createCtorOptions(options);
+  protected static createCtorOptions(options?: ConnectionOptions): ConnectionCtorOptions {
+    const ctorOptions = BaseConnection.createCtorOptions(options);
     const rpcImpl = this.generateRPCImplementation({
       serviceName: 'temporal.api.testservice.v1.TestService',
       client: ctorOptions.client,
@@ -26,7 +26,18 @@ export class Connection extends BaseConnection {
       interceptors: ctorOptions.options.interceptors,
     });
     const testService = TestService.create(rpcImpl, false, false);
-    return new this({ ...ctorOptions, testService });
+    return { ...ctorOptions, testService };
+  }
+
+  static lazy(options?: ConnectionOptions): Connection {
+    const ctorOptions = this.createCtorOptions(options);
+    return new this(ctorOptions);
+  }
+
+  static async connect(options?: ConnectionOptions): Promise<Connection> {
+    const ret = this.lazy(options);
+    await ret.ensureConnected();
+    return ret;
   }
 
   protected constructor(options: ConnectionCtorOptions) {
