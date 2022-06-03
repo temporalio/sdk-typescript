@@ -50,10 +50,28 @@ export interface ConnectionOptions {
    */
   interceptors?: grpc.Interceptor[];
 
+  /**
+   * Optional mapping of gRPC metadata (HTTP headers) to send with each request to the server.
+   *
+   * In order to dynamically set metadata, use {@link Connection.withMetadata}
+   */
   metadata?: Metadata;
+
+  /**
+   * Milliseconds to wait until establishing a connection with the server.
+   *
+   * Used either when connecting eagerly with {@link Connection.connect} or
+   * calling {@link Connection.ensureConnected}.
+   *
+   * @format {@link https://www.npmjs.com/package/ms | ms} formatted string
+   * @default 10 seconds
+   */
+  connectTimeout?: number | string;
 }
 
-export type ConnectionOptionsWithDefaults = Required<Omit<ConnectionOptions, 'tls'>>;
+export type ConnectionOptionsWithDefaults = Required<Omit<ConnectionOptions, 'tls' | 'connectTimeout'>> & {
+  connectTimeoutMs: number;
+};
 
 export const LOCAL_TARGET = '127.0.0.1:7233';
 
@@ -64,6 +82,7 @@ export function defaultConnectionOpts(): ConnectionOptionsWithDefaults {
     channelArgs: {},
     interceptors: [makeGrpcRetryInterceptor(defaultGrpcRetryOptions())],
     metadata: {},
+    connectTimeoutMs: 10_000,
   };
 }
 
@@ -183,9 +202,16 @@ export class Connection {
     };
   }
 
+  /**
+   * Ensure connection can be established.
+   *
+   * This method's result is memoized to ensure it runs only once.
+   *
+   * Calls WorkflowService.getSystemInfo internally.
+   */
   async ensureConnected(): Promise<void> {
     if (this.connectPromise == null) {
-      const deadline = Date.now() + 10_000; // TODO: make this configurable
+      const deadline = Date.now() + this.options.connectTimeoutMs;
       this.connectPromise = (async () => {
         await this.untilReady(deadline);
 
@@ -206,10 +232,21 @@ export class Connection {
     return this.connectPromise;
   }
 
+  /**
+   * Create a lazy Connection instance.
+   *
+   * This method does not verify connectivity with the server, it is recommended to use
+   * {@link connect} instead.
+   */
   static lazy(options?: ConnectionOptions): Connection {
     return new this(this.createCtorOptions(options));
   }
 
+  /**
+   * Establish a connection with the server and return a Connection instance.
+   *
+   * This is the preferred method of creating connections as it verifies connectivity.
+   */
   static async connect(options?: ConnectionOptions): Promise<Connection> {
     const conn = this.lazy(options);
     await conn.ensureConnected();
@@ -260,7 +297,8 @@ export class Connection {
   /**
    * Set metadata for any service requests executed in `fn`'s scope.
    *
-   * The provided metadata is merged on top of any existing metadata in current scope.
+   * The provided metadata is merged on top of any existing metadata in current scope
+   * including metadata provided in {@link ConnectionOptions.metadata}
    *
    * @returns returned value of `fn`
    *
