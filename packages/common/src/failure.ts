@@ -342,8 +342,17 @@ export function errorToFailure(err: unknown, payloadConverter: PayloadConverter)
   if (typeof err === 'string') {
     return { ...base, message: err + recommendation };
   }
+  if (typeof err === 'object') {
+    let message: string = '';
+    try {
+      message = JSON.stringify(err);
+    } catch(_err) {
+      message = String(err);
+    }
+    return { ...base, message: message + recommendation };
+  }
 
-  return { ...base, message: JSON.stringify(err) + recommendation };
+  return { ...base, message: String(err) + recommendation };
 }
 
 /**
