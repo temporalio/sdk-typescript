@@ -62,7 +62,12 @@ export interface CallContext {
   metadata?: Metadata;
 }
 
-// TODO: better name
+/**
+ * Connection interface used by high level SDK clients.
+ *
+ * NOTE: Currently the SDK only supports grpc-js based connection but in the future
+ * we might support grpc-web and native Rust connections.
+ */
 export interface ConnectionLike {
   workflowService: WorkflowService;
   close(): Promise<void>;
