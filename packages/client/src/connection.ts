@@ -1,9 +1,10 @@
 import * as grpc from '@grpc/grpc-js';
-import { normalizeTlsConfig, TLSConfig } from '@temporalio/internal-non-workflow-common';
+import { filterNullAndUndefined, normalizeTlsConfig, TLSConfig } from '@temporalio/internal-non-workflow-common';
 import { AsyncLocalStorage } from 'async_hooks';
 import type { RPCImpl } from 'protobufjs';
 import { isServerErrorResponse, ServiceError } from './errors';
 import { defaultGrpcRetryOptions, makeGrpcRetryInterceptor } from './grpc-retry';
+import pkg from './pkg';
 import { CallContext, Metadata, WorkflowService } from './types';
 
 /**
@@ -48,6 +49,8 @@ export interface ConnectionOptions {
    * interceptors).
    */
   interceptors?: grpc.Interceptor[];
+
+  metadata?: Metadata;
 }
 
 export type ConnectionOptionsWithDefaults = Required<Omit<ConnectionOptions, 'tls'>>;
@@ -60,6 +63,7 @@ export function defaultConnectionOpts(): ConnectionOptionsWithDefaults {
     credentials: grpc.credentials.createInsecure(),
     channelArgs: {},
     interceptors: [makeGrpcRetryInterceptor(defaultGrpcRetryOptions())],
+    metadata: {},
   };
 }
 
@@ -149,14 +153,19 @@ export class Connection {
   protected static createCtorOptions(options?: ConnectionOptions): ConnectionCtorOptions {
     const optionsWithDefaults = {
       ...defaultConnectionOpts(),
-      ...normalizeGRPCConfig(options),
+      ...filterNullAndUndefined(normalizeGRPCConfig(options)),
     };
+    // Allow overriding this
+    optionsWithDefaults.metadata['client-name'] ??= 'temporal-typescript';
+    optionsWithDefaults.metadata['client-version'] ??= pkg.version;
+
     const client = new this.Client(
       optionsWithDefaults.address,
       optionsWithDefaults.credentials,
       optionsWithDefaults.channelArgs
     );
     const callContextStorage = new AsyncLocalStorage<CallContext>();
+    callContextStorage.enterWith({ metadata: optionsWithDefaults.metadata });
 
     const rpcImpl = this.generateRPCImplementation({
       serviceName: 'temporal.api.workflowservice.v1.WorkflowService',
@@ -251,45 +260,22 @@ export class Connection {
   /**
    * Set metadata for any service requests executed in `fn`'s scope.
    *
-   * @returns returned value of `fn`
-   */
-  async withMetadata<R>(metadata: Metadata, fn: () => Promise<R>): Promise<R>;
-
-  /**
-   * Set metadata for any service requests executed in `fn`'s scope.
-   *
-   * @param metadataFn function that gets current context metadata and returns new metadata
+   * The provided metadata is merged on top of any existing metadata in current scope.
    *
    * @returns returned value of `fn`
+   *
+   * @example
+   *
+   * ```ts
+   * await conn.withMetadata({ apiKey: 'deadbeef' }, () =>
+   *   conn.withMetadata({ otherKey: 'set' }, () => client.start(options)))
+   * );
+   * ```
    */
-  async withMetadata<R>(metadataFn: (meta: Metadata) => Metadata, fn: () => Promise<R>): Promise<R>;
-
-  async withMetadata<R>(metadata: Metadata | ((meta: Metadata) => Metadata), fn: () => Promise<R>): Promise<R> {
-    // TODO: merge + test it
+  async withMetadata<R>(metadata: Metadata, fn: () => Promise<R>): Promise<R> {
     const cc = this.callContextStorage.getStore();
-    metadata = typeof metadata === 'function' ? metadata(cc?.metadata ?? {}) : metadata;
+    metadata = { ...cc?.metadata, ...metadata };
     return await this.callContextStorage.run({ metadata, deadline: cc?.deadline }, fn);
-  }
-
-  /**
-   * Set the {@link CallContext} for any service requests executed in `fn`'s scope.
-   *
-   * @returns returned value of `fn`
-   */
-  async withCallContext<R>(cx: CallContext, fn: () => Promise<R>): Promise<R>;
-
-  /**
-   * Set the {@link CallContext} for any service requests executed in `fn`'s scope.
-   *
-   * @param cxFn function that gets current context and returns new context
-   *
-   * @returns returned value of `fn`
-   */
-  async withCallContext<R>(cxFn: (cx?: CallContext) => CallContext, fn: () => Promise<R>): Promise<R>;
-
-  async withCallContext<R>(cx: CallContext | ((cx?: CallContext) => CallContext), fn: () => Promise<R>): Promise<R> {
-    cx = typeof cx === 'function' ? cx(this.callContextStorage.getStore()) : cx;
-    return await this.callContextStorage.run(cx, fn);
   }
 
   /**
