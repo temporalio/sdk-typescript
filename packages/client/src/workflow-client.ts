@@ -61,6 +61,7 @@ import {
   ConnectionLike,
   DescribeWorkflowExecutionResponse,
   GetWorkflowExecutionHistoryRequest,
+  Metadata,
   RequestCancelWorkflowExecutionResponse,
   StartWorkflowExecutionRequest,
   TerminateWorkflowExecutionResponse,
@@ -301,6 +302,24 @@ export class WorkflowClient {
 
   get workflowService(): WorkflowService {
     return this.connection.workflowService;
+  }
+
+  /**
+   * Set the deadline for any service requests executed in `fn`'s scope.
+   */
+  async withDeadline<R>(deadline: number | Date, fn: () => Promise<R>): Promise<R> {
+    return await this.connection.withDeadline(deadline, fn);
+  }
+
+  /**
+   * Set metadata for any service requests executed in `fn`'s scope.
+   *
+   * @returns returned value of `fn`
+   *
+   * @see {@link Connection.withMetadata}
+   */
+  async withMetadata<R>(metadata: Metadata, fn: () => Promise<R>): Promise<R> {
+    return await this.connection.withMetadata(metadata, fn);
   }
 
   /**

@@ -1,5 +1,5 @@
 import arg from 'arg';
-import { WorkflowClient } from '@temporalio/client';
+import { WorkflowClient, Connection } from '@temporalio/client';
 import * as workflows from './workflows';
 
 async function main() {
@@ -14,7 +14,8 @@ async function main() {
   }
   console.log('running', { workflowType, args });
 
-  const client = new WorkflowClient();
+  const connection = Connection.lazy({ address: 'does-not-exist:7233' });
+  const client = new WorkflowClient({ connection });
   const result = await client.execute(workflowType, {
     workflowId,
     taskQueue: 'test',
