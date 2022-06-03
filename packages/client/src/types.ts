@@ -78,29 +78,4 @@ export interface ConnectionLike {
    * @returns returned value of `fn`
    */
   withMetadata<R>(metadata: Metadata, fn: () => Promise<R>): Promise<R>;
-
-  /**
-   * Set metadata for any service requests executed in `fn`'s scope.
-   *
-   * @param metadataFn function that gets current context metadata and returns new metadata
-   *
-   * @returns returned value of `fn`
-   */
-  withMetadata<R>(metadataFn: (meta: Metadata) => Metadata, fn: () => Promise<R>): Promise<R>;
-
-  /**
-   * Set the {@link CallContext} for any service requests executed in `fn`'s scope.
-   *
-   * @returns returned value of `fn`
-   */
-  withCallContext<R>(cx: CallContext, fn: () => Promise<R>): Promise<R>;
-
-  /**
-   * Set the {@link CallContext} for any service requests executed in `fn`'s scope.
-   *
-   * @param cxFn function that gets current context and returns new context
-   *
-   * @returns returned value of `fn`
-   */
-  withCallContext<R>(cxFn: (cx?: CallContext) => CallContext, fn: () => Promise<R>): Promise<R>;
 }
