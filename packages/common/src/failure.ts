@@ -366,7 +366,8 @@ export function ensureTemporalFailure(err: unknown): TemporalFailure {
   if (err instanceof TemporalFailure) {
     return err;
   } else if (err instanceof Error) {
-    const failure = new ApplicationFailure(err.message, err.name, false);
+    const name = err.constructor?.name || err.name;
+    const failure = new ApplicationFailure(err.message, name, false);
     failure.stack = err.stack;
     return failure;
   } else {

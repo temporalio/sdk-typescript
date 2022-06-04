@@ -66,6 +66,11 @@ export async function activityFailures(): Promise<void> {
     assertApplicationFailure(err.cause, 'NonRetryableError', false, '2');
   }
   {
+    const err = await assertThrows(throwSpecificError('CustomError', '2'), ActivityFailure);
+    assertRetryState(err, RetryState.RETRY_STATE_NON_RETRYABLE_FAILURE);
+    assertApplicationFailure(err.cause, 'CustomError', false, '2');
+  }
+  {
     const err = await assertThrows(
       throwSpecificError('RetryableApplicationFailureWithRetryableFlag', '3'),
       ActivityFailure
