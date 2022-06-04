@@ -910,7 +910,7 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
         }
         t.is(
           failure.message,
-          '{"plainObject":true} [A non-Error value was thrown from your code. We recommend throwing Error objects so that we can provide a stack trace.]'
+          '{"plainObject":true} [A non-Error value was thrown from your code. We recommend throwing Error objects so that we can provide a stack trace]'
         );
       },
       { minTimeout: 300, factor: 1, retries: 100 }
@@ -942,7 +942,7 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
         }
         t.is(
           failure.message,
-          '42 [A non-Error value was thrown from your code. We recommend throwing Error objects so that we can provide a stack trace.]'
+          '42 [A non-Error value was thrown from your code. We recommend throwing Error objects so that we can provide a stack trace]'
         );
       },
       { minTimeout: 300, factor: 1, retries: 100 }

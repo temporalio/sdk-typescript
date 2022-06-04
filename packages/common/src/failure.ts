@@ -337,7 +337,7 @@ export function errorToFailure(err: unknown, payloadConverter: PayloadConverter)
     };
   }
 
-  const recommendation = ` [A non-Error value was thrown from your code. We recommend throwing Error objects so that we can provide a stack trace.]`;
+  const recommendation = ` [A non-Error value was thrown from your code. We recommend throwing Error objects so that we can provide a stack trace]`;
 
   if (typeof err === 'string') {
     return { ...base, message: err + recommendation };
