@@ -23,7 +23,7 @@ use temporal_client::{
 use temporal_sdk_core::{
     api::{
         errors::{CompleteActivityError, CompleteWfError, PollActivityError, PollWfError},
-        Worker as CoreWorker,
+        Worker as CoreWorkerTrait,
     },
     fetch_global_buffered_logs, init_replay_worker, init_worker,
     protos::{
@@ -33,7 +33,7 @@ use temporal_sdk_core::{
         },
         temporal::api::history::v1::History,
     },
-    telemetry_init, ClientOptions, RetryClient, WorkerConfig,
+    telemetry_init, ClientOptions, RetryClient, Worker as CoreWorker, WorkerConfig,
 };
 use tokio::{
     runtime::Runtime,
@@ -66,8 +66,14 @@ enum Request {
     },
     /// A request to shutdown a worker, the worker instance will remain active to
     /// allow draining of pending tasks
-    ShutdownWorker {
-        worker: Arc<dyn CoreWorker>,
+    InitiateWorkerShutdown {
+        worker: Arc<CoreWorker>,
+        /// Used to send the result back into JS
+        callback: Root<JsFunction>,
+    },
+    /// A request to finalize shutdown a worker, the worker should not be used after this is called
+    FinalizeWorkerShutdown {
+        worker: CoreWorker,
         /// Used to send the result back into JS
         callback: Root<JsFunction>,
     },
@@ -93,14 +99,14 @@ enum Request {
     },
     /// A request to poll for workflow activations
     PollWorkflowActivation {
-        worker: Arc<dyn CoreWorker>,
+        worker: Arc<CoreWorker>,
         otel_span: SpanContext,
         /// Used to send the result back into JS
         callback: Root<JsFunction>,
     },
     /// A request to complete a single workflow activation
     CompleteWorkflowActivation {
-        worker: Arc<dyn CoreWorker>,
+        worker: Arc<CoreWorker>,
         completion: WorkflowActivationCompletion,
         otel_span: SpanContext,
         /// Used to send the result back into JS
@@ -108,14 +114,14 @@ enum Request {
     },
     /// A request to poll for activity tasks
     PollActivityTask {
-        worker: Arc<dyn CoreWorker>,
+        worker: Arc<CoreWorker>,
         otel_span: SpanContext,
         /// Used to report completion or error back into JS
         callback: Root<JsFunction>,
     },
     /// A request to complete a single activity task
     CompleteActivityTask {
-        worker: Arc<dyn CoreWorker>,
+        worker: Arc<CoreWorker>,
         completion: ActivityTaskCompletion,
         otel_span: SpanContext,
         /// Used to send the result back into JS
@@ -123,7 +129,7 @@ enum Request {
     },
     /// A request to send a heartbeat from a running activity
     RecordActivityHeartbeat {
-        worker: Arc<dyn CoreWorker>,
+        worker: Arc<CoreWorker>,
         heartbeat: ActivityHeartbeat,
     },
     /// A request to drain logs from core so they can be emitted in node
@@ -154,11 +160,11 @@ impl Finalize for Client {}
 /// JS to a bridge thread which forwards them to core
 struct Worker {
     runtime: Arc<RuntimeHandle>,
-    core_worker: Arc<dyn CoreWorker>,
+    core_worker: Arc<CoreWorker>,
 }
 
 /// Box it so we can use Worker from JS
-type BoxedWorker = JsBox<Worker>;
+type BoxedWorker = JsBox<RefCell<Option<Worker>>>;
 impl Finalize for Worker {}
 
 /// Lazy-inits or returns a global tokio runtime that we use for interactions with Core(s)
@@ -347,12 +353,16 @@ fn start_bridge_loop(channel: Arc<Channel>, receiver: &mut UnboundedReceiver<Req
                         Ok(logarr)
                     });
                 }
-                Request::ShutdownWorker { worker, callback } => {
+                Request::InitiateWorkerShutdown { worker, callback } => {
+                    worker.initiate_shutdown();
+                    send_result(channel.clone(), callback, |cx| Ok(cx.undefined()));
+                }
+                Request::FinalizeWorkerShutdown { worker, callback } => {
                     tokio::spawn(void_future_to_js(
                         channel,
                         callback,
                         async move {
-                            worker.shutdown().await;
+                            worker.finalize_shutdown().await;
                             // Wrap the empty result in a valid Result object
                             let result: Result<(), String> = Ok(());
                             result
@@ -370,10 +380,10 @@ fn start_bridge_loop(channel: Arc<Channel>, receiver: &mut UnboundedReceiver<Req
                     let worker =
                         init_worker(config, AnyClient::LowLevel(Box::new(client.into_inner())));
                     send_result(channel.clone(), callback, |cx| {
-                        Ok(cx.boxed(Worker {
+                        Ok(cx.boxed(RefCell::new(Some(Worker {
                             core_worker: Arc::new(worker),
                             runtime,
-                        }))
+                        }))))
                     });
                 }
                 Request::InitReplayWorker {
@@ -384,10 +394,10 @@ fn start_bridge_loop(channel: Arc<Channel>, receiver: &mut UnboundedReceiver<Req
                 } => {
                     match init_replay_worker(config, &history) {
                         Ok(worker) => send_result(channel.clone(), callback, |cx| {
-                            Ok(cx.boxed(Worker {
+                            Ok(cx.boxed(RefCell::new(Some(Worker {
                                 core_worker: Arc::new(worker),
                                 runtime,
-                            }))
+                            }))))
                         }),
                         Err(err) => send_error(channel.clone(), callback, |cx| {
                             UNEXPECTED_ERROR.from_error(cx, err)
@@ -478,7 +488,7 @@ fn start_bridge_loop(channel: Arc<Channel>, receiver: &mut UnboundedReceiver<Req
 
 /// Called within the poll loop thread, calls core and triggers JS callback with result
 async fn handle_poll_workflow_activation_request(
-    worker: &dyn CoreWorker,
+    worker: &CoreWorker,
     span_context: SpanContext,
     channel: Arc<Channel>,
     callback: Root<JsFunction>,
@@ -518,7 +528,7 @@ async fn handle_poll_workflow_activation_request(
 
 /// Called within the poll loop thread, calls core and triggers JS callback with result
 async fn handle_poll_activity_task_request(
-    worker: &dyn CoreWorker,
+    worker: &CoreWorker,
     span_context: SpanContext,
     channel: Arc<Channel>,
     callback: Root<JsFunction>,
@@ -721,13 +731,20 @@ fn worker_poll_workflow_activation(mut cx: FunctionContext) -> JsResult<JsUndefi
     let worker = cx.argument::<BoxedWorker>(0)?;
     let otel_span = cx.argument::<JsObject>(1)?;
     let callback = cx.argument::<JsFunction>(2)?;
-    let request = Request::PollWorkflowActivation {
-        worker: worker.core_worker.clone(),
-        otel_span: otel_span.as_otel_span_context(&mut cx)?,
-        callback: callback.root(&mut cx),
-    };
-    if let Err(err) = worker.runtime.sender.send(request) {
-        callback_with_unexpected_error(&mut cx, callback, err)?;
+    match &*worker.borrow() {
+        None => {
+            callback_with_unexpected_error(&mut cx, callback, "Tried to use closed Worker")?;
+        }
+        Some(worker) => {
+            let request = Request::PollWorkflowActivation {
+                worker: worker.core_worker.clone(),
+                otel_span: otel_span.as_otel_span_context(&mut cx)?,
+                callback: callback.root(&mut cx),
+            };
+            if let Err(err) = worker.runtime.sender.send(request) {
+                callback_with_unexpected_error(&mut cx, callback, err)?;
+            }
+        }
     }
     Ok(cx.undefined())
 }
@@ -738,13 +755,20 @@ fn worker_poll_activity_task(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     let worker = cx.argument::<BoxedWorker>(0)?;
     let otel_span = cx.argument::<JsObject>(1)?;
     let callback = cx.argument::<JsFunction>(2)?;
-    let request = Request::PollActivityTask {
-        worker: worker.core_worker.clone(),
-        otel_span: otel_span.as_otel_span_context(&mut cx)?,
-        callback: callback.root(&mut cx),
-    };
-    if let Err(err) = worker.runtime.sender.send(request) {
-        callback_with_unexpected_error(&mut cx, callback, err)?;
+    match &*worker.borrow() {
+        None => {
+            callback_with_unexpected_error(&mut cx, callback, "Tried to use closed Worker")?;
+        }
+        Some(worker) => {
+            let request = Request::PollActivityTask {
+                worker: worker.core_worker.clone(),
+                otel_span: otel_span.as_otel_span_context(&mut cx)?,
+                callback: callback.root(&mut cx),
+            };
+            if let Err(err) = worker.runtime.sender.send(request) {
+                callback_with_unexpected_error(&mut cx, callback, err)?;
+            }
+        }
     }
     Ok(cx.undefined())
 }
@@ -755,21 +779,30 @@ fn worker_complete_workflow_activation(mut cx: FunctionContext) -> JsResult<JsUn
     let otel_span = cx.argument::<JsObject>(1)?;
     let completion = cx.argument::<JsArrayBuffer>(2)?;
     let callback = cx.argument::<JsFunction>(3)?;
-    match WorkflowActivationCompletion::decode_length_delimited(completion.as_slice(&mut cx)) {
-        Ok(completion) => {
-            let request = Request::CompleteWorkflowActivation {
-                worker: worker.core_worker.clone(),
-                completion,
-                otel_span: otel_span.as_otel_span_context(&mut cx)?,
-                callback: callback.root(&mut cx),
-            };
-            if let Err(err) = worker.runtime.sender.send(request) {
-                callback_with_unexpected_error(&mut cx, callback, err)?;
-            };
+    match &*worker.borrow() {
+        None => {
+            callback_with_unexpected_error(&mut cx, callback, "Tried to use closed Worker")?;
         }
-        Err(_) => callback_with_error(&mut cx, callback, |cx| {
-            JsError::type_error(cx, "Cannot decode Completion from buffer")
-        })?,
+        Some(worker) => {
+            match WorkflowActivationCompletion::decode_length_delimited(
+                completion.as_slice(&mut cx),
+            ) {
+                Ok(completion) => {
+                    let request = Request::CompleteWorkflowActivation {
+                        worker: worker.core_worker.clone(),
+                        completion,
+                        otel_span: otel_span.as_otel_span_context(&mut cx)?,
+                        callback: callback.root(&mut cx),
+                    };
+                    if let Err(err) = worker.runtime.sender.send(request) {
+                        callback_with_unexpected_error(&mut cx, callback, err)?;
+                    };
+                }
+                Err(_) => callback_with_error(&mut cx, callback, |cx| {
+                    JsError::type_error(cx, "Cannot decode Completion from buffer")
+                })?,
+            }
+        }
     };
     Ok(cx.undefined())
 }
@@ -780,21 +813,28 @@ fn worker_complete_activity_task(mut cx: FunctionContext) -> JsResult<JsUndefine
     let otel_span = cx.argument::<JsObject>(1)?;
     let result = cx.argument::<JsArrayBuffer>(2)?;
     let callback = cx.argument::<JsFunction>(3)?;
-    match ActivityTaskCompletion::decode_length_delimited(result.as_slice(&mut cx)) {
-        Ok(completion) => {
-            let request = Request::CompleteActivityTask {
-                worker: worker.core_worker.clone(),
-                completion,
-                otel_span: otel_span.as_otel_span_context(&mut cx)?,
-                callback: callback.root(&mut cx),
-            };
-            if let Err(err) = worker.runtime.sender.send(request) {
-                callback_with_unexpected_error(&mut cx, callback, err)?;
-            };
+    match &*worker.borrow() {
+        None => {
+            callback_with_unexpected_error(&mut cx, callback, "Tried to use closed Worker")?;
         }
-        Err(_) => callback_with_error(&mut cx, callback, |cx| {
-            JsError::type_error(cx, "Cannot decode Completion from buffer")
-        })?,
+        Some(worker) => {
+            match ActivityTaskCompletion::decode_length_delimited(result.as_slice(&mut cx)) {
+                Ok(completion) => {
+                    let request = Request::CompleteActivityTask {
+                        worker: worker.core_worker.clone(),
+                        completion,
+                        otel_span: otel_span.as_otel_span_context(&mut cx)?,
+                        callback: callback.root(&mut cx),
+                    };
+                    if let Err(err) = worker.runtime.sender.send(request) {
+                        callback_with_unexpected_error(&mut cx, callback, err)?;
+                    };
+                }
+                Err(_) => callback_with_error(&mut cx, callback, |cx| {
+                    JsError::type_error(cx, "Cannot decode Completion from buffer")
+                })?,
+            }
+        }
     };
     Ok(cx.undefined())
 }
@@ -803,38 +843,88 @@ fn worker_complete_activity_task(mut cx: FunctionContext) -> JsResult<JsUndefine
 fn worker_record_activity_heartbeat(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     let worker = cx.argument::<BoxedWorker>(0)?;
     let heartbeat = cx.argument::<JsArrayBuffer>(1)?;
-    match ActivityHeartbeat::decode_length_delimited(heartbeat.as_slice(&mut cx)) {
-        Ok(heartbeat) => {
-            let request = Request::RecordActivityHeartbeat {
-                worker: worker.core_worker.clone(),
-                heartbeat,
-            };
-            match worker.runtime.sender.send(request) {
-                Err(err) => UNEXPECTED_ERROR
-                    .from_error(&mut cx, err)
-                    .and_then(|err| cx.throw(err)),
-                _ => Ok(cx.undefined()),
+    match &*worker.borrow() {
+        None => UNEXPECTED_ERROR
+            .from_error(&mut cx, "Tried to use closed Worker")
+            .and_then(|err| cx.throw(err))?,
+        Some(worker) => {
+            match ActivityHeartbeat::decode_length_delimited(heartbeat.as_slice(&mut cx)) {
+                Ok(heartbeat) => {
+                    let request = Request::RecordActivityHeartbeat {
+                        worker: worker.core_worker.clone(),
+                        heartbeat,
+                    };
+                    if let Err(err) = worker.runtime.sender.send(request) {
+                        UNEXPECTED_ERROR
+                            .from_error(&mut cx, err)
+                            .and_then(|err| cx.throw(err))?;
+                    }
+                }
+                Err(_) => cx.throw_type_error("Cannot decode ActivityHeartbeat from buffer")?,
             }
         }
-        Err(_) => cx.throw_type_error("Cannot decode ActivityHeartbeat from buffer"),
-    }
+    };
+    Ok(cx.undefined())
 }
 
 /// Request shutdown of the worker.
 /// Once complete Core will stop polling on new tasks and activations on worker's task queue.
-/// Caller should drain any pending tasks and activations before breaking from
+/// Caller should drain any pending tasks and activations and call worker_finalize_shutdown before breaking from
 /// the loop to ensure graceful shutdown.
-fn worker_shutdown(mut cx: FunctionContext) -> JsResult<JsUndefined> {
+fn worker_initiate_shutdown(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     let worker = cx.argument::<BoxedWorker>(0)?;
     let callback = cx.argument::<JsFunction>(1)?;
-    if let Err(err) = worker.runtime.sender.send(Request::ShutdownWorker {
-        worker: worker.core_worker.clone(),
-        callback: callback.root(&mut cx),
-    }) {
-        UNEXPECTED_ERROR
-            .from_error(&mut cx, err)
-            .and_then(|err| cx.throw(err))?;
-    };
+    match &*worker.borrow() {
+        None => {
+            callback_with_unexpected_error(&mut cx, callback, "Tried to use closed Worker")?;
+        }
+        Some(worker) => {
+            if let Err(err) = worker.runtime.sender.send(Request::InitiateWorkerShutdown {
+                worker: worker.core_worker.clone(),
+                callback: callback.root(&mut cx),
+            }) {
+                UNEXPECTED_ERROR
+                    .from_error(&mut cx, err)
+                    .and_then(|err| cx.throw(err))?;
+            };
+        }
+    }
+    Ok(cx.undefined())
+}
+
+fn worker_finalize_shutdown(mut cx: FunctionContext) -> JsResult<JsUndefined> {
+    let worker = cx.argument::<BoxedWorker>(0)?;
+    let callback = cx.argument::<JsFunction>(1)?;
+    match worker.replace(None) {
+        None => {
+            ILLEGAL_STATE_ERROR
+                .from_error(&mut cx, "Client already closed")
+                .and_then(|err| cx.throw(err))?;
+        }
+        Some(worker) => {
+            match Arc::try_unwrap(worker.core_worker) {
+                Ok(unwrapped_worker) => {
+                    if let Err(err) = worker.runtime.sender.send(Request::FinalizeWorkerShutdown {
+                        worker: unwrapped_worker,
+                        callback: callback.root(&mut cx),
+                    }) {
+                        UNEXPECTED_ERROR
+                            .from_error(&mut cx, err)
+                            .and_then(|err| cx.throw(err))?;
+                    };
+                }
+                Err(_) => {
+                    UNEXPECTED_ERROR
+                        .from_error(
+                            &mut cx,
+                            "Found more than one reference to the native Worker",
+                        )
+                        .and_then(|err| cx.throw(err))?;
+                }
+            };
+        }
+    }
+
     Ok(cx.undefined())
 }
 
@@ -881,7 +971,8 @@ fn main(mut cx: ModuleContext) -> NeonResult<()> {
     cx.export_function("clientUpdateHeaders", client_update_headers)?;
     cx.export_function("newWorker", worker_new)?;
     cx.export_function("newReplayWorker", replay_worker_new)?;
-    cx.export_function("workerShutdown", worker_shutdown)?;
+    cx.export_function("workerInitiateShutdown", worker_initiate_shutdown)?;
+    cx.export_function("workerFinalizeShutdown", worker_finalize_shutdown)?;
     cx.export_function("clientClose", client_close)?;
     cx.export_function("runtimeShutdown", runtime_shutdown)?;
     cx.export_function("pollLogs", poll_logs)?;

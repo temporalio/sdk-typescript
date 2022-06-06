@@ -9,7 +9,7 @@ async function main() {
   const serverAddress = getRequired(args, '--server-address');
   const namespace = getRequired(args, '--ns');
 
-  const connection = new Connection({ address: serverAddress });
+  const connection = await Connection.connect({ address: serverAddress });
 
   await createNamespace(connection, namespace);
   console.log('Registered namespace', { namespace });

@@ -1,21 +1,15 @@
 /* eslint-disable @typescript-eslint/no-empty-function */
 /* eslint-disable @typescript-eslint/explicit-module-boundary-types */
 import { Context } from '@temporalio/activity';
-import { Connection, LOCAL_DOCKER_TARGET, WorkflowClient, WorkflowHandle } from '@temporalio/client';
+import { WorkflowClient, WorkflowHandle } from '@temporalio/client';
 import { ApplicationFailure } from '@temporalio/common';
 import { QueryDefinition } from '@temporalio/internal-workflow-common';
 import { ProtoActivityInput, ProtoActivityResult } from '../../protos/root';
 import { cancellableFetch as cancellableFetchInner } from './cancellable-fetch';
 import { fakeProgress as fakeProgressInner } from './fake-progress';
+import { getContext } from './interceptors';
 
 export { throwSpecificError } from './failure-tester';
-
-// TODO: Get rid of this by providing client via activity context
-function getTestConnection(): Connection {
-  // TODO: reuse connection
-  const address = process.env.TEMPORAL_TESTING_SERVER_URL || LOCAL_DOCKER_TARGET;
-  return new Connection({ address });
-}
 
 /**
  * Used in order to check Activity interceptor,
@@ -67,16 +61,11 @@ export async function waitForCancellation(): Promise<void> {
 }
 
 async function withSchedulingWorkflowHandle<R>(fn: (handle: WorkflowHandle) => Promise<R>): Promise<R> {
-  const { info } = Context.current();
+  const { info, connection } = getContext();
   const { workflowExecution } = info;
-  const conn = getTestConnection();
-  const client = new WorkflowClient(conn.service, { namespace: info.workflowNamespace });
+  const client = new WorkflowClient({ connection, namespace: info.workflowNamespace });
   const handle = client.getHandle(workflowExecution.workflowId, workflowExecution.runId);
-  try {
-    return await fn(handle);
-  } finally {
-    conn.client.close();
-  }
+  return await fn(handle);
 }
 
 async function signalSchedulingWorkflow(signalName: string) {

@@ -154,11 +154,8 @@ test.serial('TestEnvironment sleep can be used to delay sending a signal', async
       workflowId: uuid4(),
       taskQueue: 'test',
     });
-    console.log('Before sleep');
     await sleep(1_000_000); // Time is skipped
-    console.log('After sleep');
     await handle.signal(unblockSignal);
-    console.log('After signal');
     await handle.result(); // Time is skipped
   });
   t.pass();

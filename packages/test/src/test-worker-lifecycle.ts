@@ -52,7 +52,7 @@ test('Mocked run throws if not shut down gracefully', async (t) => {
   const p = worker.run();
   t.is(worker.getState(), 'RUNNING');
   // Make sure shutdown never resolves
-  worker.native.shutdown = () => new Promise(() => undefined);
+  worker.native.initiateShutdown = () => new Promise(() => undefined);
   worker.shutdown();
   await t.throwsAsync(p, {
     message: 'Timed out while waiting for worker to shutdown gracefully',
