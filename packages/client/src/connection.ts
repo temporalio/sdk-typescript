@@ -163,8 +163,6 @@ export class Connection {
 
   /**
    * Raw gRPC access to the Temporal service.
-   *
-   * **NOTE**: The namespace provided in {@link options} is **not** automatically set on requests made to the service.
    */
   public readonly workflowService: WorkflowService;
   readonly callContextStorage: AsyncLocalStorage<CallContext>;
@@ -305,7 +303,7 @@ export class Connection {
    * @example
    *
    * ```ts
-   * await conn.withMetadata({ apiKey: 'deadbeef' }, () =>
+   * await conn.withMetadata({ apiKey: 'secret' }, () =>
    *   conn.withMetadata({ otherKey: 'set' }, () => client.start(options)))
    * );
    * ```
