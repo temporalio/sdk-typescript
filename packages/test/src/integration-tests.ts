@@ -34,6 +34,7 @@ import dedent from 'dedent';
 import ms from 'ms';
 import { v4 as uuid4 } from 'uuid';
 import * as activities from './activities';
+import { ConnectionInjectorInterceptor } from './activities/interceptors';
 import { cleanStackTrace, u8 } from './helpers';
 import * as workflows from './workflows';
 import { withZeroesHTTPServer } from './zeroes-http-server';
@@ -66,11 +67,14 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
     const logger = new DefaultLogger('DEBUG');
     // Use forwarded logging from core
     Runtime.install({ logger, telemetryOptions: { logging: { forward: { level: 'INFO' } } } });
+    const connection = await Connection.connect();
+
     const worker = await Worker.create({
       workflowsPath: require.resolve('./workflows'),
       activities,
       taskQueue: 'test',
       dataConverter,
+      interceptors: { activityInbound: [() => new ConnectionInjectorInterceptor(connection)] },
     });
 
     const runPromise = worker.run();
@@ -78,7 +82,6 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
     runPromise.catch((err) => {
       console.error('Caught error while worker was running', err);
     });
-    const connection = await Connection.connect();
     t.context = {
       worker,
       runPromise,

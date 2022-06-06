@@ -2,6 +2,7 @@ import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-grpc';
 import * as opentelemetry from '@opentelemetry/sdk-node';
 import { SemanticResourceAttributes } from '@opentelemetry/semantic-conventions';
 import { TelemetryOptions } from '@temporalio/core-bridge';
+import { Connection } from '@temporalio/client';
 import { DefaultLogger, LogEntry, NativeConnection, Runtime, Worker } from '@temporalio/worker';
 import arg from 'arg';
 import fs from 'fs';
@@ -9,6 +10,7 @@ import http from 'http';
 import { inspect } from 'util';
 import * as activities from '../activities';
 import { getRequired, WorkerArgSpec, workerArgSpec } from './args';
+import { ConnectionInjectorInterceptor } from '../activities/interceptors';
 
 /**
  * Optionally start the opentelemetry node SDK
@@ -128,6 +130,10 @@ async function main() {
     logger,
   });
 
+  const clientConnection = await Connection.connect({
+    address: serverAddress,
+  });
+
   const connection = await NativeConnection.connect({
     address: serverAddress,
   });
@@ -143,6 +149,9 @@ async function main() {
       maxConcurrentLocalActivityExecutions,
       maxConcurrentWorkflowTaskExecutions,
       maxCachedWorkflows,
+      interceptors: {
+        activityInbound: [() => new ConnectionInjectorInterceptor(clientConnection)],
+      },
     });
     console.log('Created worker with options', worker.options);
 
