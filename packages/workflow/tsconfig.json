@@ -4,6 +4,6 @@
     "rootDir": "./src",
     "outDir": "./lib"
   },
-  "references": [{ "path": "../internal-workflow-common" }],
+  "references": [{ "path": "../internal-workflow-common" }, { "path": "../common" }],
   "include": ["./src/**/*.ts"]
 }
