@@ -132,6 +132,14 @@ export interface TelemetryOptions {
   tracingFilter?: string;
 
   /**
+   * If set true, do not prefix metrics with `temporal_`. Will be removed eventually as
+   * the prefix is consistent with other SDKs.
+   *
+   * @default `false`
+   */
+  noTemporalPrefixForMetrics?: boolean;
+
+  /**
    * Control where to send Rust Core logs
    *
    * @default log to console
