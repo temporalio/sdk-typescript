@@ -300,6 +300,11 @@ export class WorkflowClient {
     };
   }
 
+  /**
+   * Raw gRPC access to the Temporal service.
+   *
+   * **NOTE**: The namespace provided in {@link options} is **not** automatically set on requests made to the service.
+   */
   get workflowService(): WorkflowService {
     return this.connection.workflowService;
   }
