@@ -930,7 +930,7 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
     });
     await asyncRetry(
       async () => {
-        const history = await client.service.getWorkflowExecutionHistory({
+        const history = await client.workflowService.getWorkflowExecutionHistory({
           namespace: 'default',
           execution: { workflowId },
         });
