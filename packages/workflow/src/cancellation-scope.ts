@@ -137,7 +137,11 @@ export class CancellationScope {
    */
   protected async runInContext<T>(fn: () => Promise<T>): Promise<T> {
     if (this.timeout) {
-      sleep(this.timeout).then(() => this.cancel());
+      sleep(this.timeout)
+        .then(() => this.cancel())
+        .catch(() => {
+          // scope was already cancelled, ignore
+        });
     }
     return await fn();
   }

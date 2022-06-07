@@ -132,6 +132,14 @@ export interface TelemetryOptions {
   tracingFilter?: string;
 
   /**
+   * If set true, do not prefix metrics with `temporal_`. Will be removed eventually as
+   * the prefix is consistent with other SDKs.
+   *
+   * @default `false`
+   */
+  noTemporalPrefixForMetrics?: boolean;
+
+  /**
    * Control where to send Rust Core logs
    *
    * @default log to console
@@ -248,7 +256,8 @@ export declare function newReplayWorker(
   history: ArrayBuffer,
   callback: WorkerCallback
 ): void;
-export declare function workerShutdown(worker: Worker, callback: VoidCallback): void;
+export declare function workerInitiateShutdown(worker: Worker, callback: VoidCallback): void;
+export declare function workerFinalizeShutdown(worker: Worker, callback: VoidCallback): void;
 export declare function clientUpdateHeaders(
   client: Client,
   headers: Record<string, string>,

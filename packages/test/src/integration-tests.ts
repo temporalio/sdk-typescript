@@ -34,6 +34,7 @@ import dedent from 'dedent';
 import ms from 'ms';
 import { v4 as uuid4 } from 'uuid';
 import * as activities from './activities';
+import { ConnectionInjectorInterceptor } from './activities/interceptors';
 import { cleanStackTrace, u8 } from './helpers';
 import * as workflows from './workflows';
 import { withZeroesHTTPServer } from './zeroes-http-server';
@@ -66,11 +67,14 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
     const logger = new DefaultLogger('DEBUG');
     // Use forwarded logging from core
     Runtime.install({ logger, telemetryOptions: { logging: { forward: { level: 'INFO' } } } });
+    const connection = await Connection.connect();
+
     const worker = await Worker.create({
       workflowsPath: require.resolve('./workflows'),
       activities,
       taskQueue: 'test',
       dataConverter,
+      interceptors: { activityInbound: [() => new ConnectionInjectorInterceptor(connection)] },
     });
 
     const runPromise = worker.run();
@@ -78,11 +82,10 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
     runPromise.catch((err) => {
       console.error('Caught error while worker was running', err);
     });
-    const connection = new Connection();
     t.context = {
       worker,
       runPromise,
-      client: new WorkflowClient(connection.service, { dataConverter }),
+      client: new WorkflowClient({ connection, dataConverter }),
     };
 
     // The initialization of the custom search attributes is slooooow. Wait for it to finish
@@ -127,7 +130,7 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
     try {
       await asyncRetry(
         async () => {
-          const { history } = await client.service.getWorkflowExecutionHistory({
+          const { history } = await client.workflowService.getWorkflowExecutionHistory({
             namespace: 'default',
             execution: { workflowId: handle.workflowId },
           });
@@ -443,7 +446,7 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
     });
     const res = await workflow.result();
     t.is(res, undefined);
-    const execution = await client.service.getWorkflowExecutionHistory({
+    const execution = await client.workflowService.getWorkflowExecutionHistory({
       namespace,
       execution: { workflowId: workflow.workflowId, runId: workflow.firstExecutionRunId },
     });
@@ -462,7 +465,7 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
     });
     const res = await workflow.result();
     t.is(res, undefined);
-    const execution = await client.service.getWorkflowExecutionHistory({
+    const execution = await client.workflowService.getWorkflowExecutionHistory({
       namespace,
       execution: { workflowId: workflow.workflowId, runId: workflow.firstExecutionRunId },
     });
@@ -479,7 +482,7 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
     });
     const res = await workflow.result();
     t.is(res, undefined);
-    const execution = await client.service.getWorkflowExecutionHistory({
+    const execution = await client.workflowService.getWorkflowExecutionHistory({
       namespace,
       execution: { workflowId: workflow.workflowId, runId: workflow.firstExecutionRunId },
     });
@@ -501,7 +504,7 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
     });
     const res = await workflow.result();
     t.is(res, undefined);
-    const execution = await client.service.getWorkflowExecutionHistory({
+    const execution = await client.workflowService.getWorkflowExecutionHistory({
       namespace,
       execution: { workflowId: workflow.workflowId, runId: workflow.firstExecutionRunId },
     });
@@ -522,7 +525,7 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
     });
     const res = await workflow.result();
     t.is(res, undefined);
-    const execution = await client.service.getWorkflowExecutionHistory({
+    const execution = await client.workflowService.getWorkflowExecutionHistory({
       namespace,
       execution: { workflowId: workflow.workflowId, runId: workflow.firstExecutionRunId },
     });
@@ -541,7 +544,7 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
       workflowId: uuid4(),
     });
     await workflow.result();
-    const execution = await client.service.getWorkflowExecutionHistory({
+    const execution = await client.workflowService.getWorkflowExecutionHistory({
       namespace,
       execution: { workflowId: workflow.workflowId, runId: workflow.firstExecutionRunId },
     });
@@ -793,7 +796,7 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
     await workflow.result();
     const info = await workflow.describe();
     t.is(info.raw.workflowExecutionInfo?.type?.name, 'sleeper');
-    const { history } = await client.service.getWorkflowExecutionHistory({
+    const { history } = await client.workflowService.getWorkflowExecutionHistory({
       namespace,
       execution: { workflowId: workflow.workflowId, runId: err.newExecutionRunId },
     });
@@ -864,7 +867,7 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
     });
     await asyncRetry(
       async () => {
-        const history = await client.service.getWorkflowExecutionHistory({
+        const history = await client.workflowService.getWorkflowExecutionHistory({
           namespace: 'default',
           execution: { workflowId },
         });
@@ -895,7 +898,7 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
     });
     await asyncRetry(
       async () => {
-        const history = await client.service.getWorkflowExecutionHistory({
+        const history = await client.workflowService.getWorkflowExecutionHistory({
           namespace: 'default',
           execution: { workflowId },
         });

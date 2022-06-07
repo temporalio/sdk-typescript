@@ -240,6 +240,9 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
         if let Some(tf) = js_optional_getter!(cx, self, "tracingFilter", JsString) {
             telemetry_opts.tracing_filter(tf.value(cx));
         }
+        telemetry_opts.no_temporal_prefix_for_metrics(
+            js_optional_getter!(cx, self, "noTemporalPrefixForMetrics", JsBoolean).map(|b| b.value(cx)).unwrap_or_default()
+        );
         if let Some(ref logging) = js_optional_getter!(cx, self, "logging", JsObject) {
             if let Some(_) = get_optional(cx, logging, "console") {
                 telemetry_opts.logging(Logger::Console);
