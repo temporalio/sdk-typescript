@@ -30,9 +30,9 @@ if (RUN_INTEGRATION_TESTS) {
     const worker2Drained = worker2.run();
     worker1.shutdown();
     await worker1Drained;
-    const connection = new WorkflowClient();
+    const client = new WorkflowClient();
     // Run a simple workflow
-    await connection.execute(workflows.sleeper, { taskQueue: 'q2', workflowId: uuid4(), args: [1] });
+    await client.execute(workflows.sleeper, { taskQueue: 'q2', workflowId: uuid4(), args: [1] });
     worker2.shutdown();
     await worker2Drained;
 
@@ -42,7 +42,7 @@ if (RUN_INTEGRATION_TESTS) {
     });
     const worker3Drained = worker3.run();
     // Run a simple workflow
-    await connection.execute('sleeper', { taskQueue: 'q1', workflowId: uuid4(), args: [1] });
+    await client.execute('sleeper', { taskQueue: 'q1', workflowId: uuid4(), args: [1] });
     worker3.shutdown();
     await worker3Drained;
     // No exceptions, test passes, Runtime is implicitly shut down

@@ -7,12 +7,16 @@ import {
   errorMessage,
   IllegalStateError,
   LoadedDataConverter,
+  mapFromPayloads,
   Payload,
+  searchAttributePayloadConverter,
 } from '@temporalio/common';
 import * as native from '@temporalio/core-bridge';
 import {
   decodeArrayFromPayloads,
   decodeFromPayloadsAtIndex,
+  decodeMapFromPayloads,
+  decodeOptionalFailureToOptionalError,
   encodeErrorToFailure,
   encodeToPayload,
 } from '@temporalio/internal-non-workflow-common';
@@ -23,9 +27,16 @@ import {
   RUN_ID_ATTR_KEY,
   TASK_TOKEN_ATTR_KEY,
 } from '@temporalio/internal-non-workflow-common/lib/otel';
-import { optionalTsToMs, tsToMs } from '@temporalio/internal-workflow-common';
+import {
+  optionalTsToDate,
+  optionalTsToMs,
+  SearchAttributeValue,
+  tsToMs,
+  decompileRetryPolicy,
+} from '@temporalio/internal-workflow-common';
 import { coresdk } from '@temporalio/proto';
 import { DeterminismViolationError, SinkCall, WorkflowInfo } from '@temporalio/workflow';
+import { convertToParentWorkflowType } from './utils';
 import fs from 'fs/promises';
 import {
   BehaviorSubject,
@@ -114,8 +125,8 @@ export type ActivityTaskWithContext = ContextAware<{
 }>;
 
 export interface NativeWorkerLike {
-  shutdown: Promisify<OmitFirstParam<typeof native.workerShutdown>>;
-  completeShutdown(): Promise<void>;
+  initiateShutdown: Promisify<OmitFirstParam<typeof native.workerInitiateShutdown>>;
+  finalizeShutdown(): Promise<void>;
   flushCoreLogs(): void;
   pollWorkflowActivation: Promisify<OmitFirstParam<typeof native.workerPollWorkflowActivation>>;
   pollActivityTask: Promisify<OmitFirstParam<typeof native.workerPollActivityTask>>;
@@ -136,7 +147,7 @@ export class NativeWorker implements NativeWorkerLike {
   public readonly completeWorkflowActivation: Promisify<OmitFirstParam<typeof native.workerCompleteWorkflowActivation>>;
   public readonly completeActivityTask: Promisify<OmitFirstParam<typeof native.workerCompleteActivityTask>>;
   public readonly recordActivityHeartbeat: OmitFirstParam<typeof native.workerRecordActivityHeartbeat>;
-  public readonly shutdown: Promisify<OmitFirstParam<typeof native.workerShutdown>>;
+  public readonly initiateShutdown: Promisify<OmitFirstParam<typeof native.workerInitiateShutdown>>;
 
   public static async create(connection: NativeConnection, options: CompiledWorkerOptions): Promise<NativeWorkerLike> {
     const runtime = Runtime.instance();
@@ -156,14 +167,14 @@ export class NativeWorker implements NativeWorkerLike {
     this.completeWorkflowActivation = promisify(native.workerCompleteWorkflowActivation).bind(undefined, nativeWorker);
     this.completeActivityTask = promisify(native.workerCompleteActivityTask).bind(undefined, nativeWorker);
     this.recordActivityHeartbeat = native.workerRecordActivityHeartbeat.bind(undefined, nativeWorker);
-    this.shutdown = promisify(native.workerShutdown).bind(undefined, nativeWorker);
+    this.initiateShutdown = promisify(native.workerInitiateShutdown).bind(undefined, nativeWorker);
   }
 
   flushCoreLogs(): void {
     this.runtime.flushLogs();
   }
 
-  public async completeShutdown(): Promise<void> {
+  public async finalizeShutdown(): Promise<void> {
     await this.runtime.deregisterWorker(this.nativeWorker);
   }
 
@@ -315,6 +326,7 @@ export interface WorkerStatus {
  */
 export class Worker {
   protected readonly activityHeartbeatSubject = new Subject<HeartbeatInput>();
+  protected readonly unexpectedErrorSubject = new Subject<void>();
   protected readonly stateSubject = new BehaviorSubject<State>('INITIALIZED');
 
   protected readonly workflowPollerStateSubject = new BehaviorSubject<PollerState>('POLLING');
@@ -354,7 +366,7 @@ export class Worker {
     const compiledOptions = compileWorkerOptions(addDefaultWorkerOptions(options));
     // Create a new connection if one is not provided with no CREATOR reference
     // so it can be automatically closed when this Worker shuts down.
-    const connection = options.connection ?? (await InternalNativeConnection.create());
+    const connection = options.connection ?? (await InternalNativeConnection.connect());
     const nativeWorker = await nativeWorkerCtor.create(connection, compiledOptions);
     extractReferenceHolders(connection).add(nativeWorker);
     return await this.bundleWorker(compiledOptions, nativeWorker, connection);
@@ -450,7 +462,7 @@ export class Worker {
       return new this(nativeWorker, workflowCreator, compiledOptions, connection);
     } catch (err) {
       // Deregister our worker in case Worker creation (Webpack) failed
-      await nativeWorker.completeShutdown();
+      await nativeWorker.finalizeShutdown();
       throw err;
     }
   }
@@ -542,13 +554,16 @@ export class Worker {
       throw new IllegalStateError('Not running');
     }
     this.state = 'STOPPING';
-    this.nativeWorker.shutdown().then(() => {
-      // Core may have already returned a ShutdownError to our pollers in which
-      // case the state would transition to DRAINED
-      if (this.state === 'STOPPING') {
-        this.state = 'DRAINING';
-      }
-    });
+    this.nativeWorker
+      .initiateShutdown()
+      .then(() => {
+        // Core may have already returned a ShutdownError to our pollers in which
+        // case the state would transition to DRAINED
+        if (this.state === 'STOPPING') {
+          this.state = 'DRAINING';
+        }
+      })
+      .catch((error) => this.unexpectedErrorSubject.error(error));
   }
 
   /**
@@ -920,20 +935,71 @@ export class Worker {
                       if (activation.timestamp == null) {
                         throw new TypeError('Got activation with no timestamp, cannot create a new Workflow instance');
                       }
-                      const { workflowId, randomnessSeed, workflowType } = startWorkflow;
+                      const {
+                        workflowId,
+                        randomnessSeed,
+                        workflowType,
+                        parentWorkflowInfo,
+                        workflowExecutionTimeout,
+                        workflowRunTimeout,
+                        workflowTaskTimeout,
+                        continuedFromExecutionRunId,
+                        continuedFailure,
+                        lastCompletionResult,
+                        firstExecutionRunId,
+                        retryPolicy,
+                        attempt,
+                        cronSchedule,
+                        workflowExecutionExpirationTime,
+                        cronScheduleToScheduleInterval,
+                        memo,
+                        searchAttributes,
+                      } = startWorkflow;
+
+                      if (firstExecutionRunId === null || firstExecutionRunId === undefined) {
+                        throw new TypeError(`Unexpected value: \`firstExecutionRunId\` is ${firstExecutionRunId}`);
+                      }
+                      if (attempt === null || attempt === undefined) {
+                        throw new TypeError(`Unexpected value: \`attempt\` is ${attempt}`);
+                      }
                       this.log.debug('Creating workflow', {
                         workflowType,
                         workflowId,
                         runId: activation.runId,
                       });
                       this.numCachedWorkflowsSubject.next(this.numCachedWorkflowsSubject.value + 1);
-                      const workflowInfo = {
-                        workflowType,
-                        runId: activation.runId,
+                      const workflowInfo: WorkflowInfo = {
                         workflowId,
-                        namespace: this.options.namespace,
+                        runId: activation.runId,
+                        workflowType,
+                        searchAttributes: mapFromPayloads(
+                          searchAttributePayloadConverter,
+                          searchAttributes?.indexedFields
+                        ) as Record<string, SearchAttributeValue[]> | undefined,
+                        memo: await decodeMapFromPayloads(this.options.loadedDataConverter, memo?.fields),
+                        parent: convertToParentWorkflowType(parentWorkflowInfo),
+                        lastResult: await decodeFromPayloadsAtIndex(
+                          this.options.loadedDataConverter,
+                          0,
+                          lastCompletionResult?.payloads
+                        ),
+                        lastFailure: await decodeOptionalFailureToOptionalError(
+                          this.options.loadedDataConverter,
+                          continuedFailure
+                        ),
                         taskQueue: this.options.taskQueue,
-                        isReplaying: activation.isReplaying,
+                        namespace: this.options.namespace,
+                        firstExecutionRunId,
+                        continuedFromExecutionRunId: continuedFromExecutionRunId || undefined,
+                        executionTimeoutMs: optionalTsToMs(workflowExecutionTimeout),
+                        executionExpirationTime: optionalTsToDate(workflowExecutionExpirationTime),
+                        runTimeoutMs: optionalTsToMs(workflowRunTimeout),
+                        taskTimeoutMs: tsToMs(workflowTaskTimeout),
+                        retryPolicy: decompileRetryPolicy(retryPolicy),
+                        attempt,
+                        cronSchedule: cronSchedule || undefined,
+                        // 0 is the default, and not a valid value, since crons are at least a minute apart
+                        cronScheduleToScheduleInterval: optionalTsToMs(cronScheduleToScheduleInterval) || undefined,
                       };
                       const patchJobs = activation.jobs.filter((j): j is PatchJob => j.notifyHasPatch != null);
                       const patches = patchJobs.map(({ notifyHasPatch }) => {
@@ -950,6 +1016,8 @@ export class Worker {
                           randomnessSeed: randomnessSeed.toBytes(),
                           now: tsToMs(activation.timestamp),
                           patches,
+                          isReplaying: activation.isReplaying,
+                          historyLength: activation.historyLength,
                         });
                       });
                       state = { workflow, info: workflowInfo };
@@ -1384,6 +1452,7 @@ export class Worker {
       try {
         await lastValueFrom(
           merge(
+            this.unexpectedErrorSubject.pipe(takeUntil(this.stateSubject.pipe(filter((st) => st === 'DRAINED')))),
             this.gracefulShutdown$(),
             this.activityHeartbeat$(),
             merge(this.workflow$(), this.activity$()).pipe(
@@ -1413,7 +1482,7 @@ export class Worker {
       // Otherwise Rust / TS are in an unknown state and shutdown might hang.
       // A new process must be created in order to instantiate a new Rust Core.
       // TODO: force shutdown in core?
-      await this.nativeWorker.completeShutdown();
+      await this.nativeWorker.finalizeShutdown();
       // Only exists in non-replay Worker
       if (this.connection) {
         extractReferenceHolders(this.connection).delete(this.nativeWorker);

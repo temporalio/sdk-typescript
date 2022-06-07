@@ -83,7 +83,7 @@ async function runWorkflows(options: RunWorkflowOptions): Promise<void> {
   let observable: Observable<any>;
   let recordMemUsage = (_mem: number) => undefined;
   if (workerMemoryLogFile) {
-    const stream = fs.createWriteStream('/tmp/worker-mem.log');
+    const stream = fs.createWriteStream(workerMemoryLogFile);
     recordMemUsage = (mem) => void stream.write(`${mem}\n`);
   }
 
@@ -191,8 +191,8 @@ async function main() {
   const workerPid = args['--worker-pid'];
   const workerMemoryLogFile = args['--worker-memory-log-file'];
 
-  const connection = new Connection({ address: serverAddress });
-  const client = new WorkflowClient(connection.service, { namespace });
+  const connection = await Connection.connect({ address: serverAddress });
+  const client = new WorkflowClient({ connection, namespace });
   const stopCondition = runForSeconds ? new UntilSecondsElapsed(runForSeconds) : new NumberOfWorkflows(iterations);
   const queryingOptions = queryName ? { queryName, queryIntervalMs, initialQueryDelayMs } : undefined;
 

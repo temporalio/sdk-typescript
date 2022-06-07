@@ -26,6 +26,8 @@ import {
   composeInterceptors,
   optionalTsToDate,
   QueryDefinition,
+  Replace,
+  SearchAttributeValue,
   SignalDefinition,
   tsToDate,
   WithWorkflowArgs,
@@ -36,7 +38,7 @@ import {
 import { temporal } from '@temporalio/proto';
 import os from 'os';
 import { v4 as uuid4 } from 'uuid';
-import { Connection, WorkflowService } from './connection';
+import { Connection } from './connection';
 import {
   isServerErrorResponse,
   ServiceError,
@@ -56,13 +58,17 @@ import {
   WorkflowTerminateInput,
 } from './interceptors';
 import {
+  ConnectionLike,
   DescribeWorkflowExecutionResponse,
   GetWorkflowExecutionHistoryRequest,
+  Metadata,
   RequestCancelWorkflowExecutionResponse,
   StartWorkflowExecutionRequest,
   TerminateWorkflowExecutionResponse,
   WorkflowExecution,
   WorkflowExecutionDescription,
+  WorkflowExecutionStatusName,
+  WorkflowService,
 } from './types';
 import { compileWorkflowOptions, WorkflowOptions, WorkflowSignalWithStartOptions } from './workflow-options';
 
@@ -173,6 +179,15 @@ export interface WorkflowClientOptions {
   identity?: string;
 
   /**
+   * Connection to use to communicate with the server.
+   *
+   * By default `WorkflowClient` connects to localhost.
+   *
+   * Connections are expensive to construct and should be reused.
+   */
+  connection?: ConnectionLike;
+
+  /**
    * Server namespace
    *
    * @default default
@@ -187,7 +202,12 @@ export interface WorkflowClientOptions {
   queryRejectCondition?: temporal.api.enums.v1.QueryRejectCondition;
 }
 
-export type WorkflowClientOptionsWithDefaults = Required<WorkflowClientOptions>;
+export type WorkflowClientOptionsWithDefaults = Replace<
+  Required<WorkflowClientOptions>,
+  {
+    connection?: ConnectionLike;
+  }
+>;
 export type LoadedWorkflowClientOptions = WorkflowClientOptionsWithDefaults & {
   loadedDataConverter: LoadedDataConverter;
 };
@@ -269,13 +289,42 @@ export type WorkflowStartOptions<T extends Workflow = Workflow> = WithWorkflowAr
  */
 export class WorkflowClient {
   public readonly options: LoadedWorkflowClientOptions;
+  public readonly connection: ConnectionLike;
 
-  constructor(public readonly service: WorkflowService = new Connection().service, options?: WorkflowClientOptions) {
+  constructor(options?: WorkflowClientOptions) {
+    this.connection = options?.connection ?? Connection.lazy();
     this.options = {
       ...defaultWorkflowClientOptions(),
       ...options,
       loadedDataConverter: loadDataConverter(options?.dataConverter),
     };
+  }
+
+  /**
+   * Raw gRPC access to the Temporal service.
+   *
+   * **NOTE**: The namespace provided in {@link options} is **not** automatically set on requests made to the service.
+   */
+  get workflowService(): WorkflowService {
+    return this.connection.workflowService;
+  }
+
+  /**
+   * Set the deadline for any service requests executed in `fn`'s scope.
+   */
+  async withDeadline<R>(deadline: number | Date, fn: () => Promise<R>): Promise<R> {
+    return await this.connection.withDeadline(deadline, fn);
+  }
+
+  /**
+   * Set metadata for any service requests executed in `fn`'s scope.
+   *
+   * @returns returned value of `fn`
+   *
+   * @see {@link Connection.withMetadata}
+   */
+  async withMetadata<R>(metadata: Metadata, fn: () => Promise<R>): Promise<R> {
+    return await this.connection.withMetadata(metadata, fn);
   }
 
   /**
@@ -428,7 +477,7 @@ export class WorkflowClient {
     for (;;) {
       let res: temporal.api.workflowservice.v1.GetWorkflowExecutionHistoryResponse;
       try {
-        res = await this.service.getWorkflowExecutionHistory(req);
+        res = await this.workflowService.getWorkflowExecutionHistory(req);
       } catch (err) {
         this.rethrowGrpcError(err, { workflowId, runId }, 'Failed to get Workflow execution history');
       }
@@ -551,7 +600,7 @@ export class WorkflowClient {
   protected async _queryWorkflowHandler(input: WorkflowQueryInput): Promise<unknown> {
     let response: temporal.api.workflowservice.v1.QueryWorkflowResponse;
     try {
-      response = await this.service.queryWorkflow({
+      response = await this.workflowService.queryWorkflow({
         queryRejectCondition: input.queryRejectCondition,
         namespace: this.options.namespace,
         execution: input.workflowExecution,
@@ -584,7 +633,7 @@ export class WorkflowClient {
    */
   protected async _signalWorkflowHandler(input: WorkflowSignalInput): Promise<void> {
     try {
-      await this.service.signalWorkflowExecution({
+      await this.workflowService.signalWorkflowExecution({
         identity: this.options.identity,
         namespace: this.options.namespace,
         workflowExecution: input.workflowExecution,
@@ -608,7 +657,7 @@ export class WorkflowClient {
     const { identity } = this.options;
     const { options, workflowType, signalName, signalArgs, headers } = input;
     try {
-      const { runId } = await this.service.signalWithStartWorkflowExecution({
+      const { runId } = await this.workflowService.signalWithStartWorkflowExecution({
         namespace: this.options.namespace,
         identity,
         requestId: uuid4(),
@@ -677,7 +726,7 @@ export class WorkflowClient {
       header: { fields: headers },
     };
     try {
-      const res = await this.service.startWorkflowExecution(req);
+      const res = await this.workflowService.startWorkflowExecution(req);
       return res.runId;
     } catch (err: any) {
       if (err.code === grpcStatus.ALREADY_EXISTS) {
@@ -700,7 +749,7 @@ export class WorkflowClient {
     input: WorkflowTerminateInput
   ): Promise<TerminateWorkflowExecutionResponse> {
     try {
-      return await this.service.terminateWorkflowExecution({
+      return await this.workflowService.terminateWorkflowExecution({
         namespace: this.options.namespace,
         identity: this.options.identity,
         ...input,
@@ -723,7 +772,7 @@ export class WorkflowClient {
    */
   protected async _cancelWorkflowHandler(input: WorkflowCancelInput): Promise<RequestCancelWorkflowExecutionResponse> {
     try {
-      return await this.service.requestCancelWorkflowExecution({
+      return await this.workflowService.requestCancelWorkflowExecution({
         namespace: this.options.namespace,
         identity: this.options.identity,
         requestId: uuid4(),
@@ -742,7 +791,7 @@ export class WorkflowClient {
    */
   protected async _describeWorkflowHandler(input: WorkflowDescribeInput): Promise<DescribeWorkflowExecutionResponse> {
     try {
-      return await this.service.describeWorkflowExecution({
+      return await this.workflowService.describeWorkflowExecution({
         namespace: this.options.namespace,
         execution: input.workflowExecution,
       });
@@ -797,7 +846,10 @@ export class WorkflowClient {
           workflowId: raw.workflowExecutionInfo!.execution!.workflowId!,
           runId: raw.workflowExecutionInfo!.execution!.runId!,
           taskQueue: raw.workflowExecutionInfo!.taskQueue!,
-          status: raw.workflowExecutionInfo!.status!,
+          status: {
+            code: raw.workflowExecutionInfo!.status!,
+            name: workflowStatusCodeToName(raw.workflowExecutionInfo!.status!),
+          },
           historyLength: raw.workflowExecutionInfo!.historyLength!,
           startTime: tsToDate(raw.workflowExecutionInfo!.startTime!),
           executionTime: optionalTsToDate(raw.workflowExecutionInfo!.executionTime),
@@ -808,12 +860,12 @@ export class WorkflowClient {
           ),
           searchAttributes: mapFromPayloads(
             searchAttributePayloadConverter,
-            raw.workflowExecutionInfo!.searchAttributes?.indexedFields
-          ),
-          parentExecution: raw.workflowExecutionInfo!.parentExecution
+            raw.workflowExecutionInfo!.searchAttributes?.indexedFields ?? {}
+          ) as Record<string, SearchAttributeValue[]>,
+          parentExecution: raw.workflowExecutionInfo?.parentExecution
             ? {
-                workflowId: raw.workflowExecutionInfo!.parentExecution!.workflowId!,
-                runId: raw.workflowExecutionInfo!.parentExecution!.runId!,
+                workflowId: raw.workflowExecutionInfo.parentExecution.workflowId!,
+                runId: raw.workflowExecutionInfo.parentExecution.runId!,
               }
             : undefined,
           raw,
@@ -883,5 +935,35 @@ export class QueryRejectedError extends Error {
   public readonly name: string = 'QueryRejectedError';
   constructor(public readonly status: temporal.api.enums.v1.WorkflowExecutionStatus) {
     super('Query rejected');
+  }
+}
+
+function workflowStatusCodeToName(code: temporal.api.enums.v1.WorkflowExecutionStatus): WorkflowExecutionStatusName {
+  return workflowStatusCodeToNameInternal(code) ?? 'UNKNOWN';
+}
+
+/**
+ * Intentionally leave out `default` branch to get compilation errors when new values are added
+ */
+function workflowStatusCodeToNameInternal(
+  code: temporal.api.enums.v1.WorkflowExecutionStatus
+): WorkflowExecutionStatusName {
+  switch (code) {
+    case temporal.api.enums.v1.WorkflowExecutionStatus.WORKFLOW_EXECUTION_STATUS_UNSPECIFIED:
+      return 'UNSPECIFIED';
+    case temporal.api.enums.v1.WorkflowExecutionStatus.WORKFLOW_EXECUTION_STATUS_RUNNING:
+      return 'RUNNING';
+    case temporal.api.enums.v1.WorkflowExecutionStatus.WORKFLOW_EXECUTION_STATUS_FAILED:
+      return 'FAILED';
+    case temporal.api.enums.v1.WorkflowExecutionStatus.WORKFLOW_EXECUTION_STATUS_TIMED_OUT:
+      return 'TIMED_OUT';
+    case temporal.api.enums.v1.WorkflowExecutionStatus.WORKFLOW_EXECUTION_STATUS_CANCELED:
+      return 'CANCELLED';
+    case temporal.api.enums.v1.WorkflowExecutionStatus.WORKFLOW_EXECUTION_STATUS_TERMINATED:
+      return 'TERMINATED';
+    case temporal.api.enums.v1.WorkflowExecutionStatus.WORKFLOW_EXECUTION_STATUS_COMPLETED:
+      return 'COMPLETED';
+    case temporal.api.enums.v1.WorkflowExecutionStatus.WORKFLOW_EXECUTION_STATUS_CONTINUED_AS_NEW:
+      return 'CONTINUED_AS_NEW';
   }
 }

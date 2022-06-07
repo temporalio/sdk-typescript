@@ -5,8 +5,8 @@
  * @module
  */
 
-import { Connection, WorkflowClient, WorkflowFailedError } from '@temporalio/client';
-import { ApplicationFailure, TerminatedFailure, toPayload } from '@temporalio/common';
+import { WorkflowClient, WorkflowFailedError } from '@temporalio/client';
+import { ApplicationFailure, TerminatedFailure } from '@temporalio/common';
 import { DefaultLogger, Runtime, Worker } from '@temporalio/worker';
 import { defaultPayloadConverter, WorkflowInfo } from '@temporalio/workflow';
 import test from 'ava';
@@ -14,7 +14,6 @@ import dedent from 'dedent';
 import { v4 as uuid4 } from 'uuid';
 import { cleanStackTrace, RUN_INTEGRATION_TESTS } from './helpers';
 import { defaultOptions } from './mock-native-worker';
-import { wrappedDefaultPayloadConverter } from './payload-converters/payload-converter';
 import {
   continueAsNewToDifferentWorkflow,
   interceptorExample,
@@ -49,8 +48,7 @@ if (RUN_INTEGRATION_TESTS) {
       },
     });
     const workerDrained = worker.run();
-    const conn = new Connection();
-    const client = new WorkflowClient(conn.service, {
+    const client = new WorkflowClient({
       interceptors: {
         calls: [
           () => ({
@@ -59,7 +57,7 @@ if (RUN_INTEGRATION_TESTS) {
                 ...input,
                 headers: {
                   ...input.headers,
-                  message: toPayload(wrappedDefaultPayloadConverter, message),
+                  message: defaultPayloadConverter.toPayload(message),
                 },
               });
             },
@@ -71,8 +69,8 @@ if (RUN_INTEGRATION_TESTS) {
                 signalArgs: [encoded],
                 headers: {
                   ...input.headers,
-                  message: toPayload(wrappedDefaultPayloadConverter, message),
-                  marker: toPayload(wrappedDefaultPayloadConverter, true),
+                  message: defaultPayloadConverter.toPayload(message),
+                  marker: defaultPayloadConverter.toPayload(true),
                 },
               });
             },
@@ -84,7 +82,7 @@ if (RUN_INTEGRATION_TESTS) {
                 args: [encoded],
                 headers: {
                   ...input.headers,
-                  marker: toPayload(wrappedDefaultPayloadConverter, true),
+                  marker: defaultPayloadConverter.toPayload(true),
                 },
               });
             },
@@ -93,7 +91,7 @@ if (RUN_INTEGRATION_TESTS) {
                 ...input,
                 headers: {
                   ...input.headers,
-                  marker: toPayload(wrappedDefaultPayloadConverter, true),
+                  marker: defaultPayloadConverter.toPayload(true),
                 },
               })) as any;
               return [...result].reverse().join('');
@@ -141,8 +139,7 @@ if (RUN_INTEGRATION_TESTS) {
       taskQueue,
     });
     const workerDrained = worker.run();
-    const conn = new Connection();
-    const client = new WorkflowClient(conn.service, {
+    const client = new WorkflowClient({
       interceptors: {
         calls: [
           () => ({

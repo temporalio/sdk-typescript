@@ -78,6 +78,7 @@ export {
   ContinueAsNew,
   ContinueAsNewOptions,
   ParentClosePolicy,
+  ParentWorkflowInfo,
   WorkflowInfo,
 } from './interfaces';
 export { Sink, SinkCall, SinkFunction, Sinks } from './sinks';

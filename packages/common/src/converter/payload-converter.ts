@@ -1,5 +1,4 @@
 import { Payload } from './types';
-import { WrappedPayloadConverter } from './wrapped-payload-converter';
 
 /**
  * Used by the framework to serialize/deserialize data like parameters and return values.
@@ -12,23 +11,17 @@ export interface PayloadConverter {
    * Converts a value to a {@link Payload}.
    *
    * @param value The value to convert. Example values include the Workflow args sent from the Client and the values returned by a Workflow or Activity.
-   * @returns The {@link Payload}, or `undefined` if unable to convert.
+   *
+   * @returns The {@link Payload}.
+   *
+   * Should throw {@link ValueError} if unable to convert.
    */
-  toPayload<T>(value: T): Payload | undefined;
+  toPayload<T>(value: T): Payload;
 
   /**
    * Converts a {@link Payload} back to a value.
    */
   fromPayload<T>(payload: Payload): T;
-}
-
-/**
- * Tries to convert `value` to a {@link Payload}. Throws if conversion fails.
- *
- * @throws {@link ValueError}
- */
-export function toPayload(converter: WrappedPayloadConverter, value: unknown): Payload {
-  return converter.toPayload(value);
 }
 
 /**
@@ -40,12 +33,12 @@ export function toPayload(converter: WrappedPayloadConverter, value: unknown): P
  * @throws {@link ValueError} if conversion of the value passed as parameter failed for any
  *     reason.
  */
-export function toPayloads(converter: WrappedPayloadConverter, ...values: unknown[]): Payload[] | undefined {
+export function toPayloads(converter: PayloadConverter, ...values: unknown[]): Payload[] | undefined {
   if (values.length === 0) {
     return undefined;
   }
 
-  return values.map((value) => toPayload(converter, value));
+  return values.map((value) => converter.toPayload(value));
 }
 
 /**
@@ -53,12 +46,9 @@ export function toPayloads(converter: WrappedPayloadConverter, ...values: unknow
  *
  * @throws {@link ValueError} if conversion of any value in the map fails
  */
-export function mapToPayloads<K extends string>(
-  converter: WrappedPayloadConverter,
-  map: Record<K, any>
-): Record<K, Payload> {
+export function mapToPayloads<K extends string>(converter: PayloadConverter, map: Record<K, any>): Record<K, Payload> {
   return Object.fromEntries(
-    Object.entries(map).map(([k, v]): [K, Payload] => [k as K, toPayload(converter, v)])
+    Object.entries(map).map(([k, v]): [K, Payload] => [k as K, converter.toPayload(v)])
   ) as Record<K, Payload>;
 }
 
@@ -73,11 +63,7 @@ export function mapToPayloads<K extends string>(
  * @throws {@link PayloadConverterError} if conversion of the data passed as parameter failed for any
  *     reason.
  */
-export function fromPayloadsAtIndex<T>(
-  converter: WrappedPayloadConverter,
-  index: number,
-  payloads?: Payload[] | null
-): T {
+export function fromPayloadsAtIndex<T>(converter: PayloadConverter, index: number, payloads?: Payload[] | null): T {
   // To make adding arguments a backwards compatible change
   if (payloads === undefined || payloads === null || index >= payloads.length) {
     return undefined as any;
@@ -88,7 +74,7 @@ export function fromPayloadsAtIndex<T>(
 /**
  * Run {@link PayloadConverter.fromPayload} on each value in the array.
  */
-export function arrayFromPayloads(converter: WrappedPayloadConverter, payloads?: Payload[] | null): unknown[] {
+export function arrayFromPayloads(converter: PayloadConverter, payloads?: Payload[] | null): unknown[] {
   if (!payloads) {
     return [];
   }
@@ -96,10 +82,10 @@ export function arrayFromPayloads(converter: WrappedPayloadConverter, payloads?:
 }
 
 export function mapFromPayloads<K extends string>(
-  converter: WrappedPayloadConverter,
+  converter: PayloadConverter,
   map?: Record<K, Payload> | null | undefined
-): Record<K, unknown> | undefined {
-  if (map === undefined || map === null) return undefined;
+): Record<K, unknown> | undefined | null {
+  if (map == null) return map;
   return Object.fromEntries(
     Object.entries(map).map(([k, payload]): [K, unknown] => {
       const value = converter.fromPayload(payload as Payload);

@@ -1,6 +1,6 @@
 import { PayloadCodec } from './payload-codec';
+import { PayloadConverter } from './payload-converter';
 import { defaultPayloadConverter } from './payload-converters';
-import { WrappedPayloadConverter } from './wrapped-payload-converter';
 
 /**
  * When your data (arguments and return values) is sent over the wire and stored by Temporal Server, it is encoded in
@@ -48,11 +48,11 @@ export interface DataConverter {
  * A {@link DataConverter} that has been loaded via {@link loadDataConverter}.
  */
 export interface LoadedDataConverter {
-  payloadConverter: WrappedPayloadConverter;
+  payloadConverter: PayloadConverter;
   payloadCodecs: PayloadCodec[];
 }
 
 export const defaultDataConverter: LoadedDataConverter = {
-  payloadConverter: new WrappedPayloadConverter(defaultPayloadConverter),
+  payloadConverter: defaultPayloadConverter,
   payloadCodecs: [],
 };

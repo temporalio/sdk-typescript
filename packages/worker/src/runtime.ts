@@ -307,6 +307,7 @@ export class Runtime {
    * @hidden
    */
   public async deregisterWorker(worker: native.Worker): Promise<void> {
+    await promisify(native.workerFinalizeShutdown)(worker);
     this.registeredWorkers.delete(worker);
     // NOTE: only replay workers require registration since they don't have an associated connection
     // but we track all Workers for simplicity.
@@ -354,7 +355,7 @@ export class Runtime {
    * Hidden in the docs because it is only meant to be used internally by the Worker.
    * @hidden
    */
-  public async registerShutdownSignalCallback(callback: () => void): Promise<void> {
+  public registerShutdownSignalCallback(callback: () => void): void {
     this.shutdownSignalCallbacks.add(callback);
   }
 
@@ -364,7 +365,7 @@ export class Runtime {
    * Hidden in the docs because it is only meant to be used internally by the Worker.
    * @hidden
    */
-  public async deregisterShutdownSignalCallback(callback: () => void): Promise<void> {
+  public deregisterShutdownSignalCallback(callback: () => void): void {
     this.shutdownSignalCallbacks.delete(callback);
   }
 

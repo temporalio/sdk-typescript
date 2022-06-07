@@ -1,9 +1,10 @@
 use log::LevelFilter;
+use neon::types::buffer::TypedArray;
 use neon::{
     context::Context,
     handle::Handle,
     prelude::*,
-    types::{JsNumber, JsString},
+    types::{JsBoolean, JsNumber, JsString},
 };
 use opentelemetry::trace::{SpanContext, SpanId, TraceFlags, TraceId, TraceState};
 use std::{collections::HashMap, fmt::Display, net::SocketAddr, str::FromStr, time::Duration};
@@ -14,30 +15,27 @@ use temporal_sdk_core::{
     TraceExporter, Url,
 };
 
-macro_rules! js_value_getter {
-    ($js_cx:expr, $js_obj:ident, $prop_name:expr, $js_type:ty) => {
-        $js_obj
-            .get($js_cx, $prop_name)?
-            .downcast::<$js_type, _>($js_cx)
-            .map_err(|_| {
-                $js_cx
-                    .throw_type_error::<_, Option<Vec<u8>>>(format!("Invalid {}", $prop_name))
-                    .unwrap_err()
-            })?
-            .value($js_cx)
-    };
-}
-
 #[macro_export]
 macro_rules! js_optional_getter {
     ($js_cx:expr, $js_obj:expr, $prop_name:expr, $js_type:ty) => {
         match get_optional($js_cx, $js_obj, $prop_name) {
-            Some(val) => Some(val.downcast::<$js_type, _>($js_cx).map_err(|_| {
-                $js_cx
-                    .throw_type_error::<_, Option<Vec<u8>>>(format!("Invalid {}", $prop_name))
-                    .unwrap_err()
-            })?),
             None => None,
+            Some(val) => {
+                if val.is_a::<$js_type, _>($js_cx) {
+                    Some(val.downcast_or_throw::<$js_type, _>($js_cx)?)
+                } else {
+                    Some($js_cx.throw_type_error(format!("Invalid {}", $prop_name))?)
+                }
+            }
+        }
+    };
+}
+
+macro_rules! js_value_getter {
+    ($js_cx:expr, $js_obj:expr, $prop_name:expr, $js_type:ty) => {
+        match js_optional_getter!($js_cx, $js_obj, $prop_name, $js_type) {
+            Some(val) => val.value($js_cx),
+            None => $js_cx.throw_type_error(format!("{} must be defined", $prop_name))?,
         }
     };
 }
@@ -53,7 +51,7 @@ where
     K: neon::object::PropertyKey,
     C: Context<'a>,
 {
-    match obj.get(cx, attr) {
+    match obj.get_value(cx, attr) {
         Err(_) => None,
         Ok(val) => match val.is_a::<JsUndefined, _>(cx) {
             true => None,
@@ -77,7 +75,7 @@ where
             cx.throw_type_error::<_, Option<Vec<u8>>>(format!("Invalid {}", attr))
                 .unwrap_err()
         })?;
-        Ok(Some(cx.borrow(&buf, |data| data.as_slice::<u8>().to_vec())))
+        Ok(Some(buf.as_slice(cx).to_vec()))
     } else {
         Ok(None)
     }
@@ -99,7 +97,7 @@ where
             cx.throw_type_error::<_, Option<Vec<u8>>>(format!("Invalid {}", attr))
                 .unwrap_err()
         })?;
-        Ok(cx.borrow(&buf, |data| data.as_slice::<u8>().to_vec()))
+        Ok(buf.as_slice(cx).to_vec())
     } else {
         cx.throw_type_error::<_, Vec<u8>>(format!("Invalid or missing {}", full_attr_path))
     }
@@ -139,7 +137,7 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
         let mut map = HashMap::new();
         for k in props {
             let k = k.to_string(cx)?;
-            let v = self.get(cx, k)?.to_string(cx)?.value(cx);
+            let v = self.get::<JsString, _, _>(cx, k)?.value(cx);
             let k = k.value(cx);
             map.insert(k, v);
         }
@@ -189,7 +187,7 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
 
         let retry_config = match js_optional_getter!(cx, self, "retry", JsObject) {
             None => RetryConfig::default(),
-            Some(retry_config) => RetryConfig {
+            Some(ref retry_config) => RetryConfig {
                 initial_interval: Duration::from_millis(js_value_getter!(
                     cx,
                     retry_config,
@@ -242,10 +240,14 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
         if let Some(tf) = js_optional_getter!(cx, self, "tracingFilter", JsString) {
             telemetry_opts.tracing_filter(tf.value(cx));
         }
+        telemetry_opts.no_temporal_prefix_for_metrics(
+            js_optional_getter!(cx, self, "noTemporalPrefixForMetrics", JsBoolean).map(|b| b.value(cx)).unwrap_or_default()
+        );
         if let Some(ref logging) = js_optional_getter!(cx, self, "logging", JsObject) {
             if let Some(_) = get_optional(cx, logging, "console") {
                 telemetry_opts.logging(Logger::Console);
-            } else if let Some(forward) = js_optional_getter!(cx, logging, "forward", JsObject) {
+            } else if let Some(ref forward) = js_optional_getter!(cx, logging, "forward", JsObject)
+            {
                 let level = js_value_getter!(cx, forward, "level", JsString);
                 match LevelFilter::from_str(&level) {
                     Ok(level) => {
@@ -321,16 +323,14 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
     fn as_worker_config(&self, cx: &mut FunctionContext) -> NeonResult<WorkerConfig> {
         let namespace = js_value_getter!(cx, self, "namespace", JsString);
         let task_queue = js_value_getter!(cx, self, "taskQueue", JsString);
+        let enable_remote_activities =
+            js_value_getter!(cx, self, "enableNonLocalActivities", JsBoolean);
         let max_outstanding_activities =
             js_value_getter!(cx, self, "maxConcurrentActivityTaskExecutions", JsNumber) as usize;
+        let max_outstanding_local_activities =
+            js_value_getter!(cx, self, "maxConcurrentLocalActivityExecutions", JsNumber) as usize;
         let max_outstanding_workflow_tasks =
             js_value_getter!(cx, self, "maxConcurrentWorkflowTaskExecutions", JsNumber) as usize;
-        let max_concurrent_wft_polls =
-            js_value_getter!(cx, self, "maxConcurrentWorkflowTaskPolls", JsNumber) as usize;
-        let max_concurrent_at_polls =
-            js_value_getter!(cx, self, "maxConcurrentActivityTaskPolls", JsNumber) as usize;
-        let nonsticky_to_sticky_poll_ratio =
-            js_value_getter!(cx, self, "nonStickyToStickyPollRatio", JsNumber) as f32;
         let sticky_queue_schedule_to_start_timeout = Duration::from_millis(js_value_getter!(
             cx,
             self,
@@ -354,20 +354,26 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
             JsNumber
         ) as u64);
 
+        let max_worker_activities_per_second =
+            js_optional_getter!(cx, self, "maxActivitiesPerSecond", JsNumber)
+                .map(|num| num.value(cx) as f64);
+        let max_task_queue_activities_per_second =
+            js_optional_getter!(cx, self, "maxTaskQueueActivitiesPerSecond", JsNumber)
+                .map(|num| num.value(cx) as f64);
+
         match WorkerConfigBuilder::default()
-            .no_remote_activities(false) // TODO: make this configurable once Core implements local activities
-            .max_concurrent_at_polls(max_concurrent_at_polls)
-            .max_concurrent_wft_polls(max_concurrent_wft_polls)
+            .no_remote_activities(!enable_remote_activities)
             .max_outstanding_workflow_tasks(max_outstanding_workflow_tasks)
             .max_outstanding_activities(max_outstanding_activities)
+            .max_outstanding_local_activities(max_outstanding_local_activities)
             .max_cached_workflows(max_cached_workflows)
-            .nonsticky_to_sticky_poll_ratio(nonsticky_to_sticky_poll_ratio)
             .sticky_queue_schedule_to_start_timeout(sticky_queue_schedule_to_start_timeout)
             .namespace(namespace)
             .task_queue(task_queue)
             .max_heartbeat_throttle_interval(max_heartbeat_throttle_interval)
             .default_heartbeat_throttle_interval(default_heartbeat_throttle_interval)
-            .max_outstanding_local_activities(10_usize) // TODO: Pass in
+            .max_worker_activities_per_second(max_worker_activities_per_second)
+            .max_task_queue_activities_per_second(max_task_queue_activities_per_second)
             .build()
         {
             Ok(worker_cfg) => Ok(worker_cfg),

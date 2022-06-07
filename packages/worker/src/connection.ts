@@ -24,7 +24,18 @@ export class NativeConnection {
    */
   protected constructor(private nativeClient: Client) {}
 
+  /**
+   * @deprecated use `connect` instead
+   */
   static async create(options?: NativeConnectionOptions): Promise<NativeConnection> {
+    const client = await Runtime.instance().createNativeClient(options);
+    return new this(client);
+  }
+
+  /**
+   * Eagerly connect to the Temporal server and return a NativeConnection instance
+   */
+  static async connect(options?: NativeConnectionOptions): Promise<NativeConnection> {
     const client = await Runtime.instance().createNativeClient(options);
     return new this(client);
   }

@@ -7,17 +7,18 @@ import { ExportResultCode } from '@opentelemetry/core';
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-grpc';
 import * as opentelemetry from '@opentelemetry/sdk-node';
 import { SemanticResourceAttributes } from '@opentelemetry/semantic-conventions';
-import { WorkflowClient } from '@temporalio/client';
+import { Connection, WorkflowClient } from '@temporalio/client';
 import { OpenTelemetryWorkflowClientCallsInterceptor } from '@temporalio/interceptors-opentelemetry/lib/client';
 import {
   makeWorkflowExporter,
   OpenTelemetryActivityInboundInterceptor,
 } from '@temporalio/interceptors-opentelemetry/lib/worker';
 import { OpenTelemetrySinks, SpanName, SPAN_DELIMITER } from '@temporalio/interceptors-opentelemetry/lib/workflow';
-import { Runtime, DefaultLogger, InjectedSinks, Worker } from '@temporalio/worker';
+import { DefaultLogger, InjectedSinks, Runtime, Worker } from '@temporalio/worker';
 import test from 'ava';
 import { v4 as uuid4 } from 'uuid';
 import * as activities from './activities';
+import { ConnectionInjectorInterceptor } from './activities/interceptors';
 import { RUN_INTEGRATION_TESTS } from './helpers';
 import * as workflows from './workflows';
 
@@ -46,18 +47,24 @@ if (RUN_INTEGRATION_TESTS) {
     const sinks: InjectedSinks<OpenTelemetrySinks> = {
       exporter: makeWorkflowExporter(traceExporter, staticResource),
     };
+
+    const connection = await Connection.connect();
+
     const worker = await Worker.create({
       workflowsPath: require.resolve('./workflows'),
       activities,
       taskQueue: 'test-otel',
       interceptors: {
         workflowModules: [require.resolve('./workflows/otel-interceptors')],
-        activityInbound: [(ctx) => new OpenTelemetryActivityInboundInterceptor(ctx)],
+        activityInbound: [
+          (ctx) => new OpenTelemetryActivityInboundInterceptor(ctx),
+          () => new ConnectionInjectorInterceptor(connection),
+        ],
       },
       sinks,
     });
 
-    const client = new WorkflowClient(undefined, {
+    const client = new WorkflowClient({
       interceptors: {
         calls: [() => new OpenTelemetryWorkflowClientCallsInterceptor()],
       },
@@ -171,7 +178,7 @@ if (RUN_INTEGRATION_TESTS) {
       sinks,
     });
 
-    const client = new WorkflowClient(undefined, {
+    const client = new WorkflowClient({
       interceptors: {
         calls: [() => new OpenTelemetryWorkflowClientCallsInterceptor()],
       },
