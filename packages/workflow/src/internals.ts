@@ -29,6 +29,7 @@ import {
 } from './interceptors';
 import { ContinueAsNew, WorkflowInfo } from './interfaces';
 import { SinkCall } from './sinks';
+import { untrackPromise } from './stack-helpers';
 
 enum StartChildWorkflowExecutionFailedCause {
   START_CHILD_WORKFLOW_EXECUTION_FAILED_CAUSE_UNSPECIFIED = 0,
@@ -36,6 +37,14 @@ enum StartChildWorkflowExecutionFailedCause {
 }
 
 checkExtends<coresdk.child_workflow.StartChildWorkflowExecutionFailedCause, StartChildWorkflowExecutionFailedCause>();
+
+/**
+ * Global store to track promise stacks for stack trace query
+ */
+export interface PromiseStackStore {
+  childToParent: Map<Promise<unknown>, Promise<unknown>>;
+  promiseToStack: Map<Promise<unknown>, string>;
+}
 
 export type ResolveFunction<T = any> = (val: T) => any;
 export type RejectFunction<E = any> = (val: E) => any;
@@ -100,12 +109,12 @@ export class Activator implements ActivationHandler {
       'execute',
       this.startWorkflowNextHandler.bind(this)
     );
-    execute({
-      headers: activation.headers ?? {},
-      args: arrayFromPayloads(state.payloadConverter, activation.arguments),
-    })
-      .then(completeWorkflow)
-      .catch(handleWorkflowFailure);
+    untrackPromise(
+      execute({
+        headers: activation.headers ?? {},
+        args: arrayFromPayloads(state.payloadConverter, activation.arguments),
+      }).then(completeWorkflow, handleWorkflowFailure)
+    );
   }
 
   public cancelWorkflow(_activation: coresdk.workflow_activation.ICancelWorkflow): void {
@@ -199,17 +208,22 @@ export class Activator implements ActivationHandler {
     }
   }
 
-  protected async queryWorkflowNextHandler({ queryName, args }: QueryInput): Promise<unknown> {
+  // Intentionally not made function async so this handler doesn't show up in the stack trace
+  protected queryWorkflowNextHandler({ queryName, args }: QueryInput): Promise<unknown> {
     const fn = state.queryHandlers.get(queryName);
     if (fn === undefined) {
       // Fail the query
       throw new ReferenceError(`Workflow did not register a handler for ${queryName}`);
     }
-    const ret = fn(...args);
-    if (ret instanceof Promise) {
-      throw new DeterminismViolationError('Query handlers should not return a Promise');
+    try {
+      const ret = fn(...args);
+      if (ret instanceof Promise) {
+        return Promise.reject(new DeterminismViolationError('Query handlers should not return a Promise'));
+      }
+      return Promise.resolve(ret);
+    } catch (err) {
+      return Promise.reject(err);
     }
-    return ret;
   }
 
   public queryWorkflow(activation: coresdk.workflow_activation.IQueryWorkflow): void {
@@ -363,7 +377,39 @@ export class State {
   /**
    * Mapping of signal name to handler
    */
-  public readonly queryHandlers = new Map<string, WorkflowQueryType>();
+  public readonly queryHandlers = new Map<string, WorkflowQueryType>([
+    [
+      '__stack_trace',
+      () => {
+        const { childToParent, promiseToStack } = (globalThis as any).__TEMPORAL__
+          .promiseStackStore as PromiseStackStore;
+        const internalNodes = new Set(childToParent.values());
+        const stacks = new Set<string>();
+        for (let child of childToParent.keys()) {
+          if (!internalNodes.has(child)) {
+            let stack = promiseToStack.get(child);
+            if (!stack) continue;
+            // Ignore internal promises created by static Promise methods
+            if (
+              /^\s+at\sPromise\.then \(<anonymous>\)\n\s+at Function\.(race|all|allSettled|any) \(<anonymous>\)\n/m.test(
+                stack
+              )
+            ) {
+              // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+              child = childToParent.get(child)!; // Must exist
+              stack = promiseToStack.get(child);
+            }
+            if (!stack) continue;
+            // Just in case make sure to avoid undefined values
+            if (stack) stacks.add(stack);
+          }
+        }
+        // Not 100% sure where this comes from, just filter it out
+        stacks.delete('    at Promise.then (<anonymous>)');
+        return [...stacks].join('\n\n');
+      },
+    ],
+  ]);
 
   /**
    * Loaded in {@link initRuntime}
@@ -405,6 +451,8 @@ export class State {
     cancelWorkflow: 1,
     condition: 1,
     upsertSearchAttributes: 1,
+    // Used internally to keep track of active stack traces
+    stack: 1,
   };
 
   /**

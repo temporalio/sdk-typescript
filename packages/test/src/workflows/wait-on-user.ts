@@ -16,6 +16,6 @@ export async function waitOnUser(userId: string): Promise<void> {
 }
 // @@@SNIPEND
 
-function sendReminderEmail(userId: string) {
+async function sendReminderEmail(userId: string) {
   console.log(`reminder email for ${userId}`);
 }

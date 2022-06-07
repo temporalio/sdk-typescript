@@ -12,7 +12,7 @@ import { defaultPayloadConverter, WorkflowInfo } from '@temporalio/workflow';
 import test from 'ava';
 import dedent from 'dedent';
 import { v4 as uuid4 } from 'uuid';
-import { cleanStackTrace, RUN_INTEGRATION_TESTS } from './helpers';
+import { cleanOptionalStackTrace, RUN_INTEGRATION_TESTS } from './helpers';
 import { defaultOptions } from './mock-native-worker';
 import {
   continueAsNewToDifferentWorkflow,
@@ -211,14 +211,14 @@ if (RUN_INTEGRATION_TESTS) {
     }
     t.deepEqual(err.cause.message, 'Expected anything other than 1');
     t.is(
-      cleanStackTrace(err.cause.stack),
+      cleanOptionalStackTrace(err.cause.stack),
       dedent`
       ApplicationFailure: Expected anything other than 1
-          at Function.nonRetryable
-          at Object.continueAsNew
-          at next
-          at eval
-          at continueAsNewToDifferentWorkflow
+          at Function.nonRetryable (common/src/failure.ts)
+          at Object.continueAsNew (test/src/workflows/interceptor-example.ts)
+          at internal-workflow-common/src/interceptors.ts
+          at workflow/src/workflow.ts
+          at test/src/workflows/continue-as-new-to-different-workflow.ts
     `
     );
     t.is(err.cause.cause, undefined);

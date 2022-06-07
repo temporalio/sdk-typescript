@@ -119,6 +119,7 @@ export class WorkerThreadClient {
 
 export interface ThreadedVMWorkflowCreatorOptions {
   code: string;
+  sourceMap: string;
   threadPoolSize: number;
   isolateExecutionTimeoutMs: number;
 }
@@ -137,13 +138,14 @@ export class ThreadedVMWorkflowCreator implements WorkflowCreator {
   static async create({
     threadPoolSize,
     code,
+    sourceMap,
     isolateExecutionTimeoutMs,
   }: ThreadedVMWorkflowCreatorOptions): Promise<ThreadedVMWorkflowCreator> {
     const workerThreadClients = Array(threadPoolSize)
       .fill(0)
       .map(() => new WorkerThreadClient(new NodeWorker(require.resolve('./workflow-worker-thread'))));
     await Promise.all(
-      workerThreadClients.map((client) => client.send({ type: 'init', code, isolateExecutionTimeoutMs }))
+      workerThreadClients.map((client) => client.send({ type: 'init', code, sourceMap, isolateExecutionTimeoutMs }))
     );
     return new this(workerThreadClients);
   }

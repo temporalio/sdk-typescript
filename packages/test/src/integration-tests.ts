@@ -28,6 +28,7 @@ import {
 import * as iface from '@temporalio/proto';
 import { DefaultLogger, Runtime, Worker } from '@temporalio/worker';
 import pkg from '@temporalio/worker/lib/pkg';
+import v8 from 'v8';
 import asyncRetry from 'async-retry';
 import anyTest, { Implementation, TestInterface } from 'ava';
 import dedent from 'dedent';
@@ -35,7 +36,7 @@ import ms from 'ms';
 import { v4 as uuid4 } from 'uuid';
 import * as activities from './activities';
 import { ConnectionInjectorInterceptor } from './activities/interceptors';
-import { cleanStackTrace, u8 } from './helpers';
+import { cleanOptionalStackTrace, u8 } from './helpers';
 import * as workflows from './workflows';
 import { withZeroesHTTPServer } from './zeroes-http-server';
 
@@ -88,7 +89,7 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
       client: new WorkflowClient({ connection, dataConverter }),
     };
 
-    // The initialization of the custom search attributes is slooooow. Wait for it to finish
+    // // The initialization of the custom search attributes is slooooow. Wait for it to finish
     await asyncRetry(
       async () => {
         try {
@@ -209,10 +210,10 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
     }
     t.is(err.cause.cause.message, 'Fail me');
     t.is(
-      cleanStackTrace(err.cause.cause.stack),
+      cleanOptionalStackTrace(err.cause.cause.stack),
       dedent`
     Error: Fail me
-        at Activity.throwAnError [as fn]
+        at Activity.throwAnError [as fn] (test/src/activities/index.ts)
     `
     );
   });
@@ -242,11 +243,11 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
     t.is(err.cause.cause.type, 'Error');
     t.deepEqual(err.cause.cause.details, ['details', 123, false]);
     t.is(
-      cleanStackTrace(err.cause.cause.stack),
+      cleanOptionalStackTrace(err.cause.cause.stack),
       dedent`
     ApplicationFailure: Fail me
-        at Function.nonRetryable
-        at Activity.throwAnError [as fn]
+        at Function.nonRetryable (common/src/failure.ts)
+        at Activity.throwAnError [as fn] (test/src/activities/index.ts)
     `
     );
   });
@@ -283,11 +284,11 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
     }
     t.is(err.cause.cause.message, 'failure');
     t.is(
-      cleanStackTrace(err.cause.cause.stack),
+      cleanOptionalStackTrace(err.cause.cause.stack),
       dedent`
       ApplicationFailure: failure
-          at Function.nonRetryable
-          at throwAsync
+          at Function.nonRetryable (common/src/failure.ts)
+          at throwAsync (test/src/workflows/throw-async.ts)
     `
     );
   });
@@ -1121,4 +1122,64 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
     });
     t.pass();
   });
+
+  if ('promiseHooks' in v8) {
+    // Skip in old node versions
+    test('Stack trace query returns stack that makes sense', async (t) => {
+      const { client } = t.context;
+      const workflowId = uuid4();
+      const rawStacks = await client.execute(workflows.stackTracer, {
+        taskQueue: 'test',
+        workflowId,
+      });
+      const [stack1, stack2] = rawStacks.map((r) =>
+        r
+          .split('\n\n')
+          .map((s) => cleanOptionalStackTrace(`\n${s}`))
+          .join('\n')
+      );
+      t.is(
+        stack1,
+        `
+    at new Promise (<anonymous>)
+    at scheduleActivityNextHandler (workflow/src/workflow.ts)
+    at scheduleActivity (workflow/src/workflow.ts)
+    at activityProxyFunction (workflow/src/workflow.ts)
+    at stackTracer (test/src/workflows/stack-tracer.ts)
+
+    at executeChild (workflow/src/workflow.ts)
+    at stackTracer (test/src/workflows/stack-tracer.ts)
+
+    at new Promise (<anonymous>)
+    at timerNextHandler (workflow/src/workflow.ts)
+    at sleep (workflow/src/workflow.ts)
+    at stackTracer (test/src/workflows/stack-tracer.ts)
+
+    at Function.race (<anonymous>)
+    at stackTracer (test/src/workflows/stack-tracer.ts)
+
+    at stackTracer (test/src/workflows/stack-tracer.ts)
+
+    at executeChild (workflow/src/workflow.ts)`
+      );
+      t.is(
+        stack2,
+        `
+    at executeChild (workflow/src/workflow.ts)
+    at stackTracer (test/src/workflows/stack-tracer.ts)
+
+    at new Promise (<anonymous>)
+    at timerNextHandler (workflow/src/workflow.ts)
+    at sleep (workflow/src/workflow.ts)
+    at stackTracer (test/src/workflows/stack-tracer.ts)
+
+    at Function.race (<anonymous>)
+    at stackTracer (test/src/workflows/stack-tracer.ts)
+
+    at executeChild (workflow/src/workflow.ts)
+
+    at stackTracer (test/src/workflows/stack-tracer.ts)`
+      );
+    });
+  }
 }

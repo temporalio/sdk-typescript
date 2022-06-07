@@ -186,12 +186,14 @@ export interface DisposeInput {}
  * Interceptor for the internals of the Workflow runtime.
  *
  * Use to manipulate or trace Workflow activations.
+ *
+ * @experimental
  */
 export interface WorkflowInternalsInterceptor {
   /**
    * Called when the Workflow runtime runs a WorkflowActivationJob.
    */
-  activate?(input: ActivateInput, next: Next<this, 'activate'>): Promise<void>;
+  activate?(input: ActivateInput, next: Next<this, 'activate'>): void;
 
   /**
    * Called after all `WorkflowActivationJob`s have been processed for an activation.

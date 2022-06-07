@@ -95,7 +95,7 @@ export const allInOneArgSpec: AllInOneArgSpec = {
   ...wrapperArgSpec,
 };
 
-export function getRequired<T extends arg.Spec, K extends keyof T>(
+export function getRequired<T extends arg.Spec, K extends keyof T & string>(
   args: arg.Result<T>,
   k: K
 ): Exclude<arg.Result<T>[K], undefined> {

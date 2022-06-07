@@ -7,6 +7,7 @@ export interface Init {
   type: 'init';
   isolateExecutionTimeoutMs: number;
   code: string;
+  sourceMap: string;
 }
 
 /**

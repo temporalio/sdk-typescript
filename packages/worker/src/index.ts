@@ -17,5 +17,5 @@ export * from './logger';
 export { History, Runtime, RuntimeOptions } from './runtime';
 export * from './sinks';
 export { DataConverter, defaultPayloadConverter, errors, State, Worker } from './worker';
-export { CompiledWorkerOptions, WorkerOptions } from './worker-options';
-export { BundleOptions, bundleWorkflowCode } from './workflow/bundler';
+export { CompiledWorkerOptions, WorkerOptions, WorkflowBundleOption } from './worker-options';
+export { BundleOptions, bundleWorkflowCode, WorkflowBundleWithSourceMap } from './workflow/bundler';

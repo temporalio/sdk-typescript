@@ -162,7 +162,7 @@ export interface ContinueAsNewOptions {
   /**
    * Searchable attributes to attach to next Workflow run
    */
-  searchAttributes?: Record<string, any>;
+  searchAttributes?: SearchAttributes;
 }
 
 export enum ChildWorkflowCancellationType {

@@ -14,7 +14,7 @@ async function main() {
   }
   console.log('running', { workflowType, args });
 
-  const connection = Connection.lazy({ address: 'does-not-exist:7233' });
+  const connection = await Connection.connect();
   const client = new WorkflowClient({ connection });
   const result = await client.execute(workflowType, {
     workflowId,

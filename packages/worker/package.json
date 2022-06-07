@@ -32,6 +32,8 @@
     "protobufjs": "^6.11.2",
     "rxjs": "^7.3.0",
     "semver": "^7.3.5",
+    "source-map": "^0.7.4",
+    "source-map-loader": "^3.0.1",
     "swc-loader": "^0.1.15",
     "ts-dedent": "^2.2.0",
     "unionfs": "^4.4.0",

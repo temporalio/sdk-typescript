@@ -18,6 +18,7 @@
     "@types/node-fetch": "^2.5.12",
     "@types/pidusage": "^2.0.1",
     "@types/ramda": "^0.27.44",
+    "@types/stack-utils": "^2.0.1",
     "@types/uuid": "^8.3.1",
     "@typescript-eslint/eslint-plugin": "^4.30.0",
     "@typescript-eslint/parser": "^4.30.0",

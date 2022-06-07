@@ -1,4 +1,5 @@
 import { CancellationScope } from './cancellation-scope';
+import { untrackPromise } from './stack-helpers';
 
 /**
  * A `PromiseLike` helper which exposes its `resolve` and `reject` methods.
@@ -30,7 +31,7 @@ export class Trigger<T> implements PromiseLike<T> {
     const promise = new Promise<T>((resolve, reject) => {
       const scope = CancellationScope.current();
       if (scope.consideredCancelled || scope.cancellable) {
-        scope.cancelRequested.catch(reject);
+        untrackPromise(scope.cancelRequested.catch(reject));
       }
       // eslint-disable-next-line @typescript-eslint/ban-ts-comment
       // @ts-ignore
@@ -40,7 +41,7 @@ export class Trigger<T> implements PromiseLike<T> {
       this.reject = reject;
     });
     // Avoid unhandled rejections
-    promise.catch(() => undefined);
+    untrackPromise(promise.catch(() => undefined));
     this.then = promise.then.bind(promise);
   }
 }

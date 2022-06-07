@@ -37,6 +37,7 @@ import {
 } from './interfaces';
 import { LocalActivityDoBackoff, state } from './internals';
 import { Sinks } from './sinks';
+import { untrackPromise } from './stack-helpers';
 import { ChildWorkflowHandle, ExternalWorkflowHandle } from './workflow-handle';
 
 // Avoid a circular dependency
@@ -64,21 +65,23 @@ function timerNextHandler(input: TimerInput) {
   return new Promise<void>((resolve, reject) => {
     const scope = CancellationScope.current();
     if (scope.consideredCancelled) {
-      scope.cancelRequested.catch(reject);
+      untrackPromise(scope.cancelRequested.catch(reject));
       return;
     }
     if (scope.cancellable) {
-      scope.cancelRequested.catch((err) => {
-        if (!state.completions.timer.delete(input.seq)) {
-          return; // Already resolved or never scheduled
-        }
-        state.pushCommand({
-          cancelTimer: {
-            seq: input.seq,
-          },
-        });
-        reject(err);
-      });
+      untrackPromise(
+        scope.cancelRequested.catch((err) => {
+          if (!state.completions.timer.delete(input.seq)) {
+            return; // Already resolved or never scheduled
+          }
+          state.pushCommand({
+            cancelTimer: {
+              seq: input.seq,
+            },
+          });
+          reject(err);
+        })
+      );
     }
     state.pushCommand({
       startTimer: {
@@ -98,15 +101,16 @@ function timerNextHandler(input: TimerInput) {
  *
  * Schedules a timer on the Temporal service.
  *
- * @param ms sleep duration - {@link https://www.npmjs.com/package/ms | ms} formatted string or number of milliseconds. If given a negative number, value will be set to 1.
- *
+ * @param ms sleep duration - {@link https://www.npmjs.com/package/ms | ms} formatted string or number of milliseconds.
+ * If given a negative number or 0, value will be set to 1.
  */
 export function sleep(ms: number | string): Promise<void> {
   const seq = state.nextSeqs.timer++;
 
+  const durationMs = Math.max(1, msToNumber(ms));
+
   const execute = composeInterceptors(state.interceptors.outbound, 'startTimer', timerNextHandler);
 
-  const durationMs = Math.max(1, msToNumber(ms));
   return execute({
     durationMs,
     seq,
@@ -120,10 +124,7 @@ export interface ActivityInfo {
 
 export type InternalActivityFunction<P extends any[], R> = ActivityFunction<P, R> & ActivityInfo;
 
-/**
- * @hidden
- */
-export function validateActivityOptions(options: ActivityOptions): void {
+function validateActivityOptions(options: ActivityOptions): void {
   if (options.scheduleToCloseTimeout === undefined && options.startToCloseTimeout === undefined) {
     throw new TypeError('Required either scheduleToCloseTimeout or startToCloseTimeout');
   }
@@ -140,31 +141,27 @@ const validateLocalActivityOptions = validateActivityOptions;
 /**
  * Push a scheduleActivity command into state accumulator and register completion
  */
-async function scheduleActivityNextHandler({
-  options,
-  args,
-  headers,
-  seq,
-  activityType,
-}: ActivityInput): Promise<unknown> {
+function scheduleActivityNextHandler({ options, args, headers, seq, activityType }: ActivityInput): Promise<unknown> {
   validateActivityOptions(options);
   return new Promise((resolve, reject) => {
     const scope = CancellationScope.current();
     if (scope.consideredCancelled) {
-      scope.cancelRequested.catch(reject);
+      untrackPromise(scope.cancelRequested.catch(reject));
       return;
     }
     if (scope.cancellable) {
-      scope.cancelRequested.catch(() => {
-        if (!state.completions.activity.has(seq)) {
-          return; // Already resolved or never scheduled
-        }
-        state.pushCommand({
-          requestCancelActivity: {
-            seq,
-          },
-        });
-      });
+      untrackPromise(
+        scope.cancelRequested.catch(() => {
+          if (!state.completions.activity.has(seq)) {
+            return; // Already resolved or never scheduled
+          }
+          state.pushCommand({
+            requestCancelActivity: {
+              seq,
+            },
+          });
+        })
+      );
     }
     state.pushCommand({
       scheduleActivity: {
@@ -206,20 +203,22 @@ async function scheduleLocalActivityNextHandler({
   return new Promise((resolve, reject) => {
     const scope = CancellationScope.current();
     if (scope.consideredCancelled) {
-      scope.cancelRequested.catch(reject);
+      untrackPromise(scope.cancelRequested.catch(reject));
       return;
     }
     if (scope.cancellable) {
-      scope.cancelRequested.catch(() => {
-        if (!state.completions.activity.has(seq)) {
-          return; // Already resolved or never scheduled
-        }
-        state.pushCommand({
-          requestCancelLocalActivity: {
-            seq,
-          },
-        });
-      });
+      untrackPromise(
+        scope.cancelRequested.catch(() => {
+          if (!state.completions.activity.has(seq)) {
+            return; // Already resolved or never scheduled
+          }
+          state.pushCommand({
+            requestCancelLocalActivity: {
+              seq,
+            },
+          });
+        })
+      );
     }
     state.pushCommand({
       scheduleLocalActivity: {
@@ -315,7 +314,7 @@ export async function scheduleLocalActivity<R>(
   }
 }
 
-async function startChildWorkflowExecutionNextHandler({
+function startChildWorkflowExecutionNextHandler({
   options,
   headers,
   workflowType,
@@ -325,31 +324,33 @@ async function startChildWorkflowExecutionNextHandler({
   const startPromise = new Promise<string>((resolve, reject) => {
     const scope = CancellationScope.current();
     if (scope.consideredCancelled) {
-      scope.cancelRequested.catch(reject);
+      untrackPromise(scope.cancelRequested.catch(reject));
       return;
     }
     if (scope.cancellable) {
-      scope.cancelRequested.catch(() => {
-        const complete = !state.completions.childWorkflowComplete.has(seq);
-        const started = !state.completions.childWorkflowStart.has(seq);
+      untrackPromise(
+        scope.cancelRequested.catch(() => {
+          const complete = !state.completions.childWorkflowComplete.has(seq);
+          const started = !state.completions.childWorkflowStart.has(seq);
 
-        if (started && !complete) {
-          const cancelSeq = state.nextSeqs.cancelWorkflow++;
-          state.pushCommand({
-            requestCancelExternalWorkflowExecution: {
-              seq: cancelSeq,
-              childWorkflowId: workflowId,
-            },
-          });
-          // Not interested in this completion
-          state.completions.cancelWorkflow.set(cancelSeq, { resolve: () => undefined, reject: () => undefined });
-        } else if (!started) {
-          state.pushCommand({
-            cancelUnstartedChildWorkflowExecution: { childWorkflowSeq: seq },
-          });
-        }
-        // Nothing to cancel otherwise
-      });
+          if (started && !complete) {
+            const cancelSeq = state.nextSeqs.cancelWorkflow++;
+            state.pushCommand({
+              requestCancelExternalWorkflowExecution: {
+                seq: cancelSeq,
+                childWorkflowId: workflowId,
+              },
+            });
+            // Not interested in this completion
+            state.completions.cancelWorkflow.set(cancelSeq, { resolve: () => undefined, reject: () => undefined });
+          } else if (!started) {
+            state.pushCommand({
+              cancelUnstartedChildWorkflowExecution: { childWorkflowSeq: seq },
+            });
+          }
+          // Nothing to cancel otherwise
+        })
+      );
     }
     state.pushCommand({
       startChildWorkflowExecution: {
@@ -384,15 +385,15 @@ async function startChildWorkflowExecutionNextHandler({
   // if the Workflow code will await it to capture the result in case it does.
   const completePromise = new Promise((resolve, reject) => {
     // Chain start Promise rejection to the complete Promise.
-    startPromise.catch(reject);
+    untrackPromise(startPromise.catch(reject));
     state.completions.childWorkflowComplete.set(seq, {
       resolve,
       reject,
     });
   });
   // Prevent unhandled rejection because the completion might not be awaited
-  completePromise.catch(() => undefined);
-  return [startPromise, completePromise];
+  untrackPromise(completePromise.catch(() => undefined));
+  return new Promise((resolve) => resolve([startPromise, completePromise]));
 }
 
 function signalWorkflowNextHandler({ seq, signalName, args, target, headers }: SignalWorkflowInput) {
@@ -402,17 +403,19 @@ function signalWorkflowNextHandler({ seq, signalName, args, target, headers }: S
     }
     const scope = CancellationScope.current();
     if (scope.consideredCancelled) {
-      scope.cancelRequested.catch(reject);
+      untrackPromise(scope.cancelRequested.catch(reject));
       return;
     }
 
     if (scope.cancellable) {
-      scope.cancelRequested.catch(() => {
-        if (!state.completions.signalWorkflow.has(seq)) {
-          return;
-        }
-        state.pushCommand({ cancelSignalWorkflow: { seq } });
-      });
+      untrackPromise(
+        scope.cancelRequested.catch(() => {
+          if (!state.completions.signalWorkflow.has(seq)) {
+            return;
+          }
+          state.pushCommand({ cancelSignalWorkflow: { seq } });
+        })
+      );
     }
     state.pushCommand({
       signalExternalWorkflowExecution: {
@@ -490,7 +493,7 @@ export function proxyActivities<A extends ActivityInterface>(options: ActivityOp
         if (typeof activityType !== 'string') {
           throw new TypeError(`Only strings are supported for Activity types, got: ${String(activityType)}`);
         }
-        return (...args: unknown[]) => {
+        return function activityProxyFunction(...args: unknown[]): Promise<unknown> {
           return scheduleActivity(activityType, args, options);
         };
       },
@@ -525,7 +528,7 @@ export function proxyLocalActivities<A extends ActivityInterface>(options: Local
         if (typeof activityType !== 'string') {
           throw new TypeError(`Only strings are supported for Activity types, got: ${String(activityType)}`);
         }
-        return (...args: unknown[]) => {
+        return function localActivityProxyFunction(...args: unknown[]) {
           return scheduleLocalActivity(activityType, args, options);
         };
       },
@@ -559,11 +562,13 @@ export function getExternalWorkflowHandle(workflowId: string, runId?: string): E
         // histories unless strictly required.
         const scope = CancellationScope.current();
         if (scope.cancellable) {
-          scope.cancelRequested.catch((err) => {
-            if (patched(EXTERNAL_WF_CANCEL_PATCH)) {
-              reject(err);
-            }
-          });
+          untrackPromise(
+            scope.cancelRequested.catch((err) => {
+              if (patched(EXTERNAL_WF_CANCEL_PATCH)) {
+                reject(err);
+              }
+            })
+          );
         }
         if (scope.consideredCancelled) {
           if (patched(EXTERNAL_WF_CANCEL_PATCH)) {
@@ -585,7 +590,7 @@ export function getExternalWorkflowHandle(workflowId: string, runId?: string): E
         state.completions.cancelWorkflow.set(seq, { resolve, reject });
       });
     },
-    async signal<Args extends any[]>(def: SignalDefinition<Args> | string, ...args: Args): Promise<void> {
+    signal<Args extends any[]>(def: SignalDefinition<Args> | string, ...args: Args): Promise<void> {
       return composeInterceptors(
         state.interceptors.outbound,
         'signalWorkflow',
@@ -889,7 +894,9 @@ export function makeContinueAsNewFunc<F extends Workflow>(
         headers,
         taskQueue: options.taskQueue,
         memo: options.memo,
-        searchAttributes: options.searchAttributes,
+        searchAttributes: options.searchAttributes
+          ? mapToPayloads(searchAttributePayloadConverter, options.searchAttributes)
+          : undefined,
         workflowRunTimeout: msOptionalToTs(options.workflowRunTimeout),
         workflowTaskTimeout: msOptionalToTs(options.workflowTaskTimeout),
       });
@@ -1030,7 +1037,7 @@ export function condition(fn: () => boolean): Promise<void>;
 
 export async function condition(fn: () => boolean, timeout?: number | string): Promise<void | boolean> {
   if (timeout) {
-    return await CancellationScope.cancellable(async () => {
+    return CancellationScope.cancellable(async () => {
       try {
         return await Promise.race([sleep(timeout).then(() => false), conditionInner(fn).then(() => true)]);
       } finally {
@@ -1045,16 +1052,18 @@ function conditionInner(fn: () => boolean): Promise<void> {
   return new Promise((resolve, reject) => {
     const scope = CancellationScope.current();
     if (scope.consideredCancelled) {
-      scope.cancelRequested.catch(reject);
+      untrackPromise(scope.cancelRequested.catch(reject));
       return;
     }
 
     const seq = state.nextSeqs.condition++;
     if (scope.cancellable) {
-      scope.cancelRequested.catch((err) => {
-        state.blockedConditions.delete(seq);
-        reject(err);
-      });
+      untrackPromise(
+        scope.cancelRequested.catch((err) => {
+          state.blockedConditions.delete(seq);
+          reject(err);
+        })
+      );
     }
 
     // Eager evaluation
@@ -1183,15 +1192,6 @@ export function upsertSearchAttributes(searchAttributes: SearchAttributes): void
   state.info.searchAttributes = mergedSearchAttributes;
 }
 
-export class Unsafe {
-  get isReplaying(): boolean {
-    if (state.isReplaying == null) {
-      throw new IllegalStateError('Workflow uninitialized');
-    }
-    return state.isReplaying;
-  }
-}
-
 /**
  * Unsafe information about the currently executing Workflow Task.
  *
@@ -1234,3 +1234,5 @@ export function taskInfo(): TaskInfo {
     },
   };
 }
+
+export const stackTraceQuery = defineQuery<string>('__stack_trace');

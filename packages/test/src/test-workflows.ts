@@ -16,7 +16,7 @@ import Long from 'long';
 import path from 'path';
 import vm from 'vm';
 import * as activityFunctions from './activities';
-import { u8 } from './helpers';
+import { cleanStackTrace, u8 } from './helpers';
 
 export interface Context {
   workflow: VMWorkflow;
@@ -45,8 +45,8 @@ const test = anyTest as TestInterface<Context>;
 test.before(async (t) => {
   const workflowsPath = path.join(__dirname, 'workflows');
   const bundler = new WorkflowCodeBundler({ workflowsPath });
-  const bundle = await bundler.createBundle();
-  t.context.workflowCreator = await TestVMWorkflowCreator.create(bundle, 100);
+  const { code, sourceMap } = await bundler.createBundle();
+  t.context.workflowCreator = await TestVMWorkflowCreator.create(code, sourceMap, 100);
 });
 
 test.after.always(async (t) => {
@@ -330,13 +330,6 @@ test('successString', async (t) => {
   compareCompletion(t, req, makeSuccess([makeCompleteWorkflowExecution(defaultPayloadConverter.toPayload('success'))]));
 });
 
-/**
- * Replace path specifics from stack trace
- */
-function cleanStackTrace(stack: string) {
-  return stack.replace(/\bat ((async )?\S+)(:\d+:\d+| \(.*\))/g, (_, m0) => `at ${m0}`);
-}
-
 function cleanWorkflowFailureStackTrace(
   req: coresdk.workflow_completion.WorkflowActivationCompletion,
   commandIndex = 0
@@ -372,8 +365,8 @@ test('throwAsync', async (t) => {
         'failure',
         dedent`
         ApplicationFailure: failure
-            at Function.nonRetryable
-            at throwAsync
+            at Function.nonRetryable (common/src/failure.ts)
+            at throwAsync (test/src/workflows/throw-async.ts)
         `
       ),
     ])
@@ -615,9 +608,7 @@ test('invalidOrFailedQueries', async (t) => {
           failed: {
             message: 'Query handlers should not return a Promise',
             source: 'TypeScriptSDK',
-            stackTrace: dedent`
-              DeterminismViolationError: Query handlers should not return a Promise
-            `,
+            stackTrace: 'DeterminismViolationError: Query handlers should not return a Promise\n',
             applicationFailureInfo: {
               type: 'DeterminismViolationError',
               nonRetryable: false,
@@ -640,7 +631,7 @@ test('invalidOrFailedQueries', async (t) => {
             message: 'fail',
             stackTrace: dedent`
               Error: fail
-                  at eval
+                  at test/src/workflows/invalid-or-failed-queries.ts
             `,
             applicationFailureInfo: {
               type: 'Error',
@@ -673,8 +664,8 @@ test('interruptableWorkflow', async (t) => {
           // since the Error stack trace is generated in the constructor.
           dedent`
           ApplicationFailure: just because
-              at Function.retryable
-              at eval
+              at Function.retryable (common/src/failure.ts)
+              at test/src/workflows/interrupt-signal.ts
           `,
           'Error',
           false
@@ -700,8 +691,8 @@ test('failSignalWorkflow', async (t) => {
           'Signal failed',
           dedent`
           ApplicationFailure: Signal failed
-              at Function.nonRetryable
-              at eval
+              at Function.nonRetryable (common/src/failure.ts)
+              at test/src/workflows/fail-signal.ts
           `,
           'Error'
         ),
@@ -730,8 +721,8 @@ test('asyncFailSignalWorkflow', async (t) => {
           'Signal failed',
           dedent`
           ApplicationFailure: Signal failed
-              at Function.nonRetryable
-              at eval`,
+              at Function.nonRetryable (common/src/failure.ts)
+              at test/src/workflows/async-fail-signal.ts`,
           'Error'
         ),
       ])
@@ -1298,13 +1289,12 @@ test('cancellationErrorIsPropagated', async (t) => {
             message: 'Cancellation scope cancelled',
             stackTrace: dedent`
         CancelledFailure: Cancellation scope cancelled
-            at CancellationScope.cancel
-            at eval
-            at CancellationScope.runInContext
-            at AsyncLocalStorage.run
-            at CancellationScope.run
-            at Function.cancellable
-            at cancellationErrorIsPropagated
+            at CancellationScope.cancel (workflow/src/cancellation-scope.ts)
+            at test/src/workflows/cancellation-error-is-propagated.ts
+            at CancellationScope.runInContext (workflow/src/cancellation-scope.ts)
+            at CancellationScope.run (workflow/src/cancellation-scope.ts)
+            at Function.cancellable (workflow/src/cancellation-scope.ts)
+            at cancellationErrorIsPropagated (test/src/workflows/cancellation-error-is-propagated.ts)
         `,
             canceledFailureInfo: {},
             source: 'TypeScriptSDK',
@@ -1668,8 +1658,8 @@ test('tryToContinueAfterCompletion', async (t) => {
           'fail before continue',
           dedent`
           ApplicationFailure: fail before continue
-              at Function.nonRetryable
-              at tryToContinueAfterCompletion
+              at Function.nonRetryable (common/src/failure.ts)
+              at tryToContinueAfterCompletion (test/src/workflows/try-to-continue-after-completion.ts)
         `
         ),
       ])

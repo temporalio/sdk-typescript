@@ -73,7 +73,7 @@ import {
   WorkerOptions,
 } from './worker-options';
 import { WorkflowCodecRunner } from './workflow-codec-runner';
-import { WorkflowCodeBundler } from './workflow/bundler';
+import { WorkflowBundleWithSourceMap, WorkflowCodeBundler } from './workflow/bundler';
 import { Workflow, WorkflowCreator } from './workflow/interface';
 import { ThreadedVMWorkflowCreator } from './workflow/threaded-vm';
 import { VMWorkflowCreator } from './workflow/vm';
@@ -427,7 +427,7 @@ export class Worker {
     connection?: NativeConnection
   ): Promise<Worker> {
     try {
-      let bundle: string | undefined = undefined;
+      let bundle: WorkflowBundleWithSourceMap | undefined = undefined;
       let workflowCreator: WorkflowCreator | undefined = undefined;
       if (compiledOptions.workflowsPath) {
         const bundler = new WorkflowCodeBundler({
@@ -438,22 +438,30 @@ export class Worker {
           ignoreModules: compiledOptions.bundlerOptions?.ignoreModules,
         });
         bundle = await bundler.createBundle();
-        nativeWorker.logger.info('Workflow bundle created', { size: `${toMB(bundle.length)}MB` });
+        nativeWorker.logger.info('Workflow bundle created', { size: `${toMB(bundle.code.length)}MB` });
       } else if (compiledOptions.workflowBundle) {
         if (isCodeBundleOption(compiledOptions.workflowBundle)) {
-          bundle = compiledOptions.workflowBundle.code;
+          bundle = compiledOptions.workflowBundle;
         } else if (isPathBundleOption(compiledOptions.workflowBundle)) {
-          bundle = await fs.readFile(compiledOptions.workflowBundle.path, 'utf8');
+          const [code, sourceMap] = await Promise.all([
+            fs.readFile(compiledOptions.workflowBundle.codePath, 'utf8'),
+            fs.readFile(compiledOptions.workflowBundle.sourceMapPath, 'utf8'),
+          ]);
+          bundle = { code, sourceMap };
         } else {
           throw new TypeError('Invalid WorkflowOptions.workflowBundle');
         }
       }
       if (bundle) {
         if (compiledOptions.debugMode) {
-          workflowCreator = await VMWorkflowCreator.create(bundle, compiledOptions.isolateExecutionTimeoutMs);
+          workflowCreator = await VMWorkflowCreator.create(
+            bundle.code,
+            bundle.sourceMap,
+            compiledOptions.isolateExecutionTimeoutMs
+          );
         } else {
           workflowCreator = await ThreadedVMWorkflowCreator.create({
-            code: bundle,
+            ...bundle,
             threadPoolSize: compiledOptions.workflowThreadPoolSize,
             isolateExecutionTimeoutMs: compiledOptions.isolateExecutionTimeoutMs,
           });
@@ -1048,6 +1056,7 @@ export class Worker {
                     // Fatal error means we cannot call into this workflow again unfortunately
                     if (!isFatalError) {
                       const externalCalls = await state.workflow.getAndResetSinkCalls();
+                      // TODO: state.info.searchAttributes are not updated here
                       await this.processSinkCalls(externalCalls, state.info, activation.isReplaying);
                     }
                   }

@@ -14,6 +14,9 @@ import { WorkflowInfo } from './interfaces';
 import { InterceptorsImportFunc, state, WorkflowsImportFunc } from './internals';
 import { SinkCall } from './sinks';
 
+// Export the type for use on the "worker" side
+export { PromiseStackStore } from './internals';
+
 export interface WorkflowCreateOptions {
   info: WorkflowInfo;
   randomnessSeed: number[];
@@ -113,15 +116,16 @@ export async function initRuntime({
   isReplaying,
   historyLength,
 }: WorkflowCreateOptions): Promise<void> {
+  const global = globalThis as any;
   // Set the runId globally on the context so it can be retrieved in the case
   // of an unhandled promise rejection.
-  (globalThis as any).__TEMPORAL__.runId = info.runId;
-
-  // Globals are overridden while building the isolate before loading user code.
-  // For some reason the `WeakRef` mock is not restored properly when creating an isolate from snapshot in node 14 (at least on ubuntu), override again.
-  (globalThis as any).WeakRef = function () {
-    throw new DeterminismViolationError('WeakRef cannot be used in Workflows because v8 GC is non-deterministic');
+  global.__TEMPORAL__.runId = info.runId;
+  // Set the promiseStackStore so promises can be tracked
+  global.__TEMPORAL__.promiseStackStore = {
+    promiseToStack: new Map(),
+    childToParent: new Map(),
   };
+
   state.info = info;
   state.now = now;
   state.random = alea(randomnessSeed);
@@ -173,57 +177,50 @@ export async function initRuntime({
  * Run a chunk of activation jobs
  * @returns a boolean indicating whether job was processed or ignored
  */
-export async function activate(
-  activation: coresdk.workflow_activation.WorkflowActivation,
-  batchIndex: number
-): Promise<void> {
-  const intercept = composeInterceptors(
-    state.interceptors.internals,
-    'activate',
-    async ({ activation, batchIndex }) => {
-      if (batchIndex === 0) {
-        if (state.info === undefined) {
-          throw new IllegalStateError('Workflow has not been initialized');
-        }
-        if (!activation.jobs) {
-          throw new TypeError('Got activation with no jobs');
-        }
-        if (activation.timestamp != null) {
-          // timestamp will not be updated for activation that contain only queries
-          state.now = tsToMs(activation.timestamp);
-        }
-        if (activation.historyLength == null) {
-          throw new TypeError('Got activation with no historyLength');
-        }
-        state.isReplaying = activation.isReplaying ?? false;
-        state.historyLength = activation.historyLength;
+export function activate(activation: coresdk.workflow_activation.WorkflowActivation, batchIndex: number): void {
+  const intercept = composeInterceptors(state.interceptors.internals, 'activate', ({ activation, batchIndex }) => {
+    if (batchIndex === 0) {
+      if (state.info === undefined) {
+        throw new IllegalStateError('Workflow has not been initialized');
       }
-
-      // Cast from the interface to the class which has the `variant` attribute.
-      // This is safe because we know that activation is a proto class.
-      const jobs = activation.jobs as coresdk.workflow_activation.WorkflowActivationJob[];
-
-      for (const job of jobs) {
-        if (job.variant === undefined) {
-          throw new TypeError('Expected job.variant to be defined');
-        }
-
-        const variant = job[job.variant];
-        if (!variant) {
-          throw new TypeError(`Expected job.${job.variant} to be set`);
-        }
-        // The only job that can be executed on a completed workflow is a query.
-        // We might get other jobs after completion for instance when a single
-        // activation contains multiple jobs and the first one completes the workflow.
-        if (state.completed && job.variant !== 'queryWorkflow') {
-          return;
-        }
-        state.activator[job.variant](variant as any /* TS can't infer this type */);
-        tryUnblockConditions();
+      if (!activation.jobs) {
+        throw new TypeError('Got activation with no jobs');
       }
+      if (activation.timestamp != null) {
+        // timestamp will not be updated for activation that contain only queries
+        state.now = tsToMs(activation.timestamp);
+      }
+      if (activation.historyLength == null) {
+        throw new TypeError('Got activation with no historyLength');
+      }
+      state.isReplaying = activation.isReplaying ?? false;
+      state.historyLength = activation.historyLength;
     }
-  );
-  await intercept({
+
+    // Cast from the interface to the class which has the `variant` attribute.
+    // This is safe because we know that activation is a proto class.
+    const jobs = activation.jobs as coresdk.workflow_activation.WorkflowActivationJob[];
+
+    for (const job of jobs) {
+      if (job.variant === undefined) {
+        throw new TypeError('Expected job.variant to be defined');
+      }
+
+      const variant = job[job.variant];
+      if (!variant) {
+        throw new TypeError(`Expected job.${job.variant} to be set`);
+      }
+      // The only job that can be executed on a completed workflow is a query.
+      // We might get other jobs after completion for instance when a single
+      // activation contains multiple jobs and the first one completes the workflow.
+      if (state.completed && job.variant !== 'queryWorkflow') {
+        return;
+      }
+      state.activator[job.variant](variant as any /* TS can't infer this type */);
+      tryUnblockConditions();
+    }
+  });
+  intercept({
     activation,
     batchIndex,
   });

@@ -16,6 +16,11 @@ export function moduleMatches(userModule: string, modules: string[]): boolean {
   return modules.some((module) => userModule === module || userModule.startsWith(`${module}/`));
 }
 
+export interface WorkflowBundleWithSourceMap {
+  code: string;
+  sourceMap: string;
+}
+
 /**
  * Builds a V8 Isolate by bundling provided Workflows using webpack.
  *
@@ -46,9 +51,9 @@ export class WorkflowCodeBundler {
   }
 
   /**
-   * @return a string representation of the bundled Workflow code
+   * @return a {@link WorkflowBundleWithSourceMap} containing bundled code and source map
    */
-  public async createBundle(): Promise<string> {
+  public async createBundle(): Promise<WorkflowBundleWithSourceMap> {
     const vol = new memfs.Volume();
     const ufs = new unionfs.Union();
 
@@ -84,7 +89,10 @@ export class WorkflowCodeBundler {
     await this.bundle(ufs, memoryFs, entrypointPath, distDir);
 
     // Cast because the type definitions are inaccurate
-    return memoryFs.readFileSync(path.join(distDir, 'main.js'), 'utf8') as string;
+    return {
+      code: memoryFs.readFileSync(path.join(distDir, 'main.js'), 'utf8') as string,
+      sourceMap: memoryFs.readFileSync(path.join(distDir, 'main.source.js'), 'utf8') as string,
+    };
   }
 
   protected makeEntrypointPath(fs: typeof unionfs.ufs, workflowsPath: string): string {
@@ -175,11 +183,17 @@ export class WorkflowCodeBundler {
       module: {
         rules: [
           {
+            test: /\.js$/,
+            enforce: 'pre',
+            use: ['source-map-loader'],
+          },
+          {
             test: /\.ts$/,
             exclude: /node_modules/,
             use: {
               loader: require.resolve('swc-loader'),
               options: {
+                sourceMap: true,
                 jsc: {
                   target: 'es2017',
                   parser: {
@@ -194,11 +208,12 @@ export class WorkflowCodeBundler {
       },
       entry: [entry],
       mode: 'development',
-      // Recommended choice for development builds with high quality SourceMaps
-      devtool: 'eval-source-map',
+      devtool: 'source-map',
       output: {
         path: distDir,
         filename: 'main.js',
+        sourceMapFilename: 'main.source.js',
+        devtoolModuleFilenameTemplate: '[absolute-resource-path]',
         library: '__TEMPORAL__',
       },
     });
@@ -291,7 +306,7 @@ export interface BundleOptions {
   ignoreModules?: string[];
 }
 
-export async function bundleWorkflowCode(options: BundleOptions): Promise<{ code: string }> {
+export async function bundleWorkflowCode(options: BundleOptions): Promise<WorkflowBundleWithSourceMap> {
   const bundler = new WorkflowCodeBundler(options);
-  return { code: await bundler.createBundle() };
+  return await bundler.createBundle();
 }
