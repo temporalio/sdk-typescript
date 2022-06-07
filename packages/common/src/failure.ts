@@ -343,10 +343,10 @@ export function errorToFailure(err: unknown, payloadConverter: PayloadConverter)
     return { ...base, message: err + recommendation };
   }
   if (typeof err === 'object') {
-    let message: string = '';
+    let message = '';
     try {
       message = JSON.stringify(err);
-    } catch(_err) {
+    } catch (_err) {
       message = String(err);
     }
     return { ...base, message: message + recommendation };
