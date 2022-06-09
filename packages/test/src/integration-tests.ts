@@ -913,7 +913,39 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
         }
         t.is(
           failure.message,
-          '{"plainObject":true} [A non-Error value was thrown from your code. We recommend throwing Error objects so that we can provide a stack trace.]'
+          '{"plainObject":true} [A non-Error value was thrown from your code. We recommend throwing Error objects so that we can provide a stack trace]'
+        );
+      },
+      { minTimeout: 300, factor: 1, retries: 100 }
+    );
+    await handle.terminate();
+  });
+
+  test('throwBigInt includes message with our recommendation', async (t) => {
+    const { client } = t.context;
+    const workflowId = uuid4();
+    const handle = await client.start(workflows.throwBigInt, {
+      taskQueue: 'test',
+      workflowId,
+    });
+    await asyncRetry(
+      async () => {
+        const history = await client.workflowService.getWorkflowExecutionHistory({
+          namespace: 'default',
+          execution: { workflowId },
+        });
+        const wftFailedEvent = history.history?.events?.find((ev) => ev.workflowTaskFailedEventAttributes);
+        if (wftFailedEvent === undefined) {
+          throw new Error('No WFT failed event');
+        }
+        const failure = wftFailedEvent.workflowTaskFailedEventAttributes?.failure;
+        if (!failure) {
+          t.fail();
+          return;
+        }
+        t.is(
+          failure.message,
+          '42 [A non-Error value was thrown from your code. We recommend throwing Error objects so that we can provide a stack trace]'
         );
       },
       { minTimeout: 300, factor: 1, retries: 100 }

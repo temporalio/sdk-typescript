@@ -337,13 +337,22 @@ export function errorToFailure(err: unknown, payloadConverter: PayloadConverter)
     };
   }
 
-  const recommendation = ` [A non-Error value was thrown from your code. We recommend throwing Error objects so that we can provide a stack trace.]`;
+  const recommendation = ` [A non-Error value was thrown from your code. We recommend throwing Error objects so that we can provide a stack trace]`;
 
   if (typeof err === 'string') {
     return { ...base, message: err + recommendation };
   }
+  if (typeof err === 'object') {
+    let message = '';
+    try {
+      message = JSON.stringify(err);
+    } catch (_err) {
+      message = String(err);
+    }
+    return { ...base, message: message + recommendation };
+  }
 
-  return { ...base, message: JSON.stringify(err) + recommendation };
+  return { ...base, message: String(err) + recommendation };
 }
 
 /**

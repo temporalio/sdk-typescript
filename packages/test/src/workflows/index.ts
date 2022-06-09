@@ -78,6 +78,7 @@ export * from './success-string';
 export * from './swc';
 export * from './tasks-and-microtasks';
 export * from './throw-async';
+export * from './throw-big-int';
 export * from './throw-object';
 export * from './trailing-timer';
 export * from './try-to-continue-after-completion';
