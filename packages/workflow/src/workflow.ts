@@ -11,7 +11,7 @@ import {
   msToNumber,
   msToTs,
   QueryDefinition,
-  SearchAttributeValue,
+  SearchAttributes,
   SignalDefinition,
   tsToMs,
   WithWorkflowArgs,
@@ -1163,14 +1163,14 @@ export function setHandler<Ret, Args extends any[], T extends SignalDefinition<A
  *
  * @param searchAttributes The Record to merge. Use a value of `[]` to clear a Search Attribute.
  */
-export function upsertSearchAttributes(searchAttributes: Record<string, SearchAttributeValue[]>): void {
+export function upsertSearchAttributes(searchAttributes: SearchAttributes): void {
   if (!state.info) {
     throw new IllegalStateError('`state.info` should be defined');
   }
 
   const mergedSearchAttributes = { ...state.info.searchAttributes, ...searchAttributes };
   if (!mergedSearchAttributes) {
-    throw new Error('searchAttributes must be a non-null Record<string, SearchAttributeValue[]>');
+    throw new Error('searchAttributes must be a non-null SearchAttributes');
   }
 
   state.pushCommand({

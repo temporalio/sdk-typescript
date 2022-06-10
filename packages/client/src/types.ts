@@ -1,4 +1,4 @@
-import type { SearchAttributeValue } from '@temporalio/internal-workflow-common';
+import type { SearchAttributes } from '@temporalio/internal-workflow-common';
 import { temporal } from '@temporalio/proto';
 import type * as grpc from '@grpc/grpc-js';
 
@@ -35,7 +35,7 @@ export interface WorkflowExecutionDescription {
   executionTime?: Date;
   closeTime?: Date;
   memo?: Record<string, unknown>;
-  searchAttributes: Record<string, SearchAttributeValue[]>;
+  searchAttributes: SearchAttributes;
   parentExecution?: Required<temporal.api.common.v1.IWorkflowExecution>;
   raw: DescribeWorkflowExecutionResponse;
 }
