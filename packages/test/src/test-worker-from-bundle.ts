@@ -98,23 +98,22 @@ if (RUN_INTEGRATION_TESTS) {
     t.pass();
   });
 
-  test('A warning is reported when workflow depends on a node built-in module', async (t) => {
+  test('An error is thrown when workflow depends on a node built-in module', async (t) => {
     const logs: LogEntry[] = [];
     const logger = new DefaultLogger('WARN', (entry: LogEntry) => {
       logs.push(entry);
       console.warn(entry.message);
     });
 
-    await bundleWorkflowCode({
-      workflowsPath: require.resolve('./mocks/workflows-with-node-dependencies/issue-516'),
-      logger,
-    });
-
-    t.true(
-      logs.some(
-        (entry) => entry.message.match(/'dns'/) && entry.message.match(/'WorkerOptions.bundlerOptions.ignoreModules'/)
-      ),
-      "Bundler reported a warning message about package 'dns'"
+    await t.throwsAsync(
+      bundleWorkflowCode({
+        workflowsPath: require.resolve('./mocks/workflows-with-node-dependencies/issue-516'),
+        logger,
+      }),
+      {
+        instanceOf: Error,
+        message: /is importing the following built-in Node modules.*dns/s,
+      }
     );
   });
 }
