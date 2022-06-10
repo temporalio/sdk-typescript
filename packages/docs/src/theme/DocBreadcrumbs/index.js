@@ -1,6 +1,10 @@
 // Swizzled from facebook/docusaurus@44ebe73e506fb3e09540c7650a6b2db0a1a435a0
-// File: `packages/docusaurus-theme-classic/src/theme/DocBreadcrumbs/index.tsx`
-// https://github.com/facebook/docusaurus/blob/44ebe73e506fb3e09540c7650a6b2db0a1a435a0/packages/docusaurus-theme-classic/src/theme/DocBreadcrumbs/index.tsx
+// To get updated version:
+// 1. `cd packages/docs`
+// 2. `npm run swizzle`
+// 3. Select `@docusaurus/theme-classic`
+// 4. Select `DocBreadcrumbs (Unsafe)`
+// 5. Select `Eject (Unsafe)`
 // Only change is adding getHrefFromItem
 
 /**
