@@ -39,7 +39,14 @@ function nestMarkdownFiles() {
       } else {
         let item = items.find(({ label }) => label === category);
         if (item === undefined) {
-          item = { type: 'category', label: category, items: [] };
+          item = {
+            type: 'category',
+            label: category,
+            items: [],
+            customProps: {
+              breadcrumbLink: `/api/namespaces/${parts[0]}#${category.toLowerCase()}`
+            }
+          };
           items.push(item);
         }
         item.items.push(url);
