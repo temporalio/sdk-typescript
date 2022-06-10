@@ -30,7 +30,7 @@ import {
 import {
   optionalTsToDate,
   optionalTsToMs,
-  SearchAttributeValue,
+  SearchAttributes,
   tsToMs,
   decompileRetryPolicy,
 } from '@temporalio/internal-workflow-common';
@@ -975,7 +975,7 @@ export class Worker {
                         searchAttributes: mapFromPayloads(
                           searchAttributePayloadConverter,
                           searchAttributes?.indexedFields
-                        ) as Record<string, SearchAttributeValue[]> | undefined,
+                        ) as SearchAttributes | undefined,
                         memo: await decodeMapFromPayloads(this.options.loadedDataConverter, memo?.fields),
                         parent: convertToParentWorkflowType(parentWorkflowInfo),
                         lastResult: await decodeFromPayloadsAtIndex(

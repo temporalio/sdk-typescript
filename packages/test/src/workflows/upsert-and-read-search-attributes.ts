@@ -1,8 +1,6 @@
-import { SearchAttributeValue, upsertSearchAttributes, workflowInfo } from '@temporalio/workflow';
+import { SearchAttributes, upsertSearchAttributes, workflowInfo } from '@temporalio/workflow';
 
-export async function upsertAndReadSearchAttributes(
-  msSinceEpoch: number
-): Promise<Record<string, SearchAttributeValue[]> | undefined> {
+export async function upsertAndReadSearchAttributes(msSinceEpoch: number): Promise<SearchAttributes | undefined> {
   upsertSearchAttributes({
     CustomIntField: [123],
     CustomBoolField: [true],

@@ -27,7 +27,7 @@ import {
   optionalTsToDate,
   QueryDefinition,
   Replace,
-  SearchAttributeValue,
+  SearchAttributes,
   SignalDefinition,
   tsToDate,
   WithWorkflowArgs,
@@ -861,7 +861,7 @@ export class WorkflowClient {
           searchAttributes: mapFromPayloads(
             searchAttributePayloadConverter,
             raw.workflowExecutionInfo!.searchAttributes?.indexedFields ?? {}
-          ) as Record<string, SearchAttributeValue[]>,
+          ) as SearchAttributes,
           parentExecution: raw.workflowExecutionInfo?.parentExecution
             ? {
                 workflowId: raw.workflowExecutionInfo.parentExecution.workflowId!,

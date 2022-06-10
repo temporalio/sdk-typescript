@@ -1,5 +1,5 @@
 import type { coresdk, google } from '@temporalio/proto';
-import { SearchAttributeValue, Workflow } from './interfaces';
+import { SearchAttributes, Workflow } from './interfaces';
 import { RetryPolicy } from './retry-policy';
 import { msOptionalToTs } from './time';
 import { checkExtends, Replace } from './type-helpers';
@@ -58,7 +58,7 @@ export interface BaseWorkflowOptions {
    *
    * Values are always converted using {@link JsonPayloadConverter}, even when a custom data converter is provided.
    */
-  searchAttributes?: Record<string, SearchAttributeValue[]>;
+  searchAttributes?: SearchAttributes;
 }
 
 export type WithWorkflowArgs<W extends Workflow, T> = T &

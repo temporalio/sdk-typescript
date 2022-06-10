@@ -1,5 +1,5 @@
 import { RetryPolicy, TemporalFailure } from '@temporalio/common';
-import { checkExtends, CommonWorkflowOptions, SearchAttributeValue } from '@temporalio/internal-workflow-common';
+import { checkExtends, CommonWorkflowOptions, SearchAttributes } from '@temporalio/internal-workflow-common';
 import type { coresdk } from '@temporalio/proto';
 
 /**
@@ -25,7 +25,7 @@ export interface WorkflowInfo {
   /**
    * Indexed information attached to the Workflow Execution
    */
-  searchAttributes?: Record<string, SearchAttributeValue[]>;
+  searchAttributes?: SearchAttributes;
 
   /**
    * Non-indexed information attached to the Workflow Execution
