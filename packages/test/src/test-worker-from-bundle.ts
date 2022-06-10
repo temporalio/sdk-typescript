@@ -112,6 +112,7 @@ if (RUN_INTEGRATION_TESTS) {
       }),
       {
         instanceOf: Error,
+        message: /is importing the following built-in Node modules.*dns/,
       }
     );
   });
