@@ -4,6 +4,10 @@
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  */
+
+// Swizzled from facebook/docusaurus@44ebe73e506fb3e09540c7650a6b2db0a1a435a0
+// File `packages/docusaurus-theme-classic/src/theme/DocBreadcrumbs/index.tsx`
+
 import React from 'react';
 import {
   ThemeClassNames,
@@ -92,6 +96,7 @@ export default function DocBreadcrumbs() {
   );
 }
 
+// Only change is adding this function and using it on L89
 function getHrefFromItem(item) {
   return item.customProps?.breadcrumbLink || item.href;
 }
