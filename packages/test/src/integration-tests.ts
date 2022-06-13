@@ -38,6 +38,7 @@ import * as activities from './activities';
 import { ConnectionInjectorInterceptor } from './activities/interceptors';
 import { cleanStackTrace, u8 } from './helpers';
 import * as workflows from './workflows';
+import * as badWorkflows from './bad-workflows';
 import { withZeroesHTTPServer } from './zeroes-http-server';
 
 const { EVENT_TYPE_TIMER_STARTED, EVENT_TYPE_TIMER_FIRED, EVENT_TYPE_TIMER_CANCELED } =
@@ -1124,26 +1125,62 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
     t.pass();
   });
 
-  test('assertNotInWorkflowEnv works', async (t) => {
+  test('assertNotInWorkflowEnv fails WFT', async (t) => {
     assertNotInWorkflowEnv('from-test');
-    const { client } = t.context;
-    const workflowId = uuid4();
-    const err: WorkflowFailedError = await t.throwsAsync(
-      client.execute(workflows.assertNotInWorkflowEnv, {
-        taskQueue: 'test',
-        workflowId,
-      }),
-      {
-        instanceOf: WorkflowFailedError,
-      }
-    );
-    if (!(err.cause instanceof ApplicationFailure)) {
-      t.fail('Expected err.cause to be an instance of ApplicationFailure');
-      return;
+    const workerOptions = {
+      workflowsPath: require.resolve('./bad-workflows/'),
+      activities,
+      taskQueue: 'test-bad',
+    };
+
+    // fails during bundling, since `@temporalio/activity` uses `async_hooks`
+    await t.throwsAsync(Worker.create(workerOptions), {
+      instanceOf: Error,
+      message: /is importing the following built-in Node modules.*async_hooks/s,
+    });
+
+    // ignoreModules so that bundle doesn't fail
+    const worker = await Worker.create({
+      ...workerOptions,
+      bundlerOptions: { ignoreModules: ['async_hooks'] },
+    });
+
+    const runPromise = worker.run();
+    runPromise.catch((err) => {
+      console.error('Caught error while worker was running', err);
+    });
+
+    const client = new WorkflowClient();
+
+    const handle = await client.start(badWorkflows.myWorkflow, { taskQueue: 'test-bad', workflowId: uuid4() });
+
+    try {
+      await asyncRetry(
+        async () => {
+          const { history } = await client.workflowService.getWorkflowExecutionHistory({
+            namespace: 'default',
+            execution: { workflowId: handle.workflowId },
+          });
+          if (
+            !history?.events?.some(({ workflowTaskFailedEventAttributes }) =>
+              /Importing from '@temporalio\/activity' in Workflow code is not supported/.test(
+                workflowTaskFailedEventAttributes?.failure?.message ?? ''
+              )
+            )
+          ) {
+            throw new Error('Cannot find workflow task failed event');
+          }
+        },
+        {
+          retries: 5,
+          maxTimeout: 1000,
+        }
+      );
+    } finally {
+      await handle.terminate();
     }
-    t.is(
-      (err.cause.cause as TemporalFailure).failure!.message,
-      "Importing from '@temporalio/testpkg' in Workflow code is not supported. Workflow code should only import from '@temporalio/workflow' and '@temporalio/common'. For more information: https://docs.temporal.io/docs/typescript/determinism/"
-    );
+    t.pass();
+    worker.shutdown();
+    await runPromise;
   });
 }

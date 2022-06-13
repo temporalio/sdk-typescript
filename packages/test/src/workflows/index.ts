@@ -1,7 +1,6 @@
 export * from './activity-failure';
 export * from './activity-failures';
 export * from './args-and-return';
-export * from './assert-not-in-workflow-env';
 export * from './async-activity-completion-tester';
 export * from './async-fail-signal';
 export * from './async-workflow';
