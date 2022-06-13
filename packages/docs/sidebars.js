@@ -18,7 +18,15 @@ function nestMarkdownFiles() {
       const basename = path.basename(url);
       const parts = basename.split('.');
       if (parts.length === 1) {
-        return [...acc, { type: 'category', label: basename, items: [url] }];
+        return [
+          ...acc,
+          {
+            type: 'category',
+            label: basename,
+            link: { type: 'doc', id: `api/namespaces/${basename}` },
+            items: [url],
+          },
+        ];
       }
       // Find the right place to insert this item
       const items = parts
@@ -31,7 +39,14 @@ function nestMarkdownFiles() {
       } else {
         let item = items.find(({ label }) => label === category);
         if (item === undefined) {
-          item = { type: 'category', label: category, items: [] };
+          item = {
+            type: 'category',
+            label: category,
+            items: [],
+            customProps: {
+              breadcrumbLink: `/api/namespaces/${parts[0]}#${category.toLowerCase()}`,
+            },
+          };
           items.push(item);
         }
         item.items.push(url);
@@ -41,5 +56,13 @@ function nestMarkdownFiles() {
 }
 
 module.exports = {
-  referenceSidebar: ['index', { type: 'category', label: 'API', items: nestMarkdownFiles() }],
+  referenceSidebar: [
+    'index',
+    {
+      type: 'category',
+      label: 'API',
+      link: { type: 'doc', id: 'api/index' },
+      items: nestMarkdownFiles(),
+    },
+  ],
 };

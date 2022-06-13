@@ -120,7 +120,6 @@ module.exports = {
         excludeProtected: true,
         hideGenerator: true,
         disableSources: true,
-        hideBreadcrumbs: true,
         readme: 'none',
         watch,
       },
