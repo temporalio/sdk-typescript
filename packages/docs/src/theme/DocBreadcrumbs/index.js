@@ -15,17 +15,13 @@
  */
 
 import React from 'react';
-import {
-  ThemeClassNames,
-  useSidebarBreadcrumbs,
-  useHomePageRoute,
-} from '@docusaurus/theme-common';
+import { ThemeClassNames, useSidebarBreadcrumbs, useHomePageRoute } from '@docusaurus/theme-common';
 import styles from './styles.module.css';
 import clsx from 'clsx';
 import Link from '@docusaurus/Link';
 import useBaseUrl from '@docusaurus/useBaseUrl'; // TODO move to design system folder
 
-function BreadcrumbsItemLink({children, href}) {
+function BreadcrumbsItemLink({ children, href }) {
   const className = 'breadcrumbs__link';
   return href ? (
     <Link className={className} href={href} itemProp="item">
@@ -38,7 +34,7 @@ function BreadcrumbsItemLink({children, href}) {
   );
 } // TODO move to design system folder
 
-function BreadcrumbsItem({children, active, index}) {
+function BreadcrumbsItem({ children, active, index }) {
   return (
     <li
       itemScope
@@ -46,7 +42,8 @@ function BreadcrumbsItem({children, active, index}) {
       itemType="https://schema.org/ListItem"
       className={clsx('breadcrumbs__item', {
         'breadcrumbs__item--active': active,
-      })}>
+      })}
+    >
       {children}
       <meta itemProp="position" content={String(index + 1)} />
     </li>
@@ -57,9 +54,7 @@ function HomeBreadcrumbItem() {
   const homeHref = useBaseUrl('/');
   return (
     <li className="breadcrumbs__item">
-      <Link
-        className={clsx('breadcrumbs__link', styles.breadcrumbsItemLink)}
-        href={homeHref}>
+      <Link className={clsx('breadcrumbs__link', styles.breadcrumbsItemLink)} href={homeHref}>
         🏠
       </Link>
     </li>
@@ -75,24 +70,12 @@ export default function DocBreadcrumbs() {
   }
 
   return (
-    <nav
-      className={clsx(
-        ThemeClassNames.docs.docBreadcrumbs,
-        styles.breadcrumbsContainer,
-      )}
-      aria-label="breadcrumbs">
-      <ul
-        className="breadcrumbs"
-        itemScope
-        itemType="https://schema.org/BreadcrumbList">
+    <nav className={clsx(ThemeClassNames.docs.docBreadcrumbs, styles.breadcrumbsContainer)} aria-label="breadcrumbs">
+      <ul className="breadcrumbs" itemScope itemType="https://schema.org/BreadcrumbList">
         {homePageRoute && <HomeBreadcrumbItem />}
         {breadcrumbs.map((item, idx) => (
-          <BreadcrumbsItem
-            key={idx}
-            active={idx === breadcrumbs.length - 1}
-            index={idx}>
-            <BreadcrumbsItemLink
-              href={idx < breadcrumbs.length - 1 ? getHrefFromItem(item) : undefined}>
+          <BreadcrumbsItem key={idx} active={idx === breadcrumbs.length - 1} index={idx}>
+            <BreadcrumbsItemLink href={idx < breadcrumbs.length - 1 ? getHrefFromItem(item) : undefined}>
               {item.label}
             </BreadcrumbsItemLink>
           </BreadcrumbsItem>
