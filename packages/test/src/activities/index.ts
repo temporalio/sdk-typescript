@@ -1,20 +1,15 @@
 /* eslint-disable @typescript-eslint/no-empty-function */
 /* eslint-disable @typescript-eslint/explicit-module-boundary-types */
 import { Context } from '@temporalio/activity';
-import { Connection, LOCAL_DOCKER_TARGET, WorkflowClient } from '@temporalio/client';
+import { WorkflowClient, WorkflowHandle } from '@temporalio/client';
 import { ApplicationFailure } from '@temporalio/common';
 import { QueryDefinition } from '@temporalio/internal-workflow-common';
 import { ProtoActivityInput, ProtoActivityResult } from '../../protos/root';
 import { cancellableFetch as cancellableFetchInner } from './cancellable-fetch';
 import { fakeProgress as fakeProgressInner } from './fake-progress';
+import { getContext } from './interceptors';
 
 export { throwSpecificError } from './failure-tester';
-
-// TODO: Get rid of this by providing client via activity context
-function getTestConnection(): Connection {
-  const address = process.env.TEMPORAL_TESTING_SERVER_URL || LOCAL_DOCKER_TARGET;
-  return new Connection({ address });
-}
 
 /**
  * Used in order to check Activity interceptor,
@@ -65,14 +60,20 @@ export async function waitForCancellation(): Promise<void> {
   await Context.current().cancelled;
 }
 
+async function withSchedulingWorkflowHandle<R>(fn: (handle: WorkflowHandle) => Promise<R>): Promise<R> {
+  const { info, connection } = getContext();
+  const { workflowExecution } = info;
+  const client = new WorkflowClient({ connection, namespace: info.workflowNamespace });
+  const handle = client.getHandle(workflowExecution.workflowId, workflowExecution.runId);
+  return await fn(handle);
+}
+
 async function signalSchedulingWorkflow(signalName: string) {
-  const { info } = Context.current();
-  const connection = getTestConnection();
-  await connection.service.signalWorkflowExecution({
-    namespace: info.workflowNamespace,
-    workflowExecution: Context.current().info.workflowExecution,
-    signalName,
-  });
+  await withSchedulingWorkflowHandle(async (handle) => handle.signal(signalName));
+}
+
+export async function queryOwnWf<R, A extends any[]>(queryDef: QueryDefinition<R, A>, ...args: A): Promise<R> {
+  return await withSchedulingWorkflowHandle(async (handle) => handle.query(queryDef, ...args));
 }
 
 export async function fakeProgress(sleepIntervalMs = 1000, numIters = 1000): Promise<void> {
@@ -96,17 +97,6 @@ export async function progressiveSleep(): Promise<void> {
   cx.heartbeat(2);
   await cx.sleep(100);
   cx.heartbeat(3);
-}
-
-export async function queryOwnWf<R, A extends any[]>(queryDef: QueryDefinition<R, A>, ...args: A): Promise<void> {
-  const ctx = Context.current();
-  const we = ctx.info.workflowExecution;
-  const client = new WorkflowClient(getTestConnection().service, { namespace: ctx.info.workflowNamespace });
-  try {
-    await client.getHandle(we.workflowId, we.runId).query(queryDef, ...args);
-  } catch (e) {
-    console.log(`Workflow ${JSON.stringify(we)} query err`, e);
-  }
 }
 
 export async function protoActivity(args: ProtoActivityInput): Promise<ProtoActivityResult> {

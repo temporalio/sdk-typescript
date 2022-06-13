@@ -1,12 +1,11 @@
 import * as grpc from '@grpc/grpc-js';
-import { normalizeTlsConfig, TLSConfig } from '@temporalio/internal-non-workflow-common';
-import { temporal } from '@temporalio/proto';
+import { filterNullAndUndefined, normalizeTlsConfig, TLSConfig } from '@temporalio/internal-non-workflow-common';
 import { AsyncLocalStorage } from 'async_hooks';
 import type { RPCImpl } from 'protobufjs';
+import { isServerErrorResponse, ServiceError } from './errors';
 import { defaultGrpcRetryOptions, makeGrpcRetryInterceptor } from './grpc-retry';
-
-export type WorkflowService = temporal.api.workflowservice.v1.WorkflowService;
-export const { WorkflowService } = temporal.api.workflowservice.v1;
+import pkg from './pkg';
+import { CallContext, Metadata, WorkflowService } from './types';
 
 /**
  * GRPC + Temporal server connection options
@@ -50,38 +49,41 @@ export interface ConnectionOptions {
    * interceptors).
    */
   interceptors?: grpc.Interceptor[];
+
+  /**
+   * Optional mapping of gRPC metadata (HTTP headers) to send with each request to the server.
+   *
+   * In order to dynamically set metadata, use {@link Connection.withMetadata}
+   */
+  metadata?: Metadata;
+
+  /**
+   * Milliseconds to wait until establishing a connection with the server.
+   *
+   * Used either when connecting eagerly with {@link Connection.connect} or
+   * calling {@link Connection.ensureConnected}.
+   *
+   * @format {@link https://www.npmjs.com/package/ms | ms} formatted string
+   * @default 10 seconds
+   */
+  connectTimeout?: number | string;
 }
 
-export type ConnectionOptionsWithDefaults = Required<Omit<ConnectionOptions, 'tls'>>;
+export type ConnectionOptionsWithDefaults = Required<Omit<ConnectionOptions, 'tls' | 'connectTimeout'>> & {
+  connectTimeoutMs: number;
+};
 
-export const LOCAL_DOCKER_TARGET = '127.0.0.1:7233';
+export const LOCAL_TARGET = '127.0.0.1:7233';
 
 export function defaultConnectionOpts(): ConnectionOptionsWithDefaults {
   return {
-    address: LOCAL_DOCKER_TARGET,
+    address: LOCAL_TARGET,
     credentials: grpc.credentials.createInsecure(),
     channelArgs: {},
     interceptors: [makeGrpcRetryInterceptor(defaultGrpcRetryOptions())],
+    metadata: {},
+    connectTimeoutMs: 10_000,
   };
-}
-
-/**
- * Mapping of string to valid gRPC metadata value
- */
-export type Metadata = Record<string, grpc.MetadataValue>;
-
-/**
- * User defined context for gRPC client calls
- */
-export interface CallContext {
-  /**
-   * {@link Deadline | https://grpc.io/blog/deadlines/} for gRPC client calls
-   */
-  deadline?: number | Date;
-  /**
-   * Metadata to set on gRPC requests
-   */
-  metadata?: Metadata;
 }
 
 /**
@@ -124,47 +126,159 @@ function normalizeGRPCConfig(options?: ConnectionOptions): ConnectionOptions {
   }
 }
 
-/**
- * Client connection to the Temporal Service
- */
-export class Connection {
-  public static readonly Client = grpc.makeGenericClientConstructor({}, 'WorkflowService', {});
-  public readonly options: ConnectionOptionsWithDefaults;
-  public readonly client: grpc.Client;
+export interface RPCImplOptions {
+  serviceName: string;
+  client: grpc.Client;
+  callContextStorage: AsyncLocalStorage<CallContext>;
+  interceptors?: grpc.Interceptor[];
+}
+
+export interface ConnectionCtorOptions {
+  readonly options: ConnectionOptionsWithDefaults;
+  readonly client: grpc.Client;
   /**
    * Raw gRPC access to the Temporal service.
    *
    * **NOTE**: The namespace provided in {@link options} is **not** automatically set on requests made to the service.
    */
-  public readonly service: WorkflowService;
-  readonly callContextStorage = new AsyncLocalStorage<CallContext>();
+  readonly workflowService: WorkflowService;
+  readonly callContextStorage: AsyncLocalStorage<CallContext>;
+}
 
-  constructor(options?: ConnectionOptions) {
-    this.options = {
+/**
+ * Client connection to the Temporal Service
+ *
+ * NOTE: Connections are expensive to construct and should be reused.
+ * Make sure to `close()` any unused connections to avoid leaking resources.
+ */
+export class Connection {
+  public static readonly Client = grpc.makeGenericClientConstructor({}, 'WorkflowService', {});
+
+  public readonly options: ConnectionOptionsWithDefaults;
+  protected readonly client: grpc.Client;
+  /**
+   * Used to ensure `ensureConnected` is called once.
+   */
+  protected connectPromise?: Promise<void>;
+
+  /**
+   * Raw gRPC access to the Temporal service.
+   */
+  public readonly workflowService: WorkflowService;
+  readonly callContextStorage: AsyncLocalStorage<CallContext>;
+
+  protected static createCtorOptions(options?: ConnectionOptions): ConnectionCtorOptions {
+    const optionsWithDefaults = {
       ...defaultConnectionOpts(),
-      ...normalizeGRPCConfig(options),
+      ...filterNullAndUndefined(normalizeGRPCConfig(options)),
     };
-    this.client = new Connection.Client(this.options.address, this.options.credentials, this.options.channelArgs);
-    const rpcImpl = this.generateRPCImplementation('temporal.api.workflowservice.v1.WorkflowService');
-    this.service = WorkflowService.create(rpcImpl, false, false);
+    // Allow overriding this
+    optionsWithDefaults.metadata['client-name'] ??= 'temporal-typescript';
+    optionsWithDefaults.metadata['client-version'] ??= pkg.version;
+
+    const client = new this.Client(
+      optionsWithDefaults.address,
+      optionsWithDefaults.credentials,
+      optionsWithDefaults.channelArgs
+    );
+    const callContextStorage = new AsyncLocalStorage<CallContext>();
+    callContextStorage.enterWith({ metadata: optionsWithDefaults.metadata });
+
+    const rpcImpl = this.generateRPCImplementation({
+      serviceName: 'temporal.api.workflowservice.v1.WorkflowService',
+      client,
+      callContextStorage,
+      interceptors: optionsWithDefaults?.interceptors,
+    });
+    const workflowService = WorkflowService.create(rpcImpl, false, false);
+
+    return {
+      client,
+      callContextStorage,
+      workflowService,
+      options: optionsWithDefaults,
+    };
   }
 
-  protected generateRPCImplementation(serviceName: string): RPCImpl {
+  /**
+   * Ensure connection can be established.
+   *
+   * This method's result is memoized to ensure it runs only once.
+   *
+   * Calls WorkflowService.getSystemInfo internally.
+   */
+  async ensureConnected(): Promise<void> {
+    if (this.connectPromise == null) {
+      const deadline = Date.now() + this.options.connectTimeoutMs;
+      this.connectPromise = (async () => {
+        await this.untilReady(deadline);
+
+        try {
+          await this.withDeadline(deadline, () => this.workflowService.getSystemInfo({}));
+        } catch (err) {
+          if (isServerErrorResponse(err)) {
+            // Ignore old servers
+            if (err.code !== grpc.status.UNIMPLEMENTED) {
+              throw new ServiceError('Failed to connect to Temporal server', { cause: err });
+            }
+          } else {
+            throw err;
+          }
+        }
+      })();
+    }
+    return this.connectPromise;
+  }
+
+  /**
+   * Create a lazy Connection instance.
+   *
+   * This method does not verify connectivity with the server, it is recommended to use
+   * {@link connect} instead.
+   */
+  static lazy(options?: ConnectionOptions): Connection {
+    return new this(this.createCtorOptions(options));
+  }
+
+  /**
+   * Establish a connection with the server and return a Connection instance.
+   *
+   * This is the preferred method of creating connections as it verifies connectivity.
+   */
+  static async connect(options?: ConnectionOptions): Promise<Connection> {
+    const conn = this.lazy(options);
+    await conn.ensureConnected();
+    return conn;
+  }
+
+  protected constructor({ options, client, workflowService, callContextStorage }: ConnectionCtorOptions) {
+    this.options = options;
+    this.client = client;
+    this.workflowService = workflowService;
+    this.callContextStorage = callContextStorage;
+  }
+
+  protected static generateRPCImplementation({
+    serviceName,
+    client,
+    callContextStorage,
+    interceptors,
+  }: RPCImplOptions): RPCImpl {
     return (method: { name: string }, requestData: any, callback: grpc.requestCallback<any>) => {
       const metadataContainer = new grpc.Metadata();
-      const { metadata, deadline } = this.callContextStorage.getStore() ?? {};
+      const { metadata, deadline } = callContextStorage.getStore() ?? {};
       if (metadata != null) {
         for (const [k, v] of Object.entries(metadata)) {
           metadataContainer.set(k, v);
         }
       }
-      return this.client.makeUnaryRequest(
+      return client.makeUnaryRequest(
         `/${serviceName}/${method.name}`,
         (arg: any) => arg,
         (arg: any) => arg,
         requestData,
         metadataContainer,
-        { interceptors: this.options.interceptors, deadline },
+        { interceptors, deadline },
         callback
       );
     };
@@ -181,56 +295,33 @@ export class Connection {
   /**
    * Set metadata for any service requests executed in `fn`'s scope.
    *
-   * @returns returned value of `fn`
-   */
-  async withMetadata<R>(metadata: Metadata, fn: () => Promise<R>): Promise<R>;
-
-  /**
-   * Set metadata for any service requests executed in `fn`'s scope.
-   *
-   * @param metadataFn function that gets current context metadata and returns new metadata
+   * The provided metadata is merged on top of any existing metadata in current scope
+   * including metadata provided in {@link ConnectionOptions.metadata}
    *
    * @returns returned value of `fn`
+   *
+   * @example
+   *
+   * ```ts
+   * await conn.withMetadata({ apiKey: 'secret' }, () =>
+   *   conn.withMetadata({ otherKey: 'set' }, () => client.start(options)))
+   * );
+   * ```
    */
-  async withMetadata<R>(metadataFn: (meta: Metadata) => Metadata, fn: () => Promise<R>): Promise<R>;
-
-  async withMetadata<R>(metadata: Metadata | ((meta: Metadata) => Metadata), fn: () => Promise<R>): Promise<R> {
+  async withMetadata<R>(metadata: Metadata, fn: () => Promise<R>): Promise<R> {
     const cc = this.callContextStorage.getStore();
-    metadata = typeof metadata === 'function' ? metadata(cc?.metadata ?? {}) : metadata;
+    metadata = { ...cc?.metadata, ...metadata };
     return await this.callContextStorage.run({ metadata, deadline: cc?.deadline }, fn);
-  }
-
-  /**
-   * Set the {@link CallContext} for any service requests executed in `fn`'s scope.
-   *
-   * @returns returned value of `fn`
-   */
-  async withCallContext<R>(cx: CallContext, fn: () => Promise<R>): Promise<R>;
-
-  /**
-   * Set the {@link CallContext} for any service requests executed in `fn`'s scope.
-   *
-   * @param cxFn function that gets current context and returns new context
-   *
-   * @returns returned value of `fn`
-   */
-  async withCallContext<R>(cxFn: (cx?: CallContext) => CallContext, fn: () => Promise<R>): Promise<R>;
-
-  async withCallContext<R>(cx: CallContext | ((cx?: CallContext) => CallContext), fn: () => Promise<R>): Promise<R> {
-    cx = typeof cx === 'function' ? cx(this.callContextStorage.getStore()) : cx;
-    return await this.callContextStorage.run(cx, fn);
   }
 
   /**
    * Wait for successful connection to the server.
    *
-   * @param waitTimeMs milliseconds to wait before giving up.
-   *
    * @see https://grpc.github.io/grpc/node/grpc.Client.html#waitForReady__anchor
    */
-  public async untilReady(waitTimeMs = 5000): Promise<void> {
+  protected async untilReady(deadline: number): Promise<void> {
     return new Promise<void>((resolve, reject) => {
-      this.client.waitForReady(Date.now() + waitTimeMs, (err) => {
+      this.client.waitForReady(deadline, (err) => {
         if (err) {
           reject(err);
         } else {
@@ -238,5 +329,15 @@ export class Connection {
         }
       });
     });
+  }
+
+  // This method is async for uniformity with NativeConnection which could be used in the future to power clients
+  /**
+   * Close the underlying gRPC client.
+   *
+   * Make sure to call this method to ensure proper resource cleanup.
+   */
+  public async close(): Promise<void> {
+    this.client.close();
   }
 }

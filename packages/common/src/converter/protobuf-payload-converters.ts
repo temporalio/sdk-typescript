@@ -8,10 +8,10 @@ import {
 } from '@temporalio/internal-workflow-common';
 import * as protoJsonSerializer from 'proto3-json-serializer';
 import type { Message, Namespace, Root, Type } from 'protobufjs';
+import { JsonPayloadConverter } from './json-payload-converter';
 import {
   BinaryPayloadConverter,
   CompositePayloadConverter,
-  JsonPayloadConverter,
   PayloadConverterWithEncoding,
   UndefinedPayloadConverter,
 } from './payload-converters';

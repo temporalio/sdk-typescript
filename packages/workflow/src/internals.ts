@@ -1,3 +1,4 @@
+import { PayloadConverter } from '@temporalio/common';
 import {
   arrayFromPayloads,
   defaultPayloadConverter,
@@ -6,9 +7,7 @@ import {
   failureToError,
   optionalFailureToOptionalError,
   TemporalFailure,
-  toPayload,
 } from '@temporalio/common';
-import { WrappedPayloadConverter } from '@temporalio/common/lib/converter/wrapped-payload-converter';
 import {
   checkExtends,
   composeInterceptors,
@@ -329,6 +328,7 @@ export class State {
    * Activator executes activation jobs
    */
   public readonly activator = new Activator();
+
   /**
    * Map of task sequence to a Completion
    */
@@ -369,11 +369,12 @@ export class State {
    * Loaded in {@link initRuntime}
    */
   public interceptors: Required<WorkflowInterceptors> = { inbound: [], outbound: [], internals: [] };
+
   /**
    * Buffer that stores all generated commands, reset after each activation
    */
   public commands: coresdk.workflow_commands.IWorkflowCommand[] = [];
-  /**
+
   /**
    * Stores all {@link condition}s that haven't been unblocked yet
    */
@@ -403,6 +404,7 @@ export class State {
     signalWorkflow: 1,
     cancelWorkflow: 1,
     condition: 1,
+    upsertSearchAttributes: 1,
   };
 
   /**
@@ -430,6 +432,17 @@ export class State {
    * Information about the current Workflow
    */
   public info?: WorkflowInfo;
+
+  /**
+   * Whether a Workflow is replaying history or processing new events
+   */
+  isReplaying?: boolean;
+
+  /**
+   * ID of last WorkflowTaskStarted event
+   */
+  historyLength?: number;
+
   /**
    * A deterministic RNG, used by the isolate's overridden Math.random
    */
@@ -451,7 +464,7 @@ export class State {
    */
   public importInterceptors?: InterceptorsImportFunc;
 
-  public payloadConverter: WrappedPayloadConverter = new WrappedPayloadConverter(defaultPayloadConverter);
+  public payloadConverter: PayloadConverter = defaultPayloadConverter;
 
   /**
    * Patches we know the status of for this workflow, as in {@link patched}
@@ -492,7 +505,7 @@ function completeWorkflow(result: any) {
   state.pushCommand(
     {
       completeWorkflowExecution: {
-        result: toPayload(state.payloadConverter, result),
+        result: state.payloadConverter.toPayload(result),
       },
     },
     true

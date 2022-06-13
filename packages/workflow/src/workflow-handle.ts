@@ -59,5 +59,5 @@ export interface ChildWorkflowHandle<T extends Workflow> extends BaseWorkflowHan
   /**
    * The runId of the initial run of the bound Workflow
    */
-  readonly originalRunId: string;
+  readonly firstExecutionRunId: string;
 }

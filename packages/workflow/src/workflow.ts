@@ -10,9 +10,10 @@ import {
   msOptionalToTs,
   msToNumber,
   msToTs,
-  tsToMs,
   QueryDefinition,
+  SearchAttributes,
   SignalDefinition,
+  tsToMs,
   WithWorkflowArgs,
   Workflow,
   WorkflowResultType,
@@ -676,11 +677,11 @@ export async function startChild<T extends Workflow>(
     headers: {},
     workflowType,
   });
-  const originalRunId = await started;
+  const firstExecutionRunId = await started;
 
   return {
     workflowId: optionsWithDefaults.workflowId,
-    originalRunId,
+    firstExecutionRunId,
     result(): Promise<WorkflowResultType<T>> {
       return completed as any;
     },
@@ -955,7 +956,7 @@ export function uuid4(): string {
 /**
  * Patch or upgrade workflow code by checking or stating that this workflow has a certain patch.
  *
- * See [docs page](https://docs.temporal.io/docs/typescript/versioning) for info.
+ * See [docs page](https://docs.temporal.io/typescript/versioning) for info.
  *
  * If the workflow is replaying an existing history, then this function returns true if that
  * history was produced by a worker which also had a `patched` call with the same `patchId`.
@@ -976,7 +977,7 @@ export function patched(patchId: string): boolean {
 /**
  * Indicate that a patch is being phased out.
  *
- * See [docs page](https://docs.temporal.io/docs/typescript/versioning) for info.
+ * See [docs page](https://docs.temporal.io/typescript/versioning) for info.
  *
  * Workflows with this call may be deployed alongside workflows with a {@link patched} call, but
  * they must *not* be deployed while any workers still exist running old code without a
@@ -998,11 +999,10 @@ function patchInternal(patchId: string, deprecated: boolean): boolean {
   // Patch operation does not support interception at the moment, if it did,
   // this would be the place to start the interception chain
 
-  const { isReplaying } = workflowInfo();
   if (state.workflow === undefined) {
     throw new IllegalStateError('Patches cannot be used before Workflow starts');
   }
-  const usePatch = !isReplaying || state.knownPresentPatches.has(patchId);
+  const usePatch = !state.isReplaying || state.knownPresentPatches.has(patchId);
   // Avoid sending commands for patches core already knows about.
   // This optimization enables development of automatic patching tools.
   if (usePatch && !state.sentPatches.has(patchId)) {
@@ -1132,4 +1132,105 @@ export function setHandler<Ret, Args extends any[], T extends SignalDefinition<A
   } else {
     throw new TypeError(`Invalid definition type: ${(def as any).type}`);
   }
+}
+
+/**
+ * Updates this Workflow's Search Attributes by merging the provided `searchAttributes` with the existing Search
+ * Attributes, `workflowInfo().searchAttributes`.
+ *
+ * For example, this Workflow code:
+ *
+ * ```ts
+ * upsertSearchAttributes({
+ *   CustomIntField: [1, 2, 3],
+ *   CustomBoolField: [true]
+ * });
+ * upsertSearchAttributes({
+ *   CustomIntField: [42],
+ *   CustomKeywordField: ['durable code', 'is great']
+ * });
+ * ```
+ *
+ * would result in the Workflow having these Search Attributes:
+ *
+ * ```ts
+ * {
+ *   CustomIntField: [42],
+ *   CustomBoolField: [true],
+ *   CustomKeywordField: ['durable code', 'is great']
+ * }
+ * ```
+ *
+ * @param searchAttributes The Record to merge. Use a value of `[]` to clear a Search Attribute.
+ */
+export function upsertSearchAttributes(searchAttributes: SearchAttributes): void {
+  if (!state.info) {
+    throw new IllegalStateError('`state.info` should be defined');
+  }
+
+  const mergedSearchAttributes = { ...state.info.searchAttributes, ...searchAttributes };
+  if (!mergedSearchAttributes) {
+    throw new Error('searchAttributes must be a non-null SearchAttributes');
+  }
+
+  state.pushCommand({
+    upsertWorkflowSearchAttributesCommandAttributes: {
+      seq: state.nextSeqs.upsertSearchAttributes++,
+      searchAttributes: mapToPayloads(searchAttributePayloadConverter, searchAttributes),
+    },
+  });
+
+  state.info.searchAttributes = mergedSearchAttributes;
+}
+
+export class Unsafe {
+  get isReplaying(): boolean {
+    if (state.isReplaying == null) {
+      throw new IllegalStateError('Workflow uninitialized');
+    }
+    return state.isReplaying;
+  }
+}
+
+/**
+ * Unsafe information about the currently executing Workflow Task.
+ *
+ * Never rely on this information in Workflow logic as it will cause non-deterministic behavior.
+ */
+export interface UnsafeTaskInfo {
+  isReplaying: boolean;
+}
+
+/**
+ * Information about the currently executing Workflow Task.
+ *
+ * Meant for advanced usage.
+ */
+export interface TaskInfo {
+  /**
+   * Length of Workflow history up until the current Workflow Task.
+   *
+   * You may safely use this information to decide when to {@link continueAsNew}.
+   */
+  historyLength: number;
+  unsafe: UnsafeTaskInfo;
+}
+
+/**
+ * Get information about the currently executing Workflow Task.
+ *
+ * See {@link TaskInfo}
+ */
+export function taskInfo(): TaskInfo {
+  const { isReplaying, historyLength } = state;
+  if (isReplaying == null || historyLength == null) {
+    throw new IllegalStateError('Workflow uninitialized');
+  }
+
+  return {
+    historyLength,
+    unsafe: {
+      isReplaying,
+    },
+  };
 }

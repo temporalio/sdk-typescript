@@ -1,6 +1,6 @@
 import type { temporal } from '@temporalio/proto';
 import { ValueError } from './errors';
-import { msOptionalToNumber, msOptionalToTs, msToNumber, msToTs } from './time';
+import { msOptionalToNumber, msOptionalToTs, msToNumber, msToTs, optionalTsToMs } from './time';
 
 /**
  * Options for retrying Workflows and Activities
@@ -43,14 +43,20 @@ export interface RetryPolicy {
 }
 
 /**
- * Turns a TS RetryPolicy into a proto compatible RetryPolicy
+ * Turn a TS RetryPolicy into a proto compatible RetryPolicy
  */
 export function compileRetryPolicy(retryPolicy: RetryPolicy): temporal.api.common.v1.IRetryPolicy {
   if (retryPolicy.backoffCoefficient != null && retryPolicy.backoffCoefficient <= 0) {
     throw new ValueError('RetryPolicy.backoffCoefficient must be greater than 0');
   }
-  if (retryPolicy.maximumAttempts != null && retryPolicy.maximumAttempts <= 0) {
-    throw new ValueError('RetryPolicy.maximumAttempts must be greater than 0');
+  if (retryPolicy.maximumAttempts != null) {
+    if (retryPolicy.maximumAttempts <= 0) {
+      throw new ValueError('RetryPolicy.maximumAttempts must be greater than 0');
+    }
+
+    if (!Number.isInteger(retryPolicy.maximumAttempts)) {
+      throw new ValueError('RetryPolicy.maximumAttempts must be an integer');
+    }
   }
   const maximumInterval = msOptionalToNumber(retryPolicy.maximumInterval);
   const initialInterval = msToNumber(retryPolicy.initialInterval ?? 1000);
@@ -69,5 +75,24 @@ export function compileRetryPolicy(retryPolicy: RetryPolicy): temporal.api.commo
     maximumInterval: msOptionalToTs(maximumInterval),
     backoffCoefficient: retryPolicy.backoffCoefficient,
     nonRetryableErrorTypes: retryPolicy.nonRetryableErrorTypes,
+  };
+}
+
+/**
+ * Turn a proto compatible RetryPolicy into a TS RetryPolicy
+ */
+export function decompileRetryPolicy(
+  retryPolicy?: temporal.api.common.v1.IRetryPolicy | null
+): RetryPolicy | undefined {
+  if (!retryPolicy) {
+    return undefined;
+  }
+
+  return {
+    backoffCoefficient: retryPolicy.backoffCoefficient ?? undefined,
+    maximumAttempts: retryPolicy.maximumAttempts ?? undefined,
+    maximumInterval: optionalTsToMs(retryPolicy.maximumInterval),
+    initialInterval: optionalTsToMs(retryPolicy.initialInterval),
+    nonRetryableErrorTypes: retryPolicy.nonRetryableErrorTypes ?? undefined,
   };
 }

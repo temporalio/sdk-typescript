@@ -28,6 +28,7 @@ export interface StarterArgSpec extends Spec {
   '--concurrent-wf-clients': typeof Number;
   '--server-address': typeof String;
   '--worker-pid': typeof Number;
+  '--worker-memory-log-file': typeof String;
   '--do-query': typeof String;
   '--initial-query-delay-ms': typeof Number;
   '--query-interval-ms': typeof Number;
@@ -43,6 +44,7 @@ export const starterArgSpec: StarterArgSpec = {
   '--concurrent-wf-clients': Number,
   '--server-address': String,
   '--worker-pid': Number,
+  '--worker-memory-log-file': String,
   '--do-query': String,
   '--initial-query-delay-ms': Number,
   '--query-interval-ms': Number,
@@ -54,10 +56,7 @@ export interface WorkerArgSpec extends Spec {
   '--max-cached-wfs': typeof Number;
   '--max-concurrent-at-executions': typeof Number;
   '--max-concurrent-wft-executions': typeof Number;
-  // NOTE: this is not supported yet by Core
-  '--max-concurrent-at-polls': typeof Number;
-  // NOTE: this is not supported yet by Core
-  '--max-concurrent-wft-polls': typeof Number;
+  '--max-concurrent-la-executions': typeof Number;
   '--log-level': typeof String;
   '--log-file': typeof String;
   '--server-address': typeof String;
@@ -71,11 +70,8 @@ export const workerArgSpec: WorkerArgSpec = {
   '--max-cached-wfs': Number,
   '--max-concurrent-at-executions': Number,
   '--max-concurrent-wft-executions': Number,
+  '--max-concurrent-la-executions': Number,
   '--isolate-pool-size': Number,
-  // NOTE: this is not supported yet by Core
-  '--max-concurrent-at-polls': Number,
-  // NOTE: this is not supported yet by Core
-  '--max-concurrent-wft-polls': Number,
   '--log-level': String,
   '--log-file': String,
   '--server-address': String,
@@ -83,8 +79,21 @@ export const workerArgSpec: WorkerArgSpec = {
   '--status-port': Number,
 };
 
-export type AllInOneArgSpec = SetupArgSpec & StarterArgSpec & WorkerArgSpec;
-export const allInOneArgSpec: AllInOneArgSpec = { ...setupArgSpec, ...starterArgSpec, ...workerArgSpec };
+export interface WrapperArgSpec extends Spec {
+  '--inspect': typeof Boolean;
+}
+
+export const wrapperArgSpec: WrapperArgSpec = {
+  '--inspect': Boolean,
+};
+
+export type AllInOneArgSpec = SetupArgSpec & StarterArgSpec & WorkerArgSpec & WrapperArgSpec;
+export const allInOneArgSpec: AllInOneArgSpec = {
+  ...setupArgSpec,
+  ...starterArgSpec,
+  ...workerArgSpec,
+  ...wrapperArgSpec,
+};
 
 export function getRequired<T extends arg.Spec, K extends keyof T>(
   args: arg.Result<T>,

@@ -78,7 +78,10 @@ export class Activity {
           // expects activity to only fail with ApplicationFailure
           return {
             failed: {
-              failure: ApplicationFailure.retryable(this.cancelReason, 'CancelledFailure'),
+              failure: await encodeErrorToFailure(
+                this.dataConverter,
+                ApplicationFailure.retryable(this.cancelReason, 'CancelledFailure')
+              ),
             },
           };
         } else if (this.cancelReason) {

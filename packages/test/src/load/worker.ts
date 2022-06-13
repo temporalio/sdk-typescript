@@ -2,6 +2,7 @@ import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-grpc';
 import * as opentelemetry from '@opentelemetry/sdk-node';
 import { SemanticResourceAttributes } from '@opentelemetry/semantic-conventions';
 import { TelemetryOptions } from '@temporalio/core-bridge';
+import { Connection } from '@temporalio/client';
 import { DefaultLogger, LogEntry, NativeConnection, Runtime, Worker } from '@temporalio/worker';
 import arg from 'arg';
 import fs from 'fs';
@@ -9,6 +10,7 @@ import http from 'http';
 import { inspect } from 'util';
 import * as activities from '../activities';
 import { getRequired, WorkerArgSpec, workerArgSpec } from './args';
+import { ConnectionInjectorInterceptor } from '../activities/interceptors';
 
 /**
  * Optionally start the opentelemetry node SDK
@@ -96,8 +98,7 @@ async function main() {
   const args = arg<WorkerArgSpec>(workerArgSpec);
   const maxConcurrentActivityTaskExecutions = args['--max-concurrent-at-executions'] ?? 100;
   const maxConcurrentWorkflowTaskExecutions = args['--max-concurrent-wft-executions'] ?? 100;
-  const maxConcurrentActivityTaskPolls = args['--max-concurrent-at-polls'] ?? 20;
-  const maxConcurrentWorkflowTaskPolls = args['--max-concurrent-wft-polls'] ?? 20;
+  const maxConcurrentLocalActivityExecutions = args['--max-concurrent-la-executions'] ?? 100;
   const maxCachedWorkflows = args['--max-cached-wfs'];
   const oTelUrl = args['--otel-url'];
   const logLevel = (args['--log-level'] || 'INFO').toUpperCase();
@@ -129,7 +130,11 @@ async function main() {
     logger,
   });
 
-  const connection = await NativeConnection.create({
+  const clientConnection = await Connection.connect({
+    address: serverAddress,
+  });
+
+  const connection = await NativeConnection.connect({
     address: serverAddress,
   });
 
@@ -141,10 +146,12 @@ async function main() {
       workflowsPath: require.resolve('../workflows'),
       taskQueue,
       maxConcurrentActivityTaskExecutions,
+      maxConcurrentLocalActivityExecutions,
       maxConcurrentWorkflowTaskExecutions,
-      maxConcurrentActivityTaskPolls,
-      maxConcurrentWorkflowTaskPolls,
       maxCachedWorkflows,
+      interceptors: {
+        activityInbound: [() => new ConnectionInjectorInterceptor(clientConnection)],
+      },
     });
     console.log('Created worker with options', worker.options);
 

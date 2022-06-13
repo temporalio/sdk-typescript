@@ -23,7 +23,7 @@ test('NativeConnection passes headers provided in options', async (t) => {
 
   // Create a mock server to verify headers are actually sent
   server.addService(protoDescriptor.temporal.api.workflowservice.v1.WorkflowService.service, {
-    // called on NativeConnection.create()
+    // called on NativeConnection.connect()
     getSystemInfo(
       call: grpc.ServerUnaryCall<
         temporal.api.workflowservice.v1.IGetSystemInfoRequest,
@@ -58,7 +58,7 @@ test('NativeConnection passes headers provided in options', async (t) => {
   );
   server.start();
 
-  const connection = await NativeConnection.create({
+  const connection = await NativeConnection.connect({
     address: `127.0.0.1:${port}`,
     headers: { initial: 'true' },
   });

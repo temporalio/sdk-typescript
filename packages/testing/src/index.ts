@@ -2,7 +2,7 @@ import * as activity from '@temporalio/activity';
 import {
   AsyncCompletionClient,
   WorkflowClient as BaseWorkflowClient,
-  WorkflowClientOptions,
+  WorkflowClientOptions as BaseWorkflowClientOptions,
   WorkflowResultOptions as BaseWorkflowResultOptions,
   WorkflowStartOptions as BaseWorkflowStartOptions,
 } from '@temporalio/client';
@@ -16,7 +16,6 @@ import events from 'events';
 import { kill, waitOnChild } from './child-process';
 import type getPortType from 'get-port';
 import { Connection, TestService } from './test-service-client';
-import { temporal } from '@temporalio/proto';
 
 const TEST_SERVER_EXECUTABLE_NAME = os.platform() === 'win32' ? 'test-server.exe' : 'test-server';
 
@@ -48,18 +47,21 @@ export type WorkflowStartOptions<T extends Workflow> = BaseWorkflowStartOptions<
   runInNormalTime?: boolean;
 };
 
+export interface WorkflowClientOptions extends BaseWorkflowClientOptions {
+  connection: Connection;
+}
+
 /**
  * A client with the exact same API as the "normal" client with 1 exception,
  * When this client waits on a Workflow's result, it will enable time skipping
  * in the test server.
  */
 export class WorkflowClient extends BaseWorkflowClient {
-  constructor(
-    protected readonly testService: TestService,
-    workflowService?: temporal.api.workflowservice.v1.WorkflowService,
-    options?: WorkflowClientOptions | undefined
-  ) {
-    super(workflowService, options);
+  protected readonly testService: TestService;
+
+  constructor(options: WorkflowClientOptions) {
+    super(options);
+    this.testService = options.connection.testService;
   }
 
   /**
@@ -189,8 +191,8 @@ export class TestWorkflowEnvironment {
   ) {
     this.connection = connection;
     this.nativeConnection = nativeConnection;
-    this.workflowClient = new WorkflowClient(this.connection.testService, this.connection.service);
-    this.asyncCompletionClient = new AsyncCompletionClient(this.connection.service);
+    this.workflowClient = new WorkflowClient({ connection });
+    this.asyncCompletionClient = new AsyncCompletionClient({ connection });
   }
 
   /**
@@ -206,11 +208,11 @@ export class TestWorkflowEnvironment {
     const child = testServerSpawner(port);
 
     const address = `127.0.0.1:${port}`;
-    const conn = new Connection({ address });
+    const connPromise = Connection.connect({ address });
 
     try {
       await Promise.race([
-        conn.untilReady(),
+        connPromise,
         waitOnChild(child).then(() => {
           throw new Error('Test server child process exited prematurely');
         }),
@@ -224,7 +226,8 @@ export class TestWorkflowEnvironment {
       throw err;
     }
 
-    const nativeConnection = await NativeConnection.create({ address });
+    const conn = await connPromise;
+    const nativeConnection = await NativeConnection.connect({ address });
 
     return new this(child, conn, nativeConnection);
   }
@@ -233,7 +236,8 @@ export class TestWorkflowEnvironment {
    * Kill the test server process and close the connection to it
    */
   async teardown(): Promise<void> {
-    this.connection.client.close();
+    await this.connection.close();
+    await this.nativeConnection.close();
     // TODO: the server should return exit code 0
     await kill(this.serverProc, 'SIGINT', { validReturnCodes: [0, 130] });
   }

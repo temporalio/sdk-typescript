@@ -1,5 +1,6 @@
 import arg from 'arg';
 import os from 'os';
+import fs from 'fs';
 import pidusage from 'pidusage';
 import * as grpc from '@grpc/grpc-js';
 import { v4 as uuid4 } from 'uuid';
@@ -73,12 +74,18 @@ interface RunWorkflowOptions {
   concurrency: number;
   minWFPS: number;
   workerPid?: number;
+  workerMemoryLogFile?: string;
   queryingOptions?: QueryingOptions;
 }
 
 async function runWorkflows(options: RunWorkflowOptions): Promise<void> {
-  const { workflowName, stopCondition, concurrency, workerPid, minWFPS } = options;
+  const { workflowName, stopCondition, concurrency, workerPid, workerMemoryLogFile, minWFPS } = options;
   let observable: Observable<any>;
+  let recordMemUsage = (_mem: number) => undefined;
+  if (workerMemoryLogFile) {
+    const stream = fs.createWriteStream(workerMemoryLogFile);
+    recordMemUsage = (mem) => void stream.write(`${mem}\n`);
+  }
 
   if (stopCondition instanceof NumberOfWorkflows) {
     observable = range(0, stopCondition.num).pipe(
@@ -89,6 +96,7 @@ async function runWorkflows(options: RunWorkflowOptions): Promise<void> {
         let resourceString = '';
         if (workerResources) {
           resourceString = `CPU ${workerResources.cpu.toFixed(0)}%, MEM ${toMB(workerResources.memory)}MB`;
+          recordMemUsage(workerResources?.memory);
         }
         process.stderr.write(
           `\rWFs complete (${numComplete}/${stopCondition.num}) -- WFs/s curr ${wfsPerSecond} (acc ${overallWfsPerSecond}) -- ${resourceString}  `
@@ -111,6 +119,7 @@ async function runWorkflows(options: RunWorkflowOptions): Promise<void> {
         let resourceString = '';
         if (workerResources) {
           resourceString = `CPU ${workerResources.cpu.toFixed(0)}%, MEM ${toMB(workerResources.memory)}MB`;
+          recordMemUsage(workerResources?.memory);
         }
         const secondsLeft = Math.max(Math.floor(stopCondition.seconds - totalTime), 0);
         process.stderr.write(
@@ -180,9 +189,10 @@ async function main() {
   const namespace = getRequired(args, '--ns');
   const taskQueue = getRequired(args, '--task-queue');
   const workerPid = args['--worker-pid'];
+  const workerMemoryLogFile = args['--worker-memory-log-file'];
 
-  const connection = new Connection({ address: serverAddress });
-  const client = new WorkflowClient(connection.service, { namespace });
+  const connection = await Connection.connect({ address: serverAddress });
+  const client = new WorkflowClient({ connection, namespace });
   const stopCondition = runForSeconds ? new UntilSecondsElapsed(runForSeconds) : new NumberOfWorkflows(iterations);
   const queryingOptions = queryName ? { queryName, queryIntervalMs, initialQueryDelayMs } : undefined;
 
@@ -197,6 +207,7 @@ async function main() {
     concurrency: concurrentWFClients,
     minWFPS,
     workerPid,
+    workerMemoryLogFile,
     queryingOptions,
   });
 }

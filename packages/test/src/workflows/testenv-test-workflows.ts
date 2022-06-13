@@ -25,7 +25,7 @@ export async function raceActivityAndTimer(expectedWinner: 'timer' | 'activity')
 export async function waitOnSignalWithTimeout(): Promise<void> {
   await new Promise<void>((resolve, reject) => {
     setHandler(unblockSignal, resolve);
-    sleep(2_000_000).then(() => reject('sleep finished before receiving signal'));
+    void sleep(2_000_000).then(() => reject('sleep finished before receiving signal'));
   });
 }
 

@@ -6,8 +6,6 @@ pub static TRANSPORT_ERROR: OnceCell<Root<JsFunction>> = OnceCell::new();
 /// Thrown after shutdown was requested as a response to a poll function, JS should stop polling
 /// once this error is encountered
 pub static SHUTDOWN_ERROR: OnceCell<Root<JsFunction>> = OnceCell::new();
-/// Thrown when using a method for a worker that does not exist (never registered or already shut down)
-pub static NO_WORKER_ERROR: OnceCell<Root<JsFunction>> = OnceCell::new();
 /// Something unexpected happened, considered fatal
 pub static UNEXPECTED_ERROR: OnceCell<Root<JsFunction>> = OnceCell::new();
 /// Used in different parts of the project to signal that something unexpected has happened
@@ -77,29 +75,20 @@ pub fn register_errors(mut cx: FunctionContext) -> JsResult<JsUndefined> {
 
     let mapping = cx.argument::<JsObject>(0)?;
     let shutdown_error = mapping
-        .get(&mut cx, "ShutdownError")?
-        .downcast_or_throw::<JsFunction, FunctionContext>(&mut cx)?
-        .root(&mut cx);
-    let no_worker_error = mapping
-        .get(&mut cx, "NoWorkerRegisteredError")?
-        .downcast_or_throw::<JsFunction, FunctionContext>(&mut cx)?
+        .get::<JsFunction, _, _>(&mut cx, "ShutdownError")?
         .root(&mut cx);
     let transport_error = mapping
-        .get(&mut cx, "TransportError")?
-        .downcast_or_throw::<JsFunction, FunctionContext>(&mut cx)?
+        .get::<JsFunction, _, _>(&mut cx, "TransportError")?
         .root(&mut cx);
     let unexpected_error = mapping
-        .get(&mut cx, "UnexpectedError")?
-        .downcast_or_throw::<JsFunction, FunctionContext>(&mut cx)?
+        .get::<JsFunction, _, _>(&mut cx, "UnexpectedError")?
         .root(&mut cx);
     let illegal_state_error = mapping
-        .get(&mut cx, "IllegalStateError")?
-        .downcast_or_throw::<JsFunction, FunctionContext>(&mut cx)?
+        .get::<JsFunction, _, _>(&mut cx, "IllegalStateError")?
         .root(&mut cx);
 
     TRANSPORT_ERROR.get_or_try_init(|| Ok(transport_error))?;
     SHUTDOWN_ERROR.get_or_try_init(|| Ok(shutdown_error))?;
-    NO_WORKER_ERROR.get_or_try_init(|| Ok(no_worker_error))?;
     UNEXPECTED_ERROR.get_or_try_init(|| Ok(unexpected_error))?;
     ILLEGAL_STATE_ERROR.get_or_try_init(|| Ok(illegal_state_error))?;
 

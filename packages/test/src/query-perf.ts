@@ -10,7 +10,7 @@ async function main() {
   }
 
   const client = new WorkflowClient();
-  const { executions } = await client.service.listWorkflowExecutions({
+  const { executions } = await client.workflowService.listWorkflowExecutions({
     namespace: 'default',
     query: args['--visibility-query'],
   });

@@ -8,7 +8,6 @@ import { v4 as uuid4 } from 'uuid';
 import { httpGet } from './activities';
 import { cleanStackTrace } from './helpers';
 import { defaultOptions, isolateFreeWorker, Worker } from './mock-native-worker';
-import { wrappedDefaultPayloadConverter } from './payload-converters/payload-converter';
 import { withZeroesHTTPServer } from './zeroes-http-server';
 
 export interface Context {
@@ -60,7 +59,7 @@ test('Worker runs an activity and reports completion', async (t) => {
       taskToken,
       start: {
         activityType: 'httpGet',
-        input: toPayloads(wrappedDefaultPayloadConverter, url),
+        input: toPayloads(defaultPayloadConverter, url),
       },
     });
     compareCompletion(t, completion.result, {
@@ -78,7 +77,7 @@ test('Worker runs an activity and reports failure', async (t) => {
       taskToken,
       start: {
         activityType: 'throwAnError',
-        input: toPayloads(wrappedDefaultPayloadConverter, false, message),
+        input: toPayloads(defaultPayloadConverter, false, message),
       },
     });
     compareCompletion(t, completion.result, {
@@ -106,7 +105,7 @@ test('Worker cancels activity and reports cancellation', async (t) => {
         taskToken,
         start: {
           activityType: 'waitForCancellation',
-          input: toPayloads(wrappedDefaultPayloadConverter),
+          input: toPayloads(defaultPayloadConverter),
         },
       },
     });
@@ -132,7 +131,7 @@ test('Activity Context AbortSignal cancels a fetch request', async (t) => {
           taskToken,
           start: {
             activityType: 'cancellableFetch',
-            input: toPayloads(wrappedDefaultPayloadConverter, `http://127.0.0.1:${port}`, false),
+            input: toPayloads(defaultPayloadConverter, `http://127.0.0.1:${port}`, false),
           },
         },
       });
@@ -159,7 +158,7 @@ test('Activity cancel with reason "NOT_FOUND" is valid', async (t) => {
           taskToken,
           start: {
             activityType: 'cancellableFetch',
-            input: toPayloads(wrappedDefaultPayloadConverter, `http://127.0.0.1:${port}`, false),
+            input: toPayloads(defaultPayloadConverter, `http://127.0.0.1:${port}`, false),
           },
         },
       });
@@ -184,7 +183,7 @@ test('Activity Context heartbeat is sent to core', async (t) => {
       taskToken,
       start: {
         activityType: 'progressiveSleep',
-        input: toPayloads(wrappedDefaultPayloadConverter),
+        input: toPayloads(defaultPayloadConverter),
       },
     });
     console.log('waiting heartbeat 1');
@@ -207,7 +206,7 @@ test('Worker fails activity with proper message when it is not registered', asyn
       taskToken,
       start: {
         activityType: 'notFound',
-        input: toPayloads(wrappedDefaultPayloadConverter),
+        input: toPayloads(defaultPayloadConverter),
       },
     });
     t.regex(
@@ -241,7 +240,7 @@ test('Worker cancels activities after shutdown', async (t) => {
         taskToken,
         start: {
           activityType: 'cancellationSnitch',
-          input: toPayloads(wrappedDefaultPayloadConverter),
+          input: toPayloads(defaultPayloadConverter),
         },
       }),
     };

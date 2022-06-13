@@ -3,6 +3,7 @@ import { IllegalStateError } from '@temporalio/common';
 import { Client, Worker, clientUpdateHeaders } from '@temporalio/core-bridge';
 import { NativeConnectionOptions } from './connection-options';
 import { Runtime } from './runtime';
+import { TransportError } from './errors';
 
 const updateHeaders = util.promisify(clientUpdateHeaders);
 
@@ -24,9 +25,34 @@ export class NativeConnection {
    */
   protected constructor(private nativeClient: Client) {}
 
+  /**
+   * @deprecated use `connect` instead
+   */
   static async create(options?: NativeConnectionOptions): Promise<NativeConnection> {
-    const client = await Runtime.instance().createNativeClient(options);
-    return new this(client);
+    try {
+      const client = await Runtime.instance().createNativeClient(options);
+      return new this(client);
+    } catch (err) {
+      if (err instanceof TransportError) {
+        throw new TransportError(err.message);
+      }
+      throw err;
+    }
+  }
+
+  /**
+   * Eagerly connect to the Temporal server and return a NativeConnection instance
+   */
+  static async connect(options?: NativeConnectionOptions): Promise<NativeConnection> {
+    try {
+      const client = await Runtime.instance().createNativeClient(options);
+      return new this(client);
+    } catch (err) {
+      if (err instanceof TransportError) {
+        throw new TransportError(err.message);
+      }
+      throw err;
+    }
   }
 
   /**

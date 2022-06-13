@@ -1,24 +1,24 @@
 import './runtime'; // Patch the Workflow isolate runtime for opentelemetry
 import * as otel from '@opentelemetry/api';
+import * as tracing from '@opentelemetry/sdk-trace-base';
+import { extractContextFromHeaders, headersWithContext } from '@temporalio/internal-non-workflow-common/lib/otel';
 import {
   ActivityInput,
+  ContinueAsNew,
+  ContinueAsNewInput,
   DisposeInput,
   Next,
   StartChildWorkflowExecutionInput,
-  WorkflowInboundCallsInterceptor,
-  WorkflowOutboundCallsInterceptor,
   WorkflowExecuteInput,
+  WorkflowInboundCallsInterceptor,
   workflowInfo,
-  ContinueAsNewInput,
-  ContinueAsNew,
   WorkflowInternalsInterceptor,
+  WorkflowOutboundCallsInterceptor,
 } from '@temporalio/workflow';
-import { extractContextFromHeaders, headersWithContext } from '@temporalio/internal-non-workflow-common/lib/otel';
-import { ContextManager } from './context-manager';
-import { SpanExporter } from './span-exporter';
-import { SpanName, SPAN_DELIMITER } from './definitions';
-import * as tracing from '@opentelemetry/sdk-trace-base';
 import { instrument } from '../instrumentation';
+import { ContextManager } from './context-manager';
+import { SpanName, SPAN_DELIMITER } from './definitions';
+import { SpanExporter } from './span-exporter';
 
 export * from './definitions';
 

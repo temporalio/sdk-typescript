@@ -13,6 +13,7 @@ export * from './converter/data-converter';
 export * from './converter/payload-codec';
 export * from './converter/payload-converter';
 export * from './converter/payload-converters';
+export * from './converter/json-payload-converter';
 export * from './converter/types';
 export * from './env';
 export * from './failure';

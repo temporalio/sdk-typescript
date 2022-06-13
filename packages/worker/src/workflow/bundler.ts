@@ -223,11 +223,26 @@ export class WorkflowCodeBundler {
             if (hasError) {
               reject(
                 new Error(
-                  "Webpack finished with errors, if you're unsure what went wrong, visit our troubleshooting page at https://docs.temporal.io/docs/typescript/troubleshooting#webpack-errors"
+                  "Webpack finished with errors, if you're unsure what went wrong, visit our troubleshooting page at https://docs.temporal.io/typescript/troubleshooting#webpack-errors"
                 )
               );
             }
-            this.reportProblematicModules(this.foundProblematicModules);
+
+            if (this.foundProblematicModules.size) {
+              const err = new Error(
+                `Your Workflow code (or a library used by your Workflow code) is importing the following built-in Node modules:\n` +
+                  Array.from(this.foundProblematicModules)
+                    .map((module) => `  - '${module}'\n`)
+                    .join('') +
+                  `Workflow code doesn't have access to built-in Node modules (in order to help enforce determinism). If you are certain ` +
+                  `these modules will not be used at runtime, then you may add their names to 'WorkerOptions.bundlerOptions.ignoreModules' in order to ` +
+                  `dismiss this warning. However, if your code execution actually depends on these modules, then you must change the code ` +
+                  `or remove the library.\n` +
+                  `See https://typescript.temporal.io/api/interfaces/worker.workeroptions/#bundleroptions for details.`
+              );
+
+              reject(err);
+            }
           }
           if (err) {
             reject(err);
@@ -239,22 +254,6 @@ export class WorkflowCodeBundler {
     } finally {
       await util.promisify(compiler.close).bind(compiler)();
     }
-  }
-
-  protected reportProblematicModules(foundProblematicModules: Set<string>): void {
-    if (!foundProblematicModules.size) return;
-
-    this.logger.warn(
-      `Your Workflow code (or a library used by your Workflow code) is importing the following built-in Node modules:\n` +
-        Array.from(foundProblematicModules)
-          .map((module) => `  - '${module}'\n`)
-          .join('') +
-        `Workflow code doesn't have access to built-in Node modules (in order to help enforce determinism). If you are certain ` +
-        `these modules will not be used at runtime, then you may add their names to 'WorkerOptions.bundlerOptions.ignoreModules' in order to ` +
-        `dismiss this warning. However, if your code execution actually depends on these modules, then you must change the code ` +
-        `or remove the library.\n` +
-        `See https://typescript.temporal.io/api/interfaces/worker.workeroptions/#bundleroptions for details.`
-    );
   }
 }
 

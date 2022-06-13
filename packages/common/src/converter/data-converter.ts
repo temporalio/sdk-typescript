@@ -1,6 +1,6 @@
 import { PayloadCodec } from './payload-codec';
+import { PayloadConverter } from './payload-converter';
 import { defaultPayloadConverter } from './payload-converters';
-import { WrappedPayloadConverter } from './wrapped-payload-converter';
 
 /**
  * When your data (arguments and return values) is sent over the wire and stored by Temporal Server, it is encoded in
@@ -9,7 +9,7 @@ import { WrappedPayloadConverter } from './wrapped-payload-converter';
  * The default `DataConverter` supports `undefined`, `Uint8Array`, and JSON serializables (so if
  * [`JSON.stringify(yourArgOrRetval)`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/JSON/stringify#description)
  * works, the default data converter will work). Protobufs are supported via [this
- * API](https://docs.temporal.io/docs/typescript/data-converters#protobufs).
+ * API](https://docs.temporal.io/typescript/data-converters#protobufs).
  *
  * Use a custom `DataConverter` to control the contents of your {@link Payload}s. Common reasons for using a custom
  * `DataConverter` are:
@@ -48,11 +48,11 @@ export interface DataConverter {
  * A {@link DataConverter} that has been loaded via {@link loadDataConverter}.
  */
 export interface LoadedDataConverter {
-  payloadConverter: WrappedPayloadConverter;
+  payloadConverter: PayloadConverter;
   payloadCodecs: PayloadCodec[];
 }
 
 export const defaultDataConverter: LoadedDataConverter = {
-  payloadConverter: new WrappedPayloadConverter(defaultPayloadConverter),
+  payloadConverter: defaultPayloadConverter,
   payloadCodecs: [],
 };

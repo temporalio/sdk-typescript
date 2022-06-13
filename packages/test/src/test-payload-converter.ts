@@ -1,5 +1,5 @@
 /* eslint @typescript-eslint/no-non-null-assertion: 0 */
-import { Connection, WorkflowClient } from '@temporalio/client';
+import { WorkflowClient } from '@temporalio/client';
 import {
   BinaryPayloadConverter,
   defaultPayloadConverter,
@@ -25,8 +25,8 @@ import { v4 as uuid4 } from 'uuid';
 import root from '../protos/root';
 import { RUN_INTEGRATION_TESTS } from './helpers';
 import { defaultOptions } from './mock-native-worker';
-import { messageInstance } from './payload-converters/payload-converter';
-import { protobufWorkflow } from './workflows';
+import { messageInstance } from './payload-converters/proto-payload-converter';
+import { protobufWorkflow } from './workflows/protobufs';
 
 test('UndefinedPayloadConverter converts from undefined only', (t) => {
   const converter = new UndefinedPayloadConverter();
@@ -174,13 +174,12 @@ test('ProtobufJSONPayloadConverter converts binary', (t) => {
 
 if (RUN_INTEGRATION_TESTS) {
   test('Worker throws decoding proto JSON without WorkerOptions.dataConverter', async (t) => {
-    t.timeout(10 * 1000);
-    let markErrorThrown: any;
-    const expectedErrorWasThrown = new Promise(function (resolve) {
+    let markErrorThrown: () => void;
+    const expectedErrorWasThrown = new Promise<void>((resolve) => {
       markErrorThrown = resolve;
     });
     const logger = new DefaultLogger('ERROR', (entry) => {
-      if (entry.meta?.error.stack.includes('ValueError: Unknown encoding: json/protobuf')) {
+      if (entry.meta?.error.stack.startsWith('ValueError: Unknown encoding: json/protobuf')) {
         markErrorThrown();
       }
     });
@@ -189,23 +188,31 @@ if (RUN_INTEGRATION_TESTS) {
     const taskQueue = 'test-data-converter';
     const worker = await Worker.create({
       ...defaultOptions,
+      workflowsPath: require.resolve('./workflows/protobufs'),
       taskQueue,
-      enableSDKTracing: true,
     });
-    const connection = new Connection();
-    const client = new WorkflowClient(connection.service, {
-      dataConverter: { payloadConverterPath: require.resolve('./payload-converters/payload-converter') },
+    const client = new WorkflowClient({
+      dataConverter: { payloadConverterPath: require.resolve('./payload-converters/proto-payload-converter') },
     });
-    const runPromise = worker.run();
-    client.execute(protobufWorkflow, {
+
+    const handle = await client.start(protobufWorkflow, {
       args: [messageInstance],
       workflowId: uuid4(),
       taskQueue,
     });
-    expectedErrorWasThrown;
+
+    await Promise.all([
+      worker.run(),
+      (async () => {
+        try {
+          await expectedErrorWasThrown;
+        } finally {
+          await handle.terminate();
+          worker.shutdown();
+        }
+      })(),
+    ]);
     t.pass();
-    worker.shutdown();
-    runPromise;
   });
 }
 
@@ -236,7 +243,7 @@ test('DefaultPayloadConverterWithProtobufs converts to payload by trying each co
     defaultPayloadConverterWithProtos.toPayload(u8('abc')),
     new BinaryPayloadConverter().toPayload(u8('abc'))
   );
-  t.is(defaultPayloadConverterWithProtos.toPayload(0n), undefined);
+  t.throws(() => defaultPayloadConverterWithProtos.toPayload(0n), { instanceOf: ValueError });
 });
 
 test('defaultPayloadConverter converts from payload by payload type', (t) => {

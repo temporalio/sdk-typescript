@@ -21,6 +21,7 @@
   "scripts": {},
   "dependencies": {
     "@temporalio/internal-workflow-common": "file:../internal-workflow-common",
+    "@temporalio/common": "file:../common",
     "@temporalio/proto": "file:../proto"
   },
   "publishConfig": {

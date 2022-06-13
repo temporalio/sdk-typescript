@@ -132,6 +132,14 @@ export interface TelemetryOptions {
   tracingFilter?: string;
 
   /**
+   * If set true, do not prefix metrics with `temporal_`. Will be removed eventually as
+   * the prefix is consistent with other SDKs.
+   *
+   * @default `false`
+   */
+  noTemporalPrefixForMetrics?: boolean;
+
+  /**
    * Control where to send Rust Core logs
    *
    * @default log to console
@@ -161,16 +169,14 @@ export interface WorkerOptions {
 
   maxConcurrentActivityTaskExecutions: number;
   maxConcurrentWorkflowTaskExecutions: number;
-  maxConcurrentWorkflowTaskPolls: number;
-  maxConcurrentActivityTaskPolls: number;
+  maxConcurrentLocalActivityExecutions: number;
+
   /**
-   * `maxConcurrentWorkflowTaskPolls` * this number = the number of max pollers that will
-   * be allowed for the nonsticky queue when sticky tasks are enabled. If both defaults are used,
-   * the sticky queue will allow 4 max pollers while the nonsticky queue will allow one. The
-   * minimum for either poller is 1, so if `max_concurrent_wft_polls` is 1 and sticky queues are
-   * enabled, there will be 2 concurrent polls.
+   * If set to `false` this worker will only handle workflow tasks and local activities, it will not
+   * poll for activity tasks.
    */
-  nonStickyToStickyPollRatio: number;
+  enableNonLocalActivities: boolean;
+
   /**
    * How long a workflow task is allowed to sit on the sticky queue before it is timed out
    * and moved to the non-sticky queue where it may be picked up by any worker.
@@ -195,6 +201,21 @@ export interface WorkerOptions {
    * @default 30 seconds
    */
   defaultHeartbeatThrottleIntervalMs: number;
+
+  /**
+   * Sets the maximum number of activities per second the task queue will dispatch, controlled
+   * server-side. Note that this only takes effect upon an activity poll request. If multiple
+   * workers on the same queue have different values set, they will thrash with the last poller
+   * winning.
+   */
+  maxTaskQueueActivitiesPerSecond?: number;
+
+  /**
+   * Limits the number of activities per second that this worker will process. The worker will
+   * not poll for new activities if by doing so it might receive and execute an activity which
+   * would cause it to exceed this limit. Must be a positive floating point number.
+   */
+  maxActivitiesPerSecond?: number;
 }
 
 /** Log level - must match rust log level names */
@@ -235,7 +256,8 @@ export declare function newReplayWorker(
   history: ArrayBuffer,
   callback: WorkerCallback
 ): void;
-export declare function workerShutdown(worker: Worker, callback: VoidCallback): void;
+export declare function workerInitiateShutdown(worker: Worker, callback: VoidCallback): void;
+export declare function workerFinalizeShutdown(worker: Worker, callback: VoidCallback): void;
 export declare function clientUpdateHeaders(
   client: Client,
   headers: Record<string, string>,

@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 Breaking changes marked with a :boom:
 
+## [0.23.2] - 2022-05-17
+
+### Miscellaneous Tasks
+
+- Publish missing `@temporalio/testing` scripts ([#653](https://github.com/temporalio/sdk-typescript/pull/653))
+
+## [0.23.1] - 2022-05-16
+
+### Bug Fixes
+
+- [`worker`] Fix memory leaks ([#651](https://github.com/temporalio/sdk-typescript/pull/651))
+
 ## [0.23.0] - 2022-05-12
 
 ### Bug Fixes
