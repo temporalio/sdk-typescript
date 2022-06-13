@@ -392,9 +392,9 @@ export class State {
           }, new Set())
         );
         const stacks = new Set<string>();
-        for (let child of childToParent.keys()) {
+        for (const child of childToParent.keys()) {
           if (!internalNodes.has(child)) {
-            let stack = promiseToStack.get(child);
+            const stack = promiseToStack.get(child);
             if (!stack) continue;
             stacks.add(stack);
           }
