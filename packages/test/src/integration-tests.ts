@@ -1142,9 +1142,10 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
       );
 
       // Can't get the Trigger stack cleaned, this is okay for now
-      t.is(
-        stack1,
-        `
+      // NOTE: we check endsWith because under certain conditions we might see Promise.race in the trace
+      t.true(
+        stack1.endsWith(
+          `
     at Function.all (<anonymous>)
     at stackTracer (test/src/workflows/stack-tracer.ts)
 
@@ -1152,6 +1153,7 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
 
     at Promise.then (<anonymous>)
     at Trigger.then (workflow/src/trigger.ts)`
+        )
       );
       t.is(
         stack2,

@@ -401,6 +401,7 @@ export class State {
         }
         // Not 100% sure where this comes from, just filter it out
         stacks.delete('    at Promise.then (<anonymous>)');
+        stacks.delete('    at Promise.then (<anonymous>)\n');
         return [...stacks].join('\n\n');
       },
     ],
