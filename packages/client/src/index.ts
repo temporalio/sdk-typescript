@@ -1,7 +1,7 @@
 /**
  * Client for communicating with the Temporal service.
  *
- * Interact with workflows using {@link WorkflowClient} or call GRPC methods directly using {@link Connection.service}.
+ * Interact with workflows using {@link WorkflowClient} or call GRPC methods directly using {@link Connection.workflowService}.
  *
  * ### Usage
  * <!--SNIPSTART typescript-hello-client-->
