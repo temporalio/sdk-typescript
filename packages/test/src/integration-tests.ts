@@ -19,7 +19,7 @@ import {
   TimeoutType,
   WorkflowExecution,
 } from '@temporalio/common';
-import { decode, decodeFromPayloadsAtIndex } from '@temporalio/internal-non-workflow-common';
+import { decode, decodeFromPayloadsAtIndex, loadDataConverter } from '@temporalio/internal-non-workflow-common';
 import {
   tsToMs,
   WorkflowExecutionAlreadyStartedError,
@@ -75,7 +75,9 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
       activities,
       taskQueue: 'test',
       dataConverter,
-      interceptors: { activityInbound: [() => new ConnectionInjectorInterceptor(connection)] },
+      interceptors: {
+        activityInbound: [() => new ConnectionInjectorInterceptor(connection, loadDataConverter(dataConverter))],
+      },
     });
 
     const runPromise = worker.run();

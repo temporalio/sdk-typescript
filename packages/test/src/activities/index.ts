@@ -61,9 +61,9 @@ export async function waitForCancellation(): Promise<void> {
 }
 
 function getSchedulingWorkflowHandle(): WorkflowHandle {
-  const { info, connection } = getContext();
+  const { info, connection, dataConverter } = getContext();
   const { workflowExecution } = info;
-  const client = new WorkflowClient({ connection, namespace: info.workflowNamespace });
+  const client = new WorkflowClient({ connection, namespace: info.workflowNamespace, dataConverter });
   return client.getHandle(workflowExecution.workflowId, workflowExecution.runId);
 }
 
@@ -73,13 +73,8 @@ async function signalSchedulingWorkflow(signalName: string) {
 }
 
 export async function queryOwnWf<R, A extends any[]>(queryDef: QueryDefinition<R, A>, ...args: A): Promise<R> {
-  try {
-    const handle = getSchedulingWorkflowHandle();
-    return await handle.query(queryDef, ...args);
-  } catch (err) {
-    console.error('Failed to query own workflow', err);
-    throw err;
-  }
+  const handle = getSchedulingWorkflowHandle();
+  return await handle.query(queryDef, ...args);
 }
 
 export async function fakeProgress(sleepIntervalMs = 1000, numIters = 1000): Promise<void> {

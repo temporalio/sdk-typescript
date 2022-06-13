@@ -7,8 +7,8 @@ import assert from 'assert';
 import { AsyncLocalStorage } from 'async_hooks';
 import semver from 'semver';
 import { SourceMapConsumer } from 'source-map';
-import vm from 'node:vm';
-import v8 from 'node:v8';
+import vm from 'vm';
+import v8 from 'v8';
 import { partition } from '../utils';
 import { Workflow, WorkflowCreateOptions, WorkflowCreator } from './interface';
 
