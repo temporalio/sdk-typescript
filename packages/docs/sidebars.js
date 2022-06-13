@@ -44,8 +44,8 @@ function nestMarkdownFiles() {
             label: category,
             items: [],
             customProps: {
-              breadcrumbLink: `/api/namespaces/${parts[0]}#${category.toLowerCase()}`
-            }
+              breadcrumbLink: `/api/namespaces/${parts[0]}#${category.toLowerCase()}`,
+            },
           };
           items.push(item);
         }
