@@ -391,9 +391,13 @@ function startChildWorkflowExecutionNextHandler({
       reject,
     });
   });
+  untrackPromise(startPromise);
+  untrackPromise(completePromise);
   // Prevent unhandled rejection because the completion might not be awaited
   untrackPromise(completePromise.catch(() => undefined));
-  return new Promise((resolve) => resolve([startPromise, completePromise]));
+  const ret = new Promise<[Promise<string>, Promise<unknown>]>((resolve) => resolve([startPromise, completePromise]));
+  untrackPromise(ret);
+  return ret;
 }
 
 function signalWorkflowNextHandler({ seq, signalName, args, target, headers }: SignalWorkflowInput) {
@@ -687,8 +691,8 @@ export async function startChild<T extends Workflow>(
   return {
     workflowId: optionsWithDefaults.workflowId,
     firstExecutionRunId,
-    result(): Promise<WorkflowResultType<T>> {
-      return completed as any;
+    async result(): Promise<WorkflowResultType<T>> {
+      return (await completed) as any;
     },
     async signal<Args extends any[]>(def: SignalDefinition<Args> | string, ...args: Args): Promise<void> {
       return composeInterceptors(
@@ -776,13 +780,16 @@ export async function executeChild<T extends Workflow>(
     'startChildWorkflowExecution',
     startChildWorkflowExecutionNextHandler
   );
-  const [_started, completed] = await execute({
+  const execPromise = execute({
     seq: state.nextSeqs.childWorkflow++,
     options: optionsWithDefaults,
     headers: {},
     workflowType,
   });
-  return (await completed) as Promise<any>;
+  untrackPromise(execPromise);
+  const completedPromise = execPromise.then(([_started, completed]) => completed);
+  untrackPromise(completedPromise);
+  return completedPromise as Promise<any>;
 }
 
 /**

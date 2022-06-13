@@ -1138,29 +1138,18 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
           .map((s) => cleanOptionalStackTrace(`\n${s}`))
           .join('\n')
       );
+
+      // Can't get the Trigger stack cleaned, this is okay for now
       t.is(
         stack1,
         `
-    at new Promise (<anonymous>)
-    at scheduleActivityNextHandler (workflow/src/workflow.ts)
-    at scheduleActivity (workflow/src/workflow.ts)
-    at activityProxyFunction (workflow/src/workflow.ts)
-    at stackTracer (test/src/workflows/stack-tracer.ts)
-
-    at executeChild (workflow/src/workflow.ts)
-    at stackTracer (test/src/workflows/stack-tracer.ts)
-
-    at new Promise (<anonymous>)
-    at timerNextHandler (workflow/src/workflow.ts)
-    at sleep (workflow/src/workflow.ts)
-    at stackTracer (test/src/workflows/stack-tracer.ts)
-
-    at Function.race (<anonymous>)
+    at Function.all (<anonymous>)
     at stackTracer (test/src/workflows/stack-tracer.ts)
 
     at stackTracer (test/src/workflows/stack-tracer.ts)
 
-    at executeChild (workflow/src/workflow.ts)`
+    at Promise.then (<anonymous>)
+    at Trigger.then (workflow/src/trigger.ts)`
       );
       t.is(
         stack2,
@@ -1172,11 +1161,6 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
     at timerNextHandler (workflow/src/workflow.ts)
     at sleep (workflow/src/workflow.ts)
     at stackTracer (test/src/workflows/stack-tracer.ts)
-
-    at Function.race (<anonymous>)
-    at stackTracer (test/src/workflows/stack-tracer.ts)
-
-    at executeChild (workflow/src/workflow.ts)
 
     at stackTracer (test/src/workflows/stack-tracer.ts)`
       );

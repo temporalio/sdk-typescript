@@ -42,7 +42,7 @@ checkExtends<coresdk.child_workflow.StartChildWorkflowExecutionFailedCause, Star
  * Global store to track promise stacks for stack trace query
  */
 export interface PromiseStackStore {
-  childToParent: Map<Promise<unknown>, Promise<unknown>>;
+  childToParent: Map<Promise<unknown>, Set<Promise<unknown>>>;
   promiseToStack: Map<Promise<unknown>, string>;
 }
 
@@ -383,25 +383,20 @@ export class State {
       () => {
         const { childToParent, promiseToStack } = (globalThis as any).__TEMPORAL__
           .promiseStackStore as PromiseStackStore;
-        const internalNodes = new Set(childToParent.values());
+        const internalNodes = new Set(
+          [...childToParent.values()].reduce((acc, curr) => {
+            for (const p of curr) {
+              acc.add(p);
+            }
+            return acc;
+          }, new Set())
+        );
         const stacks = new Set<string>();
         for (let child of childToParent.keys()) {
           if (!internalNodes.has(child)) {
             let stack = promiseToStack.get(child);
             if (!stack) continue;
-            // Ignore internal promises created by static Promise methods
-            if (
-              /^\s+at\sPromise\.then \(<anonymous>\)\n\s+at Function\.(race|all|allSettled|any) \(<anonymous>\)\n/m.test(
-                stack
-              )
-            ) {
-              // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-              child = childToParent.get(child)!; // Must exist
-              stack = promiseToStack.get(child);
-            }
-            if (!stack) continue;
-            // Just in case make sure to avoid undefined values
-            if (stack) stacks.add(stack);
+            stacks.add(stack);
           }
         }
         // Not 100% sure where this comes from, just filter it out

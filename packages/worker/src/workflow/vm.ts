@@ -198,6 +198,9 @@ export class VMWorkflowCreator implements WorkflowCreator {
       return `${err}\n${converted.join('\n')}`;
     };
 
+    // Track Promise aggregators like `race` and `all` to link their internally created promises
+    let currentAggregation: Promise<unknown> | undefined = undefined;
+
     // This also is set globally for the isolate which unless the worker is run in debug mode is insignificant
     if (promiseHooks) {
       // Node >=16.14 only
@@ -206,13 +209,37 @@ export class VMWorkflowCreator implements WorkflowCreator {
           // Only run in workflow context
           const store = getPromiseStackStore(promise);
           if (!store) return;
+          let stackTrace = cutoffStackTrace(new Error().stack?.replace(/^Error\n\s*at [^\n]+\n/m, ''));
           // To see the full stack replace with commented line
-          // store.promiseToStack.set(promise, new Error().stack?.replace(/^Error\n\s*at [^\n]+\n/m, '')!);
-          store.promiseToStack.set(
-            promise,
-            cutoffStackTrace(new Error().stack?.replace(/^Error\n\s*at [^\n]+\n/m, ''))
-          );
-          store.childToParent.set(promise, parent);
+          // stackTrace = new Error().stack?.replace(/^Error\n\s*at [^\n]+\n/m, '')!;
+
+          if (
+            currentAggregation &&
+            /^\s+at\sPromise\.then \(<anonymous>\)\n\s+at Function\.(race|all|allSettled|any) \(<anonymous>\)\n/.test(
+              stackTrace
+            )
+          ) {
+            // Skip internal promises created by the aggregator and link directly.
+            promise = currentAggregation;
+            // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+            stackTrace = store.promiseToStack.get(currentAggregation)!; // Must exist
+          } else if (/^\s+at Function\.(race|all|allSettled|any) \(<anonymous>\)\n/.test(stackTrace)) {
+            currentAggregation = promise;
+          } else {
+            currentAggregation = undefined;
+          }
+          // This is weird but apparently it happens
+          if (promise === parent) {
+            return;
+          }
+
+          store.promiseToStack.set(promise, stackTrace);
+          // In case of Promise.race and friends we might have multiple "parents"
+          const parents = store.childToParent.get(promise) ?? new Set();
+          if (parent) {
+            parents.add(parent);
+          }
+          store.childToParent.set(promise, parents);
         },
         settled(promise: Promise<unknown>) {
           // Only run in workflow context

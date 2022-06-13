@@ -11,11 +11,15 @@ const { queryOwnWf } = wf.proxyActivities<typeof activities>({
 });
 
 export async function stackTracer(): Promise<[string, string]> {
-  const first = await Promise.race([
-    queryOwnWf(wf.stackTraceQuery),
-    wf.executeChild(unblockOrCancel) as any,
-    wf.sleep(10000) as any,
-    new wf.Trigger<string>(),
+  const trigger = new wf.Trigger<string>();
+
+  const [first] = await Promise.all([
+    trigger,
+    Promise.race([
+      queryOwnWf(wf.stackTraceQuery).then((stack) => trigger.resolve(stack)),
+      wf.executeChild(unblockOrCancel),
+      wf.sleep(100_000),
+    ]),
   ]);
   const second = await queryOwnWf(wf.stackTraceQuery);
   return [first, second];
