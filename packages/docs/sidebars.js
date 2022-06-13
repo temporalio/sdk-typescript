@@ -12,7 +12,7 @@ function titleCase(str) {
 function nestMarkdownFiles() {
   return markdownFiles()
     .sort((a, b) => a.split('.').length - b.split('.').length)
-    .reduce((acc, f, i) => {
+    .reduce((acc, f) => {
       const url = path.relative(path.join(__dirname, 'docs'), f).replace(/\.md$/, '');
       const category = titleCase(url.split('/')[1]);
       const basename = path.basename(url);
