@@ -185,7 +185,7 @@ if (RUN_INTEGRATION_TESTS) {
     });
     Runtime.install({ logger });
 
-    const taskQueue = 'test-data-converter';
+    const taskQueue = `${__filename}/${t.title}`;
     const worker = await Worker.create({
       ...defaultOptions,
       workflowsPath: require.resolve('./workflows/protobufs'),

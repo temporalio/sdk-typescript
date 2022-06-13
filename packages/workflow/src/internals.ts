@@ -375,7 +375,7 @@ export class State {
   public readonly signalHandlers = new Map<string, WorkflowSignalType>();
 
   /**
-   * Mapping of signal name to handler
+   * Mapping of query name to handler
    */
   public readonly queryHandlers = new Map<string, WorkflowQueryType>([
     [
