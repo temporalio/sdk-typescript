@@ -14,7 +14,6 @@ import {
   PayloadCodec,
   RetryState,
   searchAttributePayloadConverter,
-  TemporalFailure,
   TerminatedFailure,
   TimeoutFailure,
   TimeoutType,
