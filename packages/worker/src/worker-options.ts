@@ -147,8 +147,6 @@ export interface WorkerOptions {
    * You should be able to fit about 500 Workflows per GB of memory dependening on your Workflow bundle size.
    * For the SDK test Workflows, we managed to fit 750 Workflows per GB.
    *
-   * This number is impacted by the the Worker's {@link maxIsolateMemoryMB} option.
-   *
    * @default `max(os.totalmem() / 1GiB - 1, 1) * 200`
    */
   maxCachedWorkflows?: number;
