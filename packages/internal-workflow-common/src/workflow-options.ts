@@ -1,11 +1,11 @@
-import type { coresdk, google } from '@temporalio/proto';
+import type { temporal, google } from '@temporalio/proto';
 import { SearchAttributes, Workflow } from './interfaces';
 import { RetryPolicy } from './retry-policy';
 import { msOptionalToTs } from './time';
 import { checkExtends, Replace } from './type-helpers';
 
 // Avoid importing the proto implementation to reduce workflow bundle size
-// Copied from coresdk.common.WorkflowIdReusePolicy
+// Copied from temporal.api.enums.v1.WorkflowIdReusePolicy
 export enum WorkflowIdReusePolicy {
   WORKFLOW_ID_REUSE_POLICY_UNSPECIFIED = 0,
   WORKFLOW_ID_REUSE_POLICY_ALLOW_DUPLICATE = 1,
@@ -13,7 +13,7 @@ export enum WorkflowIdReusePolicy {
   WORKFLOW_ID_REUSE_POLICY_REJECT_DUPLICATE = 3,
 }
 
-checkExtends<coresdk.common.WorkflowIdReusePolicy, WorkflowIdReusePolicy>();
+checkExtends<temporal.api.enums.v1.WorkflowIdReusePolicy, WorkflowIdReusePolicy>();
 
 export interface BaseWorkflowOptions {
   /**

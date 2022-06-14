@@ -446,7 +446,6 @@ export class State {
     signalWorkflow: 1,
     cancelWorkflow: 1,
     condition: 1,
-    upsertSearchAttributes: 1,
     // Used internally to keep track of active stack traces
     stack: 1,
   };

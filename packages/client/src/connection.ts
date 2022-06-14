@@ -5,7 +5,7 @@ import type { RPCImpl } from 'protobufjs';
 import { isServerErrorResponse, ServiceError } from './errors';
 import { defaultGrpcRetryOptions, makeGrpcRetryInterceptor } from './grpc-retry';
 import pkg from './pkg';
-import { CallContext, Metadata, WorkflowService } from './types';
+import { CallContext, Metadata, OperatorService, WorkflowService } from './types';
 
 /**
  * GRPC + Temporal server connection options
@@ -142,6 +142,7 @@ export interface ConnectionCtorOptions {
    * **NOTE**: The namespace provided in {@link options} is **not** automatically set on requests made to the service.
    */
   readonly workflowService: WorkflowService;
+  readonly operatorService: OperatorService;
   readonly callContextStorage: AsyncLocalStorage<CallContext>;
 }
 
@@ -165,6 +166,7 @@ export class Connection {
    * Raw gRPC access to the Temporal service.
    */
   public readonly workflowService: WorkflowService;
+  public readonly operatorService: OperatorService;
   readonly callContextStorage: AsyncLocalStorage<CallContext>;
 
   protected static createCtorOptions(options?: ConnectionOptions): ConnectionCtorOptions {
@@ -184,18 +186,26 @@ export class Connection {
     const callContextStorage = new AsyncLocalStorage<CallContext>();
     callContextStorage.enterWith({ metadata: optionsWithDefaults.metadata });
 
-    const rpcImpl = this.generateRPCImplementation({
+    const workflowRpcImpl = this.generateRPCImplementation({
       serviceName: 'temporal.api.workflowservice.v1.WorkflowService',
       client,
       callContextStorage,
       interceptors: optionsWithDefaults?.interceptors,
     });
-    const workflowService = WorkflowService.create(rpcImpl, false, false);
+    const workflowService = WorkflowService.create(workflowRpcImpl, false, false);
+    const operatorRpcImpl = this.generateRPCImplementation({
+      serviceName: 'temporal.api.operatorservice.v1.OperatorService',
+      client,
+      callContextStorage,
+      interceptors: optionsWithDefaults?.interceptors,
+    });
+    const operatorService = OperatorService.create(operatorRpcImpl, false, false);
 
     return {
       client,
       callContextStorage,
       workflowService,
+      operatorService,
       options: optionsWithDefaults,
     };
   }
@@ -251,10 +261,17 @@ export class Connection {
     return conn;
   }
 
-  protected constructor({ options, client, workflowService, callContextStorage }: ConnectionCtorOptions) {
+  protected constructor({
+    options,
+    client,
+    workflowService,
+    operatorService,
+    callContextStorage,
+  }: ConnectionCtorOptions) {
     this.options = options;
     this.client = client;
     this.workflowService = workflowService;
+    this.operatorService = operatorService;
     this.callContextStorage = callContextStorage;
   }
 

@@ -2,6 +2,7 @@ import {
   ApplicationFailure,
   defaultPayloadConverter,
   errorToFailure,
+  Payload,
   RetryState,
   toPayloads,
 } from '@temporalio/common';
@@ -129,7 +130,7 @@ function makeSuccess(
 
 function makeStartWorkflow(
   script: string,
-  args?: coresdk.common.IPayload[],
+  args?: Payload[],
   timestamp: number = Date.now()
 ): coresdk.workflow_activation.IWorkflowActivation {
   return makeActivation(timestamp, makeStartWorkflowJob(script, args));
@@ -137,7 +138,7 @@ function makeStartWorkflow(
 
 function makeStartWorkflowJob(
   workflowType: string,
-  args?: coresdk.common.IPayload[]
+  args?: Payload[]
 ): { startWorkflow: coresdk.workflow_activation.IStartWorkflow } {
   return {
     startWorkflow: { workflowId: 'test-workflowId', workflowType, arguments: args },
@@ -237,7 +238,7 @@ async function makeSignalWorkflow(
   });
 }
 
-function makeCompleteWorkflowExecution(result?: coresdk.common.IPayload): coresdk.workflow_commands.IWorkflowCommand {
+function makeCompleteWorkflowExecution(result?: Payload): coresdk.workflow_commands.IWorkflowCommand {
   result ??= { metadata: { encoding: u8('binary/null') } };
   return {
     completeWorkflowExecution: { result },

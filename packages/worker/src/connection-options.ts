@@ -1,4 +1,3 @@
-import os from 'os';
 import * as native from '@temporalio/core-bridge';
 import pkg from './pkg';
 
@@ -14,18 +13,6 @@ export interface NativeConnectionOptions {
    * @default localhost:7233
    */
   address?: string;
-
-  /**
-   * A human-readable string that can identify your worker
-   * @default `${process.pid}@${os.hostname()}`
-   */
-  identity?: string;
-
-  /**
-   * A string that should be unique to the exact worker code/binary being executed
-   * @default `@temporalio/worker` package name and version
-   */
-  workerBinaryId?: string;
 
   /**
    * TLS configuration options.
@@ -52,8 +39,6 @@ export type RequiredNativeConnectionOptions = Omit<Required<NativeConnectionOpti
 export function getDefaultConnectionOptions(): RequiredNativeConnectionOptions {
   return {
     address: 'localhost:7233',
-    identity: `${process.pid}@${os.hostname()}`,
-    workerBinaryId: `${pkg.name}@${pkg.version}`,
     sdkVersion: pkg.version,
   };
 }

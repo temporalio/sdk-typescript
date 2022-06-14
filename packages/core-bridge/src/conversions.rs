@@ -227,8 +227,6 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
             .client_name("temporal-typescript".to_string())
             .client_version(js_value_getter!(cx, self, "sdkVersion", JsString))
             .target_url(url)
-            .identity(js_value_getter!(cx, self, "identity", JsString))
-            .worker_binary_id(js_value_getter!(cx, self, "workerBinaryId", JsString))
             .retry_config(retry_config)
             .build()
             .expect("Core server gateway options must be valid"))
@@ -241,7 +239,9 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
             telemetry_opts.tracing_filter(tf.value(cx));
         }
         telemetry_opts.no_temporal_prefix_for_metrics(
-            js_optional_getter!(cx, self, "noTemporalPrefixForMetrics", JsBoolean).map(|b| b.value(cx)).unwrap_or_default()
+            js_optional_getter!(cx, self, "noTemporalPrefixForMetrics", JsBoolean)
+                .map(|b| b.value(cx))
+                .unwrap_or_default(),
         );
         if let Some(ref logging) = js_optional_getter!(cx, self, "logging", JsObject) {
             if let Some(_) = get_optional(cx, logging, "console") {
@@ -362,6 +362,8 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
                 .map(|num| num.value(cx) as f64);
 
         match WorkerConfigBuilder::default()
+            .worker_build_id(js_value_getter!(cx, self, "buildId", JsString))
+            .client_identity_override(Some(js_value_getter!(cx, self, "identity", JsString)))
             .no_remote_activities(!enable_remote_activities)
             .max_outstanding_workflow_tasks(max_outstanding_workflow_tasks)
             .max_outstanding_activities(max_outstanding_activities)
