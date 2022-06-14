@@ -1153,7 +1153,8 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
 
     at Promise.then (<anonymous>)
     at Trigger.then (workflow/src/trigger.ts)`
-        )
+        ),
+        `Got invalid stack:\n--- clean ---\n${stack1}\n--- raw ---\n${rawStacks[0]}`
       );
       t.is(
         stack2,
