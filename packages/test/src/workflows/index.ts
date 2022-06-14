@@ -74,6 +74,7 @@ export * from './sinks';
 export * from './sleep';
 export * from './sleep-invalid-duration';
 export * from './smorgasbord';
+export * from './stack-tracer';
 export * from './success-string';
 export * from './swc';
 export * from './tasks-and-microtasks';

@@ -60,20 +60,21 @@ export async function waitForCancellation(): Promise<void> {
   await Context.current().cancelled;
 }
 
-async function withSchedulingWorkflowHandle<R>(fn: (handle: WorkflowHandle) => Promise<R>): Promise<R> {
-  const { info, connection } = getContext();
+function getSchedulingWorkflowHandle(): WorkflowHandle {
+  const { info, connection, dataConverter } = getContext();
   const { workflowExecution } = info;
-  const client = new WorkflowClient({ connection, namespace: info.workflowNamespace });
-  const handle = client.getHandle(workflowExecution.workflowId, workflowExecution.runId);
-  return await fn(handle);
+  const client = new WorkflowClient({ connection, namespace: info.workflowNamespace, dataConverter });
+  return client.getHandle(workflowExecution.workflowId, workflowExecution.runId);
 }
 
 async function signalSchedulingWorkflow(signalName: string) {
-  await withSchedulingWorkflowHandle(async (handle) => handle.signal(signalName));
+  const handle = getSchedulingWorkflowHandle();
+  await handle.signal(signalName);
 }
 
 export async function queryOwnWf<R, A extends any[]>(queryDef: QueryDefinition<R, A>, ...args: A): Promise<R> {
-  return await withSchedulingWorkflowHandle(async (handle) => handle.query(queryDef, ...args));
+  const handle = getSchedulingWorkflowHandle();
+  return await handle.query(queryDef, ...args);
 }
 
 export async function fakeProgress(sleepIntervalMs = 1000, numIters = 1000): Promise<void> {

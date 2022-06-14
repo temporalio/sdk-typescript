@@ -6,15 +6,22 @@ import { WorkerInterceptors } from './interceptors';
 import { InjectedSinks } from './sinks';
 import { GiB } from './utils';
 import { NativeConnection } from './connection';
+import { WorkflowBundleWithSourceMap } from './workflow/bundler';
 
-export type WorkflowBundle = { code: string } | { path: string };
+export interface WorkflowBundlePathWithSourceMap {
+  codePath: string;
+  sourceMapPath: string;
+}
+export type WorkflowBundleOption = WorkflowBundleWithSourceMap | WorkflowBundlePathWithSourceMap;
 
-export function isCodeBundleOption(bundleOpt: WorkflowBundle): bundleOpt is { code: string } {
-  return typeof (bundleOpt as any).code === 'string';
+export function isCodeBundleOption(bundleOpt: WorkflowBundleOption): bundleOpt is WorkflowBundleWithSourceMap {
+  const opt = bundleOpt as any; // Cast to access properties without TS complaining
+  return typeof opt.code === 'string' && typeof opt.sourceMap === 'string';
 }
 
-export function isPathBundleOption(bundleOpt: WorkflowBundle): bundleOpt is { path: string } {
-  return typeof (bundleOpt as any).path === 'string';
+export function isPathBundleOption(bundleOpt: WorkflowBundleOption): bundleOpt is WorkflowBundlePathWithSourceMap {
+  const opt = bundleOpt as any; // Cast to access properties without TS complaining
+  return typeof opt.codePath === 'string' && opt.sourceMapPath;
 }
 
 /**
@@ -65,7 +72,7 @@ export interface WorkerOptions {
    *
    * See https://docs.temporal.io/typescript/production-deploy#pre-build-code for more information.
    */
-  workflowBundle?: WorkflowBundle;
+  workflowBundle?: WorkflowBundleOption;
 
   /**
    * Time to wait for pending tasks to drain after shutdown was requested.

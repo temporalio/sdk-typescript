@@ -6,7 +6,7 @@ import test, { ExecutionContext } from 'ava';
 import { v4 as uuid4 } from 'uuid';
 import { ProtoActivityResult } from '../protos/root';
 import { protoActivity } from './activities';
-import { cleanStackTrace, RUN_INTEGRATION_TESTS } from './helpers';
+import { cleanOptionalStackTrace, RUN_INTEGRATION_TESTS } from './helpers';
 import { defaultOptions, isolateFreeWorker } from './mock-native-worker';
 import { messageInstance, payloadConverter } from './payload-converters/proto-payload-converter';
 import * as workflows from './workflows';
@@ -26,7 +26,7 @@ function compareCompletion(
 ) {
   if (actual?.failed?.failure) {
     const { stackTrace, ...rest } = actual.failed.failure;
-    actual = { failed: { failure: { stackTrace: cleanStackTrace(stackTrace), ...rest } } };
+    actual = { failed: { failure: { stackTrace: cleanOptionalStackTrace(stackTrace), ...rest } } };
   }
   t.deepEqual(
     coresdk.activity_result.ActivityExecutionResult.create(actual ?? undefined).toJSON(),

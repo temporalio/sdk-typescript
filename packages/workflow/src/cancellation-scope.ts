@@ -1,5 +1,6 @@
 import { CancelledFailure, IllegalStateError } from '@temporalio/common';
 import type { AsyncLocalStorage as ALS } from 'async_hooks';
+import { untrackPromise } from './stack-helpers';
 
 // AsyncLocalStorage is injected via vm module into global scope.
 // In case Workflow code is imported in Node.js context, replace with an empty class.
@@ -104,8 +105,9 @@ export class CancellationScope {
         reject(err);
       };
     });
+    untrackPromise(this.cancelRequested);
     // Avoid unhandled rejections
-    this.cancelRequested.catch(() => undefined);
+    untrackPromise(this.cancelRequested.catch(() => undefined));
     if (options?.parent !== NO_PARENT) {
       this.parent = options?.parent || CancellationScope.current();
       this.#cancelRequested = this.parent.#cancelRequested;
@@ -137,11 +139,14 @@ export class CancellationScope {
    */
   protected async runInContext<T>(fn: () => Promise<T>): Promise<T> {
     if (this.timeout) {
-      sleep(this.timeout)
-        .then(() => this.cancel())
-        .catch(() => {
-          // scope was already cancelled, ignore
-        });
+      untrackPromise(
+        sleep(this.timeout).then(
+          () => this.cancel(),
+          () => {
+            // scope was already cancelled, ignore
+          }
+        )
+      );
     }
     return await fn();
   }

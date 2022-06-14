@@ -1,17 +1,29 @@
-import { IllegalStateError } from '@temporalio/common';
+import { cutoffStackTrace, IllegalStateError } from '@temporalio/common';
 import { coresdk } from '@temporalio/proto';
 import { WorkflowInfo } from '@temporalio/workflow';
 import { SinkCall } from '@temporalio/workflow/lib/sinks';
-import * as internals from '@temporalio/workflow/lib/worker-interface';
+import type * as internals from '@temporalio/workflow/lib/worker-interface';
 import assert from 'assert';
 import { AsyncLocalStorage } from 'async_hooks';
 import semver from 'semver';
+import { SourceMapConsumer } from 'source-map';
 import vm from 'vm';
+import v8 from 'v8';
 import { partition } from '../utils';
 import { Workflow, WorkflowCreateOptions, WorkflowCreator } from './interface';
 
 interface ActivationContext {
   isReplaying: boolean;
+}
+
+// Not present in @types/node for some reason
+const { promiseHooks } = v8 as any;
+
+function getPromiseStackStore(promise: Promise<any>): internals.PromiseStackStore | undefined {
+  // Access the global scope associated with the promise (unique per workflow - vm.context)
+  // See for reference https://github.com/patriksimek/vm2/issues/32
+  const ctor = promise.constructor.constructor;
+  return ctor('return globalThis.__TEMPORAL__?.promiseStackStore')();
 }
 
 // Best effort to catch unhandled rejections from workflow code.
@@ -46,7 +58,7 @@ export class VMWorkflowCreator implements WorkflowCreator {
 
   script?: vm.Script;
 
-  constructor(script: vm.Script, public readonly isolateExecutionTimeoutMs: number) {
+  constructor(script: vm.Script, public readonly sourceMap: string, public readonly isolateExecutionTimeoutMs: number) {
     if (!VMWorkflowCreator.unhandledRejectionHandlerHasBeenSet) {
       setUnhandledRejectionHandler();
       VMWorkflowCreator.unhandledRejectionHandlerHasBeenSet = true;
@@ -64,8 +76,7 @@ export class VMWorkflowCreator implements WorkflowCreator {
    */
   async createWorkflow(options: WorkflowCreateOptions): Promise<Workflow> {
     const context = await this.getContext();
-    const activationContext = { isReplaying: options.isReplaying }; // Uninitialized
-    // TODO: pass this on to the VMWorkflow instance to mutate
+    const activationContext = { isReplaying: options.isReplaying };
     this.injectConsole(context, options.info, activationContext);
     const { hasSeparateMicrotaskQueue, isolateExecutionTimeoutMs } = this;
     const workflowModule: WorkflowModule = new Proxy(
@@ -113,9 +124,12 @@ export class VMWorkflowCreator implements WorkflowCreator {
     }
     let context;
     if (this.hasSeparateMicrotaskQueue) {
-      context = vm.createContext({ AsyncLocalStorage, assert }, { microtaskMode: 'afterEvaluate' });
+      context = vm.createContext(
+        { AsyncLocalStorage, assert, activePromises: new Set() },
+        { microtaskMode: 'afterEvaluate' }
+      );
     } else {
-      context = vm.createContext({ AsyncLocalStorage, assert });
+      context = vm.createContext({ AsyncLocalStorage, assert, activePromises: new Set() });
     }
     this.script.runInContext(context);
     return context;
@@ -144,10 +158,105 @@ export class VMWorkflowCreator implements WorkflowCreator {
   public static async create<T extends typeof VMWorkflowCreator>(
     this: T,
     code: string,
+    sourceMap: string,
     isolateExecutionTimeoutMs: number
   ): Promise<InstanceType<T>> {
     const script = new vm.Script(code, { filename: 'workflow-isolate' });
-    return new this(script, isolateExecutionTimeoutMs) as InstanceType<T>;
+    const sourceMapConsumer = await new SourceMapConsumer(JSON.parse(sourceMap));
+
+    // Augment the global vm Error stack trace prepare function
+    // NOTE: this means that multiple instances of this class in the same VM
+    // will override each other.
+    // This should be a non-issue in most cases since we typically construct a single instance of
+    // this class per Worker thread.
+    Error.prepareStackTrace = (err, stackTraces) => {
+      const converted = stackTraces.map((callsite) => {
+        const line = callsite.getLineNumber();
+        const column = callsite.getColumnNumber();
+        if (callsite.getFileName() === 'workflow-isolate' && line && column) {
+          const pos = sourceMapConsumer.originalPositionFor({ line, column });
+
+          const typeName = callsite.getTypeName();
+          const methodName = callsite.getMethodName();
+          const functionName = callsite.getFunctionName();
+          const isConstructor = callsite.isConstructor();
+
+          const name =
+            pos.name ||
+            (typeName && methodName
+              ? `${callsite.getTypeName()}.${callsite.getMethodName()}`
+              : isConstructor && functionName
+              ? `new ${functionName}`
+              : functionName);
+          return name
+            ? `    at ${name} (${pos.source}:${pos.line}:${pos.column})`
+            : `    at ${pos.source}:${pos.line}:${pos.column}`;
+        } else {
+          return `    at ${callsite}`;
+        }
+      });
+      return `${err}\n${converted.join('\n')}`;
+    };
+
+    // Track Promise aggregators like `race` and `all` to link their internally created promises
+    let currentAggregation: Promise<unknown> | undefined = undefined;
+
+    // This also is set globally for the isolate which unless the worker is run in debug mode is insignificant
+    if (promiseHooks) {
+      // Node >=16.14 only
+      promiseHooks.createHook({
+        init(promise: Promise<unknown>, parent: Promise<unknown>) {
+          // Only run in workflow context
+          const store = getPromiseStackStore(promise);
+          if (!store) return;
+          let stackTrace = cutoffStackTrace(
+            new Error().stack?.replace(
+              /^Error\n\s*at [^\n]+\n(\s*at initAll \(node:internal\/promise_hooks:\d+:\d+\)\n)?/,
+              ''
+            )
+          );
+          // To see the full stack replace with commented line
+          // stackTrace = new Error().stack?.replace(/^Error\n\s*at [^\n]+\n(\s*at initAll \(node:internal\/promise_hooks:\d+:\d+\)\n)?/, '')!;
+
+          if (
+            currentAggregation &&
+            /^\s+at\sPromise\.then \(<anonymous>\)\n\s+at Function\.(race|all|allSettled|any) \(<anonymous>\)\n/.test(
+              stackTrace
+            )
+          ) {
+            // Skip internal promises created by the aggregator and link directly.
+            promise = currentAggregation;
+            // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+            stackTrace = store.promiseToStack.get(currentAggregation)!; // Must exist
+          } else if (/^\s+at Function\.(race|all|allSettled|any) \(<anonymous>\)\n/.test(stackTrace)) {
+            currentAggregation = promise;
+          } else {
+            currentAggregation = undefined;
+          }
+          // This is weird but apparently it happens
+          if (promise === parent) {
+            return;
+          }
+
+          store.promiseToStack.set(promise, stackTrace);
+          // In case of Promise.race and friends we might have multiple "parents"
+          const parents = store.childToParent.get(promise) ?? new Set();
+          if (parent) {
+            parents.add(parent);
+          }
+          store.childToParent.set(promise, parents);
+        },
+        settled(promise: Promise<unknown>) {
+          // Only run in workflow context
+          const store = getPromiseStackStore(promise);
+          if (!store) return;
+          store.childToParent.delete(promise);
+          store.promiseToStack.delete(promise);
+        },
+      });
+    }
+
+    return new this(script, sourceMap, isolateExecutionTimeoutMs) as InstanceType<T>;
   }
 
   /**
@@ -213,7 +322,7 @@ export class VMWorkflow implements Workflow {
       if (jobs.length === 0) {
         continue;
       }
-      await this.workflowModule.activate(
+      this.workflowModule.activate(
         coresdk.workflow_activation.WorkflowActivation.fromObject({ ...activation, jobs }),
         batchIndex++
       );

@@ -1,4 +1,5 @@
 import { CancellationScope } from './cancellation-scope';
+import { untrackPromise } from './stack-helpers';
 
 /**
  * A `PromiseLike` helper which exposes its `resolve` and `reject` methods.
@@ -13,11 +14,6 @@ import { CancellationScope } from './cancellation-scope';
  * <!--SNIPEND-->
  */
 export class Trigger<T> implements PromiseLike<T> {
-  public readonly then: <TResult1 = T, TResult2 = never>(
-    onfulfilled?: ((value: T) => TResult1 | PromiseLike<TResult1>) | undefined | null,
-    onrejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | undefined | null
-  ) => PromiseLike<TResult1 | TResult2>;
-
   // Typescript does not realize that the promise executor is run synchronously in the constructor
   // eslint-disable-next-line @typescript-eslint/ban-ts-comment
   // @ts-ignore
@@ -25,12 +21,13 @@ export class Trigger<T> implements PromiseLike<T> {
   // eslint-disable-next-line @typescript-eslint/ban-ts-comment
   // @ts-ignore
   public readonly reject: (reason?: any) => void;
+  protected readonly promise: Promise<T>;
 
   constructor() {
-    const promise = new Promise<T>((resolve, reject) => {
+    this.promise = new Promise<T>((resolve, reject) => {
       const scope = CancellationScope.current();
       if (scope.consideredCancelled || scope.cancellable) {
-        scope.cancelRequested.catch(reject);
+        untrackPromise(scope.cancelRequested.catch(reject));
       }
       // eslint-disable-next-line @typescript-eslint/ban-ts-comment
       // @ts-ignore
@@ -40,7 +37,13 @@ export class Trigger<T> implements PromiseLike<T> {
       this.reject = reject;
     });
     // Avoid unhandled rejections
-    promise.catch(() => undefined);
-    this.then = promise.then.bind(promise);
+    untrackPromise(this.promise.catch(() => undefined));
+  }
+
+  then<TResult1 = T, TResult2 = never>(
+    onfulfilled?: ((value: T) => TResult1 | PromiseLike<TResult1>) | undefined | null,
+    onrejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | undefined | null
+  ): PromiseLike<TResult1 | TResult2> {
+    return this.promise.then(onfulfilled, onrejected);
   }
 }

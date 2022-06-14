@@ -6,7 +6,7 @@ import anyTest, { ExecutionContext, TestInterface } from 'ava';
 import dedent from 'dedent';
 import { v4 as uuid4 } from 'uuid';
 import { httpGet } from './activities';
-import { cleanStackTrace } from './helpers';
+import { cleanOptionalStackTrace } from './helpers';
 import { defaultOptions, isolateFreeWorker, Worker } from './mock-native-worker';
 import { withZeroesHTTPServer } from './zeroes-http-server';
 
@@ -42,7 +42,7 @@ function compareCompletion(
 ) {
   if (actual?.failed?.failure) {
     const { stackTrace, ...rest } = actual.failed.failure;
-    actual = { failed: { failure: { stackTrace: cleanStackTrace(stackTrace), ...rest } } };
+    actual = { failed: { failure: { stackTrace: cleanOptionalStackTrace(stackTrace), ...rest } } };
   }
   t.deepEqual(
     coresdk.activity_result.ActivityExecutionResult.create(actual ?? undefined).toJSON(),
@@ -87,7 +87,7 @@ test('Worker runs an activity and reports failure', async (t) => {
           source: 'TypeScriptSDK',
           stackTrace: dedent`
             Error: :(
-                at Activity.throwAnError [as fn]
+                at Activity.throwAnError [as fn] (test/src/activities/index.ts)
           `,
           applicationFailureInfo: { type: 'Error', nonRetryable: false },
         },
