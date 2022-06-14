@@ -209,9 +209,14 @@ export class VMWorkflowCreator implements WorkflowCreator {
           // Only run in workflow context
           const store = getPromiseStackStore(promise);
           if (!store) return;
-          let stackTrace = cutoffStackTrace(new Error().stack?.replace(/^Error\n\s*at [^\n]+\n/m, ''));
+          let stackTrace = cutoffStackTrace(
+            new Error().stack?.replace(
+              /^Error\n\s*at [^\n]+\n(\s*at initAll \(node:internal\/promise_hooks:\d+:\d+\)\n)?/,
+              ''
+            )
+          );
           // To see the full stack replace with commented line
-          // stackTrace = new Error().stack?.replace(/^Error\n\s*at [^\n]+\n/m, '')!;
+          // stackTrace = new Error().stack?.replace(/^Error\n\s*at [^\n]+\n(\s*at initAll \(node:internal\/promise_hooks:\d+:\d+\)\n)?/, '')!;
 
           if (
             currentAggregation &&

@@ -1134,13 +1134,13 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
         taskQueue: 'test',
         workflowId,
       });
+
       const [stack1, stack2] = rawStacks.map((r) =>
         r
           .split('\n\n')
           .map((s) => cleanOptionalStackTrace(`\n${s}`))
           .join('\n')
       );
-
       // Can't get the Trigger stack cleaned, this is okay for now
       // NOTE: we check endsWith because under certain conditions we might see Promise.race in the trace
       t.true(
