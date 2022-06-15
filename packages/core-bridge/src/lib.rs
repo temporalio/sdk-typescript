@@ -5,7 +5,6 @@ use crate::conversions::{get_optional, ObjectHandleConversionsExt};
 use errors::*;
 use neon::prelude::*;
 use neon::types::buffer::TypedArray;
-use once_cell::sync::OnceCell;
 use opentelemetry::trace::{FutureExt, SpanContext, TraceContextExt};
 use parking_lot::RwLock;
 use prost::Message;
@@ -167,16 +166,13 @@ struct Worker {
 type BoxedWorker = JsBox<RefCell<Option<Worker>>>;
 impl Finalize for Worker {}
 
-/// Lazy-inits or returns a global tokio runtime that we use for interactions with Core(s)
-fn tokio_runtime() -> &'static Runtime {
-    static INSTANCE: OnceCell<Runtime> = OnceCell::new();
-    INSTANCE.get_or_init(|| {
-        tokio::runtime::Builder::new_multi_thread()
-            .enable_all()
-            .thread_name("core")
-            .build()
-            .expect("Tokio runtime must construct properly")
-    })
+/// Inits a multi-threaded tokio runtime used to interact with sdk-core APIs
+fn tokio_runtime() -> Runtime {
+    tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .thread_name("core")
+        .build()
+        .expect("Tokio runtime must construct properly")
 }
 
 /// Send a result to JS via callback using a [Channel]
