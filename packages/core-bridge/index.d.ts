@@ -257,7 +257,7 @@ export declare function newReplayWorker(
   callback: WorkerCallback
 ): void;
 export declare function workerInitiateShutdown(worker: Worker, callback: VoidCallback): void;
-export declare function workerFinalizeShutdown(worker: Worker, callback: VoidCallback): void;
+export declare function workerFinalizeShutdown(worker: Worker): void;
 export declare function clientUpdateHeaders(
   client: Client,
   headers: Record<string, string>,

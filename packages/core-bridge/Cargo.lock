@@ -1792,6 +1792,7 @@ dependencies = [
  "temporal-client",
  "temporal-sdk-core",
  "tokio",
+ "tokio-stream",
 ]
 
 [[package]]

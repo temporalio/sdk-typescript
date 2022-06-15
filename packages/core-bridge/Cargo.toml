@@ -28,3 +28,4 @@ tokio = "1.13"
 once_cell = "1.7.2"
 temporal-sdk-core = { version = "*", path = "./sdk-core/core" }
 temporal-client = { version = "*", path = "./sdk-core/client" }
+tokio-stream = "0.1"
