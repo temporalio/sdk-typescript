@@ -114,8 +114,23 @@ module.exports = {
     [
       'docusaurus-plugin-typedoc',
       {
+        id: 'meta-docs',
         entryPoints: ['../meta/src/index.ts'],
         tsconfig: '../meta/tsconfig.json',
+        excludePrivate: true,
+        excludeProtected: true,
+        hideGenerator: true,
+        disableSources: true,
+        readme: 'none',
+        watch,
+      },
+    ],
+    [
+      'docusaurus-plugin-typedoc',
+      {
+        id: 'teesting-docs',
+        entryPoints: ['../testing/src/index-for-docs.ts'],
+        tsconfig: '../testing/tsconfig.json',
         excludePrivate: true,
         excludeProtected: true,
         hideGenerator: true,
