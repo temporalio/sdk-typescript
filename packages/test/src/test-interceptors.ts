@@ -47,7 +47,6 @@ if (RUN_INTEGRATION_TESTS) {
         workflowModules: [require.resolve('./workflows/interceptor-example')],
       },
     });
-    const workerDrained = worker.run();
     const client = new WorkflowClient({
       interceptors: {
         calls: [
@@ -100,7 +99,7 @@ if (RUN_INTEGRATION_TESTS) {
         ],
       },
     });
-    try {
+    await worker.runUntil(async () => {
       {
         const wf = await client.start(interceptorExample, {
           taskQueue,
@@ -124,10 +123,7 @@ if (RUN_INTEGRATION_TESTS) {
         const result = await wf.result();
         t.is(result, message);
       }
-    } finally {
-      worker.shutdown();
-      await workerDrained;
-    }
+    });
   });
 
   test.serial('WorkflowClientCallsInterceptor intercepts terminate and cancel', async (t) => {
@@ -138,7 +134,6 @@ if (RUN_INTEGRATION_TESTS) {
       ...defaultOptions,
       taskQueue,
     });
-    const workerDrained = worker.run();
     const client = new WorkflowClient({
       interceptors: {
         calls: [
@@ -154,7 +149,7 @@ if (RUN_INTEGRATION_TESTS) {
       },
     });
 
-    try {
+    await worker.runUntil(async () => {
       const wf = await client.start(unblockOrCancel, {
         taskQueue,
         workflowId: uuid4(),
@@ -172,10 +167,7 @@ if (RUN_INTEGRATION_TESTS) {
         throw new Error('Unreachable');
       }
       t.true(error.cause instanceof TerminatedFailure);
-    } finally {
-      worker.shutdown();
-      await workerDrained;
-    }
+    });
   });
 
   test.serial('Workflow continueAsNew can be intercepted', async (t) => {
@@ -189,21 +181,18 @@ if (RUN_INTEGRATION_TESTS) {
       },
     });
     const client = new WorkflowClient();
-    const [_, err] = await Promise.all([
-      worker.run(),
-      (await t.throwsAsync(
-        client
-          .execute(continueAsNewToDifferentWorkflow, {
-            taskQueue,
-            workflowId: uuid4(),
-          })
-          .finally(() => worker.shutdown()),
+    const err = await worker.runUntil(async () => {
+      return (await t.throwsAsync(
+        client.execute(continueAsNewToDifferentWorkflow, {
+          taskQueue,
+          workflowId: uuid4(),
+        }),
         {
           instanceOf: WorkflowFailedError,
           message: 'Workflow execution failed',
         }
-      )) as WorkflowFailedError,
-    ]);
+      )) as WorkflowFailedError;
+    });
 
     if (!(err.cause instanceof ApplicationFailure)) {
       t.fail(`Expected err.cause to be an ApplicationFailure, got ${err.cause}`);
@@ -246,15 +235,12 @@ if (RUN_INTEGRATION_TESTS) {
       },
     });
     const client = new WorkflowClient();
-    await Promise.all([
-      worker.run(),
-      client
-        .execute(internalsInterceptorExample, {
-          taskQueue,
-          workflowId: uuid4(),
-        })
-        .finally(() => worker.shutdown()),
-    ]);
+    await worker.runUntil(
+      client.execute(internalsInterceptorExample, {
+        taskQueue,
+        workflowId: uuid4(),
+      })
+    );
     t.deepEqual(events, ['activate: 0', 'concludeActivation: 1', 'activate: 0', 'concludeActivation: 1']);
   });
 }

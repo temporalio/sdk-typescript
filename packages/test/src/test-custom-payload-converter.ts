@@ -12,13 +12,6 @@ import { messageInstance, payloadConverter } from './payload-converters/proto-pa
 import * as workflows from './workflows';
 import { protobufWorkflow } from './workflows/protobufs';
 
-export async function runWorker(worker: Worker, fn: () => Promise<any>): Promise<void> {
-  const promise = worker.run();
-  await fn();
-  worker.shutdown();
-  await promise;
-}
-
 function compareCompletion(
   t: ExecutionContext,
   actual: coresdk.activity_result.IActivityExecutionResult | null | undefined,
@@ -45,7 +38,7 @@ if (RUN_INTEGRATION_TESTS) {
       dataConverter,
     });
     const client = new WorkflowClient({ dataConverter });
-    const runAndShutdown = async () => {
+    await worker.runUntil(async () => {
       const result = await client.execute(protobufWorkflow, {
         args: [messageInstance],
         workflowId: uuid4(),
@@ -53,9 +46,7 @@ if (RUN_INTEGRATION_TESTS) {
       });
 
       t.deepEqual(result, ProtoActivityResult.create({ sentence: `Proto is 1 years old.` }));
-      worker.shutdown();
-    };
-    await Promise.all([worker.run(), runAndShutdown()]);
+    });
   });
 
   test('fromPayload throws on Client when receiving result from client.execute()', async (t) => {
@@ -63,26 +54,23 @@ if (RUN_INTEGRATION_TESTS) {
       ...defaultOptions,
     });
 
-    const runPromise = worker.run();
-
     const client = new WorkflowClient({
       dataConverter: {
         payloadConverterPath: require.resolve('./payload-converters/payload-converter-throws-from-payload'),
       },
     });
-    await t.throwsAsync(
-      client.execute(workflows.successString, {
-        taskQueue: 'test',
-        workflowId: uuid4(),
-      }),
-      {
-        instanceOf: Error,
-        message: 'test fromPayload',
-      }
+    await worker.runUntil(
+      t.throwsAsync(
+        client.execute(workflows.successString, {
+          taskQueue: 'test',
+          workflowId: uuid4(),
+        }),
+        {
+          instanceOf: Error,
+          message: 'test fromPayload',
+        }
+      )
     );
-
-    worker.shutdown();
-    await runPromise;
   });
 }
 
@@ -127,7 +115,7 @@ test('Worker with proto data converter runs an activity and reports completion',
     dataConverter: { payloadConverterPath: require.resolve('./payload-converters/proto-payload-converter') },
   });
 
-  await runWorker(worker, async () => {
+  await worker.runUntil(async () => {
     const taskToken = Buffer.from(uuid4());
     const completion = await worker.native.runActivityTask({
       taskToken,

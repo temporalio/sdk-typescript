@@ -41,16 +41,13 @@ if (RUN_INTEGRATION_TESTS) {
       sinks,
     });
 
-    await Promise.all([
-      worker.run(),
-      (async () => {
-        try {
-          await wf.result();
-        } finally {
-          worker.shutdown();
-        }
-      })(),
-    ]);
+    await worker.runUntil(async () => {
+      try {
+        await wf.result();
+      } finally {
+        worker.shutdown();
+      }
+    });
 
     // Workflow completes if it got the signal
     t.pass();

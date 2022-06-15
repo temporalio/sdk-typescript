@@ -73,12 +73,12 @@ if (RUN_INTEGRATION_TESTS) {
       taskQueue,
       sinks,
     });
-    const p = worker.run();
     const client = new WorkflowClient();
-    const wf = await client.start(workflows.sinksWorkflow, { taskQueue, workflowId: uuid4() });
-    await wf.result();
-    worker.shutdown();
-    await p;
+    const wf = await worker.runUntil(async () => {
+      const wf = await client.start(workflows.sinksWorkflow, { taskQueue, workflowId: uuid4() });
+      await wf.result();
+      return wf;
+    });
     const info: WorkflowInfo = {
       namespace: 'default',
       firstExecutionRunId: wf.firstExecutionRunId,
@@ -184,16 +184,7 @@ if (RUN_INTEGRATION_TESTS) {
       maxConcurrentWorkflowTaskExecutions: 1,
     });
     const client = new WorkflowClient();
-    await Promise.all([
-      (async () => {
-        try {
-          await client.execute(workflows.logSinkTester, { taskQueue, workflowId: uuid4() });
-        } finally {
-          worker.shutdown();
-        }
-      })(),
-      worker.run(),
-    ]);
+    await worker.runUntil(client.execute(workflows.logSinkTester, { taskQueue, workflowId: uuid4() }));
 
     // Note that task may be replayed more than once and record the first messages multiple times.
     t.deepEqual(recordedMessages.slice(0, 2), [

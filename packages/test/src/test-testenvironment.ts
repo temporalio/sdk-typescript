@@ -15,18 +15,6 @@ interface Context {
   testEnv: TestWorkflowEnvironment;
 }
 
-async function withWorker<R>(worker: Worker, fn: () => Promise<R>): Promise<R> {
-  const runAndShutdown = async () => {
-    try {
-      return await fn();
-    } finally {
-      worker.shutdown();
-    }
-  };
-  const [_, ret] = await Promise.all([worker.run(), runAndShutdown()]);
-  return ret;
-}
-
 const test = anyTest as TestInterface<Context>;
 
 test.before(async (t) => {
@@ -50,13 +38,13 @@ test.serial('TestEnvironment sets up test server and is able to run a Workflow w
     taskQueue: 'test',
     workflowsPath: require.resolve('./workflows/testenv-test-workflows'),
   });
-  await withWorker(worker, async () => {
-    await workflowClient.execute(sleep, {
+  await worker.runUntil(
+    workflowClient.execute(sleep, {
       workflowId: uuid4(),
       taskQueue: 'test',
       args: [1_000_000],
-    });
-  });
+    })
+  );
   t.pass();
 });
 
@@ -87,7 +75,7 @@ test.serial('TestEnvironment can toggle between normal and skipped time', async 
     }
   };
 
-  await withWorker(worker, async () => {
+  await worker.runUntil(async () => {
     await race(true);
     await race(false);
   });
@@ -121,7 +109,7 @@ test.serial('TestEnvironment sleep can be used to delay activity completion', as
     });
     t.is(winner, expectedWinner);
   };
-  await withWorker(worker, async () => {
+  await worker.runUntil(async () => {
     // TODO: there's an issue with the Java test server where if an activity
     // does not complete before its scheduling workflow, time skipping stays
     // locked.
@@ -149,7 +137,7 @@ test.serial('TestEnvironment sleep can be used to delay sending a signal', async
     workflowsPath: require.resolve('./workflows/testenv-test-workflows'),
   });
 
-  await withWorker(worker, async () => {
+  await worker.runUntil(async () => {
     const handle = await workflowClient.start(waitOnSignalWithTimeout, {
       workflowId: uuid4(),
       taskQueue: 'test',
@@ -173,7 +161,7 @@ test.serial('Workflow code can run assertions', async (t) => {
     },
   });
 
-  await withWorker(worker, async () => {
+  await worker.runUntil(async () => {
     const err: WorkflowFailedError = await t.throwsAsync(
       workflowClient.execute(assertFromWorkflow, {
         workflowId: uuid4(),

@@ -7,11 +7,10 @@ import { isolateFreeWorker, Worker } from './mock-native-worker';
 
 async function runActivity(worker: Worker, callback?: (completion: coresdk.ActivityTaskCompletion) => void) {
   const taskToken = Buffer.from(uuid4());
-  const p = worker.run();
-  const completion = await worker.native.runActivityTask({ taskToken, start: { activityType: 'rapidHeartbeater' } });
+  const completion = await worker.runUntil(() =>
+    worker.native.runActivityTask({ taskToken, start: { activityType: 'rapidHeartbeater' } })
+  );
   callback?.(completion);
-  worker.shutdown();
-  await p;
 }
 
 test('Worker stores last heartbeat if flushing is in progress', async (t) => {

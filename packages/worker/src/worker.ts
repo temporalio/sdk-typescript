@@ -1493,6 +1493,29 @@ export class Worker {
   }
 
   /**
+   * {@link run | Run} the Worker until `fnOrPromise` completes.
+   *
+   * @returns the result of `fnOrPromise`
+   *
+   * Throws on fatal Worker errors.
+   */
+  async runUntil<R>(fnOrPromise: Promise<R> | (() => Promise<R>)): Promise<R> {
+    const runAndShutdown = async () => {
+      try {
+        if (typeof fnOrPromise === 'function') {
+          return await fnOrPromise();
+        } else {
+          return await fnOrPromise;
+        }
+      } finally {
+        this.shutdown();
+      }
+    };
+    const [_, ret] = await Promise.all([this.run(), runAndShutdown()]);
+    return ret;
+  }
+
+  /**
    * Start polling on tasks, completes after graceful shutdown.
    * Throws on a fatal error or failure to shutdown gracefully.
    * @see {@link errors}

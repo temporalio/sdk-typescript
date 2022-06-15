@@ -31,16 +31,7 @@ if (RUN_INTEGRATION_TESTS) {
       workflowBundle,
     });
     const client = new WorkflowClient();
-    await Promise.all([
-      worker.run(),
-      (async () => {
-        try {
-          await client.execute(successString, { taskQueue, workflowId: uuid4() });
-        } finally {
-          worker.shutdown();
-        }
-      })(),
-    ]);
+    await worker.runUntil(client.execute(successString, { taskQueue, workflowId: uuid4() }));
     t.pass();
   });
 
@@ -60,16 +51,7 @@ if (RUN_INTEGRATION_TESTS) {
     });
     const client = new WorkflowClient();
     try {
-      await Promise.all([
-        worker.run(),
-        (async () => {
-          try {
-            await client.execute(successString, { taskQueue, workflowId: uuid4() });
-          } finally {
-            worker.shutdown();
-          }
-        })(),
-      ]);
+      await worker.runUntil(client.execute(successString, { taskQueue, workflowId: uuid4() }));
     } finally {
       await unlink(codePath);
     }
@@ -87,16 +69,7 @@ if (RUN_INTEGRATION_TESTS) {
       workflowBundle,
     });
     const client = new WorkflowClient();
-    await Promise.all([
-      worker.run(),
-      (async () => {
-        try {
-          await client.execute(issue516, { taskQueue, workflowId: uuid4() });
-        } finally {
-          worker.shutdown();
-        }
-      })(),
-    ]);
+    await worker.runUntil(client.execute(issue516, { taskQueue, workflowId: uuid4() }));
     t.pass();
   });
 
