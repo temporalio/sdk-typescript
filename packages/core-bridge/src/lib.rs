@@ -73,7 +73,7 @@ enum Request {
     },
     /// A request to finalize shutdown a worker, the worker should not be used after this is called
     FinalizeWorkerShutdown {
-        worker: CoreWorker,
+        worker: Arc<CoreWorker>,
         /// Used to send the result back into JS
         callback: Root<JsFunction>,
     },
@@ -358,17 +358,29 @@ fn start_bridge_loop(channel: Arc<Channel>, receiver: &mut UnboundedReceiver<Req
                     send_result(channel.clone(), callback, |cx| Ok(cx.undefined()));
                 }
                 Request::FinalizeWorkerShutdown { worker, callback } => {
-                    tokio::spawn(void_future_to_js(
-                        channel,
-                        callback,
-                        async move {
-                            worker.finalize_shutdown().await;
-                            // Wrap the empty result in a valid Result object
-                            let result: Result<(), String> = Ok(());
-                            result
-                        },
-                        |cx, err| UNEXPECTED_ERROR.from_error(cx, err),
-                    ));
+                    match Arc::try_unwrap(worker) {
+                        Ok(unwrapped_worker) => {
+                            tokio::spawn(void_future_to_js(
+                                channel,
+                                callback,
+                                async move {
+                                    unwrapped_worker.finalize_shutdown().await;
+                                    // Wrap the empty result in a valid Result object
+                                    let result: Result<(), String> = Ok(());
+                                    result
+                                },
+                                |cx, err| UNEXPECTED_ERROR.from_error(cx, err),
+                            ));
+                        }
+                        Err(_) => {
+                            send_error(channel.clone(), callback, |cx| {
+                                UNEXPECTED_ERROR.from_error(
+                                    cx,
+                                    "Found more than one reference to the native Worker",
+                                )
+                            });
+                        }
+                    };
                 }
                 Request::InitWorker {
                     runtime,
@@ -898,29 +910,17 @@ fn worker_finalize_shutdown(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     match worker.replace(None) {
         None => {
             ILLEGAL_STATE_ERROR
-                .from_error(&mut cx, "Client already closed")
+                .from_error(&mut cx, "Worker already closed")
                 .and_then(|err| cx.throw(err))?;
         }
         Some(worker) => {
-            match Arc::try_unwrap(worker.core_worker) {
-                Ok(unwrapped_worker) => {
-                    if let Err(err) = worker.runtime.sender.send(Request::FinalizeWorkerShutdown {
-                        worker: unwrapped_worker,
-                        callback: callback.root(&mut cx),
-                    }) {
-                        UNEXPECTED_ERROR
-                            .from_error(&mut cx, err)
-                            .and_then(|err| cx.throw(err))?;
-                    };
-                }
-                Err(_) => {
-                    UNEXPECTED_ERROR
-                        .from_error(
-                            &mut cx,
-                            "Found more than one reference to the native Worker",
-                        )
-                        .and_then(|err| cx.throw(err))?;
-                }
+            if let Err(err) = worker.runtime.sender.send(Request::FinalizeWorkerShutdown {
+                worker: worker.core_worker.clone(),
+                callback: callback.root(&mut cx),
+            }) {
+                UNEXPECTED_ERROR
+                    .from_error(&mut cx, err)
+                    .and_then(|err| cx.throw(err))?;
             };
         }
     }
