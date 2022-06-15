@@ -16,3 +16,4 @@ slug: /
 | [`@temporalio/client`](./api/namespaces/client)          | Communicate with the Temporal service for things like administration and scheduling workflows |
 | [`@temporalio/common`](./api/namespaces/common)          | Common library for code that's used across the Client, Worker, and/or Workflow                |
 | [`@temporalio/proto`](./api/namespaces/proto)            | Compiled protobuf definitions                                                                 |
+| [`@temporalio/testing`](./api/namespaces/testing)        | Test framework                                                                                |
