@@ -150,7 +150,17 @@ export interface WorkerConstructor {
   ): Promise<NativeWorkerLike>;
 }
 
-function addBuildId<T extends CompiledWorkerOptions>(options: T, bundleCode?: string): T & { buildId: string } {
+function isOptionsWithBuildId<T extends CompiledWorkerOptions>(options: T): options is T & { buildId: string } {
+  return options.buildId != null;
+}
+
+function addBuildIdIfMissing<T extends CompiledWorkerOptions>(
+  options: T,
+  bundleCode?: string
+): T & { buildId: string } {
+  if (isOptionsWithBuildId(options)) {
+    return options;
+  }
   const suffix = bundleCode ? `+${crypto.createHash('sha256').update(bundleCode).digest('hex')}` : '';
   return { ...options, buildId: `${pkg.name}@${pkg.version}${suffix}` };
 }
@@ -171,7 +181,7 @@ export class NativeWorker implements NativeWorkerLike {
     const runtime = Runtime.instance();
     const nativeWorker = await runtime.registerWorker(
       extractNativeClient(connection),
-      addBuildId(options, bundle?.code)
+      addBuildIdIfMissing(options, bundle?.code)
     );
     return new NativeWorker(runtime, nativeWorker);
   }
@@ -182,7 +192,7 @@ export class NativeWorker implements NativeWorkerLike {
     bundle: WorkflowBundleWithSourceMap
   ): Promise<NativeWorkerLike> {
     const runtime = Runtime.instance();
-    const nativeWorker = await runtime.createReplayWorker(addBuildId(options, bundle.code), history);
+    const nativeWorker = await runtime.createReplayWorker(addBuildIdIfMissing(options, bundle.code), history);
     return new NativeWorker(runtime, nativeWorker);
   }
 

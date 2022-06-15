@@ -48,7 +48,7 @@ export interface WorkerOptions {
    *
    * @default `@temporalio/worker` package name and version + checksum of workflow bundle's code
    */
-  workerBuildId?: string;
+  buildId?: string;
 
   /**
    * The namespace this worker will connect to
