@@ -42,6 +42,8 @@ export interface WorkflowExecutionDescription {
 
 export type WorkflowService = temporal.api.workflowservice.v1.WorkflowService;
 export const { WorkflowService } = temporal.api.workflowservice.v1;
+export type OperatorService = temporal.api.operatorservice.v1.OperatorService;
+export const { OperatorService } = temporal.api.operatorservice.v1;
 
 /**
  * Mapping of string to valid gRPC metadata value

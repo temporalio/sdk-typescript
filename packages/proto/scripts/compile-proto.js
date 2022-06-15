@@ -13,7 +13,8 @@ const tempFile = resolve(outputDir, 'temp.js');
 const protoBaseDir = resolve(__dirname, '../../core-bridge/sdk-core/protos');
 
 const coreProtoPath = resolve(protoBaseDir, 'local/temporal/sdk/core/core_interface.proto');
-const serviceProtoPath = resolve(protoBaseDir, 'api_upstream/temporal/api/workflowservice/v1/service.proto');
+const workflowServiceProtoPath = resolve(protoBaseDir, 'api_upstream/temporal/api/workflowservice/v1/service.proto');
+const operatorServiceProtoPath = resolve(protoBaseDir, 'api_upstream/temporal/api/operatorservice/v1/service.proto');
 
 function mtime(path) {
   try {
@@ -38,13 +39,14 @@ async function compileProtos(dtsOutputFile, ...args) {
     '--root',
     '__temporal',
     coreProtoPath,
-    serviceProtoPath,
+    workflowServiceProtoPath,
+    operatorServiceProtoPath,
   ];
 
-  console.log(`Creating protobuf JS definitions from ${coreProtoPath} and ${serviceProtoPath}`);
+  console.log(`Creating protobuf JS definitions from ${coreProtoPath} and ${workflowServiceProtoPath}`);
   await promisify(pbjs.main)([...pbjsArgs, '--target', 'json-module', '--out', jsOutputFile]);
 
-  console.log(`Creating protobuf TS definitions from ${coreProtoPath} and ${serviceProtoPath}`);
+  console.log(`Creating protobuf TS definitions from ${coreProtoPath} and ${workflowServiceProtoPath}`);
   try {
     await promisify(pbjs.main)([...pbjsArgs, '--target', 'static-module', '--out', tempFile]);
     await promisify(pbts.main)(['--out', dtsOutputFile, tempFile]);

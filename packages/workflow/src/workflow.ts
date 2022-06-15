@@ -1190,8 +1190,7 @@ export function upsertSearchAttributes(searchAttributes: SearchAttributes): void
   }
 
   state.pushCommand({
-    upsertWorkflowSearchAttributesCommandAttributes: {
-      seq: state.nextSeqs.upsertSearchAttributes++,
+    upsertWorkflowSearchAttributes: {
       searchAttributes: mapToPayloads(searchAttributePayloadConverter, searchAttributes),
     },
   });

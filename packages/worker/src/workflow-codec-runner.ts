@@ -200,15 +200,12 @@ export class WorkflowCodecRunner {
                           headers: noopEncodeMap(command.scheduleActivity?.headers),
                         }
                       : undefined,
-                    upsertWorkflowSearchAttributesCommandAttributes:
-                      command.upsertWorkflowSearchAttributesCommandAttributes
-                        ? {
-                            ...command.upsertWorkflowSearchAttributesCommandAttributes,
-                            searchAttributes: noopEncodeMap(
-                              command.upsertWorkflowSearchAttributesCommandAttributes.searchAttributes
-                            ),
-                          }
-                        : undefined,
+                    upsertWorkflowSearchAttributes: command.upsertWorkflowSearchAttributes
+                      ? {
+                          ...command.upsertWorkflowSearchAttributes,
+                          searchAttributes: noopEncodeMap(command.upsertWorkflowSearchAttributes.searchAttributes),
+                        }
+                      : undefined,
                     respondToQuery: command.respondToQuery
                       ? {
                           ...command.respondToQuery,

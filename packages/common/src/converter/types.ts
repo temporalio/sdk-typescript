@@ -1,7 +1,6 @@
-import type { coresdk } from '@temporalio/proto';
 import { TextDecoder, TextEncoder } from './encoding';
 
-export type Payload = coresdk.common.IPayload;
+export { Payload } from '@temporalio/internal-workflow-common';
 
 /**
  * Transform an *ascii* string into a Uint8Array

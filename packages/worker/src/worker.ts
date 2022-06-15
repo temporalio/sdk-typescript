@@ -28,15 +28,15 @@ import {
   TASK_TOKEN_ATTR_KEY,
 } from '@temporalio/internal-non-workflow-common/lib/otel';
 import {
+  decompileRetryPolicy,
   optionalTsToDate,
   optionalTsToMs,
   SearchAttributes,
   tsToMs,
-  decompileRetryPolicy,
 } from '@temporalio/internal-workflow-common';
-import { coresdk } from '@temporalio/proto';
+import { coresdk, temporal } from '@temporalio/proto';
 import { DeterminismViolationError, SinkCall, WorkflowInfo } from '@temporalio/workflow';
-import { convertToParentWorkflowType } from './utils';
+import crypto from 'crypto';
 import fs from 'fs/promises';
 import {
   BehaviorSubject,
@@ -59,10 +59,11 @@ import { extractNativeClient, extractReferenceHolders, InternalNativeConnection,
 import * as errors from './errors';
 import { ActivityExecuteInput } from './interceptors';
 import { Logger } from './logger';
+import pkg from './pkg';
 import { History, Runtime } from './runtime';
 import { closeableGroupBy, mapWithState, mergeMapWithState } from './rxutils';
 import { childSpan, getTracer, instrument } from './tracing';
-import { byteArrayToBuffer, toMB } from './utils';
+import { byteArrayToBuffer, convertToParentWorkflowType, toMB } from './utils';
 import {
   addDefaultWorkerOptions,
   CompiledWorkerOptions,
@@ -137,8 +138,31 @@ export interface NativeWorkerLike {
 }
 
 export interface WorkerConstructor {
-  create(connection: NativeConnection, options: CompiledWorkerOptions): Promise<NativeWorkerLike>;
-  createReplay(options: CompiledWorkerOptions, history: History): Promise<NativeWorkerLike>;
+  create(
+    connection: NativeConnection,
+    options: CompiledWorkerOptions,
+    bundle?: WorkflowBundleWithSourceMap
+  ): Promise<NativeWorkerLike>;
+  createReplay(
+    options: CompiledWorkerOptions,
+    history: History,
+    bundle: WorkflowBundleWithSourceMap
+  ): Promise<NativeWorkerLike>;
+}
+
+function isOptionsWithBuildId<T extends CompiledWorkerOptions>(options: T): options is T & { buildId: string } {
+  return options.buildId != null;
+}
+
+function addBuildIdIfMissing<T extends CompiledWorkerOptions>(
+  options: T,
+  bundleCode?: string
+): T & { buildId: string } {
+  if (isOptionsWithBuildId(options)) {
+    return options;
+  }
+  const suffix = bundleCode ? `+${crypto.createHash('sha256').update(bundleCode).digest('hex')}` : '';
+  return { ...options, buildId: `${pkg.name}@${pkg.version}${suffix}` };
 }
 
 export class NativeWorker implements NativeWorkerLike {
@@ -149,15 +173,26 @@ export class NativeWorker implements NativeWorkerLike {
   public readonly recordActivityHeartbeat: OmitFirstParam<typeof native.workerRecordActivityHeartbeat>;
   public readonly initiateShutdown: Promisify<OmitFirstParam<typeof native.workerInitiateShutdown>>;
 
-  public static async create(connection: NativeConnection, options: CompiledWorkerOptions): Promise<NativeWorkerLike> {
+  public static async create(
+    connection: NativeConnection,
+    options: CompiledWorkerOptions,
+    bundle?: WorkflowBundleWithSourceMap
+  ): Promise<NativeWorkerLike> {
     const runtime = Runtime.instance();
-    const nativeWorker = await runtime.registerWorker(extractNativeClient(connection), options);
+    const nativeWorker = await runtime.registerWorker(
+      extractNativeClient(connection),
+      addBuildIdIfMissing(options, bundle?.code)
+    );
     return new NativeWorker(runtime, nativeWorker);
   }
 
-  public static async createReplay(options: CompiledWorkerOptions, history: History): Promise<NativeWorkerLike> {
+  public static async createReplay(
+    options: CompiledWorkerOptions,
+    history: History,
+    bundle: WorkflowBundleWithSourceMap
+  ): Promise<NativeWorkerLike> {
     const runtime = Runtime.instance();
-    const nativeWorker = await runtime.createReplayWorker(options, history);
+    const nativeWorker = await runtime.createReplayWorker(addBuildIdIfMissing(options, bundle.code), history);
     return new NativeWorker(runtime, nativeWorker);
   }
 
@@ -364,12 +399,41 @@ export class Worker {
   public static async create(options: WorkerOptions): Promise<Worker> {
     const nativeWorkerCtor: WorkerConstructor = this.nativeWorkerCtor;
     const compiledOptions = compileWorkerOptions(addDefaultWorkerOptions(options));
+    const bundle = await this.getOrCreateBundle(compiledOptions, Runtime.instance().logger);
+    let workflowCreator: WorkflowCreator | undefined = undefined;
+    if (bundle) {
+      workflowCreator = await this.createWorkflowCreator(bundle, compiledOptions);
+    }
     // Create a new connection if one is not provided with no CREATOR reference
     // so it can be automatically closed when this Worker shuts down.
     const connection = options.connection ?? (await InternalNativeConnection.connect());
-    const nativeWorker = await nativeWorkerCtor.create(connection, compiledOptions);
+    let nativeWorker: NativeWorkerLike;
+    try {
+      nativeWorker = await nativeWorkerCtor.create(connection, compiledOptions);
+    } catch (err) {
+      // We just created this connection, close it
+      if (!options.connection) {
+        await connection.close();
+      }
+      throw err;
+    }
     extractReferenceHolders(connection).add(nativeWorker);
-    return await this.bundleWorker(compiledOptions, nativeWorker, connection);
+    return new this(nativeWorker, workflowCreator, compiledOptions, connection);
+  }
+
+  protected static async createWorkflowCreator(
+    bundle: WorkflowBundleWithSourceMap,
+    compiledOptions: CompiledWorkerOptions
+  ): Promise<WorkflowCreator> {
+    if (compiledOptions.debugMode) {
+      return await VMWorkflowCreator.create(bundle.code, bundle.sourceMap, compiledOptions.isolateExecutionTimeoutMs);
+    } else {
+      return await ThreadedVMWorkflowCreator.create({
+        ...bundle,
+        threadPoolSize: compiledOptions.workflowThreadPoolSize,
+        isolateExecutionTimeoutMs: compiledOptions.isolateExecutionTimeoutMs,
+      });
+    }
   }
 
   /**
@@ -387,8 +451,13 @@ export class Worker {
     };
     this.replayWorkerCount += 1;
     const compiledOptions = compileWorkerOptions(addDefaultWorkerOptions(fixedUpOptions));
-    const replayWorker = await nativeWorkerCtor.createReplay(compiledOptions, history);
-    const constructedWorker = await this.bundleWorker(compiledOptions, replayWorker);
+    const bundle = await this.getOrCreateBundle(compiledOptions, Runtime.instance().logger);
+    if (!bundle) {
+      throw new TypeError('ReplayWorkerOptions must contain workflowsPath or workflowBundle');
+    }
+    const workflowCreator = await this.createWorkflowCreator(bundle, compiledOptions);
+    const replayWorker = await nativeWorkerCtor.createReplay(compiledOptions, history, bundle);
+    const constructedWorker = new this(replayWorker, workflowCreator, compiledOptions);
 
     const runPromise = constructedWorker.run();
     const pollerShutdown = firstValueFrom(
@@ -398,15 +467,19 @@ export class Worker {
     const evictionPromise = firstValueFrom(
       constructedWorker.evictionsSubject.pipe(
         // Ignore self-induced shutdowns, as they are a legit and we'll terminate normally.
-        filter((ev) => ev.evictJob != this.SELF_INDUCED_SHUTDOWN_EVICTION),
-        map((ev) => {
-          if (ev.evictJob.reason === EvictionReason.NONDETERMINISM) {
+        filter(
+          ({ evictJob }) =>
+            evictJob.message !== this.SELF_INDUCED_SHUTDOWN_EVICTION.message &&
+            evictJob.reason !== this.SELF_INDUCED_SHUTDOWN_EVICTION.reason
+        ),
+        map(({ evictJob }) => {
+          if (evictJob.reason === EvictionReason.NONDETERMINISM) {
             throw new DeterminismViolationError(
               'Replay failed with a nondeterminism error. This means that the workflow code as written ' +
-                `is not compatible with the history that was fed in. Details: ${ev.evictJob.message}`
+                `is not compatible with the history that was fed in. Details: ${evictJob.message}`
             );
           } else {
-            throw new Error(`Replay failed. Details: ${ev.evictJob.message}`);
+            throw new Error(`Replay failed. Details: ${evictJob.message}`);
           }
         })
       )
@@ -421,57 +494,35 @@ export class Worker {
     });
   }
 
-  protected static async bundleWorker(
+  protected static async getOrCreateBundle(
     compiledOptions: CompiledWorkerOptions,
-    nativeWorker: NativeWorkerLike,
-    connection?: NativeConnection
-  ): Promise<Worker> {
-    try {
-      let bundle: WorkflowBundleWithSourceMap | undefined = undefined;
-      let workflowCreator: WorkflowCreator | undefined = undefined;
-      if (compiledOptions.workflowsPath) {
-        const bundler = new WorkflowCodeBundler({
-          logger: nativeWorker.logger,
-          workflowsPath: compiledOptions.workflowsPath,
-          workflowInterceptorModules: compiledOptions.interceptors?.workflowModules,
-          payloadConverterPath: compiledOptions.dataConverter?.payloadConverterPath,
-          ignoreModules: compiledOptions.bundlerOptions?.ignoreModules,
-        });
-        bundle = await bundler.createBundle();
-        nativeWorker.logger.info('Workflow bundle created', { size: `${toMB(bundle.code.length)}MB` });
-      } else if (compiledOptions.workflowBundle) {
-        if (isCodeBundleOption(compiledOptions.workflowBundle)) {
-          bundle = compiledOptions.workflowBundle;
-        } else if (isPathBundleOption(compiledOptions.workflowBundle)) {
-          const [code, sourceMap] = await Promise.all([
-            fs.readFile(compiledOptions.workflowBundle.codePath, 'utf8'),
-            fs.readFile(compiledOptions.workflowBundle.sourceMapPath, 'utf8'),
-          ]);
-          bundle = { code, sourceMap };
-        } else {
-          throw new TypeError('Invalid WorkflowOptions.workflowBundle');
-        }
+    logger: Logger
+  ): Promise<WorkflowBundleWithSourceMap | undefined> {
+    if (compiledOptions.workflowsPath) {
+      const bundler = new WorkflowCodeBundler({
+        logger,
+        workflowsPath: compiledOptions.workflowsPath,
+        workflowInterceptorModules: compiledOptions.interceptors?.workflowModules,
+        payloadConverterPath: compiledOptions.dataConverter?.payloadConverterPath,
+        ignoreModules: compiledOptions.bundlerOptions?.ignoreModules,
+      });
+      const bundle = await bundler.createBundle();
+      logger.info('Workflow bundle created', { size: `${toMB(bundle.code.length)}MB` });
+      return bundle;
+    } else if (compiledOptions.workflowBundle) {
+      if (isCodeBundleOption(compiledOptions.workflowBundle)) {
+        return compiledOptions.workflowBundle;
+      } else if (isPathBundleOption(compiledOptions.workflowBundle)) {
+        const [code, sourceMap] = await Promise.all([
+          fs.readFile(compiledOptions.workflowBundle.codePath, 'utf8'),
+          fs.readFile(compiledOptions.workflowBundle.sourceMapPath, 'utf8'),
+        ]);
+        return { code, sourceMap };
+      } else {
+        throw new TypeError('Invalid WorkflowOptions.workflowBundle');
       }
-      if (bundle) {
-        if (compiledOptions.debugMode) {
-          workflowCreator = await VMWorkflowCreator.create(
-            bundle.code,
-            bundle.sourceMap,
-            compiledOptions.isolateExecutionTimeoutMs
-          );
-        } else {
-          workflowCreator = await ThreadedVMWorkflowCreator.create({
-            ...bundle,
-            threadPoolSize: compiledOptions.workflowThreadPoolSize,
-            isolateExecutionTimeoutMs: compiledOptions.isolateExecutionTimeoutMs,
-          });
-        }
-      }
-      return new this(nativeWorker, workflowCreator, compiledOptions, connection);
-    } catch (err) {
-      // Deregister our worker in case Worker creation (Webpack) failed
-      await nativeWorker.finalizeShutdown();
-      throw err;
+    } else {
+      return undefined;
     }
   }
 
@@ -1492,16 +1543,16 @@ export class Worker {
       // A new process must be created in order to instantiate a new Rust Core.
       // TODO: force shutdown in core?
       await this.nativeWorker.finalizeShutdown();
-      // Only exists in non-replay Worker
-      if (this.connection) {
-        extractReferenceHolders(this.connection).delete(this.nativeWorker);
-        // Only close if this worker is the creator of the connection
-        if (this.connection instanceof InternalNativeConnection) {
-          await this.connection.close();
-        }
-      }
     } finally {
       try {
+        // Only exists in non-replay Worker
+        if (this.connection) {
+          extractReferenceHolders(this.connection).delete(this.nativeWorker);
+          // Only close if this worker is the creator of the connection
+          if (this.connection instanceof InternalNativeConnection) {
+            await this.connection.close();
+          }
+        }
         await this.workflowCreator?.destroy();
       } finally {
         this.nativeWorker.flushCoreLogs();
@@ -1529,7 +1580,7 @@ async function extractActivityInfo(
     taskToken,
     base64TaskToken: formatTaskToken(taskToken),
     activityId,
-    workflowExecution: start.workflowExecution as NonNullableObject<coresdk.common.WorkflowExecution>,
+    workflowExecution: start.workflowExecution as NonNullableObject<temporal.api.common.v1.WorkflowExecution>,
     attempt: start.attempt,
     isLocal,
     activityType: start.activityType,

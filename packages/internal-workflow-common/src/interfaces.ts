@@ -1,3 +1,7 @@
+import type { temporal } from '@temporalio/proto';
+
+export type Payload = temporal.api.common.v1.IPayload;
+
 /** Type that can be returned from a Workflow `execute` function */
 export type WorkflowReturnType = Promise<any>;
 export type WorkflowSignalType = (...args: any[]) => Promise<void> | void;

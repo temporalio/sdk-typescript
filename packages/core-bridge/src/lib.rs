@@ -3,9 +3,9 @@ mod errors;
 
 use crate::conversions::{get_optional, ObjectHandleConversionsExt};
 use errors::*;
+use futures::stream::StreamExt;
 use neon::prelude::*;
 use neon::types::buffer::TypedArray;
-use once_cell::sync::OnceCell;
 use opentelemetry::trace::{FutureExt, SpanContext, TraceContextExt};
 use parking_lot::RwLock;
 use prost::Message;
@@ -39,11 +39,12 @@ use tokio::{
     runtime::Runtime,
     sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender},
 };
+use tokio_stream::wrappers::UnboundedReceiverStream;
 
 type RawClient = RetryClient<ConfiguredClient<WorkflowServiceClientWithMetrics>>;
 
 /// A request from JS to bridge to core
-enum Request {
+enum RuntimeRequest {
     /// A request to shutdown the runtime, breaks from the thread loop.
     Shutdown {
         /// Used to send the result back into JS
@@ -64,22 +65,8 @@ enum Request {
         /// Used to send the result back into JS
         callback: Root<JsFunction>,
     },
-    /// A request to shutdown a worker, the worker instance will remain active to
-    /// allow draining of pending tasks
-    InitiateWorkerShutdown {
-        worker: Arc<CoreWorker>,
-        /// Used to send the result back into JS
-        callback: Root<JsFunction>,
-    },
-    /// A request to finalize shutdown a worker, the worker should not be used after this is called
-    FinalizeWorkerShutdown {
-        worker: CoreWorker,
-        /// Used to send the result back into JS
-        callback: Root<JsFunction>,
-    },
     /// A request to create a new Worker using a connected client
     InitWorker {
-        runtime: Arc<RuntimeHandle>,
         /// Worker configuration e.g. limits and task queue
         config: WorkerConfig,
         /// A client created with a [CreateClient] request
@@ -89,48 +76,12 @@ enum Request {
     },
     /// A request to register a replay worker
     InitReplayWorker {
-        runtime: Arc<RuntimeHandle>,
         /// Worker configuration. Must have unique task queue name.
         config: WorkerConfig,
         /// The history this worker should replay
         history: History,
         /// Used to send the result back into JS
         callback: Root<JsFunction>,
-    },
-    /// A request to poll for workflow activations
-    PollWorkflowActivation {
-        worker: Arc<CoreWorker>,
-        otel_span: SpanContext,
-        /// Used to send the result back into JS
-        callback: Root<JsFunction>,
-    },
-    /// A request to complete a single workflow activation
-    CompleteWorkflowActivation {
-        worker: Arc<CoreWorker>,
-        completion: WorkflowActivationCompletion,
-        otel_span: SpanContext,
-        /// Used to send the result back into JS
-        callback: Root<JsFunction>,
-    },
-    /// A request to poll for activity tasks
-    PollActivityTask {
-        worker: Arc<CoreWorker>,
-        otel_span: SpanContext,
-        /// Used to report completion or error back into JS
-        callback: Root<JsFunction>,
-    },
-    /// A request to complete a single activity task
-    CompleteActivityTask {
-        worker: Arc<CoreWorker>,
-        completion: ActivityTaskCompletion,
-        otel_span: SpanContext,
-        /// Used to send the result back into JS
-        callback: Root<JsFunction>,
-    },
-    /// A request to send a heartbeat from a running activity
-    RecordActivityHeartbeat {
-        worker: Arc<CoreWorker>,
-        heartbeat: ActivityHeartbeat,
     },
     /// A request to drain logs from core so they can be emitted in node
     PollLogs {
@@ -139,8 +90,45 @@ enum Request {
     },
 }
 
+enum WorkerRequest {
+    /// A request to shutdown a worker, the worker instance will remain active to
+    /// allow draining of pending tasks
+    InitiateShutdown {
+        /// Used to send the result back into JS
+        callback: Root<JsFunction>,
+    },
+    /// A request to poll for workflow activations
+    PollWorkflowActivation {
+        otel_span: SpanContext,
+        /// Used to send the result back into JS
+        callback: Root<JsFunction>,
+    },
+    /// A request to complete a single workflow activation
+    CompleteWorkflowActivation {
+        completion: WorkflowActivationCompletion,
+        otel_span: SpanContext,
+        /// Used to send the result back into JS
+        callback: Root<JsFunction>,
+    },
+    /// A request to poll for activity tasks
+    PollActivityTask {
+        otel_span: SpanContext,
+        /// Used to report completion or error back into JS
+        callback: Root<JsFunction>,
+    },
+    /// A request to complete a single activity task
+    CompleteActivityTask {
+        completion: ActivityTaskCompletion,
+        otel_span: SpanContext,
+        /// Used to send the result back into JS
+        callback: Root<JsFunction>,
+    },
+    /// A request to send a heartbeat from a running activity
+    RecordActivityHeartbeat { heartbeat: ActivityHeartbeat },
+}
+
 struct RuntimeHandle {
-    sender: UnboundedSender<Request>,
+    sender: UnboundedSender<RuntimeRequest>,
 }
 
 /// Box it so we can use the runtime from JS
@@ -158,25 +146,21 @@ impl Finalize for Client {}
 
 /// Worker struct, hold a reference for the channel sender responsible for sending requests from
 /// JS to a bridge thread which forwards them to core
-struct Worker {
-    runtime: Arc<RuntimeHandle>,
-    core_worker: Arc<CoreWorker>,
+struct WorkerHandle {
+    sender: UnboundedSender<WorkerRequest>,
 }
 
 /// Box it so we can use Worker from JS
-type BoxedWorker = JsBox<RefCell<Option<Worker>>>;
-impl Finalize for Worker {}
+type BoxedWorker = JsBox<RefCell<Option<WorkerHandle>>>;
+impl Finalize for WorkerHandle {}
 
-/// Lazy-inits or returns a global tokio runtime that we use for interactions with Core(s)
-fn tokio_runtime() -> &'static Runtime {
-    static INSTANCE: OnceCell<Runtime> = OnceCell::new();
-    INSTANCE.get_or_init(|| {
-        tokio::runtime::Builder::new_multi_thread()
-            .enable_all()
-            .thread_name("core")
-            .build()
-            .expect("Tokio runtime must construct properly")
-    })
+/// Inits a multi-threaded tokio runtime used to interact with sdk-core APIs
+fn tokio_runtime() -> Runtime {
+    tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .thread_name("core")
+        .build()
+        .expect("Tokio runtime must construct properly")
 }
 
 /// Send a result to JS via callback using a [Channel]
@@ -252,7 +236,7 @@ async fn void_future_to_js<E, F, ER, EF>(
     error_function: EF,
 ) where
     E: Display + Send + 'static,
-    F: Future<Output = Result<(), E>> + Send + 'static,
+    F: Future<Output = Result<(), E>> + Send,
     ER: Object,
     EF: for<'a> FnOnce(&mut TaskContext<'a>, E) -> JsResult<'a, ER> + Send + 'static,
 {
@@ -266,10 +250,10 @@ async fn void_future_to_js<E, F, ER, EF>(
     }
 }
 
-/// Builds a tokio runtime and starts polling on [Request]s via an internal channel.
+/// Builds a tokio runtime and starts polling on [RuntimeRequest]s via an internal channel.
 /// Bridges requests from JS to core and sends responses back to JS using a neon::Channel.
 /// Blocks current thread until a [Shutdown] request is received in channel.
-fn start_bridge_loop(channel: Arc<Channel>, receiver: &mut UnboundedReceiver<Request>) {
+fn start_bridge_loop(channel: Arc<Channel>, receiver: &mut UnboundedReceiver<RuntimeRequest>) {
     tokio_runtime().block_on(async {
         loop {
             let request_option = receiver.recv().await;
@@ -281,11 +265,11 @@ fn start_bridge_loop(channel: Arc<Channel>, receiver: &mut UnboundedReceiver<Req
             let channel = channel.clone();
 
             match request {
-                Request::Shutdown { callback } => {
+                RuntimeRequest::Shutdown { callback } => {
                     send_result(channel, callback, |cx| Ok(cx.undefined()));
                     break;
                 }
-                Request::CreateClient {
+                RuntimeRequest::CreateClient {
                     runtime,
                     options,
                     headers,
@@ -326,7 +310,7 @@ fn start_bridge_loop(channel: Arc<Channel>, receiver: &mut UnboundedReceiver<Req
                         }
                     });
                 }
-                Request::UpdateClientHeaders {
+                RuntimeRequest::UpdateClientHeaders {
                     client,
                     headers,
                     callback,
@@ -334,7 +318,7 @@ fn start_bridge_loop(channel: Arc<Channel>, receiver: &mut UnboundedReceiver<Req
                     client.get_client().set_headers(headers);
                     send_result(channel.clone(), callback, |cx| Ok(cx.undefined()));
                 }
-                Request::PollLogs { callback } => {
+                RuntimeRequest::PollLogs { callback } => {
                     let logs = fetch_global_buffered_logs();
                     send_result(channel.clone(), callback, |cx| {
                         let logarr = cx.empty_array();
@@ -353,25 +337,7 @@ fn start_bridge_loop(channel: Arc<Channel>, receiver: &mut UnboundedReceiver<Req
                         Ok(logarr)
                     });
                 }
-                Request::InitiateWorkerShutdown { worker, callback } => {
-                    worker.initiate_shutdown();
-                    send_result(channel.clone(), callback, |cx| Ok(cx.undefined()));
-                }
-                Request::FinalizeWorkerShutdown { worker, callback } => {
-                    tokio::spawn(void_future_to_js(
-                        channel,
-                        callback,
-                        async move {
-                            worker.finalize_shutdown().await;
-                            // Wrap the empty result in a valid Result object
-                            let result: Result<(), String> = Ok(());
-                            result
-                        },
-                        |cx, err| UNEXPECTED_ERROR.from_error(cx, err),
-                    ));
-                }
-                Request::InitWorker {
-                    runtime,
+                RuntimeRequest::InitWorker {
                     config,
                     client,
                     callback,
@@ -379,111 +345,132 @@ fn start_bridge_loop(channel: Arc<Channel>, receiver: &mut UnboundedReceiver<Req
                     let client = (*client).clone();
                     let worker =
                         init_worker(config, AnyClient::LowLevel(Box::new(client.into_inner())));
+                    let (tx, rx) = unbounded_channel();
+                    tokio::spawn(start_worker_loop(worker, rx, channel.clone()));
                     send_result(channel.clone(), callback, |cx| {
-                        Ok(cx.boxed(RefCell::new(Some(Worker {
-                            core_worker: Arc::new(worker),
-                            runtime,
-                        }))))
+                        Ok(cx.boxed(RefCell::new(Some(WorkerHandle { sender: tx }))))
                     });
                 }
-                Request::InitReplayWorker {
-                    runtime,
+                RuntimeRequest::InitReplayWorker {
                     config,
                     history,
                     callback,
                 } => {
                     match init_replay_worker(config, &history) {
-                        Ok(worker) => send_result(channel.clone(), callback, |cx| {
-                            Ok(cx.boxed(RefCell::new(Some(Worker {
-                                core_worker: Arc::new(worker),
-                                runtime,
-                            }))))
-                        }),
+                        Ok(worker) => {
+                            let (tx, rx) = unbounded_channel();
+                            tokio::spawn(start_worker_loop(worker, rx, channel.clone()));
+                            send_result(channel.clone(), callback, |cx| {
+                                Ok(cx.boxed(RefCell::new(Some(WorkerHandle { sender: tx }))))
+                            })
+                        }
                         Err(err) => send_error(channel.clone(), callback, |cx| {
                             UNEXPECTED_ERROR.from_error(cx, err)
                         }),
                     };
                 }
-                Request::PollWorkflowActivation {
-                    worker,
-                    otel_span,
-                    callback,
-                } => {
-                    tokio::spawn(async move {
-                        handle_poll_workflow_activation_request(
-                            &*worker, otel_span, channel, callback,
-                        )
-                        .await
-                    });
-                }
-                Request::PollActivityTask {
-                    worker,
-                    otel_span,
-                    callback,
-                } => {
-                    tokio::spawn(async move {
-                        handle_poll_activity_task_request(&*worker, otel_span, channel, callback)
-                            .await
-                    });
-                }
-                Request::CompleteWorkflowActivation {
-                    worker,
-                    completion,
-                    otel_span,
-                    callback,
-                } => {
-                    let otel_ctx =
-                        opentelemetry::Context::new().with_remote_span_context(otel_span);
-                    tokio::spawn(void_future_to_js(
-                        channel,
-                        callback,
-                        async move {
-                            worker
-                                .complete_workflow_activation(completion)
-                                .with_context(otel_ctx)
-                                .await
-                        },
-                        |cx, err| match err {
-                            CompleteWfError::TonicError(_) => TRANSPORT_ERROR.from_error(cx, err),
-                            CompleteWfError::MalformedWorkflowCompletion { reason, .. } => {
-                                Ok(JsError::type_error(cx, reason)?.upcast())
-                            }
-                        },
-                    ));
-                }
-                Request::CompleteActivityTask {
-                    worker,
-                    completion,
-                    otel_span,
-                    callback,
-                } => {
-                    let otel_ctx =
-                        opentelemetry::Context::new().with_remote_span_context(otel_span);
-                    tokio::spawn(void_future_to_js(
-                        channel,
-                        callback,
-                        async move {
-                            worker
-                                .complete_activity_task(completion)
-                                .with_context(otel_ctx)
-                                .await
-                        },
-                        |cx, err| match err {
-                            CompleteActivityError::MalformedActivityCompletion {
-                                reason, ..
-                            } => Ok(JsError::type_error(cx, reason)?.upcast()),
-                            CompleteActivityError::TonicError(_) => {
-                                TRANSPORT_ERROR.from_error(cx, err)
-                            }
-                        },
-                    ));
-                }
-                Request::RecordActivityHeartbeat { worker, heartbeat } => {
-                    worker.record_activity_heartbeat(heartbeat)
-                }
             }
         }
     })
+}
+
+/// Polls on [WorkerRequest]s via given channel.
+/// Bridges requests from JS to core and sends responses back to JS using a neon::Channel.
+/// Returns when the given channel is dropped.
+async fn start_worker_loop(
+    worker: CoreWorker,
+    rx: UnboundedReceiver<WorkerRequest>,
+    channel: Arc<Channel>,
+) {
+    UnboundedReceiverStream::new(rx)
+        .for_each_concurrent(None, |request| {
+            let worker = &worker;
+            let channel = channel.clone();
+            async move {
+                match request {
+                    WorkerRequest::InitiateShutdown { callback } => {
+                        worker.initiate_shutdown();
+                        send_result(channel, callback, |cx| Ok(cx.undefined()));
+                    }
+                    WorkerRequest::PollWorkflowActivation {
+                        otel_span,
+                        callback,
+                    } => {
+                        handle_poll_workflow_activation_request(
+                            &worker, otel_span, channel, callback,
+                        )
+                        .await
+                    }
+                    WorkerRequest::PollActivityTask {
+                        otel_span,
+                        callback,
+                    } => {
+                        handle_poll_activity_task_request(&worker, otel_span, channel, callback)
+                            .await
+                    }
+                    WorkerRequest::CompleteWorkflowActivation {
+                        completion,
+                        otel_span,
+                        callback,
+                    } => {
+                        let otel_ctx =
+                            opentelemetry::Context::new().with_remote_span_context(otel_span);
+                        void_future_to_js(
+                            channel,
+                            callback,
+                            async move {
+                                worker
+                                    .complete_workflow_activation(completion)
+                                    .with_context(otel_ctx)
+                                    .await
+                            },
+                            |cx, err| match err {
+                                CompleteWfError::TonicError(_) => {
+                                    TRANSPORT_ERROR.from_error(cx, err)
+                                }
+                                CompleteWfError::MalformedWorkflowCompletion { reason, .. } => {
+                                    Ok(JsError::type_error(cx, reason)?.upcast())
+                                }
+                            },
+                        )
+                        .await;
+                    }
+                    WorkerRequest::CompleteActivityTask {
+                        completion,
+                        otel_span,
+                        callback,
+                    } => {
+                        let otel_ctx =
+                            opentelemetry::Context::new().with_remote_span_context(otel_span);
+                        void_future_to_js(
+                            channel,
+                            callback,
+                            async move {
+                                worker
+                                    .complete_activity_task(completion)
+                                    .with_context(otel_ctx)
+                                    .await
+                            },
+                            |cx, err| match err {
+                                CompleteActivityError::MalformedActivityCompletion {
+                                    reason,
+                                    ..
+                                } => Ok(JsError::type_error(cx, reason)?.upcast()),
+                                CompleteActivityError::TonicError(_) => {
+                                    TRANSPORT_ERROR.from_error(cx, err)
+                                }
+                            },
+                        )
+                        .await;
+                    }
+                    WorkerRequest::RecordActivityHeartbeat { heartbeat } => {
+                        worker.record_activity_heartbeat(heartbeat)
+                    }
+                }
+            }
+        })
+        .await;
+    worker.finalize_shutdown().await;
 }
 
 /// Called within the poll loop thread, calls core and triggers JS callback with result
@@ -569,10 +556,10 @@ fn init_telemetry(mut cx: FunctionContext) -> JsResult<JsUndefined> {
 }
 
 /// Create the tokio runtime required to run Core.
-/// Immediately spawns a poller thread that will block on [Request]s
+/// Immediately spawns a poller thread that will block on [RuntimeRequest]s
 fn runtime_new(mut cx: FunctionContext) -> JsResult<BoxedRuntime> {
     let channel = Arc::new(cx.channel());
-    let (sender, mut receiver) = unbounded_channel::<Request>();
+    let (sender, mut receiver) = unbounded_channel::<RuntimeRequest>();
 
     std::thread::spawn(move || start_bridge_loop(channel, &mut receiver));
 
@@ -601,7 +588,7 @@ fn client_new(mut cx: FunctionContext) -> JsResult<JsUndefined> {
         ),
     };
 
-    let request = Request::CreateClient {
+    let request = RuntimeRequest::CreateClient {
         runtime: (**runtime).clone(),
         options: client_options,
         headers,
@@ -627,7 +614,7 @@ fn client_update_headers(mut cx: FunctionContext) -> JsResult<JsUndefined> {
             callback_with_unexpected_error(&mut cx, callback, "Tried to use closed Client")?;
         }
         Some(client) => {
-            let request = Request::UpdateClientHeaders {
+            let request = RuntimeRequest::UpdateClientHeaders {
                 client: client.core_client.clone(),
                 headers,
                 callback: callback.root(&mut cx),
@@ -654,9 +641,8 @@ fn worker_new(mut cx: FunctionContext) -> JsResult<JsUndefined> {
             callback_with_unexpected_error(&mut cx, callback, "Tried to use closed Client")?;
         }
         Some(client) => {
-            let request = Request::InitWorker {
+            let request = RuntimeRequest::InitWorker {
                 client: client.core_client.clone(),
-                runtime: client.runtime.clone(),
                 config,
                 callback: callback.root(&mut cx),
             };
@@ -681,8 +667,7 @@ fn replay_worker_new(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     let data = history_binary.as_slice(&mut cx);
     match History::decode_length_delimited(data) {
         Ok(history) => {
-            let request = Request::InitReplayWorker {
-                runtime: (**runtime).clone(),
+            let request = RuntimeRequest::InitReplayWorker {
                 config,
                 history,
                 callback: callback.root(&mut cx),
@@ -703,7 +688,7 @@ fn replay_worker_new(mut cx: FunctionContext) -> JsResult<JsUndefined> {
 fn runtime_shutdown(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     let runtime = cx.argument::<BoxedRuntime>(0)?;
     let callback = cx.argument::<JsFunction>(1)?;
-    let request = Request::Shutdown {
+    let request = RuntimeRequest::Shutdown {
         callback: callback.root(&mut cx),
     };
     if let Err(err) = runtime.sender.send(request) {
@@ -716,7 +701,7 @@ fn runtime_shutdown(mut cx: FunctionContext) -> JsResult<JsUndefined> {
 fn poll_logs(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     let runtime = cx.argument::<BoxedRuntime>(0)?;
     let callback = cx.argument::<JsFunction>(1)?;
-    let request = Request::PollLogs {
+    let request = RuntimeRequest::PollLogs {
         callback: callback.root(&mut cx),
     };
     if let Err(err) = runtime.sender.send(request) {
@@ -736,12 +721,11 @@ fn worker_poll_workflow_activation(mut cx: FunctionContext) -> JsResult<JsUndefi
             callback_with_unexpected_error(&mut cx, callback, "Tried to use closed Worker")?;
         }
         Some(worker) => {
-            let request = Request::PollWorkflowActivation {
-                worker: worker.core_worker.clone(),
+            let request = WorkerRequest::PollWorkflowActivation {
                 otel_span: otel_span.as_otel_span_context(&mut cx)?,
                 callback: callback.root(&mut cx),
             };
-            if let Err(err) = worker.runtime.sender.send(request) {
+            if let Err(err) = worker.sender.send(request) {
                 callback_with_unexpected_error(&mut cx, callback, err)?;
             }
         }
@@ -760,12 +744,11 @@ fn worker_poll_activity_task(mut cx: FunctionContext) -> JsResult<JsUndefined> {
             callback_with_unexpected_error(&mut cx, callback, "Tried to use closed Worker")?;
         }
         Some(worker) => {
-            let request = Request::PollActivityTask {
-                worker: worker.core_worker.clone(),
+            let request = WorkerRequest::PollActivityTask {
                 otel_span: otel_span.as_otel_span_context(&mut cx)?,
                 callback: callback.root(&mut cx),
             };
-            if let Err(err) = worker.runtime.sender.send(request) {
+            if let Err(err) = worker.sender.send(request) {
                 callback_with_unexpected_error(&mut cx, callback, err)?;
             }
         }
@@ -788,13 +771,12 @@ fn worker_complete_workflow_activation(mut cx: FunctionContext) -> JsResult<JsUn
                 completion.as_slice(&mut cx),
             ) {
                 Ok(completion) => {
-                    let request = Request::CompleteWorkflowActivation {
-                        worker: worker.core_worker.clone(),
+                    let request = WorkerRequest::CompleteWorkflowActivation {
                         completion,
                         otel_span: otel_span.as_otel_span_context(&mut cx)?,
                         callback: callback.root(&mut cx),
                     };
-                    if let Err(err) = worker.runtime.sender.send(request) {
+                    if let Err(err) = worker.sender.send(request) {
                         callback_with_unexpected_error(&mut cx, callback, err)?;
                     };
                 }
@@ -820,13 +802,12 @@ fn worker_complete_activity_task(mut cx: FunctionContext) -> JsResult<JsUndefine
         Some(worker) => {
             match ActivityTaskCompletion::decode_length_delimited(result.as_slice(&mut cx)) {
                 Ok(completion) => {
-                    let request = Request::CompleteActivityTask {
-                        worker: worker.core_worker.clone(),
+                    let request = WorkerRequest::CompleteActivityTask {
                         completion,
                         otel_span: otel_span.as_otel_span_context(&mut cx)?,
                         callback: callback.root(&mut cx),
                     };
-                    if let Err(err) = worker.runtime.sender.send(request) {
+                    if let Err(err) = worker.sender.send(request) {
                         callback_with_unexpected_error(&mut cx, callback, err)?;
                     };
                 }
@@ -850,11 +831,8 @@ fn worker_record_activity_heartbeat(mut cx: FunctionContext) -> JsResult<JsUndef
         Some(worker) => {
             match ActivityHeartbeat::decode_length_delimited(heartbeat.as_slice(&mut cx)) {
                 Ok(heartbeat) => {
-                    let request = Request::RecordActivityHeartbeat {
-                        worker: worker.core_worker.clone(),
-                        heartbeat,
-                    };
-                    if let Err(err) = worker.runtime.sender.send(request) {
+                    let request = WorkerRequest::RecordActivityHeartbeat { heartbeat };
+                    if let Err(err) = worker.sender.send(request) {
                         UNEXPECTED_ERROR
                             .from_error(&mut cx, err)
                             .and_then(|err| cx.throw(err))?;
@@ -879,8 +857,7 @@ fn worker_initiate_shutdown(mut cx: FunctionContext) -> JsResult<JsUndefined> {
             callback_with_unexpected_error(&mut cx, callback, "Tried to use closed Worker")?;
         }
         Some(worker) => {
-            if let Err(err) = worker.runtime.sender.send(Request::InitiateWorkerShutdown {
-                worker: worker.core_worker.clone(),
+            if let Err(err) = worker.sender.send(WorkerRequest::InitiateShutdown {
                 callback: callback.root(&mut cx),
             }) {
                 UNEXPECTED_ERROR
@@ -894,35 +871,10 @@ fn worker_initiate_shutdown(mut cx: FunctionContext) -> JsResult<JsUndefined> {
 
 fn worker_finalize_shutdown(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     let worker = cx.argument::<BoxedWorker>(0)?;
-    let callback = cx.argument::<JsFunction>(1)?;
-    match worker.replace(None) {
-        None => {
-            ILLEGAL_STATE_ERROR
-                .from_error(&mut cx, "Client already closed")
-                .and_then(|err| cx.throw(err))?;
-        }
-        Some(worker) => {
-            match Arc::try_unwrap(worker.core_worker) {
-                Ok(unwrapped_worker) => {
-                    if let Err(err) = worker.runtime.sender.send(Request::FinalizeWorkerShutdown {
-                        worker: unwrapped_worker,
-                        callback: callback.root(&mut cx),
-                    }) {
-                        UNEXPECTED_ERROR
-                            .from_error(&mut cx, err)
-                            .and_then(|err| cx.throw(err))?;
-                    };
-                }
-                Err(_) => {
-                    UNEXPECTED_ERROR
-                        .from_error(
-                            &mut cx,
-                            "Found more than one reference to the native Worker",
-                        )
-                        .and_then(|err| cx.throw(err))?;
-                }
-            };
-        }
+    if worker.replace(None).is_none() {
+        ILLEGAL_STATE_ERROR
+            .from_error(&mut cx, "Worker already closed")
+            .and_then(|err| cx.throw(err))?;
     }
 
     Ok(cx.undefined())

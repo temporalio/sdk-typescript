@@ -307,7 +307,7 @@ export class Runtime {
    * @hidden
    */
   public async deregisterWorker(worker: native.Worker): Promise<void> {
-    await promisify(native.workerFinalizeShutdown)(worker);
+    native.workerFinalizeShutdown(worker);
     this.registeredWorkers.delete(worker);
     // NOTE: only replay workers require registration since they don't have an associated connection
     // but we track all Workers for simplicity.

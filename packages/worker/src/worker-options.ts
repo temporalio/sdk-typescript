@@ -2,10 +2,10 @@ import { DataConverter, LoadedDataConverter } from '@temporalio/common';
 import { loadDataConverter } from '@temporalio/internal-non-workflow-common';
 import { ActivityInterface, msToNumber } from '@temporalio/internal-workflow-common';
 import os from 'os';
+import { NativeConnection } from './connection';
 import { WorkerInterceptors } from './interceptors';
 import { InjectedSinks } from './sinks';
 import { GiB } from './utils';
-import { NativeConnection } from './connection';
 import { WorkflowBundleWithSourceMap } from './workflow/bundler';
 
 export interface WorkflowBundlePathWithSourceMap {
@@ -34,6 +34,21 @@ export interface WorkerOptions {
    * If not provided, the worker will default to connect insecurely to `localhost:7233`.
    */
   connection?: NativeConnection;
+
+  /**
+   * A human-readable string that can identify your worker
+   * @default `${process.pid}@${os.hostname()}`
+   */
+  identity?: string;
+
+  /**
+   * A string that should be unique to the exact worker code/binary being executed.
+   *
+   * This is used to populate the `binaryChecksum` attribute in history events originated from this Worker.
+   *
+   * @default `@temporalio/worker` package name and version + checksum of workflow bundle's code
+   */
+  buildId?: string;
 
   /**
    * The namespace this worker will connect to
@@ -225,6 +240,7 @@ export type WorkerOptionsWithDefaults = WorkerOptions &
     Pick<
       WorkerOptions,
       | 'namespace'
+      | 'identity'
       | 'shutdownGraceTime'
       | 'maxConcurrentActivityTaskExecutions'
       | 'maxConcurrentLocalActivityExecutions'
@@ -304,6 +320,7 @@ export function addDefaultWorkerOptions(options: WorkerOptions): WorkerOptionsWi
   const { maxCachedWorkflows, debugMode, ...rest } = options;
   return {
     namespace: 'default',
+    identity: `${process.pid}@${os.hostname()}`,
     shutdownGraceTime: '5s',
     maxConcurrentActivityTaskExecutions: 100,
     maxConcurrentLocalActivityExecutions: 100,

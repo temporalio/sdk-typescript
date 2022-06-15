@@ -27,15 +27,6 @@ export interface ClientOptions {
    */
   url: string;
 
-  /**
-   * A human-readable string that can identify your worker
-   */
-  identity: string;
-  /**
-   * A string that should be unique to the exact worker code/binary being executed
-   */
-  workerBinaryId: string;
-
   /** Version string for the whole node SDK. Should never be set by user */
   sdkVersion: string;
 
@@ -163,6 +154,15 @@ export interface TelemetryOptions {
 
 export interface WorkerOptions {
   /**
+   * A human-readable string that can identify your worker
+   */
+  identity: string;
+  /**
+   * A string that should be unique to the exact worker code/binary being executed
+   */
+  buildId: string;
+
+  /**
    * The task queue the worker will pull from
    */
   taskQueue: string;
@@ -257,7 +257,7 @@ export declare function newReplayWorker(
   callback: WorkerCallback
 ): void;
 export declare function workerInitiateShutdown(worker: Worker, callback: VoidCallback): void;
-export declare function workerFinalizeShutdown(worker: Worker, callback: VoidCallback): void;
+export declare function workerFinalizeShutdown(worker: Worker): void;
 export declare function clientUpdateHeaders(
   client: Client,
   headers: Record<string, string>,

@@ -28,6 +28,7 @@ import {
 import * as iface from '@temporalio/proto';
 import { DefaultLogger, Runtime, Worker } from '@temporalio/worker';
 import pkg from '@temporalio/worker/lib/pkg';
+import * as grpc from '@grpc/grpc-js';
 import v8 from 'v8';
 import asyncRetry from 'async-retry';
 import anyTest, { Implementation, TestInterface } from 'ava';
@@ -91,7 +92,25 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
       client: new WorkflowClient({ connection, dataConverter }),
     };
 
-    // // The initialization of the custom search attributes is slooooow. Wait for it to finish
+    // In case we're running with temporalite or other non default server.
+    // NOTE: at the time this was added temporalite did not expose the grpc OperatorService.
+    try {
+      await connection.operatorService.addSearchAttributes({
+        searchAttributes: {
+          CustomIntField: iface.temporal.api.enums.v1.IndexedValueType.INDEXED_VALUE_TYPE_INT,
+          CustomBoolField: iface.temporal.api.enums.v1.IndexedValueType.INDEXED_VALUE_TYPE_BOOL,
+          CustomKeywordField: iface.temporal.api.enums.v1.IndexedValueType.INDEXED_VALUE_TYPE_KEYWORD,
+          CustomTextField: iface.temporal.api.enums.v1.IndexedValueType.INDEXED_VALUE_TYPE_TEXT,
+          CustomDatetimeField: iface.temporal.api.enums.v1.IndexedValueType.INDEXED_VALUE_TYPE_DATETIME,
+          CustomDoubleField: iface.temporal.api.enums.v1.IndexedValueType.INDEXED_VALUE_TYPE_DOUBLE,
+        },
+      });
+    } catch (err: any) {
+      if (err.code !== grpc.status.ALREADY_EXISTS) {
+        throw err;
+      }
+    }
+    // The initialization of the custom search attributes is slooooow. Wait for it to finish
     await asyncRetry(
       async () => {
         try {
