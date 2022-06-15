@@ -1543,16 +1543,16 @@ export class Worker {
       // A new process must be created in order to instantiate a new Rust Core.
       // TODO: force shutdown in core?
       await this.nativeWorker.finalizeShutdown();
-      // Only exists in non-replay Worker
-      if (this.connection) {
-        extractReferenceHolders(this.connection).delete(this.nativeWorker);
-        // Only close if this worker is the creator of the connection
-        if (this.connection instanceof InternalNativeConnection) {
-          await this.connection.close();
-        }
-      }
     } finally {
       try {
+        // Only exists in non-replay Worker
+        if (this.connection) {
+          extractReferenceHolders(this.connection).delete(this.nativeWorker);
+          // Only close if this worker is the creator of the connection
+          if (this.connection instanceof InternalNativeConnection) {
+            await this.connection.close();
+          }
+        }
         await this.workflowCreator?.destroy();
       } finally {
         this.nativeWorker.flushCoreLogs();
