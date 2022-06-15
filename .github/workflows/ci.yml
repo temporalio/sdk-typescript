@@ -115,6 +115,7 @@ jobs:
             target: x86_64-unknown-linux-gnu
           - os: ubuntu-18.04
             target: aarch64-unknown-linux-gnu
+            rustflags: '-C linker=aarch64-linux-gnu-gcc'
           - os: macos-latest
             target: x86_64-apple-darwin
           - os: macos-latest
@@ -140,9 +141,6 @@ jobs:
       - name: Install gcc-aarch64-linux-gnu
         run: sudo apt update && sudo apt install -y gcc-aarch64-linux-gnu
         if: ${{ matrix.target == 'aarch64-unknown-linux-gnu' }}
-      - name: Copy cargo config
-        run: cp ./etc/aarch64-linux-cargo-config.toml ~/.cargo/config.toml
-        if: ${{ matrix.target == 'aarch64-unknown-linux-gnu' }}
       # Don't build during install phase since we're going to explicitly build
       - run: npm ci --ignore-scripts
       - name: Compile all non-rust code
@@ -150,6 +148,7 @@ jobs:
       - name: Cross compile rust code
         env:
           CC_aarch64_unknown_linux_gnu: gcc-aarch64-linux-gnu
+          RUSTFLAGS: ${{ matrix.rustflags }}
         run: npx lerna run --stream build-rust-release -- -- --target ${{ matrix.target }}
       # Restore the CLI JS only on Windows because Windows build changes the
       # file attributes causing publish to think the change is uncommitted
