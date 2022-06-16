@@ -732,7 +732,7 @@ export class Worker {
 
                     const { activityType } = info;
                     const fn = this.options.activities?.[activityType];
-                    if (!(fn instanceof Function)) {
+                    if (typeof fn !== 'function') {
                       output = {
                         type: 'result',
                         result: {
