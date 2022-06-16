@@ -201,17 +201,13 @@ if (RUN_INTEGRATION_TESTS) {
       taskQueue,
     });
 
-    await Promise.all([
-      worker.run(),
-      (async () => {
-        try {
-          await expectedErrorWasThrown;
-        } finally {
-          await handle.terminate();
-          worker.shutdown();
-        }
-      })(),
-    ]);
+    await worker.runUntil(async () => {
+      try {
+        await expectedErrorWasThrown;
+      } finally {
+        await handle.terminate();
+      }
+    });
     t.pass();
   });
 }

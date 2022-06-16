@@ -12,14 +12,12 @@ if (RUN_INTEGRATION_TESTS) {
     const taskQueue = 'debug-mode';
     const worker = await Worker.create({ ...defaultOptions, taskQueue, debugMode: true });
     const client = new WorkflowClient();
-    const runAndShutdown = async () => {
-      const result = await client.execute(successString, {
+    const result = await worker.runUntil(
+      client.execute(successString, {
         workflowId: uuid4(),
         taskQueue,
-      });
-      t.is(result, 'success');
-      worker.shutdown();
-    };
-    await Promise.all([worker.run(), runAndShutdown()]);
+      })
+    );
+    t.is(result, 'success');
   });
 }

@@ -56,7 +56,7 @@ if (RUN_INTEGRATION_TESTS) {
       sinks,
     });
     const client = new WorkflowClient({ dataConverter });
-    const runAndShutdown = async () => {
+    await worker.runUntil(async () => {
       const result = await client.execute(twoStrings, {
         args: ['arg1', 'arg2'],
         workflowId: uuid4(),
@@ -64,9 +64,7 @@ if (RUN_INTEGRATION_TESTS) {
       });
 
       t.is(result, 'encoded'); // workflow retval encoded by worker
-      worker.shutdown();
-    };
-    await Promise.all([worker.run(), runAndShutdown()]);
+    });
     t.is(logs[0], 'encodedencoded'); // workflow args encoded by client
   });
 
@@ -91,7 +89,7 @@ if (RUN_INTEGRATION_TESTS) {
       sinks,
     });
     const client = new WorkflowClient({ dataConverter });
-    const runAndShutdown = async () => {
+    await worker.runUntil(async () => {
       const result = await client.execute(twoStrings, {
         args: ['arg1', 'arg2'],
         workflowId: uuid4(),
@@ -99,9 +97,7 @@ if (RUN_INTEGRATION_TESTS) {
       });
 
       t.is(result, 'decoded'); // workflow retval decoded by client
-      worker.shutdown();
-    };
-    await Promise.all([worker.run(), runAndShutdown()]);
+    });
     t.is(logs[0], 'decodeddecoded'); // workflow args decoded by worker
   });
 
@@ -128,14 +124,12 @@ if (RUN_INTEGRATION_TESTS) {
       sinks,
     });
     const client = new WorkflowClient({ dataConverter });
-    const runAndShutdown = async () => {
+    await worker.runUntil(async () => {
       await client.execute(twoStringsActivity, {
         workflowId: uuid4(),
         taskQueue,
       });
-      worker.shutdown();
-    };
-    await Promise.all([worker.run(), runAndShutdown()]);
+    });
     t.is(workflowLogs[0], 'encoded'); // activity retval encoded by worker
     t.is(activityLogs[0], 'Activityencodedencoded'); // activity args encoded by worker
   });
@@ -163,14 +157,12 @@ if (RUN_INTEGRATION_TESTS) {
       sinks,
     });
     const client = new WorkflowClient({ dataConverter });
-    const runAndShutdown = async () => {
+    await worker.runUntil(async () => {
       await client.execute(twoStringsActivity, {
         workflowId: uuid4(),
         taskQueue,
       });
-      worker.shutdown();
-    };
-    await Promise.all([worker.run(), runAndShutdown()]);
+    });
     t.is(workflowLogs[0], 'decoded'); // activity retval decoded by worker
     t.is(activityLogs[0], 'Activitydecodeddecoded'); // activity args decoded by worker
   });
@@ -212,7 +204,7 @@ if (RUN_INTEGRATION_TESTS) {
       sinks,
     });
     const client = new WorkflowClient({ dataConverter });
-    const runAndShutdown = async () => {
+    await worker.runUntil(async () => {
       const result = await client.execute(twoStrings, {
         args: ['arg1', 'arg2'],
         workflowId: uuid4(),
@@ -220,9 +212,7 @@ if (RUN_INTEGRATION_TESTS) {
       });
 
       t.is(result, 'encoded'); // workflow retval encoded by worker
-      worker.shutdown();
-    };
-    await Promise.all([worker.run(), runAndShutdown()]);
+    });
     t.is(logs[0], 'encodedencoded'); // workflow args encoded by client
   });
 
@@ -264,7 +254,7 @@ if (RUN_INTEGRATION_TESTS) {
       sinks,
     });
     const client = new WorkflowClient({ dataConverter });
-    const runAndShutdown = async () => {
+    await worker.runUntil(async () => {
       const result = await client.execute(twoStrings, {
         args: ['arg1', 'arg2'],
         workflowId: uuid4(),
@@ -272,9 +262,7 @@ if (RUN_INTEGRATION_TESTS) {
       });
 
       t.is(result, 'decoded'); // workflow retval decoded by client
-      worker.shutdown();
-    };
-    await Promise.all([worker.run(), runAndShutdown()]);
+    });
     t.is(logs[0], 'decodeddecoded'); // workflow args decoded by worker
   });
 }
