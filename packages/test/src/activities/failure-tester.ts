@@ -8,9 +8,12 @@ class RetryableError extends Error {
   public readonly name = 'RetryableError';
 }
 
+class CustomError extends Error {}
+
 type ErrorType =
   | 'NonRetryableError'
   | 'RetryableError'
+  | 'CustomError'
   | 'NonRetryableApplicationFailureWithNonRetryableFlag'
   | 'NonRetryableApplicationFailureWithRetryableFlag'
   | 'RetryableApplicationFailureWithRetryableFlag'
@@ -23,6 +26,8 @@ export async function throwSpecificError(type: ErrorType, message: string): Prom
       throw new NonRetryableError(message);
     case 'RetryableError':
       throw new RetryableError(message);
+    case 'CustomError':
+      throw new CustomError(message);
     case 'NonRetryableApplicationFailureWithRetryableFlag':
       throw ApplicationFailure.retryable(message, 'NonRetryableError');
     case 'NonRetryableApplicationFailureWithNonRetryableFlag':

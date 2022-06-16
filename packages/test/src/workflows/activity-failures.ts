@@ -29,7 +29,7 @@ async function assertThrows<T extends Error>(p: Promise<any>, ctor: new (...args
     }
     return err;
   }
-  throw new Error('Expected activity to throw');
+  throw ApplicationFailure.nonRetryable('Expected activity to throw');
 }
 
 export function assertApplicationFailure(
@@ -42,7 +42,7 @@ export function assertApplicationFailure(
     throw new Error(`Expected ApplicationFailure, got ${err}`);
   }
   if (err.type !== type || err.nonRetryable != nonRetryable || err.message !== originalMessage) {
-    throw new Error(
+    throw ApplicationFailure.nonRetryable(
       `Expected ${type} with nonRetryable=${nonRetryable} originalMessage=${originalMessage}, got ${err}`
     );
   }
@@ -50,7 +50,7 @@ export function assertApplicationFailure(
 
 function assertRetryState(err: ActivityFailure, retryState: RetryState) {
   if (err.retryState !== retryState) {
-    throw new Error(`Expected retryState to be ${retryState}, got ${err.retryState}`);
+    throw ApplicationFailure.nonRetryable(`Expected retryState to be ${retryState}, got ${err.retryState}`);
   }
 }
 
@@ -64,6 +64,11 @@ export async function activityFailures(): Promise<void> {
     const err = await assertThrows(throwSpecificError('NonRetryableError', '2'), ActivityFailure);
     assertRetryState(err, RetryState.RETRY_STATE_NON_RETRYABLE_FAILURE);
     assertApplicationFailure(err.cause, 'NonRetryableError', false, '2');
+  }
+  {
+    const err = await assertThrows(throwSpecificError('CustomError', '2'), ActivityFailure);
+    assertRetryState(err, RetryState.RETRY_STATE_MAXIMUM_ATTEMPTS_REACHED);
+    assertApplicationFailure(err.cause, 'CustomError', false, '2');
   }
   {
     const err = await assertThrows(
