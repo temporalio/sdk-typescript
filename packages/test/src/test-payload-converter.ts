@@ -206,7 +206,6 @@ if (RUN_INTEGRATION_TESTS) {
         await expectedErrorWasThrown;
       } finally {
         await handle.terminate();
-        worker.shutdown();
       }
     });
     t.pass();

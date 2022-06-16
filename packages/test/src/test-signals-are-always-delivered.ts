@@ -41,13 +41,7 @@ if (RUN_INTEGRATION_TESTS) {
       sinks,
     });
 
-    await worker.runUntil(async () => {
-      try {
-        await wf.result();
-      } finally {
-        worker.shutdown();
-      }
-    });
+    await worker.runUntil(wf.result());
 
     // Workflow completes if it got the signal
     t.pass();
