@@ -113,10 +113,9 @@ jobs:
         include:
           - os: ubuntu-18.04
             target: x86_64-unknown-linux-gnu
-          # TODO: this compliation target fails
-          # https://github.com/temporalio/sdk-typescript/runs/4241087289?check_suite_focus=true#step:8:119
-          # - os: ubuntu-latest
-          #   target: aarch64-unknown-linux-gnu
+          - os: ubuntu-18.04
+            target: aarch64-unknown-linux-gnu
+            rustflags: '-C linker=aarch64-linux-gnu-gcc'
           - os: macos-latest
             target: x86_64-apple-darwin
           - os: macos-latest
@@ -139,11 +138,16 @@ jobs:
       - name: Print libc version
         run: ldd --version
         if: ${{ matrix.os == 'ubuntu-18.04' }}
+      - name: Install gcc-aarch64-linux-gnu
+        run: sudo apt update && sudo apt install -y gcc-aarch64-linux-gnu
+        if: ${{ matrix.target == 'aarch64-unknown-linux-gnu' }}
       # Don't build during install phase since we're going to explicitly build
       - run: npm ci --ignore-scripts
       - name: Compile all non-rust code
         run: npm run ci-build-no-rust
       - name: Cross compile rust code
+        env:
+          RUSTFLAGS: ${{ matrix.rustflags }}
         run: npx lerna run --stream build-rust-release -- -- --target ${{ matrix.target }}
       # Restore the CLI JS only on Windows because Windows build changes the
       # file attributes causing publish to think the change is uncommitted
