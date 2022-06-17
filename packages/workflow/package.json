@@ -1,6 +1,6 @@
 {
   "name": "@temporalio/workflow",
-  "version": "0.23.0",
+  "version": "1.0.0-rc.0",
   "description": "Temporal.io SDK Workflow sub-package",
   "keywords": [
     "temporal",
@@ -20,8 +20,8 @@
   ],
   "scripts": {},
   "dependencies": {
-    "@temporalio/internal-workflow-common": "file:../internal-workflow-common",
     "@temporalio/common": "file:../common",
+    "@temporalio/internal-workflow-common": "file:../internal-workflow-common",
     "@temporalio/proto": "file:../proto"
   },
   "publishConfig": {
