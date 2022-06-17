@@ -576,13 +576,13 @@ fn client_new(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     let callback = cx.argument::<JsFunction>(2)?;
 
     let client_options = opts.as_client_options(&mut cx)?;
-    let headers = match js_optional_getter!(&mut cx, &opts, "headers", JsObject) {
+    let headers = match js_optional_getter!(&mut cx, &opts, "metadata", JsObject) {
         None => None,
         Some(h) => Some(
             h.as_hash_map_of_string_to_string(&mut cx)
                 .map_err(|reason| {
                     cx.throw_type_error::<_, HashMap<String, String>>(format!(
-                        "Invalid headers: {}",
+                        "Invalid metadata: {}",
                         reason
                     ))
                     .unwrap_err()

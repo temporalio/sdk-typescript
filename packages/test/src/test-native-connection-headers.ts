@@ -60,11 +60,11 @@ test('NativeConnection passes headers provided in options', async (t) => {
 
   const connection = await NativeConnection.connect({
     address: `127.0.0.1:${port}`,
-    headers: { initial: 'true' },
+    metadata: { initial: 'true' },
   });
   t.true(gotInitialHeader);
 
-  await connection.setHeaders({ update: 'true' });
+  await connection.setMetadata({ update: 'true' });
   // Create a worker so it starts polling for activities so we can check our mock server got the "update" header
   const worker = await Worker.create({
     connection,
