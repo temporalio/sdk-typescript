@@ -1,6 +1,6 @@
 import test from 'ava';
 
-import { IllegalStateError, NativeConnection, Worker } from '@temporalio/worker';
+import { IllegalStateError, NativeConnection, TransportError, Worker } from '@temporalio/worker';
 import { RUN_INTEGRATION_TESTS } from './helpers';
 
 test('NativeConnection.connect() throws meaningful error when passed invalid address', async (t) => {
@@ -18,6 +18,13 @@ test('NativeConnection.connect() throws meaningful error when passed invalid cli
 });
 
 if (RUN_INTEGRATION_TESTS) {
+  test('NativeConnection errors have detail', async (t) => {
+    await t.throwsAsync(() => NativeConnection.connect({ address: 'localhost:1' }), {
+      instanceOf: TransportError,
+      message: /.*Connection refused.*/,
+    });
+  });
+
   test('NativeConnection.close() throws when called a second time', async (t) => {
     const conn = await NativeConnection.connect();
     await conn.close();
