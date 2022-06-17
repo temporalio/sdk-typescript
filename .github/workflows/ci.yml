@@ -147,7 +147,6 @@ jobs:
         run: npm run ci-build-no-rust
       - name: Cross compile rust code
         env:
-          CC_aarch64_unknown_linux_gnu: gcc-aarch64-linux-gnu
           RUSTFLAGS: ${{ matrix.rustflags }}
         run: npx lerna run --stream build-rust-release -- -- --target ${{ matrix.target }}
       # Restore the CLI JS only on Windows because Windows build changes the
