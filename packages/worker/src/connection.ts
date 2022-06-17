@@ -69,12 +69,12 @@ export class NativeConnection {
   }
 
   /**
-   * Set HTTP headers to be set in each gRPC request.
+   * Mapping of gRPC metadata (HTTP headers) to send with each request to the server.
    *
-   * Use {@link NativeConnectionOptions.headers} to set the initial headers for client creation.
+   * Use {@link NativeConnectionOptions.metadata} to set the initial metadata for client creation.
    */
-  async setHeaders(headers: Record<string, string>): Promise<void> {
-    await updateHeaders(this.nativeClient, headers);
+  async setMetadata(metadata: Record<string, string>): Promise<void> {
+    await updateHeaders(this.nativeClient, metadata);
   }
 }
 

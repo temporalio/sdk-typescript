@@ -42,6 +42,13 @@ export interface ClientOptions {
    * Optional retry options for server requests.
    */
   retry?: RetryOptions;
+
+  /**
+   * Optional mapping of gRPC metadata (HTTP headers) to send with each request to the server.
+   *
+   * Set statically at connection time, can be replaced later using {@link clientUpdateHeaders}.
+   */
+  metadata?: Record<string, string>;
 }
 
 /**

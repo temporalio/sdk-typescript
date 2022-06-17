@@ -23,16 +23,16 @@ export interface NativeConnectionOptions {
   tls?: TLSConfig | boolean | null;
 
   /**
-   * HTTP headers to send with each gRPC request.
+   * Optional mapping of gRPC metadata (HTTP headers) to send with each request to the server.
    *
-   * Set statically at connection time, can be replaced later using {@link NativeConnection.setHeaders}.
+   * Set statically at connection time, can be replaced later using {@link NativeConnection.setMetadata}.
    */
-  headers?: Record<string, string>;
+  metadata?: Record<string, string>;
 }
 
-export type RequiredNativeConnectionOptions = Omit<Required<NativeConnectionOptions>, 'tls' | 'headers'> & {
+export type RequiredNativeConnectionOptions = Omit<Required<NativeConnectionOptions>, 'tls' | 'metadata'> & {
   tls?: NativeConnectionOptions['tls'];
-  headers?: NativeConnectionOptions['headers'];
+  metadata?: NativeConnectionOptions['metadata'];
   sdkVersion: string;
 };
 
