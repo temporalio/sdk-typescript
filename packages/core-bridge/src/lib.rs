@@ -10,6 +10,7 @@ use opentelemetry::trace::{FutureExt, SpanContext, TraceContextExt};
 use parking_lot::RwLock;
 use prost::Message;
 use std::collections::HashMap;
+use std::ops::Deref;
 use std::{
     cell::RefCell,
     fmt::Display,
@@ -90,6 +91,7 @@ enum RuntimeRequest {
     },
 }
 
+#[derive(Debug)]
 enum WorkerRequest {
     /// A request to shutdown a worker, the worker instance will remain active to
     /// allow draining of pending tasks
@@ -287,7 +289,7 @@ fn start_bridge_loop(channel: Arc<Channel>, receiver: &mut UnboundedReceiver<Run
                             Err(err) => {
                                 send_error(channel.clone(), callback, |cx| match err {
                                     ClientInitError::SystemInfoCallError(e) => TRANSPORT_ERROR
-                                        .from_error(
+                                        .from_string(
                                             cx,
                                             format!("Failed to call GetSystemInfo: {}", e),
                                         ),
@@ -364,8 +366,8 @@ fn start_bridge_loop(channel: Arc<Channel>, receiver: &mut UnboundedReceiver<Run
                                 Ok(cx.boxed(RefCell::new(Some(WorkerHandle { sender: tx }))))
                             })
                         }
-                        Err(err) => send_error(channel.clone(), callback, |cx| {
-                            UNEXPECTED_ERROR.from_error(cx, err)
+                        Err(err) => send_error(channel.clone(), callback, move |cx| {
+                            UNEXPECTED_ERROR.from_error(cx, err.deref())
                         }),
                     };
                 }
@@ -826,7 +828,7 @@ fn worker_record_activity_heartbeat(mut cx: FunctionContext) -> JsResult<JsUndef
     let heartbeat = cx.argument::<JsArrayBuffer>(1)?;
     match &*worker.borrow() {
         None => UNEXPECTED_ERROR
-            .from_error(&mut cx, "Tried to use closed Worker")
+            .from_string(&mut cx, "Tried to use closed Worker")
             .and_then(|err| cx.throw(err))?,
         Some(worker) => {
             match ActivityHeartbeat::decode_length_delimited(heartbeat.as_slice(&mut cx)) {
@@ -873,7 +875,7 @@ fn worker_finalize_shutdown(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     let worker = cx.argument::<BoxedWorker>(0)?;
     if worker.replace(None).is_none() {
         ILLEGAL_STATE_ERROR
-            .from_error(&mut cx, "Worker already closed")
+            .from_string(&mut cx, "Worker already closed")
             .and_then(|err| cx.throw(err))?;
     }
 
@@ -885,7 +887,7 @@ fn client_close(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     let client = cx.argument::<BoxedClient>(0)?;
     if client.replace(None).is_none() {
         ILLEGAL_STATE_ERROR
-            .from_error(&mut cx, "Client already closed")
+            .from_string(&mut cx, "Client already closed")
             .and_then(|err| cx.throw(err))?;
     };
     Ok(cx.undefined())

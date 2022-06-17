@@ -20,14 +20,14 @@ pub trait CustomError {
     where
         C: Context<'a>;
 
-    fn from_string<'a, C>(&self, cx: &mut C, message: String) -> JsResult<'a, JsObject>
+    fn from_string<'a, C>(&self, cx: &mut C, message: impl Into<String>) -> JsResult<'a, JsObject>
     where
         C: Context<'a>;
 
     fn from_error<'a, C, E>(&self, cx: &mut C, err: E) -> JsResult<'a, JsObject>
     where
         C: Context<'a>,
-        E: std::fmt::Display;
+        E: std::error::Error;
 }
 
 // Implement `CustomError` for ALL errors in a `OnceCell`. This only needs to be
@@ -46,20 +46,20 @@ impl CustomError for OnceCell<Root<JsFunction>> {
         error.construct(cx, args)
     }
 
-    fn from_string<'a, C>(&self, cx: &mut C, message: String) -> JsResult<'a, JsObject>
+    fn from_string<'a, C>(&self, cx: &mut C, message: impl Into<String>) -> JsResult<'a, JsObject>
     where
         C: Context<'a>,
     {
-        let args = vec![cx.string(message).upcast()];
+        let args = vec![cx.string(message.into()).upcast()];
         self.construct(cx, args)
     }
 
     fn from_error<'a, C, E>(&self, cx: &mut C, err: E) -> JsResult<'a, JsObject>
     where
         C: Context<'a>,
-        E: std::fmt::Display,
+        E: std::error::Error,
     {
-        self.from_string(cx, format!("{}", err))
+        self.from_string(cx, format!("{:?}", err))
     }
 }
 
