@@ -4,6 +4,206 @@ All notable changes to this project will be documented in this file.
 
 Breaking changes marked with a :boom:
 
+## [1.0.0-rc.0] - 2022-06-17
+
+### Bug Fixes
+
+- :boom: Use firstExecutionRunId and signaledRunId instead of originalRunId ([#664](https://github.com/temporalio/sdk-typescript/pull/664))
+
+  `originalRunId` is a concept related to resetting workflows. None of the instances of `originalRunId` in the SDK seem to do with resetting, so they were changed to `firstExecutionRunId` and `signaledRunId` for handles returned by `WorkflowClient.start` / `@temporalio/workflow:startChild` and `WorkflowClient.signalWithStart` respectively.
+
+- Various improvements and fixes ([#660](https://github.com/temporalio/sdk-typescript/pull/660))
+
+  - Record memory usage in stress tests
+  - Run nightly at night (PST)
+  - Don't block runtime loop when creating new client
+  - Don't include proto converter in test workflows `index.ts` - cuts the **test** bundle size by half
+  - Fix inflight activity tracking
+  - Expose `WorkerStatus.numHeartbeatingActivities`
+  - Handle ShutdownError by name - closes [#614](https://github.com/temporalio/sdk-typescript/pull/614)
+  - Fix TS initiated activity cancellation not creating a proper `ApplicationFailure`
+  - Closes [#667](https://github.com/temporalio/sdk-typescript/pull/667)
+
+- Validate that RetryPolicy maximumAttempts is an integer ([#674](https://github.com/temporalio/sdk-typescript/pull/674))
+
+  Added a quick check that `maximumAttempts` is a number using [`Number.isInteger()`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number/isInteger). This check explicitly excludes numbers like 3.1415 and `Number.POSITIVE_INFINITY`.
+
+  `maximumAttempts` should always be an integer, doesn't make much sense for it to have a decimal component. And `maximumAttempts = 0` is the preferred alternative for `maximumAttempts = Number.POSITIVE_INFINITY`.
+
+- Use JSON.stringify() for non-error objects and String() for other values ([#681](https://github.com/temporalio/sdk-typescript/pull/681))
+- [`workflow`] Import @temporalio/common ([#688](https://github.com/temporalio/sdk-typescript/pull/688))
+
+  - Fixes [#687](https://github.com/temporalio/sdk-typescript/pull/687)
+
+- [`worker`] Throw error when importing a node built-in module from a Workflow ([#689](https://github.com/temporalio/sdk-typescript/pull/689))
+
+  - Closes [#685](https://github.com/temporalio/sdk-typescript/issues/685)
+
+- Recreate TransportErrors in initial connection to provide better stack traces ([#693](https://github.com/temporalio/sdk-typescript/pull/693))
+- [`docs`] Add links to API and other categories ([#676](https://github.com/temporalio/sdk-typescript/pull/676))
+- [`docs`] `Connection.service` -> `.workflowService` ([#696](https://github.com/temporalio/sdk-typescript/pull/696))
+- [`docs`] Remove maxIsolateMemoryMB ([#700](https://github.com/temporalio/sdk-typescript/pull/700))
+- Use error constructor name as `applicationFailureInfo.type` ([#683](https://github.com/temporalio/sdk-typescript/pull/683))
+- Don't drop details from core errors ([#705](https://github.com/temporalio/sdk-typescript/pull/705))
+
+### Features
+
+- [`worker`] Upgrade neon to 0.10 ([#675](https://github.com/temporalio/sdk-typescript/pull/675))
+- :boom: Do not allow undefined in PayloadConverter.toPayload ([#672](https://github.com/temporalio/sdk-typescript/pull/672))
+
+  BREAKING CHANGE: `PayloadConverter.toPayload` can no longer return `undefined`.
+
+  NOTE: This change doesn't apply to `PayloadConverterWithEncoding.toPayload` where the function should return `undefined` to mark that the converter doesn't handle a value.
+
+- :boom: Add upsertSearchAttributes and more ([#657](https://github.com/temporalio/sdk-typescript/pull/657))
+
+  - Added and changed `WorkflowInfo` fields
+  - Added `taskInfo` function to `@temporalio/workflow`
+  - `Datetime` search attributes are converted to Date objects
+  - Add `upsertSearchAttributes` Workflow function
+  - Make Search Attributes always arrays
+
+  - Fixes [#314](https://github.com/temporalio/sdk-typescript/pull/314)
+  - Fixes [#445](https://github.com/temporalio/sdk-typescript/pull/445)
+  - Closes [#576](https://github.com/temporalio/sdk-typescript/pull/576)
+  - Closes [#357](https://github.com/temporalio/sdk-typescript/pull/357)
+
+- :boom: Eager and lazy Connection variants + static metadata + worker shutdown refactor ([#682](https://github.com/temporalio/sdk-typescript/pull/682))
+
+- Upgrade to latest sdk-core
+- Fix test-payload-converter not awaiting on promises
+- Simplify Connection metadata API and support static metadata
+- Deprecate `NativeConnection.create` in favor of `connect` method
+- Add lint rule: `@typescript-eslint/no-floating-promises`
+- Close `TestEnvironment.nativeConnection` in `teardown` method
+
+  BREAKING CHANGE:
+
+  - `Connection` constructor is no longer public, and is replaced with `async Connection.connect` and `Connection.lazy` factory methods.
+  - `Connection.service` was renamed `Connection.workflowService`
+  - `WorkflowClient` constructor now accepts a single options param
+
+    BEFORE:
+
+    ```ts
+    const connection = new Connection(...);
+    const client = new WorkflowClient(connection.service, options);
+    ```
+
+    AFTER:
+
+    ```ts
+    const connection = await Connection.create(...);
+    const client = new WorkflowClient({ connection, ...options });
+    ```
+
+  - Added `Connection.close` and made `Connection.client` protected
+
+    NOTE: It is recommended to reuse `Connection` instances as much as possible.
+    When done using a `Connection`, call `close()` to release any resources held by it.
+
+  - `LOCAL_DOCKER_TARGET` constant was renamed `LOCAL_TARGET`
+
+  - Metrics are now emitted with the `temporal_` prefix by default to be consistent with other SDKs, in the near future this can be disabled by setting `TelemetryOptions.noTemporalPrefixForMetrics` to `true`.
+
+  - Closes [#607](https://github.com/temporalio/sdk-typescript/pull/607)
+  - Closes [#677](https://github.com/temporalio/sdk-typescript/pull/677)
+  - Closes [#452](https://github.com/temporalio/sdk-typescript/pull/452)
+
+- :boom: Implement stack trace query ([#690](https://github.com/temporalio/sdk-typescript/pull/690))
+
+  - Improved stack traces for workflows
+  - Closes [#167](https://github.com/temporalio/sdk-typescript/pull/167)
+  - Stack trace query works on node `>=16.14` because is depends on the [V8 promise hooks API](https://nodejs.org/api/v8.html#promise-hooks)
+  - `@temporalio/worker` now depends on `source-map` and `source-map-loader`
+
+  BREAKING CHANGE: `WorkerOptions.workflowBundle` now accepts both code and source maps
+
+  Before:
+
+  ```ts
+  await Worker.create({
+    workflowBundle: { code },
+    ...rest,
+  });
+
+  // -- OR --
+
+  await Worker.create({
+    workflowBundle: { path },
+    ...rest,
+  });
+  ```
+
+  After:
+
+  ```ts
+  await Worker.create({
+    workflowBundle: { code, sourceMap },
+    ...rest
+  })
+
+  // -- OR --
+
+  await Worker.create({
+    workflowBundle: { codePath, sourceMapPath }
+    ...rest
+  })
+  ```
+
+  The return value of `bundleWorkflowCode` is now `{ code: string, sourceMap: string }`
+
+  BREAKING CHANGE: `WorkflowInternalsInterceptor.activate` is now synchronous
+
+- Support Jest mock Activity functions ([#704](https://github.com/temporalio/sdk-typescript/pull/704))
+- [`worker`] Add `runUntil` method ([#703](https://github.com/temporalio/sdk-typescript/pull/703))
+
+  Useful helper especially in tests.
+
+  Usage:
+
+  ```ts
+  const worker = await Worker.create(opts);
+
+  // Wait on an async function
+  await worker.runUntil(async () => {
+    client.execute(someWorkflow, wopts);
+  });
+
+  // -- OR --
+
+  // Wait on a promise
+  await worker.runUntil(client.execute(someWorkflow, wopts));
+  ```
+
+- :boom: [`worker`] Rename headers to metadata for `NativeConnection` ([#706](https://github.com/temporalio/sdk-typescript/pull/706))
+
+  To use the same term as `@temporalio/client.Connection`
+
+  BREAKING CHANGE:
+
+  - `NativeConnectionOptions.headers` was renamed to `NativeConnectionOptions.metadata`
+  - `NativeConnection.updateHeaders` was renamed to `NativeConnection.updateMetadata`
+
+### Miscellaneous Tasks
+
+- Address feedback from connection refactor PR ([#686](https://github.com/temporalio/sdk-typescript/pull/686))
+- Upgrade to latest Core ([#701](https://github.com/temporalio/sdk-typescript/pull/701))
+
+  - Closes [#697](https://github.com/temporalio/sdk-typescript/pull/697)
+  - Exposes `operatorService` on client `Connection`
+
+- Build bridge for arm linux ([#698](https://github.com/temporalio/sdk-typescript/pull/698))
+
+### Refactor
+
+- Make SearchAttributesValue an array ([#692](https://github.com/temporalio/sdk-typescript/pull/692))
+
+### Testing
+
+- Reduce smorgasbord timeout sensitivity for CI ([#673](https://github.com/temporalio/sdk-typescript/pull/673))
+- Write to provided worker memory log file ([#680](https://github.com/temporalio/sdk-typescript/pull/680))
+
 ## [0.23.2] - 2022-05-17
 
 ### Miscellaneous Tasks

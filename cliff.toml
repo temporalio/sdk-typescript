@@ -30,9 +30,6 @@ body = """
     {% for commit in commits %}
         - {% if commit.breaking %}:boom: {% endif %}{% if commit.scope %}[`{{ commit.scope }}`] {% endif %}\
         {{ commit.message | upper_first }}\
-          {% if commit.body %}
-          - {{ commit.body }}
-          {% endif %}\
     {% endfor %}
 {% endfor %}\n
 """
