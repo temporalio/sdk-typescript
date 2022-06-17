@@ -58,6 +58,8 @@ Breaking changes marked with a :boom:
 - :boom: Add upsertSearchAttributes and more ([#657](https://github.com/temporalio/sdk-typescript/pull/657))
 
   - Added and changed `WorkflowInfo` fields
+  - Added `taskInfo` function to `@temporalio/workflow`
+  - `Datetime` search attributes are converted to Date objects
   - Add `upsertSearchAttributes` Workflow function
   - Make Search Attributes always arrays
 
@@ -104,9 +106,9 @@ Breaking changes marked with a :boom:
 
   - Metrics are now emitted with the `temporal_` prefix by default to be consistent with other SDKs, in the near future this can be disabled by setting `TelemetryOptions.noTemporalPrefixForMetrics` to `true`.
 
-  Closes [#607](https://github.com/temporalio/sdk-typescript/pull/607)
-  Closes [#677](https://github.com/temporalio/sdk-typescript/pull/677)
-  Closes [#452](https://github.com/temporalio/sdk-typescript/pull/452)
+  - Closes [#607](https://github.com/temporalio/sdk-typescript/pull/607)
+  - Closes [#677](https://github.com/temporalio/sdk-typescript/pull/677)
+  - Closes [#452](https://github.com/temporalio/sdk-typescript/pull/452)
 
 - :boom: Implement stack trace query ([#690](https://github.com/temporalio/sdk-typescript/pull/690))
 
