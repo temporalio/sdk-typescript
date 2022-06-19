@@ -216,6 +216,7 @@ export class WorkflowCodeBundler {
         devtoolModuleFilenameTemplate: '[absolute-resource-path]',
         library: '__TEMPORAL__',
       },
+      ignoreWarnings: [/Failed to parse source map/],
     });
 
     // Cast to any because the type declarations are inaccurate
