@@ -125,20 +125,6 @@ module.exports = {
         watch,
       },
     ],
-    [
-      'docusaurus-plugin-typedoc',
-      {
-        id: 'teesting-docs',
-        entryPoints: ['../testing/src/index-for-docs.ts'],
-        tsconfig: '../testing/tsconfig.json',
-        excludePrivate: true,
-        excludeProtected: true,
-        hideGenerator: true,
-        disableSources: true,
-        readme: 'none',
-        watch,
-      },
-    ],
     ...(watch
       ? []
       : [

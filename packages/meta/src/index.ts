@@ -5,3 +5,4 @@ export * as common from '@temporalio/common';
 export * as protobufs from '@temporalio/common/lib/protobufs';
 export * as workflow from '@temporalio/workflow';
 export * as activity from '@temporalio/activity';
+export * as testing from '@temporalio/testing';
