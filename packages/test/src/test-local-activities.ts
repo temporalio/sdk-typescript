@@ -1,6 +1,6 @@
 import { ApplicationFailure, defaultPayloadConverter, WorkflowClient, WorkflowFailedError } from '@temporalio/client';
 import { temporal } from '@temporalio/proto';
-import { Worker } from '@temporalio/worker';
+import { bundleWorkflowCode, Worker, WorkflowBundleWithSourceMap } from '@temporalio/worker';
 import { isCancellation } from '@temporalio/workflow';
 import anyTest, { TestInterface } from 'ava';
 import { firstValueFrom, Subject } from 'rxjs';
@@ -10,174 +10,189 @@ import { RUN_INTEGRATION_TESTS } from './helpers';
 import * as workflows from './workflows/local-activity-testers';
 
 interface Context {
-  worker: Worker;
+  taskQueue: string;
   client: WorkflowClient;
+  getWorker: () => Promise<Worker>;
 }
 
 const test = anyTest as TestInterface<Context>;
 
-const taskQueue = 'test-local-activities';
+let workflowBundle: WorkflowBundleWithSourceMap;
 
-let runPromise: Promise<void>;
-
-test.before(async (t) => {
-  const worker = await Worker.create({
-    taskQueue,
-    workflowsPath: require.resolve('./workflows/local-activity-testers'),
-    activities,
-  });
-  runPromise = worker.run();
-
-  t.context = {
-    worker,
-    client: new WorkflowClient(),
-  };
+test.before(async () => {
+  workflowBundle = await bundleWorkflowCode({ workflowsPath: require.resolve('./workflows/local-activity-testers') });
 });
 
-test.after(async (t) => {
-  t.context.worker.shutdown();
-  await runPromise;
+test.beforeEach(async (t) => {
+  const title = t.title.replace('beforeEach hook for ', '');
+  const taskQueue = `test-local-activities-${title}`;
+  t.context = {
+    client: new WorkflowClient(),
+    taskQueue,
+    getWorker: () =>
+      Worker.create({
+        taskQueue,
+        workflowBundle,
+        activities,
+      }),
+  };
 });
 
 if (RUN_INTEGRATION_TESTS) {
   test('Simple local activity works end to end', async (t) => {
-    const { client } = t.context;
-
-    const res = await client.execute(workflows.runOneLocalActivity, {
-      workflowId: uuid4(),
-      taskQueue,
-      args: ['hello'],
+    const { client, taskQueue, getWorker } = t.context;
+    const worker = await getWorker();
+    await worker.runUntil(async () => {
+      const res = await client.execute(workflows.runOneLocalActivity, {
+        workflowId: uuid4(),
+        taskQueue,
+        args: ['hello'],
+      });
+      t.is(res, 'hello');
     });
-    t.is(res, 'hello');
   });
 
   test('isLocal is set correctly', async (t) => {
-    const { client } = t.context;
+    const { client, taskQueue, getWorker } = t.context;
+    const worker = await getWorker();
+    await worker.runUntil(async () => {
+      const res1 = await client.execute(workflows.getIsLocal, {
+        workflowId: uuid4(),
+        taskQueue,
+        args: [true],
+      });
+      t.is(res1, true);
 
-    const res1 = await client.execute(workflows.getIsLocal, {
-      workflowId: uuid4(),
-      taskQueue,
-      args: [true],
+      const res2 = await client.execute(workflows.getIsLocal, {
+        workflowId: uuid4(),
+        taskQueue,
+        args: [false],
+      });
+      t.is(res2, false);
     });
-    t.is(res1, true);
-
-    const res2 = await client.execute(workflows.getIsLocal, {
-      workflowId: uuid4(),
-      taskQueue,
-      args: [false],
-    });
-    t.is(res2, false);
   });
 
   test('Parallel local activities work end to end', async (t) => {
-    const { client } = t.context;
+    const { client, taskQueue, getWorker } = t.context;
+    const worker = await getWorker();
+    await worker.runUntil(async () => {
+      const args = ['hey', 'ho', 'lets', 'go'];
+      const handle = await client.start(workflows.runParallelLocalActivities, {
+        workflowId: uuid4(),
+        taskQueue,
+        args,
+      });
+      const res = await handle.result();
+      t.deepEqual(res, args);
 
-    const args = ['hey', 'ho', 'lets', 'go'];
-    const handle = await client.start(workflows.runParallelLocalActivities, {
-      workflowId: uuid4(),
-      taskQueue,
-      args,
+      // Double check we have all local activity markers in history
+      const { history } = await client.workflowService.getWorkflowExecutionHistory({
+        namespace: 'default',
+        execution: { workflowId: handle.workflowId },
+      });
+      const markers = history?.events?.filter(
+        (ev) => ev.eventType === temporal.api.enums.v1.EventType.EVENT_TYPE_MARKER_RECORDED
+      );
+      t.is(markers?.length, 4);
     });
-    const res = await handle.result();
-    t.deepEqual(res, args);
-
-    // Double check we have all local activity markers in history
-    const { history } = await client.workflowService.getWorkflowExecutionHistory({
-      namespace: 'default',
-      execution: { workflowId: handle.workflowId },
-    });
-    const markers = history?.events?.filter(
-      (ev) => ev.eventType === temporal.api.enums.v1.EventType.EVENT_TYPE_MARKER_RECORDED
-    );
-    t.is(markers?.length, 4);
   });
 
   test('Local activity error is propagated properly to the Workflow', async (t) => {
-    const { client } = t.context;
-
-    const err: WorkflowFailedError = await t.throwsAsync(
-      client.execute(workflows.throwAnErrorFromLocalActivity, {
-        workflowId: uuid4(),
-        taskQueue,
-        args: ['tesssst'],
-      }),
-      { instanceOf: WorkflowFailedError }
-    );
-    t.is(err.cause?.message, 'tesssst');
+    const { client, taskQueue, getWorker } = t.context;
+    const worker = await getWorker();
+    await worker.runUntil(async () => {
+      const err: WorkflowFailedError = await t.throwsAsync(
+        client.execute(workflows.throwAnErrorFromLocalActivity, {
+          workflowId: uuid4(),
+          taskQueue,
+          args: ['tesssst'],
+        }),
+        { instanceOf: WorkflowFailedError }
+      );
+      t.is(err.cause?.message, 'tesssst');
+    });
   });
 
   test('Local activity cancellation is propagated properly to the Workflow', async (t) => {
-    const { client } = t.context;
-
-    const err: WorkflowFailedError = await t.throwsAsync(
-      client.execute(workflows.cancelALocalActivity, {
-        workflowId: uuid4(),
-        taskQueue,
-        workflowTaskTimeout: '3s',
-        args: ['waitForCancellation'],
-      }),
-      { instanceOf: WorkflowFailedError }
-    );
-    t.true(isCancellation(err.cause));
-    t.is(err.cause?.message, 'Activity cancelled');
+    const { client, taskQueue, getWorker } = t.context;
+    const worker = await getWorker();
+    await worker.runUntil(async () => {
+      const err: WorkflowFailedError = await t.throwsAsync(
+        client.execute(workflows.cancelALocalActivity, {
+          workflowId: uuid4(),
+          taskQueue,
+          workflowTaskTimeout: '3s',
+          args: ['waitForCancellation'],
+        }),
+        { instanceOf: WorkflowFailedError }
+      );
+      t.true(isCancellation(err.cause));
+      t.is(err.cause?.message, 'Activity cancelled');
+    });
   });
 
   test('Failing local activity can be cancelled', async (t) => {
-    const { client } = t.context;
-
-    const err: WorkflowFailedError = await t.throwsAsync(
-      client.execute(workflows.cancelALocalActivity, {
-        workflowId: uuid4(),
-        taskQueue,
-        workflowTaskTimeout: '3s',
-        args: ['throwAnError'],
-      }),
-      { instanceOf: WorkflowFailedError }
-    );
-    t.true(isCancellation(err.cause));
-    t.is(err.cause?.message, 'Activity cancelled');
+    const { client, taskQueue, getWorker } = t.context;
+    const worker = await getWorker();
+    await worker.runUntil(async () => {
+      const err: WorkflowFailedError = await t.throwsAsync(
+        client.execute(workflows.cancelALocalActivity, {
+          workflowId: uuid4(),
+          taskQueue,
+          workflowTaskTimeout: '3s',
+          args: ['throwAnError'],
+        }),
+        { instanceOf: WorkflowFailedError }
+      );
+      t.true(isCancellation(err.cause));
+      t.is(err.cause?.message, 'Activity cancelled');
+    });
   });
 
   test('Serial local activities (in the same task) work end to end', async (t) => {
-    const { client } = t.context;
-
-    const handle = await client.start(workflows.runSerialLocalActivities, {
-      workflowId: uuid4(),
-      taskQueue,
+    const { client, taskQueue, getWorker } = t.context;
+    const worker = await getWorker();
+    await worker.runUntil(async () => {
+      const handle = await client.start(workflows.runSerialLocalActivities, {
+        workflowId: uuid4(),
+        taskQueue,
+      });
+      await handle.result();
+      const { history } = await client.workflowService.getWorkflowExecutionHistory({
+        namespace: 'default',
+        execution: { workflowId: handle.workflowId },
+      });
+      if (history?.events == null) {
+        throw new Error('Expected non null events');
+      }
+      // Last 3 events before completing the workflow should be MarkerRecorded
+      t.truthy(history.events[history.events.length - 2].markerRecordedEventAttributes);
+      t.truthy(history.events[history.events.length - 3].markerRecordedEventAttributes);
+      t.truthy(history.events[history.events.length - 4].markerRecordedEventAttributes);
     });
-    await handle.result();
-    const { history } = await client.workflowService.getWorkflowExecutionHistory({
-      namespace: 'default',
-      execution: { workflowId: handle.workflowId },
-    });
-    if (history?.events == null) {
-      throw new Error('Expected non null events');
-    }
-    // Last 3 events before completing the workflow should be MarkerRecorded
-    t.truthy(history.events[history.events.length - 2].markerRecordedEventAttributes);
-    t.truthy(history.events[history.events.length - 3].markerRecordedEventAttributes);
-    t.truthy(history.events[history.events.length - 4].markerRecordedEventAttributes);
   });
 
   test('Local activity does not retry if error is in nonRetryableErrorTypes', async (t) => {
-    const { client } = t.context;
-
-    const err: WorkflowFailedError = await t.throwsAsync(
-      client.execute(workflows.throwAnExplicitNonRetryableErrorFromLocalActivity, {
-        workflowId: uuid4(),
-        taskQueue,
-        args: ['tesssst'],
-      }),
-      { instanceOf: WorkflowFailedError }
-    );
-    t.is(err.cause?.message, 'tesssst');
+    const { client, taskQueue, getWorker } = t.context;
+    const worker = await getWorker();
+    await worker.runUntil(async () => {
+      const err: WorkflowFailedError = await t.throwsAsync(
+        client.execute(workflows.throwAnExplicitNonRetryableErrorFromLocalActivity, {
+          workflowId: uuid4(),
+          taskQueue,
+          args: ['tesssst'],
+        }),
+        { instanceOf: WorkflowFailedError }
+      );
+      t.is(err.cause?.message, 'tesssst');
+    });
   });
 
   test('Local activity can retry once', async (t) => {
     let attempts = 0;
-    const { client } = t.context;
+    const { taskQueue, client } = t.context;
     const worker = await Worker.create({
-      taskQueue: 'local-activity-retry-once',
+      taskQueue,
       workflowsPath: require.resolve('./workflows/local-activity-testers'),
       activities: {
         // Reimplement here to track number of attempts
@@ -192,23 +207,22 @@ if (RUN_INTEGRATION_TESTS) {
       const err: WorkflowFailedError = await t.throwsAsync(
         client.execute(workflows.throwARetryableErrorWithASingleRetry, {
           workflowId: uuid4(),
-          taskQueue: 'local-activity-retry-once',
+          taskQueue,
           args: ['tesssst'],
         }),
         { instanceOf: WorkflowFailedError }
       );
       t.is(err.cause?.message, 'tesssst');
     });
-
     // Might be more than 2 if workflow task times out (CI I'm looking at you)
     t.true(attempts >= 2);
   });
 
   test('Local activity backs off with timer', async (t) => {
     let attempts = 0;
-    const { client } = t.context;
+    const { client, taskQueue } = t.context;
     const worker = await Worker.create({
-      taskQueue: 'local-activity-backoff',
+      taskQueue,
       workflowsPath: require.resolve('./workflows/local-activity-testers'),
       activities: {
         // Reimplement here to track number of attempts
@@ -224,7 +238,7 @@ if (RUN_INTEGRATION_TESTS) {
     await worker.runUntil(async () => {
       const handle = await client.start(workflows.throwAnErrorWithBackoff, {
         workflowId: uuid4(),
-        taskQueue: 'local-activity-backoff',
+        taskQueue,
         workflowTaskTimeout: '3s',
       });
       await handle.result();
@@ -245,9 +259,9 @@ if (RUN_INTEGRATION_TESTS) {
   });
 
   test('Local activity can be intercepted', async (t) => {
-    const { client } = t.context;
+    const { client, taskQueue } = t.context;
     const worker = await Worker.create({
-      taskQueue: 'local-activity-interceptor',
+      taskQueue,
       workflowsPath: require.resolve('./workflows/local-activity-testers'),
       // Interceptors included with workflow implementations
       interceptors: {
@@ -263,23 +277,21 @@ if (RUN_INTEGRATION_TESTS) {
       },
       activities,
     });
-
     await worker.runUntil(async () => {
       const res = await client.execute(workflows.runOneLocalActivity, {
         workflowId: uuid4(),
-        taskQueue: 'local-activity-interceptor',
+        taskQueue,
         args: ['message'],
       });
       t.is(res, 'messagemessage');
     });
   });
 
-  // TODO: fix Core shutdown and reenable this test
   test('Worker shutdown while running a local activity completes after completion', async (t) => {
-    const { client } = t.context;
+    const { client, taskQueue } = t.context;
     const subj = new Subject<void>();
     const worker = await Worker.create({
-      taskQueue: 'local-activity-shutdown',
+      taskQueue,
       activities,
       workflowsPath: require.resolve('./workflows/local-activity-testers'),
       interceptors: {
@@ -299,7 +311,7 @@ if (RUN_INTEGRATION_TESTS) {
     });
     const handle = await client.start(workflows.cancelALocalActivity, {
       workflowId: uuid4(),
-      taskQueue: 'local-activity-shutdown',
+      taskQueue,
       workflowTaskTimeout: '3s',
       args: ['waitForCancellation'],
     });
@@ -315,15 +327,18 @@ if (RUN_INTEGRATION_TESTS) {
   });
 
   test('Local activity fails if not registered on Worker', async (t) => {
-    const { client } = t.context;
-    const err: WorkflowFailedError = await t.throwsAsync(
-      client.execute(workflows.runANonExisitingLocalActivity, {
-        workflowId: uuid4(),
-        taskQueue,
-      }),
-      { instanceOf: WorkflowFailedError }
-    );
-    t.true(err.cause instanceof ApplicationFailure && !err.cause.nonRetryable);
-    t.truthy(err.cause?.message?.startsWith('Activity function activityNotFound is not registered on this Worker'));
+    const { client, taskQueue, getWorker } = t.context;
+    const worker = await getWorker();
+    await worker.runUntil(async () => {
+      const err: WorkflowFailedError = await t.throwsAsync(
+        client.execute(workflows.runANonExisitingLocalActivity, {
+          workflowId: uuid4(),
+          taskQueue,
+        }),
+        { instanceOf: WorkflowFailedError }
+      );
+      t.true(err.cause instanceof ApplicationFailure && !err.cause.nonRetryable);
+      t.truthy(err.cause?.message?.startsWith('Activity function activityNotFound is not registered on this Worker'));
+    });
   });
 }
