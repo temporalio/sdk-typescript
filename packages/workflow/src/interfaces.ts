@@ -206,9 +206,7 @@ checkExtends<coresdk.child_workflow.ChildWorkflowCancellationType, ChildWorkflow
  */
 export enum ParentClosePolicy {
   /**
-   * No need to use this.
-   *
-   * (If a `ParentClosePolicy` is set to this, or is not set at all, the default value will be used.)
+   * If a `ParentClosePolicy` is set to this, or is not set at all, the server default value will be used.
    */
   PARENT_CLOSE_POLICY_UNSPECIFIED = 0,
 
