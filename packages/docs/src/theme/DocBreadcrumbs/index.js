@@ -18,15 +18,13 @@ export default function DocBreadcrumbs() {
             🏠
           </Link>
         </li>
-        {
-          breadcrumbs.map((item, idx) => (
-            <li key={idx} className={getItemClassNames(breadcrumbs, idx)}>
-              <Link className="breadcrumbs__link" href={getHrefFromItem(item)}>
-                <span>{item.label}</span>
-              </Link>
-            </li>
-          ))
-        }
+        {breadcrumbs.map((item, idx) => (
+          <li key={idx} className={getItemClassNames(breadcrumbs, idx)}>
+            <Link className="breadcrumbs__link" href={getHrefFromItem(item)}>
+              <span>{item.label}</span>
+            </Link>
+          </li>
+        ))}
       </ul>
     </nav>
   );

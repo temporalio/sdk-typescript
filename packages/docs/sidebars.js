@@ -39,12 +39,13 @@ function nestMarkdownFiles() {
       } else {
         let item = items.find(({ label }) => label === category);
         if (item === undefined) {
+          const anchor = category.toLowerCase() === 'enums' ? 'enumerations' : category.toLowerCase();
           item = {
             type: 'category',
             label: category,
             items: [],
             customProps: {
-              breadcrumbLink: `/api/namespaces/${parts[0]}#${category.toLowerCase()}`,
+              breadcrumbLink: `/api/namespaces/${parts[0]}#${anchor}`,
             },
           };
           items.push(item);
