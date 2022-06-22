@@ -185,7 +185,10 @@ export enum ChildWorkflowCancellationType {
   TRY_CANCEL = 1,
 
   /**
-   * Send a cancellation request to the Child. Throw the error if and when the Child's cancellation is completed.
+   * Send a cancellation request to the Child. The Child may respect cancellation, in which case an error will be thrown
+   * when cancellation has completed, and {@link isCancellation}(error) will be true. On the other hand, the Child may
+   * ignore the cancellation request, in which case an error might be thrown with a different cause, or the Child may
+   * complete successfully.
    *
    * @default
    */
