@@ -42,12 +42,10 @@ checkExtends<temporal.api.enums.v1.WorkflowIdReusePolicy, WorkflowIdReusePolicy>
 
 export interface BaseWorkflowOptions {
   /**
-   * Specifies server behavior if a completed workflow with the same id exists. Note that under no
-   * conditions Temporal allows two workflows with the same namespace and workflow id run
-   * simultaneously.
-   *   ALLOW_DUPLICATE_FAILED_ONLY is a default value. It means that
-   *   ALLOW_DUPLICATE allows new run independently of the previous run closure status.
-   *   REJECT_DUPLICATE doesn't allow new run independently of the previous run closure status.
+   * Whether a Workflow can be started with a Workflow Id of a Closed Workflow.
+   *
+   * *Note: A Workflow can never be started with a Workflow Id of a Running Workflow.*
+   *
    * @default {@link WorkflowIdReusePolicy.ALLOW_DUPLICATE_FAILED_ONLY}
    */
   workflowIdReusePolicy?: WorkflowIdReusePolicy;

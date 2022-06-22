@@ -175,7 +175,7 @@ export interface ContinueAsNewOptions {
  */
 export enum ChildWorkflowCancellationType {
   /**
-   * Don't send a cancellation request to the Child. Don't throw an error.
+   * Don't send a cancellation request to the Child.
    */
   ABANDON = 0,
 
@@ -247,7 +247,7 @@ export interface ChildWorkflowOptions extends CommonWorkflowOptions {
   /**
    * Specifies:
    * - whether cancellation requests are sent to the Child
-   * - whether and when a {@link CanceledFailure} is thrown from {@link executeChild} or
+   * - whether and when an error is thrown from {@link executeChild} or
    *   {@link ChildWorkflowHandle.result}
    *
    * @default {@link ChildWorkflowCancellationType.WAIT_CANCELLATION_COMPLETED}
