@@ -165,19 +165,66 @@ export interface ContinueAsNewOptions {
   searchAttributes?: SearchAttributes;
 }
 
+/**
+ * Specifies:
+ * - whether cancellation requests are sent to the Child
+ * - whether and when a {@link CanceledFailure} is thrown from {@link executeChild} or
+ *   {@link ChildWorkflowHandle.result}
+ *
+ * @default {@link ChildWorkflowCancellationType.WAIT_CANCELLATION_COMPLETED}
+ */
 export enum ChildWorkflowCancellationType {
+  /**
+   * Don't send a cancellation request to the Child. Don't throw an error.
+   */
   ABANDON = 0,
+
+  /**
+   * Send a cancellation request to the Child. Immediately throw the error.
+   */
   TRY_CANCEL = 1,
+
+  /**
+   * Send a cancellation request to the Child. Throw the error if and when the Child's cancellation is completed.
+   *
+   * @default
+   */
   WAIT_CANCELLATION_COMPLETED = 2,
+
+  /**
+   * Send a cancellation request to the Child. Throw the error once the Server receives the Child cancellation request.
+   */
   WAIT_CANCELLATION_REQUESTED = 3,
 }
 
 checkExtends<coresdk.child_workflow.ChildWorkflowCancellationType, ChildWorkflowCancellationType>();
 
+/**
+ * Concept: [Parent Close Policy](https://docs.temporal.io/concepts/what-is-a-parent-close-policy/)
+ */
 export enum ParentClosePolicy {
+  /**
+   * No need to use this.
+   *
+   * (If a `ParentClosePolicy` is set to this, or is not set at all, the default value will be used.)
+   */
   PARENT_CLOSE_POLICY_UNSPECIFIED = 0,
+
+  /**
+   * When the Parent is Closed, the Child is Terminated.
+   *
+   * @default
+   */
   PARENT_CLOSE_POLICY_TERMINATE = 1,
+
+  /**
+   * When the Parent is Closed, nothing is done to the Child.
+   */
   PARENT_CLOSE_POLICY_ABANDON = 2,
+
+  /**
+   * When the Parent is Closed, the Child is Cancelled.
+   */
   PARENT_CLOSE_POLICY_REQUEST_CANCEL = 3,
 }
 
@@ -198,13 +245,19 @@ export interface ChildWorkflowOptions extends CommonWorkflowOptions {
   taskQueue?: string;
 
   /**
-   * In case of a child workflow cancellation it fails with a CanceledFailure.
-   * The type defines at which point the exception is thrown.
-   * @default ChildWorkflowCancellationType.WAIT_CANCELLATION_COMPLETED
+   * Specifies:
+   * - whether cancellation requests are sent to the Child
+   * - whether and when a {@link CanceledFailure} is thrown from {@link executeChild} or
+   *   {@link ChildWorkflowHandle.result}
+   *
+   * @default {@link ChildWorkflowCancellationType.WAIT_CANCELLATION_COMPLETED}
    */
   cancellationType?: ChildWorkflowCancellationType;
+
   /**
-   * Specifies how this workflow reacts to the death of the parent workflow.
+   * Specifies how this Workflow reacts to the death of the Parent Workflow.
+   *
+   * @default {@link ParentClosePolicy.PARENT_CLOSE_POLICY_TERMINATE}
    */
   parentClosePolicy?: ParentClosePolicy;
 }
