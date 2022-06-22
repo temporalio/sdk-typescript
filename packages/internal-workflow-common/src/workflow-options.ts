@@ -6,10 +6,35 @@ import { checkExtends, Replace } from './type-helpers';
 
 // Avoid importing the proto implementation to reduce workflow bundle size
 // Copied from temporal.api.enums.v1.WorkflowIdReusePolicy
+/**
+ * Concept: [Workflow Id Reuse Policy](https://docs.temporal.io/concepts/what-is-a-workflow-id-reuse-policy/)
+ *
+ * Whether a Workflow can be started with a Workflow Id of a Closed Workflow.
+ *
+ * *Note: A Workflow can never be started with a Workflow Id of a Running Workflow.*
+ */
 export enum WorkflowIdReusePolicy {
+  /**
+   * No need to use this.
+   *
+   * (If a `WorkflowIdReusePolicy` is set to this, or is not set at all, the default value will be used.)
+   */
   WORKFLOW_ID_REUSE_POLICY_UNSPECIFIED = 0,
+
+  /**
+   * The Workflow can be started if the previous Workflow is in a Closed state.
+   * @default
+   */
   WORKFLOW_ID_REUSE_POLICY_ALLOW_DUPLICATE = 1,
+
+  /**
+   * The Workflow can be started if the previous Workflow is in a Closed state that is not Completed.
+   */
   WORKFLOW_ID_REUSE_POLICY_ALLOW_DUPLICATE_FAILED_ONLY = 2,
+
+  /**
+   * The Workflow cannot be started.
+   */
   WORKFLOW_ID_REUSE_POLICY_REJECT_DUPLICATE = 3,
 }
 
@@ -20,10 +45,10 @@ export interface BaseWorkflowOptions {
    * Specifies server behavior if a completed workflow with the same id exists. Note that under no
    * conditions Temporal allows two workflows with the same namespace and workflow id run
    * simultaneously.
-   *   ALLOW_DUPLICATE_FAILED_ONLY is a default value. It means that workflow can start if
-   *   previous run failed or was canceled or terminated.
+   *   ALLOW_DUPLICATE_FAILED_ONLY is a default value. It means that
    *   ALLOW_DUPLICATE allows new run independently of the previous run closure status.
    *   REJECT_DUPLICATE doesn't allow new run independently of the previous run closure status.
+   * @default {@link WorkflowIdReusePolicy.ALLOW_DUPLICATE_FAILED_ONLY}
    */
   workflowIdReusePolicy?: WorkflowIdReusePolicy;
 

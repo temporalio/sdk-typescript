@@ -201,6 +201,8 @@ checkExtends<coresdk.child_workflow.ChildWorkflowCancellationType, ChildWorkflow
 
 /**
  * Concept: [Parent Close Policy](https://docs.temporal.io/concepts/what-is-a-parent-close-policy/)
+ *
+ * How a Child Workflow reacts to the Parent Workflow reaching a Closed state.
  */
 export enum ParentClosePolicy {
   /**
@@ -255,7 +257,7 @@ export interface ChildWorkflowOptions extends CommonWorkflowOptions {
   cancellationType?: ChildWorkflowCancellationType;
 
   /**
-   * Specifies how this Workflow reacts to the death of the Parent Workflow.
+   * Specifies how the Child reacts to the Parent Workflow reaching a Closed state.
    *
    * @default {@link ParentClosePolicy.PARENT_CLOSE_POLICY_TERMINATE}
    */
