@@ -30,7 +30,21 @@ test('cancel-fake-progress-replay', async (t) => {
   await Worker.runReplayHistory(
     {
       workflowsPath: require.resolve('./workflows'),
-      replayName: t.title,
+    },
+    hist
+  );
+  t.pass();
+});
+
+test('cancel-fake-progress-replay from JSON', async (t) => {
+  const histJson = await fs.promises.readFile(
+    path.resolve(__dirname, '../history_files/cancel_fake_progress_history.json'),
+    'utf8'
+  );
+  const hist = JSON.parse(histJson);
+  await Worker.runReplayHistory(
+    {
+      workflowsPath: require.resolve('./workflows'),
     },
     hist
   );
@@ -51,7 +65,6 @@ test('cancel-fake-progress-replay-nondeterministic', async (t) => {
     Worker.runReplayHistory(
       {
         workflowsPath: require.resolve('./workflows'),
-        replayName: t.title,
       },
       hist
     ),
