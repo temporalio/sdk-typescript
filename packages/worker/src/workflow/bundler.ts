@@ -1,11 +1,10 @@
+import crypto from 'crypto';
 import * as realFS from 'fs';
 import * as memfs from 'memfs';
 import { builtinModules } from 'module';
 import path from 'path';
-import dedent from 'ts-dedent';
 import * as unionfs from 'unionfs';
 import util from 'util';
-import { v4 as uuid4 } from 'uuid';
 import webpack from 'webpack';
 import { DefaultLogger, Logger } from '../logger';
 
@@ -111,11 +110,11 @@ export class WorkflowCodeBundler {
     if (stat.isFile()) {
       // workflowsPath is a file; make the entrypoint a sibling of that file
       const { root, dir, name } = path.parse(workflowsPath);
-      return path.format({ root, dir, base: `${name}-entrypoint-${uuid4()}.js` });
+      return path.format({ root, dir, base: `${name}-entrypoint-${crypto.randomBytes(8).toString('hex')}.js` });
     } else {
       // workflowsPath is a directory; make the entrypoint a sibling of that directory
       const { root, dir, base } = path.parse(workflowsPath);
-      return path.format({ root, dir, base: `${base}-entrypoint-${uuid4()}.js` });
+      return path.format({ root, dir, base: `${base}-entrypoint-${crypto.randomBytes(8).toString('hex')}.js` });
     }
   }
 
@@ -129,24 +128,24 @@ export class WorkflowCodeBundler {
       .map((v) => `import(/* webpackMode: "eager" */ ${JSON.stringify(v)})`)
       .join(', \n');
 
-    const code = dedent`
-      import * as api from '@temporalio/workflow/lib/worker-interface.js';
+    const code = `
+import * as api from '@temporalio/workflow/lib/worker-interface.js';
 
-      // Bundle all Workflows and interceptor modules for lazy evaluation
-      api.overrideGlobals();
-      api.setImportFuncs({
-        importWorkflows: () => {
-          return import(/* webpackMode: "eager" */ ${JSON.stringify(this.workflowsPath)});
-        },
-        importInterceptors: () => {
-          return Promise.all([
-            ${interceptorImports}
-          ]);
-        }
-      });
+// Bundle all Workflows and interceptor modules for lazy evaluation
+api.overrideGlobals();
+api.setImportFuncs({
+  importWorkflows: () => {
+    return import(/* webpackMode: "eager" */ ${JSON.stringify(this.workflowsPath)});
+  },
+  importInterceptors: () => {
+    return Promise.all([
+      ${interceptorImports}
+    ]);
+  }
+});
 
-      export { api };
-    `;
+export { api };
+`;
     try {
       vol.mkdirSync(path.dirname(target), { recursive: true });
     } catch (err: any) {

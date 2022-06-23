@@ -15,7 +15,8 @@
     "@temporalio/internal-workflow-common": "file:../internal-workflow-common",
     "@temporalio/proto": "file:../proto",
     "@opentelemetry/api": "^1.0.3",
-    "proto3-json-serializer": "^0.1.6"
+    "proto3-json-serializer": "^1.0.2",
+    "protobufjs": "^6.11.3"
   },
   "bugs": {
     "url": "https://github.com/temporalio/sdk-typescript/issues"
@@ -24,7 +25,8 @@
   "publishConfig": {
     "access": "public"
   },
-  "devDependencies": {
-    "protobufjs": "^6.11.2"
-  }
+  "files": [
+    "src",
+    "lib"
+  ]
 }

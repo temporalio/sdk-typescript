@@ -6,6 +6,7 @@
   "types": "protos/index.d.ts",
   "files": [
     "protos/",
+    "src/",
     "lib/"
   ],
   "scripts": {
@@ -19,12 +20,9 @@
   "author": "Roey Berman <roey@temporal.io>",
   "license": "MIT",
   "dependencies": {
-    "@types/long": "^4.0.1",
-    "long": "^4.0.0",
-    "protobufjs": "^6.11.2"
-  },
-  "devDependencies": {
-    "glob": "^7.1.7"
+    "@types/long": "^4.0.2",
+    "long": "^5.2.0",
+    "protobufjs": "^6.11.3"
   },
   "bugs": {
     "url": "https://github.com/temporalio/sdk-typescript/issues"

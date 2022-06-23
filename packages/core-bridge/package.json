@@ -19,10 +19,10 @@
   "author": "Roey Berman <roey@temporal.io>",
   "license": "MIT",
   "dependencies": {
-    "@opentelemetry/api": "^1.0.3",
+    "@opentelemetry/api": "^1.1.0",
     "@temporalio/internal-non-workflow-common": "file:../internal-non-workflow-common",
-    "arg": "^5.0.1",
-    "cargo-cp-artifact": "^0.1.4",
+    "arg": "^5.0.2",
+    "cargo-cp-artifact": "^0.1.6",
     "which": "^2.0.2"
   },
   "bugs": {

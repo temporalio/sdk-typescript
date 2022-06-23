@@ -956,7 +956,7 @@ export class Worker {
                   }
                   activation.jobs = jobs;
                   if (jobs.length === 0) {
-                    state?.workflow.dispose();
+                    await state?.workflow.dispose();
                     if (!close) {
                       const message = 'Got a Workflow activation with no jobs';
                       throw new IllegalStateError(message);

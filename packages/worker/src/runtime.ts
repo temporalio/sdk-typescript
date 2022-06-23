@@ -77,6 +77,7 @@ export class CoreLogger extends DefaultLogger {
     for (const entry of this.buffer) {
       this.next.log(entry.level, entry.message, { ...entry.meta, [LogTimestamp]: entry.timestampNanos });
     }
+    this.buffer.clear();
   }
 }
 

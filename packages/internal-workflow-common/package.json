@@ -13,7 +13,7 @@
   "license": "MIT",
   "dependencies": {
     "@temporalio/proto": "file:../proto",
-    "long": "^4.0.0",
+    "long": "^5.2.0",
     "ms": "^2.1.3"
   },
   "bugs": {
@@ -22,5 +22,9 @@
   "homepage": "https://github.com/temporalio/sdk-typescript/tree/main/packages/internal-workflow-common",
   "publishConfig": {
     "access": "public"
-  }
+  },
+  "files": [
+    "src",
+    "lib"
+  ]
 }
