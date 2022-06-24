@@ -7,6 +7,7 @@ import { promisify } from 'util';
 import { rm, readdir } from 'fs/promises';
 import path from 'path';
 import { getErrorCode } from './get-error-code.js';
+import { headers } from './headers';
 
 const pipeline = promisify(Stream.pipeline);
 
@@ -20,7 +21,7 @@ export type RepoInfo = {
 export async function isUrlOk(url: string): Promise<boolean> {
   let res;
   try {
-    res = await got.head(url);
+    res = await got.head(url, { headers });
   } catch (e) {
     return false;
   }
@@ -45,7 +46,7 @@ export async function getRepoInfo(url: URL, samplePath?: string): Promise<RepoIn
 
     try {
       // https://github.com/sindresorhus/got/blob/main/documentation/3-streams.md#response-1
-      infoResponse = await got(repo);
+      infoResponse = await got(repo, { headers });
     } catch (error) {
       throw new Error(`Unable to fetch ${repo}`);
     }
@@ -99,7 +100,7 @@ export async function downloadAndExtractRepo(
   const archivePath = `${name}-${branch}${filePath ? `/${filePath}` : ''}`;
 
   await pipeline(
-    got.stream(archiveUrl),
+    got.stream(archiveUrl, { headers }),
     tar.extract({ cwd: root, strip: filePath ? filePath.split('/').length + 1 : 1 }, [archivePath])
   );
 
@@ -122,7 +123,7 @@ export async function downloadAndExtractSample(root: string, name: string): Prom
   }
 
   await pipeline(
-    got.stream('https://codeload.github.com/temporalio/samples-typescript/tar.gz/main'),
+    got.stream('https://codeload.github.com/temporalio/samples-typescript/tar.gz/main', { headers }),
     tar.extract({ cwd: root, strip: 2 }, [`samples-typescript-main/${name}`])
   );
 
