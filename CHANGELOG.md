@@ -93,7 +93,7 @@ Breaking changes marked with a :boom:
     AFTER:
 
     ```ts
-    const connection = await Connection.create(...);
+    const connection = await Connection.connect(...);
     const client = new WorkflowClient({ connection, ...options });
     ```
 
