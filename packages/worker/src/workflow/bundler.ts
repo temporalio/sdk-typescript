@@ -17,11 +17,10 @@ export const disallowedModules = [
   '@temporalio/client',
   '@temporalio/worker',
   '@temporalio/internal-non-workflow-common',
-  '@temporalio/interceptors-opentelemetry',
-  '@temporalio/test',
+  '@temporalio/interceptors-opentelemetry/lib/client',
+  '@temporalio/interceptors-opentelemetry/lib/worker',
   '@temporalio/testing',
   '@temporalio/core-bridge',
-  '@temporalio/create',
 ];
 
 export function moduleMatches(userModule: string, modules: string[]): boolean {
