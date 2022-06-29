@@ -63,11 +63,11 @@ export {
   ActivityFunction,
   ActivityInterface,
   ActivityOptions,
-  IllegalStateError,
   RetryPolicy,
-  ValueError,
 } from '@temporalio/internal-workflow-common';
+export * from '@temporalio/internal-workflow-common/lib/errors';
 export * from '@temporalio/internal-workflow-common/lib/interfaces';
+export * from '@temporalio/internal-workflow-common/lib/workflow-handle';
 export * from '@temporalio/internal-workflow-common/lib/workflow-options';
 export { AsyncLocalStorage, CancellationScope, CancellationScopeOptions, ROOT_SCOPE } from './cancellation-scope';
 export * from './errors';
