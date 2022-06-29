@@ -10,6 +10,7 @@ import { RUN_INTEGRATION_TESTS } from './helpers';
 import * as workflows from './workflows/local-activity-testers';
 
 interface Context {
+  workflowBundle: WorkflowBundleWithSourceMap;
   taskQueue: string;
   client: WorkflowClient;
   getWorker: () => Promise<Worker>;
@@ -17,22 +18,23 @@ interface Context {
 
 const test = anyTest as TestInterface<Context>;
 
-let workflowBundle: WorkflowBundleWithSourceMap;
-
-test.before(async () => {
-  workflowBundle = await bundleWorkflowCode({ workflowsPath: require.resolve('./workflows/local-activity-testers') });
+test.before(async (t) => {
+  t.context = {
+    workflowBundle: await bundleWorkflowCode({ workflowsPath: require.resolve('./workflows/local-activity-testers') }),
+  } as Context;
 });
 
 test.beforeEach(async (t) => {
   const title = t.title.replace('beforeEach hook for ', '');
   const taskQueue = `test-local-activities-${title}`;
   t.context = {
+    ...t.context,
     client: new WorkflowClient(),
     taskQueue,
     getWorker: () =>
       Worker.create({
         taskQueue,
-        workflowBundle,
+        workflowBundle: t.context.workflowBundle,
         activities,
       }),
   };
