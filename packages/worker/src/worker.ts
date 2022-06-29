@@ -26,7 +26,7 @@ import {
   NUM_JOBS_ATTR_KEY,
   RUN_ID_ATTR_KEY,
   TASK_TOKEN_ATTR_KEY,
-} from '@temporalio/internal-non-workflow-common/lib/otel';
+} from '@temporalio/common/lib/otel';
 import {
   decompileRetryPolicy,
   optionalTsToDate,

@@ -14,6 +14,7 @@
   "dependencies": {
     "@temporalio/internal-workflow-common": "file:../internal-workflow-common",
     "@temporalio/proto": "file:../proto",
+    "@opentelemetry/api": "^1.0.3",
     "proto3-json-serializer": "^0.1.6"
   },
   "bugs": {
