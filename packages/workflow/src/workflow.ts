@@ -765,9 +765,7 @@ export async function executeChild<T extends () => WorkflowReturnType>(
  *
  * @return The result of the child Workflow.
  */
-export async function executeChild<T extends () => WorkflowReturnType>(
-  workflowFunc: T
-): Promise<ChildWorkflowHandle<T>>;
+export async function executeChild<T extends () => WorkflowReturnType>(workflowFunc: T): Promise<WorkflowResultType<T>>;
 
 export async function executeChild<T extends Workflow>(
   workflowTypeOrFunc: string | T,

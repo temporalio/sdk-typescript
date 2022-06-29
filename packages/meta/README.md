@@ -34,7 +34,6 @@ Notably these features are missing:
 
 - Local activities
 - Side effects
-- Upsert search attributes
 - Test framework
 - Custom data converters
 
