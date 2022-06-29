@@ -19,9 +19,9 @@ interface Context {
 const test = anyTest as TestInterface<Context>;
 
 test.before(async (t) => {
-  t.context = {
-    workflowBundle: await bundleWorkflowCode({ workflowsPath: require.resolve('./workflows/local-activity-testers') }),
-  } as Context;
+  t.context.workflowBundle = await bundleWorkflowCode({
+    workflowsPath: require.resolve('./workflows/local-activity-testers'),
+  });
 });
 
 test.beforeEach(async (t) => {
