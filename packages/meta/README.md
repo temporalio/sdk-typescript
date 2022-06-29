@@ -24,22 +24,6 @@ The documentation is divided into several sections:
 
 You can improve it by sending pull requests to this repository (for the API reference) or to the [documentation repository](https://github.com/temporalio/documentation).
 
-## This SDK is in beta
-
-### Features
-
-Mostly complete implementation of all components that make up a Temporal SDK - Worker, Client, Workflows, and Activities
-
-Notably these features are missing:
-
-- Local activities
-- Side effects
-- Test framework
-- Custom data converters
-
-> To provide feedback please [open an issue](https://github.com/temporalio/sdk-typescript/issues) and feel free to
-> talk to us on the [#typescript-sdk community slack channel](https://temporal.io/slack) or post on our [discourse support forum](https://community.temporal.io/).
-
 ## Installation
 
 See the [getting started](https://docs.temporal.io/typescript/introduction/#getting-started) guide for setting up a project on your laptop.
