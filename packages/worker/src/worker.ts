@@ -725,7 +725,6 @@ export class Worker {
                     }
                     const info = await extractActivityInfo(
                       task,
-                      false,
                       this.options.loadedDataConverter,
                       this.options.namespace
                     );
@@ -1591,7 +1590,6 @@ type NonNullableObject<T> = { [P in keyof T]-?: NonNullable<T[P]> };
  */
 async function extractActivityInfo(
   task: coresdk.activity_task.IActivityTask,
-  isLocal: boolean,
   dataConverter: LoadedDataConverter,
   activityNamespace: string
 ): Promise<ActivityInfo> {
@@ -1605,7 +1603,7 @@ async function extractActivityInfo(
     activityId,
     workflowExecution: start.workflowExecution as NonNullableObject<temporal.api.common.v1.WorkflowExecution>,
     attempt: start.attempt,
-    isLocal,
+    isLocal: start.isLocal,
     activityType: start.activityType,
     workflowType: start.workflowType,
     heartbeatDetails: await decodeFromPayloadsAtIndex(dataConverter, 0, start.heartbeatDetails),
