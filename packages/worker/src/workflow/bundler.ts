@@ -11,6 +11,17 @@ import { DefaultLogger, Logger } from '../logger';
 
 export const allowedBuiltinModules = ['assert'];
 export const disallowedBuiltinModules = builtinModules.filter((module) => !allowedBuiltinModules.includes(module));
+export const disallowedModules = [
+  ...disallowedBuiltinModules,
+  '@temporalio/activity',
+  '@temporalio/client',
+  '@temporalio/worker',
+  '@temporalio/internal-non-workflow-common',
+  '@temporalio/interceptors-opentelemetry/lib/client',
+  '@temporalio/interceptors-opentelemetry/lib/worker',
+  '@temporalio/testing',
+  '@temporalio/core-bridge',
+];
 
 export function moduleMatches(userModule: string, modules: string[]): boolean {
   return modules.some((module) => userModule === module || userModule.startsWith(`${module}/`));
@@ -162,7 +173,7 @@ export class WorkflowCodeBundler {
         ? data.request.slice('node:'.length)
         : data.request ?? '';
 
-      if (moduleMatches(module, disallowedBuiltinModules) && !moduleMatches(module, this.ignoreModules)) {
+      if (moduleMatches(module, disallowedModules) && !moduleMatches(module, this.ignoreModules)) {
         this.foundProblematicModules.add(module);
       }
 
@@ -176,7 +187,7 @@ export class WorkflowCodeBundler {
         extensions: ['.ts', '.js'],
         alias: {
           __temporal_custom_payload_converter$: this.payloadConverterPath ?? false,
-          ...Object.fromEntries([...this.ignoreModules, ...disallowedBuiltinModules].map((m) => [m, false])),
+          ...Object.fromEntries([...this.ignoreModules, ...disallowedModules].map((m) => [m, false])),
         },
       },
       externals: captureProblematicModules,
