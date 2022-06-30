@@ -1,7 +1,7 @@
 import './runtime'; // Patch the Workflow isolate runtime for opentelemetry
 import * as otel from '@opentelemetry/api';
 import * as tracing from '@opentelemetry/sdk-trace-base';
-import { extractContextFromHeaders, headersWithContext } from '@temporalio/internal-non-workflow-common/lib/otel';
+import { extractContextFromHeaders, headersWithContext } from '@temporalio/common/lib/otel';
 import {
   ActivityInput,
   ContinueAsNew,
