@@ -90,6 +90,7 @@ async function createWorkflow(
       attempt: 1,
       taskTimeoutMs: 1000,
       taskQueue: 'test',
+      searchAttributes: {},
     },
     randomnessSeed: Long.fromInt(1337).toBytes(),
     now: startTime,

@@ -99,7 +99,7 @@ if (RUN_INTEGRATION_TESTS) {
       lastResult: undefined,
       memo: undefined,
       parent: undefined,
-      searchAttributes: undefined,
+      searchAttributes: {},
     };
 
     t.deepEqual(recordedCalls, [
