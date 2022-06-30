@@ -678,6 +678,7 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
       taskTimeoutMs: 10_000,
       runId: workflow.firstExecutionRunId,
       taskQueue: 'test',
+      searchAttributes: {},
       workflowType: 'returnWorkflowInfo',
       workflowId,
     });

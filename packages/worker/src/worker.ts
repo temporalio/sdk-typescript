@@ -1030,10 +1030,11 @@ export class Worker {
                         workflowId,
                         runId: activation.runId,
                         workflowType,
-                        searchAttributes: mapFromPayloads(
-                          searchAttributePayloadConverter,
-                          searchAttributes?.indexedFields
-                        ) as SearchAttributes | undefined,
+                        searchAttributes:
+                          (mapFromPayloads(
+                            searchAttributePayloadConverter,
+                            searchAttributes?.indexedFields
+                          ) as SearchAttributes) || {},
                         memo: await decodeMapFromPayloads(this.options.loadedDataConverter, memo?.fields),
                         parent: convertToParentWorkflowType(parentWorkflowInfo),
                         lastResult: await decodeFromPayloadsAtIndex(

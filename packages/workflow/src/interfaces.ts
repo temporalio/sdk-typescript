@@ -25,7 +25,7 @@ export interface WorkflowInfo {
   /**
    * Indexed information attached to the Workflow Execution
    */
-  searchAttributes?: SearchAttributes;
+  searchAttributes: SearchAttributes;
 
   /**
    * Non-indexed information attached to the Workflow Execution
