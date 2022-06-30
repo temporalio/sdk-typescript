@@ -196,7 +196,7 @@ export class WorkflowCodeBundler {
           {
             test: /\.js$/,
             enforce: 'pre',
-            use: ['source-map-loader'],
+            use: [require.resolve('source-map-loader')],
           },
           {
             test: /\.ts$/,
