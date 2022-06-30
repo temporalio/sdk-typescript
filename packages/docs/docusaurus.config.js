@@ -80,12 +80,14 @@ module.exports = {
       ],
       copyright: `Copyright © ${new Date().getFullYear()} Temporal Technologies Inc.`,
     },
-    algolia: {
-      appId: 'FL5BOEA5LF',
-      apiKey: process.env.ALGOLIA_API_KEY,
-      indexName: 'typescript-temporal',
-      algoliaOptions: { facetFilters: ['type:$TYPE'] },
-    },
+    algolia: process.env.ALGOLIA_API_KEY
+      ? {
+          appId: 'FL5BOEA5LF',
+          apiKey: process.env.ALGOLIA_API_KEY,
+          indexName: 'typescript-temporal',
+          algoliaOptions: { facetFilters: ['type:$TYPE'] },
+        }
+      : {},
   },
   presets: [
     [
