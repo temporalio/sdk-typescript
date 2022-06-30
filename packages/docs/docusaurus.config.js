@@ -85,7 +85,7 @@ module.exports = {
       apiKey: '00c3351a19fe08956c234eef9938d2ff', // public client key (search-only)
       indexName: 'typescript-temporal',
       algoliaOptions: { facetFilters: ['type:$TYPE'] },
-    }
+    },
   },
   presets: [
     [
