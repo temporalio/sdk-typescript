@@ -1,6 +1,7 @@
 import type { SearchAttributes } from '@temporalio/internal-workflow-common';
 import { temporal } from '@temporalio/proto';
 import type * as grpc from '@grpc/grpc-js';
+import type Long from 'long';
 
 export interface WorkflowExecution {
   workflowId: string;
