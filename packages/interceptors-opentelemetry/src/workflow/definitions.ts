@@ -14,12 +14,13 @@ export interface SerializableSpan {
   readonly startTime: otel.HrTime;
   readonly endTime: otel.HrTime;
   readonly status: otel.SpanStatus;
-  readonly attributes: otel.SpanAttributes;
+  readonly attributes: otel.Attributes;
   readonly links: otel.Link[];
   readonly events: tracing.TimedEvent[];
   readonly duration: otel.HrTime;
   readonly ended: boolean;
   // readonly resource: Resource;
+  // eslint-disable-next-line deprecation/deprecation
   readonly instrumentationLibrary: InstrumentationLibrary;
 }
 
