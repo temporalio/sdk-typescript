@@ -16,7 +16,7 @@
     "@temporalio/proto": "file:../proto",
     "@opentelemetry/api": "^1.0.3",
     "proto3-json-serializer": "^1.0.2",
-    "protobufjs": "^6.11.3"
+    "protobufjs": "6.11.2"
   },
   "bugs": {
     "url": "https://github.com/temporalio/sdk-typescript/issues"
