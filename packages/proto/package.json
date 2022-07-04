@@ -24,6 +24,9 @@
     "long": "^5.2.0",
     "protobufjs": "^6.11.3"
   },
+  "devDependencies": {
+    "chalk": "^3.0.0"
+  },
   "bugs": {
     "url": "https://github.com/temporalio/sdk-typescript/issues"
   },
