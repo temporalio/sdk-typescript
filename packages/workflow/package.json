@@ -15,9 +15,6 @@
   "author": "Roey Berman <roey@temporal.io>",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
-  "files": [
-    "lib"
-  ],
   "scripts": {},
   "dependencies": {
     "@temporalio/common": "file:../common",
@@ -26,5 +23,9 @@
   },
   "publishConfig": {
     "access": "public"
-  }
+  },
+  "files": [
+    "src",
+    "lib"
+  ]
 }

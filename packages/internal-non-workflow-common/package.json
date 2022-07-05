@@ -24,7 +24,8 @@
   "publishConfig": {
     "access": "public"
   },
-  "devDependencies": {
-    "@types/lodash": "^4.14.178"
-  }
+  "files": [
+    "src",
+    "lib"
+  ]
 }

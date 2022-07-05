@@ -178,7 +178,9 @@ if (RUN_INTEGRATION_TESTS) {
         calls: [() => new OpenTelemetryWorkflowClientCallsInterceptor()],
       },
     });
-    worker.runUntil(client.execute(workflows.cancelFakeProgress, { taskQueue: 'test-otel', workflowId: uuid4() }));
+    await worker.runUntil(
+      client.execute(workflows.cancelFakeProgress, { taskQueue: 'test-otel', workflowId: uuid4() })
+    );
     // Allow some time to ensure spans are flushed out to collector
     await new Promise((resolve) => setTimeout(resolve, 5000));
     t.pass();

@@ -23,5 +23,9 @@
   "homepage": "https://github.com/temporalio/sdk-typescript/tree/main/packages/activity",
   "publishConfig": {
     "access": "public"
-  }
+  },
+  "files": [
+    "src",
+    "lib"
+  ]
 }

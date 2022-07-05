@@ -48,7 +48,7 @@ function errorNameToClass(name: string): ErrorConstructor {
  */
 export class WorkerThreadClient {
   requestIdx = 0n;
-  requestIdToCompletion = new Map<BigInt, Completion<WorkerThreadOutput>>();
+  requestIdToCompletion = new Map<bigint, Completion<WorkerThreadOutput>>();
   shutDownRequested = false;
   workerExited = false;
 

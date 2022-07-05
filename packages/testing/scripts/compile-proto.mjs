@@ -58,24 +58,17 @@ async function compileProtos(protoPath, jsOutputFile, dtsOutputFile, ...args) {
   );
 }
 
-async function main() {
-  mkdirSync(outputDir, { recursive: true });
+mkdirSync(outputDir, { recursive: true });
 
-  const protoFiles = glob.sync(resolve(protoBaseDir, '**/*.proto'));
-  const protosMTime = Math.max(...protoFiles.map(mtime));
-  const genMTime = mtime(outputFile);
+const protoFiles = glob.sync(resolve(protoBaseDir, '**/*.proto'));
+const protosMTime = Math.max(...protoFiles.map(mtime));
+const genMTime = mtime(outputFile);
 
-  if (protosMTime < genMTime) {
-    console.log('Assuming protos are up to date');
-    return;
-  }
-
-  await compileProtos(serviceProtoPath, outputFile, resolve(outputDir, 'index.d.ts'), '--path', resolve(protoBaseDir));
-
-  console.log('Done');
+if (protosMTime < genMTime) {
+  console.log('Assuming protos are up to date');
+  process.exit(0);
 }
 
-main().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+await compileProtos(serviceProtoPath, outputFile, resolve(outputDir, 'index.d.ts'), '--path', resolve(protoBaseDir));
+
+console.log('Done');
