@@ -5,7 +5,7 @@ slug: /
 ---
 
 - Temporal docs site: [`docs.temporal.io`](https://docs.temporal.io)
-- SDK docs: [`temporal.io/ts`](https://docs.temporal.io/typescript/introduction/) test and `doThis('hi')`
+- SDK docs: [`temporal.io/ts`](https://docs.temporal.io/typescript/introduction/)
 - API reference: 👇
 
 | Package                                           | Description                                                                    |
