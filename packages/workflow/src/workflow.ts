@@ -517,7 +517,7 @@ export function proxyActivities<A extends ActivityInterface>(options: ActivityOp
  *
  * @experimental
  *
- * See {@link proxyActivities} for examples
+ * @see {@link proxyActivities} for examples
  */
 export function proxyLocalActivities<A extends ActivityInterface>(options: LocalActivityOptions): A {
   if (options === undefined) {
@@ -875,9 +875,9 @@ export function proxySinks<T extends Sinks>(): T {
 /**
  * Returns a function `f` that will cause the current Workflow to ContinueAsNew when called.
  *
- * `f` takes the same arguments as the Workflow execute function supplied to typeparam `F`.
+ * `f` takes the same arguments as the Workflow function supplied to typeparam `F`.
  *
- * Once `f` is called, Workflow execution immediately completes.
+ * Once `f` is called, Workflow Execution immediately completes.
  */
 export function makeContinueAsNewFunc<F extends Workflow>(
   options?: ContinueAsNewOptions
@@ -915,24 +915,21 @@ export function makeContinueAsNewFunc<F extends Workflow>(
 }
 
 /**
- * Continues current Workflow execution as new with default options.
+ * [Continues-As-New](https://docs.temporal.io/concepts/what-is-continue-as-new/) the current Workflow Execution with
+ * default options.
  *
- * Shorthand for `makeContinueAsNewFunc<F>()(...args)`.
+ * Shorthand for {@link makeContinueAsNewFunc}.
  *
  * @example
  *
- * ```ts
- * import { continueAsNew } from '@temporalio/workflow';
+ *```ts
+ *import { continueAsNew } from '@temporalio/workflow';
  *
- * export function myWorkflow(n: number) {
- *   return {
- *     async execute() {
- *       // ... Workflow logic
- *       await continueAsNew<typeof myWorkflow>(n + 1);
- *     }
- *   };
- * }
- * ```
+ *export async function myWorkflow(n: number): Promise<void> {
+ *  // ... Workflow logic
+ *  await continueAsNew<typeof myWorkflow>(n + 1);
+ *}
+ *```
  */
 export function continueAsNew<F extends Workflow>(...args: Parameters<F>): Promise<never> {
   return makeContinueAsNewFunc()(...args);

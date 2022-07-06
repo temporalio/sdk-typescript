@@ -46,7 +46,7 @@ export interface BaseWorkflowOptions {
    *
    * *Note: A Workflow can never be started with a Workflow Id of a Running Workflow.*
    *
-   * @default {@link WorkflowIdReusePolicy.ALLOW_DUPLICATE_FAILED_ONLY}
+   * @default {@link WorkflowIdReusePolicy.WORKFLOW_ID_REUSE_POLICY_ALLOW_DUPLICATE_FAILED_ONLY}
    */
   workflowIdReusePolicy?: WorkflowIdReusePolicy;
 

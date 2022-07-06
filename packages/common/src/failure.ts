@@ -70,27 +70,27 @@ export class ServerFailure extends TemporalFailure {
 }
 
 /**
- * Application failure is used to communicate application specific failures between Workflows and
- * Activities.
+ * `ApplicationFailure`s are used to communicate application-specific failures in Workflows and Activities.
  *
- * Throw this exception to have full control over type and details if the exception delivered to
- * the caller workflow or client.
+ * The {@link type} property is matched against {@link RetryPolicy.nonRetryableErrorTypes} to determine if an instance
+ * of this error is retryable. Another way to avoid retrying is by setting the {@link nonRetryable} flag to `true`.
  *
- * Any unhandled exception which doesn't extend {@link TemporalFailure} is converted to an
- * instance of this class before being returned to a caller.
+ * In Workflows, if you throw a non-`ApplicationFailure`, the Workflow Task will fail and be retried. If you throw an
+ * `ApplicationFailure`, the Workflow Execution will fail.
  *
- * The {@link type} property is used by {@link temporal.common.RetryOptions} to determine if
- * an instance of this exception is non retryable. Another way to avoid retrying an exception of
- * this type is by setting {@link nonRetryable} flag to `true`.
+ * In Activities, you can either throw an `ApplicationFailure` or another `Error` to fail the Activity Task. In the
+ * latter case, the `Error` will be converted to an `ApplicationFailure`. If the [Activity
+ * Execution](https://docs.temporal.io/concepts/what-is-an-activity-execution) fails, the `ApplicationFailure` from the
+ * last Activity Task will be the `cause` of the {@link ActivityFailure} thrown in the Workflow.
  *
- * The conversion of an exception that doesn't extend {@link TemporalFailure} to an
- * ApplicationFailure is done as following:
+ * The conversion of an error that doesn't extend {@link TemporalFailure} to an `ApplicationFailure` is done as
+ * following:
  *
- * - type is set to the exception full type name.
- * - message is set to the exception message
- * - nonRetryable is set to false
- * - details are set to null
- * - stack trace is copied from the original exception
+ * - `type` is set to `error.constructor?.name ?? error.name`
+ * - `message` is set to `error.message`
+ * - `nonRetryable` is set to false
+ * - `details` are set to null
+ * - stack trace is copied from the original error
  */
 export class ApplicationFailure extends TemporalFailure {
   public readonly name: string = 'ApplicationFailure';
@@ -106,29 +106,26 @@ export class ApplicationFailure extends TemporalFailure {
   }
 
   /**
-   * New ApplicationFailure with {@link nonRetryable} flag set to false. Note that this
-   * exception still can be not retried by the service if its type is included into doNotRetry
-   * property of the correspondent retry policy.
+   * Get a new `ApplicationFailure` with the {@link nonRetryable} flag set to false. Note that this error will still
+   * not be retried if its `type` is included in {@link RetryPolicy.nonRetryableErrorTypes}.
    *
-   * @param message optional error message
-   * @param type optional error type that is used by {@link RetryOptions.nonRetryableErrorTypes}.
-   * @param details optional details about the failure. They are serialized using the same approach
-   *     as arguments and results.
+   * @param message Optional error message
+   * @param type Optional error type (used by {@link RetryPolicy.nonRetryableErrorTypes})
+   * @param details Optional details about the failure. Serialized by the Worker's {@link PayloadConverter}.
    */
   public static retryable(message: string | undefined, type?: string, ...details: unknown[]): ApplicationFailure {
     return new this(message, type ?? 'Error', false, details);
   }
 
   /**
-   * New ApplicationFailure with {@link nonRetryable} flag set to true.
+   * Get a new `ApplicationFailure` with the {@link nonRetryable} flag set to true.
    *
-   * It means that this exception is not going to be retried even if it is not included into
-   * retry policy doNotRetry list.
+   * When thrown from an Activity or Workflow, the Activity or Workflow will not be retried (even if `type` is not
+   * listed in {@link RetryPolicy.nonRetryableErrorTypes}).
    *
-   * @param message optional error message
-   * @param type optional error type
-   * @param details optional details about the failure. They are serialized using the same approach
-   *     as arguments and results.
+   * @param message Optional error message
+   * @param type Optional error type
+   * @param details Optional details about the failure. Serialized by the Worker's {@link PayloadConverter}.
    */
   public static nonRetryable(message: string | undefined, type?: string, ...details: unknown[]): ApplicationFailure {
     return new this(message, type ?? 'Error', true, details);
@@ -136,7 +133,7 @@ export class ApplicationFailure extends TemporalFailure {
 }
 
 /**
- * Used as the cause for when a Workflow or Activity has been cancelled
+ * Used as the `cause` when a Workflow or Activity has been cancelled
  */
 export class CancelledFailure extends TemporalFailure {
   public readonly name: string = 'CancelledFailure';
@@ -147,7 +144,7 @@ export class CancelledFailure extends TemporalFailure {
 }
 
 /**
- * Used as the cause for when a Workflow has been terminated
+ * Used as the `cause` when a Workflow has been terminated
  */
 export class TerminatedFailure extends TemporalFailure {
   public readonly name: string = 'TerminatedFailure';
@@ -173,8 +170,8 @@ export class TimeoutFailure extends TemporalFailure {
 }
 
 /**
- * Contains information about an activity failure. Always contains the original reason for the
- * failure as its cause. For example if an activity timed out the cause is {@link TimeoutFailure}.
+ * Contains information about an Activity failure. Always contains the original reason for the failure as its `cause`.
+ * For example, if an Activity timed out, the cause will be a {@link TimeoutFailure}.
  *
  * This exception is expected to be thrown only by the framework code.
  */
@@ -191,8 +188,8 @@ export class ActivityFailure extends TemporalFailure {
 }
 
 /**
- * Contains information about an child workflow failure. Always contains the original reason for the
- * failure as its cause. For example if a child workflow was terminated the cause is {@link TerminatedFailure}.
+ * Contains information about a Child Workflow failure. Always contains the reason for the failure as its {@link cause}.
+ * For example, if the Child was Terminated, the `cause` is a {@link TerminatedFailure}.
  *
  * This exception is expected to be thrown only by the framework code.
  */
@@ -480,20 +477,20 @@ export function failureToError(failure: ProtoFailure, payloadConverter: PayloadC
 }
 
 /**
- * Get the root cause (string) of given error `err`.
+ * Get the root cause message of given `error`.
  *
- * In case `err` is a {@link TemporalFailure}, recurse the cause chain and return the root's message.
- * Otherwise, return `err.message`.
+ * In case `error` is a {@link TemporalFailure}, recurse the `cause` chain and return the root `cause.message`.
+ * Otherwise, return `error.message`.
  */
-export function rootCause(err: unknown): string | undefined {
-  if (err instanceof TemporalFailure) {
-    return err.cause ? rootCause(err.cause) : err.message;
+export function rootCause(error: unknown): string | undefined {
+  if (error instanceof TemporalFailure) {
+    return error.cause ? rootCause(error.cause) : error.message;
   }
-  if (err instanceof Error) {
-    return err.message;
+  if (error instanceof Error) {
+    return error.message;
   }
-  if (typeof err === 'string') {
-    return err;
+  if (typeof error === 'string') {
+    return error;
   }
   return undefined;
 }

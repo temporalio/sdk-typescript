@@ -8,7 +8,7 @@ import pkg from './pkg';
 import { CallContext, Metadata, OperatorService, WorkflowService } from './types';
 
 /**
- * GRPC + Temporal server connection options
+ * gRPC and Temporal Server connection options
  */
 export interface ConnectionOptions {
   /**
@@ -147,25 +147,35 @@ export interface ConnectionCtorOptions {
 }
 
 /**
- * Client connection to the Temporal Service
+ * Client connection to the Temporal Server
  *
- * NOTE: Connections are expensive to construct and should be reused.
- * Make sure to `close()` any unused connections to avoid leaking resources.
+ * ⚠️ Connections are expensive to construct and should be reused. Make sure to {@link close} any unused connections to
+ * avoid leaking resources.
  */
 export class Connection {
+  /**
+   * @internal
+   */
   public static readonly Client = grpc.makeGenericClientConstructor({}, 'WorkflowService', {});
 
   public readonly options: ConnectionOptionsWithDefaults;
   protected readonly client: grpc.Client;
+
   /**
    * Used to ensure `ensureConnected` is called once.
    */
   protected connectPromise?: Promise<void>;
 
   /**
-   * Raw gRPC access to the Temporal service.
+   * Raw gRPC access to Temporal Server's [Workflow
+   * service](https://github.com/temporalio/api/blob/master/temporal/api/workflowservice/v1/service.proto)
    */
   public readonly workflowService: WorkflowService;
+
+  /**
+   * Raw gRPC access to Temporal Server's [Operator
+   * service](https://github.com/temporalio/api/blob/master/temporal/api/operatorservice/v1/service.proto)
+   */
   public readonly operatorService: OperatorService;
   readonly callContextStorage: AsyncLocalStorage<CallContext>;
 
@@ -213,9 +223,11 @@ export class Connection {
   /**
    * Ensure connection can be established.
    *
+   * Does not need to be called if you use {@link connect}.
+   *
    * This method's result is memoized to ensure it runs only once.
    *
-   * Calls WorkflowService.getSystemInfo internally.
+   * Calls {@link proto.temporal.api.workflowservice.v1.WorkflowService.getSystemInfo} internally.
    */
   async ensureConnected(): Promise<void> {
     if (this.connectPromise == null) {
@@ -241,19 +253,19 @@ export class Connection {
   }
 
   /**
-   * Create a lazy Connection instance.
+   * Create a lazy `Connection` instance.
    *
-   * This method does not verify connectivity with the server, it is recommended to use
-   * {@link connect} instead.
+   * This method does not verify connectivity with the server. We recommend using {@link connect} instead.
    */
   static lazy(options?: ConnectionOptions): Connection {
     return new this(this.createCtorOptions(options));
   }
 
   /**
-   * Establish a connection with the server and return a Connection instance.
+   * Establish a connection with the server and return a `Connection` instance.
    *
-   * This is the preferred method of creating connections as it verifies connectivity.
+   * This is the preferred method of creating connections as it verifies connectivity by calling
+   * {@link ensureConnected}.
    */
   static async connect(options?: ConnectionOptions): Promise<Connection> {
     const conn = this.lazy(options);
@@ -303,8 +315,10 @@ export class Connection {
 
   /**
    * Set the deadline for any service requests executed in `fn`'s scope.
+   *
+   * @returns value returned from `fn`
    */
-  async withDeadline<R>(deadline: number | Date, fn: () => Promise<R>): Promise<R> {
+  async withDeadline<ReturnType>(deadline: number | Date, fn: () => Promise<ReturnType>): Promise<ReturnType> {
     const cc = this.callContextStorage.getStore();
     return await this.callContextStorage.run({ deadline, metadata: cc?.metadata }, fn);
   }
@@ -312,20 +326,20 @@ export class Connection {
   /**
    * Set metadata for any service requests executed in `fn`'s scope.
    *
-   * The provided metadata is merged on top of any existing metadata in current scope
-   * including metadata provided in {@link ConnectionOptions.metadata}
+   * The provided metadata is merged on top of any existing metadata in current scope, including metadata provided in
+   * {@link ConnectionOptions.metadata}.
    *
-   * @returns returned value of `fn`
+   * @returns value returned from `fn`
    *
    * @example
    *
-   * ```ts
-   * await conn.withMetadata({ apiKey: 'secret' }, () =>
-   *   conn.withMetadata({ otherKey: 'set' }, () => client.start(options)))
-   * );
-   * ```
+   *```ts
+   *const workflowHandle = await conn.withMetadata({ apiKey: 'secret' }, () =>
+   *  conn.withMetadata({ otherKey: 'set' }, () => client.start(options)))
+   *);
+   *```
    */
-  async withMetadata<R>(metadata: Metadata, fn: () => Promise<R>): Promise<R> {
+  async withMetadata<ReturnType>(metadata: Metadata, fn: () => Promise<ReturnType>): Promise<ReturnType> {
     const cc = this.callContextStorage.getStore();
     metadata = { ...cc?.metadata, ...metadata };
     return await this.callContextStorage.run({ metadata, deadline: cc?.deadline }, fn);
