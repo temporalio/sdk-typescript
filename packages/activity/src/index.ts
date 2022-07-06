@@ -30,7 +30,11 @@ import { msToNumber } from '@temporalio/internal-workflow-common';
 import { AbortSignal } from 'abort-controller';
 import { AsyncLocalStorage } from 'async_hooks';
 export { CancelledFailure } from '@temporalio/common';
-export { ActivityFunction, ActivityInterface } from '@temporalio/internal-workflow-common';
+export {
+  ActivityFunction,
+  ActivityInterface, // eslint-disable-line deprecation/deprecation
+  UntypedActivities,
+} from '@temporalio/internal-workflow-common';
 export * from '@temporalio/internal-workflow-common/lib/errors';
 
 /**

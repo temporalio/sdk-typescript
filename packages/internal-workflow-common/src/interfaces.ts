@@ -47,3 +47,18 @@ export type WorkflowResultType<W extends Workflow> = ReturnType<W> extends Promi
  */
 export type SearchAttributes = Record<string, SearchAttributeValue | undefined>;
 export type SearchAttributeValue = string[] | number[] | boolean[] | Date[];
+
+export interface ActivityFunction<P extends any[] = any[], R = any> {
+  (...args: P): Promise<R>;
+}
+
+/**
+ * Mapping of Activity name to function
+ * @deprecated not required anymore, for untyped activities use {@link UntypedActivities}
+ */
+export type ActivityInterface = Record<string, ActivityFunction>;
+
+/**
+ * Mapping of Activity name to function
+ */
+export type UntypedActivities = Record<string, ActivityFunction>;

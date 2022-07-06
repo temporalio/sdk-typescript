@@ -61,9 +61,10 @@ export {
 export {
   ActivityCancellationType,
   ActivityFunction,
-  ActivityInterface,
+  ActivityInterface, // eslint-disable-line deprecation/deprecation
   ActivityOptions,
   RetryPolicy,
+  UntypedActivities,
 } from '@temporalio/internal-workflow-common';
 export * from '@temporalio/internal-workflow-common/lib/errors';
 export * from '@temporalio/internal-workflow-common/lib/interfaces';
