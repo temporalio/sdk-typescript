@@ -30,7 +30,7 @@ function fixHistoryEvent(e: Record<string, any>) {
 
   return {
     ...e,
-    eventType: `EVENT_TYPE_${pascalCaseToConstantCase(e.eventType)}`,
+    ...fixEnumValue(e, 'eventType', 'EVENT_TYPE'),
     [type]: {
       ...e[type],
       ...(e[type].taskQueue && {

@@ -554,13 +554,6 @@ test('importer', async (t) => {
   t.deepEqual(logs, [['slept']]);
 });
 
-test('externalImporter', async (t) => {
-  const { logs, workflowType } = t.context;
-  const req = await activate(t, makeStartWorkflow(workflowType));
-  compareCompletion(t, req, makeSuccess());
-  t.deepEqual(logs, [[{ a: 1, b: 2 }]]);
-});
-
 test('argsAndReturn', async (t) => {
   const { workflowType } = t.context;
   const req = await activate(
