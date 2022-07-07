@@ -3,7 +3,7 @@ import { Payload } from './types';
 /**
  * Used by the framework to serialize/deserialize data like parameters and return values.
  *
- * This is called inside the [Workflow isolate](https://docs.temporal.io/typescript/determinism).
+ * This is called inside the {@link https://docs.temporal.io/typescript/determinism | Workflow isolate}.
  * To write async code or use Node APIs (or use packages that use Node APIs), use a {@link PayloadCodec}.
  */
 export interface PayloadConverter {

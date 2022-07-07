@@ -79,9 +79,10 @@ export class ServerFailure extends TemporalFailure {
  * `ApplicationFailure`, the Workflow Execution will fail.
  *
  * In Activities, you can either throw an `ApplicationFailure` or another `Error` to fail the Activity Task. In the
- * latter case, the `Error` will be converted to an `ApplicationFailure`. If the [Activity
- * Execution](https://docs.temporal.io/concepts/what-is-an-activity-execution) fails, the `ApplicationFailure` from the
- * last Activity Task will be the `cause` of the {@link ActivityFailure} thrown in the Workflow.
+ * latter case, the `Error` will be converted to an `ApplicationFailure`. If the
+ * {@link https://docs.temporal.io/concepts/what-is-an-activity-execution | Activity Execution} fails, the
+ * `ApplicationFailure` from the last Activity Task will be the `cause` of the {@link ActivityFailure} thrown in the
+ * Workflow.
  *
  * The conversion of an error that doesn't extend {@link TemporalFailure} to an `ApplicationFailure` is done as
  * following:
@@ -133,7 +134,11 @@ export class ApplicationFailure extends TemporalFailure {
 }
 
 /**
- * Used as the `cause` when a Workflow or Activity has been cancelled
+ * This error is thrown when Cancellation has been requested. To allow Cancellation to happen, let it propagate. To
+ * ignore Cancellation, catch it and continue executing. Note that Cancellation can only be requested a single time, so
+ * your Workflow/Activity Execution will not receive further Cancellation requests.
+ *
+ * When a Workflow or Activity has been successfully cancelled, a `CancelledFailure` will be the `cause`.
  */
 export class CancelledFailure extends TemporalFailure {
   public readonly name: string = 'CancelledFailure';

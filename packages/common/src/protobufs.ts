@@ -1,6 +1,6 @@
 /**
  * Entry point for classes and utilities related to using
- * [Protobufs](https://docs.temporal.io/typescript/data-converters#protobufs) for serialization.
+ * {@link https://docs.temporal.io/typescript/data-converters#protobufs | Protobufs} for serialization.
  *
  * Import from `@temporalio/common/lib/protobufs`, for example:
  *

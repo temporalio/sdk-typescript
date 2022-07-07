@@ -167,14 +167,14 @@ export class Connection {
   protected connectPromise?: Promise<void>;
 
   /**
-   * Raw gRPC access to Temporal Server's [Workflow
-   * service](https://github.com/temporalio/api/blob/master/temporal/api/workflowservice/v1/service.proto)
+   * Raw gRPC access to Temporal Server's {@link
+   * https://github.com/temporalio/api/blob/master/temporal/api/workflowservice/v1/service.proto | Workflow service}
    */
   public readonly workflowService: WorkflowService;
 
   /**
-   * Raw gRPC access to Temporal Server's [Operator
-   * service](https://github.com/temporalio/api/blob/master/temporal/api/operatorservice/v1/service.proto)
+   * Raw gRPC access to Temporal Server's
+   * {@link https://github.com/temporalio/api/blob/master/temporal/api/operatorservice/v1/service.proto | Operator service}
    */
   public readonly operatorService: OperatorService;
   readonly callContextStorage: AsyncLocalStorage<CallContext>;

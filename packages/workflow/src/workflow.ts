@@ -449,8 +449,8 @@ function signalWorkflowNextHandler({ seq, signalName, args, target, headers }: S
  *
  * This method may be called multiple times to setup Activities with different options.
  *
- * @return a [Proxy](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Proxy)
- *         for which each attribute is a callable Activity function
+ * @return a {@link https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Proxy | Proxy} for
+ *         which each attribute is a callable Activity function
  *
  * @typeparam A An {@link ActivityInterface} - mapping of name to function
  *
@@ -510,7 +510,7 @@ export function proxyActivities<A extends ActivityInterface>(options: ActivityOp
  *
  * This method may be called multiple times to setup Activities with different options.
  *
- * @return a [Proxy](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Proxy)
+ * @return a {@link https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Proxy | Proxy}
  *         for which each attribute is a callable Activity function
  *
  * @typeparam A An {@link ActivityInterface} - mapping of name to function
@@ -915,8 +915,8 @@ export function makeContinueAsNewFunc<F extends Workflow>(
 }
 
 /**
- * [Continues-As-New](https://docs.temporal.io/concepts/what-is-continue-as-new/) the current Workflow Execution with
- * default options.
+ * {@link https://docs.temporal.io/concepts/what-is-continue-as-new/ | Continues-As-New} the current Workflow Execution
+ * with default options.
  *
  * Shorthand for `makeContinueAsNewFunc<F>()(...args)`. (See: {@link makeContinueAsNewFunc}.)
  *
@@ -965,7 +965,7 @@ export function uuid4(): string {
 /**
  * Patch or upgrade workflow code by checking or stating that this workflow has a certain patch.
  *
- * See [docs page](https://docs.temporal.io/typescript/versioning) for info.
+ * See {@link https://docs.temporal.io/typescript/versioning | docs page} for info.
  *
  * If the workflow is replaying an existing history, then this function returns true if that
  * history was produced by a worker which also had a `patched` call with the same `patchId`.
@@ -986,7 +986,7 @@ export function patched(patchId: string): boolean {
 /**
  * Indicate that a patch is being phased out.
  *
- * See [docs page](https://docs.temporal.io/typescript/versioning) for info.
+ * See {@link https://docs.temporal.io/typescript/versioning | docs page} for info.
  *
  * Workflows with this call may be deployed alongside workflows with a {@link patched} call, but
  * they must *not* be deployed while any workers still exist running old code without a

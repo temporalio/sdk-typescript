@@ -1,6 +1,6 @@
 /**
- * This package's main export is [`Context`](../classes/activity.Context). Get the current Activity's context with
- * `Context.current()`:
+ * This package's main export is {@link Context}. Get the current Activity's context with
+ * {@link Context.current | `Context.current()`}:
  *
  * ```ts
  * import { Context } from '@temporalio/activity';
@@ -15,15 +15,15 @@
  *
  * ### Cancellation
  *
- * Activities may be cancelled only if they [emit heartbeats](../classes/activity.Context.md#heartbeat).
+ * Activities may be cancelled only if they {@link Context.heartbeat | emit heartbeats}.
  *
  * There are two ways to handle Activity cancellation:
- * 1. await on [`Context.current().cancelled`](../classes/activity.Context.md#cancelled) or
- *    [`Context.current().sleep()`](../classes/activity.Context.md#sleep), which each throw a
- *    [`CancelledFailure`](../classes/client.CancelledFailure)
- * 1. Pass the context's [`AbortSignal`](https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal) at
- *    [`Context.current().cancellationSignal`](../classes/activity.Context.md#cancellationsignal) to a library that
- *    supports it
+ * 1. await on {@link Context.cancelled | `Context.current().cancelled`} or
+ *    {@link Context.sleep | `Context.current().sleep()`}, which each throw a
+ *    {@link CancelledFailure}.
+ * 1. Pass the context's {@link https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal | `AbortSignal`} at
+ *    {@link Context.cancellationSignal | `Context.current().cancellationSignal`} to a library that
+ *    supports it.
  *
  * ### Examples
  *
@@ -34,7 +34,7 @@
  *
  * #### An Activity that makes a cancellable HTTP request
  *
- * It passes the `AbortSignal` to [`fetch`](https://github.com/node-fetch/node-fetch#api): `fetch(url, { signal:
+ * It passes the `AbortSignal` to {@link https://github.com/node-fetch/node-fetch#api | `fetch`}: `fetch(url, { signal:
  * Context.current().cancellationSignal })`.
  *
  * <!--SNIPSTART typescript-activity-cancellable-fetch-->
@@ -166,11 +166,11 @@ export class Context {
    *
    * This promise will never resolve—it will only be rejected with a {@link CancelledFailure}.
    *
-   * See: [Cancellation](/api/namespaces/activity#cancellation)
+   * @see [Cancellation](/api/namespaces/activity#cancellation)
    */
   public readonly cancelled: Promise<never>;
   /**
-   * An [`AbortSignal`](https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal) that can be used to react to
+   * An {@link https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal | `AbortSignal`} that can be used to react to
    * Activity cancellation.
    *
    * Used by {@link https://www.npmjs.com/package/node-fetch#request-cancellation-with-abortsignal | fetch} to abort an
@@ -178,7 +178,7 @@ export class Context {
    * {@link https://nodejs.org/api/child_process.html#child_process_child_process_spawn_command_args_options child_process}
    * to abort a child process, and is supported by some other libraries as well.
    *
-   * See: [Cancellation](/api/namespaces/activity#cancellation)
+   * @see [Cancellation](/api/namespaces/activity#cancellation)
    */
   public readonly cancellationSignal: AbortSignal;
   /**
@@ -204,7 +204,7 @@ export class Context {
   }
 
   /**
-   * Send a [heartbeat](https://docs.temporal.io/concepts/what-is-an-activity-heartbeat) from an Activity.
+   * Send a {@link https://docs.temporal.io/concepts/what-is-an-activity-heartbeat | heartbeat} from an Activity.
    *
    * If an Activity times out, then during the next retry, the last value of `details` is available at
    * {@link Info.heartbeatDetails}. This acts as a periodic checkpoint mechanism for the progress of an Activity.

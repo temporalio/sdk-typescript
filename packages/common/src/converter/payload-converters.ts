@@ -137,8 +137,9 @@ export class DefaultPayloadConverter extends CompositePayloadConverter {
 }
 
 /**
- * The default {@link PayloadConverter} used by the SDK.
- * Supports `Uint8Array` and JSON serializables (so if [`JSON.stringify(yourArgOrRetval)`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/JSON/stringify#description) works, the default payload converter will work).
+ * The default {@link PayloadConverter} used by the SDK. Supports `Uint8Array` and JSON serializables (so if
+ * {@link https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/JSON/stringify#description | `JSON.stringify(yourArgOrRetval)`}
+ * works, the default payload converter will work).
  *
  * To also support Protobufs, create a custom payload converter with {@link DefaultPayloadConverter}:
  *
