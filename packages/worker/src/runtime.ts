@@ -20,8 +20,9 @@ import * as errors from './errors';
 import { DefaultLogger, LogEntry, Logger, LogTimestamp, timeOfDayToBigint } from './logger';
 import { compileConnectionOptions, getDefaultConnectionOptions, NativeConnectionOptions } from './connection-options';
 import { byteArrayToBuffer } from './utils';
+import { History } from '@temporalio/common/lib/proto-utils';
 
-export type History = temporal.api.history.v1.IHistory;
+export { History };
 
 function isForwardingLogger(opts: TelemLogger): opts is ForwardLogger {
   return Object.hasOwnProperty.call(opts, 'forward');
@@ -338,7 +339,6 @@ export class Runtime {
     await promisify(runtimeShutdown)(this.native);
   }
 
-  // TODO: accept either history or JSON or binary
   /** @hidden */
   public async createReplayWorker(options: native.WorkerOptions, history: History): Promise<native.Worker> {
     const worker = await promisify(native.newReplayWorker)(

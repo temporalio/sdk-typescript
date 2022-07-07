@@ -82,6 +82,7 @@ import { VMWorkflowCreator } from './workflow/vm';
 import IWorkflowActivationJob = coresdk.workflow_activation.IWorkflowActivationJob;
 import EvictionReason = coresdk.workflow_activation.RemoveFromCache.EvictionReason;
 import IRemoveFromCache = coresdk.workflow_activation.IRemoveFromCache;
+import { historyFromJSON } from '@temporalio/common/lib/proto-utils';
 
 export { DataConverter, defaultPayloadConverter, errors };
 
@@ -442,10 +443,36 @@ export class Worker {
    *
    * @throws DeterminismViolationError if the workflow code is not compatible with the history.
    */
-  public static async runReplayHistory(options: ReplayWorkerOptions, history: History): Promise<void> {
+  public static async runReplayHistory(options: ReplayWorkerOptions, history: History | unknown): Promise<void> {
+    if (typeof history !== 'object' || history == null) {
+      throw new TypeError(`Expected a non-null history object, got ${typeof history}`);
+    }
+    const { eventId } = (history as any).events[0];
+    // in a "valid" history, eventId would be Long
+    if (typeof eventId === 'string') {
+      return this.runReplayValidHistory(options, historyFromJSON(history));
+    } else {
+      return this.runReplayValidHistory(options, history as History);
+    }
+  }
+
+  /**
+   * Internal implementation of `runReplayHistory`, only works on "valid" histories (e.g. not ones loaded straight from
+   * exported JSON)
+   */
+  protected static async runReplayValidHistory(options: ReplayWorkerOptions, history: History): Promise<void> {
     const nativeWorkerCtor: WorkerConstructor = this.nativeWorkerCtor;
+    const wftStartedEvent = history.events?.find((e) => e.workflowExecutionStartedEventAttributes != null);
+    if (wftStartedEvent == null) {
+      throw new TypeError('History does not contain a WorkflowExecutionStarted event');
+    }
+    const workflowName = wftStartedEvent.workflowExecutionStartedEventAttributes?.workflowType?.name;
+    if (workflowName == null) {
+      throw new TypeError('WorkflowExecutionStarted event does not contain workflowType.name');
+    }
+
     const fixedUpOptions: WorkerOptions = {
-      taskQueue: options.replayName + '-' + this.replayWorkerCount,
+      taskQueue: (options.replayName ?? workflowName) + '-' + this.replayWorkerCount,
       debugMode: true,
       ...options,
     };

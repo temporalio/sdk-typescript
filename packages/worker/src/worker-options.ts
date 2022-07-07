@@ -312,8 +312,10 @@ export interface ReplayWorkerOptions
   /**
    *  A name for this replay worker. It will be combined with a short random ID to form a unique
    *  task queue for the replay worker.
+   *
+   *  @default workflow name from given history
    */
-  replayName: string;
+  replayName?: string;
 }
 
 export function addDefaultWorkerOptions(options: WorkerOptions): WorkerOptionsWithDefaults {
