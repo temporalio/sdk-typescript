@@ -11,7 +11,7 @@
  * ```
  *
  * Any function can be used as an Activity as long as its parameters and return value are serializable using a
- * [DataConverter](https://docs.temporal.io/concepts/what-is-a-data-converter/).
+ * {@link https://docs.temporal.io/concepts/what-is-a-data-converter/ | DataConverter}.
  *
  * ### Cancellation
  *
@@ -150,9 +150,9 @@ export interface Info {
  * Activity Context, used to:
  *
  * - Get {@link Info} about the current Activity Execution
- * - Send [heartbeats](https://docs.temporal.io/concepts/what-is-an-activity-heartbeat)
+ * - Send {@link https://docs.temporal.io/concepts/what-is-an-activity-heartbeat | heartbeats}
  * - Get notified of Activity cancellation
- * - Sleep
+ * - Sleep (cancellation-aware)
  *
  * Call `Context.current()` from Activity code in order to get the current Activity's Context.
  */
