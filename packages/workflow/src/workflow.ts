@@ -1,7 +1,6 @@
 import { mapToPayloads, searchAttributePayloadConverter, toPayloads } from '@temporalio/common';
 import {
   ActivityFunction,
-  ActivityInterface,
   ActivityOptions,
   compileRetryPolicy,
   composeInterceptors,
@@ -14,6 +13,7 @@ import {
   SearchAttributes,
   SignalDefinition,
   tsToMs,
+  UntypedActivities,
   WithWorkflowArgs,
   Workflow,
   WorkflowResultType,
@@ -116,13 +116,6 @@ export function sleep(ms: number | string): Promise<void> {
     seq,
   });
 }
-
-export interface ActivityInfo {
-  name: string;
-  type: string;
-}
-
-export type InternalActivityFunction<P extends any[], R> = ActivityFunction<P, R> & ActivityInfo;
 
 function validateActivityOptions(options: ActivityOptions): void {
   if (options.scheduleToCloseTimeout === undefined && options.startToCloseTimeout === undefined) {
@@ -445,6 +438,43 @@ function signalWorkflowNextHandler({ seq, signalName, args, target, headers }: S
 }
 
 /**
+ * Symbol used in the return type of proxy methods to mark that an attribute on the source type is not a method.
+ *
+ * @see {@link ActivityInterfaceFor}
+ * @see {@link proxyActivities}
+ * @see {@link proxyLocalActivities}
+ */
+export const NotAnActivityMethod = Symbol.for('__TEMPORAL_NOT_AN_ACTIVITY_METHOD');
+
+/**
+ * Type helper that takes a type `T` and transforms attributes that are not {@link ActivityFunction} to
+ * {@link NotAnActivityMethod}.
+ *
+ * @example
+ *
+ * Used by {@link proxyActivities} to get this compile-time error:
+ *
+ * ```ts
+ * interface MyActivities {
+ *   valid(input: number): Promise<number>;
+ *   invalid(input: number): number;
+ * }
+ *
+ * const act = proxyActivities<MyActivities>({ startToCloseTimeout: '5m' });
+ *
+ * await act.valid(true);
+ * await act.invalid();
+ * // ^ TS complains with:
+ * // (property) invalidDefinition: typeof NotAnActivityMethod
+ * // This expression is not callable.
+ * // Type 'Symbol' has no call signatures.(2349)
+ * ```
+ */
+export type ActivityInterfaceFor<T> = {
+  [K in keyof T]: T[K] extends ActivityFunction ? T[K] : typeof NotAnActivityMethod;
+};
+
+/**
  * Configure Activity functions with given {@link ActivityOptions}.
  *
  * This method may be called multiple times to setup Activities with different options.
@@ -452,11 +482,9 @@ function signalWorkflowNextHandler({ seq, signalName, args, target, headers }: S
  * @return a [Proxy](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Proxy)
  *         for which each attribute is a callable Activity function
  *
- * @typeparam A An {@link ActivityInterface} - mapping of name to function
- *
  * @example
  * ```ts
- * import { proxyActivities, ActivityInterface } from '@temporalio/workflow';
+ * import { proxyActivities } from '@temporalio/workflow';
  * import * as activities from '../activities';
  *
  * // Setup Activities from module exports
@@ -465,7 +493,7 @@ function signalWorkflowNextHandler({ seq, signalName, args, target, headers }: S
  * });
  *
  * // Setup Activities from an explicit interface (e.g. when defined by another SDK)
- * interface JavaActivities extends ActivityInterface {
+ * interface JavaActivities {
  *   httpGetFromJava(url: string): Promise<string>
  *   someOtherJavaActivity(arg1: number, arg2: string): Promise<string>;
  * }
@@ -484,7 +512,7 @@ function signalWorkflowNextHandler({ seq, signalName, args, target, headers }: S
  * }
  * ```
  */
-export function proxyActivities<A extends ActivityInterface>(options: ActivityOptions): A {
+export function proxyActivities<A = UntypedActivities>(options: ActivityOptions): ActivityInterfaceFor<A> {
   if (options === undefined) {
     throw new TypeError('options must be defined');
   }
@@ -513,13 +541,11 @@ export function proxyActivities<A extends ActivityInterface>(options: ActivityOp
  * @return a [Proxy](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Proxy)
  *         for which each attribute is a callable Activity function
  *
- * @typeparam A An {@link ActivityInterface} - mapping of name to function
- *
  * @experimental
  *
  * See {@link proxyActivities} for examples
  */
-export function proxyLocalActivities<A extends ActivityInterface>(options: LocalActivityOptions): A {
+export function proxyLocalActivities<A = UntypedActivities>(options: LocalActivityOptions): ActivityInterfaceFor<A> {
   if (options === undefined) {
     throw new TypeError('options must be defined');
   }

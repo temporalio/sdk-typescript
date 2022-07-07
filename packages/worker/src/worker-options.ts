@@ -1,6 +1,6 @@
 import { DataConverter, LoadedDataConverter } from '@temporalio/common';
 import { loadDataConverter } from '@temporalio/internal-non-workflow-common';
-import { ActivityInterface, msToNumber } from '@temporalio/internal-workflow-common';
+import { msToNumber } from '@temporalio/internal-workflow-common';
 import os from 'os';
 import { NativeConnection } from './connection';
 import { WorkerInterceptors } from './interceptors';
@@ -63,9 +63,9 @@ export interface WorkerOptions {
   taskQueue: string;
 
   /**
-   * Mapping of activity name to implementation.
+   * Mapping of activity name to implementation
    */
-  activities?: ActivityInterface;
+  activities?: object;
 
   /**
    * Path to look up workflows in, any function exported in this path will be registered as a Workflows in this Worker.

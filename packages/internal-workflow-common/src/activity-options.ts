@@ -144,12 +144,3 @@ export interface LocalActivityOptions {
    */
   cancellationType?: coresdk.workflow_commands.ActivityCancellationType;
 }
-
-export interface ActivityFunction<P extends any[], R> {
-  (...args: P): Promise<R>;
-}
-
-/**
- * Mapping of Activity name to function
- */
-export type ActivityInterface = Record<string, ActivityFunction<any[], any>>;
