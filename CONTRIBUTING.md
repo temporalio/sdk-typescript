@@ -1,8 +1,44 @@
 # How to Contribute
 
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+**Table of Contents**
+
+- [Maintenance](#maintenance)
+- [Getting started](#getting-started)
+  - [Contributor License Agreement (CLA)](#contributor-license-agreement-cla)
+  - [SDK Structure](#sdk-structure)
+  - [Environment setup](#environment-setup)
+- [Development](#development)
+  - [Testing](#testing)
+    - [Testing local changes to core](#testing-local-changes-to-core)
+      - [Integration tests](#integration-tests)
+    - [test-npm-init](#test-npm-init)
+  - [Style Guide](#style-guide)
+- [Publishing](#publishing)
+- [Updating the Java test server proto files](#updating-the-java-test-server-proto-files)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
+
 The TypeScript SDK (as well as the rest of the Temporal codebase) is open sourced under the MIT license.
 
-We welcome contributions from the community. To contribute please start by opening an [issue](https://github.com/temporalio/sdk-typescript/issues) and discussing the proposed change. Once a change has been agreed upon, development may start and be submitted via a [pull request](https://github.com/temporalio/sdk-typescript/pulls).
+We welcome contributions from the community. To contribute, please start by opening an [issue](https://github.com/temporalio/sdk-typescript/issues) and discussing the proposed change. Once a change has been agreed upon, development may start and be submitted via a [pull request](https://github.com/temporalio/sdk-typescript/pulls).
+
+## Maintenance
+
+The current maintainers are:
+
+- [Loren `lorensr`](https://github.com/lorensr)
+- [Roey `bergundy`](https://github.com/bergundy)
+
+If you'd like to join us, [email Loren](mailto:loren@temporal.io). We'd be happy to have help with any of these things:
+
+- Triaging issues
+- Reviewing PRs
+- Submitting PRs to close issues
+
+## Getting started
 
 ### Contributor License Agreement (CLA)
 
@@ -14,7 +50,7 @@ See [sdk-structure.md](./docs/sdk-structure.md)
 
 ### Environment setup
 
-- Install the system dependencies listed in [Getting started > Step 0: Prerequisites](https://docs.temporal.io/node/getting-started/#step-0-prerequisites)
+- Install Node 16 and [Temporal Server](https://github.com/temporalio/docker-compose#temporal-server-docker-compose-files)
 - Install the [Rust toolchain](https://rustup.rs/)
 - Clone the [sdk-typescript](https://github.com/temporalio/sdk-typescript) repo:
   ```sh
@@ -48,7 +84,7 @@ To update to the latest version of the Core SDK, run `git submodule update` foll
 
 > For cross compilation on MacOS follow [these instructions](https://github.com/temporalio/sdk-typescript/blob/main/docs/building.md) (only required for publishing packages).
 
-### Development Workflow
+## Development
 
 After your environment is set up, you can run these commands:
 
@@ -106,7 +142,7 @@ chore(samples): upgrade commander module
 
 The `scope` options are listed in [commitlint.config.js](https://github.com/temporalio/sdk-typescript/blob/main/commitlint.config.js).
 
-### Publishing
+## Publishing
 
 First, follow the instructions in [docs/building.md](docs/building.md).
 
@@ -165,7 +201,7 @@ npx lerna publish from-git # add `--dist-tag next` for pre-release versions
 rm $HOME/Downloads/packages-*
 ```
 
-### Updating the Java test server proto files
+## Updating the Java test server proto files
 
 [These files](https://github.com/temporalio/sdk-java/tree/master/temporal-test-server/src/main/proto) are taken from the `sdk-java` repo.
 

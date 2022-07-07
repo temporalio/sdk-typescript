@@ -57,12 +57,6 @@ const program = new Command(packageJson.name)
   Skip git repository initialization
 `
   )
-  .option(
-    '--temporalio-version <version>',
-    dedent`
-  Specify which version of the temporalio npm package to use
-`
-  )
   .allowUnknownOption()
   .parse(process.argv);
 
@@ -72,7 +66,6 @@ interface Options {
   listSamples?: boolean;
   sample?: string;
   samplePath?: string;
-  temporalioVersion?: string;
 }
 
 let opts: Options;
@@ -170,7 +163,6 @@ async function start(): Promise<void> {
     appPath: resolvedProjectPath,
     useYarn: !!opts.useYarn,
     gitInit: opts.gitInit,
-    temporalioVersion: opts.temporalioVersion,
     sample: sample.trim(),
     samplePath: typeof opts.samplePath === 'string' ? opts.samplePath.trim() : undefined,
   });
