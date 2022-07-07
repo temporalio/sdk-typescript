@@ -8,7 +8,7 @@ const { echo } = wf.proxyLocalActivities<typeof activities>({
 /**
  * Reproduces https://github.com/temporalio/sdk-typescript/issues/731
  */
-export async function issue731() {
+export async function issue731(): Promise<void> {
   await wf.CancellationScope.cancellable(async () => {
     const localActivityPromise = echo('activity');
     const sleepPromise = wf.sleep('30s').then(() => 'timer');
