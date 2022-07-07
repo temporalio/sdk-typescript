@@ -71,7 +71,7 @@ interface ErrorWithCode {
   code: string;
 }
 /**
- * * Get `error.code` (or `undefined` if not present)
+ * Get `error.code` (or `undefined` if not present)
  */
 export function errorCode(error: unknown): string | undefined {
   if (
