@@ -1191,4 +1191,23 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
       );
     });
   }
+
+  test('issue-731', async (t) => {
+    const { client } = t.context;
+    const workflowId = uuid4();
+    await client.execute(workflows.issue731, {
+      taskQueue: 'test',
+      workflowId,
+      workflowTaskTimeout: '1m', // Give our local activities enough time to run in CI
+    });
+    const { history } = await client.workflowService.getWorkflowExecutionHistory({
+      namespace: 'default',
+      execution: { workflowId },
+    });
+    if (history?.events == null) {
+      throw new Error('Expected non null events');
+    }
+    // Verify only one timer was scheduled
+    t.is(history.events.filter(({ timerStartedEventAttributes }) => timerStartedEventAttributes != null).length, 1);
+  });
 }
