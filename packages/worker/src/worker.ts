@@ -629,11 +629,10 @@ export class Worker {
   }
 
   /**
-   * Start shutting down the Worker.
-   * Immediately transitions state to STOPPING and asks Core to shut down.
-   * Once Core has confirmed that it's shutting down the Worker enters DRAINING state
-   * unless the Worker has already been DRAINED.
-   * {@see State}.
+   * Start shutting down the Worker. Immediately transitions {@link state} to `'STOPPING'` and asks Core to shut down.
+   * Once Core has confirmed that it's shutting down, the Worker enters `'DRAINING'` state unless the Worker has already
+   * been `'DRAINED'`. Once all currently running Activities and Workflow Tasks have completed, the Worker transitions
+   * to `'STOPPED'`.
    */
   shutdown(): void {
     if (this.state !== 'RUNNING') {
@@ -653,8 +652,8 @@ export class Worker {
   }
 
   /**
-   * An observable which completes when state becomes DRAINED or throws if state transitions to
-   * STOPPING and remains that way for {@link this.options.shutdownGraceTimeMs}.
+   * An observable that completes when {@link state} becomes `'DRAINED'` or throws if {@link state} transitions to
+   * `'STOPPING'` and remains that way for {@link this.options.shutdownGraceTimeMs}.
    */
   protected gracefulShutdown$(): Observable<never> {
     return race(

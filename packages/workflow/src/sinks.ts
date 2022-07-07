@@ -17,7 +17,8 @@
 /**
  * Any function signature can be used for Sink functions as long as the return type is `void`.
  *
- * When calling a Sink function, arguments are copied from the Workflow isolate to the Node.js environment using [postMessage](https://nodejs.org/api/worker_threads.html#worker_threads_port_postmessage_value_transferlist).
+ * When calling a Sink function, arguments are copied from the Workflow isolate to the Node.js environment using
+ * {@link https://nodejs.org/api/worker_threads.html#worker_threads_port_postmessage_value_transferlist | postMessage}.
 
  * This constrains the argument types to primitives (excluding Symbols).
  */

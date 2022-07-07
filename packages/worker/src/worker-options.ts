@@ -257,7 +257,7 @@ export type WorkerOptionsWithDefaults = WorkerOptions &
     /**
      * Controls the number of Worker threads the Worker should create.
      *
-     * Threads are used to create [vm](https://nodejs.org/api/vm.html)s for the
+     * Threads are used to create {@link https://nodejs.org/api/vm.html | vm }s for the
      *
      * isolated Workflow environment.
      *

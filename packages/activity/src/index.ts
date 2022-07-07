@@ -1,24 +1,41 @@
 /**
- * This library provides tools for authoring activities.
+ * This package's main export is {@link Context}. Get the current Activity's context with
+ * {@link Context.current | `Context.current()`}:
  *
- * Import this module from Activity code - must **not** be used in Workflows.
+ * ```ts
+ * import { Context } from '@temporalio/activity';
  *
- * Any function can be used as an Activity as long as its parameters and return value are serializable using a [`DataConverter`](../interfaces/worker.DataConverter.md).
+ * export async function myActivity() {
+ *   const context = Context.current();
+ * }
+ * ```
+ *
+ * Any function can be used as an Activity as long as its parameters and return value are serializable using a
+ * {@link https://docs.temporal.io/concepts/what-is-a-data-converter/ | DataConverter}.
  *
  * ### Cancellation
- * Activities may be cancelled only if they [emit heartbeats](../classes/activity.Context.md#heartbeat).<br/>
- * There are 2 ways to handle Activity cancellation:
- * 1. await on [`Context.current().cancelled`](../classes/activity.Context.md#cancelled)
- * 1. Pass the context's [abort signal](https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal) at [`Context.current().cancellationSignal`](../classes/activity.Context.md#cancellationsignal) to a library that supports it
+ *
+ * Activities may be cancelled only if they {@link Context.heartbeat | emit heartbeats}.
+ *
+ * There are two ways to handle Activity cancellation:
+ * 1. await on {@link Context.cancelled | `Context.current().cancelled`} or
+ *    {@link Context.sleep | `Context.current().sleep()`}, which each throw a
+ *    {@link CancelledFailure}.
+ * 1. Pass the context's {@link https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal | `AbortSignal`} at
+ *    {@link Context.cancellationSignal | `Context.current().cancellationSignal`} to a library that
+ *    supports it.
  *
  * ### Examples
  *
- * #### An Activity that fakes progress and can be cancelled
+ * #### An Activity that sends progress heartbeats and can be cancelled
  *
  * <!--SNIPSTART typescript-activity-fake-progress-->
  * <!--SNIPEND-->
  *
  * #### An Activity that makes a cancellable HTTP request
+ *
+ * It passes the `AbortSignal` to {@link https://github.com/node-fetch/node-fetch#api | `fetch`}: `fetch(url, { signal:
+ * Context.current().cancellationSignal })`.
  *
  * <!--SNIPSTART typescript-activity-cancellable-fetch-->
  * <!--SNIPEND-->
@@ -38,11 +55,21 @@ export {
 export * from '@temporalio/internal-workflow-common/lib/errors';
 
 /**
- * Throw this error from an Activity in order to make the Worker
- * forget about this Activity.
+ * Throw this error from an Activity in order to make the Worker forget about this Activity.
  *
- * The Activity can be completed asynchronously using
- * {@link AsyncCompletionClient}
+ * The Activity can then be completed asynchronously (from anywhere—usually outside the Worker) using
+ * {@link AsyncCompletionClient}.
+ *
+ * @example
+ *
+ *```ts
+ *import { CompleteAsyncError } from '@temporalio/activity';
+ *
+ *export async function myActivity(): Promise<never> {
+ *  // ...
+ *  throw new CompleteAsyncError();
+ *}
+ *```
  */
 export class CompleteAsyncError extends Error {
   public readonly name: string = 'CompleteAsyncError';
@@ -56,7 +83,7 @@ export class CompleteAsyncError extends Error {
 export const asyncLocalStorage = new AsyncLocalStorage<Context>();
 
 /**
- * Holds information about the current executing Activity
+ * Holds information about the current Activity Execution. Retrieved inside an Activity with `Context.current().info`.
  */
 export interface Info {
   taskToken: Uint8Array;
@@ -124,9 +151,14 @@ export interface Info {
 }
 
 /**
- * Activity Context manager.
+ * Activity Context, used to:
  *
- * Call `Context.current()` from Activity code in order to send heartbeats and get notified of Activity cancellation.
+ * - Get {@link Info} about the current Activity Execution
+ * - Send {@link https://docs.temporal.io/concepts/what-is-an-activity-heartbeat | heartbeats}
+ * - Get notified of Activity cancellation
+ * - Sleep (cancellation-aware)
+ *
+ * Call `Context.current()` from Activity code in order to get the current Activity's Context.
  */
 export class Context {
   /**
@@ -136,13 +168,21 @@ export class Context {
   /**
    * Await this promise in an Activity to get notified of cancellation.
    *
-   * This promise will never be resolved, it will only be rejected with a {@link CancelledFailure}.
+   * This promise will never resolve—it will only be rejected with a {@link CancelledFailure}.
+   *
+   * @see [Cancellation](/api/namespaces/activity#cancellation)
    */
   public readonly cancelled: Promise<never>;
   /**
-   * An `AbortSignal` which can be used to cancel requests on Activity cancellation.
+   * An {@link https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal | `AbortSignal`} that can be used to react to
+   * Activity cancellation.
    *
-   * Typically used by the {@link https://www.npmjs.com/package/node-fetch#request-cancellation-with-abortsignal | fetch} and {@link https://nodejs.org/api/child_process.html#child_process_child_process_spawn_command_args_options child_process} libraries but is supported by a few other libraries as well.
+   * Used by {@link https://www.npmjs.com/package/node-fetch#request-cancellation-with-abortsignal | fetch} to abort an
+   * in-progress request and
+   * {@link https://nodejs.org/api/child_process.html#child_process_child_process_spawn_command_args_options child_process}
+   * to abort a child process, and is supported by some other libraries as well.
+   *
+   * @see [Cancellation](/api/namespaces/activity#cancellation)
    */
   public readonly cancellationSignal: AbortSignal;
   /**
@@ -168,11 +208,17 @@ export class Context {
   }
 
   /**
-   * Send a heartbeat from an Activity.
+   * Send a {@link https://docs.temporal.io/concepts/what-is-an-activity-heartbeat | heartbeat} from an Activity.
    *
-   * If an Activity times out, the last value of details is included in the {@link ActivityFailure} delivered to a Workflow in the `cause` attribute which will be set to {@link TimeoutFailure}. Then the Workflow can pass the details to the next Activity invocation. This acts as a periodic checkpoint mechanism for the progress of an Activity.
+   * If an Activity times out, then during the next retry, the last value of `details` is available at
+   * {@link Info.heartbeatDetails}. This acts as a periodic checkpoint mechanism for the progress of an Activity.
    *
-   * The Activity must heartbeat in order to receive cancellation.
+   * If an Activity times out on the final retry (relevant in cases in which {@link RetryPolicy.maximumAttempts} is
+   * set), the Activity function call in the Workflow code will throw an {@link ActivityFailure} with the `cause`
+   * attribute set to a {@link TimeoutFailure}, which has the last value of `details` available at
+   * {@link TimeoutFailure.lastHeartbeatDetails}.
+   *
+   * Activities must heartbeat in order to receive cancellation.
    */
   public heartbeat(details?: unknown): void {
     this.heartbeatFn(details);
@@ -193,8 +239,8 @@ export class Context {
 
   /**
    * Helper function for sleeping in an Activity.
-   * @param ms sleep duration - {@link https://www.npmjs.com/package/ms | ms} formatted string or number of milliseconds
-   * @returns a Promise that either resolves when deadline is reached or rejects when the Context is cancelled
+   * @param ms Sleep duration: an {@link https://www.npmjs.com/package/ms | ms}-formatted string or number of milliseconds
+   * @returns A Promise that either resolves when `ms` is reached or rejects when the Activity is cancelled
    */
   public sleep(ms: number | string): Promise<void> {
     let handle: NodeJS.Timeout;

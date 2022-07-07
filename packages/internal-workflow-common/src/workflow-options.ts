@@ -7,7 +7,7 @@ import { checkExtends, Replace } from './type-helpers';
 // Avoid importing the proto implementation to reduce workflow bundle size
 // Copied from temporal.api.enums.v1.WorkflowIdReusePolicy
 /**
- * Concept: [Workflow Id Reuse Policy](https://docs.temporal.io/concepts/what-is-a-workflow-id-reuse-policy/)
+ * Concept: {@link https://docs.temporal.io/concepts/what-is-a-workflow-id-reuse-policy/ | Workflow Id Reuse Policy}
  *
  * Whether a Workflow can be started with a Workflow Id of a Closed Workflow.
  *
@@ -46,7 +46,7 @@ export interface BaseWorkflowOptions {
    *
    * *Note: A Workflow can never be started with a Workflow Id of a Running Workflow.*
    *
-   * @default {@link WorkflowIdReusePolicy.ALLOW_DUPLICATE_FAILED_ONLY}
+   * @default {@link WorkflowIdReusePolicy.WORKFLOW_ID_REUSE_POLICY_ALLOW_DUPLICATE_FAILED_ONLY}
    */
   workflowIdReusePolicy?: WorkflowIdReusePolicy;
 
@@ -54,17 +54,17 @@ export interface BaseWorkflowOptions {
    * Controls how a Workflow Execution is retried.
    *
    * By default, Workflow Executions are not retried. Do not override this behavior unless you know what you're doing.
-   * [More information](https://docs.temporal.io/concepts/what-is-a-retry-policy/).
+   * {@link https://docs.temporal.io/concepts/what-is-a-retry-policy/ | More information}.
    */
   retry?: RetryPolicy;
 
   /**
-   * Optional cron schedule for Workflow. If a cron schedule is specified, the Workflow will run
-   * as a cron based on the schedule. The scheduling will be based on UTC time. The schedule for the next run only happens
-   * after the current run is completed/failed/timeout. If a RetryPolicy is also supplied, and the Workflow failed
-   * or timed out, the Workflow will be retried based on the retry policy. While the Workflow is retrying, it won't
-   * schedule its next run. If the next schedule is due while the Workflow is running (or retrying), then it will skip that
-   * schedule. Cron Workflow will not stop until it is terminated or cancelled (by returning temporal.CanceledError).
+   * Optional cron schedule for Workflow. If a cron schedule is specified, the Workflow will run as a cron based on the
+   * schedule. The scheduling will be based on UTC time. The schedule for the next run only happens after the current
+   * run is completed/failed/timeout. If a RetryPolicy is also supplied, and the Workflow failed or timed out, the
+   * Workflow will be retried based on the retry policy. While the Workflow is retrying, it won't schedule its next run.
+   * If the next schedule is due while the Workflow is running (or retrying), then it will skip that schedule. Cron
+   * Workflow will not stop until it is terminated or cancelled (by returning temporal.CanceledError).
    * https://crontab.guru/ is useful for testing your cron expressions.
    */
   cronSchedule?: string;
