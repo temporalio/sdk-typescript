@@ -730,7 +730,7 @@ export class Worker {
                     );
 
                     const { activityType } = info;
-                    // activities if of type "object" which does not support string indexes
+                    // activities is of type "object" which does not support string indexes
                     const fn = (this.options.activities as any)?.[activityType];
                     if (typeof fn !== 'function') {
                       output = {

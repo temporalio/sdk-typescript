@@ -440,15 +440,19 @@ function signalWorkflowNextHandler({ seq, signalName, args, target, headers }: S
 /**
  * Symbol used in the return type of proxy methods to mark that an attribute on the source type is not a method.
  *
- * See {@link ActivityInterfaceFor}, {@link proxyActivities}, {@link proxyLocalActivities}
+ * @see {@link ActivityInterfaceFor}
+ * @see {@link proxyActivities}
+ * @see {@link proxyLocalActivities}
  */
 export const NotAnActivityMethod = Symbol.for('__TEMPORAL_NOT_AN_ACTIVITY_METHOD');
 
 /**
- * Type helper that take a type `T` and transforms attributes which are not {@link ActivityFunction} to
+ * Type helper that takes a type `T` and transforms attributes that are not {@link ActivityFunction} to
  * {@link NotAnActivityMethod}.
  *
  * @example
+ *
+ * Used by {@link proxyActivities} to get this compile-time error:
  *
  * ```ts
  * interface MyActivities {
@@ -460,12 +464,11 @@ export const NotAnActivityMethod = Symbol.for('__TEMPORAL_NOT_AN_ACTIVITY_METHOD
  *
  * await act.valid(true);
  * await act.invalid();
- * // ^^ TS complains with:
+ * // ^ TS complains with:
  * // (property) invalidDefinition: typeof NotAnActivityMethod
  * // This expression is not callable.
  * // Type 'Symbol' has no call signatures.(2349)
  * ```
- *
  */
 export type ActivityInterfaceFor<T> = {
   [K in keyof T]: T[K] extends ActivityFunction ? T[K] : typeof NotAnActivityMethod;
