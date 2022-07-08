@@ -44,20 +44,20 @@ export class ActivityInboundLogInterceptor implements ActivityInboundCallsInterc
       const durationMs = Number(durationNanos / 1_000_000n);
       if (error === UNINITIAILIZED) {
         this.logger.debug('Activity completed', { durationMs, ...this.logAttributes() });
-        return;
+        // Avoid using instanceof checks in case the modules they're defined in loaded more than once,
+        // e.g. by jest or when multiple versions are installed.
+      } else if (
+        typeof error === 'object' &&
+        error != null &&
+        (error.name === 'CancelledFailure' || error.name === 'AbortError') &&
+        this.ctx.cancellationSignal.aborted
+      ) {
+        this.logger.debug('Activity completed as cancelled', { durationMs, ...this.logAttributes() });
+      } else if (typeof error === 'object' && error != null && error.name === 'CompleteAsyncError') {
+        this.logger.debug('Activity will complete asynchronously', { durationMs, ...this.logAttributes() });
+      } else {
+        this.logger.warn('Activity failed', { error, durationMs, ...this.logAttributes() });
       }
-      // Avoid using instanceof checks in case the modules they're defined in loaded more than once,
-      // e.g. by jest or when multiple versions are installed.
-      if (typeof error === 'object' && error != null) {
-        if (error.name === 'CancelledFailure' && this.ctx.cancellationSignal.aborted) {
-          this.logger.debug('Activity completed as cancelled', { durationMs, ...this.logAttributes() });
-          return;
-        } else if (error.name === 'CompleteAsyncError') {
-          this.logger.debug('Activity will complete asynchronously', { durationMs, ...this.logAttributes() });
-          return;
-        }
-      }
-      this.logger.warn('Activity failed', { error, durationMs, ...this.logAttributes() });
     }
   }
 }
