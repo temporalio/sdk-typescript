@@ -63,6 +63,14 @@ jobs:
           # TODO: Run integration tests on MacOS / Windows probably using temporalite
           RUN_INTEGRATION_TESTS: ${{ startsWith(matrix.os, 'ubuntu') }}
 
+      - uses: actions/upload-artifact@v3
+        if: ${{ always() }}
+        with:
+          name: npm-logs
+          path: |
+            ~/.npm/_logs/
+            C:\npm\cache\_logs\
+
       # Do docs stuff (only on one host)
       - name: Build docs
         if: ${{ matrix.docsTarget }}
