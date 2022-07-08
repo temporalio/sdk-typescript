@@ -29,12 +29,14 @@ export async function createApp({
   appPath,
   useYarn,
   gitInit,
+  temporalioVersion,
   sample,
   samplePath,
 }: {
   appPath: string;
   useYarn: boolean;
   gitInit?: boolean;
+  temporalioVersion?: string;
   sample: string;
   samplePath?: string;
 }): Promise<void> {
@@ -176,6 +178,9 @@ export async function createApp({
   console.log();
 
   await updateNodeVersion({ root });
+  if (temporalioVersion) {
+    await replaceTemporalVersion({ root, useYarn, temporalioVersion });
+  }
 
   await install({ root, useYarn });
 
