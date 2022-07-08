@@ -64,7 +64,7 @@ jobs:
           RUN_INTEGRATION_TESTS: ${{ startsWith(matrix.os, 'ubuntu') }}
 
       - uses: actions/upload-artifact@v3
-        if: ${{ cancelled() || failure() }}
+        if: ${{ failure() }}
         with:
           name: npm-logs
           path: |
