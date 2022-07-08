@@ -292,6 +292,7 @@ export class TestWorkflowEnvironment {
  */
 export const defaultActivityInfo: activity.Info = {
   attempt: 1,
+  taskQueue: 'test',
   isLocal: false,
   taskToken: Buffer.from('test'),
   activityId: 'test',
