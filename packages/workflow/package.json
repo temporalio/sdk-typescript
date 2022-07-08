@@ -12,7 +12,7 @@
     "url": "https://github.com/temporalio/sdk-typescript/issues"
   },
   "license": "MIT",
-  "author": "Roey Berman <roey@temporal.io>",
+  "author": "Temporal Technologies Inc. <sdk@temporal.io>",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "scripts": {},

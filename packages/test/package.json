@@ -22,7 +22,7 @@
     "worker",
     "isolate"
   ],
-  "author": "Roey Berman <roey@temporal.io>",
+  "author": "Temporal Technologies Inc. <sdk@temporal.io>",
   "license": "MIT",
   "dependencies": {
     "@opentelemetry/exporter-trace-otlp-grpc": "^0.29.2",

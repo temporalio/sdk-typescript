@@ -72,7 +72,7 @@
     "workflow",
     "isolate"
   ],
-  "author": "Roey Berman <roey@temporal.io>",
+  "author": "Temporal Technologies Inc. <sdk@temporal.io>",
   "license": "MIT",
   "bugs": {
     "url": "https://github.com/temporalio/sdk-typescript/issues"

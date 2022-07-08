@@ -11,7 +11,7 @@
     "interceptors",
     "opentelemetry"
   ],
-  "author": "Roey Berman <roey@temporal.io>",
+  "author": "Temporal Technologies Inc. <sdk@temporal.io>",
   "license": "MIT",
   "dependencies": {
     "@opentelemetry/api": "^1.1.0",
