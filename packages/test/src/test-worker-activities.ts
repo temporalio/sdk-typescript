@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
 import * as activity from '@temporalio/activity';
-import { defaultPayloadConverter, toPayloads } from '@temporalio/common';
+import { TemporalFailure, defaultPayloadConverter, toPayloads } from '@temporalio/common';
 import { coresdk } from '@temporalio/proto';
 import anyTest, { ExecutionContext, TestInterface } from 'ava';
 import dedent from 'dedent';
@@ -252,4 +252,28 @@ test('Worker cancels activities after shutdown', async (t) => {
   // unless cancellation was requested.
   t.truthy(result?.failed);
   t.true(activityCancelled);
+});
+
+test('Non ApplicationFailure TemporalFailures thrown from Activity are wrapped with ApplicationFailure', async (t) => {
+  const worker = isolateFreeWorker({
+    ...defaultOptions,
+    activities: {
+      async throwTemporalFailure() {
+        throw new TemporalFailure('I should be valid');
+      },
+    },
+  });
+  t.context.worker = worker;
+
+  await runWorker(t, async () => {
+    const taskToken = Buffer.from(uuid4());
+    const { result } = await worker.native.runActivityTask({
+      taskToken,
+      start: {
+        activityType: 'throwTemporalFailure',
+        input: toPayloads(defaultPayloadConverter),
+      },
+    });
+    t.is(result?.failed?.failure?.applicationFailureInfo?.type, 'TemporalFailure');
+  });
 });
