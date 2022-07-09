@@ -93,7 +93,7 @@ export interface WorkerOptions {
    * Time to wait for pending tasks to drain after shutdown was requested.
    *
    * @format {@link https://www.npmjs.com/package/ms | ms} formatted string or number of milliseconds
-   * @default 5s
+   * @default 10s
    */
   shutdownGraceTime?: string | number;
 
