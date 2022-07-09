@@ -323,7 +323,7 @@ export function addDefaultWorkerOptions(options: WorkerOptions): WorkerOptionsWi
   return {
     namespace: 'default',
     identity: `${process.pid}@${os.hostname()}`,
-    shutdownGraceTime: '5s',
+    shutdownGraceTime: '10s',
     maxConcurrentActivityTaskExecutions: 100,
     maxConcurrentLocalActivityExecutions: 100,
     enableNonLocalActivities: true,
