@@ -42,10 +42,11 @@ export class ActivityInboundLogInterceptor implements ActivityInboundCallsInterc
     } finally {
       const durationNanos = process.hrtime.bigint() - startTime;
       const durationMs = Number(durationNanos / 1_000_000n);
+
+      // Avoid using instanceof checks in case the modules they're defined in loaded more than once,
+      // e.g. by jest or when multiple versions are installed.
       if (error === UNINITIAILIZED) {
         this.logger.debug('Activity completed', { durationMs, ...this.logAttributes() });
-        // Avoid using instanceof checks in case the modules they're defined in loaded more than once,
-        // e.g. by jest or when multiple versions are installed.
       } else if (
         typeof error === 'object' &&
         error != null &&

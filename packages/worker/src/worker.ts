@@ -988,11 +988,9 @@ export class Worker {
                   }
                   activation.jobs = jobs;
                   if (jobs.length === 0) {
-                    if (state == null) {
-                      throw new IllegalStateError('Got a Workflow activation with no jobs for unknown workflow');
-                    }
-                    await state.workflow.dispose();
-                    this.log.trace('Disposing workflow', workflowLogAttributes(state.info));
+                    this.log.trace('Disposing workflow', {
+                      ...(state ? workflowLogAttributes(state.info) : { runId: activation.runId }),
+                    });
                     await state?.workflow.dispose();
                     if (!close) {
                       throw new IllegalStateError('Got a Workflow activation with no jobs');

@@ -181,6 +181,8 @@ export class TimeoutFailure extends TemporalFailure {
  * This exception is expected to be thrown only by the framework code.
  */
 export class ActivityFailure extends TemporalFailure {
+  public readonly name: string = 'ActivityFailure';
+
   public constructor(
     public readonly activityType: string,
     public readonly activityId: string | undefined,
@@ -199,6 +201,8 @@ export class ActivityFailure extends TemporalFailure {
  * This exception is expected to be thrown only by the framework code.
  */
 export class ChildWorkflowFailure extends TemporalFailure {
+  public readonly name: string = 'ChildWorkflowFailure';
+
   public constructor(
     public readonly namespace: string | undefined,
     public readonly execution: WorkflowExecution,
