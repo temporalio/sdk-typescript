@@ -33,14 +33,14 @@ function isForwardingLogger(opts: TelemLogger): opts is ForwardLogger {
  */
 export interface RuntimeOptions {
   /**
-   * Automatically shut down on any of these signals.
+   * Automatically shut down workers on any of these signals.
    * @default
    * ```ts
    * ['SIGINT', 'SIGTERM', 'SIGQUIT', 'SIGUSR2']
    * ```
    */
-
   shutdownSignals?: NodeJS.Signals[];
+
   /** Telemetry options for traces/metrics/logging */
   telemetryOptions?: TelemetryOptions;
   /**

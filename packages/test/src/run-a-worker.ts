@@ -1,17 +1,18 @@
 import arg from 'arg';
-import { Worker, Runtime, DefaultLogger } from '@temporalio/worker';
+import { Worker, Runtime, DefaultLogger, LogLevel } from '@temporalio/worker';
 import * as activities from './activities';
 
 async function main() {
   const argv = arg({
-    '--debug': Boolean,
+    '--log-level': String,
   });
-  if (argv['--debug']) {
+  if (argv['--log-level']) {
+    const logLevel = argv['--log-level'].toUpperCase();
     Runtime.install({
-      logger: new DefaultLogger('DEBUG'),
+      logger: new DefaultLogger(logLevel as LogLevel),
       telemetryOptions: {
         tracingFilter: 'temporal_sdk_core=DEBUG',
-        logging: { forward: { level: 'DEBUG' } },
+        logging: { forward: { level: logLevel as LogLevel } },
       },
     });
   }

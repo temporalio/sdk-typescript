@@ -148,6 +148,11 @@ export interface Info {
    * Use this in order to resume your Activity from checkpoint.
    */
   heartbeatDetails: any;
+
+  /**
+   * Task queue the Activity is scheduled in, set to the Workflow's task queue in case of local Activity.
+   */
+  taskQueue: string;
 }
 
 /**
