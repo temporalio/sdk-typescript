@@ -4,6 +4,69 @@ All notable changes to this project will be documented in this file.
 
 Breaking changes marked with a :boom:
 
+## [1.0.0-rc.1] - 2022-07-11
+
+### Bug Fixes
+
+- Ignore source map parse errors ([#710](https://github.com/temporalio/sdk-typescript/pull/710))
+- [`workflow`] ExecuteChild returns `Promise<WorfkflowResultType<T>>` ([#718](https://github.com/temporalio/sdk-typescript/pull/718))
+- Simplify DocBreadcrumbs so we don't need the swizzle warning comment ([#715](https://github.com/temporalio/sdk-typescript/pull/715))
+- Add missing deps ([#733](https://github.com/temporalio/sdk-typescript/pull/733))
+
+  - `@opentelemetry/api` was missing from `@temporalio/internal-non-workflow-common`
+
+- Re-export from internal-workflow-common ([#736](https://github.com/temporalio/sdk-typescript/pull/736))
+- [`activity`] Set Info.isLocal correctly ([#714](https://github.com/temporalio/sdk-typescript/pull/714))
+- [`worker`] Disallow importing non-Workflow @temporalio packages ([#722](https://github.com/temporalio/sdk-typescript/pull/722))
+- [`bundler`] Avoid 'package source-map-loader not found' in PNPM ([#737](https://github.com/temporalio/sdk-typescript/pull/737))
+- Default searchAttributes to {} and edit type ([#738](https://github.com/temporalio/sdk-typescript/pull/738))
+- Fix bug where cancelled workflow commands were unnecessarily sent to the server ([#745](https://github.com/temporalio/sdk-typescript/pull/745))
+
+  - Upgrade core submodule to get the fix: https://github.com/temporalio/sdk-core/pull/351
+  - Fixes [#731](https://github.com/temporalio/sdk-typescript/pull/731)
+
+- Fix nightly and activity failing with non ApplicationFailure ([#751](https://github.com/temporalio/sdk-typescript/pull/751))
+
+### Documentation
+
+- Document ParentClosePolicy, ChildWorkflowCancellationType, and WorkflowIdReusePolicy ([#716](https://github.com/temporalio/sdk-typescript/pull/716))
+- Fix Connection.connect in CHANGELOG ([#723](https://github.com/temporalio/sdk-typescript/pull/723))
+- Remove beta section from README
+- Don't load Algolia API key from env ([#726](https://github.com/temporalio/sdk-typescript/pull/726))
+- Review API docs ([#744](https://github.com/temporalio/sdk-typescript/pull/744))
+
+### Features
+
+- Support history from JSON ([#743](https://github.com/temporalio/sdk-typescript/pull/743))
+- Improve activity registration and proxy types ([#742](https://github.com/temporalio/sdk-typescript/pull/742))
+
+  - Closes #655
+  - Deprecates `ActivityInterface` - replaced with `UntypedActivities`
+  - `proxyActivities` and (the experimental) `proxyLocalActivities` signature changed to provide better type safety when referencing non-existing activities
+  - `WorkerOptions.activities` type is now `object` to allow arbitrary class registration
+
+  NOTE: This is **not** a backwards incompatible change
+
+- Revise SDK log attributes and levels ([#750](https://github.com/temporalio/sdk-typescript/pull/750))
+
+  Adds 2 new default interceptors: `WorkflowInboundLogInterceptor` and `ActivityInboundLogInterceptor` and a default
+  logger sink to provide better logging experience out of the box.
+
+  Also reduced the severity of internal SDK logs to `trace` level to reduce log noise.
+
+  Closes [#461](https://github.com/temporalio/sdk-typescript/pull/461)
+
+### Miscellaneous Tasks
+
+- Remove unused deps; Upgrade protobufjs; Publish src ([#719](https://github.com/temporalio/sdk-typescript/pull/719))
+
+  Bugfixes:
+
+  - Clear logs from CoreLogger buffer after flushing
+  - Closes [#717](https://github.com/temporalio/sdk-typescript/pull/717)
+
+- Add more build artifacts for debugging ([#749](https://github.com/temporalio/sdk-typescript/pull/749))
+
 ## [1.0.0-rc.0] - 2022-06-17
 
 ### Bug Fixes
