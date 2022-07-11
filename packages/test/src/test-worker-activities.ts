@@ -279,6 +279,7 @@ test('Non ApplicationFailure TemporalFailures thrown from Activity are wrapped w
       taskToken,
       start: {
         activityType: 'throwTemporalFailure',
+        workflowExecution: { workflowId: 'wfid', runId: 'runId' },
         input: toPayloads(defaultPayloadConverter),
       },
     });

@@ -2,7 +2,7 @@ import { Context, Info } from '@temporalio/activity';
 import { ActivityInboundCallsInterceptor, ActivityExecuteInput, Next } from './interceptors';
 import { Logger } from './logger';
 
-const UNINITIAILIZED = Symbol('UNINITIAILIZED');
+const UNINITIALIZED = Symbol('UNINITIALIZED');
 
 /**
  * Returns a map of attributes to be set on log messages for a given Activity
@@ -31,7 +31,7 @@ export class ActivityInboundLogInterceptor implements ActivityInboundCallsInterc
   }
 
   async execute(input: ActivityExecuteInput, next: Next<ActivityInboundCallsInterceptor, 'execute'>): Promise<unknown> {
-    let error: any = UNINITIAILIZED; // In case someone decides to throw undefined...
+    let error: any = UNINITIALIZED; // In case someone decides to throw undefined...
     const startTime = process.hrtime.bigint();
     this.logger.debug('Activity started', this.logAttributes());
     try {
@@ -45,7 +45,7 @@ export class ActivityInboundLogInterceptor implements ActivityInboundCallsInterc
 
       // Avoid using instanceof checks in case the modules they're defined in loaded more than once,
       // e.g. by jest or when multiple versions are installed.
-      if (error === UNINITIAILIZED) {
+      if (error === UNINITIALIZED) {
         this.logger.debug('Activity completed', { durationMs, ...this.logAttributes() });
       } else if (
         typeof error === 'object' &&

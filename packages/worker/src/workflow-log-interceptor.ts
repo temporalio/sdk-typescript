@@ -32,7 +32,7 @@ export function workflowLogAttributes(info: WorkflowInfo): Record<string, unknow
     namespace: info.namespace,
     taskQueue: info.taskQueue,
     workflowId: info.workflowId,
-    workflowRunId: info.runId,
+    runId: info.runId,
     workflowType: info.workflowType,
   };
 }
