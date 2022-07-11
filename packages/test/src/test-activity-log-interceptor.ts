@@ -8,7 +8,9 @@ import { cancellableFetch } from './activities/cancellable-fetch';
 
 async function runActivity(
   fn: activity.ActivityFunction,
-  heartbeatCallback = (_env: MockActivityEnvironment) => {}
+  heartbeatCallback = (_env: MockActivityEnvironment) => {
+    // not an empty body eslint
+  }
 ): Promise<[LogEntry, LogEntry]> {
   const logs = Array<LogEntry>();
   const env = new MockActivityEnvironment();
@@ -35,7 +37,9 @@ async function runActivity(
 }
 
 test('ActivityInboundLogInterceptor logs when activity starts', async (t) => {
-  const [startLog] = await runActivity(async () => {});
+  const [startLog] = await runActivity(async () => {
+    // not an empty body eslint
+  });
   t.is(startLog.level, 'DEBUG');
   t.is(startLog.message, 'Activity started');
   t.deepEqual(startLog.meta, activityLogAttributes(defaultActivityInfo));
