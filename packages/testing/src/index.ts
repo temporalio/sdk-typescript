@@ -1,3 +1,13 @@
+/**
+ * `npm i @temporalio/testing`
+ *
+ * Testing library for the SDK.
+ *
+ * [Documentation](https://docs.temporal.io/typescript/testing)
+ *
+ * @module
+ */
+
 import * as activity from '@temporalio/activity';
 import {
   AsyncCompletionClient,

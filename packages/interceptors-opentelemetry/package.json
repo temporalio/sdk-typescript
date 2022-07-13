@@ -2,8 +2,8 @@
   "name": "@temporalio/interceptors-opentelemetry",
   "version": "1.0.0-rc.0",
   "description": "Temporal.io SDK interceptors bundle for tracing with opentelemetry",
-  "main": "lib/workflow/index.js",
-  "types": "./lib/workflow/index.d.ts",
+  "main": "lib/index.js",
+  "types": "./lib/index.d.ts",
   "scripts": {},
   "keywords": [
     "temporal",
