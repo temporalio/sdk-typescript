@@ -11,7 +11,7 @@ interface InstallArgs {
    * Indicate whether to install packages using Yarn.
    */
   useYarn?: boolean;
-  temporalioVersion?: string;
+  temporalVersion?: string;
 }
 
 /**
@@ -53,10 +53,14 @@ export async function updateNodeVersion({ root }: InstallArgs): Promise<void> {
   }
 }
 
-export async function replaceTemporalVersion({ root, temporalioVersion }: InstallArgs): Promise<void> {
+export async function replaceTemporalVersion({ root, temporalVersion }: InstallArgs): Promise<void> {
   const fileName = `${root}/package.json`;
 
   const packageJson = JSON.parse(await readFile(fileName, 'utf8'));
-  packageJson.dependencies.temporalio = temporalioVersion;
+  for (const packageName in packageJson.dependencies) {
+    if (packageName.startsWith('@temporalio/')) {
+      packageJson.dependencies[packageName] = temporalVersion;
+    }
+  }
   await writeFile(fileName, JSON.stringify(packageJson));
 }

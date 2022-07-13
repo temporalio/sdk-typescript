@@ -1,7 +1,55 @@
 {
+  "name": "typescript-sdk",
   "private": true,
+  "keywords": [
+    "temporal",
+    "workflow",
+    "isolate"
+  ],
+  "homepage": "https://github.com/temporalio/sdk-typescript#readme",
+  "bugs": {
+    "url": "https://github.com/temporalio/sdk-typescript/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/temporalio/sdk-typescript.git"
+  },
+  "license": "MIT",
+  "author": "Roey Berman <roey@temporal.io>",
   "directories": {
     "doc": "docs"
+  },
+  "files": [],
+  "scripts": {
+    "rebuild": "npm run clean && npm run build",
+    "build": "lerna run --stream build",
+    "build.watch": "lerna run --stream build.watch",
+    "test": "lerna run --stream test",
+    "test.watch": "lerna run --stream test.watch",
+    "ci-build-no-rust": "lerna run --ignore @temporalio/core-bridge --stream build",
+    "ci-stress": "node ./packages/test/lib/load/run-all-stress-ci-scenarios.js",
+    "ci-nightly": "node ./packages/test/lib/load/run-all-nightly-scenarios.js",
+    "wait-namespace": "node ./scripts/wait-on-temporal.mjs",
+    "lint": "eslint packages/*/src --ext .ts --no-error-on-unmatched-pattern && prettier --end-of-line auto --check .",
+    "lint.prune": "ts-prune -p tsconfig.prune.json --ignore \"used in module\" --skip \".d.ts\"",
+    "commitlint": "commitlint --from origin/main",
+    "format": "prettier --write .",
+    "clean": "node ./scripts/clean.mjs",
+    "docs": "lerna run --stream maybe-install-deps-and-build-docs"
+  },
+  "dependencies": {
+    "@temporalio/client": "file:packages/client",
+    "@temporalio/common": "file:packages/common",
+    "@temporalio/create": "file:packages/create-project",
+    "@temporalio/interceptors-opentelemetry": "file:packages/interceptors-opentelemetry",
+    "@temporalio/internal-non-workflow-common": "file:packages/internal-non-workflow-common",
+    "@temporalio/internal-workflow-common": "file:packages/internal-workflow-common",
+    "@temporalio/proto": "file:packages/proto",
+    "@temporalio/test": "file:packages/test",
+    "@temporalio/testing": "file:packages/testing",
+    "@temporalio/worker": "file:packages/worker",
+    "@temporalio/workflow": "file:packages/workflow",
+    "temporalio": "file:packages/meta"
   },
   "devDependencies": {
     "@commitlint/cli": "^17.0.2",
@@ -45,54 +93,6 @@
     "ts-prune": "^0.10.3",
     "typescript": "^4.7.4",
     "uuid": "^8.3.2"
-  },
-  "scripts": {
-    "rebuild": "npm run clean && npm run build",
-    "build": "lerna run --stream build",
-    "build.watch": "lerna run --stream build.watch",
-    "test": "lerna run --stream test",
-    "test.watch": "lerna run --stream test.watch",
-    "ci-build-no-rust": "lerna run --ignore @temporalio/core-bridge --stream build",
-    "ci-stress": "node ./packages/test/lib/load/run-all-stress-ci-scenarios.js",
-    "ci-nightly": "node ./packages/test/lib/load/run-all-nightly-scenarios.js",
-    "wait-namespace": "node ./scripts/wait-on-temporal.mjs",
-    "lint": "eslint packages/*/src --ext .ts --no-error-on-unmatched-pattern && prettier --end-of-line auto --check .",
-    "lint.prune": "ts-prune -p tsconfig.prune.json --ignore \"used in module\" --skip \".d.ts\"",
-    "commitlint": "commitlint --from origin/main",
-    "format": "prettier --write .",
-    "clean": "node ./scripts/clean.mjs",
-    "docs": "lerna run --stream maybe-install-deps-and-build-docs"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/temporalio/sdk-typescript.git"
-  },
-  "keywords": [
-    "temporal",
-    "workflow",
-    "isolate"
-  ],
-  "author": "Roey Berman <roey@temporal.io>",
-  "license": "MIT",
-  "bugs": {
-    "url": "https://github.com/temporalio/sdk-typescript/issues"
-  },
-  "homepage": "https://github.com/temporalio/sdk-typescript#readme",
-  "files": [],
-  "name": "typescript-sdk",
-  "dependencies": {
-    "@temporalio/client": "file:packages/client",
-    "@temporalio/common": "file:packages/common",
-    "@temporalio/create": "file:packages/create-project",
-    "@temporalio/interceptors-opentelemetry": "file:packages/interceptors-opentelemetry",
-    "@temporalio/internal-non-workflow-common": "file:packages/internal-non-workflow-common",
-    "@temporalio/internal-workflow-common": "file:packages/internal-workflow-common",
-    "@temporalio/proto": "file:packages/proto",
-    "@temporalio/test": "file:packages/test",
-    "@temporalio/testing": "file:packages/testing",
-    "@temporalio/worker": "file:packages/worker",
-    "@temporalio/workflow": "file:packages/workflow",
-    "temporalio": "file:packages/meta"
   },
   "engines": {
     "node": ">= 14.0.0",
