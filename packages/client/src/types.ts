@@ -72,6 +72,7 @@ export interface CallContext {
  */
 export interface ConnectionLike {
   workflowService: WorkflowService;
+  operatorService: OperatorService;
   close(): Promise<void>;
   ensureConnected(): Promise<void>;
   /**
