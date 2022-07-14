@@ -17,7 +17,7 @@
     "workflow",
     "isolate"
   ],
-  "author": "Roey Berman <roey@temporal.io>",
+  "author": "Temporal Technologies Inc. <sdk@temporal.io>",
   "license": "MIT",
   "dependencies": {
     "@types/long": "^4.0.2",

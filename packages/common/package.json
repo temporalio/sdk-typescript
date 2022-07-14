@@ -9,7 +9,7 @@
     "workflow",
     "worker"
   ],
-  "author": "Loren Sands-Ramshaw <loren@temporal.io>",
+  "author": "Temporal Technologies Inc. <sdk@temporal.io>",
   "license": "MIT",
   "dependencies": {
     "@opentelemetry/api": "^1.0.3",

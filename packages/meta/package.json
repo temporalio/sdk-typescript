@@ -10,7 +10,7 @@
     "@temporalio/worker": "file:../worker",
     "@temporalio/workflow": "file:../workflow"
   },
-  "author": "Roey Berman <roey@temporal.io>",
+  "author": "Temporal Technologies Inc. <sdk@temporal.io>",
   "license": "MIT",
   "repository": {
     "type": "git",
