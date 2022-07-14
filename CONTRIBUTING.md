@@ -2,6 +2,7 @@
 
 <!-- START doctoc generated TOC please keep comment here to allow auto update -->
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+
 **Table of Contents**
 
 - [Maintenance](#maintenance)
@@ -19,7 +20,6 @@
 - [Updating the Java test server proto files](#updating-the-java-test-server-proto-files)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
-
 
 The TypeScript SDK (as well as the rest of the Temporal codebase) is open sourced under the MIT license.
 
