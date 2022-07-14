@@ -16,7 +16,7 @@ import {
 } from './helpers/samples.js';
 import { makeDir } from './helpers/make-dir.js';
 import { tryGitInit } from './helpers/git.js';
-import { install, updateNodeVersion, replaceTemporalVersion } from './helpers/install.js';
+import { install, updateNodeVersion, replaceSdkVersion } from './helpers/install.js';
 import { testIfThisComputerIsOnline } from './helpers/is-online.js';
 import { isWriteable } from './helpers/is-writeable.js';
 import { getErrorCode } from './helpers/get-error-code.js';
@@ -29,14 +29,14 @@ export async function createApp({
   appPath,
   useYarn,
   gitInit,
-  temporalVersion,
+  sdkVersion,
   sample,
   samplePath,
 }: {
   appPath: string;
   useYarn: boolean;
   gitInit?: boolean;
-  temporalVersion?: string;
+  sdkVersion?: string;
   sample: string;
   samplePath?: string;
 }): Promise<void> {
@@ -178,8 +178,8 @@ export async function createApp({
   console.log();
 
   await updateNodeVersion({ root });
-  if (temporalVersion) {
-    await replaceTemporalVersion({ root, useYarn, temporalVersion });
+  if (sdkVersion) {
+    await replaceSdkVersion({ root, useYarn, sdkVersion });
   }
 
   await install({ root, useYarn });

@@ -11,4 +11,3 @@
 export * from './workflow';
 export * from './worker';
 export { OpenTelemetryWorkflowClientCallsInterceptor } from './client';
-export * from './instrumentation';

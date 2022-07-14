@@ -58,7 +58,7 @@ const program = new Command(packageJson.name)
 `
   )
   .option(
-    '--temporal-version <version>',
+    '--sdk-version <version>',
     dedent`
   Specify which version of the @temporalio/* npm packages to use
 `
@@ -72,7 +72,7 @@ interface Options {
   listSamples?: boolean;
   sample?: string;
   samplePath?: string;
-  temporalVersion?: string;
+  sdkVersion?: string;
 }
 
 let opts: Options;
@@ -170,7 +170,7 @@ async function start(): Promise<void> {
     appPath: resolvedProjectPath,
     useYarn: !!opts.useYarn,
     gitInit: opts.gitInit,
-    temporalVersion: opts.temporalVersion,
+    sdkVersion: opts.sdkVersion,
     sample: sample.trim(),
     samplePath: typeof opts.samplePath === 'string' ? opts.samplePath.trim() : undefined,
   });
