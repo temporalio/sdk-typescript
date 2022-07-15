@@ -302,6 +302,7 @@ export class TestWorkflowEnvironment {
  */
 export const defaultActivityInfo: activity.Info = {
   attempt: 1,
+  taskQueue: 'test',
   isLocal: false,
   taskToken: Buffer.from('test'),
   activityId: 'test',
@@ -343,6 +344,9 @@ export class MockActivityEnvironment extends events.EventEmitter {
       abortController.signal,
       heartbeatCallback
     );
+    promise.catch(() => {
+      /* avoid unhandled rejection */
+    });
   }
 
   /**

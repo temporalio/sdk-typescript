@@ -121,6 +121,7 @@ test('Worker with proto data converter runs an activity and reports completion',
       taskToken,
       start: {
         activityType: 'protoActivity',
+        workflowExecution: { workflowId: 'wfid', runId: 'runId' },
         input: toPayloads(payloadConverter, messageInstance),
       },
     });

@@ -107,6 +107,7 @@ async function main() {
   const namespace = getRequired(args, '--ns');
   const taskQueue = getRequired(args, '--task-queue');
   const statusPort = args['--status-port'];
+  const shutdownGraceTime = args['--shutdown-grace-time'] || '30s';
 
   const telemetryOptions: TelemetryOptions = {
     tracingFilter: `temporal_sdk_core=${logLevel}`,
@@ -149,6 +150,7 @@ async function main() {
       maxConcurrentLocalActivityExecutions,
       maxConcurrentWorkflowTaskExecutions,
       maxCachedWorkflows,
+      shutdownGraceTime,
       interceptors: {
         activityInbound: [() => new ConnectionInjectorInterceptor(clientConnection)],
       },

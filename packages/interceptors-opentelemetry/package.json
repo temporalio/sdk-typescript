@@ -1,6 +1,6 @@
 {
   "name": "@temporalio/interceptors-opentelemetry",
-  "version": "1.0.0-rc.0",
+  "version": "1.0.0-rc.1",
   "description": "Temporal.io SDK interceptors bundle for tracing with opentelemetry",
   "main": "lib/index.js",
   "types": "./lib/index.d.ts",
@@ -11,7 +11,7 @@
     "interceptors",
     "opentelemetry"
   ],
-  "author": "Roey Berman <roey@temporal.io>",
+  "author": "Temporal Technologies Inc. <sdk@temporal.io>",
   "license": "MIT",
   "dependencies": {
     "@opentelemetry/api": "^1.1.0",

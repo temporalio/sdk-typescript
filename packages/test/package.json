@@ -1,7 +1,7 @@
 {
   "private": true,
   "name": "@temporalio/test",
-  "version": "1.0.0-rc.0",
+  "version": "1.0.0-rc.1",
   "description": "Temporal.io SDK Tests",
   "scripts": {
     "build": "npm-run-all build:protos build:ts",
@@ -22,7 +22,7 @@
     "worker",
     "isolate"
   ],
-  "author": "Roey Berman <roey@temporal.io>",
+  "author": "Temporal Technologies Inc. <sdk@temporal.io>",
   "license": "MIT",
   "dependencies": {
     "@opentelemetry/exporter-trace-otlp-grpc": "^0.29.2",

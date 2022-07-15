@@ -181,6 +181,8 @@ export class TimeoutFailure extends TemporalFailure {
  * This exception is expected to be thrown only by the framework code.
  */
 export class ActivityFailure extends TemporalFailure {
+  public readonly name: string = 'ActivityFailure';
+
   public constructor(
     public readonly activityType: string,
     public readonly activityId: string | undefined,
@@ -199,6 +201,8 @@ export class ActivityFailure extends TemporalFailure {
  * This exception is expected to be thrown only by the framework code.
  */
 export class ChildWorkflowFailure extends TemporalFailure {
+  public readonly name: string = 'ChildWorkflowFailure';
+
   public constructor(
     public readonly namespace: string | undefined,
     public readonly execution: WorkflowExecution,
@@ -360,14 +364,15 @@ export function errorToFailure(err: unknown, payloadConverter: PayloadConverter)
 /**
  * If `err` is an Error it is turned into an `ApplicationFailure`.
  *
- * If `err` was already a `TemporalFailure`, returns the original error.
+ * If `err` was already a `ApplicationFailure`, returns the original error.
  *
  * Otherwise returns an `ApplicationFailure` with `String(err)` as the message.
  */
-export function ensureTemporalFailure(err: unknown): TemporalFailure {
-  if (err instanceof TemporalFailure) {
+export function ensureApplicationFailure(err: unknown): ApplicationFailure {
+  if (err instanceof ApplicationFailure) {
     return err;
-  } else if (err instanceof Error) {
+  }
+  if (err instanceof Error) {
     const name = err.constructor?.name ?? err.name;
     const failure = new ApplicationFailure(err.message, name, false);
     failure.stack = err.stack;
@@ -377,6 +382,20 @@ export function ensureTemporalFailure(err: unknown): TemporalFailure {
     failure.stack = '';
     return failure;
   }
+}
+
+/**
+ * If `err` is an Error it is turned into an `ApplicationFailure`.
+ *
+ * If `err` was already a `TemporalFailure`, returns the original error.
+ *
+ * Otherwise returns an `ApplicationFailure` with `String(err)` as the message.
+ */
+export function ensureTemporalFailure(err: unknown): TemporalFailure {
+  if (err instanceof TemporalFailure) {
+    return err;
+  }
+  return ensureApplicationFailure(err);
 }
 
 /**

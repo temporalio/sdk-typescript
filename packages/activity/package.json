@@ -1,6 +1,6 @@
 {
   "name": "@temporalio/activity",
-  "version": "1.0.0-rc.0",
+  "version": "1.0.0-rc.1",
   "description": "Temporal.io SDK Activity sub-package",
   "main": "lib/index.js",
   "types": "./lib/index.d.ts",
@@ -10,7 +10,7 @@
     "worker",
     "activity"
   ],
-  "author": "Roey Berman <roey@temporal.io>",
+  "author": "Temporal Technologies Inc. <sdk@temporal.io>",
   "license": "MIT",
   "dependencies": {
     "@temporalio/common": "file:../common",

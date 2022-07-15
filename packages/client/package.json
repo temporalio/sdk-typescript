@@ -1,6 +1,6 @@
 {
   "name": "@temporalio/client",
-  "version": "1.0.0-rc.0",
+  "version": "1.0.0-rc.1",
   "description": "Temporal.io SDK Client sub-package",
   "main": "lib/index.js",
   "types": "./lib/index.d.ts",
@@ -10,7 +10,7 @@
     "workflow",
     "client"
   ],
-  "author": "Roey Berman <roey@temporal.io>",
+  "author": "Temporal Technologies Inc. <sdk@temporal.io>",
   "license": "MIT",
   "dependencies": {
     "@grpc/grpc-js": "^1.6.7",

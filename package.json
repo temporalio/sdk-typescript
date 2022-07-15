@@ -15,7 +15,7 @@
     "url": "git+https://github.com/temporalio/sdk-typescript.git"
   },
   "license": "MIT",
-  "author": "Roey Berman <roey@temporal.io>",
+  "author": "Temporal Technologies Inc. <sdk@temporal.io>",
   "directories": {
     "doc": "docs"
   },

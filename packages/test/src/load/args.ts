@@ -62,6 +62,7 @@ export interface WorkerArgSpec extends Spec {
   '--server-address': typeof String;
   '--otel-url': typeof String;
   '--status-port': typeof Number;
+  '--shutdown-grace-time-ms': typeof String;
 }
 
 export const workerArgSpec: WorkerArgSpec = {
@@ -77,6 +78,7 @@ export const workerArgSpec: WorkerArgSpec = {
   '--server-address': String,
   '--otel-url': String,
   '--status-port': Number,
+  '--shutdown-grace-time-ms': String,
 };
 
 export interface WrapperArgSpec extends Spec {

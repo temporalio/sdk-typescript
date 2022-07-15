@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
 import * as activity from '@temporalio/activity';
-import { defaultPayloadConverter, toPayloads } from '@temporalio/common';
+import { TemporalFailure, defaultPayloadConverter, toPayloads } from '@temporalio/common';
 import { coresdk } from '@temporalio/proto';
 import anyTest, { ExecutionContext, TestInterface } from 'ava';
 import dedent from 'dedent';
@@ -59,6 +59,7 @@ test('Worker runs an activity and reports completion', async (t) => {
       taskToken,
       start: {
         activityType: 'httpGet',
+        workflowExecution: { workflowId: 'wfid', runId: 'runId' },
         input: toPayloads(defaultPayloadConverter, url),
       },
     });
@@ -77,6 +78,7 @@ test('Worker runs an activity and reports failure', async (t) => {
       taskToken,
       start: {
         activityType: 'throwAnError',
+        workflowExecution: { workflowId: 'wfid', runId: 'runId' },
         input: toPayloads(defaultPayloadConverter, false, message),
       },
     });
@@ -105,6 +107,7 @@ test('Worker cancels activity and reports cancellation', async (t) => {
         taskToken,
         start: {
           activityType: 'waitForCancellation',
+          workflowExecution: { workflowId: 'wfid', runId: 'runId' },
           input: toPayloads(defaultPayloadConverter),
         },
       },
@@ -131,6 +134,7 @@ test('Activity Context AbortSignal cancels a fetch request', async (t) => {
           taskToken,
           start: {
             activityType: 'cancellableFetch',
+            workflowExecution: { workflowId: 'wfid', runId: 'runId' },
             input: toPayloads(defaultPayloadConverter, `http://127.0.0.1:${port}`, false),
           },
         },
@@ -158,6 +162,7 @@ test('Activity cancel with reason "NOT_FOUND" is valid', async (t) => {
           taskToken,
           start: {
             activityType: 'cancellableFetch',
+            workflowExecution: { workflowId: 'wfid', runId: 'runId' },
             input: toPayloads(defaultPayloadConverter, `http://127.0.0.1:${port}`, false),
           },
         },
@@ -183,6 +188,7 @@ test('Activity Context heartbeat is sent to core', async (t) => {
       taskToken,
       start: {
         activityType: 'progressiveSleep',
+        workflowExecution: { workflowId: 'wfid', runId: 'runId' },
         input: toPayloads(defaultPayloadConverter),
       },
     });
@@ -206,6 +212,7 @@ test('Worker fails activity with proper message when it is not registered', asyn
       taskToken,
       start: {
         activityType: 'notFound',
+        workflowExecution: { workflowId: 'wfid', runId: 'runId' },
         input: toPayloads(defaultPayloadConverter),
       },
     });
@@ -240,6 +247,7 @@ test('Worker cancels activities after shutdown', async (t) => {
         taskToken,
         start: {
           activityType: 'cancellationSnitch',
+          workflowExecution: { workflowId: 'wfid', runId: 'runId' },
           input: toPayloads(defaultPayloadConverter),
         },
       }),
@@ -252,4 +260,29 @@ test('Worker cancels activities after shutdown', async (t) => {
   // unless cancellation was requested.
   t.truthy(result?.failed);
   t.true(activityCancelled);
+});
+
+test('Non ApplicationFailure TemporalFailures thrown from Activity are wrapped with ApplicationFailure', async (t) => {
+  const worker = isolateFreeWorker({
+    ...defaultOptions,
+    activities: {
+      async throwTemporalFailure() {
+        throw new TemporalFailure('I should be valid');
+      },
+    },
+  });
+  t.context.worker = worker;
+
+  await runWorker(t, async () => {
+    const taskToken = Buffer.from(uuid4());
+    const { result } = await worker.native.runActivityTask({
+      taskToken,
+      start: {
+        activityType: 'throwTemporalFailure',
+        workflowExecution: { workflowId: 'wfid', runId: 'runId' },
+        input: toPayloads(defaultPayloadConverter),
+      },
+    });
+    t.is(result?.failed?.failure?.applicationFailureInfo?.type, 'TemporalFailure');
+  });
 });

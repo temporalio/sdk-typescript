@@ -17,5 +17,13 @@ export * from './logger';
 export { History, Runtime, RuntimeOptions } from './runtime';
 export * from './sinks';
 export { DataConverter, defaultPayloadConverter, errors, State, Worker } from './worker';
-export { CompiledWorkerOptions, WorkerOptions, WorkflowBundleOption } from './worker-options';
+export {
+  CompiledWorkerOptions,
+  WorkerOptions,
+  WorkflowBundleOption,
+  appendDefaultInterceptors,
+  defaultSinks,
+} from './worker-options';
+export { ActivityInboundLogInterceptor, activityLogAttributes } from './activity-log-interceptor';
+export { WorkflowInboundLogInterceptor, workflowLogAttributes } from './workflow-log-interceptor';
 export { BundleOptions, bundleWorkflowCode, WorkflowBundleWithSourceMap } from './workflow/bundler';
