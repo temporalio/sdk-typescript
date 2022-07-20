@@ -817,7 +817,29 @@ export async function executeChild<T extends Workflow>(
 }
 
 /**
- * Get information about the current Workflow
+ * Get information about the current Workflow.
+ *
+ * ⚠️ We recommend calling `workflowInfo()` whenever accessing {@link WorkflowInfo} fields. Some WorkflowInfo fields
+ * change during the lifetime of an Execution—like {@link WorkflowInfo.historyLength} and
+ * {@link WorkflowInfo.searchAttributes}—and some may be changeable in the future—like {@link WorkflowInfo.taskQueue}.
+ *
+ * ```ts
+ * // GOOD
+ * function myWorkflow() {
+ *   doSomething(workflowInfo().searchAttributes)
+ *   ...
+ *   doSomethingElse(workflowInfo().searchAttributes)
+ * }
+ * ```
+ *
+ * ```ts
+ * // BAD
+ * function myWorkflow() {
+ *   const attributes = workflowInfo().searchAttributes
+ *   doSomething(attributes)
+ *   ...
+ *   doSomethingElse(attributes)
+ * }
  */
 export function workflowInfo(): WorkflowInfo {
   if (state.info === undefined) {
@@ -1037,7 +1059,10 @@ function patchInternal(patchId: string, deprecated: boolean): boolean {
   if (state.workflow === undefined) {
     throw new IllegalStateError('Patches cannot be used before Workflow starts');
   }
-  const usePatch = !state.isReplaying || state.knownPresentPatches.has(patchId);
+  if (state.info === undefined) {
+    throw new IllegalStateError('Workflow uninitialized');
+  }
+  const usePatch = !state.info.unsafe.isReplaying || state.knownPresentPatches.has(patchId);
   // Avoid sending commands for patches core already knows about.
   // This optimization enables development of automatic patching tools.
   if (usePatch && !state.sentPatches.has(patchId)) {
@@ -1217,49 +1242,6 @@ export function upsertSearchAttributes(searchAttributes: SearchAttributes): void
   });
 
   state.info.searchAttributes = mergedSearchAttributes;
-}
-
-/**
- * Unsafe information about the currently executing Workflow Task.
- *
- * Never rely on this information in Workflow logic as it will cause non-deterministic behavior.
- */
-export interface UnsafeTaskInfo {
-  isReplaying: boolean;
-}
-
-/**
- * Information about the currently executing Workflow Task.
- *
- * Meant for advanced usage.
- */
-export interface TaskInfo {
-  /**
-   * Length of Workflow history up until the current Workflow Task.
-   *
-   * You may safely use this information to decide when to {@link continueAsNew}.
-   */
-  historyLength: number;
-  unsafe: UnsafeTaskInfo;
-}
-
-/**
- * Get information about the currently executing Workflow Task.
- *
- * See {@link TaskInfo}
- */
-export function taskInfo(): TaskInfo {
-  const { isReplaying, historyLength } = state;
-  if (isReplaying == null || historyLength == null) {
-    throw new IllegalStateError('Workflow uninitialized');
-  }
-
-  return {
-    historyLength,
-    unsafe: {
-      isReplaying,
-    },
-  };
 }
 
 export const stackTraceQuery = defineQuery<string>('__stack_trace');

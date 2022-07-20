@@ -91,12 +91,12 @@ async function createWorkflow(
       taskTimeoutMs: 1000,
       taskQueue: 'test',
       searchAttributes: {},
+      historyLength: 3,
+      unsafe: { isReplaying: false },
     },
     randomnessSeed: Long.fromInt(1337).toBytes(),
     now: startTime,
     patches: [],
-    isReplaying: false,
-    historyLength: 3,
   })) as VMWorkflow;
   return workflow;
 }
