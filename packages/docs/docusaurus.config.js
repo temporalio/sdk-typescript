@@ -53,7 +53,7 @@ module.exports = {
             },
             {
               label: 'Community Slack',
-              href: 'https://join.slack.com/t/temporalio/shared_invite/zt-onhti57l-J0bl~Tr7MqSUnIc1upjRkw',
+              href: 'https://temporal.io/slack',
             },
           ],
         },
