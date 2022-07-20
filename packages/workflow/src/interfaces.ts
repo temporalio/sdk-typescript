@@ -24,6 +24,8 @@ export interface WorkflowInfo {
 
   /**
    * Indexed information attached to the Workflow Execution
+   *
+   * This value may change during the lifetime of an Execution.
    */
   searchAttributes: SearchAttributes;
 
@@ -48,6 +50,15 @@ export interface WorkflowInfo {
    * Failure from the previous Run (present when this Run is a retry, or the last Run of a Cron Workflow failed)
    */
   lastFailure?: TemporalFailure;
+
+  /**
+   * Length of Workflow history up until the current Workflow Task.
+   *
+   * This value changes during the lifetime of an Execution.
+   *
+   * You may safely use this information to decide when to {@link continueAsNew}.
+   */
+  historyLength: number;
 
   /**
    * Task queue this Workflow is executing on
@@ -114,6 +125,17 @@ export interface WorkflowInfo {
    * Milliseconds between Cron Runs
    */
   cronScheduleToScheduleInterval?: number;
+
+  unsafe: UnsafeWorkflowInfo;
+}
+
+/**
+ * Unsafe information about the current Workflow Execution.
+ *
+ * Never rely on this information in Workflow logic as it will cause non-deterministic behavior.
+ */
+export interface UnsafeWorkflowInfo {
+  isReplaying: boolean;
 }
 
 export interface ParentWorkflowInfo {

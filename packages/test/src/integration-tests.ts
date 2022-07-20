@@ -681,6 +681,8 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
       searchAttributes: {},
       workflowType: 'returnWorkflowInfo',
       workflowId,
+      historyLength: 3,
+      unsafe: { isReplaying: false },
     });
   });
 

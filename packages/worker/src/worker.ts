@@ -1086,6 +1086,10 @@ export class Worker {
                         cronSchedule: cronSchedule || undefined,
                         // 0 is the default, and not a valid value, since crons are at least a minute apart
                         cronScheduleToScheduleInterval: optionalTsToMs(cronScheduleToScheduleInterval) || undefined,
+                        historyLength: activation.historyLength,
+                        unsafe: {
+                          isReplaying: activation.isReplaying,
+                        },
                       };
                       this.log.trace('Creating workflow', workflowLogAttributes(workflowInfo));
                       const patchJobs = activation.jobs.filter((j): j is PatchJob => j.notifyHasPatch != null);
@@ -1103,8 +1107,6 @@ export class Worker {
                           randomnessSeed: randomnessSeed.toBytes(),
                           now: tsToMs(activation.timestamp),
                           patches,
-                          isReplaying: activation.isReplaying,
-                          historyLength: activation.historyLength,
                         });
                       });
 
@@ -1521,7 +1523,7 @@ export class Worker {
   }
 
   /**
-   * {@link run | Run} the Worker until `fnOrPromise` completes.
+   * Run the Worker until `fnOrPromise` completes. Then {@link shutdown} and wait for {@link run} to complete.
    *
    * @returns the result of `fnOrPromise`
    *
@@ -1544,11 +1546,14 @@ export class Worker {
   }
 
   /**
-   * Start polling on tasks, completes after graceful shutdown.
+   * Start polling on the Task Queue for tasks. Completes after graceful {@link shutdown}, once the Worker reaches the
+   * `'STOPPED'` state.
+   *
    * Throws on a fatal error or failure to shutdown gracefully.
+   *
    * @see {@link errors}
    *
-   * To stop polling call {@link shutdown} or send one of {@link Runtime.options.shutdownSignals}.
+   * To stop polling, call {@link shutdown} or send one of {@link Runtime.options.shutdownSignals}.
    */
   async run(): Promise<void> {
     if (this.state !== 'INITIALIZED') {

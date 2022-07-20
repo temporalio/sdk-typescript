@@ -76,7 +76,7 @@ export class VMWorkflowCreator implements WorkflowCreator {
    */
   async createWorkflow(options: WorkflowCreateOptions): Promise<Workflow> {
     const context = await this.getContext();
-    const activationContext = { isReplaying: options.isReplaying };
+    const activationContext = { isReplaying: options.info.unsafe.isReplaying };
     this.injectConsole(context, options.info, activationContext);
     const { hasSeparateMicrotaskQueue, isolateExecutionTimeoutMs } = this;
     const workflowModule: WorkflowModule = new Proxy(

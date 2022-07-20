@@ -100,6 +100,8 @@ if (RUN_INTEGRATION_TESTS) {
       memo: undefined,
       parent: undefined,
       searchAttributes: {},
+      historyLength: 3,
+      unsafe: { isReplaying: false },
     };
 
     t.deepEqual(recordedCalls, [
