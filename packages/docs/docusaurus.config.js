@@ -40,7 +40,11 @@ module.exports = {
         {
           items: [
             {
-              label: 'NPM',
+              label: 'SDK Docs',
+              href: 'https://docs.temporal.io/typescript/introduction/',
+            },
+            {
+              label: 'npm',
               href: 'https://www.npmjs.com/package/temporalio',
             },
             {
@@ -48,21 +52,13 @@ module.exports = {
               href: 'https://community.temporal.io/',
             },
             {
-              label: 'Public Slack',
-              href: 'https://join.slack.com/t/temporalio/shared_invite/zt-onhti57l-J0bl~Tr7MqSUnIc1upjRkw',
-            },
-            {
-              label: 'Temporal Careers',
-              href: 'https://temporal.io/careers',
+              label: 'Community Slack',
+              href: 'https://temporal.io/slack',
             },
           ],
         },
         {
           items: [
-            {
-              label: 'Temporal Documentation',
-              to: 'https://docs.temporal.io',
-            },
             {
               label: 'GitHub',
               href: 'https://github.com/temporalio/sdk-typescript',
@@ -74,6 +70,10 @@ module.exports = {
             {
               label: 'YouTube',
               href: 'https://www.youtube.com/channel/UCGovZyy8OfFPNlNV0i1fI1g',
+            },
+            {
+              label: 'Temporal Careers',
+              href: 'https://temporal.io/careers',
             },
           ],
         },

@@ -76,7 +76,13 @@ export async function checkForPackageJson({ username, name, branch, filePath }: 
 
   const fullUrl = contentsUrl + packagePath + `?ref=${branch}`;
 
-  if (!(await isUrlOk(fullUrl))) {
+  try {
+    const response = await got.head(fullUrl);
+    if (response.statusCode !== 200) {
+      throw response;
+    }
+  } catch (e) {
+    console.error(e);
     throw new Error(
       `Could not locate a package.json at ${chalk.red(
         `"${fullUrl}"`

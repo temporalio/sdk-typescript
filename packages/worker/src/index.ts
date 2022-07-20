@@ -21,8 +21,10 @@ export {
   CompiledWorkerOptions,
   WorkerOptions,
   WorkflowBundleOption,
+  WorkflowBundlePathWithSourceMap,
   appendDefaultInterceptors,
   defaultSinks,
+  ReplayWorkerOptions,
 } from './worker-options';
 export { ActivityInboundLogInterceptor, activityLogAttributes } from './activity-log-interceptor';
 export { WorkflowInboundLogInterceptor, workflowLogAttributes } from './workflow-log-interceptor';
