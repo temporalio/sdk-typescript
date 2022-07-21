@@ -109,6 +109,11 @@ export class ApplicationFailure extends TemporalFailure {
     super(message, cause);
   }
 
+  /**
+   * Create a new `ApplicationFailure`.
+   *
+   * By default, will be retryable (unless its `type` is included in {@link RetryPolicy.nonRetryableErrorTypes}).
+   */
   public static create(options?: ApplicationFailureOptions): ApplicationFailure {
     const { message, type, nonRetryable = false, details, cause } = options ?? {};
     return new this(message, type, nonRetryable, details, cause);
