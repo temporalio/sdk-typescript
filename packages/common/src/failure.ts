@@ -55,7 +55,7 @@ export class TemporalFailure extends Error {
    */
   public failure?: ProtoFailure;
 
-  constructor(message: string | undefined, public readonly cause?: Error) {
+  constructor(message?: string | undefined | null, public readonly cause?: Error) {
     super(message ?? undefined);
   }
 }
@@ -96,14 +96,22 @@ export class ServerFailure extends TemporalFailure {
 export class ApplicationFailure extends TemporalFailure {
   public readonly name: string = 'ApplicationFailure';
 
+  /**
+   * Alternatively, use {@link create}.
+   */
   constructor(
-    message: string | undefined,
-    public readonly type: string | undefined | null,
-    public readonly nonRetryable: boolean,
-    public readonly details?: unknown[],
+    message?: string | undefined | null,
+    public readonly type?: string | undefined | null,
+    public readonly nonRetryable?: boolean | undefined | null,
+    public readonly details?: unknown[] | undefined | null,
     cause?: Error
   ) {
     super(message, cause);
+  }
+
+  public static create(options?: ApplicationFailureOptions): ApplicationFailure {
+    const { message, type, nonRetryable = false, details, cause } = options ?? {};
+    return new this(message, type, nonRetryable, details, cause);
   }
 
   /**
@@ -114,7 +122,11 @@ export class ApplicationFailure extends TemporalFailure {
    * @param type Optional error type (used by {@link RetryPolicy.nonRetryableErrorTypes})
    * @param details Optional details about the failure. Serialized by the Worker's {@link PayloadConverter}.
    */
-  public static retryable(message: string | undefined, type?: string, ...details: unknown[]): ApplicationFailure {
+  public static retryable(
+    message?: string | undefined | null,
+    type?: string | undefined | null,
+    ...details: unknown[]
+  ): ApplicationFailure {
     return new this(message, type ?? 'Error', false, details);
   }
 
@@ -128,9 +140,42 @@ export class ApplicationFailure extends TemporalFailure {
    * @param type Optional error type
    * @param details Optional details about the failure. Serialized by the Worker's {@link PayloadConverter}.
    */
-  public static nonRetryable(message: string | undefined, type?: string, ...details: unknown[]): ApplicationFailure {
+  public static nonRetryable(
+    message?: string | undefined | null,
+    type?: string | undefined | null,
+    ...details: unknown[]
+  ): ApplicationFailure {
     return new this(message, type ?? 'Error', true, details);
   }
+}
+
+interface ApplicationFailureOptions {
+  /**
+   * Error message
+   */
+  message?: string;
+
+  /**
+   * Error type (used by {@link RetryPolicy.nonRetryableErrorTypes})
+   */
+  type?: string;
+
+  /**
+   * Whether the current Activity or Workflow can be retried
+   *
+   * @default false
+   */
+  nonRetryable?: boolean;
+
+  /**
+   * Details about the failure. Serialized by the Worker's {@link PayloadConverter}.
+   */
+  details?: unknown[];
+
+  /**
+   * Cause of the failure
+   */
+  cause?: Error;
 }
 
 /**
