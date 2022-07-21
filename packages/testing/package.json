@@ -27,7 +27,7 @@
     "get-port": "^6.1.2",
     "got": "^12.1.0",
     "long": "^5.2.0",
-    "protobufjs": "6.11.2",
+    "protobufjs": "6.11.3",
     "tar-stream": "^2.2.0",
     "unzipper": "^0.10.11"
   },
