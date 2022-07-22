@@ -4,7 +4,7 @@
   "parserOptions": {
     "project": "./packages/*/tsconfig.json"
   },
-  "plugins": ["@typescript-eslint", "eslint-plugin-tsdoc", "deprecation"],
+  "plugins": ["@typescript-eslint", "eslint-plugin-tsdoc", "deprecation", "import"],
   "extends": [
     "eslint:recommended",
     "plugin:@typescript-eslint/eslint-recommended",
@@ -23,6 +23,18 @@
         "argsIgnorePattern": "^_",
         "varsIgnorePattern": "^_"
       }
-    ]
+    ],
+    "import/no-unresolved": "error"
+  },
+  "settings": {
+    "import/parsers": {
+      "@typescript-eslint/parser": [".ts"]
+    },
+    "import/resolver": {
+      "typescript": {
+        "alwaysTryTypes": true, // always try to resolve types under `<root>@types` directory even it doesn't contain any source code, like `@types/unist`
+        "project": "packages/*/tsconfig.json"
+      }
+    }
   }
 }
