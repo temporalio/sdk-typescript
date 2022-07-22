@@ -139,8 +139,8 @@ export class ApplicationFailure extends TemporalFailure {
    * @param details Optional details about the failure. Serialized by the Worker's {@link PayloadConverter}.
    */
   public static retryable(
-    message?: string | undefined | null,
-    type?: string | undefined | null,
+    message?: string | null,
+    type?: string | null,
     ...details: unknown[]
   ): ApplicationFailure {
     return new this(message, type ?? 'Error', false, details);
