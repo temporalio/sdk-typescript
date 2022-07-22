@@ -31,7 +31,7 @@
     "ci-nightly": "node ./packages/test/lib/load/run-all-nightly-scenarios.js",
     "wait-namespace": "node ./scripts/wait-on-temporal.mjs",
     "lint": "eslint packages/*/src --ext .ts --no-error-on-unmatched-pattern && prettier --end-of-line auto --check .",
-    "lint.prune": "ts-prune -p tsconfig.prune.json --ignore \"used in module\" --skip \".d.ts\"",
+    "lint.prune": "ts-prune --error -p tsconfig.prune.json --ignore \"used in module\" --skip \".d.ts\"",
     "commitlint": "commitlint --from origin/main",
     "format": "prettier --write .",
     "clean": "node ./scripts/clean.mjs",
