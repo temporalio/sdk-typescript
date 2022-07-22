@@ -107,10 +107,10 @@ jobs:
       - uses: actions/setup-node@v1
         with:
           node-version: 16
+      - run: npm ci --ignore-scripts
       # eslint-import-resolver-typescript requires packages to be built
       - name: Compile all non-rust code
         run: npm run ci-build-no-rust
-      - run: npm ci --ignore-scripts
       - run: npm run lint
       - run: npm run lint.prune
 
