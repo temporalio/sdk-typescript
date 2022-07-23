@@ -55,7 +55,8 @@
     },
     "import/resolver": {
       "typescript": {
-        // always try to resolve types under `<root>@types` directory even it doesn't contain any source code, like `@types/unist`
+        // always try to resolve types under `<root>@types` directory even it doesn't contain any source code, like
+        // `@types/unist`
         "alwaysTryTypes": true,
         "project": ["tsconfig.prune.json", "packages/*/tsconfig.json"]
       }
