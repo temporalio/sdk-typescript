@@ -24,15 +24,40 @@
         "varsIgnorePattern": "^_"
       }
     ],
-    "import/no-unresolved": "error"
+    "import/no-unresolved": "error",
+    // TypeScript compilation already ensures that named imports exist in the referenced module
+    "import/named": "off",
+    "import/default": "error",
+    "import/namespace": "error",
+    "import/no-absolute-path": "error",
+    "import/no-self-import": "error",
+    "import/no-cycle": "error",
+    "import/no-useless-path-segments": "error",
+    "import/no-relative-parent-imports": "error",
+    "import/no-relative-packages": "error",
+    "import/export": "error",
+    "import/no-named-as-default": "error",
+    "import/no-named-as-default-member": "error",
+    "import/no-deprecated": "error",
+    "import/no-extraneous-dependencies": "error",
+    "import/no-mutable-exports": "error",
+    "import/no-unused-modules": ["error", { "missingExports": true }],
+    "import/unambiguous": "error",
+    "import/first": "error",
+    "import/no-duplicates": "error",
+    // "import/order": "error",
+    "import/newline-after-import": "error",
+    "import/no-unassigned-import": "error",
+    "import/no-named-default": "error"
   },
   "settings": {
     "import/parsers": {
-      "@typescript-eslint/parser": [".ts"]
+      "@typescript-eslint/parser": [".ts", ".d.ts"]
     },
     "import/resolver": {
       "typescript": {
-        "alwaysTryTypes": true, // always try to resolve types under `<root>@types` directory even it doesn't contain any source code, like `@types/unist`
+        // always try to resolve types under `<root>@types` directory even it doesn't contain any source code, like `@types/unist`
+        "alwaysTryTypes": true,
         "project": ["tsconfig.prune.json", "packages/*/tsconfig.json"]
       }
     }
