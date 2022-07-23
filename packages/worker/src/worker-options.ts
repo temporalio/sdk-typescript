@@ -173,7 +173,7 @@ export interface WorkerOptions {
    * You should be able to fit about 500 Workflows per GB of memory dependening on your Workflow bundle size.
    * For the SDK test Workflows, we managed to fit 750 Workflows per GB.
    *
-   * @default `max(v8.getHeapStatistics().total_available_size / 1GiB - 1, 1) * 200`
+   * @default `max(v8.getHeapStatistics().heap_size_limit / 1GiB - 1, 1) * 200`
    */
   maxCachedWorkflows?: number;
 
@@ -412,7 +412,7 @@ export function addDefaultWorkerOptions(options: WorkerOptions): WorkerOptionsWi
     // 4294967295ms is the maximum allowed time
     isolateExecutionTimeout: debugMode ? '4294967295ms' : '5s',
     workflowThreadPoolSize: 8,
-    maxCachedWorkflows: maxCachedWorkflows ?? Math.max(v8.getHeapStatistics().total_available_size / GiB - 1, 1) * 200,
+    maxCachedWorkflows: maxCachedWorkflows ?? Math.max(v8.getHeapStatistics().heap_size_limit / GiB - 1, 1) * 200,
     enableSDKTracing: false,
     debugMode: debugMode ?? false,
     interceptors: appendDefaultInterceptors({}),
