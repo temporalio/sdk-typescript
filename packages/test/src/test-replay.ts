@@ -4,6 +4,7 @@ import { DeterminismViolationError } from '@temporalio/workflow';
 import anyTest, { TestInterface } from 'ava';
 import * as fs from 'fs';
 import path from 'path';
+
 const History = temporal.api.history.v1.History;
 
 export interface Context {

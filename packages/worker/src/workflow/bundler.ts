@@ -5,7 +5,7 @@ import { builtinModules } from 'module';
 import path from 'path';
 import * as unionfs from 'unionfs';
 import util from 'util';
-import webpack from 'webpack';
+import { Configuration, webpack } from 'webpack';
 import { DefaultLogger, Logger } from '../logger';
 
 export const allowedBuiltinModules = ['assert'];
@@ -163,10 +163,7 @@ export { api };
     entry: string,
     distDir: string
   ): Promise<void> {
-    const captureProblematicModules: webpack.Configuration['externals'] = async (
-      data,
-      _callback
-    ): Promise<undefined> => {
+    const captureProblematicModules: Configuration['externals'] = async (data, _callback): Promise<undefined> => {
       // Ignore the "node:" prefix if any.
       const module: string = data.request?.startsWith('node:')
         ? data.request.slice('node:'.length)

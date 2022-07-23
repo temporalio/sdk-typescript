@@ -1,5 +1,3 @@
-import '@temporalio/workflow';
-
 const startTime = new Date().getTime();
 
 export async function date(): Promise<void> {

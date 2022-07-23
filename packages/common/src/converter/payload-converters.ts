@@ -1,25 +1,9 @@
-import { PayloadConverterError, ValueError } from '@temporalio/internal-workflow-common';
+import { Payload, PayloadConverterError, ValueError } from '@temporalio/internal-workflow-common';
 import { JsonPayloadConverter } from './json-payload-converter';
 import { PayloadConverter } from './payload-converter';
 import { SearchAttributePayloadConverter } from './search-attribute-payload-converter';
-import { encodingKeys, encodingTypes, METADATA_ENCODING_KEY, Payload, str } from './types';
-
-export interface PayloadConverterWithEncoding {
-  /**
-   * Converts a value to a {@link Payload}.
-   *
-   * @param value The value to convert. Example values include the Workflow args sent from the Client and the values returned by a Workflow or Activity.
-   * @returns The {@link Payload}, or `undefined` if unable to convert.
-   */
-  toPayload<T>(value: T): Payload | undefined;
-
-  /**
-   * Converts a {@link Payload} back to a value.
-   */
-  fromPayload<T>(payload: Payload): T;
-
-  readonly encodingType: string;
-}
+import { encodingKeys, encodingTypes, METADATA_ENCODING_KEY, str } from './types';
+import { PayloadConverterWithEncoding } from './payload-converter-with-encoding';
 
 /**
  * Tries to convert values to {@link Payload}s using the {@link PayloadConverterWithEncoding}s provided to the constructor, in the order provided.

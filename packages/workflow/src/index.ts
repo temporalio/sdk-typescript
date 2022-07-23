@@ -61,14 +61,7 @@ export {
   TerminatedFailure,
   TimeoutFailure,
 } from '@temporalio/common';
-export {
-  ActivityCancellationType,
-  ActivityFunction,
-  ActivityInterface, // eslint-disable-line deprecation/deprecation
-  ActivityOptions,
-  RetryPolicy,
-  UntypedActivities,
-} from '@temporalio/internal-workflow-common';
+export { ActivityCancellationType, ActivityOptions, RetryPolicy } from '@temporalio/internal-workflow-common';
 export * from '@temporalio/internal-workflow-common/lib/errors';
 export * from '@temporalio/internal-workflow-common/lib/interfaces';
 export * from '@temporalio/internal-workflow-common/lib/workflow-handle';

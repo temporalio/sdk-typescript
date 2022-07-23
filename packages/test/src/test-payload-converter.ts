@@ -22,6 +22,7 @@ import {
 import { DefaultLogger, Runtime, Worker } from '@temporalio/worker';
 import test from 'ava';
 import { v4 as uuid4 } from 'uuid';
+// eslint-disable-next-line import/default
 import root from '../protos/root';
 import { RUN_INTEGRATION_TESTS } from './helpers';
 import { defaultOptions } from './mock-native-worker';

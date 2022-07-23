@@ -1,4 +1,4 @@
-import { Payload } from './types';
+import { Payload } from '@temporalio/internal-workflow-common';
 
 /**
  * Used by the framework to serialize/deserialize data like parameters and return values.

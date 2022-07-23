@@ -1,4 +1,5 @@
 import { DefaultPayloadConverterWithProtobufs } from '@temporalio/common/lib/protobufs';
+// eslint-disable-next-line import/default
 import root, { foo } from '../../protos/root';
 
 // Used in tests

@@ -5,7 +5,7 @@ import { SinkCall } from '@temporalio/workflow/lib/sinks';
 import type * as internals from '@temporalio/workflow/lib/worker-interface';
 import assert from 'assert';
 import { AsyncLocalStorage } from 'async_hooks';
-import semver from 'semver';
+import { gte } from 'semver';
 import { SourceMapConsumer } from 'source-map';
 import vm from 'vm';
 import v8 from 'v8';
@@ -66,7 +66,7 @@ export class VMWorkflowCreator implements WorkflowCreator {
 
     // https://nodejs.org/api/vm.html#vmcreatecontextcontextobject-options
     // microtaskMode=afterEvaluate was added in 14.6.0
-    this.hasSeparateMicrotaskQueue = semver.gte(process.versions.node, '14.6.0');
+    this.hasSeparateMicrotaskQueue = gte(process.versions.node, '14.6.0');
 
     this.script = script;
   }

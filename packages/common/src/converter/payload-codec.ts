@@ -1,4 +1,4 @@
-import { Payload } from './types';
+import { Payload } from '@temporalio/internal-workflow-common';
 
 /**
  * `PayloadCodec` is an optional step that happens between the wire and the {@link PayloadConverter}:

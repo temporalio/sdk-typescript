@@ -13,7 +13,7 @@ import { VMWorkflow, VMWorkflowCreator } from '@temporalio/worker/lib/workflow/v
 import { WorkflowInfo } from '@temporalio/workflow';
 import anyTest, { ExecutionContext, TestInterface } from 'ava';
 import dedent from 'dedent';
-import Long from 'long';
+import Long from 'long'; // eslint-disable-line import/no-named-as-default
 import path from 'path';
 import vm from 'vm';
 import * as activityFunctions from './activities';

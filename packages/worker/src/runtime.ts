@@ -12,7 +12,7 @@ import {
 import { filterNullAndUndefined, normalizeTlsConfig } from '@temporalio/internal-non-workflow-common';
 import { IllegalStateError } from '@temporalio/internal-workflow-common';
 import { temporal } from '@temporalio/proto';
-import Heap from 'heap-js';
+import { Heap } from 'heap-js';
 import { BehaviorSubject, lastValueFrom, of } from 'rxjs';
 import { concatMap, delay, map, repeat } from 'rxjs/operators';
 import { promisify } from 'util';

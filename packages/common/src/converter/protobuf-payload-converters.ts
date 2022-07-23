@@ -3,27 +3,16 @@ import {
   hasOwnProperties,
   hasOwnProperty,
   isRecord,
+  Payload,
   PayloadConverterError,
   ValueError,
 } from '@temporalio/internal-workflow-common';
 import * as protoJsonSerializer from 'proto3-json-serializer';
 import type { Message, Namespace, Root, Type } from 'protobufjs';
 import { JsonPayloadConverter } from './json-payload-converter';
-import {
-  BinaryPayloadConverter,
-  CompositePayloadConverter,
-  PayloadConverterWithEncoding,
-  UndefinedPayloadConverter,
-} from './payload-converters';
-import {
-  EncodingType,
-  encodingTypes,
-  METADATA_ENCODING_KEY,
-  METADATA_MESSAGE_TYPE_KEY,
-  Payload,
-  str,
-  u8,
-} from './types';
+import { PayloadConverterWithEncoding } from './payload-converter-with-encoding';
+import { BinaryPayloadConverter, CompositePayloadConverter, UndefinedPayloadConverter } from './payload-converters';
+import { EncodingType, encodingTypes, METADATA_ENCODING_KEY, METADATA_MESSAGE_TYPE_KEY, str, u8 } from './types';
 
 abstract class ProtobufPayloadConverter implements PayloadConverterWithEncoding {
   protected readonly root: Root | undefined;

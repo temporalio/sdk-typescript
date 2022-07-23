@@ -1,5 +1,3 @@
-export { WorkflowExecutionAlreadyStartedError } from '@temporalio/common';
-
 /**
  * Base class for all workflow errors
  */
