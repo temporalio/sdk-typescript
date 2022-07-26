@@ -152,7 +152,7 @@ cargo install git-cliff
 
 ```sh
 # git-cliff --tag <new version> <current version>..HEAD | pbcopy
-git-cliff --tag 0.18.0 v0.17.2..HEAD | pbcopy
+git-cliff --tag 1.0.1 v1.0.0..HEAD | pbcopy
 ```
 
 - Paste into [CHANGELOG.md](CHANGELOG.md)
@@ -166,6 +166,8 @@ git-cliff --tag 0.18.0 v0.17.2..HEAD | pbcopy
 ```
 
 - Open PR with CHANGELOG change
+- Merge PR
+- Checkout latest `main`
 
 We're [working on automating](https://github.com/temporalio/sdk-typescript/pull/395) the rest of the process:
 
