@@ -23,7 +23,7 @@ Breaking changes marked with a :boom:
 - :boom: [`workflow`] Move `TaskInfo` to `WorkflowInfo` ([#761](https://github.com/temporalio/sdk-typescript/pull/761))
 
   BREAKING CHANGE: There is no longer a `taskInfo()` export from `@temporalio/workflow`. `taskInfo().*` fields have been moved to `workflowInfo()`.
-  
+
 - :boom: Update `activity` and `worker` exports ([#764](https://github.com/temporalio/sdk-typescript/pull/764))
 
   BREAKING CHANGE: If you were importing any of the following errors from `@temporalio/activity` (unlikely), instead import from `@temporalio/common`: `ValueError, PayloadConverterError, IllegalStateError, WorkflowExecutionAlreadyStartedError, WorkflowNotFoundError`
