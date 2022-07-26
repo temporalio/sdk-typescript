@@ -4,6 +4,30 @@ All notable changes to this project will be documented in this file.
 
 Breaking changes marked with a :boom:
 
+## [1.0.0] - 2022-07-25
+
+⚠️ NOTE: Before upgrading to `1.0.0`, note all breaking changes between your current version and this version, including [`1.0.0-rc.1`](#100-rc1---2022-07-11) and [`1.0.0-rc.0`](#100-rc0---2022-06-17).
+
+### Bug Fixes
+
+- [`worker`] Update `terser`, fixes [#759](https://github.com/temporalio/sdk-typescript/issues/759) ([#760](https://github.com/temporalio/sdk-typescript/pull/760))
+- Reference local version of `ActivityCancellationType` ([#768](https://github.com/temporalio/sdk-typescript/pull/768))
+
+### Documentation
+
+- Update author and license company name ([#748](https://github.com/temporalio/sdk-typescript/pull/748))
+- Deprecate `temporalio` meta package ([#747](https://github.com/temporalio/sdk-typescript/pull/747))
+
+### Refactor
+
+- :boom: [`workflow`] Move `TaskInfo` to `WorkflowInfo` ([#761](https://github.com/temporalio/sdk-typescript/pull/761))
+
+  BREAKING CHANGE: There is no longer a `taskInfo()` export from `@temporalio/workflow`. `taskInfo().*` fields have been moved to `workflowInfo()`.
+  
+- :boom: Update `activity` and `worker` exports ([#764](https://github.com/temporalio/sdk-typescript/pull/764))
+
+  BREAKING CHANGE: If you were importing any of the following errors from `@temporalio/activity` (unlikely), instead import from `@temporalio/common`: `ValueError, PayloadConverterError, IllegalStateError, WorkflowExecutionAlreadyStartedError, WorkflowNotFoundError`
+
 ## [1.0.0-rc.1] - 2022-07-11
 
 ### Bug Fixes
