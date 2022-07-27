@@ -58,7 +58,12 @@ export class VMWorkflowCreator implements WorkflowCreator {
 
   script?: vm.Script;
 
-  constructor(script: vm.Script, public readonly sourceMap: string, public readonly isolateExecutionTimeoutMs: number) {
+  constructor(
+    script: vm.Script,
+    // TODO: find the type definitions for this
+    public readonly sourceMap: unknown,
+    public readonly isolateExecutionTimeoutMs: number
+  ) {
     if (!VMWorkflowCreator.unhandledRejectionHandlerHasBeenSet) {
       setUnhandledRejectionHandler();
       VMWorkflowCreator.unhandledRejectionHandlerHasBeenSet = true;
@@ -104,7 +109,7 @@ export class VMWorkflowCreator implements WorkflowCreator {
       }
     ) as any;
 
-    await workflowModule.initRuntime(options);
+    await workflowModule.initRuntime({ ...options, sourceMap: this.sourceMap });
 
     const newVM = new VMWorkflow(
       options.info,
@@ -124,12 +129,9 @@ export class VMWorkflowCreator implements WorkflowCreator {
     }
     let context;
     if (this.hasSeparateMicrotaskQueue) {
-      context = vm.createContext(
-        { AsyncLocalStorage, assert, activePromises: new Set() },
-        { microtaskMode: 'afterEvaluate' }
-      );
+      context = vm.createContext({ AsyncLocalStorage, assert }, { microtaskMode: 'afterEvaluate' });
     } else {
-      context = vm.createContext({ AsyncLocalStorage, assert, activePromises: new Set() });
+      context = vm.createContext({ AsyncLocalStorage, assert });
     }
     this.script.runInContext(context);
     return context;
@@ -162,7 +164,8 @@ export class VMWorkflowCreator implements WorkflowCreator {
     isolateExecutionTimeoutMs: number
   ): Promise<InstanceType<T>> {
     const script = new vm.Script(code, { filename: 'workflow-isolate' });
-    const sourceMapConsumer = await new SourceMapConsumer(JSON.parse(sourceMap));
+    const parsedSourceMap = JSON.parse(sourceMap);
+    const sourceMapConsumer = await new SourceMapConsumer(parsedSourceMap);
 
     // Augment the global vm Error stack trace prepare function
     // NOTE: this means that multiple instances of this class in the same VM
@@ -256,7 +259,7 @@ export class VMWorkflowCreator implements WorkflowCreator {
       });
     }
 
-    return new this(script, sourceMap, isolateExecutionTimeoutMs) as InstanceType<T>;
+    return new this(script, parsedSourceMap, isolateExecutionTimeoutMs) as InstanceType<T>;
   }
 
   /**

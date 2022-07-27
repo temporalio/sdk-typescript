@@ -33,6 +33,7 @@ import {
   ChildWorkflowOptionsWithDefaults,
   ContinueAsNew,
   ContinueAsNewOptions,
+  EnhancedStackTrace,
   WorkflowInfo,
 } from './interfaces';
 import { LocalActivityDoBackoff, state } from './internals';
@@ -1245,3 +1246,4 @@ export function upsertSearchAttributes(searchAttributes: SearchAttributes): void
 }
 
 export const stackTraceQuery = defineQuery<string>('__stack_trace');
+export const enhancedStackTraceQuery = defineQuery<EnhancedStackTrace>('__enhanced_stack_trace');

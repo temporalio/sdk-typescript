@@ -27,7 +27,7 @@ import {
   WorkflowInterceptors,
   WorkflowInterceptorsFactory,
 } from './interceptors';
-import { ContinueAsNew, WorkflowInfo } from './interfaces';
+import { ContinueAsNew, EnhancedStackTrace, WorkflowInfo } from './interfaces';
 import { SinkCall } from './sinks';
 import { untrackPromise } from './stack-helpers';
 
@@ -375,34 +375,50 @@ export class State {
   public readonly signalHandlers = new Map<string, WorkflowSignalType>();
 
   /**
+   * Source map file for looking up the source files in response to __enhanced_stack_trace
+   */
+  public sourceMap: unknown;
+
+  protected getStackTraces(): string[] {
+    const { childToParent, promiseToStack } = (globalThis as any).__TEMPORAL__.promiseStackStore as PromiseStackStore;
+    const internalNodes = new Set(
+      [...childToParent.values()].reduce((acc, curr) => {
+        for (const p of curr) {
+          acc.add(p);
+        }
+        return acc;
+      }, new Set())
+    );
+    const stacks = new Set<string>();
+    for (const child of childToParent.keys()) {
+      if (!internalNodes.has(child)) {
+        const stack = promiseToStack.get(child);
+        if (!stack) continue;
+        stacks.add(stack);
+      }
+    }
+    // Not 100% sure where this comes from, just filter it out
+    stacks.delete('    at Promise.then (<anonymous>)');
+    stacks.delete('    at Promise.then (<anonymous>)\n');
+    return [...stacks];
+  }
+
+  /**
    * Mapping of query name to handler
    */
   public readonly queryHandlers = new Map<string, WorkflowQueryType>([
     [
       '__stack_trace',
       () => {
-        const { childToParent, promiseToStack } = (globalThis as any).__TEMPORAL__
-          .promiseStackStore as PromiseStackStore;
-        const internalNodes = new Set(
-          [...childToParent.values()].reduce((acc, curr) => {
-            for (const p of curr) {
-              acc.add(p);
-            }
-            return acc;
-          }, new Set())
-        );
-        const stacks = new Set<string>();
-        for (const child of childToParent.keys()) {
-          if (!internalNodes.has(child)) {
-            const stack = promiseToStack.get(child);
-            if (!stack) continue;
-            stacks.add(stack);
-          }
-        }
-        // Not 100% sure where this comes from, just filter it out
-        stacks.delete('    at Promise.then (<anonymous>)');
-        stacks.delete('    at Promise.then (<anonymous>)\n');
-        return [...stacks].join('\n\n');
+        return this.getStackTraces().join('\n\n');
+      },
+    ],
+    [
+      '__enhanced_stack_trace',
+      (): EnhancedStackTrace => {
+        // const stacks = this.getStackTraces();
+        // const sourceMap = this.sourceMap;
+        return { locations: [], sources: {} };
       },
     ],
   ]);

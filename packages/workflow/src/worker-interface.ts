@@ -24,6 +24,11 @@ export interface WorkflowCreateOptions {
   patches: string[];
 }
 
+export interface WorkflowCreateOptionsWithSourceMap extends WorkflowCreateOptions {
+  // TODO: find the type definitions for this
+  sourceMap: unknown;
+}
+
 export interface ImportFunctions {
   importWorkflows: WorkflowsImportFunc;
   importInterceptors: InterceptorsImportFunc;
@@ -106,7 +111,13 @@ export function overrideGlobals(): void {
  *
  * Sets required internal state and instantiates the workflow and interceptors.
  */
-export async function initRuntime({ info, randomnessSeed, now, patches }: WorkflowCreateOptions): Promise<void> {
+export async function initRuntime({
+  info,
+  randomnessSeed,
+  now,
+  patches,
+  sourceMap,
+}: WorkflowCreateOptionsWithSourceMap): Promise<void> {
   const global = globalThis as any;
   // Set the runId globally on the context so it can be retrieved in the case
   // of an unhandled promise rejection.
@@ -120,6 +131,7 @@ export async function initRuntime({ info, randomnessSeed, now, patches }: Workfl
   state.info = info;
   state.now = now;
   state.random = alea(randomnessSeed);
+  state.sourceMap = sourceMap;
 
   if (info.unsafe.isReplaying) {
     for (const patch of patches) {

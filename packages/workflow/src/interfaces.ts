@@ -292,3 +292,23 @@ export type RequiredChildWorkflowOptions = Required<Pick<ChildWorkflowOptions, '
 };
 
 export type ChildWorkflowOptionsWithDefaults = ChildWorkflowOptions & RequiredChildWorkflowOptions;
+
+/**
+ * A pointer to a location in a file
+ */
+export interface FileLocation {
+  filename: string;
+  line: number;
+  column: number;
+}
+
+/**
+ * Used as the result for the enhanced stack trace query
+ */
+export interface EnhancedStackTrace {
+  /**
+   * Mapping of file name to file contents
+   */
+  sources: Record<string, string>;
+  locations: FileLocation[];
+}
