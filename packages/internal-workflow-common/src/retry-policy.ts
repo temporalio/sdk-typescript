@@ -21,8 +21,9 @@ export interface RetryPolicy {
    */
   initialInterval?: string | number;
   /**
-   * Maximum number of attempts. When exceeded the retries stop even if not expired yet.
-   * @minimum 1
+   * Maximum number of attempts. When exceeded, retries stop (even if {@link ActivityOptions.scheduleToCloseTimeout}
+   * hasn't been reached).
+   *
    * @default Infinity
    */
   maximumAttempts?: number;
@@ -50,11 +51,13 @@ export function compileRetryPolicy(retryPolicy: RetryPolicy): temporal.api.commo
     throw new ValueError('RetryPolicy.backoffCoefficient must be greater than 0');
   }
   if (retryPolicy.maximumAttempts != null) {
-    if (retryPolicy.maximumAttempts <= 0) {
-      throw new ValueError('RetryPolicy.maximumAttempts must be greater than 0');
-    }
-
-    if (!Number.isInteger(retryPolicy.maximumAttempts)) {
+    if (retryPolicy.maximumAttempts === Number.POSITIVE_INFINITY) {
+      // drop field (Infinity is the default)
+      const { maximumAttempts: _, ...without } = retryPolicy;
+      retryPolicy = without;
+    } else if (retryPolicy.maximumAttempts <= 0) {
+      throw new ValueError('RetryPolicy.maximumAttempts must be a positive integer');
+    } else if (!Number.isInteger(retryPolicy.maximumAttempts)) {
       throw new ValueError('RetryPolicy.maximumAttempts must be an integer');
     }
   }
