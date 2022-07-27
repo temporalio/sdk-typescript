@@ -193,10 +193,11 @@ npx lerna version patch # or major|minor|etc, or leave out to be prompted. eithe
 npx lerna publish from-git # add `--dist-tag next` for pre-release versions
 ```
 
-- Cleanup:
+- Cleanup after publishing:
 
 ```sh
 rm $HOME/Downloads/packages-*
+rm packages/core-bridge/releases/
 ```
 
 ## Updating the Java test server proto files
