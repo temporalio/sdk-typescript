@@ -35,10 +35,10 @@ test('compileRetryPolicy validates backoffCoefficient is greater than 0', (t) =>
   });
 });
 
-test('compileRetryPolicy validates maximumAttempts nonnegative', (t) => {
+test('compileRetryPolicy validates maximumAttempts is positive', (t) => {
   t.throws(() => compileRetryPolicy({ maximumAttempts: -1 }), {
     instanceOf: ValueError,
-    message: 'RetryPolicy.maximumAttempts must be nonnegative',
+    message: 'RetryPolicy.maximumAttempts must be a positive integer',
   });
 });
 
@@ -49,11 +49,8 @@ test('compileRetryPolicy validates maximumAttempts is an integer', (t) => {
   });
 });
 
-test('compileRetryPolicy validates maximumAttempts is not POSITIVE_INFINITY', (t) => {
-  t.throws(() => compileRetryPolicy({ maximumAttempts: Number.POSITIVE_INFINITY }), {
-    instanceOf: ValueError,
-    message: 'RetryPolicy.maximumAttempts must be an integer',
-  });
+test('compileRetryPolicy drops maximumAttempts when POSITIVE_INFINITY', (t) => {
+  t.deepEqual(compileRetryPolicy({ maximumAttempts: Number.POSITIVE_INFINITY }), compileRetryPolicy({}));
 });
 
 test('compileRetryPolicy defaults initialInterval to 1 second', (t) => {
