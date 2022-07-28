@@ -16,7 +16,7 @@
     "@temporalio/internal-workflow-common": "file:../internal-workflow-common",
     "@temporalio/proto": "file:../proto",
     "proto3-json-serializer": "^1.0.2",
-    "protobufjs": "6.11.2"
+    "protobufjs": "^7.0.0"
   },
   "bugs": {
     "url": "https://github.com/temporalio/sdk-typescript/issues"

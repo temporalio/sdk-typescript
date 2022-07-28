@@ -6,8 +6,7 @@ const { promisify } = require('util');
 const glob = require('glob');
 const { statSync, mkdirsSync } = require('fs-extra');
 const { rm } = require('fs/promises');
-const pbjs = require('protobufjs/cli/pbjs');
-const pbts = require('protobufjs/cli/pbts');
+const { pbjs, pbts } = require('protobufjs-cli');
 
 const outputDir = resolve(__dirname, '../protos');
 const moduleOutputFile = resolve(outputDir, 'json-module.js');

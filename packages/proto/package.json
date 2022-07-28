@@ -22,7 +22,7 @@
   "dependencies": {
     "@types/long": "^4.0.2",
     "long": "^5.2.0",
-    "protobufjs": "6.11.2"
+    "protobufjs": "^7.0.0"
   },
   "bugs": {
     "url": "https://github.com/temporalio/sdk-typescript/issues"
@@ -30,5 +30,8 @@
   "homepage": "https://github.com/temporalio/sdk-typescript/tree/main/packages/proto",
   "publishConfig": {
     "access": "public"
+  },
+  "devDependencies": {
+    "protobufjs-cli": "^1.0.0"
   }
 }

@@ -44,5 +44,8 @@
   "bugs": {
     "url": "https://github.com/temporalio/sdk-typescript/issues"
   },
-  "homepage": "https://github.com/temporalio/sdk-typescript#readme"
+  "homepage": "https://github.com/temporalio/sdk-typescript#readme",
+  "devDependencies": {
+    "protobufjs-cli": "^1.0.0"
+  }
 }

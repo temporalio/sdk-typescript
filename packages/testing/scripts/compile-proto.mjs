@@ -4,8 +4,7 @@ import { promisify } from 'util';
 import dedent from 'dedent';
 import glob from 'glob';
 import { statSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
-import pbjs from 'protobufjs/cli/pbjs.js';
-import pbts from 'protobufjs/cli/pbts.js';
+import { pbjs, pbts } from 'protobufjs-cli';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const outputDir = resolve(__dirname, '../generated-protos');
