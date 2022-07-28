@@ -1126,7 +1126,7 @@ export class Worker {
                     const completion = await this.workflowCodecRunner.encodeCompletion(unencodedCompletion);
                     this.log.trace('Completed activation', workflowLogAttributes(state.info));
 
-                    span.setAttribute('close', close).end();
+                    span.setAttribute('close', close);
                     return { state, output: { close, completion, parentSpan } };
                   } catch (err) {
                     if (err instanceof errors.UnexpectedError) {
