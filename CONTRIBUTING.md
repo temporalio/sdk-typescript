@@ -171,7 +171,7 @@ git-cliff --tag 1.0.1 v1.0.0..HEAD | pbcopy
 
 We're [working on automating](https://github.com/temporalio/sdk-typescript/pull/395) the rest of the process:
 
-- Log in to npm as `temporal-sdk-team`
+- Log in to npm as `temporal-sdk-team` (`npm whoami` and `npm login`)
 - Download the artifacts from [GitHub Actions](https://github.com/temporalio/sdk-typescript/actions)
 - Publish:
 
@@ -184,6 +184,8 @@ npm ci
 npm run build
 
 mkdir -p packages/core-bridge/releases
+
+# in the next command, replace ~/gh/release-sdk-typescript with your dir
 for f in ~/Downloads/packages-*.zip; do mkdir "$HOME/Downloads/$(basename -s .zip $f)"; (cd "$HOME/Downloads/$(basename -s .zip $f)" && unzip $f && tar -xvzf @temporalio/core-bridge/core-bridge-*.tgz package/releases/ && cp -r package/releases/* ~/gh/release-sdk-typescript/packages/core-bridge/releases/); done
 
 # we should now have all 5 build targets
