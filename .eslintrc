@@ -24,7 +24,7 @@
         "varsIgnorePattern": "^_"
       }
     ],
-    "import/no-unresolved": "error",
+    "import/no-unresolved": ["error", { "ignore": ["^__temporal_"] }],
     // TypeScript compilation already ensures that named imports exist in the referenced module
     "import/named": "off",
     "import/default": "error",
@@ -51,14 +51,14 @@
   },
   "settings": {
     "import/parsers": {
-      "@typescript-eslint/parser": [".ts", ".d.ts"]
+      "@typescript-eslint/parser": [".ts"]
     },
     "import/resolver": {
       "typescript": {
         // always try to resolve types under `<root>@types` directory even it doesn't contain any source code, like
         // `@types/unist`
         "alwaysTryTypes": true,
-        "project": ["tsconfig.prune.json", "packages/*/tsconfig.json"]
+        "project": ["packages/*/tsconfig.json"]
       }
     }
   }

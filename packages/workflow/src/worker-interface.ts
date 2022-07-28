@@ -130,7 +130,7 @@ export async function initRuntime({ info, randomnessSeed, now, patches }: Workfl
   // webpack doesn't know what to bundle given a dynamic import expression, so we can't do:
   // state.payloadConverter = (await import(payloadConverterPath)).payloadConverter;
   // @ts-expect-error this is a webpack alias to payloadConverterPath
-  const customPayloadConverter = (await import('__temporal_custom_payload_converter')).payloadConverter; // eslint-disable-line import/no-unresolved
+  const customPayloadConverter = (await import('__temporal_custom_payload_converter')).payloadConverter;
   // The `payloadConverter` export is validated in the Worker
   if (customPayloadConverter !== undefined) {
     state.payloadConverter = customPayloadConverter;

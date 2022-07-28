@@ -1,7 +1,6 @@
-/* eslint-disable import/no-duplicates */
 import { defineSignal } from '@temporalio/workflow';
 // @@@SNIPSTART typescript-logger-sink-interface
-import { Sinks } from '@temporalio/workflow';
+import type { Sinks } from '@temporalio/workflow';
 
 export interface LoggerSinks extends Sinks {
   logger: {
