@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 Breaking changes marked with a :boom:
 
+## [1.0.1] - 2022-07-28
+
+### Bug Fixes
+
+- Allow `RetryPolicy.maximumAttempts: Number.POSITIVE_INFINITY` ([#784](https://github.com/temporalio/sdk-typescript/pull/784))
+- [`worker`] Prevent ending a worker span twice. ([#786](https://github.com/temporalio/sdk-typescript/pull/786))
+
+### Documentation
+
+- Update release instructions ([#779](https://github.com/temporalio/sdk-typescript/pull/779))
+- Update release instructions again ([#780](https://github.com/temporalio/sdk-typescript/pull/780))
+
 ## [1.0.0] - 2022-07-25
 
 ⚠️ NOTE: Before upgrading to `1.0.0`, note all breaking changes between your current version and this version, including [`1.0.0-rc.1`](#100-rc1---2022-07-11) and [`1.0.0-rc.0`](#100-rc0---2022-06-17).
