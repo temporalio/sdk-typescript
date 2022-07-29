@@ -4,6 +4,34 @@ All notable changes to this project will be documented in this file.
 
 Breaking changes marked with a :boom:
 
+## [1.0.1] - 2022-07-29
+
+### Bug Fixes
+
+- Allow `RetryPolicy.maximumAttempts: Number.POSITIVE_INFINITY` ([#784](https://github.com/temporalio/sdk-typescript/pull/784))
+- [`worker`] Prevent ending a worker span twice. ([#786](https://github.com/temporalio/sdk-typescript/pull/786))
+- Update Core SDK ([#790](https://github.com/temporalio/sdk-typescript/pull/790))
+  - Turn down log level for this line ([#362](https://github.com/temporalio/sdk-core/pull/362))
+  - Fix bug where LA resolutions could trigger activations with no associated WFT ([#357](https://github.com/temporalio/sdk-core/pull/357))
+  - Don't allow activity completions with unset successful result payloads ([#356](https://github.com/temporalio/sdk-core/pull/356))
+  - Make sure workers do not propagate retryable errors as fatal ([#353](https://github.com/temporalio/sdk-core/pull/353))
+  - Fix null LA results becoming unparseable ([#355](https://github.com/temporalio/sdk-core/pull/355))
+
+### Documentation
+
+- Update release instructions ([#779](https://github.com/temporalio/sdk-typescript/pull/779))
+- Update release instructions again ([#780](https://github.com/temporalio/sdk-typescript/pull/780))
+
+### Features
+
+- [`workflow`] List registered queries in error response when a query is not found ([#791](https://github.com/temporalio/sdk-typescript/pull/791))
+
+### Miscellaneous Tasks
+
+- Upgrade to protobufjs v7 ([#789](https://github.com/temporalio/sdk-typescript/pull/789))
+  - Fixes [#669](https://github.com/temporalio/sdk-typescript/issues/669)
+  - Fixes [#785](https://github.com/temporalio/sdk-typescript/issues/785)
+
 ## [1.0.0] - 2022-07-25
 
 ⚠️ NOTE: Before upgrading to `1.0.0`, note all breaking changes between your current version and this version, including [`1.0.0-rc.1`](#100-rc1---2022-07-11) and [`1.0.0-rc.0`](#100-rc0---2022-06-17).
