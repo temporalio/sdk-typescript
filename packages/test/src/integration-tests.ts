@@ -3,6 +3,7 @@ import {
   ActivityFailure,
   ApplicationFailure,
   Connection,
+  QueryNotRegisteredError,
   WorkflowClient,
   WorkflowContinuedAsNewError,
   WorkflowFailedError,
@@ -389,6 +390,21 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
     });
     // Assertions in workflow code
     t.pass();
+  });
+
+  test('query not found', async (t) => {
+    const { client } = t.context;
+    const workflow = await client.start(workflows.unblockOrCancel, {
+      taskQueue: 'test',
+      workflowId: uuid4(),
+    });
+    await workflow.signal(workflows.unblockSignal);
+    await workflow.result();
+    await t.throwsAsync(workflow.query('not found'), {
+      instanceOf: QueryNotRegisteredError,
+      message:
+        '3 INVALID_ARGUMENT: Workflow did not register a handler for not found. Registered queries: [__stack_trace isBlocked]',
+    });
   });
 
   test('query and unblock', async (t) => {

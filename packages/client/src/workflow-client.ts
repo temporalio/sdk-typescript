@@ -611,6 +611,9 @@ export class WorkflowClient {
         },
       });
     } catch (err) {
+      if (isServerErrorResponse(err) && err.code === grpcStatus.INVALID_ARGUMENT) {
+        throw new QueryNotRegisteredError(err.message, err.code);
+      }
       this.rethrowGrpcError(err, input.workflowExecution, 'Failed to query Workflow');
     }
     if (response.queryRejected) {
@@ -935,6 +938,13 @@ export class QueryRejectedError extends Error {
   public readonly name: string = 'QueryRejectedError';
   constructor(public readonly status: temporal.api.enums.v1.WorkflowExecutionStatus) {
     super('Query rejected');
+  }
+}
+
+export class QueryNotRegisteredError extends Error {
+  public readonly name: string = 'QueryNotRegisteredError';
+  constructor(message: string, public readonly code: grpcStatus) {
+    super(message);
   }
 }
 
