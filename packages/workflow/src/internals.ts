@@ -212,8 +212,11 @@ export class Activator implements ActivationHandler {
   protected queryWorkflowNextHandler({ queryName, args }: QueryInput): Promise<unknown> {
     const fn = state.queryHandlers.get(queryName);
     if (fn === undefined) {
+      const knownQueryTypes = [...state.queryHandlers.keys()].join(' ');
       // Fail the query
-      throw new ReferenceError(`Workflow did not register a handler for ${queryName}`);
+      throw new ReferenceError(
+        `Workflow did not register a handler for ${queryName}. Registered queries: [${knownQueryTypes}]`
+      );
     }
     try {
       const ret = fn(...args);
