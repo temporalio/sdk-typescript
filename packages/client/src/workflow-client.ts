@@ -612,7 +612,7 @@ export class WorkflowClient {
       });
     } catch (err) {
       if (isServerErrorResponse(err) && err.code === grpcStatus.INVALID_ARGUMENT) {
-        throw new QueryNotRegisteredError(err.message, err.code);
+        throw new QueryNotRegisteredError(err.message.replace(/^3 INVALID_ARGUMENT: /, ''), err.code);
       }
       this.rethrowGrpcError(err, input.workflowExecution, 'Failed to query Workflow');
     }
