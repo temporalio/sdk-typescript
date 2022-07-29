@@ -6,15 +6,15 @@ const { promisify } = require('util');
 const glob = require('glob');
 const { statSync, mkdirsSync } = require('fs-extra');
 const { rm } = require('fs/promises');
-const pbjs = require('protobufjs/cli/pbjs');
-const pbts = require('protobufjs/cli/pbts');
+const pbjs = require('protobufjs-cli/pbjs');
+const pbts = require('protobufjs-cli/pbts');
 
 const outputDir = resolve(__dirname, '../protos');
 const moduleOutputFile = resolve(outputDir, 'json-module.js');
 const typesOutputFile = resolve(outputDir, 'root.d.ts');
 const tempFile = resolve(outputDir, 'temp.js');
 const protoBaseDir = resolve(__dirname, '../protos');
-const protosPath = protoBaseDir + '/*.proto';
+const protoFiles = glob.sync(protoBaseDir + '/*.proto');
 
 function mtime(path) {
   try {
@@ -27,15 +27,14 @@ function mtime(path) {
   }
 }
 
-async function compileProtos(protoPath, outputFile, ...args) {
-  const pbjsArgs = [...args, '--wrap', 'commonjs', '--force-long', '--no-verify', '--out', outputFile, protoPath];
+async function compileProtos(outputFile, ...args) {
+  const pbjsArgs = [...args, '--wrap', 'commonjs', '--force-long', '--no-verify', '--out', outputFile, ...protoFiles];
   return await promisify(pbjs.main)(pbjsArgs);
 }
 
 async function main() {
   mkdirsSync(outputDir);
 
-  const protoFiles = glob.sync(resolve(protoBaseDir, '**/*.proto'));
   const protosMTime = Math.max(...protoFiles.map(mtime));
   const genMTime = Math.min(mtime(moduleOutputFile), mtime(typesOutputFile));
 
@@ -44,12 +43,12 @@ async function main() {
     return;
   }
 
-  console.log(`Creating protobuf JS definitions from ${protosPath}`);
-  await compileProtos(protosPath, moduleOutputFile, '--target', 'json-module', '--root', 'test');
+  console.log(`Creating protobuf JS definitions from ${protoFiles}`);
+  await compileProtos(moduleOutputFile, '--target', 'json-module', '--root', 'test');
 
-  console.log(`Creating protobuf TS definitions from ${protosPath}`);
+  console.log(`Creating protobuf TS definitions from ${protoFiles}`);
   try {
-    await compileProtos(protosPath, tempFile, '--target', 'static-module');
+    await compileProtos(tempFile, '--target', 'static-module');
     await promisify(pbts.main)(['--out', typesOutputFile, tempFile]);
   } finally {
     await rm(tempFile);

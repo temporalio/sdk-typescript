@@ -1,12 +1,14 @@
+import { createRequire } from 'module';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { promisify } from 'util';
 import dedent from 'dedent';
 import glob from 'glob';
 import { statSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
-import pbjs from 'protobufjs/cli/pbjs.js';
-import pbts from 'protobufjs/cli/pbts.js';
+import pbjs from 'protobufjs-cli/pbjs.js';
+import pbts from 'protobufjs-cli/pbts.js';
 
+const require = createRequire(import.meta.url);
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const outputDir = resolve(__dirname, '../generated-protos');
 const outputFile = resolve(outputDir, 'index.js');
@@ -40,6 +42,7 @@ async function compileProtos(protoPath, jsOutputFile, dtsOutputFile, ...args) {
     '__temporal_testing',
     '--out',
     jsOutputFile,
+    resolve(require.resolve('protobufjs'), '../google/protobuf/descriptor.proto'),
     protoPath,
   ];
   await promisify(pbjs.main)(pbjsArgs);
