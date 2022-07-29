@@ -317,6 +317,13 @@ export interface BundleOptions {
   ignoreModules?: string[];
 }
 
+/**
+ * Create a bundle to pass to {@link WorkerOptions.workflowBundle}. Helpful for reducing Worker startup time in
+ * production.
+ *
+ * When using with {@link Worker.runReplayHistory}, make sure to pass the same interceptors and payload converter used
+ * when the history was generated.
+ */
 export async function bundleWorkflowCode(options: BundleOptions): Promise<WorkflowBundleWithSourceMap> {
   const bundler = new WorkflowCodeBundler(options);
   return await bundler.createBundle();

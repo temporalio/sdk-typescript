@@ -84,7 +84,7 @@ export interface WorkerOptions {
 
   /**
    * Use a pre-built bundle for Workflow code.
-   * Use {@link bundleWorkflowCode} to genrate a bundle.
+   * Use {@link bundleWorkflowCode} to generate a bundle.
    *
    * This is the recommended way to deploy Workers to production.
    *
