@@ -293,22 +293,49 @@ export type RequiredChildWorkflowOptions = Required<Pick<ChildWorkflowOptions, '
 
 export type ChildWorkflowOptionsWithDefaults = ChildWorkflowOptions & RequiredChildWorkflowOptions;
 
+export interface SDKInfo {
+  name: string;
+  version: string;
+}
+
+/**
+ * Represents a slice of a file starting at lineOffset
+ */
+export interface FileSlice {
+  content: string;
+  lineOffset: number;
+}
+
 /**
  * A pointer to a location in a file
  */
 export interface FileLocation {
-  filename: string;
+  /**
+   * Path to source file (absolute or relative).
+   * When using a relative path, make sure all paths are relative to the same root.
+   */
+  filepath: string;
   line: number;
   column: number;
+  /**
+   * function/goroutine/thread/greenlet/whatever name, if it exists.
+   * (Not sure if this will be used but doesn't hurt to have some more information)
+   */
+  context?: string;
+}
+
+export interface StackTrace {
+  locations: FileLocation[];
 }
 
 /**
  * Used as the result for the enhanced stack trace query
  */
 export interface EnhancedStackTrace {
+  sdk: SDKInfo;
   /**
    * Mapping of file name to file contents
    */
-  sources: Record<string, string>;
-  locations: FileLocation[];
+  sources: Record<string, FileSlice[]>;
+  stacks: StackTrace[];
 }

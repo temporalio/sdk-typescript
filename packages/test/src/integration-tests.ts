@@ -1209,6 +1209,25 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
     });
   }
 
+  //RUN_INTEGRATION_TESTS=1 npx ava packages/test/lib/test-integration.js -m 'Enhanced Stack Trace Test'
+  test('Enhanced Stack Trace Test', async (t) => {
+    const { client } = t.context;
+    const workflowId = uuid4();
+
+    const enhStacks = await client.execute(workflows.enhancedStackTracer, {
+      taskQueue: 'test',
+      workflowId,
+    });
+
+    const key: string = enhStacks[1].stacks[0].locations[0].filepath;
+    t.is(enhStacks[0].sdk.name, 'typescript');
+    t.is(enhStacks[0].stacks[0].locations.length, 3);
+    t.is(enhStacks[1].stacks[0].locations.length, 6);
+    console.log(enhStacks[1].sources[key][0].content.split('\n').length);
+    console.log(enhStacks[1].sources[key][0].content.split('\n'));
+    t.is(enhStacks[1].sources[key][0].content.split('\n').length, 50);
+  });
+
   test('issue-731', async (t) => {
     const { client } = t.context;
     const workflowId = uuid4();
