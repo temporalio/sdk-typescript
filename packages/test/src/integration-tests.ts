@@ -1194,7 +1194,6 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
     });
   }
 
-  //RUN_INTEGRATION_TESTS=1 npx ava packages/test/lib/test-integration.js -m 'Enhanced Stack Trace Test'
   test('Enhanced Stack Trace Test', async (t) => {
     const { client } = t.context;
     const workflowId = uuid4();
