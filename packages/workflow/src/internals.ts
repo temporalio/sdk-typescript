@@ -1,4 +1,5 @@
 import { PayloadConverter } from '@temporalio/common';
+import errorStackParser = require('error-stack-parser');
 import {
   arrayFromPayloads,
   defaultPayloadConverter,
@@ -27,7 +28,15 @@ import {
   WorkflowInterceptors,
   WorkflowInterceptorsFactory,
 } from './interceptors';
-import { ContinueAsNew, EnhancedStackTrace, WorkflowInfo } from './interfaces';
+import {
+  ContinueAsNew,
+  SDKInfo,
+  FileSlice,
+  StackTrace,
+  EnhancedStackTrace,
+  FileLocation,
+  WorkflowInfo,
+} from './interfaces';
 import { SinkCall } from './sinks';
 import { untrackPromise } from './stack-helpers';
 
@@ -377,7 +386,7 @@ export class State {
   /**
    * Source map file for looking up the source files in response to __enhanced_stack_trace
    */
-  public sourceMap: unknown;
+  public sourceMap: any;
 
   protected getStackTraces(): string[] {
     const { childToParent, promiseToStack } = (globalThis as any).__TEMPORAL__.promiseStackStore as PromiseStackStore;
@@ -416,9 +425,56 @@ export class State {
     [
       '__enhanced_stack_trace',
       (): EnhancedStackTrace => {
-        // const stacks = this.getStackTraces();
-        // const sourceMap = this.sourceMap;
-        return { locations: [], sources: {} };
+        const sourceMap = this.sourceMap;
+        const stacks = this.getStackTraces().join('\n\n');
+        const sdkInfo: SDKInfo = { name: 'typescript', version: '' };
+        const locationsPaths: FileLocation[] = [];
+        const sourceMapRecord: Record<string, FileSlice[]> = {};
+        const fileSliceSize = 50; //Lines
+        const parsedStacks = errorStackParser.parse({ name: '', message: '', stack: stacks });
+
+        parsedStacks.forEach(
+          (stackTraceEntry: { columnNumber: any; lineNumber: any; fileName: string | undefined }) => {
+            if (stackTraceEntry.columnNumber && stackTraceEntry.lineNumber && stackTraceEntry.fileName) {
+              const fileLocation: FileLocation = {
+                column: stackTraceEntry.columnNumber,
+                line: stackTraceEntry.lineNumber,
+                filepath: stackTraceEntry.fileName,
+              };
+              locationsPaths.push(fileLocation);
+
+              const fileSliceLineOffset: number = Math.max(1, fileLocation.line - Math.floor(fileSliceSize / 2));
+              const fileContent: string = sourceMap.sourcesContent[sourceMap.sources.indexOf(fileLocation.filepath)];
+              const fileSliceContentArray: string[] = fileContent.split('\n');
+
+              const fileSliceContent = fileSliceContentArray
+                .slice(
+                  fileSliceLineOffset,
+                  Math.min(fileSliceLineOffset + fileSliceSize, fileSliceContentArray.length - 1)
+                )
+                .join('\n');
+
+              const fileSlice: FileSlice = {
+                content: fileSliceContent,
+                lineOffset: fileSliceLineOffset,
+              };
+
+              const fileNameKey: string | undefined = stackTraceEntry.fileName;
+
+              if (fileNameKey) {
+                if (fileNameKey in sourceMapRecord) {
+                  sourceMapRecord[fileNameKey].push(fileSlice);
+                } else {
+                  sourceMapRecord[fileNameKey] = [fileSlice];
+                }
+              }
+            }
+          }
+        );
+
+        const stackTraces: StackTrace[] = [{ locations: locationsPaths }];
+
+        return { sdk: sdkInfo, stacks: stackTraces, sources: sourceMapRecord };
       },
     ],
   ]);
