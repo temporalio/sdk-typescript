@@ -25,9 +25,7 @@
   "homepage": "https://github.com/temporalio/sdk-typescript/tree/main/packages/testing",
   "files": [
     "lib",
-    "src",
-    "generated-protos",
-    "scripts"
+    "src"
   ],
   "publishConfig": {
     "access": "public"

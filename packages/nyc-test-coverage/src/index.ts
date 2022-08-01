@@ -9,8 +9,8 @@ export const coverageMap = libCoverage.createCoverageMap();
 export const sinks: InjectedSinks<CoverageSinks> = {
   coverage: {
     merge: {
-      fn(_workflowInfo, testCoverage) {
-        coverageMap.merge(testCoverage as libCoverage.CoverageMap);
+      fn(_workflowInfo, testCoverage: libCoverage.CoverageMap) {
+        coverageMap.merge(testCoverage);
       },
       callDuringReplay: false,
     },
