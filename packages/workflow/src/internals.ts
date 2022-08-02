@@ -84,6 +84,11 @@ export type ActivationHandler = {
   [P in keyof coresdk.workflow_activation.IWorkflowActivationJob]: ActivationHandlerFunction<P>;
 };
 
+/**
+ * The number of lines of a code snippet to be displayed
+ */
+export const fileSliceSize = 50; //Lines
+
 export class Activator implements ActivationHandler {
   workflowFunctionWasCalled = false;
 
@@ -425,21 +430,22 @@ export class State {
     [
       '__enhanced_stack_trace',
       (): EnhancedStackTrace => {
-        const sourceMap = this.sourceMap;
-        const stacks = this.getStackTraces().join('\n\n');
-        const sdkInfo: SDKInfo = { name: 'typescript', version: '' };
-        const locationsPaths: FileLocation[] = [];
+        const { sourceMap } = this;
+        const stacks = this.getStackTraces();
+        const sdkInfo: SDKInfo = { name: 'typescript', version: '' }; //TODO: provide version value
         const sourceMapRecord: Record<string, FileSlice[]> = {};
-        const fileSliceSize = 50; //Lines
-        const parsedStacks = errorStackParser.parse({ name: '', message: '', stack: stacks });
+        const stackTraces: StackTrace[] = [];
 
-        parsedStacks.forEach(
-          (stackTraceEntry: { columnNumber: any; lineNumber: any; fileName: string | undefined }) => {
-            if (stackTraceEntry.columnNumber && stackTraceEntry.lineNumber && stackTraceEntry.fileName) {
+        stacks.forEach((stack) => {
+          const locationsPaths: FileLocation[] = [];
+
+          errorStackParser.parse({ name: '', message: '', stack }).forEach((parsedStackTraceLine) => {
+            if (parsedStackTraceLine.columnNumber && parsedStackTraceLine.lineNumber && parsedStackTraceLine.fileName) {
               const fileLocation: FileLocation = {
-                column: stackTraceEntry.columnNumber,
-                line: stackTraceEntry.lineNumber,
-                filepath: stackTraceEntry.fileName,
+                column: parsedStackTraceLine.columnNumber,
+                line: parsedStackTraceLine.lineNumber,
+                filepath: parsedStackTraceLine.fileName,
+                context: parsedStackTraceLine.functionName,
               };
               locationsPaths.push(fileLocation);
 
@@ -459,7 +465,7 @@ export class State {
                 lineOffset: fileSliceLineOffset,
               };
 
-              const fileNameKey: string | undefined = stackTraceEntry.fileName;
+              const fileNameKey: string | undefined = parsedStackTraceLine.fileName;
 
               if (fileNameKey) {
                 if (fileNameKey in sourceMapRecord) {
@@ -469,11 +475,9 @@ export class State {
                 }
               }
             }
-          }
-        );
-
-        const stackTraces: StackTrace[] = [{ locations: locationsPaths }];
-
+          });
+          stackTraces.push({ locations: locationsPaths });
+        });
         return { sdk: sdkInfo, stacks: stackTraces, sources: sourceMapRecord };
       },
     ],
