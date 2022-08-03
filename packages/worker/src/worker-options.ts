@@ -1,7 +1,6 @@
 import { DataConverter, LoadedDataConverter } from '@temporalio/common';
 import { loadDataConverter } from '@temporalio/internal-non-workflow-common';
 import { msToNumber } from '@temporalio/internal-workflow-common';
-import os from 'os';
 import { ActivityInboundLogInterceptor } from './activity-log-interceptor';
 import { NativeConnection } from './connection';
 import { WorkerInterceptors } from './interceptors';
@@ -10,6 +9,9 @@ import { InjectedSinks } from './sinks';
 import { GiB } from './utils';
 import { LoggerSinks } from './workflow-log-interceptor';
 import { WorkflowBundleWithSourceMap } from './workflow/bundler';
+import * as v8 from 'v8';
+import * as fs from 'fs';
+import * as os from 'os';
 
 export interface WorkflowBundlePathWithSourceMap {
   codePath: string;
@@ -172,7 +174,7 @@ export interface WorkerOptions {
    * You should be able to fit about 500 Workflows per GB of memory dependening on your Workflow bundle size.
    * For the SDK test Workflows, we managed to fit 750 Workflows per GB.
    *
-   * @default `max(os.totalmem() / 1GiB - 1, 1) * 200`
+   * @default `max((systemMemory - maxHeapMemory) / 1GiB - 1, 1) * 250`
    */
   maxCachedWorkflows?: number;
 
@@ -397,7 +399,10 @@ export function appendDefaultInterceptors(
 
 export function addDefaultWorkerOptions(options: WorkerOptions): WorkerOptionsWithDefaults {
   const { maxCachedWorkflows, debugMode, ...rest } = options;
-  return {
+
+  const defaults = calculateDefaultWorkerOptions();
+
+  const optionsWithDefaults = {
     namespace: 'default',
     identity: `${process.pid}@${os.hostname()}`,
     shutdownGraceTime: '10s',
@@ -411,13 +416,109 @@ export function addDefaultWorkerOptions(options: WorkerOptions): WorkerOptionsWi
     // 4294967295ms is the maximum allowed time
     isolateExecutionTimeout: debugMode ? '4294967295ms' : '5s',
     workflowThreadPoolSize: 8,
-    maxCachedWorkflows: maxCachedWorkflows ?? Math.max(os.totalmem() / GiB - 1, 1) * 200,
+    maxCachedWorkflows: maxCachedWorkflows ?? defaults.maxCachedWorkflows,
     enableSDKTracing: false,
     debugMode: debugMode ?? false,
     interceptors: appendDefaultInterceptors({}),
     sinks: defaultSinks(),
     ...rest,
   };
+
+  reportWorkerOptions(optionsWithDefaults);
+
+  return optionsWithDefaults;
+}
+
+export function calculateDefaultWorkerOptions(): { maxCachedWorkflows: number } {
+  const systemResources = inspectSystemResources();
+
+  const heapSizeLimit = v8.getHeapStatistics().heap_size_limit;
+  if (heapSizeLimit > systemResources.memory * 0.5) {
+    Runtime.instance().logger.warn(
+      `node's heap size limit is over 50% of available memory (heapSizeLimit = ${heapSizeLimit}, systemMemory = ${systemResources.memory})`
+    );
+    Runtime.instance().logger.warn(`This might degrade performances and could result in OOM errors.`);
+    Runtime.instance().logger.warn(
+      `For optimal performance, try setting '--max-old-space-size' between 25% and 50% of system memory.`
+    );
+  }
+
+  return {
+    maxCachedWorkflows: Math.floor(
+      Math.max((systemResources.memory + systemResources.swap - heapSizeLimit) / GiB - 1, 1) * 250
+    ),
+  };
+}
+
+/**
+ * Inspect the execution environment and return information about available system resources,
+ * taking into account applicable constraints that can be discovered.
+ * At present, it accounts for CGroups v1 and v2 constraints on memory and swap.
+ */
+export function inspectSystemResources(): { memory: number; swap: number } {
+  const systemMemory = os.totalmem();
+
+  const limits = {
+    memory: systemMemory,
+    swap: 0,
+  };
+
+  if (process.platform === 'linux') {
+    // Check for v2 style cgroups
+    if (fs.existsSync('/sys/fs/cgroup/cgroup.controllers')) {
+      // Maximum size (in bytes) of memory usage allowed by this container. 'max' if no constraint.
+      // Examples:
+      //  - 536870912 => 512 Mb
+      //  - max => no constraint
+      const memoryMax = tryReadFileSync('/sys/fs/cgroup/memory.max');
+      if (isNumber(memoryMax)) limits.memory = Math.min(Number(memoryMax), limits.memory);
+
+      // Maximum size (in bytes) of swap usage allowed by this container. The reported size EXCLUDES the size of memory itself.
+      // For example, assuming `docker run --memory 512mb --memory-swap 768mb`, memory.swap.max will report 256mb
+      // Defaults to one time the size of maximum memory (if constrained), or 'max' if no constraint on memory
+      //
+      // Examples:
+      //  - 268435456 => 256 Mb
+      //  - max => no constraint
+      const swapMax = tryReadFileSync('/sys/fs/cgroup/memory.swap.max');
+      // For heuristics, don't use more than one time the RAM in swap
+      if (isNumber(swapMax)) limits.swap = Math.min(Number(swapMax), systemMemory);
+    }
+
+    // Check for v1 style cgroups: /sys/fs/cgroup/memory/memory.limit_in_bytes
+    if (fs.existsSync('/sys/fs/cgroup/memory/memory.limit_in_bytes')) {
+      // Maximum size (in bytes) of memory usage allowed by this container. '9223372036854771712' if no constraint
+      // Examples:
+      //  - 536870912 => 512 Mb
+      //  - 9223372036854771712 => no constraint
+      const memoryMax = tryReadFileSync('/sys/fs/cgroup/memory/memory.limit_in_bytes');
+      if (isNumber(memoryMax)) limits.memory = Math.min(Number(memoryMax), limits.memory);
+
+      // Maximum size (in bytes) of swap usage allowed by this container. The reported size INCLUDES the size of memory itself.
+      // For example, assuming `docker run --memory 512mb --memory-swap 768mb`, memory.swap.max will report 768mb. File might
+      // also not exists if system does not support swap.
+      // Defaults to '9223372036854771712' if no constraint.
+      // Examples:
+      //  - 536870912 => 512 Mb
+      //  - 9223372036854771712 => no constraint
+      const swapMax = tryReadFileSync('/sys/fs/cgroup/memory/memory.memsw.limit_in_bytes');
+      if (isNumber(swapMax)) limits.swap = Math.min(Number(swapMax) - limits.memory, systemMemory);
+    }
+  }
+
+  return limits;
+}
+
+function tryReadFileSync(file: string) {
+  try {
+    return fs.readFileSync(file, { encoding: 'ascii' }) as string;
+  } catch (e) {
+    return undefined;
+  }
+}
+
+function isNumber(s: string | undefined) {
+  return s && /^\d+$/.test(s);
 }
 
 export function compileWorkerOptions(opts: WorkerOptionsWithDefaults): CompiledWorkerOptions {
@@ -430,4 +531,26 @@ export function compileWorkerOptions(opts: WorkerOptionsWithDefaults): CompiledW
     defaultHeartbeatThrottleIntervalMs: msToNumber(opts.defaultHeartbeatThrottleInterval),
     loadedDataConverter: loadDataConverter(opts.dataConverter),
   };
+}
+
+function reportWorkerOptions(options: WorkerOptionsWithDefaults) {
+  Runtime.instance().logger.info(`Worker options:`);
+  Runtime.instance().logger.info(
+    JSON.stringify(
+      {
+        ...options,
+        ...(options.workflowBundle && isCodeBundleOption(options.workflowBundle)
+          ? {
+              // Avoid dumping workflow bundle code to the console
+              workflowBundle: <WorkflowBundleWithSourceMap>{
+                code: `... source code skipped (length = ${options.workflowBundle.code.length}) ...`,
+                sourceMap: `... source map skipped (length = ${options.workflowBundle.sourceMap.length}) ...`,
+              },
+            }
+          : {}),
+      },
+      undefined,
+      2
+    )
+  );
 }
