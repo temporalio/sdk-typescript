@@ -1,6 +1,6 @@
 import test, { ExecutionContext } from 'ava';
 import * as sinon from 'sinon';
-import { calculateDefaultWorkerOptions } from '@temporalio/worker/lib/worker-options';
+import { addDefaultWorkerOptions } from '@temporalio/worker/lib/worker-options';
 import { GiB } from '@temporalio/worker/lib/utils';
 import type * as V8Type from 'v8';
 import type * as OsType from 'os';
@@ -10,7 +10,7 @@ import type * as ProcessType from 'process';
 test.serial('maxCachedWorkflows heuristic without cgroups', (t) => {
   installMemoryStatsMocks(t, { totalMem: 4 * GiB });
 
-  const defaultWorkerOptions = calculateDefaultWorkerOptions();
+  const defaultWorkerOptions = addDefaultWorkerOptions({ taskQueue: 'dummy ' });
   t.is(500, defaultWorkerOptions.maxCachedWorkflows);
 });
 
@@ -20,7 +20,7 @@ test.serial('maxCachedWorkflows heuristic without cgroups - large', (t) => {
     heapSizeLimit: 1 * GiB,
   });
 
-  const defaultWorkerOptions = calculateDefaultWorkerOptions();
+  const defaultWorkerOptions = addDefaultWorkerOptions({ taskQueue: 'dummy ' });
   t.is(15500, defaultWorkerOptions.maxCachedWorkflows);
 });
 
@@ -35,7 +35,7 @@ test.serial('maxCachedWorkflows heuristic with cgroups v1 --memory and --memory-
     swap: 4 * GiB,
   });
 
-  const defaultWorkerOptions = calculateDefaultWorkerOptions();
+  const defaultWorkerOptions = addDefaultWorkerOptions({ taskQueue: 'dummy ' });
   t.is(1500, defaultWorkerOptions.maxCachedWorkflows);
 });
 
@@ -50,7 +50,7 @@ test.serial('maxCachedWorkflows heuristic with cgroups v2 --memory and --memory-
     swap: 4 * GiB,
   });
 
-  const defaultWorkerOptions = calculateDefaultWorkerOptions();
+  const defaultWorkerOptions = addDefaultWorkerOptions({ taskQueue: 'dummy ' });
   t.is(1500, defaultWorkerOptions.maxCachedWorkflows);
 });
 

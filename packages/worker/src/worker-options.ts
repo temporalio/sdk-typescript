@@ -400,7 +400,7 @@ export function appendDefaultInterceptors(
 export function addDefaultWorkerOptions(options: WorkerOptions): WorkerOptionsWithDefaults {
   const { maxCachedWorkflows, debugMode, ...rest } = options;
 
-  const defaults = calculateDefaultWorkerOptions();
+  const systemResources = inspectSystemResources();
 
   const optionsWithDefaults = {
     namespace: 'default',
@@ -416,7 +416,9 @@ export function addDefaultWorkerOptions(options: WorkerOptions): WorkerOptionsWi
     // 4294967295ms is the maximum allowed time
     isolateExecutionTimeout: debugMode ? '4294967295ms' : '5s',
     workflowThreadPoolSize: 8,
-    maxCachedWorkflows: maxCachedWorkflows ?? defaults.maxCachedWorkflows,
+    maxCachedWorkflows:
+      maxCachedWorkflows ??
+      Math.floor(Math.max((systemResources.memory + systemResources.swap - systemResources.heap) / GiB - 1, 1) * 250),
     enableSDKTracing: false,
     debugMode: debugMode ?? false,
     interceptors: appendDefaultInterceptors({}),
@@ -429,38 +431,16 @@ export function addDefaultWorkerOptions(options: WorkerOptions): WorkerOptionsWi
   return optionsWithDefaults;
 }
 
-export function calculateDefaultWorkerOptions(): { maxCachedWorkflows: number } {
-  const systemResources = inspectSystemResources();
-
-  const heapSizeLimit = v8.getHeapStatistics().heap_size_limit;
-  if (heapSizeLimit > systemResources.memory * 0.5) {
-    Runtime.instance().logger.warn(
-      `node's heap size limit is over 50% of available memory (heapSizeLimit = ${heapSizeLimit}, systemMemory = ${systemResources.memory})`
-    );
-    Runtime.instance().logger.warn(`This might degrade performances and could result in OOM errors.`);
-    Runtime.instance().logger.warn(
-      `For optimal performance, try setting '--max-old-space-size' between 25% and 50% of system memory.`
-    );
-  }
-
-  return {
-    maxCachedWorkflows: Math.floor(
-      Math.max((systemResources.memory + systemResources.swap - heapSizeLimit) / GiB - 1, 1) * 250
-    ),
-  };
-}
-
 /**
  * Inspect the execution environment and return information about available system resources,
  * taking into account applicable constraints that can be discovered.
  * At present, it accounts for CGroups v1 and v2 constraints on memory and swap.
  */
-export function inspectSystemResources(): { memory: number; swap: number } {
-  const systemMemory = os.totalmem();
-
-  const limits = {
-    memory: systemMemory,
+export function inspectSystemResources(): { memory: number; swap: number; heap: number } {
+  const resources = {
+    memory: os.totalmem(),
     swap: 0,
+    heap: v8.getHeapStatistics().heap_size_limit,
   };
 
   if (process.platform === 'linux') {
@@ -470,19 +450,20 @@ export function inspectSystemResources(): { memory: number; swap: number } {
       // Examples:
       //  - 536870912 => 512 Mb
       //  - max => no constraint
-      const memoryMax = tryReadFileSync('/sys/fs/cgroup/memory.max');
-      if (isNumber(memoryMax)) limits.memory = Math.min(Number(memoryMax), limits.memory);
+      const memoryMax = Number(tryReadFileSync('/sys/fs/cgroup/memory.max'));
+      if (!isNaN(memoryMax)) resources.memory = Math.min(memoryMax, resources.memory);
 
       // Maximum size (in bytes) of swap usage allowed by this container. The reported size EXCLUDES the size of memory itself.
       // For example, assuming `docker run --memory 512mb --memory-swap 768mb`, memory.swap.max will report 256mb
-      // Defaults to one time the size of maximum memory (if constrained), or 'max' if no constraint on memory
-      //
       // Examples:
       //  - 268435456 => 256 Mb
-      //  - max => no constraint
+      //  - max => swap allowed but unconstrained
       const swapMax = tryReadFileSync('/sys/fs/cgroup/memory.swap.max');
-      // For heuristics, don't use more than one time the RAM in swap
-      if (isNumber(swapMax)) limits.swap = Math.min(Number(swapMax), systemMemory);
+      if (swapMax) {
+        if (swapMax === 'max')
+          resources.swap = resources.memory; // Swap is allowed, but no size was specified. Default to memory size
+        else if (!isNaN(Number(swapMax))) resources.swap = Number(swapMax);
+      }
     }
 
     // Check for v1 style cgroups: /sys/fs/cgroup/memory/memory.limit_in_bytes
@@ -490,9 +471,10 @@ export function inspectSystemResources(): { memory: number; swap: number } {
       // Maximum size (in bytes) of memory usage allowed by this container. '9223372036854771712' if no constraint
       // Examples:
       //  - 536870912 => 512 Mb
-      //  - 9223372036854771712 => no constraint
-      const memoryMax = tryReadFileSync('/sys/fs/cgroup/memory/memory.limit_in_bytes');
-      if (isNumber(memoryMax)) limits.memory = Math.min(Number(memoryMax), limits.memory);
+      //  - 9223372036854771712 => swap allowed but unconstrained
+
+      const memoryMax = Number(tryReadFileSync('/sys/fs/cgroup/memory/memory.limit_in_bytes'));
+      if (!isNaN(memoryMax)) resources.memory = Math.min(memoryMax, resources.memory);
 
       // Maximum size (in bytes) of swap usage allowed by this container. The reported size INCLUDES the size of memory itself.
       // For example, assuming `docker run --memory 512mb --memory-swap 768mb`, memory.memsw.limit_in_bytes will report 768mb.
@@ -501,12 +483,25 @@ export function inspectSystemResources(): { memory: number; swap: number } {
       // Examples:
       //  - 536870912 => 512 Mb
       //  - 9223372036854771712 => no constraint
-      const swapMax = tryReadFileSync('/sys/fs/cgroup/memory/memory.memsw.limit_in_bytes');
-      if (isNumber(swapMax)) limits.swap = Math.min(Number(swapMax) - limits.memory, systemMemory);
+      const swapMax = Number(tryReadFileSync('/sys/fs/cgroup/memory/memory.memsw.limit_in_bytes'));
+      if (!isNaN(swapMax)) {
+        if (swapMax === 9223372036854771712)
+          resources.swap = resources.memory; // Swap is allowed, but no size was specified. Default to memory size
+        else resources.swap = swapMax - resources.memory; // memory.memsw.limit_in_bytes includes mem+swap
+      }
     }
   }
 
-  return limits;
+  if (resources.heap > resources.memory * 0.5) {
+    Runtime.instance().logger.warn(
+      `node's heap size limit is over 50% of available memory ` +
+        `(heap size limit = ${resources.heap}, system memory = ${resources.memory}) ` +
+        `This might degrade performances and could result in OOM errors. ` +
+        `For optimal performance, try setting '--max-old-space-size' between 25% and 50% of system memory.`
+    );
+  }
+
+  return resources;
 }
 
 function tryReadFileSync(file: string) {
@@ -515,10 +510,6 @@ function tryReadFileSync(file: string) {
   } catch (e) {
     return undefined;
   }
-}
-
-function isNumber(s: string | undefined) {
-  return s && /^\d+$/.test(s);
 }
 
 export function compileWorkerOptions(opts: WorkerOptionsWithDefaults): CompiledWorkerOptions {
