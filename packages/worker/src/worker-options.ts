@@ -495,8 +495,8 @@ export function inspectSystemResources(): { memory: number; swap: number } {
       if (isNumber(memoryMax)) limits.memory = Math.min(Number(memoryMax), limits.memory);
 
       // Maximum size (in bytes) of swap usage allowed by this container. The reported size INCLUDES the size of memory itself.
-      // For example, assuming `docker run --memory 512mb --memory-swap 768mb`, memory.swap.max will report 768mb. File might
-      // also not exists if system does not support swap.
+      // For example, assuming `docker run --memory 512mb --memory-swap 768mb`, memory.memsw.limit_in_bytes will report 768mb.
+      // File might also not exists if system does not support swap.
       // Defaults to '9223372036854771712' if no constraint.
       // Examples:
       //  - 536870912 => 512 Mb
