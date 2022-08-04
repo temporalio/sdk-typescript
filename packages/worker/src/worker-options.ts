@@ -171,7 +171,7 @@ export interface WorkerOptions {
    * If the Worker is asked to run an uncached Workflow, it will need to replay the entire Workflow history.
    * Use as a dial for trading memory for CPU time.
    *
-   * You should be able to fit about 500 Workflows per GB of memory dependening on your Workflow bundle size.
+   * Most users are able to fit 250 Workflows per GB of available memory (this depends on your Workflow bundle size).
    * For the SDK test Workflows, we managed to fit 750 Workflows per GB.
    *
    * @default `max((systemMemory - maxHeapMemory) / 1GiB - 1, 1) * 250`
@@ -543,8 +543,8 @@ function reportWorkerOptions(options: WorkerOptionsWithDefaults) {
           ? {
               // Avoid dumping workflow bundle code to the console
               workflowBundle: <WorkflowBundleWithSourceMap>{
-                code: `... source code skipped (length = ${options.workflowBundle.code.length}) ...`,
-                sourceMap: `... source map skipped (length = ${options.workflowBundle.sourceMap.length}) ...`,
+                code: `<string of length ${options.workflowBundle.code.length}>`,
+                sourceMap: `<string of length ${options.workflowBundle.sourceMap.length}>`,
               },
             }
           : {}),
