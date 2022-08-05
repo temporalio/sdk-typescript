@@ -207,6 +207,8 @@ rm packages/core-bridge/releases/
 
 `npm` commands we may need to use:
 
+If we publish a version like `1.1.0-rc.1` with tag `next`, we untag it after `1.1.0` is released:
+
 ```
 npm dist-tag rm @temporalio/client next
 npm dist-tag rm @temporalio/worker next
@@ -221,6 +223,8 @@ npm dist-tag rm @temporalio/internal-non-workflow-common next
 npm dist-tag rm @temporalio/create next
 npm dist-tag rm temporalio next
 ```
+
+When we want to deprecate a package:
 
 ```
 npm deprecate temporalio@^1.0.0 "Instead of installing temporalio, we recommend directly installing our packages: npm remove temporalio; npm install @temporalio/client @temporalio/worker @temporalio/workflow @temporalio/activity"
