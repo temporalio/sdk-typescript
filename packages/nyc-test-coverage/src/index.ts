@@ -4,20 +4,25 @@ import {
 import { CoverageSinks } from './sinks';
 import libCoverage from 'istanbul-lib-coverage';
 
-export const coverageMap = libCoverage.createCoverageMap();
+export function createCoverageSinks(): { sinks: InjectedSinks<CoverageSinks>, coverageMap: libCoverage.CoverageMap } {
+  const coverageMap = libCoverage.createCoverageMap();
 
-export const sinks: InjectedSinks<CoverageSinks> = {
-  coverage: {
-    merge: {
-      fn(_workflowInfo, testCoverage: libCoverage.CoverageMap) {
-        coverageMap.merge(testCoverage);
+  return {
+    coverageMap,
+    sinks: {
+      coverage: {
+        merge: {
+          fn(_workflowInfo: any, testCoverage: libCoverage.CoverageMap) {
+            coverageMap.merge(testCoverage);
+          },
+          callDuringReplay: false,
+        },
       },
-      callDuringReplay: false,
-    },
-  },
+    }
+  };
 };
 
-export function mergeWorkflowCoverage() {
+export function mergeWorkflowCoverage(coverageMap: any) {
   // @ts-ignore
   coverageMap.merge(global.__coverage__);
   // @ts-ignore
