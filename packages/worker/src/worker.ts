@@ -1416,6 +1416,7 @@ export class Worker {
   protected workflow$(): Observable<void> {
     // This Worker did not register any workflows, return early
     if (this.workflowCreator === undefined) {
+      this.log.warn('No workflows registered, not polling for workflow tasks');
       this.workflowPollerStateSubject.next('SHUTDOWN');
       return EMPTY;
     }
@@ -1498,8 +1499,12 @@ export class Worker {
   }
 
   protected activity$(): Observable<void> {
-    // Note that we poll on activities even if there are no activities registered.
-    // This is so workflows invoking activities on this task queue get a non-retryable error.
+    // This Worker did not register any activities, return early
+    if (this.options.activities === undefined || Object.keys(this.options.activities).length === 0) {
+      this.log.warn('No activities registered, not polling for activity tasks');
+      this.activityPollerStateSubject.next('SHUTDOWN');
+      return EMPTY;
+    }
     return this.activityPoll$().pipe(
       this.activityOperator(),
       mergeMap(async ({ completion, parentSpan }) => {
