@@ -15,10 +15,10 @@
   "dependencies": {
     "@temporalio/workflow": "file:../workflow",
     "@temporalio/worker": "file:../worker",
-    "istanbul-lib-coverage": "3.2.0"
+    "istanbul-lib-coverage": "^3.2.0"
   },
   "devDependencies": {
-    "@types/istanbul-lib-coverage": "2.0.4"
+    "@types/istanbul-lib-coverage": "^2.0.4"
   },
   "bugs": {
     "url": "https://github.com/temporalio/sdk-typescript/issues"
