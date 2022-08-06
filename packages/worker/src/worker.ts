@@ -1416,6 +1416,7 @@ export class Worker {
   protected workflow$(): Observable<void> {
     // This Worker did not register any workflows, return early
     if (this.workflowCreator === undefined) {
+      this.log.warn('No workflows registered, not polling for workflow tasks');
       this.workflowPollerStateSubject.next('SHUTDOWN');
       return EMPTY;
     }
@@ -1500,6 +1501,7 @@ export class Worker {
   protected activity$(): Observable<void> {
     // This Worker did not register any activities, return early
     if (this.workflowCreator === undefined) {
+      this.log.warn('No activities registered, not polling for activity tasks');
       this.activityPollerStateSubject.next('SHUTDOWN');
       return EMPTY;
     }
