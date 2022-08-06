@@ -1500,7 +1500,7 @@ export class Worker {
 
   protected activity$(): Observable<void> {
     // This Worker did not register any activities, return early
-    if (this.workflowCreator === undefined) {
+    if (this.options.activities === undefined || Object.keys(this.options.activities).length === 0) {
       this.log.warn('No activities registered, not polling for activity tasks');
       this.activityPollerStateSubject.next('SHUTDOWN');
       return EMPTY;
