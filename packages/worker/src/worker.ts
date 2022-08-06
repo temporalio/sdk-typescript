@@ -1498,8 +1498,11 @@ export class Worker {
   }
 
   protected activity$(): Observable<void> {
-    // Note that we poll on activities even if there are no activities registered.
-    // This is so workflows invoking activities on this task queue get a non-retryable error.
+    // This Worker did not register any activities, return early
+    if (this.workflowCreator === undefined) {
+      this.activityPollerStateSubject.next('SHUTDOWN');
+      return EMPTY;
+    }
     return this.activityPoll$().pipe(
       this.activityOperator(),
       mergeMap(async ({ completion, parentSpan }) => {
