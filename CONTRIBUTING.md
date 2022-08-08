@@ -165,6 +165,7 @@ git-cliff --tag 1.0.1 v1.0.0..HEAD | pbcopy
 [#$1](https://github.com/temporalio/sdk-typescript/pull/$1)
 ```
 
+- If PRs came from external contributors, thank them & link their github handles: `([#484](link), thanks to [`@user`](https://github.com/user) 🙏)`
 - Open PR with CHANGELOG change
 - Merge PR
 - Checkout latest `main`
@@ -200,6 +201,33 @@ npx lerna publish from-git # add `--dist-tag next` for pre-release versions
 ```sh
 rm $HOME/Downloads/packages-*
 rm packages/core-bridge/releases/
+```
+
+### Updating published packages
+
+`npm` commands we may need to use:
+
+If we publish a version like `1.1.0-rc.1` with tag `next`, we untag it after `1.1.0` is released:
+
+```
+npm dist-tag rm @temporalio/client next
+npm dist-tag rm @temporalio/worker next
+npm dist-tag rm @temporalio/workflow next
+npm dist-tag rm @temporalio/activity next
+npm dist-tag rm @temporalio/testing next
+npm dist-tag rm @temporalio/common next
+npm dist-tag rm @temporalio/proto next
+npm dist-tag rm @temporalio/interceptors-opentelemetry next
+npm dist-tag rm @temporalio/internal-workflow-common next
+npm dist-tag rm @temporalio/internal-non-workflow-common next
+npm dist-tag rm @temporalio/create next
+npm dist-tag rm temporalio next
+```
+
+When we want to deprecate a package:
+
+```
+npm deprecate temporalio@^1.0.0 "Instead of installing temporalio, we recommend directly installing our packages: npm remove temporalio; npm install @temporalio/client @temporalio/worker @temporalio/workflow @temporalio/activity"
 ```
 
 ## Updating the Java test server proto files
