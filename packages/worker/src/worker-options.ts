@@ -176,7 +176,7 @@ export interface WorkerOptions {
    * by the workflow itself and the size of the workflow bundle (code and source map).
    * For the SDK test Workflows, we managed to fit 750 Workflows per GB.
    *
-   * @default `max((systemMemory - maxHeapMemory) / 1GiB - 1, 1) * 250`
+   * @default `max(maxHeapMemory / 1GiB - 1, 1) * 250`
    */
   maxCachedWorkflows?: number;
 
@@ -401,10 +401,9 @@ export function appendDefaultInterceptors(
 
 export function addDefaultWorkerOptions(options: WorkerOptions): WorkerOptionsWithDefaults {
   const { maxCachedWorkflows, debugMode, ...rest } = options;
-
   const systemResources = inspectSystemResources();
 
-  const optionsWithDefaults = {
+  return {
     namespace: 'default',
     identity: `${process.pid}@${os.hostname()}`,
     shutdownGraceTime: '10s',
@@ -425,8 +424,6 @@ export function addDefaultWorkerOptions(options: WorkerOptions): WorkerOptionsWi
     sinks: defaultSinks(),
     ...rest,
   };
-
-  return optionsWithDefaults;
 }
 
 /**
