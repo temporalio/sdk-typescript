@@ -171,7 +171,9 @@ export interface WorkerOptions {
    * If the Worker is asked to run an uncached Workflow, it will need to replay the entire Workflow history.
    * Use as a dial for trading memory for CPU time.
    *
-   * Most users are able to fit 250 Workflows per GB of available memory (this depends on your Workflow bundle size).
+   * Most users are able to fit at least 250 Workflows per GB of available memory.
+   * The major factors contributing to a workflow's memory weight are the size of allocations made
+   * by the workflow itself and the size of the workflow bundle (code and source map).
    * For the SDK test Workflows, we managed to fit 750 Workflows per GB.
    *
    * @default `max((systemMemory - maxHeapMemory) / 1GiB - 1, 1) * 250`
@@ -416,17 +418,13 @@ export function addDefaultWorkerOptions(options: WorkerOptions): WorkerOptionsWi
     // 4294967295ms is the maximum allowed time
     isolateExecutionTimeout: debugMode ? '4294967295ms' : '5s',
     workflowThreadPoolSize: 8,
-    maxCachedWorkflows:
-      maxCachedWorkflows ??
-      Math.floor(Math.max((systemResources.memory + systemResources.swap - systemResources.heap) / GiB - 1, 1) * 250),
+    maxCachedWorkflows: maxCachedWorkflows ?? Math.floor(Math.max(systemResources.heap / GiB - 1, 1) * 250),
     enableSDKTracing: false,
     debugMode: debugMode ?? false,
     interceptors: appendDefaultInterceptors({}),
     sinks: defaultSinks(),
     ...rest,
   };
-
-  reportWorkerOptions(optionsWithDefaults);
 
   return optionsWithDefaults;
 }
@@ -436,68 +434,28 @@ export function addDefaultWorkerOptions(options: WorkerOptions): WorkerOptionsWi
  * taking into account applicable constraints that can be discovered.
  * At present, it accounts for CGroups v1 and v2 constraints on memory and swap.
  */
-export function inspectSystemResources(): { memory: number; swap: number; heap: number } {
+export function inspectSystemResources(): { memory: number; heap: number } {
   const resources = {
     memory: os.totalmem(),
-    swap: 0,
     heap: v8.getHeapStatistics().heap_size_limit,
   };
 
   if (process.platform === 'linux') {
-    // Check for v2 style cgroups
-    if (fs.existsSync('/sys/fs/cgroup/cgroup.controllers')) {
-      // Maximum size (in bytes) of memory usage allowed by this container. 'max' if no constraint.
-      // Examples:
-      //  - 536870912 => 512 Mb
-      //  - max => no constraint
-      const memoryMax = Number(tryReadFileSync('/sys/fs/cgroup/memory.max'));
-      if (!isNaN(memoryMax)) resources.memory = Math.min(memoryMax, resources.memory);
+    // v2 style cgroups
+    const cgroupsv2MemoryMax = Number(tryReadFileSync('/sys/fs/cgroup/memory.max'));
+    if (!isNaN(cgroupsv2MemoryMax)) resources.memory = Math.min(cgroupsv2MemoryMax, resources.memory);
 
-      // Maximum size (in bytes) of swap usage allowed by this container. The reported size EXCLUDES the size of memory itself.
-      // For example, assuming `docker run --memory 512mb --memory-swap 768mb`, memory.swap.max will report 256mb
-      // Examples:
-      //  - 268435456 => 256 Mb
-      //  - max => swap allowed but unconstrained
-      const swapMax = tryReadFileSync('/sys/fs/cgroup/memory.swap.max');
-      if (swapMax) {
-        if (swapMax === 'max')
-          resources.swap = resources.memory; // Swap is allowed, but no size was specified. Default to memory size
-        else if (!isNaN(Number(swapMax))) resources.swap = Number(swapMax);
-      }
-    }
-
-    // Check for v1 style cgroups: /sys/fs/cgroup/memory/memory.limit_in_bytes
-    if (fs.existsSync('/sys/fs/cgroup/memory/memory.limit_in_bytes')) {
-      // Maximum size (in bytes) of memory usage allowed by this container. '9223372036854771712' if no constraint
-      // Examples:
-      //  - 536870912 => 512 Mb
-      //  - 9223372036854771712 => swap allowed but unconstrained
-
-      const memoryMax = Number(tryReadFileSync('/sys/fs/cgroup/memory/memory.limit_in_bytes'));
-      if (!isNaN(memoryMax)) resources.memory = Math.min(memoryMax, resources.memory);
-
-      // Maximum size (in bytes) of swap usage allowed by this container. The reported size INCLUDES the size of memory itself.
-      // For example, assuming `docker run --memory 512mb --memory-swap 768mb`, memory.memsw.limit_in_bytes will report 768mb.
-      // File might also not exists if system does not support swap.
-      // Defaults to '9223372036854771712' if no constraint.
-      // Examples:
-      //  - 536870912 => 512 Mb
-      //  - 9223372036854771712 => no constraint
-      const swapMax = Number(tryReadFileSync('/sys/fs/cgroup/memory/memory.memsw.limit_in_bytes'));
-      if (!isNaN(swapMax)) {
-        if (swapMax === 9223372036854771712)
-          resources.swap = resources.memory; // Swap is allowed, but no size was specified. Default to memory size
-        else resources.swap = swapMax - resources.memory; // memory.memsw.limit_in_bytes includes mem+swap
-      }
-    }
+    // v1 style cgroups
+    const cgroupv1MemoryMax = Number(tryReadFileSync('/sys/fs/cgroup/memory/memory.limit_in_bytes'));
+    if (!isNaN(cgroupv1MemoryMax)) resources.memory = Math.min(cgroupv1MemoryMax, resources.memory);
   }
 
-  if (resources.heap > resources.memory * 0.5) {
+  if (resources.heap > resources.memory * 0.8) {
     Runtime.instance().logger.warn(
-      `node's heap size limit is over 50% of available memory ` +
+      `node's heap size limit is over 80% of available memory ` +
         `(heap size limit = ${resources.heap}, system memory = ${resources.memory}) ` +
         `This might degrade performances and could result in OOM errors. ` +
-        `For optimal performance, try setting '--max-old-space-size' between 25% and 50% of system memory.`
+        `For optimal performance, try setting '--max-old-space-size' at 75% of system memory.`
     );
   }
 
@@ -522,26 +480,4 @@ export function compileWorkerOptions(opts: WorkerOptionsWithDefaults): CompiledW
     defaultHeartbeatThrottleIntervalMs: msToNumber(opts.defaultHeartbeatThrottleInterval),
     loadedDataConverter: loadDataConverter(opts.dataConverter),
   };
-}
-
-function reportWorkerOptions(options: WorkerOptionsWithDefaults) {
-  Runtime.instance().logger.info(`Worker options:`);
-  Runtime.instance().logger.info(
-    JSON.stringify(
-      {
-        ...options,
-        ...(options.workflowBundle && isCodeBundleOption(options.workflowBundle)
-          ? {
-              // Avoid dumping workflow bundle code to the console
-              workflowBundle: <WorkflowBundleWithSourceMap>{
-                code: `<string of length ${options.workflowBundle.code.length}>`,
-                sourceMap: `<string of length ${options.workflowBundle.sourceMap.length}>`,
-              },
-            }
-          : {}),
-      },
-      undefined,
-      2
-    )
-  );
 }
