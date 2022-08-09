@@ -7,23 +7,22 @@
 ## Getting Started
 
 1. `npm install mocha nyc`
-2. Use nyc to manually instrument your Workflow code, for example `nyc instrument lib lib --in-place`. Make sure you instrument your Workflow code _after_ compiling it with `tsc`.
+2. Use [nyc to manually instrument your Workflow code](https://github.com/istanbuljs/nyc/blob/master/docs/instrument.md), for example `nyc instrument lib lib --in-place`. Make sure you instrument your Workflow code _after_ compiling it with `tsc`.
 3. Add this package's sinks and interceptors to your test worker, for example:
 
 ```ts
-import { CoverageSinks } from '@temporalio/nyc-test-coverage';
+import { WorkflowCoverage } from '@temporalio/nyc-test-coverage';
 
-const coverageSinks = new CoverageSinks();
+const workflowCoverage = new WorkflowCoverage();
 
 worker = await Worker.create({
   connection: nativeConnection,
   taskQueue,
   workflowsPath: require.resolve("./workflows"),
-  activities: undefined,
   interceptors: {
     workflowModules: [require.resolve("@temporalio/nyc-test-coverage/lib/interceptors")]
   },
-  sinks: coverageSinks.sinks,
+  sinks: workflowCoverage.sinks,
 });
 ```
 
@@ -31,11 +30,12 @@ worker = await Worker.create({
 
 ```ts
 after(() => {
-  coverageSinks.mergeIntoGlobalCoverage();
+  workflowCoverage.mergeIntoGlobalCoverage();
 });
 ```
 
 For example, the following is a sample npm script that handles instrumenting and running tests.
+The following assumes that `npm run build` produces compiled JavaScript in the `lib` directory.
 
 ```
 {

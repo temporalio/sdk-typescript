@@ -1,8 +1,8 @@
 import { proxySinks, WorkflowInterceptors } from '@temporalio/workflow';
-import { ICoverageSinks } from './sinks';
+import { CoverageSinks } from './sinks';
 import libCoverage from 'istanbul-lib-coverage';
 
-const { coverage } = proxySinks<ICoverageSinks>();
+const { coverage } = proxySinks<CoverageSinks>();
 
 // Export the interceptors
 export const interceptors = (): WorkflowInterceptors => ({

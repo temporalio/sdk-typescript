@@ -1,10 +1,10 @@
 import { InjectedSinks } from '@temporalio/worker';
-import { ICoverageSinks } from './sinks';
+import { CoverageSinks } from './sinks';
 import libCoverage from 'istanbul-lib-coverage';
 
-export class CoverageSinks {
+export class WorkflowCoverage {
   coverageMap = libCoverage.createCoverageMap();
-  sinksInternal: InjectedSinks<ICoverageSinks> = {
+  sinksInternal: InjectedSinks<CoverageSinks> = {
     coverage: {
       merge: {
         fn: (_workflowInfo: any, testCoverage: libCoverage.CoverageMap) => {
@@ -15,7 +15,7 @@ export class CoverageSinks {
     },
   };
 
-  get sinks(): InjectedSinks<ICoverageSinks> {
+  get sinks(): InjectedSinks<CoverageSinks> {
     return this.sinksInternal;
   }
 

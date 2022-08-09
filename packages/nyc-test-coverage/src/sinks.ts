@@ -1,7 +1,7 @@
 import { Sinks } from '@temporalio/workflow';
 
-export interface ICoverageSinks extends Sinks {
+export interface CoverageSinks extends Sinks {
   coverage: {
-    merge(coverageMap: any): unknown;
+    merge(coverageMap: any): void;
   };
 }
