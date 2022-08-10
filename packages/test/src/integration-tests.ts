@@ -1203,17 +1203,11 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
       workflowId,
     });
 
-    const key: string = enhStacks[1].stacks[0].locations[0].filepath;
     t.is(enhStacks[0].sdk.name, 'typescript', 'sdk name is not "typescript"');
     t.is(enhStacks[0].stacks.length, 3, 'Number of stacks is different from expected');
     t.is(enhStacks[0].stacks[0].locations.length, 1, 'Number of locations is different from expected');
     t.is(enhStacks[1].stacks.length, 3, 'Number of stacks is different from expected');
     t.is(enhStacks[1].stacks[0].locations.length, 2, 'Number of locations is different from expected');
-    t.is(
-      enhStacks[1].sources[key][0].content.split('\n').length,
-      50,
-      'Number of lines in stack trace is different from expected'
-    );
   });
 
   test('issue-731', async (t) => {
