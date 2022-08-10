@@ -1,4 +1,5 @@
 import { PayloadConverter } from '@temporalio/common';
+import type { RawSourceMap } from 'source-map';
 import errorStackParser = require('error-stack-parser');
 import {
   arrayFromPayloads,
@@ -28,15 +29,7 @@ import {
   WorkflowInterceptors,
   WorkflowInterceptorsFactory,
 } from './interceptors';
-import {
-  ContinueAsNew,
-  SDKInfo,
-  FileSlice,
-  StackTrace,
-  EnhancedStackTrace,
-  FileLocation,
-  WorkflowInfo,
-} from './interfaces';
+import { ContinueAsNew, SDKInfo, FileSlice, EnhancedStackTrace, FileLocation, WorkflowInfo } from './interfaces';
 import { SinkCall } from './sinks';
 import { untrackPromise } from './stack-helpers';
 
@@ -83,11 +76,6 @@ export type ActivationHandlerFunction<K extends keyof coresdk.workflow_activatio
 export type ActivationHandler = {
   [P in keyof coresdk.workflow_activation.IWorkflowActivationJob]: ActivationHandlerFunction<P>;
 };
-
-/**
- * The number of lines of a code snippet to be displayed
- */
-export const fileSliceSize = 50; //Lines
 
 export class Activator implements ActivationHandler {
   workflowFunctionWasCalled = false;
@@ -394,7 +382,7 @@ export class State {
   /**
    * Source map file for looking up the source files in response to __enhanced_stack_trace
    */
-  public sourceMap: any;
+  public sourceMap: RawSourceMap | undefined;
 
   protected getStackTraces(): string[] {
     const { childToParent, promiseToStack } = (globalThis as any).__TEMPORAL__.promiseStackStore as PromiseStackStore;
@@ -437,9 +425,7 @@ export class State {
         const stacks = this.getStackTraces();
         const sdkInfo: SDKInfo = { name: 'typescript', version: '' }; //TODO: provide version value
         const sourceMapRecord: Record<string, FileSlice[]> = {};
-        const stackTraces: StackTrace[] = [];
-
-        stacks.forEach((stack) => {
+        const stackTraces = stacks.map((stack) => {
           const locationsPaths: FileLocation[] = [];
 
           errorStackParser.parse({ name: '', message: '', stack }).forEach((parsedStackTraceLine) => {
@@ -447,28 +433,20 @@ export class State {
               const fileLocation: FileLocation = {
                 column: parsedStackTraceLine.columnNumber,
                 line: parsedStackTraceLine.lineNumber,
-                filepath: parsedStackTraceLine.fileName,
-                context: parsedStackTraceLine.functionName,
+                filePath: parsedStackTraceLine.fileName,
+                functionName: parsedStackTraceLine.functionName,
               };
               locationsPaths.push(fileLocation);
 
-              const fileSliceLineOffset: number = Math.max(1, fileLocation.line - Math.floor(fileSliceSize / 2));
-              const fileContent: string = sourceMap.sourcesContent[sourceMap.sources.indexOf(fileLocation.filepath)];
-              const fileSliceContentArray: string[] = fileContent.split('\n');
-
-              const fileSliceContent = fileSliceContentArray
-                .slice(
-                  fileSliceLineOffset,
-                  Math.min(fileSliceLineOffset + fileSliceSize, fileSliceContentArray.length - 1)
-                )
-                .join('\n');
-
               const fileSlice: FileSlice = {
-                content: fileSliceContent,
-                lineOffset: fileSliceLineOffset,
+                content:
+                  sourceMap && sourceMap.sourcesContent
+                    ? sourceMap.sourcesContent[sourceMap.sources.indexOf(fileLocation.filePath)]
+                    : '',
+                lineOffset: 0,
               };
 
-              const fileNameKey: string | undefined = parsedStackTraceLine.fileName;
+              const fileNameKey = parsedStackTraceLine.fileName;
 
               if (fileNameKey) {
                 if (fileNameKey in sourceMapRecord) {
@@ -479,8 +457,9 @@ export class State {
               }
             }
           });
-          stackTraces.push({ locations: locationsPaths });
+          return { locations: locationsPaths };
         });
+
         return { sdk: sdkInfo, stacks: stackTraces, sources: sourceMapRecord };
       },
     ],

@@ -38,5 +38,6 @@ export async function enhancedStackTracer(): Promise<[EnhancedStackTrace, Enhanc
     ]),
   ]);
   const second = await queryOwnWf(wf.enhancedStackTraceQuery);
+  void wf.sleep(100_000_000);
   return [first, second];
 }

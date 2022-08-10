@@ -13,6 +13,7 @@ import { WorkflowInterceptorsFactory } from './interceptors';
 import { WorkflowInfo } from './interfaces';
 import { InterceptorsImportFunc, state, WorkflowsImportFunc } from './internals';
 import { SinkCall } from './sinks';
+import type { RawSourceMap } from 'source-map';
 
 // Export the type for use on the "worker" side
 export { PromiseStackStore } from './internals';
@@ -131,7 +132,7 @@ export async function initRuntime({
   state.info = info;
   state.now = now;
   state.random = alea(randomnessSeed);
-  state.sourceMap = sourceMap;
+  state.sourceMap = sourceMap as RawSourceMap;
 
   if (info.unsafe.isReplaying) {
     for (const patch of patches) {
