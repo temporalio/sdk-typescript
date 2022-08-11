@@ -1,6 +1,6 @@
 import { checkExtends, hasOwnProperties, isRecord } from '@temporalio/internal-workflow-common';
 import type { temporal } from '@temporalio/proto';
-import { PayloadConverter, arrayFromPayloads, fromPayloadsAtIndex, toPayloads } from './converter/payload-converter';
+import { arrayFromPayloads, fromPayloadsAtIndex, PayloadConverter, toPayloads } from './converter/payload-converter';
 
 export const FAILURE_SOURCE = 'TypeScriptSDK';
 export type ProtoFailure = temporal.api.failure.v1.IFailure;
@@ -55,7 +55,7 @@ export class TemporalFailure extends Error {
    */
   public failure?: ProtoFailure;
 
-  constructor(message: string | undefined, public readonly cause?: Error) {
+  constructor(message?: string | undefined | null, public readonly cause?: Error) {
     super(message ?? undefined);
   }
 }
@@ -96,14 +96,38 @@ export class ServerFailure extends TemporalFailure {
 export class ApplicationFailure extends TemporalFailure {
   public readonly name: string = 'ApplicationFailure';
 
+  /**
+   * Alternatively, use {@link fromError} or {@link create}.
+   */
   constructor(
-    message: string | undefined,
-    public readonly type: string | undefined | null,
-    public readonly nonRetryable: boolean,
-    public readonly details?: unknown[],
+    message?: string | undefined | null,
+    public readonly type?: string | undefined | null,
+    public readonly nonRetryable?: boolean | undefined | null,
+    public readonly details?: unknown[] | undefined | null,
     cause?: Error
   ) {
     super(message, cause);
+  }
+
+  /**
+   * Create a new `ApplicationFailure` from an Error object.
+   *
+   * First calls `ensureApplicationFailure(error)`, and then overrides any fields provided in `overrides`.
+   */
+  public static fromError(error: Error | unknown, overrides?: ApplicationFailureOptions): ApplicationFailure {
+    const failure = ensureApplicationFailure(error);
+    Object.assign(failure, overrides);
+    return failure;
+  }
+
+  /**
+   * Create a new `ApplicationFailure`.
+   *
+   * By default, will be retryable (unless its `type` is included in {@link RetryPolicy.nonRetryableErrorTypes}).
+   */
+  public static create(options: ApplicationFailureOptions): ApplicationFailure {
+    const { message, type, nonRetryable = false, details, cause } = options;
+    return new this(message, type, nonRetryable, details, cause);
   }
 
   /**
@@ -114,7 +138,7 @@ export class ApplicationFailure extends TemporalFailure {
    * @param type Optional error type (used by {@link RetryPolicy.nonRetryableErrorTypes})
    * @param details Optional details about the failure. Serialized by the Worker's {@link PayloadConverter}.
    */
-  public static retryable(message: string | undefined, type?: string, ...details: unknown[]): ApplicationFailure {
+  public static retryable(message?: string | null, type?: string | null, ...details: unknown[]): ApplicationFailure {
     return new this(message, type ?? 'Error', false, details);
   }
 
@@ -128,9 +152,38 @@ export class ApplicationFailure extends TemporalFailure {
    * @param type Optional error type
    * @param details Optional details about the failure. Serialized by the Worker's {@link PayloadConverter}.
    */
-  public static nonRetryable(message: string | undefined, type?: string, ...details: unknown[]): ApplicationFailure {
+  public static nonRetryable(message?: string | null, type?: string | null, ...details: unknown[]): ApplicationFailure {
     return new this(message, type ?? 'Error', true, details);
   }
+}
+
+interface ApplicationFailureOptions {
+  /**
+   * Error message
+   */
+  message?: string;
+
+  /**
+   * Error type (used by {@link RetryPolicy.nonRetryableErrorTypes})
+   */
+  type?: string;
+
+  /**
+   * Whether the current Activity or Workflow can be retried
+   *
+   * @default false
+   */
+  nonRetryable?: boolean;
+
+  /**
+   * Details about the failure. Serialized by the Worker's {@link PayloadConverter}.
+   */
+  details?: unknown[];
+
+  /**
+   * Cause of the failure
+   */
+  cause?: Error;
 }
 
 /**
@@ -362,26 +415,24 @@ export function errorToFailure(err: unknown, payloadConverter: PayloadConverter)
 }
 
 /**
- * If `err` is an Error it is turned into an `ApplicationFailure`.
+ * If `error` is already an `ApplicationFailure`, returns `error`.
  *
- * If `err` was already a `ApplicationFailure`, returns the original error.
+ * Otherwise, converts `error` into an `ApplicationFailure` with:
  *
- * Otherwise returns an `ApplicationFailure` with `String(err)` as the message.
+ * - `message`: `error.message` or `String(error)`
+ * - `type`: `error.constructor.name` or `error.name`
+ * - `stack`: `error.stack` or `''`
  */
-export function ensureApplicationFailure(err: unknown): ApplicationFailure {
-  if (err instanceof ApplicationFailure) {
-    return err;
+export function ensureApplicationFailure(error: unknown): ApplicationFailure {
+  if (error instanceof ApplicationFailure) {
+    return error;
   }
-  if (err instanceof Error) {
-    const name = err.constructor?.name ?? err.name;
-    const failure = new ApplicationFailure(err.message, name, false);
-    failure.stack = err.stack;
-    return failure;
-  } else {
-    const failure = new ApplicationFailure(String(err), undefined, false);
-    failure.stack = '';
-    return failure;
-  }
+
+  const message = (isRecord(error) && String(error.message)) || String(error);
+  const type = (isRecord(error) && (error.constructor?.name ?? error.name)) || undefined;
+  const failure = ApplicationFailure.create({ message, type, nonRetryable: false });
+  failure.stack = (isRecord(error) && String(error.stack)) || '';
+  return failure;
 }
 
 /**
