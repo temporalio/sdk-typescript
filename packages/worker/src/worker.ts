@@ -403,7 +403,7 @@ export class Worker {
   public static async create(options: WorkerOptions): Promise<Worker> {
     const nativeWorkerCtor: WorkerConstructor = this.nativeWorkerCtor;
     const compiledOptions = compileWorkerOptions(addDefaultWorkerOptions(options));
-    Runtime.instance().logger.info(`Worker options:`, {
+    Runtime.instance().logger.info('Creating worker', { options: {
       ...compiledOptions,
       ...(compiledOptions.workflowBundle && isCodeBundleOption(compiledOptions.workflowBundle)
         ? {

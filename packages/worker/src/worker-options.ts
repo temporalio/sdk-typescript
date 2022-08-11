@@ -172,8 +172,8 @@ export interface WorkerOptions {
    * Use as a dial for trading memory for CPU time.
    *
    * Most users are able to fit at least 250 Workflows per GB of available memory.
-   * The major factors contributing to a workflow's memory weight are the size of allocations made
-   * by the workflow itself and the size of the workflow bundle (code and source map).
+   * The major factors contributing to a Workflow's memory weight are the size of allocations made
+   * by the Workflow itself and the size of the Workflow bundle (code and source map).
    * For the SDK test Workflows, we managed to fit 750 Workflows per GB.
    *
    * @default `max(maxHeapMemory / 1GiB - 1, 1) * 250`
