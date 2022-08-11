@@ -138,11 +138,7 @@ export class ApplicationFailure extends TemporalFailure {
    * @param type Optional error type (used by {@link RetryPolicy.nonRetryableErrorTypes})
    * @param details Optional details about the failure. Serialized by the Worker's {@link PayloadConverter}.
    */
-  public static retryable(
-    message?: string | null,
-    type?: string | null,
-    ...details: unknown[]
-  ): ApplicationFailure {
+  public static retryable(message?: string | null, type?: string | null, ...details: unknown[]): ApplicationFailure {
     return new this(message, type ?? 'Error', false, details);
   }
 
@@ -156,11 +152,7 @@ export class ApplicationFailure extends TemporalFailure {
    * @param type Optional error type
    * @param details Optional details about the failure. Serialized by the Worker's {@link PayloadConverter}.
    */
-  public static nonRetryable(
-    message?: string | null,
-    type?: string | null,
-    ...details: unknown[]
-  ): ApplicationFailure {
+  public static nonRetryable(message?: string | null, type?: string | null, ...details: unknown[]): ApplicationFailure {
     return new this(message, type ?? 'Error', true, details);
   }
 }
