@@ -83,12 +83,14 @@ export interface WorkerOptions {
   workflowsPath?: string;
 
   /**
-   * Use a pre-built bundle for Workflow code.
-   * Use {@link bundleWorkflowCode} to generate a bundle.
+   * Use a pre-built bundle for Workflow code. Use {@link bundleWorkflowCode} to generate a bundle.
    *
    * This is the recommended way to deploy Workers to production.
    *
    * See https://docs.temporal.io/typescript/production-deploy#pre-build-code for more information.
+   *
+   * When using this option, any Workflow interceptors provided in {@link interceptors} are not used. Instead, provide
+   * them via {@link BundleOptions.workflowInterceptorModules} when calling {@link bundleWorkflowCode}.
    */
   workflowBundle?: WorkflowBundleOption;
 
@@ -197,9 +199,11 @@ export interface WorkerOptions {
   /**
    * A mapping of interceptor type to a list of factories or module paths.
    *
-   * By default {@link ActivityInboundLogInterceptor} and {@link WorkflowInboundLogInterceptor} are installed.
+   * By default, {@link ActivityInboundLogInterceptor} and {@link WorkflowInboundLogInterceptor} are installed. If you
+   * wish to customize the interceptors while keeping the defaults, use {@link appendDefaultInterceptors}.
    *
-   * If you wish to customize the interceptors while keeping the defaults, use {@link appendDefaultInterceptors}.
+   * When using {@link workflowBundle}, these Workflow interceptors (`WorkerInterceptors.workflowModules`) are not used.
+   * Instead, provide them via {@link BundleOptions.workflowInterceptorModules} when calling {@link bundleWorkflowCode}.
    */
   interceptors?: WorkerInterceptors;
 
