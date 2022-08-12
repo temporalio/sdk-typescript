@@ -431,7 +431,7 @@ export function addDefaultWorkerOptions(options: WorkerOptions): WorkerOptionsWi
  * taking into account applicable constraints that can be discovered.
  * At present, it accounts for CGroups v1 and v2 constraints on memory and swap.
  */
-export function inspectSystemResources(): { memory: number; heap: number } {
+function inspectSystemResources(): { memory: number; heap: number } {
   const resources = {
     memory: os.totalmem(),
     heap: v8.getHeapStatistics().heap_size_limit,
