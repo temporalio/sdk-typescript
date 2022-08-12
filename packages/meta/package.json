@@ -10,7 +10,8 @@
     "@temporalio/proto": "file:../proto",
     "@temporalio/testing": "file:../testing",
     "@temporalio/worker": "file:../worker",
-    "@temporalio/workflow": "file:../workflow"
+    "@temporalio/workflow": "file:../workflow",
+    "@temporalio/core-bridge": "file:../core-bridge"
   },
   "author": "Temporal Technologies Inc. <sdk@temporal.io>",
   "license": "MIT",
