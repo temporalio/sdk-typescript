@@ -403,17 +403,19 @@ export class Worker {
   public static async create(options: WorkerOptions): Promise<Worker> {
     const nativeWorkerCtor: WorkerConstructor = this.nativeWorkerCtor;
     const compiledOptions = compileWorkerOptions(addDefaultWorkerOptions(options));
-    Runtime.instance().logger.info('Creating worker', { options: {
-      ...compiledOptions,
-      ...(compiledOptions.workflowBundle && isCodeBundleOption(compiledOptions.workflowBundle)
-        ? {
-            // Avoid dumping workflow bundle code to the console
-            workflowBundle: <WorkflowBundleWithSourceMap>{
-              code: `<string of length ${compiledOptions.workflowBundle.code.length}>`,
-              sourceMap: `<string of length ${compiledOptions.workflowBundle.sourceMap.length}>`,
-            },
-          }
-        : {}),
+    Runtime.instance().logger.info('Creating worker', {
+      options: {
+        ...compiledOptions,
+        ...(compiledOptions.workflowBundle && isCodeBundleOption(compiledOptions.workflowBundle)
+          ? {
+              // Avoid dumping workflow bundle code to the console
+              workflowBundle: <WorkflowBundleWithSourceMap>{
+                code: `<string of length ${compiledOptions.workflowBundle.code.length}>`,
+                sourceMap: `<string of length ${compiledOptions.workflowBundle.sourceMap.length}>`,
+              },
+            }
+          : {}),
+      },
     });
     const bundle = await this.getOrCreateBundle(compiledOptions, Runtime.instance().logger);
     let workflowCreator: WorkflowCreator | undefined = undefined;

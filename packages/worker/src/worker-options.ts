@@ -6,7 +6,7 @@ import { NativeConnection } from './connection';
 import { WorkerInterceptors } from './interceptors';
 import { Runtime } from './runtime';
 import { InjectedSinks } from './sinks';
-import { GiB } from './utils';
+import { GiB, toMB } from './utils';
 import { LoggerSinks } from './workflow-log-interceptor';
 import { WorkflowBundleWithSourceMap } from './workflow/bundler';
 import * as v8 from 'v8';
@@ -438,22 +438,29 @@ export function inspectSystemResources(): { memory: number; heap: number } {
   };
 
   if (process.platform === 'linux') {
-    // v2 style cgroups
-    const cgroupsv2MemoryMax = Number(tryReadFileSync('/sys/fs/cgroup/memory.max'));
-    if (!isNaN(cgroupsv2MemoryMax)) resources.memory = Math.min(cgroupsv2MemoryMax, resources.memory);
+    // v2 style cgroup
+    const cgroupv2MemoryMax = Number(tryReadFileSync('/sys/fs/cgroup/memory.max'));
+    if (!isNaN(cgroupv2MemoryMax)) resources.memory = Math.min(cgroupv2MemoryMax, resources.memory);
 
-    // v1 style cgroups
+    // v1 style cgroup
     const cgroupv1MemoryMax = Number(tryReadFileSync('/sys/fs/cgroup/memory/memory.limit_in_bytes'));
     if (!isNaN(cgroupv1MemoryMax)) resources.memory = Math.min(cgroupv1MemoryMax, resources.memory);
-  }
 
-  if (resources.heap > resources.memory * 0.8) {
-    Runtime.instance().logger.warn(
-      `node's heap size limit is over 80% of available memory ` +
-        `(heap size limit = ${resources.heap}, system memory = ${resources.memory}) ` +
-        `This might degrade performances and could result in OOM errors. ` +
-        `For optimal performance, try setting '--max-old-space-size' at 75% of system memory.`
-    );
+    const hasMemoryConstraints = cgroupv1MemoryMax < resources.memory || cgroupv2MemoryMax < resources.memory;
+    if (hasMemoryConstraints && resources.heap > resources.memory) {
+      const memInMb = toMB(resources.memory, 0);
+      const suggestedOldSpaceSizeInMb = toMB(resources.memory * 0.75, 0);
+
+      Runtime.instance().logger.warn(
+        `This program is running inside a containerized environment with a memory constraint ` +
+          `(eg. docker --memory ${memInMb}m). node itself does not consider such memory constraint ` +
+          `in how it manage its heap memory. There is consequently a high probability that ` +
+          `the process might face OOM errors. To increase reliability, we recommend adding ` +
+          `'--max-old-space-size=${suggestedOldSpaceSizeInMb}' to your node's arguments. ` +
+          `Refer to https://docs.temporal.io/application-development/worker-performance for more ` +
+          `advices on how to properly tune your workers.`
+      );
+    }
   }
 
   return resources;
