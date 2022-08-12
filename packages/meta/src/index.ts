@@ -7,4 +7,3 @@ export * as workflow from '@temporalio/workflow';
 export * as activity from '@temporalio/activity';
 export * as testing from '@temporalio/testing';
 export * as opentelemetry from '@temporalio/interceptors-opentelemetry';
-export * as core from '@temporalio/core-bridge';

@@ -10,8 +10,7 @@
     { "path": "../client" },
     { "path": "../common" },
     { "path": "../worker" },
-    { "path": "../workflow" },
-    { "path": "../core-bridge" }
+    { "path": "../workflow" }
   ],
   "include": ["./src/**/*.ts"]
 }
