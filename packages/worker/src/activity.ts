@@ -2,7 +2,7 @@ import { asyncLocalStorage, Context, Info } from '@temporalio/activity';
 import {
   ApplicationFailure,
   CancelledFailure,
-  ensureTemporalFailure,
+  ensureApplicationFailure,
   FAILURE_SOURCE,
   LoadedDataConverter,
 } from '@temporalio/common';
@@ -96,7 +96,7 @@ export class Activity {
         }
         return {
           failed: {
-            failure: await encodeErrorToFailure(this.dataConverter, ensureTemporalFailure(err)),
+            failure: await encodeErrorToFailure(this.dataConverter, ensureApplicationFailure(err)),
           },
         };
       }

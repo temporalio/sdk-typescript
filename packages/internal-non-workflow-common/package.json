@@ -1,6 +1,6 @@
 {
   "name": "@temporalio/internal-non-workflow-common",
-  "version": "0.23.0",
+  "version": "1.0.1",
   "description": "Internal SDK library: users should usually use other packages instead. Not included in Workflow bundle.",
   "main": "lib/index.js",
   "types": "./lib/index.d.ts",
@@ -10,9 +10,10 @@
     "worker",
     "common"
   ],
-  "author": "Roey Berman <roey@temporal.io>",
+  "author": "Temporal Technologies Inc. <sdk@temporal.io>",
   "license": "MIT",
   "dependencies": {
+    "@opentelemetry/api": "^1.0.3",
     "@temporalio/common": "file:../common",
     "@temporalio/internal-workflow-common": "file:../internal-workflow-common"
   },
@@ -23,7 +24,8 @@
   "publishConfig": {
     "access": "public"
   },
-  "devDependencies": {
-    "@types/lodash": "^4.14.178"
-  }
+  "files": [
+    "src",
+    "lib"
+  ]
 }

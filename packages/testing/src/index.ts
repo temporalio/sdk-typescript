@@ -1,3 +1,13 @@
+/**
+ * `npm i @temporalio/testing`
+ *
+ * Testing library for the SDK.
+ *
+ * [Documentation](https://docs.temporal.io/typescript/testing)
+ *
+ * @module
+ */
+
 import * as activity from '@temporalio/activity';
 import {
   AsyncCompletionClient,
@@ -14,7 +24,7 @@ import { AbortController } from 'abort-controller';
 import { ChildProcess, spawn, StdioOptions } from 'child_process';
 import events from 'events';
 import { kill, waitOnChild } from './child-process';
-import type getPortType from 'get-port';
+import getPort from 'get-port';
 import { Connection, TestService } from './test-service-client';
 
 const TEST_SERVER_EXECUTABLE_NAME = os.platform() === 'win32' ? 'test-server.exe' : 'test-server';
@@ -151,10 +161,6 @@ function addDefaults({
   };
 }
 
-// TS transforms `import` statements into `require`s, this is a workaround until
-// tsconfig module nodenext is stable.
-const _importDynamic = new Function('modulePath', 'return import(modulePath)');
-
 /**
  * An execution environment for running Workflow integration tests.
  *
@@ -199,8 +205,6 @@ export class TestWorkflowEnvironment {
    * Create a new test environment
    */
   static async create(opts?: TestWorkflowEnvironmentOptions): Promise<TestWorkflowEnvironment> {
-    // No, we're not going to compile this to ESM for one dependency
-    const getPort = (await _importDynamic('get-port')).default as typeof getPortType;
     const port = await getPort();
 
     const { testServerSpawner, logger } = addDefaults(opts ?? {});
@@ -292,6 +296,7 @@ export class TestWorkflowEnvironment {
  */
 export const defaultActivityInfo: activity.Info = {
   attempt: 1,
+  taskQueue: 'test',
   isLocal: false,
   taskToken: Buffer.from('test'),
   activityId: 'test',
@@ -333,6 +338,9 @@ export class MockActivityEnvironment extends events.EventEmitter {
       abortController.signal,
       heartbeatCallback
     );
+    promise.catch(() => {
+      /* avoid unhandled rejection */
+    });
   }
 
   /**

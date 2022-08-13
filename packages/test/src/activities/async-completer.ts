@@ -1,7 +1,7 @@
 import { Observer } from 'rxjs';
-import { ActivityInterface, CompleteAsyncError, Context, Info } from '@temporalio/activity';
+import { CompleteAsyncError, Context, Info } from '@temporalio/activity';
 
-export interface Activities extends ActivityInterface {
+export interface Activities {
   completeAsync(): Promise<string>;
 }
 

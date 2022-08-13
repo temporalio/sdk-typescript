@@ -60,6 +60,6 @@ export type WorkerThreadInput = Init | Destroy | CreateWorkflow | ActivateWorkfl
  * The ID is used to respond to this request
  */
 export interface WorkerThreadRequest {
-  requestId: BigInt;
+  requestId: bigint;
   input: WorkerThreadInput;
 }

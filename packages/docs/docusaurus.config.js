@@ -40,7 +40,11 @@ module.exports = {
         {
           items: [
             {
-              label: 'NPM',
+              label: 'SDK Docs',
+              href: 'https://docs.temporal.io/typescript/introduction/',
+            },
+            {
+              label: 'npm',
               href: 'https://www.npmjs.com/package/temporalio',
             },
             {
@@ -48,21 +52,13 @@ module.exports = {
               href: 'https://community.temporal.io/',
             },
             {
-              label: 'Public Slack',
-              href: 'https://join.slack.com/t/temporalio/shared_invite/zt-onhti57l-J0bl~Tr7MqSUnIc1upjRkw',
-            },
-            {
-              label: 'Temporal Careers',
-              href: 'https://temporal.io/careers',
+              label: 'Community Slack',
+              href: 'https://temporal.io/slack',
             },
           ],
         },
         {
           items: [
-            {
-              label: 'Temporal Documentation',
-              to: 'https://docs.temporal.io',
-            },
             {
               label: 'GitHub',
               href: 'https://github.com/temporalio/sdk-typescript',
@@ -75,6 +71,10 @@ module.exports = {
               label: 'YouTube',
               href: 'https://www.youtube.com/channel/UCGovZyy8OfFPNlNV0i1fI1g',
             },
+            {
+              label: 'Temporal Careers',
+              href: 'https://temporal.io/careers',
+            },
           ],
         },
       ],
@@ -82,7 +82,7 @@ module.exports = {
     },
     algolia: {
       appId: 'FL5BOEA5LF',
-      apiKey: process.env.ALGOLIA_API_KEY,
+      apiKey: '00c3351a19fe08956c234eef9938d2ff', // public client key (search-only)
       indexName: 'typescript-temporal',
       algoliaOptions: { facetFilters: ['type:$TYPE'] },
     },
@@ -117,20 +117,7 @@ module.exports = {
         id: 'meta-docs',
         entryPoints: ['../meta/src/index.ts'],
         tsconfig: '../meta/tsconfig.json',
-        excludePrivate: true,
-        excludeProtected: true,
-        hideGenerator: true,
-        disableSources: true,
-        readme: 'none',
-        watch,
-      },
-    ],
-    [
-      'docusaurus-plugin-typedoc',
-      {
-        id: 'teesting-docs',
-        entryPoints: ['../testing/src/index-for-docs.ts'],
-        tsconfig: '../testing/tsconfig.json',
+        excludeInternal: true,
         excludePrivate: true,
         excludeProtected: true,
         hideGenerator: true,

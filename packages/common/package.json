@@ -1,6 +1,6 @@
 {
   "name": "@temporalio/common",
-  "version": "0.23.0",
+  "version": "1.0.1",
   "description": "Common library for code that's used across the Client, Worker, and/or Workflow",
   "main": "lib/index.js",
   "types": "./lib/index.d.ts",
@@ -9,12 +9,14 @@
     "workflow",
     "worker"
   ],
-  "author": "Loren Sands-Ramshaw <loren@temporal.io>",
+  "author": "Temporal Technologies Inc. <sdk@temporal.io>",
   "license": "MIT",
   "dependencies": {
+    "@opentelemetry/api": "^1.0.3",
     "@temporalio/internal-workflow-common": "file:../internal-workflow-common",
     "@temporalio/proto": "file:../proto",
-    "proto3-json-serializer": "^0.1.6"
+    "proto3-json-serializer": "^1.0.3",
+    "protobufjs": "^7.0.0"
   },
   "bugs": {
     "url": "https://github.com/temporalio/sdk-typescript/issues"
@@ -23,7 +25,8 @@
   "publishConfig": {
     "access": "public"
   },
-  "devDependencies": {
-    "protobufjs": "^6.11.2"
-  }
+  "files": [
+    "src",
+    "lib"
+  ]
 }

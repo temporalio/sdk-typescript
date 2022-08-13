@@ -1,6 +1,6 @@
 import { ApplicationFailure, defaultPayloadConverter, WorkflowClient, WorkflowFailedError } from '@temporalio/client';
 import { temporal } from '@temporalio/proto';
-import { Worker } from '@temporalio/worker';
+import { bundleWorkflowCode, Worker, WorkflowBundleWithSourceMap } from '@temporalio/worker';
 import { isCancellation } from '@temporalio/workflow';
 import anyTest, { TestInterface } from 'ava';
 import { firstValueFrom, Subject } from 'rxjs';
@@ -10,30 +10,40 @@ import { RUN_INTEGRATION_TESTS } from './helpers';
 import * as workflows from './workflows/local-activity-testers';
 
 interface Context {
+  workflowBundle: WorkflowBundleWithSourceMap;
   taskQueue: string;
   client: WorkflowClient;
+  getWorker: () => Promise<Worker>;
 }
 
 const test = anyTest as TestInterface<Context>;
 
+test.before(async (t) => {
+  t.context.workflowBundle = await bundleWorkflowCode({
+    workflowsPath: require.resolve('./workflows/local-activity-testers'),
+  });
+});
+
 test.beforeEach(async (t) => {
   const title = t.title.replace('beforeEach hook for ', '');
   const taskQueue = `test-local-activities-${title}`;
-  t.context = { client: new WorkflowClient(), taskQueue };
-});
-
-async function defaultWorker(taskQueue: string) {
-  return await Worker.create({
+  t.context = {
+    ...t.context,
+    client: new WorkflowClient(),
     taskQueue,
-    workflowsPath: require.resolve('./workflows/local-activity-testers'),
-    activities,
-  });
-}
+    getWorker: () =>
+      Worker.create({
+        taskQueue,
+        workflowBundle: t.context.workflowBundle,
+        activities,
+      }),
+  };
+});
 
 if (RUN_INTEGRATION_TESTS) {
   test('Simple local activity works end to end', async (t) => {
-    const { client, taskQueue } = t.context;
-    const worker = await defaultWorker(taskQueue);
+    const { client, taskQueue, getWorker } = t.context;
+    const worker = await getWorker();
     await worker.runUntil(async () => {
       const res = await client.execute(workflows.runOneLocalActivity, {
         workflowId: uuid4(),
@@ -44,9 +54,29 @@ if (RUN_INTEGRATION_TESTS) {
     });
   });
 
+  test('isLocal is set correctly', async (t) => {
+    const { client, taskQueue, getWorker } = t.context;
+    const worker = await getWorker();
+    await worker.runUntil(async () => {
+      const res1 = await client.execute(workflows.getIsLocal, {
+        workflowId: uuid4(),
+        taskQueue,
+        args: [true],
+      });
+      t.is(res1, true);
+
+      const res2 = await client.execute(workflows.getIsLocal, {
+        workflowId: uuid4(),
+        taskQueue,
+        args: [false],
+      });
+      t.is(res2, false);
+    });
+  });
+
   test('Parallel local activities work end to end', async (t) => {
-    const { client, taskQueue } = t.context;
-    const worker = await defaultWorker(taskQueue);
+    const { client, taskQueue, getWorker } = t.context;
+    const worker = await getWorker();
     await worker.runUntil(async () => {
       const args = ['hey', 'ho', 'lets', 'go'];
       const handle = await client.start(workflows.runParallelLocalActivities, {
@@ -70,8 +100,8 @@ if (RUN_INTEGRATION_TESTS) {
   });
 
   test('Local activity error is propagated properly to the Workflow', async (t) => {
-    const { client, taskQueue } = t.context;
-    const worker = await defaultWorker(taskQueue);
+    const { client, taskQueue, getWorker } = t.context;
+    const worker = await getWorker();
     await worker.runUntil(async () => {
       const err: WorkflowFailedError = await t.throwsAsync(
         client.execute(workflows.throwAnErrorFromLocalActivity, {
@@ -86,8 +116,8 @@ if (RUN_INTEGRATION_TESTS) {
   });
 
   test('Local activity cancellation is propagated properly to the Workflow', async (t) => {
-    const { client, taskQueue } = t.context;
-    const worker = await defaultWorker(taskQueue);
+    const { client, taskQueue, getWorker } = t.context;
+    const worker = await getWorker();
     await worker.runUntil(async () => {
       const err: WorkflowFailedError = await t.throwsAsync(
         client.execute(workflows.cancelALocalActivity, {
@@ -104,8 +134,8 @@ if (RUN_INTEGRATION_TESTS) {
   });
 
   test('Failing local activity can be cancelled', async (t) => {
-    const { client, taskQueue } = t.context;
-    const worker = await defaultWorker(taskQueue);
+    const { client, taskQueue, getWorker } = t.context;
+    const worker = await getWorker();
     await worker.runUntil(async () => {
       const err: WorkflowFailedError = await t.throwsAsync(
         client.execute(workflows.cancelALocalActivity, {
@@ -122,8 +152,8 @@ if (RUN_INTEGRATION_TESTS) {
   });
 
   test('Serial local activities (in the same task) work end to end', async (t) => {
-    const { client, taskQueue } = t.context;
-    const worker = await defaultWorker(taskQueue);
+    const { client, taskQueue, getWorker } = t.context;
+    const worker = await getWorker();
     await worker.runUntil(async () => {
       const handle = await client.start(workflows.runSerialLocalActivities, {
         workflowId: uuid4(),
@@ -145,8 +175,8 @@ if (RUN_INTEGRATION_TESTS) {
   });
 
   test('Local activity does not retry if error is in nonRetryableErrorTypes', async (t) => {
-    const { client, taskQueue } = t.context;
-    const worker = await defaultWorker(taskQueue);
+    const { client, taskQueue, getWorker } = t.context;
+    const worker = await getWorker();
     await worker.runUntil(async () => {
       const err: WorkflowFailedError = await t.throwsAsync(
         client.execute(workflows.throwAnExplicitNonRetryableErrorFromLocalActivity, {
@@ -259,8 +289,7 @@ if (RUN_INTEGRATION_TESTS) {
     });
   });
 
-  // TODO: fix Core shutdown and reenable this test
-  test.skip('Worker shutdown while running a local activity completes after completion', async (t) => {
+  test('Worker shutdown while running a local activity completes after completion', async (t) => {
     const { client, taskQueue } = t.context;
     const subj = new Subject<void>();
     const worker = await Worker.create({
@@ -300,8 +329,8 @@ if (RUN_INTEGRATION_TESTS) {
   });
 
   test('Local activity fails if not registered on Worker', async (t) => {
-    const { client, taskQueue } = t.context;
-    const worker = await defaultWorker(taskQueue);
+    const { client, taskQueue, getWorker } = t.context;
+    const worker = await getWorker();
     await worker.runUntil(async () => {
       const err: WorkflowFailedError = await t.throwsAsync(
         client.execute(workflows.runANonExisitingLocalActivity, {

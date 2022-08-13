@@ -1,8 +1,44 @@
 # How to Contribute
 
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+
+**Table of Contents**
+
+- [Maintenance](#maintenance)
+- [Getting started](#getting-started)
+  - [Contributor License Agreement (CLA)](#contributor-license-agreement-cla)
+  - [SDK Structure](#sdk-structure)
+  - [Environment setup](#environment-setup)
+- [Development](#development)
+  - [Testing](#testing)
+    - [Testing local changes to core](#testing-local-changes-to-core)
+      - [Integration tests](#integration-tests)
+    - [test-npm-init](#test-npm-init)
+  - [Style Guide](#style-guide)
+- [Publishing](#publishing)
+- [Updating the Java test server proto files](#updating-the-java-test-server-proto-files)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
 The TypeScript SDK (as well as the rest of the Temporal codebase) is open sourced under the MIT license.
 
-We welcome contributions from the community. To contribute please start by opening an [issue](https://github.com/temporalio/sdk-typescript/issues) and discussing the proposed change. Once a change has been agreed upon, development may start and be submitted via a [pull request](https://github.com/temporalio/sdk-typescript/pulls).
+We welcome contributions from the community. To contribute, please start by opening an [issue](https://github.com/temporalio/sdk-typescript/issues) and discussing the proposed change. Once a change has been agreed upon, development may start and be submitted via a [pull request](https://github.com/temporalio/sdk-typescript/pulls).
+
+## Maintenance
+
+The current maintainers are:
+
+- [Loren `lorensr`](https://github.com/lorensr)
+- [Roey `bergundy`](https://github.com/bergundy)
+
+If you'd like to join us, [email Loren](mailto:loren@temporal.io). We'd be happy to have help with any of these things:
+
+- Triaging issues
+- Reviewing PRs
+- Submitting PRs to close issues
+
+## Getting started
 
 ### Contributor License Agreement (CLA)
 
@@ -14,7 +50,7 @@ See [sdk-structure.md](./docs/sdk-structure.md)
 
 ### Environment setup
 
-- Install the system dependencies listed in [Getting started > Step 0: Prerequisites](https://docs.temporal.io/node/getting-started/#step-0-prerequisites)
+- Install Node 16 and [Temporal Server](https://github.com/temporalio/docker-compose#temporal-server-docker-compose-files)
 - Install the [Rust toolchain](https://rustup.rs/)
 - Clone the [sdk-typescript](https://github.com/temporalio/sdk-typescript) repo:
   ```sh
@@ -48,7 +84,7 @@ To update to the latest version of the Core SDK, run `git submodule update` foll
 
 > For cross compilation on MacOS follow [these instructions](https://github.com/temporalio/sdk-typescript/blob/main/docs/building.md) (only required for publishing packages).
 
-### Development Workflow
+## Development
 
 After your environment is set up, you can run these commands:
 
@@ -106,7 +142,7 @@ chore(samples): upgrade commander module
 
 The `scope` options are listed in [commitlint.config.js](https://github.com/temporalio/sdk-typescript/blob/main/commitlint.config.js).
 
-### Publishing
+## Publishing
 
 First, follow the instructions in [docs/building.md](docs/building.md).
 
@@ -116,7 +152,7 @@ cargo install git-cliff
 
 ```sh
 # git-cliff --tag <new version> <current version>..HEAD | pbcopy
-git-cliff --tag 0.18.0 v0.17.2..HEAD | pbcopy
+git-cliff --tag 1.0.1 v1.0.0..HEAD | pbcopy
 ```
 
 - Paste into [CHANGELOG.md](CHANGELOG.md)
@@ -129,11 +165,14 @@ git-cliff --tag 0.18.0 v0.17.2..HEAD | pbcopy
 [#$1](https://github.com/temporalio/sdk-typescript/pull/$1)
 ```
 
+- If PRs came from external contributors, thank them & link their github handles: `([#484](link), thanks to [`@user`](https://github.com/user) 🙏)`
 - Open PR with CHANGELOG change
+- Merge PR
+- Checkout latest `main`
 
 We're [working on automating](https://github.com/temporalio/sdk-typescript/pull/395) the rest of the process:
 
-- Log in to npm as `temporal-sdk-team`
+- Log in to npm as `temporal-sdk-team` (`npm whoami` and `npm login`)
 - Download the artifacts from [GitHub Actions](https://github.com/temporalio/sdk-typescript/actions)
 - Publish:
 
@@ -145,13 +184,11 @@ git clean -fdx
 npm ci
 npm run build
 
+mkdir -p packages/core-bridge/releases
+
+# in the next command, replace ~/gh/release-sdk-typescript with your dir
 for f in ~/Downloads/packages-*.zip; do mkdir "$HOME/Downloads/$(basename -s .zip $f)"; (cd "$HOME/Downloads/$(basename -s .zip $f)" && unzip $f && tar -xvzf @temporalio/core-bridge/core-bridge-*.tgz package/releases/ && cp -r package/releases/* ~/gh/release-sdk-typescript/packages/core-bridge/releases/); done
 
-# we don't build for aarch64-linux in CI, so we build for it now
-export CC_aarch64_unknown_linux_gnu=aarch64-unknown-linux-gnu-gcc
-export CC_x86_64_unknown_linux_gnu=x86_64-unknown-linux-gnu-gcc
-export TEMPORAL_WORKER_BUILD_TARGETS=aarch64-unknown-linux-gnu
-npx lerna run --stream build-rust -- -- --target ${TEMPORAL_WORKER_BUILD_TARGETS}
 # we should now have all 5 build targets
 ls packages/core-bridge/releases/
 
@@ -159,13 +196,41 @@ npx lerna version patch # or major|minor|etc, or leave out to be prompted. eithe
 npx lerna publish from-git # add `--dist-tag next` for pre-release versions
 ```
 
-- Cleanup:
+- Cleanup after publishing:
 
 ```sh
 rm $HOME/Downloads/packages-*
+rm packages/core-bridge/releases/
 ```
 
-### Updating the Java test server proto files
+### Updating published packages
+
+`npm` commands we may need to use:
+
+If we publish a version like `1.1.0-rc.1` with tag `next`, we untag it after `1.1.0` is released:
+
+```
+npm dist-tag rm @temporalio/client next
+npm dist-tag rm @temporalio/worker next
+npm dist-tag rm @temporalio/workflow next
+npm dist-tag rm @temporalio/activity next
+npm dist-tag rm @temporalio/testing next
+npm dist-tag rm @temporalio/common next
+npm dist-tag rm @temporalio/proto next
+npm dist-tag rm @temporalio/interceptors-opentelemetry next
+npm dist-tag rm @temporalio/internal-workflow-common next
+npm dist-tag rm @temporalio/internal-non-workflow-common next
+npm dist-tag rm @temporalio/create next
+npm dist-tag rm temporalio next
+```
+
+When we want to deprecate a package:
+
+```
+npm deprecate temporalio@^1.0.0 "Instead of installing temporalio, we recommend directly installing our packages: npm remove temporalio; npm install @temporalio/client @temporalio/worker @temporalio/workflow @temporalio/activity"
+```
+
+## Updating the Java test server proto files
 
 [These files](https://github.com/temporalio/sdk-java/tree/master/temporal-test-server/src/main/proto) are taken from the `sdk-java` repo.
 

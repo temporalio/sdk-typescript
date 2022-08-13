@@ -8,7 +8,10 @@ import { isolateFreeWorker, Worker } from './mock-native-worker';
 async function runActivity(worker: Worker, callback?: (completion: coresdk.ActivityTaskCompletion) => void) {
   const taskToken = Buffer.from(uuid4());
   await worker.runUntil(async () => {
-    const completion = await worker.native.runActivityTask({ taskToken, start: { activityType: 'rapidHeartbeater' } });
+    const completion = await worker.native.runActivityTask({
+      taskToken,
+      start: { activityType: 'rapidHeartbeater', workflowExecution: { workflowId: 'wfid', runId: 'runid' } },
+    });
     callback?.(completion);
   });
 }

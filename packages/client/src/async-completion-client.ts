@@ -13,8 +13,8 @@ import { isServerErrorResponse } from './errors';
 import { ConnectionLike, WorkflowService } from './types';
 
 /**
- * Thrown by {@link AsyncCompletionClient} when trying to complete or heartbeat
- * an Activity which does not exist in the system.
+ * Thrown by {@link AsyncCompletionClient} when trying to complete or heartbeat an Activity that does not exist in the
+ * system.
  */
 export class ActivityNotFoundError extends Error {
   public readonly name = 'ActivityNotFoundError';
@@ -22,7 +22,7 @@ export class ActivityNotFoundError extends Error {
 
 /**
  * Thrown by {@link AsyncCompletionClient} when trying to complete or heartbeat
- * an Activity for any reason apart from "not found".
+ * an Activity for any reason apart from {@link ActivityNotFoundError}.
  */
 export class ActivityCompletionError extends Error {
   public readonly name = 'ActivityCompletionError';

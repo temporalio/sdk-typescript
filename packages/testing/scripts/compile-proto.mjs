@@ -1,12 +1,14 @@
+import { createRequire } from 'module';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { promisify } from 'util';
 import dedent from 'dedent';
 import glob from 'glob';
 import { statSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
-import pbjs from 'protobufjs/cli/pbjs.js';
-import pbts from 'protobufjs/cli/pbts.js';
+import pbjs from 'protobufjs-cli/pbjs.js';
+import pbts from 'protobufjs-cli/pbts.js';
 
+const require = createRequire(import.meta.url);
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const outputDir = resolve(__dirname, '../generated-protos');
 const outputFile = resolve(outputDir, 'index.js');
@@ -40,9 +42,24 @@ async function compileProtos(protoPath, jsOutputFile, dtsOutputFile, ...args) {
     '__temporal_testing',
     '--out',
     jsOutputFile,
+    resolve(require.resolve('protobufjs'), '../google/protobuf/descriptor.proto'),
     protoPath,
   ];
   await promisify(pbjs.main)(pbjsArgs);
+
+  // Workaround an issue that prevents protobufjs from loading 'long' in Yarn 3 PnP
+  // https://github.com/protobufjs/protobuf.js/issues/1745#issuecomment-1200319399
+  const pbjsOutput = readFileSync(jsOutputFile, 'utf8');
+  writeFileSync(
+    jsOutputFile,
+    pbjsOutput.replace(
+      /(require\("protobufjs\/minimal"\);)$/m,
+      `$1
+       $protobuf.util.Long = require('long');
+       $protobuf.configure();
+    `
+    )
+  );
 
   console.log(`Creating protobuf TS definitions from ${protoPath}`);
   await promisify(pbts.main)(['--out', dtsOutputFile, jsOutputFile]);
@@ -58,24 +75,17 @@ async function compileProtos(protoPath, jsOutputFile, dtsOutputFile, ...args) {
   );
 }
 
-async function main() {
-  mkdirSync(outputDir, { recursive: true });
+mkdirSync(outputDir, { recursive: true });
 
-  const protoFiles = glob.sync(resolve(protoBaseDir, '**/*.proto'));
-  const protosMTime = Math.max(...protoFiles.map(mtime));
-  const genMTime = mtime(outputFile);
+const protoFiles = glob.sync(resolve(protoBaseDir, '**/*.proto'));
+const protosMTime = Math.max(...protoFiles.map(mtime));
+const genMTime = mtime(outputFile);
 
-  if (protosMTime < genMTime) {
-    console.log('Assuming protos are up to date');
-    return;
-  }
-
-  await compileProtos(serviceProtoPath, outputFile, resolve(outputDir, 'index.d.ts'), '--path', resolve(protoBaseDir));
-
-  console.log('Done');
+if (protosMTime < genMTime) {
+  console.log('Assuming protos are up to date');
+  process.exit(0);
 }
 
-main().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+await compileProtos(serviceProtoPath, outputFile, resolve(outputDir, 'index.d.ts'), '--path', resolve(protoBaseDir));
+
+console.log('Done');

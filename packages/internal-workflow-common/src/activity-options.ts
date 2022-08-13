@@ -77,7 +77,7 @@ Note that the Temporal Server doesn't detect Worker process failures directly. I
    *   heartbeat or chooses to ignore the cancellation request.
    * - `ABANDON` - Do not request cancellation of the activity and immediately report cancellation to the workflow.
    */
-  cancellationType?: coresdk.workflow_commands.ActivityCancellationType;
+  cancellationType?: ActivityCancellationType;
 }
 
 /**
@@ -144,12 +144,3 @@ export interface LocalActivityOptions {
    */
   cancellationType?: coresdk.workflow_commands.ActivityCancellationType;
 }
-
-export interface ActivityFunction<P extends any[], R> {
-  (...args: P): Promise<R>;
-}
-
-/**
- * Mapping of Activity name to function
- */
-export type ActivityInterface = Record<string, ActivityFunction<any[], any>>;

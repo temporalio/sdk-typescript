@@ -42,6 +42,7 @@ jobs:
         with:
           repository: temporalio/docker-compose
           path: docker-compose
+          ref: v1.17.1
 
       - name: Start Temporal Server
         run: docker-compose up -d
@@ -54,11 +55,10 @@ jobs:
       - run: mkdir -p $TEMPORAL_TESTING_LOG_DIR/tails
       - run: mkdir -p $TEMPORAL_TESTING_MEM_LOG_DIR
       - run: 'timeout ${{ inputs.test-timeout-minutes }}m npm run ${{ inputs.test-type }}'
-      # Tail the logs and upload as artifact on cancel or failure
       - run: for f in $TEMPORAL_TESTING_LOG_DIR/*.log; do tail -20000 $f > $TEMPORAL_TESTING_LOG_DIR/tails/$(basename $f); done
-        if: ${{ cancelled() || failure() }}
+        if: ${{ always() }}
       - uses: actions/upload-artifact@v3
-        if: ${{ cancelled() || failure() }}
+        if: ${{ always() }}
         with:
           name: worker-logs
           path: ${{ env.TEMPORAL_TESTING_LOG_DIR }}/tails

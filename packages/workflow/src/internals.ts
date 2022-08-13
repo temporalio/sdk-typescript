@@ -212,8 +212,11 @@ export class Activator implements ActivationHandler {
   protected queryWorkflowNextHandler({ queryName, args }: QueryInput): Promise<unknown> {
     const fn = state.queryHandlers.get(queryName);
     if (fn === undefined) {
+      const knownQueryTypes = [...state.queryHandlers.keys()].join(' ');
       // Fail the query
-      throw new ReferenceError(`Workflow did not register a handler for ${queryName}`);
+      throw new ReferenceError(
+        `Workflow did not register a handler for ${queryName}. Registered queries: [${knownQueryTypes}]`
+      );
     }
     try {
       const ret = fn(...args);
@@ -475,16 +478,6 @@ export class State {
    * Information about the current Workflow
    */
   public info?: WorkflowInfo;
-
-  /**
-   * Whether a Workflow is replaying history or processing new events
-   */
-  isReplaying?: boolean;
-
-  /**
-   * ID of last WorkflowTaskStarted event
-   */
-  historyLength?: number;
 
   /**
    * A deterministic RNG, used by the isolate's overridden Math.random
