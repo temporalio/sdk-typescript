@@ -453,12 +453,12 @@ function inspectSystemResources(): { memory: number; heap: number } {
 
       Runtime.instance().logger.warn(
         `This program is running inside a containerized environment with a memory constraint ` +
-          `(eg. docker --memory ${memInMb}m). node itself does not consider such memory constraint ` +
-          `in how it manage its heap memory. There is consequently a high probability that ` +
-          `the process might face OOM errors. To increase reliability, we recommend adding ` +
-          `'--max-old-space-size=${suggestedOldSpaceSizeInMb}' to your node's arguments. ` +
+          `(eg. docker --memory ${memInMb}m). Node itself does not consider this memory constraint ` +
+          `in how it manages its heap memory. There is consequently a high probability that ` +
+          `the process will crash due to running out of memory. To increase reliability, we recommend adding ` +
+          `'--max-old-space-size=${suggestedOldSpaceSizeInMb}' to your node arguments. ` +
           `Refer to https://docs.temporal.io/application-development/worker-performance for more ` +
-          `advices on how to properly tune your workers.`
+          `advice on tuning your workers.`
       );
     }
   }
