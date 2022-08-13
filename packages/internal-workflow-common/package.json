@@ -1,6 +1,6 @@
 {
   "name": "@temporalio/internal-workflow-common",
-  "version": "1.0.0-rc.0",
+  "version": "1.0.1",
   "description": "Internal SDK library: users should usually use other packages instead. Included in Workflow bundle.",
   "main": "lib/index.js",
   "types": "./lib/index.d.ts",
@@ -9,11 +9,11 @@
     "workflow",
     "worker"
   ],
-  "author": "Loren Sands-Ramshaw <loren@temporal.io>",
+  "author": "Temporal Technologies Inc. <sdk@temporal.io>",
   "license": "MIT",
   "dependencies": {
     "@temporalio/proto": "file:../proto",
-    "long": "^4.0.0",
+    "long": "^5.2.0",
     "ms": "^2.1.3"
   },
   "bugs": {
@@ -22,5 +22,9 @@
   "homepage": "https://github.com/temporalio/sdk-typescript/tree/main/packages/internal-workflow-common",
   "publishConfig": {
     "access": "public"
-  }
+  },
+  "files": [
+    "src",
+    "lib"
+  ]
 }

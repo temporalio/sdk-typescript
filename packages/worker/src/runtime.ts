@@ -20,8 +20,9 @@ import * as errors from './errors';
 import { DefaultLogger, LogEntry, Logger, LogTimestamp, timeOfDayToBigint } from './logger';
 import { compileConnectionOptions, getDefaultConnectionOptions, NativeConnectionOptions } from './connection-options';
 import { byteArrayToBuffer } from './utils';
+import { History } from '@temporalio/common/lib/proto-utils';
 
-export type History = temporal.api.history.v1.IHistory;
+export { History };
 
 function isForwardingLogger(opts: TelemLogger): opts is ForwardLogger {
   return Object.hasOwnProperty.call(opts, 'forward');
@@ -32,14 +33,14 @@ function isForwardingLogger(opts: TelemLogger): opts is ForwardLogger {
  */
 export interface RuntimeOptions {
   /**
-   * Automatically shut down on any of these signals.
+   * Automatically shut down workers on any of these signals.
    * @default
    * ```ts
    * ['SIGINT', 'SIGTERM', 'SIGQUIT', 'SIGUSR2']
    * ```
    */
-
   shutdownSignals?: NodeJS.Signals[];
+
   /** Telemetry options for traces/metrics/logging */
   telemetryOptions?: TelemetryOptions;
   /**
@@ -77,6 +78,7 @@ export class CoreLogger extends DefaultLogger {
     for (const entry of this.buffer) {
       this.next.log(entry.level, entry.message, { ...entry.meta, [LogTimestamp]: entry.timestampNanos });
     }
+    this.buffer.clear();
   }
 }
 
@@ -337,7 +339,6 @@ export class Runtime {
     await promisify(runtimeShutdown)(this.native);
   }
 
-  // TODO: accept either history or JSON or binary
   /** @hidden */
   public async createReplayWorker(options: native.WorkerOptions, history: History): Promise<native.Worker> {
     const worker = await promisify(native.newReplayWorker)(

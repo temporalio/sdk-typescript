@@ -16,7 +16,7 @@ if (parentPortOrNull === null) {
 // Create a new parentPort variable that is not nullable to please TS
 const parentPort = parentPortOrNull;
 
-function ok(requestId: BigInt): WorkerThreadResponse {
+function ok(requestId: bigint): WorkerThreadResponse {
   return { requestId, result: { type: 'ok' } };
 }
 

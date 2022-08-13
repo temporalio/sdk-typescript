@@ -22,8 +22,6 @@ export interface WorkflowCreateOptions {
   randomnessSeed: number[];
   now: number;
   patches: string[];
-  isReplaying: boolean;
-  historyLength: number;
 }
 
 export interface ImportFunctions {
@@ -108,14 +106,7 @@ export function overrideGlobals(): void {
  *
  * Sets required internal state and instantiates the workflow and interceptors.
  */
-export async function initRuntime({
-  info,
-  randomnessSeed,
-  now,
-  patches,
-  isReplaying,
-  historyLength,
-}: WorkflowCreateOptions): Promise<void> {
+export async function initRuntime({ info, randomnessSeed, now, patches }: WorkflowCreateOptions): Promise<void> {
   const global = globalThis as any;
   // Set the runId globally on the context so it can be retrieved in the case
   // of an unhandled promise rejection.
@@ -129,9 +120,8 @@ export async function initRuntime({
   state.info = info;
   state.now = now;
   state.random = alea(randomnessSeed);
-  state.historyLength = historyLength;
 
-  if (isReplaying) {
+  if (info.unsafe.isReplaying) {
     for (const patch of patches) {
       state.knownPresentPatches.add(patch);
     }
@@ -193,8 +183,8 @@ export function activate(activation: coresdk.workflow_activation.WorkflowActivat
       if (activation.historyLength == null) {
         throw new TypeError('Got activation with no historyLength');
       }
-      state.isReplaying = activation.isReplaying ?? false;
-      state.historyLength = activation.historyLength;
+      state.info.unsafe.isReplaying = activation.isReplaying ?? false;
+      state.info.historyLength = activation.historyLength;
     }
 
     // Cast from the interface to the class which has the `variant` attribute.

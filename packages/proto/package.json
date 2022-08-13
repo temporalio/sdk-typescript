@@ -1,11 +1,12 @@
 {
   "name": "@temporalio/proto",
-  "version": "1.0.0-rc.0",
+  "version": "1.0.1",
   "description": "Temporal.io SDK compiled protobuf definitions",
   "main": "protos/index.js",
   "types": "protos/index.d.ts",
   "files": [
     "protos/",
+    "src/",
     "lib/"
   ],
   "scripts": {
@@ -16,15 +17,12 @@
     "workflow",
     "isolate"
   ],
-  "author": "Roey Berman <roey@temporal.io>",
+  "author": "Temporal Technologies Inc. <sdk@temporal.io>",
   "license": "MIT",
   "dependencies": {
-    "@types/long": "^4.0.1",
-    "long": "^4.0.0",
-    "protobufjs": "^6.11.2"
-  },
-  "devDependencies": {
-    "glob": "^7.1.7"
+    "@types/long": "^4.0.2",
+    "long": "^5.2.0",
+    "protobufjs": "^7.0.0"
   },
   "bugs": {
     "url": "https://github.com/temporalio/sdk-typescript/issues"

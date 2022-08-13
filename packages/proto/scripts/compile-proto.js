@@ -3,9 +3,9 @@ const { resolve } = require('path');
 const { promisify } = require('util');
 const dedent = require('dedent');
 const glob = require('glob');
-const { statSync, mkdirsSync, readFileSync, writeFileSync } = require('fs-extra');
-const pbjs = require('protobufjs/cli/pbjs');
-const pbts = require('protobufjs/cli/pbts');
+const { statSync, mkdirSync, readFileSync, writeFileSync } = require('fs');
+const pbjs = require('protobufjs-cli/pbjs');
+const pbts = require('protobufjs-cli/pbts');
 
 const outputDir = resolve(__dirname, '../protos');
 const jsOutputFile = resolve(outputDir, 'json-module.js');
@@ -38,6 +38,7 @@ async function compileProtos(dtsOutputFile, ...args) {
     '--no-verify',
     '--root',
     '__temporal',
+    resolve(require.resolve('protobufjs'), '../google/protobuf/descriptor.proto'),
     coreProtoPath,
     workflowServiceProtoPath,
     operatorServiceProtoPath,
@@ -63,18 +64,10 @@ async function compileProtos(dtsOutputFile, ...args) {
   ${pbtsOutput}
   `
   );
-
-  // Get rid of most comments in file (cuts size in half)
-  const pbjsOutput = readFileSync(jsOutputFile, 'utf8');
-  const sanitizedOutput = pbjsOutput
-    .split('\n')
-    .filter((l) => !/^\s*(\*|\/\*\*)/.test(l))
-    .join('\n');
-  writeFileSync(jsOutputFile, sanitizedOutput);
 }
 
 async function main() {
-  mkdirsSync(outputDir);
+  mkdirSync(outputDir, { recursive: true });
 
   const protoFiles = glob.sync(resolve(protoBaseDir, '**/*.proto'));
   const protosMTime = Math.max(...protoFiles.map(mtime));

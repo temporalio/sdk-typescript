@@ -1,16 +1,26 @@
+import crypto from 'crypto';
 import * as realFS from 'fs';
 import * as memfs from 'memfs';
 import { builtinModules } from 'module';
 import path from 'path';
-import dedent from 'ts-dedent';
 import * as unionfs from 'unionfs';
 import util from 'util';
-import { v4 as uuid4 } from 'uuid';
 import webpack from 'webpack';
 import { DefaultLogger, Logger } from '../logger';
 
 export const allowedBuiltinModules = ['assert'];
 export const disallowedBuiltinModules = builtinModules.filter((module) => !allowedBuiltinModules.includes(module));
+export const disallowedModules = [
+  ...disallowedBuiltinModules,
+  '@temporalio/activity',
+  '@temporalio/client',
+  '@temporalio/worker',
+  '@temporalio/internal-non-workflow-common',
+  '@temporalio/interceptors-opentelemetry/lib/client',
+  '@temporalio/interceptors-opentelemetry/lib/worker',
+  '@temporalio/testing',
+  '@temporalio/core-bridge',
+];
 
 export function moduleMatches(userModule: string, modules: string[]): boolean {
   return modules.some((module) => userModule === module || userModule.startsWith(`${module}/`));
@@ -100,11 +110,11 @@ export class WorkflowCodeBundler {
     if (stat.isFile()) {
       // workflowsPath is a file; make the entrypoint a sibling of that file
       const { root, dir, name } = path.parse(workflowsPath);
-      return path.format({ root, dir, base: `${name}-entrypoint-${uuid4()}.js` });
+      return path.format({ root, dir, base: `${name}-entrypoint-${crypto.randomBytes(8).toString('hex')}.js` });
     } else {
       // workflowsPath is a directory; make the entrypoint a sibling of that directory
       const { root, dir, base } = path.parse(workflowsPath);
-      return path.format({ root, dir, base: `${base}-entrypoint-${uuid4()}.js` });
+      return path.format({ root, dir, base: `${base}-entrypoint-${crypto.randomBytes(8).toString('hex')}.js` });
     }
   }
 
@@ -118,24 +128,24 @@ export class WorkflowCodeBundler {
       .map((v) => `import(/* webpackMode: "eager" */ ${JSON.stringify(v)})`)
       .join(', \n');
 
-    const code = dedent`
-      import * as api from '@temporalio/workflow/lib/worker-interface.js';
+    const code = `
+import * as api from '@temporalio/workflow/lib/worker-interface.js';
 
-      // Bundle all Workflows and interceptor modules for lazy evaluation
-      api.overrideGlobals();
-      api.setImportFuncs({
-        importWorkflows: () => {
-          return import(/* webpackMode: "eager" */ ${JSON.stringify(this.workflowsPath)});
-        },
-        importInterceptors: () => {
-          return Promise.all([
-            ${interceptorImports}
-          ]);
-        }
-      });
+// Bundle all Workflows and interceptor modules for lazy evaluation
+api.overrideGlobals();
+api.setImportFuncs({
+  importWorkflows: () => {
+    return import(/* webpackMode: "eager" */ ${JSON.stringify(this.workflowsPath)});
+  },
+  importInterceptors: () => {
+    return Promise.all([
+      ${interceptorImports}
+    ]);
+  }
+});
 
-      export { api };
-    `;
+export { api };
+`;
     try {
       vol.mkdirSync(path.dirname(target), { recursive: true });
     } catch (err: any) {
@@ -162,7 +172,7 @@ export class WorkflowCodeBundler {
         ? data.request.slice('node:'.length)
         : data.request ?? '';
 
-      if (moduleMatches(module, disallowedBuiltinModules) && !moduleMatches(module, this.ignoreModules)) {
+      if (moduleMatches(module, disallowedModules) && !moduleMatches(module, this.ignoreModules)) {
         this.foundProblematicModules.add(module);
       }
 
@@ -176,7 +186,7 @@ export class WorkflowCodeBundler {
         extensions: ['.ts', '.js'],
         alias: {
           __temporal_custom_payload_converter$: this.payloadConverterPath ?? false,
-          ...Object.fromEntries([...this.ignoreModules, ...disallowedBuiltinModules].map((m) => [m, false])),
+          ...Object.fromEntries([...this.ignoreModules, ...disallowedModules].map((m) => [m, false])),
         },
       },
       externals: captureProblematicModules,
@@ -185,7 +195,7 @@ export class WorkflowCodeBundler {
           {
             test: /\.js$/,
             enforce: 'pre',
-            use: ['source-map-loader'],
+            use: [require.resolve('source-map-loader')],
           },
           {
             test: /\.ts$/,
@@ -307,6 +317,13 @@ export interface BundleOptions {
   ignoreModules?: string[];
 }
 
+/**
+ * Create a bundle to pass to {@link WorkerOptions.workflowBundle}. Helpful for reducing Worker startup time in
+ * production.
+ *
+ * When using with {@link Worker.runReplayHistory}, make sure to pass the same interceptors and payload converter used
+ * when the history was generated.
+ */
 export async function bundleWorkflowCode(options: BundleOptions): Promise<WorkflowBundleWithSourceMap> {
   const bundler = new WorkflowCodeBundler(options);
   return await bundler.createBundle();

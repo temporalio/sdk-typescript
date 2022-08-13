@@ -1,4 +1,3 @@
-import { CancelledFailure, ActivityFailure, ChildWorkflowFailure } from '@temporalio/common';
 export { WorkflowExecutionAlreadyStartedError } from '@temporalio/common';
 
 /**
@@ -15,12 +14,17 @@ export class DeterminismViolationError extends WorkflowError {
   public readonly name: string = 'DeterminismViolationError';
 }
 
+function looksLikeError(err: unknown): err is { name: string; cause?: unknown } {
+  return typeof err === 'object' && err != null && Object.prototype.hasOwnProperty.call(err, 'name');
+}
+
 /**
  * Returns whether provided `err` is caused by cancellation
  */
 export function isCancellation(err: unknown): boolean {
+  if (!looksLikeError(err)) return false;
   return (
-    err instanceof CancelledFailure ||
-    ((err instanceof ActivityFailure || err instanceof ChildWorkflowFailure) && isCancellation(err.cause))
+    err.name === 'CancelledFailure' ||
+    ((err.name === 'ActivityFailure' || err.name === 'ChildWorkflowFailure') && isCancellation(err.cause))
   );
 }

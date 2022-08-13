@@ -90,12 +90,13 @@ async function createWorkflow(
       attempt: 1,
       taskTimeoutMs: 1000,
       taskQueue: 'test',
+      searchAttributes: {},
+      historyLength: 3,
+      unsafe: { isReplaying: false },
     },
     randomnessSeed: Long.fromInt(1337).toBytes(),
     now: startTime,
     patches: [],
-    isReplaying: false,
-    historyLength: 3,
   })) as VMWorkflow;
   return workflow;
 }
@@ -551,13 +552,6 @@ test('importer', async (t) => {
     compareCompletion(t, req, makeSuccess());
   }
   t.deepEqual(logs, [['slept']]);
-});
-
-test('externalImporter', async (t) => {
-  const { logs, workflowType } = t.context;
-  const req = await activate(t, makeStartWorkflow(workflowType));
-  compareCompletion(t, req, makeSuccess());
-  t.deepEqual(logs, [[{ a: 1, b: 2 }]]);
 });
 
 test('argsAndReturn', async (t) => {

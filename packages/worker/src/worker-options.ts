@@ -1,11 +1,14 @@
 import { DataConverter, LoadedDataConverter } from '@temporalio/common';
 import { loadDataConverter } from '@temporalio/internal-non-workflow-common';
-import { ActivityInterface, msToNumber } from '@temporalio/internal-workflow-common';
+import { msToNumber } from '@temporalio/internal-workflow-common';
 import os from 'os';
+import { ActivityInboundLogInterceptor } from './activity-log-interceptor';
 import { NativeConnection } from './connection';
 import { WorkerInterceptors } from './interceptors';
+import { Runtime } from './runtime';
 import { InjectedSinks } from './sinks';
 import { GiB } from './utils';
+import { LoggerSinks } from './workflow-log-interceptor';
 import { WorkflowBundleWithSourceMap } from './workflow/bundler';
 
 export interface WorkflowBundlePathWithSourceMap {
@@ -63,9 +66,9 @@ export interface WorkerOptions {
   taskQueue: string;
 
   /**
-   * Mapping of activity name to implementation.
+   * Mapping of activity name to implementation
    */
-  activities?: ActivityInterface;
+  activities?: object;
 
   /**
    * Path to look up workflows in, any function exported in this path will be registered as a Workflows in this Worker.
@@ -80,12 +83,14 @@ export interface WorkerOptions {
   workflowsPath?: string;
 
   /**
-   * Use a pre-built bundle for Workflow code.
-   * Use {@link bundleWorkflowCode} to genrate a bundle.
+   * Use a pre-built bundle for Workflow code. Use {@link bundleWorkflowCode} to generate a bundle.
    *
    * This is the recommended way to deploy Workers to production.
    *
    * See https://docs.temporal.io/typescript/production-deploy#pre-build-code for more information.
+   *
+   * When using this option, any Workflow interceptors provided in {@link interceptors} are not used. Instead, provide
+   * them via {@link BundleOptions.workflowInterceptorModules} when calling {@link bundleWorkflowCode}.
    */
   workflowBundle?: WorkflowBundleOption;
 
@@ -93,7 +98,7 @@ export interface WorkerOptions {
    * Time to wait for pending tasks to drain after shutdown was requested.
    *
    * @format {@link https://www.npmjs.com/package/ms | ms} formatted string or number of milliseconds
-   * @default 5s
+   * @default 10s
    */
   shutdownGraceTime?: string | number;
 
@@ -192,9 +197,33 @@ export interface WorkerOptions {
   defaultHeartbeatThrottleInterval?: number | string;
 
   /**
-   * A mapping of interceptor type to a list of factories or module paths
+   * A mapping of interceptor type to a list of factories or module paths.
+   *
+   * By default, {@link ActivityInboundLogInterceptor} and {@link WorkflowInboundLogInterceptor} are installed. If you
+   * wish to customize the interceptors while keeping the defaults, use {@link appendDefaultInterceptors}.
+   *
+   * When using {@link workflowBundle}, these Workflow interceptors (`WorkerInterceptors.workflowModules`) are not used.
+   * Instead, provide them via {@link BundleOptions.workflowInterceptorModules} when calling {@link bundleWorkflowCode}.
    */
   interceptors?: WorkerInterceptors;
+
+  /**
+   * Implementation of the {@link Sinks} interface, a mapping of name to {@link InjectedSink}.
+   *
+   * Sinks are a mechanism for exporting data from the Workflow sandbox to the
+   * Node.js environment, they are necessary because the Workflow has no way to
+   * communicate with the outside World.
+   *
+   * Sinks are typically used for exporting logs, metrics and traces out from the
+   * Workflow.
+   *
+   * Sink functions may not return values to the Workflow in order to prevent
+   * breaking determinism.
+   *
+   * By default the defaultWorkerLogger sink is installed and is required by {@link WorkflowInboundLogInterceptor}.
+   *
+   * If you wish to customize the sinks while keeping the defaults, merge yours with {@link defaultSinks}.
+   */
   sinks?: InjectedSinks<any>;
 
   /**
@@ -257,7 +286,7 @@ export type WorkerOptionsWithDefaults = WorkerOptions &
     /**
      * Controls the number of Worker threads the Worker should create.
      *
-     * Threads are used to create [vm](https://nodejs.org/api/vm.html)s for the
+     * Threads are used to create {@link https://nodejs.org/api/vm.html | vm }s for the
      *
      * isolated Workflow environment.
      *
@@ -312,8 +341,62 @@ export interface ReplayWorkerOptions
   /**
    *  A name for this replay worker. It will be combined with a short random ID to form a unique
    *  task queue for the replay worker.
+   *
+   *  @default workflow name from given history
    */
-  replayName: string;
+  replayName?: string;
+}
+
+/**
+ * Returns the `defaultWorkerLogger` sink which forwards logs from the Workflow sandbox to a given logger.
+ *
+ * @param logger a {@link Logger} - defaults to the {@link Runtime} singleton logger.
+ */
+export function defaultSinks(logger = Runtime.instance().logger): InjectedSinks<LoggerSinks> {
+  return {
+    defaultWorkerLogger: {
+      trace: {
+        fn(_, message, attrs) {
+          logger.trace(message, attrs);
+        },
+      },
+      debug: {
+        fn(_, message, attrs) {
+          logger.debug(message, attrs);
+        },
+      },
+      info: {
+        fn(_, message, attrs) {
+          logger.info(message, attrs);
+        },
+      },
+      warn: {
+        fn(_, message, attrs) {
+          logger.warn(message, attrs);
+        },
+      },
+      error: {
+        fn(_, message, attrs) {
+          logger.error(message, attrs);
+        },
+      },
+    },
+  };
+}
+
+/**
+ * Appends the default Worker logging interceptors to given interceptor arrays.
+ *
+ * @param logger a {@link Logger} - defaults to the {@link Runtime} singleton logger.
+ */
+export function appendDefaultInterceptors(
+  interceptors: WorkerInterceptors,
+  logger = Runtime.instance().logger
+): WorkerInterceptors {
+  return {
+    activityInbound: [...(interceptors.activityInbound ?? []), (ctx) => new ActivityInboundLogInterceptor(ctx, logger)],
+    workflowModules: [...(interceptors.workflowModules ?? []), require.resolve('./workflow-log-interceptor')],
+  };
 }
 
 export function addDefaultWorkerOptions(options: WorkerOptions): WorkerOptionsWithDefaults {
@@ -321,7 +404,7 @@ export function addDefaultWorkerOptions(options: WorkerOptions): WorkerOptionsWi
   return {
     namespace: 'default',
     identity: `${process.pid}@${os.hostname()}`,
-    shutdownGraceTime: '5s',
+    shutdownGraceTime: '10s',
     maxConcurrentActivityTaskExecutions: 100,
     maxConcurrentLocalActivityExecutions: 100,
     enableNonLocalActivities: true,
@@ -335,6 +418,8 @@ export function addDefaultWorkerOptions(options: WorkerOptions): WorkerOptionsWi
     maxCachedWorkflows: maxCachedWorkflows ?? Math.max(os.totalmem() / GiB - 1, 1) * 200,
     enableSDKTracing: false,
     debugMode: debugMode ?? false,
+    interceptors: appendDefaultInterceptors({}),
+    sinks: defaultSinks(),
     ...rest,
   };
 }

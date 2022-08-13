@@ -6,12 +6,20 @@
 import * as wf from '@temporalio/workflow';
 import type * as activities from '../activities';
 
-const { echo, throwAnError, waitForCancellation } = wf.proxyLocalActivities<typeof activities>({
+const { echo, isLocal, throwAnError, waitForCancellation } = wf.proxyLocalActivities<typeof activities>({
+  startToCloseTimeout: '1m',
+});
+
+const { isLocal: nonLocalIsLocal } = wf.proxyActivities<typeof activities>({
   startToCloseTimeout: '1m',
 });
 
 export async function runOneLocalActivity(s: string): Promise<string> {
   return await echo(s);
+}
+
+export async function getIsLocal(fromInsideLocal: boolean): Promise<boolean> {
+  return await (fromInsideLocal ? isLocal() : nonLocalIsLocal());
 }
 
 export async function runParallelLocalActivities(...ss: string[]): Promise<string[]> {

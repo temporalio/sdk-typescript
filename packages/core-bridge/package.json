@@ -1,6 +1,6 @@
 {
   "name": "@temporalio/core-bridge",
-  "version": "1.0.0-rc.0",
+  "version": "1.0.1",
   "description": "Temporal.io SDK Core<>Node bridge",
   "main": "index.js",
   "types": "index.d.ts",
@@ -16,13 +16,13 @@
     "core",
     "worker"
   ],
-  "author": "Roey Berman <roey@temporal.io>",
+  "author": "Temporal Technologies Inc. <sdk@temporal.io>",
   "license": "MIT",
   "dependencies": {
-    "@opentelemetry/api": "^1.0.3",
+    "@opentelemetry/api": "^1.1.0",
     "@temporalio/internal-non-workflow-common": "file:../internal-non-workflow-common",
-    "arg": "^5.0.1",
-    "cargo-cp-artifact": "^0.1.4",
+    "arg": "^5.0.2",
+    "cargo-cp-artifact": "^0.1.6",
     "which": "^2.0.2"
   },
   "bugs": {

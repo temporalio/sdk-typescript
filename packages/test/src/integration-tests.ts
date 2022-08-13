@@ -3,6 +3,7 @@ import {
   ActivityFailure,
   ApplicationFailure,
   Connection,
+  QueryNotRegisteredError,
   WorkflowClient,
   WorkflowContinuedAsNewError,
   WorkflowFailedError,
@@ -391,6 +392,20 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
     t.pass();
   });
 
+  test('query not found', async (t) => {
+    const { client } = t.context;
+    const workflow = await client.start(workflows.unblockOrCancel, {
+      taskQueue: 'test',
+      workflowId: uuid4(),
+    });
+    await workflow.signal(workflows.unblockSignal);
+    await workflow.result();
+    await t.throwsAsync(workflow.query('not found'), {
+      instanceOf: QueryNotRegisteredError,
+      message: 'Workflow did not register a handler for not found. Registered queries: [__stack_trace isBlocked]',
+    });
+  });
+
   test('query and unblock', async (t) => {
     const { client } = t.context;
     const workflow = await client.start(workflows.unblockOrCancel, {
@@ -678,8 +693,11 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
       taskTimeoutMs: 10_000,
       runId: workflow.firstExecutionRunId,
       taskQueue: 'test',
+      searchAttributes: {},
       workflowType: 'returnWorkflowInfo',
       workflowId,
+      historyLength: 3,
+      unsafe: { isReplaying: false },
     });
   });
 
@@ -1190,4 +1208,23 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
       );
     });
   }
+
+  test('issue-731', async (t) => {
+    const { client } = t.context;
+    const workflowId = uuid4();
+    await client.execute(workflows.issue731, {
+      taskQueue: 'test',
+      workflowId,
+      workflowTaskTimeout: '1m', // Give our local activities enough time to run in CI
+    });
+    const { history } = await client.workflowService.getWorkflowExecutionHistory({
+      namespace: 'default',
+      execution: { workflowId },
+    });
+    if (history?.events == null) {
+      throw new Error('Expected non null events');
+    }
+    // Verify only one timer was scheduled
+    t.is(history.events.filter(({ timerStartedEventAttributes }) => timerStartedEventAttributes != null).length, 1);
+  });
 }

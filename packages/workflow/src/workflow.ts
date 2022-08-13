@@ -1,7 +1,6 @@
 import { mapToPayloads, searchAttributePayloadConverter, toPayloads } from '@temporalio/common';
 import {
   ActivityFunction,
-  ActivityInterface,
   ActivityOptions,
   compileRetryPolicy,
   composeInterceptors,
@@ -14,6 +13,7 @@ import {
   SearchAttributes,
   SignalDefinition,
   tsToMs,
+  UntypedActivities,
   WithWorkflowArgs,
   Workflow,
   WorkflowResultType,
@@ -116,13 +116,6 @@ export function sleep(ms: number | string): Promise<void> {
     seq,
   });
 }
-
-export interface ActivityInfo {
-  name: string;
-  type: string;
-}
-
-export type InternalActivityFunction<P extends any[], R> = ActivityFunction<P, R> & ActivityInfo;
 
 function validateActivityOptions(options: ActivityOptions): void {
   if (options.scheduleToCloseTimeout === undefined && options.startToCloseTimeout === undefined) {
@@ -445,18 +438,53 @@ function signalWorkflowNextHandler({ seq, signalName, args, target, headers }: S
 }
 
 /**
+ * Symbol used in the return type of proxy methods to mark that an attribute on the source type is not a method.
+ *
+ * @see {@link ActivityInterfaceFor}
+ * @see {@link proxyActivities}
+ * @see {@link proxyLocalActivities}
+ */
+export const NotAnActivityMethod = Symbol.for('__TEMPORAL_NOT_AN_ACTIVITY_METHOD');
+
+/**
+ * Type helper that takes a type `T` and transforms attributes that are not {@link ActivityFunction} to
+ * {@link NotAnActivityMethod}.
+ *
+ * @example
+ *
+ * Used by {@link proxyActivities} to get this compile-time error:
+ *
+ * ```ts
+ * interface MyActivities {
+ *   valid(input: number): Promise<number>;
+ *   invalid(input: number): number;
+ * }
+ *
+ * const act = proxyActivities<MyActivities>({ startToCloseTimeout: '5m' });
+ *
+ * await act.valid(true);
+ * await act.invalid();
+ * // ^ TS complains with:
+ * // (property) invalidDefinition: typeof NotAnActivityMethod
+ * // This expression is not callable.
+ * // Type 'Symbol' has no call signatures.(2349)
+ * ```
+ */
+export type ActivityInterfaceFor<T> = {
+  [K in keyof T]: T[K] extends ActivityFunction ? T[K] : typeof NotAnActivityMethod;
+};
+
+/**
  * Configure Activity functions with given {@link ActivityOptions}.
  *
  * This method may be called multiple times to setup Activities with different options.
  *
- * @return a [Proxy](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Proxy)
- *         for which each attribute is a callable Activity function
- *
- * @typeparam A An {@link ActivityInterface} - mapping of name to function
+ * @return a {@link https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Proxy | Proxy} for
+ *         which each attribute is a callable Activity function
  *
  * @example
  * ```ts
- * import { proxyActivities, ActivityInterface } from '@temporalio/workflow';
+ * import { proxyActivities } from '@temporalio/workflow';
  * import * as activities from '../activities';
  *
  * // Setup Activities from module exports
@@ -465,7 +493,7 @@ function signalWorkflowNextHandler({ seq, signalName, args, target, headers }: S
  * });
  *
  * // Setup Activities from an explicit interface (e.g. when defined by another SDK)
- * interface JavaActivities extends ActivityInterface {
+ * interface JavaActivities {
  *   httpGetFromJava(url: string): Promise<string>
  *   someOtherJavaActivity(arg1: number, arg2: string): Promise<string>;
  * }
@@ -484,7 +512,7 @@ function signalWorkflowNextHandler({ seq, signalName, args, target, headers }: S
  * }
  * ```
  */
-export function proxyActivities<A extends ActivityInterface>(options: ActivityOptions): A {
+export function proxyActivities<A = UntypedActivities>(options: ActivityOptions): ActivityInterfaceFor<A> {
   if (options === undefined) {
     throw new TypeError('options must be defined');
   }
@@ -510,16 +538,14 @@ export function proxyActivities<A extends ActivityInterface>(options: ActivityOp
  *
  * This method may be called multiple times to setup Activities with different options.
  *
- * @return a [Proxy](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Proxy)
+ * @return a {@link https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Proxy | Proxy}
  *         for which each attribute is a callable Activity function
- *
- * @typeparam A An {@link ActivityInterface} - mapping of name to function
  *
  * @experimental
  *
- * See {@link proxyActivities} for examples
+ * @see {@link proxyActivities} for examples
  */
-export function proxyLocalActivities<A extends ActivityInterface>(options: LocalActivityOptions): A {
+export function proxyLocalActivities<A = UntypedActivities>(options: LocalActivityOptions): ActivityInterfaceFor<A> {
   if (options === undefined) {
     throw new TypeError('options must be defined');
   }
@@ -791,7 +817,29 @@ export async function executeChild<T extends Workflow>(
 }
 
 /**
- * Get information about the current Workflow
+ * Get information about the current Workflow.
+ *
+ * ⚠️ We recommend calling `workflowInfo()` whenever accessing {@link WorkflowInfo} fields. Some WorkflowInfo fields
+ * change during the lifetime of an Execution—like {@link WorkflowInfo.historyLength} and
+ * {@link WorkflowInfo.searchAttributes}—and some may be changeable in the future—like {@link WorkflowInfo.taskQueue}.
+ *
+ * ```ts
+ * // GOOD
+ * function myWorkflow() {
+ *   doSomething(workflowInfo().searchAttributes)
+ *   ...
+ *   doSomethingElse(workflowInfo().searchAttributes)
+ * }
+ * ```
+ *
+ * ```ts
+ * // BAD
+ * function myWorkflow() {
+ *   const attributes = workflowInfo().searchAttributes
+ *   doSomething(attributes)
+ *   ...
+ *   doSomethingElse(attributes)
+ * }
  */
 export function workflowInfo(): WorkflowInfo {
   if (state.info === undefined) {
@@ -875,9 +923,9 @@ export function proxySinks<T extends Sinks>(): T {
 /**
  * Returns a function `f` that will cause the current Workflow to ContinueAsNew when called.
  *
- * `f` takes the same arguments as the Workflow execute function supplied to typeparam `F`.
+ * `f` takes the same arguments as the Workflow function supplied to typeparam `F`.
  *
- * Once `f` is called, Workflow execution immediately completes.
+ * Once `f` is called, Workflow Execution immediately completes.
  */
 export function makeContinueAsNewFunc<F extends Workflow>(
   options?: ContinueAsNewOptions
@@ -915,24 +963,21 @@ export function makeContinueAsNewFunc<F extends Workflow>(
 }
 
 /**
- * Continues current Workflow execution as new with default options.
+ * {@link https://docs.temporal.io/concepts/what-is-continue-as-new/ | Continues-As-New} the current Workflow Execution
+ * with default options.
  *
- * Shorthand for `makeContinueAsNewFunc<F>()(...args)`.
+ * Shorthand for `makeContinueAsNewFunc<F>()(...args)`. (See: {@link makeContinueAsNewFunc}.)
  *
  * @example
  *
- * ```ts
- * import { continueAsNew } from '@temporalio/workflow';
+ *```ts
+ *import { continueAsNew } from '@temporalio/workflow';
  *
- * export function myWorkflow(n: number) {
- *   return {
- *     async execute() {
- *       // ... Workflow logic
- *       await continueAsNew<typeof myWorkflow>(n + 1);
- *     }
- *   };
- * }
- * ```
+ *export async function myWorkflow(n: number): Promise<void> {
+ *  // ... Workflow logic
+ *  await continueAsNew<typeof myWorkflow>(n + 1);
+ *}
+ *```
  */
 export function continueAsNew<F extends Workflow>(...args: Parameters<F>): Promise<never> {
   return makeContinueAsNewFunc()(...args);
@@ -968,7 +1013,7 @@ export function uuid4(): string {
 /**
  * Patch or upgrade workflow code by checking or stating that this workflow has a certain patch.
  *
- * See [docs page](https://docs.temporal.io/typescript/versioning) for info.
+ * See {@link https://docs.temporal.io/typescript/versioning | docs page} for info.
  *
  * If the workflow is replaying an existing history, then this function returns true if that
  * history was produced by a worker which also had a `patched` call with the same `patchId`.
@@ -989,7 +1034,7 @@ export function patched(patchId: string): boolean {
 /**
  * Indicate that a patch is being phased out.
  *
- * See [docs page](https://docs.temporal.io/typescript/versioning) for info.
+ * See {@link https://docs.temporal.io/typescript/versioning | docs page} for info.
  *
  * Workflows with this call may be deployed alongside workflows with a {@link patched} call, but
  * they must *not* be deployed while any workers still exist running old code without a
@@ -1014,7 +1059,10 @@ function patchInternal(patchId: string, deprecated: boolean): boolean {
   if (state.workflow === undefined) {
     throw new IllegalStateError('Patches cannot be used before Workflow starts');
   }
-  const usePatch = !state.isReplaying || state.knownPresentPatches.has(patchId);
+  if (state.info === undefined) {
+    throw new IllegalStateError('Workflow uninitialized');
+  }
+  const usePatch = !state.info.unsafe.isReplaying || state.knownPresentPatches.has(patchId);
   // Avoid sending commands for patches core already knows about.
   // This optimization enables development of automatic patching tools.
   if (usePatch && !state.sentPatches.has(patchId)) {
@@ -1194,49 +1242,6 @@ export function upsertSearchAttributes(searchAttributes: SearchAttributes): void
   });
 
   state.info.searchAttributes = mergedSearchAttributes;
-}
-
-/**
- * Unsafe information about the currently executing Workflow Task.
- *
- * Never rely on this information in Workflow logic as it will cause non-deterministic behavior.
- */
-export interface UnsafeTaskInfo {
-  isReplaying: boolean;
-}
-
-/**
- * Information about the currently executing Workflow Task.
- *
- * Meant for advanced usage.
- */
-export interface TaskInfo {
-  /**
-   * Length of Workflow history up until the current Workflow Task.
-   *
-   * You may safely use this information to decide when to {@link continueAsNew}.
-   */
-  historyLength: number;
-  unsafe: UnsafeTaskInfo;
-}
-
-/**
- * Get information about the currently executing Workflow Task.
- *
- * See {@link TaskInfo}
- */
-export function taskInfo(): TaskInfo {
-  const { isReplaying, historyLength } = state;
-  if (isReplaying == null || historyLength == null) {
-    throw new IllegalStateError('Workflow uninitialized');
-  }
-
-  return {
-    historyLength,
-    unsafe: {
-      isReplaying,
-    },
-  };
 }
 
 export const stackTraceQuery = defineQuery<string>('__stack_trace');

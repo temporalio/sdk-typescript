@@ -46,7 +46,7 @@ export interface WorkerThreadResponse {
   /**
    * ID provided in the originating `WorkerThreadRequest`
    */
-  requestId: BigInt;
+  requestId: bigint;
 
   result: WorkerThreadOkResult | WorkflowThreadErrorResult;
 }

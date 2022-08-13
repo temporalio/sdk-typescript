@@ -1,16 +1,18 @@
 {
   "name": "temporalio",
-  "version": "1.0.0-rc.0",
+  "version": "1.0.1",
   "description": "Temporal.io SDK meta-package",
   "dependencies": {
     "@temporalio/activity": "file:../activity",
     "@temporalio/client": "file:../client",
     "@temporalio/common": "file:../common",
+    "@temporalio/interceptors-opentelemetry": "file:../interceptors-opentelemetry",
     "@temporalio/proto": "file:../proto",
+    "@temporalio/testing": "file:../testing",
     "@temporalio/worker": "file:../worker",
     "@temporalio/workflow": "file:../workflow"
   },
-  "author": "Roey Berman <roey@temporal.io>",
+  "author": "Temporal Technologies Inc. <sdk@temporal.io>",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -30,5 +32,9 @@
   },
   "engines": {
     "node": ">=14.0.0"
-  }
+  },
+  "files": [
+    "src",
+    "lib"
+  ]
 }

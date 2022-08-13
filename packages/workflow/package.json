@@ -1,6 +1,6 @@
 {
   "name": "@temporalio/workflow",
-  "version": "1.0.0-rc.0",
+  "version": "1.0.1",
   "description": "Temporal.io SDK Workflow sub-package",
   "keywords": [
     "temporal",
@@ -12,12 +12,9 @@
     "url": "https://github.com/temporalio/sdk-typescript/issues"
   },
   "license": "MIT",
-  "author": "Roey Berman <roey@temporal.io>",
+  "author": "Temporal Technologies Inc. <sdk@temporal.io>",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
-  "files": [
-    "lib"
-  ],
   "scripts": {},
   "dependencies": {
     "@temporalio/common": "file:../common",
@@ -26,5 +23,9 @@
   },
   "publishConfig": {
     "access": "public"
-  }
+  },
+  "files": [
+    "src",
+    "lib"
+  ]
 }
