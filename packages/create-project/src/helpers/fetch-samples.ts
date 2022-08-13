@@ -1,5 +1,5 @@
 import got from 'got';
-import { headers } from './headers';
+import { headers } from './headers.js';
 
 const SAMPLE_REPO_CONTENTS = 'https://api.github.com/repos/temporalio/samples-typescript/contents/';
 

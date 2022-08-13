@@ -7,7 +7,7 @@ import { promisify } from 'util';
 import { rm, readdir } from 'fs/promises';
 import path from 'path';
 import { getErrorCode } from './get-error-code.js';
-import { headers } from './headers';
+import { headers } from './headers.js';
 
 const pipeline = promisify(Stream.pipeline);
 
