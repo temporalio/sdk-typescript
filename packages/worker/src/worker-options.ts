@@ -401,7 +401,6 @@ export function appendDefaultInterceptors(
 
 export function addDefaultWorkerOptions(options: WorkerOptions): WorkerOptionsWithDefaults {
   const { maxCachedWorkflows, debugMode, ...rest } = options;
-  const systemResources = inspectSystemResources();
 
   return {
     namespace: 'default',
@@ -417,7 +416,8 @@ export function addDefaultWorkerOptions(options: WorkerOptions): WorkerOptionsWi
     // 4294967295ms is the maximum allowed time
     isolateExecutionTimeout: debugMode ? '4294967295ms' : '5s',
     workflowThreadPoolSize: 8,
-    maxCachedWorkflows: maxCachedWorkflows ?? Math.floor(Math.max(systemResources.heap / GiB - 1, 1) * 250),
+    maxCachedWorkflows:
+      maxCachedWorkflows ?? Math.floor(Math.max(v8.getHeapStatistics().heap_size_limit / GiB - 1, 1) * 250),
     enableSDKTracing: false,
     debugMode: debugMode ?? false,
     interceptors: appendDefaultInterceptors({}),
@@ -426,45 +426,30 @@ export function addDefaultWorkerOptions(options: WorkerOptions): WorkerOptionsWi
   };
 }
 
-/**
- * Inspect the execution environment and return information about available system resources,
- * taking into account applicable constraints that can be discovered.
- * At present, it accounts for CGroups v1 and v2 constraints on memory and swap.
- */
-function inspectSystemResources(): { memory: number; heap: number } {
-  const resources = {
-    memory: os.totalmem(),
-    heap: v8.getHeapStatistics().heap_size_limit,
-  };
-
+function checkHeapSizeLimit() {
   if (process.platform === 'linux') {
-    // v2 style cgroup
-    const cgroupv2MemoryMax = Number(tryReadFileSync('/sys/fs/cgroup/memory.max'));
-    if (!isNaN(cgroupv2MemoryMax)) resources.memory = Math.min(cgroupv2MemoryMax, resources.memory);
+    const cgroupMemoryConstraint = Number(
+      tryReadFileSync(/* cgroup v2 */ '/sys/fs/cgroup/memory.max') ??
+        tryReadFileSync(/* cgroup v1 */ '/sys/fs/cgroup/memory/memory.limit_in_bytes')
+    );
 
-    // v1 style cgroup
-    const cgroupv1MemoryMax = Number(tryReadFileSync('/sys/fs/cgroup/memory/memory.limit_in_bytes'));
-    if (!isNaN(cgroupv1MemoryMax)) resources.memory = Math.min(cgroupv1MemoryMax, resources.memory);
-
-    const hasMemoryConstraints = cgroupv1MemoryMax < resources.memory || cgroupv2MemoryMax < resources.memory;
-    if (hasMemoryConstraints && resources.heap > resources.memory) {
-      const memInMb = toMB(resources.memory, 0);
-      const suggestedOldSpaceSizeInMb = toMB(resources.memory * 0.75, 0);
+    if (cgroupMemoryConstraint < os.totalmem() && cgroupMemoryConstraint < v8.getHeapStatistics().heap_size_limit) {
+      const totalMemInMb = toMB(os.totalmem(), 0);
+      const suggestedOldSpaceSizeInMb = toMB(os.totalmem() * 0.75, 0);
 
       Runtime.instance().logger.warn(
         `This program is running inside a containerized environment with a memory constraint ` +
-          `(eg. docker --memory ${memInMb}m). Node itself does not consider this memory constraint ` +
+          `(eg. docker --memory ${totalMemInMb}m). Node itself does not consider this memory constraint ` +
           `in how it manages its heap memory. There is consequently a high probability that ` +
-          `the process will crash due to running out of memory. To increase reliability, we recommend adding ` +
-          `'--max-old-space-size=${suggestedOldSpaceSizeInMb}' to your node arguments. ` +
+          `the process will crash due to running out of memory. To increase reliability, we recommend ` +
+          `adding '--max-old-space-size=${suggestedOldSpaceSizeInMb}' to your node arguments. ` +
           `Refer to https://docs.temporal.io/application-development/worker-performance for more ` +
           `advice on tuning your workers.`
       );
     }
   }
-
-  return resources;
 }
+checkHeapSizeLimit();
 
 function tryReadFileSync(file: string) {
   try {
