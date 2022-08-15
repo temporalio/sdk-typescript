@@ -259,7 +259,7 @@ export interface WorkerOptions {
      * Before Workflow code is bundled with Webpack, `webpackConfigHook` is called with the Webpack
      * {@link https://webpack.js.org/configuration/ | configuration} object so you can modify it.
      */
-    webpackConfigHook?: (config: WebpackConfiguration) => void;
+    webpackConfigHook?: (config: WebpackConfiguration) => WebpackConfiguration;
 
     /**
      * List of modules to be excluded from the Workflows bundle.
