@@ -543,17 +543,26 @@ export class Worker {
     logger: Logger
   ): Promise<WorkflowBundleWithSourceMap | undefined> {
     if (compiledOptions.workflowsPath) {
+      if (compiledOptions.workflowBundle) {
+        logger.info('WorkerOptions.workflowsPath is set, so workflowBundle option is ignored');
+      }
+
       const bundler = new WorkflowCodeBundler({
         logger,
         workflowsPath: compiledOptions.workflowsPath,
         workflowInterceptorModules: compiledOptions.interceptors?.workflowModules,
         payloadConverterPath: compiledOptions.dataConverter?.payloadConverterPath,
         ignoreModules: compiledOptions.bundlerOptions?.ignoreModules,
+        configureWebpack: compiledOptions.bundlerOptions?.configureWebpack,
       });
       const bundle = await bundler.createBundle();
       logger.info('Workflow bundle created', { size: `${toMB(bundle.code.length)}MB` });
       return bundle;
     } else if (compiledOptions.workflowBundle) {
+      if (compiledOptions.bundlerOptions) {
+        logger.info('WorkerOptions.workflowsBundle is set, so bundlerOptions is ignored');
+      }
+
       if (isCodeBundleOption(compiledOptions.workflowBundle)) {
         return compiledOptions.workflowBundle;
       } else if (isPathBundleOption(compiledOptions.workflowBundle)) {

@@ -1,6 +1,7 @@
 import { DataConverter, LoadedDataConverter } from '@temporalio/common';
 import { loadDataConverter } from '@temporalio/internal-non-workflow-common';
 import { msToNumber } from '@temporalio/internal-workflow-common';
+import type { Configuration as WebpackConfiguration } from 'webpack';
 import { ActivityInboundLogInterceptor } from './activity-log-interceptor';
 import { NativeConnection } from './connection';
 import { WorkerInterceptors } from './interceptors';
@@ -11,6 +12,8 @@ import { LoggerSinks } from './workflow-log-interceptor';
 import { WorkflowBundleWithSourceMap } from './workflow/bundler';
 import * as v8 from 'v8';
 import * as os from 'os';
+
+export type { WebpackConfiguration };
 
 export interface WorkflowBundlePathWithSourceMap {
   codePath: string;
@@ -252,6 +255,12 @@ export interface WorkerOptions {
   debugMode?: boolean;
 
   bundlerOptions?: {
+    /**
+     * Before we bundle the Workflow code with Webpack, we call `configureWebpack`, passing the Webpack
+     * {@link https://webpack.js.org/configuration/ | configuration} object so you can modify it.
+     */
+    configureWebpack?: (config: WebpackConfiguration) => WebpackConfiguration;
+
     /**
      * List of modules to be excluded from the Workflows bundle.
      *
