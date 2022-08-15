@@ -21,6 +21,10 @@ import { DefaultLogger, LogEntry, Logger, LogTimestamp, timeOfDayToBigint } from
 import { compileConnectionOptions, getDefaultConnectionOptions, NativeConnectionOptions } from './connection-options';
 import { byteArrayToBuffer } from './utils';
 import { History } from '@temporalio/common/lib/proto-utils';
+import { toMB } from './utils';
+import * as v8 from 'v8';
+import * as fs from 'fs';
+import * as os from 'os';
 
 export { History };
 
@@ -116,6 +120,7 @@ export class Runtime {
       this.logger = this.options.logger;
       this.logPollPromise = Promise.resolve();
     }
+    this.checkHeapSizeLimit();
     this.setupShutdownHook();
   }
 
@@ -398,4 +403,36 @@ export class Runtime {
       this.deregisterShutdownSignalCallback(callback);
     }
   };
+
+  protected checkHeapSizeLimit(): void {
+    if (process.platform === 'linux') {
+      const cgroupMemoryConstraint = Number(
+        this.tryReadFileSync(/* cgroup v2 */ '/sys/fs/cgroup/memory.max') ??
+          this.tryReadFileSync(/* cgroup v1 */ '/sys/fs/cgroup/memory/memory.limit_in_bytes')
+      );
+
+      if (cgroupMemoryConstraint < os.totalmem() && cgroupMemoryConstraint < v8.getHeapStatistics().heap_size_limit) {
+        const totalMemInMb = toMB(os.totalmem(), 0);
+        const suggestedOldSpaceSizeInMb = toMB(os.totalmem() * 0.75, 0);
+
+        this.logger.warn(
+          `This program is running inside a containerized environment with a memory constraint ` +
+            `(eg. docker --memory ${totalMemInMb}m). Node itself does not consider this memory constraint ` +
+            `in how it manages its heap memory. There is consequently a high probability that ` +
+            `the process will crash due to running out of memory. To increase reliability, we recommend ` +
+            `adding '--max-old-space-size=${suggestedOldSpaceSizeInMb}' to your node arguments. ` +
+            `Refer to https://docs.temporal.io/application-development/worker-performance for more ` +
+            `advice on tuning your workers.`
+        );
+      }
+    }
+  }
+
+  protected tryReadFileSync(file: string): string | undefined {
+    try {
+      return fs.readFileSync(file, { encoding: 'ascii' }) as string;
+    } catch (e) {
+      return undefined;
+    }
+  }
 }

@@ -1,7 +1,6 @@
 import { DataConverter, LoadedDataConverter } from '@temporalio/common';
 import { loadDataConverter } from '@temporalio/internal-non-workflow-common';
 import { msToNumber } from '@temporalio/internal-workflow-common';
-import os from 'os';
 import { ActivityInboundLogInterceptor } from './activity-log-interceptor';
 import { NativeConnection } from './connection';
 import { WorkerInterceptors } from './interceptors';
@@ -10,6 +9,8 @@ import { InjectedSinks } from './sinks';
 import { GiB } from './utils';
 import { LoggerSinks } from './workflow-log-interceptor';
 import { WorkflowBundleWithSourceMap } from './workflow/bundler';
+import * as v8 from 'v8';
+import * as os from 'os';
 
 export interface WorkflowBundlePathWithSourceMap {
   codePath: string;
@@ -171,10 +172,12 @@ export interface WorkerOptions {
    * If the Worker is asked to run an uncached Workflow, it will need to replay the entire Workflow history.
    * Use as a dial for trading memory for CPU time.
    *
-   * You should be able to fit about 500 Workflows per GB of memory dependening on your Workflow bundle size.
+   * Most users are able to fit at least 250 Workflows per GB of available memory.
+   * The major factors contributing to a Workflow's memory weight are the size of allocations made
+   * by the Workflow itself and the size of the Workflow bundle (code and source map).
    * For the SDK test Workflows, we managed to fit 750 Workflows per GB.
    *
-   * @default `max(os.totalmem() / 1GiB - 1, 1) * 200`
+   * @default `max(maxHeapMemory / 1GiB - 1, 1) * 250`
    */
   maxCachedWorkflows?: number;
 
@@ -401,6 +404,7 @@ export function appendDefaultInterceptors(
 
 export function addDefaultWorkerOptions(options: WorkerOptions): WorkerOptionsWithDefaults {
   const { maxCachedWorkflows, debugMode, ...rest } = options;
+
   return {
     namespace: 'default',
     identity: `${process.pid}@${os.hostname()}`,
@@ -415,7 +419,8 @@ export function addDefaultWorkerOptions(options: WorkerOptions): WorkerOptionsWi
     // 4294967295ms is the maximum allowed time
     isolateExecutionTimeout: debugMode ? '4294967295ms' : '5s',
     workflowThreadPoolSize: 8,
-    maxCachedWorkflows: maxCachedWorkflows ?? Math.max(os.totalmem() / GiB - 1, 1) * 200,
+    maxCachedWorkflows:
+      maxCachedWorkflows ?? Math.floor(Math.max(v8.getHeapStatistics().heap_size_limit / GiB - 1, 1) * 250),
     enableSDKTracing: false,
     debugMode: debugMode ?? false,
     interceptors: appendDefaultInterceptors({}),
