@@ -340,6 +340,11 @@ export interface ReplayWorkerOptions
     | 'maxHeartbeatThrottleInterval'
     | 'defaultHeartbeatThrottleInterval'
     | 'debugMode'
+    | 'enableNonLocalActivities'
+    | 'maxActivitiesPerSecond'
+    | 'maxTaskQueueActivitiesPerSecond'
+    | 'stickyQueueScheduleToStartTimeout'
+    | 'maxCachedWorkflows'
   > {
   /**
    *  A name for this replay worker. It will be combined with a short random ID to form a unique
