@@ -6,11 +6,10 @@ import { NativeConnection } from './connection';
 import { WorkerInterceptors } from './interceptors';
 import { Runtime } from './runtime';
 import { InjectedSinks } from './sinks';
-import { GiB, toMB } from './utils';
+import { GiB } from './utils';
 import { LoggerSinks } from './workflow-log-interceptor';
 import { WorkflowBundleWithSourceMap } from './workflow/bundler';
 import * as v8 from 'v8';
-import * as fs from 'fs';
 import * as os from 'os';
 
 export interface WorkflowBundlePathWithSourceMap {
@@ -424,39 +423,6 @@ export function addDefaultWorkerOptions(options: WorkerOptions): WorkerOptionsWi
     sinks: defaultSinks(),
     ...rest,
   };
-}
-
-function checkHeapSizeLimit() {
-  if (process.platform === 'linux') {
-    const cgroupMemoryConstraint = Number(
-      tryReadFileSync(/* cgroup v2 */ '/sys/fs/cgroup/memory.max') ??
-        tryReadFileSync(/* cgroup v1 */ '/sys/fs/cgroup/memory/memory.limit_in_bytes')
-    );
-
-    if (cgroupMemoryConstraint < os.totalmem() && cgroupMemoryConstraint < v8.getHeapStatistics().heap_size_limit) {
-      const totalMemInMb = toMB(os.totalmem(), 0);
-      const suggestedOldSpaceSizeInMb = toMB(os.totalmem() * 0.75, 0);
-
-      Runtime.instance().logger.warn(
-        `This program is running inside a containerized environment with a memory constraint ` +
-          `(eg. docker --memory ${totalMemInMb}m). Node itself does not consider this memory constraint ` +
-          `in how it manages its heap memory. There is consequently a high probability that ` +
-          `the process will crash due to running out of memory. To increase reliability, we recommend ` +
-          `adding '--max-old-space-size=${suggestedOldSpaceSizeInMb}' to your node arguments. ` +
-          `Refer to https://docs.temporal.io/application-development/worker-performance for more ` +
-          `advice on tuning your workers.`
-      );
-    }
-  }
-}
-checkHeapSizeLimit();
-
-function tryReadFileSync(file: string) {
-  try {
-    return fs.readFileSync(file, { encoding: 'ascii' }) as string;
-  } catch (e) {
-    return undefined;
-  }
 }
 
 export function compileWorkerOptions(opts: WorkerOptionsWithDefaults): CompiledWorkerOptions {
