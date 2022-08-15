@@ -14,7 +14,6 @@ if (RUN_INTEGRATION_TESTS) {
           webpackConfigHook: (config) => {
             t.is(config.mode, 'development');
             config.mode = 'invalid' as any;
-            return config;
           },
         },
       }),

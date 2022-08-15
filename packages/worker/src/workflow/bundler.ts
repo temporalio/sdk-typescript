@@ -45,7 +45,7 @@ export class WorkflowCodeBundler {
   public readonly workflowInterceptorModules: string[];
   protected readonly payloadConverterPath?: string;
   protected readonly ignoreModules: string[];
-  protected readonly webpackConfigHook: (config: webpack.Configuration) => webpack.Configuration;
+  protected readonly webpackConfigHook: (config: webpack.Configuration) => void;
 
   constructor({
     logger,
@@ -60,7 +60,11 @@ export class WorkflowCodeBundler {
     this.payloadConverterPath = payloadConverterPath;
     this.workflowInterceptorModules = workflowInterceptorModules ?? [];
     this.ignoreModules = ignoreModules ?? [];
-    this.webpackConfigHook = webpackConfigHook ?? ((config) => config);
+    this.webpackConfigHook =
+      webpackConfigHook ??
+      function () {
+        /* noop */
+      };
   }
 
   /**
@@ -232,7 +236,8 @@ export { api };
       ignoreWarnings: [/Failed to parse source map/],
     };
 
-    const compiler = webpack(this.webpackConfigHook(options));
+    this.webpackConfigHook(options);
+    const compiler = webpack(options);
 
     // Cast to any because the type declarations are inaccurate
     compiler.inputFileSystem = inputFilesystem as any;
