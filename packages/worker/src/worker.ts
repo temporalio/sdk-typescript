@@ -33,6 +33,7 @@ import {
   optionalTsToMs,
   SearchAttributes,
   tsToMs,
+  ValueError,
 } from '@temporalio/internal-workflow-common';
 import { coresdk, temporal } from '@temporalio/proto';
 import { DeterminismViolationError, SinkCall, WorkflowInfo } from '@temporalio/workflow';
@@ -544,7 +545,9 @@ export class Worker {
   ): Promise<WorkflowBundleWithSourceMap | undefined> {
     if (compiledOptions.workflowsPath) {
       if (compiledOptions.workflowBundle) {
-        logger.info('WorkerOptions.workflowsPath is set, so workflowBundle option is ignored');
+        throw new ValueError(
+          'You cannot set both WorkerOptions.workflowsPath and .workflowBundle: only one can be used.'
+        );
       }
 
       const bundler = new WorkflowCodeBundler({
@@ -553,14 +556,16 @@ export class Worker {
         workflowInterceptorModules: compiledOptions.interceptors?.workflowModules,
         payloadConverterPath: compiledOptions.dataConverter?.payloadConverterPath,
         ignoreModules: compiledOptions.bundlerOptions?.ignoreModules,
-        configureWebpack: compiledOptions.bundlerOptions?.configureWebpack,
+        webpackConfigHook: compiledOptions.bundlerOptions?.webpackConfigHook,
       });
       const bundle = await bundler.createBundle();
       logger.info('Workflow bundle created', { size: `${toMB(bundle.code.length)}MB` });
       return bundle;
     } else if (compiledOptions.workflowBundle) {
       if (compiledOptions.bundlerOptions) {
-        logger.info('WorkerOptions.workflowsBundle is set, so bundlerOptions is ignored');
+        throw new ValueError(
+          `You cannot set both WorkerOptions.workflowBundle and .bundlerOptions: if you're providing the bundle, bundlerOptions are not used.`
+        );
       }
 
       if (isCodeBundleOption(compiledOptions.workflowBundle)) {

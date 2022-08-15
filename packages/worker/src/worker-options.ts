@@ -256,10 +256,10 @@ export interface WorkerOptions {
 
   bundlerOptions?: {
     /**
-     * Before we bundle the Workflow code with Webpack, we call `configureWebpack`, passing the Webpack
+     * Before Workflow code is bundled with Webpack, `webpackConfigHook` is called with the Webpack
      * {@link https://webpack.js.org/configuration/ | configuration} object so you can modify it.
      */
-    configureWebpack?: (config: WebpackConfiguration) => WebpackConfiguration;
+    webpackConfigHook?: (config: WebpackConfiguration) => void;
 
     /**
      * List of modules to be excluded from the Workflows bundle.
@@ -322,7 +322,8 @@ export type WorkerOptionsWithDefaults = WorkerOptions &
   };
 
 /**
- * {@link WorkerOptions} where the attributes the Worker requires are required and time units are converted from ms formatted strings to numbers.
+ * {@link WorkerOptions} where the attributes the Worker requires are required and time units are converted from ms
+ * formatted strings to numbers.
  */
 export interface CompiledWorkerOptions extends Omit<WorkerOptionsWithDefaults, 'serverOptions'> {
   shutdownGraceTimeMs: number;

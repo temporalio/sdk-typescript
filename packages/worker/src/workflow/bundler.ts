@@ -45,7 +45,7 @@ export class WorkflowCodeBundler {
   public readonly workflowInterceptorModules: string[];
   protected readonly payloadConverterPath?: string;
   protected readonly ignoreModules: string[];
-  protected readonly configureWebpack: (config: webpack.Configuration) => webpack.Configuration;
+  protected readonly webpackConfigHook: (config: webpack.Configuration) => webpack.Configuration;
 
   constructor({
     logger,
@@ -53,14 +53,14 @@ export class WorkflowCodeBundler {
     payloadConverterPath,
     workflowInterceptorModules,
     ignoreModules,
-    configureWebpack,
+    webpackConfigHook,
   }: BundleOptions) {
     this.logger = logger ?? new DefaultLogger('INFO');
     this.workflowsPath = workflowsPath;
     this.payloadConverterPath = payloadConverterPath;
     this.workflowInterceptorModules = workflowInterceptorModules ?? [];
     this.ignoreModules = ignoreModules ?? [];
-    this.configureWebpack = configureWebpack ?? ((config) => config);
+    this.webpackConfigHook = webpackConfigHook ?? ((config) => config);
   }
 
   /**
@@ -232,7 +232,7 @@ export { api };
       ignoreWarnings: [/Failed to parse source map/],
     };
 
-    const compiler = webpack(this.configureWebpack(options));
+    const compiler = webpack(this.webpackConfigHook(options));
 
     // Cast to any because the type declarations are inaccurate
     compiler.inputFileSystem = inputFilesystem as any;
@@ -322,10 +322,10 @@ export interface BundleOptions {
   ignoreModules?: string[];
 
   /**
-   * Before we bundle the Workflow code with Webpack, we call `configureWebpack`, passing the Webpack
+   * Before Workflow code is bundled with Webpack, `webpackConfigHook` is called with the Webpack
    * {@link https://webpack.js.org/configuration/ | configuration} object so you can modify it.
    */
-  configureWebpack?: (config: webpack.Configuration) => webpack.Configuration;
+  webpackConfigHook?: (config: webpack.Configuration) => void;
 }
 
 /**
