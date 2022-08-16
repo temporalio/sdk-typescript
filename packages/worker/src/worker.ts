@@ -546,7 +546,7 @@ export class Worker {
     if (compiledOptions.workflowsPath) {
       if (compiledOptions.workflowBundle) {
         throw new ValueError(
-          'You cannot set both WorkerOptions.workflowsPath and .workflowBundle: only one can be used.'
+          'You cannot set both WorkerOptions.workflowsPath and .workflowBundle: only one can be used'
         );
       }
 
@@ -563,9 +563,7 @@ export class Worker {
       return bundle;
     } else if (compiledOptions.workflowBundle) {
       if (compiledOptions.bundlerOptions) {
-        throw new ValueError(
-          `You cannot set both WorkerOptions.workflowBundle and .bundlerOptions: if you're providing the bundle, bundlerOptions are not used.`
-        );
+        throw new ValueError(`You cannot set both WorkerOptions.workflowBundle and .bundlerOptions`);
       }
 
       if (isCodeBundleOption(compiledOptions.workflowBundle)) {
