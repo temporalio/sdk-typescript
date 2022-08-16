@@ -33,6 +33,7 @@ import {
   optionalTsToMs,
   SearchAttributes,
   tsToMs,
+  ValueError,
 } from '@temporalio/internal-workflow-common';
 import { coresdk, temporal } from '@temporalio/proto';
 import { DeterminismViolationError, SinkCall, WorkflowInfo } from '@temporalio/workflow';
@@ -543,17 +544,30 @@ export class Worker {
     logger: Logger
   ): Promise<WorkflowBundleWithSourceMap | undefined> {
     if (compiledOptions.workflowsPath) {
+      if (compiledOptions.workflowBundle) {
+        throw new ValueError(
+          'You cannot set both WorkerOptions.workflowsPath and .workflowBundle: only one can be used.'
+        );
+      }
+
       const bundler = new WorkflowCodeBundler({
         logger,
         workflowsPath: compiledOptions.workflowsPath,
         workflowInterceptorModules: compiledOptions.interceptors?.workflowModules,
         payloadConverterPath: compiledOptions.dataConverter?.payloadConverterPath,
         ignoreModules: compiledOptions.bundlerOptions?.ignoreModules,
+        webpackConfigHook: compiledOptions.bundlerOptions?.webpackConfigHook,
       });
       const bundle = await bundler.createBundle();
       logger.info('Workflow bundle created', { size: `${toMB(bundle.code.length)}MB` });
       return bundle;
     } else if (compiledOptions.workflowBundle) {
+      if (compiledOptions.bundlerOptions) {
+        throw new ValueError(
+          `You cannot set both WorkerOptions.workflowBundle and .bundlerOptions: if you're providing the bundle, bundlerOptions are not used.`
+        );
+      }
+
       if (isCodeBundleOption(compiledOptions.workflowBundle)) {
         return compiledOptions.workflowBundle;
       } else if (isPathBundleOption(compiledOptions.workflowBundle)) {
