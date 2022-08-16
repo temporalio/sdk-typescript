@@ -1178,7 +1178,6 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
           .map((s) => cleanOptionalStackTrace(`\n${s}`))
           .join('\n')
       );
-      console.log(JSON.stringify([stack1, stack2]));
       // Can't get the Trigger stack cleaned, this is okay for now
       // NOTE: we check endsWith because under certain conditions we might see Promise.race in the trace
       t.true(
@@ -1218,9 +1217,6 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
       taskQueue: 'test',
       workflowId,
     });
-    console.log('Test output:');
-    console.log(enhancedStack);
-    console.log(JSON.stringify(enhancedStack.stacks));
 
     t.is(enhancedStack.sdk.name, 'typescript', 'sdk name is not "typescript"');
     t.is(enhancedStack.stacks.length, 3, 'Number of stacks is different from expected');
