@@ -4,21 +4,27 @@ import libCoverage from 'istanbul-lib-coverage';
 
 export class WorkflowCoverage {
   coverageMap = libCoverage.createCoverageMap();
-  sinksInternal: InjectedSinks<CoverageSinks> = {
-    coverage: {
-      merge: {
-        fn: (_workflowInfo: any, testCoverage: libCoverage.CoverageMap) => {
-          this.coverageMap.merge(testCoverage);
-        },
-        callDuringReplay: false,
-      },
-    },
-  };
 
+  /**
+   * Contains sinks that allow Workflows to gather coverage data.
+   */
   get sinks(): InjectedSinks<CoverageSinks> {
-    return this.sinksInternal;
+    return {
+      coverage: {
+        merge: {
+          fn: (_workflowInfo, testCoverage) => {
+            this.coverageMap.merge(testCoverage);
+          },
+          callDuringReplay: false,
+        },
+      },
+    };
   }
 
+  /**
+   * Merge this WorkflowCoverage's coverage map into the global coverage
+   * map data `global.__coverage__`.
+   */
   mergeIntoGlobalCoverage(): void {
     /* eslint-disable @typescript-eslint/ban-ts-comment */
     // @ts-ignore
