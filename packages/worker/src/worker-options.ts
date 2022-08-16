@@ -1,6 +1,7 @@
 import { DataConverter, LoadedDataConverter } from '@temporalio/common';
 import { loadDataConverter } from '@temporalio/internal-non-workflow-common';
 import { msToNumber } from '@temporalio/internal-workflow-common';
+import type { Configuration as WebpackConfiguration } from 'webpack';
 import { ActivityInboundLogInterceptor } from './activity-log-interceptor';
 import { NativeConnection } from './connection';
 import { WorkerInterceptors } from './interceptors';
@@ -11,6 +12,8 @@ import { LoggerSinks } from './workflow-log-interceptor';
 import { WorkflowBundleWithSourceMap } from './workflow/bundler';
 import * as v8 from 'v8';
 import * as os from 'os';
+
+export type { WebpackConfiguration };
 
 export interface WorkflowBundlePathWithSourceMap {
   codePath: string;
@@ -253,6 +256,12 @@ export interface WorkerOptions {
 
   bundlerOptions?: {
     /**
+     * Before Workflow code is bundled with Webpack, `webpackConfigHook` is called with the Webpack
+     * {@link https://webpack.js.org/configuration/ | configuration} object so you can modify it.
+     */
+    webpackConfigHook?: (config: WebpackConfiguration) => WebpackConfiguration;
+
+    /**
      * List of modules to be excluded from the Workflows bundle.
      *
      * Use this option when your Workflow code references an import that cannot be used in isolation,
@@ -313,7 +322,8 @@ export type WorkerOptionsWithDefaults = WorkerOptions &
   };
 
 /**
- * {@link WorkerOptions} where the attributes the Worker requires are required and time units are converted from ms formatted strings to numbers.
+ * {@link WorkerOptions} where the attributes the Worker requires are required and time units are converted from ms
+ * formatted strings to numbers.
  */
 export interface CompiledWorkerOptions extends Omit<WorkerOptionsWithDefaults, 'serverOptions'> {
   shutdownGraceTimeMs: number;
