@@ -26,10 +26,10 @@ export async function stackTracer(): Promise<[string, string]> {
   return [first, second];
 }
 
-export async function enhancedStackTracer(): Promise<[EnhancedStackTrace, EnhancedStackTrace]> {
+export async function enhancedStackTracer(): Promise<EnhancedStackTrace> {
   const trigger = new wf.Trigger<EnhancedStackTrace>();
 
-  const [first] = await Promise.all([
+  const [enhStack] = await Promise.all([
     trigger,
     Promise.race([
       queryOwnWf(wf.enhancedStackTraceQuery).then((stack) => trigger.resolve(stack)),
@@ -37,7 +37,5 @@ export async function enhancedStackTracer(): Promise<[EnhancedStackTrace, Enhanc
       wf.sleep(100_000),
     ]),
   ]);
-  const second = await queryOwnWf(wf.enhancedStackTraceQuery);
-  void wf.sleep(100_000_000);
-  return [first, second];
+  return enhStack;
 }

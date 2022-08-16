@@ -1178,6 +1178,7 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
           .map((s) => cleanOptionalStackTrace(`\n${s}`))
           .join('\n')
       );
+      console.log(JSON.stringify([stack1, stack2]));
       // Can't get the Trigger stack cleaned, this is okay for now
       // NOTE: we check endsWith because under certain conditions we might see Promise.race in the trace
       t.true(
@@ -1213,16 +1214,61 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
     const { client } = t.context;
     const workflowId = uuid4();
 
-    const enhStacks = await client.execute(workflows.enhancedStackTracer, {
+    const enhancedStack = await client.execute(workflows.enhancedStackTracer, {
       taskQueue: 'test',
       workflowId,
     });
+    console.log('Test output:');
+    console.log(enhancedStack);
+    console.log(JSON.stringify(enhancedStack.stacks));
 
-    t.is(enhStacks[0].sdk.name, 'typescript', 'sdk name is not "typescript"');
-    t.is(enhStacks[0].stacks.length, 3, 'Number of stacks is different from expected');
-    t.is(enhStacks[0].stacks[0].locations.length, 1, 'Number of locations is different from expected');
-    t.is(enhStacks[1].stacks.length, 3, 'Number of stacks is different from expected');
-    t.is(enhStacks[1].stacks[0].locations.length, 2, 'Number of locations is different from expected');
+    t.is(enhancedStack.sdk.name, 'typescript', 'sdk name is not "typescript"');
+    t.is(enhancedStack.stacks.length, 3, 'Number of stacks is different from expected');
+    t.is(enhancedStack.stacks[0].locations.length, 2, 'Number of locations is different from expected');
+    t.is(enhancedStack.stacks[1].locations.length, 1, 'Number of locations is different from expected');
+    t.is(enhancedStack.stacks[2].locations.length, 2, 'Number of locations is different from expected');
+    t.is(
+      enhancedStack.stacks[0].locations[0].functionName &&
+        enhancedStack.stacks[0].locations[0].functionName.includes('Function.all (<anonymous>)'),
+      true,
+      'functionName doesn`t match'
+    );
+    t.is(
+      enhancedStack.stacks[0].locations[1].filePath &&
+        enhancedStack.stacks[0].locations[1].filePath.includes('packages/test/src/workflows/stack-tracer.ts'),
+      true,
+      'filePath doesn`t match'
+    );
+    t.is(
+      enhancedStack.stacks[1].locations[0].filePath &&
+        enhancedStack.stacks[1].locations[0].filePath.includes('packages/test/src/workflows/stack-tracer.ts'),
+      true,
+      'filePath doesn`t match'
+    );
+    t.is(
+      enhancedStack.stacks[2].locations[0].functionName &&
+        enhancedStack.stacks[2].locations[0].functionName.includes('Promise.then (<anonymous>)'),
+      true,
+      'functionName doesn`t match'
+    );
+    t.is(
+      enhancedStack.stacks[2].locations[1].filePath &&
+        enhancedStack.stacks[2].locations[1].filePath.includes('packages/workflow/src/trigger.ts'),
+      true,
+      'filePath doesn`t match'
+    );
+    t.is(
+      Object.keys(enhancedStack.sources)[0].includes('packages/test/src/workflows/stack-tracer.ts'),
+      true,
+      'Source key doesn`t match'
+    );
+    t.is(
+      Object.keys(enhancedStack.sources)[1].includes('packages/workflow/src/trigger.ts'),
+      true,
+      'Source key doesn`t match'
+    );
+    t.is(enhancedStack.sources[Object.keys(enhancedStack.sources)[0]].length, 1, 'Number of file slices doesn`t match');
+    t.is(enhancedStack.sources[Object.keys(enhancedStack.sources)[1]].length, 1, 'Number of file slices doesn`t match');
   });
 
   test('issue-731', async (t) => {
