@@ -320,7 +320,7 @@ export interface FileLocation {
    * Path to source file (absolute or relative).
    * When using a relative path, make sure all paths are relative to the same root.
    */
-  filePath: string;
+  filePath?: string;
   /**
    * If possible, SDK should send this, required for displaying the code location.
    */

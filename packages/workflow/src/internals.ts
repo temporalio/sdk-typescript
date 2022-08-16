@@ -424,34 +424,30 @@ export class State {
         const sourceMapRecord: Record<string, FileSlice[]> = {};
         const stackTraces = stacks.map((stack) => {
           const locationsPaths: FileLocation[] = [];
-
+          if (stack.includes('(<anonymous>)')) {
+            locationsPaths.push({ functionName: stack.slice(0, stack.indexOf('\n')).trim().replace('at ', '') });
+          }
           errorStackParser.parse({ name: '', message: '', stack }).forEach((parsedStackTraceLine) => {
-            if (parsedStackTraceLine.columnNumber && parsedStackTraceLine.lineNumber && parsedStackTraceLine.fileName) {
-              const fileLocation: FileLocation = {
-                column: parsedStackTraceLine.columnNumber,
-                line: parsedStackTraceLine.lineNumber,
-                filePath: parsedStackTraceLine.fileName,
-                functionName: parsedStackTraceLine.functionName,
-              };
-              locationsPaths.push(fileLocation);
+            const fileLocation: FileLocation = {
+              column: parsedStackTraceLine.columnNumber,
+              line: parsedStackTraceLine.lineNumber,
+              filePath: parsedStackTraceLine.fileName,
+              functionName: parsedStackTraceLine.functionName,
+            };
+            locationsPaths.push(fileLocation);
 
-              const fileSlice: FileSlice = {
-                content:
-                  sourceMap && sourceMap.sourcesContent
-                    ? sourceMap.sourcesContent[sourceMap.sources.indexOf(fileLocation.filePath)]
-                    : '',
-                lineOffset: 0,
-              };
+            const fileSlice: FileSlice = {
+              content:
+                sourceMap && sourceMap.sourcesContent && fileLocation.filePath
+                  ? sourceMap.sourcesContent[sourceMap.sources.indexOf(fileLocation.filePath)]
+                  : '',
+              lineOffset: 0,
+            };
 
-              const fileNameKey = parsedStackTraceLine.fileName;
+            const fileNameKey = parsedStackTraceLine.fileName;
 
-              if (fileNameKey) {
-                if (fileNameKey in sourceMapRecord) {
-                  sourceMapRecord[fileNameKey].push(fileSlice);
-                } else {
-                  sourceMapRecord[fileNameKey] = [fileSlice];
-                }
-              }
+            if (fileNameKey && !(fileNameKey in sourceMapRecord)) {
+              sourceMapRecord[fileNameKey] = [fileSlice];
             }
           });
           return { locations: locationsPaths };
