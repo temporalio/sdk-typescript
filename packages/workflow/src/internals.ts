@@ -445,7 +445,7 @@ export class State {
             ];
           }
         }
-        return { sdk: sdk, stacks, sources };
+        return { sdk, stacks, sources };
       },
     ],
   ]);
