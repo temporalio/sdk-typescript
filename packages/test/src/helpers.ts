@@ -32,8 +32,3 @@ export function cleanStackTrace(stack: string): string {
   const cleaned = su.clean(stack).trimEnd();
   return stack.split('\n')[0] + '\n' + (cleaned && cleaned.replace(/:\d+:\d+/g, '').replace(/^/gms, '    at '));
 }
-
-export function containsMatching(strings: string[], regex: RegExp): boolean {
-  console.log('strings:', strings);
-  return strings.some((str) => regex.test(str));
-}

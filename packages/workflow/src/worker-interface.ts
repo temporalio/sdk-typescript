@@ -26,8 +26,7 @@ export interface WorkflowCreateOptions {
 }
 
 export interface WorkflowCreateOptionsWithSourceMap extends WorkflowCreateOptions {
-  // TODO: find the type definitions for this
-  sourceMap: unknown;
+  sourceMap: RawSourceMap;
 }
 
 export interface ImportFunctions {
@@ -132,7 +131,7 @@ export async function initRuntime({
   state.info = info;
   state.now = now;
   state.random = alea(randomnessSeed);
-  state.sourceMap = sourceMap as RawSourceMap;
+  state.sourceMap = sourceMap;
 
   if (info.unsafe.isReplaying) {
     for (const patch of patches) {

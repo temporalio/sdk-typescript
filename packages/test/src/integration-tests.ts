@@ -1,4 +1,5 @@
 /* eslint @typescript-eslint/no-non-null-assertion: 0 */
+import path from 'node:path';
 import {
   ActivityFailure,
   ApplicationFailure,
@@ -41,6 +42,7 @@ import { ConnectionInjectorInterceptor } from './activities/interceptors';
 import { cleanOptionalStackTrace, u8 } from './helpers';
 import * as workflows from './workflows';
 import { withZeroesHTTPServer } from './zeroes-http-server';
+import { readFileSync } from 'node:fs';
 
 const { EVENT_TYPE_TIMER_STARTED, EVENT_TYPE_TIMER_FIRED, EVENT_TYPE_TIMER_CANCELED } =
   iface.temporal.api.enums.v1.EventType;
@@ -1209,7 +1211,7 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
     });
   }
 
-  test('Enhanced Stack Trace Test', async (t) => {
+  test('Enhanced stack trace returns trace that makes sense', async (t) => {
     const { client } = t.context;
     const workflowId = uuid4();
 
@@ -1218,53 +1220,57 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
       workflowId,
     });
 
-    t.is(enhancedStack.sdk.name, 'typescript', 'sdk name is not "typescript"');
-    t.is(enhancedStack.stacks.length, 3, 'Number of stacks is different from expected');
-    t.is(enhancedStack.stacks[0].locations.length, 2, 'Number of locations is different from expected');
-    t.is(enhancedStack.stacks[1].locations.length, 1, 'Number of locations is different from expected');
-    t.is(enhancedStack.stacks[2].locations.length, 2, 'Number of locations is different from expected');
-    t.is(
-      enhancedStack.stacks[0].locations[0].functionName &&
-        enhancedStack.stacks[0].locations[0].functionName.includes('Function.all (<anonymous>)'),
-      true,
-      'functionName doesn`t match'
-    );
-    t.is(
-      enhancedStack.stacks[0].locations[1].filePath &&
-        enhancedStack.stacks[0].locations[1].filePath.includes('packages/test/src/workflows/stack-tracer.ts'),
-      true,
-      'filePath doesn`t match'
-    );
-    t.is(
-      enhancedStack.stacks[1].locations[0].filePath &&
-        enhancedStack.stacks[1].locations[0].filePath.includes('packages/test/src/workflows/stack-tracer.ts'),
-      true,
-      'filePath doesn`t match'
-    );
-    t.is(
-      enhancedStack.stacks[2].locations[0].functionName &&
-        enhancedStack.stacks[2].locations[0].functionName.includes('Promise.then (<anonymous>)'),
-      true,
-      'functionName doesn`t match'
-    );
-    t.is(
-      enhancedStack.stacks[2].locations[1].filePath &&
-        enhancedStack.stacks[2].locations[1].filePath.includes('packages/workflow/src/trigger.ts'),
-      true,
-      'filePath doesn`t match'
-    );
-    t.is(
-      Object.keys(enhancedStack.sources)[0].includes('packages/test/src/workflows/stack-tracer.ts'),
-      true,
-      'Source key doesn`t match'
-    );
-    t.is(
-      Object.keys(enhancedStack.sources)[1].includes('packages/workflow/src/trigger.ts'),
-      true,
-      'Source key doesn`t match'
-    );
-    t.is(enhancedStack.sources[Object.keys(enhancedStack.sources)[0]].length, 1, 'Number of file slices doesn`t match');
-    t.is(enhancedStack.sources[Object.keys(enhancedStack.sources)[1]].length, 1, 'Number of file slices doesn`t match');
+    const stacks = enhancedStack.stacks.map((s) => ({
+      locations: s.locations.map((l) => ({
+        ...l,
+        ...(l.filePath ? { filePath: l.filePath.replace(path.resolve(__dirname, '../../../'), '') } : undefined),
+      })),
+    }));
+    t.is(enhancedStack.sdk.name, 'typescript');
+    t.is(enhancedStack.sdk.version, pkg.version); // Expect workflow and worker versions to match
+    t.deepEqual(stacks, [
+      {
+        locations: [
+          {
+            functionName: 'Function.all',
+          },
+          {
+            filePath: '/packages/test/src/workflows/stack-tracer.ts',
+            functionName: 'enhancedStackTracer',
+            line: 32,
+            column: 35,
+          },
+        ],
+      },
+      {
+        locations: [
+          {
+            filePath: '/packages/test/src/workflows/stack-tracer.ts',
+            functionName: 'enhancedStackTracer',
+            line: 32,
+            column: 35,
+          },
+        ],
+      },
+      {
+        locations: [
+          {
+            functionName: 'Promise.then',
+          },
+          {
+            filePath: '/packages/workflow/src/trigger.ts',
+            functionName: 'Trigger.then',
+            line: 47,
+            column: 24,
+          },
+        ],
+      },
+    ]);
+    const expectedSources = ['../src/workflows/stack-tracer.ts', '../../workflow/src/trigger.ts'].map((p) => [
+      path.resolve(__dirname, p),
+      [{ content: readFileSync(path.resolve(__dirname, p), 'utf8'), lineOffset: 0 }],
+    ]);
+    t.deepEqual(Object.entries(enhancedStack.sources), expectedSources);
   });
 
   test('issue-731', async (t) => {

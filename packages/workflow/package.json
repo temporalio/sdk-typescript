@@ -21,6 +21,9 @@
     "@temporalio/internal-workflow-common": "file:../internal-workflow-common",
     "@temporalio/proto": "file:../proto"
   },
+  "devDependencies": {
+    "source-map": "^0.7.4"
+  },
   "publishConfig": {
     "access": "public"
   },
