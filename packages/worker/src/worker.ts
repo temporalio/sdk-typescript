@@ -1133,6 +1133,7 @@ export class Worker {
                           randomnessSeed: randomnessSeed.toBytes(),
                           now: tsToMs(activation.timestamp),
                           patches,
+                          showStackTraceSources: this.options.showStackTraceSources,
                         });
                       });
 

@@ -245,6 +245,13 @@ export interface WorkerOptions {
   enableSDKTracing?: boolean;
 
   /**
+   * Whether or not to send the sources in enhanced stack trace query responses
+   *
+   * @default false
+   */
+  showStackTraceSources?: boolean;
+
+  /**
    * If `true` Worker runs Workflows in the same thread allowing debugger to
    * attach to Workflow instances.
    *
@@ -292,6 +299,7 @@ export type WorkerOptionsWithDefaults = WorkerOptions &
       | 'maxHeartbeatThrottleInterval'
       | 'defaultHeartbeatThrottleInterval'
       | 'enableSDKTracing'
+      | 'showStackTraceSources'
       | 'debugMode'
     >
   > & {
@@ -418,7 +426,7 @@ export function appendDefaultInterceptors(
 }
 
 export function addDefaultWorkerOptions(options: WorkerOptions): WorkerOptionsWithDefaults {
-  const { maxCachedWorkflows, debugMode, ...rest } = options;
+  const { maxCachedWorkflows, showStackTraceSources, debugMode, ...rest } = options;
 
   return {
     namespace: 'default',
@@ -437,6 +445,7 @@ export function addDefaultWorkerOptions(options: WorkerOptions): WorkerOptionsWi
     maxCachedWorkflows:
       maxCachedWorkflows ?? Math.floor(Math.max(v8.getHeapStatistics().heap_size_limit / GiB - 1, 1) * 250),
     enableSDKTracing: false,
+    showStackTraceSources: showStackTraceSources ?? false,
     debugMode: debugMode ?? false,
     interceptors: appendDefaultInterceptors({}),
     sinks: defaultSinks(),

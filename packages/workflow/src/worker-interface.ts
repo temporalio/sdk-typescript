@@ -23,6 +23,7 @@ export interface WorkflowCreateOptions {
   randomnessSeed: number[];
   now: number;
   patches: string[];
+  showStackTraceSources: boolean;
 }
 
 export interface WorkflowCreateOptionsWithSourceMap extends WorkflowCreateOptions {
@@ -117,6 +118,7 @@ export async function initRuntime({
   now,
   patches,
   sourceMap,
+  showStackTraceSources,
 }: WorkflowCreateOptionsWithSourceMap): Promise<void> {
   const global = globalThis as any;
   // Set the runId globally on the context so it can be retrieved in the case
@@ -131,6 +133,7 @@ export async function initRuntime({
   state.info = info;
   state.now = now;
   state.random = alea(randomnessSeed);
+  state.showStackTraceSources = showStackTraceSources;
   state.sourceMap = sourceMap;
 
   if (info.unsafe.isReplaying) {

@@ -389,6 +389,11 @@ export class State {
    */
   public sourceMap: RawSourceMap | undefined;
 
+  /**
+   * Whether or not to send the sources in enhanced stack trace query responses
+   */
+  public showStackTraceSources = false;
+
   protected getStackTraces(): Stack[] {
     const { childToParent, promiseToStack } = (globalThis as any).__TEMPORAL__.promiseStackStore as PromiseStackStore;
     const internalNodes = new Set(
@@ -432,17 +437,19 @@ export class State {
         const sdk: SDKInfo = { name: 'typescript', version: pkg.version };
         const stacks = this.getStackTraces().map(({ structured: locations }) => ({ locations }));
         const sources: Record<string, FileSlice[]> = {};
-        for (const { locations } of stacks) {
-          for (const { filePath } of locations) {
-            if (!filePath) continue;
-            const content = sourceMap?.sourcesContent?.[sourceMap?.sources.indexOf(filePath)];
-            if (!content) continue;
-            sources[filePath] = [
-              {
-                content,
-                lineOffset: 0,
-              },
-            ];
+        if (this.showStackTraceSources) {
+          for (const { locations } of stacks) {
+            for (const { filePath } of locations) {
+              if (!filePath) continue;
+              const content = sourceMap?.sourcesContent?.[sourceMap?.sources.indexOf(filePath)];
+              if (!content) continue;
+              sources[filePath] = [
+                {
+                  content,
+                  lineOffset: 0,
+                },
+              ];
+            }
           }
         }
         return { sdk, stacks, sources };

@@ -82,6 +82,7 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
       interceptors: {
         activityInbound: [() => new ConnectionInjectorInterceptor(connection, loadDataConverter(dataConverter))],
       },
+      showStackTraceSources: true,
     });
 
     const runPromise = worker.run();
