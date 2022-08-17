@@ -6,6 +6,13 @@ export class WorkflowCoverage {
   coverageMap = libCoverage.createCoverageMap();
 
   /**
+   * Interceptor to inject into `WorkerOptions.interceptors.workflowModules`
+   */
+  public get interceptorModule(): string {
+    return require.resolve('./interceptors');
+  }
+
+  /**
    * Contains sinks that allow Workflows to gather coverage data.
    */
   get sinks(): InjectedSinks<CoverageSinks> {
