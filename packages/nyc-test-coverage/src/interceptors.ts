@@ -1,6 +1,6 @@
 import { proxySinks, WorkflowInterceptors } from '@temporalio/workflow';
 import { CoverageSinks } from './sinks';
-import libCoverage from 'istanbul-lib-coverage';
+import type { CoverageMapData } from 'istanbul-lib-coverage';
 
 const { coverage } = proxySinks<CoverageSinks>();
 
@@ -11,7 +11,7 @@ export const interceptors = (): WorkflowInterceptors => ({
       concludeActivation(input, next) {
         /* eslint-disable @typescript-eslint/ban-ts-comment */
         // @ts-ignore
-        const globalCoverage: libCoverage.CoverageMapData = global.__coverage__;
+        const globalCoverage: CoverageMapData = global.__coverage__;
 
         coverage.merge(JSON.parse(JSON.stringify(globalCoverage)));
         clearCoverage(globalCoverage);
@@ -22,7 +22,7 @@ export const interceptors = (): WorkflowInterceptors => ({
   ],
 });
 
-function clearCoverage(coverage: libCoverage.CoverageMapData): void {
+function clearCoverage(coverage: CoverageMapData): void {
   for (const path of Object.keys(coverage)) {
     for (const index of Object.keys(coverage[path].s)) {
       coverage[path].s[index] = 0;

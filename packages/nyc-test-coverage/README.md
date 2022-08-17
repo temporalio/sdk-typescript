@@ -20,7 +20,7 @@ worker = await Worker.create({
   taskQueue,
   workflowsPath: require.resolve("./workflows"),
   interceptors: {
-    workflowModules: [require.resolve("@temporalio/nyc-test-coverage/lib/interceptors")]
+    workflowModules: [workflowCoverage.interceptorModule]
   },
   sinks: workflowCoverage.sinks,
 });
