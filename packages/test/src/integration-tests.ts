@@ -404,7 +404,8 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
     await workflow.result();
     await t.throwsAsync(workflow.query('not found'), {
       instanceOf: QueryNotRegisteredError,
-      message: 'Workflow did not register a handler for not found. Registered queries: [__stack_trace isBlocked]',
+      message:
+        'Workflow did not register a handler for not found. Registered queries: [__stack_trace __enhanced_stack_trace isBlocked]',
     });
   });
 
