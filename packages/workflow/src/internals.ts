@@ -1,4 +1,5 @@
 import { PayloadConverter } from '@temporalio/common';
+import type { RawSourceMap } from 'source-map';
 import {
   arrayFromPayloads,
   defaultPayloadConverter,
@@ -27,9 +28,10 @@ import {
   WorkflowInterceptors,
   WorkflowInterceptorsFactory,
 } from './interceptors';
-import { ContinueAsNew, WorkflowInfo } from './interfaces';
+import { ContinueAsNew, SDKInfo, FileSlice, EnhancedStackTrace, FileLocation, WorkflowInfo } from './interfaces';
 import { SinkCall } from './sinks';
 import { untrackPromise } from './stack-helpers';
+import pkg from './pkg';
 
 enum StartChildWorkflowExecutionFailedCause {
   START_CHILD_WORKFLOW_EXECUTION_FAILED_CAUSE_UNSPECIFIED = 0,
@@ -38,12 +40,17 @@ enum StartChildWorkflowExecutionFailedCause {
 
 checkExtends<coresdk.child_workflow.StartChildWorkflowExecutionFailedCause, StartChildWorkflowExecutionFailedCause>();
 
+export interface Stack {
+  formatted: string;
+  structured: FileLocation[];
+}
+
 /**
  * Global store to track promise stacks for stack trace query
  */
 export interface PromiseStackStore {
   childToParent: Map<Promise<unknown>, Set<Promise<unknown>>>;
-  promiseToStack: Map<Promise<unknown>, string>;
+  promiseToStack: Map<Promise<unknown>, Stack>;
 }
 
 export type ResolveFunction<T = any> = (val: T) => any;
@@ -378,34 +385,72 @@ export class State {
   public readonly signalHandlers = new Map<string, WorkflowSignalType>();
 
   /**
+   * Source map file for looking up the source files in response to __enhanced_stack_trace
+   */
+  public sourceMap: RawSourceMap | undefined;
+
+  /**
+   * Whether or not to send the sources in enhanced stack trace query responses
+   */
+  public showStackTraceSources = false;
+
+  protected getStackTraces(): Stack[] {
+    const { childToParent, promiseToStack } = (globalThis as any).__TEMPORAL__.promiseStackStore as PromiseStackStore;
+    const internalNodes = [...childToParent.values()].reduce((acc, curr) => {
+      for (const p of curr) {
+        acc.add(p);
+      }
+      return acc;
+    }, new Set());
+    const stacks = new Map<string, Stack>();
+    for (const child of childToParent.keys()) {
+      if (!internalNodes.has(child)) {
+        const stack = promiseToStack.get(child);
+        if (!stack || !stack.formatted) continue;
+        stacks.set(stack.formatted, stack);
+      }
+    }
+    // Not 100% sure where this comes from, just filter it out
+    stacks.delete('    at Promise.then (<anonymous>)');
+    stacks.delete('    at Promise.then (<anonymous>)\n');
+    return [...stacks].map(([_, stack]) => stack);
+  }
+
+  /**
    * Mapping of query name to handler
    */
   public readonly queryHandlers = new Map<string, WorkflowQueryType>([
     [
       '__stack_trace',
       () => {
-        const { childToParent, promiseToStack } = (globalThis as any).__TEMPORAL__
-          .promiseStackStore as PromiseStackStore;
-        const internalNodes = new Set(
-          [...childToParent.values()].reduce((acc, curr) => {
-            for (const p of curr) {
-              acc.add(p);
+        return this.getStackTraces()
+          .map((s) => s.formatted)
+          .join('\n\n');
+      },
+    ],
+    [
+      '__enhanced_stack_trace',
+      (): EnhancedStackTrace => {
+        const { sourceMap } = this;
+        const sdk: SDKInfo = { name: 'typescript', version: pkg.version };
+        const stacks = this.getStackTraces().map(({ structured: locations }) => ({ locations }));
+        const sources: Record<string, FileSlice[]> = {};
+        if (this.showStackTraceSources) {
+          for (const { locations } of stacks) {
+            for (const { filePath } of locations) {
+              if (!filePath) continue;
+              const content = sourceMap?.sourcesContent?.[sourceMap?.sources.indexOf(filePath)];
+              if (!content) continue;
+              sources[filePath] = [
+                {
+                  content,
+                  lineOffset: 0,
+                },
+              ];
             }
-            return acc;
-          }, new Set())
-        );
-        const stacks = new Set<string>();
-        for (const child of childToParent.keys()) {
-          if (!internalNodes.has(child)) {
-            const stack = promiseToStack.get(child);
-            if (!stack) continue;
-            stacks.add(stack);
           }
         }
-        // Not 100% sure where this comes from, just filter it out
-        stacks.delete('    at Promise.then (<anonymous>)');
-        stacks.delete('    at Promise.then (<anonymous>)\n');
-        return [...stacks].join('\n\n');
+        return { sdk, stacks, sources };
       },
     ],
   ]);

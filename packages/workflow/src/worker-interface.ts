@@ -13,6 +13,7 @@ import { WorkflowInterceptorsFactory } from './interceptors';
 import { WorkflowInfo } from './interfaces';
 import { InterceptorsImportFunc, state, WorkflowsImportFunc } from './internals';
 import { SinkCall } from './sinks';
+import type { RawSourceMap } from 'source-map';
 
 // Export the type for use on the "worker" side
 export { PromiseStackStore } from './internals';
@@ -22,6 +23,11 @@ export interface WorkflowCreateOptions {
   randomnessSeed: number[];
   now: number;
   patches: string[];
+  showStackTraceSources: boolean;
+}
+
+export interface WorkflowCreateOptionsWithSourceMap extends WorkflowCreateOptions {
+  sourceMap: RawSourceMap;
 }
 
 export interface ImportFunctions {
@@ -106,7 +112,14 @@ export function overrideGlobals(): void {
  *
  * Sets required internal state and instantiates the workflow and interceptors.
  */
-export async function initRuntime({ info, randomnessSeed, now, patches }: WorkflowCreateOptions): Promise<void> {
+export async function initRuntime({
+  info,
+  randomnessSeed,
+  now,
+  patches,
+  sourceMap,
+  showStackTraceSources,
+}: WorkflowCreateOptionsWithSourceMap): Promise<void> {
   const global = globalThis as any;
   // Set the runId globally on the context so it can be retrieved in the case
   // of an unhandled promise rejection.
@@ -120,6 +133,8 @@ export async function initRuntime({ info, randomnessSeed, now, patches }: Workfl
   state.info = info;
   state.now = now;
   state.random = alea(randomnessSeed);
+  state.showStackTraceSources = showStackTraceSources;
+  state.sourceMap = sourceMap;
 
   if (info.unsafe.isReplaying) {
     for (const patch of patches) {

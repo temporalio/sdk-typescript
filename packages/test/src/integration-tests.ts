@@ -1,4 +1,5 @@
 /* eslint @typescript-eslint/no-non-null-assertion: 0 */
+import path from 'node:path';
 import {
   ActivityFailure,
   ApplicationFailure,
@@ -41,6 +42,7 @@ import { ConnectionInjectorInterceptor } from './activities/interceptors';
 import { cleanOptionalStackTrace, u8 } from './helpers';
 import * as workflows from './workflows';
 import { withZeroesHTTPServer } from './zeroes-http-server';
+import { readFileSync } from 'node:fs';
 
 const { EVENT_TYPE_TIMER_STARTED, EVENT_TYPE_TIMER_FIRED, EVENT_TYPE_TIMER_CANCELED } =
   iface.temporal.api.enums.v1.EventType;
@@ -80,6 +82,7 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
       interceptors: {
         activityInbound: [() => new ConnectionInjectorInterceptor(connection, loadDataConverter(dataConverter))],
       },
+      showStackTraceSources: true,
     });
 
     const runPromise = worker.run();
@@ -402,7 +405,8 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
     await workflow.result();
     await t.throwsAsync(workflow.query('not found'), {
       instanceOf: QueryNotRegisteredError,
-      message: 'Workflow did not register a handler for not found. Registered queries: [__stack_trace isBlocked]',
+      message:
+        'Workflow did not register a handler for not found. Registered queries: [__stack_trace __enhanced_stack_trace isBlocked]',
     });
   });
 
@@ -1206,6 +1210,68 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
 
     at stackTracer (test/src/workflows/stack-tracer.ts)`
       );
+    });
+
+    test('Enhanced stack trace returns trace that makes sense', async (t) => {
+      const { client } = t.context;
+      const workflowId = uuid4();
+
+      const enhancedStack = await client.execute(workflows.enhancedStackTracer, {
+        taskQueue: 'test',
+        workflowId,
+      });
+
+      const stacks = enhancedStack.stacks.map((s) => ({
+        locations: s.locations.map((l) => ({
+          ...l,
+          ...(l.filePath ? { filePath: l.filePath.replace(path.resolve(__dirname, '../../../'), '') } : undefined),
+        })),
+      }));
+      t.is(enhancedStack.sdk.name, 'typescript');
+      t.is(enhancedStack.sdk.version, pkg.version); // Expect workflow and worker versions to match
+      t.deepEqual(stacks, [
+        {
+          locations: [
+            {
+              functionName: 'Function.all',
+            },
+            {
+              filePath: '/packages/test/src/workflows/stack-tracer.ts',
+              functionName: 'enhancedStackTracer',
+              line: 32,
+              column: 35,
+            },
+          ],
+        },
+        {
+          locations: [
+            {
+              filePath: '/packages/test/src/workflows/stack-tracer.ts',
+              functionName: 'enhancedStackTracer',
+              line: 32,
+              column: 35,
+            },
+          ],
+        },
+        {
+          locations: [
+            {
+              functionName: 'Promise.then',
+            },
+            {
+              filePath: '/packages/workflow/src/trigger.ts',
+              functionName: 'Trigger.then',
+              line: 47,
+              column: 24,
+            },
+          ],
+        },
+      ]);
+      const expectedSources = ['../src/workflows/stack-tracer.ts', '../../workflow/src/trigger.ts'].map((p) => [
+        path.resolve(__dirname, p),
+        [{ content: readFileSync(path.resolve(__dirname, p), 'utf8'), lineOffset: 0 }],
+      ]);
+      t.deepEqual(Object.entries(enhancedStack.sources), expectedSources);
     });
   }
 

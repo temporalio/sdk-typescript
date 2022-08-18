@@ -97,6 +97,7 @@ async function createWorkflow(
     randomnessSeed: Long.fromInt(1337).toBytes(),
     now: startTime,
     patches: [],
+    showStackTraceSources: true,
   })) as VMWorkflow;
   return workflow;
 }
