@@ -396,14 +396,12 @@ export class State {
 
   protected getStackTraces(): Stack[] {
     const { childToParent, promiseToStack } = (globalThis as any).__TEMPORAL__.promiseStackStore as PromiseStackStore;
-    const internalNodes = new Set(
-      [...childToParent.values()].reduce((acc, curr) => {
-        for (const p of curr) {
-          acc.add(p);
-        }
-        return acc;
-      }, new Set())
-    );
+    const internalNodes = [...childToParent.values()].reduce((acc, curr) => {
+      for (const p of curr) {
+        acc.add(p);
+      }
+      return acc;
+    }, new Set());
     const stacks = new Map<string, Stack>();
     for (const child of childToParent.keys()) {
       if (!internalNodes.has(child)) {
