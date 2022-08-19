@@ -127,6 +127,10 @@ Breaking changes marked with a :boom:
 
   `originalRunId` is a concept related to resetting workflows. None of the instances of `originalRunId` in the SDK seem to do with resetting, so they were changed to `firstExecutionRunId` and `signaledRunId` for handles returned by `WorkflowClient.start` / `@temporalio/workflow:startChild` and `WorkflowClient.signalWithStart` respectively.
 
+- :boom: Use error constructor name as `applicationFailureInfo.type` ([#683](https://github.com/temporalio/sdk-typescript/pull/683))
+
+  Now uses `err.constructor.name` instead of `err.name` by default, since `.name` is still 'Error' for classes that extend Error.
+
 - Various improvements and fixes ([#660](https://github.com/temporalio/sdk-typescript/pull/660))
 
   - Record memory usage in stress tests
@@ -158,7 +162,6 @@ Breaking changes marked with a :boom:
 - [`docs`] Add links to API and other categories ([#676](https://github.com/temporalio/sdk-typescript/pull/676))
 - [`docs`] `Connection.service` -> `.workflowService` ([#696](https://github.com/temporalio/sdk-typescript/pull/696))
 - [`docs`] Remove maxIsolateMemoryMB ([#700](https://github.com/temporalio/sdk-typescript/pull/700))
-- Use error constructor name as `applicationFailureInfo.type` ([#683](https://github.com/temporalio/sdk-typescript/pull/683))
 - Don't drop details from core errors ([#705](https://github.com/temporalio/sdk-typescript/pull/705))
 
 ### Features
