@@ -11,7 +11,7 @@ import vm from 'vm';
 import v8 from 'v8';
 import { partition } from '../utils';
 import { Workflow, WorkflowCreateOptions, WorkflowCreator } from './interface';
-import { WorkflowBundleWithSourceMap } from '../worker';
+import { WorkflowBundleWithSourceMapAndFilename } from '../worker';
 
 interface ActivationContext {
   isReplaying: boolean;
@@ -197,7 +197,7 @@ export class VMWorkflowCreator implements WorkflowCreator {
    */
   public static async create<T extends typeof VMWorkflowCreator>(
     this: T,
-    workflowBundle: WorkflowBundleWithSourceMap,
+    workflowBundle: WorkflowBundleWithSourceMapAndFilename,
     isolateExecutionTimeoutMs: number
   ): Promise<InstanceType<T>> {
     const script = new vm.Script(workflowBundle.code, { filename: workflowBundle.filename });

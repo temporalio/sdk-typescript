@@ -75,7 +75,7 @@ import {
   WorkerOptions,
 } from './worker-options';
 import { WorkflowCodecRunner } from './workflow-codec-runner';
-import { WorkflowBundle, WorkflowCodeBundler } from './workflow/bundler';
+import { WorkflowBundleWithSourceMap as WorkflowBundle, WorkflowCodeBundler } from './workflow/bundler';
 import { Workflow, WorkflowCreator } from './workflow/interface';
 import { ThreadedVMWorkflowCreator } from './workflow/threaded-vm';
 import { VMWorkflowCreator } from './workflow/vm';
@@ -145,12 +145,8 @@ export interface NativeWorkerLike {
 }
 
 export interface WorkerConstructor {
-  create(
-    connection: NativeConnection,
-    options: CompiledWorkerOptions,
-    bundle?: WorkflowBundle
-  ): Promise<NativeWorkerLike>;
-  createReplay(options: CompiledWorkerOptions, history: History, bundle: WorkflowBundle): Promise<NativeWorkerLike>;
+  create(connection: NativeConnection, options: CompiledWorkerOptions, code?: string): Promise<NativeWorkerLike>;
+  createReplay(options: CompiledWorkerOptions, history: History, code: string): Promise<NativeWorkerLike>;
 }
 
 function isOptionsWithBuildId<T extends CompiledWorkerOptions>(options: T): options is T & { buildId: string } {
@@ -179,12 +175,12 @@ export class NativeWorker implements NativeWorkerLike {
   public static async create(
     connection: NativeConnection,
     options: CompiledWorkerOptions,
-    bundle?: WorkflowBundle
+    code?: string
   ): Promise<NativeWorkerLike> {
     const runtime = Runtime.instance();
     const nativeWorker = await runtime.registerWorker(
       extractNativeClient(connection),
-      addBuildIdIfMissing(options, bundle?.code)
+      addBuildIdIfMissing(options, code)
     );
     return new NativeWorker(runtime, nativeWorker);
   }
@@ -192,10 +188,10 @@ export class NativeWorker implements NativeWorkerLike {
   public static async createReplay(
     options: CompiledWorkerOptions,
     history: History,
-    bundle: WorkflowBundle
+    code: string
   ): Promise<NativeWorkerLike> {
     const runtime = Runtime.instance();
-    const nativeWorker = await runtime.createReplayWorker(addBuildIdIfMissing(options, bundle.code), history);
+    const nativeWorker = await runtime.createReplayWorker(addBuildIdIfMissing(options, code), history);
     return new NativeWorker(runtime, nativeWorker);
   }
 
@@ -426,7 +422,7 @@ export class Worker {
     const connection = options.connection ?? (await InternalNativeConnection.connect());
     let nativeWorker: NativeWorkerLike;
     try {
-      nativeWorker = await nativeWorkerCtor.create(connection, compiledOptions);
+      nativeWorker = await nativeWorkerCtor.create(connection, compiledOptions, bundle?.code);
     } catch (err) {
       // We just created this connection, close it
       if (!options.connection) {
@@ -439,7 +435,7 @@ export class Worker {
   }
 
   protected static async createWorkflowCreator(
-    workflowBundle: WorkflowBundleWithSourceMap,
+    workflowBundle: WorkflowBundleWithSourceMapAndFilename,
     compiledOptions: CompiledWorkerOptions
   ): Promise<WorkflowCreator> {
     if (compiledOptions.debugMode) {
@@ -499,7 +495,7 @@ export class Worker {
       throw new TypeError('ReplayWorkerOptions must contain workflowsPath or workflowBundle');
     }
     const workflowCreator = await this.createWorkflowCreator(bundle, compiledOptions);
-    const replayWorker = await nativeWorkerCtor.createReplay(compiledOptions, history, bundle);
+    const replayWorker = await nativeWorkerCtor.createReplay(compiledOptions, history, bundle.code);
     const constructedWorker = new this(replayWorker, workflowCreator, compiledOptions);
 
     const runPromise = constructedWorker.run();
@@ -540,7 +536,7 @@ export class Worker {
   protected static async getOrCreateBundle(
     compiledOptions: CompiledWorkerOptions,
     logger: Logger
-  ): Promise<WorkflowBundleWithSourceMap | undefined> {
+  ): Promise<WorkflowBundleWithSourceMapAndFilename | undefined> {
     if (compiledOptions.workflowsPath) {
       if (compiledOptions.workflowBundle) {
         throw new ValueError(
@@ -561,7 +557,7 @@ export class Worker {
       return parseWorkflowCode(bundle.code);
     } else if (compiledOptions.workflowBundle) {
       if (compiledOptions.bundlerOptions) {
-        throw new ValueError(`You cannot set both WorkerOptions.workflowBundle and .bundlerOptions`);
+        throw new ValueError('You cannot set both WorkerOptions.workflowBundle and .bundlerOptions');
       }
 
       if (isCodeBundleOption(compiledOptions.workflowBundle)) {
@@ -1644,13 +1640,13 @@ export class Worker {
   }
 }
 
-export interface WorkflowBundleWithSourceMap {
+export interface WorkflowBundleWithSourceMapAndFilename {
   code: string;
   sourceMap: RawSourceMap;
   filename: string;
 }
 
-export function parseWorkflowCode(code: string, codePath?: string): WorkflowBundleWithSourceMap {
+export function parseWorkflowCode(code: string, codePath?: string): WorkflowBundleWithSourceMapAndFilename {
   const sourceMappingUrlDataRegex = /\s*\n[/][/][#]\s+sourceMappingURL=data:(?:[^,]*;)base64,([0-9A-Za-z+/=]+)\s*$/;
   const sourceMapMatcher = code.match(sourceMappingUrlDataRegex);
   if (!sourceMapMatcher) throw new Error("Can't extract inlined source map from the provided Workflow Bundle");

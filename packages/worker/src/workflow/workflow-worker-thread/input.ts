@@ -1,4 +1,4 @@
-import { WorkflowBundleWithSourceMap } from '../../worker';
+import { WorkflowBundleWithSourceMapAndFilename } from '../../worker';
 import { WorkflowCreateOptions } from '../interface';
 
 /**
@@ -7,7 +7,7 @@ import { WorkflowCreateOptions } from '../interface';
 export interface Init {
   type: 'init';
   isolateExecutionTimeoutMs: number;
-  workflowBundle: WorkflowBundleWithSourceMap;
+  workflowBundle: WorkflowBundleWithSourceMapAndFilename;
 }
 
 /**

@@ -9,7 +9,7 @@ import { Runtime } from './runtime';
 import { InjectedSinks } from './sinks';
 import { GiB } from './utils';
 import { LoggerSinks } from './workflow-log-interceptor';
-import { WorkflowBundle } from './workflow/bundler';
+import { WorkflowBundleWithSourceMap as WorkflowBundle } from './workflow/bundler';
 import * as v8 from 'v8';
 import * as os from 'os';
 
