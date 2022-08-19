@@ -30,7 +30,7 @@ export interface WorkflowExecutionDescription {
   runId: string;
   taskQueue: string;
   status: { code: temporal.api.enums.v1.WorkflowExecutionStatus; name: WorkflowExecutionStatusName };
-  historyLength: Long;
+  historyLength: number;
   startTime: Date;
   executionTime?: Date;
   closeTime?: Date;

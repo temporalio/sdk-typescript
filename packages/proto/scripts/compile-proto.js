@@ -4,8 +4,8 @@ const { promisify } = require('util');
 const dedent = require('dedent');
 const glob = require('glob');
 const { statSync, mkdirSync, readFileSync, writeFileSync } = require('fs');
-const pbjs = require('protobufjs/cli/pbjs');
-const pbts = require('protobufjs/cli/pbts');
+const pbjs = require('protobufjs-cli/pbjs');
+const pbts = require('protobufjs-cli/pbts');
 
 const outputDir = resolve(__dirname, '../protos');
 const jsOutputFile = resolve(outputDir, 'json-module.js');
@@ -38,6 +38,7 @@ async function compileProtos(dtsOutputFile, ...args) {
     '--no-verify',
     '--root',
     '__temporal',
+    resolve(require.resolve('protobufjs'), '../google/protobuf/descriptor.proto'),
     coreProtoPath,
     workflowServiceProtoPath,
     operatorServiceProtoPath,

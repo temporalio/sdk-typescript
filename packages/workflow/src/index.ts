@@ -84,6 +84,11 @@ export {
   ParentClosePolicy,
   ParentWorkflowInfo,
   WorkflowInfo,
+  FileSlice,
+  FileLocation,
+  StackTrace,
+  EnhancedStackTrace,
+  SDKInfo,
 } from './interfaces';
 export { Sink, SinkCall, SinkFunction, Sinks } from './sinks';
 export { Trigger } from './trigger';

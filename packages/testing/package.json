@@ -1,6 +1,6 @@
 {
   "name": "@temporalio/testing",
-  "version": "1.0.0-rc.1",
+  "version": "1.0.1",
   "description": "Temporal.io SDK Testing sub-package",
   "main": "lib/index.js",
   "types": "./lib/index.d.ts",
@@ -24,10 +24,10 @@
     "@temporalio/worker": "file:../worker",
     "@types/long": "^4.0.2",
     "abort-controller": "^3.0.0",
-    "get-port": "^6.1.2",
+    "get-port": "^5.0.0",
     "got": "^12.1.0",
     "long": "^5.2.0",
-    "protobufjs": "6.11.2",
+    "protobufjs": "^7.0.0",
     "tar-stream": "^2.2.0",
     "unzipper": "^0.10.11"
   },

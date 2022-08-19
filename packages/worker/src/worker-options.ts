@@ -1,7 +1,7 @@
 import { DataConverter, LoadedDataConverter } from '@temporalio/common';
 import { loadDataConverter } from '@temporalio/internal-non-workflow-common';
 import { msToNumber } from '@temporalio/internal-workflow-common';
-import os from 'os';
+import type { Configuration as WebpackConfiguration } from 'webpack';
 import { ActivityInboundLogInterceptor } from './activity-log-interceptor';
 import { NativeConnection } from './connection';
 import { WorkerInterceptors } from './interceptors';
@@ -10,6 +10,10 @@ import { InjectedSinks } from './sinks';
 import { GiB } from './utils';
 import { LoggerSinks } from './workflow-log-interceptor';
 import { WorkflowBundleWithSourceMap } from './workflow/bundler';
+import * as v8 from 'v8';
+import * as os from 'os';
+
+export type { WebpackConfiguration };
 
 export interface WorkflowBundlePathWithSourceMap {
   codePath: string;
@@ -90,6 +94,9 @@ export interface WorkerOptions {
    * This is the recommended way to deploy Workers to production.
    *
    * See https://docs.temporal.io/typescript/production-deploy#pre-build-code for more information.
+   *
+   * When using this option, any Workflow interceptors provided in {@link interceptors} are not used. Instead, provide
+   * them via {@link BundleOptions.workflowInterceptorModules} when calling {@link bundleWorkflowCode}.
    */
   workflowBundle?: WorkflowBundleOption;
 
@@ -170,10 +177,12 @@ export interface WorkerOptions {
    * If the Worker is asked to run an uncached Workflow, it will need to replay the entire Workflow history.
    * Use as a dial for trading memory for CPU time.
    *
-   * You should be able to fit about 500 Workflows per GB of memory dependening on your Workflow bundle size.
+   * Most users are able to fit at least 250 Workflows per GB of available memory.
+   * The major factors contributing to a Workflow's memory weight are the size of allocations made
+   * by the Workflow itself and the size of the Workflow bundle (code and source map).
    * For the SDK test Workflows, we managed to fit 750 Workflows per GB.
    *
-   * @default `max(os.totalmem() / 1GiB - 1, 1) * 200`
+   * @default `max(maxHeapMemory / 1GiB - 1, 1) * 250`
    */
   maxCachedWorkflows?: number;
 
@@ -198,9 +207,11 @@ export interface WorkerOptions {
   /**
    * A mapping of interceptor type to a list of factories or module paths.
    *
-   * By default {@link ActivityInboundLogInterceptor} and {@link WorkflowInboundLogInterceptor} are installed.
+   * By default, {@link ActivityInboundLogInterceptor} and {@link WorkflowInboundLogInterceptor} are installed. If you
+   * wish to customize the interceptors while keeping the defaults, use {@link appendDefaultInterceptors}.
    *
-   * If you wish to customize the interceptors while keeping the defaults, use {@link appendDefaultInterceptors}.
+   * When using {@link workflowBundle}, these Workflow interceptors (`WorkerInterceptors.workflowModules`) are not used.
+   * Instead, provide them via {@link BundleOptions.workflowInterceptorModules} when calling {@link bundleWorkflowCode}.
    */
   interceptors?: WorkerInterceptors;
 
@@ -236,6 +247,13 @@ export interface WorkerOptions {
   enableSDKTracing?: boolean;
 
   /**
+   * Whether or not to send the sources in enhanced stack trace query responses
+   *
+   * @default false
+   */
+  showStackTraceSources?: boolean;
+
+  /**
    * If `true` Worker runs Workflows in the same thread allowing debugger to
    * attach to Workflow instances.
    *
@@ -246,6 +264,12 @@ export interface WorkerOptions {
   debugMode?: boolean;
 
   bundlerOptions?: {
+    /**
+     * Before Workflow code is bundled with Webpack, `webpackConfigHook` is called with the Webpack
+     * {@link https://webpack.js.org/configuration/ | configuration} object so you can modify it.
+     */
+    webpackConfigHook?: (config: WebpackConfiguration) => WebpackConfiguration;
+
     /**
      * List of modules to be excluded from the Workflows bundle.
      *
@@ -277,6 +301,7 @@ export type WorkerOptionsWithDefaults = WorkerOptions &
       | 'maxHeartbeatThrottleInterval'
       | 'defaultHeartbeatThrottleInterval'
       | 'enableSDKTracing'
+      | 'showStackTraceSources'
       | 'debugMode'
     >
   > & {
@@ -307,7 +332,8 @@ export type WorkerOptionsWithDefaults = WorkerOptions &
   };
 
 /**
- * {@link WorkerOptions} where the attributes the Worker requires are required and time units are converted from ms formatted strings to numbers.
+ * {@link WorkerOptions} where the attributes the Worker requires are required and time units are converted from ms
+ * formatted strings to numbers.
  */
 export interface CompiledWorkerOptions extends Omit<WorkerOptionsWithDefaults, 'serverOptions'> {
   shutdownGraceTimeMs: number;
@@ -334,6 +360,11 @@ export interface ReplayWorkerOptions
     | 'maxHeartbeatThrottleInterval'
     | 'defaultHeartbeatThrottleInterval'
     | 'debugMode'
+    | 'enableNonLocalActivities'
+    | 'maxActivitiesPerSecond'
+    | 'maxTaskQueueActivitiesPerSecond'
+    | 'stickyQueueScheduleToStartTimeout'
+    | 'maxCachedWorkflows'
   > {
   /**
    *  A name for this replay worker. It will be combined with a short random ID to form a unique
@@ -397,7 +428,8 @@ export function appendDefaultInterceptors(
 }
 
 export function addDefaultWorkerOptions(options: WorkerOptions): WorkerOptionsWithDefaults {
-  const { maxCachedWorkflows, debugMode, ...rest } = options;
+  const { maxCachedWorkflows, showStackTraceSources, debugMode, ...rest } = options;
+
   return {
     namespace: 'default',
     identity: `${process.pid}@${os.hostname()}`,
@@ -412,8 +444,10 @@ export function addDefaultWorkerOptions(options: WorkerOptions): WorkerOptionsWi
     // 4294967295ms is the maximum allowed time
     isolateExecutionTimeout: debugMode ? '4294967295ms' : '5s',
     workflowThreadPoolSize: 8,
-    maxCachedWorkflows: maxCachedWorkflows ?? Math.max(os.totalmem() / GiB - 1, 1) * 200,
+    maxCachedWorkflows:
+      maxCachedWorkflows ?? Math.floor(Math.max(v8.getHeapStatistics().heap_size_limit / GiB - 1, 1) * 250),
     enableSDKTracing: false,
+    showStackTraceSources: showStackTraceSources ?? false,
     debugMode: debugMode ?? false,
     interceptors: appendDefaultInterceptors({}),
     sinks: defaultSinks(),

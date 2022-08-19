@@ -45,6 +45,7 @@ export class WorkflowCodeBundler {
   public readonly workflowInterceptorModules: string[];
   protected readonly payloadConverterPath?: string;
   protected readonly ignoreModules: string[];
+  protected readonly webpackConfigHook: (config: webpack.Configuration) => webpack.Configuration;
 
   constructor({
     logger,
@@ -52,12 +53,14 @@ export class WorkflowCodeBundler {
     payloadConverterPath,
     workflowInterceptorModules,
     ignoreModules,
+    webpackConfigHook,
   }: BundleOptions) {
     this.logger = logger ?? new DefaultLogger('INFO');
     this.workflowsPath = workflowsPath;
     this.payloadConverterPath = payloadConverterPath;
     this.workflowInterceptorModules = workflowInterceptorModules ?? [];
     this.ignoreModules = ignoreModules ?? [];
+    this.webpackConfigHook = webpackConfigHook ?? ((config) => config);
   }
 
   /**
@@ -179,7 +182,7 @@ export { api };
       return undefined;
     };
 
-    const compiler = webpack({
+    const options: webpack.Configuration = {
       resolve: {
         // https://webpack.js.org/configuration/resolve/#resolvemodules
         modules: [path.resolve(__dirname, 'module-overrides'), 'node_modules'],
@@ -227,7 +230,9 @@ export { api };
         library: '__TEMPORAL__',
       },
       ignoreWarnings: [/Failed to parse source map/],
-    });
+    };
+
+    const compiler = webpack(this.webpackConfigHook(options));
 
     // Cast to any because the type declarations are inaccurate
     compiler.inputFileSystem = inputFilesystem as any;
@@ -315,10 +320,20 @@ export interface BundleOptions {
    * > NOTE: This is an advanced option that should be used with care.
    */
   ignoreModules?: string[];
+
+  /**
+   * Before Workflow code is bundled with Webpack, `webpackConfigHook` is called with the Webpack
+   * {@link https://webpack.js.org/configuration/ | configuration} object so you can modify it.
+   */
+  webpackConfigHook?: (config: webpack.Configuration) => webpack.Configuration;
 }
 
 /**
- * Produce a bundle of your Workflow code to provide to {@link WorkerOptions.workflowBundle}.
+ * Create a bundle to pass to {@link WorkerOptions.workflowBundle}. Helpful for reducing Worker startup time in
+ * production.
+ *
+ * When using with {@link Worker.runReplayHistory}, make sure to pass the same interceptors and payload converter used
+ * when the history was generated.
  */
 export async function bundleWorkflowCode(options: BundleOptions): Promise<WorkflowBundleWithSourceMap> {
   const bundler = new WorkflowCodeBundler(options);

@@ -33,6 +33,7 @@ import {
   optionalTsToMs,
   SearchAttributes,
   tsToMs,
+  ValueError,
 } from '@temporalio/internal-workflow-common';
 import { coresdk, temporal } from '@temporalio/proto';
 import { DeterminismViolationError, SinkCall, WorkflowInfo } from '@temporalio/workflow';
@@ -403,6 +404,20 @@ export class Worker {
   public static async create(options: WorkerOptions): Promise<Worker> {
     const nativeWorkerCtor: WorkerConstructor = this.nativeWorkerCtor;
     const compiledOptions = compileWorkerOptions(addDefaultWorkerOptions(options));
+    Runtime.instance().logger.info('Creating worker', {
+      options: {
+        ...compiledOptions,
+        ...(compiledOptions.workflowBundle && isCodeBundleOption(compiledOptions.workflowBundle)
+          ? {
+              // Avoid dumping workflow bundle code to the console
+              workflowBundle: <WorkflowBundleWithSourceMap>{
+                code: `<string of length ${compiledOptions.workflowBundle.code.length}>`,
+                sourceMap: `<string of length ${compiledOptions.workflowBundle.sourceMap.length}>`,
+              },
+            }
+          : {}),
+      },
+    });
     const bundle = await this.getOrCreateBundle(compiledOptions, Runtime.instance().logger);
     let workflowCreator: WorkflowCreator | undefined = undefined;
     if (bundle) {
@@ -529,17 +544,28 @@ export class Worker {
     logger: Logger
   ): Promise<WorkflowBundleWithSourceMap | undefined> {
     if (compiledOptions.workflowsPath) {
+      if (compiledOptions.workflowBundle) {
+        throw new ValueError(
+          'You cannot set both WorkerOptions.workflowsPath and .workflowBundle: only one can be used'
+        );
+      }
+
       const bundler = new WorkflowCodeBundler({
         logger,
         workflowsPath: compiledOptions.workflowsPath,
         workflowInterceptorModules: compiledOptions.interceptors?.workflowModules,
         payloadConverterPath: compiledOptions.dataConverter?.payloadConverterPath,
         ignoreModules: compiledOptions.bundlerOptions?.ignoreModules,
+        webpackConfigHook: compiledOptions.bundlerOptions?.webpackConfigHook,
       });
       const bundle = await bundler.createBundle();
       logger.info('Workflow bundle created', { size: `${toMB(bundle.code.length)}MB` });
       return bundle;
     } else if (compiledOptions.workflowBundle) {
+      if (compiledOptions.bundlerOptions) {
+        throw new ValueError(`You cannot set both WorkerOptions.workflowBundle and .bundlerOptions`);
+      }
+
       if (isCodeBundleOption(compiledOptions.workflowBundle)) {
         return compiledOptions.workflowBundle;
       } else if (isPathBundleOption(compiledOptions.workflowBundle)) {
@@ -1110,6 +1136,7 @@ export class Worker {
                           randomnessSeed: randomnessSeed.toBytes(),
                           now: tsToMs(activation.timestamp),
                           patches,
+                          showStackTraceSources: this.options.showStackTraceSources,
                         });
                       });
 
@@ -1129,7 +1156,7 @@ export class Worker {
                     const completion = await this.workflowCodecRunner.encodeCompletion(unencodedCompletion);
                     this.log.trace('Completed activation', workflowLogAttributes(state.info));
 
-                    span.setAttribute('close', close).end();
+                    span.setAttribute('close', close);
                     return { state, output: { close, completion, parentSpan } };
                   } catch (err) {
                     if (err instanceof errors.UnexpectedError) {
@@ -1419,6 +1446,7 @@ export class Worker {
   protected workflow$(): Observable<void> {
     // This Worker did not register any workflows, return early
     if (this.workflowCreator === undefined) {
+      this.log.warn('No workflows registered, not polling for workflow tasks');
       this.workflowPollerStateSubject.next('SHUTDOWN');
       return EMPTY;
     }
@@ -1501,8 +1529,12 @@ export class Worker {
   }
 
   protected activity$(): Observable<void> {
-    // Note that we poll on activities even if there are no activities registered.
-    // This is so workflows invoking activities on this task queue get a non-retryable error.
+    // This Worker did not register any activities, return early
+    if (this.options.activities === undefined || Object.keys(this.options.activities).length === 0) {
+      this.log.warn('No activities registered, not polling for activity tasks');
+      this.activityPollerStateSubject.next('SHUTDOWN');
+      return EMPTY;
+    }
     return this.activityPoll$().pipe(
       this.activityOperator(),
       mergeMap(async ({ completion, parentSpan }) => {

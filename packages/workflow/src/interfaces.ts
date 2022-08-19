@@ -292,3 +292,64 @@ export type RequiredChildWorkflowOptions = Required<Pick<ChildWorkflowOptions, '
 };
 
 export type ChildWorkflowOptionsWithDefaults = ChildWorkflowOptions & RequiredChildWorkflowOptions;
+
+export interface SDKInfo {
+  name: string;
+  version: string;
+}
+
+/**
+ * Represents a slice of a file starting at lineOffset
+ */
+export interface FileSlice {
+  /**
+   * slice of a file with `\n` (newline) line terminator.
+   */
+  content: string;
+  /**
+   * Only used possible to trim the file without breaking syntax highlighting.
+   */
+  lineOffset: number;
+}
+
+/**
+ * A pointer to a location in a file
+ */
+export interface FileLocation {
+  /**
+   * Path to source file (absolute or relative).
+   * When using a relative path, make sure all paths are relative to the same root.
+   */
+  filePath?: string;
+  /**
+   * If possible, SDK should send this, required for displaying the code location.
+   */
+  line?: number;
+  /**
+   * If possible, SDK should send this.
+   */
+  column?: number;
+  /**
+   * Function name this line belongs to (if applicable).
+   * Used for falling back to stack trace view.
+   */
+  functionName?: string;
+}
+
+export interface StackTrace {
+  locations: FileLocation[];
+}
+
+/**
+ * Used as the result for the enhanced stack trace query
+ */
+export interface EnhancedStackTrace {
+  sdk: SDKInfo;
+  /**
+   * Mapping of file path to file contents.
+   * SDK may choose to send no, some or all sources.
+   * Sources might be trimmed, and some time only the file(s) of the top element of the trace will be sent.
+   */
+  sources: Record<string, FileSlice[]>;
+  stacks: StackTrace[];
+}

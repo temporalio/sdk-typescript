@@ -1,4 +1,5 @@
 import got from 'got';
+import { headers } from './headers.js';
 
 const SAMPLE_REPO_CONTENTS = 'https://api.github.com/repos/temporalio/samples-typescript/contents/';
 
@@ -12,7 +13,7 @@ export async function fetchSamples(): Promise<string[]> {
 
   try {
     // https://github.com/sindresorhus/got/blob/main/documentation/3-streams.md#response-1
-    response = await got(SAMPLE_REPO_CONTENTS);
+    response = await got(SAMPLE_REPO_CONTENTS, { headers });
   } catch (error) {
     throw new Error(`Unable to reach github.com`);
   }

@@ -42,6 +42,7 @@ jobs:
         with:
           repository: temporalio/docker-compose
           path: docker-compose
+          ref: v1.17.1
 
       - name: Start Temporal Server
         run: docker-compose up -d

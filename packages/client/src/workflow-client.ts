@@ -611,6 +611,9 @@ export class WorkflowClient {
         },
       });
     } catch (err) {
+      if (isServerErrorResponse(err) && err.code === grpcStatus.INVALID_ARGUMENT) {
+        throw new QueryNotRegisteredError(err.message.replace(/^3 INVALID_ARGUMENT: /, ''), err.code);
+      }
       this.rethrowGrpcError(err, input.workflowExecution, 'Failed to query Workflow');
     }
     if (response.queryRejected) {
@@ -850,7 +853,9 @@ export class WorkflowClient {
             code: raw.workflowExecutionInfo!.status!,
             name: workflowStatusCodeToName(raw.workflowExecutionInfo!.status!),
           },
-          historyLength: raw.workflowExecutionInfo!.historyLength!,
+          // Safe to convert to number
+          // Max history length is 50k, which is much less than Number.MAX_SAFE_INTEGER
+          historyLength: raw.workflowExecutionInfo!.historyLength!.toNumber(),
           startTime: tsToDate(raw.workflowExecutionInfo!.startTime!),
           executionTime: optionalTsToDate(raw.workflowExecutionInfo!.executionTime),
           closeTime: optionalTsToDate(raw.workflowExecutionInfo!.closeTime),
@@ -935,6 +940,13 @@ export class QueryRejectedError extends Error {
   public readonly name: string = 'QueryRejectedError';
   constructor(public readonly status: temporal.api.enums.v1.WorkflowExecutionStatus) {
     super('Query rejected');
+  }
+}
+
+export class QueryNotRegisteredError extends Error {
+  public readonly name: string = 'QueryNotRegisteredError';
+  constructor(message: string, public readonly code: grpcStatus) {
+    super(message);
   }
 }
 
