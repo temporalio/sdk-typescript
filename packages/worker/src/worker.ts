@@ -75,10 +75,13 @@ import {
   WorkerOptions,
 } from './worker-options';
 import { WorkflowCodecRunner } from './workflow-codec-runner';
-import { WorkflowBundleWithSourceMap, WorkflowCodeBundler } from './workflow/bundler';
+import { WorkflowBundle, WorkflowCodeBundler } from './workflow/bundler';
 import { Workflow, WorkflowCreator } from './workflow/interface';
 import { ThreadedVMWorkflowCreator } from './workflow/threaded-vm';
 import { VMWorkflowCreator } from './workflow/vm';
+import type { RawSourceMap } from 'source-map';
+import * as vm from 'node:vm';
+import * as path from 'node:path';
 
 import IWorkflowActivationJob = coresdk.workflow_activation.IWorkflowActivationJob;
 import EvictionReason = coresdk.workflow_activation.RemoveFromCache.EvictionReason;
@@ -145,13 +148,9 @@ export interface WorkerConstructor {
   create(
     connection: NativeConnection,
     options: CompiledWorkerOptions,
-    bundle?: WorkflowBundleWithSourceMap
+    bundle?: WorkflowBundle
   ): Promise<NativeWorkerLike>;
-  createReplay(
-    options: CompiledWorkerOptions,
-    history: History,
-    bundle: WorkflowBundleWithSourceMap
-  ): Promise<NativeWorkerLike>;
+  createReplay(options: CompiledWorkerOptions, history: History, bundle: WorkflowBundle): Promise<NativeWorkerLike>;
 }
 
 function isOptionsWithBuildId<T extends CompiledWorkerOptions>(options: T): options is T & { buildId: string } {
@@ -180,7 +179,7 @@ export class NativeWorker implements NativeWorkerLike {
   public static async create(
     connection: NativeConnection,
     options: CompiledWorkerOptions,
-    bundle?: WorkflowBundleWithSourceMap
+    bundle?: WorkflowBundle
   ): Promise<NativeWorkerLike> {
     const runtime = Runtime.instance();
     const nativeWorker = await runtime.registerWorker(
@@ -193,7 +192,7 @@ export class NativeWorker implements NativeWorkerLike {
   public static async createReplay(
     options: CompiledWorkerOptions,
     history: History,
-    bundle: WorkflowBundleWithSourceMap
+    bundle: WorkflowBundle
   ): Promise<NativeWorkerLike> {
     const runtime = Runtime.instance();
     const nativeWorker = await runtime.createReplayWorker(addBuildIdIfMissing(options, bundle.code), history);
@@ -410,9 +409,8 @@ export class Worker {
         ...(compiledOptions.workflowBundle && isCodeBundleOption(compiledOptions.workflowBundle)
           ? {
               // Avoid dumping workflow bundle code to the console
-              workflowBundle: <WorkflowBundleWithSourceMap>{
+              workflowBundle: <WorkflowBundle>{
                 code: `<string of length ${compiledOptions.workflowBundle.code.length}>`,
-                sourceMap: `<string of length ${compiledOptions.workflowBundle.sourceMap.length}>`,
               },
             }
           : {}),
@@ -441,14 +439,14 @@ export class Worker {
   }
 
   protected static async createWorkflowCreator(
-    bundle: WorkflowBundleWithSourceMap,
+    workflowBundle: WorkflowBundleWithSourceMap,
     compiledOptions: CompiledWorkerOptions
   ): Promise<WorkflowCreator> {
     if (compiledOptions.debugMode) {
-      return await VMWorkflowCreator.create(bundle.code, bundle.sourceMap, compiledOptions.isolateExecutionTimeoutMs);
+      return await VMWorkflowCreator.create(workflowBundle, compiledOptions.isolateExecutionTimeoutMs);
     } else {
       return await ThreadedVMWorkflowCreator.create({
-        ...bundle,
+        workflowBundle,
         threadPoolSize: compiledOptions.workflowThreadPoolSize,
         isolateExecutionTimeoutMs: compiledOptions.isolateExecutionTimeoutMs,
       });
@@ -560,20 +558,17 @@ export class Worker {
       });
       const bundle = await bundler.createBundle();
       logger.info('Workflow bundle created', { size: `${toMB(bundle.code.length)}MB` });
-      return bundle;
+      return parseWorkflowCode(bundle.code);
     } else if (compiledOptions.workflowBundle) {
       if (compiledOptions.bundlerOptions) {
         throw new ValueError(`You cannot set both WorkerOptions.workflowBundle and .bundlerOptions`);
       }
 
       if (isCodeBundleOption(compiledOptions.workflowBundle)) {
-        return compiledOptions.workflowBundle;
+        return parseWorkflowCode(compiledOptions.workflowBundle.code);
       } else if (isPathBundleOption(compiledOptions.workflowBundle)) {
-        const [code, sourceMap] = await Promise.all([
-          fs.readFile(compiledOptions.workflowBundle.codePath, 'utf8'),
-          fs.readFile(compiledOptions.workflowBundle.sourceMapPath, 'utf8'),
-        ]);
-        return { code, sourceMap };
+        const code = await fs.readFile(compiledOptions.workflowBundle.codePath, 'utf8');
+        return parseWorkflowCode(code, compiledOptions.workflowBundle.codePath);
       } else {
         throw new TypeError('Invalid WorkflowOptions.workflowBundle');
       }
@@ -1647,6 +1642,46 @@ export class Worker {
       }
     }
   }
+}
+
+export interface WorkflowBundleWithSourceMap {
+  code: string;
+  sourceMap: RawSourceMap;
+  filename: string;
+}
+
+export function parseWorkflowCode(code: string, codePath?: string): WorkflowBundleWithSourceMap {
+  const sourceMappingUrlDataRegex = /\s*\n[/][/][#]\s+sourceMappingURL=data:(?:[^,]*;)base64,([0-9A-Za-z+/=]+)\s*$/;
+  const sourceMapMatcher = code.match(sourceMappingUrlDataRegex);
+  if (!sourceMapMatcher) throw new Error("Can't extract inlined source map from the provided Workflow Bundle");
+
+  const sourceMapJson = Buffer.from(sourceMapMatcher[1], 'base64').toString();
+  const sourceMap: RawSourceMap = JSON.parse(sourceMapJson);
+  const filename = path.resolve(process.cwd(), codePath ?? sourceMap.file);
+
+  if (codePath) {
+    sourceMap.file = filename;
+    const patchedSourceMapJson = Buffer.from(JSON.stringify(sourceMap)).toString('base64');
+    const fixedSourceMappingUrl = `\n//# sourceMappingURL=data:application/json;base64,${patchedSourceMapJson}`;
+    code = code.slice(0, -sourceMapMatcher[1].length) + fixedSourceMappingUrl;
+  }
+
+  // Preloading the script makes breakpoints significantly more reliable and more responsive
+  // Keep these objects from GC long enough for debugger to complete parsing the source map and reporting locations
+  // to the node process. Otherwise, the debugger risks source mapping resolution errors, meaning breakings wont work.
+  let script: vm.Script | undefined = new vm.Script(code, { filename });
+  let context: any = vm.createContext({});
+  try {
+    script.runInContext(context);
+  } catch (e) {
+    // Context has not been properly configured, so eventual errors are possible. Just ignore at this point
+  }
+  setTimeout(() => {
+    script = undefined;
+    context = undefined;
+  }, 10000);
+
+  return { code, sourceMap, filename };
 }
 
 type NonNullableObject<T> = { [P in keyof T]-?: NonNullable<T[P]> };
