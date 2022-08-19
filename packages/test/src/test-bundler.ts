@@ -37,14 +37,13 @@ if (RUN_INTEGRATION_TESTS) {
 
   test('Worker can be created from bundle path', async (t) => {
     const taskQueue = `${t.title}-${uuid4()}`;
-    const { code, sourceMap } = await bundleWorkflowCode({
+    const { code } = await bundleWorkflowCode({
       workflowsPath: require.resolve('./workflows'),
     });
     const uid = uuid4();
     const codePath = pathJoin(os.tmpdir(), `workflow-bundle-${uid}.js`);
-    const sourceMapPath = pathJoin(os.tmpdir(), `workflow-bundle-${uid}.map.js`);
-    await Promise.all([writeFile(codePath, code), writeFile(sourceMapPath, sourceMap)]);
-    const workflowBundle = { codePath, sourceMapPath };
+    await writeFile(codePath, code);
+    const workflowBundle = { codePath };
     const worker = await Worker.create({
       taskQueue,
       workflowBundle,

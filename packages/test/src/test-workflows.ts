@@ -10,6 +10,7 @@ import { msToTs } from '@temporalio/internal-workflow-common';
 import { coresdk } from '@temporalio/proto';
 import { WorkflowCodeBundler } from '@temporalio/worker/lib/workflow/bundler';
 import { VMWorkflow, VMWorkflowCreator } from '@temporalio/worker/lib/workflow/vm';
+import { parseWorkflowCode } from '@temporalio/worker/lib/worker';
 import { WorkflowInfo } from '@temporalio/workflow';
 import anyTest, { ExecutionContext, TestInterface } from 'ava';
 import dedent from 'dedent';
@@ -46,8 +47,8 @@ const test = anyTest as TestInterface<Context>;
 test.before(async (t) => {
   const workflowsPath = path.join(__dirname, 'workflows');
   const bundler = new WorkflowCodeBundler({ workflowsPath });
-  const { code, sourceMap } = await bundler.createBundle();
-  t.context.workflowCreator = await TestVMWorkflowCreator.create(code, sourceMap, 100);
+  const workflowBundle = parseWorkflowCode((await bundler.createBundle()).code);
+  t.context.workflowCreator = await TestVMWorkflowCreator.create(workflowBundle, 100);
 });
 
 test.after.always(async (t) => {

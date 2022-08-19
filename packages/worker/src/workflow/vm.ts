@@ -11,6 +11,7 @@ import vm from 'vm';
 import v8 from 'v8';
 import { partition } from '../utils';
 import { Workflow, WorkflowCreateOptions, WorkflowCreator } from './interface';
+import { WorkflowBundleWithSourceMap } from '../worker';
 
 interface ActivationContext {
   isReplaying: boolean;
@@ -196,13 +197,11 @@ export class VMWorkflowCreator implements WorkflowCreator {
    */
   public static async create<T extends typeof VMWorkflowCreator>(
     this: T,
-    code: string,
-    sourceMap: string,
+    workflowBundle: WorkflowBundleWithSourceMap,
     isolateExecutionTimeoutMs: number
   ): Promise<InstanceType<T>> {
-    const script = new vm.Script(code, { filename: 'workflow-isolate' });
-    const parsedSourceMap = JSON.parse(sourceMap);
-    const sourceMapConsumer = await new SourceMapConsumer(parsedSourceMap);
+    const script = new vm.Script(workflowBundle.code, { filename: workflowBundle.filename });
+    const sourceMapConsumer = await new SourceMapConsumer(workflowBundle.sourceMap);
 
     let currentStackTrace: FileLocation[] | undefined = undefined;
 
@@ -217,7 +216,7 @@ export class VMWorkflowCreator implements WorkflowCreator {
       const converted = stackTraces.map((callsite) => {
         const line = callsite.getLineNumber();
         const column = callsite.getColumnNumber();
-        if (callsite.getFileName() === 'workflow-isolate' && line && column) {
+        if (callsite.getFileName() === workflowBundle.filename && line && column && sourceMapConsumer) {
           const pos = sourceMapConsumer.originalPositionFor({ line, column });
 
           const name = pos.name || formatCallsiteName(callsite);
@@ -312,7 +311,7 @@ export class VMWorkflowCreator implements WorkflowCreator {
       });
     }
 
-    return new this(script, parsedSourceMap, isolateExecutionTimeoutMs) as InstanceType<T>;
+    return new this(script, workflowBundle.sourceMap, isolateExecutionTimeoutMs) as InstanceType<T>;
   }
 
   /**

@@ -34,7 +34,7 @@ export {
   ReplayWorkerOptions,
   WorkerOptions,
   WorkflowBundleOption,
-  WorkflowBundlePathWithSourceMap,
+  WorkflowBundlePath,
 } from './worker-options';
 export { WorkflowInboundLogInterceptor, workflowLogAttributes } from './workflow-log-interceptor';
-export { BundleOptions, bundleWorkflowCode, WorkflowBundleWithSourceMap } from './workflow/bundler';
+export { BundleOptions, bundleWorkflowCode, WorkflowBundle } from './workflow/bundler';

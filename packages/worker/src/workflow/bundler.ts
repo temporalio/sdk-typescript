@@ -26,9 +26,8 @@ export function moduleMatches(userModule: string, modules: string[]): boolean {
   return modules.some((module) => userModule === module || userModule.startsWith(`${module}/`));
 }
 
-export interface WorkflowBundleWithSourceMap {
+export interface WorkflowBundle {
   code: string;
-  sourceMap: string;
 }
 
 /**
@@ -64,9 +63,9 @@ export class WorkflowCodeBundler {
   }
 
   /**
-   * @return a {@link WorkflowBundleWithSourceMap} containing bundled code and source map
+   * @return a {@link WorkflowBundle} containing bundled code, including inlined source map
    */
-  public async createBundle(): Promise<WorkflowBundleWithSourceMap> {
+  public async createBundle(): Promise<WorkflowBundle> {
     const vol = new memfs.Volume();
     const ufs = new unionfs.Union();
 
@@ -99,12 +98,11 @@ export class WorkflowCodeBundler {
     const entrypointPath = this.makeEntrypointPath(ufs, this.workflowsPath);
 
     this.genEntrypoint(vol, entrypointPath);
-    await this.bundle(ufs, memoryFs, entrypointPath, distDir);
+    const bundleFilePath = await this.bundle(ufs, memoryFs, entrypointPath, distDir);
 
     // Cast because the type definitions are inaccurate
     return {
-      code: memoryFs.readFileSync(path.join(distDir, 'main.js'), 'utf8') as string,
-      sourceMap: memoryFs.readFileSync(path.join(distDir, 'main.source.js'), 'utf8') as string,
+      code: memoryFs.readFileSync(bundleFilePath, 'utf8') as string,
     };
   }
 
@@ -165,7 +163,7 @@ export { api };
     outputFilesystem: memfs.IFs,
     entry: string,
     distDir: string
-  ): Promise<void> {
+  ): Promise<string> {
     const captureProblematicModules: webpack.Configuration['externals'] = async (
       data,
       _callback
@@ -221,11 +219,10 @@ export { api };
       },
       entry: [entry],
       mode: 'development',
-      devtool: 'source-map',
+      devtool: 'inline-source-map',
       output: {
         path: distDir,
-        filename: 'main.js',
-        sourceMapFilename: 'main.source.js',
+        filename: 'workflow-isolate-[fullhash].js',
         devtoolModuleFilenameTemplate: '[absolute-resource-path]',
         library: '__TEMPORAL__',
       },
@@ -241,7 +238,7 @@ export { api };
     compiler.outputFileSystem = outputFilesystem as any;
 
     try {
-      await new Promise<void>((resolve, reject) => {
+      return await new Promise<string>((resolve, reject) => {
         compiler.run((err, stats) => {
           if (stats !== undefined) {
             const hasError = stats.hasErrors();
@@ -274,12 +271,13 @@ export { api };
 
               reject(err);
             }
+
+            const outputFilename = Object.keys(stats.compilation.assets)[0];
+            if (!err) {
+              resolve(path.join(distDir, outputFilename));
+            }
           }
-          if (err) {
-            reject(err);
-          } else {
-            resolve();
-          }
+          reject(err);
         });
       });
     } finally {
@@ -335,7 +333,7 @@ export interface BundleOptions {
  * When using with {@link Worker.runReplayHistory}, make sure to pass the same interceptors and payload converter used
  * when the history was generated.
  */
-export async function bundleWorkflowCode(options: BundleOptions): Promise<WorkflowBundleWithSourceMap> {
+export async function bundleWorkflowCode(options: BundleOptions): Promise<WorkflowBundle> {
   const bundler = new WorkflowCodeBundler(options);
   return await bundler.createBundle();
 }

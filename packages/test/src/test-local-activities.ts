@@ -1,6 +1,6 @@
 import { ApplicationFailure, defaultPayloadConverter, WorkflowClient, WorkflowFailedError } from '@temporalio/client';
 import { temporal } from '@temporalio/proto';
-import { bundleWorkflowCode, Worker, WorkflowBundleWithSourceMap } from '@temporalio/worker';
+import { bundleWorkflowCode, Worker, WorkflowBundle } from '@temporalio/worker';
 import { isCancellation } from '@temporalio/workflow';
 import anyTest, { TestInterface } from 'ava';
 import { firstValueFrom, Subject } from 'rxjs';
@@ -10,7 +10,7 @@ import { RUN_INTEGRATION_TESTS } from './helpers';
 import * as workflows from './workflows/local-activity-testers';
 
 interface Context {
-  workflowBundle: WorkflowBundleWithSourceMap;
+  workflowBundle: WorkflowBundle;
   taskQueue: string;
   client: WorkflowClient;
   getWorker: () => Promise<Worker>;

@@ -9,26 +9,25 @@ import { Runtime } from './runtime';
 import { InjectedSinks } from './sinks';
 import { GiB } from './utils';
 import { LoggerSinks } from './workflow-log-interceptor';
-import { WorkflowBundleWithSourceMap } from './workflow/bundler';
+import { WorkflowBundle } from './workflow/bundler';
 import * as v8 from 'v8';
 import * as os from 'os';
 
 export type { WebpackConfiguration };
 
-export interface WorkflowBundlePathWithSourceMap {
+export interface WorkflowBundlePath {
   codePath: string;
-  sourceMapPath: string;
 }
-export type WorkflowBundleOption = WorkflowBundleWithSourceMap | WorkflowBundlePathWithSourceMap;
+export type WorkflowBundleOption = WorkflowBundle | WorkflowBundlePath;
 
-export function isCodeBundleOption(bundleOpt: WorkflowBundleOption): bundleOpt is WorkflowBundleWithSourceMap {
+export function isCodeBundleOption(bundleOpt: WorkflowBundleOption): bundleOpt is WorkflowBundle {
   const opt = bundleOpt as any; // Cast to access properties without TS complaining
-  return typeof opt.code === 'string' && typeof opt.sourceMap === 'string';
+  return typeof opt.code === 'string';
 }
 
-export function isPathBundleOption(bundleOpt: WorkflowBundleOption): bundleOpt is WorkflowBundlePathWithSourceMap {
+export function isPathBundleOption(bundleOpt: WorkflowBundleOption): bundleOpt is WorkflowBundlePath {
   const opt = bundleOpt as any; // Cast to access properties without TS complaining
-  return typeof opt.codePath === 'string' && opt.sourceMapPath;
+  return typeof opt.codePath === 'string';
 }
 
 /**
