@@ -1671,8 +1671,6 @@ export function parseWorkflowCode(code: string, codePath?: string): WorkflowBund
   }
 
   // Preloading the script makes breakpoints significantly more reliable and more responsive
-  // Keep these objects from GC long enough for debugger to complete parsing the source map and reporting locations
-  // to the node process. Otherwise, the debugger risks source mapping resolution errors, meaning breakings wont work.
   let script: vm.Script | undefined = new vm.Script(code, { filename });
   let context: any = vm.createContext({});
   try {
@@ -1680,6 +1678,9 @@ export function parseWorkflowCode(code: string, codePath?: string): WorkflowBund
   } catch (e) {
     // Context has not been properly configured, so eventual errors are possible. Just ignore at this point
   }
+
+  // Keep these objects from GC long enough for debugger to complete parsing the source map and reporting locations
+  // to the node process. Otherwise, the debugger risks source mapping resolution errors, meaning breakpoints wont work.
   setTimeout(() => {
     script = undefined;
     context = undefined;
