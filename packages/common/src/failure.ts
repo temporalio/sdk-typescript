@@ -112,7 +112,8 @@ export class ApplicationFailure extends TemporalFailure {
   /**
    * Create a new `ApplicationFailure` from an Error object.
    *
-   * First calls `ensureApplicationFailure(error)`, and then overrides any fields provided in `overrides`.
+   * First calls {@link ensureApplicationFailure | `ensureApplicationFailure(error)`} and then overrides any fields
+   * provided in `overrides`.
    */
   public static fromError(error: Error | unknown, overrides?: ApplicationFailureOptions): ApplicationFailure {
     const failure = ensureApplicationFailure(error);
@@ -157,7 +158,7 @@ export class ApplicationFailure extends TemporalFailure {
   }
 }
 
-interface ApplicationFailureOptions {
+export interface ApplicationFailureOptions {
   /**
    * Error message
    */
