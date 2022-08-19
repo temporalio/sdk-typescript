@@ -659,7 +659,12 @@ export class Worker {
 
   /**
    * Start shutting down the Worker. The Worker stops polling for new tasks and sends
-   * {@link https://typescript.temporal.io/api/namespaces/activity#cancellation | cancellation} to running Activities.
+   * {@link https://typescript.temporal.io/api/namespaces/activity#cancellation | cancellation} (via a
+   * {@link CancelledFailure} with `message` set to `'WORKER_SHUTDOWN'`) to running Activities. Note: if the Activity
+   * accepts cancellation (i.e. re-throws or allows the `CancelledFailure` to be thrown out of the Activity function),
+   * the Activity Task will be marked as failed, not cancelled. It's helpful for the Activity Task to be marked failed
+   * during shutdown because the Server will retry the Activity sooner (than if the Server had to wait for the Activity
+   * Task to time out).
    *
    * When called, immediately transitions {@link state} to `'STOPPING'` and asks Core to shut down. Once Core has
    * confirmed that it's shutting down, the Worker enters `'DRAINING'` state unless the Worker has already been

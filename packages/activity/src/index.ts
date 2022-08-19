@@ -19,17 +19,15 @@
  *
  * - It lets an Activity know it doesn't need to keep doing work.
  * - It gives the Activity time to clean up any resources it has created.
- * - If the Activity accepts Cancellation, the Server will know to retry the Activity.
  *
- * Activities may be Cancelled only if they {@link Context.heartbeat | emit heartbeats}.
+ * Activities may receive Cancellation only if they {@link Context.heartbeat | emit heartbeats} or are Local Activities
+ * (which can't heartbeat but receive Cancellation anyway).
  *
  * There are two ways to handle Activity cancellation:
  * 1. await on {@link Context.cancelled | `Context.current().cancelled`} or
- *    {@link Context.sleep | `Context.current().sleep()`}, which each throw a
- *    {@link CancelledFailure}.
+ *    {@link Context.sleep | `Context.current().sleep()`}, which each throw a {@link CancelledFailure}.
  * 1. Pass the context's {@link https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal | `AbortSignal`} at
- *    {@link Context.cancellationSignal | `Context.current().cancellationSignal`} to a library that
- *    supports it.
+ *    {@link Context.cancellationSignal | `Context.current().cancellationSignal`} to a library that supports it.
  *
  * ### Examples
  *
@@ -233,7 +231,9 @@ export class Context {
    * attribute set to a {@link TimeoutFailure}, which has the last value of `details` available at
    * {@link TimeoutFailure.lastHeartbeatDetails}.
    *
-   * Activities must heartbeat in order to receive cancellation.
+   * Calling `heartbeat()` from a Local Activity has no effect.
+   *
+   * Activities must heartbeat in order to receive Cancellation (unless they're Local Activities, which don't need to).
    */
   public heartbeat(details?: unknown): void {
     this.heartbeatFn(details);
