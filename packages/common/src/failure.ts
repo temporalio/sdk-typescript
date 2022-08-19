@@ -37,14 +37,9 @@ export type WorkflowExecution = temporal.api.common.v1.IWorkflowExecution;
 /**
  * Represents failures that can cross Workflow and Activity boundaries.
  *
- * Only exceptions that extend this class will be propagated to the caller.
+ * **Never extend this class or any of its children.**
  *
- * **Never extend this class or any of its derivatives.** They are to be used by the SDK code
- * only. Throw an instance {@link ApplicationFailure} to pass application specific errors between
- * Workflows and Activities.
- *
- * Any unhandled exception thrown by an Activity or Workflow will be converted to an instance of
- * {@link ApplicationFailure}.
+ * The only child class you should ever throw from your code is {@link ApplicationFailure}.
  */
 export class TemporalFailure extends Error {
   public readonly name: string = 'TemporalFailure';
@@ -79,19 +74,17 @@ export class ServerFailure extends TemporalFailure {
  * `ApplicationFailure`, the Workflow Execution will fail.
  *
  * In Activities, you can either throw an `ApplicationFailure` or another `Error` to fail the Activity Task. In the
- * latter case, the `Error` will be converted to an `ApplicationFailure`. If the
- * {@link https://docs.temporal.io/concepts/what-is-an-activity-execution | Activity Execution} fails, the
- * `ApplicationFailure` from the last Activity Task will be the `cause` of the {@link ActivityFailure} thrown in the
- * Workflow.
- *
- * The conversion of an error that doesn't extend {@link TemporalFailure} to an `ApplicationFailure` is done as
- * following:
+ * latter case, the `Error` will be converted to an `ApplicationFailure`. The conversion is done as following:
  *
  * - `type` is set to `error.constructor?.name ?? error.name`
  * - `message` is set to `error.message`
  * - `nonRetryable` is set to false
  * - `details` are set to null
  * - stack trace is copied from the original error
+ *
+ * When an {@link https://docs.temporal.io/concepts/what-is-an-activity-execution | Activity Execution} fails, the
+ * `ApplicationFailure` from the last Activity Task will be the `cause` of the {@link ActivityFailure} thrown in the
+ * Workflow.
  */
 export class ApplicationFailure extends TemporalFailure {
   public readonly name: string = 'ApplicationFailure';

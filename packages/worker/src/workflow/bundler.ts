@@ -317,6 +317,9 @@ export interface BundleOptions {
   ignoreModules?: string[];
 }
 
+/**
+ * Produce a bundle of your Workflow code to provide to {@link WorkerOptions.workflowBundle}.
+ */
 export async function bundleWorkflowCode(options: BundleOptions): Promise<WorkflowBundleWithSourceMap> {
   const bundler = new WorkflowCodeBundler(options);
   return await bundler.createBundle();

@@ -444,7 +444,7 @@ export class Worker {
    * Create a replay Worker, and run the provided history against it. Will resolve as soon as
    * the history has finished being replayed, or if the workflow produces a nondeterminism error.
    *
-   * @throws DeterminismViolationError if the workflow code is not compatible with the history.
+   * @throws {@link DeterminismViolationError} if the workflow code is not compatible with the history.
    */
   public static async runReplayHistory(options: ReplayWorkerOptions, history: History | unknown): Promise<void> {
     if (typeof history !== 'object' || history == null) {
@@ -632,10 +632,13 @@ export class Worker {
   }
 
   /**
-   * Start shutting down the Worker. Immediately transitions {@link state} to `'STOPPING'` and asks Core to shut down.
-   * Once Core has confirmed that it's shutting down, the Worker enters `'DRAINING'` state unless the Worker has already
-   * been `'DRAINED'`. Once all currently running Activities and Workflow Tasks have completed, the Worker transitions
-   * to `'STOPPED'`.
+   * Start shutting down the Worker. The Worker stops polling for new tasks and sends
+   * {@link https://typescript.temporal.io/api/namespaces/activity#cancellation | cancellation} to running Activities.
+   *
+   * When called, immediately transitions {@link state} to `'STOPPING'` and asks Core to shut down. Once Core has
+   * confirmed that it's shutting down, the Worker enters `'DRAINING'` state unless the Worker has already been
+   * `'DRAINED'`. Once all currently running Activities and Workflow Tasks have completed, the Worker transitions to
+   * `'STOPPED'`.
    */
   shutdown(): void {
     if (this.state !== 'RUNNING') {

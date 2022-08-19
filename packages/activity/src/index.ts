@@ -15,7 +15,13 @@
  *
  * ### Cancellation
  *
- * Activities may be cancelled only if they {@link Context.heartbeat | emit heartbeats}.
+ * Activity Cancellation serves three purposes:
+ *
+ * - It lets an Activity know it doesn't need to keep doing work.
+ * - It gives the Activity time to clean up any resources it has created.
+ * - If the Activity accepts Cancellation, the Server will know to retry the Activity.
+ *
+ * Activities may be Cancelled only if they {@link Context.heartbeat | emit heartbeats}.
  *
  * There are two ways to handle Activity cancellation:
  * 1. await on {@link Context.cancelled | `Context.current().cancelled`} or
@@ -145,13 +151,16 @@ export interface Info {
    */
   heartbeatTimeoutMs?: number;
   /**
-   * Hold the details supplied to the last heartbeat on previous attempts of this Activity.
-   * Use this in order to resume your Activity from checkpoint.
+   * The {@link Context.heartbeat | details} from the last recorded heartbeat from the last attempt of this Activity.
+   *
+   * Use this to resume your Activity from a checkpoint.
    */
   heartbeatDetails: any;
 
   /**
-   * Task queue the Activity is scheduled in, set to the Workflow's task queue in case of local Activity.
+   * Task Queue the Activity is scheduled in.
+   *
+   * For Local Activities, this is set to the Workflow's Task Queue.
    */
   taskQueue: string;
 }
