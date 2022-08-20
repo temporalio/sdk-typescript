@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 
 Breaking changes marked with a :boom:
 
-## [1.1.0] - 2022-08-19
+## [1.1.0] - 2022-08-20
 
 ### Features
 
