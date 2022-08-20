@@ -72,10 +72,11 @@ import {
   isCodeBundleOption,
   isPathBundleOption,
   ReplayWorkerOptions,
+  WorkflowBundle,
   WorkerOptions,
 } from './worker-options';
 import { WorkflowCodecRunner } from './workflow-codec-runner';
-import { WorkflowBundleWithSourceMap as WorkflowBundle, WorkflowCodeBundler } from './workflow/bundler';
+import { WorkflowCodeBundler } from './workflow/bundler';
 import { Workflow, WorkflowCreator } from './workflow/interface';
 import { ThreadedVMWorkflowCreator } from './workflow/threaded-vm';
 import { VMWorkflowCreator } from './workflow/vm';

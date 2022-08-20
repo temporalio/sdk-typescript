@@ -9,7 +9,7 @@ import { Runtime } from './runtime';
 import { InjectedSinks } from './sinks';
 import { GiB } from './utils';
 import { LoggerSinks } from './workflow-log-interceptor';
-import { WorkflowBundleWithSourceMap as WorkflowBundle } from './workflow/bundler';
+import { WorkflowBundleWithSourceMap } from './workflow/bundler';
 import * as v8 from 'v8';
 import * as os from 'os';
 
@@ -18,7 +18,27 @@ export type { WebpackConfiguration };
 export interface WorkflowBundlePath {
   codePath: string;
 }
-export type WorkflowBundleOption = WorkflowBundle | WorkflowBundlePath;
+
+/**
+ * Note this no longer contains a source map.
+ * The name was preserved to avoid breaking backwards compatibility.
+ *
+ * @deprecated
+ */
+export interface WorkflowBundlePathWithSourceMap {
+  codePath: string;
+  sourceMap: string;
+}
+
+export interface WorkflowBundle {
+  code: string;
+}
+
+export type WorkflowBundleOption =
+  | WorkflowBundle
+  | WorkflowBundleWithSourceMap
+  | WorkflowBundlePath
+  | WorkflowBundlePathWithSourceMap; // eslint-disable-line deprecation/deprecation
 
 export function isCodeBundleOption(bundleOpt: WorkflowBundleOption): bundleOpt is WorkflowBundle {
   const opt = bundleOpt as any; // Cast to access properties without TS complaining

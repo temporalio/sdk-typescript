@@ -28,7 +28,7 @@ export function moduleMatches(userModule: string, modules: string[]): boolean {
 
 export interface WorkflowBundleWithSourceMap {
   /**
-   * Source maps are genreated inline, this is no longer used
+   * Source maps are genreated inline - this is no longer used
    * @deprecated
    */
   sourceMap: string;
@@ -107,7 +107,7 @@ export class WorkflowCodeBundler {
 
     // Cast because the type definitions are inaccurate
     return {
-      sourceMap: '',
+      sourceMap: 'deprecated: this is no longer in use',
       code: memoryFs.readFileSync(bundleFilePath, 'utf8') as string,
     };
   }
