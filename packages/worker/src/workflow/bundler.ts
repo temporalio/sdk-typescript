@@ -28,7 +28,7 @@ export function moduleMatches(userModule: string, modules: string[]): boolean {
 
 export interface WorkflowBundleWithSourceMap {
   /**
-   * Source maps are genreated inline - this is no longer used
+   * Source maps are generated inline - this is no longer used
    * @deprecated
    */
   sourceMap: string;

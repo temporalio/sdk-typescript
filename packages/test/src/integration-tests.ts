@@ -665,8 +665,8 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
       CustomDoubleField: [3.14],
     });
     const { searchAttributes } = await workflow.describe();
-    t.deepEqual(searchAttributes, {
-      BinaryChecksums: [`@temporalio/worker@${pkg.version}`],
+    const { BinaryChecksums, ...rest } = searchAttributes;
+    t.deepEqual(rest, {
       CustomBoolField: [true],
       CustomIntField: [], // clear
       CustomKeywordField: ['durable code'],
@@ -674,6 +674,14 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
       CustomDatetimeField: [date],
       CustomDoubleField: [3.14],
     });
+    t.true(BinaryChecksums?.length === 1);
+    const [checksum] = BinaryChecksums ?? ['invalid'];
+    console.log(checksum);
+    t.true(
+      typeof checksum === 'string' &&
+        checksum.startsWith(`@temporalio/worker@${pkg.version}+`) &&
+        /\+[a-f0-9]{64}$/.test(checksum) // bundle checksum
+    );
   });
 
   test('Workflow can read WorkflowInfo', async (t) => {

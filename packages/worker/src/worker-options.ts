@@ -27,7 +27,7 @@ export interface WorkflowBundlePath {
  */
 export interface WorkflowBundlePathWithSourceMap {
   codePath: string;
-  sourceMap: string;
+  sourceMapPath: string;
 }
 
 export interface WorkflowBundle {
