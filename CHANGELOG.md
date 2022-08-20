@@ -6,31 +6,17 @@ Breaking changes marked with a :boom:
 
 ## [1.1.0] - 2022-08-20
 
-### Features
-
-- :boom: [`worker`] Add webpack configuration, closes [#537](https://github.com/temporalio/sdk-typescript/issues/537) ([#815](https://github.com/temporalio/sdk-typescript/pull/815))
-
-  This was our most-upvoted feature request! ([9 👍's](https://github.com/temporalio/sdk-typescript/issues?q=is%3Aissue+sort%3Areactions-%2B1-desc).) See [`WorkerOptions.bundlerOptions.webpackConfigHook`](https://typescript.temporal.io/api/interfaces/worker.workeroptions/#bundleroptions) for usage.
-
-  BREAKING CHANGE: If you provide both `workflowBundle` & `workflowsPath` or both `workflowBundle` & `bundlerOptions` to `Worker.create`, a `ValueError` will now be thrown. While this is technically breaking, TODO
-
-- Add `@temporalio/nyc-test-coverage` package ([#798](https://github.com/temporalio/sdk-typescript/pull/798), thanks to [`@vkarpov15`](https://github.com/vkarpov15) 🙏)
-
-  This package adds code coverage for Istanbul. It's currently in beta: the API may be unstable as we gather feedback on it from users. To try it out, see [this code snippet](https://github.com/temporalio/sdk-typescript/pull/798#issue-1323652976) for current usage.
-
-- [`common`] Improve `ApplicationFailure` arguments; add `.create` and `.fromError` ([#767](https://github.com/temporalio/sdk-typescript/pull/767))
-
-  See [`ApplicationFailure.create`](https://typescript.temporal.io/api/classes/common.applicationfailure/#create) and [`ApplicationFailure.fromError`](https://typescript.temporal.io/api/classes/common.applicationfailure/#fromerror)
-
-- Expose additional console methods to workflow context ([#831](https://github.com/temporalio/sdk-typescript/pull/831))
-
-  `console.[error|warn|info|debug]` can now be called from Workflow code, in addition to `console.log`
-
 ### Bug Fixes
 
 - :boom: [`worker`] Remove unnecessary `ReplayWorkerOptions` ([#816](https://github.com/temporalio/sdk-typescript/pull/816))
 
-  BREAKING CHANGE: While this is technically breaking (if you pass options that are irrelevant to replay like `maxActivitiesPerSecond`, you'll get a compilation error), we decided it did not warrant a major version bump, as it doesn't affect production code (replay is a testing feature) and is only a type change.
+  BREAKING CHANGE: While this is technically breaking (if you pass options that are irrelevant to replay like `maxActivitiesPerSecond`, you'll get a compilation error), we decided it did not warrant a major version bump, as it doesn't affect production code (replay is a testing feature) and is only a type change (is caught at compile type by TS users and doesn't affect JS users).
+
+- Warn instead of throwing when getting `workflowBundle` with `workflowsPath` and `bundlerOptions` ([#833](https://github.com/temporalio/sdk-typescript/pull/833))
+
+  ⚠️ NOTE: We now prefer taking `workflowBundle` over `workflowsPath` when both are provided, which is the correct behavior and what users should expect.
+
+  We also now warn that workflow interceptors are ignored when using `workflowBundle`.
 
 - [`workflow`] Make breakpoints work inside workflow isolate context ([#819](https://github.com/temporalio/sdk-typescript/pull/819))
 
@@ -50,6 +36,26 @@ Breaking changes marked with a :boom:
 - Add `@types/long` to client ([#735](https://github.com/temporalio/sdk-typescript/pull/735))
 - [`worker`] Improve worker default options heuristics ([#802](https://github.com/temporalio/sdk-typescript/pull/802))
 - Use `GITHUB_TOKEN` in `create-project` for CI ([#721](https://github.com/temporalio/sdk-typescript/pull/721))
+
+### Features
+
+- :boom: [`worker`] Add webpack configuration, closes [#537](https://github.com/temporalio/sdk-typescript/issues/537) ([#815](https://github.com/temporalio/sdk-typescript/pull/815))
+
+  This was our most-upvoted feature request! ([9 👍's](https://github.com/temporalio/sdk-typescript/issues?q=is%3Aissue+sort%3Areactions-%2B1-desc).) See [`WorkerOptions.bundlerOptions.webpackConfigHook`](https://typescript.temporal.io/api/interfaces/worker.workeroptions/#bundleroptions) for usage.
+
+  BREAKING CHANGE: If you provide both `workflowBundle` & `workflowsPath` or both `workflowBundle` & `bundlerOptions` to `Worker.create`, a `ValueError` will now be thrown. While this is technically breaking, TODO
+
+- Add `@temporalio/nyc-test-coverage` package ([#798](https://github.com/temporalio/sdk-typescript/pull/798), thanks to [`@vkarpov15`](https://github.com/vkarpov15) 🙏)
+
+  This package adds code coverage for Istanbul. It's currently in beta: the API may be unstable as we gather feedback on it from users. To try it out, see [this code snippet](https://github.com/temporalio/sdk-typescript/pull/798#issue-1323652976) for current usage.
+
+- [`common`] Improve `ApplicationFailure` arguments; add `.create` and `.fromError` ([#767](https://github.com/temporalio/sdk-typescript/pull/767))
+
+  See [`ApplicationFailure.create`](https://typescript.temporal.io/api/classes/common.applicationfailure/#create) and [`ApplicationFailure.fromError`](https://typescript.temporal.io/api/classes/common.applicationfailure/#fromerror)
+
+- Expose additional console methods to workflow context ([#831](https://github.com/temporalio/sdk-typescript/pull/831))
+
+  `console.[error|warn|info|debug]` can now be called from Workflow code, in addition to `console.log`
 
 ### Documentation
 
