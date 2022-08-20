@@ -28,7 +28,7 @@ Breaking changes marked with a :boom:
   const { code } = await bundleWorkflowCode({ workflowsPath });
   const worker = await Worker.create({ workflowBundle: { code }, ...otherOptions });
   ```
-  
+
 - Avoid using dynamic import in `@temporalio/testing` ([#805](https://github.com/temporalio/sdk-typescript/pull/805))
 - [`worker`] Don't start activity poller if no activities registered ([#808](https://github.com/temporalio/sdk-typescript/pull/808))
 - Update `proto3-json-serializer` to `^1.0.3` ([#809](https://github.com/temporalio/sdk-typescript/pull/809))
