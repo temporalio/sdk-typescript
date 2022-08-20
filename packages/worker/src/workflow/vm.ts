@@ -176,16 +176,32 @@ export class VMWorkflowCreator implements WorkflowCreator {
   }
 
   /**
-   * Inject console.log into the Workflow isolate context.
+   * Inject console.log and friends into the Workflow isolate context.
    *
    * Overridable for test purposes.
    */
   protected injectConsole(context: vm.Context, info: WorkflowInfo, ac: ActivationContext): void {
+    // isReplaying is mutated by the Workflow class on activation
     context.console = {
       log: (...args: any[]) => {
-        // isReplaying is mutated by the Workflow class on activation
         if (ac.isReplaying) return;
         console.log(`[${info.workflowType}(${info.workflowId})]`, ...args);
+      },
+      error: (...args: any[]) => {
+        if (ac.isReplaying) return;
+        console.error(`[${info.workflowType}(${info.workflowId})]`, ...args);
+      },
+      warn: (...args: any[]) => {
+        if (ac.isReplaying) return;
+        console.warn(`[${info.workflowType}(${info.workflowId})]`, ...args);
+      },
+      info: (...args: any[]) => {
+        if (ac.isReplaying) return;
+        console.info(`[${info.workflowType}(${info.workflowId})]`, ...args);
+      },
+      debug: (...args: any[]) => {
+        if (ac.isReplaying) return;
+        console.debug(`[${info.workflowType}(${info.workflowId})]`, ...args);
       },
     };
   }
