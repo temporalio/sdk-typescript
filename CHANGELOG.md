@@ -8,9 +8,11 @@ Breaking changes marked with a :boom:
 
 ### Features
 
-- [`worker`] Add webpack configuration, closes [#537](https://github.com/temporalio/sdk-typescript/issues/537) ([#815](https://github.com/temporalio/sdk-typescript/pull/815))
+- :boom: [`worker`] Add webpack configuration, closes [#537](https://github.com/temporalio/sdk-typescript/issues/537) ([#815](https://github.com/temporalio/sdk-typescript/pull/815))
 
   This was our most-upvoted feature request! ([9 👍's](https://github.com/temporalio/sdk-typescript/issues?q=is%3Aissue+sort%3Areactions-%2B1-desc).) See [`WorkerOptions.bundlerOptions.webpackConfigHook`](https://typescript.temporal.io/api/interfaces/worker.workeroptions/#bundleroptions) for usage.
+
+  BREAKING CHANGE: If you provide both `workflowBundle` & `workflowsPath` or both `workflowBundle` & `bundlerOptions` to `Worker.create`, a `ValueError` will now be thrown. While this is technically breaking, TODO
 
 - Add `@temporalio/nyc-test-coverage` package ([#798](https://github.com/temporalio/sdk-typescript/pull/798), thanks to [`@vkarpov15`](https://github.com/vkarpov15) 🙏)
 
@@ -26,9 +28,20 @@ Breaking changes marked with a :boom:
 
 ### Bug Fixes
 
+- :boom: [`worker`] Remove unnecessary `ReplayWorkerOptions` ([#816](https://github.com/temporalio/sdk-typescript/pull/816))
+
+  BREAKING CHANGE: While this is technically breaking (if you pass options that are irrelevant to replay like `maxActivitiesPerSecond`, you'll get a compilation error), we decided it did not warrant a major version bump, as it doesn't affect production code (replay is a testing feature) and is only a type change.
+
 - [`workflow`] Make breakpoints work inside workflow isolate context ([#819](https://github.com/temporalio/sdk-typescript/pull/819))
 
   ⚠️ NOTE: Bundles created with `bundleWorkflowCode` should only be used for calling `Worker.create` when the exact same version of `@temporalio/worker` is used. (If you don't pin to exact versions in your `package.json`, then you should use a lockfile, and both the machine that runs `bundleWorkflowCode` and `Worker.create` should run `npm ci`, not `npm install`.)
+
+  ⚠️ DEPRECATION: `sourceMap` and `sourceMapPath` are now deprecated. We've inlined source maps, so now this works:
+
+  ```ts
+  const { code } = await bundleWorkflowCode({ workflowsPath });
+  const worker = await Worker.create({ workflowBundle: { code }, ...otherOptions });
+  ```
   
 - Avoid using dynamic import in `@temporalio/testing` ([#805](https://github.com/temporalio/sdk-typescript/pull/805))
 - [`worker`] Don't start activity poller if no activities registered ([#808](https://github.com/temporalio/sdk-typescript/pull/808))
@@ -36,12 +49,6 @@ Breaking changes marked with a :boom:
 - Help protobufjs find `long` in Yarn3 ([#810](https://github.com/temporalio/sdk-typescript/issues/810)) ([#814](https://github.com/temporalio/sdk-typescript/pull/814))
 - Add `@types/long` to client ([#735](https://github.com/temporalio/sdk-typescript/pull/735))
 - [`worker`] Improve worker default options heuristics ([#802](https://github.com/temporalio/sdk-typescript/pull/802))
-- [`worker`] Remove unnecessary `ReplayWorkerOptions` ([#816](https://github.com/temporalio/sdk-typescript/pull/816))
-- Revert all breaking changes since `1.0.1`; deprecate `sourceMap` ([#827](https://github.com/temporalio/sdk-typescript/pull/827))
-
-  - Reverted: [`client`] Remove Long ([#818](https://github.com/temporalio/sdk-typescript/pull/818))
-  - Made non-breaking: [`workflow`] Make breakpoints work inside workflow isolate context ([#819](https://github.com/temporalio/sdk-typescript/pull/819))
-
 - Use `GITHUB_TOKEN` in `create-project` for CI ([#721](https://github.com/temporalio/sdk-typescript/pull/721))
 
 ### Documentation
@@ -51,10 +58,6 @@ Breaking changes marked with a :boom:
 - Surface missing core-bridge exports ([#812](https://github.com/temporalio/sdk-typescript/pull/812))
 - Export missing `ApplicationFailureOptions` ([#823](https://github.com/temporalio/sdk-typescript/pull/823))
 - Improve API reference ([#826](https://github.com/temporalio/sdk-typescript/pull/826))
-
-### Miscellaneous Tasks
-
-- Expose `interceptorModule` from WorkflowCoverage ([#821](https://github.com/temporalio/sdk-typescript/pull/821))
 
 ## [1.0.1] - 2022-07-29
 
