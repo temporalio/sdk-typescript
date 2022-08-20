@@ -40,3 +40,4 @@ export {
 } from './worker-options';
 export { WorkflowInboundLogInterceptor, workflowLogAttributes } from './workflow-log-interceptor';
 export { BundleOptions, bundleWorkflowCode, WorkflowBundleWithSourceMap } from './workflow/bundler';
+export { startDebugReplayer } from './debug-replayer';

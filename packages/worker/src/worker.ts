@@ -432,6 +432,7 @@ export class Worker {
     workflowBundle: WorkflowBundleWithSourceMapAndFilename,
     compiledOptions: CompiledWorkerOptions
   ): Promise<WorkflowCreator> {
+    // TODO: this isn't required, consider running everything in the threaded vm workflow runtime
     if (compiledOptions.debugMode) {
       return await VMWorkflowCreator.create(workflowBundle, compiledOptions.isolateExecutionTimeoutMs);
     } else {
