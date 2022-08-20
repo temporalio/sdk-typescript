@@ -33,7 +33,6 @@ import {
   optionalTsToMs,
   SearchAttributes,
   tsToMs,
-  ValueError,
 } from '@temporalio/internal-workflow-common';
 import { coresdk, temporal } from '@temporalio/proto';
 import { DeterminismViolationError, SinkCall, WorkflowInfo } from '@temporalio/workflow';
@@ -544,7 +543,7 @@ export class Worker {
       }
       if (compiledOptions.interceptors?.workflowModules) {
         logger.warn(
-          'Ignoring compiledOptions.interceptors?.workflowModules because WorkerOptions.workflowBundle is set.\n' +
+          'Ignoring WorkerOptions.interceptors.workflowModules because WorkerOptions.workflowBundle is set.\n' +
             'To use workflow interceptors with a workflowBundle, pass them in the call to bundleWorkflowCode.'
         );
       }
