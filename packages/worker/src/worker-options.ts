@@ -86,7 +86,9 @@ export interface WorkerOptions {
   workflowsPath?: string;
 
   /**
-   * Use a pre-built bundle for Workflow code. Use {@link bundleWorkflowCode} to generate a bundle.
+   * Use a pre-built bundle for Workflow code. Use {@link bundleWorkflowCode} to generate the bundle. The version of
+   * `@temporalio/worker` used when calling `bundleWorkflowCode` must be the exact same version used when calling
+   * `Worker.create`.
    *
    * This is the recommended way to deploy Workers to production.
    *

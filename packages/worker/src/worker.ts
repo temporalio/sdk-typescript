@@ -457,7 +457,7 @@ export class Worker {
    * Create a replay Worker, and run the provided history against it. Will resolve as soon as
    * the history has finished being replayed, or if the workflow produces a nondeterminism error.
    *
-   * @throws DeterminismViolationError if the workflow code is not compatible with the history.
+   * @throws {@link DeterminismViolationError} if the workflow code is not compatible with the history.
    */
   public static async runReplayHistory(options: ReplayWorkerOptions, history: History | unknown): Promise<void> {
     if (typeof history !== 'object' || history == null) {
@@ -653,10 +653,18 @@ export class Worker {
   }
 
   /**
-   * Start shutting down the Worker. Immediately transitions {@link state} to `'STOPPING'` and asks Core to shut down.
-   * Once Core has confirmed that it's shutting down, the Worker enters `'DRAINING'` state unless the Worker has already
-   * been `'DRAINED'`. All currently running Activities are Cancelled. Once all currently running Activities and
-   * Workflow Tasks have completed, the Worker transitions to `'STOPPED'`.
+   * Start shutting down the Worker. The Worker stops polling for new tasks and sends
+   * {@link https://typescript.temporal.io/api/namespaces/activity#cancellation | cancellation} (via a
+   * {@link CancelledFailure} with `message` set to `'WORKER_SHUTDOWN'`) to running Activities. Note: if the Activity
+   * accepts cancellation (i.e. re-throws or allows the `CancelledFailure` to be thrown out of the Activity function),
+   * the Activity Task will be marked as failed, not cancelled. It's helpful for the Activity Task to be marked failed
+   * during shutdown because the Server will retry the Activity sooner (than if the Server had to wait for the Activity
+   * Task to time out).
+   *
+   * When called, immediately transitions {@link state} to `'STOPPING'` and asks Core to shut down. Once Core has
+   * confirmed that it's shutting down, the Worker enters `'DRAINING'` state unless the Worker has already been
+   * `'DRAINED'`. Once all currently running Activities and Workflow Tasks have completed, the Worker transitions to
+   * `'STOPPED'`.
    */
   shutdown(): void {
     if (this.state !== 'RUNNING') {
