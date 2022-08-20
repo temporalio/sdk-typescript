@@ -26,7 +26,12 @@ export function moduleMatches(userModule: string, modules: string[]): boolean {
   return modules.some((module) => userModule === module || userModule.startsWith(`${module}/`));
 }
 
-export interface WorkflowBundle {
+export interface WorkflowBundleWithSourceMap {
+  /**
+   * Source maps are generated inline - this is no longer used
+   * @deprecated
+   */
+  sourceMap: string;
   code: string;
 }
 
@@ -65,7 +70,7 @@ export class WorkflowCodeBundler {
   /**
    * @return a {@link WorkflowBundle} containing bundled code, including inlined source map
    */
-  public async createBundle(): Promise<WorkflowBundle> {
+  public async createBundle(): Promise<WorkflowBundleWithSourceMap> {
     const vol = new memfs.Volume();
     const ufs = new unionfs.Union();
 
@@ -102,6 +107,7 @@ export class WorkflowCodeBundler {
 
     // Cast because the type definitions are inaccurate
     return {
+      sourceMap: 'deprecated: this is no longer in use',
       code: memoryFs.readFileSync(bundleFilePath, 'utf8') as string,
     };
   }
@@ -333,7 +339,7 @@ export interface BundleOptions {
  * When using with {@link Worker.runReplayHistory}, make sure to pass the same interceptors and payload converter used
  * when the history was generated.
  */
-export async function bundleWorkflowCode(options: BundleOptions): Promise<WorkflowBundle> {
+export async function bundleWorkflowCode(options: BundleOptions): Promise<WorkflowBundleWithSourceMap> {
   const bundler = new WorkflowCodeBundler(options);
   return await bundler.createBundle();
 }

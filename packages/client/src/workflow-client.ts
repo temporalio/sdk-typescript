@@ -853,9 +853,10 @@ export class WorkflowClient {
             code: raw.workflowExecutionInfo!.status!,
             name: workflowStatusCodeToName(raw.workflowExecutionInfo!.status!),
           },
-          // Safe to convert to number
+          // Technically safe to convert to number, unfortunately this was overlooked when this was originally
+          // implemented.
           // Max history length is 50k, which is much less than Number.MAX_SAFE_INTEGER
-          historyLength: raw.workflowExecutionInfo!.historyLength!.toNumber(),
+          historyLength: raw.workflowExecutionInfo!.historyLength!,
           startTime: tsToDate(raw.workflowExecutionInfo!.startTime!),
           executionTime: optionalTsToDate(raw.workflowExecutionInfo!.executionTime),
           closeTime: optionalTsToDate(raw.workflowExecutionInfo!.closeTime),

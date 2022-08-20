@@ -13,7 +13,7 @@ import { coresdk } from '@temporalio/proto';
 import { IllegalStateError, SinkCall } from '@temporalio/workflow';
 import { Worker as NodeWorker } from 'worker_threads';
 import { UnexpectedError } from '../errors';
-import { WorkflowBundleWithSourceMap } from '../worker';
+import { WorkflowBundleWithSourceMapAndFilename } from '../worker';
 import { Workflow, WorkflowCreateOptions, WorkflowCreator } from './interface';
 import { WorkerThreadInput, WorkerThreadRequest } from './workflow-worker-thread/input';
 import { WorkerThreadOutput, WorkerThreadResponse } from './workflow-worker-thread/output';
@@ -119,7 +119,7 @@ export class WorkerThreadClient {
 }
 
 export interface ThreadedVMWorkflowCreatorOptions {
-  workflowBundle: WorkflowBundleWithSourceMap;
+  workflowBundle: WorkflowBundleWithSourceMapAndFilename;
   threadPoolSize: number;
   isolateExecutionTimeoutMs: number;
 }
