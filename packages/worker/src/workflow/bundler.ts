@@ -7,6 +7,7 @@ import * as unionfs from 'unionfs';
 import util from 'util';
 import webpack from 'webpack';
 import { DefaultLogger, Logger } from '../logger';
+import { toMB } from '../utils';
 
 export const allowedBuiltinModules = ['assert'];
 export const disallowedBuiltinModules = builtinModules.filter((module) => !allowedBuiltinModules.includes(module));
@@ -104,11 +105,14 @@ export class WorkflowCodeBundler {
 
     this.genEntrypoint(vol, entrypointPath);
     const bundleFilePath = await this.bundle(ufs, memoryFs, entrypointPath, distDir);
+    const code = memoryFs.readFileSync(bundleFilePath, 'utf8') as string;
+
+    this.logger.info('Workflow bundle created', { size: `${toMB(code.length)}MB` });
 
     // Cast because the type definitions are inaccurate
     return {
-      sourceMap: 'deprecated: this is no longer in use',
-      code: memoryFs.readFileSync(bundleFilePath, 'utf8') as string,
+      sourceMap: 'deprecated: this is no longer in use\n',
+      code,
     };
   }
 
