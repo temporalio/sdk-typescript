@@ -114,8 +114,9 @@ export interface WorkerOptions {
    *
    * See https://docs.temporal.io/typescript/production-deploy#pre-build-code for more information.
    *
-   * When using this option, any Workflow interceptors provided in {@link interceptors} are not used. Instead, provide
-   * them via {@link BundleOptions.workflowInterceptorModules} when calling {@link bundleWorkflowCode}.
+   * When using this option, {@link workflowsPath}, {@link bundlerOptions} and any Workflow interceptors modules
+   * provided in * {@link interceptors} are not used. To use workflow interceptors, pass them via
+   * {@link BundleOptions.workflowInterceptorModules} when calling {@link bundleWorkflowCode}.
    */
   workflowBundle?: WorkflowBundleOption;
 

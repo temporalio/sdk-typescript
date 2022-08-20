@@ -64,7 +64,7 @@ import pkg from './pkg';
 import { History, Runtime } from './runtime';
 import { closeableGroupBy, mapWithState, mergeMapWithState } from './rxutils';
 import { childSpan, getTracer, instrument } from './tracing';
-import { byteArrayToBuffer, convertToParentWorkflowType, toMB } from './utils';
+import { byteArrayToBuffer, convertToParentWorkflowType } from './utils';
 import {
   addDefaultWorkerOptions,
   CompiledWorkerOptions,
@@ -535,27 +535,18 @@ export class Worker {
     compiledOptions: CompiledWorkerOptions,
     logger: Logger
   ): Promise<WorkflowBundleWithSourceMapAndFilename | undefined> {
-    if (compiledOptions.workflowsPath) {
-      if (compiledOptions.workflowBundle) {
-        throw new ValueError(
-          'You cannot set both WorkerOptions.workflowsPath and .workflowBundle: only one can be used'
-        );
+    if (compiledOptions.workflowBundle) {
+      if (compiledOptions.workflowsPath) {
+        logger.warn('Ignoring WorkerOptions.workflowsPath because WorkerOptions.workflowBundle is set');
       }
-
-      const bundler = new WorkflowCodeBundler({
-        logger,
-        workflowsPath: compiledOptions.workflowsPath,
-        workflowInterceptorModules: compiledOptions.interceptors?.workflowModules,
-        payloadConverterPath: compiledOptions.dataConverter?.payloadConverterPath,
-        ignoreModules: compiledOptions.bundlerOptions?.ignoreModules,
-        webpackConfigHook: compiledOptions.bundlerOptions?.webpackConfigHook,
-      });
-      const bundle = await bundler.createBundle();
-      logger.info('Workflow bundle created', { size: `${toMB(bundle.code.length)}MB` });
-      return parseWorkflowCode(bundle.code);
-    } else if (compiledOptions.workflowBundle) {
       if (compiledOptions.bundlerOptions) {
-        throw new ValueError('You cannot set both WorkerOptions.workflowBundle and .bundlerOptions');
+        logger.warn('Ignoring WorkerOptions.bundlerOptions because WorkerOptions.workflowBundle is set');
+      }
+      if (compiledOptions.interceptors?.workflowModules) {
+        logger.warn(
+          'Ignoring compiledOptions.interceptors?.workflowModules because WorkerOptions.workflowBundle is set.\n' +
+            'To use workflow interceptors with a workflowBundle, pass them in the call to bundleWorkflowCode.'
+        );
       }
 
       if (isCodeBundleOption(compiledOptions.workflowBundle)) {
@@ -566,6 +557,17 @@ export class Worker {
       } else {
         throw new TypeError('Invalid WorkflowOptions.workflowBundle');
       }
+    } else if (compiledOptions.workflowsPath) {
+      const bundler = new WorkflowCodeBundler({
+        logger,
+        workflowsPath: compiledOptions.workflowsPath,
+        workflowInterceptorModules: compiledOptions.interceptors?.workflowModules,
+        payloadConverterPath: compiledOptions.dataConverter?.payloadConverterPath,
+        ignoreModules: compiledOptions.bundlerOptions?.ignoreModules,
+        webpackConfigHook: compiledOptions.bundlerOptions?.webpackConfigHook,
+      });
+      const bundle = await bundler.createBundle();
+      return parseWorkflowCode(bundle.code);
     } else {
       return undefined;
     }
