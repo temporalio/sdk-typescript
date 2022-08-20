@@ -133,6 +133,8 @@ export type ActivityTaskWithContext = ContextAware<{
   base64TaskToken: string;
 }>;
 
+type CompiledWorkerOptionsWithBuildId = CompiledWorkerOptions & { buildId: string };
+
 export interface NativeWorkerLike {
   initiateShutdown: Promisify<OmitFirstParam<typeof native.workerInitiateShutdown>>;
   finalizeShutdown(): Promise<void>;
@@ -146,18 +148,15 @@ export interface NativeWorkerLike {
 }
 
 export interface WorkerConstructor {
-  create(connection: NativeConnection, options: CompiledWorkerOptions, code?: string): Promise<NativeWorkerLike>;
-  createReplay(options: CompiledWorkerOptions, history: History, code: string): Promise<NativeWorkerLike>;
+  create(connection: NativeConnection, options: CompiledWorkerOptionsWithBuildId): Promise<NativeWorkerLike>;
+  createReplay(options: CompiledWorkerOptionsWithBuildId, history: History): Promise<NativeWorkerLike>;
 }
 
 function isOptionsWithBuildId<T extends CompiledWorkerOptions>(options: T): options is T & { buildId: string } {
   return options.buildId != null;
 }
 
-function addBuildIdIfMissing<T extends CompiledWorkerOptions>(
-  options: T,
-  bundleCode?: string
-): T & { buildId: string } {
+function addBuildIdIfMissing(options: CompiledWorkerOptions, bundleCode?: string): CompiledWorkerOptionsWithBuildId {
   if (isOptionsWithBuildId(options)) {
     return options;
   }
@@ -175,24 +174,19 @@ export class NativeWorker implements NativeWorkerLike {
 
   public static async create(
     connection: NativeConnection,
-    options: CompiledWorkerOptions,
-    code?: string
+    options: CompiledWorkerOptionsWithBuildId
   ): Promise<NativeWorkerLike> {
     const runtime = Runtime.instance();
-    const nativeWorker = await runtime.registerWorker(
-      extractNativeClient(connection),
-      addBuildIdIfMissing(options, code)
-    );
+    const nativeWorker = await runtime.registerWorker(extractNativeClient(connection), options);
     return new NativeWorker(runtime, nativeWorker);
   }
 
   public static async createReplay(
-    options: CompiledWorkerOptions,
-    history: History,
-    code: string
+    options: CompiledWorkerOptionsWithBuildId,
+    history: History
   ): Promise<NativeWorkerLike> {
     const runtime = Runtime.instance();
-    const nativeWorker = await runtime.createReplayWorker(addBuildIdIfMissing(options, code), history);
+    const nativeWorker = await runtime.createReplayWorker(options, history);
     return new NativeWorker(runtime, nativeWorker);
   }
 
@@ -423,7 +417,7 @@ export class Worker {
     const connection = options.connection ?? (await InternalNativeConnection.connect());
     let nativeWorker: NativeWorkerLike;
     try {
-      nativeWorker = await nativeWorkerCtor.create(connection, compiledOptions, bundle?.code);
+      nativeWorker = await nativeWorkerCtor.create(connection, addBuildIdIfMissing(compiledOptions, bundle?.code));
     } catch (err) {
       // We just created this connection, close it
       if (!options.connection) {
@@ -496,7 +490,10 @@ export class Worker {
       throw new TypeError('ReplayWorkerOptions must contain workflowsPath or workflowBundle');
     }
     const workflowCreator = await this.createWorkflowCreator(bundle, compiledOptions);
-    const replayWorker = await nativeWorkerCtor.createReplay(compiledOptions, history, bundle.code);
+    const replayWorker = await nativeWorkerCtor.createReplay(
+      addBuildIdIfMissing(compiledOptions, bundle.code),
+      history
+    );
     const constructedWorker = new this(replayWorker, workflowCreator, compiledOptions);
 
     const runPromise = constructedWorker.run();
