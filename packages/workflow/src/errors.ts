@@ -25,6 +25,8 @@ export function isCancellation(err: unknown): boolean {
   if (!looksLikeError(err)) return false;
   return (
     err.name === 'CancelledFailure' ||
-    ((err.name === 'ActivityFailure' || err.name === 'ChildWorkflowFailure') && isCancellation(err.cause))
+    ((err.name === 'ActivityFailure' || err.name === 'ChildWorkflowFailure') &&
+      looksLikeError(err.cause) &&
+      err.cause.name === 'CancelledFailure')
   );
 }
