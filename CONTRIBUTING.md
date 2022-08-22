@@ -205,6 +205,14 @@ rm $HOME/Downloads/packages-*
 rm packages/core-bridge/releases/
 ```
 
+- If any APIs have changed, open a PR to update [`samples-typescript`](https://github.com/temporalio/samples-typescript/). Once merged, update the `next` branch:
+
+```sh
+git checkout next
+git rebase origin/main
+git push
+```
+
 ### Updating published packages
 
 `npm` commands we may need to use:
@@ -229,7 +237,7 @@ npm dist-tag rm temporalio next
 When we want to deprecate a package:
 
 ```
-npm deprecate temporalio@^1.0.0 "deprecation message that will be logged"
+npm deprecate temporalio@^1.0.0 "deprecation message that will be logged on install"
 ```
 
 ## Updating the Java test server proto files
