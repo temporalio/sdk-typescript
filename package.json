@@ -49,6 +49,7 @@
     "@temporalio/testing": "file:packages/testing",
     "@temporalio/worker": "file:packages/worker",
     "@temporalio/workflow": "file:packages/workflow",
+    "@temporalio/nyc-test-coverage": "file:packages/nyc-test-coverage",
     "temporalio": "file:packages/meta"
   },
   "devDependencies": {
