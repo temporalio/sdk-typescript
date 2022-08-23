@@ -8,6 +8,9 @@
     "testing",
     "coverage"
   ],
+  "scripts": {
+    "build": "tsc --build"
+  },
   "homepage": "https://github.com/temporalio/sdk-typescript/tree/main/packages/testing",
   "bugs": {
     "url": "https://github.com/temporalio/sdk-typescript/issues"
@@ -20,9 +23,6 @@
     "lib",
     "src"
   ],
-  "scripts": {
-    "build": "tsc --build"
-  },
   "dependencies": {
     "@temporalio/worker": "file:../worker",
     "@temporalio/workflow": "file:../workflow",
