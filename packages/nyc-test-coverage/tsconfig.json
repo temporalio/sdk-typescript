@@ -4,13 +4,6 @@
     "outDir": "./lib",
     "rootDir": "./src"
   },
-  "references": [
-    { "path": "../workflow" },
-    { "path": "../activity" },
-    { "path": "../common" },
-    { "path": "../internal-workflow-common" },
-    { "path": "../internal-non-workflow-common" },
-    { "path": "../proto" }
-  ],
+  "references": [{ "path": "../worker" }, { "path": "../workflow" }],
   "include": ["./src/**/*.ts"]
 }
