@@ -20,6 +20,9 @@
     "lib",
     "src"
   ],
+  "scripts": {
+    "build": "tsc --build"
+  },
   "dependencies": {
     "@temporalio/worker": "file:../worker",
     "@temporalio/workflow": "file:../workflow",
