@@ -409,15 +409,15 @@ export class WorkflowClient {
   }
 
   /**
-   * Sends a signal to a running Workflow or starts a new one if not already running and immediately signals it.
-   * Useful when you're unsure of the Workflows' run state.
+   * Sends a Signal to a running Workflow or starts a new one if not already running and immediately Signals it.
+   * Useful when you're unsure whether the Workflow has been started.
    *
-   * @returns a WorkflowHandle to the started Workflow
+   * @returns a {@link WorkflowHandle} to the started Workflow
    */
-  public async signalWithStart<T extends Workflow, SA extends any[] = []>(
-    workflowTypeOrFunc: string | T,
-    options: WithWorkflowArgs<T, WorkflowSignalWithStartOptions<SA>>
-  ): Promise<WorkflowHandleWithSignaledRunId<T>> {
+  public async signalWithStart<WorkflowFn extends Workflow, SignalArgs extends any[] = []>(
+    workflowTypeOrFunc: string | WorkflowFn,
+    options: WithWorkflowArgs<WorkflowFn, WorkflowSignalWithStartOptions<SignalArgs>>
+  ): Promise<WorkflowHandleWithSignaledRunId<WorkflowFn>> {
     const { workflowId } = options;
     const interceptors = (this.options.interceptors.calls ?? []).map((ctor) => ctor({ workflowId }));
     const runId = await this._signalWithStart(workflowTypeOrFunc, options, interceptors);
@@ -430,7 +430,7 @@ export class WorkflowClient {
       runIdForResult: runId,
       interceptors,
       followRuns: options.followRuns ?? true,
-    }) as WorkflowHandleWithSignaledRunId<T>; // Cast is safe because we know we add the signaledRunId below
+    }) as WorkflowHandleWithSignaledRunId<WorkflowFn>; // Cast is safe because we know we add the signaledRunId below
     (handle as any) /* readonly */.signaledRunId = runId;
     return handle;
   }

@@ -37,15 +37,26 @@ export interface WorkflowOptions extends CommonWorkflowOptions {
   followRuns?: boolean;
 }
 
-export interface WorkflowSignalWithStartOptions<SA extends any[] = []> extends WorkflowOptions {
+export type WorkflowSignalWithStartOptions<SignalArgs extends any[] = []> = SignalArgs extends []
+  ? WorkflowSignalWithStartOptionsWithoutArgs
+  : WorkflowSignalWithStartOptionsWithArgs<SignalArgs>;
+
+export interface WorkflowSignalWithStartOptionsWithoutArgs extends WorkflowOptions {
   /**
    * SignalDefinition or name of signal
    */
-  signal: SignalDefinition<SA> | string;
+  signal: SignalDefinition | string;
+}
+
+export interface WorkflowSignalWithStartOptionsWithArgs<SignalArgs extends any[]> extends WorkflowOptions {
+  /**
+   * SignalDefinition or name of signal
+   */
+  signal: SignalDefinition<SignalArgs> | string;
   /**
    * Arguments to invoke the signal handler with
    */
-  signalArgs: SA;
+  signalArgs: SignalArgs;
 }
 
 // export interface WorkflowOptionsWithDefaults<T extends Workflow> extends CommonWorkflowOptionsWithDefaults<T> {

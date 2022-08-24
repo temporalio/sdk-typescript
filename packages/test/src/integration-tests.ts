@@ -1090,7 +1090,6 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
       taskQueue: 'test',
       workflowId,
       signal: 'unblock',
-      signalArgs: [],
     });
     const handleFromGet = client.getHandle(workflowId);
     await t.throwsAsync(handleFromGet.result(), { message: /.*/ });
