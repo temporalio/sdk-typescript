@@ -377,7 +377,7 @@ export class WorkflowClient {
       headers: {},
       workflowType,
       signalName: typeof signal === 'string' ? signal : signal.name,
-      signalArgs,
+      signalArgs: signalArgs ?? [],
     });
   }
 
