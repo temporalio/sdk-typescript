@@ -173,7 +173,7 @@ git-cliff --tag 1.0.1 v1.0.0..HEAD | pbcopy
 We're [working on automating](https://github.com/temporalio/sdk-typescript/pull/395) the rest of the process:
 
 - Log in to npm as `temporal-sdk-team` (`npm whoami` and `npm login`)
-- Download the artifacts from [GitHub Actions](https://github.com/temporalio/sdk-typescript/actions)
+- Download the 5 `packages-*` artifacts from the PR's [GitHub Action](https://github.com/temporalio/sdk-typescript/actions)
 - Publish:
 
 ```sh
@@ -194,6 +194,8 @@ ls packages/core-bridge/releases/
 
 npx lerna version patch # or major|minor|etc, or leave out to be prompted. either way, you get a confirmation dialog.
 npx lerna publish from-git # add `--dist-tag next` for pre-release versions
+
+npm deprecate temporalio@^1.0.0 "Instead of installing temporalio, we recommend directly installing our packages: npm remove temporalio; npm install @temporalio/client @temporalio/worker @temporalio/workflow @temporalio/activity"
 ```
 
 - Cleanup after publishing:
@@ -201,6 +203,14 @@ npx lerna publish from-git # add `--dist-tag next` for pre-release versions
 ```sh
 rm $HOME/Downloads/packages-*
 rm packages/core-bridge/releases/
+```
+
+- If any APIs have changed, open a PR to update [`samples-typescript`](https://github.com/temporalio/samples-typescript/). Once merged, update the `next` branch:
+
+```sh
+git checkout next
+git rebase origin/main
+git push
 ```
 
 ### Updating published packages
@@ -227,7 +237,7 @@ npm dist-tag rm temporalio next
 When we want to deprecate a package:
 
 ```
-npm deprecate temporalio@^1.0.0 "Instead of installing temporalio, we recommend directly installing our packages: npm remove temporalio; npm install @temporalio/client @temporalio/worker @temporalio/workflow @temporalio/activity"
+npm deprecate temporalio@^1.0.0 "deprecation message that will be logged on install"
 ```
 
 ## Updating the Java test server proto files
