@@ -432,7 +432,8 @@ export class Worker {
     workflowBundle: WorkflowBundleWithSourceMapAndFilename,
     compiledOptions: CompiledWorkerOptions
   ): Promise<WorkflowCreator> {
-    // TODO: this isn't required, consider running everything in the threaded vm workflow runtime
+    // This isn't required for vscode, only for Chrome Dev Tools which doesn't support debugging worker threads.
+    // We also rely on this in debug-replayer where we inject a global variable to be read from workflow context.
     if (compiledOptions.debugMode) {
       return await VMWorkflowCreator.create(workflowBundle, compiledOptions.isolateExecutionTimeoutMs);
     } else {

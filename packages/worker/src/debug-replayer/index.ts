@@ -4,6 +4,8 @@ import { ReplayWorkerOptions } from '../worker-options';
 import { Worker } from '../worker';
 import { Client } from './client';
 
+let thread: worker_threads.Worker | undefined = undefined;
+
 async function run(options: ReplayWorkerOptions): Promise<void> {
   const baseUrl = process.env.TEMPORAL_DEBUGGER_PLUGIN_URL;
   if (!baseUrl) {
@@ -16,7 +18,9 @@ async function run(options: ReplayWorkerOptions): Promise<void> {
     Client.contentLength(response)
   );
 
-  const thread = new worker_threads.Worker(require.resolve('./worker-thread'));
+  // Only create one per process.
+  // Not caring about globals here for to get simpler DX, this isn't meant for production use cases.
+  thread = thread || new worker_threads.Worker(require.resolve('./worker-thread'));
 
   const rejectedPromise = new Promise<void>((_, reject) => {
     // Set the global notifyRunner runner function that can be used from the workflow interceptors.
@@ -25,7 +29,7 @@ async function run(options: ReplayWorkerOptions): Promise<void> {
     (globalThis as any).notifyRunner = (wftStartEventId: number) => {
       const sab = new SharedArrayBuffer(4);
       const responseBuffer = new Int32Array(sab);
-      thread.postMessage({ eventId: wftStartEventId, responseBuffer });
+      thread?.postMessage({ eventId: wftStartEventId, responseBuffer });
       Atomics.wait(responseBuffer, 0, 0);
       if (responseBuffer[0] === 2) {
         // Error occurred (logged by worker thread)
@@ -43,11 +47,11 @@ async function run(options: ReplayWorkerOptions): Promise<void> {
           ...options.interceptors,
           workflowModules: [
             // Inbound goes first so user can set breakpoints in own inbound interceptors.
-            require.resolve('./debug-inbound-interceptor'),
+            require.resolve('./inbound-interceptor'),
             ...(options.interceptors?.workflowModules ?? []),
             // Outbound goes last - notifies the runner in the finally block, user-provided outbound interceptors are
             // resumed after the interceptor methods resolve.
-            require.resolve('./debug-outbound-interceptor'),
+            require.resolve('./outbound-interceptor'),
           ],
         },
       },

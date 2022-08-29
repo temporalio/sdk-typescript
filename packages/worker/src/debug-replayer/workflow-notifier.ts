@@ -13,7 +13,13 @@ class WorkflowNotifier {
     return this._instance;
   }
 
-  private constructor() {}
+  private constructor() {
+    // Dear eslint,
+    // I left this empty to mark the constructor private, OK?
+    //
+    // Best regards,
+    // - An anonymous developer
+  }
 
   lastNotifiedStartEvent = -1;
 
