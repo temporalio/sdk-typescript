@@ -1,0 +1,19 @@
+sequenceDiagram
+    participant R as Runner (e.g. VS Code)
+    participant MT as Node.js Main Thread
+    participant WF as Workflow Context
+    participant WT as Worker Thread
+
+    R->>MT: Launch
+    MT->>R: Get history
+    MT->>MT: Replay workflow
+    loop
+        MT->>WF: Activate workflow
+        WF->>MT: Update runner with current eventId (blocking call)
+        MT->>WT: Update runner (block using atomics)
+        WT->>R: Set current event ID
+        alt has breakpoint?
+            R->>R: ⏸ Pause execution
+        end
+        R->>WT: Respond OK
+    end
