@@ -397,7 +397,10 @@ export class VMWorkflow implements Workflow {
         coresdk.workflow_activation.WorkflowActivation.fromObject({ ...activation, jobs }),
         batchIndex++
       );
-      await this.tryUnblockConditions();
+      // Only trigger conditions for non-query jobs
+      if (!jobs[0].queryWorkflow) {
+        await this.tryUnblockConditions();
+      }
     }
     const completion = this.workflowModule.concludeActivation();
     // Give unhandledRejection handler a chance to be triggered.

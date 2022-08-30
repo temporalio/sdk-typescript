@@ -222,7 +222,10 @@ export function activate(activation: coresdk.workflow_activation.WorkflowActivat
         return;
       }
       state.activator[job.variant](variant as any /* TS can't infer this type */);
-      tryUnblockConditions();
+      // Only trigger conditions for non-query jobs
+      if (!job.queryWorkflow) {
+        tryUnblockConditions();
+      }
     }
   });
   intercept({
