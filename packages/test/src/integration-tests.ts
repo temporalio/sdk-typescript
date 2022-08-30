@@ -1301,4 +1301,16 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
     // Verify only one timer was scheduled
     t.is(history.events.filter(({ timerStartedEventAttributes }) => timerStartedEventAttributes != null).length, 1);
   });
+
+  test('Query does not cause condition to be triggered', async (t) => {
+    const { client } = t.context;
+    const workflowId = uuid4();
+    const handle = await client.start(workflows.queryAndCondition, {
+      taskQueue: 'test',
+      workflowId,
+    });
+    await handle.query(workflows.mutateWorkflowStateQuery);
+    // Worker did not crash
+    t.pass();
+  });
 }
