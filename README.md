@@ -1,10 +1,12 @@
 # Temporal TypeScript SDK
 
 <p align="center">
-  <a href="https://www.npmjs.com/package/temporalio">
+  <a href="https://www.npmjs.com/search?q=author%3Atemporal-sdk-team">
     <img src="https://img.shields.io/npm/v/temporalio.svg?style=for-the-badge" alt="NPM" />
   </a>
-  <img src="https://img.shields.io/npm/l/temporalio?style=for-the-badge" alt="LICENSE" />
+  <a href="https://github.com/temporalio/sdk-typescript/blob/main/LICENSE.md">
+    <img src="https://img.shields.io/npm/l/temporalio?style=for-the-badge" alt="LICENSE" />
+  </a>
 </div>
 
 [Temporal](https://temporal.io) is a microservice orchestration platform that enables developers to build scalable applications without sacrificing productivity or reliability. Temporal Server executes units of application logic—Workflows—in a resilient manner that automatically handles intermittent failures and retries failed operations.
