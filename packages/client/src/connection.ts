@@ -79,7 +79,11 @@ export function defaultConnectionOpts(): ConnectionOptionsWithDefaults {
   return {
     address: LOCAL_TARGET,
     credentials: grpc.credentials.createInsecure(),
-    channelArgs: {},
+    channelArgs: {
+      'grpc.keepalive_permit_without_calls': 1,
+      'grpc.keepalive_time_ms': 30_000,
+      'grpc.keepalive_timeout_ms': 15_000,
+    },
     interceptors: [makeGrpcRetryInterceptor(defaultGrpcRetryOptions())],
     metadata: {},
     connectTimeoutMs: 10_000,
