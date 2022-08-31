@@ -72,7 +72,6 @@ export class WorkflowCoverage {
    * Modify the given Worker config to auto instrument Workflow
    * code using istanbul-instrumenter-loader
    */
-
   webpackConfigHook(workflowsPath: string, config: WebpackConfigHookType): WebpackConfigHookType {
     const rules = config?.module?.rules || [];
 
