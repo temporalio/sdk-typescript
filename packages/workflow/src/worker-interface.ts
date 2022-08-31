@@ -222,8 +222,7 @@ export function activate(activation: coresdk.workflow_activation.WorkflowActivat
         return;
       }
       state.activator[job.variant](variant as any /* TS can't infer this type */);
-      // Only trigger conditions for non-query jobs
-      if (!job.queryWorkflow) {
+      if (showUnblockConditions(job)) {
         tryUnblockConditions();
       }
     }
@@ -277,6 +276,13 @@ export function tryUnblockConditions(): number {
     }
   }
   return numUnblocked;
+}
+
+/**
+ * Predicate used to prevent triggering conditions for non-query and non-patch jobs.
+ */
+export function showUnblockConditions(job: coresdk.workflow_activation.IWorkflowActivationJob): boolean {
+  return !job.queryWorkflow && !job.notifyHasPatch;
 }
 
 export async function dispose(): Promise<void> {
