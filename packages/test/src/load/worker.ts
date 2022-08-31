@@ -155,7 +155,6 @@ async function main() {
         activityInbound: [() => new ConnectionInjectorInterceptor(clientConnection)],
       },
     });
-    console.log('Created worker with options', worker.options);
 
     await withOptionalStatusServer(worker, statusPort, async () => {
       await worker.run();
