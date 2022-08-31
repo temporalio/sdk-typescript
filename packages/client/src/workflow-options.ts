@@ -39,13 +39,18 @@ export interface WorkflowOptions extends CommonWorkflowOptions {
 
 export type WorkflowSignalWithStartOptions<SignalArgs extends any[] = []> = SignalArgs extends [any, ...any[]]
   ? WorkflowSignalWithStartOptionsWithArgs<SignalArgs>
-  : WorkflowSignalWithStartOptionsWithoutArgs;
+  : WorkflowSignalWithStartOptionsWithoutArgs<SignalArgs>;
 
-export interface WorkflowSignalWithStartOptionsWithoutArgs extends WorkflowOptions {
+export interface WorkflowSignalWithStartOptionsWithoutArgs<SignalArgs extends any[]> extends WorkflowOptions {
   /**
    * SignalDefinition or name of signal
    */
   signal: SignalDefinition | string;
+
+  /**
+   * Arguments to invoke the signal handler with
+   */
+  signalArgs?: SignalArgs;
 }
 
 export interface WorkflowSignalWithStartOptionsWithArgs<SignalArgs extends any[]> extends WorkflowOptions {
@@ -53,6 +58,7 @@ export interface WorkflowSignalWithStartOptionsWithArgs<SignalArgs extends any[]
    * SignalDefinition or name of signal
    */
   signal: SignalDefinition<SignalArgs> | string;
+
   /**
    * Arguments to invoke the signal handler with
    */
