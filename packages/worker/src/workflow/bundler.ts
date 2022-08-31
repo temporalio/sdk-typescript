@@ -231,7 +231,7 @@ export { api };
       devtool: 'inline-source-map',
       output: {
         path: distDir,
-        filename: 'workflow-isolate-[fullhash].js',
+        filename: 'workflow-bundle-[fullhash].js',
         devtoolModuleFilenameTemplate: '[absolute-resource-path]',
         library: '__TEMPORAL__',
       },
