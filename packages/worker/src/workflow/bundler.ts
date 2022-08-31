@@ -1,4 +1,3 @@
-import crypto from 'crypto';
 import * as realFS from 'fs';
 import * as memfs from 'memfs';
 import { builtinModules } from 'module';

@@ -222,7 +222,8 @@ export function activate(activation: coresdk.workflow_activation.WorkflowActivat
         return;
       }
       state.activator[job.variant](variant as any /* TS can't infer this type */);
-      // Only trigger conditions for non-query and non-patch jobs
+      // Only trigger conditions for non-query and non-patch jobs.
+      // Similar logic exists in @temporalio/worker/src/workflow/vm.ts, make sure to keep these in sync.
       if (!job.queryWorkflow && !job.notifyHasPatch) {
         tryUnblockConditions();
       }

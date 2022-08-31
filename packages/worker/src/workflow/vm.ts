@@ -397,7 +397,8 @@ export class VMWorkflow implements Workflow {
         coresdk.workflow_activation.WorkflowActivation.fromObject({ ...activation, jobs }),
         batchIndex++
       );
-      // Only trigger conditions for non-query and non-patch jobs
+      // Only trigger conditions for non-query and non-patch jobs.
+      // Similar logic exists in @temporalio/workflow/src/worker-interface.ts, make sure to keep these in sync.
       if (!jobs[0].queryWorkflow && !jobs[0].notifyHasPatch) {
         await this.tryUnblockConditions();
       }
