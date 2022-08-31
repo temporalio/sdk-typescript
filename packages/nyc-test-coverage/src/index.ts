@@ -13,37 +13,39 @@ export class WorkflowCoverage {
    * interceptors, sinks, and Webpack config hook.
    */
 
-  augmentWorkerOptions(workerOptions: WorkerOptions): WorkerOptions {
+  augmentWorkerOptions(
+    workerOptions: WorkerOptions & { workflowsPath: NonNullable<WorkerOptions['workflowsPath']> }
+  ): WorkerOptions {
     if (!workerOptions.workflowsPath) {
       throw new TypeError('Cannot automatically instrument coverage without specifying `workflowsPath`');
     }
 
     const workflowsPath = workerOptions.workflowsPath;
 
-    // Interceptors
-    workerOptions.interceptors = workerOptions.interceptors || {};
-    workerOptions.interceptors.workflowModules = workerOptions.interceptors.workflowModules || [];
-    workerOptions.interceptors.workflowModules.push(this.interceptorModule);
+    return {
+      ...workerOptions,
+      interceptors: {
+        ...workerOptions.interceptors,
+        workflowModules: [...(workerOptions?.interceptors?.workflowModules || []), this.interceptorModule],
+      },
+      sinks: {
+        ...workerOptions.sinks,
+        ...this.sinks,
+      },
+      bundlerOptions: {
+        ...workerOptions.bundlerOptions,
+        webpackConfigHook: (config: WebpackConfigType) => {
+          config = this.addInstrumenterRule(workflowsPath, config);
 
-    // Sinks
-    workerOptions.sinks = workerOptions.sinks || {};
-    Object.assign(workerOptions.sinks, this.sinks);
+          const existingWebpackConfigHook = workerOptions?.bundlerOptions?.webpackConfigHook;
+          if (existingWebpackConfigHook !== undefined) {
+            return existingWebpackConfigHook(config);
+          }
 
-    // Webpack config hook
-    workerOptions.bundlerOptions = workerOptions.bundlerOptions || {};
-    const existingWebpackConfigHook = workerOptions.bundlerOptions.webpackConfigHook;
-
-    workerOptions.bundlerOptions.webpackConfigHook = (config: WebpackConfigType) => {
-      config = this.webpackConfigHook(workflowsPath, config);
-
-      if (existingWebpackConfigHook != null) {
-        return existingWebpackConfigHook(config);
-      }
-
-      return config;
-    }
-
-    return workerOptions;
+          return config;
+        },
+      },
+    };
   }
 
   /**
@@ -74,19 +76,23 @@ export class WorkflowCoverage {
    * code using istanbul-instrumenter-loader
    */
 
-  webpackConfigHook(workflowsPath: string, config: WebpackConfigHookType): WebpackConfigHookType {
-    const rules = config?.module?.rules || [];
-
-    rules.push({
+  addInstrumenterRule(workflowsPath: string, config: WebpackConfigType): WebpackConfigType {
+    const newRule = {
       use: {
         loader: require.resolve('istanbul-instrumenter-loader'),
-        options: { esModules: true }
+        options: { esModules: true },
       },
-      enforce: 'post',
+      enforce: 'post' as const,
       include: workflowsPath,
-    });
+    };
 
-    return config;
+    return {
+      ...config,
+      module: {
+        ...config?.module,
+        rules: [...(config?.module?.rules || []), newRule],
+      },
+    };
   }
 
   /**
