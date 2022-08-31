@@ -25,6 +25,11 @@ class Registry {
   }
 
   static async create(workdir) {
+    // TODO: remove this debug info
+    const verdaccioInstalled = await pathExists(verdaccioPath);
+    console.log({ verdaccioInstalled });
+    // ----
+
     await copy(path.resolve(__dirname, '../etc/verdaccio-config.yaml'), path.resolve(workdir, 'verdaccio.yaml'));
 
     const proc = spawn(process.argv0, [verdaccioPath, '-c', 'verdaccio.yaml'], {
