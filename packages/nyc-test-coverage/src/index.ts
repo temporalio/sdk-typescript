@@ -1,9 +1,50 @@
-import { InjectedSinks } from '@temporalio/worker';
+import { InjectedSinks, BundleOptions, WorkerOptions } from '@temporalio/worker';
 import { CoverageSinks } from './sinks';
 import libCoverage from 'istanbul-lib-coverage';
 
+// Pull `webpack.Configuration` type without needing to import Webpack
+type WebpackConfigType = ReturnType<NonNullable<BundleOptions['webpackConfigHook']>>;
+
 export class WorkflowCoverage {
   coverageMap = libCoverage.createCoverageMap();
+
+  /**
+   * Add all necessary coverage-specific logic to Worker config:
+   * interceptors, sinks, and Webpack config hook.
+   */
+
+  augmentWorkerOptions(workerOptions: WorkerOptions): WorkerOptions {
+    if (!workerOptions.workflowsPath) {
+      throw new TypeError('Cannot automatically instrument coverage without specifying `workflowsPath`');
+    }
+
+    const workflowsPath = workerOptions.workflowsPath;
+
+    // Interceptors
+    workerOptions.interceptors = workerOptions.interceptors || {};
+    workerOptions.interceptors.workflowModules = workerOptions.interceptors.workflowModules || [];
+    workerOptions.interceptors.workflowModules.push(this.interceptorModule);
+
+    // Sinks
+    workerOptions.sinks = workerOptions.sinks || {};
+    Object.assign(workerOptions.sinks, this.sinks);
+
+    // Webpack config hook
+    workerOptions.bundlerOptions = workerOptions.bundlerOptions || {};
+    const existingWebpackConfigHook = workerOptions.bundlerOptions.webpackConfigHook;
+
+    workerOptions.bundlerOptions.webpackConfigHook = (config: WebpackConfigType) => {
+      config = this.webpackConfigHook(workflowsPath, config);
+
+      if (existingWebpackConfigHook != null) {
+        return existingWebpackConfigHook(config);
+      }
+
+      return config;
+    }
+
+    return workerOptions;
+  }
 
   /**
    * Interceptor to inject into `WorkerOptions.interceptors.workflowModules`
@@ -26,6 +67,26 @@ export class WorkflowCoverage {
         },
       },
     };
+  }
+
+  /**
+   * Modify the given Worker config to auto instrument Workflow
+   * code using istanbul-instrumenter-loader
+   */
+
+  webpackConfigHook(workflowsPath: string, config: WebpackConfigHookType): WebpackConfigHookType {
+    const rules = config?.module?.rules || [];
+
+    rules.push({
+      use: {
+        loader: require.resolve('istanbul-instrumenter-loader'),
+        options: { esModules: true }
+      },
+      enforce: 'post',
+      include: workflowsPath,
+    });
+
+    return config;
   }
 
   /**

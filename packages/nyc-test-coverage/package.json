@@ -15,6 +15,7 @@
   "dependencies": {
     "@temporalio/worker": "file:../worker",
     "@temporalio/workflow": "file:../workflow",
+    "istanbul-instrumenter-loader": "^3.0.1",
     "istanbul-lib-coverage": "^3.2.0"
   },
   "devDependencies": {
