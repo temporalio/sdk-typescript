@@ -12,7 +12,6 @@ export class WorkflowCoverage {
    * Add all necessary coverage-specific logic to Worker config:
    * interceptors, sinks, and Webpack config hook.
    */
-
   augmentWorkerOptions(
     workerOptions: WorkerOptions & { workflowsPath: NonNullable<WorkerOptions['workflowsPath']> }
   ): WorkerOptions {
@@ -75,7 +74,6 @@ export class WorkflowCoverage {
    * Modify the given Worker config to auto instrument Workflow
    * code using istanbul-instrumenter-loader
    */
-
   addInstrumenterRule(workflowsPath: string, config: WebpackConfigType): WebpackConfigType {
     const newRule = {
       use: {
