@@ -4,6 +4,25 @@ All notable changes to this project will be documented in this file.
 
 Breaking changes marked with a :boom:
 
+## [1.1.1] - 2022-08-30
+
+### Bug Fixes
+
+- Build `nyc-test-coverage` package, fixes [#839](https://github.com/temporalio/sdk-typescript/issues/839) ([#843](https://github.com/temporalio/sdk-typescript/pull/843))
+- `isCancellation` no longer scans chain recursively ([#837](https://github.com/temporalio/sdk-typescript/pull/837))
+- Don't trigger conditions for query jobs ([#854](https://github.com/temporalio/sdk-typescript/pull/854))
+
+### Features
+
+- Implement entrypoint for debug replayer ([#848](https://github.com/temporalio/sdk-typescript/pull/848))
+- [`client`] Enable gRPC keep-alive by default ([#855](https://github.com/temporalio/sdk-typescript/pull/855))
+
+### Documentation
+
+- Add title and link to other docs ([#842](https://github.com/temporalio/sdk-typescript/pull/842))
+- Update release instructions ([#835](https://github.com/temporalio/sdk-typescript/pull/835))
+- Update README badge links ([#856](https://github.com/temporalio/sdk-typescript/pull/856))
+
 ## [1.1.0] - 2022-08-20
 
 ### Bug Fixes
