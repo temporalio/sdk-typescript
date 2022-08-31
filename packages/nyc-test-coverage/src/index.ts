@@ -12,7 +12,6 @@ export class WorkflowCoverage {
    * Add all necessary coverage-specific logic to Worker config:
    * interceptors, sinks, and Webpack config hook.
    */
-
   augmentWorkerOptions(workerOptions: WorkerOptions): WorkerOptions {
     if (!workerOptions.workflowsPath) {
       throw new TypeError('Cannot automatically instrument coverage without specifying `workflowsPath`');
