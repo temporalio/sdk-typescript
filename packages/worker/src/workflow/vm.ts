@@ -397,8 +397,8 @@ export class VMWorkflow implements Workflow {
         coresdk.workflow_activation.WorkflowActivation.fromObject({ ...activation, jobs }),
         batchIndex++
       );
-      // Only trigger conditions for non-query jobs
-      if (!jobs[0].queryWorkflow) {
+      // Only trigger conditions for non-query and non-patch jobs
+      if (!jobs[0].queryWorkflow && !jobs[0].notifyHasPatch) {
         await this.tryUnblockConditions();
       }
     }

@@ -222,8 +222,8 @@ export function activate(activation: coresdk.workflow_activation.WorkflowActivat
         return;
       }
       state.activator[job.variant](variant as any /* TS can't infer this type */);
-      // Only trigger conditions for non-query jobs
-      if (!job.queryWorkflow) {
+      // Only trigger conditions for non-query and non-patch jobs
+      if (!job.queryWorkflow && !job.notifyHasPatch) {
         tryUnblockConditions();
       }
     }
