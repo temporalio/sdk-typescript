@@ -29,7 +29,7 @@ class PrebuildError extends Error {
   }
 }
 
-function getPrebuiltPath() {
+function getPrebuiltTargetName() {
   const arch = archAlias[os.arch()];
   if (arch === undefined) {
     throw new PrebuildError(`No prebuilt module for arch ${os.arch()}`);
@@ -38,7 +38,11 @@ function getPrebuiltPath() {
   if (platform === undefined) {
     throw new PrebuildError(`No prebuilt module for platform ${os.platform()}`);
   }
-  const binary = path.resolve(__dirname, 'releases', `${arch}-${platform}`, 'index.node');
+  return `${arch}-${platform}`;
+}
+
+function getPrebuiltPath() {
+  const binary = path.resolve(__dirname, 'releases', getPrebuiltTargetName(), 'index.node');
   if (fs.existsSync(binary)) {
     return binary;
   } else {
@@ -46,4 +50,4 @@ function getPrebuiltPath() {
   }
 }
 
-module.exports = { targets, archAlias, platformMapping, PrebuildError, getPrebuiltPath };
+module.exports = { targets, archAlias, platformMapping, PrebuildError, getPrebuiltPath, getPrebuiltTargetName };
