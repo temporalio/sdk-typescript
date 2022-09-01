@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 
 Breaking changes marked with a :boom:
 
-## [1.2.0] - 2022-08-31
+## [1.2.0] - 2022-09-01
 
 ### Features
 
@@ -14,6 +14,7 @@ Breaking changes marked with a :boom:
 ### Bug Fixes
 
 - Build `nyc-test-coverage` package, fixes [#839](https://github.com/temporalio/sdk-typescript/issues/839) ([#843](https://github.com/temporalio/sdk-typescript/pull/843))
+- [`workflow`] Fix non-determinism on replay when using a `patched` statement in a `condition` ([#859](https://github.com/temporalio/sdk-typescript/pull/859))
 - `isCancellation` no longer scans chain recursively ([#837](https://github.com/temporalio/sdk-typescript/pull/837))
 - Don't trigger conditions for query jobs ([#854](https://github.com/temporalio/sdk-typescript/pull/854))
 
