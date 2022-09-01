@@ -42,7 +42,7 @@ async function kill(child, signal = 'SIGINT') {
 }
 
 function spawnNpxSync(args, opts) {
-  let cmd = 'npx';
+  let cmd = 'npm';
 
   // NPX is a .cmd on Windows
   if (process.platform == 'win32') {
@@ -50,7 +50,7 @@ function spawnNpxSync(args, opts) {
     cmd = 'cmd';
   }
 
-  return spawnSync(cmd, args, opts);
+  return spawnSync(cmd, ['exec', ...args], opts);
 }
 
 const shell = process.platform === 'win32';

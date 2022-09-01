@@ -1,5 +1,6 @@
 const { withRegistry, getArgs } = require('./registry');
 const { spawnNpxSync } = require('./utils');
+const { spawn, spawnSync } = require('child_process');
 
 async function main() {
   const { registryDir } = await getArgs();
@@ -8,6 +9,8 @@ async function main() {
       ['lerna', 'publish', 'from-package', '--yes', '--registry', 'http://localhost:4873/'],
       {
         stdio: 'inherit',
+        stdout: 'inherit',
+        stderr: 'inherit',
       }
     );
     if (status !== 0) {
