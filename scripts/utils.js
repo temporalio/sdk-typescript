@@ -41,18 +41,6 @@ async function kill(child, signal = 'SIGINT') {
   }
 }
 
-function spawnNpx(args, opts) {
-  let cmd = 'npx';
-
-  // NPX is a .cmd on Windows
-  if (process.platform == 'win32') {
-    args = ['/C', cmd, ...args];
-    cmd = 'cmd';
-  }
-
-  return spawn(cmd, args, opts);
-}
-
 function spawnNpxSync(args, opts) {
   let cmd = 'npx';
 
@@ -68,4 +56,4 @@ function spawnNpxSync(args, opts) {
 const shell = process.platform === 'win32';
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-module.exports = { kill, waitOnChild, spawnNpx, spawnNpxSync, ChildProcessError, shell, sleep };
+module.exports = { kill, waitOnChild, spawnNpxSync, ChildProcessError, shell, sleep };

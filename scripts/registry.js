@@ -1,9 +1,12 @@
 const path = require('path');
+const { spawn } = require('node:child_process');
 const { tmpdir } = require('os');
 const { copy, readFile, mkdtemp, pathExists } = require('fs-extra');
 const arg = require('arg');
 const { Tail } = require('tail');
-const { shell, sleep, kill, spawnNpx } = require('./utils');
+const { shell, sleep, kill, waitOnChild } = require('./utils');
+
+const verdaccioPath = path.resolve(__dirname, '../node_modules/.bin/verdaccio');
 
 async function untilExists(file, attempts, sleepDuration = 1000) {
   for (let attempt = 1; attempt < attempts; attempt++) {
@@ -24,7 +27,7 @@ class Registry {
   static async create(workdir) {
     await copy(path.resolve(__dirname, '../etc/verdaccio-config.yaml'), path.resolve(workdir, 'verdaccio.yaml'));
 
-    const proc = spawnNpx(['--yes', 'verdaccio', '-c', 'verdaccio.yaml'], {
+    const proc = spawn(process.argv0, [verdaccioPath, '-c', 'verdaccio.yaml'], {
       cwd: workdir,
       stdio: 'inherit',
       shell,
@@ -82,7 +85,12 @@ async function withRegistry(testDir, fn) {
   console.log('Starting local registry');
   const registry = await Registry.create(testDir);
   try {
-    await registry.ready();
+    await Promise.race([
+      registry.ready(),
+      waitOnChild(registry.proc).then(() => {
+        throw new Error('Verdaccio process existed prematurely');
+      }),
+    ]);
     console.log('Local registry ready');
     return await fn();
   } finally {
