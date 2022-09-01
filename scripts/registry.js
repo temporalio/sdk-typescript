@@ -76,7 +76,14 @@ class Registry {
       },
     });
 
-    app.listen(4873);
+    await new Promise((resolve, reject) => {
+      try {
+        app.listen(4873, resolve);
+      } catch (e) {
+        reject(e);
+      }
+    });
+
     return new this(app, workdir);
   }
 
