@@ -70,15 +70,16 @@ class Registry {
 
       logs: {
         type: 'file',
-        format: 'json',
+        format: 'pretty',
         path: path.resolve(workdir, 'verdaccio.log'),
-        level: 'info',
+        level: 'http',
       },
     });
 
     await new Promise((resolve, reject) => {
       try {
         app.listen(4873, resolve);
+        app.on('error', reject);
       } catch (e) {
         reject(e);
       }
