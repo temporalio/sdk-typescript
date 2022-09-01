@@ -7,7 +7,7 @@ async function main() {
 
   await withRegistry(registryDir, async () => {
     console.log('spawning npx @temporalio/create with args:', initArgs);
-    const { status, error } = spawnNpxSync(
+    const { status, error } = await spawnNpxSync(
       ['--yes', '@temporalio/create', 'example', '--no-git-init', '--temporalio-version', 'latest'].concat(initArgs),
       {
         stdio: 'inherit',

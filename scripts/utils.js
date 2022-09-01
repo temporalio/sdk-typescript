@@ -41,7 +41,7 @@ async function kill(child, signal = 'SIGINT') {
   }
 }
 
-function spawnNpxSync(args, opts) {
+async function spawnNpxSync(args, opts) {
   let fullCommand = ['npm', 'exec', ...args];
 
   // NPX is a .cmd on Windows
@@ -49,7 +49,11 @@ function spawnNpxSync(args, opts) {
     fullCommand = ['cmd', '/C', ...fullCommand];
   }
 
-  return spawnSync(fullCommand[0], fullCommand.slice(1), opts);
+  await new Promise((resolve, reject) => {
+    const process = spawn(fullCommand[0], fullCommand.slice(1), opts);
+    process.on('close', () => resolve);
+    process.on('error', () => reject);
+  });
 }
 
 const shell = process.platform === 'win32';

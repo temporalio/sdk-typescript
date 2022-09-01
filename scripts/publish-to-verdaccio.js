@@ -5,7 +5,7 @@ const { spawn, spawnSync } = require('child_process');
 async function main() {
   const { registryDir } = await getArgs();
   await withRegistry(registryDir, async () => {
-    const { status, error } = spawnNpxSync(
+    const { status, error } = await spawnNpxSync(
       ['lerna', 'publish', 'from-package', '--yes', '--registry', 'http://localhost:4873/'],
       {
         stdio: 'inherit',
