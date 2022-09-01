@@ -46,7 +46,7 @@ function spawnNpxSync(args, opts) {
 
   // NPX is a .cmd on Windows
   if (process.platform == 'win32') {
-    fullCommand = ['cmd', '/C', fullCommand];
+    fullCommand = ['cmd', '/C', ...fullCommand];
   }
 
   return spawnSync(fullCommand[0], fullCommand.slice(1), opts);
