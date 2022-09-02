@@ -42,7 +42,7 @@ async function kill(child, signal = 'SIGINT') {
 }
 
 async function spawnNpx(args, opts) {
-  let fullCommand = ['npx', '--yes', '--', ...args];
+  let fullCommand = ['npx', '--prefer-offline', '--timing=true', '--yes', '--', ...args];
 
   // NPM is a .cmd on Windows
   if (process.platform == 'win32') {
