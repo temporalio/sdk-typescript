@@ -16,28 +16,9 @@ class Registry {
 
     const app = await runServer({
       self_path: workdir,
-
-      // ...config,
       storage: path.resolve(workdir, 'storage'),
 
-      web: {
-        title: 'Verdaccio',
-      },
-
-      auth: {
-        htpasswd: {
-          file: path.resolve(workdir, 'htpasswd'),
-        },
-      },
-
-      uplinks: {
-        npmjs: {
-          url: 'https://registry.npmjs.org/',
-        },
-      },
-
       packages: {
-        // Note that the Temporal packages don't proxy npmjs to ensure we test the correct packages
         '@temporalio/*': {
           access: '$all',
           publish: '$all',
@@ -48,32 +29,13 @@ class Registry {
           publish: '$all',
           unpublish: '$all',
         },
-        '@*/*': {
-          access: '$all',
-          publish: '$all',
-          unpublish: '$all',
-          proxy: 'npmjs',
-        },
-        '**': {
-          access: '$all',
-          publish: '$all',
-          unpublish: '$all',
-          proxy: 'npmjs',
-        },
       },
 
       server: {
         keepAliveTimeout: 60,
       },
-      // We have some really large packages (e.g. worker)
-      max_body_size: '200mb',
 
-      logs: {
-        type: 'file',
-        format: 'pretty',
-        path: path.resolve(workdir, 'verdaccio.log'),
-        level: 'http',
-      },
+      max_body_size: '200mb',
     });
 
     await new Promise((resolve, reject) => {
