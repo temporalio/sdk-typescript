@@ -4,7 +4,7 @@ const fs = require('fs');
 const which = require('which');
 const { spawnSync } = require('child_process');
 const { version } = require('../package.json');
-const { targets, getPrebuiltPath, PrebuildError } = require('../common');
+const { targets, getPrebuiltPath, getPrebuiltTargetName, PrebuildError } = require('../common');
 
 process.chdir(path.resolve(__dirname, '..'));
 
@@ -54,10 +54,11 @@ if (unsupportedTargets.length) {
 const forceBuild = args['--force'];
 const buildRelease = args['--release'] || process.env.BUILD_CORE_RELEASE !== undefined;
 
-function compile(target) {
+function compile(requestedTarget) {
+  const target = requestedTarget ?? getPrebuiltTargetName();
   console.log('Compiling bridge', { target, buildRelease });
 
-  const out = target ? `releases/${target}/index.node` : 'default-build/index.node';
+  const out = `releases/${target}/index.node`;
   try {
     fs.unlinkSync(out);
   } catch (err) {

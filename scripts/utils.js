@@ -1,4 +1,4 @@
-const { spawn, spawnSync } = require('child_process');
+const { spawn } = require('child_process');
 
 class ChildProcessError extends Error {
   constructor(message, code, signal) {
@@ -41,31 +41,18 @@ async function kill(child, signal = 'SIGINT') {
   }
 }
 
-function spawnNpx(args, opts) {
-  let cmd = 'npx';
+async function spawnNpx(args, opts) {
+  let fullCommand = ['npx', '--prefer-offline', '--timing=true', '--yes', '--', ...args];
 
-  // NPX is a .cmd on Windows
+  // NPM is a .cmd on Windows
   if (process.platform == 'win32') {
-    args = ['/C', cmd, ...args];
-    cmd = 'cmd';
+    fullCommand = ['cmd', '/C', ...fullCommand];
   }
 
-  return spawn(cmd, args, opts);
-}
-
-function spawnNpxSync(args, opts) {
-  let cmd = 'npx';
-
-  // NPX is a .cmd on Windows
-  if (process.platform == 'win32') {
-    args = ['/C', cmd, ...args];
-    cmd = 'cmd';
-  }
-
-  return spawnSync(cmd, args, opts);
+  await waitOnChild(spawn(fullCommand[0], fullCommand.slice(1), opts));
 }
 
 const shell = process.platform === 'win32';
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-module.exports = { kill, waitOnChild, spawnNpx, spawnNpxSync, ChildProcessError, shell, sleep };
+module.exports = { kill, spawnNpx, ChildProcessError, shell, sleep };

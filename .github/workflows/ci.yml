@@ -17,14 +17,10 @@ jobs:
       matrix:
         node: [14, 16]
         os: [ubuntu-latest, macos-latest, windows-latest]
-        include:
-          - os: ubuntu-latest
-            node: 16
-            docsTarget: true
     runs-on: ${{ matrix.os }}
     steps:
       - name: Print build information
-        run: 'echo head_ref: ${{ github.head_ref }}, ref: ${{ github.ref }}, os: ${{ matrix.os }}, node: ${{ matrix.node }}, docsTarget: ${{ toJson(matrix.docsTarget) }}'
+        run: 'echo head_ref: ${{ github.head_ref }}, ref: ${{ github.ref }}, os: ${{ matrix.os }}, node: ${{ matrix.node }}'
       - uses: actions/checkout@v2
         with:
           submodules: recursive
@@ -71,14 +67,31 @@ jobs:
             ~/.npm/_logs/
             C:\npm\cache\_logs\
 
+  build-docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          submodules: recursive
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+      - uses: actions/setup-node@v1
+        with:
+          node-version: 16
+      # Don't build during install phase since we're going to explicitly build
+      - run: npm ci --ignore-scripts
+      - run: npm run build
+        env:
+          BUILD_CORE_RELEASE: true
+
       # Do docs stuff (only on one host)
       - name: Build docs
-        if: ${{ matrix.docsTarget }}
         run: npm run docs
         env:
           ALGOLIA_API_KEY: ${{ secrets.ALGOLIA_API_KEY }}
-      - name: Deploy prod docs
-        if: ${{ github.ref == 'refs/heads/main' && matrix.docsTarget }}
+      - name: Deploy prod docs # TODO: only deploy prod docs when we publish a new version
+        if: ${{ github.ref == 'refs/heads/main' }}
         uses: netlify/actions/cli@master
         with:
           args: deploy --dir=packages/docs/build --prod
@@ -86,7 +99,7 @@ jobs:
           NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
           NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
       - name: Deploy draft docs
-        if: ${{ github.ref != 'refs/heads/main' && matrix.docsTarget }}
+        if: ${{ github.ref != 'refs/heads/main' }}
         uses: netlify/actions/cli@master
         with:
           args: deploy --dir=packages/docs/build
