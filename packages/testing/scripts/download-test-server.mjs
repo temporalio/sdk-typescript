@@ -7,7 +7,6 @@ import got from 'got';
 import tar from 'tar-stream';
 import unzipper from 'unzipper';
 import { URL, fileURLToPath } from 'node:url';
-import pkg from '../package.json' assert { type: 'json' };
 
 const platformMapping = { darwin: 'darwin', linux: 'linux', win32: 'windows' };
 const archAlias = { x64: 'amd64', arm64: 'aarch64' };
@@ -25,6 +24,8 @@ if (!systemArch) {
 const ext = systemPlatform === 'windows' ? '.exe' : '';
 const assetExt = systemPlatform === 'windows' ? 'zip' : 'tar.gz';
 const outputPath = fileURLToPath(new URL(`../test-server${ext}`, import.meta.url));
+const pkgPath = fileURLToPath(new URL(`../package.json`, import.meta.url));
+const pkg = JSON.parse(fs.readFileSync(pkgPath));
 
 try {
   if (fs.statSync(outputPath).isFile) {
