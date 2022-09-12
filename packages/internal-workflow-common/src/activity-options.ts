@@ -11,6 +11,7 @@ export enum ActivityCancellationType {
 }
 
 checkExtends<coresdk.workflow_commands.ActivityCancellationType, ActivityCancellationType>();
+checkExtends<ActivityCancellationType, coresdk.workflow_commands.ActivityCancellationType>();
 
 /**
  * Options for remote activity invocation
