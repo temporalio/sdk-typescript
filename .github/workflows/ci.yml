@@ -290,9 +290,7 @@ jobs:
       typescript-repo-ref: ${{github.event.pull_request.head.ref}}
 
   stress-tests:
-    # GH actions is a bit limited here and won't accept the current ref.
-    # When changing stress.yaml, make sure to update the branch name below.
-    uses: temporalio/sdk-typescript/.github/workflows/stress.yml@main
+    uses: ./.github/workflows/stress.yml
     with:
       test-type: ci-stress
       test-timeout-minutes: 20
