@@ -223,6 +223,7 @@ export enum ChildWorkflowCancellationType {
 }
 
 checkExtends<coresdk.child_workflow.ChildWorkflowCancellationType, ChildWorkflowCancellationType>();
+checkExtends<ChildWorkflowCancellationType, coresdk.child_workflow.ChildWorkflowCancellationType>();
 
 /**
  * How a Child Workflow reacts to the Parent Workflow reaching a Closed state.
@@ -254,6 +255,7 @@ export enum ParentClosePolicy {
 }
 
 checkExtends<coresdk.child_workflow.ParentClosePolicy, ParentClosePolicy>();
+checkExtends<ParentClosePolicy, coresdk.child_workflow.ParentClosePolicy>();
 
 export interface ChildWorkflowOptions extends CommonWorkflowOptions {
   /**

@@ -2,10 +2,29 @@ import stream from 'node:stream';
 import util from 'node:util';
 import zlib from 'node:zlib';
 import fs from 'node:fs';
+import os from 'node:os';
 import got from 'got';
 import tar from 'tar-stream';
 import unzipper from 'unzipper';
-import { outputPath, systemArch, systemPlatform } from './common.mjs';
+import { URL, fileURLToPath } from 'node:url';
+
+const platformMapping = { darwin: 'darwin', linux: 'linux', win32: 'windows' };
+const archAlias = { x64: 'amd64', arm64: 'arm64' };
+
+const platform = platformMapping[os.platform()];
+if (!platform) {
+  throw new Error(`Unsupported platform ${os.platform()}`);
+}
+
+const arch = archAlias[os.arch()];
+if (!arch) {
+  throw new Error(`Unsupported architecture ${os.arch()}`);
+}
+
+const ext = platform === 'windows' ? '.exe' : '';
+const outputPath = fileURLToPath(new URL(`../test-server${ext}`, import.meta.url));
+const pkgPath = fileURLToPath(new URL(`../package.json`, import.meta.url));
+const pkg = JSON.parse(fs.readFileSync(pkgPath));
 
 try {
   if (fs.statSync(outputPath).isFile) {
@@ -20,72 +39,44 @@ try {
 
 const pipeline = util.promisify(stream.pipeline);
 
-const defaultHeaders = {
-  'User-Agent': '@temporalio/testing installer',
+const defaultOptions = {
+  headers: {
+    'User-Agent': '@temporalio/testing installer',
+  },
 };
 
-const { GITHUB_TOKEN } = process.env;
+const lookupOptions = {
+  ...defaultOptions,
+  searchParams: { 'sdk-name': 'typescript', 'sdk-version': pkg.version, platform, arch },
+};
 
-if (GITHUB_TOKEN) {
-  console.log(`Using GITHUB_TOKEN`);
-  defaultHeaders['Authorization'] = `Bearer ${GITHUB_TOKEN}`;
-}
+const lookupUrl = 'https://temporal.download/temporal-test-server/default';
+console.log('Looking up default test server', { lookupUrl, options: lookupOptions });
+const { archiveUrl, fileToExtract } = await got(
+  'https://temporal.download/temporal-test-server/default',
+  lookupOptions
+).json();
 
-const latestReleaseRes = await got('https://api.github.com/repos/temporalio/sdk-java/releases/latest', {
-  headers: {
-    ...defaultHeaders,
-    Accept: 'application/vnd.github.v3+json',
-  },
-}).json();
-
-function findTestServerAsset(assets) {
-  for (const asset of assets) {
-    const m = asset.name.match(/^temporal-test-server_[^_]+_([^_]+)_([^.]+)\.(?:zip|tar.gz)$/);
-    if (m) {
-      const [_, assetPlatform, _assetArch] = m;
-      if (assetPlatform === systemPlatform) {
-        // TODO: assetArch === systemArch (no arm builds for test server yet)
-        return asset;
-      }
-    }
-  }
-  throw new Error(`No prebuilt test server for ${systemPlatform}-${systemArch}`);
-}
-
-const asset = findTestServerAsset(latestReleaseRes.assets);
-console.log('Downloading test server', { asset: asset.name, outputPath });
-
-if (asset.content_type === 'application/x-gzip' || asset.content_type === 'application/x-gtar') {
+console.log('Downloading test server', { archiveUrl, fileToExtract, outputPath });
+if (archiveUrl.endsWith('.tar.gz')) {
   const extract = tar.extract();
-  extract.on('entry', (_headers, stream, next) => {
-    stream.pipe(fs.createWriteStream(outputPath));
+  extract.on('entry', (headers, stream, next) => {
+    if (headers.name === fileToExtract) {
+      stream.pipe(fs.createWriteStream(outputPath));
+    }
     next();
   });
-  await pipeline(
-    got.stream(asset.browser_download_url, {
-      headers: {
-        ...defaultHeaders,
-      },
-    }),
-    zlib.createGunzip(),
-    extract
-  );
+  await pipeline(got.stream(archiveUrl, defaultOptions), zlib.createGunzip(), extract);
   await fs.promises.chmod(outputPath, 0o755);
-} else if (asset.content_type === 'application/zip') {
+} else if (archiveUrl.endsWith('.zip')) {
   got
-    .stream(asset.browser_download_url, {
-      headers: {
-        ...defaultHeaders,
-      },
-    })
+    .stream(archiveUrl, defaultOptions)
     .pipe(unzipper.Parse())
     .on('entry', (entry) => {
-      if (entry.type === 'File') {
+      if (entry.type === 'File' && entry.path === fileToExtract) {
         entry.pipe(fs.createWriteStream(outputPath));
       } else {
         entry.autodrain();
       }
     });
-} else {
-  throw new Error(`Unexpected content type for Test server download: ${asset.content_type}`);
 }

@@ -157,8 +157,13 @@ async function main() {
     });
 
     await withOptionalStatusServer(worker, statusPort, async () => {
-      await worker.run();
-      await connection.close();
+      const interval = setInterval(() => logger.info('worker status', worker.getStatus()), 5000);
+      try {
+        await worker.run();
+      } finally {
+        clearInterval(interval);
+        await connection.close();
+      }
     });
   });
 }
