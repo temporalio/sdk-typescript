@@ -9,20 +9,19 @@ import unzipper from 'unzipper';
 import { URL, fileURLToPath } from 'node:url';
 
 const platformMapping = { darwin: 'darwin', linux: 'linux', win32: 'windows' };
-const archAlias = { x64: 'amd64', arm64: 'aarch64' };
+const archAlias = { x64: 'amd64', arm64: 'arm64' };
 
-const systemPlatform = platformMapping[os.platform()];
-if (!systemPlatform) {
+const platform = platformMapping[os.platform()];
+if (!platform) {
   throw new Error(`Unsupported platform ${os.platform()}`);
 }
 
-const systemArch = archAlias[os.arch()];
-if (!systemArch) {
+const arch = archAlias[os.arch()];
+if (!arch) {
   throw new Error(`Unsupported architecture ${os.arch()}`);
 }
 
-const ext = systemPlatform === 'windows' ? '.exe' : '';
-const assetExt = systemPlatform === 'windows' ? 'zip' : 'tar.gz';
+const ext = platform === 'windows' ? '.exe' : '';
 const outputPath = fileURLToPath(new URL(`../test-server${ext}`, import.meta.url));
 const pkgPath = fileURLToPath(new URL(`../package.json`, import.meta.url));
 const pkg = JSON.parse(fs.readFileSync(pkgPath));
@@ -40,31 +39,41 @@ try {
 
 const pipeline = util.promisify(stream.pipeline);
 
-const options = {
+const defaultOptions = {
   headers: {
     'User-Agent': '@temporalio/testing installer',
   },
-  searchParams: { 'sdk-name': 'typescript', 'sdk-version': pkg.version },
 };
 
-// TODO: use "real" arch when we get arm builds for test server
-const assetUrl = `https://temporal.download/temporal-test-server/temporal-test-server_default_${systemPlatform}_amd64.${assetExt}`;
-console.log('Downloading test server', { assetUrl, outputPath });
+const lookupOptions = {
+  ...defaultOptions,
+  searchParams: { 'sdk-name': 'typescript', 'sdk-version': pkg.version, platform, arch },
+};
 
-if (assetExt === 'tar.gz') {
+const lookupUrl = 'https://temporal.download/temporal-test-server/default';
+console.log('Looking up default test server', { lookupUrl, options: lookupOptions });
+const { archiveUrl, fileToExtract } = await got(
+  'https://temporal.download/temporal-test-server/default',
+  lookupOptions
+).json();
+
+console.log('Downloading test server', { archiveUrl, fileToExtract, outputPath });
+if (archiveUrl.endsWith('.tar.gz')) {
   const extract = tar.extract();
-  extract.on('entry', (_headers, stream, next) => {
-    stream.pipe(fs.createWriteStream(outputPath));
+  extract.on('entry', (headers, stream, next) => {
+    if (headers.name === fileToExtract) {
+      stream.pipe(fs.createWriteStream(outputPath));
+    }
     next();
   });
-  await pipeline(got.stream(assetUrl, options), zlib.createGunzip(), extract);
+  await pipeline(got.stream(archiveUrl, defaultOptions), zlib.createGunzip(), extract);
   await fs.promises.chmod(outputPath, 0o755);
-} else if (assetExt === 'zip') {
+} else if (archiveUrl.endsWith('.zip')) {
   got
-    .stream(assetUrl, options)
+    .stream(archiveUrl, defaultOptions)
     .pipe(unzipper.Parse())
     .on('entry', (entry) => {
-      if (entry.type === 'File') {
+      if (entry.type === 'File' && entry.path === fileToExtract) {
         entry.pipe(fs.createWriteStream(outputPath));
       } else {
         entry.autodrain();
