@@ -64,30 +64,3 @@ export interface WorkflowSignalWithStartOptionsWithArgs<SignalArgs extends any[]
    */
   signalArgs: SignalArgs;
 }
-
-// export interface WorkflowOptionsWithDefaults<T extends Workflow> extends CommonWorkflowOptionsWithDefaults<T> {
-//   /**
-//    * If set to true, instructs the client to follow the chain of execution before returning a Workflow's result.
-//    *
-//    * Workflow execution is chained if the Workflow has a cron schedule or continues-as-new or configured to retry
-//    * after failure or timeout.
-//    *
-//    * @default true
-//    */
-//   followRuns: boolean;
-// }
-//
-// /**
-//  * Adds default values to `workflowId` and `workflowIdReusePolicy` to given workflow options.
-//  */
-// export function addDefaults<T extends Workflow>(
-//   opts: WithWorkflowArgs<T, WorkflowOptions>
-// ): WorkflowOptionsWithDefaults<T> {
-//   const { workflowId, args, ...rest } = opts;
-//   return {
-//     followRuns: true,
-//     args: args ?? [],
-//     workflowId: workflowId ?? uuid4(),
-//     ...rest,
-//   };
-// }
