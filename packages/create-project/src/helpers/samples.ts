@@ -78,7 +78,7 @@ export async function checkForPackageJson({ username, name, branch, filePath }: 
   const fullUrl = contentsUrl + packagePath + `?ref=${branch}`;
 
   try {
-    const response = await got.head(fullUrl);
+    const response = await got.head(fullUrl, { headers });
     if (response.statusCode !== 200) {
       throw response;
     }
