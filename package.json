@@ -26,7 +26,6 @@
     "build.watch": "lerna run --stream build.watch",
     "test": "lerna run --stream test",
     "test.watch": "lerna run --stream test.watch",
-    "ci-build-no-rust": "lerna run --ignore @temporalio/core-bridge --stream build",
     "ci-stress": "node ./packages/test/lib/load/run-all-stress-ci-scenarios.js",
     "ci-nightly": "node ./packages/test/lib/load/run-all-nightly-scenarios.js",
     "wait-namespace": "node ./scripts/wait-on-temporal.mjs",

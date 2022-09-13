@@ -24,6 +24,9 @@ jobs:
       - uses: actions/checkout@v2
         with:
           submodules: recursive
+      - uses: arduino/setup-protoc@v1
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
       - uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
@@ -76,17 +79,12 @@ jobs:
       - uses: actions/checkout@v2
         with:
           submodules: recursive
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
       - uses: actions/setup-node@v1
         with:
           node-version: 16
       # Don't build during install phase since we're going to explicitly build
       - run: npm ci --ignore-scripts
-      - run: npm run build
-        env:
-          BUILD_CORE_RELEASE: true
+      - run: npm run build -- --ignore @temporalio/core-bridge
 
       # Do docs stuff (only on one host)
       - name: Build docs
@@ -117,9 +115,6 @@ jobs:
       - uses: actions/checkout@v2
         with:
           submodules: recursive
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
       - uses: actions/setup-node@v1
         with:
           node-version: 16
@@ -151,6 +146,9 @@ jobs:
       - uses: actions/checkout@v2
         with:
           submodules: recursive
+      - uses: arduino/setup-protoc@v1
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
       - uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
@@ -171,7 +169,7 @@ jobs:
       # Don't build during install phase since we're going to explicitly build
       - run: npm ci --ignore-scripts
       - name: Compile all non-rust code
-        run: npm run ci-build-no-rust
+        run: npm run build -- --ignore @temporalio/core-bridge
       - name: Cross compile rust code
         env:
           RUSTFLAGS: ${{ matrix.rustflags }}
