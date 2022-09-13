@@ -11,8 +11,7 @@
   ],
   "scripts": {
     "install": "node ./scripts/download-test-server.mjs",
-    "build": "npm-run-all build:protos install",
-    "build:protos": "node ./scripts/compile-proto.mjs"
+    "build": "npm install"
   },
   "author": "Temporal Technologies Inc. <sdk@temporal.io>",
   "license": "MIT",
@@ -38,7 +37,6 @@
   "files": [
     "lib",
     "src",
-    "generated-protos",
     "scripts"
   ],
   "publishConfig": {

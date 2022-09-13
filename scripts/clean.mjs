@@ -59,9 +59,6 @@ function cleanCompiledRustFiles() {
 function cleanTestServer() {
   console.log(`Removing test server executable at ${testing.outputPath}`);
   rmSync(testing.outputPath, { force: true });
-  const protosOutputDir = resolve(packagesPath, 'testing/generated-protos');
-  console.log(`Removing generated files in ${protosOutputDir}`);
-  rmSync(protosOutputDir, { recursive: true, force: true });
 }
 
 const { '--only': only } = arg({ '--only': [String] });

@@ -7,6 +7,7 @@ import got from 'got';
 import tar from 'tar-stream';
 import unzipper from 'unzipper';
 import { URL, fileURLToPath } from 'node:url';
+import { outputPath } from './common.mjs';
 
 const platformMapping = { darwin: 'darwin', linux: 'linux', win32: 'windows' };
 const archAlias = { x64: 'amd64', arm64: 'arm64' };
@@ -21,8 +22,6 @@ if (!arch) {
   throw new Error(`Unsupported architecture ${os.arch()}`);
 }
 
-const ext = platform === 'windows' ? '.exe' : '';
-const outputPath = fileURLToPath(new URL(`../test-server${ext}`, import.meta.url));
 const pkgPath = fileURLToPath(new URL(`../package.json`, import.meta.url));
 const pkg = JSON.parse(fs.readFileSync(pkgPath));
 
