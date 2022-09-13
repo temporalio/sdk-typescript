@@ -21,12 +21,9 @@
     "@temporalio/client": "file:../client",
     "@temporalio/common": "file:../common",
     "@temporalio/worker": "file:../worker",
-    "@types/long": "^4.0.2",
     "abort-controller": "^3.0.0",
     "get-port": "^5.0.0",
     "got": "^12.1.0",
-    "long": "^5.2.0",
-    "protobufjs": "^7.0.0",
     "tar-stream": "^2.2.0",
     "unzipper": "^0.10.11"
   },
