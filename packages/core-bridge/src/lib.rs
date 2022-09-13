@@ -19,7 +19,7 @@ use std::{
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 use temporal_client::{
-    AnyClient, ClientInitError, ConfiguredClient, WorkflowServiceClientWithMetrics,
+    ClientInitError, ConfiguredClient, TemporalServiceClientWithMetrics,
 };
 use temporal_sdk_core::{
     api::{
@@ -42,7 +42,7 @@ use tokio::{
 };
 use tokio_stream::wrappers::UnboundedReceiverStream;
 
-type RawClient = RetryClient<ConfiguredClient<WorkflowServiceClientWithMetrics>>;
+type RawClient = RetryClient<ConfiguredClient<TemporalServiceClientWithMetrics>>;
 
 /// A request from JS to bridge to core
 enum RuntimeRequest {
@@ -346,7 +346,7 @@ fn start_bridge_loop(channel: Arc<Channel>, receiver: &mut UnboundedReceiver<Run
                 } => {
                     let client = (*client).clone();
                     let worker =
-                        init_worker(config, AnyClient::LowLevel(Box::new(client.into_inner())));
+                        init_worker(config, client.into_inner());
                     let (tx, rx) = unbounded_channel();
                     tokio::spawn(start_worker_loop(worker, rx, channel.clone()));
                     send_result(channel.clone(), callback, |cx| {
