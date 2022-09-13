@@ -6,7 +6,7 @@
 
 ## Getting Started
 
-1. `npm install mocha nyc`
+1. `npm install -D mocha nyc @temporalio/nyc-test-coverage`
 2. Use [nyc to manually instrument your Workflow code](https://github.com/istanbuljs/nyc/blob/master/docs/instrument.md), for example `nyc instrument lib lib --in-place`. Make sure you instrument your Workflow code _after_ compiling it with `tsc`.
 3. Add this package's sinks and interceptors to your test worker, for example:
 
