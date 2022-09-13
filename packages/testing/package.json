@@ -10,8 +10,7 @@
     "testing"
   ],
   "scripts": {
-    "install": "node ./scripts/download-test-server.mjs",
-    "build": "npm install"
+    "build": "node ./scripts/download-test-server.mjs"
   },
   "author": "Temporal Technologies Inc. <sdk@temporal.io>",
   "license": "MIT",
@@ -22,10 +21,7 @@
     "@temporalio/common": "file:../common",
     "@temporalio/worker": "file:../worker",
     "abort-controller": "^3.0.0",
-    "get-port": "^5.0.0",
-    "got": "^12.1.0",
-    "tar-stream": "^2.2.0",
-    "unzipper": "^0.10.11"
+    "get-port": "^5.0.0"
   },
   "bugs": {
     "url": "https://github.com/temporalio/sdk-typescript/issues"

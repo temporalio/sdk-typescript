@@ -49,7 +49,10 @@
     "@temporalio/testing": "file:packages/testing",
     "@temporalio/worker": "file:packages/worker",
     "@temporalio/workflow": "file:packages/workflow",
-    "temporalio": "file:packages/meta"
+    "got": "^12.1.0",
+    "temporalio": "file:packages/meta",
+    "tar-stream": "^2.2.0",
+    "unzipper": "^0.10.11"
   },
   "devDependencies": {
     "@commitlint/cli": "^17.0.2",
