@@ -271,8 +271,8 @@ jobs:
         env:
           # TODO: get a permanent cloud namespace for CI
           # These env vars are ignored by the local server example
-          TEMPORAL_ADDRESS: roey.temporal-dev.tmprl.cloud
-          TEMPORAL_NAMESPACE: roey.temporal-dev
+          TEMPORAL_ADDRESS: sdk-ci.a2dd6.tmprl.cloud
+          TEMPORAL_NAMESPACE: sdk-ci.a2dd6
           TEMPORAL_CLIENT_CERT_PATH: /tmp/temporal-certs/client.pem
           TEMPORAL_CLIENT_KEY_PATH: /tmp/temporal-certs/client.key
           TEMPORAL_TASK_QUEUE: ${{ format('{0}-{1}-{2}', matrix.os, matrix.node, matrix.target) }}
