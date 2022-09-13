@@ -70,7 +70,6 @@ test('withMetadata / withDeadline set the CallContext for RPC call', async (t) =
 test('healthService works', async (t) => {
   const packageDefinition = protoLoader.loadSync(
     path.resolve(__dirname, '../../core-bridge/sdk-core/protos/grpc/health/v1/health.proto')
-    // { includeDirs: [path.resolve(__dirname, '../../core-bridge/sdk-core/protos/api_upstream')] }
   );
   const protoDescriptor = grpc.loadPackageDefinition(packageDefinition) as any;
 
