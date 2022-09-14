@@ -48,6 +48,52 @@ export class WorkflowCoverage {
   }
 
   /**
+   * Add all necessary coverage-specific logic to bundle config:
+   * interceptors and Webpack config hook.
+   * The end user is still responsible for adding sinks to the worker options!
+   */
+  augmentBundleOptions(bundleOptions: BundleOptions & { workflowsPath: NonNullable<WorkerOptions['workflowsPath']> }): BundleOptions {
+    if (!bundleOptions.workflowsPath) {
+      throw new TypeError('Cannot automatically instrument coverage without specifying `workflowsPath`');
+    }
+    const workflowsPath = bundleOptions.workflowsPath;
+    return {
+      ...bundleOptions,
+      workflowInterceptorModules: [...(bundleOptions.workflowInterceptorModules || []), this.interceptorModule],
+      webpackConfigHook: (config: WebpackConfigType) => {
+        config = this.addInstrumenterRule(workflowsPath, config);
+
+        const existingWebpackConfigHook = bundleOptions.webpackConfigHook;
+        if (existingWebpackConfigHook !== undefined) {
+          return existingWebpackConfigHook(config);
+        }
+
+        return config;
+      },
+    };
+  }
+
+  /**
+   * Add sinks to Worker options. Use this method if you are passing a pre-built
+   * bundle that was built with `augmentBundleOptions()`.
+   */
+   augmentWorkerOptionsWithBundle(
+    workerOptions: WorkerOptions & { workflowBundle: NonNullable<WorkerOptions['workflowBundle']> }
+  ): WorkerOptions {
+    if (!workerOptions.workflowBundle) {
+      throw new TypeError('Cannot call `augmentWorkerOptionsWithBundle()` unless you specify a `workflowBundle`. Perhaps you meant to use `augmentBundleOptions()` instead?');
+    }
+
+    return {
+      ...workerOptions,
+      sinks: {
+        ...workerOptions.sinks,
+        ...this.sinks,
+      },
+    };
+  }
+
+  /**
    * Interceptor to inject into `WorkerOptions.interceptors.workflowModules`
    */
   public get interceptorModule(): string {
