@@ -9,9 +9,6 @@
     "workflow",
     "testing"
   ],
-  "scripts": {
-    "build": "node ./scripts/download-test-server.mjs"
-  },
   "author": "Temporal Technologies Inc. <sdk@temporal.io>",
   "license": "MIT",
   "dependencies": {
