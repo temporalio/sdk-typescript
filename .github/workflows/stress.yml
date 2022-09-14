@@ -47,7 +47,7 @@ jobs:
 
       - run: mkdir -p $TEMPORAL_TESTING_LOG_DIR/tails
       - run: mkdir -p $TEMPORAL_TESTING_MEM_LOG_DIR
-      - run: 'timeout ${{ inputs.test-timeout-minutes }}m npm run ${{ inputs.test-type }}'
+      - run: 'npm run ${{ inputs.test-type }}'
       - run: for f in $TEMPORAL_TESTING_LOG_DIR/*.log; do tail -20000 $f > $TEMPORAL_TESTING_LOG_DIR/tails/$(basename $f); done
         if: ${{ always() }}
       - uses: actions/upload-artifact@v3
