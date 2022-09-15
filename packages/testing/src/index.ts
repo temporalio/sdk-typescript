@@ -17,19 +17,16 @@ import {
   WorkflowStartOptions as BaseWorkflowStartOptions,
 } from '@temporalio/client';
 import { ActivityFunction, CancelledFailure, msToTs, Workflow, WorkflowResultType } from '@temporalio/common';
-import { NativeConnection, Logger, DefaultLogger } from '@temporalio/worker';
+import { NativeConnection, Runtime } from '@temporalio/worker';
+import { EphemeralServer, EphemeralServerConfig, getEphemeralServerTarget } from '@temporalio/core-bridge';
 import path from 'path';
-import os from 'os';
 import { AbortController } from 'abort-controller';
-import { ChildProcess, spawn, StdioOptions } from 'child_process';
 import events from 'events';
-import { kill, waitOnChild } from './child-process';
-import getPort from 'get-port';
 import { Connection, TestService } from './test-service-client';
+import { filterNullAndUndefined } from '@temporalio/internal-non-workflow-common';
 
-const TEST_SERVER_EXECUTABLE_NAME = os.platform() === 'win32' ? 'test-server.exe' : 'test-server';
-
-export const DEFAULT_TEST_SERVER_PATH = path.join(__dirname, `../${TEST_SERVER_EXECUTABLE_NAME}`);
+export { TimeSkippingServerConfig, TemporaliteConfig, EphemeralServerExecutable } from '@temporalio/core-bridge';
+export { EphemeralServerConfig };
 
 /**
  * Options passed to {@link WorkflowClient.result}, these are the same as the
@@ -116,48 +113,19 @@ export class WorkflowClient extends BaseWorkflowClient {
  */
 export const workflowInterceptorModules = [path.join(__dirname, 'assert-to-failure-interceptor')];
 
-export interface TestServerSpawnerOptions {
-  /**
-   * @default {@link DEFAULT_TEST_SERVER_PATH}
-   */
-  path?: string;
-  /**
-   * @default ignore
-   */
-  stdio?: StdioOptions;
-}
-
-/**
- * A generic callback that returns a child process
- */
-export type TestServerSpawner = (port: number) => ChildProcess;
-
 /**
  * Options for {@link TestWorkflowEnvironment.create}
  */
 export interface TestWorkflowEnvironmentOptions {
-  testServer?: TestServerSpawner | TestServerSpawnerOptions;
-  logger?: Logger;
+  ephemeralServerConfig?: EphemeralServerConfig;
 }
 
-interface TestWorkflowEnvironmentOptionsWithDefaults {
-  testServerSpawner: TestServerSpawner;
-  logger: Logger;
-}
+type TestWorkflowEnvironmentOptionsWithDefaults = Required<TestWorkflowEnvironmentOptions>;
 
-function addDefaults({
-  testServer,
-  logger,
-}: TestWorkflowEnvironmentOptions): TestWorkflowEnvironmentOptionsWithDefaults {
+function addDefaults(opts: TestWorkflowEnvironmentOptions): TestWorkflowEnvironmentOptionsWithDefaults {
   return {
-    testServerSpawner:
-      typeof testServer === 'function'
-        ? testServer
-        : (port: number) =>
-            spawn(testServer?.path || DEFAULT_TEST_SERVER_PATH, [`${port}`], {
-              stdio: testServer?.stdio || 'ignore',
-            }),
-    logger: logger ?? new DefaultLogger('INFO'),
+    ephemeralServerConfig: { type: 'time-skipping' },
+    ...opts,
   };
 }
 
@@ -191,7 +159,7 @@ export class TestWorkflowEnvironment {
   public readonly nativeConnection: NativeConnection;
 
   protected constructor(
-    protected readonly serverProc: ChildProcess,
+    protected readonly server: EphemeralServer,
     connection: Connection,
     nativeConnection: NativeConnection
   ) {
@@ -205,35 +173,14 @@ export class TestWorkflowEnvironment {
    * Create a new test environment
    */
   static async create(opts?: TestWorkflowEnvironmentOptions): Promise<TestWorkflowEnvironment> {
-    const port = await getPort();
+    const { ephemeralServerConfig } = addDefaults(filterNullAndUndefined(opts ?? {}));
+    const server = await Runtime.instance().createEphemeralServer(ephemeralServerConfig);
+    const address = getEphemeralServerTarget(server);
 
-    const { testServerSpawner, logger } = addDefaults(opts ?? {});
-
-    const child = testServerSpawner(port);
-
-    const address = `127.0.0.1:${port}`;
-    const connPromise = Connection.connect({ address });
-
-    try {
-      await Promise.race([
-        connPromise,
-        waitOnChild(child).then(() => {
-          throw new Error('Test server child process exited prematurely');
-        }),
-      ]);
-    } catch (err) {
-      try {
-        await kill(child);
-      } catch (error) {
-        logger.error('Failed to kill test server child process', { error });
-      }
-      throw err;
-    }
-
-    const conn = await connPromise;
     const nativeConnection = await NativeConnection.connect({ address });
+    const connection = await Connection.connect({ address });
 
-    return new this(child, conn, nativeConnection);
+    return new this(server, connection, nativeConnection);
   }
 
   /**
@@ -243,7 +190,7 @@ export class TestWorkflowEnvironment {
     await this.connection.close();
     await this.nativeConnection.close();
     // TODO: the server should return exit code 0
-    await kill(this.serverProc, 'SIGINT', { validReturnCodes: [0, 130] });
+    await Runtime.instance().shutdownEphemeralServer(this.server);
   }
 
   /**

@@ -241,10 +241,109 @@ export interface LogEntry {
   level: LogLevel;
 }
 
-export interface Worker {}
-export interface Runtime {}
-export interface Client {}
+/**
+ * Which version of the executable to run.
+ */
+export type EphemeralServerExecutable =
+  | {
+      type: 'cached-download';
+      /**
+       * Download destination directory or the system's temp directory if none set.
+       */
+      downloadDir?: string;
+      /**
+       * Optional version, can be set to a specific server release or "default" or "latest".
+       *
+       * At the time of writing the the server is released as part of the Java SDK - (https://github.com/temporalio/sdk-java/releases).
+       *
+       * @default "default" - get the best version for the current SDK version.
+       */
+      version?: string;
+    }
+  | {
+      type: 'existing-path';
+      /** Path to executable */
+      path: string;
+    };
 
+/**
+ * Configuration for the time-skipping test server.
+ */
+export interface TimeSkippingServerConfig {
+  type: 'time-skipping';
+  executable?: EphemeralServerExecutable;
+  /**
+   * Optional port to listen on, defaults to find a random free port.
+   */
+  port?: number;
+  /**
+   * Extra args to pass to the executable command.
+   */
+  extraArgs?: string[];
+}
+
+/**
+ * Configuration for temporalite.
+ */
+export interface TemporaliteConfig {
+  type: 'temporalite';
+  executable?: EphemeralServerExecutable;
+  /**
+   * Namespace to use - created at startup.
+   *
+   * @default "default"
+   */
+  namespace?: string;
+  /**
+   * IP to bind to.
+   *
+   * @default 127.0.0.1
+   */
+  ip?: string;
+  /**
+   * Sqlite DB filename if persisting or non-persistent if none.
+   */
+  db_filename?: string;
+  /**
+   * Whether to enable the UI.
+   */
+  ui: boolean;
+  /**
+   * Log format and level
+   * @default { format: "pretty", level" "warn" }
+   */
+  log: { format: string; level: string };
+  /**
+   * Optional port to listen on, defaults to find a random free port.
+   */
+  port?: number;
+  /**
+   * Extra args to pass to the executable command.
+   */
+  extraArgs?: string[];
+}
+
+/**
+ * Configuration for spawning an ephemeral Temporal server.
+ *
+ * Both the time-skipping test server and temporalite are supported.
+ */
+export type EphemeralServerConfig = TimeSkippingServerConfig | TemporaliteConfig;
+
+export interface Worker {
+  type: 'Worker';
+}
+export interface Runtime {
+  type: 'Runtime';
+}
+export interface Client {
+  type: 'Client';
+}
+export interface EphemeralServer {
+  type: 'EphemeralServer';
+}
+
+export declare type Callback<T> = (err: Error, result: T) => void;
 export declare type PollCallback = (err: Error, result: ArrayBuffer) => void;
 export declare type WorkerCallback = (err: Error, result: Worker) => void;
 export declare type ClientCallback = (err: Error, result: Client) => void;
@@ -293,3 +392,11 @@ export declare function workerCompleteActivityTask(
 ): void;
 export declare function workerRecordActivityHeartbeat(worker: Worker, heartbeat: ArrayBuffer): void;
 export declare function getTimeOfDay(): [number, number];
+export declare function startEphemeralServer(
+  runtime: Runtime,
+  config: EphemeralServerConfig,
+  sdkVersion: string,
+  callback: Callback<EphemeralServer>
+): void;
+export declare function shutdownEphemeralServer(server: EphemeralServer, callback: Callback<EphemeralServer>): void;
+export declare function getEphemeralServerTarget(server: EphemeralServer): string;

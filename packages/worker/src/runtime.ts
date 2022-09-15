@@ -20,6 +20,7 @@ import * as errors from './errors';
 import { DefaultLogger, LogEntry, Logger, LogTimestamp, timeOfDayToBigint } from './logger';
 import { compileConnectionOptions, getDefaultConnectionOptions, NativeConnectionOptions } from './connection-options';
 import { byteArrayToBuffer } from './utils';
+import pkg from './pkg';
 import { History } from '@temporalio/common/lib/proto-utils';
 import { toMB } from './utils';
 import * as v8 from 'v8';
@@ -92,10 +93,8 @@ export class CoreLogger extends DefaultLogger {
  * Use {@link install} in order to customize the server connection options or other global process options.
  */
 export class Runtime {
-  /** Track the registered clients to automatically shutdown when all have been deregistered */
-  protected readonly registeredClients = new Set<native.Client>();
-  /** Track the registered workers to automatically shutdown when all have been deregistered */
-  protected readonly registeredWorkers = new Set<native.Worker>();
+  /** Track the registered native object to automatically shutdown when all have been deregistered */
+  protected readonly backRefs = new Set<native.Client | native.Worker | native.EphemeralServer>();
   protected readonly shouldPollForLogs = new BehaviorSubject<boolean>(false);
   protected readonly logPollPromise: Promise<void>;
   /** Track the number of pending calls into the tokio runtime to prevent shut down */
@@ -262,17 +261,17 @@ export class Runtime {
     this.pendingCalls++;
     try {
       const client = await promisify(newClient)(this.native, clientOptions);
-      this.registeredClients.add(client);
+      this.backRefs.add(client);
+      this.pendingCalls--;
       return client;
     } catch (err) {
       // Attempt to shutdown the runtime in case there's an error creating the
       // client to avoid leaving an idle Runtime.
+      this.pendingCalls--;
       if (this.canShutdown()) {
         await this.shutdown();
       }
       throw err;
-    } finally {
-      this.pendingCalls--;
     }
   }
 
@@ -283,7 +282,7 @@ export class Runtime {
    * @hidden
    */
   public async closeNativeClient(client: native.Client): Promise<void> {
-    this.registeredClients.delete(client);
+    this.backRefs.delete(client);
     native.clientClose(client);
     if (this.canShutdown()) {
       await this.shutdown();
@@ -300,7 +299,7 @@ export class Runtime {
     this.pendingCalls++;
     try {
       const worker = await promisify(native.newWorker)(client, options);
-      this.registeredWorkers.add(worker);
+      this.backRefs.add(worker);
       return worker;
     } finally {
       this.pendingCalls--;
@@ -315,7 +314,7 @@ export class Runtime {
    */
   public async deregisterWorker(worker: native.Worker): Promise<void> {
     native.workerFinalizeShutdown(worker);
-    this.registeredWorkers.delete(worker);
+    this.backRefs.delete(worker);
     // NOTE: only replay workers require registration since they don't have an associated connection
     // but we track all Workers for simplicity.
     if (this.canShutdown()) {
@@ -324,7 +323,7 @@ export class Runtime {
   }
 
   protected canShutdown(): boolean {
-    return this.pendingCalls === 0 && this.registeredClients.size === 0 && this.registeredWorkers.size === 0;
+    return this.pendingCalls === 0 && this.backRefs.size === 0;
   }
 
   /**
@@ -351,7 +350,7 @@ export class Runtime {
       options,
       byteArrayToBuffer(temporal.api.history.v1.History.encodeDelimited(history).finish())
     );
-    this.registeredWorkers.add(worker);
+    this.backRefs.add(worker);
     return worker;
   }
 
@@ -433,6 +432,37 @@ export class Runtime {
       return fs.readFileSync(file, { encoding: 'ascii' }) as string;
     } catch (e) {
       return undefined;
+    }
+  }
+
+  /**
+   * Create an ephemeral Temporal server.
+   *
+   * Hidden since it is meant to be used internally by the testing framework.
+   * @hidden
+   */
+  public async createEphemeralServer(options: native.EphemeralServerConfig): Promise<native.EphemeralServer> {
+    this.pendingCalls++;
+    try {
+      const server = await promisify(native.startEphemeralServer)(this.native, options, pkg.version);
+      this.backRefs.add(server);
+      return server;
+    } finally {
+      this.pendingCalls--;
+    }
+  }
+
+  /**
+   * Shut down an ephemeral Temporal server.
+   *
+   * Hidden since it is meant to be used internally by the testing framework.
+   * @hidden
+   */
+  public async shutdownEphemeralServer(server: native.EphemeralServer): Promise<void> {
+    await promisify(native.shutdownEphemeralServer)(server);
+    this.backRefs.delete(server);
+    if (this.canShutdown()) {
+      await this.shutdown();
     }
   }
 }

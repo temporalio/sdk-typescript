@@ -1,6 +1,6 @@
 import { WorkflowFailedError } from '@temporalio/client';
 import { TestWorkflowEnvironment, workflowInterceptorModules } from '@temporalio/testing';
-import { Worker } from '@temporalio/worker';
+import { Runtime, Worker } from '@temporalio/worker';
 import anyTest, { TestInterface } from 'ava';
 import { v4 as uuid4 } from 'uuid';
 import {
@@ -18,12 +18,11 @@ interface Context {
 const test = anyTest as TestInterface<Context>;
 
 test.before(async (t) => {
+  Runtime.install({
+    telemetryOptions: { tracingFilter: 'DEBUG' },
+  });
   t.context = {
-    testEnv: await TestWorkflowEnvironment.create({
-      testServer: {
-        stdio: 'inherit',
-      },
-    }),
+    testEnv: await TestWorkflowEnvironment.create({}),
   };
 });
 

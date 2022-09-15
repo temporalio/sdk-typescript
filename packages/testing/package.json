@@ -17,8 +17,7 @@
     "@temporalio/client": "file:../client",
     "@temporalio/common": "file:../common",
     "@temporalio/worker": "file:../worker",
-    "abort-controller": "^3.0.0",
-    "get-port": "^5.0.0"
+    "abort-controller": "^3.0.0"
   },
   "bugs": {
     "url": "https://github.com/temporalio/sdk-typescript/issues"
