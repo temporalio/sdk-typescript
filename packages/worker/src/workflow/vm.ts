@@ -2,7 +2,7 @@ import { cutoffStackTrace, IllegalStateError } from '@temporalio/common';
 import { coresdk } from '@temporalio/proto';
 import { WorkflowInfo, FileLocation } from '@temporalio/workflow';
 import { SinkCall } from '@temporalio/workflow/lib/sinks';
-import type * as internals from '@temporalio/workflow/lib/worker-interface';
+import * as internals from '@temporalio/workflow/lib/worker-interface';
 import assert from 'assert';
 import { AsyncLocalStorage } from 'async_hooks';
 import semver from 'semver';
@@ -397,7 +397,9 @@ export class VMWorkflow implements Workflow {
         coresdk.workflow_activation.WorkflowActivation.fromObject({ ...activation, jobs }),
         batchIndex++
       );
-      await this.tryUnblockConditions();
+      if (internals.showUnblockConditions(jobs[0])) {
+        await this.tryUnblockConditions();
+      }
     }
     const completion = this.workflowModule.concludeActivation();
     // Give unhandledRejection handler a chance to be triggered.

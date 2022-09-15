@@ -56,6 +56,7 @@ export * from './patched-top-level';
 export * from './promise-all';
 export * from './promise-race';
 export * from './promise-then-promise';
+export * from './query-and-condition';
 export * from './race';
 export * from './random';
 export * from './reject-promise';

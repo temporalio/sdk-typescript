@@ -39,6 +39,7 @@ enum StartChildWorkflowExecutionFailedCause {
 }
 
 checkExtends<coresdk.child_workflow.StartChildWorkflowExecutionFailedCause, StartChildWorkflowExecutionFailedCause>();
+checkExtends<StartChildWorkflowExecutionFailedCause, coresdk.child_workflow.StartChildWorkflowExecutionFailedCause>();
 
 export interface Stack {
   formatted: string;

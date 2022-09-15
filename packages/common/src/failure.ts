@@ -16,6 +16,7 @@ export enum TimeoutType {
 }
 
 checkExtends<temporal.api.enums.v1.TimeoutType, TimeoutType>();
+checkExtends<TimeoutType, temporal.api.enums.v1.TimeoutType>();
 
 // Avoid importing the proto implementation to reduce workflow bundle size
 // Copied from temporal.api.enums.v1.RetryState
@@ -31,6 +32,7 @@ export enum RetryState {
 }
 
 checkExtends<temporal.api.enums.v1.RetryState, RetryState>();
+checkExtends<RetryState, temporal.api.enums.v1.RetryState>();
 
 export type WorkflowExecution = temporal.api.common.v1.IWorkflowExecution;
 

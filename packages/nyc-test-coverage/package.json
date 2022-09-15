@@ -1,17 +1,25 @@
 {
   "name": "@temporalio/nyc-test-coverage",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Temporal.io SDK code coverage integration",
-  "main": "lib/index.js",
-  "types": "./lib/index.d.ts",
   "keywords": [
     "temporal",
     "workflow",
     "testing",
     "coverage"
   ],
-  "author": "Temporal Technologies Inc. <sdk@temporal.io>",
+  "homepage": "https://github.com/temporalio/sdk-typescript/tree/main/packages/testing",
+  "bugs": {
+    "url": "https://github.com/temporalio/sdk-typescript/issues"
+  },
   "license": "MIT",
+  "author": "Temporal Technologies Inc. <sdk@temporal.io>",
+  "main": "lib/index.js",
+  "types": "./lib/index.d.ts",
+  "files": [
+    "lib",
+    "src"
+  ],
   "dependencies": {
     "@temporalio/worker": "file:../worker",
     "@temporalio/workflow": "file:../workflow",
@@ -21,14 +29,6 @@
   "devDependencies": {
     "@types/istanbul-lib-coverage": "^2.0.4"
   },
-  "bugs": {
-    "url": "https://github.com/temporalio/sdk-typescript/issues"
-  },
-  "homepage": "https://github.com/temporalio/sdk-typescript/tree/main/packages/testing",
-  "files": [
-    "lib",
-    "src"
-  ],
   "publishConfig": {
     "access": "public"
   }

@@ -36,9 +36,15 @@ export enum WorkflowIdReusePolicy {
    * The Workflow cannot be started.
    */
   WORKFLOW_ID_REUSE_POLICY_REJECT_DUPLICATE = 3,
+
+  /**
+   * Terminate the current workflow if one is already running.
+   */
+  WORKFLOW_ID_REUSE_POLICY_TERMINATE_IF_RUNNING = 4,
 }
 
 checkExtends<temporal.api.enums.v1.WorkflowIdReusePolicy, WorkflowIdReusePolicy>();
+checkExtends<WorkflowIdReusePolicy, temporal.api.enums.v1.WorkflowIdReusePolicy>();
 
 export interface BaseWorkflowOptions {
   /**
