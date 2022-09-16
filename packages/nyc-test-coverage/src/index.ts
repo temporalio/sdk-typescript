@@ -5,6 +5,10 @@ import libCoverage from 'istanbul-lib-coverage';
 // Pull `webpack.Configuration` type without needing to import Webpack
 type WebpackConfigType = ReturnType<NonNullable<BundleOptions['webpackConfigHook']>>;
 
+// Check if running through nyc or some other Istanbul-based tool.
+// If not, any `workflowCoverage()` tools are a no-op.
+const hasCoverageGlobal = '__coverage__' in global;
+
 export class WorkflowCoverage {
   coverageMap = libCoverage.createCoverageMap();
 
@@ -17,6 +21,10 @@ export class WorkflowCoverage {
   ): WorkerOptions {
     if (!workerOptions.workflowsPath) {
       throw new TypeError('Cannot automatically instrument coverage without specifying `workflowsPath`');
+    }
+
+    if (!hasCoverageGlobal) {
+      return workerOptions;
     }
 
     const workflowsPath = workerOptions.workflowsPath;
@@ -58,6 +66,11 @@ export class WorkflowCoverage {
     if (!bundleOptions.workflowsPath) {
       throw new TypeError('Cannot automatically instrument coverage without specifying `workflowsPath`');
     }
+
+    if (!hasCoverageGlobal) {
+      return bundleOptions;
+    }
+
     const workflowsPath = bundleOptions.workflowsPath;
     return {
       ...bundleOptions,
@@ -86,6 +99,10 @@ export class WorkflowCoverage {
       throw new TypeError(
         'Cannot call `augmentWorkerOptionsWithBundle()` unless you specify a `workflowBundle`. Perhaps you meant to use `augmentBundleOptions()` instead?'
       );
+    }
+
+    if (!hasCoverageGlobal) {
+      return workerOptions;
     }
 
     return {
@@ -125,6 +142,10 @@ export class WorkflowCoverage {
    * code using istanbul-instrumenter-loader
    */
   addInstrumenterRule(workflowsPath: string, config: WebpackConfigType): WebpackConfigType {
+    if (!hasCoverageGlobal) {
+      return config;
+    }
+
     const newRule = {
       use: {
         loader: require.resolve('istanbul-instrumenter-loader'),
@@ -148,6 +169,10 @@ export class WorkflowCoverage {
    * map data `global.__coverage__`.
    */
   mergeIntoGlobalCoverage(): void {
+    if (!hasCoverageGlobal) {
+      return;
+    }
+
     /* eslint-disable @typescript-eslint/ban-ts-comment */
     // @ts-ignore
     this.coverageMap.merge(global.__coverage__);
