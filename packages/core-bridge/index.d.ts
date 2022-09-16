@@ -307,12 +307,12 @@ export interface TemporaliteConfig {
   /**
    * Whether to enable the UI.
    */
-  ui: boolean;
+  ui?: boolean;
   /**
    * Log format and level
    * @default { format: "pretty", level" "warn" }
    */
-  log: { format: string; level: string };
+  log?: { format: string; level: string };
   /**
    * Optional port to listen on, defaults to find a random free port.
    */
