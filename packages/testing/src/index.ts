@@ -13,10 +13,9 @@ import {
   AsyncCompletionClient,
   WorkflowClient as BaseWorkflowClient,
   WorkflowClientOptions as BaseWorkflowClientOptions,
-  WorkflowResultOptions as BaseWorkflowResultOptions,
-  WorkflowStartOptions as BaseWorkflowStartOptions,
+  WorkflowResultOptions,
 } from '@temporalio/client';
-import { ActivityFunction, CancelledFailure, msToTs, Workflow, WorkflowResultType } from '@temporalio/common';
+import { ActivityFunction, CancelledFailure, msToTs } from '@temporalio/common';
 import { NativeConnection, Runtime } from '@temporalio/worker';
 import { EphemeralServer, EphemeralServerConfig, getEphemeralServerTarget } from '@temporalio/core-bridge';
 import path from 'path';
@@ -24,38 +23,14 @@ import { AbortController } from 'abort-controller';
 import events from 'events';
 import { Connection, TestService } from './test-service-client';
 import { filterNullAndUndefined } from '@temporalio/internal-non-workflow-common';
+import ms from 'ms';
 
 export { TimeSkippingServerConfig, TemporaliteConfig, EphemeralServerExecutable } from '@temporalio/core-bridge';
 export { EphemeralServerConfig };
 
-/**
- * Options passed to {@link WorkflowClient.result}, these are the same as the
- * {@link BaseWorkflowResultOptions} with an additional option that controls
- * whether to toggle time skipping in the Test server while waiting on a
- * Workflow's result.
- */
-export interface WorkflowResultOptions extends BaseWorkflowResultOptions {
-  /**
-   * If set to `true`, waiting for the result does not enable time skipping
-   */
-  runInNormalTime?: boolean;
-}
-
-/**
- * Options passed to {@link WorkflowClient.execute}, these are the same as the
- * {@link BaseWorkflowStartOptions} with an additional option that controls
- * whether to toggle time skipping in the Test server while waiting on a
- * Workflow's result.
- */
-export type WorkflowStartOptions<T extends Workflow> = BaseWorkflowStartOptions<T> & {
-  /**
-   * If set to `true`, waiting for the result does not enable time skipping
-   */
-  runInNormalTime?: boolean;
-};
-
 export interface WorkflowClientOptions extends BaseWorkflowClientOptions {
   connection: Connection;
+  enableTimeSkipping: boolean;
 }
 
 /**
@@ -65,22 +40,12 @@ export interface WorkflowClientOptions extends BaseWorkflowClientOptions {
  */
 export class WorkflowClient extends BaseWorkflowClient {
   protected readonly testService: TestService;
+  protected readonly enableTimeSkipping: boolean;
 
   constructor(options: WorkflowClientOptions) {
     super(options);
+    this.enableTimeSkipping = options.enableTimeSkipping;
     this.testService = options.connection.testService;
-  }
-
-  /**
-   * Execute a Workflow and wait for completion.
-   *
-   * @see {@link BaseWorkflowClient.execute}
-   */
-  public async execute<T extends Workflow>(
-    workflowTypeOrFunc: string | T,
-    options: WorkflowStartOptions<T>
-  ): Promise<WorkflowResultType<T>> {
-    return super.execute(workflowTypeOrFunc, options);
   }
 
   /**
@@ -93,14 +58,15 @@ export class WorkflowClient extends BaseWorkflowClient {
     runId?: string | undefined,
     opts?: WorkflowResultOptions | undefined
   ): Promise<T> {
-    if (opts?.runInNormalTime) {
+    if (this.enableTimeSkipping) {
+      await this.testService.unlockTimeSkipping({});
+      try {
+        return await super.result(workflowId, runId, opts);
+      } finally {
+        await this.testService.lockTimeSkipping({});
+      }
+    } else {
       return await super.result(workflowId, runId, opts);
-    }
-    await this.testService.unlockTimeSkipping({});
-    try {
-      return await super.result(workflowId, runId, opts);
-    } finally {
-      await this.testService.lockTimeSkipping({});
     }
   }
 }
@@ -116,15 +82,13 @@ export const workflowInterceptorModules = [path.join(__dirname, 'assert-to-failu
 /**
  * Options for {@link TestWorkflowEnvironment.create}
  */
-export interface TestWorkflowEnvironmentOptions {
-  ephemeralServerConfig?: EphemeralServerConfig;
-}
+type TestWorkflowEnvironmentOptions = Partial<EphemeralServerConfig>;
 
-type TestWorkflowEnvironmentOptionsWithDefaults = Required<TestWorkflowEnvironmentOptions>;
+type TestWorkflowEnvironmentOptionsWithDefaults = EphemeralServerConfig;
 
 function addDefaults(opts: TestWorkflowEnvironmentOptions): TestWorkflowEnvironmentOptionsWithDefaults {
   return {
-    ephemeralServerConfig: { type: 'time-skipping' },
+    type: 'time-skipping',
     ...opts,
   };
 }
@@ -136,6 +100,10 @@ function addDefaults(opts: TestWorkflowEnvironmentOptions): TestWorkflowEnvironm
  * By default, the Java test server is used which supports time skipping.
  */
 export class TestWorkflowEnvironment {
+  /**
+   * Namespace used in this environment (taken from {@link TestWorkflowEnvironmentOptions})
+   */
+  public readonly namespace?: string;
   /**
    * Get an extablished {@link Connection} to the test server
    */
@@ -159,28 +127,34 @@ export class TestWorkflowEnvironment {
   public readonly nativeConnection: NativeConnection;
 
   protected constructor(
+    public readonly options: TestWorkflowEnvironmentOptionsWithDefaults,
     protected readonly server: EphemeralServer,
     connection: Connection,
     nativeConnection: NativeConnection
   ) {
     this.connection = connection;
     this.nativeConnection = nativeConnection;
-    this.workflowClient = new WorkflowClient({ connection });
-    this.asyncCompletionClient = new AsyncCompletionClient({ connection });
+    this.namespace = options.type === 'temporalite' ? options.namespace : undefined;
+    this.workflowClient = new WorkflowClient({
+      connection,
+      namespace: this.namespace,
+      enableTimeSkipping: options.type === 'time-skipping',
+    });
+    this.asyncCompletionClient = new AsyncCompletionClient({ connection, namespace: this.namespace });
   }
 
   /**
    * Create a new test environment
    */
   static async create(opts?: TestWorkflowEnvironmentOptions): Promise<TestWorkflowEnvironment> {
-    const { ephemeralServerConfig } = addDefaults(filterNullAndUndefined(opts ?? {}));
-    const server = await Runtime.instance().createEphemeralServer(ephemeralServerConfig);
+    const optsWithDefaults = addDefaults(filterNullAndUndefined(opts ?? {}));
+    const server = await Runtime.instance().createEphemeralServer(optsWithDefaults);
     const address = getEphemeralServerTarget(server);
 
     const nativeConnection = await NativeConnection.connect({ address });
     const connection = await Connection.connect({ address });
 
-    return new this(server, connection, nativeConnection);
+    return new this(optsWithDefaults, server, connection, nativeConnection);
   }
 
   /**
@@ -234,7 +208,11 @@ export class TestWorkflowEnvironment {
    * ```
    */
   sleep = async (durationMs: number | string): Promise<void> => {
-    await this.connection.testService.unlockTimeSkippingWithSleep({ duration: msToTs(durationMs) });
+    if (this.options.type === 'time-skipping') {
+      await this.connection.testService.unlockTimeSkippingWithSleep({ duration: msToTs(durationMs) });
+    } else {
+      await new Promise((resolve) => setTimeout(resolve, typeof durationMs === 'string' ? ms(durationMs) : durationMs));
+    }
   };
 }
 

@@ -56,27 +56,19 @@ test.serial('TestEnvironment can toggle between normal and skipped time', async 
     workflowsPath: require.resolve('./workflows/testenv-test-workflows'),
   });
 
-  const race = async (runInNormalTime: boolean) => {
-    const wfSleepDuration = runInNormalTime ? 3000 : 1_000_000;
+  await worker.runUntil(async () => {
+    const wfSleepDuration = 1_000_000;
 
     const t0 = process.hrtime.bigint();
     await workflowClient.execute(sleep, {
       workflowId: uuid4(),
       taskQueue: 'test',
       args: [wfSleepDuration],
-      runInNormalTime,
     });
     const realDuration = Number((process.hrtime.bigint() - t0) / 1_000_000n);
-    if (runInNormalTime && realDuration < wfSleepDuration) {
-      t.fail(`Workflow execution took ${realDuration}, sleep duration was: ${wfSleepDuration}`);
-    } else if (!runInNormalTime && wfSleepDuration < realDuration) {
+    if (wfSleepDuration < realDuration) {
       t.fail(`Workflow execution took ${realDuration}, sleep duration was: ${wfSleepDuration}`);
     }
-  };
-
-  await worker.runUntil(async () => {
-    await race(true);
-    await race(false);
   });
   t.pass();
 });

@@ -129,9 +129,11 @@ jobs:
         include:
           - os: ubuntu-18.04
             target: x86_64-unknown-linux-gnu
-          - os: ubuntu-18.04
-            target: aarch64-unknown-linux-gnu
-            rustflags: '-C linker=aarch64-linux-gnu-gcc'
+          # TODO: this target broke from this change which, AFAICT, added a dependency on the system's openssl library:
+          # https://github.com/temporalio/sdk-core/pull/389/files#diff-ac4e3071598a47848866c532150a233af5159d2757dab53572781ed09e13fbeeR47
+          # - os: ubuntu-18.04
+          #   target: aarch64-unknown-linux-gnu
+          #   rustflags: '-C linker=aarch64-linux-gnu-gcc'
           - os: macos-latest
             target: x86_64-apple-darwin
           - os: macos-latest
@@ -157,9 +159,6 @@ jobs:
       - name: Install gcc-aarch64-linux-gnu
         run: sudo apt update && sudo apt install -y gcc-aarch64-linux-gnu
         if: ${{ matrix.target == 'aarch64-unknown-linux-gnu' }}
-      # Required for rust-openssl
-      - run: sudo apt update && sudo apt install -y libssl-dev
-        if: ${{ startsWith(matrix.os, 'ubuntu') }}
       - uses: Swatinem/rust-cache@v1
         with:
           working-directory: packages/core-bridge
