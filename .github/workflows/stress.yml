@@ -30,20 +30,27 @@ jobs:
       - uses: actions/setup-node@v1
         with:
           node-version: ${{ matrix.node }}
-      - uses: Swatinem/rust-cache@v1
-        with:
-          working-directory: packages/core-bridge
       # Don't build during install phase since we're going to explicitly build
       - run: npm ci --ignore-scripts
       - run: npm run build
         env:
           BUILD_CORE_RELEASE: true
 
-      - name: Download temporalite
-        run: curl --fail -L http://temporal.download/assets/temporalio/temporalite/releases/download/v0.1.1/temporalite_0.1.1_linux_amd64.tar.gz | tar xz
-      - name: Start temporalite
-        run: nohup ./temporalite start --namespace default --ephemeral --headless & disown
-        # TODO: get the server logs
+      # docker-compose
+      - name: Checkout docker-compose repo
+        uses: actions/checkout@v2
+        with:
+          repository: temporalio/docker-compose
+          path: docker-compose
+          ref: v1.17.1
+
+      - name: Start Temporal Server
+        run: docker-compose up -d
+        working-directory: docker-compose
+
+      - name: Wait for Temporal Server
+        run: npm run wait-namespace
+      # end:docker-compose
 
       - run: mkdir -p $TEMPORAL_TESTING_LOG_DIR/tails
       - run: mkdir -p $TEMPORAL_TESTING_MEM_LOG_DIR
