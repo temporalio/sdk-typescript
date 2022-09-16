@@ -130,3 +130,12 @@ export interface WorkflowClientCallsInterceptorFactory {
 export interface WorkflowClientInterceptors {
   calls?: WorkflowClientCallsInterceptorFactory[];
 }
+
+/**
+ * Interceptors for any high level SDK client.
+ *
+ * NOTE: Currently only for WorkflowClient - more will be added later as needed
+ */
+export interface ClientInterceptors {
+  workflow?: WorkflowClientInterceptors;
+}
