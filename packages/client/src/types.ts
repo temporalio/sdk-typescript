@@ -31,6 +31,9 @@ export interface WorkflowExecutionDescription {
   runId: string;
   taskQueue: string;
   status: { code: temporal.api.enums.v1.WorkflowExecutionStatus; name: WorkflowExecutionStatusName };
+  /**
+   * This can safely be converted to a number with `.toNumber()`, as the maximum value is 50,000.
+   */
   historyLength: Long;
   startTime: Date;
   executionTime?: Date;

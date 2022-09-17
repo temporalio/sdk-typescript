@@ -15,15 +15,29 @@
  *
  * ### Cancellation
  *
- * Activity Cancellation serves three purposes:
+ * Activity Cancellation:
  *
- * - It lets an Activity know it doesn't need to keep doing work.
- * - It gives the Activity time to clean up any resources it has created.
+ * - lets the Activity know it doesn't need to keep doing work, and
+ * - gives the Activity time to clean up any resources it has created.
  *
- * Activities may receive Cancellation only if they {@link Context.heartbeat | emit heartbeats} or are Local Activities
+ * Activities can only receive cancellation if they {@link Context.heartbeat | emit heartbeats} or are Local Activities
  * (which can't heartbeat but receive Cancellation anyway).
  *
+ * An Activity may receive cancellation if:
+ *
+ * - The Workflow was cancelled (via {@link WorkflowHandle.cancel}) and {@link ActivityOptions.cancellationType} was
+ *   **not** set to {@link ActivityCancellationType.ABANDON}.
+ * - The Activity was manually cancelled (it was called inside a {@link CancellationScope} that was cancelled via
+ *   {@link CancellationScope.cancel}).
+ * - The Worker has started to shut down. Shutdown is initiated by either:
+ *   - One of the {@link RuntimeOptions.shutdownSignals} was sent to the process.
+ *   - {@link Worker.shutdown | `Worker.shutdown()`} was called.
+ * - The Activity was considered failed by the Server because the Server didn't receive a heartbeat within the
+ *   {@link ActivityOptions.heartbeatTimeout}. The {@link CancellationFailure} will have `message: 'TIMED_OUT'`.
+ * - The Workflow was terminated, in which case the {@link CancellationFailure} will have `message: 'NOT_FOUND'`.
+ *
  * There are two ways to handle Activity cancellation:
+ *
  * 1. await on {@link Context.cancelled | `Context.current().cancelled`} or
  *    {@link Context.sleep | `Context.current().sleep()`}, which each throw a {@link CancelledFailure}.
  * 1. Pass the context's {@link https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal | `AbortSignal`} at
