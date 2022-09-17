@@ -37,7 +37,7 @@ export {
   WorkflowBundle,
   WorkflowBundleOption,
   WorkflowBundlePath,
-  WorkflowBundlePathWithSourceMap,
+  WorkflowBundlePathWithSourceMap, // eslint-disable-line deprecation/deprecation
 } from './worker-options';
 export { LoggerSinks, WorkflowInboundLogInterceptor, workflowLogAttributes } from './workflow-log-interceptor';
 export { BundleOptions, bundleWorkflowCode, WorkflowBundleWithSourceMap } from './workflow/bundler';
