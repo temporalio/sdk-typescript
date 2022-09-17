@@ -8,7 +8,7 @@
  *
  * The recommended way of scheduling timers is by using the {@link sleep} function. We've replaced `setTimeout` and
  * `clearTimeout` with deterministic versions so these are also usable but have a limitation that they don't play well
- * with {@link https://docs.temporal.io/typescript/workflow-scopes-and-cancellation | cancellation scopes}.
+ * with {@link https://docs.temporal.io/typescript/cancellation-scopes | cancellation scopes}.
  *
  * <!--SNIPSTART typescript-sleep-workflow-->
  * <!--SNIPEND-->
@@ -34,16 +34,14 @@
  * <!--SNIPSTART typescript-workflow-signal-implementation-->
  * <!--SNIPEND-->
  *
- * ### Deterministic built-ins
- * It is safe to call `Math.random()` and `Date()` in workflow code as they are replaced with deterministic versions. We
- * also provide a deterministic {@link uuid4} function for convenience.
+ * ### More
  *
- * ### [Cancellation and scopes](https://docs.temporal.io/typescript/workflow-scopes-and-cancellation)
- * - {@link CancellationScope}
- * - {@link Trigger}
- *
- * ### [Sinks](https://docs.temporal.io/typescript/sinks)
- * - {@link Sinks}
+ * - [Deterministic built-ins](https://docs.temporal.io/typescript/determinism#sources-of-non-determinism)
+ * - [Cancellation and scopes](https://docs.temporal.io/typescript/cancellation-scopes)
+ *   - {@link CancellationScope}
+ *   - {@link Trigger}
+ * - [Sinks](https://docs.temporal.io/application-development/observability/?lang=ts#logging)
+ *   - {@link Sinks}
  *
  * @module
  */
