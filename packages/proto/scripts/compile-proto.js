@@ -15,6 +15,12 @@ const protoBaseDir = resolve(__dirname, '../../core-bridge/sdk-core/protos');
 const coreProtoPath = resolve(protoBaseDir, 'local/temporal/sdk/core/core_interface.proto');
 const workflowServiceProtoPath = resolve(protoBaseDir, 'api_upstream/temporal/api/workflowservice/v1/service.proto');
 const operatorServiceProtoPath = resolve(protoBaseDir, 'api_upstream/temporal/api/operatorservice/v1/service.proto');
+const testServiceRRProtoPath = resolve(
+  protoBaseDir,
+  'testsrv_upstream/temporal/api/testservice/v1/request_response.proto'
+);
+const testServiceProtoPath = resolve(protoBaseDir, 'testsrv_upstream/temporal/api/testservice/v1/service.proto');
+const healthServiceProtoPath = resolve(protoBaseDir, 'grpc/health/v1/health.proto');
 
 function mtime(path) {
   try {
@@ -42,6 +48,9 @@ async function compileProtos(dtsOutputFile, ...args) {
     coreProtoPath,
     workflowServiceProtoPath,
     operatorServiceProtoPath,
+    testServiceRRProtoPath,
+    testServiceProtoPath,
+    healthServiceProtoPath,
   ];
 
   console.log(`Creating protobuf JS definitions from ${coreProtoPath} and ${workflowServiceProtoPath}`);

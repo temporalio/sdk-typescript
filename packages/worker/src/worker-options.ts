@@ -448,10 +448,10 @@ export function appendDefaultInterceptors(
 }
 
 export function addDefaultWorkerOptions(options: WorkerOptions): WorkerOptionsWithDefaults {
-  const { maxCachedWorkflows, showStackTraceSources, debugMode, ...rest } = options;
+  const { maxCachedWorkflows, showStackTraceSources, debugMode, namespace, ...rest } = options;
 
   return {
-    namespace: 'default',
+    namespace: namespace ?? 'default',
     identity: `${process.pid}@${os.hostname()}`,
     shutdownGraceTime: '10s',
     maxConcurrentActivityTaskExecutions: 100,
