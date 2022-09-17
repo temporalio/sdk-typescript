@@ -157,7 +157,7 @@ async function main() {
     });
 
     await withOptionalStatusServer(worker, statusPort, async () => {
-      const interval = setInterval(() => logger.info('worker status', worker.getStatus()), 5000);
+      const interval = setInterval(() => logger.info('worker status', worker.getStatus()), 30_000);
       try {
         await worker.run();
       } finally {

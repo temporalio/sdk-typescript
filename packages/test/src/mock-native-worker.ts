@@ -39,6 +39,7 @@ export type Task =
   | { activity: coresdk.activity_task.IActivityTask };
 
 export class MockNativeWorker implements NativeWorkerLike {
+  public readonly type = 'Worker';
   flushCoreLogs(): void {
     // noop
   }

@@ -20,6 +20,7 @@ import * as errors from './errors';
 import { DefaultLogger, LogEntry, Logger, LogTimestamp, timeOfDayToBigint } from './logger';
 import { compileConnectionOptions, getDefaultConnectionOptions, NativeConnectionOptions } from './connection-options';
 import { byteArrayToBuffer } from './utils';
+import pkg from './pkg';
 import { History } from '@temporalio/common/lib/proto-utils';
 import { toMB } from './utils';
 import * as v8 from 'v8';
@@ -92,14 +93,12 @@ export class CoreLogger extends DefaultLogger {
  * Use {@link install} in order to customize the server connection options or other global process options.
  */
 export class Runtime {
-  /** Track the registered clients to automatically shutdown when all have been deregistered */
-  protected readonly registeredClients = new Set<native.Client>();
-  /** Track the registered workers to automatically shutdown when all have been deregistered */
-  protected readonly registeredWorkers = new Set<native.Worker>();
+  /** Track the number of pending creation calls into the tokio runtime to prevent shut down */
+  protected pendingCreations = 0;
+  /** Track the registered native objects to automatically shutdown when all have been deregistered */
+  protected readonly backRefs = new Set<native.Client | native.Worker | native.EphemeralServer>();
   protected readonly shouldPollForLogs = new BehaviorSubject<boolean>(false);
   protected readonly logPollPromise: Promise<void>;
-  /** Track the number of pending calls into the tokio runtime to prevent shut down */
-  protected pendingCalls = 0;
   public readonly logger: Logger;
   protected readonly shutdownSignalCallbacks = new Set<() => void>();
 
@@ -259,21 +258,7 @@ export class Runtime {
       tls: normalizeTlsConfig(compiledServerOptions.tls),
       url: options?.tls ? `https://${compiledServerOptions.address}` : `http://${compiledServerOptions.address}`,
     };
-    this.pendingCalls++;
-    try {
-      const client = await promisify(newClient)(this.native, clientOptions);
-      this.registeredClients.add(client);
-      return client;
-    } catch (err) {
-      // Attempt to shutdown the runtime in case there's an error creating the
-      // client to avoid leaving an idle Runtime.
-      if (this.canShutdown()) {
-        await this.shutdown();
-      }
-      throw err;
-    } finally {
-      this.pendingCalls--;
-    }
+    return await this.createNative(promisify(newClient), this.native, clientOptions);
   }
 
   /**
@@ -283,11 +268,9 @@ export class Runtime {
    * @hidden
    */
   public async closeNativeClient(client: native.Client): Promise<void> {
-    this.registeredClients.delete(client);
     native.clientClose(client);
-    if (this.canShutdown()) {
-      await this.shutdown();
-    }
+    this.backRefs.delete(client);
+    await this.shutdownIfIdle();
   }
 
   /**
@@ -297,14 +280,17 @@ export class Runtime {
    * @hidden
    */
   public async registerWorker(client: native.Client, options: native.WorkerOptions): Promise<native.Worker> {
-    this.pendingCalls++;
-    try {
-      const worker = await promisify(native.newWorker)(client, options);
-      this.registeredWorkers.add(worker);
-      return worker;
-    } finally {
-      this.pendingCalls--;
-    }
+    return await this.createNative(promisify(native.newWorker), client, options);
+  }
+
+  /** @hidden */
+  public async createReplayWorker(options: native.WorkerOptions, history: History): Promise<native.Worker> {
+    return await this.createNative(
+      promisify(native.newReplayWorker),
+      this.native,
+      options,
+      byteArrayToBuffer(temporal.api.history.v1.History.encodeDelimited(history).finish())
+    );
   }
 
   /**
@@ -315,16 +301,60 @@ export class Runtime {
    */
   public async deregisterWorker(worker: native.Worker): Promise<void> {
     native.workerFinalizeShutdown(worker);
-    this.registeredWorkers.delete(worker);
-    // NOTE: only replay workers require registration since they don't have an associated connection
-    // but we track all Workers for simplicity.
-    if (this.canShutdown()) {
-      await this.shutdown();
+    this.backRefs.delete(worker);
+    await this.shutdownIfIdle();
+  }
+
+  /**
+   * Create an ephemeral Temporal server.
+   *
+   * Hidden since it is meant to be used internally by the testing framework.
+   * @hidden
+   */
+  public async createEphemeralServer(options: native.EphemeralServerConfig): Promise<native.EphemeralServer> {
+    return await this.createNative(promisify(native.startEphemeralServer), this.native, options, pkg.version);
+  }
+
+  /**
+   * Shut down an ephemeral Temporal server.
+   *
+   * Hidden since it is meant to be used internally by the testing framework.
+   * @hidden
+   */
+  public async shutdownEphemeralServer(server: native.EphemeralServer): Promise<void> {
+    await promisify(native.shutdownEphemeralServer)(server);
+    this.backRefs.delete(server);
+    await this.shutdownIfIdle();
+  }
+
+  protected async createNative<
+    R extends native.Client | native.Worker | native.EphemeralServer,
+    Args extends any[],
+    F extends (...args: Args) => Promise<R>
+  >(f: F, ...args: Args): Promise<R> {
+    this.pendingCreations++;
+    try {
+      try {
+        const ref = await f(...args);
+        this.backRefs.add(ref);
+        return ref;
+      } finally {
+        this.pendingCreations--;
+      }
+    } catch (err) {
+      // Attempt to shutdown the runtime in case there's an error creating the
+      // native object to avoid leaving an idle Runtime.
+      await this.shutdownIfIdle();
+      throw err;
     }
   }
 
-  protected canShutdown(): boolean {
-    return this.pendingCalls === 0 && this.registeredClients.size === 0 && this.registeredWorkers.size === 0;
+  protected isIdle(): boolean {
+    return this.pendingCreations === 0 && this.backRefs.size === 0;
+  }
+
+  protected async shutdownIfIdle(): Promise<void> {
+    if (this.isIdle()) await this.shutdown();
   }
 
   /**
@@ -342,17 +372,6 @@ export class Runtime {
     // This will effectively drain all logs
     await this.logPollPromise;
     await promisify(runtimeShutdown)(this.native);
-  }
-
-  /** @hidden */
-  public async createReplayWorker(options: native.WorkerOptions, history: History): Promise<native.Worker> {
-    const worker = await promisify(native.newReplayWorker)(
-      this.native,
-      options,
-      byteArrayToBuffer(temporal.api.history.v1.History.encodeDelimited(history).finish())
-    );
-    this.registeredWorkers.add(worker);
-    return worker;
   }
 
   /**

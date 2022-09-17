@@ -1,7 +1,7 @@
 import * as grpc from '@grpc/grpc-js';
 import { Connection as BaseConnection, ConnectionOptions } from '@temporalio/client';
 import { ConnectionCtorOptions as BaseConnectionCtorOptions } from '@temporalio/client/lib/connection';
-import { temporal } from '../generated-protos';
+import { temporal } from '@temporalio/proto';
 
 export type TestService = temporal.api.testservice.v1.TestService;
 export const { TestService } = temporal.api.testservice.v1;

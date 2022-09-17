@@ -18,6 +18,7 @@ import {
   decodeOptionalFailureToOptionalError,
   encodeMapToPayloads,
   encodeToPayloads,
+  filterNullAndUndefined,
   loadDataConverter,
 } from '@temporalio/internal-non-workflow-common';
 import {
@@ -305,7 +306,7 @@ export class WorkflowClient {
     this.connection = options?.connection ?? Connection.lazy();
     this.options = {
       ...defaultWorkflowClientOptions(),
-      ...options,
+      ...filterNullAndUndefined(options ?? {}),
       loadedDataConverter: loadDataConverter(options?.dataConverter),
     };
   }

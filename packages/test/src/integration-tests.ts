@@ -28,7 +28,7 @@ import {
   WorkflowNotFoundError,
 } from '@temporalio/internal-workflow-common';
 import * as iface from '@temporalio/proto';
-import { DefaultLogger, Runtime, Worker } from '@temporalio/worker';
+import { DefaultLogger, Runtime, Worker, appendDefaultInterceptors } from '@temporalio/worker';
 import pkg from '@temporalio/worker/lib/pkg';
 import * as grpc from '@grpc/grpc-js';
 import v8 from 'v8';
@@ -79,9 +79,9 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
       activities,
       taskQueue: 'test',
       dataConverter,
-      interceptors: {
+      interceptors: appendDefaultInterceptors({
         activityInbound: [() => new ConnectionInjectorInterceptor(connection, loadDataConverter(dataConverter))],
-      },
+      }),
       showStackTraceSources: true,
     });
 
