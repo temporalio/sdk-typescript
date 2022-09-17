@@ -1485,7 +1485,7 @@ Breaking changes marked with a :boom:
   - Add Workflow and WorkflowCreator interfaces to support pluggable workflow environments (prepare for VM)
   - :boom: Simplify external dependencies mechanism to only support void functions and remove the isolated-vm transfer options.
 
-- Support [`ms`](https://www.npmjs.com/package/ms) formatted string for activity.Context.sleep ([#322](https://github.com/temporalio/sdk-typescript/pull/322))
+- Support [`ms`](https://www.npmjs.com/package/ms)-formatted string for activity.Context.sleep ([#322](https://github.com/temporalio/sdk-typescript/pull/322))
 - :boom: Runtime determinism tweaks ([#326](https://github.com/temporalio/sdk-typescript/pull/326))
   - Undelete WeakMap and WeakSet
   - Delete FinalizationRegistry

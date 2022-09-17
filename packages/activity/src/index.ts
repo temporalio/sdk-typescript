@@ -268,7 +268,7 @@ export class Context {
 
   /**
    * Helper function for sleeping in an Activity.
-   * @param ms Sleep duration: an {@link https://www.npmjs.com/package/ms | ms}-formatted string or number of milliseconds
+   * @param ms Sleep duration: number of milliseconds or {@link https://www.npmjs.com/package/ms | ms-formatted string}
    * @returns A Promise that either resolves when `ms` is reached or rejects when the Activity is cancelled
    */
   public sleep(ms: number | string): Promise<void> {

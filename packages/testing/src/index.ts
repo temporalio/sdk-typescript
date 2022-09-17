@@ -176,7 +176,7 @@ export class TestWorkflowEnvironment {
    *
    * Useful for simulating events far into the future like completion of long running activities.
    *
-   * @param durationMs {@link https://www.npmjs.com/package/ms | ms} formatted string or number of milliseconds
+   * @param durationMs number of milliseconds or {@link https://www.npmjs.com/package/ms | ms-formatted string}
    *
    * @example
    *

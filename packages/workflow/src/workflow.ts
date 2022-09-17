@@ -102,7 +102,7 @@ function timerNextHandler(input: TimerInput) {
  *
  * Schedules a timer on the Temporal service.
  *
- * @param ms sleep duration - {@link https://www.npmjs.com/package/ms | ms} formatted string or number of milliseconds.
+ * @param ms sleep duration - number of milliseconds or {@link https://www.npmjs.com/package/ms | ms-formatted string}.
  * If given a negative number or 0, value will be set to 1.
  */
 export function sleep(ms: number | string): Promise<void> {
@@ -1078,7 +1078,7 @@ function patchInternal(patchId: string, deprecated: boolean): boolean {
 /**
  * Returns a Promise that resolves when `fn` evaluates to `true` or `timeout` expires.
  *
- * @param timeout {@link https://www.npmjs.com/package/ms | ms} formatted string or number of milliseconds
+ * @param timeout number of milliseconds or {@link https://www.npmjs.com/package/ms | ms-formatted string}
  *
  * @returns a boolean indicating whether the condition was true before the timeout expires
  */

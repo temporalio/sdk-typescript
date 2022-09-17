@@ -35,7 +35,7 @@ export interface ActivityOptions {
 
   /**
    * Heartbeat interval. Activity must heartbeat before this interval passes after a last heartbeat or activity start.
-   * @format {@link https://www.npmjs.com/package/ms | ms} formatted string or number of milliseconds
+   * @format number of milliseconds or {@link https://www.npmjs.com/package/ms | ms-formatted string}
    */
   heartbeatTimeout?: string | number;
 
@@ -49,14 +49,14 @@ export interface ActivityOptions {
 Note that the Temporal Server doesn't detect Worker process failures directly. It relies on this timeout to detect that an Activity that didn't complete on time. So this timeout should be as short as the longest possible execution of the Activity body. Potentially long running Activities must specify {@link heartbeatTimeout} and call {@link activity.Context.heartbeat} periodically for timely failure detection.
 
    * Either this option or {@link scheduleToCloseTimeout} is required.
-   * @format {@link https://www.npmjs.com/package/ms | ms} formatted string or number of milliseconds
+   * @format number of milliseconds or {@link https://www.npmjs.com/package/ms | ms-formatted string}
    */
   startToCloseTimeout?: string | number;
   /**
    * Time that the Activity Task can stay in the Task Queue before it is picked up by a Worker. Do not specify this timeout unless using host specific Task Queues for Activity Tasks are being used for routing.
    * `scheduleToStartTimeout` is always non-retryable. Retrying after this timeout doesn't make sense as it would just put the Activity Task back into the same Task Queue.
    * @default unlimited
-   * @format {@link https://www.npmjs.com/package/ms | ms} formatted string or number of milliseconds
+   * @format number of milliseconds or {@link https://www.npmjs.com/package/ms | ms-formatted string}
    */
   scheduleToStartTimeout?: string | number;
 
@@ -66,7 +66,7 @@ Note that the Temporal Server doesn't detect Worker process failures directly. I
    *
    * Either this option or {@link startToCloseTimeout} is required
    * @default unlimited
-   * @format {@link https://www.npmjs.com/package/ms | ms} formatted string or number of milliseconds
+   * @format number of milliseconds or {@link https://www.npmjs.com/package/ms | ms-formatted string}
    */
   scheduleToCloseTimeout?: string | number;
 
@@ -98,7 +98,7 @@ export interface LocalActivityOptions {
    * Either this option or {@link scheduleToCloseTimeout} is required.
    * If set, this must be <= {@link scheduleToCloseTimeout}, otherwise, it will be clamped down.
    *
-   * @format {@link https://www.npmjs.com/package/ms | ms} formatted string or number of milliseconds
+   * @format number of milliseconds or {@link https://www.npmjs.com/package/ms | ms-formatted string}
    */
   startToCloseTimeout?: string | number;
 
@@ -110,7 +110,7 @@ export interface LocalActivityOptions {
    * {@link scheduleToCloseTimeout} when set, otherwise, it will be clamped down.
    *
    * @default unlimited
-   * @format {@link https://www.npmjs.com/package/ms | ms} formatted string or number of milliseconds
+   * @format number of milliseconds or {@link https://www.npmjs.com/package/ms | ms-formatted string}
    */
   scheduleToStartTimeout?: string | number;
 
@@ -122,7 +122,7 @@ export interface LocalActivityOptions {
    * Either this option or {@link startToCloseTimeout} is required.
    *
    * @default unlimited
-   * @format {@link https://www.npmjs.com/package/ms | ms} formatted string or number of milliseconds
+   * @format number of milliseconds or {@link https://www.npmjs.com/package/ms | ms-formatted string}
    */
   scheduleToCloseTimeout?: string | number;
 
@@ -131,7 +131,7 @@ export interface LocalActivityOptions {
    * Otherwise, backoff will happen internally in the SDK.
    *
    * @default 1 minute
-   * @format {@link https://www.npmjs.com/package/ms | ms} formatted string or number of milliseconds
+   * @format number of milliseconds or {@link https://www.npmjs.com/package/ms | ms-formatted string}
    **/
   localRetryThreshold?: string | number;
 
