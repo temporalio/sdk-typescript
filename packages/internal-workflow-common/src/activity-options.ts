@@ -79,6 +79,18 @@ Note that the Temporal Server doesn't detect Worker process failures directly. I
    * - `ABANDON` - Do not request cancellation of the activity and immediately report cancellation to the workflow.
    */
   cancellationType?: ActivityCancellationType;
+
+  /**
+   * Eager dispatch is an optimization that improves the throughput and load on the server for scheduling Activities.
+   * When used, the server will hand out Activity tasks back to the Worker when it completes a Workflow task.
+   * It is available from server version 1.17 behind the `system.enableActivityEagerExecution` feature flag.
+   *
+   * Eager dispatch will only be used if `allowEagerDispatch` is enabled (the default) and {@link taskQueue} is either
+   * omitted or the same as the current Workflow.
+   *
+   * @default true
+   */
+  allowEagerDispatch?: boolean;
 }
 
 /**

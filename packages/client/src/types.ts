@@ -1,7 +1,6 @@
 import type { SearchAttributes } from '@temporalio/internal-workflow-common';
 import * as proto from '@temporalio/proto';
 import type * as grpc from '@grpc/grpc-js';
-import Long from 'long';
 
 export interface WorkflowExecution {
   workflowId: string;
@@ -34,7 +33,7 @@ export interface WorkflowExecutionDescription {
   runId: string;
   taskQueue: string;
   status: { code: proto.temporal.api.enums.v1.WorkflowExecutionStatus; name: WorkflowExecutionStatusName };
-  historyLength: Long;
+  historyLength: number;
   startTime: Date;
   executionTime?: Date;
   closeTime?: Date;

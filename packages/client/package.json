@@ -18,10 +18,11 @@
     "@temporalio/internal-non-workflow-common": "file:../internal-non-workflow-common",
     "@temporalio/internal-workflow-common": "file:../internal-workflow-common",
     "@temporalio/proto": "file:../proto",
-    "long": "^5.2.0",
     "ms": "^2.1.3",
-    "protobufjs": "^7.0.0",
     "uuid": "^8.3.2"
+  },
+  "devDependencies": {
+    "protobufjs": "^7.0.0"
   },
   "bugs": {
     "url": "https://github.com/temporalio/sdk-typescript/issues"

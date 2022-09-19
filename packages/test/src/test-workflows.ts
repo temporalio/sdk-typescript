@@ -743,6 +743,7 @@ test('cancelWorkflow', async (t) => {
           arguments: toPayloads(defaultPayloadConverter, url),
           startToCloseTimeout: msToTs('10m'),
           taskQueue: 'test',
+          doNotEagerlyExecute: false,
         }),
       ])
     );
@@ -776,6 +777,7 @@ test('cancelWorkflow', async (t) => {
           arguments: toPayloads(defaultPayloadConverter, url),
           startToCloseTimeout: msToTs('10m'),
           taskQueue: 'test',
+          doNotEagerlyExecute: false,
         }),
       ])
     );
@@ -893,6 +895,7 @@ test('nonCancellable', async (t) => {
           arguments: toPayloads(defaultPayloadConverter, url),
           startToCloseTimeout: msToTs('10m'),
           taskQueue: 'test',
+          doNotEagerlyExecute: false,
         }),
       ])
     );
@@ -920,6 +923,7 @@ test('resumeAfterCancellation', async (t) => {
           arguments: toPayloads(defaultPayloadConverter, url),
           startToCloseTimeout: msToTs('10m'),
           taskQueue: 'test',
+          doNotEagerlyExecute: false,
         }),
       ])
     );
@@ -956,6 +960,7 @@ test('handleExternalWorkflowCancellationWhileActivityRunning', async (t) => {
           arguments: toPayloads(defaultPayloadConverter, url, data),
           startToCloseTimeout: msToTs('10m'),
           taskQueue: 'test',
+          doNotEagerlyExecute: false,
         }),
       ])
     );
@@ -980,6 +985,7 @@ test('handleExternalWorkflowCancellationWhileActivityRunning', async (t) => {
           arguments: toPayloads(defaultPayloadConverter, url),
           startToCloseTimeout: msToTs('10m'),
           taskQueue: 'test',
+          doNotEagerlyExecute: false,
         }),
       ])
     );
@@ -1009,6 +1015,7 @@ test('nestedCancellation', async (t) => {
           activityType: 'setup',
           startToCloseTimeout: msToTs('10m'),
           taskQueue: 'test',
+          doNotEagerlyExecute: false,
         }),
       ])
     );
@@ -1031,6 +1038,7 @@ test('nestedCancellation', async (t) => {
           arguments: toPayloads(defaultPayloadConverter, url, { some: 'data' }),
           startToCloseTimeout: msToTs('10m'),
           taskQueue: 'test',
+          doNotEagerlyExecute: false,
         }),
       ])
     );
@@ -1053,6 +1061,7 @@ test('nestedCancellation', async (t) => {
           arguments: toPayloads(defaultPayloadConverter, url),
           startToCloseTimeout: msToTs('10m'),
           taskQueue: 'test',
+          doNotEagerlyExecute: false,
         }),
       ])
     );
@@ -1092,6 +1101,7 @@ test('sharedScopes', async (t) => {
               arguments: toPayloads(defaultPayloadConverter, `http://url${idx}.ninja`),
               startToCloseTimeout: msToTs('10m'),
               taskQueue: 'test',
+              doNotEagerlyExecute: false,
             })
           )
         )
@@ -1127,6 +1137,7 @@ test('shieldAwaitedInRootScope', async (t) => {
           arguments: toPayloads(defaultPayloadConverter, `http://example.com`),
           startToCloseTimeout: msToTs('10m'),
           taskQueue: 'test',
+          doNotEagerlyExecute: false,
         }),
       ])
     );
@@ -1319,6 +1330,7 @@ test('cancelActivityAfterFirstCompletion', async (t) => {
           arguments: toPayloads(defaultPayloadConverter, url),
           startToCloseTimeout: msToTs('10m'),
           taskQueue: 'test',
+          doNotEagerlyExecute: false,
         }),
       ])
     );
@@ -1339,6 +1351,7 @@ test('cancelActivityAfterFirstCompletion', async (t) => {
           arguments: toPayloads(defaultPayloadConverter, url),
           startToCloseTimeout: msToTs('10m'),
           taskQueue: 'test',
+          doNotEagerlyExecute: false,
         }),
       ])
     );
@@ -1383,6 +1396,7 @@ test('multipleActivitiesSingleTimeout', async (t) => {
               arguments: toPayloads(defaultPayloadConverter, url),
               startToCloseTimeout: msToTs('1s'),
               taskQueue: 'test',
+              doNotEagerlyExecute: false,
             })
           )
         )),
@@ -1423,6 +1437,7 @@ test('resolve activity with result - http', async (t) => {
           arguments: toPayloads(defaultPayloadConverter, 'https://temporal.io'),
           startToCloseTimeout: msToTs('1 minute'),
           taskQueue: 'test',
+          doNotEagerlyExecute: false,
         }),
       ])
     );
@@ -1457,6 +1472,7 @@ test('resolve activity with failure - http', async (t) => {
           arguments: toPayloads(defaultPayloadConverter, 'https://temporal.io'),
           startToCloseTimeout: msToTs('1 minute'),
           taskQueue: 'test',
+          doNotEagerlyExecute: false,
         }),
       ])
     );
