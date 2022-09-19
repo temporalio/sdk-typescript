@@ -326,21 +326,10 @@ function startChildWorkflowExecutionNextHandler({
       untrackPromise(
         scope.cancelRequested.catch(() => {
           const complete = !state.completions.childWorkflowComplete.has(seq);
-          const started = !state.completions.childWorkflowStart.has(seq);
 
-          if (started && !complete) {
-            const cancelSeq = state.nextSeqs.cancelWorkflow++;
+          if (!complete) {
             state.pushCommand({
-              requestCancelExternalWorkflowExecution: {
-                seq: cancelSeq,
-                childWorkflowId: workflowId,
-              },
-            });
-            // Not interested in this completion
-            state.completions.cancelWorkflow.set(cancelSeq, { resolve: () => undefined, reject: () => undefined });
-          } else if (!started) {
-            state.pushCommand({
-              cancelUnstartedChildWorkflowExecution: { childWorkflowSeq: seq },
+              cancelChildWorkflowExecution: { childWorkflowSeq: seq },
             });
           }
           // Nothing to cancel otherwise
