@@ -171,6 +171,7 @@ function scheduleActivityNextHandler({ options, args, headers, seq, activityType
         scheduleToStartTimeout: msOptionalToTs(options.scheduleToStartTimeout),
         headers,
         cancellationType: options.cancellationType,
+        doNotEagerlyExecute: !(options.allowEagerDispatch ?? true),
       },
     });
     state.completions.activity.set(seq, {
