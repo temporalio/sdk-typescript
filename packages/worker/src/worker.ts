@@ -135,6 +135,7 @@ export type ActivityTaskWithContext = ContextAware<{
 type CompiledWorkerOptionsWithBuildId = CompiledWorkerOptions & { buildId: string };
 
 export interface NativeWorkerLike {
+  type: 'Worker';
   initiateShutdown: Promisify<OmitFirstParam<typeof native.workerInitiateShutdown>>;
   finalizeShutdown(): Promise<void>;
   flushCoreLogs(): void;
@@ -164,6 +165,7 @@ function addBuildIdIfMissing(options: CompiledWorkerOptions, bundleCode?: string
 }
 
 export class NativeWorker implements NativeWorkerLike {
+  public readonly type = 'Worker';
   public readonly pollWorkflowActivation: Promisify<OmitFirstParam<typeof native.workerPollWorkflowActivation>>;
   public readonly pollActivityTask: Promisify<OmitFirstParam<typeof native.workerPollActivityTask>>;
   public readonly completeWorkflowActivation: Promisify<OmitFirstParam<typeof native.workerCompleteWorkflowActivation>>;

@@ -28,6 +28,7 @@ export * from '@temporalio/internal-workflow-common/lib/errors';
 export * from '@temporalio/internal-workflow-common/lib/interfaces';
 export * from '@temporalio/internal-workflow-common/lib/workflow-handle';
 export * from './async-completion-client';
+export * from './client';
 export { Connection, ConnectionOptions, ConnectionOptionsWithDefaults, LOCAL_TARGET } from './connection';
 export * from './errors';
 export * from './grpc-retry';
