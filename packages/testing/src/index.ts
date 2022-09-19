@@ -118,7 +118,7 @@ class TestEnvClient extends Client {
 export const workflowInterceptorModules = [path.join(__dirname, 'assert-to-failure-interceptor')];
 
 /**
- * Subset of the "nomral" client options that are used to create a client for the test environment.
+ * Subset of the "normal" client options that are used to create a client for the test environment.
  */
 export type ClientOptionsForTestEnv = Omit<ClientOptions, 'namespace' | 'connection'>;
 
@@ -170,7 +170,7 @@ export class TestWorkflowEnvironment {
    */
   public readonly namespace?: string;
   /**
-   * Get an extablished {@link Connection} to the ephemeral server
+   * Get an established {@link Connection} to the ephemeral server
    */
   public readonly connection: ConnectionLike;
 
@@ -237,6 +237,9 @@ export class TestWorkflowEnvironment {
    * which is automatically done when awaiting a workflow result and manually done on sleep, is global to the
    * environment, not to the workflow under test.
    *
+   * We highly recommend, running tests serially when using a single environment or creating a separate environment per
+   * test.
+   *
    * In the future, the test server implementation may be changed to another implementation.
    */
   static async createTimeSkipping(opts?: TimeSkippingTestWorkflowEnvironmentOptions): Promise<TestWorkflowEnvironment> {
@@ -295,13 +298,17 @@ export class TestWorkflowEnvironment {
   }
 
   /**
-   * Wait for `durationMs` in "test server time".
+   * Wait for `durationMs` in "server time".
    *
-   * The test server toggles between skipped time and normal time depending on what it needs to execute.
-   *
-   * This method is likely to resolve in less than `durationMs` of "real time".
+   * This awaits using regular setTimeout in regular environments, or manually skips time in time-skipping environments.
    *
    * Useful for simulating events far into the future like completion of long running activities.
+   *
+   * **Time skippping**:
+   *
+   * The time skippping server toggles between skipped time and normal time depending on what it needs to execute.
+   *
+   * This method is _likely_ to resolve in less than `durationMs` of "real time".
    *
    * @param durationMs {@link https://www.npmjs.com/package/ms | ms} formatted string or number of milliseconds
    *
