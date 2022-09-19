@@ -22,7 +22,7 @@ test.before(async (t) => {
     telemetryOptions: { tracingFilter: 'DEBUG' },
   });
   t.context = {
-    testEnv: await TestWorkflowEnvironment.create({}),
+    testEnv: await TestWorkflowEnvironment.createTimeSkipping(),
   };
 });
 
