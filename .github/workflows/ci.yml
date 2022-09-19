@@ -45,6 +45,7 @@ jobs:
         with:
           repository: temporalio/docker-compose
           path: docker-compose
+          ref: v1.17.5 # TODO: Upgrade to 1.18 - has a bug where search attributes are not deleted
         if: ${{ startsWith(matrix.os, 'ubuntu') }}
 
       - name: Start Temporal Server
