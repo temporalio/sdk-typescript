@@ -79,9 +79,9 @@ export class TimeSkippingWorkflowClient extends WorkflowClient {
 }
 
 /**
- * A client with the exact same API as the "normal" client with 1 exception,
- * When this client {@link TimeSkippingWorkflowClient} waits on a Workflow's result, it will enable time skipping
- * in the test server.
+ * A client with the exact same API as the "normal" client with one exception:
+ * when `TestEnvClient.workflow` (an instance of {@link TimeSkippingWorkflowClient}) waits on a Workflow's result, it will enable time skipping
+ * in the Test Server.
  */
 class TestEnvClient extends Client {
   constructor(options: TestEnvClientOptions) {
@@ -147,7 +147,7 @@ export class TestWorkflowEnvironment {
   public readonly connection: Connection;
 
   /**
-   * An {@link TestEnvClient} for interacting with the ephemeral server
+   * A {@link TestEnvClient} for interacting with the ephemeral server
    */
   public readonly client: Client;
 

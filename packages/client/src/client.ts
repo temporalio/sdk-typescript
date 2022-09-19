@@ -90,11 +90,11 @@ export class Client {
   public readonly connection: ConnectionLike;
   public readonly options: LoadedClientOptions;
   /**
-   * Workflow sub-client - use to interact with workflows
+   * Workflow sub-client - use to start and interact with Workflows
    */
   public readonly workflow: WorkflowClient;
   /**
-   * (Async) Activity completion sub-client - use to manually manage activities
+   * (Async) Activity completion sub-client - use to manually manage Activities
    */
   public readonly activity: AsyncCompletionClient;
 

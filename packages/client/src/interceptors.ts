@@ -132,9 +132,9 @@ export interface WorkflowClientInterceptors {
 }
 
 /**
- * Interceptors for any high level SDK client.
+ * Interceptors for any high-level SDK client.
  *
- * NOTE: Currently only for WorkflowClient - more will be added later as needed
+ * NOTE: Currently only for {@link WorkflowClient}. More will be added later as needed.
  */
 export interface ClientInterceptors {
   workflow?: WorkflowClientInterceptors;
