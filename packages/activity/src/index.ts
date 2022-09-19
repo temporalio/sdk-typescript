@@ -25,16 +25,24 @@
  *
  * An Activity may receive Cancellation if:
  *
- * - The Workflow was Cancelled (via {@link WorkflowHandle.cancel}) and {@link ActivityOptions.cancellationType} was
- *   **not** set to {@link ActivityCancellationType.ABANDON}.
- * - The Activity was manually Cancelled (it was called inside a {@link CancellationScope} that was Cancelled via
- *   {@link CancellationScope.cancel}).
+ * - The Workflow scope containing the Activity call was requested to be Cancelled and
+ *   {@link ActivityOptions.cancellationType} was **not** set to {@link ActivityCancellationType.ABANDON}. The scope can
+ *   be cancelled in either of the following ways:
+ *   - The entire Workflow was Cancelled (via {@link WorkflowHandle.cancel}).
+ *   - Calling {@link CancellationScope.cancel}) from inside a Workflow.
  * - The Worker has started to shut down. Shutdown is initiated by either:
  *   - One of the {@link RuntimeOptions.shutdownSignals} was sent to the process.
  *   - {@link Worker.shutdown | `Worker.shutdown()`} was called.
- * - The Activity was considered failed by the Server because the Server didn't receive a heartbeat within the
- *   {@link ActivityOptions.heartbeatTimeout}. The {@link CancellationFailure} will have `message: 'TIMED_OUT'`.
- * - The Workflow was terminated, in which case the {@link CancellationFailure} will have `message: 'NOT_FOUND'`.
+ * - The Activity was considered failed by the Server because any of the Activity timeouts have triggered (for example,
+ *   the Server didn't receive a heartbeat within the {@link ActivityOptions.heartbeatTimeout}). The
+ *   {@link CancelledFailure} will have `message: 'TIMED_OUT'`.
+ * - An Activity sends a heartbeat with `Context.current().heartbeat()` and the heartbeat details can't be converted by
+ *   the Worker's configured {@link DataConverter}.
+ * - The Workflow reached a {@link https://docs.temporal.io/workflows#status | Closed state}, in which case the
+ *   {@link CancelledFailure} will have `message: 'NOT_FOUND'`.
+ *
+ * The reason for the Cancellation is available at {@link CancelledFailure.message} or
+ * {@link Context#cancellationSignal | Context.cancellationSignal.reason}.
  *
  * There are two ways to handle Activity Cancellation:
  *
