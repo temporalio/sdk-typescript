@@ -30,7 +30,7 @@ import {
 import path from 'path';
 import { AbortController } from 'abort-controller';
 import events from 'events';
-import { Connection, TestService } from './test-service-client';
+import { Connection, TestService } from './connection';
 import { filterNullAndUndefined } from '@temporalio/internal-non-workflow-common';
 import ms from 'ms';
 

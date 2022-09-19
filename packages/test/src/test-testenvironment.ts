@@ -1,5 +1,6 @@
 import { WorkflowFailedError } from '@temporalio/client';
 import { TestWorkflowEnvironment, workflowInterceptorModules } from '@temporalio/testing';
+import { Connection } from '@temporalio/testing/lib/connection';
 import { Runtime, Worker } from '@temporalio/worker';
 import anyTest, { TestInterface } from 'ava';
 import { v4 as uuid4 } from 'uuid';
@@ -120,7 +121,7 @@ test.serial('TestEnvironment sleep can be used to delay sending a signal', async
   const { client, nativeConnection, sleep } = t.context.testEnv;
   // TODO: due to the test server issue mentioned in the test avove we need to manually unlock time skipping
   // for the current test to balance out the time skipping lock counter.
-  await t.context.testEnv.connection.testService.unlockTimeSkipping({});
+  await (t.context.testEnv.connection as Connection).testService.unlockTimeSkipping({});
 
   const worker = await Worker.create({
     connection: nativeConnection,
