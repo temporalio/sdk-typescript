@@ -11,7 +11,7 @@ const test = anyTest as TestInterface<Context>;
 
 test.before(async (t) => {
   t.context = {
-    testEnv: await TestWorkflowEnvironment.create(),
+    testEnv: await TestWorkflowEnvironment.createTimeSkipping(),
   };
 });
 
@@ -35,11 +35,11 @@ async function withWorker(t: ExecutionContext<Context>, p: Promise<any>): Promis
 }
 
 test.serial('WorkflowInboundLogInterceptor logs when workflow completes', async (t) => {
-  const { workflowClient } = t.context.testEnv;
+  const { client } = t.context.testEnv;
   const workflowId = uuid4();
   const [startLog, endLog] = await withWorker(
     t,
-    workflowClient.execute(workflows.successString, { workflowId, taskQueue: 'test' })
+    client.workflow.execute(workflows.successString, { workflowId, taskQueue: 'test' })
   );
   t.is(startLog.level, 'DEBUG');
   t.is(startLog.message, 'Workflow started');
@@ -53,11 +53,11 @@ test.serial('WorkflowInboundLogInterceptor logs when workflow completes', async 
 });
 
 test.serial('WorkflowInboundLogInterceptor logs when workflow continues as new', async (t) => {
-  const { workflowClient } = t.context.testEnv;
+  const { client } = t.context.testEnv;
   const [_, endLog] = await withWorker(
     t,
     t.throwsAsync(
-      workflowClient.execute(workflows.continueAsNewSameWorkflow, {
+      client.workflow.execute(workflows.continueAsNewSameWorkflow, {
         args: ['execute', 'execute'],
         workflowId: uuid4(),
         taskQueue: 'test',
@@ -70,11 +70,11 @@ test.serial('WorkflowInboundLogInterceptor logs when workflow continues as new',
 });
 
 test.serial('WorkflowInboundLogInterceptor logs warning when workflow fails', async (t) => {
-  const { workflowClient } = t.context.testEnv;
+  const { client } = t.context.testEnv;
   const [_, endLog] = await withWorker(
     t,
     t.throwsAsync(
-      workflowClient.execute(workflows.throwAsync, {
+      client.workflow.execute(workflows.throwAsync, {
         workflowId: uuid4(),
         taskQueue: 'test',
         followRuns: false,

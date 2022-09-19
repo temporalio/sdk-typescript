@@ -19,6 +19,7 @@ import {
   encodeMapToPayloads,
   encodeToPayloads,
   filterNullAndUndefined,
+  isLoadedDataConverter,
   loadDataConverter,
 } from '@temporalio/internal-non-workflow-common';
 import {
@@ -171,9 +172,9 @@ export interface WorkflowHandleWithSignaledRunId<T extends Workflow = Workflow> 
 
 export interface WorkflowClientOptions {
   /**
-   * {@link DataConverter} to use for serializing and deserializing payloads
+   * {@link DataConverter} or {@link LoadedDataConverter} to use for serializing and deserializing payloads
    */
-  dataConverter?: DataConverter;
+  dataConverter?: DataConverter | LoadedDataConverter;
 
   /**
    * Used to override and extend default Connection functionality
@@ -296,7 +297,10 @@ interface WorkflowHandleOptions extends GetWorkflowHandleOptions {
 export type WorkflowStartOptions<T extends Workflow = Workflow> = WithWorkflowArgs<T, WorkflowOptions>;
 
 /**
- * Client for starting Workflow executions and creating Workflow handles
+ * Client for starting Workflow executions and creating Workflow handles.
+ *
+ * Typically this client should not be instantiated directly, instead create the high level {@link Client} and use
+ * {@link Client.workflow} to interact with Workflows.
  */
 export class WorkflowClient {
   public readonly options: LoadedWorkflowClientOptions;
@@ -304,20 +308,27 @@ export class WorkflowClient {
 
   constructor(options?: WorkflowClientOptions) {
     this.connection = options?.connection ?? Connection.lazy();
+    const dataConverter = options?.dataConverter;
+    const loadedDataConverter = isLoadedDataConverter(dataConverter) ? dataConverter : loadDataConverter(dataConverter);
     this.options = {
       ...defaultWorkflowClientOptions(),
       ...filterNullAndUndefined(options ?? {}),
-      loadedDataConverter: loadDataConverter(options?.dataConverter),
+      loadedDataConverter,
     };
   }
 
   /**
    * Raw gRPC access to the Temporal service.
    *
-   * **NOTE**: The namespace provided in {@link options} is **not** automatically set on requests made to the service.
+   * **NOTE**: The namespace provided in {@link options} is **not** automatically set on requests made via this service
+   * object.
    */
   get workflowService(): WorkflowService {
     return this.connection.workflowService;
+  }
+
+  protected get dataConverter(): LoadedDataConverter {
+    return this.options.loadedDataConverter;
   }
 
   /**
@@ -517,7 +528,7 @@ export class WorkflowClient {
         // Note that we can only return one value from our workflow function in JS.
         // Ignore any other payloads in result
         const [result] = await decodeArrayFromPayloads(
-          this.options.loadedDataConverter,
+          this.dataConverter,
           ev.workflowExecutionCompletedEventAttributes.result?.payloads
         );
         return result as any;
@@ -530,14 +541,14 @@ export class WorkflowClient {
         const { failure, retryState } = ev.workflowExecutionFailedEventAttributes;
         throw new WorkflowFailedError(
           'Workflow execution failed',
-          await decodeOptionalFailureToOptionalError(this.options.loadedDataConverter, failure),
+          await decodeOptionalFailureToOptionalError(this.dataConverter, failure),
           retryState ?? RetryState.RETRY_STATE_UNSPECIFIED
         );
       } else if (ev.workflowExecutionCanceledEventAttributes) {
         const failure = new CancelledFailure(
           'Workflow canceled',
           await decodeArrayFromPayloads(
-            this.options.loadedDataConverter,
+            this.dataConverter,
             ev.workflowExecutionCanceledEventAttributes.details?.payloads
           )
         );
@@ -617,7 +628,7 @@ export class WorkflowClient {
         execution: input.workflowExecution,
         query: {
           queryType: input.queryType,
-          queryArgs: { payloads: await encodeToPayloads(this.options.loadedDataConverter, ...input.args) },
+          queryArgs: { payloads: await encodeToPayloads(this.dataConverter, ...input.args) },
           header: { fields: input.headers },
         },
       });
@@ -637,7 +648,7 @@ export class WorkflowClient {
       throw new TypeError('Invalid response from server');
     }
     // We ignore anything but the first result
-    return await decodeFromPayloadsAtIndex(this.options.loadedDataConverter, 0, response.queryResult?.payloads);
+    return await decodeFromPayloadsAtIndex(this.dataConverter, 0, response.queryResult?.payloads);
   }
 
   /**
@@ -655,7 +666,7 @@ export class WorkflowClient {
         // control is unused,
         signalName: input.signalName,
         header: { fields: input.headers },
-        input: { payloads: await encodeToPayloads(this.options.loadedDataConverter, ...input.args) },
+        input: { payloads: await encodeToPayloads(this.dataConverter, ...input.args) },
       });
     } catch (err) {
       this.rethrowGrpcError(err, input.workflowExecution, 'Failed to signal Workflow');
@@ -678,9 +689,9 @@ export class WorkflowClient {
         workflowId: options.workflowId,
         workflowIdReusePolicy: options.workflowIdReusePolicy,
         workflowType: { name: workflowType },
-        input: { payloads: await encodeToPayloads(this.options.loadedDataConverter, ...options.args) },
+        input: { payloads: await encodeToPayloads(this.dataConverter, ...options.args) },
         signalName,
-        signalInput: { payloads: await encodeToPayloads(this.options.loadedDataConverter, ...signalArgs) },
+        signalInput: { payloads: await encodeToPayloads(this.dataConverter, ...signalArgs) },
         taskQueue: {
           kind: temporal.api.enums.v1.TaskQueueKind.TASK_QUEUE_KIND_UNSPECIFIED,
           name: options.taskQueue,
@@ -689,9 +700,7 @@ export class WorkflowClient {
         workflowRunTimeout: options.workflowRunTimeout,
         workflowTaskTimeout: options.workflowTaskTimeout,
         retryPolicy: options.retry ? compileRetryPolicy(options.retry) : undefined,
-        memo: options.memo
-          ? { fields: await encodeMapToPayloads(this.options.loadedDataConverter, options.memo) }
-          : undefined,
+        memo: options.memo ? { fields: await encodeMapToPayloads(this.dataConverter, options.memo) } : undefined,
         searchAttributes: options.searchAttributes
           ? {
               indexedFields: mapToPayloads(searchAttributePayloadConverter, options.searchAttributes),
@@ -721,7 +730,7 @@ export class WorkflowClient {
       workflowId: opts.workflowId,
       workflowIdReusePolicy: opts.workflowIdReusePolicy,
       workflowType: { name: workflowType },
-      input: { payloads: await encodeToPayloads(this.options.loadedDataConverter, ...opts.args) },
+      input: { payloads: await encodeToPayloads(this.dataConverter, ...opts.args) },
       taskQueue: {
         kind: temporal.api.enums.v1.TaskQueueKind.TASK_QUEUE_KIND_UNSPECIFIED,
         name: opts.taskQueue,
@@ -730,7 +739,7 @@ export class WorkflowClient {
       workflowRunTimeout: opts.workflowRunTimeout,
       workflowTaskTimeout: opts.workflowTaskTimeout,
       retryPolicy: opts.retry ? compileRetryPolicy(opts.retry) : undefined,
-      memo: opts.memo ? { fields: await encodeMapToPayloads(this.options.loadedDataConverter, opts.memo) } : undefined,
+      memo: opts.memo ? { fields: await encodeMapToPayloads(this.dataConverter, opts.memo) } : undefined,
       searchAttributes: opts.searchAttributes
         ? {
             indexedFields: mapToPayloads(searchAttributePayloadConverter, opts.searchAttributes),
@@ -768,9 +777,7 @@ export class WorkflowClient {
         identity: this.options.identity,
         ...input,
         details: {
-          payloads: input.details
-            ? await encodeToPayloads(this.options.loadedDataConverter, ...input.details)
-            : undefined,
+          payloads: input.details ? await encodeToPayloads(this.dataConverter, ...input.details) : undefined,
         },
         firstExecutionRunId: input.firstExecutionRunId,
       });
@@ -864,17 +871,12 @@ export class WorkflowClient {
             code: raw.workflowExecutionInfo!.status!,
             name: workflowStatusCodeToName(raw.workflowExecutionInfo!.status!),
           },
-          // Technically safe to convert to number, unfortunately this was overlooked when this was originally
-          // implemented.
-          // Max history length is 50k, which is much less than Number.MAX_SAFE_INTEGER
-          historyLength: raw.workflowExecutionInfo!.historyLength!,
+          // Safe to convert to number, max history length is 50k, which is much less than Number.MAX_SAFE_INTEGER
+          historyLength: raw.workflowExecutionInfo!.historyLength!.toNumber(),
           startTime: tsToDate(raw.workflowExecutionInfo!.startTime!),
           executionTime: optionalTsToDate(raw.workflowExecutionInfo!.executionTime),
           closeTime: optionalTsToDate(raw.workflowExecutionInfo!.closeTime),
-          memo: await decodeMapFromPayloads(
-            this.client.options.loadedDataConverter,
-            raw.workflowExecutionInfo!.memo?.fields
-          ),
+          memo: await decodeMapFromPayloads(this.client.dataConverter, raw.workflowExecutionInfo!.memo?.fields),
           searchAttributes: mapFromPayloads(
             searchAttributePayloadConverter,
             raw.workflowExecutionInfo!.searchAttributes?.indexedFields ?? {}

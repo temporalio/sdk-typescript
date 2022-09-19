@@ -85,7 +85,7 @@ export {
  * Throw this error from an Activity in order to make the Worker forget about this Activity.
  *
  * The Activity can then be completed asynchronously (from anywhere—usually outside the Worker) using
- * {@link AsyncCompletionClient}.
+ * {@link Client.activity}.
  *
  * @example
  *

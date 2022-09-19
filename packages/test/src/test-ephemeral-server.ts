@@ -16,7 +16,7 @@ test.before(async (t) => {
 async function runSimpleWorkflow(t: ExecutionContext<Context>, testEnv: TestWorkflowEnvironment) {
   try {
     const taskQueue = 'test';
-    const { workflowClient, nativeConnection, namespace } = testEnv;
+    const { client, nativeConnection, namespace } = testEnv;
     const worker = await Worker.create({
       connection: nativeConnection,
       namespace,
@@ -24,7 +24,7 @@ async function runSimpleWorkflow(t: ExecutionContext<Context>, testEnv: TestWork
       workflowBundle: t.context.bundle,
     });
     await worker.runUntil(
-      workflowClient.execute('successString', {
+      client.workflow.execute('successString', {
         workflowId: uuid4(),
         taskQueue,
       })
@@ -36,12 +36,12 @@ async function runSimpleWorkflow(t: ExecutionContext<Context>, testEnv: TestWork
 }
 
 test('TestEnvironment sets up test server and is able to run a single workflow', async (t) => {
-  const testEnv = await TestWorkflowEnvironment.create();
+  const testEnv = await TestWorkflowEnvironment.createTimeSkipping();
   await runSimpleWorkflow(t, testEnv);
 });
 
 test('TestEnvironment sets up temporalite and is able to run a single workflow', async (t) => {
-  const testEnv = await TestWorkflowEnvironment.create({ type: 'temporalite' });
+  const testEnv = await TestWorkflowEnvironment.createLocal();
   await runSimpleWorkflow(t, testEnv);
 });
 

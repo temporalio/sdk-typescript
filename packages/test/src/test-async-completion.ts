@@ -3,13 +3,7 @@ import { Observable, Subject, firstValueFrom } from 'rxjs';
 import { filter } from 'rxjs/operators';
 import { v4 as uuid4 } from 'uuid';
 import { Worker } from '@temporalio/worker';
-import {
-  ActivityCancelledError,
-  ActivityNotFoundError,
-  AsyncCompletionClient,
-  WorkflowClient,
-  WorkflowFailedError,
-} from '@temporalio/client';
+import { ActivityCancelledError, Client, ActivityNotFoundError, WorkflowFailedError } from '@temporalio/client';
 import { RUN_INTEGRATION_TESTS } from './helpers';
 import { runAnAsyncActivity } from './workflows';
 import { createActivities } from './activities/async-completer';
@@ -19,9 +13,8 @@ import { isCancellation } from '@temporalio/workflow';
 
 export interface Context {
   worker: Worker;
-  workflowClient: WorkflowClient;
+  client: Client;
   activityStarted$: Observable<Info>;
-  asyncCompletionClient: AsyncCompletionClient;
   runPromise: Promise<void>;
 }
 
@@ -61,8 +54,7 @@ if (RUN_INTEGRATION_TESTS) {
       worker,
       runPromise,
       activityStarted$: infoSubject,
-      workflowClient: new WorkflowClient(),
-      asyncCompletionClient: new AsyncCompletionClient(),
+      client: new Client(),
     };
   });
 
@@ -72,53 +64,53 @@ if (RUN_INTEGRATION_TESTS) {
   });
 
   test('Activity can complete asynchronously', async (t) => {
-    const { workflowClient, asyncCompletionClient } = t.context;
+    const { client } = t.context;
     const workflowId = uuid4();
-    const handle = await workflowClient.start(runAnAsyncActivity, {
+    const handle = await client.workflow.start(runAnAsyncActivity, {
       workflowId,
       taskQueue,
     });
 
     const info = await activityStarted(t, workflowId);
-    await asyncCompletionClient.complete(info.taskToken, 'success');
+    await client.activity.complete(info.taskToken, 'success');
     t.is(await handle.result(), 'success');
   });
 
   test('Activity can complete asynchronously by ID', async (t) => {
-    const { workflowClient, asyncCompletionClient } = t.context;
+    const { client } = t.context;
     const workflowId = uuid4();
-    const handle = await workflowClient.start(runAnAsyncActivity, {
+    const handle = await client.workflow.start(runAnAsyncActivity, {
       workflowId,
       taskQueue,
     });
 
     const info = await activityStarted(t, workflowId);
-    await asyncCompletionClient.complete({ workflowId, activityId: info.activityId }, 'success');
+    await client.activity.complete({ workflowId, activityId: info.activityId }, 'success');
     t.is(await handle.result(), 'success');
   });
 
   test('Non existing activity async completion throws meaningful message', async (t) => {
-    await t.throwsAsync(t.context.asyncCompletionClient.complete(NOT_FOUND_TASK_TOKEN, 'success'), {
+    await t.throwsAsync(t.context.client.activity.complete(NOT_FOUND_TASK_TOKEN, 'success'), {
       instanceOf: ActivityNotFoundError,
     });
   });
 
   test('Non existing activity async completion by ID throws meaningful message', async (t) => {
-    await t.throwsAsync(t.context.asyncCompletionClient.complete({ workflowId: uuid4(), activityId: '1' }, 'success'), {
+    await t.throwsAsync(t.context.client.activity.complete({ workflowId: uuid4(), activityId: '1' }, 'success'), {
       instanceOf: ActivityNotFoundError,
     });
   });
 
   test('Activity can fail asynchronously', async (t) => {
-    const { workflowClient, asyncCompletionClient } = t.context;
+    const { client } = t.context;
     const workflowId = uuid4();
-    const handle = await workflowClient.start(runAnAsyncActivity, {
+    const handle = await client.workflow.start(runAnAsyncActivity, {
       workflowId,
       taskQueue,
     });
 
     const info = await activityStarted(t, workflowId);
-    await asyncCompletionClient.fail(info.taskToken, new Error('failed'));
+    await client.activity.fail(info.taskToken, new Error('failed'));
     const err = (await t.throwsAsync(handle.result(), {
       instanceOf: WorkflowFailedError,
     })) as WorkflowFailedError;
@@ -126,15 +118,15 @@ if (RUN_INTEGRATION_TESTS) {
   });
 
   test('Activity can fail asynchronously by ID', async (t) => {
-    const { workflowClient, asyncCompletionClient } = t.context;
+    const { client } = t.context;
     const workflowId = uuid4();
-    const handle = await workflowClient.start(runAnAsyncActivity, {
+    const handle = await client.workflow.start(runAnAsyncActivity, {
       workflowId,
       taskQueue,
     });
 
     const info = await activityStarted(t, workflowId);
-    await asyncCompletionClient.fail({ workflowId, activityId: info.activityId }, new Error('failed'));
+    await client.activity.fail({ workflowId, activityId: info.activityId }, new Error('failed'));
     const err = (await t.throwsAsync(handle.result(), {
       instanceOf: WorkflowFailedError,
     })) as WorkflowFailedError;
@@ -142,14 +134,14 @@ if (RUN_INTEGRATION_TESTS) {
   });
 
   test('Non existing activity async failure throws meaningful message', async (t) => {
-    await t.throwsAsync(t.context.asyncCompletionClient.fail(NOT_FOUND_TASK_TOKEN, new Error('failure')), {
+    await t.throwsAsync(t.context.client.activity.fail(NOT_FOUND_TASK_TOKEN, new Error('failure')), {
       instanceOf: ActivityNotFoundError,
     });
   });
 
   test('Non existing activity async failure by ID throws meaningful message', async (t) => {
     await t.throwsAsync(
-      t.context.asyncCompletionClient.fail(
+      t.context.client.activity.fail(
         {
           workflowId: uuid4(),
           activityId: '1',
@@ -163,14 +155,14 @@ if (RUN_INTEGRATION_TESTS) {
   });
 
   test('Non existing activity async cancellation throws meaningful message', async (t) => {
-    await t.throwsAsync(t.context.asyncCompletionClient.reportCancellation(NOT_FOUND_TASK_TOKEN, 'cancelled'), {
+    await t.throwsAsync(t.context.client.activity.reportCancellation(NOT_FOUND_TASK_TOKEN, 'cancelled'), {
       instanceOf: ActivityNotFoundError,
     });
   });
 
   test('Non existing activity async cancellation by ID throws meaningful message', async (t) => {
     await t.throwsAsync(
-      t.context.asyncCompletionClient.reportCancellation(
+      t.context.client.activity.reportCancellation(
         {
           workflowId: uuid4(),
           activityId: '1',
@@ -184,9 +176,9 @@ if (RUN_INTEGRATION_TESTS) {
   });
 
   test('Activity can heartbeat and get cancelled with AsyncCompletionClient', async (t) => {
-    const { workflowClient, asyncCompletionClient } = t.context;
+    const { client } = t.context;
     const workflowId = uuid4();
-    const handle = await workflowClient.start(runAnAsyncActivity, {
+    const handle = await client.workflow.start(runAnAsyncActivity, {
       workflowId,
       taskQueue,
       args: [true],
@@ -196,14 +188,14 @@ if (RUN_INTEGRATION_TESTS) {
     await t.throwsAsync(
       async () => {
         for (;;) {
-          await asyncCompletionClient.heartbeat(info.taskToken, 'details');
+          await client.activity.heartbeat(info.taskToken, 'details');
           await new Promise((resolve) => setTimeout(resolve, 100));
         }
       },
       { instanceOf: ActivityCancelledError }
     );
 
-    await asyncCompletionClient.reportCancellation(info.taskToken, 'cancelled');
+    await client.activity.reportCancellation(info.taskToken, 'cancelled');
 
     const err = (await t.throwsAsync(handle.result(), {
       instanceOf: WorkflowFailedError,
@@ -212,9 +204,9 @@ if (RUN_INTEGRATION_TESTS) {
   });
 
   test('Activity can heartbeat and get cancelled by ID with AsyncCompletionClient', async (t) => {
-    const { workflowClient, asyncCompletionClient } = t.context;
+    const { client } = t.context;
     const workflowId = uuid4();
-    const handle = await workflowClient.start(runAnAsyncActivity, {
+    const handle = await client.workflow.start(runAnAsyncActivity, {
       workflowId,
       taskQueue,
       args: [true],
@@ -224,14 +216,14 @@ if (RUN_INTEGRATION_TESTS) {
     await t.throwsAsync(
       async () => {
         for (;;) {
-          await asyncCompletionClient.heartbeat({ workflowId, activityId: info.activityId }, 'details');
+          await client.activity.heartbeat({ workflowId, activityId: info.activityId }, 'details');
           await new Promise((resolve) => setTimeout(resolve, 100));
         }
       },
       { instanceOf: ActivityCancelledError }
     );
 
-    await asyncCompletionClient.reportCancellation({ workflowId, activityId: info.activityId }, 'cancelled');
+    await client.activity.reportCancellation({ workflowId, activityId: info.activityId }, 'cancelled');
 
     const err = (await t.throwsAsync(handle.result(), {
       instanceOf: WorkflowFailedError,
@@ -240,14 +232,14 @@ if (RUN_INTEGRATION_TESTS) {
   });
 
   test('Non existing activity async heartbeat throws meaningful message', async (t) => {
-    await t.throwsAsync(t.context.asyncCompletionClient.heartbeat(NOT_FOUND_TASK_TOKEN, 'details'), {
+    await t.throwsAsync(t.context.client.activity.heartbeat(NOT_FOUND_TASK_TOKEN, 'details'), {
       instanceOf: ActivityNotFoundError,
     });
   });
 
   test('Non existing activity async heartbeat by ID throws meaningful message', async (t) => {
     await t.throwsAsync(
-      t.context.asyncCompletionClient.heartbeat(
+      t.context.client.activity.heartbeat(
         {
           workflowId: uuid4(),
           activityId: '1',

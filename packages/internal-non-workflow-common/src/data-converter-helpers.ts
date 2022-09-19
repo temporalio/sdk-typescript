@@ -47,3 +47,12 @@ export function loadDataConverter(dataConverter?: DataConverter): LoadedDataConv
     payloadCodecs: dataConverter?.payloadCodecs ?? [],
   };
 }
+
+/**
+ * Returns true if the converter is already "loaded"
+ */
+export function isLoadedDataConverter(
+  dataConverter?: DataConverter | LoadedDataConverter
+): dataConverter is LoadedDataConverter {
+  return isRecord(dataConverter) && hasOwnProperty(dataConverter, 'payloadConverter');
+}
