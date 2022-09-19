@@ -38,7 +38,7 @@
  *   {@link CancelledFailure} will have `message: 'TIMED_OUT'`.
  * - An Activity sends a heartbeat with `Context.current().heartbeat()` and the heartbeat details can't be converted by
  *   the Worker's configured {@link DataConverter}.
- * - The Workflow reached a {@link https://docs.temporal.io/workflows#status | Closed state}, in which case the
+ * - The Workflow Run reached a {@link https://docs.temporal.io/workflows#status | Closed state}, in which case the
  *   {@link CancelledFailure} will have `message: 'NOT_FOUND'`.
  *
  * The reason for the Cancellation is available at {@link CancelledFailure.message} or
