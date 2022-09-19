@@ -216,6 +216,7 @@ export async function encodeErrorToFailure(dataConverter: LoadedDataConverter, e
 export async function encodeFailure(codecs: PayloadCodec[], failure: ProtoFailure): Promise<EncodedProtoFailure> {
   return {
     ...failure,
+    encodedAttributes: failure.encodedAttributes ? (await encode(codecs, [failure.encodedAttributes]))[0] : undefined,
     cause: failure.cause ? await encodeFailure(codecs, failure.cause) : null,
     applicationFailureInfo: failure.applicationFailureInfo
       ? {
@@ -266,6 +267,7 @@ export async function encodeFailure(codecs: PayloadCodec[], failure: ProtoFailur
 export async function decodeFailure(codecs: PayloadCodec[], failure: ProtoFailure): Promise<DecodedProtoFailure> {
   return {
     ...failure,
+    encodedAttributes: failure.encodedAttributes ? (await decode(codecs, [failure.encodedAttributes]))[0] : undefined,
     cause: failure.cause ? await decodeFailure(codecs, failure.cause) : null,
     applicationFailureInfo: failure.applicationFailureInfo
       ? {

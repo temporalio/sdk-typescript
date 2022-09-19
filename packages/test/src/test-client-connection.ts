@@ -5,7 +5,7 @@ import * as grpc from '@grpc/grpc-js';
 import * as protoLoader from '@grpc/proto-loader';
 import { Connection } from '@temporalio/client';
 import pkg from '@temporalio/client/lib/pkg';
-import { temporal } from '@temporalio/proto';
+import { temporal, grpc as grpcProto } from '@temporalio/proto';
 
 test('withMetadata / withDeadline set the CallContext for RPC call', async (t) => {
   const packageDefinition = protoLoader.loadSync(
@@ -65,4 +65,35 @@ test('withMetadata / withDeadline set the CallContext for RPC call', async (t) =
   );
   t.true(gotTestHeaders);
   t.true(gotDeadline);
+});
+
+test('healthService works', async (t) => {
+  const packageDefinition = protoLoader.loadSync(
+    path.resolve(__dirname, '../../core-bridge/sdk-core/protos/grpc/health/v1/health.proto')
+  );
+  const protoDescriptor = grpc.loadPackageDefinition(packageDefinition) as any;
+
+  const server = new grpc.Server();
+
+  server.addService(protoDescriptor.grpc.health.v1.Health.service, {
+    check(
+      _call: grpc.ServerUnaryCall<grpcProto.health.v1.HealthCheckRequest, grpcProto.health.v1.HealthCheckResponse>,
+      callback: grpc.sendUnaryData<grpcProto.health.v1.HealthCheckResponse>
+    ) {
+      callback(
+        null,
+        grpcProto.health.v1.HealthCheckResponse.create({
+          status: grpcProto.health.v1.HealthCheckResponse.ServingStatus.SERVING,
+        })
+      );
+    },
+  });
+  const port = await util.promisify(server.bindAsync.bind(server))(
+    '127.0.0.1:0',
+    grpc.ServerCredentials.createInsecure()
+  );
+  server.start();
+  const conn = await Connection.connect({ address: `127.0.0.1:${port}` });
+  const response = await conn.healthService.check({});
+  t.is(response.status, grpcProto.health.v1.HealthCheckResponse.ServingStatus.SERVING);
 });

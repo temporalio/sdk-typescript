@@ -1,6 +1,6 @@
 import { WorkflowFailedError } from '@temporalio/client';
 import { TestWorkflowEnvironment, workflowInterceptorModules } from '@temporalio/testing';
-import { Worker } from '@temporalio/worker';
+import { Runtime, Worker } from '@temporalio/worker';
 import anyTest, { TestInterface } from 'ava';
 import { v4 as uuid4 } from 'uuid';
 import {
@@ -18,12 +18,11 @@ interface Context {
 const test = anyTest as TestInterface<Context>;
 
 test.before(async (t) => {
+  Runtime.install({
+    telemetryOptions: { tracingFilter: 'DEBUG' },
+  });
   t.context = {
-    testEnv: await TestWorkflowEnvironment.create({
-      testServer: {
-        stdio: 'inherit',
-      },
-    }),
+    testEnv: await TestWorkflowEnvironment.create({}),
   };
 });
 
@@ -32,14 +31,14 @@ test.after.always(async (t) => {
 });
 
 test.serial('TestEnvironment sets up test server and is able to run a Workflow with time skipping', async (t) => {
-  const { workflowClient, nativeConnection } = t.context.testEnv;
+  const { client, nativeConnection } = t.context.testEnv;
   const worker = await Worker.create({
     connection: nativeConnection,
     taskQueue: 'test',
     workflowsPath: require.resolve('./workflows/testenv-test-workflows'),
   });
   await worker.runUntil(
-    workflowClient.execute(sleep, {
+    client.workflow.execute(sleep, {
       workflowId: uuid4(),
       taskQueue: 'test',
       args: [1_000_000],
@@ -49,7 +48,7 @@ test.serial('TestEnvironment sets up test server and is able to run a Workflow w
 });
 
 test.serial('TestEnvironment can toggle between normal and skipped time', async (t) => {
-  const { workflowClient, nativeConnection } = t.context.testEnv;
+  const { client, nativeConnection } = t.context.testEnv;
 
   const worker = await Worker.create({
     connection: nativeConnection,
@@ -57,27 +56,19 @@ test.serial('TestEnvironment can toggle between normal and skipped time', async 
     workflowsPath: require.resolve('./workflows/testenv-test-workflows'),
   });
 
-  const race = async (runInNormalTime: boolean) => {
-    const wfSleepDuration = runInNormalTime ? 3000 : 1_000_000;
+  await worker.runUntil(async () => {
+    const wfSleepDuration = 1_000_000;
 
     const t0 = process.hrtime.bigint();
-    await workflowClient.execute(sleep, {
+    await client.workflow.execute(sleep, {
       workflowId: uuid4(),
       taskQueue: 'test',
       args: [wfSleepDuration],
-      runInNormalTime,
     });
     const realDuration = Number((process.hrtime.bigint() - t0) / 1_000_000n);
-    if (runInNormalTime && realDuration < wfSleepDuration) {
-      t.fail(`Workflow execution took ${realDuration}, sleep duration was: ${wfSleepDuration}`);
-    } else if (!runInNormalTime && wfSleepDuration < realDuration) {
+    if (wfSleepDuration < realDuration) {
       t.fail(`Workflow execution took ${realDuration}, sleep duration was: ${wfSleepDuration}`);
     }
-  };
-
-  await worker.runUntil(async () => {
-    await race(true);
-    await race(false);
   });
   t.pass();
 });
@@ -88,7 +79,7 @@ test.serial('TestEnvironment sleep can be used to delay activity completion', as
     t.pass();
     return;
   }
-  const { workflowClient, nativeConnection, sleep } = t.context.testEnv;
+  const { client, nativeConnection, sleep } = t.context.testEnv;
 
   const worker = await Worker.create({
     connection: nativeConnection,
@@ -102,7 +93,7 @@ test.serial('TestEnvironment sleep can be used to delay activity completion', as
   });
 
   const run = async (expectedWinner: 'timer' | 'activity') => {
-    const winner = await workflowClient.execute(raceActivityAndTimer, {
+    const winner = await client.workflow.execute(raceActivityAndTimer, {
       workflowId: uuid4(),
       taskQueue: 'test',
       args: [expectedWinner],
@@ -126,7 +117,7 @@ test.serial('TestEnvironment sleep can be used to delay sending a signal', async
     t.pass();
     return;
   }
-  const { workflowClient, nativeConnection, sleep } = t.context.testEnv;
+  const { client, nativeConnection, sleep } = t.context.testEnv;
   // TODO: due to the test server issue mentioned in the test avove we need to manually unlock time skipping
   // for the current test to balance out the time skipping lock counter.
   await t.context.testEnv.connection.testService.unlockTimeSkipping({});
@@ -138,7 +129,7 @@ test.serial('TestEnvironment sleep can be used to delay sending a signal', async
   });
 
   await worker.runUntil(async () => {
-    const handle = await workflowClient.start(waitOnSignalWithTimeout, {
+    const handle = await client.workflow.start(waitOnSignalWithTimeout, {
       workflowId: uuid4(),
       taskQueue: 'test',
     });
@@ -150,7 +141,7 @@ test.serial('TestEnvironment sleep can be used to delay sending a signal', async
 });
 
 test.serial('Workflow code can run assertions', async (t) => {
-  const { workflowClient, nativeConnection } = t.context.testEnv;
+  const { client, nativeConnection } = t.context.testEnv;
 
   const worker = await Worker.create({
     connection: nativeConnection,
@@ -163,7 +154,7 @@ test.serial('Workflow code can run assertions', async (t) => {
 
   await worker.runUntil(async () => {
     const err: WorkflowFailedError = await t.throwsAsync(
-      workflowClient.execute(assertFromWorkflow, {
+      client.workflow.execute(assertFromWorkflow, {
         workflowId: uuid4(),
         taskQueue: 'test',
         args: [6],

@@ -30,6 +30,9 @@ jobs:
       - uses: actions/setup-node@v1
         with:
           node-version: ${{ matrix.node }}
+      - uses: Swatinem/rust-cache@v1
+        with:
+          working-directory: packages/core-bridge
       # Don't build during install phase since we're going to explicitly build
       - run: npm ci --ignore-scripts
       - run: npm run build
@@ -73,17 +76,12 @@ jobs:
       - uses: actions/checkout@v2
         with:
           submodules: recursive
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
       - uses: actions/setup-node@v1
         with:
           node-version: 16
       # Don't build during install phase since we're going to explicitly build
       - run: npm ci --ignore-scripts
-      - run: npm run build
-        env:
-          BUILD_CORE_RELEASE: true
+      - run: npm run build -- --ignore @temporalio/core-bridge
 
       # Do docs stuff (only on one host)
       - name: Build docs
@@ -114,9 +112,6 @@ jobs:
       - uses: actions/checkout@v2
         with:
           submodules: recursive
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
       - uses: actions/setup-node@v1
         with:
           node-version: 16
@@ -162,10 +157,13 @@ jobs:
       - name: Install gcc-aarch64-linux-gnu
         run: sudo apt update && sudo apt install -y gcc-aarch64-linux-gnu
         if: ${{ matrix.target == 'aarch64-unknown-linux-gnu' }}
+      - uses: Swatinem/rust-cache@v1
+        with:
+          working-directory: packages/core-bridge
       # Don't build during install phase since we're going to explicitly build
       - run: npm ci --ignore-scripts
       - name: Compile all non-rust code
-        run: npm run ci-build-no-rust
+        run: npm run build -- --ignore @temporalio/core-bridge
       - name: Cross compile rust code
         env:
           RUSTFLAGS: ${{ matrix.rustflags }}
@@ -265,8 +263,8 @@ jobs:
         env:
           # TODO: get a permanent cloud namespace for CI
           # These env vars are ignored by the local server example
-          TEMPORAL_ADDRESS: roey.temporal-dev.tmprl.cloud
-          TEMPORAL_NAMESPACE: roey.temporal-dev
+          TEMPORAL_ADDRESS: sdk-ci.a2dd6.tmprl.cloud
+          TEMPORAL_NAMESPACE: sdk-ci.a2dd6
           TEMPORAL_CLIENT_CERT_PATH: /tmp/temporal-certs/client.pem
           TEMPORAL_CLIENT_KEY_PATH: /tmp/temporal-certs/client.key
           TEMPORAL_TASK_QUEUE: ${{ format('{0}-{1}-{2}', matrix.os, matrix.node, matrix.target) }}
@@ -284,9 +282,7 @@ jobs:
       typescript-repo-ref: ${{github.event.pull_request.head.ref}}
 
   stress-tests:
-    # GH actions is a bit limited here and won't accept the current ref.
-    # When changing stress.yaml, make sure to update the branch name below.
-    uses: temporalio/sdk-typescript/.github/workflows/stress.yml@main
+    uses: ./.github/workflows/stress.yml
     with:
       test-type: ci-stress
       test-timeout-minutes: 20
