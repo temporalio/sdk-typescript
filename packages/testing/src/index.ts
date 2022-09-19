@@ -11,8 +11,10 @@
 import * as activity from '@temporalio/activity';
 import {
   AsyncCompletionClient,
-  WorkflowClient as BaseWorkflowClient,
-  WorkflowClientOptions as BaseWorkflowClientOptions,
+  Client,
+  ClientOptions,
+  WorkflowClient,
+  WorkflowClientOptions,
   WorkflowResultOptions,
 } from '@temporalio/client';
 import { ActivityFunction, CancelledFailure, msToTs } from '@temporalio/common';
@@ -28,7 +30,12 @@ import ms from 'ms';
 export { TimeSkippingServerConfig, TemporaliteConfig, EphemeralServerExecutable } from '@temporalio/core-bridge';
 export { EphemeralServerConfig };
 
-export interface WorkflowClientOptions extends BaseWorkflowClientOptions {
+export interface TimeSkippingWorkflowClientOptions extends WorkflowClientOptions {
+  connection: Connection;
+  enableTimeSkipping: boolean;
+}
+
+export interface TestEnvClientOptions extends ClientOptions {
   connection: Connection;
   enableTimeSkipping: boolean;
 }
@@ -38,11 +45,11 @@ export interface WorkflowClientOptions extends BaseWorkflowClientOptions {
  * When this client waits on a Workflow's result, it will enable time skipping
  * in the test server.
  */
-export class WorkflowClient extends BaseWorkflowClient {
+export class TimeSkippingWorkflowClient extends WorkflowClient {
   protected readonly testService: TestService;
   protected readonly enableTimeSkipping: boolean;
 
-  constructor(options: WorkflowClientOptions) {
+  constructor(options: TimeSkippingWorkflowClientOptions) {
     super(options);
     this.enableTimeSkipping = options.enableTimeSkipping;
     this.testService = options.connection.testService;
@@ -51,7 +58,7 @@ export class WorkflowClient extends BaseWorkflowClient {
   /**
    * Gets the result of a Workflow execution.
    *
-   * @see {@link BaseWorkflowClient.result}
+   * @see {@link WorkflowClient.result}
    */
   override async result<T>(
     workflowId: string,
@@ -72,6 +79,30 @@ export class WorkflowClient extends BaseWorkflowClient {
 }
 
 /**
+ * A client with the exact same API as the "normal" client with one exception:
+ * when `TestEnvClient.workflow` (an instance of {@link TimeSkippingWorkflowClient}) waits on a Workflow's result, it will enable time skipping
+ * in the Test Server.
+ */
+class TestEnvClient extends Client {
+  constructor(options: TestEnvClientOptions) {
+    super(options);
+
+    const { workflow, loadedDataConverter, interceptors, ...base } = this.options;
+
+    // Recreate the client (this isn't optimal but it's better than adding public methods just for testing).
+    // NOTE: we cast to "any" to work around `workflow` being a readonly attribute.
+    (this as any).workflow = new TimeSkippingWorkflowClient({
+      ...base,
+      ...workflow,
+      connection: options.connection,
+      dataConverter: loadedDataConverter,
+      interceptors: interceptors.workflow,
+      enableTimeSkipping: options.enableTimeSkipping,
+    });
+  }
+}
+
+/**
  * Convenience workflow interceptors
  *
  * Contains a single interceptor for transforming `AssertionError`s into non
@@ -79,12 +110,18 @@ export class WorkflowClient extends BaseWorkflowClient {
  */
 export const workflowInterceptorModules = [path.join(__dirname, 'assert-to-failure-interceptor')];
 
+export type ClientOptionsForTestEnv = Omit<ClientOptions, 'namespace' | 'connection'>;
+
 /**
  * Options for {@link TestWorkflowEnvironment.create}
  */
-type TestWorkflowEnvironmentOptions = Partial<EphemeralServerConfig>;
+type TestWorkflowEnvironmentOptions = Partial<EphemeralServerConfig> & {
+  clientOptions?: ClientOptionsForTestEnv;
+};
 
-type TestWorkflowEnvironmentOptionsWithDefaults = EphemeralServerConfig;
+type TestWorkflowEnvironmentOptionsWithDefaults = EphemeralServerConfig & {
+  clientOptions?: ClientOptionsForTestEnv;
+};
 
 function addDefaults(opts: TestWorkflowEnvironmentOptions): TestWorkflowEnvironmentOptionsWithDefaults {
   return {
@@ -105,17 +142,26 @@ export class TestWorkflowEnvironment {
    */
   public readonly namespace?: string;
   /**
-   * Get an extablished {@link Connection} to the test server
+   * Get an extablished {@link Connection} to the ephemeral server
    */
   public readonly connection: Connection;
 
   /**
+   * A {@link TestEnvClient} for interacting with the ephemeral server
+   */
+  public readonly client: Client;
+
+  /**
    * An {@link AsyncCompletionClient} for interacting with the test server
+   *
+   * @deprecated - use `client.activity` instead
    */
   public readonly asyncCompletionClient: AsyncCompletionClient;
 
   /**
-   * A {@link WorkflowClient} for interacting with the test server
+   * A {@link TimeSkippingWorkflowClient} for interacting with the test server
+   *
+   * @deprecated - use `client.workflow` instead
    */
   public readonly workflowClient: WorkflowClient;
 
@@ -135,12 +181,16 @@ export class TestWorkflowEnvironment {
     this.connection = connection;
     this.nativeConnection = nativeConnection;
     this.namespace = options.type === 'temporalite' ? options.namespace : undefined;
-    this.workflowClient = new WorkflowClient({
+    this.client = new TestEnvClient({
       connection,
       namespace: this.namespace,
       enableTimeSkipping: options.type === 'time-skipping',
+      ...options.clientOptions,
     });
-    this.asyncCompletionClient = new AsyncCompletionClient({ connection, namespace: this.namespace });
+    // eslint-disable-next-line deprecation/deprecation
+    this.asyncCompletionClient = this.client.activity;
+    // eslint-disable-next-line deprecation/deprecation
+    this.workflowClient = this.client.workflow;
   }
 
   /**
