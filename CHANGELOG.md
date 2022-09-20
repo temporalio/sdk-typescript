@@ -14,10 +14,10 @@ Breaking changes marked with a :boom:
   have been. If you're currently calling: 
   
   ```ts
-  await workflowHandle.describe()).historyLength.toNumber()
+  (await workflowHandle.describe()).historyLength.toNumber()
   ```
 
-  Remove the `.toNumber()` call.
+  then remove the `.toNumber()` call.
 
   This PR also included:
 
