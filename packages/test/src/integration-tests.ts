@@ -668,7 +668,6 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
     const { BinaryChecksums, ...rest } = searchAttributes;
     t.deepEqual(rest, {
       CustomBoolField: [true],
-      CustomIntField: [], // clear
       CustomKeywordField: ['durable code'],
       CustomTextField: ['is useful'],
       CustomDatetimeField: [date],

@@ -877,10 +877,14 @@ export class WorkflowClient {
           executionTime: optionalTsToDate(raw.workflowExecutionInfo!.executionTime),
           closeTime: optionalTsToDate(raw.workflowExecutionInfo!.closeTime),
           memo: await decodeMapFromPayloads(this.client.dataConverter, raw.workflowExecutionInfo!.memo?.fields),
-          searchAttributes: mapFromPayloads(
-            searchAttributePayloadConverter,
-            raw.workflowExecutionInfo!.searchAttributes?.indexedFields ?? {}
-          ) as SearchAttributes,
+          searchAttributes: Object.fromEntries(
+            Object.entries(
+              mapFromPayloads(
+                searchAttributePayloadConverter,
+                raw.workflowExecutionInfo!.searchAttributes?.indexedFields ?? {}
+              ) as SearchAttributes
+            ).filter(([_, v]) => v && v.length > 0) // Filter out empty arrays returned by pre 1.18 servers
+          ),
           parentExecution: raw.workflowExecutionInfo?.parentExecution
             ? {
                 workflowId: raw.workflowExecutionInfo.parentExecution.workflowId!,
