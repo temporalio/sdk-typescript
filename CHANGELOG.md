@@ -11,10 +11,10 @@ Breaking changes marked with a :boom:
 - :boom: Various bug fixes ([#873](https://github.com/temporalio/sdk-typescript/pull/873))
 
   BREAKING CHANGE: Makes `WorkflowExecutionDescription.historyLength` a number. This was a `Long` before, but shouldn't
-  have been. If you're currently calling: 
-  
+  have been. If you're currently calling:
+
   ```ts
-  (await workflowHandle.describe()).historyLength.toNumber()
+  (await workflowHandle.describe()).historyLength.toNumber();
   ```
 
   then remove the `.toNumber()` call.
@@ -29,11 +29,11 @@ Breaking changes marked with a :boom:
   BREAKING CHANGE: This fixes a bug where values (memo, search attributes, and retry policy) were not being passed on to
   the next Run during Continue-As-New. Now they are, unless you specify different values when calling
   [`continueAsNew`](https://typescript.temporal.io/api/namespaces/workflow/#continueasnew)
-  ([temporalio/sdk-core#376](https://github.com/temporalio/sdk-core/pull/376)). *[We believe this is unlikely to break
-  users code—the code would have to be depending on the absence of these values in Continued-As-New Runs.]*
-  
+  ([temporalio/sdk-core#376](https://github.com/temporalio/sdk-core/pull/376)). _[We believe this is unlikely to break
+  users code—the code would have to be depending on the absence of these values in Continued-As-New Runs.]_
+
   This update also have various fixes and features:
-  
+
   - Don't dispatch eager activity if task queue is not the "current" ([temporalio/sdk-core#397](https://github.com/temporalio/sdk-core/pull/397))
   - Fix cancelling of started-but-lang-doesn't-know workflows ([temporalio/sdk-core#379](https://github.com/temporalio/sdk-core/pull/379))
   - Protect worker from more network errors ([temporalio/sdk-core#396](https://github.com/temporalio/sdk-core/pull/396))
@@ -63,13 +63,13 @@ Breaking changes marked with a :boom:
   - No longer accepting `runInNormalTime` when waiting for workflow result
   - `TestWorkflowEnvironmentOptions` is completely redone
 
-  *[Given that these were rarely used and the testing package isn't meant for production use, we don't think this change warrants a major version bump.]*
+  _[Given that these were rarely used and the testing package isn't meant for production use, we don't think this change warrants a major version bump.]_
 
   `TestWorkflowEnvironment.create` is deprecated in favor of:
 
   - [`TestWorkflowEnvironment.createTimeSkipping`](https://typescript.temporal.io/api/classes/testing.TestWorkflowEnvironment#createtimeskipping)
   - [`TestWorkflowEnvironment.createLocal`](https://typescript.temporal.io/api/classes/testing.TestWorkflowEnvironment#createlocal)
-  
+
   Added [`TestWorkflowEnvironment.currentTimeMs`](https://typescript.temporal.io/api/classes/testing.TestWorkflowEnvironment#currenttimems).
 
 - Various minor features ([#865](https://github.com/temporalio/sdk-typescript/pull/865))
@@ -86,13 +86,13 @@ Breaking changes marked with a :boom:
   We now recommend using this instead of our other clients:
 
   ```ts
-  import { Client } from '@temporalio/client'
+  import { Client } from '@temporalio/client';
 
-  const client = new Client(options)
+  const client = new Client(options);
 
-  await client.workflow.start()
-  await client.activity.heartbeat()
-  await client.activity.complete()
+  await client.workflow.start();
+  await client.activity.heartbeat();
+  await client.activity.complete();
   ```
 
   - `client.workflow` is a [`WorkflowClient`](https://typescript.temporal.io/api/classes/client.workflowclient/).
