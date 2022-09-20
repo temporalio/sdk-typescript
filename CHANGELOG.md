@@ -82,6 +82,23 @@ Breaking changes marked with a :boom:
   - Closes [#834](https://github.com/temporalio/sdk-typescript/issues/834)
   - Closes [#844](https://github.com/temporalio/sdk-typescript/issues/844)
 - [`client`] Add a high-level meta [`Client`](https://typescript.temporal.io/api/classes/client.Client) class ([#870](https://github.com/temporalio/sdk-typescript/pull/870))
+
+  We now recommend using this instead of our other clients:
+
+  ```ts
+  import { Client } from '@temporalio/client'
+
+  const client = new Client(options)
+
+  await client.workflow.start()
+  await client.activity.heartbeat()
+  await client.activity.complete()
+  ```
+
+  - `client.workflow` is a [`WorkflowService`](https://typescript.temporal.io/api/classes/client.workflowclient/)
+  - `client.activity` is an [`AsyncCompletionClient`](https://typescript.temporal.io/api/classes/client.asynccompletionclient/)
+  - We will be adding `client.schedule.*` (see the [`ScheduleClient` proposal](https://github.com/temporalio/proposals/pull/62)).
+
 - Add [`ActivityOptions.allowEagerDispatch`](https://typescript.temporal.io/api/interfaces/common.activityoptions/#alloweagerdispatch) (default true) ([#873](https://github.com/temporalio/sdk-typescript/pull/873))
 - [`testing`] Use `temporal.download` for downloading test server ([#864](https://github.com/temporalio/sdk-typescript/pull/864))
 - Add Webpack rule to auto instrument Workflows for code coverage, add `augmentWorkerOptions()` ([#858](https://github.com/temporalio/sdk-typescript/pull/858), thanks to [`@vkarpov15`](https://github.com/vkarpov15) 🙏)
