@@ -86,7 +86,7 @@ Breaking changes marked with a :boom:
 
 ### Miscellaneous Tasks
 
-- In-process verdaccio server ([#861](https://github.com/temporalio/sdk-typescript/pull/861), thanks to [`@mjameswh`](https://github.com/mjameswh) 🙏))
+- In-process verdaccio server ([#861](https://github.com/temporalio/sdk-typescript/pull/861), thanks to [`@mjameswh`](https://github.com/mjameswh) 🙏)
 
 ## [1.2.0] - 2022-09-01
 
