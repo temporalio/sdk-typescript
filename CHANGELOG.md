@@ -11,7 +11,15 @@ Breaking changes marked with a :boom:
 - :boom: Various bug fixes ([#873](https://github.com/temporalio/sdk-typescript/pull/873))
 
   BREAKING CHANGE: Makes `WorkflowExecutionDescription.historyLength` a number. This was a `Long` before, but shouldn't
-  have been.
+  have been. If you're currently calling: 
+  
+  ```ts
+  await workflowHandle.describe()).historyLength.toNumber()
+  ```
+
+  Remove the `.toNumber()` call.
+
+  This PR also included:
 
   - Make `protobufjs` a dev dependency of `@temporalio/client`
   - Use simple version of Core's `cancelChildWorkflowExecution` command
@@ -44,7 +52,7 @@ Breaking changes marked with a :boom:
   - Added test confirming act. w/o heartbeats times out ([temporalio/sdk-core#369](https://github.com/temporalio/sdk-core/pull/369))
   - Add Operator API machinery to client ([temporalio/sdk-core#366](https://github.com/temporalio/sdk-core/pull/366))
 
-- [`client`] Only require `signalArgs` when needed ([#847](https://github.com/temporalio/sdk-typescript/pull/847))
+- [`client`] Only require `signalArgs` in [`signalWithStart`](https://typescript.temporal.io/api/classes/client.workflowclient/#signalwithstart) when needed ([#847](https://github.com/temporalio/sdk-typescript/pull/847))
 
 ### Features
 
