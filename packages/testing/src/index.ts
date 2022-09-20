@@ -310,7 +310,7 @@ export class TestWorkflowEnvironment {
    *
    * This method is _likely_ to resolve in less than `durationMs` of "real time".
    *
-   * @param durationMs {@link https://www.npmjs.com/package/ms | ms} formatted string or number of milliseconds
+   * @param durationMs number of milliseconds or {@link https://www.npmjs.com/package/ms | ms-formatted string}
    *
    * @example
    *

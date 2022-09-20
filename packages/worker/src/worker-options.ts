@@ -123,7 +123,7 @@ export interface WorkerOptions {
   /**
    * Time to wait for pending tasks to drain after shutdown was requested.
    *
-   * @format {@link https://www.npmjs.com/package/ms | ms} formatted string or number of milliseconds
+   * @format number of milliseconds or {@link https://www.npmjs.com/package/ms | ms-formatted string}
    * @default 10s
    */
   shutdownGraceTime?: string | number;
@@ -185,7 +185,7 @@ export interface WorkerOptions {
   /**
    * How long a workflow task is allowed to sit on the sticky queue before it is timed out
    * and moved to the non-sticky queue where it may be picked up by any worker.
-   * @format {@link https://www.npmjs.com/package/ms | ms} formatted string
+   * @format number of milliseconds or {@link https://www.npmjs.com/package/ms | ms-formatted string}
    * @default 10s
    */
   stickyQueueScheduleToStartTimeout?: string;
@@ -208,7 +208,7 @@ export interface WorkerOptions {
 
   /**
    * Longest interval for throttling activity heartbeats
-   * @format {@link https://www.npmjs.com/package/ms | ms} formatted string
+   * @format number of milliseconds or {@link https://www.npmjs.com/package/ms | ms-formatted string}
    * @default 60 seconds
    */
   maxHeartbeatThrottleInterval?: number | string;
@@ -219,7 +219,7 @@ export interface WorkerOptions {
    * When the timeout *is* set in the `ActivityOptions`, throttling is set to
    * `heartbeat_timeout * 0.8`.
    *
-   * @format {@link https://www.npmjs.com/package/ms | ms} formatted string
+   * @format number of milliseconds or {@link https://www.npmjs.com/package/ms | ms-formatted string}
    * @default 30 seconds
    */
   defaultHeartbeatThrottleInterval?: number | string;
@@ -342,7 +342,7 @@ export type WorkerOptionsWithDefaults = WorkerOptions &
 
     /**
      * Time to wait for result when calling a Workflow isolate function.
-     * @format {@link https://www.npmjs.com/package/ms | ms} formatted string or number of milliseconds
+     * @format number of milliseconds or {@link https://www.npmjs.com/package/ms | ms-formatted string}
      *
      * This value is not exposed at the moment.
      *

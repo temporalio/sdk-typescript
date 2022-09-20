@@ -111,7 +111,7 @@ export interface WorkflowDurationOptions {
    * rely on run timeout for business level timeouts. It is preferred to use in workflow timers
    * for this purpose.
    *
-   * @format {@link https://www.npmjs.com/package/ms | ms} formatted string or number of milliseconds
+   * @format number of milliseconds or {@link https://www.npmjs.com/package/ms | ms-formatted string}
    */
   workflowRunTimeout?: string | number;
 
@@ -121,14 +121,14 @@ export interface WorkflowDurationOptions {
    * automatically terminated by Temporal service. Do not rely on execution timeout for business
    * level timeouts. It is preferred to use in workflow timers for this purpose.
    *
-   * @format {@link https://www.npmjs.com/package/ms | ms} formatted string or number of milliseconds
+   * @format number of milliseconds or {@link https://www.npmjs.com/package/ms | ms-formatted string}
    */
   workflowExecutionTimeout?: string | number;
 
   /**
    * Maximum execution time of a single workflow task. Default is 10 seconds.
    *
-   * @format {@link https://www.npmjs.com/package/ms | ms} formatted string or number of milliseconds
+   * @format number of milliseconds or {@link https://www.npmjs.com/package/ms | ms-formatted string}
    */
   workflowTaskTimeout?: string | number;
 }

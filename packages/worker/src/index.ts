@@ -21,6 +21,7 @@ export {
 export { ActivityInboundLogInterceptor, activityLogAttributes } from './activity-log-interceptor';
 export { NativeConnection as NativeConnection } from './connection';
 export { NativeConnectionOptions, RequiredNativeConnectionOptions, TLSConfig } from './connection-options';
+export { startDebugReplayer } from './debug-replayer';
 export * from './errors';
 export * from './interceptors';
 export * from './logger';
@@ -33,11 +34,10 @@ export {
   defaultSinks,
   ReplayWorkerOptions,
   WorkerOptions,
-  WorkflowBundleOption,
   WorkflowBundle,
+  WorkflowBundleOption,
   WorkflowBundlePath,
   WorkflowBundlePathWithSourceMap, // eslint-disable-line deprecation/deprecation
 } from './worker-options';
-export { WorkflowInboundLogInterceptor, workflowLogAttributes } from './workflow-log-interceptor';
+export { LoggerSinks, WorkflowInboundLogInterceptor, workflowLogAttributes } from './workflow-log-interceptor';
 export { BundleOptions, bundleWorkflowCode, WorkflowBundleWithSourceMap } from './workflow/bundler';
-export { startDebugReplayer } from './debug-replayer';

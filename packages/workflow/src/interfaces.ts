@@ -169,12 +169,12 @@ export interface ContinueAsNewOptions {
   taskQueue?: string;
   /**
    * Timeout for the entire Workflow run
-   * @format {@link https://www.npmjs.com/package/ms | ms} formatted string
+   * @format {@link https://www.npmjs.com/package/ms | ms-formatted string}
    */
   workflowRunTimeout?: string;
   /**
    * Timeout for a single Workflow task
-   * @format {@link https://www.npmjs.com/package/ms | ms} formatted string
+   * @format {@link https://www.npmjs.com/package/ms | ms-formatted string}
    */
   workflowTaskTimeout?: string;
   /**

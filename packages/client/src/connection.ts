@@ -63,7 +63,7 @@ export interface ConnectionOptions {
    * Used either when connecting eagerly with {@link Connection.connect} or
    * calling {@link Connection.ensureConnected}.
    *
-   * @format {@link https://www.npmjs.com/package/ms | ms} formatted string
+   * @format number of milliseconds or {@link https://www.npmjs.com/package/ms | ms-formatted string}
    * @default 10 seconds
    */
   connectTimeout?: number | string;

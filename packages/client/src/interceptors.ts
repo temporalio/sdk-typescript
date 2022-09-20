@@ -112,7 +112,7 @@ export interface WorkflowClientCallsInterceptor {
   describe?: (input: WorkflowDescribeInput, next: Next<this, 'describe'>) => Promise<DescribeWorkflowExecutionResponse>;
 }
 
-interface WorkflowClientCallsInterceptorFactoryInput {
+export interface WorkflowClientCallsInterceptorFactoryInput {
   workflowId: string;
   runId?: string;
 }

@@ -120,7 +120,17 @@ export interface WorkflowHandle<T extends Workflow = Workflow> extends BaseWorkf
   terminate(reason?: string): Promise<TerminateWorkflowExecutionResponse>;
 
   /**
-   * Cancel a running Workflow
+   * Cancel a running Workflow.
+   *
+   * When a Workflow is cancelled, the root scope throws {@link CancelledFailure} with `message: 'Workflow canceled'`.
+   * That means that all cancellable scopes will throw `CancelledFailure`.
+   *
+   * Cancellation may be propagated to Activities depending on {@link ActivityOptions#cancellationType}, after which
+   * Activity calls may throw an {@link ActivityFailure}, and `isCancellation(error)` will be true (see {@link isCancellation}).
+   *
+   * Cancellation may be propagated to Child Workflows depending on {@link ChildWorkflowOptions#cancellationType}, after
+   * which calls to {@link executeChild} and {@link ChildWorkflowHandle#result} will throw, and `isCancellation(error)`
+   * will be true (see {@link isCancellation}).
    */
   cancel(): Promise<RequestCancelWorkflowExecutionResponse>;
 

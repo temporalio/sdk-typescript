@@ -16,7 +16,7 @@ export interface RetryPolicy {
   /**
    * Interval of the first retry.
    * If coefficient is 1 then it is used for all retries
-   * @format {@link https://www.npmjs.com/package/ms | ms} formatted string or number of milliseconds
+   * @format number of milliseconds or {@link https://www.npmjs.com/package/ms | ms-formatted string}
    * @default 1 second
    */
   initialInterval?: string | number;
@@ -33,7 +33,7 @@ export interface RetryPolicy {
    * This value is the cap of the increase.
    *
    * @default 100x of {@link initialInterval}
-   * @format {@link https://www.npmjs.com/package/ms | ms} formatted string or number of milliseconds
+   * @format number of milliseconds or {@link https://www.npmjs.com/package/ms | ms-formatted string}
    */
   maximumInterval?: string | number;
 
