@@ -95,8 +95,8 @@ Breaking changes marked with a :boom:
   await client.activity.complete()
   ```
 
-  - `client.workflow` is a [`WorkflowService`](https://typescript.temporal.io/api/classes/client.workflowclient/)
-  - `client.activity` is an [`AsyncCompletionClient`](https://typescript.temporal.io/api/classes/client.asynccompletionclient/)
+  - `client.workflow` is a [`WorkflowClient`](https://typescript.temporal.io/api/classes/client.workflowclient/).
+  - `client.activity` is an [`AsyncCompletionClient`](https://typescript.temporal.io/api/classes/client.asynccompletionclient/).
   - We will be adding `client.schedule.*` (see the [`ScheduleClient` proposal](https://github.com/temporalio/proposals/pull/62)).
 
 - Add [`ActivityOptions.allowEagerDispatch`](https://typescript.temporal.io/api/interfaces/common.activityoptions/#alloweagerdispatch) (default true) ([#873](https://github.com/temporalio/sdk-typescript/pull/873))
