@@ -6,8 +6,8 @@
 
 ## Getting Started
 
-1. `npm install mocha nyc`
-2. Instantiate `WorkflowCoverage` from this package, and call `augmentWorkerOptions()` to configure Workflows to gather and export code coverage data:
+1. `npm install -D mocha nyc @temporalio/nyc-test-coverage`
+1. Instantiate `WorkflowCoverage` from this package, and call `augmentWorkerOptions()` to configure Workflows to gather and export code coverage data:
 
 ```ts
 import { WorkflowCoverage } from '@temporalio/nyc-test-coverage';
