@@ -123,12 +123,11 @@ pub async fn start_worker_loop(
                                     .with_context(otel_ctx)
                                     .await
                             },
-                            |cx, err| match err {
-                                CompleteWfError::TonicError(_) => {
-                                    TRANSPORT_ERROR.from_error(cx, err)
-                                }
-                                CompleteWfError::MalformedWorkflowCompletion { reason, .. } => {
-                                    Ok(JsError::type_error(cx, reason)?.upcast())
+                            |cx, err| -> JsResult<JsObject> {
+                                match err {
+                                    CompleteWfError::MalformedWorkflowCompletion {
+                                        reason, ..
+                                    } => Ok(JsError::type_error(cx, reason)?.upcast()),
                                 }
                             },
                         )
@@ -150,13 +149,12 @@ pub async fn start_worker_loop(
                                     .with_context(otel_ctx)
                                     .await
                             },
-                            |cx, err| match err {
-                                CompleteActivityError::MalformedActivityCompletion {
-                                    reason,
-                                    ..
-                                } => Ok(JsError::type_error(cx, reason)?.upcast()),
-                                CompleteActivityError::TonicError(_) => {
-                                    TRANSPORT_ERROR.from_error(cx, err)
+                            |cx, err| -> JsResult<JsObject> {
+                                match err {
+                                    CompleteActivityError::MalformedActivityCompletion {
+                                        reason,
+                                        ..
+                                    } => Ok(JsError::type_error(cx, reason)?.upcast()),
                                 }
                             },
                         )
@@ -199,10 +197,7 @@ async fn handle_poll_workflow_activation_request(
         Err(err) => {
             send_error(channel, callback, move |cx| match err {
                 PollWfError::ShutDown => SHUTDOWN_ERROR.from_error(cx, err),
-                PollWfError::TonicError(_)
-                | PollWfError::AutocompleteError(CompleteWfError::TonicError(_)) => {
-                    TRANSPORT_ERROR.from_error(cx, err)
-                }
+                PollWfError::TonicError(_) => TRANSPORT_ERROR.from_error(cx, err),
                 PollWfError::AutocompleteError(CompleteWfError::MalformedWorkflowCompletion {
                     reason,
                     ..

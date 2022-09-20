@@ -80,8 +80,6 @@ export function defaultClientOptions(): ClientOptionsWithDefaults {
 
 /**
  * High level SDK client.
- *
- *
  */
 export class Client {
   /**
@@ -126,7 +124,8 @@ export class Client {
   /**
    * Raw gRPC access to the Temporal service.
    *
-   * **NOTE**: The namespace provided in {@link options} is **not** automatically set on requests made to the service.
+   * **NOTE**: The namespace provided in {@link options} is **not** automatically set on requests made via this service
+   * object.
    */
   get workflowService(): WorkflowService {
     return this.connection.workflowService;

@@ -13,17 +13,24 @@ import {
   AsyncCompletionClient,
   Client,
   ClientOptions,
+  ConnectionLike,
   WorkflowClient,
   WorkflowClientOptions,
   WorkflowResultOptions,
 } from '@temporalio/client';
-import { ActivityFunction, CancelledFailure, msToTs } from '@temporalio/common';
+import { ActivityFunction, CancelledFailure, msToTs, tsToMs } from '@temporalio/common';
 import { NativeConnection, Runtime } from '@temporalio/worker';
-import { EphemeralServer, EphemeralServerConfig, getEphemeralServerTarget } from '@temporalio/core-bridge';
+import {
+  EphemeralServer,
+  EphemeralServerConfig,
+  getEphemeralServerTarget,
+  TemporaliteConfig,
+  TimeSkippingServerConfig,
+} from '@temporalio/core-bridge';
 import path from 'path';
 import { AbortController } from 'abort-controller';
 import events from 'events';
-import { Connection, TestService } from './test-service-client';
+import { Connection, TestService } from './connection';
 import { filterNullAndUndefined } from '@temporalio/internal-non-workflow-common';
 import ms from 'ms';
 
@@ -110,22 +117,43 @@ class TestEnvClient extends Client {
  */
 export const workflowInterceptorModules = [path.join(__dirname, 'assert-to-failure-interceptor')];
 
+/**
+ * Subset of the "normal" client options that are used to create a client for the test environment.
+ */
 export type ClientOptionsForTestEnv = Omit<ClientOptions, 'namespace' | 'connection'>;
 
 /**
  * Options for {@link TestWorkflowEnvironment.create}
  */
-type TestWorkflowEnvironmentOptions = Partial<EphemeralServerConfig> & {
-  clientOptions?: ClientOptionsForTestEnv;
+type TestWorkflowEnvironmentOptions = {
+  server?: EphemeralServerConfig;
+  client?: ClientOptionsForTestEnv;
 };
 
-type TestWorkflowEnvironmentOptionsWithDefaults = EphemeralServerConfig & {
-  clientOptions?: ClientOptionsForTestEnv;
+/**
+ * Options for {@link TestWorkflowEnvironment.createTimeSkipping}
+ */
+export type TimeSkippingTestWorkflowEnvironmentOptions = {
+  server?: Omit<TimeSkippingServerConfig, 'type'>;
+  client?: ClientOptionsForTestEnv;
 };
+
+/**
+ * Options for {@link TestWorkflowEnvironment.createLocal}
+ */
+export type LocalTestWorkflowEnvironmentOptions = {
+  server?: Omit<TemporaliteConfig, 'type'>;
+  client?: ClientOptionsForTestEnv;
+};
+
+export type TestWorkflowEnvironmentOptionsWithDefaults = Required<TestWorkflowEnvironmentOptions>;
 
 function addDefaults(opts: TestWorkflowEnvironmentOptions): TestWorkflowEnvironmentOptionsWithDefaults {
   return {
-    type: 'time-skipping',
+    server: {
+      type: 'time-skipping',
+    },
+    client: {},
     ...opts,
   };
 }
@@ -142,9 +170,9 @@ export class TestWorkflowEnvironment {
    */
   public readonly namespace?: string;
   /**
-   * Get an extablished {@link Connection} to the ephemeral server
+   * Get an established {@link Connection} to the ephemeral server
    */
-  public readonly connection: Connection;
+  public readonly connection: ConnectionLike;
 
   /**
    * A {@link TestEnvClient} for interacting with the ephemeral server
@@ -174,18 +202,19 @@ export class TestWorkflowEnvironment {
 
   protected constructor(
     public readonly options: TestWorkflowEnvironmentOptionsWithDefaults,
+    public readonly supportsTimeSkipping: boolean,
     protected readonly server: EphemeralServer,
     connection: Connection,
     nativeConnection: NativeConnection
   ) {
     this.connection = connection;
     this.nativeConnection = nativeConnection;
-    this.namespace = options.type === 'temporalite' ? options.namespace : undefined;
+    this.namespace = options.server.type === 'temporalite' ? options.server.namespace : undefined;
     this.client = new TestEnvClient({
       connection,
       namespace: this.namespace,
-      enableTimeSkipping: options.type === 'time-skipping',
-      ...options.clientOptions,
+      enableTimeSkipping: options.server.type === 'time-skipping',
+      ...options.client,
     });
     // eslint-disable-next-line deprecation/deprecation
     this.asyncCompletionClient = this.client.activity;
@@ -194,17 +223,69 @@ export class TestWorkflowEnvironment {
   }
 
   /**
+   * Start a time skipping workflow environment.
+   *
+   * By default, this environment will automatically skip to the next events in time when a workflow handle's `result`
+   * is awaited on (which includes {@link WorkflowClient.execute}). Before the result is awaited on, time can be
+   * manually skipped forward using {@link sleep}. The currently known time can be obtained via {@link currentTimeMs}.
+   *
+   * Internally, this environment lazily downloads a test-server binary for the current OS/arch from the [Java SDK
+   * releases](https://github.com/temporalio/sdk-java/releases) into the temp directory if it is not already there.
+   * Then the executable is started and will be killed when {@link teardown} is called.
+   *
+   * Users can reuse this environment for testing multiple independent workflows, but not concurrently. Time skipping,
+   * which is automatically done when awaiting a workflow result and manually done on sleep, is global to the
+   * environment, not to the workflow under test.
+   *
+   * We highly recommend, running tests serially when using a single environment or creating a separate environment per
+   * test.
+   *
+   * In the future, the test server implementation may be changed to another implementation.
+   */
+  static async createTimeSkipping(opts?: TimeSkippingTestWorkflowEnvironmentOptions): Promise<TestWorkflowEnvironment> {
+    // eslint-disable-next-line deprecation/deprecation
+    return await this.create({ server: { type: 'time-skipping', ...opts?.server }, client: opts?.client });
+  }
+
+  /**
+   * Start a full Temporal server locally, downloading if necessary.
+   *
+   * This environment is good for testing full server capabilities, but does not support time skipping like
+   * {@link createTimeSkipping} does. {@link supportsTimeSkipping} will always return `false` for this environment.
+   * {@link sleep} will sleep the actual amount of time and {@link currentTimeMs} will return the current time.
+   *
+   * Internally, this uses [Temporalite](https://github.com/temporalio/temporalite). Which is a self-contained binary
+   * for Temporal using Sqlite persistence. This will download Temporalite to a temporary directory by default if it
+   * has not already been downloaded before and {@link LocalTestWorkflowEnvironmentOptions.server.executable.type} is
+   * `'cached-download'`.
+   *
+   * In the future, the Temporalite implementation may be changed to another implementation.
+   */
+  static async createLocal(opts?: LocalTestWorkflowEnvironmentOptions): Promise<TestWorkflowEnvironment> {
+    // eslint-disable-next-line deprecation/deprecation
+    return await this.create({ server: { type: 'temporalite', ...opts?.server }, client: opts?.client });
+  }
+
+  /**
    * Create a new test environment
+   *
+   * @deprecated - use {@link createTimeSkipping} or {@link createLocal}
    */
   static async create(opts?: TestWorkflowEnvironmentOptions): Promise<TestWorkflowEnvironment> {
     const optsWithDefaults = addDefaults(filterNullAndUndefined(opts ?? {}));
-    const server = await Runtime.instance().createEphemeralServer(optsWithDefaults);
+    const server = await Runtime.instance().createEphemeralServer(optsWithDefaults.server);
     const address = getEphemeralServerTarget(server);
 
     const nativeConnection = await NativeConnection.connect({ address });
     const connection = await Connection.connect({ address });
 
-    return new this(optsWithDefaults, server, connection, nativeConnection);
+    return new this(
+      optsWithDefaults,
+      optsWithDefaults.server.type === 'time-skipping',
+      server,
+      connection,
+      nativeConnection
+    );
   }
 
   /**
@@ -213,18 +294,21 @@ export class TestWorkflowEnvironment {
   async teardown(): Promise<void> {
     await this.connection.close();
     await this.nativeConnection.close();
-    // TODO: the server should return exit code 0
     await Runtime.instance().shutdownEphemeralServer(this.server);
   }
 
   /**
-   * Wait for `durationMs` in "test server time".
+   * Wait for `durationMs` in "server time".
    *
-   * The test server toggles between skipped time and normal time depending on what it needs to execute.
-   *
-   * This method is likely to resolve in less than `durationMs` of "real time".
+   * This awaits using regular setTimeout in regular environments, or manually skips time in time-skipping environments.
    *
    * Useful for simulating events far into the future like completion of long running activities.
+   *
+   * **Time skippping**:
+   *
+   * The time skippping server toggles between skipped time and normal time depending on what it needs to execute.
+   *
+   * This method is _likely_ to resolve in less than `durationMs` of "real time".
    *
    * @param durationMs {@link https://www.npmjs.com/package/ms | ms} formatted string or number of milliseconds
    *
@@ -258,12 +342,27 @@ export class TestWorkflowEnvironment {
    * ```
    */
   sleep = async (durationMs: number | string): Promise<void> => {
-    if (this.options.type === 'time-skipping') {
-      await this.connection.testService.unlockTimeSkippingWithSleep({ duration: msToTs(durationMs) });
+    if (this.supportsTimeSkipping) {
+      await (this.connection as Connection).testService.unlockTimeSkippingWithSleep({ duration: msToTs(durationMs) });
     } else {
       await new Promise((resolve) => setTimeout(resolve, typeof durationMs === 'string' ? ms(durationMs) : durationMs));
     }
   };
+
+  /**
+   * Get the current time known to this environment.
+   *
+   * For non-time-skipping environments this is simply the system time. For time-skipping environments this is whatever
+   * time has been skipped to.
+   */
+  async currentTimeMs(): Promise<number> {
+    if (this.supportsTimeSkipping) {
+      const { time } = await (this.connection as Connection).testService.getCurrentTime({});
+      return tsToMs(time);
+    } else {
+      return Date.now();
+    }
+  }
 }
 
 /**

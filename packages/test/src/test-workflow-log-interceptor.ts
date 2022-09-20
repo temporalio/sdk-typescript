@@ -11,7 +11,7 @@ const test = anyTest as TestInterface<Context>;
 
 test.before(async (t) => {
   t.context = {
-    testEnv: await TestWorkflowEnvironment.create(),
+    testEnv: await TestWorkflowEnvironment.createTimeSkipping(),
   };
 });
 

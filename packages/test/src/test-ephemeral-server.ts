@@ -36,12 +36,12 @@ async function runSimpleWorkflow(t: ExecutionContext<Context>, testEnv: TestWork
 }
 
 test('TestEnvironment sets up test server and is able to run a single workflow', async (t) => {
-  const testEnv = await TestWorkflowEnvironment.create();
+  const testEnv = await TestWorkflowEnvironment.createTimeSkipping();
   await runSimpleWorkflow(t, testEnv);
 });
 
 test('TestEnvironment sets up temporalite and is able to run a single workflow', async (t) => {
-  const testEnv = await TestWorkflowEnvironment.create({ type: 'temporalite' });
+  const testEnv = await TestWorkflowEnvironment.createLocal();
   await runSimpleWorkflow(t, testEnv);
 });
 
