@@ -135,6 +135,11 @@ export interface WorkflowInfo {
  * Never rely on this information in Workflow logic as it will cause non-deterministic behavior.
  */
 export interface UnsafeWorkflowInfo {
+  /**
+   * Current system time in milliseconds
+   */
+  now: () => number;
+
   isReplaying: boolean;
 }
 

@@ -101,7 +101,7 @@ if (RUN_INTEGRATION_TESTS) {
       parent: undefined,
       searchAttributes: {},
       historyLength: 3,
-      unsafe: { isReplaying: false },
+      unsafe: { isReplaying: false, now: Date.now },
     };
 
     t.deepEqual(recordedCalls, [

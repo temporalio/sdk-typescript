@@ -708,7 +708,7 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
       workflowType: 'returnWorkflowInfo',
       workflowId,
       historyLength: 3,
-      unsafe: { isReplaying: false },
+      unsafe: { isReplaying: false, now: Date.now },
     });
   });
 

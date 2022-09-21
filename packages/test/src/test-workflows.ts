@@ -93,7 +93,7 @@ async function createWorkflow(
       taskQueue: 'test',
       searchAttributes: {},
       historyLength: 3,
-      unsafe: { isReplaying: false },
+      unsafe: { isReplaying: false, now: Date.now },
     },
     randomnessSeed: Long.fromInt(1337).toBytes(),
     now: startTime,
@@ -1829,4 +1829,12 @@ test('scopeCancelledWhileWaitingOnExternalWorkflowCancellation', async (t) => {
       ])
     );
   }
+});
+
+test('unsafeNow', async (t) => {
+  const { workflowType } = t.context;
+  const req = await activate(t, makeStartWorkflow(workflowType));
+  const result = req.successful!.commands![0].completeWorkflowExecution!.result!;
+  const endTimeMinusStartTime = defaultPayloadConverter.fromPayload(result);
+  t.true(endTimeMinusStartTime > 0);
 });
