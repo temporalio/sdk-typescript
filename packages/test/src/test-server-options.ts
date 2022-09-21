@@ -1,5 +1,5 @@
 import test from 'ava';
-import { normalizeTlsConfig } from '@temporalio/internal-non-workflow-common';
+import { normalizeTlsConfig } from '@temporalio/common/lib/internal-non-workflow';
 
 test('normalizeTlsConfig turns null to undefined', (t) => {
   t.is(normalizeTlsConfig(null), undefined);

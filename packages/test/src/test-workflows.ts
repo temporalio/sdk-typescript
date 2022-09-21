@@ -2,11 +2,11 @@ import {
   ApplicationFailure,
   defaultPayloadConverter,
   errorToFailure,
+  msToTs,
   Payload,
   RetryState,
   toPayloads,
 } from '@temporalio/common';
-import { msToTs } from '@temporalio/internal-workflow-common';
 import { coresdk } from '@temporalio/proto';
 import { WorkflowCodeBundler } from '@temporalio/worker/lib/workflow/bundler';
 import { VMWorkflow, VMWorkflowCreator } from '@temporalio/worker/lib/workflow/vm';

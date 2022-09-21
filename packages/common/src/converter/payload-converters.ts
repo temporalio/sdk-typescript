@@ -1,8 +1,9 @@
-import { PayloadConverterError, ValueError } from '@temporalio/internal-workflow-common';
+import { PayloadConverterError, ValueError } from '../errors';
+import { Payload } from '../interfaces';
 import { JsonPayloadConverter } from './json-payload-converter';
 import { PayloadConverter } from './payload-converter';
 import { SearchAttributePayloadConverter } from './search-attribute-payload-converter';
-import { encodingKeys, encodingTypes, METADATA_ENCODING_KEY, Payload, str } from './types';
+import { encodingKeys, encodingTypes, METADATA_ENCODING_KEY, str } from './types';
 
 export interface PayloadConverterWithEncoding {
   /**

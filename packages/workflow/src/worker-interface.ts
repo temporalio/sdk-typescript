@@ -3,8 +3,8 @@
  *
  * @module
  */
-import { errorToFailure as _errorToFailure, ProtoFailure } from '@temporalio/common';
-import { composeInterceptors, IllegalStateError, msToTs, tsToMs } from '@temporalio/internal-workflow-common';
+import { errorToFailure as _errorToFailure, IllegalStateError, msToTs, ProtoFailure, tsToMs } from '@temporalio/common';
+import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import type { coresdk } from '@temporalio/proto';
 import { alea } from './alea';
 import { storage } from './cancellation-scope';

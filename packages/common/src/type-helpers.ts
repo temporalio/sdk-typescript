@@ -31,3 +31,34 @@ export function hasOwnProperties<X extends Record<string, unknown>, Y extends Pr
 ): record is X & Record<Y, unknown> {
   return props.every((prop) => prop in record);
 }
+
+/**
+ * Get `error.message` (or `undefined` if not present)
+ */
+export function errorMessage(error: unknown): string | undefined {
+  if (typeof error === 'string') {
+    return error;
+  }
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return undefined;
+}
+
+interface ErrorWithCode {
+  code: string;
+}
+/**
+ * Get `error.code` (or `undefined` if not present)
+ */
+export function errorCode(error: unknown): string | undefined {
+  if (
+    typeof error === 'object' &&
+    (error as ErrorWithCode).code !== undefined &&
+    typeof (error as ErrorWithCode).code === 'string'
+  ) {
+    return (error as ErrorWithCode).code;
+  }
+
+  return undefined;
+}

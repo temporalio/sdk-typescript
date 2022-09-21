@@ -1,5 +1,6 @@
 import { RetryPolicy, TemporalFailure } from '@temporalio/common';
-import { checkExtends, CommonWorkflowOptions, SearchAttributes } from '@temporalio/internal-workflow-common';
+import { CommonWorkflowOptions, SearchAttributes } from '@temporalio/common';
+import { checkExtends } from '@temporalio/common/lib/type-helpers';
 import type { coresdk } from '@temporalio/proto';
 
 /**

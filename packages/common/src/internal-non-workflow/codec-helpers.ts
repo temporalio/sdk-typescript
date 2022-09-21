@@ -1,16 +1,9 @@
-import {
-  arrayFromPayloads,
-  errorToFailure,
-  failureToError,
-  fromPayloadsAtIndex,
-  LoadedDataConverter,
-  Payload,
-  PayloadCodec,
-  PayloadConverterError,
-  ProtoFailure,
-  TemporalFailure,
-  toPayloads,
-} from '@temporalio/common';
+import { Payload } from '../interfaces';
+import { arrayFromPayloads, fromPayloadsAtIndex, toPayloads } from '../converter/payload-converter';
+import { PayloadConverterError } from '../errors';
+import { PayloadCodec } from '../converter/payload-codec';
+import { errorToFailure, failureToError, ProtoFailure, TemporalFailure } from '../failure';
+import { LoadedDataConverter } from '../converter/data-converter';
 import { DecodedPayload, DecodedProtoFailure, EncodedPayload, EncodedProtoFailure } from './codec-types';
 
 /**

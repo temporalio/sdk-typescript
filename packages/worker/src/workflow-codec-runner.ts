@@ -12,7 +12,7 @@ import {
   encodeOptionalSingle,
   noopDecodeMap,
   noopEncodeMap,
-} from '@temporalio/internal-non-workflow-common';
+} from '@temporalio/common/lib/internal-non-workflow';
 import { coresdk } from '@temporalio/proto';
 
 type EncodedCompletion = Encoded<coresdk.workflow_completion.IWorkflowActivationCompletion>;

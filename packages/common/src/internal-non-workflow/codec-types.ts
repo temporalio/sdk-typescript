@@ -1,4 +1,5 @@
-import type { Payload, ProtoFailure } from '@temporalio/common';
+import type { Payload } from '../interfaces';
+import type { ProtoFailure } from '../failure';
 
 export interface EncodedPayload extends Payload {
   encoded: true;

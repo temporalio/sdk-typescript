@@ -9,9 +9,7 @@
     { "path": "../client" },
     { "path": "../workflow" },
     { "path": "../activity" },
-    { "path": "../common" },
-    { "path": "../internal-workflow-common" },
-    { "path": "../internal-non-workflow-common" }
+    { "path": "../common" }
   ],
   "include": ["./src/**/*.ts"]
 }

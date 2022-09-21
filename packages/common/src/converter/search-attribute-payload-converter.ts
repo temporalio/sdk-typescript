@@ -1,7 +1,8 @@
-import { IllegalStateError, ValueError } from '@temporalio/internal-workflow-common';
+import { IllegalStateError, ValueError } from '../errors';
+import { Payload } from '../interfaces';
 import { PayloadConverter } from './payload-converter';
 import { JsonPayloadConverter } from './json-payload-converter';
-import { Payload, str } from './types';
+import { str } from './types';
 
 const jsonConverter = new JsonPayloadConverter();
 const validNonDateTypes = ['string', 'number', 'boolean'];

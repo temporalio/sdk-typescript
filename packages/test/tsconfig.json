@@ -8,8 +8,6 @@
   },
   "references": [
     { "path": "../proto" },
-    { "path": "../internal-workflow-common" },
-    { "path": "../internal-non-workflow-common" },
     { "path": "../activity" },
     { "path": "../client" },
     { "path": "../common" },

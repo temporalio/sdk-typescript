@@ -1,24 +1,26 @@
-import { mapToPayloads, searchAttributePayloadConverter, toPayloads } from '@temporalio/common';
 import {
   ActivityFunction,
   ActivityOptions,
   compileRetryPolicy,
-  composeInterceptors,
   IllegalStateError,
   LocalActivityOptions,
+  mapToPayloads,
   msOptionalToTs,
   msToNumber,
   msToTs,
   QueryDefinition,
+  searchAttributePayloadConverter,
   SearchAttributes,
   SignalDefinition,
+  toPayloads,
   tsToMs,
   UntypedActivities,
   WithWorkflowArgs,
   Workflow,
   WorkflowResultType,
   WorkflowReturnType,
-} from '@temporalio/internal-workflow-common';
+} from '@temporalio/common';
+import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import { CancellationScope, registerSleepImplementation } from './cancellation-scope';
 import {
   ActivityInput,

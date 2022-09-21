@@ -69,17 +69,18 @@
  * @module
  */
 
-import { msToNumber } from '@temporalio/internal-workflow-common';
 import { AbortSignal } from 'abort-controller';
 import { AsyncLocalStorage } from 'async_hooks';
-export { CancelledFailure, ApplicationFailure } from '@temporalio/common';
+import { msToNumber } from '@temporalio/common';
+
 export {
   ActivityFunction,
   ActivityInterface, // eslint-disable-line deprecation/deprecation
+  ApplicationFailure,
+  CancelledFailure,
   UntypedActivities,
-  errorMessage,
-  errorCode,
-} from '@temporalio/internal-workflow-common';
+  msToNumber,
+} from '@temporalio/common';
 
 /**
  * Throw this error from an Activity in order to make the Worker forget about this Activity.

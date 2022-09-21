@@ -18,8 +18,6 @@
     "@temporalio/activity": "file:../activity",
     "@temporalio/common": "file:../common",
     "@temporalio/core-bridge": "file:../core-bridge",
-    "@temporalio/internal-non-workflow-common": "file:../internal-non-workflow-common",
-    "@temporalio/internal-workflow-common": "file:../internal-workflow-common",
     "@temporalio/proto": "file:../proto",
     "@temporalio/workflow": "file:../workflow",
     "abort-controller": "^3.0.0",

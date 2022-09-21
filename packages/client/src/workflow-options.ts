@@ -1,10 +1,6 @@
-import {
-  CommonWorkflowOptions,
-  SignalDefinition,
-  WithCompiledWorkflowOptions,
-} from '@temporalio/internal-workflow-common';
+import { CommonWorkflowOptions, SignalDefinition, WithCompiledWorkflowOptions } from '@temporalio/common';
 
-export * from '@temporalio/internal-workflow-common/lib/workflow-options';
+export * from '@temporalio/common/lib/workflow-options';
 
 export interface CompiledWorkflowOptions extends WithCompiledWorkflowOptions<WorkflowOptions> {
   args: unknown[];
