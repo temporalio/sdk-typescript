@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-non-null-assertion */
 import {
   ApplicationFailure,
   defaultPayloadConverter,
@@ -57,7 +58,6 @@ test.after.always(async (t) => {
 
 test.beforeEach(async (t) => {
   const { workflowCreator } = t.context;
-  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
   const workflowType = t.title.match(/\S+$/)![0];
   const runId = t.title;
   const logs = new Array<unknown[]>();
@@ -338,9 +338,7 @@ function cleanWorkflowFailureStackTrace(
   req: coresdk.workflow_completion.WorkflowActivationCompletion,
   commandIndex = 0
 ) {
-  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
   req.successful!.commands![commandIndex].failWorkflowExecution!.failure!.stackTrace = cleanStackTrace(
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     req.successful!.commands![commandIndex].failWorkflowExecution!.failure!.stackTrace!
   );
   return req;
@@ -350,9 +348,7 @@ function cleanWorkflowQueryFailureStackTrace(
   req: coresdk.workflow_completion.WorkflowActivationCompletion,
   commandIndex = 0
 ) {
-  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
   req.successful!.commands![commandIndex].respondToQuery!.failed!.stackTrace = cleanStackTrace(
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     req.successful!.commands![commandIndex].respondToQuery!.failed!.stackTrace!
   );
   return req;
@@ -943,7 +939,6 @@ test('handleExternalWorkflowCancellationWhileActivityRunning', async (t) => {
   const url = 'https://temporal.io';
   const data = { content: 'new HTML content' };
   {
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     const completion = await activate(
       t,
       makeStartWorkflow(workflowType, toPayloads(defaultPayloadConverter, url, data) ?? [])
@@ -1835,6 +1830,6 @@ test('unsafeNow', async (t) => {
   const { workflowType } = t.context;
   const req = await activate(t, makeStartWorkflow(workflowType));
   const result = req.successful!.commands![0].completeWorkflowExecution!.result!;
-  const endTimeMinusStartTime = defaultPayloadConverter.fromPayload(result);
+  const endTimeMinusStartTime = defaultPayloadConverter.fromPayload(result) as number;
   t.true(endTimeMinusStartTime > 0);
 });
