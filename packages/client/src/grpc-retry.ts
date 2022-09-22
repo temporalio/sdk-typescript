@@ -43,6 +43,13 @@ export interface BackoffOptions {
    * The default is 1 second for RESOURCE_EXHAUSTED errors and 20 millis for other retryable errors.
    */
   initialIntervalMs(status: StatusObject): number;
+
+  /**
+   * Function that returns the "maximum" backoff interval based on the returned status.
+   *
+   * The default is 10 seconds regardless of the status.
+   */
+  maxIntervalMs(status: StatusObject): number;
 }
 
 /**
@@ -59,6 +66,9 @@ function withDefaultBackoffOptions({
     factor: factor ?? 2,
     maxJitter: maxJitter ?? 0.1,
     initialIntervalMs: initialIntervalMs ?? defaultInitialIntervalMs,
+    maxIntervalMs() {
+      return 10_000;
+    },
   };
 }
 
@@ -66,10 +76,10 @@ function withDefaultBackoffOptions({
  * Generates the default retry behavior based on given backoff options
  */
 export function defaultGrpcRetryOptions(options: Partial<BackoffOptions> = {}): GrpcRetryOptions {
-  const { maxAttempts, factor, maxJitter, initialIntervalMs } = withDefaultBackoffOptions(options);
+  const { maxAttempts, factor, maxJitter, initialIntervalMs, maxIntervalMs } = withDefaultBackoffOptions(options);
   return {
     delayFunction(attempt, status) {
-      return factor ** attempt * initialIntervalMs(status) * jitter(maxJitter);
+      return Math.min(maxIntervalMs(status), factor ** attempt * initialIntervalMs(status)) * jitter(maxJitter);
     },
     retryableDecider(attempt, status) {
       return attempt < maxAttempts && isRetryableError(status);
@@ -116,7 +126,7 @@ function defaultInitialIntervalMs({ code }: StatusObject) {
  *
  * @param retryOptions Options for the retry interceptor
  */
-export function makeGrpcRetryInterceptor({ retryableDecider, delayFunction }: GrpcRetryOptions): Interceptor {
+export function makeGrpcRetryInterceptor(retryOptions: GrpcRetryOptions): Interceptor {
   return (options, nextCall) => {
     let savedSendMessage: any;
     let savedReceiveMessage: any;
@@ -147,8 +157,8 @@ export function makeGrpcRetryInterceptor({ retryableDecider, delayFunction }: Gr
             };
 
             const onReceiveStatus = (status: StatusObject) => {
-              if (retryableDecider(attempt, status)) {
-                setTimeout(retry, delayFunction(attempt, status));
+              if (retryOptions.retryableDecider(attempt, status)) {
+                setTimeout(retry, retryOptions.delayFunction(attempt, status));
               } else {
                 savedMessageNext(savedReceiveMessage);
                 // TODO: For reasons that are completely unclear to me, if you pass a handcrafted
