@@ -1,13 +1,14 @@
 import { asyncLocalStorage, Context, Info } from '@temporalio/activity';
 import {
+  ActivityFunction,
   ApplicationFailure,
   CancelledFailure,
   ensureApplicationFailure,
   FAILURE_SOURCE,
   LoadedDataConverter,
 } from '@temporalio/common';
-import { encodeErrorToFailure, encodeToPayload } from '@temporalio/internal-non-workflow-common';
-import { ActivityFunction, composeInterceptors } from '@temporalio/internal-workflow-common';
+import { encodeErrorToFailure, encodeToPayload } from '@temporalio/common/lib/internal-non-workflow';
+import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import { coresdk } from '@temporalio/proto';
 import { AbortController } from 'abort-controller';
 import {

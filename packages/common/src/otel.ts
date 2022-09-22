@@ -1,5 +1,5 @@
 import * as otel from '@opentelemetry/api';
-import { Headers } from '@temporalio/internal-workflow-common';
+import { Headers } from './interceptors';
 import { defaultPayloadConverter } from './converter/payload-converters';
 
 /** Default trace header for opentelemetry interceptors */

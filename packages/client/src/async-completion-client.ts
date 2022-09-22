@@ -6,8 +6,8 @@ import {
   filterNullAndUndefined,
   isLoadedDataConverter,
   loadDataConverter,
-} from '@temporalio/internal-non-workflow-common';
-import { Replace } from '@temporalio/internal-workflow-common';
+} from '@temporalio/common/lib/internal-non-workflow';
+import { Replace } from '@temporalio/common/lib/type-helpers';
 import os from 'os';
 import { Connection } from './connection';
 import { isServerErrorResponse } from './errors';

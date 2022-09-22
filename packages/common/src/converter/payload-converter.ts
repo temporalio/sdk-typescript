@@ -1,4 +1,4 @@
-import { Payload } from './types';
+import { Payload } from '../interfaces';
 
 /**
  * Used by the framework to serialize/deserialize data like parameters and return values.

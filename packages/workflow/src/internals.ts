@@ -6,17 +6,15 @@ import {
   ensureTemporalFailure,
   errorToFailure,
   failureToError,
+  IllegalStateError,
   optionalFailureToOptionalError,
   TemporalFailure,
-} from '@temporalio/common';
-import {
-  checkExtends,
-  composeInterceptors,
-  IllegalStateError,
   Workflow,
   WorkflowQueryType,
   WorkflowSignalType,
-} from '@temporalio/internal-workflow-common';
+} from '@temporalio/common';
+import { composeInterceptors } from '@temporalio/common/lib/interceptors';
+import { checkExtends } from '@temporalio/common/lib/type-helpers';
 import type { coresdk } from '@temporalio/proto';
 import { alea, RNG } from './alea';
 import { ROOT_SCOPE } from './cancellation-scope';

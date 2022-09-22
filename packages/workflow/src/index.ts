@@ -47,30 +47,28 @@
  */
 
 export {
+  ActivityCancellationType,
   ActivityFailure,
+  ActivityFunction,
+  ActivityInterface, // eslint-disable-line deprecation/deprecation
+  ActivityOptions,
   ApplicationFailure,
   CancelledFailure,
   ChildWorkflowFailure,
   defaultPayloadConverter,
   PayloadConverter,
+  RetryPolicy,
   rootCause,
   ServerFailure,
   TemporalFailure,
   TerminatedFailure,
   TimeoutFailure,
-} from '@temporalio/common';
-export {
-  ActivityCancellationType,
-  ActivityFunction,
-  ActivityInterface, // eslint-disable-line deprecation/deprecation
-  ActivityOptions,
-  RetryPolicy,
   UntypedActivities,
-} from '@temporalio/internal-workflow-common';
-export * from '@temporalio/internal-workflow-common/lib/errors';
-export * from '@temporalio/internal-workflow-common/lib/interfaces';
-export * from '@temporalio/internal-workflow-common/lib/workflow-handle';
-export * from '@temporalio/internal-workflow-common/lib/workflow-options';
+} from '@temporalio/common';
+export * from '@temporalio/common/lib/errors';
+export * from '@temporalio/common/lib/interfaces';
+export * from '@temporalio/common/lib/workflow-handle';
+export * from '@temporalio/common/lib/workflow-options';
 export { AsyncLocalStorage, CancellationScope, CancellationScopeOptions, ROOT_SCOPE } from './cancellation-scope';
 export * from './errors';
 export * from './interceptors';

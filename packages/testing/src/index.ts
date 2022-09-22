@@ -31,7 +31,7 @@ import path from 'path';
 import { AbortController } from 'abort-controller';
 import events from 'events';
 import { Connection, TestService } from './connection';
-import { filterNullAndUndefined } from '@temporalio/internal-non-workflow-common';
+import { filterNullAndUndefined } from '@temporalio/common/lib/internal-non-workflow';
 import ms from 'ms';
 
 export { TimeSkippingServerConfig, TemporaliteConfig, EphemeralServerExecutable } from '@temporalio/core-bridge';

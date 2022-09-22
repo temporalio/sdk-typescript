@@ -1,4 +1,4 @@
-import type { SearchAttributes } from '@temporalio/internal-workflow-common';
+import type { SearchAttributes } from '@temporalio/common';
 import * as proto from '@temporalio/proto';
 import type * as grpc from '@grpc/grpc-js';
 

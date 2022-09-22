@@ -30,8 +30,6 @@
     "@temporalio/client": "file:../client",
     "@temporalio/common": "file:../common",
     "@temporalio/interceptors-opentelemetry": "file:../interceptors-opentelemetry",
-    "@temporalio/internal-non-workflow-common": "file:../internal-non-workflow-common",
-    "@temporalio/internal-workflow-common": "file:../internal-workflow-common",
     "@temporalio/proto": "file:../proto",
     "@temporalio/testing": "file:../testing",
     "@temporalio/worker": "file:../worker",

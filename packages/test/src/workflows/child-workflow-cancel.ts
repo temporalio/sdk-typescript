@@ -3,7 +3,8 @@
  *
  * @module
  */
-import { CancelledFailure, ChildWorkflowFailure, errorMessage } from '@temporalio/common';
+import { CancelledFailure, ChildWorkflowFailure } from '@temporalio/common';
+import { errorMessage } from '@temporalio/common/lib/type-helpers';
 import { startChild, CancellationScope, uuid4, getExternalWorkflowHandle } from '@temporalio/workflow';
 import { signalTarget } from './signal-target';
 

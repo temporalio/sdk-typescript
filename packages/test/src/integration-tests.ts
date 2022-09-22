@@ -19,14 +19,12 @@ import {
   TerminatedFailure,
   TimeoutFailure,
   TimeoutType,
-  WorkflowExecution,
-} from '@temporalio/common';
-import { decode, decodeFromPayloadsAtIndex, loadDataConverter } from '@temporalio/internal-non-workflow-common';
-import {
   tsToMs,
+  WorkflowExecution,
   WorkflowExecutionAlreadyStartedError,
   WorkflowNotFoundError,
-} from '@temporalio/internal-workflow-common';
+} from '@temporalio/common';
+import { decode, decodeFromPayloadsAtIndex, loadDataConverter } from '@temporalio/common/lib/internal-non-workflow';
 import * as iface from '@temporalio/proto';
 import { DefaultLogger, Runtime, Worker, appendDefaultInterceptors } from '@temporalio/worker';
 import pkg from '@temporalio/worker/lib/pkg';

@@ -1,7 +1,5 @@
 import { TextDecoder, TextEncoder } from './encoding';
 
-export { Payload } from '@temporalio/internal-workflow-common';
-
 /**
  * Transform an *ascii* string into a Uint8Array
  */

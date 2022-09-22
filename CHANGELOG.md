@@ -255,7 +255,7 @@ Breaking changes marked with a :boom:
 - Simplify DocBreadcrumbs so we don't need the swizzle warning comment ([#715](https://github.com/temporalio/sdk-typescript/pull/715))
 - Add missing deps ([#733](https://github.com/temporalio/sdk-typescript/pull/733))
 
-  - `@opentelemetry/api` was missing from `@temporalio/internal-non-workflow-common`
+  - `@opentelemetry/api` was missing from `@temporalio/common/lib/internal-non-workflow`
 
 - Re-export from internal-workflow-common ([#736](https://github.com/temporalio/sdk-typescript/pull/736))
 - [`activity`] Set Info.isLocal correctly ([#714](https://github.com/temporalio/sdk-typescript/pull/714))
@@ -860,7 +860,7 @@ Breaking changes marked with a :boom:
 
 - :boom: Custom and protobuf data converters ([#477](https://github.com/temporalio/sdk-typescript/pull/477))
 
-  BREAKING CHANGE: [`DataConverter`](https://typescript.temporal.io/api/interfaces/worker.DataConverter) interface has changed, and some things that were exported from `common` no longer are. If it's no longer exported (see [list of exports](https://typescript.temporal.io/api/namespaces/common)), try importing from `@temporalio/activity|client|worker|workflow`. If you're unable to find it, open an issue for us to fix it, and in the meantime import from [`internal-workflow-common`](https://github.com/temporalio/sdk-typescript/tree/main/packages/internal-workflow-common) or [`internal-non-workflow-common`](https://github.com/temporalio/sdk-typescript/tree/main/packages/internal-non-workflow-common).
+  BREAKING CHANGE: [`DataConverter`](https://typescript.temporal.io/api/interfaces/worker.DataConverter) interface has changed, and some things that were exported from `common` no longer are. If it's no longer exported (see [list of exports](https://typescript.temporal.io/api/namespaces/common)), try importing from `@temporalio/activity|client|worker|workflow`. If you're unable to find it, open an issue for us to fix it, and in the meantime import from [`internal-workflow-common`](https://github.com/temporalio/sdk-typescript/tree/main/packages/common/lib/internal-workflow) or [`internal-non-workflow-common`](https://github.com/temporalio/sdk-typescript/tree/main/packages/common/lib/internal-non-workflow).
 
   - Adds custom data converter feature and changes the DataConverter API. Design doc: https://github.com/temporalio/sdk-typescript/tree/main/docs/data-converter.md#decision
 

@@ -1,6 +1,6 @@
 import { DataConverter, LoadedDataConverter } from '@temporalio/common';
-import { filterNullAndUndefined, loadDataConverter } from '@temporalio/internal-non-workflow-common';
-import { Replace } from '@temporalio/internal-workflow-common';
+import { filterNullAndUndefined, loadDataConverter } from '@temporalio/common/lib/internal-non-workflow';
+import { Replace } from '@temporalio/common/lib/type-helpers';
 import { temporal } from '@temporalio/proto';
 import os from 'os';
 import { AsyncCompletionClient } from './async-completion-client';

@@ -1,6 +1,6 @@
 import { DataConverter, LoadedDataConverter } from '@temporalio/common';
-import { loadDataConverter } from '@temporalio/internal-non-workflow-common';
-import { msToNumber } from '@temporalio/internal-workflow-common';
+import { loadDataConverter } from '@temporalio/common/lib/internal-non-workflow';
+import { msToNumber } from '@temporalio/common';
 import type { Configuration as WebpackConfiguration } from 'webpack';
 import { ActivityInboundLogInterceptor } from './activity-log-interceptor';
 import { NativeConnection } from './connection';

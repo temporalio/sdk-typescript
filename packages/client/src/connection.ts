@@ -1,5 +1,5 @@
 import * as grpc from '@grpc/grpc-js';
-import { filterNullAndUndefined, normalizeTlsConfig, TLSConfig } from '@temporalio/internal-non-workflow-common';
+import { filterNullAndUndefined, normalizeTlsConfig, TLSConfig } from '@temporalio/common/lib/internal-non-workflow';
 import { AsyncLocalStorage } from 'async_hooks';
 import type { RPCImpl } from 'protobufjs';
 import { isServerErrorResponse, ServiceError } from './errors';

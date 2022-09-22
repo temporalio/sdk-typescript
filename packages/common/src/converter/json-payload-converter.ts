@@ -1,6 +1,7 @@
-import { ValueError } from '@temporalio/internal-workflow-common';
+import { ValueError } from '../errors';
+import { Payload } from '../interfaces';
 import { PayloadConverterWithEncoding } from './payload-converters';
-import { encodingKeys, encodingTypes, METADATA_ENCODING_KEY, Payload, str, u8 } from './types';
+import { encodingKeys, encodingTypes, METADATA_ENCODING_KEY, str, u8 } from './types';
 
 /**
  * Converts between non-undefined values and serialized JSON Payload

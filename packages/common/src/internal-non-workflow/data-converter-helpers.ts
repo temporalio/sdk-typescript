@@ -1,5 +1,8 @@
-import { DataConverter, defaultPayloadConverter, LoadedDataConverter, PayloadConverter } from '@temporalio/common';
-import { errorCode, hasOwnProperty, isRecord, ValueError } from '@temporalio/internal-workflow-common';
+import { PayloadConverter } from '../converter/payload-converter';
+import { defaultPayloadConverter } from '../converter/payload-converters';
+import { DataConverter, LoadedDataConverter } from '../converter/data-converter';
+import { errorCode, hasOwnProperty, isRecord } from '../type-helpers';
+import { ValueError } from '../errors';
 
 const isValidPayloadConverter = (PayloadConverter: unknown): PayloadConverter is PayloadConverter =>
   typeof PayloadConverter === 'object' &&

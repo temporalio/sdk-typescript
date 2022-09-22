@@ -228,8 +228,8 @@ npm dist-tag rm @temporalio/testing next
 npm dist-tag rm @temporalio/common next
 npm dist-tag rm @temporalio/proto next
 npm dist-tag rm @temporalio/interceptors-opentelemetry next
-npm dist-tag rm @temporalio/internal-workflow-common next
-npm dist-tag rm @temporalio/internal-non-workflow-common next
+npm dist-tag rm @temporalio/common/lib/internal-workflow next
+npm dist-tag rm @temporalio/common/lib/internal-non-workflow next
 npm dist-tag rm @temporalio/create next
 npm dist-tag rm temporalio next
 ```

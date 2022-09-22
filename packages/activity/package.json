@@ -14,7 +14,6 @@
   "license": "MIT",
   "dependencies": {
     "@temporalio/common": "file:../common",
-    "@temporalio/internal-workflow-common": "file:../internal-workflow-common",
     "abort-controller": "^3.0.0"
   },
   "bugs": {

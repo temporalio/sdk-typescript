@@ -1,7 +1,7 @@
 import test from 'ava';
 import { ActivityInboundLogInterceptor, activityLogAttributes, DefaultLogger, LogEntry } from '@temporalio/worker';
 import { MockActivityEnvironment, defaultActivityInfo } from '@temporalio/testing';
-import { composeInterceptors } from '@temporalio/internal-workflow-common';
+import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import * as activity from '@temporalio/activity';
 import { withZeroesHTTPServer } from './zeroes-http-server';
 import { cancellableFetch } from './activities/cancellable-fetch';

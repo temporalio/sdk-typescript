@@ -9,8 +9,8 @@ import {
   Logger as TelemLogger,
   ForwardLogger,
 } from '@temporalio/core-bridge';
-import { filterNullAndUndefined, normalizeTlsConfig } from '@temporalio/internal-non-workflow-common';
-import { IllegalStateError } from '@temporalio/internal-workflow-common';
+import { filterNullAndUndefined, normalizeTlsConfig } from '@temporalio/common/lib/internal-non-workflow';
+import { IllegalStateError } from '@temporalio/common';
 import { temporal } from '@temporalio/proto';
 import Heap from 'heap-js';
 import { BehaviorSubject, lastValueFrom, of } from 'rxjs';

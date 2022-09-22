@@ -21,14 +21,12 @@ import {
   filterNullAndUndefined,
   isLoadedDataConverter,
   loadDataConverter,
-} from '@temporalio/internal-non-workflow-common';
+} from '@temporalio/common/lib/internal-non-workflow';
 import {
   BaseWorkflowHandle,
   compileRetryPolicy,
-  composeInterceptors,
   optionalTsToDate,
   QueryDefinition,
-  Replace,
   SearchAttributes,
   SignalDefinition,
   tsToDate,
@@ -36,7 +34,9 @@ import {
   Workflow,
   WorkflowNotFoundError,
   WorkflowResultType,
-} from '@temporalio/internal-workflow-common';
+} from '@temporalio/common';
+import { composeInterceptors } from '@temporalio/common/lib/interceptors';
+import { Replace } from '@temporalio/common/lib/type-helpers';
 import { temporal } from '@temporalio/proto';
 import os from 'os';
 import { v4 as uuid4 } from 'uuid';

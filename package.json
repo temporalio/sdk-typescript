@@ -40,8 +40,6 @@
     "@temporalio/common": "file:packages/common",
     "@temporalio/create": "file:packages/create-project",
     "@temporalio/interceptors-opentelemetry": "file:packages/interceptors-opentelemetry",
-    "@temporalio/internal-non-workflow-common": "file:packages/internal-non-workflow-common",
-    "@temporalio/internal-workflow-common": "file:packages/internal-workflow-common",
     "@temporalio/nyc-test-coverage": "file:packages/nyc-test-coverage",
     "@temporalio/proto": "file:packages/proto",
     "@temporalio/test": "file:packages/test",

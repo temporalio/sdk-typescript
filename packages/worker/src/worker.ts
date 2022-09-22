@@ -3,12 +3,16 @@ import { SpanContext } from '@opentelemetry/api';
 import { Info as ActivityInfo } from '@temporalio/activity';
 import {
   DataConverter,
+  decompileRetryPolicy,
   defaultPayloadConverter,
-  errorMessage,
   IllegalStateError,
   LoadedDataConverter,
   mapFromPayloads,
+  optionalTsToDate,
+  optionalTsToMs,
   Payload,
+  SearchAttributes,
+  tsToMs,
   searchAttributePayloadConverter,
 } from '@temporalio/common';
 import * as native from '@temporalio/core-bridge';
@@ -19,7 +23,7 @@ import {
   decodeOptionalFailureToOptionalError,
   encodeErrorToFailure,
   encodeToPayload,
-} from '@temporalio/internal-non-workflow-common';
+} from '@temporalio/common/lib/internal-non-workflow';
 import {
   extractSpanContextFromHeaders,
   linkSpans,
@@ -27,13 +31,7 @@ import {
   RUN_ID_ATTR_KEY,
   TASK_TOKEN_ATTR_KEY,
 } from '@temporalio/common/lib/otel';
-import {
-  decompileRetryPolicy,
-  optionalTsToDate,
-  optionalTsToMs,
-  SearchAttributes,
-  tsToMs,
-} from '@temporalio/internal-workflow-common';
+import { errorMessage } from '@temporalio/common/lib/type-helpers';
 import { coresdk, temporal } from '@temporalio/proto';
 import { DeterminismViolationError, SinkCall, WorkflowInfo } from '@temporalio/workflow';
 import crypto from 'crypto';

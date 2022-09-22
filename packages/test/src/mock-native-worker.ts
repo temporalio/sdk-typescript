@@ -1,7 +1,6 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
 import { SpanContext } from '@opentelemetry/api';
-import { defaultPayloadConverter, fromPayloadsAtIndex } from '@temporalio/common';
-import { msToTs } from '@temporalio/internal-workflow-common';
+import { defaultPayloadConverter, fromPayloadsAtIndex, msToTs } from '@temporalio/common';
 import { coresdk } from '@temporalio/proto';
 import { DefaultLogger } from '@temporalio/worker';
 import { byteArrayToBuffer } from '@temporalio/worker/lib/utils';
