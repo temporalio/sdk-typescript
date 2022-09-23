@@ -1,3 +1,4 @@
+import { DefaultFailureConverter, FailureConverter } from '../failure';
 import { PayloadCodec } from './payload-codec';
 import { PayloadConverter } from './payload-converter';
 import { defaultPayloadConverter } from './payload-converters';
@@ -29,10 +30,17 @@ import { defaultPayloadConverter } from './payload-converters';
 export interface DataConverter {
   /**
    * Path of a file that has a `payloadConverter` named export.
-   * `payloadConverter` should be an instance of a class that implements {@link PayloadConverter}.
+   * `payloadConverter` should be an object that implements {@link PayloadConverter}.
    * If no path is provided, {@link defaultPayloadConverter} is used.
    */
   payloadConverterPath?: string;
+
+  /**
+   * Path of a file that has a `failureConverter` named export.
+   * `failureConverter` should be an object that implements {@link FailureConverter}.
+   * If no path is provided, {@link defaultFailureConverter} is used.
+   */
+  failureConverterPath?: string;
 
   /**
    * An array of {@link PayloadCodec} instances.
@@ -49,10 +57,22 @@ export interface DataConverter {
  */
 export interface LoadedDataConverter {
   payloadConverter: PayloadConverter;
+  failureConverter: FailureConverter;
   payloadCodecs: PayloadCodec[];
 }
 
+/**
+ * The default {@link FailureConverter} used by the SDK.
+ *
+ * Error messages and stack traces are serizalized as plain text.
+ */
+export const defaultFailureConverter: FailureConverter = new DefaultFailureConverter();
+
+/**
+ * A "loaded" data converter that uses the default set of failure and payload converters.
+ */
 export const defaultDataConverter: LoadedDataConverter = {
   payloadConverter: defaultPayloadConverter,
+  failureConverter: defaultFailureConverter,
   payloadCodecs: [],
 };

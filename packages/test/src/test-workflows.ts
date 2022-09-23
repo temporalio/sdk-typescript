@@ -1,7 +1,7 @@
 import {
   ApplicationFailure,
   defaultPayloadConverter,
-  errorToFailure,
+  defaultFailureConverter,
   msToTs,
   Payload,
   RetryState,
@@ -1486,7 +1486,7 @@ test('resolve activity with failure - http', async (t) => {
       t,
       makeResolveActivity(1, {
         failed: {
-          failure: errorToFailure(failure, defaultPayloadConverter),
+          failure: defaultFailureConverter.errorToFailure(failure),
         },
       })
     );

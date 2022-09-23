@@ -48,6 +48,7 @@ export class WorkflowCodeBundler {
   public readonly workflowsPath: string;
   public readonly workflowInterceptorModules: string[];
   protected readonly payloadConverterPath?: string;
+  protected readonly failureConverterPath?: string;
   protected readonly ignoreModules: string[];
   protected readonly webpackConfigHook: (config: webpack.Configuration) => webpack.Configuration;
 
@@ -55,6 +56,7 @@ export class WorkflowCodeBundler {
     logger,
     workflowsPath,
     payloadConverterPath,
+    failureConverterPath,
     workflowInterceptorModules,
     ignoreModules,
     webpackConfigHook,
@@ -62,6 +64,7 @@ export class WorkflowCodeBundler {
     this.logger = logger ?? new DefaultLogger('INFO');
     this.workflowsPath = workflowsPath;
     this.payloadConverterPath = payloadConverterPath;
+    this.failureConverterPath = failureConverterPath;
     this.workflowInterceptorModules = workflowInterceptorModules ?? [];
     this.ignoreModules = ignoreModules ?? [];
     this.webpackConfigHook = webpackConfigHook ?? ((config) => config);
@@ -196,6 +199,7 @@ export { api };
         extensions: ['.ts', '.js'],
         alias: {
           __temporal_custom_payload_converter$: this.payloadConverterPath ?? false,
+          __temporal_custom_failure_converter$: this.failureConverterPath ?? false,
           ...Object.fromEntries([...this.ignoreModules, ...disallowedModules].map((m) => [m, false])),
         },
       },
@@ -315,9 +319,14 @@ export interface BundleOptions {
   logger?: Logger;
   /**
    * Path to a module with a `payloadConverter` named export.
-   * `payloadConverter` should be an instance of a class that extends {@link DataConverter}.
+   * `payloadConverter` should be an instance of a class that implements {@link PayloadConverter}.
    */
   payloadConverterPath?: string;
+  /**
+   * Path to a module with a `failureConverter` named export.
+   * `failureConverter` should be an instance of a class that implements {@link FailureConverter}.
+   */
+  failureConverterPath?: string;
   /**
    * List of modules to be excluded from the Workflows bundle.
    *

@@ -104,7 +104,6 @@ export class BinaryPayloadConverter implements PayloadConverterWithEncoding {
   public encodingType = encodingTypes.METADATA_ENCODING_RAW;
 
   public toPayload(value: unknown): Payload | undefined {
-    // TODO: support any DataView or ArrayBuffer?
     if (!(value instanceof Uint8Array)) {
       return undefined;
     }
@@ -118,7 +117,6 @@ export class BinaryPayloadConverter implements PayloadConverterWithEncoding {
   }
 
   public fromPayload<T>(content: Payload): T {
-    // TODO: support any DataView or ArrayBuffer?
     return content.data as any;
   }
 }

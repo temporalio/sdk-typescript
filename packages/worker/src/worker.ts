@@ -563,6 +563,7 @@ export class Worker {
         logger,
         workflowsPath: compiledOptions.workflowsPath,
         workflowInterceptorModules: compiledOptions.interceptors?.workflowModules,
+        failureConverterPath: compiledOptions.dataConverter?.failureConverterPath,
         payloadConverterPath: compiledOptions.dataConverter?.payloadConverterPath,
         ignoreModules: compiledOptions.bundlerOptions?.ignoreModules,
         webpackConfigHook: compiledOptions.bundlerOptions?.webpackConfigHook,
