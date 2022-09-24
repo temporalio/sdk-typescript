@@ -33,6 +33,7 @@ export {
   appendDefaultInterceptors,
   CompiledWorkerOptions,
   defaultSinks,
+  defaultWorflowInterceptorModules,
   ReplayWorkerOptions,
   WorkerOptions,
   WorkflowBundle,
