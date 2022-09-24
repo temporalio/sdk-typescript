@@ -111,7 +111,14 @@ export interface PrometheusMetricsExporter {
 /**
  * Metrics exporters supported by Core
  */
-export type MetricsExporter = PrometheusMetricsExporter | OtelCollectorExporter;
+export type MetricsExporter = {
+  /**
+   * Type of aggregation temporality for metric export.
+   *
+   * See the [OpenTelemetry specification](https://github.com/open-telemetry/opentelemetry-specification/blob/ce50e4634efcba8da445cc23523243cb893905cb/specification/metrics/datamodel.md#temporality) for more information.
+   */
+  temporality?: 'cumulative' | 'delta';
+} & (PrometheusMetricsExporter | OtelCollectorExporter);
 
 /**
  * Trace exporters supported by Core
