@@ -63,16 +63,6 @@ async function compileProtos(dtsOutputFile, ...args) {
   } finally {
     await rm(tempFile);
   }
-
-  // Fix issue where Long is not found in TS definitions (https://github.com/protobufjs/protobuf.js/issues/1533)
-  const pbtsOutput = readFileSync(dtsOutputFile, 'utf8');
-  writeFileSync(
-    dtsOutputFile,
-    dedent`
-  import Long from "long";
-  ${pbtsOutput}
-  `
-  );
 }
 
 async function main() {
