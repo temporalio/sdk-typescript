@@ -1,6 +1,9 @@
 import { InterceptingCall, Interceptor, ListenerBuilder, RequesterBuilder, StatusObject } from '@grpc/grpc-js';
 import * as grpc from '@grpc/grpc-js';
 
+/**
+ * @experimental
+ */
 export interface GrpcRetryOptions {
   /**
    * A function which accepts the current retry attempt (starts at 1) and returns the millisecond
@@ -16,6 +19,8 @@ export interface GrpcRetryOptions {
 
 /**
  * Options for the backoff formula: `factor ^ attempt * initialIntervalMs(status) * jitter(maxJitter)`
+ *
+ * @experimental
  */
 export interface BackoffOptions {
   /**
@@ -74,6 +79,8 @@ function withDefaultBackoffOptions({
 
 /**
  * Generates the default retry behavior based on given backoff options
+ *
+ * @experimental
  */
 export function defaultGrpcRetryOptions(options: Partial<BackoffOptions> = {}): GrpcRetryOptions {
   const { maxAttempts, factor, maxJitter, initialIntervalMs, maxIntervalMs } = withDefaultBackoffOptions(options);
@@ -125,6 +132,8 @@ function defaultInitialIntervalMs({ code }: StatusObject) {
  * Returns a GRPC interceptor that will perform automatic retries for some types of failed calls
  *
  * @param retryOptions Options for the retry interceptor
+ *
+ * @experimental
  */
 export function makeGrpcRetryInterceptor(retryOptions: GrpcRetryOptions): Interceptor {
   return (options, nextCall) => {
