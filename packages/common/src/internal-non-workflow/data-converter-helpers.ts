@@ -1,9 +1,9 @@
 import { PayloadConverter } from '../converter/payload-converter';
-import { defaultPayloadConverter } from '../converter/payload-converters';
 import { DataConverter, defaultFailureConverter, LoadedDataConverter } from '../converter/data-converter';
+import { FailureConverter } from '../converter/failure-converter';
+import { defaultPayloadConverter } from '../converter/payload-converter';
 import { errorCode, hasOwnProperty, isRecord } from '../type-helpers';
 import { ValueError } from '../errors';
-import { FailureConverter } from '../failure';
 
 const isValidPayloadConverter = (converter: unknown): converter is PayloadConverter =>
   typeof converter === 'object' &&
