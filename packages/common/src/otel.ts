@@ -1,6 +1,6 @@
 import * as otel from '@opentelemetry/api';
 import { Headers } from './interceptors';
-import { defaultPayloadConverter } from './converter/payload-converters';
+import { defaultPayloadConverter } from './converter/payload-converter';
 
 /** Default trace header for opentelemetry interceptors */
 export const TRACE_HEADER = '_tracer-data';

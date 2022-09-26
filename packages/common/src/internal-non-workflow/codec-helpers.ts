@@ -2,7 +2,7 @@ import { Payload } from '../interfaces';
 import { arrayFromPayloads, fromPayloadsAtIndex, toPayloads } from '../converter/payload-converter';
 import { PayloadConverterError } from '../errors';
 import { PayloadCodec } from '../converter/payload-codec';
-import { errorToFailure, failureToError, ProtoFailure, TemporalFailure } from '../failure';
+import { ProtoFailure, TemporalFailure } from '../failure';
 import { LoadedDataConverter } from '../converter/data-converter';
 import { DecodedPayload, DecodedProtoFailure, EncodedPayload, EncodedProtoFailure } from './codec-types';
 
@@ -110,8 +110,8 @@ export async function decodeOptionalFailureToOptionalError(
   converter: LoadedDataConverter,
   failure: ProtoFailure | undefined | null
 ): Promise<TemporalFailure | undefined> {
-  const { payloadConverter, payloadCodecs } = converter;
-  return failure ? failureToError(await decodeFailure(payloadCodecs, failure), payloadConverter) : undefined;
+  const { failureConverter, payloadCodecs } = converter;
+  return failure ? failureConverter.failureToError(await decodeFailure(payloadCodecs, failure)) : undefined;
 }
 
 export async function decodeOptionalMap(
@@ -199,8 +199,8 @@ export async function encodeMapToPayloads<K extends string>(
  * Run {@link errorToFailure} on `error`, and then {@link encodeFailure}.
  */
 export async function encodeErrorToFailure(dataConverter: LoadedDataConverter, error: unknown): Promise<ProtoFailure> {
-  const { payloadConverter, payloadCodecs } = dataConverter;
-  return await encodeFailure(payloadCodecs, errorToFailure(error, payloadConverter));
+  const { failureConverter, payloadCodecs } = dataConverter;
+  return await encodeFailure(payloadCodecs, failureConverter.errorToFailure(error));
 }
 
 /**

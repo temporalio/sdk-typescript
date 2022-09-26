@@ -11,6 +11,7 @@ import {
 } from '@temporalio/client';
 import {
   ChildWorkflowFailure,
+  defaultFailureConverter,
   defaultPayloadConverter,
   Payload,
   PayloadCodec,
@@ -60,7 +61,11 @@ const namespace = 'default';
 export function runIntegrationTests(codec?: PayloadCodec): void {
   const test = (name: string, fn: Implementation<Context>) => _test(codec ? 'With codec—' + name : name, fn);
   const dataConverter = { payloadCodecs: codec ? [codec] : [] };
-  const loadedDataConverter = { payloadConverter: defaultPayloadConverter, payloadCodecs: codec ? [codec] : [] };
+  const loadedDataConverter = {
+    payloadConverter: defaultPayloadConverter,
+    payloadCodecs: codec ? [codec] : [],
+    failureConverter: defaultFailureConverter,
+  };
   async function fromPayload(payload: Payload) {
     const [decodedPayload] = await decode(dataConverter.payloadCodecs, [payload]);
     return defaultPayloadConverter.fromPayload(decodedPayload);

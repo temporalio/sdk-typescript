@@ -3,7 +3,7 @@
  *
  * @module
  */
-import { errorToFailure as _errorToFailure, IllegalStateError, msToTs, ProtoFailure, tsToMs } from '@temporalio/common';
+import { IllegalStateError, msToTs, ProtoFailure, tsToMs } from '@temporalio/common';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import type { coresdk } from '@temporalio/proto';
 import { alea } from './alea';
@@ -142,13 +142,17 @@ export async function initRuntime({
     }
   }
 
-  // webpack doesn't know what to bundle given a dynamic import expression, so we can't do:
-  // state.payloadConverter = (await import(payloadConverterPath)).payloadConverter;
   // @ts-expect-error this is a webpack alias to payloadConverterPath
   const customPayloadConverter = (await import('__temporal_custom_payload_converter')).payloadConverter;
   // The `payloadConverter` export is validated in the Worker
   if (customPayloadConverter !== undefined) {
     state.payloadConverter = customPayloadConverter;
+  }
+  // @ts-expect-error this is a webpack alias to failureConverterPath
+  const customFailureConverter = (await import('__temporal_custom_failure_converter')).failureConverter;
+  // The `failureConverter` export is validated in the Worker
+  if (customFailureConverter !== undefined) {
+    state.failureConverter = customFailureConverter;
   }
 
   const { importWorkflows, importInterceptors } = state;
@@ -293,5 +297,5 @@ export async function dispose(): Promise<void> {
 }
 
 export function errorToFailure(err: unknown): ProtoFailure {
-  return _errorToFailure(err, state.payloadConverter);
+  return state.failureConverter.errorToFailure(err);
 }

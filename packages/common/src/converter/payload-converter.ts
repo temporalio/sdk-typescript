@@ -1,4 +1,6 @@
 import { Payload } from '../interfaces';
+import { IllegalStateError, PayloadConverterError, ValueError } from '../errors';
+import { encodingKeys, encodingTypes, METADATA_ENCODING_KEY, str, u8 } from './types';
 
 /**
  * Used by the framework to serialize/deserialize data like parameters and return values.
@@ -93,3 +95,245 @@ export function mapFromPayloads<K extends string>(
     })
   ) as Record<K, unknown>;
 }
+
+export interface PayloadConverterWithEncoding {
+  /**
+   * Converts a value to a {@link Payload}.
+   *
+   * @param value The value to convert. Example values include the Workflow args sent from the Client and the values returned by a Workflow or Activity.
+   * @returns The {@link Payload}, or `undefined` if unable to convert.
+   */
+  toPayload<T>(value: T): Payload | undefined;
+
+  /**
+   * Converts a {@link Payload} back to a value.
+   */
+  fromPayload<T>(payload: Payload): T;
+
+  readonly encodingType: string;
+}
+
+/**
+ * Tries to convert values to {@link Payload}s using the {@link PayloadConverterWithEncoding}s provided to the constructor, in the order provided.
+ *
+ * Converts Payloads to values based on the `Payload.metadata.encoding` field, which matches the {@link PayloadConverterWithEncoding.encodingType}
+ * of the converter that created the Payload.
+ */
+export class CompositePayloadConverter implements PayloadConverter {
+  readonly converters: PayloadConverterWithEncoding[];
+  readonly converterByEncoding: Map<string, PayloadConverterWithEncoding> = new Map();
+
+  constructor(...converters: PayloadConverterWithEncoding[]) {
+    if (converters.length === 0) {
+      throw new PayloadConverterError('Must provide at least one PayloadConverterWithEncoding');
+    }
+
+    this.converters = converters;
+    for (const converter of converters) {
+      this.converterByEncoding.set(converter.encodingType, converter);
+    }
+  }
+
+  /**
+   * Tries to run `.toPayload(value)` on each converter in the order provided at construction.
+   * Returns the first successful result, throws {@link ValueError} if there is no converter that can handle the value.
+   */
+  public toPayload<T>(value: T): Payload {
+    for (const converter of this.converters) {
+      const result = converter.toPayload(value);
+      if (result !== undefined) {
+        return result;
+      }
+    }
+
+    throw new ValueError(`Unable to convert ${value} to payload`);
+  }
+
+  /**
+   * Run {@link PayloadConverterWithEncoding.fromPayload} based on the {@link encodingTypes | encoding type} of the {@link Payload}.
+   */
+  public fromPayload<T>(payload: Payload): T {
+    if (payload.metadata === undefined || payload.metadata === null) {
+      throw new ValueError('Missing payload metadata');
+    }
+    const encoding = str(payload.metadata[METADATA_ENCODING_KEY]);
+    const converter = this.converterByEncoding.get(encoding);
+    if (converter === undefined) {
+      throw new ValueError(`Unknown encoding: ${encoding}`);
+    }
+    return converter.fromPayload(payload);
+  }
+}
+
+/**
+ * Converts between JS undefined and NULL Payload
+ */
+export class UndefinedPayloadConverter implements PayloadConverterWithEncoding {
+  public encodingType = encodingTypes.METADATA_ENCODING_NULL;
+
+  public toPayload(value: unknown): Payload | undefined {
+    if (value !== undefined) {
+      return undefined;
+    }
+
+    return {
+      metadata: {
+        [METADATA_ENCODING_KEY]: encodingKeys.METADATA_ENCODING_NULL,
+      },
+    };
+  }
+
+  public fromPayload<T>(_content: Payload): T {
+    return undefined as any; // Just return undefined
+  }
+}
+
+/**
+ * Converts between binary data types and RAW Payload
+ */
+export class BinaryPayloadConverter implements PayloadConverterWithEncoding {
+  public encodingType = encodingTypes.METADATA_ENCODING_RAW;
+
+  public toPayload(value: unknown): Payload | undefined {
+    if (!(value instanceof Uint8Array)) {
+      return undefined;
+    }
+
+    return {
+      metadata: {
+        [METADATA_ENCODING_KEY]: encodingKeys.METADATA_ENCODING_RAW,
+      },
+      data: value,
+    };
+  }
+
+  public fromPayload<T>(content: Payload): T {
+    return content.data as any;
+  }
+}
+
+/**
+ * Converts between non-undefined values and serialized JSON Payload
+ */
+export class JsonPayloadConverter implements PayloadConverterWithEncoding {
+  public encodingType = encodingTypes.METADATA_ENCODING_JSON;
+
+  public toPayload(value: unknown): Payload | undefined {
+    if (value === undefined) {
+      return undefined;
+    }
+
+    let json;
+    try {
+      json = JSON.stringify(value);
+    } catch (e) {
+      return undefined;
+    }
+
+    return {
+      metadata: {
+        [METADATA_ENCODING_KEY]: encodingKeys.METADATA_ENCODING_JSON,
+      },
+      data: u8(json),
+    };
+  }
+
+  public fromPayload<T>(content: Payload): T {
+    if (content.data === undefined || content.data === null) {
+      throw new ValueError('Got payload with no data');
+    }
+    return JSON.parse(str(content.data));
+  }
+}
+
+/**
+ * Converts Search Attribute values using JsonPayloadConverter
+ */
+export class SearchAttributePayloadConverter implements PayloadConverter {
+  jsonConverter = new JsonPayloadConverter();
+  validNonDateTypes = ['string', 'number', 'boolean'];
+
+  public toPayload(values: unknown): Payload {
+    if (!(values instanceof Array)) {
+      throw new ValueError(`SearchAttribute value must be an array`);
+    }
+
+    if (values.length > 0) {
+      const firstValue = values[0];
+      const firstType = typeof firstValue;
+      if (firstType === 'object') {
+        for (const idx in values) {
+          const value = values[idx];
+          if (!(value instanceof Date)) {
+            throw new ValueError(
+              `SearchAttribute values must arrays of strings, numbers, booleans, or Dates. The value ${value} at index ${idx} is of type ${typeof value}`
+            );
+          }
+        }
+      } else {
+        if (!this.validNonDateTypes.includes(firstType)) {
+          throw new ValueError(`SearchAttribute array values must be: string | number | boolean | Date`);
+        }
+
+        for (const idx in values) {
+          const value = values[idx];
+          if (typeof value !== firstType) {
+            throw new ValueError(
+              `All SearchAttribute array values must be of the same type. The first value ${firstValue} of type ${firstType} doesn't match value ${value} of type ${typeof value} at index ${idx}`
+            );
+          }
+        }
+      }
+    }
+
+    // JSON.stringify takes care of converting Dates to ISO strings
+    const ret = this.jsonConverter.toPayload(values);
+    if (ret === undefined) {
+      throw new IllegalStateError('Could not convert search attributes to payloads');
+    }
+    return ret;
+  }
+
+  /**
+   * Datetime Search Attribute values are converted to `Date`s
+   */
+  public fromPayload<T>(payload: Payload): T {
+    if (payload.metadata === undefined || payload.metadata === null) {
+      throw new ValueError('Missing payload metadata');
+    }
+
+    const value = this.jsonConverter.fromPayload(payload);
+    let arrayWrappedValue = value instanceof Array ? value : [value];
+
+    const searchAttributeType = str(payload.metadata.type);
+    if (searchAttributeType === 'Datetime') {
+      arrayWrappedValue = arrayWrappedValue.map((dateString) => new Date(dateString));
+    }
+    return arrayWrappedValue as unknown as T;
+  }
+}
+
+export const searchAttributePayloadConverter = new SearchAttributePayloadConverter();
+
+export class DefaultPayloadConverter extends CompositePayloadConverter {
+  // Match the order used in other SDKs, but exclude Protobuf converters so that the code, including
+  // `proto3-json-serializer`, doesn't take space in Workflow bundles that don't use Protobufs. To use Protobufs, use
+  // {@link DefaultPayloadConverterWithProtobufs}.
+  //
+  // Go SDK:
+  // https://github.com/temporalio/sdk-go/blob/5e5645f0c550dcf717c095ae32c76a7087d2e985/converter/default_data_converter.go#L28
+  constructor() {
+    super(new UndefinedPayloadConverter(), new BinaryPayloadConverter(), new JsonPayloadConverter());
+  }
+}
+
+/**
+ * The default {@link PayloadConverter} used by the SDK. Supports `Uint8Array` and JSON serializables (so if
+ * {@link https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/JSON/stringify#description | `JSON.stringify(yourArgOrRetval)`}
+ * works, the default payload converter will work).
+ *
+ * To also support Protobufs, create a custom payload converter with {@link DefaultPayloadConverter}:
+ *
+ * `const myConverter = new DefaultPayloadConverter({ protobufRoot })`
+ */
+export const defaultPayloadConverter = new DefaultPayloadConverter();

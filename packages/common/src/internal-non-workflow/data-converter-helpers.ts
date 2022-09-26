@@ -1,30 +1,37 @@
 import { PayloadConverter } from '../converter/payload-converter';
-import { defaultPayloadConverter } from '../converter/payload-converters';
-import { DataConverter, LoadedDataConverter } from '../converter/data-converter';
+import { DataConverter, defaultFailureConverter, LoadedDataConverter } from '../converter/data-converter';
+import { FailureConverter } from '../converter/failure-converter';
+import { defaultPayloadConverter } from '../converter/payload-converter';
 import { errorCode, hasOwnProperty, isRecord } from '../type-helpers';
 import { ValueError } from '../errors';
 
-const isValidPayloadConverter = (PayloadConverter: unknown): PayloadConverter is PayloadConverter =>
-  typeof PayloadConverter === 'object' &&
-  PayloadConverter !== null &&
-  ['toPayload', 'fromPayload'].every(
-    (method) => typeof (PayloadConverter as Record<string, unknown>)[method] === 'function'
+const isValidPayloadConverter = (converter: unknown): converter is PayloadConverter =>
+  typeof converter === 'object' &&
+  converter !== null &&
+  ['toPayload', 'fromPayload'].every((method) => typeof (converter as Record<string, unknown>)[method] === 'function');
+
+const isValidFailureConverter = (converter: unknown): converter is FailureConverter =>
+  typeof converter === 'object' &&
+  converter !== null &&
+  ['errorToFailure', 'failureToError'].every(
+    (method) => typeof (converter as Record<string, unknown>)[method] === 'function'
   );
 
-function requirePayloadConverter(path: string): PayloadConverter {
+function requireConverter<T>(path: string, type: string, validator: (converter: unknown) => converter is T): T {
   let module;
   try {
     module = require(path); // eslint-disable-line @typescript-eslint/no-var-requires
   } catch (error) {
     if (errorCode(error) === 'MODULE_NOT_FOUND') {
-      throw new ValueError(`Could not find a file at the specified payloadConverterPath: '${path}'.`);
+      throw new ValueError(`Could not find a file at the specified ${type}Path: '${path}'.`);
     }
     throw error;
   }
 
-  if (isRecord(module) && hasOwnProperty(module, 'payloadConverter')) {
-    if (isValidPayloadConverter(module.payloadConverter)) {
-      return module.payloadConverter;
+  if (isRecord(module) && hasOwnProperty(module, type)) {
+    const converter = module[type];
+    if (validator(converter)) {
+      return converter;
     } else {
       throw new ValueError(
         `payloadConverter export at ${path} must be an object with toPayload and fromPayload methods`
@@ -43,10 +50,23 @@ function requirePayloadConverter(path: string): PayloadConverter {
 export function loadDataConverter(dataConverter?: DataConverter): LoadedDataConverter {
   let payloadConverter: PayloadConverter = defaultPayloadConverter;
   if (dataConverter?.payloadConverterPath) {
-    payloadConverter = requirePayloadConverter(dataConverter.payloadConverterPath);
+    payloadConverter = requireConverter(
+      dataConverter.payloadConverterPath,
+      'payloadConverter',
+      isValidPayloadConverter
+    );
+  }
+  let failureConverter: FailureConverter = defaultFailureConverter;
+  if (dataConverter?.failureConverterPath) {
+    failureConverter = requireConverter(
+      dataConverter.failureConverterPath,
+      'failureConverter',
+      isValidFailureConverter
+    );
   }
   return {
     payloadConverter,
+    failureConverter,
     payloadCodecs: dataConverter?.payloadCodecs ?? [],
   };
 }

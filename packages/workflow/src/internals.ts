@@ -1,13 +1,10 @@
-import { PayloadConverter } from '@temporalio/common';
+import { defaultFailureConverter, FailureConverter, PayloadConverter } from '@temporalio/common';
 import type { RawSourceMap } from 'source-map';
 import {
   arrayFromPayloads,
   defaultPayloadConverter,
   ensureTemporalFailure,
-  errorToFailure,
-  failureToError,
   IllegalStateError,
-  optionalFailureToOptionalError,
   TemporalFailure,
   Workflow,
   WorkflowQueryType,
@@ -146,11 +143,11 @@ export class Activator implements ActivationHandler {
       resolve(result);
     } else if (activation.result.failed) {
       const { failure } = activation.result.failed;
-      const err = optionalFailureToOptionalError(failure, state.payloadConverter);
+      const err = failure ? state.failureConverter.failureToError(failure) : undefined;
       reject(err);
     } else if (activation.result.cancelled) {
       const { failure } = activation.result.cancelled;
-      const err = optionalFailureToOptionalError(failure, state.payloadConverter);
+      const err = failure ? state.failureConverter.failureToError(failure) : undefined;
       reject(err);
     } else if (activation.result.backoff) {
       reject(new LocalActivityDoBackoff(activation.result.backoff));
@@ -184,7 +181,7 @@ export class Activator implements ActivationHandler {
       if (!activation.cancelled.failure) {
         throw new TypeError('Got no failure in cancelled variant');
       }
-      reject(failureToError(activation.cancelled.failure, state.payloadConverter));
+      reject(state.failureConverter.failureToError(activation.cancelled.failure));
     } else {
       throw new TypeError('Got ResolveChildWorkflowExecutionStart with no status');
     }
@@ -204,13 +201,13 @@ export class Activator implements ActivationHandler {
       if (failure === undefined || failure === null) {
         throw new TypeError('Got failed result with no failure attribute');
       }
-      reject(failureToError(failure, state.payloadConverter));
+      reject(state.failureConverter.failureToError(failure));
     } else if (activation.result.cancelled) {
       const { failure } = activation.result.cancelled;
       if (failure === undefined || failure === null) {
         throw new TypeError('Got cancelled result with no failure attribute');
       }
-      reject(failureToError(failure, state.payloadConverter));
+      reject(state.failureConverter.failureToError(failure));
     }
   }
 
@@ -302,7 +299,7 @@ export class Activator implements ActivationHandler {
   public resolveSignalExternalWorkflow(activation: coresdk.workflow_activation.IResolveSignalExternalWorkflow): void {
     const { resolve, reject } = consumeCompletion('signalWorkflow', getSeq(activation));
     if (activation.failure) {
-      reject(failureToError(activation.failure, state.payloadConverter));
+      reject(state.failureConverter.failureToError(activation.failure));
     } else {
       resolve(undefined);
     }
@@ -313,7 +310,7 @@ export class Activator implements ActivationHandler {
   ): void {
     const { resolve, reject } = consumeCompletion('cancelWorkflow', getSeq(activation));
     if (activation.failure) {
-      reject(failureToError(activation.failure, state.payloadConverter));
+      reject(state.failureConverter.failureToError(activation.failure));
     } else {
       resolve(undefined);
     }
@@ -545,6 +542,7 @@ export class State {
   public importInterceptors?: InterceptorsImportFunc;
 
   public payloadConverter: PayloadConverter = defaultPayloadConverter;
+  public failureConverter: FailureConverter = defaultFailureConverter;
 
   /**
    * Patches we know the status of for this workflow, as in {@link patched}
@@ -611,7 +609,7 @@ export async function handleWorkflowFailure(error: unknown): Promise<void> {
     state.pushCommand(
       {
         failWorkflowExecution: {
-          failure: errorToFailure(error, state.payloadConverter),
+          failure: state.failureConverter.errorToFailure(error),
         },
       },
       true
@@ -627,7 +625,7 @@ function completeQuery(queryId: string, result: unknown) {
 
 async function failQuery(queryId: string, error: any) {
   state.pushCommand({
-    respondToQuery: { queryId, failed: errorToFailure(ensureTemporalFailure(error), state.payloadConverter) },
+    respondToQuery: { queryId, failed: state.failureConverter.errorToFailure(ensureTemporalFailure(error)) },
   });
 }
 
