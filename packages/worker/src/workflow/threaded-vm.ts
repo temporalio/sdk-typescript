@@ -180,6 +180,7 @@ export class VMWorkflowThreadProxy implements Workflow {
     workerThreadClient: WorkerThreadClient,
     options: WorkflowCreateOptions
   ): Promise<VMWorkflowThreadProxy> {
+    delete (options.info.unsafe as any).now;
     await workerThreadClient.send({ type: 'create-workflow', options });
     return new this(workerThreadClient, options.info.runId);
   }

@@ -130,7 +130,7 @@ export async function initRuntime({
   };
 
   state.info = info;
-  state.info.unsafe.now = OriginalDate.now;
+  // state.info.unsafe.now = OriginalDate.now;
   state.now = now;
   state.random = alea(randomnessSeed);
   state.showStackTraceSources = showStackTraceSources;

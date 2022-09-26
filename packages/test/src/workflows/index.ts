@@ -89,7 +89,6 @@ export * from './two-strings';
 // The reason it is redefined is for completeness of the snippet.
 export { isBlockedQuery, unblockOrCancel } from './unblock-or-cancel';
 export * from './unhandled-rejection';
-export * from './unsafe-now';
 export * from './upsert-and-read-search-attributes';
 export * from './wait-on-user';
 export * from './workflow-cancellation-scenarios';
