@@ -18,6 +18,7 @@ export {
   TelemetryOptions,
   TraceExporter,
 } from '@temporalio/core-bridge';
+export { LoggerSinks } from '@temporalio/workflow';
 export { ActivityInboundLogInterceptor, activityLogAttributes } from './activity-log-interceptor';
 export { NativeConnection as NativeConnection } from './connection';
 export { NativeConnectionOptions, RequiredNativeConnectionOptions, TLSConfig } from './connection-options';
@@ -39,5 +40,5 @@ export {
   WorkflowBundlePath,
   WorkflowBundlePathWithSourceMap, // eslint-disable-line deprecation/deprecation
 } from './worker-options';
-export { LoggerSinks, WorkflowInboundLogInterceptor, workflowLogAttributes } from './workflow-log-interceptor';
+export { WorkflowInboundLogInterceptor, workflowLogAttributes } from './workflow-log-interceptor';
 export { BundleOptions, bundleWorkflowCode, WorkflowBundleWithSourceMap } from './workflow/bundler';
