@@ -1,5 +1,4 @@
 import type { temporal } from '@temporalio/proto';
-import { PayloadConverter } from './converter/payload-converter';
 import { checkExtends, isRecord } from './type-helpers';
 
 export const FAILURE_SOURCE = 'TypeScriptSDK';

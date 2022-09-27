@@ -86,7 +86,7 @@ export {
   EnhancedStackTrace,
   SDKInfo,
 } from './interfaces';
-export { Sink, SinkCall, SinkFunction, Sinks } from './sinks';
+export { LoggerSinks, Sink, SinkCall, SinkFunction, Sinks } from './sinks';
 export { Trigger } from './trigger';
 export * from './workflow';
 export { ChildWorkflowHandle, ExternalWorkflowHandle } from './workflow-handle';
