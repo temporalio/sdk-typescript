@@ -14,6 +14,8 @@ Breaking changes marked with a :boom:
 
   Also adds [`BackoffOptions`](https://typescript.temporal.io/api/interfaces/client.backoffoptions/) and [`defaultGrpcRetryOptions`](https://typescript.temporal.io/api/namespaces/client/#defaultgrpcretryoptions).
 
+  NOTE: This feature is experimental and its API may change.
+
 - Delete search attributes with empty array values in describe() response ([#878](https://github.com/temporalio/sdk-typescript/pull/878))
 
   :warning: This fixes a bug where empty/deleted Custom Search Attributes were returned as `[]` from [`workflowHandle.describe()`](https://typescript.temporal.io/api/interfaces/client.workflowhandle/#describe). Such attribute properties will no longer be present in the [`WorkflowExecutionDescription.searchAttributes`](https://typescript.temporal.io/api/interfaces/client.WorkflowExecutionDescription#searchattributes) object. Note that this behavior is consistent with what you'll see if using a pre-1.4 version of the SDK with Server version 1.18.
@@ -23,6 +25,8 @@ Breaking changes marked with a :boom:
   Adds [`DataConverter.failureConverterPath`](https://typescript.temporal.io/api/interfaces/worker.dataconverter/#failureconverterpath) and [`FailureConverter`](https://typescript.temporal.io/api/interfaces/common.FailureConverter), which converts from proto Failure instances to JS Errors and back.
 
   We recommended going with the default (i.e. not using the `failureConverterPath` option) in order to maintain cross-language Failure serialization compatibility.
+
+  NOTE: This feature is experimental and its API may change.
 
 - [`workflow`] Add [`workflowInfo().unsafe.now()`](https://typescript.temporal.io/api/interfaces/workflow.UnsafeWorkflowInfo/#now) ([#882](https://github.com/temporalio/sdk-typescript/pull/882))
 
@@ -40,8 +44,8 @@ Breaking changes marked with a :boom:
   :warning: Any imports from `@temporalio/internal-*` need to be updated. As noted in their named and READMEs, they're not meant to be used to directly, so we don't imagine this is a common case. However, if you do find instances, they should be changed to importing from:
 
   ```
-  @temporalio/common/lib/internal-non-workflow
-  @temporalio/common/lib/internal-workflow
+  @temporalio/internal-non-workflow-common ➡️ @temporalio/common/lib/internal-non-workflow
+  @temporalio/internal-workflow-common ➡️ @temporalio/common
   ```
 
 - Export `LoggerSinks` from `@temporalio/workflow` ([#889](https://github.com/temporalio/sdk-typescript/pull/889))
