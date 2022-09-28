@@ -1,4 +1,5 @@
-import { DataConverter, LoadedDataConverter, msToNumber } from '@temporalio/common';
+import { DataConverter, LoadedDataConverter } from '@temporalio/common';
+import { msToNumber } from '@temporalio/common/lib/time';
 import { loadDataConverter } from '@temporalio/common/lib/internal-non-workflow';
 import { LoggerSinks } from '@temporalio/workflow';
 import * as os from 'os';

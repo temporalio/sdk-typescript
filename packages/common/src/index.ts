@@ -16,6 +16,29 @@ export * from './failure';
 export * from './failure';
 export * from './interfaces';
 export * from './retry-policy';
-export * from './time';
+export { Timestamp } from './time';
 export * from './workflow-options';
 export * from './workflow-handle';
+export * from './deprecated-time';
+
+import * as encoding from './encoding';
+
+/**
+ * Encode a UTF-8 string into a Uint8Array
+ *
+ * @hidden
+ * @deprecated - meant for internal use only
+ */
+export function u8(s: string): Uint8Array {
+  return encoding.encode(s);
+}
+
+/**
+ * Decode a Uint8Array into a UTF-8 string
+ *
+ * @hidden
+ * @deprecated - meant for internal use only
+ */
+export function str(arr: Uint8Array): string {
+  return encoding.decode(arr);
+}

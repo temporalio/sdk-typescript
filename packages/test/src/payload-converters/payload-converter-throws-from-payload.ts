@@ -1,4 +1,5 @@
-import { encodingKeys, METADATA_ENCODING_KEY, Payload, PayloadConverter, u8 } from '@temporalio/common';
+import { encodingKeys, METADATA_ENCODING_KEY, Payload, PayloadConverter } from '@temporalio/common';
+import { encode } from '@temporalio/common/lib/encoding';
 
 class TestPayloadConverter implements PayloadConverter {
   public toPayload(value: unknown): Payload {
@@ -6,7 +7,7 @@ class TestPayloadConverter implements PayloadConverter {
       metadata: {
         [METADATA_ENCODING_KEY]: encodingKeys.METADATA_ENCODING_JSON,
       },
-      data: u8(JSON.stringify(value)),
+      data: encode(JSON.stringify(value)),
     };
   }
 

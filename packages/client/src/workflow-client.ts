@@ -25,16 +25,15 @@ import {
 import {
   BaseWorkflowHandle,
   compileRetryPolicy,
-  optionalTsToDate,
   QueryDefinition,
   SearchAttributes,
   SignalDefinition,
-  tsToDate,
   WithWorkflowArgs,
   Workflow,
   WorkflowNotFoundError,
   WorkflowResultType,
 } from '@temporalio/common';
+import { optionalTsToDate, tsToDate } from '@temporalio/common/lib/time';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import { Replace } from '@temporalio/common/lib/type-helpers';
 import { temporal } from '@temporalio/proto';

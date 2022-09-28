@@ -3,17 +3,15 @@ import { WorkflowClient } from '@temporalio/client';
 import {
   BinaryPayloadConverter,
   defaultPayloadConverter,
+  encodingKeys,
   JsonPayloadConverter,
+  METADATA_ENCODING_KEY,
+  METADATA_MESSAGE_TYPE_KEY,
   PayloadConverterError,
   UndefinedPayloadConverter,
   ValueError,
 } from '@temporalio/common';
-import {
-  encodingKeys,
-  METADATA_ENCODING_KEY,
-  METADATA_MESSAGE_TYPE_KEY,
-  u8,
-} from '@temporalio/common/lib/converter/types';
+import { encode } from '@temporalio/common/lib/encoding';
 import {
   DefaultPayloadConverterWithProtobufs,
   ProtobufBinaryPayloadConverter,
@@ -54,21 +52,21 @@ test('BinaryPayloadConverter converts from Uint8Array', (t) => {
   t.is(converter.toPayload(0), undefined);
   t.is(converter.toPayload('abc'), undefined);
 
-  t.deepEqual(converter.toPayload(u8('abc')), {
+  t.deepEqual(converter.toPayload(encode('abc')), {
     metadata: { [METADATA_ENCODING_KEY]: encodingKeys.METADATA_ENCODING_RAW },
-    data: u8('abc'),
+    data: encode('abc'),
   });
 });
 
 test('BinaryPayloadConverter converts to Uint8Array', (t) => {
   const converter = new BinaryPayloadConverter();
-  t.deepEqual(converter.fromPayload(converter.toPayload(u8('abc'))!), u8('abc'));
+  t.deepEqual(converter.fromPayload(converter.toPayload(encode('abc'))!), encode('abc'));
 });
 
 test('JsonPayloadConverter converts from non undefined', (t) => {
   const payload = (val: any) => ({
     metadata: { [METADATA_ENCODING_KEY]: encodingKeys.METADATA_ENCODING_JSON },
-    data: u8(JSON.stringify(val)),
+    data: encode(JSON.stringify(val)),
   });
   const converter = new JsonPayloadConverter();
   t.deepEqual(converter.toPayload(null), payload(null));
@@ -92,7 +90,7 @@ test('ProtobufBinaryPayloadConverter converts from an instance', (t) => {
   t.deepEqual(converter.toPayload(instance), {
     metadata: {
       [METADATA_ENCODING_KEY]: encodingKeys.METADATA_ENCODING_PROTOBUF,
-      [METADATA_MESSAGE_TYPE_KEY]: u8('ProtoActivityInput'),
+      [METADATA_MESSAGE_TYPE_KEY]: encode('ProtoActivityInput'),
     },
     data: root.ProtoActivityInput.encode(instance).finish(),
   });
@@ -123,7 +121,7 @@ test('ProtobufBinaryPayloadConverter throws detailed errors', (t) => {
       converter.fromPayload({
         metadata: {
           [METADATA_ENCODING_KEY]: encodingKeys.METADATA_ENCODING_PROTOBUF,
-          [METADATA_MESSAGE_TYPE_KEY]: u8('NonExistentMessageClass'),
+          [METADATA_MESSAGE_TYPE_KEY]: encode('NonExistentMessageClass'),
         },
         data: root.ProtoActivityInput.encode(instance).finish(),
       }),
@@ -140,9 +138,9 @@ test('ProtobufJSONPayloadConverter converts from an instance to JSON', (t) => {
   t.deepEqual(converter.toPayload(instance), {
     metadata: {
       [METADATA_ENCODING_KEY]: encodingKeys.METADATA_ENCODING_PROTOBUF_JSON,
-      [METADATA_MESSAGE_TYPE_KEY]: u8('foo.bar.ProtoActivityInput'),
+      [METADATA_MESSAGE_TYPE_KEY]: encode('foo.bar.ProtoActivityInput'),
     },
-    data: u8(JSON.stringify(instance)),
+    data: encode(JSON.stringify(instance)),
   });
 });
 
@@ -157,15 +155,15 @@ test('ProtobufJSONPayloadConverter converts to an instance from JSON', (t) => {
 test('ProtobufJSONPayloadConverter converts binary', (t) => {
   // binary should be base64-encoded:
   // https://developers.google.com/protocol-buffers/docs/proto3#json
-  const instance = root.BinaryMessage.create({ data: u8('abc') });
+  const instance = root.BinaryMessage.create({ data: encode('abc') });
   const converter = new ProtobufJsonPayloadConverter(root);
   const encoded = converter.toPayload(instance);
   t.deepEqual(encoded, {
     metadata: {
       [METADATA_ENCODING_KEY]: encodingKeys.METADATA_ENCODING_PROTOBUF_JSON,
-      [METADATA_MESSAGE_TYPE_KEY]: u8('BinaryMessage'),
+      [METADATA_MESSAGE_TYPE_KEY]: encode('BinaryMessage'),
     },
-    data: u8(JSON.stringify({ data: Buffer.from('abc').toString('base64') })),
+    data: encode(JSON.stringify({ data: Buffer.from('abc').toString('base64') })),
   });
 
   const testInstance = converter.fromPayload<root.BinaryMessage>(encoded!);
@@ -236,8 +234,8 @@ test('DefaultPayloadConverterWithProtobufs converts to payload by trying each co
     new UndefinedPayloadConverter().toPayload(undefined)
   );
   t.deepEqual(
-    defaultPayloadConverterWithProtos.toPayload(u8('abc')),
-    new BinaryPayloadConverter().toPayload(u8('abc'))
+    defaultPayloadConverterWithProtos.toPayload(encode('abc')),
+    new BinaryPayloadConverter().toPayload(encode('abc'))
   );
   t.throws(() => defaultPayloadConverterWithProtos.toPayload(0n), { instanceOf: ValueError });
 });
@@ -245,11 +243,17 @@ test('DefaultPayloadConverterWithProtobufs converts to payload by trying each co
 test('defaultPayloadConverter converts from payload by payload type', (t) => {
   t.deepEqual(defaultPayloadConverter.fromPayload(new JsonPayloadConverter().toPayload('abc')!), 'abc');
   t.deepEqual(defaultPayloadConverter.fromPayload(new UndefinedPayloadConverter().toPayload(undefined)!), undefined);
-  t.deepEqual(defaultPayloadConverter.fromPayload(new BinaryPayloadConverter().toPayload(u8('abc'))!), u8('abc'));
-  t.throws(() => defaultPayloadConverter.fromPayload({ metadata: { [METADATA_ENCODING_KEY]: u8('not-supported') } }), {
-    instanceOf: ValueError,
-    message: 'Unknown encoding: not-supported',
-  });
+  t.deepEqual(
+    defaultPayloadConverter.fromPayload(new BinaryPayloadConverter().toPayload(encode('abc'))!),
+    encode('abc')
+  );
+  t.throws(
+    () => defaultPayloadConverter.fromPayload({ metadata: { [METADATA_ENCODING_KEY]: encode('not-supported') } }),
+    {
+      instanceOf: ValueError,
+      message: 'Unknown encoding: not-supported',
+    }
+  );
   t.throws(
     () =>
       defaultPayloadConverter.fromPayload({

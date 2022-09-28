@@ -3,7 +3,8 @@
  *
  * @module
  */
-import { IllegalStateError, msToTs, ProtoFailure, tsToMs } from '@temporalio/common';
+import { IllegalStateError, ProtoFailure } from '@temporalio/common';
+import { msToTs, tsToMs } from '@temporalio/common/lib/time';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import type { coresdk } from '@temporalio/proto';
 import { alea } from './alea';
