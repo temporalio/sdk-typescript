@@ -102,6 +102,7 @@ if (RUN_INTEGRATION_TESTS) {
       parent: undefined,
       searchAttributes: {},
       historyLength: 3,
+      // unsafe.now() doesn't make it through serialization, but .now is required, so we need to cast
       unsafe: { isReplaying: false } as UnsafeWorkflowInfo,
     };
 

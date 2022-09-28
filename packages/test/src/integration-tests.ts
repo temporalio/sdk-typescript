@@ -709,6 +709,7 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
       workflowType: 'returnWorkflowInfo',
       workflowId,
       historyLength: 3,
+      // unsafe.now is a function, so doesn't make it through serialization, but .now is required, so we need to cast
       unsafe: { isReplaying: false } as UnsafeWorkflowInfo,
     });
   });
