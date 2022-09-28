@@ -1516,7 +1516,23 @@ test('logAndTimeout', async (t) => {
     message: 'Script execution timed out after 100ms',
   });
   const calls = await workflow.getAndResetSinkCalls();
-  t.deepEqual(calls, [{ ifaceName: 'logger', fnName: 'info', args: ['logging before getting stuck'] }]);
+  t.deepEqual(calls, [
+    {
+      ifaceName: 'defaultWorkerLogger',
+      fnName: 'debug',
+      args: [
+        'Workflow started',
+        {
+          namespace: 'default',
+          runId: 'beforeEach hook for logAndTimeout',
+          taskQueue: 'test',
+          workflowId: 'test-workflowId',
+          workflowType: 'logAndTimeout',
+        },
+      ],
+    },
+    { ifaceName: 'logger', fnName: 'info', args: ['logging before getting stuck'] },
+  ]);
 });
 
 test('continueAsNewSameWorkflow', async (t) => {
