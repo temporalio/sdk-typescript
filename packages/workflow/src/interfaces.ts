@@ -141,7 +141,7 @@ export interface UnsafeWorkflowInfo {
    * The safe version of time is `new Date()` and `Date.now()`, which are set on the first invocation of a Workflow
    * Task.
    */
-  now: () => number;
+  now(): number;
 
   isReplaying: boolean;
 }
