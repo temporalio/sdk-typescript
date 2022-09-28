@@ -30,7 +30,7 @@ Breaking changes marked with a :boom:
 
 - [`workflow`] Add [`workflowInfo().unsafe.now()`](https://typescript.temporal.io/api/interfaces/workflow.UnsafeWorkflowInfo/#now) ([#882](https://github.com/temporalio/sdk-typescript/pull/882))
 
-  It returns the current system time in milliseconds. The safe version of time is `new Date()` and `Date.now()`, which are set on the first invocation of a Workflow Task and stay constant.
+  It returns the current system time in milliseconds. The safe version of time is `new Date()` and `Date.now()`, which are set on the first invocation of a Workflow Task and stay constant for the duration of the Task and during replay.
 
 - Upgrade core, add support for OTEL metric temporality ([#891](https://github.com/temporalio/sdk-typescript/pull/891))
 

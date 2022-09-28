@@ -53,6 +53,8 @@ export function cutoffStackTrace(stack?: string): string {
  *
  * It is recommended to use the {@link DefaultFailureConverter} and not attempt to customize the default implementation
  * in order to maintain cross language failure serialization compatibility.
+ *
+ * @experimental
  */
 export interface FailureConverter {
   /**
@@ -94,6 +96,8 @@ export interface DefaultFailureConverterOptions {
  * By default, it will leave error messages and stack traces as plain text. In order to encrypt those, set
  * `encodeCommonAttributes` to `true` in the constructor options and make sure to use a {@link PayloadCodec} that can
  * encrypt / decrypt payloads in your Worker and Client options.
+ *
+ * @experimental
  */
 export class DefaultFailureConverter implements FailureConverter {
   public readonly options: DefaultFailureConverterOptions;

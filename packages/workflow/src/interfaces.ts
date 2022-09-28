@@ -140,7 +140,7 @@ export interface UnsafeWorkflowInfo {
    * Current system time in milliseconds
    *
    * The safe version of time is `new Date()` and `Date.now()`, which are set on the first invocation of a Workflow
-   * Task and stay constant.
+   * Task and stay constant for the duration of the Task and during replay.
    */
   now(): number;
 
