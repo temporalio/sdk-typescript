@@ -30,6 +30,10 @@ jobs:
       - uses: actions/setup-node@v1
         with:
           node-version: ${{ matrix.node }}
+      - name: Install protoc
+        uses: arduino/setup-protoc@v1
+        with:
+          version: '3.x'
       - uses: Swatinem/rust-cache@v1
         with:
           working-directory: packages/core-bridge
