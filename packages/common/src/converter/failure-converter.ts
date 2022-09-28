@@ -190,9 +190,6 @@ export class DefaultFailureConverter implements FailureConverter {
   }
 
   failureToError(failure: ProtoFailure): TemporalFailure {
-    const err = this.failureToErrorInner(failure);
-    err.stack = failure.stackTrace ?? '';
-    err.failure = failure;
     if (failure.encodedAttributes) {
       const attrs = this.options.payloadConverter.fromPayload<DefaultEncodedFailureAttributes>(
         failure.encodedAttributes
@@ -200,14 +197,19 @@ export class DefaultFailureConverter implements FailureConverter {
       // Don't apply encodedAttributes unless they conform to an expected schema
       if (typeof attrs === 'object' && attrs !== null) {
         const { message, stack_trace } = attrs;
+        // Avoid mutating the argument
+        failure = { ...failure };
         if (typeof message === 'string') {
-          err.message = message;
+          failure.message = message;
         }
         if (typeof stack_trace === 'string') {
-          err.stack = stack_trace;
+          failure.stackTrace = stack_trace;
         }
       }
     }
+    const err = this.failureToErrorInner(failure);
+    err.stack = failure.stackTrace ?? '';
+    err.failure = failure;
     return err;
   }
 

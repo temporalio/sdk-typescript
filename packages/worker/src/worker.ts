@@ -71,6 +71,7 @@ import {
   ReplayWorkerOptions,
   WorkflowBundle,
   WorkerOptions,
+  defaultWorflowInterceptorModules,
 } from './worker-options';
 import { WorkflowCodecRunner } from './workflow-codec-runner';
 import { WorkflowCodeBundler } from './workflow/bundler';
@@ -543,7 +544,9 @@ export class Worker {
       if (compiledOptions.bundlerOptions) {
         logger.warn('Ignoring WorkerOptions.bundlerOptions because WorkerOptions.workflowBundle is set');
       }
-      if (compiledOptions.interceptors?.workflowModules) {
+      const modules = compiledOptions.interceptors?.workflowModules;
+      // Warn if user tries to customize the default set of workflow interceptor modules
+      if (modules && new Set([...modules, ...defaultWorflowInterceptorModules]).size !== modules.length) {
         logger.warn(
           'Ignoring WorkerOptions.interceptors.workflowModules because WorkerOptions.workflowBundle is set.\n' +
             'To use workflow interceptors with a workflowBundle, pass them in the call to bundleWorkflowCode.'

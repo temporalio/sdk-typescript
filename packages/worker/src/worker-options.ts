@@ -432,6 +432,8 @@ export function defaultSinks(logger = Runtime.instance().logger): InjectedSinks<
   };
 }
 
+export const defaultWorflowInterceptorModules = [require.resolve('./workflow-log-interceptor')];
+
 /**
  * Appends the default Worker logging interceptors to given interceptor arrays.
  *
@@ -443,7 +445,7 @@ export function appendDefaultInterceptors(
 ): WorkerInterceptors {
   return {
     activityInbound: [...(interceptors.activityInbound ?? []), (ctx) => new ActivityInboundLogInterceptor(ctx, logger)],
-    workflowModules: [...(interceptors.workflowModules ?? []), require.resolve('./workflow-log-interceptor')],
+    workflowModules: [...(interceptors.workflowModules ?? []), ...defaultWorflowInterceptorModules],
   };
 }
 

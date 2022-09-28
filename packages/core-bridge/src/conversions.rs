@@ -13,9 +13,9 @@ use temporal_sdk_core::{
     ephemeral_server::{
         TemporaliteConfig, TemporaliteConfigBuilder, TestServerConfig, TestServerConfigBuilder,
     },
-    ClientOptions, ClientOptionsBuilder, ClientTlsConfig, Logger, MetricsExporter,
-    OtelCollectorOptions, RetryConfig, TelemetryOptions, TelemetryOptionsBuilder, TlsConfig,
-    TraceExporter, Url,
+    ClientOptions, ClientOptionsBuilder, ClientTlsConfig, Logger, MetricTemporality,
+    MetricsExporter, OtelCollectorOptions, RetryConfig, TelemetryOptions, TelemetryOptionsBuilder,
+    TlsConfig, TraceExporter, Url,
 };
 
 pub enum EphemeralServerConfig {
@@ -206,6 +206,22 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
             }
         }
         if let Some(metrics) = js_optional_getter!(cx, self, "metrics", JsObject) {
+            if let Some(temporality) =
+                js_optional_value_getter!(cx, &metrics, "temporality", JsString)
+            {
+                match temporality.as_str() {
+                    "cumulative" => {
+                        telemetry_opts.metric_temporality(MetricTemporality::Cumulative);
+                    }
+                    "delta" => {
+                        telemetry_opts.metric_temporality(MetricTemporality::Delta);
+                    }
+                    _ => {
+                        cx.throw_type_error("Invalid telemetryOptions.metrics.temporality, expected 'cumulative' or 'delta'")?;
+                    }
+                };
+            }
+
             if let Some(ref prom) = js_optional_getter!(cx, &metrics, "prometheus", JsObject) {
                 let addr = js_value_getter!(cx, prom, "bindAddress", JsString);
                 match addr.parse::<SocketAddr>() {
