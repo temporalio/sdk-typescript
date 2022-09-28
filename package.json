@@ -22,7 +22,7 @@
   "files": [],
   "scripts": {
     "rebuild": "npm run clean && npm run build",
-    "build": "lerna run --stream build",
+    "build": "lerna run build --stream --concurrency 1",
     "build.watch": "lerna run --stream build.watch",
     "test": "lerna run --stream test",
     "test.watch": "lerna run --stream test.watch",
