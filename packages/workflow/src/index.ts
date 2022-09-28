@@ -50,7 +50,7 @@ export {
   ActivityCancellationType,
   ActivityFailure,
   ActivityFunction,
-  ActivityInterface, // eslint-disable-line deprecation/deprecation
+  ActivityInterface,
   ActivityOptions,
   ApplicationFailure,
   CancelledFailure,
@@ -77,14 +77,15 @@ export {
   ChildWorkflowOptions,
   ContinueAsNew,
   ContinueAsNewOptions,
+  EnhancedStackTrace,
+  FileLocation,
+  FileSlice,
   ParentClosePolicy,
   ParentWorkflowInfo,
-  WorkflowInfo,
-  FileSlice,
-  FileLocation,
-  StackTrace,
-  EnhancedStackTrace,
   SDKInfo,
+  StackTrace,
+  UnsafeWorkflowInfo,
+  WorkflowInfo,
 } from './interfaces';
 export { LoggerSinks, Sink, SinkCall, SinkFunction, Sinks } from './sinks';
 export { Trigger } from './trigger';

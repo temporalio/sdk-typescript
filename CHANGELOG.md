@@ -4,6 +4,57 @@ All notable changes to this project will be documented in this file.
 
 Breaking changes marked with a :boom:
 
+## [1.4.0] - 2022-09-28
+
+### Features
+
+- :boom: Make client gRPC retry more configurable ([#879](https://github.com/temporalio/sdk-typescript/pull/879))
+
+  BREAKING CHANGE: [`GrpcRetryOptions.retryableDecider`](https://typescript.temporal.io/api/interfaces/client.grpcretryoptions/#retryabledecider) now gets the `attempt` number as the first argument. This is an advanced/rare option, and the change should be caught at compile time.
+
+  Also adds [`BackoffOptions`](https://typescript.temporal.io/api/interfaces/client.backoffoptions/) and [`defaultGrpcRetryOptions`](https://typescript.temporal.io/api/namespaces/client/#defaultgrpcretryoptions).
+
+- Delete search attributes with empty array values in describe() response ([#878](https://github.com/temporalio/sdk-typescript/pull/878))
+
+  :warning: This fixes a bug where empty/deleted Custom Search Attributes were returned as `[]` from [`workflowHandle.describe()`](https://typescript.temporal.io/api/interfaces/client.workflowhandle/#describe). Such attribute properties will no longer be present in the [`WorkflowExecutionDescription.searchAttributes`](https://typescript.temporal.io/api/interfaces/client.WorkflowExecutionDescription#searchattributes) object. Note that this behavior is consistent with what you'll see if using a pre-1.4 version of the SDK with Server version 1.18.
+
+- Add support for custom failure converters ([#887](https://github.com/temporalio/sdk-typescript/pull/887))
+
+  Adds [`DataConverter.failureConverterPath`](https://typescript.temporal.io/api/interfaces/worker.dataconverter/#failureconverterpath) and [`FailureConverter`](https://typescript.temporal.io/api/interfaces/common.FailureConverter), which converts from proto Failure instances to JS Errors and back.
+
+  We recommended going with the default (i.e. not using the `failureConverterPath` option) in order to maintain cross-language Failure serialization compatibility.
+
+- [`workflow`] Add [`workflowInfo().unsafe.now()`](https://typescript.temporal.io/api/interfaces/workflow.UnsafeWorkflowInfo/#now) ([#882](https://github.com/temporalio/sdk-typescript/pull/882))
+
+  It returns the current system time in milliseconds. The safe version of time is `new Date()` and `Date.now()`, which are set on the first invocation of a Workflow Task and stay constant.
+
+- Upgrade core, add support for OTEL metric temporality ([#891](https://github.com/temporalio/sdk-typescript/pull/891))
+
+  - Upgraded otel and other deps ([temporalio/sdk-core#402](https://github.com/temporalio/sdk-core/pull/402))
+  - Fix incorrect string names for polling methods ([temporalio/sdk-core#401](https://github.com/temporalio/sdk-core/pull/401))
+
+### Miscellaneous Tasks
+
+- Remove `internal-*` packages ([#881](https://github.com/temporalio/sdk-typescript/pull/881))
+
+  :warning: Any imports from `@temporalio/internal-*` need to be updated. As noted in their named and READMEs, they're not meant to be used to directly, so we don't imagine this is a common case. However, if you do find instances, they should be changed to importing from:
+
+  ```
+  @temporalio/common/lib/internal-non-workflow
+  @temporalio/common/lib/internal-workflow
+  ```
+
+- Export `LoggerSinks` from `@temporalio/workflow` ([#889](https://github.com/temporalio/sdk-typescript/pull/889))
+- [`client`] Add [max retry interval](https://typescript.temporal.io/api/interfaces/client.backoffoptions/#maxintervalms) for client ([#883](https://github.com/temporalio/sdk-typescript/pull/883))
+- Label grpc-retry API as experimental ([#891](https://github.com/temporalio/sdk-typescript/pull/891))
+- Make the failure-converter code symmetric ([#891](https://github.com/temporalio/sdk-typescript/pull/891))
+
+### Bug Fixes
+
+- Fix double import of long in generated proto TS files ([#891](https://github.com/temporalio/sdk-typescript/pull/891))
+- Fix bundler with default workflow interceptors ([#891](https://github.com/temporalio/sdk-typescript/pull/891))
+- Limit eager activity requests to 3 ([#891](https://github.com/temporalio/sdk-typescript/pull/891))
+
 ## [1.3.0] - 2022-09-20
 
 ### Bug Fixes
