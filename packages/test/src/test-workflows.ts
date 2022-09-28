@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-non-null-assertion */
 import {
   ApplicationFailure,
   defaultPayloadConverter,
@@ -57,7 +58,6 @@ test.after.always(async (t) => {
 
 test.beforeEach(async (t) => {
   const { workflowCreator } = t.context;
-  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
   const workflowType = t.title.match(/\S+$/)![0];
   const runId = t.title;
   const logs = new Array<unknown[]>();
@@ -93,7 +93,7 @@ async function createWorkflow(
       taskQueue: 'test',
       searchAttributes: {},
       historyLength: 3,
-      unsafe: { isReplaying: false },
+      unsafe: { isReplaying: false, now: Date.now },
     },
     randomnessSeed: Long.fromInt(1337).toBytes(),
     now: startTime,
@@ -338,9 +338,7 @@ function cleanWorkflowFailureStackTrace(
   req: coresdk.workflow_completion.WorkflowActivationCompletion,
   commandIndex = 0
 ) {
-  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
   req.successful!.commands![commandIndex].failWorkflowExecution!.failure!.stackTrace = cleanStackTrace(
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     req.successful!.commands![commandIndex].failWorkflowExecution!.failure!.stackTrace!
   );
   return req;
@@ -350,9 +348,7 @@ function cleanWorkflowQueryFailureStackTrace(
   req: coresdk.workflow_completion.WorkflowActivationCompletion,
   commandIndex = 0
 ) {
-  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
   req.successful!.commands![commandIndex].respondToQuery!.failed!.stackTrace = cleanStackTrace(
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     req.successful!.commands![commandIndex].respondToQuery!.failed!.stackTrace!
   );
   return req;
@@ -943,7 +939,6 @@ test('handleExternalWorkflowCancellationWhileActivityRunning', async (t) => {
   const url = 'https://temporal.io';
   const data = { content: 'new HTML content' };
   {
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     const completion = await activate(
       t,
       makeStartWorkflow(workflowType, toPayloads(defaultPayloadConverter, url, data) ?? [])

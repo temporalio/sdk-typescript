@@ -136,6 +136,14 @@ export interface WorkflowInfo {
  * Never rely on this information in Workflow logic as it will cause non-deterministic behavior.
  */
 export interface UnsafeWorkflowInfo {
+  /**
+   * Current system time in milliseconds
+   *
+   * The safe version of time is `new Date()` and `Date.now()`, which are set on the first invocation of a Workflow
+   * Task.
+   */
+  now(): number;
+
   isReplaying: boolean;
 }
 

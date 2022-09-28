@@ -39,8 +39,10 @@ export function setImportFuncs({ importWorkflows, importInterceptors }: ImportFu
   state.importInterceptors = importInterceptors;
 }
 
+const global = globalThis as any;
+const OriginalDate = globalThis.Date;
+
 export function overrideGlobals(): void {
-  const global = globalThis as any;
   // Mock any weak reference because GC is non-deterministic and the effect is observable from the Workflow.
   // WeakRef is implemented in V8 8.4 which is embedded in node >=14.6.0.
   // Workflow developer will get a meaningful exception if they try to use these.
@@ -52,8 +54,6 @@ export function overrideGlobals(): void {
       'FinalizationRegistry cannot be used in Workflows because v8 GC is non-deterministic'
     );
   };
-
-  const OriginalDate = globalThis.Date;
 
   global.Date = function (...args: unknown[]) {
     if (args.length > 0) {
@@ -120,7 +120,6 @@ export async function initRuntime({
   sourceMap,
   showStackTraceSources,
 }: WorkflowCreateOptionsWithSourceMap): Promise<void> {
-  const global = globalThis as any;
   // Set the runId globally on the context so it can be retrieved in the case
   // of an unhandled promise rejection.
   global.__TEMPORAL__.runId = info.runId;
@@ -131,6 +130,7 @@ export async function initRuntime({
   };
 
   state.info = info;
+  state.info.unsafe.now = OriginalDate.now;
   state.now = now;
   state.random = alea(randomnessSeed);
   state.showStackTraceSources = showStackTraceSources;

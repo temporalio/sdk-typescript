@@ -2,6 +2,7 @@
 import { WorkflowClient } from '@temporalio/client';
 import { DefaultLogger, InjectedSinks, Runtime, Worker } from '@temporalio/worker';
 import { WorkflowInfo } from '@temporalio/workflow';
+import { UnsafeWorkflowInfo } from '@temporalio/workflow/src/interfaces';
 import test from 'ava';
 import { v4 as uuid4 } from 'uuid';
 import { RUN_INTEGRATION_TESTS } from './helpers';
@@ -101,7 +102,8 @@ if (RUN_INTEGRATION_TESTS) {
       parent: undefined,
       searchAttributes: {},
       historyLength: 3,
-      unsafe: { isReplaying: false },
+      // unsafe.now() doesn't make it through serialization, but .now is required, so we need to cast
+      unsafe: { isReplaying: false } as UnsafeWorkflowInfo,
     };
 
     t.deepEqual(recordedCalls, [

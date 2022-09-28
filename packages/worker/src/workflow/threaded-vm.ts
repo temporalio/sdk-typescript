@@ -180,6 +180,10 @@ export class VMWorkflowThreadProxy implements Workflow {
     workerThreadClient: WorkerThreadClient,
     options: WorkflowCreateOptions
   ): Promise<VMWorkflowThreadProxy> {
+    // Delete .now because functions can't be serialized / sent to thread.
+    // Cast to any to avoid type error, since .now is a required field.
+    // Safe to cast since we immediately set it inside the thread in initRuntime.
+    delete (options.info.unsafe as any).now;
     await workerThreadClient.send({ type: 'create-workflow', options });
     return new this(workerThreadClient, options.info.runId);
   }

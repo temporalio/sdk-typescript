@@ -42,6 +42,7 @@ import { cleanOptionalStackTrace, u8 } from './helpers';
 import * as workflows from './workflows';
 import { withZeroesHTTPServer } from './zeroes-http-server';
 import { readFileSync } from 'node:fs';
+import { UnsafeWorkflowInfo } from '@temporalio/workflow/src/interfaces';
 
 const { EVENT_TYPE_TIMER_STARTED, EVENT_TYPE_TIMER_FIRED, EVENT_TYPE_TIMER_CANCELED } =
   iface.temporal.api.enums.v1.EventType;
@@ -711,7 +712,8 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
       workflowType: 'returnWorkflowInfo',
       workflowId,
       historyLength: 3,
-      unsafe: { isReplaying: false },
+      // unsafe.now is a function, so doesn't make it through serialization, but .now is required, so we need to cast
+      unsafe: { isReplaying: false } as UnsafeWorkflowInfo,
     });
   });
 

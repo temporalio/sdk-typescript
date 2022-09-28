@@ -1115,6 +1115,7 @@ export class Worker {
                         cronScheduleToScheduleInterval: optionalTsToMs(cronScheduleToScheduleInterval) || undefined,
                         historyLength: activation.historyLength,
                         unsafe: {
+                          now: () => Date.now(), // re-set in initRuntime
                           isReplaying: activation.isReplaying,
                         },
                       };
