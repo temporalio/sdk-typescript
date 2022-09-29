@@ -8,13 +8,11 @@ import {
   IllegalStateError,
   LoadedDataConverter,
   mapFromPayloads,
-  optionalTsToDate,
-  optionalTsToMs,
   Payload,
   SearchAttributes,
-  tsToMs,
   searchAttributePayloadConverter,
 } from '@temporalio/common';
+import { optionalTsToDate, optionalTsToMs, tsToMs } from '@temporalio/common/lib/time';
 import * as native from '@temporalio/core-bridge';
 import {
   decodeArrayFromPayloads,
