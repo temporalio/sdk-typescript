@@ -48,6 +48,10 @@ Breaking changes marked with a :boom:
   @temporalio/internal-workflow-common ➡️ @temporalio/common
   ```
 
+- [`common`] Deprecate internal functions that should have never been exported ([#893](https://github.com/temporalio/sdk-typescript/pull/889))
+
+  Some time-related and binary conversion internal helper functions were exported from `@temporalio/common`. They are now deprecated and hidden from the API reference, as they're meant for internal use only.
+  
 - Export `LoggerSinks` from `@temporalio/workflow` ([#889](https://github.com/temporalio/sdk-typescript/pull/889))
 - [`client`] Add [max retry interval](https://typescript.temporal.io/api/interfaces/client.backoffoptions/#maxintervalms) for client ([#883](https://github.com/temporalio/sdk-typescript/pull/883))
 - Label grpc-retry API as experimental ([#891](https://github.com/temporalio/sdk-typescript/pull/891))
