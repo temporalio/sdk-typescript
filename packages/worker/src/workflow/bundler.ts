@@ -7,7 +7,8 @@ import util from 'util';
 import { Configuration, webpack } from 'webpack';
 import { DefaultLogger, Logger } from '../logger';
 import { toMB } from '../utils';
-import { defaultWorflowInterceptorModules } from '../worker-options';
+
+export const defaultWorflowInterceptorModules = [require.resolve('../workflow-log-interceptor')];
 
 export const allowedBuiltinModules = ['assert'];
 export const disallowedBuiltinModules = builtinModules.filter((module) => !allowedBuiltinModules.includes(module));

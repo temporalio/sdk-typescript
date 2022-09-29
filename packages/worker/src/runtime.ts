@@ -19,7 +19,7 @@ import { promisify } from 'util';
 import * as errors from './errors';
 import { DefaultLogger, LogEntry, Logger, LogTimestamp, timeOfDayToBigint } from './logger';
 import { compileConnectionOptions, getDefaultConnectionOptions, NativeConnectionOptions } from './connection-options';
-import { byteArrayToBuffer , toMB } from './utils';
+import { byteArrayToBuffer, toMB } from './utils';
 import pkg from './pkg';
 import { History } from '@temporalio/common/lib/proto-utils';
 import * as v8 from 'v8';

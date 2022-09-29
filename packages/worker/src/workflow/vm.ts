@@ -11,7 +11,7 @@ import vm from 'vm';
 import v8 from 'v8';
 import { partition } from '../utils';
 import { Workflow, WorkflowCreateOptions, WorkflowCreator } from './interface';
-import { WorkflowBundleWithSourceMapAndFilename } from '../worker';
+import { WorkflowBundleWithSourceMapAndFilename } from './workflow-worker-thread/input';
 
 interface ActivationContext {
   isReplaying: boolean;

@@ -1,5 +1,11 @@
-import { WorkflowBundleWithSourceMapAndFilename } from '../../worker';
+import type { RawSourceMap } from 'source-map';
 import { WorkflowCreateOptions } from '../interface';
+
+export interface WorkflowBundleWithSourceMapAndFilename {
+  code: string;
+  sourceMap: RawSourceMap;
+  filename: string;
+}
 
 /**
  * Initialize the workflow-worker-thread

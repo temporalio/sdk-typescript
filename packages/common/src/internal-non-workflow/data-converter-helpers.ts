@@ -1,4 +1,4 @@
-import { PayloadConverter , defaultPayloadConverter } from '../converter/payload-converter';
+import { PayloadConverter, defaultPayloadConverter } from '../converter/payload-converter';
 import { DataConverter, defaultFailureConverter, LoadedDataConverter } from '../converter/data-converter';
 import { FailureConverter } from '../converter/failure-converter';
 import { errorCode, hasOwnProperty, isRecord } from '../type-helpers';
