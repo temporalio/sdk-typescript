@@ -1,6 +1,7 @@
-import { IllegalStateError, Payload, ValueError } from '@temporalio/internal-workflow-common';
-import { PayloadConverter } from './payload-converter';
+import { IllegalStateError, ValueError } from '../errors';
+import { Payload } from '../interfaces';
 import { JsonPayloadConverter } from './json-payload-converter';
+import { PayloadConverter } from './payload-converter';
 import { str } from './types';
 
 const jsonConverter = new JsonPayloadConverter();

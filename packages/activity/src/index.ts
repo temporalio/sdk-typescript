@@ -71,13 +71,8 @@
 
 import { AbortSignal } from 'abort-controller';
 import { AsyncLocalStorage } from 'async_hooks';
-<<<<<<< HEAD
-
-export { CancelledFailure, ApplicationFailure } from '@temporalio/common';
-=======
 import { msToNumber } from '@temporalio/common';
 
->>>>>>> main
 export {
   ActivityFunction,
   ActivityInterface, // eslint-disable-line deprecation/deprecation

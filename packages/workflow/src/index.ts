@@ -49,8 +49,6 @@
 export {
   ActivityCancellationType,
   ActivityFailure,
-  ActivityFunction,
-  ActivityInterface, // eslint-disable-line deprecation/deprecation
   ActivityOptions,
   ApplicationFailure,
   CancelledFailure,
@@ -63,7 +61,6 @@ export {
   TemporalFailure,
   TerminatedFailure,
   TimeoutFailure,
-  UntypedActivities,
 } from '@temporalio/common';
 export * from '@temporalio/common/lib/errors';
 export * from '@temporalio/common/lib/interfaces';

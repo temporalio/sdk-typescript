@@ -1,4 +1,4 @@
-import { Payload } from '@temporalio/internal-workflow-common';
+import { Payload } from '../interfaces';
 
 export interface PayloadConverterWithEncoding {
   /**

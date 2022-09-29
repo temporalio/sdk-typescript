@@ -10,19 +10,7 @@ import {
   TerminatedFailure,
   TimeoutFailure,
   TimeoutType,
-} from '@temporalio/common';
-import {
-  decodeArrayFromPayloads,
-  decodeFromPayloadsAtIndex,
-  decodeMapFromPayloads,
-  decodeOptionalFailureToOptionalError,
-  encodeMapToPayloads,
-  encodeToPayloads,
-  filterNullAndUndefined,
-  isLoadedDataConverter,
-  loadDataConverter,
-} from '@temporalio/common/lib/internal-non-workflow';
-import {
+
   BaseWorkflowHandle,
   compileRetryPolicy,
   optionalTsToDate,
@@ -36,6 +24,17 @@ import {
   WorkflowNotFoundError,
   WorkflowResultType,
 } from '@temporalio/common';
+import {
+  decodeArrayFromPayloads,
+  decodeFromPayloadsAtIndex,
+  decodeMapFromPayloads,
+  decodeOptionalFailureToOptionalError,
+  encodeMapToPayloads,
+  encodeToPayloads,
+  filterNullAndUndefined,
+  isLoadedDataConverter,
+  loadDataConverter,
+} from '@temporalio/common/lib/internal-non-workflow';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import { Replace } from '@temporalio/common/lib/type-helpers';
 import { temporal } from '@temporalio/proto';

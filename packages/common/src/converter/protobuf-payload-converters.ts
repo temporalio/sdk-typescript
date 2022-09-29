@@ -1,15 +1,15 @@
-import { PayloadConverterError, ValueError } from '../errors';
-import { errorMessage, hasOwnProperties, hasOwnProperty, isRecord } from '../type-helpers';
 import * as protoJsonSerializer from 'proto3-json-serializer';
 import type { Message, Namespace, Root, Type } from 'protobufjs';
+import { PayloadConverterError, ValueError } from '../errors';
+import { Payload } from '../interfaces';
+import { errorMessage, hasOwnProperties, hasOwnProperty, isRecord } from '../type-helpers';
 import {
   BinaryPayloadConverter,
   CompositePayloadConverter,
   JsonPayloadConverter,
-  PayloadConverterWithEncoding,
   UndefinedPayloadConverter,
 } from './payload-converter';
-import { Payload } from '../interfaces';
+import { PayloadConverterWithEncoding } from './payload-converter-with-encoding';
 
 import { EncodingType, encodingTypes, METADATA_ENCODING_KEY, METADATA_MESSAGE_TYPE_KEY, str, u8 } from './types';
 

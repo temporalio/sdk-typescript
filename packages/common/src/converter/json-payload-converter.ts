@@ -1,4 +1,5 @@
-import { Payload, ValueError } from '@temporalio/internal-workflow-common';
+import { ValueError } from '../errors';
+import { Payload } from '../interfaces';
 import { PayloadConverterWithEncoding } from './payload-converter-with-encoding';
 import { encodingKeys, encodingTypes, METADATA_ENCODING_KEY, str, u8 } from './types';
 

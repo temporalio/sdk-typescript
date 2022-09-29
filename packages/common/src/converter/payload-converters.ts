@@ -1,9 +1,10 @@
-import { Payload, PayloadConverterError, ValueError } from '@temporalio/internal-workflow-common';
+import { PayloadConverterError, ValueError } from '../errors';
+import { Payload } from '../interfaces';
 import { JsonPayloadConverter } from './json-payload-converter';
 import { PayloadConverter } from './payload-converter';
+import { PayloadConverterWithEncoding } from './payload-converter-with-encoding';
 import { SearchAttributePayloadConverter } from './search-attribute-payload-converter';
 import { encodingKeys, encodingTypes, METADATA_ENCODING_KEY, str } from './types';
-import { PayloadConverterWithEncoding } from './payload-converter-with-encoding';
 
 /**
  * Tries to convert values to {@link Payload}s using the {@link PayloadConverterWithEncoding}s provided to the constructor, in the order provided.

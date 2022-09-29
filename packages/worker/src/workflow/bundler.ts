@@ -50,7 +50,7 @@ export class WorkflowCodeBundler {
   protected readonly payloadConverterPath?: string;
   protected readonly failureConverterPath?: string;
   protected readonly ignoreModules: string[];
-  protected readonly webpackConfigHook: (config: webpack.Configuration) => webpack.Configuration;
+  protected readonly webpackConfigHook: (config: Configuration) => Configuration;
 
   constructor({
     logger,
@@ -176,10 +176,7 @@ export { api };
     entry: string,
     distDir: string
   ): Promise<string> {
-    const captureProblematicModules: webpack.Configuration['externals'] = async (
-      data,
-      _callback
-    ): Promise<undefined> => {
+    const captureProblematicModules: Configuration['externals'] = async (data, _callback): Promise<undefined> => {
       // Ignore the "node:" prefix if any.
       const module: string = data.request?.startsWith('node:')
         ? data.request.slice('node:'.length)
@@ -192,7 +189,7 @@ export { api };
       return undefined;
     };
 
-    const options: webpack.Configuration = {
+    const options: Configuration = {
       resolve: {
         // https://webpack.js.org/configuration/resolve/#resolvemodules
         modules: [path.resolve(__dirname, 'module-overrides'), 'node_modules'],
@@ -341,7 +338,7 @@ export interface BundleOptions {
    * Before Workflow code is bundled with Webpack, `webpackConfigHook` is called with the Webpack
    * {@link https://webpack.js.org/configuration/ | configuration} object so you can modify it.
    */
-  webpackConfigHook?: (config: webpack.Configuration) => webpack.Configuration;
+  webpackConfigHook?: (config: Configuration) => Configuration;
 }
 
 /**
