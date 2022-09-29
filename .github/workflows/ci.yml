@@ -128,7 +128,7 @@ jobs:
       - run: npm ci --ignore-scripts
       # eslint-import-resolver-typescript requires packages to be built
       - name: Compile all non-rust code
-        run: npm run ci-build-no-rust
+        run: npm run build -- --ignore @temporalio/core-bridge
       - run: npm run lint
       - run: npm run lint.prune
 
