@@ -866,9 +866,9 @@ export class WorkflowClient {
           },
           // Safe to convert to number, max history length is 50k, which is much less than Number.MAX_SAFE_INTEGER
           historyLength: raw.workflowExecutionInfo!.historyLength!.toNumber(),
-          startTime: tsToDate(raw.workflowExecutionInfo!.startTime!),
-          executionTime: optionalTsToDate(raw.workflowExecutionInfo!.executionTime),
-          closeTime: optionalTsToDate(raw.workflowExecutionInfo!.closeTime),
+          startTime: tsToDate(raw.workflowExecutionInfo!.startTime!), // eslint-disable-line deprectaion/deprecation
+          executionTime: optionalTsToDate(raw.workflowExecutionInfo!.executionTime), // eslint-disable-line deprectaion/deprecation
+          closeTime: optionalTsToDate(raw.workflowExecutionInfo!.closeTime), // eslint-disable-line deprectaion/deprecation
           memo: await decodeMapFromPayloads(this.client.dataConverter, raw.workflowExecutionInfo!.memo?.fields),
           searchAttributes: Object.fromEntries(
             Object.entries(
