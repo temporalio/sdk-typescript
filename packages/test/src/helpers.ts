@@ -2,7 +2,7 @@ import path from 'path';
 import StackUtils from 'stack-utils';
 import { inWorkflowContext } from '@temporalio/workflow';
 import { WorkflowHandle } from '@temporalio/client';
-import type proto from '@temporalio/proto';
+import type * as proto from '@temporalio/proto';
 import ava from 'ava';
 import { Payload, PayloadCodec } from '@temporalio/common';
 
