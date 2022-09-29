@@ -34,6 +34,8 @@ export function hasOwnProperties<X extends Record<string, unknown>, Y extends Pr
 
 /**
  * Get `error.message` (or `undefined` if not present)
+ *
+ * @hidden
  */
 export function errorMessage(error: unknown): string | undefined {
   if (typeof error === 'string') {
@@ -50,6 +52,8 @@ interface ErrorWithCode {
 }
 /**
  * Get `error.code` (or `undefined` if not present)
+ *
+ * @hidden
  */
 export function errorCode(error: unknown): string | undefined {
   if (
