@@ -1,6 +1,6 @@
 {
   "name": "@temporalio/workflow",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "Temporal.io SDK Workflow sub-package",
   "keywords": [
     "temporal",
