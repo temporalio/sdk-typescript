@@ -1,5 +1,6 @@
 import { WorkflowClient } from '@temporalio/client';
-import { Payload, PayloadCodec, str } from '@temporalio/common';
+import { Payload, PayloadCodec } from '@temporalio/common';
+import { decode } from '@temporalio/common/lib/encoding';
 import { InjectedSinks, Worker } from '@temporalio/worker';
 import test from 'ava';
 import { v4 as uuid4 } from 'uuid';
@@ -185,7 +186,7 @@ if (RUN_INTEGRATION_TESTS) {
         {
           async encode(payloads: Payload[]): Promise<Payload[]> {
             /* eslint-disable @typescript-eslint/no-non-null-assertion */
-            if (str(payloads[0]!.data!) !== '"encoded"') {
+            if (decode(payloads[0]!.data!) !== '"encoded"') {
               throw new Error('wrong order');
             }
             return payloads;
@@ -236,7 +237,7 @@ if (RUN_INTEGRATION_TESTS) {
           },
           async decode(payloads: Payload[]): Promise<Payload[]> {
             /* eslint-disable @typescript-eslint/no-non-null-assertion */
-            if (str(payloads[0]!.data!) !== '"decoded"') {
+            if (decode(payloads[0]!.data!) !== '"decoded"') {
               throw new Error('wrong order');
             }
 

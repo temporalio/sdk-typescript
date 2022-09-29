@@ -310,3 +310,17 @@ export class TextEncoder {
     return { written: i, read: inputLength < read ? inputLength : read };
   }
 }
+
+/**
+ * Encode a UTF-8 string into a Uint8Array
+ */
+export function encode(s: string): Uint8Array {
+  return TextEncoder.prototype.encode(s);
+}
+
+/**
+ * Decode a Uint8Array into a UTF-8 string
+ */
+export function decode(a: Uint8Array): string {
+  return TextDecoder.prototype.decode(a);
+}

@@ -1,7 +1,8 @@
-import { Payload } from '../interfaces';
+import { decode, encode } from '../encoding';
 import { IllegalStateError, PayloadConverterError, ValueError } from '../errors';
-import { encodingKeys, encodingTypes, METADATA_ENCODING_KEY, str, u8 } from './types';
+import { Payload } from '../interfaces';
 import { PayloadConverterWithEncoding } from './payload-converter-with-encoding';
+import { encodingKeys, encodingTypes, METADATA_ENCODING_KEY } from './types';
 
 /**
  * Used by the framework to serialize/deserialize data like parameters and return values.
@@ -134,13 +135,13 @@ export class CompositePayloadConverter implements PayloadConverter {
   }
 
   /**
-   * Run {@link PayloadConverterWithEncoding.fromPayload} based on the {@link encodingTypes | encoding type} of the {@link Payload}.
+   * Run {@link PayloadConverterWithEncoding.fromPayload} based on the `encoding` metadata of the {@link Payload}.
    */
   public fromPayload<T>(payload: Payload): T {
     if (payload.metadata === undefined || payload.metadata === null) {
       throw new ValueError('Missing payload metadata');
     }
-    const encoding = str(payload.metadata[METADATA_ENCODING_KEY]);
+    const encoding = decode(payload.metadata[METADATA_ENCODING_KEY]);
     const converter = this.converterByEncoding.get(encoding);
     if (converter === undefined) {
       throw new ValueError(`Unknown encoding: ${encoding}`);
@@ -218,7 +219,7 @@ export class JsonPayloadConverter implements PayloadConverterWithEncoding {
       metadata: {
         [METADATA_ENCODING_KEY]: encodingKeys.METADATA_ENCODING_JSON,
       },
-      data: u8(json),
+      data: encode(json),
     };
   }
 
@@ -226,7 +227,7 @@ export class JsonPayloadConverter implements PayloadConverterWithEncoding {
     if (content.data === undefined || content.data === null) {
       throw new ValueError('Got payload with no data');
     }
-    return JSON.parse(str(content.data));
+    return JSON.parse(decode(content.data));
   }
 }
 
@@ -289,7 +290,7 @@ export class SearchAttributePayloadConverter implements PayloadConverter {
     const value = this.jsonConverter.fromPayload(payload);
     let arrayWrappedValue = value instanceof Array ? value : [value];
 
-    const searchAttributeType = str(payload.metadata.type);
+    const searchAttributeType = decode(payload.metadata.type);
     if (searchAttributeType === 'Datetime') {
       arrayWrappedValue = arrayWrappedValue.map((dateString) => new Date(dateString));
     }

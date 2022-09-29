@@ -30,6 +30,11 @@ jobs:
       - uses: actions/setup-node@v1
         with:
           node-version: ${{ matrix.node }}
+      - name: Install protoc
+        uses: arduino/setup-protoc@v1
+        with:
+          version: '3.x'
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
       - uses: Swatinem/rust-cache@v1
         with:
           working-directory: packages/core-bridge
@@ -79,6 +84,11 @@ jobs:
       - uses: actions/setup-node@v1
         with:
           node-version: 16
+      - name: Install protoc
+        uses: arduino/setup-protoc@v1
+        with:
+          version: '3.x'
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
       # Don't build during install phase since we're going to explicitly build
       - run: npm ci --ignore-scripts
       - run: npm run build -- --ignore @temporalio/core-bridge
@@ -151,6 +161,11 @@ jobs:
       - uses: actions/setup-node@v1
         with:
           node-version: 16
+      - name: Install protoc
+        uses: arduino/setup-protoc@v1
+        with:
+          version: '3.x'
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Add ${{ matrix.target }} rust target
         run: rustup target add ${{ matrix.target }}
       - name: Print libc version
@@ -278,7 +293,7 @@ jobs:
 
   # Runs the sdk features repo tests with this repo's current SDK code
   sdk-features-tests:
-    uses: temporalio/sdk-features/.github/workflows/typescript.yaml@main
+    uses: temporalio/sdk-features/.github/workflows/typescript.yaml@protoc
     with:
       typescript-repo-path: ${{github.event.pull_request.head.repo.full_name}}
       typescript-repo-ref: ${{github.event.pull_request.head.ref}}

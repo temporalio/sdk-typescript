@@ -1,8 +1,8 @@
+import { decode } from '../encoding';
 import { IllegalStateError, ValueError } from '../errors';
 import { Payload } from '../interfaces';
 import { JsonPayloadConverter } from './json-payload-converter';
 import { PayloadConverter } from './payload-converter';
-import { str } from './types';
 
 const jsonConverter = new JsonPayloadConverter();
 const validNonDateTypes = ['string', 'number', 'boolean'];
@@ -63,7 +63,7 @@ export class SearchAttributePayloadConverter implements PayloadConverter {
     const value = jsonConverter.fromPayload(payload);
     let arrayWrappedValue = value instanceof Array ? value : [value];
 
-    const searchAttributeType = str(payload.metadata.type);
+    const searchAttributeType = decode(payload.metadata.type);
     if (searchAttributeType === 'Datetime') {
       arrayWrappedValue = arrayWrappedValue.map((dateString) => new Date(dateString));
     }

@@ -7,6 +7,7 @@ import util from 'util';
 import { Configuration, webpack } from 'webpack';
 import { DefaultLogger, Logger } from '../logger';
 import { toMB } from '../utils';
+import { defaultWorflowInterceptorModules } from '../worker-options';
 
 export const allowedBuiltinModules = ['assert'];
 export const disallowedBuiltinModules = builtinModules.filter((module) => !allowedBuiltinModules.includes(module));
@@ -65,7 +66,7 @@ export class WorkflowCodeBundler {
     this.workflowsPath = workflowsPath;
     this.payloadConverterPath = payloadConverterPath;
     this.failureConverterPath = failureConverterPath;
-    this.workflowInterceptorModules = workflowInterceptorModules ?? [];
+    this.workflowInterceptorModules = workflowInterceptorModules ?? defaultWorflowInterceptorModules;
     this.ignoreModules = ignoreModules ?? [];
     this.webpackConfigHook = webpackConfigHook ?? ((config) => config);
   }
@@ -305,9 +306,12 @@ export interface BundleOptions {
    */
   workflowsPath: string;
   /**
-   * List of modules to import Workflow interceptors from
+   * List of modules to import Workflow interceptors from.
    *
    * Modules should export an `interceptors` variable of type {@link WorkflowInterceptorsFactory}.
+   *
+   * By default, {@link WorkflowInboundLogInterceptor} is installed. If you wish to customize the interceptors while
+   * keeping the defaults, add {@link defaultWorflowInterceptorModules} to the provided array.
    */
   workflowInterceptorModules?: string[];
   /**

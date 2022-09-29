@@ -1,10 +1,11 @@
+import { decode } from '../encoding';
 import { PayloadConverterError, ValueError } from '../errors';
 import { Payload } from '../interfaces';
 import { JsonPayloadConverter } from './json-payload-converter';
 import { PayloadConverter } from './payload-converter';
 import { PayloadConverterWithEncoding } from './payload-converter-with-encoding';
 import { SearchAttributePayloadConverter } from './search-attribute-payload-converter';
-import { encodingKeys, encodingTypes, METADATA_ENCODING_KEY, str } from './types';
+import { encodingKeys, encodingTypes, METADATA_ENCODING_KEY } from './types';
 
 /**
  * Tries to convert values to {@link Payload}s using the {@link PayloadConverterWithEncoding}s provided to the constructor, in the order provided.
@@ -49,7 +50,7 @@ export class CompositePayloadConverter implements PayloadConverter {
     if (payload.metadata === undefined || payload.metadata === null) {
       throw new ValueError('Missing payload metadata');
     }
-    const encoding = str(payload.metadata[METADATA_ENCODING_KEY]);
+    const encoding = decode(payload.metadata[METADATA_ENCODING_KEY]);
     const converter = this.converterByEncoding.get(encoding);
     if (converter === undefined) {
       throw new ValueError(`Unknown encoding: ${encoding}`);

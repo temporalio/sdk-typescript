@@ -5,21 +5,18 @@ import {
   IllegalStateError,
   LocalActivityOptions,
   mapToPayloads,
-  msOptionalToTs,
-  msToNumber,
-  msToTs,
   QueryDefinition,
   searchAttributePayloadConverter,
   SearchAttributes,
   SignalDefinition,
   toPayloads,
-  tsToMs,
   UntypedActivities,
   WithWorkflowArgs,
   Workflow,
   WorkflowResultType,
   WorkflowReturnType,
 } from '@temporalio/common';
+import { msOptionalToTs, msToNumber, msToTs, tsToMs } from '@temporalio/common/lib/time';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import { CancellationScope, registerSleepImplementation } from './cancellation-scope';
 import {

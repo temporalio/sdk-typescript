@@ -1,22 +1,21 @@
 import { status as grpcStatus } from '@grpc/grpc-js';
 import {
+  BaseWorkflowHandle,
   CancelledFailure,
+  compileRetryPolicy,
   DataConverter,
   LoadedDataConverter,
   mapFromPayloads,
   mapToPayloads,
+  optionalTsToDate,
+  QueryDefinition,
   RetryState,
   searchAttributePayloadConverter,
+  SearchAttributes,
+  SignalDefinition,
   TerminatedFailure,
   TimeoutFailure,
   TimeoutType,
-
-  BaseWorkflowHandle,
-  compileRetryPolicy,
-  optionalTsToDate,
-  QueryDefinition,
-  SearchAttributes,
-  SignalDefinition,
   tsToDate,
   WithWorkflowArgs,
   Workflow,
@@ -24,6 +23,7 @@ import {
   WorkflowNotFoundError,
   WorkflowResultType,
 } from '@temporalio/common';
+import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import {
   decodeArrayFromPayloads,
   decodeFromPayloadsAtIndex,
@@ -35,7 +35,6 @@ import {
   isLoadedDataConverter,
   loadDataConverter,
 } from '@temporalio/common/lib/internal-non-workflow';
-import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import { Replace } from '@temporalio/common/lib/type-helpers';
 import { temporal } from '@temporalio/proto';
 import os from 'os';

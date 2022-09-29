@@ -1,5 +1,5 @@
 import { Connection } from '@temporalio/client';
-import { msToTs } from '@temporalio/common';
+import { msToTs } from '@temporalio/common/lib/time';
 
 export async function waitOnNamespace(
   connection: Connection,

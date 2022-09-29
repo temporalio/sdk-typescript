@@ -1,5 +1,6 @@
 import * as protoJsonSerializer from 'proto3-json-serializer';
 import type { Message, Namespace, Root, Type } from 'protobufjs';
+import { decode, encode } from '../encoding';
 import { PayloadConverterError, ValueError } from '../errors';
 import { Payload } from '../interfaces';
 import { errorMessage, hasOwnProperties, hasOwnProperty, isRecord } from '../type-helpers';
@@ -11,11 +12,11 @@ import {
 } from './payload-converter';
 import { PayloadConverterWithEncoding } from './payload-converter-with-encoding';
 
-import { EncodingType, encodingTypes, METADATA_ENCODING_KEY, METADATA_MESSAGE_TYPE_KEY, str, u8 } from './types';
+import { encodingTypes, METADATA_ENCODING_KEY, METADATA_MESSAGE_TYPE_KEY } from './types';
 
 abstract class ProtobufPayloadConverter implements PayloadConverterWithEncoding {
   protected readonly root: Root | undefined;
-  public abstract encodingType: EncodingType;
+  public abstract encodingType: string;
 
   public abstract toPayload<T>(value: T): Payload | undefined;
   public abstract fromPayload<T>(payload: Payload): T;
@@ -42,7 +43,7 @@ abstract class ProtobufPayloadConverter implements PayloadConverterWithEncoding 
       throw new PayloadConverterError('Unable to deserialize protobuf message without `root` being provided');
     }
 
-    const messageTypeName = str(content.metadata[METADATA_MESSAGE_TYPE_KEY]);
+    const messageTypeName = decode(content.metadata[METADATA_MESSAGE_TYPE_KEY]);
     let messageType;
     try {
       messageType = this.root.lookupType(messageTypeName);
@@ -62,8 +63,8 @@ abstract class ProtobufPayloadConverter implements PayloadConverterWithEncoding 
   protected constructPayload({ messageTypeName, message }: { messageTypeName: string; message: Uint8Array }): Payload {
     return {
       metadata: {
-        [METADATA_ENCODING_KEY]: u8(this.encodingType),
-        [METADATA_MESSAGE_TYPE_KEY]: u8(messageTypeName),
+        [METADATA_ENCODING_KEY]: encode(this.encodingType),
+        [METADATA_MESSAGE_TYPE_KEY]: encode(messageTypeName),
       },
       data: message,
     };
@@ -122,13 +123,13 @@ export class ProtobufJsonPayloadConverter extends ProtobufPayloadConverter {
 
     return this.constructPayload({
       messageTypeName: getNamespacedTypeName(value.$type),
-      message: u8(JSON.stringify(jsonValue)),
+      message: encode(JSON.stringify(jsonValue)),
     });
   }
 
   public fromPayload<T>(content: Payload): T {
     const { messageType, data } = this.validatePayload(content);
-    return protoJsonSerializer.fromProto3JSON(messageType, JSON.parse(str(data))) as unknown as T;
+    return protoJsonSerializer.fromProto3JSON(messageType, JSON.parse(decode(data))) as unknown as T;
   }
 }
 
