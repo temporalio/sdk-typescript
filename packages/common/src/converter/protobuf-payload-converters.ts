@@ -8,9 +8,9 @@ import {
   BinaryPayloadConverter,
   CompositePayloadConverter,
   JsonPayloadConverter,
+  PayloadConverterWithEncoding,
   UndefinedPayloadConverter,
 } from './payload-converter';
-import { PayloadConverterWithEncoding } from './payload-converter-with-encoding';
 
 import { encodingTypes, METADATA_ENCODING_KEY, METADATA_MESSAGE_TYPE_KEY } from './types';
 
