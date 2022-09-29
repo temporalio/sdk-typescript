@@ -12,12 +12,11 @@ export function checkExtends<_Orig, _Copy extends _Orig>(): void {
 
 export type Replace<Base, New> = Omit<Base, keyof New> & New;
 
-export type MakeOptional<Base, Keys extends keyof Base> = Omit<Base, Keys> & Partial<Pick<Base, Keys>>;
-
 export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
 }
 
+// ts-prune-ignore-next
 export function hasOwnProperty<X extends Record<string, unknown>, Y extends PropertyKey>(
   record: X,
   prop: Y
@@ -35,6 +34,7 @@ export function hasOwnProperties<X extends Record<string, unknown>, Y extends Pr
 /**
  * Get `error.message` (or `undefined` if not present)
  */
+// ts-prune-ignore-next
 export function errorMessage(error: unknown): string | undefined {
   if (typeof error === 'string') {
     return error;
@@ -51,6 +51,7 @@ interface ErrorWithCode {
 /**
  * Get `error.code` (or `undefined` if not present)
  */
+// ts-prune-ignore-next
 export function errorCode(error: unknown): string | undefined {
   if (
     typeof error === 'object' &&
