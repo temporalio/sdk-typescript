@@ -288,7 +288,7 @@ jobs:
 
   # Runs the sdk features repo tests with this repo's current SDK code
   sdk-features-tests:
-    uses: temporalio/sdk-features/.github/workflows/typescript.yaml@main
+    uses: temporalio/sdk-features/.github/workflows/typescript.yaml@protoc
     with:
       typescript-repo-path: ${{github.event.pull_request.head.repo.full_name}}
       typescript-repo-ref: ${{github.event.pull_request.head.ref}}
