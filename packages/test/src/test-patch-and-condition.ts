@@ -1,0 +1,58 @@
+import crypto from 'node:crypto';
+import test from 'ava';
+import { Worker } from '@temporalio/worker';
+import { WorkflowClient } from '@temporalio/client';
+import { RUN_INTEGRATION_TESTS } from './helpers';
+import * as workflows from './workflows/patch-and-condition-pre-patch';
+
+if (RUN_INTEGRATION_TESTS) {
+  test('Patch in condition does not cause non-determinism error on replay', async (t) => {
+    const client = new WorkflowClient();
+    const workflowId = crypto.randomUUID();
+
+    // Create the first worker with pre-patched version of the workflow
+    const worker1 = await Worker.create({
+      taskQueue: 'patch-in-condition',
+      workflowsPath: require.resolve('./workflows/patch-and-condition-pre-patch'),
+    });
+
+    // Start the workflow and wait for the first task to be processed
+    const handle = await worker1.runUntil(async () => {
+      const handle = await client.start(workflows.patchInCondition, {
+        taskQueue: 'patch-in-condition',
+        workflowId,
+        workflowTaskTimeout: '1m', // Give our local activities enough time to run in CI
+      });
+      await handle.query('__stack_trace');
+      return handle;
+    });
+
+    // Create the second worker with post-patched version of the workflow
+    const worker2 = await Worker.create({
+      taskQueue: 'patch-in-condition',
+      workflowsPath: require.resolve('./workflows/patch-and-condition-post-patch'),
+    });
+
+    // Trigger a signal and wait for it to be processed
+    await worker2.runUntil(async () => {
+      await handle.signal(workflows.generateCommandSignal);
+      await handle.query('__stack_trace');
+    });
+
+    // Create the third worker that is identical to the second one
+    const worker3 = await Worker.create({
+      taskQueue: 'patch-in-condition',
+      workflowsPath: require.resolve('./workflows/patch-and-condition-post-patch'),
+    });
+
+    // Trigger a workflow task that will cause replay.
+    await worker3.runUntil(async () => {
+      await handle.signal(workflows.generateCommandSignal);
+      await handle.result();
+    });
+
+    // If the workflow completes, commands are generated in the right order and it is safe to use a patched statement
+    // inside a condition.
+    t.pass();
+  });
+}

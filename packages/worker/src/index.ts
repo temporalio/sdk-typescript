@@ -8,9 +8,21 @@
  * @module
  */
 
-export { TelemetryOptions, Logger as TelemLogger, ForwardLogger, ConsoleLogger } from '@temporalio/core-bridge';
+export {
+  ConsoleLogger,
+  ForwardLogger,
+  Logger as TelemLogger,
+  MetricsExporter,
+  OtelCollectorExporter,
+  PrometheusMetricsExporter,
+  TelemetryOptions,
+  TraceExporter,
+} from '@temporalio/core-bridge';
+export { LoggerSinks } from '@temporalio/workflow';
+export { ActivityInboundLogInterceptor, activityLogAttributes } from './activity-log-interceptor';
 export { NativeConnection as NativeConnection } from './connection';
 export { NativeConnectionOptions, RequiredNativeConnectionOptions, TLSConfig } from './connection-options';
+export { startDebugReplayer } from './debug-replayer';
 export * from './errors';
 export * from './interceptors';
 export * from './logger';
@@ -18,14 +30,15 @@ export { History, Runtime, RuntimeOptions } from './runtime';
 export * from './sinks';
 export { DataConverter, defaultPayloadConverter, errors, State, Worker } from './worker';
 export {
-  CompiledWorkerOptions,
-  WorkerOptions,
-  WorkflowBundleOption,
-  WorkflowBundlePathWithSourceMap,
   appendDefaultInterceptors,
+  CompiledWorkerOptions,
   defaultSinks,
   ReplayWorkerOptions,
+  WorkerOptions,
+  WorkflowBundle,
+  WorkflowBundleOption,
+  WorkflowBundlePath,
+  WorkflowBundlePathWithSourceMap, // eslint-disable-line deprecation/deprecation
 } from './worker-options';
-export { ActivityInboundLogInterceptor, activityLogAttributes } from './activity-log-interceptor';
 export { WorkflowInboundLogInterceptor, workflowLogAttributes } from './workflow-log-interceptor';
 export { BundleOptions, bundleWorkflowCode, WorkflowBundleWithSourceMap } from './workflow/bundler';

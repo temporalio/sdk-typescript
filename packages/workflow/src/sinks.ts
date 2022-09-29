@@ -39,3 +39,16 @@ export interface SinkCall {
   fnName: string;
   args: any[];
 }
+
+/**
+ * Sink interface for forwarding logs from the Workflow sandbox to the Worker
+ */
+export interface LoggerSinks extends Sinks {
+  defaultWorkerLogger: {
+    trace(message: string, attrs: Record<string, unknown>): void;
+    debug(message: string, attrs: Record<string, unknown>): void;
+    info(message: string, attrs: Record<string, unknown>): void;
+    warn(message: string, attrs: Record<string, unknown>): void;
+    error(message: string, attrs: Record<string, unknown>): void;
+  };
+}

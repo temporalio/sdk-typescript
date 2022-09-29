@@ -1,17 +1,20 @@
-import type { SearchAttributes } from '@temporalio/internal-workflow-common';
-import { temporal } from '@temporalio/proto';
+import type { SearchAttributes } from '@temporalio/common';
+import * as proto from '@temporalio/proto';
 import type * as grpc from '@grpc/grpc-js';
 
 export interface WorkflowExecution {
   workflowId: string;
   runId?: string;
 }
-export type StartWorkflowExecutionRequest = temporal.api.workflowservice.v1.IStartWorkflowExecutionRequest;
-export type GetWorkflowExecutionHistoryRequest = temporal.api.workflowservice.v1.IGetWorkflowExecutionHistoryRequest;
-export type DescribeWorkflowExecutionResponse = temporal.api.workflowservice.v1.IDescribeWorkflowExecutionResponse;
-export type TerminateWorkflowExecutionResponse = temporal.api.workflowservice.v1.ITerminateWorkflowExecutionResponse;
+export type StartWorkflowExecutionRequest = proto.temporal.api.workflowservice.v1.IStartWorkflowExecutionRequest;
+export type GetWorkflowExecutionHistoryRequest =
+  proto.temporal.api.workflowservice.v1.IGetWorkflowExecutionHistoryRequest;
+export type DescribeWorkflowExecutionResponse =
+  proto.temporal.api.workflowservice.v1.IDescribeWorkflowExecutionResponse;
+export type TerminateWorkflowExecutionResponse =
+  proto.temporal.api.workflowservice.v1.ITerminateWorkflowExecutionResponse;
 export type RequestCancelWorkflowExecutionResponse =
-  temporal.api.workflowservice.v1.IRequestCancelWorkflowExecutionResponse;
+  proto.temporal.api.workflowservice.v1.IRequestCancelWorkflowExecutionResponse;
 
 export type WorkflowExecutionStatusName =
   | 'UNSPECIFIED'
@@ -29,21 +32,23 @@ export interface WorkflowExecutionDescription {
   workflowId: string;
   runId: string;
   taskQueue: string;
-  status: { code: temporal.api.enums.v1.WorkflowExecutionStatus; name: WorkflowExecutionStatusName };
-  historyLength: Long;
+  status: { code: proto.temporal.api.enums.v1.WorkflowExecutionStatus; name: WorkflowExecutionStatusName };
+  historyLength: number;
   startTime: Date;
   executionTime?: Date;
   closeTime?: Date;
   memo?: Record<string, unknown>;
   searchAttributes: SearchAttributes;
-  parentExecution?: Required<temporal.api.common.v1.IWorkflowExecution>;
+  parentExecution?: Required<proto.temporal.api.common.v1.IWorkflowExecution>;
   raw: DescribeWorkflowExecutionResponse;
 }
 
-export type WorkflowService = temporal.api.workflowservice.v1.WorkflowService;
-export const { WorkflowService } = temporal.api.workflowservice.v1;
-export type OperatorService = temporal.api.operatorservice.v1.OperatorService;
-export const { OperatorService } = temporal.api.operatorservice.v1;
+export type WorkflowService = proto.temporal.api.workflowservice.v1.WorkflowService;
+export const { WorkflowService } = proto.temporal.api.workflowservice.v1;
+export type OperatorService = proto.temporal.api.operatorservice.v1.OperatorService;
+export const { OperatorService } = proto.temporal.api.operatorservice.v1;
+export type HealthService = proto.grpc.health.v1.Health;
+export const { Health: HealthService } = proto.grpc.health.v1;
 
 /**
  * Mapping of string to valid gRPC metadata value

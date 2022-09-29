@@ -13,6 +13,7 @@ import { coresdk } from '@temporalio/proto';
 import { IllegalStateError, SinkCall } from '@temporalio/workflow';
 import { Worker as NodeWorker } from 'worker_threads';
 import { UnexpectedError } from '../errors';
+import { WorkflowBundleWithSourceMapAndFilename } from '../worker';
 import { Workflow, WorkflowCreateOptions, WorkflowCreator } from './interface';
 import { WorkerThreadInput, WorkerThreadRequest } from './workflow-worker-thread/input';
 import { WorkerThreadOutput, WorkerThreadResponse } from './workflow-worker-thread/output';
@@ -118,8 +119,7 @@ export class WorkerThreadClient {
 }
 
 export interface ThreadedVMWorkflowCreatorOptions {
-  code: string;
-  sourceMap: string;
+  workflowBundle: WorkflowBundleWithSourceMapAndFilename;
   threadPoolSize: number;
   isolateExecutionTimeoutMs: number;
 }
@@ -137,15 +137,14 @@ export class ThreadedVMWorkflowCreator implements WorkflowCreator {
    */
   static async create({
     threadPoolSize,
-    code,
-    sourceMap,
+    workflowBundle,
     isolateExecutionTimeoutMs,
   }: ThreadedVMWorkflowCreatorOptions): Promise<ThreadedVMWorkflowCreator> {
     const workerThreadClients = Array(threadPoolSize)
       .fill(0)
       .map(() => new WorkerThreadClient(new NodeWorker(require.resolve('./workflow-worker-thread'))));
     await Promise.all(
-      workerThreadClients.map((client) => client.send({ type: 'init', code, sourceMap, isolateExecutionTimeoutMs }))
+      workerThreadClients.map((client) => client.send({ type: 'init', workflowBundle, isolateExecutionTimeoutMs }))
     );
     return new this(workerThreadClients);
   }
@@ -181,6 +180,10 @@ export class VMWorkflowThreadProxy implements Workflow {
     workerThreadClient: WorkerThreadClient,
     options: WorkflowCreateOptions
   ): Promise<VMWorkflowThreadProxy> {
+    // Delete .now because functions can't be serialized / sent to thread.
+    // Cast to any to avoid type error, since .now is a required field.
+    // Safe to cast since we immediately set it inside the thread in initRuntime.
+    delete (options.info.unsafe as any).now;
     await workerThreadClient.send({ type: 'create-workflow', options });
     return new this(workerThreadClient, options.info.runId);
   }

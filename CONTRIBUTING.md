@@ -152,7 +152,7 @@ cargo install git-cliff
 
 ```sh
 # git-cliff --tag <new version> <current version>..HEAD | pbcopy
-git-cliff --tag 0.18.0 v0.17.2..HEAD | pbcopy
+git-cliff --tag 1.0.1 v1.0.0..HEAD | pbcopy
 ```
 
 - Paste into [CHANGELOG.md](CHANGELOG.md)
@@ -165,12 +165,15 @@ git-cliff --tag 0.18.0 v0.17.2..HEAD | pbcopy
 [#$1](https://github.com/temporalio/sdk-typescript/pull/$1)
 ```
 
+- If PRs came from external contributors, thank them & link their github handles: `([#484](link), thanks to [`@user`](https://github.com/user) 🙏)`
 - Open PR with CHANGELOG change
+- Merge PR
+- Checkout latest `main`
 
 We're [working on automating](https://github.com/temporalio/sdk-typescript/pull/395) the rest of the process:
 
-- Log in to npm as `temporal-sdk-team`
-- Download the artifacts from [GitHub Actions](https://github.com/temporalio/sdk-typescript/actions)
+- Log in to npm as `temporal-sdk-team` (`npm whoami` and `npm login`)
+- Download the 5 `packages-*` artifacts from the PR's [GitHub Action](https://github.com/temporalio/sdk-typescript/actions)
 - Publish:
 
 ```sh
@@ -181,24 +184,60 @@ git clean -fdx
 npm ci
 npm run build
 
+mkdir -p packages/core-bridge/releases
+
+# in the next command, replace ~/gh/release-sdk-typescript with your dir
 for f in ~/Downloads/packages-*.zip; do mkdir "$HOME/Downloads/$(basename -s .zip $f)"; (cd "$HOME/Downloads/$(basename -s .zip $f)" && unzip $f && tar -xvzf @temporalio/core-bridge/core-bridge-*.tgz package/releases/ && cp -r package/releases/* ~/gh/release-sdk-typescript/packages/core-bridge/releases/); done
 
-# we don't build for aarch64-linux in CI, so we build for it now
-export CC_aarch64_unknown_linux_gnu=aarch64-unknown-linux-gnu-gcc
-export CC_x86_64_unknown_linux_gnu=x86_64-unknown-linux-gnu-gcc
-export TEMPORAL_WORKER_BUILD_TARGETS=aarch64-unknown-linux-gnu
-npx lerna run --stream build-rust -- -- --target ${TEMPORAL_WORKER_BUILD_TARGETS}
 # we should now have all 5 build targets
 ls packages/core-bridge/releases/
 
-npx lerna version patch # or major|minor|etc, or leave out to be prompted. either way, you get a confirmation dialog.
+npx lerna version patch --force-publish='*' # or major|minor|etc, or leave out to be prompted. either way, you get a confirmation dialog.
 npx lerna publish from-git # add `--dist-tag next` for pre-release versions
+
+npm deprecate temporalio@^1.0.0 "Instead of installing temporalio, we recommend directly installing our packages: npm remove temporalio; npm install @temporalio/client @temporalio/worker @temporalio/workflow @temporalio/activity"
 ```
 
-- Cleanup:
+- Cleanup after publishing:
 
 ```sh
 rm $HOME/Downloads/packages-*
+rm packages/core-bridge/releases/
+```
+
+- If any APIs have changed, open a PR to update [`samples-typescript`](https://github.com/temporalio/samples-typescript/). Once merged, update the `next` branch:
+
+```sh
+git checkout next
+git rebase origin/main
+git push
+```
+
+### Updating published packages
+
+`npm` commands we may need to use:
+
+If we publish a version like `1.1.0-rc.1` with tag `next`, we untag it after `1.1.0` is released:
+
+```
+npm dist-tag rm @temporalio/client next
+npm dist-tag rm @temporalio/worker next
+npm dist-tag rm @temporalio/workflow next
+npm dist-tag rm @temporalio/activity next
+npm dist-tag rm @temporalio/testing next
+npm dist-tag rm @temporalio/common next
+npm dist-tag rm @temporalio/proto next
+npm dist-tag rm @temporalio/interceptors-opentelemetry next
+npm dist-tag rm @temporalio/common/lib/internal-workflow next
+npm dist-tag rm @temporalio/common/lib/internal-non-workflow next
+npm dist-tag rm @temporalio/create next
+npm dist-tag rm temporalio next
+```
+
+When we want to deprecate a package:
+
+```
+npm deprecate temporalio@^1.0.0 "deprecation message that will be logged on install"
 ```
 
 ## Updating the Java test server proto files

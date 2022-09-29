@@ -1,22 +1,20 @@
 import {
+  defaultFailureConverter,
+  FailureConverter,
+  PayloadConverter,
   arrayFromPayloads,
   defaultPayloadConverter,
   ensureTemporalFailure,
-  errorToFailure,
-  failureToError,
-  optionalFailureToOptionalError,
-  PayloadConverter,
-  TemporalFailure,
-} from '@temporalio/common';
-import {
-  checkExtends,
-  composeInterceptors,
   IllegalStateError,
+  TemporalFailure,
   Workflow,
   WorkflowExecutionAlreadyStartedError,
   WorkflowQueryType,
   WorkflowSignalType,
-} from '@temporalio/internal-workflow-common';
+} from '@temporalio/common';
+import type { RawSourceMap } from 'source-map';
+import { composeInterceptors } from '@temporalio/common/lib/interceptors';
+import { checkExtends } from '@temporalio/common/lib/type-helpers';
 import type { coresdk } from '@temporalio/proto';
 import { alea, RNG } from './alea';
 import { ROOT_SCOPE } from './cancellation-scope';
@@ -28,9 +26,10 @@ import {
   WorkflowInterceptors,
   WorkflowInterceptorsFactory,
 } from './interceptors';
-import { ContinueAsNew, WorkflowInfo } from './interfaces';
+import { ContinueAsNew, SDKInfo, FileSlice, EnhancedStackTrace, FileLocation, WorkflowInfo } from './interfaces';
 import { SinkCall } from './sinks';
 import { untrackPromise } from './stack-helpers';
+import pkg from './pkg';
 
 enum StartChildWorkflowExecutionFailedCause {
   START_CHILD_WORKFLOW_EXECUTION_FAILED_CAUSE_UNSPECIFIED = 0,
@@ -38,13 +37,19 @@ enum StartChildWorkflowExecutionFailedCause {
 }
 
 checkExtends<coresdk.child_workflow.StartChildWorkflowExecutionFailedCause, StartChildWorkflowExecutionFailedCause>();
+checkExtends<StartChildWorkflowExecutionFailedCause, coresdk.child_workflow.StartChildWorkflowExecutionFailedCause>();
+
+export interface Stack {
+  formatted: string;
+  structured: FileLocation[];
+}
 
 /**
  * Global store to track promise stacks for stack trace query
  */
 export interface PromiseStackStore {
   childToParent: Map<Promise<unknown>, Set<Promise<unknown>>>;
-  promiseToStack: Map<Promise<unknown>, string>;
+  promiseToStack: Map<Promise<unknown>, Stack>;
 }
 
 export type ResolveFunction<T = any> = (val: T) => any;
@@ -141,11 +146,11 @@ export class Activator implements ActivationHandler {
       resolve(result);
     } else if (activation.result.failed) {
       const { failure } = activation.result.failed;
-      const err = optionalFailureToOptionalError(failure, state.payloadConverter);
+      const err = failure ? state.failureConverter.failureToError(failure) : undefined;
       reject(err);
     } else if (activation.result.cancelled) {
       const { failure } = activation.result.cancelled;
-      const err = optionalFailureToOptionalError(failure, state.payloadConverter);
+      const err = failure ? state.failureConverter.failureToError(failure) : undefined;
       reject(err);
     } else if (activation.result.backoff) {
       reject(new LocalActivityDoBackoff(activation.result.backoff));
@@ -179,7 +184,7 @@ export class Activator implements ActivationHandler {
       if (!activation.cancelled.failure) {
         throw new TypeError('Got no failure in cancelled variant');
       }
-      reject(failureToError(activation.cancelled.failure, state.payloadConverter));
+      reject(state.failureConverter.failureToError(activation.cancelled.failure));
     } else {
       throw new TypeError('Got ResolveChildWorkflowExecutionStart with no status');
     }
@@ -199,13 +204,13 @@ export class Activator implements ActivationHandler {
       if (failure === undefined || failure === null) {
         throw new TypeError('Got failed result with no failure attribute');
       }
-      reject(failureToError(failure, state.payloadConverter));
+      reject(state.failureConverter.failureToError(failure));
     } else if (activation.result.cancelled) {
       const { failure } = activation.result.cancelled;
       if (failure === undefined || failure === null) {
         throw new TypeError('Got cancelled result with no failure attribute');
       }
-      reject(failureToError(failure, state.payloadConverter));
+      reject(state.failureConverter.failureToError(failure));
     }
   }
 
@@ -213,8 +218,11 @@ export class Activator implements ActivationHandler {
   protected queryWorkflowNextHandler({ queryName, args }: QueryInput): Promise<unknown> {
     const fn = state.queryHandlers.get(queryName);
     if (fn === undefined) {
+      const knownQueryTypes = [...state.queryHandlers.keys()].join(' ');
       // Fail the query
-      throw new ReferenceError(`Workflow did not register a handler for ${queryName}`);
+      throw new ReferenceError(
+        `Workflow did not register a handler for ${queryName}. Registered queries: [${knownQueryTypes}]`
+      );
     }
     try {
       const ret = fn(...args);
@@ -294,7 +302,7 @@ export class Activator implements ActivationHandler {
   public resolveSignalExternalWorkflow(activation: coresdk.workflow_activation.IResolveSignalExternalWorkflow): void {
     const { resolve, reject } = consumeCompletion('signalWorkflow', getSeq(activation));
     if (activation.failure) {
-      reject(failureToError(activation.failure, state.payloadConverter));
+      reject(state.failureConverter.failureToError(activation.failure));
     } else {
       resolve(undefined);
     }
@@ -305,7 +313,7 @@ export class Activator implements ActivationHandler {
   ): void {
     const { resolve, reject } = consumeCompletion('cancelWorkflow', getSeq(activation));
     if (activation.failure) {
-      reject(failureToError(activation.failure, state.payloadConverter));
+      reject(state.failureConverter.failureToError(activation.failure));
     } else {
       resolve(undefined);
     }
@@ -376,34 +384,72 @@ export class State {
   public readonly signalHandlers = new Map<string, WorkflowSignalType>();
 
   /**
+   * Source map file for looking up the source files in response to __enhanced_stack_trace
+   */
+  public sourceMap: RawSourceMap | undefined;
+
+  /**
+   * Whether or not to send the sources in enhanced stack trace query responses
+   */
+  public showStackTraceSources = false;
+
+  protected getStackTraces(): Stack[] {
+    const { childToParent, promiseToStack } = (globalThis as any).__TEMPORAL__.promiseStackStore as PromiseStackStore;
+    const internalNodes = [...childToParent.values()].reduce((acc, curr) => {
+      for (const p of curr) {
+        acc.add(p);
+      }
+      return acc;
+    }, new Set());
+    const stacks = new Map<string, Stack>();
+    for (const child of childToParent.keys()) {
+      if (!internalNodes.has(child)) {
+        const stack = promiseToStack.get(child);
+        if (!stack || !stack.formatted) continue;
+        stacks.set(stack.formatted, stack);
+      }
+    }
+    // Not 100% sure where this comes from, just filter it out
+    stacks.delete('    at Promise.then (<anonymous>)');
+    stacks.delete('    at Promise.then (<anonymous>)\n');
+    return [...stacks].map(([_, stack]) => stack);
+  }
+
+  /**
    * Mapping of query name to handler
    */
   public readonly queryHandlers = new Map<string, WorkflowQueryType>([
     [
       '__stack_trace',
       () => {
-        const { childToParent, promiseToStack } = (globalThis as any).__TEMPORAL__
-          .promiseStackStore as PromiseStackStore;
-        const internalNodes = new Set(
-          [...childToParent.values()].reduce((acc, curr) => {
-            for (const p of curr) {
-              acc.add(p);
+        return this.getStackTraces()
+          .map((s) => s.formatted)
+          .join('\n\n');
+      },
+    ],
+    [
+      '__enhanced_stack_trace',
+      (): EnhancedStackTrace => {
+        const { sourceMap } = this;
+        const sdk: SDKInfo = { name: 'typescript', version: pkg.version };
+        const stacks = this.getStackTraces().map(({ structured: locations }) => ({ locations }));
+        const sources: Record<string, FileSlice[]> = {};
+        if (this.showStackTraceSources) {
+          for (const { locations } of stacks) {
+            for (const { filePath } of locations) {
+              if (!filePath) continue;
+              const content = sourceMap?.sourcesContent?.[sourceMap?.sources.indexOf(filePath)];
+              if (!content) continue;
+              sources[filePath] = [
+                {
+                  content,
+                  lineOffset: 0,
+                },
+              ];
             }
-            return acc;
-          }, new Set())
-        );
-        const stacks = new Set<string>();
-        for (const child of childToParent.keys()) {
-          if (!internalNodes.has(child)) {
-            const stack = promiseToStack.get(child);
-            if (!stack) continue;
-            stacks.add(stack);
           }
         }
-        // Not 100% sure where this comes from, just filter it out
-        stacks.delete('    at Promise.then (<anonymous>)');
-        stacks.delete('    at Promise.then (<anonymous>)\n');
-        return [...stacks].join('\n\n');
+        return { sdk, stacks, sources };
       },
     ],
   ]);
@@ -499,6 +545,7 @@ export class State {
   public importInterceptors?: InterceptorsImportFunc;
 
   public payloadConverter: PayloadConverter = defaultPayloadConverter;
+  public failureConverter: FailureConverter = defaultFailureConverter;
 
   /**
    * Patches we know the status of for this workflow, as in {@link patched}
@@ -565,7 +612,7 @@ export async function handleWorkflowFailure(error: unknown): Promise<void> {
     state.pushCommand(
       {
         failWorkflowExecution: {
-          failure: errorToFailure(error, state.payloadConverter),
+          failure: state.failureConverter.errorToFailure(error),
         },
       },
       true
@@ -581,7 +628,7 @@ function completeQuery(queryId: string, result: unknown) {
 
 async function failQuery(queryId: string, error: any) {
   state.pushCommand({
-    respondToQuery: { queryId, failed: errorToFailure(ensureTemporalFailure(error), state.payloadConverter) },
+    respondToQuery: { queryId, failed: state.failureConverter.errorToFailure(ensureTemporalFailure(error)) },
   });
 }
 

@@ -4,6 +4,248 @@ All notable changes to this project will be documented in this file.
 
 Breaking changes marked with a :boom:
 
+## [1.3.0] - 2022-09-20
+
+### Bug Fixes
+
+- :boom: Various bug fixes ([#873](https://github.com/temporalio/sdk-typescript/pull/873))
+
+  BREAKING CHANGE: Makes `WorkflowExecutionDescription.historyLength` a number. This was a `Long` before, but shouldn't
+  have been. If you're currently calling:
+
+  ```ts
+  (await workflowHandle.describe()).historyLength.toNumber();
+  ```
+
+  then remove the `.toNumber()` call.
+
+  This PR also included:
+
+  - Make `protobufjs` a dev dependency of `@temporalio/client`
+  - Use simple version of Core's `cancelChildWorkflowExecution` command
+
+- :boom: Update Core from [`e261`](https://github.com/temporalio/sdk-core/tree/e261de3c38b47b29be0db209e9a4758250593034) to [`b437`](https://github.com/temporalio/sdk-core/tree/b437737) ([#865](https://github.com/temporalio/sdk-typescript/pull/865) and [#873](https://github.com/temporalio/sdk-typescript/pull/873))
+
+  BREAKING CHANGE: This fixes a bug where values (memo, search attributes, and retry policy) were not being passed on to
+  the next Run during Continue-As-New. Now they are, unless you specify different values when calling
+  [`continueAsNew`](https://typescript.temporal.io/api/namespaces/workflow/#continueasnew)
+  ([temporalio/sdk-core#376](https://github.com/temporalio/sdk-core/pull/376)). _[We believe this is unlikely to break
+  users code—the code would have to be depending on the absence of these values in Continued-As-New Runs.]_
+
+  This update also have various fixes and features:
+
+  - Don't dispatch eager activity if task queue is not the "current" ([temporalio/sdk-core#397](https://github.com/temporalio/sdk-core/pull/397))
+  - Fix cancelling of started-but-lang-doesn't-know workflows ([temporalio/sdk-core#379](https://github.com/temporalio/sdk-core/pull/379))
+  - Protect worker from more network errors ([temporalio/sdk-core#396](https://github.com/temporalio/sdk-core/pull/396))
+  - Use tokio-rustls for request ([temporalio/sdk-core#395](https://github.com/temporalio/sdk-core/pull/395))
+  - Fix for ephemeral test server zombie ([temporalio/sdk-core#392](https://github.com/temporalio/sdk-core/pull/392))
+  - Ephemeral server lazy-downloader and runner ([temporalio/sdk-core#389](https://github.com/temporalio/sdk-core/pull/389))
+  - Fix health service getter ([temporalio/sdk-core#387](https://github.com/temporalio/sdk-core/pull/387))
+  - Expose HealthService ([temporalio/sdk-core#386](https://github.com/temporalio/sdk-core/pull/386))
+  - Add more missing workflow options and add request_id as parameter for some calls ([temporalio/sdk-core#365](https://github.com/temporalio/sdk-core/pull/365))
+  - Correct API definition link ([temporalio/sdk-core#381](https://github.com/temporalio/sdk-core/pull/381))
+  - Add grpc health checking service/fns to client ([temporalio/sdk-core#377](https://github.com/temporalio/sdk-core/pull/377))
+  - Respect per-call gRPC headers ([temporalio/sdk-core#375](https://github.com/temporalio/sdk-core/pull/375))
+  - More client refactoring & add versioning-opt-in config flag ([temporalio/sdk-core#374](https://github.com/temporalio/sdk-core/pull/374))
+  - Publicly expose the new client traits ([temporalio/sdk-core#371](https://github.com/temporalio/sdk-core/pull/371))
+  - Add Test Server client & update deps ([temporalio/sdk-core#370](https://github.com/temporalio/sdk-core/pull/370))
+  - Added test confirming act. w/o heartbeats times out ([temporalio/sdk-core#369](https://github.com/temporalio/sdk-core/pull/369))
+  - Add Operator API machinery to client ([temporalio/sdk-core#366](https://github.com/temporalio/sdk-core/pull/366))
+
+- [`client`] Only require `signalArgs` in [`signalWithStart`](https://typescript.temporal.io/api/classes/client.workflowclient/#signalwithstart) when needed ([#847](https://github.com/temporalio/sdk-typescript/pull/847))
+
+### Features
+
+- :boom: Improvements to `@temporalio/testing` ([#865](https://github.com/temporalio/sdk-typescript/pull/865) and [#873](https://github.com/temporalio/sdk-typescript/pull/873))
+
+  BREAKING CHANGE: Breaking for the testing package in some of the more advanced and rarely used options:
+
+  - No longer accepting `runInNormalTime` when waiting for workflow result
+  - `TestWorkflowEnvironmentOptions` is completely redone
+
+  _[Given that these were rarely used and the testing package isn't meant for production use, we don't think this change warrants a major version bump.]_
+
+  `TestWorkflowEnvironment.create` is deprecated in favor of:
+
+  - [`TestWorkflowEnvironment.createTimeSkipping`](https://typescript.temporal.io/api/classes/testing.TestWorkflowEnvironment#createtimeskipping)
+  - [`TestWorkflowEnvironment.createLocal`](https://typescript.temporal.io/api/classes/testing.TestWorkflowEnvironment#createlocal)
+
+  Added [`TestWorkflowEnvironment.currentTimeMs`](https://typescript.temporal.io/api/classes/testing.TestWorkflowEnvironment#currenttimems).
+
+- Various minor features ([#865](https://github.com/temporalio/sdk-typescript/pull/865))
+  - Add [`Connection.healthService`](https://typescript.temporal.io/api/classes/client.Connection#healthservice) and generate testservice and health in proto package
+  - Updated ci to use sdk-ci namespace for testing with cloud.
+  - Use ephemeral server from Core (supports both time skipping and temporalite)
+  - Test server is now only downloaded on first use
+  - Removed some unused dependencies
+  - Refactored core bridge into multiple files
+  - Closes [#834](https://github.com/temporalio/sdk-typescript/issues/834)
+  - Closes [#844](https://github.com/temporalio/sdk-typescript/issues/844)
+- [`client`] Add a high-level meta [`Client`](https://typescript.temporal.io/api/classes/client.Client) class ([#870](https://github.com/temporalio/sdk-typescript/pull/870))
+
+  We now recommend using this instead of our other clients:
+
+  ```ts
+  import { Client } from '@temporalio/client';
+
+  const client = new Client(options);
+
+  await client.workflow.start();
+  await client.activity.heartbeat();
+  await client.activity.complete();
+  ```
+
+  - `client.workflow` is a [`WorkflowClient`](https://typescript.temporal.io/api/classes/client.workflowclient/).
+  - `client.activity` is an [`AsyncCompletionClient`](https://typescript.temporal.io/api/classes/client.asynccompletionclient/).
+  - We will be adding `client.schedule.*` (see the [`ScheduleClient` proposal](https://github.com/temporalio/proposals/pull/62)).
+
+- Add [`ActivityOptions.allowEagerDispatch`](https://typescript.temporal.io/api/interfaces/common.activityoptions/#alloweagerdispatch) (default true) ([#873](https://github.com/temporalio/sdk-typescript/pull/873))
+- [`testing`] Use `temporal.download` for downloading test server ([#864](https://github.com/temporalio/sdk-typescript/pull/864))
+- Add Webpack rule to auto instrument Workflows for code coverage, add `augmentWorkerOptions()` ([#858](https://github.com/temporalio/sdk-typescript/pull/858), thanks to [`@vkarpov15`](https://github.com/vkarpov15) 🙏)
+
+### Documentation
+
+- Improve API reference ([#871](https://github.com/temporalio/sdk-typescript/pull/871))
+- Publish unchanged packages ([#862](https://github.com/temporalio/sdk-typescript/pull/862))
+- Update `nyc-test-coverage` README ([#866](https://github.com/temporalio/sdk-typescript/pull/866))
+
+### Miscellaneous Tasks
+
+- In-process verdaccio server ([#861](https://github.com/temporalio/sdk-typescript/pull/861), thanks to [`@mjameswh`](https://github.com/mjameswh) 🙏)
+
+## [1.2.0] - 2022-09-01
+
+### Features
+
+- [`client`] Enable gRPC keep-alive by default ([#855](https://github.com/temporalio/sdk-typescript/pull/855))
+- Implement entrypoint for debug replayer ([#848](https://github.com/temporalio/sdk-typescript/pull/848))
+
+### Bug Fixes
+
+- Build `nyc-test-coverage` package, fixes [#839](https://github.com/temporalio/sdk-typescript/issues/839) ([#843](https://github.com/temporalio/sdk-typescript/pull/843))
+- [`workflow`] Fix non-determinism on replay when using a `patched` statement in a `condition` ([#859](https://github.com/temporalio/sdk-typescript/pull/859))
+- `isCancellation` no longer scans chain recursively ([#837](https://github.com/temporalio/sdk-typescript/pull/837))
+- Don't trigger conditions for query jobs ([#854](https://github.com/temporalio/sdk-typescript/pull/854))
+
+### Documentation
+
+- Add title and link to other docs ([#842](https://github.com/temporalio/sdk-typescript/pull/842))
+- Update release instructions ([#835](https://github.com/temporalio/sdk-typescript/pull/835))
+- Update README badge links ([#856](https://github.com/temporalio/sdk-typescript/pull/856))
+
+## [1.1.0] - 2022-08-20
+
+### Bug Fixes
+
+- :boom: [`worker`] Remove unnecessary `ReplayWorkerOptions` ([#816](https://github.com/temporalio/sdk-typescript/pull/816))
+
+  BREAKING CHANGE: While this is technically breaking (if you pass options that are irrelevant to replay like `maxActivitiesPerSecond`, you'll get a compilation error), we decided it did not warrant a major version bump, as it doesn't affect production code (replay is a testing feature) and is only a type change (is caught at compile type by TS users and doesn't affect JS users).
+
+- Warn instead of throwing when getting `workflowBundle` with `workflowsPath` and `bundlerOptions` ([#833](https://github.com/temporalio/sdk-typescript/pull/833))
+
+  ⚠️ NOTE: We now prefer taking `workflowBundle` over `workflowsPath` when both are provided, which is the correct behavior and what users should expect.
+
+  We also now warn that workflow interceptors are ignored when using `workflowBundle`.
+
+- [`workflow`] Make breakpoints work inside workflow isolate context ([#819](https://github.com/temporalio/sdk-typescript/pull/819))
+
+  ⚠️ NOTE: Bundles created with `bundleWorkflowCode` should only be used for calling `Worker.create` when the exact same version of `@temporalio/worker` is used. (If you don't pin to exact versions in your `package.json`, then you should use a lockfile, and both the machine that runs `bundleWorkflowCode` and `Worker.create` should run `npm ci`, not `npm install`.)
+
+  ⚠️ DEPRECATION: `sourceMap` and `sourceMapPath` are now deprecated. We've inlined source maps, so now this works:
+
+  ```ts
+  const { code } = await bundleWorkflowCode({ workflowsPath });
+  const worker = await Worker.create({ workflowBundle: { code }, ...otherOptions });
+  ```
+
+- Avoid using dynamic import in `@temporalio/testing` ([#805](https://github.com/temporalio/sdk-typescript/pull/805))
+- [`worker`] Don't start activity poller if no activities registered ([#808](https://github.com/temporalio/sdk-typescript/pull/808))
+- Update `proto3-json-serializer` to `^1.0.3` ([#809](https://github.com/temporalio/sdk-typescript/pull/809))
+- Help protobufjs find `long` in Yarn3 ([#810](https://github.com/temporalio/sdk-typescript/issues/810)) ([#814](https://github.com/temporalio/sdk-typescript/pull/814))
+- Add `@types/long` to client ([#735](https://github.com/temporalio/sdk-typescript/pull/735))
+- [`worker`] Improve worker default options heuristics ([#802](https://github.com/temporalio/sdk-typescript/pull/802))
+- Use `GITHUB_TOKEN` in `create-project` for CI ([#721](https://github.com/temporalio/sdk-typescript/pull/721))
+
+### Features
+
+- :boom: [`worker`] Add webpack configuration, closes [#537](https://github.com/temporalio/sdk-typescript/issues/537) ([#815](https://github.com/temporalio/sdk-typescript/pull/815))
+
+  This was our most-upvoted feature request! ([9 👍's](https://github.com/temporalio/sdk-typescript/issues?q=is%3Aissue+sort%3Areactions-%2B1-desc).) See [`WorkerOptions.bundlerOptions.webpackConfigHook`](https://typescript.temporal.io/api/interfaces/worker.workeroptions/#bundleroptions) for usage.
+
+  BREAKING CHANGE: If you provide both `workflowBundle` & `workflowsPath` or both `workflowBundle` & `bundlerOptions` to `Worker.create`, a `ValueError` will now be thrown. While this is technically breaking, TODO
+
+- Add `@temporalio/nyc-test-coverage` package ([#798](https://github.com/temporalio/sdk-typescript/pull/798), thanks to [`@vkarpov15`](https://github.com/vkarpov15) 🙏)
+
+  This package adds code coverage for Istanbul. It's currently in beta: the API may be unstable as we gather feedback on it from users. To try it out, see [this code snippet](https://github.com/temporalio/sdk-typescript/pull/798#issue-1323652976) for current usage.
+
+- [`common`] Improve `ApplicationFailure` arguments; add `.create` and `.fromError` ([#767](https://github.com/temporalio/sdk-typescript/pull/767))
+
+  See [`ApplicationFailure.create`](https://typescript.temporal.io/api/classes/common.applicationfailure/#create) and [`ApplicationFailure.fromError`](https://typescript.temporal.io/api/classes/common.applicationfailure/#fromerror)
+
+- Expose additional console methods to workflow context ([#831](https://github.com/temporalio/sdk-typescript/pull/831))
+
+  `console.[error|warn|info|debug]` can now be called from Workflow code, in addition to `console.log`
+
+### Documentation
+
+- Add package list to README ([#803](https://github.com/temporalio/sdk-typescript/pull/803))
+- Add API doc for `bundleWorkflowCode`, fixes [#792](https://github.com/temporalio/sdk-typescript/issues/792) ([#793](https://github.com/temporalio/sdk-typescript/pull/793))
+- Surface missing core-bridge exports ([#812](https://github.com/temporalio/sdk-typescript/pull/812))
+- Export missing `ApplicationFailureOptions` ([#823](https://github.com/temporalio/sdk-typescript/pull/823))
+- Improve API reference ([#826](https://github.com/temporalio/sdk-typescript/pull/826))
+
+## [1.0.1] - 2022-07-29
+
+### Bug Fixes
+
+- Allow `RetryPolicy.maximumAttempts: Number.POSITIVE_INFINITY` ([#784](https://github.com/temporalio/sdk-typescript/pull/784))
+- [`worker`] Prevent ending a worker span twice. ([#786](https://github.com/temporalio/sdk-typescript/pull/786))
+- Update Core SDK ([#790](https://github.com/temporalio/sdk-typescript/pull/790))
+  - Turn down log level for this line ([#362](https://github.com/temporalio/sdk-core/pull/362))
+  - Fix bug where LA resolutions could trigger activations with no associated WFT ([#357](https://github.com/temporalio/sdk-core/pull/357))
+  - Don't allow activity completions with unset successful result payloads ([#356](https://github.com/temporalio/sdk-core/pull/356))
+  - Make sure workers do not propagate retryable errors as fatal ([#353](https://github.com/temporalio/sdk-core/pull/353))
+  - Fix null LA results becoming unparseable ([#355](https://github.com/temporalio/sdk-core/pull/355))
+
+### Documentation
+
+- Update release instructions ([#779](https://github.com/temporalio/sdk-typescript/pull/779))
+- Update release instructions again ([#780](https://github.com/temporalio/sdk-typescript/pull/780))
+
+### Features
+
+- [`workflow`] List registered queries in error response when a query is not found ([#791](https://github.com/temporalio/sdk-typescript/pull/791))
+
+### Miscellaneous Tasks
+
+- Upgrade to protobufjs v7 ([#789](https://github.com/temporalio/sdk-typescript/pull/789))
+  - Fixes [#669](https://github.com/temporalio/sdk-typescript/issues/669)
+  - Fixes [#785](https://github.com/temporalio/sdk-typescript/issues/785)
+
+## [1.0.0] - 2022-07-25
+
+⚠️ NOTE: Before upgrading to `1.0.0`, note all breaking changes between your current version and this version, including [`1.0.0-rc.1`](#100-rc1---2022-07-11) and [`1.0.0-rc.0`](#100-rc0---2022-06-17).
+
+### Bug Fixes
+
+- [`worker`] Update `terser`, fixes [#759](https://github.com/temporalio/sdk-typescript/issues/759) ([#760](https://github.com/temporalio/sdk-typescript/pull/760))
+- Reference local version of `ActivityCancellationType` ([#768](https://github.com/temporalio/sdk-typescript/pull/768))
+
+### Documentation
+
+- Update author and license company name ([#748](https://github.com/temporalio/sdk-typescript/pull/748))
+- Deprecate `temporalio` meta package ([#747](https://github.com/temporalio/sdk-typescript/pull/747))
+
+### Refactor
+
+- :boom: [`workflow`] Move `TaskInfo` to `WorkflowInfo` ([#761](https://github.com/temporalio/sdk-typescript/pull/761))
+
+  BREAKING CHANGE: There is no longer a `taskInfo()` export from `@temporalio/workflow`. `taskInfo().*` fields have been moved to `workflowInfo()`.
+
+- :boom: Update `activity` and `worker` exports ([#764](https://github.com/temporalio/sdk-typescript/pull/764))
+
+  BREAKING CHANGE: If you were importing any of the following errors from `@temporalio/activity` (unlikely), instead import from `@temporalio/common`: `ValueError, PayloadConverterError, IllegalStateError, WorkflowExecutionAlreadyStartedError, WorkflowNotFoundError`
+
 ## [1.0.0-rc.1] - 2022-07-11
 
 ### Bug Fixes
@@ -13,7 +255,7 @@ Breaking changes marked with a :boom:
 - Simplify DocBreadcrumbs so we don't need the swizzle warning comment ([#715](https://github.com/temporalio/sdk-typescript/pull/715))
 - Add missing deps ([#733](https://github.com/temporalio/sdk-typescript/pull/733))
 
-  - `@opentelemetry/api` was missing from `@temporalio/internal-non-workflow-common`
+  - `@opentelemetry/api` was missing from `@temporalio/common/lib/internal-non-workflow`
 
 - Re-export from internal-workflow-common ([#736](https://github.com/temporalio/sdk-typescript/pull/736))
 - [`activity`] Set Info.isLocal correctly ([#714](https://github.com/temporalio/sdk-typescript/pull/714))
@@ -75,6 +317,10 @@ Breaking changes marked with a :boom:
 
   `originalRunId` is a concept related to resetting workflows. None of the instances of `originalRunId` in the SDK seem to do with resetting, so they were changed to `firstExecutionRunId` and `signaledRunId` for handles returned by `WorkflowClient.start` / `@temporalio/workflow:startChild` and `WorkflowClient.signalWithStart` respectively.
 
+- :boom: Use error constructor name as `applicationFailureInfo.type` ([#683](https://github.com/temporalio/sdk-typescript/pull/683))
+
+  Now uses `err.constructor.name` instead of `err.name` by default, since `.name` is still 'Error' for classes that extend Error.
+
 - Various improvements and fixes ([#660](https://github.com/temporalio/sdk-typescript/pull/660))
 
   - Record memory usage in stress tests
@@ -106,7 +352,6 @@ Breaking changes marked with a :boom:
 - [`docs`] Add links to API and other categories ([#676](https://github.com/temporalio/sdk-typescript/pull/676))
 - [`docs`] `Connection.service` -> `.workflowService` ([#696](https://github.com/temporalio/sdk-typescript/pull/696))
 - [`docs`] Remove maxIsolateMemoryMB ([#700](https://github.com/temporalio/sdk-typescript/pull/700))
-- Use error constructor name as `applicationFailureInfo.type` ([#683](https://github.com/temporalio/sdk-typescript/pull/683))
 - Don't drop details from core errors ([#705](https://github.com/temporalio/sdk-typescript/pull/705))
 
 ### Features
@@ -615,7 +860,7 @@ Breaking changes marked with a :boom:
 
 - :boom: Custom and protobuf data converters ([#477](https://github.com/temporalio/sdk-typescript/pull/477))
 
-  BREAKING CHANGE: [`DataConverter`](https://typescript.temporal.io/api/interfaces/worker.DataConverter) interface has changed, and some things that were exported from `common` no longer are. If it's no longer exported (see [list of exports](https://typescript.temporal.io/api/namespaces/common)), try importing from `@temporalio/activity|client|worker|workflow`. If you're unable to find it, open an issue for us to fix it, and in the meantime import from [`internal-workflow-common`](https://github.com/temporalio/sdk-typescript/tree/main/packages/internal-workflow-common) or [`internal-non-workflow-common`](https://github.com/temporalio/sdk-typescript/tree/main/packages/internal-non-workflow-common).
+  BREAKING CHANGE: [`DataConverter`](https://typescript.temporal.io/api/interfaces/worker.DataConverter) interface has changed, and some things that were exported from `common` no longer are. If it's no longer exported (see [list of exports](https://typescript.temporal.io/api/namespaces/common)), try importing from `@temporalio/activity|client|worker|workflow`. If you're unable to find it, open an issue for us to fix it, and in the meantime import from [`internal-workflow-common`](https://github.com/temporalio/sdk-typescript/tree/main/packages/common/lib/internal-workflow) or [`internal-non-workflow-common`](https://github.com/temporalio/sdk-typescript/tree/main/packages/common/lib/internal-non-workflow).
 
   - Adds custom data converter feature and changes the DataConverter API. Design doc: https://github.com/temporalio/sdk-typescript/tree/main/docs/data-converter.md#decision
 
@@ -1349,7 +1594,7 @@ Breaking changes marked with a :boom:
   - Add Workflow and WorkflowCreator interfaces to support pluggable workflow environments (prepare for VM)
   - :boom: Simplify external dependencies mechanism to only support void functions and remove the isolated-vm transfer options.
 
-- Support [`ms`](https://www.npmjs.com/package/ms) formatted string for activity.Context.sleep ([#322](https://github.com/temporalio/sdk-typescript/pull/322))
+- Support [`ms`](https://www.npmjs.com/package/ms)-formatted string for activity.Context.sleep ([#322](https://github.com/temporalio/sdk-typescript/pull/322))
 - :boom: Runtime determinism tweaks ([#326](https://github.com/temporalio/sdk-typescript/pull/326))
   - Undelete WeakMap and WeakSet
   - Delete FinalizationRegistry

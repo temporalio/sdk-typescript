@@ -1,17 +1,17 @@
 const { withRegistry, getArgs } = require('./registry');
-const { spawnNpxSync } = require('./utils');
+const { spawnNpx } = require('./utils');
 
 async function main() {
   const { registryDir } = await getArgs();
   await withRegistry(registryDir, async () => {
-    const { status, error } = spawnNpxSync(
-      ['lerna', 'publish', 'from-package', '--yes', '--registry', 'http://localhost:4873/'],
-      {
+    try {
+      await spawnNpx(['lerna', 'publish', 'from-package', '--yes', '--registry', 'http://localhost:4873/'], {
         stdio: 'inherit',
-      }
-    );
-    if (status !== 0) {
-      console.error(error);
+        stdout: 'inherit',
+        stderr: 'inherit',
+      });
+    } catch (e) {
+      console.error(e);
       throw new Error('Failed to publish to registry');
     }
   });

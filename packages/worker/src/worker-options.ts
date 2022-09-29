@@ -1,30 +1,52 @@
-import { DataConverter, LoadedDataConverter } from '@temporalio/common';
-import { loadDataConverter } from '@temporalio/internal-non-workflow-common';
-import { msToNumber } from '@temporalio/internal-workflow-common';
-import os from 'os';
+import { DataConverter, LoadedDataConverter, msToNumber } from '@temporalio/common';
+import { loadDataConverter } from '@temporalio/common/lib/internal-non-workflow';
+import { LoggerSinks } from '@temporalio/workflow';
+import * as os from 'os';
+import * as v8 from 'v8';
+import type { Configuration as WebpackConfiguration } from 'webpack';
 import { ActivityInboundLogInterceptor } from './activity-log-interceptor';
 import { NativeConnection } from './connection';
 import { WorkerInterceptors } from './interceptors';
 import { Runtime } from './runtime';
 import { InjectedSinks } from './sinks';
 import { GiB } from './utils';
-import { LoggerSinks } from './workflow-log-interceptor';
 import { WorkflowBundleWithSourceMap } from './workflow/bundler';
 
+export type { WebpackConfiguration };
+
+export interface WorkflowBundlePath {
+  codePath: string;
+}
+
+/**
+ * Note this no longer contains a source map.
+ * The name was preserved to avoid breaking backwards compatibility.
+ *
+ * @deprecated
+ */
 export interface WorkflowBundlePathWithSourceMap {
   codePath: string;
   sourceMapPath: string;
 }
-export type WorkflowBundleOption = WorkflowBundleWithSourceMap | WorkflowBundlePathWithSourceMap;
 
-export function isCodeBundleOption(bundleOpt: WorkflowBundleOption): bundleOpt is WorkflowBundleWithSourceMap {
-  const opt = bundleOpt as any; // Cast to access properties without TS complaining
-  return typeof opt.code === 'string' && typeof opt.sourceMap === 'string';
+export interface WorkflowBundle {
+  code: string;
 }
 
-export function isPathBundleOption(bundleOpt: WorkflowBundleOption): bundleOpt is WorkflowBundlePathWithSourceMap {
+export type WorkflowBundleOption =
+  | WorkflowBundle
+  | WorkflowBundleWithSourceMap
+  | WorkflowBundlePath
+  | WorkflowBundlePathWithSourceMap; // eslint-disable-line deprecation/deprecation
+
+export function isCodeBundleOption(bundleOpt: WorkflowBundleOption): bundleOpt is WorkflowBundle {
   const opt = bundleOpt as any; // Cast to access properties without TS complaining
-  return typeof opt.codePath === 'string' && opt.sourceMapPath;
+  return typeof opt.code === 'string';
+}
+
+export function isPathBundleOption(bundleOpt: WorkflowBundleOption): bundleOpt is WorkflowBundlePath {
+  const opt = bundleOpt as any; // Cast to access properties without TS complaining
+  return typeof opt.codePath === 'string';
 }
 
 /**
@@ -83,19 +105,24 @@ export interface WorkerOptions {
   workflowsPath?: string;
 
   /**
-   * Use a pre-built bundle for Workflow code.
-   * Use {@link bundleWorkflowCode} to genrate a bundle.
+   * Use a pre-built bundle for Workflow code. Use {@link bundleWorkflowCode} to generate the bundle. The version of
+   * `@temporalio/worker` used when calling `bundleWorkflowCode` must be the exact same version used when calling
+   * `Worker.create`.
    *
    * This is the recommended way to deploy Workers to production.
    *
    * See https://docs.temporal.io/typescript/production-deploy#pre-build-code for more information.
+   *
+   * When using this option, {@link workflowsPath}, {@link bundlerOptions} and any Workflow interceptors modules
+   * provided in * {@link interceptors} are not used. To use workflow interceptors, pass them via
+   * {@link BundleOptions.workflowInterceptorModules} when calling {@link bundleWorkflowCode}.
    */
   workflowBundle?: WorkflowBundleOption;
 
   /**
    * Time to wait for pending tasks to drain after shutdown was requested.
    *
-   * @format {@link https://www.npmjs.com/package/ms | ms} formatted string or number of milliseconds
+   * @format number of milliseconds or {@link https://www.npmjs.com/package/ms | ms-formatted string}
    * @default 10s
    */
   shutdownGraceTime?: string | number;
@@ -129,11 +156,12 @@ export interface WorkerOptions {
   enableNonLocalActivities?: boolean;
 
   /**
-   * Limits the number of activities per second that this worker will process. The worker will
-   * not poll for new activities if by doing so it might receive and execute an activity which
-   * would cause it to exceed this limit. Must be a positive floating point number.
+   * Limits the number of activities per second that this worker will process. The worker will not poll for new
+   * activities if by doing so it might receive and execute an activity which would cause it to exceed this limit. Must
+   * be a positive floating point number.
    *
-   * If unset, no rate limiting will be applied to Worker's activities.
+   * If unset, no rate limiting will be applied to Worker's activities. (`tctl task-queue describe` will display the
+   * absence of a limit as 100,000.)
    */
   maxActivitiesPerSecond?: number;
 
@@ -157,7 +185,7 @@ export interface WorkerOptions {
   /**
    * How long a workflow task is allowed to sit on the sticky queue before it is timed out
    * and moved to the non-sticky queue where it may be picked up by any worker.
-   * @format {@link https://www.npmjs.com/package/ms | ms} formatted string
+   * @format number of milliseconds or {@link https://www.npmjs.com/package/ms | ms-formatted string}
    * @default 10s
    */
   stickyQueueScheduleToStartTimeout?: string;
@@ -169,16 +197,18 @@ export interface WorkerOptions {
    * If the Worker is asked to run an uncached Workflow, it will need to replay the entire Workflow history.
    * Use as a dial for trading memory for CPU time.
    *
-   * You should be able to fit about 500 Workflows per GB of memory dependening on your Workflow bundle size.
+   * Most users are able to fit at least 250 Workflows per GB of available memory.
+   * The major factors contributing to a Workflow's memory weight are the size of allocations made
+   * by the Workflow itself and the size of the Workflow bundle (code and source map).
    * For the SDK test Workflows, we managed to fit 750 Workflows per GB.
    *
-   * @default `max(os.totalmem() / 1GiB - 1, 1) * 200`
+   * @default `max(maxHeapMemory / 1GiB - 1, 1) * 250`
    */
   maxCachedWorkflows?: number;
 
   /**
    * Longest interval for throttling activity heartbeats
-   * @format {@link https://www.npmjs.com/package/ms | ms} formatted string
+   * @format number of milliseconds or {@link https://www.npmjs.com/package/ms | ms-formatted string}
    * @default 60 seconds
    */
   maxHeartbeatThrottleInterval?: number | string;
@@ -189,7 +219,7 @@ export interface WorkerOptions {
    * When the timeout *is* set in the `ActivityOptions`, throttling is set to
    * `heartbeat_timeout * 0.8`.
    *
-   * @format {@link https://www.npmjs.com/package/ms | ms} formatted string
+   * @format number of milliseconds or {@link https://www.npmjs.com/package/ms | ms-formatted string}
    * @default 30 seconds
    */
   defaultHeartbeatThrottleInterval?: number | string;
@@ -197,9 +227,11 @@ export interface WorkerOptions {
   /**
    * A mapping of interceptor type to a list of factories or module paths.
    *
-   * By default {@link ActivityInboundLogInterceptor} and {@link WorkflowInboundLogInterceptor} are installed.
+   * By default, {@link ActivityInboundLogInterceptor} and {@link WorkflowInboundLogInterceptor} are installed. If you
+   * wish to customize the interceptors while keeping the defaults, use {@link appendDefaultInterceptors}.
    *
-   * If you wish to customize the interceptors while keeping the defaults, use {@link appendDefaultInterceptors}.
+   * When using {@link workflowBundle}, these Workflow interceptors (`WorkerInterceptors.workflowModules`) are not used.
+   * Instead, provide them via {@link BundleOptions.workflowInterceptorModules} when calling {@link bundleWorkflowCode}.
    */
   interceptors?: WorkerInterceptors;
 
@@ -235,6 +267,13 @@ export interface WorkerOptions {
   enableSDKTracing?: boolean;
 
   /**
+   * Whether or not to send the sources in enhanced stack trace query responses
+   *
+   * @default false
+   */
+  showStackTraceSources?: boolean;
+
+  /**
    * If `true` Worker runs Workflows in the same thread allowing debugger to
    * attach to Workflow instances.
    *
@@ -245,6 +284,12 @@ export interface WorkerOptions {
   debugMode?: boolean;
 
   bundlerOptions?: {
+    /**
+     * Before Workflow code is bundled with Webpack, `webpackConfigHook` is called with the Webpack
+     * {@link https://webpack.js.org/configuration/ | configuration} object so you can modify it.
+     */
+    webpackConfigHook?: (config: WebpackConfiguration) => WebpackConfiguration;
+
     /**
      * List of modules to be excluded from the Workflows bundle.
      *
@@ -276,6 +321,7 @@ export type WorkerOptionsWithDefaults = WorkerOptions &
       | 'maxHeartbeatThrottleInterval'
       | 'defaultHeartbeatThrottleInterval'
       | 'enableSDKTracing'
+      | 'showStackTraceSources'
       | 'debugMode'
     >
   > & {
@@ -296,7 +342,7 @@ export type WorkerOptionsWithDefaults = WorkerOptions &
 
     /**
      * Time to wait for result when calling a Workflow isolate function.
-     * @format {@link https://www.npmjs.com/package/ms | ms} formatted string or number of milliseconds
+     * @format number of milliseconds or {@link https://www.npmjs.com/package/ms | ms-formatted string}
      *
      * This value is not exposed at the moment.
      *
@@ -306,7 +352,8 @@ export type WorkerOptionsWithDefaults = WorkerOptions &
   };
 
 /**
- * {@link WorkerOptions} where the attributes the Worker requires are required and time units are converted from ms formatted strings to numbers.
+ * {@link WorkerOptions} where the attributes the Worker requires are required and time units are converted from ms
+ * formatted strings to numbers.
  */
 export interface CompiledWorkerOptions extends Omit<WorkerOptionsWithDefaults, 'serverOptions'> {
   shutdownGraceTimeMs: number;
@@ -333,6 +380,11 @@ export interface ReplayWorkerOptions
     | 'maxHeartbeatThrottleInterval'
     | 'defaultHeartbeatThrottleInterval'
     | 'debugMode'
+    | 'enableNonLocalActivities'
+    | 'maxActivitiesPerSecond'
+    | 'maxTaskQueueActivitiesPerSecond'
+    | 'stickyQueueScheduleToStartTimeout'
+    | 'maxCachedWorkflows'
   > {
   /**
    *  A name for this replay worker. It will be combined with a short random ID to form a unique
@@ -396,9 +448,10 @@ export function appendDefaultInterceptors(
 }
 
 export function addDefaultWorkerOptions(options: WorkerOptions): WorkerOptionsWithDefaults {
-  const { maxCachedWorkflows, debugMode, ...rest } = options;
+  const { maxCachedWorkflows, showStackTraceSources, debugMode, namespace, ...rest } = options;
+
   return {
-    namespace: 'default',
+    namespace: namespace ?? 'default',
     identity: `${process.pid}@${os.hostname()}`,
     shutdownGraceTime: '10s',
     maxConcurrentActivityTaskExecutions: 100,
@@ -411,8 +464,10 @@ export function addDefaultWorkerOptions(options: WorkerOptions): WorkerOptionsWi
     // 4294967295ms is the maximum allowed time
     isolateExecutionTimeout: debugMode ? '4294967295ms' : '5s',
     workflowThreadPoolSize: 8,
-    maxCachedWorkflows: maxCachedWorkflows ?? Math.max(os.totalmem() / GiB - 1, 1) * 200,
+    maxCachedWorkflows:
+      maxCachedWorkflows ?? Math.floor(Math.max(v8.getHeapStatistics().heap_size_limit / GiB - 1, 1) * 250),
     enableSDKTracing: false,
+    showStackTraceSources: showStackTraceSources ?? false,
     debugMode: debugMode ?? false,
     interceptors: appendDefaultInterceptors({}),
     sinks: defaultSinks(),

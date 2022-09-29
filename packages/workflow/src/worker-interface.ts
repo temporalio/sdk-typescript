@@ -3,8 +3,8 @@
  *
  * @module
  */
-import { errorToFailure as _errorToFailure, ProtoFailure } from '@temporalio/common';
-import { composeInterceptors, IllegalStateError, msToTs, tsToMs } from '@temporalio/internal-workflow-common';
+import { IllegalStateError, msToTs, ProtoFailure, tsToMs } from '@temporalio/common';
+import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import type { coresdk } from '@temporalio/proto';
 import { alea } from './alea';
 import { storage } from './cancellation-scope';
@@ -13,6 +13,7 @@ import { WorkflowInterceptorsFactory } from './interceptors';
 import { WorkflowInfo } from './interfaces';
 import { InterceptorsImportFunc, state, WorkflowsImportFunc } from './internals';
 import { SinkCall } from './sinks';
+import type { RawSourceMap } from 'source-map';
 
 // Export the type for use on the "worker" side
 export { PromiseStackStore } from './internals';
@@ -22,6 +23,11 @@ export interface WorkflowCreateOptions {
   randomnessSeed: number[];
   now: number;
   patches: string[];
+  showStackTraceSources: boolean;
+}
+
+export interface WorkflowCreateOptionsWithSourceMap extends WorkflowCreateOptions {
+  sourceMap: RawSourceMap;
 }
 
 export interface ImportFunctions {
@@ -33,8 +39,10 @@ export function setImportFuncs({ importWorkflows, importInterceptors }: ImportFu
   state.importInterceptors = importInterceptors;
 }
 
+const global = globalThis as any;
+const OriginalDate = globalThis.Date;
+
 export function overrideGlobals(): void {
-  const global = globalThis as any;
   // Mock any weak reference because GC is non-deterministic and the effect is observable from the Workflow.
   // WeakRef is implemented in V8 8.4 which is embedded in node >=14.6.0.
   // Workflow developer will get a meaningful exception if they try to use these.
@@ -46,8 +54,6 @@ export function overrideGlobals(): void {
       'FinalizationRegistry cannot be used in Workflows because v8 GC is non-deterministic'
     );
   };
-
-  const OriginalDate = globalThis.Date;
 
   global.Date = function (...args: unknown[]) {
     if (args.length > 0) {
@@ -106,8 +112,14 @@ export function overrideGlobals(): void {
  *
  * Sets required internal state and instantiates the workflow and interceptors.
  */
-export async function initRuntime({ info, randomnessSeed, now, patches }: WorkflowCreateOptions): Promise<void> {
-  const global = globalThis as any;
+export async function initRuntime({
+  info,
+  randomnessSeed,
+  now,
+  patches,
+  sourceMap,
+  showStackTraceSources,
+}: WorkflowCreateOptionsWithSourceMap): Promise<void> {
   // Set the runId globally on the context so it can be retrieved in the case
   // of an unhandled promise rejection.
   global.__TEMPORAL__.runId = info.runId;
@@ -118,8 +130,11 @@ export async function initRuntime({ info, randomnessSeed, now, patches }: Workfl
   };
 
   state.info = info;
+  state.info.unsafe.now = OriginalDate.now;
   state.now = now;
   state.random = alea(randomnessSeed);
+  state.showStackTraceSources = showStackTraceSources;
+  state.sourceMap = sourceMap;
 
   if (info.unsafe.isReplaying) {
     for (const patch of patches) {
@@ -127,13 +142,17 @@ export async function initRuntime({ info, randomnessSeed, now, patches }: Workfl
     }
   }
 
-  // webpack doesn't know what to bundle given a dynamic import expression, so we can't do:
-  // state.payloadConverter = (await import(payloadConverterPath)).payloadConverter;
   // @ts-expect-error this is a webpack alias to payloadConverterPath
   const customPayloadConverter = (await import('__temporal_custom_payload_converter')).payloadConverter;
   // The `payloadConverter` export is validated in the Worker
   if (customPayloadConverter !== undefined) {
     state.payloadConverter = customPayloadConverter;
+  }
+  // @ts-expect-error this is a webpack alias to failureConverterPath
+  const customFailureConverter = (await import('__temporal_custom_failure_converter')).failureConverter;
+  // The `failureConverter` export is validated in the Worker
+  if (customFailureConverter !== undefined) {
+    state.failureConverter = customFailureConverter;
   }
 
   const { importWorkflows, importInterceptors } = state;
@@ -207,7 +226,9 @@ export function activate(activation: coresdk.workflow_activation.WorkflowActivat
         return;
       }
       state.activator[job.variant](variant as any /* TS can't infer this type */);
-      tryUnblockConditions();
+      if (showUnblockConditions(job)) {
+        tryUnblockConditions();
+      }
     }
   });
   intercept({
@@ -261,6 +282,13 @@ export function tryUnblockConditions(): number {
   return numUnblocked;
 }
 
+/**
+ * Predicate used to prevent triggering conditions for non-query and non-patch jobs.
+ */
+export function showUnblockConditions(job: coresdk.workflow_activation.IWorkflowActivationJob): boolean {
+  return !job.queryWorkflow && !job.notifyHasPatch;
+}
+
 export async function dispose(): Promise<void> {
   const dispose = composeInterceptors(state.interceptors.internals, 'dispose', async () => {
     storage.disable();
@@ -269,5 +297,5 @@ export async function dispose(): Promise<void> {
 }
 
 export function errorToFailure(err: unknown): ProtoFailure {
-  return _errorToFailure(err, state.payloadConverter);
+  return state.failureConverter.errorToFailure(err);
 }

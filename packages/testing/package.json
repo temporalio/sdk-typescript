@@ -1,6 +1,6 @@
 {
   "name": "@temporalio/testing",
-  "version": "1.0.0-rc.1",
+  "version": "1.3.0",
   "description": "Temporal.io SDK Testing sub-package",
   "main": "lib/index.js",
   "types": "./lib/index.d.ts",
@@ -9,11 +9,6 @@
     "workflow",
     "testing"
   ],
-  "scripts": {
-    "install": "node ./scripts/download-test-server.mjs",
-    "build": "npm-run-all build:protos install",
-    "build:protos": "node ./scripts/compile-proto.mjs"
-  },
   "author": "Temporal Technologies Inc. <sdk@temporal.io>",
   "license": "MIT",
   "dependencies": {
@@ -24,14 +19,8 @@
     "@temporalio/internal-workflow-common": "file:../internal-workflow-common",
     "@temporalio/worker": "file:../worker",
     "@temporalio/workflow": "file:../workflow",
-    "@types/long": "^4.0.2",
     "abort-controller": "^3.0.0",
-    "get-port": "^6.1.2",
-    "got": "^12.1.0",
-    "long": "^5.2.0",
-    "protobufjs": "6.11.2",
-    "tar-stream": "^2.2.0",
-    "unzipper": "^0.10.11"
+    "ms": "^2.1.3"
   },
   "bugs": {
     "url": "https://github.com/temporalio/sdk-typescript/issues"
@@ -39,9 +28,7 @@
   "homepage": "https://github.com/temporalio/sdk-typescript/tree/main/packages/testing",
   "files": [
     "lib",
-    "src",
-    "generated-protos",
-    "scripts"
+    "src"
   ],
   "publishConfig": {
     "access": "public"

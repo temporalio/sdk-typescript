@@ -4,7 +4,7 @@
  * @module
  */
 
-import { Headers, Next } from '@temporalio/internal-workflow-common';
+import { Headers, Next } from '@temporalio/common';
 import { temporal } from '@temporalio/proto';
 import {
   DescribeWorkflowExecutionResponse,
@@ -112,7 +112,7 @@ export interface WorkflowClientCallsInterceptor {
   describe?: (input: WorkflowDescribeInput, next: Next<this, 'describe'>) => Promise<DescribeWorkflowExecutionResponse>;
 }
 
-interface WorkflowClientCallsInterceptorFactoryInput {
+export interface WorkflowClientCallsInterceptorFactoryInput {
   workflowId: string;
   runId?: string;
 }
@@ -129,4 +129,13 @@ export interface WorkflowClientCallsInterceptorFactory {
  */
 export interface WorkflowClientInterceptors {
   calls?: WorkflowClientCallsInterceptorFactory[];
+}
+
+/**
+ * Interceptors for any high-level SDK client.
+ *
+ * NOTE: Currently only for {@link WorkflowClient}. More will be added later as needed.
+ */
+export interface ClientInterceptors {
+  workflow?: WorkflowClientInterceptors;
 }

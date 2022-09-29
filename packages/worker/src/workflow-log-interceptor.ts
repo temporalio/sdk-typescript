@@ -1,28 +1,15 @@
 import {
-  WorkflowInboundCallsInterceptor,
-  WorkflowExecuteInput,
+  isCancellation,
+  LoggerSinks,
   Next,
+  proxySinks,
+  WorkflowExecuteInput,
+  WorkflowInboundCallsInterceptor,
   workflowInfo,
   WorkflowInfo,
-  isCancellation,
-  proxySinks,
-  Sinks,
   WorkflowInterceptorsFactory,
 } from '@temporalio/workflow';
 import { untrackPromise } from '@temporalio/workflow/lib/stack-helpers';
-
-/**
- * Sink interface for forwarding logs from the Workflow sandbox to the Worker
- */
-export interface LoggerSinks extends Sinks {
-  defaultWorkerLogger: {
-    trace(message: string, attrs: Record<string, unknown>): void;
-    debug(message: string, attrs: Record<string, unknown>): void;
-    info(message: string, attrs: Record<string, unknown>): void;
-    warn(message: string, attrs: Record<string, unknown>): void;
-    error(message: string, attrs: Record<string, unknown>): void;
-  };
-}
 
 /**
  * Returns a map of attributes to be set on log messages for a given Workflow

@@ -1,14 +1,17 @@
 /* eslint @typescript-eslint/no-non-null-assertion: 0 */
+import path from 'node:path';
 import {
   ActivityFailure,
   ApplicationFailure,
   Connection,
+  QueryNotRegisteredError,
   WorkflowClient,
   WorkflowContinuedAsNewError,
   WorkflowFailedError,
 } from '@temporalio/client';
 import {
   ChildWorkflowFailure,
+  defaultFailureConverter,
   defaultPayloadConverter,
   Payload,
   PayloadCodec,
@@ -17,16 +20,14 @@ import {
   TerminatedFailure,
   TimeoutFailure,
   TimeoutType,
-  WorkflowExecution,
-} from '@temporalio/common';
-import { decode, decodeFromPayloadsAtIndex, loadDataConverter } from '@temporalio/internal-non-workflow-common';
-import {
   tsToMs,
+  WorkflowExecution,
   WorkflowExecutionAlreadyStartedError,
   WorkflowNotFoundError,
-} from '@temporalio/internal-workflow-common';
+} from '@temporalio/common';
+import { decode, decodeFromPayloadsAtIndex, loadDataConverter } from '@temporalio/common/lib/internal-non-workflow';
 import * as iface from '@temporalio/proto';
-import { DefaultLogger, Runtime, Worker } from '@temporalio/worker';
+import { DefaultLogger, Runtime, Worker, appendDefaultInterceptors } from '@temporalio/worker';
 import pkg from '@temporalio/worker/lib/pkg';
 import * as grpc from '@grpc/grpc-js';
 import v8 from 'v8';
@@ -40,6 +41,8 @@ import { ConnectionInjectorInterceptor } from './activities/interceptors';
 import { cleanOptionalStackTrace, u8 } from './helpers';
 import * as workflows from './workflows';
 import { withZeroesHTTPServer } from './zeroes-http-server';
+import { readFileSync } from 'node:fs';
+import { UnsafeWorkflowInfo } from '@temporalio/workflow/src/interfaces';
 
 const { EVENT_TYPE_TIMER_STARTED, EVENT_TYPE_TIMER_FIRED, EVENT_TYPE_TIMER_CANCELED } =
   iface.temporal.api.enums.v1.EventType;
@@ -59,7 +62,11 @@ const namespace = 'default';
 export function runIntegrationTests(codec?: PayloadCodec): void {
   const test = (name: string, fn: Implementation<Context>) => _test(codec ? 'With codec—' + name : name, fn);
   const dataConverter = { payloadCodecs: codec ? [codec] : [] };
-  const loadedDataConverter = { payloadConverter: defaultPayloadConverter, payloadCodecs: codec ? [codec] : [] };
+  const loadedDataConverter = {
+    payloadConverter: defaultPayloadConverter,
+    payloadCodecs: codec ? [codec] : [],
+    failureConverter: defaultFailureConverter,
+  };
   async function fromPayload(payload: Payload) {
     const [decodedPayload] = await decode(dataConverter.payloadCodecs, [payload]);
     return defaultPayloadConverter.fromPayload(decodedPayload);
@@ -76,9 +83,10 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
       activities,
       taskQueue: 'test',
       dataConverter,
-      interceptors: {
+      interceptors: appendDefaultInterceptors({
         activityInbound: [() => new ConnectionInjectorInterceptor(connection, loadDataConverter(dataConverter))],
-      },
+      }),
+      showStackTraceSources: true,
     });
 
     const runPromise = worker.run();
@@ -391,6 +399,21 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
     t.pass();
   });
 
+  test('query not found', async (t) => {
+    const { client } = t.context;
+    const workflow = await client.start(workflows.unblockOrCancel, {
+      taskQueue: 'test',
+      workflowId: uuid4(),
+    });
+    await workflow.signal(workflows.unblockSignal);
+    await workflow.result();
+    await t.throwsAsync(workflow.query('not found'), {
+      instanceOf: QueryNotRegisteredError,
+      message:
+        'Workflow did not register a handler for not found. Registered queries: [__stack_trace __enhanced_stack_trace isBlocked]',
+    });
+  });
+
   test('query and unblock', async (t) => {
     const { client } = t.context;
     const workflow = await client.start(workflows.unblockOrCancel, {
@@ -646,15 +669,22 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
       CustomDoubleField: [3.14],
     });
     const { searchAttributes } = await workflow.describe();
-    t.deepEqual(searchAttributes, {
-      BinaryChecksums: [`@temporalio/worker@${pkg.version}`],
+    const { BinaryChecksums, ...rest } = searchAttributes;
+    t.deepEqual(rest, {
       CustomBoolField: [true],
-      CustomIntField: [], // clear
       CustomKeywordField: ['durable code'],
       CustomTextField: ['is useful'],
       CustomDatetimeField: [date],
       CustomDoubleField: [3.14],
     });
+    t.true(BinaryChecksums?.length === 1);
+    const [checksum] = BinaryChecksums ?? ['invalid'];
+    console.log(checksum);
+    t.true(
+      typeof checksum === 'string' &&
+        checksum.startsWith(`@temporalio/worker@${pkg.version}+`) &&
+        /\+[a-f0-9]{64}$/.test(checksum) // bundle checksum
+    );
   });
 
   test('Workflow can read WorkflowInfo', async (t) => {
@@ -682,7 +712,8 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
       workflowType: 'returnWorkflowInfo',
       workflowId,
       historyLength: 3,
-      unsafe: { isReplaying: false },
+      // unsafe.now is a function, so doesn't make it through serialization, but .now is required, so we need to cast
+      unsafe: { isReplaying: false } as UnsafeWorkflowInfo,
     });
   });
 
@@ -1063,7 +1094,6 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
       taskQueue: 'test',
       workflowId,
       signal: 'unblock',
-      signalArgs: [],
     });
     const handleFromGet = client.getHandle(workflowId);
     await t.throwsAsync(handleFromGet.result(), { message: /.*/ });
@@ -1192,6 +1222,68 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
     at stackTracer (test/src/workflows/stack-tracer.ts)`
       );
     });
+
+    test('Enhanced stack trace returns trace that makes sense', async (t) => {
+      const { client } = t.context;
+      const workflowId = uuid4();
+
+      const enhancedStack = await client.execute(workflows.enhancedStackTracer, {
+        taskQueue: 'test',
+        workflowId,
+      });
+
+      const stacks = enhancedStack.stacks.map((s) => ({
+        locations: s.locations.map((l) => ({
+          ...l,
+          ...(l.filePath ? { filePath: l.filePath.replace(path.resolve(__dirname, '../../../'), '') } : undefined),
+        })),
+      }));
+      t.is(enhancedStack.sdk.name, 'typescript');
+      t.is(enhancedStack.sdk.version, pkg.version); // Expect workflow and worker versions to match
+      t.deepEqual(stacks, [
+        {
+          locations: [
+            {
+              functionName: 'Function.all',
+            },
+            {
+              filePath: '/packages/test/src/workflows/stack-tracer.ts',
+              functionName: 'enhancedStackTracer',
+              line: 32,
+              column: 35,
+            },
+          ],
+        },
+        {
+          locations: [
+            {
+              filePath: '/packages/test/src/workflows/stack-tracer.ts',
+              functionName: 'enhancedStackTracer',
+              line: 32,
+              column: 35,
+            },
+          ],
+        },
+        {
+          locations: [
+            {
+              functionName: 'Promise.then',
+            },
+            {
+              filePath: '/packages/workflow/src/trigger.ts',
+              functionName: 'Trigger.then',
+              line: 47,
+              column: 24,
+            },
+          ],
+        },
+      ]);
+      const expectedSources = ['../src/workflows/stack-tracer.ts', '../../workflow/src/trigger.ts'].map((p) => [
+        path.resolve(__dirname, p),
+        [{ content: readFileSync(path.resolve(__dirname, p), 'utf8'), lineOffset: 0 }],
+      ]);
+      t.deepEqual(Object.entries(enhancedStack.sources), expectedSources);
+    });
   }
 
   test('issue-731', async (t) => {
@@ -1211,5 +1303,17 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
     }
     // Verify only one timer was scheduled
     t.is(history.events.filter(({ timerStartedEventAttributes }) => timerStartedEventAttributes != null).length, 1);
+  });
+
+  test('Query does not cause condition to be triggered', async (t) => {
+    const { client } = t.context;
+    const workflowId = uuid4();
+    const handle = await client.start(workflows.queryAndCondition, {
+      taskQueue: 'test',
+      workflowId,
+    });
+    await handle.query(workflows.mutateWorkflowStateQuery);
+    // Worker did not crash
+    t.pass();
   });
 }

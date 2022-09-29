@@ -4,9 +4,10 @@ import {
   encodeErrorToFailure,
   encodeToPayloads,
   filterNullAndUndefined,
+  isLoadedDataConverter,
   loadDataConverter,
-} from '@temporalio/internal-non-workflow-common';
-import { Replace } from '@temporalio/internal-workflow-common';
+} from '@temporalio/common/lib/internal-non-workflow';
+import { Replace } from '@temporalio/common/lib/type-helpers';
 import os from 'os';
 import { Connection } from './connection';
 import { isServerErrorResponse } from './errors';
@@ -41,9 +42,9 @@ export class ActivityCancelledError extends Error {
  */
 export interface AsyncCompletionClientOptions {
   /**
-   * {@link DataConverter} to use for serializing and deserializing payloads
+   * {@link DataConverter} or {@link LoadedDataConverter} to use for serializing and deserializing payloads
    */
-  dataConverter?: DataConverter;
+  dataConverter?: DataConverter | LoadedDataConverter;
 
   /**
    * Identity to report to the server
@@ -69,6 +70,10 @@ export type AsyncCompletionClientOptionsWithDefaults = Replace<
   }
 >;
 
+export type LoadedAsyncCompletionClientOptions = AsyncCompletionClientOptionsWithDefaults & {
+  loadedDataConverter: LoadedDataConverter;
+};
+
 export function defaultAsyncCompletionClientOptions(): AsyncCompletionClientOptionsWithDefaults {
   return {
     dataConverter: {},
@@ -92,20 +97,37 @@ export interface FullActivityId {
 
 /**
  * A client for asynchronous completion and heartbeating of Activities.
+ *
+ * Typically this client should not be instantiated directly, instead create the high level {@link Client} and use
+ * {@link Client.activity} to complete async activities.
  */
 export class AsyncCompletionClient {
-  public readonly options: AsyncCompletionClientOptionsWithDefaults;
-  protected readonly dataConverter: LoadedDataConverter;
+  public readonly options: LoadedAsyncCompletionClientOptions;
   public readonly connection: ConnectionLike;
 
   constructor(options?: AsyncCompletionClientOptions) {
     this.connection = options?.connection ?? Connection.lazy();
-    this.dataConverter = loadDataConverter(options?.dataConverter);
-    this.options = { ...defaultAsyncCompletionClientOptions(), ...filterNullAndUndefined(options ?? {}) };
+    const dataConverter = options?.dataConverter;
+    const loadedDataConverter = isLoadedDataConverter(dataConverter) ? dataConverter : loadDataConverter(dataConverter);
+    this.options = {
+      ...defaultAsyncCompletionClientOptions(),
+      ...filterNullAndUndefined(options ?? {}),
+      loadedDataConverter,
+    };
   }
 
+  /**
+   * Raw gRPC access to the Temporal service.
+   *
+   * **NOTE**: The namespace provided in {@link options} is **not** automatically set on requests made via this service
+   * object.
+   */
   get workflowService(): WorkflowService {
     return this.connection.workflowService;
+  }
+
+  protected get dataConverter(): LoadedDataConverter {
+    return this.options.loadedDataConverter;
   }
 
   /**

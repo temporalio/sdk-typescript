@@ -1,11 +1,11 @@
 import * as grpc from '@grpc/grpc-js';
-import { filterNullAndUndefined, normalizeTlsConfig, TLSConfig } from '@temporalio/internal-non-workflow-common';
+import { filterNullAndUndefined, normalizeTlsConfig, TLSConfig } from '@temporalio/common/lib/internal-non-workflow';
 import { AsyncLocalStorage } from 'async_hooks';
 import type { RPCImpl } from 'protobufjs';
 import { isServerErrorResponse, ServiceError } from './errors';
 import { defaultGrpcRetryOptions, makeGrpcRetryInterceptor } from './grpc-retry';
 import pkg from './pkg';
-import { CallContext, Metadata, OperatorService, WorkflowService } from './types';
+import { CallContext, HealthService, Metadata, OperatorService, WorkflowService } from './types';
 
 /**
  * gRPC and Temporal Server connection options
@@ -63,7 +63,7 @@ export interface ConnectionOptions {
    * Used either when connecting eagerly with {@link Connection.connect} or
    * calling {@link Connection.ensureConnected}.
    *
-   * @format {@link https://www.npmjs.com/package/ms | ms} formatted string
+   * @format number of milliseconds or {@link https://www.npmjs.com/package/ms | ms-formatted string}
    * @default 10 seconds
    */
   connectTimeout?: number | string;
@@ -79,7 +79,11 @@ export function defaultConnectionOpts(): ConnectionOptionsWithDefaults {
   return {
     address: LOCAL_TARGET,
     credentials: grpc.credentials.createInsecure(),
-    channelArgs: {},
+    channelArgs: {
+      'grpc.keepalive_permit_without_calls': 1,
+      'grpc.keepalive_time_ms': 30_000,
+      'grpc.keepalive_timeout_ms': 15_000,
+    },
     interceptors: [makeGrpcRetryInterceptor(defaultGrpcRetryOptions())],
     metadata: {},
     connectTimeoutMs: 10_000,
@@ -142,7 +146,14 @@ export interface ConnectionCtorOptions {
    * **NOTE**: The namespace provided in {@link options} is **not** automatically set on requests made to the service.
    */
   readonly workflowService: WorkflowService;
+  /**
+   * Raw gRPC access to the Temporal {@link https://github.com/temporalio/api/blob/ddf07ab9933e8230309850e3c579e1ff34b03f53/temporal/api/operatorservice/v1/service.proto | operator service}.
+   */
   readonly operatorService: OperatorService;
+  /**
+   * Raw gRPC access to the standard gRPC {@link https://github.com/grpc/grpc/blob/92f58c18a8da2728f571138c37760a721c8915a2/doc/health-checking.md | health service}.
+   */
+  readonly healthService: HealthService;
   readonly callContextStorage: AsyncLocalStorage<CallContext>;
 }
 
@@ -177,6 +188,7 @@ export class Connection {
    * {@link https://github.com/temporalio/api/blob/master/temporal/api/operatorservice/v1/service.proto | Operator service}
    */
   public readonly operatorService: OperatorService;
+  public readonly healthService: HealthService;
   readonly callContextStorage: AsyncLocalStorage<CallContext>;
 
   protected static createCtorOptions(options?: ConnectionOptions): ConnectionCtorOptions {
@@ -210,12 +222,20 @@ export class Connection {
       interceptors: optionsWithDefaults?.interceptors,
     });
     const operatorService = OperatorService.create(operatorRpcImpl, false, false);
+    const healthRpcImpl = this.generateRPCImplementation({
+      serviceName: 'grpc.health.v1.Health',
+      client,
+      callContextStorage,
+      interceptors: optionsWithDefaults?.interceptors,
+    });
+    const healthService = HealthService.create(healthRpcImpl, false, false);
 
     return {
       client,
       callContextStorage,
       workflowService,
       operatorService,
+      healthService,
       options: optionsWithDefaults,
     };
   }
@@ -278,12 +298,14 @@ export class Connection {
     client,
     workflowService,
     operatorService,
+    healthService,
     callContextStorage,
   }: ConnectionCtorOptions) {
     this.options = options;
     this.client = client;
     this.workflowService = workflowService;
     this.operatorService = operatorService;
+    this.healthService = healthService;
     this.callContextStorage = callContextStorage;
   }
 

@@ -3,12 +3,16 @@ import { SpanContext } from '@opentelemetry/api';
 import { Info as ActivityInfo } from '@temporalio/activity';
 import {
   DataConverter,
+  decompileRetryPolicy,
   defaultPayloadConverter,
-  errorMessage,
   IllegalStateError,
   LoadedDataConverter,
   mapFromPayloads,
+  optionalTsToDate,
+  optionalTsToMs,
   Payload,
+  SearchAttributes,
+  tsToMs,
   searchAttributePayloadConverter,
 } from '@temporalio/common';
 import * as native from '@temporalio/core-bridge';
@@ -19,7 +23,7 @@ import {
   decodeOptionalFailureToOptionalError,
   encodeErrorToFailure,
   encodeToPayload,
-} from '@temporalio/internal-non-workflow-common';
+} from '@temporalio/common/lib/internal-non-workflow';
 import {
   extractSpanContextFromHeaders,
   linkSpans,
@@ -27,13 +31,7 @@ import {
   RUN_ID_ATTR_KEY,
   TASK_TOKEN_ATTR_KEY,
 } from '@temporalio/common/lib/otel';
-import {
-  decompileRetryPolicy,
-  optionalTsToDate,
-  optionalTsToMs,
-  SearchAttributes,
-  tsToMs,
-} from '@temporalio/internal-workflow-common';
+import { errorMessage } from '@temporalio/common/lib/type-helpers';
 import { coresdk, temporal } from '@temporalio/proto';
 import { DeterminismViolationError, SinkCall, WorkflowInfo } from '@temporalio/workflow';
 import crypto from 'crypto';
@@ -63,7 +61,7 @@ import pkg from './pkg';
 import { History, Runtime } from './runtime';
 import { closeableGroupBy, mapWithState, mergeMapWithState } from './rxutils';
 import { childSpan, getTracer, instrument } from './tracing';
-import { byteArrayToBuffer, convertToParentWorkflowType, toMB } from './utils';
+import { byteArrayToBuffer, convertToParentWorkflowType } from './utils';
 import {
   addDefaultWorkerOptions,
   CompiledWorkerOptions,
@@ -71,13 +69,17 @@ import {
   isCodeBundleOption,
   isPathBundleOption,
   ReplayWorkerOptions,
+  WorkflowBundle,
   WorkerOptions,
 } from './worker-options';
 import { WorkflowCodecRunner } from './workflow-codec-runner';
-import { WorkflowBundleWithSourceMap, WorkflowCodeBundler } from './workflow/bundler';
+import { WorkflowCodeBundler } from './workflow/bundler';
 import { Workflow, WorkflowCreator } from './workflow/interface';
 import { ThreadedVMWorkflowCreator } from './workflow/threaded-vm';
 import { VMWorkflowCreator } from './workflow/vm';
+import type { RawSourceMap } from 'source-map';
+import * as vm from 'node:vm';
+import * as path from 'node:path';
 
 import IWorkflowActivationJob = coresdk.workflow_activation.IWorkflowActivationJob;
 import EvictionReason = coresdk.workflow_activation.RemoveFromCache.EvictionReason;
@@ -128,7 +130,10 @@ export type ActivityTaskWithContext = ContextAware<{
   base64TaskToken: string;
 }>;
 
+type CompiledWorkerOptionsWithBuildId = CompiledWorkerOptions & { buildId: string };
+
 export interface NativeWorkerLike {
+  type: 'Worker';
   initiateShutdown: Promisify<OmitFirstParam<typeof native.workerInitiateShutdown>>;
   finalizeShutdown(): Promise<void>;
   flushCoreLogs(): void;
@@ -141,26 +146,15 @@ export interface NativeWorkerLike {
 }
 
 export interface WorkerConstructor {
-  create(
-    connection: NativeConnection,
-    options: CompiledWorkerOptions,
-    bundle?: WorkflowBundleWithSourceMap
-  ): Promise<NativeWorkerLike>;
-  createReplay(
-    options: CompiledWorkerOptions,
-    history: History,
-    bundle: WorkflowBundleWithSourceMap
-  ): Promise<NativeWorkerLike>;
+  create(connection: NativeConnection, options: CompiledWorkerOptionsWithBuildId): Promise<NativeWorkerLike>;
+  createReplay(options: CompiledWorkerOptionsWithBuildId, history: History): Promise<NativeWorkerLike>;
 }
 
 function isOptionsWithBuildId<T extends CompiledWorkerOptions>(options: T): options is T & { buildId: string } {
   return options.buildId != null;
 }
 
-function addBuildIdIfMissing<T extends CompiledWorkerOptions>(
-  options: T,
-  bundleCode?: string
-): T & { buildId: string } {
+function addBuildIdIfMissing(options: CompiledWorkerOptions, bundleCode?: string): CompiledWorkerOptionsWithBuildId {
   if (isOptionsWithBuildId(options)) {
     return options;
   }
@@ -169,6 +163,7 @@ function addBuildIdIfMissing<T extends CompiledWorkerOptions>(
 }
 
 export class NativeWorker implements NativeWorkerLike {
+  public readonly type = 'Worker';
   public readonly pollWorkflowActivation: Promisify<OmitFirstParam<typeof native.workerPollWorkflowActivation>>;
   public readonly pollActivityTask: Promisify<OmitFirstParam<typeof native.workerPollActivityTask>>;
   public readonly completeWorkflowActivation: Promisify<OmitFirstParam<typeof native.workerCompleteWorkflowActivation>>;
@@ -178,24 +173,19 @@ export class NativeWorker implements NativeWorkerLike {
 
   public static async create(
     connection: NativeConnection,
-    options: CompiledWorkerOptions,
-    bundle?: WorkflowBundleWithSourceMap
+    options: CompiledWorkerOptionsWithBuildId
   ): Promise<NativeWorkerLike> {
     const runtime = Runtime.instance();
-    const nativeWorker = await runtime.registerWorker(
-      extractNativeClient(connection),
-      addBuildIdIfMissing(options, bundle?.code)
-    );
+    const nativeWorker = await runtime.registerWorker(extractNativeClient(connection), options);
     return new NativeWorker(runtime, nativeWorker);
   }
 
   public static async createReplay(
-    options: CompiledWorkerOptions,
-    history: History,
-    bundle: WorkflowBundleWithSourceMap
+    options: CompiledWorkerOptionsWithBuildId,
+    history: History
   ): Promise<NativeWorkerLike> {
     const runtime = Runtime.instance();
-    const nativeWorker = await runtime.createReplayWorker(addBuildIdIfMissing(options, bundle.code), history);
+    const nativeWorker = await runtime.createReplayWorker(options, history);
     return new NativeWorker(runtime, nativeWorker);
   }
 
@@ -403,6 +393,19 @@ export class Worker {
   public static async create(options: WorkerOptions): Promise<Worker> {
     const nativeWorkerCtor: WorkerConstructor = this.nativeWorkerCtor;
     const compiledOptions = compileWorkerOptions(addDefaultWorkerOptions(options));
+    Runtime.instance().logger.info('Creating worker', {
+      options: {
+        ...compiledOptions,
+        ...(compiledOptions.workflowBundle && isCodeBundleOption(compiledOptions.workflowBundle)
+          ? {
+              // Avoid dumping workflow bundle code to the console
+              workflowBundle: <WorkflowBundle>{
+                code: `<string of length ${compiledOptions.workflowBundle.code.length}>`,
+              },
+            }
+          : {}),
+      },
+    });
     const bundle = await this.getOrCreateBundle(compiledOptions, Runtime.instance().logger);
     let workflowCreator: WorkflowCreator | undefined = undefined;
     if (bundle) {
@@ -413,7 +416,7 @@ export class Worker {
     const connection = options.connection ?? (await InternalNativeConnection.connect());
     let nativeWorker: NativeWorkerLike;
     try {
-      nativeWorker = await nativeWorkerCtor.create(connection, compiledOptions);
+      nativeWorker = await nativeWorkerCtor.create(connection, addBuildIdIfMissing(compiledOptions, bundle?.code));
     } catch (err) {
       // We just created this connection, close it
       if (!options.connection) {
@@ -426,14 +429,16 @@ export class Worker {
   }
 
   protected static async createWorkflowCreator(
-    bundle: WorkflowBundleWithSourceMap,
+    workflowBundle: WorkflowBundleWithSourceMapAndFilename,
     compiledOptions: CompiledWorkerOptions
   ): Promise<WorkflowCreator> {
+    // This isn't required for vscode, only for Chrome Dev Tools which doesn't support debugging worker threads.
+    // We also rely on this in debug-replayer where we inject a global variable to be read from workflow context.
     if (compiledOptions.debugMode) {
-      return await VMWorkflowCreator.create(bundle.code, bundle.sourceMap, compiledOptions.isolateExecutionTimeoutMs);
+      return await VMWorkflowCreator.create(workflowBundle, compiledOptions.isolateExecutionTimeoutMs);
     } else {
       return await ThreadedVMWorkflowCreator.create({
-        ...bundle,
+        workflowBundle,
         threadPoolSize: compiledOptions.workflowThreadPoolSize,
         isolateExecutionTimeoutMs: compiledOptions.isolateExecutionTimeoutMs,
       });
@@ -444,7 +449,7 @@ export class Worker {
    * Create a replay Worker, and run the provided history against it. Will resolve as soon as
    * the history has finished being replayed, or if the workflow produces a nondeterminism error.
    *
-   * @throws DeterminismViolationError if the workflow code is not compatible with the history.
+   * @throws {@link DeterminismViolationError} if the workflow code is not compatible with the history.
    */
   public static async runReplayHistory(options: ReplayWorkerOptions, history: History | unknown): Promise<void> {
     if (typeof history !== 'object' || history == null) {
@@ -486,7 +491,10 @@ export class Worker {
       throw new TypeError('ReplayWorkerOptions must contain workflowsPath or workflowBundle');
     }
     const workflowCreator = await this.createWorkflowCreator(bundle, compiledOptions);
-    const replayWorker = await nativeWorkerCtor.createReplay(compiledOptions, history, bundle);
+    const replayWorker = await nativeWorkerCtor.createReplay(
+      addBuildIdIfMissing(compiledOptions, bundle.code),
+      history
+    );
     const constructedWorker = new this(replayWorker, workflowCreator, compiledOptions);
 
     const runPromise = constructedWorker.run();
@@ -527,30 +535,41 @@ export class Worker {
   protected static async getOrCreateBundle(
     compiledOptions: CompiledWorkerOptions,
     logger: Logger
-  ): Promise<WorkflowBundleWithSourceMap | undefined> {
-    if (compiledOptions.workflowsPath) {
+  ): Promise<WorkflowBundleWithSourceMapAndFilename | undefined> {
+    if (compiledOptions.workflowBundle) {
+      if (compiledOptions.workflowsPath) {
+        logger.warn('Ignoring WorkerOptions.workflowsPath because WorkerOptions.workflowBundle is set');
+      }
+      if (compiledOptions.bundlerOptions) {
+        logger.warn('Ignoring WorkerOptions.bundlerOptions because WorkerOptions.workflowBundle is set');
+      }
+      if (compiledOptions.interceptors?.workflowModules) {
+        logger.warn(
+          'Ignoring WorkerOptions.interceptors.workflowModules because WorkerOptions.workflowBundle is set.\n' +
+            'To use workflow interceptors with a workflowBundle, pass them in the call to bundleWorkflowCode.'
+        );
+      }
+
+      if (isCodeBundleOption(compiledOptions.workflowBundle)) {
+        return parseWorkflowCode(compiledOptions.workflowBundle.code);
+      } else if (isPathBundleOption(compiledOptions.workflowBundle)) {
+        const code = await fs.readFile(compiledOptions.workflowBundle.codePath, 'utf8');
+        return parseWorkflowCode(code, compiledOptions.workflowBundle.codePath);
+      } else {
+        throw new TypeError('Invalid WorkflowOptions.workflowBundle');
+      }
+    } else if (compiledOptions.workflowsPath) {
       const bundler = new WorkflowCodeBundler({
         logger,
         workflowsPath: compiledOptions.workflowsPath,
         workflowInterceptorModules: compiledOptions.interceptors?.workflowModules,
+        failureConverterPath: compiledOptions.dataConverter?.failureConverterPath,
         payloadConverterPath: compiledOptions.dataConverter?.payloadConverterPath,
         ignoreModules: compiledOptions.bundlerOptions?.ignoreModules,
+        webpackConfigHook: compiledOptions.bundlerOptions?.webpackConfigHook,
       });
       const bundle = await bundler.createBundle();
-      logger.info('Workflow bundle created', { size: `${toMB(bundle.code.length)}MB` });
-      return bundle;
-    } else if (compiledOptions.workflowBundle) {
-      if (isCodeBundleOption(compiledOptions.workflowBundle)) {
-        return compiledOptions.workflowBundle;
-      } else if (isPathBundleOption(compiledOptions.workflowBundle)) {
-        const [code, sourceMap] = await Promise.all([
-          fs.readFile(compiledOptions.workflowBundle.codePath, 'utf8'),
-          fs.readFile(compiledOptions.workflowBundle.sourceMapPath, 'utf8'),
-        ]);
-        return { code, sourceMap };
-      } else {
-        throw new TypeError('Invalid WorkflowOptions.workflowBundle');
-      }
+      return parseWorkflowCode(bundle.code);
     } else {
       return undefined;
     }
@@ -632,10 +651,18 @@ export class Worker {
   }
 
   /**
-   * Start shutting down the Worker. Immediately transitions {@link state} to `'STOPPING'` and asks Core to shut down.
-   * Once Core has confirmed that it's shutting down, the Worker enters `'DRAINING'` state unless the Worker has already
-   * been `'DRAINED'`. Once all currently running Activities and Workflow Tasks have completed, the Worker transitions
-   * to `'STOPPED'`.
+   * Start shutting down the Worker. The Worker stops polling for new tasks and sends
+   * {@link https://typescript.temporal.io/api/namespaces/activity#cancellation | cancellation} (via a
+   * {@link CancelledFailure} with `message` set to `'WORKER_SHUTDOWN'`) to running Activities. Note: if the Activity
+   * accepts cancellation (i.e. re-throws or allows the `CancelledFailure` to be thrown out of the Activity function),
+   * the Activity Task will be marked as failed, not cancelled. It's helpful for the Activity Task to be marked failed
+   * during shutdown because the Server will retry the Activity sooner (than if the Server had to wait for the Activity
+   * Task to time out).
+   *
+   * When called, immediately transitions {@link state} to `'STOPPING'` and asks Core to shut down. Once Core has
+   * confirmed that it's shutting down, the Worker enters `'DRAINING'` state unless the Worker has already been
+   * `'DRAINED'`. Once all currently running Activities and Workflow Tasks have completed, the Worker transitions to
+   * `'STOPPED'`.
    */
   shutdown(): void {
     if (this.state !== 'RUNNING') {
@@ -1088,6 +1115,7 @@ export class Worker {
                         cronScheduleToScheduleInterval: optionalTsToMs(cronScheduleToScheduleInterval) || undefined,
                         historyLength: activation.historyLength,
                         unsafe: {
+                          now: () => Date.now(), // re-set in initRuntime
                           isReplaying: activation.isReplaying,
                         },
                       };
@@ -1107,6 +1135,7 @@ export class Worker {
                           randomnessSeed: randomnessSeed.toBytes(),
                           now: tsToMs(activation.timestamp),
                           patches,
+                          showStackTraceSources: this.options.showStackTraceSources,
                         });
                       });
 
@@ -1126,7 +1155,7 @@ export class Worker {
                     const completion = await this.workflowCodecRunner.encodeCompletion(unencodedCompletion);
                     this.log.trace('Completed activation', workflowLogAttributes(state.info));
 
-                    span.setAttribute('close', close).end();
+                    span.setAttribute('close', close);
                     return { state, output: { close, completion, parentSpan } };
                   } catch (err) {
                     if (err instanceof errors.UnexpectedError) {
@@ -1416,6 +1445,7 @@ export class Worker {
   protected workflow$(): Observable<void> {
     // This Worker did not register any workflows, return early
     if (this.workflowCreator === undefined) {
+      this.log.warn('No workflows registered, not polling for workflow tasks');
       this.workflowPollerStateSubject.next('SHUTDOWN');
       return EMPTY;
     }
@@ -1498,8 +1528,12 @@ export class Worker {
   }
 
   protected activity$(): Observable<void> {
-    // Note that we poll on activities even if there are no activities registered.
-    // This is so workflows invoking activities on this task queue get a non-retryable error.
+    // This Worker did not register any activities, return early
+    if (this.options.activities === undefined || Object.keys(this.options.activities).length === 0) {
+      this.log.warn('No activities registered, not polling for activity tasks');
+      this.activityPollerStateSubject.next('SHUTDOWN');
+      return EMPTY;
+    }
     return this.activityPoll$().pipe(
       this.activityOperator(),
       mergeMap(async ({ completion, parentSpan }) => {
@@ -1615,6 +1649,51 @@ export class Worker {
       }
     }
   }
+}
+
+export interface WorkflowBundleWithSourceMapAndFilename {
+  code: string;
+  sourceMap: RawSourceMap;
+  filename: string;
+}
+
+export function parseWorkflowCode(code: string, codePath?: string): WorkflowBundleWithSourceMapAndFilename {
+  const sourceMappingUrlDataRegex = /\s*\n[/][/][#]\s+sourceMappingURL=data:(?:[^,]*;)base64,([0-9A-Za-z+/=]+)\s*$/;
+  const sourceMapMatcher = code.match(sourceMappingUrlDataRegex);
+  if (!sourceMapMatcher) throw new Error("Can't extract inlined source map from the provided Workflow Bundle");
+
+  const sourceMapJson = Buffer.from(sourceMapMatcher[1], 'base64').toString();
+  const sourceMap: RawSourceMap = JSON.parse(sourceMapJson);
+
+  // JS debuggers (at least VSCode's) have a few requirements regarding the script and its source map, notably:
+  // - The script file name's must look like an absolute path (relative paths are treated as node internals scripts)
+  // - If the script contains a sourceMapURL directive, the executable 'file' indicated by the source map must match the
+  //   filename of the script itself. If the source map's file is a relative path, then it gets resolved relative to cwd
+  const filename = path.resolve(process.cwd(), codePath ?? sourceMap.file);
+  if (filename !== codePath) {
+    sourceMap.file = filename;
+    const patchedSourceMapJson = Buffer.from(JSON.stringify(sourceMap)).toString('base64');
+    const fixedSourceMappingUrl = `\n//# sourceMappingURL=data:application/json;base64,${patchedSourceMapJson}`;
+    code = code.slice(0, -sourceMapMatcher[1].length) + fixedSourceMappingUrl;
+  }
+
+  // Preloading the script makes breakpoints significantly more reliable and more responsive
+  let script: vm.Script | undefined = new vm.Script(code, { filename });
+  let context: any = vm.createContext({});
+  try {
+    script.runInContext(context);
+  } catch (e) {
+    // Context has not been properly configured, so eventual errors are possible. Just ignore at this point
+  }
+
+  // Keep these objects from GC long enough for debugger to complete parsing the source map and reporting locations
+  // to the node process. Otherwise, the debugger risks source mapping resolution errors, meaning breakpoints wont work.
+  setTimeout(() => {
+    script = undefined;
+    context = undefined;
+  }, 10000);
+
+  return { code, sourceMap, filename };
 }
 
 type NonNullableObject<T> = { [P in keyof T]-?: NonNullable<T[P]> };

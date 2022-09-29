@@ -1,6 +1,6 @@
 {
   "name": "@temporalio/activity",
-  "version": "1.0.0-rc.1",
+  "version": "1.3.0",
   "description": "Temporal.io SDK Activity sub-package",
   "main": "lib/index.js",
   "types": "./lib/index.d.ts",
@@ -14,7 +14,6 @@
   "license": "MIT",
   "dependencies": {
     "@temporalio/common": "file:../common",
-    "@temporalio/internal-workflow-common": "file:../internal-workflow-common",
     "abort-controller": "^3.0.0"
   },
   "bugs": {

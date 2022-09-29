@@ -8,15 +8,14 @@
   },
   "references": [
     { "path": "../proto" },
-    { "path": "../internal-workflow-common" },
-    { "path": "../internal-non-workflow-common" },
     { "path": "../activity" },
     { "path": "../client" },
     { "path": "../common" },
     { "path": "../interceptors-opentelemetry" },
     { "path": "../testing" },
     { "path": "../worker" },
-    { "path": "../workflow" }
+    { "path": "../workflow" },
+    { "path": "../nyc-test-coverage" }
   ],
   "include": ["./src/**/*.ts"]
 }

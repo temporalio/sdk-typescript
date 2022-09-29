@@ -155,11 +155,15 @@ async function main() {
         activityInbound: [() => new ConnectionInjectorInterceptor(clientConnection)],
       },
     });
-    console.log('Created worker with options', worker.options);
 
     await withOptionalStatusServer(worker, statusPort, async () => {
-      await worker.run();
-      await connection.close();
+      const interval = setInterval(() => logger.info('worker status', worker.getStatus()), 30_000);
+      try {
+        await worker.run();
+      } finally {
+        clearInterval(interval);
+        await connection.close();
+      }
     });
   });
 }

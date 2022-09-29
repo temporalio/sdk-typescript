@@ -1,5 +1,6 @@
 import { RetryPolicy, TemporalFailure } from '@temporalio/common';
-import { checkExtends, CommonWorkflowOptions, SearchAttributes } from '@temporalio/internal-workflow-common';
+import { CommonWorkflowOptions, SearchAttributes } from '@temporalio/common';
+import { checkExtends } from '@temporalio/common/lib/type-helpers';
 import type { coresdk } from '@temporalio/proto';
 
 /**
@@ -135,6 +136,14 @@ export interface WorkflowInfo {
  * Never rely on this information in Workflow logic as it will cause non-deterministic behavior.
  */
 export interface UnsafeWorkflowInfo {
+  /**
+   * Current system time in milliseconds
+   *
+   * The safe version of time is `new Date()` and `Date.now()`, which are set on the first invocation of a Workflow
+   * Task.
+   */
+  now(): number;
+
   isReplaying: boolean;
 }
 
@@ -169,12 +178,12 @@ export interface ContinueAsNewOptions {
   taskQueue?: string;
   /**
    * Timeout for the entire Workflow run
-   * @format {@link https://www.npmjs.com/package/ms | ms} formatted string
+   * @format {@link https://www.npmjs.com/package/ms | ms-formatted string}
    */
   workflowRunTimeout?: string;
   /**
    * Timeout for a single Workflow task
-   * @format {@link https://www.npmjs.com/package/ms | ms} formatted string
+   * @format {@link https://www.npmjs.com/package/ms | ms-formatted string}
    */
   workflowTaskTimeout?: string;
   /**
@@ -223,6 +232,7 @@ export enum ChildWorkflowCancellationType {
 }
 
 checkExtends<coresdk.child_workflow.ChildWorkflowCancellationType, ChildWorkflowCancellationType>();
+checkExtends<ChildWorkflowCancellationType, coresdk.child_workflow.ChildWorkflowCancellationType>();
 
 /**
  * How a Child Workflow reacts to the Parent Workflow reaching a Closed state.
@@ -254,6 +264,7 @@ export enum ParentClosePolicy {
 }
 
 checkExtends<coresdk.child_workflow.ParentClosePolicy, ParentClosePolicy>();
+checkExtends<ParentClosePolicy, coresdk.child_workflow.ParentClosePolicy>();
 
 export interface ChildWorkflowOptions extends CommonWorkflowOptions {
   /**
@@ -292,3 +303,64 @@ export type RequiredChildWorkflowOptions = Required<Pick<ChildWorkflowOptions, '
 };
 
 export type ChildWorkflowOptionsWithDefaults = ChildWorkflowOptions & RequiredChildWorkflowOptions;
+
+export interface SDKInfo {
+  name: string;
+  version: string;
+}
+
+/**
+ * Represents a slice of a file starting at lineOffset
+ */
+export interface FileSlice {
+  /**
+   * slice of a file with `\n` (newline) line terminator.
+   */
+  content: string;
+  /**
+   * Only used possible to trim the file without breaking syntax highlighting.
+   */
+  lineOffset: number;
+}
+
+/**
+ * A pointer to a location in a file
+ */
+export interface FileLocation {
+  /**
+   * Path to source file (absolute or relative).
+   * When using a relative path, make sure all paths are relative to the same root.
+   */
+  filePath?: string;
+  /**
+   * If possible, SDK should send this, required for displaying the code location.
+   */
+  line?: number;
+  /**
+   * If possible, SDK should send this.
+   */
+  column?: number;
+  /**
+   * Function name this line belongs to (if applicable).
+   * Used for falling back to stack trace view.
+   */
+  functionName?: string;
+}
+
+export interface StackTrace {
+  locations: FileLocation[];
+}
+
+/**
+ * Used as the result for the enhanced stack trace query
+ */
+export interface EnhancedStackTrace {
+  sdk: SDKInfo;
+  /**
+   * Mapping of file path to file contents.
+   * SDK may choose to send no, some or all sources.
+   * Sources might be trimmed, and some time only the file(s) of the top element of the trace will be sent.
+   */
+  sources: Record<string, FileSlice[]>;
+  stacks: StackTrace[];
+}

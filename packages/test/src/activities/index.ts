@@ -2,8 +2,7 @@
 /* eslint-disable @typescript-eslint/explicit-module-boundary-types */
 import { Context } from '@temporalio/activity';
 import { WorkflowClient, WorkflowHandle } from '@temporalio/client';
-import { ApplicationFailure } from '@temporalio/common';
-import { QueryDefinition } from '@temporalio/internal-workflow-common';
+import { ApplicationFailure, QueryDefinition } from '@temporalio/common';
 import { ProtoActivityInput, ProtoActivityResult } from '../../protos/root';
 import { cancellableFetch as cancellableFetchInner } from './cancellable-fetch';
 import { fakeProgress as fakeProgressInner } from './fake-progress';

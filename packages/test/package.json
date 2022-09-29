@@ -1,7 +1,7 @@
 {
   "private": true,
   "name": "@temporalio/test",
-  "version": "1.0.0-rc.1",
+  "version": "1.3.0",
   "description": "Temporal.io SDK Tests",
   "scripts": {
     "build": "npm-run-all build:protos build:ts",
@@ -37,8 +37,6 @@
     "@temporalio/common": "file:../common",
     "@temporalio/core-bridge": "^1.0.0-rc.1",
     "@temporalio/interceptors-opentelemetry": "file:../interceptors-opentelemetry",
-    "@temporalio/internal-non-workflow-common": "file:../internal-non-workflow-common",
-    "@temporalio/internal-workflow-common": "file:../internal-workflow-common",
     "@temporalio/proto": "file:../proto",
     "@temporalio/testing": "file:../testing",
     "@temporalio/worker": "file:../worker",

@@ -1,6 +1,6 @@
 import * as otel from '@opentelemetry/api';
 import { NoopTracer } from '@opentelemetry/api/build/src/trace/NoopTracer';
-import { errorMessage } from '@temporalio/common';
+import { errorMessage } from '@temporalio/common/lib/type-helpers';
 import pkg from './pkg';
 
 /**

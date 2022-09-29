@@ -4,7 +4,6 @@ import { spawnSync } from 'node:child_process';
 import { URL, fileURLToPath } from 'node:url';
 import arg from 'arg';
 import JSON5 from 'json5';
-import * as testing from '../packages/testing/scripts/common.mjs';
 
 const packagesPath = fileURLToPath(new URL('../packages', import.meta.url));
 
@@ -56,16 +55,8 @@ function cleanCompiledRustFiles() {
   spawnSync('cargo', ['clean'], { cwd: bridgeDir, stdio: 'inherit' });
 }
 
-function cleanTestServer() {
-  console.log(`Removing test server executable at ${testing.outputPath}`);
-  rmSync(testing.outputPath, { force: true });
-  const protosOutputDir = resolve(packagesPath, 'testing/generated-protos');
-  console.log(`Removing generated files in ${protosOutputDir}`);
-  rmSync(protosOutputDir, { recursive: true, force: true });
-}
-
 const { '--only': only } = arg({ '--only': [String] });
-const components = new Set(only === undefined || only.length === 0 ? ['ts', 'proto', 'rust', 'test-server'] : only);
+const components = new Set(only === undefined || only.length === 0 ? ['ts', 'proto', 'rust'] : only);
 if (components.has('ts')) cleanTsGeneratedFiles();
 if (components.has('proto')) cleanProtoGeneratedFiles();
 if (components.has('rust')) cleanCompiledRustFiles();

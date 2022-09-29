@@ -1,6 +1,5 @@
-import { checkExtends, hasOwnProperties, isRecord } from '@temporalio/internal-workflow-common';
 import type { temporal } from '@temporalio/proto';
-import { PayloadConverter, arrayFromPayloads, fromPayloadsAtIndex, toPayloads } from './converter/payload-converter';
+import { checkExtends, isRecord } from './type-helpers';
 
 export const FAILURE_SOURCE = 'TypeScriptSDK';
 export type ProtoFailure = temporal.api.failure.v1.IFailure;
@@ -16,6 +15,7 @@ export enum TimeoutType {
 }
 
 checkExtends<temporal.api.enums.v1.TimeoutType, TimeoutType>();
+checkExtends<TimeoutType, temporal.api.enums.v1.TimeoutType>();
 
 // Avoid importing the proto implementation to reduce workflow bundle size
 // Copied from temporal.api.enums.v1.RetryState
@@ -31,20 +31,16 @@ export enum RetryState {
 }
 
 checkExtends<temporal.api.enums.v1.RetryState, RetryState>();
+checkExtends<RetryState, temporal.api.enums.v1.RetryState>();
 
 export type WorkflowExecution = temporal.api.common.v1.IWorkflowExecution;
 
 /**
  * Represents failures that can cross Workflow and Activity boundaries.
  *
- * Only exceptions that extend this class will be propagated to the caller.
+ * **Never extend this class or any of its children.**
  *
- * **Never extend this class or any of its derivatives.** They are to be used by the SDK code
- * only. Throw an instance {@link ApplicationFailure} to pass application specific errors between
- * Workflows and Activities.
- *
- * Any unhandled exception thrown by an Activity or Workflow will be converted to an instance of
- * {@link ApplicationFailure}.
+ * The only child class you should ever throw from your code is {@link ApplicationFailure}.
  */
 export class TemporalFailure extends Error {
   public readonly name: string = 'TemporalFailure';
@@ -55,7 +51,7 @@ export class TemporalFailure extends Error {
    */
   public failure?: ProtoFailure;
 
-  constructor(message: string | undefined, public readonly cause?: Error) {
+  constructor(message?: string | undefined | null, public readonly cause?: Error) {
     super(message ?? undefined);
   }
 }
@@ -79,31 +75,54 @@ export class ServerFailure extends TemporalFailure {
  * `ApplicationFailure`, the Workflow Execution will fail.
  *
  * In Activities, you can either throw an `ApplicationFailure` or another `Error` to fail the Activity Task. In the
- * latter case, the `Error` will be converted to an `ApplicationFailure`. If the
- * {@link https://docs.temporal.io/concepts/what-is-an-activity-execution | Activity Execution} fails, the
- * `ApplicationFailure` from the last Activity Task will be the `cause` of the {@link ActivityFailure} thrown in the
- * Workflow.
- *
- * The conversion of an error that doesn't extend {@link TemporalFailure} to an `ApplicationFailure` is done as
- * following:
+ * latter case, the `Error` will be converted to an `ApplicationFailure`. The conversion is done as following:
  *
  * - `type` is set to `error.constructor?.name ?? error.name`
  * - `message` is set to `error.message`
  * - `nonRetryable` is set to false
  * - `details` are set to null
  * - stack trace is copied from the original error
+ *
+ * When an {@link https://docs.temporal.io/concepts/what-is-an-activity-execution | Activity Execution} fails, the
+ * `ApplicationFailure` from the last Activity Task will be the `cause` of the {@link ActivityFailure} thrown in the
+ * Workflow.
  */
 export class ApplicationFailure extends TemporalFailure {
   public readonly name: string = 'ApplicationFailure';
 
+  /**
+   * Alternatively, use {@link fromError} or {@link create}.
+   */
   constructor(
-    message: string | undefined,
-    public readonly type: string | undefined | null,
-    public readonly nonRetryable: boolean,
-    public readonly details?: unknown[],
+    message?: string | undefined | null,
+    public readonly type?: string | undefined | null,
+    public readonly nonRetryable?: boolean | undefined | null,
+    public readonly details?: unknown[] | undefined | null,
     cause?: Error
   ) {
     super(message, cause);
+  }
+
+  /**
+   * Create a new `ApplicationFailure` from an Error object.
+   *
+   * First calls {@link ensureApplicationFailure | `ensureApplicationFailure(error)`} and then overrides any fields
+   * provided in `overrides`.
+   */
+  public static fromError(error: Error | unknown, overrides?: ApplicationFailureOptions): ApplicationFailure {
+    const failure = ensureApplicationFailure(error);
+    Object.assign(failure, overrides);
+    return failure;
+  }
+
+  /**
+   * Create a new `ApplicationFailure`.
+   *
+   * By default, will be retryable (unless its `type` is included in {@link RetryPolicy.nonRetryableErrorTypes}).
+   */
+  public static create(options: ApplicationFailureOptions): ApplicationFailure {
+    const { message, type, nonRetryable = false, details, cause } = options;
+    return new this(message, type, nonRetryable, details, cause);
   }
 
   /**
@@ -114,7 +133,7 @@ export class ApplicationFailure extends TemporalFailure {
    * @param type Optional error type (used by {@link RetryPolicy.nonRetryableErrorTypes})
    * @param details Optional details about the failure. Serialized by the Worker's {@link PayloadConverter}.
    */
-  public static retryable(message: string | undefined, type?: string, ...details: unknown[]): ApplicationFailure {
+  public static retryable(message?: string | null, type?: string | null, ...details: unknown[]): ApplicationFailure {
     return new this(message, type ?? 'Error', false, details);
   }
 
@@ -128,9 +147,38 @@ export class ApplicationFailure extends TemporalFailure {
    * @param type Optional error type
    * @param details Optional details about the failure. Serialized by the Worker's {@link PayloadConverter}.
    */
-  public static nonRetryable(message: string | undefined, type?: string, ...details: unknown[]): ApplicationFailure {
+  public static nonRetryable(message?: string | null, type?: string | null, ...details: unknown[]): ApplicationFailure {
     return new this(message, type ?? 'Error', true, details);
   }
+}
+
+export interface ApplicationFailureOptions {
+  /**
+   * Error message
+   */
+  message?: string;
+
+  /**
+   * Error type (used by {@link RetryPolicy.nonRetryableErrorTypes})
+   */
+  type?: string;
+
+  /**
+   * Whether the current Activity or Workflow can be retried
+   *
+   * @default false
+   */
+  nonRetryable?: boolean;
+
+  /**
+   * Details about the failure. Serialized by the Worker's {@link PayloadConverter}.
+   */
+  details?: unknown[];
+
+  /**
+   * Cause of the failure
+   */
+  cause?: Error;
 }
 
 /**
@@ -215,173 +263,24 @@ export class ChildWorkflowFailure extends TemporalFailure {
 }
 
 /**
- * Converts an error to a Failure proto message if defined or returns undefined
- */
-export function optionalErrorToOptionalFailure(
-  err: unknown,
-  payloadConverter: PayloadConverter
-): ProtoFailure | undefined {
-  return err ? errorToFailure(err, payloadConverter) : undefined;
-}
-
-/**
- * Stack traces will be cutoff when on of these patterns is matched
- */
-const CUTOFF_STACK_PATTERNS = [
-  /** Activity execution */
-  /\s+at Activity\.execute \(.*[\\/]worker[\\/](?:src|lib)[\\/]activity\.[jt]s:\d+:\d+\)/,
-  /** Workflow activation */
-  /\s+at Activator\.\S+NextHandler \(.*[\\/]workflow[\\/](?:src|lib)[\\/]internals\.[jt]s:\d+:\d+\)/,
-  /** Workflow run anything in context */
-  /\s+at Script\.runInContext \((?:node:vm|vm\.js):\d+:\d+\)/,
-];
-
-/**
- * Cuts out the framework part of a stack trace, leaving only user code entries
- */
-export function cutoffStackTrace(stack?: string): string {
-  const lines = (stack ?? '').split(/\r?\n/);
-  const acc = Array<string>();
-  lineLoop: for (const line of lines) {
-    for (const pattern of CUTOFF_STACK_PATTERNS) {
-      if (pattern.test(line)) break lineLoop;
-    }
-    acc.push(line);
-  }
-  return acc.join('\n');
-}
-
-/**
- * Converts a caught error to a Failure proto message
- */
-export function errorToFailure(err: unknown, payloadConverter: PayloadConverter): ProtoFailure {
-  if (err instanceof TemporalFailure) {
-    if (err.failure) return err.failure;
-
-    const base = {
-      message: err.message,
-      stackTrace: cutoffStackTrace(err.stack),
-      cause: optionalErrorToOptionalFailure(err.cause, payloadConverter),
-      source: FAILURE_SOURCE,
-    };
-    if (err instanceof ActivityFailure) {
-      return {
-        ...base,
-        activityFailureInfo: {
-          ...err,
-          activityType: { name: err.activityType },
-        },
-      };
-    }
-    if (err instanceof ChildWorkflowFailure) {
-      return {
-        ...base,
-        childWorkflowExecutionFailureInfo: {
-          ...err,
-          workflowExecution: err.execution,
-          workflowType: { name: err.workflowType },
-        },
-      };
-    }
-    if (err instanceof ApplicationFailure) {
-      return {
-        ...base,
-        applicationFailureInfo: {
-          type: err.type,
-          nonRetryable: err.nonRetryable,
-          details:
-            err.details && err.details.length ? { payloads: toPayloads(payloadConverter, ...err.details) } : undefined,
-        },
-      };
-    }
-    if (err instanceof CancelledFailure) {
-      return {
-        ...base,
-        canceledFailureInfo: {
-          details:
-            err.details && err.details.length ? { payloads: toPayloads(payloadConverter, ...err.details) } : undefined,
-        },
-      };
-    }
-    if (err instanceof TimeoutFailure) {
-      return {
-        ...base,
-        timeoutFailureInfo: {
-          timeoutType: err.timeoutType,
-          lastHeartbeatDetails: err.lastHeartbeatDetails
-            ? { payloads: toPayloads(payloadConverter, err.lastHeartbeatDetails) }
-            : undefined,
-        },
-      };
-    }
-    if (err instanceof TerminatedFailure) {
-      return {
-        ...base,
-        terminatedFailureInfo: {},
-      };
-    }
-    if (err instanceof ServerFailure) {
-      return {
-        ...base,
-        serverFailureInfo: { nonRetryable: err.nonRetryable },
-      };
-    }
-    // Just a TemporalFailure
-    return base;
-  }
-
-  const base = {
-    source: FAILURE_SOURCE,
-  };
-
-  if (isRecord(err) && hasOwnProperties(err, ['message', 'stack'])) {
-    return {
-      ...base,
-      message: String(err.message) ?? '',
-      stackTrace: cutoffStackTrace(String(err.stack)),
-      cause: optionalErrorToOptionalFailure(err.cause, payloadConverter),
-    };
-  }
-
-  const recommendation = ` [A non-Error value was thrown from your code. We recommend throwing Error objects so that we can provide a stack trace]`;
-
-  if (typeof err === 'string') {
-    return { ...base, message: err + recommendation };
-  }
-  if (typeof err === 'object') {
-    let message = '';
-    try {
-      message = JSON.stringify(err);
-    } catch (_err) {
-      message = String(err);
-    }
-    return { ...base, message: message + recommendation };
-  }
-
-  return { ...base, message: String(err) + recommendation };
-}
-
-/**
- * If `err` is an Error it is turned into an `ApplicationFailure`.
+ * If `error` is already an `ApplicationFailure`, returns `error`.
  *
- * If `err` was already a `ApplicationFailure`, returns the original error.
+ * Otherwise, converts `error` into an `ApplicationFailure` with:
  *
- * Otherwise returns an `ApplicationFailure` with `String(err)` as the message.
+ * - `message`: `error.message` or `String(error)`
+ * - `type`: `error.constructor.name` or `error.name`
+ * - `stack`: `error.stack` or `''`
  */
-export function ensureApplicationFailure(err: unknown): ApplicationFailure {
-  if (err instanceof ApplicationFailure) {
-    return err;
+export function ensureApplicationFailure(error: unknown): ApplicationFailure {
+  if (error instanceof ApplicationFailure) {
+    return error;
   }
-  if (err instanceof Error) {
-    const name = err.constructor?.name ?? err.name;
-    const failure = new ApplicationFailure(err.message, name, false);
-    failure.stack = err.stack;
-    return failure;
-  } else {
-    const failure = new ApplicationFailure(String(err), undefined, false);
-    failure.stack = '';
-    return failure;
-  }
+
+  const message = (isRecord(error) && String(error.message)) || String(error);
+  const type = (isRecord(error) && (error.constructor?.name ?? error.name)) || undefined;
+  const failure = ApplicationFailure.create({ message, type, nonRetryable: false });
+  failure.stack = (isRecord(error) && String(error.stack)) || '';
+  return failure;
 }
 
 /**
@@ -396,108 +295,6 @@ export function ensureTemporalFailure(err: unknown): TemporalFailure {
     return err;
   }
   return ensureApplicationFailure(err);
-}
-
-/**
- * Converts a Failure proto message to a JS Error object if defined or returns undefined.
- */
-export function optionalFailureToOptionalError(
-  failure: ProtoFailure | undefined | null,
-  payloadConverter: PayloadConverter
-): TemporalFailure | undefined {
-  return failure ? failureToError(failure, payloadConverter) : undefined;
-}
-
-/**
- * Converts a Failure proto message to a JS Error object.
- *
- * Does not set common properties, that is done in {@link failureToError}.
- */
-export function failureToErrorInner(failure: ProtoFailure, payloadConverter: PayloadConverter): TemporalFailure {
-  if (failure.applicationFailureInfo) {
-    return new ApplicationFailure(
-      failure.message ?? undefined,
-      failure.applicationFailureInfo.type,
-      Boolean(failure.applicationFailureInfo.nonRetryable),
-      arrayFromPayloads(payloadConverter, failure.applicationFailureInfo.details?.payloads),
-      optionalFailureToOptionalError(failure.cause, payloadConverter)
-    );
-  }
-  if (failure.serverFailureInfo) {
-    return new ServerFailure(
-      failure.message ?? undefined,
-      Boolean(failure.serverFailureInfo.nonRetryable),
-      optionalFailureToOptionalError(failure.cause, payloadConverter)
-    );
-  }
-  if (failure.timeoutFailureInfo) {
-    return new TimeoutFailure(
-      failure.message ?? undefined,
-      fromPayloadsAtIndex(payloadConverter, 0, failure.timeoutFailureInfo.lastHeartbeatDetails?.payloads),
-      failure.timeoutFailureInfo.timeoutType ?? TimeoutType.TIMEOUT_TYPE_UNSPECIFIED
-    );
-  }
-  if (failure.terminatedFailureInfo) {
-    return new TerminatedFailure(
-      failure.message ?? undefined,
-      optionalFailureToOptionalError(failure.cause, payloadConverter)
-    );
-  }
-  if (failure.canceledFailureInfo) {
-    return new CancelledFailure(
-      failure.message ?? undefined,
-      arrayFromPayloads(payloadConverter, failure.canceledFailureInfo.details?.payloads),
-      optionalFailureToOptionalError(failure.cause, payloadConverter)
-    );
-  }
-  if (failure.resetWorkflowFailureInfo) {
-    return new ApplicationFailure(
-      failure.message ?? undefined,
-      'ResetWorkflow',
-      false,
-      arrayFromPayloads(payloadConverter, failure.resetWorkflowFailureInfo.lastHeartbeatDetails?.payloads),
-      optionalFailureToOptionalError(failure.cause, payloadConverter)
-    );
-  }
-  if (failure.childWorkflowExecutionFailureInfo) {
-    const { namespace, workflowType, workflowExecution, retryState } = failure.childWorkflowExecutionFailureInfo;
-    if (!(workflowType?.name && workflowExecution)) {
-      throw new TypeError('Missing attributes on childWorkflowExecutionFailureInfo');
-    }
-    return new ChildWorkflowFailure(
-      namespace ?? undefined,
-      workflowExecution,
-      workflowType.name,
-      retryState ?? RetryState.RETRY_STATE_UNSPECIFIED,
-      optionalFailureToOptionalError(failure.cause, payloadConverter)
-    );
-  }
-  if (failure.activityFailureInfo) {
-    if (!failure.activityFailureInfo.activityType?.name) {
-      throw new TypeError('Missing activityType?.name on activityFailureInfo');
-    }
-    return new ActivityFailure(
-      failure.activityFailureInfo.activityType.name,
-      failure.activityFailureInfo.activityId ?? undefined,
-      failure.activityFailureInfo.retryState ?? RetryState.RETRY_STATE_UNSPECIFIED,
-      failure.activityFailureInfo.identity ?? undefined,
-      optionalFailureToOptionalError(failure.cause, payloadConverter)
-    );
-  }
-  return new TemporalFailure(
-    failure.message ?? undefined,
-    optionalFailureToOptionalError(failure.cause, payloadConverter)
-  );
-}
-
-/**
- * Converts a Failure proto message to a JS Error object.
- */
-export function failureToError(failure: ProtoFailure, payloadConverter: PayloadConverter): TemporalFailure {
-  const err = failureToErrorInner(failure, payloadConverter);
-  err.stack = failure.stackTrace ?? '';
-  err.failure = failure;
-  return err;
 }
 
 /**

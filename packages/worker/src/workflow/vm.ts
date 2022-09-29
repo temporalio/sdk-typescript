@@ -1,16 +1,17 @@
 import { cutoffStackTrace, IllegalStateError } from '@temporalio/common';
 import { coresdk } from '@temporalio/proto';
-import { WorkflowInfo } from '@temporalio/workflow';
+import { WorkflowInfo, FileLocation } from '@temporalio/workflow';
 import { SinkCall } from '@temporalio/workflow/lib/sinks';
-import type * as internals from '@temporalio/workflow/lib/worker-interface';
+import * as internals from '@temporalio/workflow/lib/worker-interface';
 import assert from 'assert';
 import { AsyncLocalStorage } from 'async_hooks';
 import { gte } from 'semver';
-import { SourceMapConsumer } from 'source-map';
+import { RawSourceMap, SourceMapConsumer } from 'source-map';
 import vm from 'vm';
 import v8 from 'v8';
 import { partition } from '../utils';
 import { Workflow, WorkflowCreateOptions, WorkflowCreator } from './interface';
+import { WorkflowBundleWithSourceMapAndFilename } from '../worker';
 
 interface ActivationContext {
   isReplaying: boolean;
@@ -19,11 +20,49 @@ interface ActivationContext {
 // Not present in @types/node for some reason
 const { promiseHooks } = v8 as any;
 
+/**
+ * Variant of {@link cutoffStackTrace} that works with FileLocation, keep this in sync with the original implementation
+ */
+function cutoffStructuredStackTrace(stackTrace: FileLocation[]) {
+  stackTrace.shift();
+  if (stackTrace[0].functionName === 'initAll' && stackTrace[0].filePath === 'node:internal/promise_hooks') {
+    stackTrace.shift();
+  }
+  const idx = stackTrace.findIndex(({ functionName, filePath }) => {
+    return (
+      functionName &&
+      filePath &&
+      ((/^Activator\.\S+NextHandler$/.test(functionName) &&
+        /.*[\\/]workflow[\\/](?:src|lib)[\\/]internals\.[jt]s$/.test(filePath)) ||
+        (/Script\.runInContext/.test(functionName) && /^node:vm|vm\.js$/.test(filePath)))
+    );
+  });
+  if (idx > -1) {
+    stackTrace.splice(idx);
+  }
+}
+
 function getPromiseStackStore(promise: Promise<any>): internals.PromiseStackStore | undefined {
   // Access the global scope associated with the promise (unique per workflow - vm.context)
   // See for reference https://github.com/patriksimek/vm2/issues/32
   const ctor = promise.constructor.constructor;
   return ctor('return globalThis.__TEMPORAL__?.promiseStackStore')();
+}
+
+/**
+ * Internal helper to format callsite "name" portion in stack trace
+ */
+function formatCallsiteName(callsite: NodeJS.CallSite) {
+  const typeName = callsite.getTypeName();
+  const methodName = callsite.getMethodName();
+  const functionName = callsite.getFunctionName();
+  const isConstructor = callsite.isConstructor();
+
+  return typeName && methodName
+    ? `${typeName}.${methodName}`
+    : isConstructor && functionName
+    ? `new ${functionName}`
+    : functionName;
 }
 
 // Best effort to catch unhandled rejections from workflow code.
@@ -58,7 +97,11 @@ export class VMWorkflowCreator implements WorkflowCreator {
 
   script?: vm.Script;
 
-  constructor(script: vm.Script, public readonly sourceMap: string, public readonly isolateExecutionTimeoutMs: number) {
+  constructor(
+    script: vm.Script,
+    public readonly sourceMap: RawSourceMap,
+    public readonly isolateExecutionTimeoutMs: number
+  ) {
     if (!VMWorkflowCreator.unhandledRejectionHandlerHasBeenSet) {
       setUnhandledRejectionHandler();
       VMWorkflowCreator.unhandledRejectionHandlerHasBeenSet = true;
@@ -104,7 +147,7 @@ export class VMWorkflowCreator implements WorkflowCreator {
       }
     ) as any;
 
-    await workflowModule.initRuntime(options);
+    await workflowModule.initRuntime({ ...options, sourceMap: this.sourceMap });
 
     const newVM = new VMWorkflow(
       options.info,
@@ -124,28 +167,41 @@ export class VMWorkflowCreator implements WorkflowCreator {
     }
     let context;
     if (this.hasSeparateMicrotaskQueue) {
-      context = vm.createContext(
-        { AsyncLocalStorage, assert, activePromises: new Set() },
-        { microtaskMode: 'afterEvaluate' }
-      );
+      context = vm.createContext({ AsyncLocalStorage, assert }, { microtaskMode: 'afterEvaluate' });
     } else {
-      context = vm.createContext({ AsyncLocalStorage, assert, activePromises: new Set() });
+      context = vm.createContext({ AsyncLocalStorage, assert });
     }
     this.script.runInContext(context);
     return context;
   }
 
   /**
-   * Inject console.log into the Workflow isolate context.
+   * Inject console.log and friends into the Workflow isolate context.
    *
    * Overridable for test purposes.
    */
   protected injectConsole(context: vm.Context, info: WorkflowInfo, ac: ActivationContext): void {
+    // isReplaying is mutated by the Workflow class on activation
     context.console = {
       log: (...args: any[]) => {
-        // isReplaying is mutated by the Workflow class on activation
         if (ac.isReplaying) return;
         console.log(`[${info.workflowType}(${info.workflowId})]`, ...args);
+      },
+      error: (...args: any[]) => {
+        if (ac.isReplaying) return;
+        console.error(`[${info.workflowType}(${info.workflowId})]`, ...args);
+      },
+      warn: (...args: any[]) => {
+        if (ac.isReplaying) return;
+        console.warn(`[${info.workflowType}(${info.workflowId})]`, ...args);
+      },
+      info: (...args: any[]) => {
+        if (ac.isReplaying) return;
+        console.info(`[${info.workflowType}(${info.workflowId})]`, ...args);
+      },
+      debug: (...args: any[]) => {
+        if (ac.isReplaying) return;
+        console.debug(`[${info.workflowType}(${info.workflowId})]`, ...args);
       },
     };
   }
@@ -157,12 +213,13 @@ export class VMWorkflowCreator implements WorkflowCreator {
    */
   public static async create<T extends typeof VMWorkflowCreator>(
     this: T,
-    code: string,
-    sourceMap: string,
+    workflowBundle: WorkflowBundleWithSourceMapAndFilename,
     isolateExecutionTimeoutMs: number
   ): Promise<InstanceType<T>> {
-    const script = new vm.Script(code, { filename: 'workflow-isolate' });
-    const sourceMapConsumer = await new SourceMapConsumer(JSON.parse(sourceMap));
+    const script = new vm.Script(workflowBundle.code, { filename: workflowBundle.filename });
+    const sourceMapConsumer = await new SourceMapConsumer(workflowBundle.sourceMap);
+
+    let currentStackTrace: FileLocation[] | undefined = undefined;
 
     // Augment the global vm Error stack trace prepare function
     // NOTE: this means that multiple instances of this class in the same VM
@@ -170,28 +227,34 @@ export class VMWorkflowCreator implements WorkflowCreator {
     // This should be a non-issue in most cases since we typically construct a single instance of
     // this class per Worker thread.
     Error.prepareStackTrace = (err, stackTraces) => {
+      // Set the currentStackTrace so it can be used in the promise `init` hook below
+      currentStackTrace = [];
       const converted = stackTraces.map((callsite) => {
         const line = callsite.getLineNumber();
         const column = callsite.getColumnNumber();
-        if (callsite.getFileName() === 'workflow-isolate' && line && column) {
+        if (callsite.getFileName() === workflowBundle.filename && line && column && sourceMapConsumer) {
           const pos = sourceMapConsumer.originalPositionFor({ line, column });
 
-          const typeName = callsite.getTypeName();
-          const methodName = callsite.getMethodName();
-          const functionName = callsite.getFunctionName();
-          const isConstructor = callsite.isConstructor();
+          const name = pos.name || formatCallsiteName(callsite);
+          currentStackTrace?.push({
+            filePath: pos.source ?? undefined,
+            functionName: name ?? undefined,
+            line: pos.line ?? undefined,
+            column: pos.column ?? undefined,
+          });
 
-          const name =
-            pos.name ||
-            (typeName && methodName
-              ? `${callsite.getTypeName()}.${callsite.getMethodName()}`
-              : isConstructor && functionName
-              ? `new ${functionName}`
-              : functionName);
           return name
             ? `    at ${name} (${pos.source}:${pos.line}:${pos.column})`
             : `    at ${pos.source}:${pos.line}:${pos.column}`;
         } else {
+          const name = formatCallsiteName(callsite);
+
+          currentStackTrace?.push({
+            filePath: callsite.getFileName() ?? undefined,
+            functionName: name ?? undefined,
+            line: callsite.getLineNumber() ?? undefined,
+            column: callsite.getColumnNumber() ?? undefined,
+          });
           return `    at ${callsite}`;
         }
       });
@@ -209,26 +272,34 @@ export class VMWorkflowCreator implements WorkflowCreator {
           // Only run in workflow context
           const store = getPromiseStackStore(promise);
           if (!store) return;
-          let stackTrace = cutoffStackTrace(
+          // Reset currentStackTrace just in case (it will be set in `prepareStackTrace` above)
+          currentStackTrace = undefined;
+          const formatted = cutoffStackTrace(
             new Error().stack?.replace(
               /^Error\n\s*at [^\n]+\n(\s*at initAll \(node:internal\/promise_hooks:\d+:\d+\)\n)?/,
               ''
             )
           );
+          if (currentStackTrace === undefined) {
+            return;
+          }
+          const structured = currentStackTrace as FileLocation[];
+          cutoffStructuredStackTrace(structured);
+          let stackTrace = { formatted, structured };
           // To see the full stack replace with commented line
           // stackTrace = new Error().stack?.replace(/^Error\n\s*at [^\n]+\n(\s*at initAll \(node:internal\/promise_hooks:\d+:\d+\)\n)?/, '')!;
 
           if (
             currentAggregation &&
             /^\s+at\sPromise\.then \(<anonymous>\)\n\s+at Function\.(race|all|allSettled|any) \(<anonymous>\)\n/.test(
-              stackTrace
+              formatted
             )
           ) {
             // Skip internal promises created by the aggregator and link directly.
             promise = currentAggregation;
             // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
             stackTrace = store.promiseToStack.get(currentAggregation)!; // Must exist
-          } else if (/^\s+at Function\.(race|all|allSettled|any) \(<anonymous>\)\n/.test(stackTrace)) {
+          } else if (/^\s+at Function\.(race|all|allSettled|any) \(<anonymous>\)\n/.test(formatted)) {
             currentAggregation = promise;
           } else {
             currentAggregation = undefined;
@@ -256,7 +327,7 @@ export class VMWorkflowCreator implements WorkflowCreator {
       });
     }
 
-    return new this(script, sourceMap, isolateExecutionTimeoutMs) as InstanceType<T>;
+    return new this(script, workflowBundle.sourceMap, isolateExecutionTimeoutMs) as InstanceType<T>;
   }
 
   /**
@@ -326,7 +397,9 @@ export class VMWorkflow implements Workflow {
         coresdk.workflow_activation.WorkflowActivation.fromObject({ ...activation, jobs }),
         batchIndex++
       );
-      await this.tryUnblockConditions();
+      if (internals.showUnblockConditions(jobs[0])) {
+        await this.tryUnblockConditions();
+      }
     }
     const completion = this.workflowModule.concludeActivation();
     // Give unhandledRejection handler a chance to be triggered.

@@ -3,16 +3,19 @@
  *
  * @module
  */
-export { Headers, Next, RetryPolicy } from '@temporalio/internal-workflow-common';
-export * from '@temporalio/internal-workflow-common/lib/activity-options';
-export * from '@temporalio/internal-workflow-common/lib/errors';
-export * from '@temporalio/internal-workflow-common/lib/interfaces';
-export * from '@temporalio/internal-workflow-common/lib/time';
-export * from '@temporalio/internal-workflow-common/lib/workflow-options';
+export { Headers, Next } from './interceptors';
+
+export * from './activity-options';
 export * from './converter/data-converter';
+export * from './converter/failure-converter';
 export * from './converter/payload-codec';
 export * from './converter/payload-converter';
-export * from './converter/payload-converters';
-export * from './converter/json-payload-converter';
 export * from './converter/types';
+export * from './errors';
 export * from './failure';
+export * from './failure';
+export * from './interfaces';
+export * from './retry-policy';
+export * from './time';
+export * from './workflow-options';
+export * from './workflow-handle';

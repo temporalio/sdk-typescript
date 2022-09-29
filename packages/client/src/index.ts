@@ -17,17 +17,18 @@ export {
   DataConverter,
   defaultPayloadConverter,
   ProtoFailure,
+  RetryPolicy,
   ServerFailure,
   TemporalFailure,
   TerminatedFailure,
   TimeoutFailure,
 } from '@temporalio/common';
-export { TLSConfig } from '@temporalio/internal-non-workflow-common';
-export { RetryPolicy } from '@temporalio/internal-workflow-common';
-export * from '@temporalio/internal-workflow-common/lib/errors';
-export * from '@temporalio/internal-workflow-common/lib/interfaces';
-export * from '@temporalio/internal-workflow-common/lib/workflow-handle';
+export { TLSConfig } from '@temporalio/common/lib/internal-non-workflow';
+export * from '@temporalio/common/lib/errors';
+export * from '@temporalio/common/lib/interfaces';
+export * from '@temporalio/common/lib/workflow-handle';
 export * from './async-completion-client';
+export * from './client';
 export { Connection, ConnectionOptions, ConnectionOptionsWithDefaults, LOCAL_TARGET } from './connection';
 export * from './errors';
 export * from './grpc-retry';

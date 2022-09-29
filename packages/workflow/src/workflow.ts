@@ -1,24 +1,26 @@
-import { mapToPayloads, searchAttributePayloadConverter, toPayloads } from '@temporalio/common';
 import {
   ActivityFunction,
   ActivityOptions,
   compileRetryPolicy,
-  composeInterceptors,
   IllegalStateError,
   LocalActivityOptions,
+  mapToPayloads,
   msOptionalToTs,
   msToNumber,
   msToTs,
   QueryDefinition,
+  searchAttributePayloadConverter,
   SearchAttributes,
   SignalDefinition,
+  toPayloads,
   tsToMs,
   UntypedActivities,
   WithWorkflowArgs,
   Workflow,
   WorkflowResultType,
   WorkflowReturnType,
-} from '@temporalio/internal-workflow-common';
+} from '@temporalio/common';
+import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import { CancellationScope, registerSleepImplementation } from './cancellation-scope';
 import {
   ActivityInput,
@@ -33,6 +35,7 @@ import {
   ChildWorkflowOptionsWithDefaults,
   ContinueAsNew,
   ContinueAsNewOptions,
+  EnhancedStackTrace,
   WorkflowInfo,
 } from './interfaces';
 import { LocalActivityDoBackoff, state } from './internals';
@@ -101,7 +104,7 @@ function timerNextHandler(input: TimerInput) {
  *
  * Schedules a timer on the Temporal service.
  *
- * @param ms sleep duration - {@link https://www.npmjs.com/package/ms | ms} formatted string or number of milliseconds.
+ * @param ms sleep duration - number of milliseconds or {@link https://www.npmjs.com/package/ms | ms-formatted string}.
  * If given a negative number or 0, value will be set to 1.
  */
 export function sleep(ms: number | string): Promise<void> {
@@ -170,6 +173,7 @@ function scheduleActivityNextHandler({ options, args, headers, seq, activityType
         scheduleToStartTimeout: msOptionalToTs(options.scheduleToStartTimeout),
         headers,
         cancellationType: options.cancellationType,
+        doNotEagerlyExecute: !(options.allowEagerDispatch ?? true),
       },
     });
     state.completions.activity.set(seq, {
@@ -324,21 +328,10 @@ function startChildWorkflowExecutionNextHandler({
       untrackPromise(
         scope.cancelRequested.catch(() => {
           const complete = !state.completions.childWorkflowComplete.has(seq);
-          const started = !state.completions.childWorkflowStart.has(seq);
 
-          if (started && !complete) {
-            const cancelSeq = state.nextSeqs.cancelWorkflow++;
+          if (!complete) {
             state.pushCommand({
-              requestCancelExternalWorkflowExecution: {
-                seq: cancelSeq,
-                childWorkflowId: workflowId,
-              },
-            });
-            // Not interested in this completion
-            state.completions.cancelWorkflow.set(cancelSeq, { resolve: () => undefined, reject: () => undefined });
-          } else if (!started) {
-            state.pushCommand({
-              cancelUnstartedChildWorkflowExecution: { childWorkflowSeq: seq },
+              cancelChildWorkflowExecution: { childWorkflowSeq: seq },
             });
           }
           // Nothing to cancel otherwise
@@ -1077,7 +1070,7 @@ function patchInternal(patchId: string, deprecated: boolean): boolean {
 /**
  * Returns a Promise that resolves when `fn` evaluates to `true` or `timeout` expires.
  *
- * @param timeout {@link https://www.npmjs.com/package/ms | ms} formatted string or number of milliseconds
+ * @param timeout number of milliseconds or {@link https://www.npmjs.com/package/ms | ms-formatted string}
  *
  * @returns a boolean indicating whether the condition was true before the timeout expires
  */
@@ -1245,3 +1238,4 @@ export function upsertSearchAttributes(searchAttributes: SearchAttributes): void
 }
 
 export const stackTraceQuery = defineQuery<string>('__stack_trace');
+export const enhancedStackTraceQuery = defineQuery<EnhancedStackTrace>('__enhanced_stack_trace');

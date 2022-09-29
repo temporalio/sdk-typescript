@@ -1,6 +1,5 @@
 import test from 'ava';
-import { ValueError } from '@temporalio/common';
-import { compileRetryPolicy, msToTs } from '@temporalio/internal-workflow-common';
+import { compileRetryPolicy, msToTs, ValueError } from '@temporalio/common';
 
 test('compileRetryPolicy validates intervals are not 0', (t) => {
   t.throws(() => compileRetryPolicy({ initialInterval: 0 }), {
@@ -35,10 +34,10 @@ test('compileRetryPolicy validates backoffCoefficient is greater than 0', (t) =>
   });
 });
 
-test('compileRetryPolicy validates maximumAttempts greater than 0', (t) => {
-  t.throws(() => compileRetryPolicy({ maximumAttempts: 0 }), {
+test('compileRetryPolicy validates maximumAttempts is positive', (t) => {
+  t.throws(() => compileRetryPolicy({ maximumAttempts: -1 }), {
     instanceOf: ValueError,
-    message: 'RetryPolicy.maximumAttempts must be greater than 0',
+    message: 'RetryPolicy.maximumAttempts must be a positive integer',
   });
 });
 
@@ -49,11 +48,8 @@ test('compileRetryPolicy validates maximumAttempts is an integer', (t) => {
   });
 });
 
-test('compileRetryPolicy validates maximumAttempts is not POSITIVE_INFINITY', (t) => {
-  t.throws(() => compileRetryPolicy({ maximumAttempts: Number.POSITIVE_INFINITY }), {
-    instanceOf: ValueError,
-    message: 'RetryPolicy.maximumAttempts must be an integer',
-  });
+test('compileRetryPolicy drops maximumAttempts when POSITIVE_INFINITY', (t) => {
+  t.deepEqual(compileRetryPolicy({ maximumAttempts: Number.POSITIVE_INFINITY }), compileRetryPolicy({}));
 });
 
 test('compileRetryPolicy defaults initialInterval to 1 second', (t) => {

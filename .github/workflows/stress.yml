@@ -30,6 +30,9 @@ jobs:
       - uses: actions/setup-node@v1
         with:
           node-version: ${{ matrix.node }}
+      - uses: Swatinem/rust-cache@v1
+        with:
+          working-directory: packages/core-bridge
       # Don't build during install phase since we're going to explicitly build
       - run: npm ci --ignore-scripts
       - run: npm run build
@@ -42,6 +45,7 @@ jobs:
         with:
           repository: temporalio/docker-compose
           path: docker-compose
+          ref: v1.17.1
 
       - name: Start Temporal Server
         run: docker-compose up -d

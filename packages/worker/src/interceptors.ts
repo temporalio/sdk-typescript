@@ -7,7 +7,7 @@
  */
 
 import { Context as ActivityContext } from '@temporalio/activity';
-import { Headers, Next } from '@temporalio/internal-workflow-common';
+import { Headers, Next } from '@temporalio/common';
 
 export { Next, Headers };
 

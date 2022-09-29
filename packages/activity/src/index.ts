@@ -15,19 +15,45 @@
  *
  * ### Cancellation
  *
- * Activities may be cancelled only if they {@link Context.heartbeat | emit heartbeats}.
+ * Activity Cancellation:
  *
- * There are two ways to handle Activity cancellation:
+ * - lets the Activity know it doesn't need to keep doing work, and
+ * - gives the Activity time to clean up any resources it has created.
+ *
+ * Activities can only receive Cancellation if they {@link Context.heartbeat | emit heartbeats} or are Local Activities
+ * (which can't heartbeat but receive Cancellation anyway).
+ *
+ * An Activity may receive Cancellation if:
+ *
+ * - The Workflow scope containing the Activity call was requested to be Cancelled and
+ *   {@link ActivityOptions.cancellationType} was **not** set to {@link ActivityCancellationType.ABANDON}. The scope can
+ *   be cancelled in either of the following ways:
+ *   - The entire Workflow was Cancelled (via {@link WorkflowHandle.cancel}).
+ *   - Calling {@link CancellationScope.cancel}) from inside a Workflow.
+ * - The Worker has started to shut down. Shutdown is initiated by either:
+ *   - One of the {@link RuntimeOptions.shutdownSignals} was sent to the process.
+ *   - {@link Worker.shutdown | `Worker.shutdown()`} was called.
+ * - The Activity was considered failed by the Server because any of the Activity timeouts have triggered (for example,
+ *   the Server didn't receive a heartbeat within the {@link ActivityOptions.heartbeatTimeout}). The
+ *   {@link CancelledFailure} will have `message: 'TIMED_OUT'`.
+ * - An Activity sends a heartbeat with `Context.current().heartbeat()` and the heartbeat details can't be converted by
+ *   the Worker's configured {@link DataConverter}.
+ * - The Workflow Run reached a {@link https://docs.temporal.io/workflows#status | Closed state}, in which case the
+ *   {@link CancelledFailure} will have `message: 'NOT_FOUND'`.
+ *
+ * The reason for the Cancellation is available at {@link CancelledFailure.message} or
+ * {@link Context#cancellationSignal | Context.cancellationSignal.reason}.
+ *
+ * There are two ways to handle Activity Cancellation:
+ *
  * 1. await on {@link Context.cancelled | `Context.current().cancelled`} or
- *    {@link Context.sleep | `Context.current().sleep()`}, which each throw a
- *    {@link CancelledFailure}.
+ *    {@link Context.sleep | `Context.current().sleep()`}, which each throw a {@link CancelledFailure}.
  * 1. Pass the context's {@link https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal | `AbortSignal`} at
- *    {@link Context.cancellationSignal | `Context.current().cancellationSignal`} to a library that
- *    supports it.
+ *    {@link Context.cancellationSignal | `Context.current().cancellationSignal`} to a library that supports it.
  *
  * ### Examples
  *
- * #### An Activity that sends progress heartbeats and can be cancelled
+ * #### An Activity that sends progress heartbeats and can be Cancelled
  *
  * <!--SNIPSTART typescript-activity-fake-progress-->
  * <!--SNIPEND-->
@@ -43,24 +69,29 @@
  * @module
  */
 
-import { msToNumber } from '@temporalio/internal-workflow-common';
 import { AbortSignal } from 'abort-controller';
 import { AsyncLocalStorage } from 'async_hooks';
+<<<<<<< HEAD
 
 export { CancelledFailure, ApplicationFailure } from '@temporalio/common';
+=======
+import { msToNumber } from '@temporalio/common';
+
+>>>>>>> main
 export {
   ActivityFunction,
   ActivityInterface, // eslint-disable-line deprecation/deprecation
+  ApplicationFailure,
+  CancelledFailure,
   UntypedActivities,
-  errorMessage,
-  errorCode,
-} from '@temporalio/internal-workflow-common';
+  msToNumber,
+} from '@temporalio/common';
 
 /**
  * Throw this error from an Activity in order to make the Worker forget about this Activity.
  *
  * The Activity can then be completed asynchronously (from anywhere—usually outside the Worker) using
- * {@link AsyncCompletionClient}.
+ * {@link Client.activity}.
  *
  * @example
  *
@@ -146,13 +177,16 @@ export interface Info {
    */
   heartbeatTimeoutMs?: number;
   /**
-   * Hold the details supplied to the last heartbeat on previous attempts of this Activity.
-   * Use this in order to resume your Activity from checkpoint.
+   * The {@link Context.heartbeat | details} from the last recorded heartbeat from the last attempt of this Activity.
+   *
+   * Use this to resume your Activity from a checkpoint.
    */
   heartbeatDetails: any;
 
   /**
-   * Task queue the Activity is scheduled in, set to the Workflow's task queue in case of local Activity.
+   * Task Queue the Activity is scheduled in.
+   *
+   * For Local Activities, this is set to the Workflow's Task Queue.
    */
   taskQueue: string;
 }
@@ -225,7 +259,9 @@ export class Context {
    * attribute set to a {@link TimeoutFailure}, which has the last value of `details` available at
    * {@link TimeoutFailure.lastHeartbeatDetails}.
    *
-   * Activities must heartbeat in order to receive cancellation.
+   * Calling `heartbeat()` from a Local Activity has no effect.
+   *
+   * Activities must heartbeat in order to receive Cancellation (unless they're Local Activities, which don't need to).
    */
   public heartbeat(details?: unknown): void {
     this.heartbeatFn(details);
@@ -246,7 +282,7 @@ export class Context {
 
   /**
    * Helper function for sleeping in an Activity.
-   * @param ms Sleep duration: an {@link https://www.npmjs.com/package/ms | ms}-formatted string or number of milliseconds
+   * @param ms Sleep duration: number of milliseconds or {@link https://www.npmjs.com/package/ms | ms-formatted string}
    * @returns A Promise that either resolves when `ms` is reached or rejects when the Activity is cancelled
    */
   public sleep(ms: number | string): Promise<void> {

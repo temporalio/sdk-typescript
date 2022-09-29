@@ -26,7 +26,13 @@ module.exports = {
         src: 'img/temporal-logo-dark.svg',
         srcDark: 'img/temporal-logo.svg',
       },
+      title: 'TypeScript SDK API Reference',
       items: [
+        {
+          href: 'https://temporal.io/ts',
+          label: 'Docs',
+          position: 'right',
+        },
         {
           href: 'https://github.com/temporalio/sdk-typescript',
           label: 'GitHub',

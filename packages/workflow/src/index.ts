@@ -8,7 +8,7 @@
  *
  * The recommended way of scheduling timers is by using the {@link sleep} function. We've replaced `setTimeout` and
  * `clearTimeout` with deterministic versions so these are also usable but have a limitation that they don't play well
- * with {@link https://docs.temporal.io/typescript/workflow-scopes-and-cancellation | cancellation scopes}.
+ * with {@link https://docs.temporal.io/typescript/cancellation-scopes | cancellation scopes}.
  *
  * <!--SNIPSTART typescript-sleep-workflow-->
  * <!--SNIPEND-->
@@ -34,38 +34,41 @@
  * <!--SNIPSTART typescript-workflow-signal-implementation-->
  * <!--SNIPEND-->
  *
- * ### Deterministic built-ins
- * It is safe to call `Math.random()` and `Date()` in workflow code as they are replaced with deterministic versions. We
- * also provide a deterministic {@link uuid4} function for convenience.
+ * ### More
  *
- * ### [Cancellation and scopes](https://docs.temporal.io/typescript/workflow-scopes-and-cancellation)
- * - {@link CancellationScope}
- * - {@link Trigger}
- *
- * ### [Sinks](https://docs.temporal.io/typescript/sinks)
- * - {@link Sinks}
+ * - [Deterministic built-ins](https://docs.temporal.io/typescript/determinism#sources-of-non-determinism)
+ * - [Cancellation and scopes](https://docs.temporal.io/typescript/cancellation-scopes)
+ *   - {@link CancellationScope}
+ *   - {@link Trigger}
+ * - [Sinks](https://docs.temporal.io/application-development/observability/?lang=ts#logging)
+ *   - {@link Sinks}
  *
  * @module
  */
 
 export {
+  ActivityCancellationType,
   ActivityFailure,
+  ActivityFunction,
+  ActivityInterface, // eslint-disable-line deprecation/deprecation
+  ActivityOptions,
   ApplicationFailure,
   CancelledFailure,
   ChildWorkflowFailure,
   defaultPayloadConverter,
   PayloadConverter,
+  RetryPolicy,
   rootCause,
   ServerFailure,
   TemporalFailure,
   TerminatedFailure,
   TimeoutFailure,
+  UntypedActivities,
 } from '@temporalio/common';
-export { ActivityCancellationType, ActivityOptions, RetryPolicy } from '@temporalio/internal-workflow-common';
-export * from '@temporalio/internal-workflow-common/lib/errors';
-export * from '@temporalio/internal-workflow-common/lib/interfaces';
-export * from '@temporalio/internal-workflow-common/lib/workflow-handle';
-export * from '@temporalio/internal-workflow-common/lib/workflow-options';
+export * from '@temporalio/common/lib/errors';
+export * from '@temporalio/common/lib/interfaces';
+export * from '@temporalio/common/lib/workflow-handle';
+export * from '@temporalio/common/lib/workflow-options';
 export { AsyncLocalStorage, CancellationScope, CancellationScopeOptions, ROOT_SCOPE } from './cancellation-scope';
 export * from './errors';
 export * from './interceptors';
@@ -77,8 +80,13 @@ export {
   ParentClosePolicy,
   ParentWorkflowInfo,
   WorkflowInfo,
+  FileSlice,
+  FileLocation,
+  StackTrace,
+  EnhancedStackTrace,
+  SDKInfo,
 } from './interfaces';
-export { Sink, SinkCall, SinkFunction, Sinks } from './sinks';
+export { LoggerSinks, Sink, SinkCall, SinkFunction, Sinks } from './sinks';
 export { Trigger } from './trigger';
 export * from './workflow';
 export { ChildWorkflowHandle, ExternalWorkflowHandle } from './workflow-handle';

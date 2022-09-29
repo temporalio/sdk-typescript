@@ -1,15 +1,17 @@
+/* eslint-disable @typescript-eslint/no-non-null-assertion */
 import {
   ApplicationFailure,
   defaultPayloadConverter,
-  errorToFailure,
+  defaultFailureConverter,
+  msToTs,
   Payload,
   RetryState,
   toPayloads,
 } from '@temporalio/common';
-import { msToTs } from '@temporalio/internal-workflow-common';
 import { coresdk } from '@temporalio/proto';
 import { WorkflowCodeBundler } from '@temporalio/worker/lib/workflow/bundler';
 import { VMWorkflow, VMWorkflowCreator } from '@temporalio/worker/lib/workflow/vm';
+import { parseWorkflowCode } from '@temporalio/worker/lib/worker';
 import { WorkflowInfo } from '@temporalio/workflow';
 import anyTest, { ExecutionContext, TestInterface } from 'ava';
 import dedent from 'dedent';
@@ -46,8 +48,8 @@ const test = anyTest as TestInterface<Context>;
 test.before(async (t) => {
   const workflowsPath = path.join(__dirname, 'workflows');
   const bundler = new WorkflowCodeBundler({ workflowsPath });
-  const { code, sourceMap } = await bundler.createBundle();
-  t.context.workflowCreator = await TestVMWorkflowCreator.create(code, sourceMap, 100);
+  const workflowBundle = parseWorkflowCode((await bundler.createBundle()).code);
+  t.context.workflowCreator = await TestVMWorkflowCreator.create(workflowBundle, 100);
 });
 
 test.after.always(async (t) => {
@@ -56,7 +58,6 @@ test.after.always(async (t) => {
 
 test.beforeEach(async (t) => {
   const { workflowCreator } = t.context;
-  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
   const workflowType = t.title.match(/\S+$/)![0];
   const runId = t.title;
   const logs = new Array<unknown[]>();
@@ -92,11 +93,12 @@ async function createWorkflow(
       taskQueue: 'test',
       searchAttributes: {},
       historyLength: 3,
-      unsafe: { isReplaying: false },
+      unsafe: { isReplaying: false, now: Date.now },
     },
     randomnessSeed: Long.fromInt(1337).toBytes(),
     now: startTime,
     patches: [],
+    showStackTraceSources: true,
   })) as VMWorkflow;
   return workflow;
 }
@@ -336,9 +338,7 @@ function cleanWorkflowFailureStackTrace(
   req: coresdk.workflow_completion.WorkflowActivationCompletion,
   commandIndex = 0
 ) {
-  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
   req.successful!.commands![commandIndex].failWorkflowExecution!.failure!.stackTrace = cleanStackTrace(
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     req.successful!.commands![commandIndex].failWorkflowExecution!.failure!.stackTrace!
   );
   return req;
@@ -348,9 +348,7 @@ function cleanWorkflowQueryFailureStackTrace(
   req: coresdk.workflow_completion.WorkflowActivationCompletion,
   commandIndex = 0
 ) {
-  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
   req.successful!.commands![commandIndex].respondToQuery!.failed!.stackTrace = cleanStackTrace(
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     req.successful!.commands![commandIndex].respondToQuery!.failed!.stackTrace!
   );
   return req;
@@ -741,6 +739,7 @@ test('cancelWorkflow', async (t) => {
           arguments: toPayloads(defaultPayloadConverter, url),
           startToCloseTimeout: msToTs('10m'),
           taskQueue: 'test',
+          doNotEagerlyExecute: false,
         }),
       ])
     );
@@ -774,6 +773,7 @@ test('cancelWorkflow', async (t) => {
           arguments: toPayloads(defaultPayloadConverter, url),
           startToCloseTimeout: msToTs('10m'),
           taskQueue: 'test',
+          doNotEagerlyExecute: false,
         }),
       ])
     );
@@ -891,6 +891,7 @@ test('nonCancellable', async (t) => {
           arguments: toPayloads(defaultPayloadConverter, url),
           startToCloseTimeout: msToTs('10m'),
           taskQueue: 'test',
+          doNotEagerlyExecute: false,
         }),
       ])
     );
@@ -918,6 +919,7 @@ test('resumeAfterCancellation', async (t) => {
           arguments: toPayloads(defaultPayloadConverter, url),
           startToCloseTimeout: msToTs('10m'),
           taskQueue: 'test',
+          doNotEagerlyExecute: false,
         }),
       ])
     );
@@ -937,7 +939,6 @@ test('handleExternalWorkflowCancellationWhileActivityRunning', async (t) => {
   const url = 'https://temporal.io';
   const data = { content: 'new HTML content' };
   {
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     const completion = await activate(
       t,
       makeStartWorkflow(workflowType, toPayloads(defaultPayloadConverter, url, data) ?? [])
@@ -954,6 +955,7 @@ test('handleExternalWorkflowCancellationWhileActivityRunning', async (t) => {
           arguments: toPayloads(defaultPayloadConverter, url, data),
           startToCloseTimeout: msToTs('10m'),
           taskQueue: 'test',
+          doNotEagerlyExecute: false,
         }),
       ])
     );
@@ -978,6 +980,7 @@ test('handleExternalWorkflowCancellationWhileActivityRunning', async (t) => {
           arguments: toPayloads(defaultPayloadConverter, url),
           startToCloseTimeout: msToTs('10m'),
           taskQueue: 'test',
+          doNotEagerlyExecute: false,
         }),
       ])
     );
@@ -1007,6 +1010,7 @@ test('nestedCancellation', async (t) => {
           activityType: 'setup',
           startToCloseTimeout: msToTs('10m'),
           taskQueue: 'test',
+          doNotEagerlyExecute: false,
         }),
       ])
     );
@@ -1029,6 +1033,7 @@ test('nestedCancellation', async (t) => {
           arguments: toPayloads(defaultPayloadConverter, url, { some: 'data' }),
           startToCloseTimeout: msToTs('10m'),
           taskQueue: 'test',
+          doNotEagerlyExecute: false,
         }),
       ])
     );
@@ -1051,6 +1056,7 @@ test('nestedCancellation', async (t) => {
           arguments: toPayloads(defaultPayloadConverter, url),
           startToCloseTimeout: msToTs('10m'),
           taskQueue: 'test',
+          doNotEagerlyExecute: false,
         }),
       ])
     );
@@ -1090,6 +1096,7 @@ test('sharedScopes', async (t) => {
               arguments: toPayloads(defaultPayloadConverter, `http://url${idx}.ninja`),
               startToCloseTimeout: msToTs('10m'),
               taskQueue: 'test',
+              doNotEagerlyExecute: false,
             })
           )
         )
@@ -1125,6 +1132,7 @@ test('shieldAwaitedInRootScope', async (t) => {
           arguments: toPayloads(defaultPayloadConverter, `http://example.com`),
           startToCloseTimeout: msToTs('10m'),
           taskQueue: 'test',
+          doNotEagerlyExecute: false,
         }),
       ])
     );
@@ -1317,6 +1325,7 @@ test('cancelActivityAfterFirstCompletion', async (t) => {
           arguments: toPayloads(defaultPayloadConverter, url),
           startToCloseTimeout: msToTs('10m'),
           taskQueue: 'test',
+          doNotEagerlyExecute: false,
         }),
       ])
     );
@@ -1337,6 +1346,7 @@ test('cancelActivityAfterFirstCompletion', async (t) => {
           arguments: toPayloads(defaultPayloadConverter, url),
           startToCloseTimeout: msToTs('10m'),
           taskQueue: 'test',
+          doNotEagerlyExecute: false,
         }),
       ])
     );
@@ -1381,6 +1391,7 @@ test('multipleActivitiesSingleTimeout', async (t) => {
               arguments: toPayloads(defaultPayloadConverter, url),
               startToCloseTimeout: msToTs('1s'),
               taskQueue: 'test',
+              doNotEagerlyExecute: false,
             })
           )
         )),
@@ -1421,6 +1432,7 @@ test('resolve activity with result - http', async (t) => {
           arguments: toPayloads(defaultPayloadConverter, 'https://temporal.io'),
           startToCloseTimeout: msToTs('1 minute'),
           taskQueue: 'test',
+          doNotEagerlyExecute: false,
         }),
       ])
     );
@@ -1455,6 +1467,7 @@ test('resolve activity with failure - http', async (t) => {
           arguments: toPayloads(defaultPayloadConverter, 'https://temporal.io'),
           startToCloseTimeout: msToTs('1 minute'),
           taskQueue: 'test',
+          doNotEagerlyExecute: false,
         }),
       ])
     );
@@ -1468,7 +1481,7 @@ test('resolve activity with failure - http', async (t) => {
       t,
       makeResolveActivity(1, {
         failed: {
-          failure: errorToFailure(failure, defaultPayloadConverter),
+          failure: defaultFailureConverter.errorToFailure(failure),
         },
       })
     );

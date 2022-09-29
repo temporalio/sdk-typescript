@@ -1,5 +1,5 @@
+use crate::helpers::*;
 use log::LevelFilter;
-use neon::types::buffer::TypedArray;
 use neon::{
     context::Context,
     handle::Handle,
@@ -7,107 +7,50 @@ use neon::{
     types::{JsBoolean, JsNumber, JsString},
 };
 use opentelemetry::trace::{SpanContext, SpanId, TraceFlags, TraceId, TraceState};
-use std::{collections::HashMap, fmt::Display, net::SocketAddr, str::FromStr, time::Duration};
+use std::{collections::HashMap, net::SocketAddr, str::FromStr, time::Duration};
 use temporal_sdk_core::{
     api::worker::{WorkerConfig, WorkerConfigBuilder},
+    ephemeral_server::{
+        TemporaliteConfig, TemporaliteConfigBuilder, TestServerConfig, TestServerConfigBuilder,
+    },
     ClientOptions, ClientOptionsBuilder, ClientTlsConfig, Logger, MetricsExporter,
     OtelCollectorOptions, RetryConfig, TelemetryOptions, TelemetryOptionsBuilder, TlsConfig,
     TraceExporter, Url,
 };
 
-#[macro_export]
-macro_rules! js_optional_getter {
-    ($js_cx:expr, $js_obj:expr, $prop_name:expr, $js_type:ty) => {
-        match get_optional($js_cx, $js_obj, $prop_name) {
-            None => None,
-            Some(val) => {
-                if val.is_a::<$js_type, _>($js_cx) {
-                    Some(val.downcast_or_throw::<$js_type, _>($js_cx)?)
-                } else {
-                    Some($js_cx.throw_type_error(format!("Invalid {}", $prop_name))?)
-                }
-            }
+pub enum EphemeralServerConfig {
+    TestServer(TestServerConfig),
+    Temporalite(TemporaliteConfig),
+}
+
+pub trait ArrayHandleConversionsExt {
+    fn to_vec_of_string(&self, cx: &mut FunctionContext) -> NeonResult<Vec<String>>;
+}
+
+impl ArrayHandleConversionsExt for Handle<'_, JsArray> {
+    fn to_vec_of_string(&self, cx: &mut FunctionContext) -> NeonResult<Vec<String>> {
+        let js_vec = self.to_vec(cx)?;
+        let len = js_vec.len();
+        let mut ret_vec = Vec::<String>::with_capacity(len);
+
+        for i in 0..len - 1 {
+            ret_vec[i] = js_vec[i].downcast_or_throw::<JsString, _>(cx)?.value(cx);
         }
-    };
-}
-
-macro_rules! js_value_getter {
-    ($js_cx:expr, $js_obj:expr, $prop_name:expr, $js_type:ty) => {
-        match js_optional_getter!($js_cx, $js_obj, $prop_name, $js_type) {
-            Some(val) => val.value($js_cx),
-            None => $js_cx.throw_type_error(format!("{} must be defined", $prop_name))?,
-        }
-    };
-}
-
-/// Helper for extracting an optional attribute from [obj].
-/// If [obj].[attr] is undefined or not present, None is returned
-pub fn get_optional<'a, C, K>(
-    cx: &mut C,
-    obj: &Handle<JsObject>,
-    attr: K,
-) -> Option<Handle<'a, JsValue>>
-where
-    K: neon::object::PropertyKey,
-    C: Context<'a>,
-{
-    match obj.get_value(cx, attr) {
-        Err(_) => None,
-        Ok(val) => match val.is_a::<JsUndefined, _>(cx) {
-            true => None,
-            false => Some(val),
-        },
+        Ok(ret_vec)
     }
 }
 
-/// Helper for extracting a Vec<u8> from optional Buffer at [obj].[attr]
-fn get_optional_vec<'a, C, K>(
-    cx: &mut C,
-    obj: &Handle<JsObject>,
-    attr: K,
-) -> Result<Option<Vec<u8>>, neon::result::Throw>
-where
-    K: neon::object::PropertyKey + Display + Clone,
-    C: Context<'a>,
-{
-    if let Some(val) = get_optional(cx, obj, attr.clone()) {
-        let buf = val.downcast::<JsBuffer, C>(cx).map_err(|_| {
-            cx.throw_type_error::<_, Option<Vec<u8>>>(format!("Invalid {}", attr))
-                .unwrap_err()
-        })?;
-        Ok(Some(buf.as_slice(cx).to_vec()))
-    } else {
-        Ok(None)
-    }
-}
-
-/// Helper for extracting a Vec<u8> from optional Buffer at [obj].[attr]
-fn get_vec<'a, C, K>(
-    cx: &mut C,
-    obj: &Handle<JsObject>,
-    attr: K,
-    full_attr_path: &str,
-) -> Result<Vec<u8>, neon::result::Throw>
-where
-    K: neon::object::PropertyKey + Display + Clone,
-    C: Context<'a>,
-{
-    if let Some(val) = get_optional(cx, obj, attr.clone()) {
-        let buf = val.downcast::<JsBuffer, C>(cx).map_err(|_| {
-            cx.throw_type_error::<_, Option<Vec<u8>>>(format!("Invalid {}", attr))
-                .unwrap_err()
-        })?;
-        Ok(buf.as_slice(cx).to_vec())
-    } else {
-        cx.throw_type_error::<_, Vec<u8>>(format!("Invalid or missing {}", full_attr_path))
-    }
-}
-
-pub(crate) trait ObjectHandleConversionsExt {
+pub trait ObjectHandleConversionsExt {
+    fn set_default(&self, cx: &mut FunctionContext, key: &str, value: &str) -> NeonResult<()>;
     fn as_otel_span_context(&self, ctx: &mut FunctionContext) -> NeonResult<SpanContext>;
     fn as_client_options(&self, ctx: &mut FunctionContext) -> NeonResult<ClientOptions>;
     fn as_telemetry_options(&self, cx: &mut FunctionContext) -> NeonResult<TelemetryOptions>;
     fn as_worker_config(&self, cx: &mut FunctionContext) -> NeonResult<WorkerConfig>;
+    fn as_ephemeral_server_config(
+        &self,
+        cx: &mut FunctionContext,
+        sdk_version: String,
+    ) -> NeonResult<EphemeralServerConfig>;
     fn as_hash_map_of_string_to_string(
         &self,
         cx: &mut FunctionContext,
@@ -154,8 +97,7 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
         let tls_cfg = match js_optional_getter!(cx, self, "tls", JsObject) {
             None => None,
             Some(tls) => {
-                let domain = js_optional_getter!(cx, &tls, "serverNameOverride", JsString)
-                    .map(|h| h.value(cx));
+                let domain = js_optional_value_getter!(cx, &tls, "serverNameOverride", JsString);
 
                 let server_root_ca_cert = get_optional_vec(cx, &tls, "serverRootCACertificate")?;
                 let client_tls_config =
@@ -207,13 +149,13 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
                     "maxInterval",
                     JsNumber
                 ) as u64),
-                max_elapsed_time: js_optional_getter!(
+                max_elapsed_time: js_optional_value_getter!(
                     cx,
                     &retry_config,
                     "maxElapsedTime",
                     JsNumber
                 )
-                .map(|val| Duration::from_millis(val.value(cx) as u64)),
+                .map(|val| Duration::from_millis(val as u64)),
                 max_retries: js_value_getter!(cx, retry_config, "maxRetries", JsNumber) as usize,
             },
         };
@@ -235,12 +177,11 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
     fn as_telemetry_options(&self, cx: &mut FunctionContext) -> NeonResult<TelemetryOptions> {
         let mut telemetry_opts = TelemetryOptionsBuilder::default();
 
-        if let Some(tf) = js_optional_getter!(cx, self, "tracingFilter", JsString) {
-            telemetry_opts.tracing_filter(tf.value(cx));
+        if let Some(tf) = js_optional_value_getter!(cx, self, "tracingFilter", JsString) {
+            telemetry_opts.tracing_filter(tf);
         }
         telemetry_opts.no_temporal_prefix_for_metrics(
-            js_optional_getter!(cx, self, "noTemporalPrefixForMetrics", JsBoolean)
-                .map(|b| b.value(cx))
+            js_optional_value_getter!(cx, self, "noTemporalPrefixForMetrics", JsBoolean)
                 .unwrap_or_default(),
         );
         if let Some(ref logging) = js_optional_getter!(cx, self, "logging", JsObject) {
@@ -380,6 +321,112 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
         {
             Ok(worker_cfg) => Ok(worker_cfg),
             Err(e) => cx.throw_error(format!("Invalid worker config: {:?}", e)),
+        }
+    }
+
+    fn set_default(&self, cx: &mut FunctionContext, key: &str, value: &str) -> NeonResult<()> {
+        let key = cx.string(key);
+        let existing: Option<Handle<JsString>> = self.get_opt(cx, key)?;
+        if existing.is_none() {
+            let value = cx.string(value);
+            self.set(cx, key, value)?;
+        }
+        Ok(())
+    }
+
+    fn as_ephemeral_server_config(
+        &self,
+        cx: &mut FunctionContext,
+        sdk_version: String,
+    ) -> NeonResult<EphemeralServerConfig> {
+        let js_executable = js_optional_getter!(cx, self, "executable", JsObject)
+            .unwrap_or_else(|| cx.empty_object());
+        js_executable.set_default(cx, "type", "cached-download")?;
+
+        let exec_type = js_value_getter!(cx, &js_executable, "type", JsString);
+        let executable = match exec_type.as_str() {
+            "cached-download" => {
+                let version = js_optional_value_getter!(cx, &js_executable, "version", JsString)
+                    .unwrap_or("default".to_owned());
+                let dest_dir =
+                    js_optional_value_getter!(cx, &js_executable, "downloadDir", JsString);
+
+                let exec_version = match version.as_str() {
+                    "default" => {
+                        temporal_sdk_core::ephemeral_server::EphemeralExeVersion::Default {
+                            sdk_name: "sdk-typescript".to_owned(),
+                            sdk_version,
+                        }
+                    }
+                    _ => temporal_sdk_core::ephemeral_server::EphemeralExeVersion::Fixed(version),
+                };
+                temporal_sdk_core::ephemeral_server::EphemeralExe::CachedDownload {
+                    version: exec_version,
+                    dest_dir,
+                }
+            }
+            "existing-path" => {
+                let path = js_value_getter!(cx, &js_executable, "path", JsString);
+                temporal_sdk_core::ephemeral_server::EphemeralExe::ExistingPath(path)
+            }
+            _ => {
+                return cx.throw_type_error(format!("Invalid executable type: {}", exec_type))?;
+            }
+        };
+        let port = js_optional_getter!(cx, self, "port", JsNumber).map(|s| s.value(cx) as u16);
+
+        let server_type = js_value_getter!(cx, self, "type", JsString);
+        match server_type.as_str() {
+            "temporalite" => {
+                let mut config = TemporaliteConfigBuilder::default();
+                config.exe(executable).port(port);
+
+                if let Some(extra_args) = js_optional_getter!(cx, self, "extraArgs", JsArray) {
+                    config.extra_args(extra_args.to_vec_of_string(cx)?);
+                };
+                if let Some(namespace) = js_optional_value_getter!(cx, self, "namespace", JsString)
+                {
+                    config.namespace(namespace);
+                }
+                if let Some(ip) = js_optional_value_getter!(cx, self, "ip", JsString) {
+                    config.ip(ip);
+                }
+                config.db_filename(js_optional_value_getter!(cx, self, "dbFilename", JsString));
+                config.ui(js_optional_value_getter!(cx, self, "ui", JsBoolean).unwrap_or_default());
+
+                if let Some(log) = js_optional_getter!(cx, self, "log", JsObject) {
+                    let format = js_value_getter!(cx, &log, "format", JsString);
+                    let level = js_value_getter!(cx, &log, "level", JsString);
+                    config.log((format, level));
+                }
+
+                match config.build() {
+                    Ok(config) => Ok(EphemeralServerConfig::Temporalite(config)),
+                    Err(err) => {
+                        cx.throw_type_error(format!("Invalid temporalite config: {:?}", err))
+                    }
+                }
+            }
+            "time-skipping" => {
+                let mut config = TestServerConfigBuilder::default();
+                config.exe(executable).port(port);
+
+                if let Some(extra_args_js) = js_optional_getter!(cx, self, "extraArgs", JsArray) {
+                    let extra_args = extra_args_js.to_vec_of_string(cx)?;
+                    config.extra_args(extra_args);
+                };
+
+                match config.build() {
+                    Ok(config) => Ok(EphemeralServerConfig::TestServer(config)),
+                    Err(err) => {
+                        cx.throw_type_error(format!("Invalid test server config: {:?}", err))
+                    }
+                }
+            }
+            s => cx.throw_type_error(format!(
+                "Invalid ephemeral server type: {}, expected 'temporalite' or 'time-skipping'",
+                s
+            )),
         }
     }
 }

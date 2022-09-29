@@ -4,8 +4,8 @@ const { promisify } = require('util');
 const dedent = require('dedent');
 const glob = require('glob');
 const { statSync, mkdirSync, readFileSync, writeFileSync } = require('fs');
-const pbjs = require('protobufjs/cli/pbjs');
-const pbts = require('protobufjs/cli/pbts');
+const pbjs = require('protobufjs-cli/pbjs');
+const pbts = require('protobufjs-cli/pbts');
 
 const outputDir = resolve(__dirname, '../protos');
 const jsOutputFile = resolve(outputDir, 'json-module.js');
@@ -15,6 +15,12 @@ const protoBaseDir = resolve(__dirname, '../../core-bridge/sdk-core/protos');
 const coreProtoPath = resolve(protoBaseDir, 'local/temporal/sdk/core/core_interface.proto');
 const workflowServiceProtoPath = resolve(protoBaseDir, 'api_upstream/temporal/api/workflowservice/v1/service.proto');
 const operatorServiceProtoPath = resolve(protoBaseDir, 'api_upstream/temporal/api/operatorservice/v1/service.proto');
+const testServiceRRProtoPath = resolve(
+  protoBaseDir,
+  'testsrv_upstream/temporal/api/testservice/v1/request_response.proto'
+);
+const testServiceProtoPath = resolve(protoBaseDir, 'testsrv_upstream/temporal/api/testservice/v1/service.proto');
+const healthServiceProtoPath = resolve(protoBaseDir, 'grpc/health/v1/health.proto');
 
 function mtime(path) {
   try {
@@ -38,9 +44,13 @@ async function compileProtos(dtsOutputFile, ...args) {
     '--no-verify',
     '--root',
     '__temporal',
+    resolve(require.resolve('protobufjs'), '../google/protobuf/descriptor.proto'),
     coreProtoPath,
     workflowServiceProtoPath,
     operatorServiceProtoPath,
+    testServiceRRProtoPath,
+    testServiceProtoPath,
+    healthServiceProtoPath,
   ];
 
   console.log(`Creating protobuf JS definitions from ${coreProtoPath} and ${workflowServiceProtoPath}`);
