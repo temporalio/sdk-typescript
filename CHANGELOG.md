@@ -16,7 +16,7 @@ Breaking changes marked with a :boom:
 
   NOTE: This feature is experimental and its API may change.
 
-- Delete search attributes with empty array values in describe() response ([#878](https://github.com/temporalio/sdk-typescript/pull/878))
+- [`client`] Delete search attributes with empty array values in describe() response ([#878](https://github.com/temporalio/sdk-typescript/pull/878))
 
   :warning: This fixes a bug where empty/deleted Custom Search Attributes were returned as `[]` from [`workflowHandle.describe()`](https://typescript.temporal.io/api/interfaces/client.workflowhandle/#describe). Such attribute properties will no longer be present in the [`WorkflowExecutionDescription.searchAttributes`](https://typescript.temporal.io/api/interfaces/client.WorkflowExecutionDescription#searchattributes) object. Note that this behavior is consistent with what you'll see if using a pre-1.4 version of the SDK with Server version 1.18.
 
@@ -52,7 +52,7 @@ Breaking changes marked with a :boom:
 
   Some time-related and binary conversion internal helper functions were exported from `@temporalio/common`. They are now deprecated and hidden from the API reference, as they're meant for internal use only.
   
-- Export `LoggerSinks` from `@temporalio/workflow` ([#889](https://github.com/temporalio/sdk-typescript/pull/889))
+- [`workflow`] Export `LoggerSinks` from `@temporalio/workflow` ([#889](https://github.com/temporalio/sdk-typescript/pull/889))
 - [`client`] Add [max retry interval](https://typescript.temporal.io/api/interfaces/client.backoffoptions/#maxintervalms) for client ([#883](https://github.com/temporalio/sdk-typescript/pull/883))
 - Label grpc-retry API as experimental ([#891](https://github.com/temporalio/sdk-typescript/pull/891))
 - Make the failure-converter code symmetric ([#891](https://github.com/temporalio/sdk-typescript/pull/891))
