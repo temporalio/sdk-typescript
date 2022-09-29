@@ -18,7 +18,8 @@ import {
   WorkflowClientOptions,
   WorkflowResultOptions,
 } from '@temporalio/client';
-import { ActivityFunction, CancelledFailure, msToTs, tsToMs } from '@temporalio/common';
+import { ActivityFunction, CancelledFailure } from '@temporalio/common';
+import { msToTs, tsToMs } from '@temporalio/common/lib/time';
 import { NativeConnection, Runtime } from '@temporalio/worker';
 import {
   EphemeralServer,

@@ -1,15 +1,4 @@
-import { TextDecoder, TextEncoder } from './encoding';
-
-/**
- * Transform an *ascii* string into a Uint8Array
- */
-export function u8(s: string): Uint8Array {
-  return new TextEncoder().encode(s);
-}
-
-export function str(a: Uint8Array): string {
-  return new TextDecoder().decode(a);
-}
+import { encode } from '../encoding';
 
 export const METADATA_ENCODING_KEY = 'encoding';
 export const encodingTypes = {
@@ -22,11 +11,11 @@ export const encodingTypes = {
 export type EncodingType = typeof encodingTypes[keyof typeof encodingTypes];
 
 export const encodingKeys = {
-  METADATA_ENCODING_NULL: u8(encodingTypes.METADATA_ENCODING_NULL),
-  METADATA_ENCODING_RAW: u8(encodingTypes.METADATA_ENCODING_RAW),
-  METADATA_ENCODING_JSON: u8(encodingTypes.METADATA_ENCODING_JSON),
-  METADATA_ENCODING_PROTOBUF_JSON: u8(encodingTypes.METADATA_ENCODING_PROTOBUF_JSON),
-  METADATA_ENCODING_PROTOBUF: u8(encodingTypes.METADATA_ENCODING_PROTOBUF),
+  METADATA_ENCODING_NULL: encode(encodingTypes.METADATA_ENCODING_NULL),
+  METADATA_ENCODING_RAW: encode(encodingTypes.METADATA_ENCODING_RAW),
+  METADATA_ENCODING_JSON: encode(encodingTypes.METADATA_ENCODING_JSON),
+  METADATA_ENCODING_PROTOBUF_JSON: encode(encodingTypes.METADATA_ENCODING_PROTOBUF_JSON),
+  METADATA_ENCODING_PROTOBUF: encode(encodingTypes.METADATA_ENCODING_PROTOBUF),
 } as const;
 
 export const METADATA_MESSAGE_TYPE_KEY = 'messageType';

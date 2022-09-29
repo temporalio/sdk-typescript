@@ -34,6 +34,7 @@ jobs:
         uses: arduino/setup-protoc@v1
         with:
           version: '3.x'
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
       - uses: Swatinem/rust-cache@v1
         with:
           working-directory: packages/core-bridge
@@ -87,6 +88,7 @@ jobs:
         uses: arduino/setup-protoc@v1
         with:
           version: '3.x'
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
       # Don't build during install phase since we're going to explicitly build
       - run: npm ci --ignore-scripts
       - run: npm run build -- --ignore @temporalio/core-bridge
@@ -161,6 +163,7 @@ jobs:
         uses: arduino/setup-protoc@v1
         with:
           version: '3.x'
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Add ${{ matrix.target }} rust target
         run: rustup target add ${{ matrix.target }}
       - name: Print libc version

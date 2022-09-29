@@ -71,7 +71,7 @@
 
 import { AbortSignal } from 'abort-controller';
 import { AsyncLocalStorage } from 'async_hooks';
-import { msToNumber } from '@temporalio/common';
+import { msToNumber } from '@temporalio/common/lib/time';
 
 export {
   ActivityFunction,
@@ -79,7 +79,6 @@ export {
   ApplicationFailure,
   CancelledFailure,
   UntypedActivities,
-  msToNumber,
 } from '@temporalio/common';
 
 /**
