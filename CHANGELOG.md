@@ -59,6 +59,10 @@ Breaking changes marked with a :boom:
 
 ### Bug Fixes
 
+- :boom: Remove unintentionally exposed internal functions `errorMessage` and `errorCode`.
+
+  BREAKING CHANGE: To use either of these functions, you can [copy them](https://github.com/temporalio/sdk-typescript/blob/ed7f61a5db495572b5a3e635efa724c7a4f3993a/packages/common/src/type-helpers.ts#L35-L64) to your codebase.
+
 - Fix double import of long in generated proto TS files ([#891](https://github.com/temporalio/sdk-typescript/pull/891))
 - Fix bundler with default workflow interceptors ([#891](https://github.com/temporalio/sdk-typescript/pull/891))
 - Limit eager activity requests to 3 ([#891](https://github.com/temporalio/sdk-typescript/pull/891))
