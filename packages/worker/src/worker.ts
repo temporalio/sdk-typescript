@@ -1659,7 +1659,7 @@ export interface WorkflowBundleWithSourceMapAndFilename {
 }
 
 export function parseWorkflowCode(code: string, codePath?: string): WorkflowBundleWithSourceMapAndFilename {
-  const sourceMappingUrlDataRegex = /\s*\n[/][/][#]\s+sourceMappingURL=data:(?:[^,]*;)base64,([0-9A-Za-z+/=]+)\s*$/;
+  const sourceMappingUrlDataRegex = /^\/\/#\s+sourceMappingURL=data:(?:[^,]*;)base64,([0-9A-Za-z+/=]+)$/m;
   const sourceMapMatcher = code.match(sourceMappingUrlDataRegex);
   if (!sourceMapMatcher) throw new Error("Can't extract inlined source map from the provided Workflow Bundle");
 
