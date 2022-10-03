@@ -1659,11 +1659,7 @@ export interface WorkflowBundleWithSourceMapAndFilename {
 }
 
 export function parseWorkflowCode(code: string, codePath?: string): WorkflowBundleWithSourceMapAndFilename {
-  const sourceMappingUrlDataRegex = /^\/\/#\s+sourceMappingURL=data:(?:[^,]*;)base64,([0-9A-Za-z+/=]+)$/m;
-  const sourceMapMatcher = code.match(sourceMappingUrlDataRegex);
-  if (!sourceMapMatcher) throw new Error("Can't extract inlined source map from the provided Workflow Bundle");
-
-  const sourceMapJson = Buffer.from(sourceMapMatcher[1], 'base64').toString();
+  const [actualCode, sourceMapJson] = extractSourceMap(code);
   const sourceMap: RawSourceMap = JSON.parse(sourceMapJson);
 
   // JS debuggers (at least VSCode's) have a few requirements regarding the script and its source map, notably:
@@ -1675,7 +1671,7 @@ export function parseWorkflowCode(code: string, codePath?: string): WorkflowBund
     sourceMap.file = filename;
     const patchedSourceMapJson = Buffer.from(JSON.stringify(sourceMap)).toString('base64');
     const fixedSourceMappingUrl = `\n//# sourceMappingURL=data:application/json;base64,${patchedSourceMapJson}`;
-    code = code.slice(0, -sourceMapMatcher[1].length) + fixedSourceMappingUrl;
+    code = actualCode + fixedSourceMappingUrl;
   }
 
   // Preloading the script makes breakpoints significantly more reliable and more responsive
@@ -1695,6 +1691,20 @@ export function parseWorkflowCode(code: string, codePath?: string): WorkflowBund
   }, 10000);
 
   return { code, sourceMap, filename };
+}
+
+function extractSourceMap(code: string) {
+  const sourceMapCommentPos = code.lastIndexOf('//# sourceMappingURL=data:');
+  if (sourceMapCommentPos > 0) {
+    const base64TagIndex = code.indexOf('base64,', sourceMapCommentPos);
+    if (base64TagIndex > 0) {
+      const sourceMapJson = Buffer.from(code.slice(base64TagIndex + 'base64,'.length).trimEnd(), 'base64').toString();
+      const actualCode = code.slice(0, sourceMapCommentPos);
+      return [actualCode, sourceMapJson];
+    }
+  }
+
+  throw new Error("Can't extract inlined source map from the provided Workflow Bundle");
 }
 
 type NonNullableObject<T> = { [P in keyof T]-?: NonNullable<T[P]> };
