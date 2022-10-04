@@ -109,7 +109,11 @@ export class WorkflowCodeBundler {
 
     this.genEntrypoint(vol, entrypointPath);
     const bundleFilePath = await this.bundle(ufs, memoryFs, entrypointPath, distDir);
-    const code = memoryFs.readFileSync(bundleFilePath, 'utf8') as string;
+    let code = memoryFs.readFileSync(bundleFilePath, 'utf8') as string;
+    code = code.replace(
+      'var __webpack_module_cache__ = {}',
+      'var __webpack_module_cache__ = globalThis.__webpack_module_cache__'
+    );
 
     this.logger.info('Workflow bundle created', { size: `${toMB(code.length)}MB` });
 
@@ -150,6 +154,7 @@ import * as api from '@temporalio/workflow/lib/worker-interface.js';
 api.overrideGlobals();
 api.setImportFuncs({
   importWorkflows: () => {
+  const req = require;
     return import(/* webpackMode: "eager" */ ${JSON.stringify(this.workflowsPath)});
   },
   importInterceptors: () => {

@@ -144,7 +144,7 @@ async function main() {
       connection,
       namespace,
       activities,
-      workflowsPath: require.resolve('../workflows'),
+      workflowsPath: require.resolve('../workflows/success-string'),
       taskQueue,
       maxConcurrentActivityTaskExecutions,
       maxConcurrentLocalActivityExecutions,

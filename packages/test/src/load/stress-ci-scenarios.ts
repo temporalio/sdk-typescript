@@ -1,1 +1,1 @@
-export { activityCancellation10kIters, queryWithSmallCache100Iters } from './all-scenarios';
+export { activityCancellation10kIters } from './all-scenarios';

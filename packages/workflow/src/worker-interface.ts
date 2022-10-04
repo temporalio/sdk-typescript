@@ -12,7 +12,7 @@ import { storage } from './cancellation-scope';
 import { DeterminismViolationError } from './errors';
 import { WorkflowInterceptorsFactory } from './interceptors';
 import { WorkflowInfo } from './interfaces';
-import { InterceptorsImportFunc, state, WorkflowsImportFunc } from './internals';
+import { InterceptorsImportFunc, State, getState, WorkflowsImportFunc } from './internals';
 import { SinkCall } from './sinks';
 import type { RawSourceMap } from 'source-map';
 
@@ -36,8 +36,8 @@ export interface ImportFunctions {
   importInterceptors: InterceptorsImportFunc;
 }
 export function setImportFuncs({ importWorkflows, importInterceptors }: ImportFunctions): void {
-  state.importWorkflows = importWorkflows;
-  state.importInterceptors = importInterceptors;
+  (globalThis as any).importWorkflows = importWorkflows;
+  (globalThis as any).importInterceptors = importInterceptors;
 }
 
 const global = globalThis as any;
@@ -60,11 +60,11 @@ export function overrideGlobals(): void {
     if (args.length > 0) {
       return new (OriginalDate as any)(...args);
     }
-    return new OriginalDate(state.now);
+    return new OriginalDate(getState().now);
   };
 
   global.Date.now = function () {
-    return state.now;
+    return getState().now;
   };
 
   global.Date.parse = OriginalDate.parse.bind(OriginalDate);
@@ -77,11 +77,11 @@ export function overrideGlobals(): void {
    */
   global.setTimeout = function (cb: (...args: any[]) => any, ms: number, ...args: any[]): number {
     ms = Math.max(1, ms);
-    const seq = state.nextSeqs.timer++;
+    const seq = getState().nextSeqs.timer++;
     // Create a Promise for AsyncLocalStorage to be able to track this completion using promise hooks.
     new Promise((resolve, reject) => {
-      state.completions.timer.set(seq, { resolve, reject });
-      state.pushCommand({
+      getState().completions.timer.set(seq, { resolve, reject });
+      getState().pushCommand({
         startTimer: {
           seq,
           startToFireTimeout: msToTs(ms),
@@ -95,9 +95,9 @@ export function overrideGlobals(): void {
   };
 
   global.clearTimeout = function (handle: number): void {
-    state.nextSeqs.timer++;
-    state.completions.timer.delete(handle);
-    state.pushCommand({
+    getState().nextSeqs.timer++;
+    getState().completions.timer.delete(handle);
+    getState().pushCommand({
       cancelTimer: {
         seq: handle,
       },
@@ -105,7 +105,7 @@ export function overrideGlobals(): void {
   };
 
   // state.random is mutable, don't hardcode its reference
-  Math.random = () => state.random();
+  Math.random = () => getState().random();
 }
 
 /**
@@ -121,14 +121,9 @@ export async function initRuntime({
   sourceMap,
   showStackTraceSources,
 }: WorkflowCreateOptionsWithSourceMap): Promise<void> {
-  // Set the runId globally on the context so it can be retrieved in the case
-  // of an unhandled promise rejection.
-  global.__TEMPORAL__.runId = info.runId;
-  // Set the promiseStackStore so promises can be tracked
-  global.__TEMPORAL__.promiseStackStore = {
-    promiseToStack: new Map(),
-    childToParent: new Map(),
-  };
+  const state = new State();
+  /** There can only be one of these */
+  global.__TEMPORAL__.state = state;
 
   state.info = info;
   state.info.unsafe.now = OriginalDate.now;
@@ -156,7 +151,7 @@ export async function initRuntime({
     state.failureConverter = customFailureConverter;
   }
 
-  const { importWorkflows, importInterceptors } = state;
+  const { importWorkflows, importInterceptors } = globalThis as any;
   if (importWorkflows === undefined || importInterceptors === undefined) {
     throw new IllegalStateError('Workflow has not been initialized');
   }
@@ -188,6 +183,7 @@ export async function initRuntime({
  * @returns a boolean indicating whether job was processed or ignored
  */
 export function activate(activation: coresdk.workflow_activation.WorkflowActivation, batchIndex: number): void {
+  const state = getState();
   const intercept = composeInterceptors(state.interceptors.internals, 'activate', ({ activation, batchIndex }) => {
     if (batchIndex === 0) {
       if (state.info === undefined) {
@@ -245,6 +241,7 @@ export function activate(activation: coresdk.workflow_activation.WorkflowActivat
  * Activation failures are handled in the main Node.js isolate.
  */
 export function concludeActivation(): coresdk.workflow_completion.IWorkflowActivationCompletion {
+  const state = getState();
   const intercept = composeInterceptors(state.interceptors.internals, 'concludeActivation', (input) => input);
   const { info } = state;
   const { commands } = intercept({ commands: state.commands });
@@ -256,7 +253,7 @@ export function concludeActivation(): coresdk.workflow_completion.IWorkflowActiv
 }
 
 export function getAndResetSinkCalls(): SinkCall[] {
-  return state.getAndResetSinkCalls();
+  return getState().getAndResetSinkCalls();
 }
 
 /**
@@ -268,12 +265,12 @@ export function tryUnblockConditions(): number {
   let numUnblocked = 0;
   for (;;) {
     const prevUnblocked = numUnblocked;
-    for (const [seq, cond] of state.blockedConditions.entries()) {
+    for (const [seq, cond] of getState().blockedConditions.entries()) {
       if (cond.fn()) {
         cond.resolve();
         numUnblocked++;
         // It is safe to delete elements during map iteration
-        state.blockedConditions.delete(seq);
+        getState().blockedConditions.delete(seq);
       }
     }
     if (prevUnblocked === numUnblocked) {
@@ -291,12 +288,13 @@ export function showUnblockConditions(job: coresdk.workflow_activation.IWorkflow
 }
 
 export async function dispose(): Promise<void> {
-  const dispose = composeInterceptors(state.interceptors.internals, 'dispose', async () => {
+  const dispose = composeInterceptors(getState().interceptors.internals, 'dispose', async () => {
     storage.disable();
   });
   await dispose({});
 }
 
 export function errorToFailure(err: unknown): ProtoFailure {
+  const state = getState();
   return state.failureConverter.errorToFailure(err, state.payloadConverter);
 }
