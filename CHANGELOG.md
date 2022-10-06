@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 
 Breaking changes marked with a :boom:
 
+## [1.4.1] - 2022-10-06
+
+### Bug Fixes
+
+- [`client`] Handle test server empty history when waiting for workflow result
+  ([#902](https://github.com/temporalio/sdk-typescript/pull/902))
+- [`common`] Export and deprecate error helpers ([#901](https://github.com/temporalio/sdk-typescript/pull/901))
+
+  Fixes a breaking change accidentally introduces in 1.4.0 where some rarely used utility functions were deleted.
+
+### Miscellaneous Tasks
+
+- Improve regex for extracting source map ([#899](https://github.com/temporalio/sdk-typescript/pull/899))
+
+  Addresses reported issue by userr where regex caused `RangeError: Maximum call stack size exceeded` when parsing their
+  workflow bundle.
+
 ## [1.4.0] - 2022-09-28
 
 ### Features
