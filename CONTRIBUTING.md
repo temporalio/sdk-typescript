@@ -200,18 +200,27 @@ npm deprecate temporalio@^1.0.0 "Instead of installing temporalio, we recommend 
 
 - Cleanup after publishing:
 
-```sh
-rm $HOME/Downloads/packages-*
-rm packages/core-bridge/releases/
-```
+  ```sh
+  rm $HOME/Downloads/packages-*
+  rm packages/core-bridge/releases/
+  ```
 
 - If any APIs have changed, open a PR to update [`samples-typescript`](https://github.com/temporalio/samples-typescript/). Once merged, update the `next` branch:
 
-```sh
-git checkout next
-git rebase origin/main
-git push
-```
+  ```sh
+  git checkout next
+  git rebase origin/main
+  git push
+  ```
+
+- While our tests should capture most things, if you want to verify the release works in the samples, do:
+
+  ```sh
+  cd /path/to/samples-typescript
+  lerna exec -- npm update
+  npm run build
+  npm test
+  ```
 
 ### Updating published packages
 
