@@ -192,7 +192,7 @@ for f in ~/Downloads/packages-*.zip; do mkdir "$HOME/Downloads/$(basename -s .zi
 # we should now have all 5 build targets
 ls packages/core-bridge/releases/
 
-npx lerna version patch --force-publish='*' # or major|minor|etc, or leave out to be prompted. either way, you get a confirmation dialog.
+npx lerna version patch --exact --force-publish='*' # or major|minor|etc, or leave out to be prompted. either way, you get a confirmation dialog.
 npx lerna publish from-git # add `--dist-tag next` for pre-release versions
 
 npm deprecate temporalio@^1.0.0 "Instead of installing temporalio, we recommend directly installing our packages: npm remove temporalio; npm install @temporalio/client @temporalio/worker @temporalio/workflow @temporalio/activity"
@@ -200,18 +200,27 @@ npm deprecate temporalio@^1.0.0 "Instead of installing temporalio, we recommend 
 
 - Cleanup after publishing:
 
-```sh
-rm $HOME/Downloads/packages-*
-rm packages/core-bridge/releases/
-```
+  ```sh
+  rm $HOME/Downloads/packages-*
+  rm packages/core-bridge/releases/
+  ```
 
 - If any APIs have changed, open a PR to update [`samples-typescript`](https://github.com/temporalio/samples-typescript/). Once merged, update the `next` branch:
 
-```sh
-git checkout next
-git rebase origin/main
-git push
-```
+  ```sh
+  git checkout next
+  git rebase origin/main
+  git push
+  ```
+
+- While our tests should capture most things, if you want to verify the release works in the samples, do:
+
+  ```sh
+  cd /path/to/samples-typescript
+  lerna exec -- npm update
+  npm run build
+  npm test
+  ```
 
 ### Updating published packages
 
