@@ -12,7 +12,7 @@ Breaking changes marked with a :boom:
   ([#902](https://github.com/temporalio/sdk-typescript/pull/902))
 - [`common`] Export and deprecate error helpers ([#901](https://github.com/temporalio/sdk-typescript/pull/901))
 
-  Fixes a breaking changed accidentally introduces in 1.4.0 where some rarely used utility functions were deleted.
+  Fixes a breaking change accidentally introduces in 1.4.0 where some rarely used utility functions were deleted.
 
 ### Miscellaneous Tasks
 
