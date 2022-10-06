@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 Breaking changes marked with a :boom:
 
+## [1.4.2] - 2022-10-06
+
+### Bug Fixes
+
+- [`client`] Fix default gRPC keepalive settings not applied
+  ([#906](https://github.com/temporalio/sdk-typescript/pull/906))
+
 ## [1.4.1] - 2022-10-06
 
 ### Bug Fixes
