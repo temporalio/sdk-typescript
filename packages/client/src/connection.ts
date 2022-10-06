@@ -39,6 +39,16 @@ export interface ConnectionOptions {
    * GRPC Channel arguments
    *
    * @see option descriptions {@link https://grpc.github.io/grpc/core/group__grpc__arg__keys.html | here}
+   *
+   * By default the SDK sets the following keepalive arguments:
+   *
+   * ```
+   * grpc.keepalive_permit_without_calls: 1
+   * grpc.keepalive_time_ms: 30_000
+   * grpc.keepalive_timeout_ms: 15_000
+   * ```
+   *
+   * To opt-out of keepalive, override these keys with `undefined`.
    */
   channelArgs?: grpc.ChannelOptions;
 
@@ -75,7 +85,8 @@ export type ConnectionOptionsWithDefaults = Required<Omit<ConnectionOptions, 'tl
 
 export const LOCAL_TARGET = '127.0.0.1:7233';
 
-export function defaultConnectionOpts(): ConnectionOptionsWithDefaults {
+function addDefaults(options: ConnectionOptions): ConnectionOptionsWithDefaults {
+  const { channelArgs, interceptors, ...rest } = options;
   return {
     address: LOCAL_TARGET,
     credentials: grpc.credentials.createInsecure(),
@@ -83,10 +94,12 @@ export function defaultConnectionOpts(): ConnectionOptionsWithDefaults {
       'grpc.keepalive_permit_without_calls': 1,
       'grpc.keepalive_time_ms': 30_000,
       'grpc.keepalive_timeout_ms': 15_000,
+      ...channelArgs,
     },
-    interceptors: [makeGrpcRetryInterceptor(defaultGrpcRetryOptions())],
+    interceptors: interceptors ?? [makeGrpcRetryInterceptor(defaultGrpcRetryOptions())],
     metadata: {},
     connectTimeoutMs: 10_000,
+    ...filterNullAndUndefined(rest),
   };
 }
 
@@ -192,10 +205,7 @@ export class Connection {
   readonly callContextStorage: AsyncLocalStorage<CallContext>;
 
   protected static createCtorOptions(options?: ConnectionOptions): ConnectionCtorOptions {
-    const optionsWithDefaults = {
-      ...defaultConnectionOpts(),
-      ...filterNullAndUndefined(normalizeGRPCConfig(options)),
-    };
+    const optionsWithDefaults = addDefaults(normalizeGRPCConfig(options));
     // Allow overriding this
     optionsWithDefaults.metadata['client-name'] ??= 'temporal-typescript';
     optionsWithDefaults.metadata['client-version'] ??= pkg.version;
