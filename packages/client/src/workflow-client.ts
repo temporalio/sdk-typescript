@@ -502,14 +502,9 @@ export class WorkflowClient {
       } catch (err) {
         this.rethrowGrpcError(err, { workflowId, runId }, 'Failed to get Workflow execution history');
       }
-      if (!res.history) {
-        throw new Error('No history returned by service');
-      }
-      const { events } = res.history;
-      if (!events) {
-        throw new Error('No events in history returned by service');
-      }
-      if (events.length === 0) {
+      const events = res.history?.events;
+
+      if (events == null || events.length === 0) {
         req.nextPageToken = res.nextPageToken;
         continue;
       }
