@@ -8,6 +8,8 @@ import webpack from 'webpack';
 import { DefaultLogger, Logger } from '../logger';
 import { toMB } from '../utils';
 import { defaultWorflowInterceptorModules } from '../worker-options';
+import TsconfigPathsPlugin from 'tsconfig-paths-webpack-plugin';
+import * as TsconfigPaths from 'tsconfig-paths';
 
 export const allowedBuiltinModules = ['assert'];
 export const disallowedBuiltinModules = builtinModules.filter((module) => !allowedBuiltinModules.includes(module));
@@ -193,6 +195,9 @@ export { api };
       return undefined;
     };
 
+    const tsconfigPaths = TsconfigPaths.loadConfig(path.dirname(entry));
+    if (tsconfigPaths.resultType === 'success') tsconfigPaths.configFileAbsolutePath;
+
     const options: webpack.Configuration = {
       resolve: {
         // https://webpack.js.org/configuration/resolve/#resolvemodules
@@ -203,6 +208,11 @@ export { api };
           __temporal_custom_failure_converter$: this.failureConverterPath ?? false,
           ...Object.fromEntries([...this.ignoreModules, ...disallowedModules].map((m) => [m, false])),
         },
+        plugins: [
+          ...(tsconfigPaths.resultType === 'success'
+            ? [new TsconfigPathsPlugin({ silent: true, configFile: tsconfigPaths.configFileAbsolutePath })]
+            : []),
+        ],
       },
       externals: captureProblematicModules,
       module: {

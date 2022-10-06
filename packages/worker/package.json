@@ -31,6 +31,8 @@
     "source-map-loader": "^4.0.0",
     "swc-loader": "^0.2.3",
     "terser": "^5.14.2",
+    "tsconfig-paths": "^4.1.0",
+    "tsconfig-paths-webpack-plugin": "^4.0.0",
     "unionfs": "^4.4.0",
     "webpack": "^5.73.0"
   },
