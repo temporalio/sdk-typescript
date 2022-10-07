@@ -4,6 +4,9 @@
  * @module
  */
 
+import * as encoding from './encoding';
+import * as helpers from './type-helpers';
+
 export * from './activity-options';
 export * from './converter/data-converter';
 export * from './converter/failure-converter';
@@ -19,10 +22,6 @@ export * from './retry-policy';
 export { Timestamp } from './time';
 export * from './workflow-handle';
 export * from './workflow-options';
-export * from './deprecated-time';
-
-import * as encoding from './encoding';
-import * as helpers from './type-helpers';
 
 /**
  * Encode a UTF-8 string into a Uint8Array
