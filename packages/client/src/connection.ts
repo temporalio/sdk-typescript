@@ -39,14 +39,28 @@ export interface ConnectionOptions {
    * GRPC Channel arguments
    *
    * @see option descriptions {@link https://grpc.github.io/grpc/core/group__grpc__arg__keys.html | here}
+   *
+   * By default the SDK sets the following keepalive arguments:
+   *
+   * ```
+   * grpc.keepalive_permit_without_calls: 1
+   * grpc.keepalive_time_ms: 30_000
+   * grpc.keepalive_timeout_ms: 15_000
+   * ```
+   *
+   * To opt-out of keepalive, override these keys with `undefined`.
    */
   channelArgs?: grpc.ChannelOptions;
 
   /**
-   * Grpc interceptors which will be applied to every RPC call performed by this connection. By
-   * default, an interceptor will be included which automatically retries retryable errors. If you
-   * do not wish to perform automatic retries, set this to an empty list (or a list with your own
-   * interceptors).
+   * Grpc interceptors which will be applied to every RPC call performed by this connection. By default, an interceptor
+   * will be included which automatically retries retryable errors. If you do not wish to perform automatic retries, set
+   * this to an empty list (or a list with your own interceptors). If you want to add your own interceptors while
+   * keeping the default retry behavior, add this to your list of interceptors:
+   * `makeGrpcRetryInterceptor(defaultGrpcRetryOptions())`. See:
+   *
+   * - @link makeGrpcRetryInterceptor
+   * - @link defaultGrpcRetryOptions
    */
   interceptors?: grpc.Interceptor[];
 
@@ -75,7 +89,8 @@ export type ConnectionOptionsWithDefaults = Required<Omit<ConnectionOptions, 'tl
 
 export const LOCAL_TARGET = '127.0.0.1:7233';
 
-export function defaultConnectionOpts(): ConnectionOptionsWithDefaults {
+function addDefaults(options: ConnectionOptions): ConnectionOptionsWithDefaults {
+  const { channelArgs, interceptors, ...rest } = options;
   return {
     address: LOCAL_TARGET,
     credentials: grpc.credentials.createInsecure(),
@@ -83,10 +98,12 @@ export function defaultConnectionOpts(): ConnectionOptionsWithDefaults {
       'grpc.keepalive_permit_without_calls': 1,
       'grpc.keepalive_time_ms': 30_000,
       'grpc.keepalive_timeout_ms': 15_000,
+      ...channelArgs,
     },
-    interceptors: [makeGrpcRetryInterceptor(defaultGrpcRetryOptions())],
+    interceptors: interceptors ?? [makeGrpcRetryInterceptor(defaultGrpcRetryOptions())],
     metadata: {},
     connectTimeoutMs: 10_000,
+    ...filterNullAndUndefined(rest),
   };
 }
 
@@ -192,10 +209,7 @@ export class Connection {
   readonly callContextStorage: AsyncLocalStorage<CallContext>;
 
   protected static createCtorOptions(options?: ConnectionOptions): ConnectionCtorOptions {
-    const optionsWithDefaults = {
-      ...defaultConnectionOpts(),
-      ...filterNullAndUndefined(normalizeGRPCConfig(options)),
-    };
+    const optionsWithDefaults = addDefaults(normalizeGRPCConfig(options));
     // Allow overriding this
     optionsWithDefaults.metadata['client-name'] ??= 'temporal-typescript';
     optionsWithDefaults.metadata['client-version'] ??= pkg.version;

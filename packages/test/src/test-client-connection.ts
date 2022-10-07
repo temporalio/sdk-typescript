@@ -161,3 +161,14 @@ test('grpc retry passes request and headers on retry, propagates responses', asy
   });
   t.is(attempt, 10);
 });
+
+test('Default keepalive settings are set while maintaining user provided channelArgs', async (t) => {
+  const conn = Connection.lazy({
+    channelArgs: { 'grpc.enable_channelz': 1, 'grpc.keepalive_permit_without_calls': 0 },
+  });
+  const { channelArgs } = conn.options;
+  t.is(channelArgs['grpc.keepalive_time_ms'], 30_000);
+  t.is(channelArgs['grpc.enable_channelz'], 1);
+  // User setting overrides default
+  t.is(channelArgs['grpc.keepalive_permit_without_calls'], 0);
+});
