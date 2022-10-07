@@ -7,7 +7,6 @@ import {
   LoadedDataConverter,
   mapFromPayloads,
   mapToPayloads,
-  optionalTsToDate,
   QueryDefinition,
   RetryState,
   searchAttributePayloadConverter,
@@ -16,13 +15,13 @@ import {
   TerminatedFailure,
   TimeoutFailure,
   TimeoutType,
-  tsToDate,
   WithWorkflowArgs,
   Workflow,
   WorkflowExecutionAlreadyStartedError,
   WorkflowNotFoundError,
   WorkflowResultType,
 } from '@temporalio/common';
+import { tsToDate, optionalTsToDate } from '@temporalio/common/lib/time';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import {
   decodeArrayFromPayloads,
@@ -866,9 +865,9 @@ export class WorkflowClient {
           },
           // Safe to convert to number, max history length is 50k, which is much less than Number.MAX_SAFE_INTEGER
           historyLength: raw.workflowExecutionInfo!.historyLength!.toNumber(),
-          startTime: tsToDate(raw.workflowExecutionInfo!.startTime!), // eslint-disable-line deprecation/deprecation
-          executionTime: optionalTsToDate(raw.workflowExecutionInfo!.executionTime), // eslint-disable-line deprecation/deprecation
-          closeTime: optionalTsToDate(raw.workflowExecutionInfo!.closeTime), // eslint-disable-line deprecation/deprecation
+          startTime: tsToDate(raw.workflowExecutionInfo!.startTime!),
+          executionTime: optionalTsToDate(raw.workflowExecutionInfo!.executionTime),
+          closeTime: optionalTsToDate(raw.workflowExecutionInfo!.closeTime),
           memo: await decodeMapFromPayloads(this.client.dataConverter, raw.workflowExecutionInfo!.memo?.fields),
           searchAttributes: Object.fromEntries(
             Object.entries(

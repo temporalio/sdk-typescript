@@ -1,7 +1,7 @@
 // Modified from: https://github.com/vercel/next.js/blob/2425f4703c4c6164cecfdb6aa8f80046213f0cc6/packages/create-next-app/helpers/examples.ts
 import chalk from 'chalk';
 import got from 'got';
-import { extract } from 'tar';
+import * as tar from 'tar';
 import { Stream } from 'stream';
 import { promisify } from 'util';
 import { rm, readdir } from 'fs/promises';
@@ -107,7 +107,7 @@ export async function downloadAndExtractRepo(
 
   await pipeline(
     got.stream(archiveUrl, { headers }),
-    extract({ cwd: root, strip: filePath ? filePath.split('/').length + 1 : 1 }, [archivePath])
+    tar.extract({ cwd: root, strip: filePath ? filePath.split('/').length + 1 : 1 }, [archivePath])
   );
 
   const files = await readdir(root);
@@ -130,7 +130,7 @@ export async function downloadAndExtractSample(root: string, name: string): Prom
 
   await pipeline(
     got.stream('https://codeload.github.com/temporalio/samples-typescript/tar.gz/main', { headers }),
-    extract({ cwd: root, strip: 2 }, [`samples-typescript-main/${name}`])
+    tar.extract({ cwd: root, strip: 2 }, [`samples-typescript-main/${name}`])
   );
 
   try {
