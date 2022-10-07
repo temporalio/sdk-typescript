@@ -29,7 +29,6 @@
     "prompts": "^2.4.2",
     "tar": "^6.1.11",
     "update-check": "1.5.4",
-    "uuid": "^9.0.0",
     "validate-npm-package-name": "^4.0.0"
   },
   "devDependencies": {
@@ -40,7 +39,6 @@
     "@types/prompts": "2.0.14",
     "@types/rimraf": "^3.0.2",
     "@types/tar": "^6.1.1",
-    "@types/uuid": "^8.3.4",
     "@types/validate-npm-package-name": "^4.0.0",
     "ava": "^4.3.1"
   },
