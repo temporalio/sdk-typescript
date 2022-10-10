@@ -5,12 +5,14 @@ import libCoverage from 'istanbul-lib-coverage';
 // Pull `webpack.Configuration` type without needing to import Webpack
 type WebpackConfigType = ReturnType<NonNullable<BundleOptions['webpackConfigHook']>>;
 
-// Check if running through nyc or some other Istanbul-based tool.
-// If not, any `workflowCoverage()` tools are a no-op.
-const hasCoverageGlobal = '__coverage__' in global;
-
 export class WorkflowCoverage {
   coverageMap = libCoverage.createCoverageMap();
+
+  // Check if running through nyc or some other Istanbul-based tool.
+  // If not, any `workflowCoverage()` tools are a no-op.
+  hasCoverageGlobal() {
+    return '__coverage__' in global;
+  }
 
   /**
    * Add all necessary coverage-specific logic to Worker config:
@@ -23,7 +25,7 @@ export class WorkflowCoverage {
       throw new TypeError('Cannot automatically instrument coverage without specifying `workflowsPath`');
     }
 
-    if (!hasCoverageGlobal) {
+    if (!this.hasCoverageGlobal()) {
       return workerOptions;
     }
 
@@ -67,7 +69,7 @@ export class WorkflowCoverage {
       throw new TypeError('Cannot automatically instrument coverage without specifying `workflowsPath`');
     }
 
-    if (!hasCoverageGlobal) {
+    if (!this.hasCoverageGlobal()) {
       return bundleOptions;
     }
 
@@ -101,7 +103,7 @@ export class WorkflowCoverage {
       );
     }
 
-    if (!hasCoverageGlobal) {
+    if (!this.hasCoverageGlobal()) {
       return workerOptions;
     }
 
@@ -142,7 +144,7 @@ export class WorkflowCoverage {
    * code using istanbul-instrumenter-loader
    */
   addInstrumenterRule(workflowsPath: string, config: WebpackConfigType): WebpackConfigType {
-    if (!hasCoverageGlobal) {
+    if (!this.hasCoverageGlobal()) {
       return config;
     }
 
@@ -169,7 +171,7 @@ export class WorkflowCoverage {
    * map data `global.__coverage__`.
    */
   mergeIntoGlobalCoverage(): void {
-    if (!hasCoverageGlobal) {
+    if (!this.hasCoverageGlobal()) {
       return;
     }
 
