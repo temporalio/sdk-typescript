@@ -87,6 +87,12 @@ Breaking changes marked with a :boom:
 - Fix bundler with default workflow interceptors ([#891](https://github.com/temporalio/sdk-typescript/pull/891))
 - Limit eager activity requests to 3 ([#891](https://github.com/temporalio/sdk-typescript/pull/891))
 
+## [1.3.1] - 2022-10-10
+
+### Bug Fixes
+
+- Depend on `~1.3.1` of `@temporalio/*` packages to prevent `>= 1.4.0` versions from being installed.
+
 ## [1.3.0] - 2022-09-20
 
 ### Bug Fixes
