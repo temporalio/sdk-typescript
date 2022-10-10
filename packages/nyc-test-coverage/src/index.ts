@@ -10,7 +10,7 @@ export class WorkflowCoverage {
 
   // Check if running through nyc or some other Istanbul-based tool.
   // If not, any `workflowCoverage()` tools are a no-op.
-  hasCoverageGlobal() {
+  private hasCoverageGlobal() {
     return '__coverage__' in global;
   }
 
