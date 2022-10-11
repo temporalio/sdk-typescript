@@ -192,7 +192,9 @@ for f in ~/Downloads/packages-*.zip; do mkdir "$HOME/Downloads/$(basename -s .zi
 # we should now have all 5 build targets
 ls packages/core-bridge/releases/
 
-npx lerna version patch --exact --force-publish='*' # or major|minor|etc, or leave out to be prompted. either way, you get a confirmation dialog.
+npx lerna version patch --force-publish='*' # or major|minor|etc, or leave out to be prompted. either way, you get a confirmation dialog.
+
+# to only publish tilde deps, see section `# Tilde deps` instead of doing next step
 npx lerna publish from-git # add `--dist-tag next` for pre-release versions
 
 npm deprecate temporalio@^1.0.0 "Instead of installing temporalio, we recommend directly installing our packages: npm remove temporalio; npm install @temporalio/client @temporalio/worker @temporalio/workflow @temporalio/activity"
@@ -221,6 +223,20 @@ npm deprecate temporalio@^1.0.0 "Instead of installing temporalio, we recommend 
   npm run build
   npm test
   ```
+
+### Tilde deps
+
+Since `lerna version --exact` doesn't work with local path deps like `file:../common`, do this between `lerna version` and `lerna publish`:
+
+- Find & replace `file:../.*"` with eg `~1.5.0` in `packages/`.
+
+```sh
+git tag v1.5.0 -f
+git push origin v1.5.0 -f
+npx lerna publish from-package
+```
+
+(`from-git` may miss some packages)
 
 ### Updating published packages
 
