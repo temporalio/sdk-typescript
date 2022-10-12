@@ -12,47 +12,35 @@ import { defaultOptions, isolateFreeWorker } from './mock-native-worker';
 
 if (RUN_INTEGRATION_TESTS) {
   test.serial('Worker shuts down gracefully', async (t) => {
-    try {
-      const worker = await Worker.create({
-        ...defaultOptions,
-        shutdownGraceTime: '500ms',
-        taskQueue: 'shutdown-test',
-      });
-      t.is(worker.getState(), 'INITIALIZED');
-      const p = worker.run();
-      t.is(worker.getState(), 'RUNNING');
-      process.emit('SIGINT', 'SIGINT');
-      // Shutdown callback is enqueued as a microtask
-      await new Promise((resolve) => process.nextTick(resolve));
-      t.is(worker.getState(), 'STOPPING');
-      await p;
-      t.is(worker.getState(), 'STOPPED');
-      await t.throwsAsync(worker.run(), { message: 'Poller was already started' });
-    } finally {
-      // Make sure Runtime is reset after this test
-      if (Runtime._instance) await Runtime._instance.shutdown();
-      Runtime.instance();
-    }
+    const worker = await Worker.create({
+      ...defaultOptions,
+      shutdownGraceTime: '500ms',
+      taskQueue: 'shutdown-test',
+    });
+    t.is(worker.getState(), 'INITIALIZED');
+    const p = worker.run();
+    t.is(worker.getState(), 'RUNNING');
+    process.emit('SIGINT', 'SIGINT');
+    // Shutdown callback is enqueued as a microtask
+    await new Promise((resolve) => process.nextTick(resolve));
+    t.is(worker.getState(), 'STOPPING');
+    await p;
+    t.is(worker.getState(), 'STOPPED');
+    await t.throwsAsync(worker.run(), { message: 'Poller was already started' });
   });
 
   test.serial('Worker shuts down gracefully if interrupted before running', async (t) => {
-    try {
-      const worker = await Worker.create({
-        ...defaultOptions,
-        shutdownGraceTime: '500ms',
-        taskQueue: 'shutdown-test',
-      });
-      t.is(worker.getState(), 'INITIALIZED');
-      process.emit('SIGINT', 'SIGINT');
-      const p = worker.run();
-      t.is(worker.getState(), 'STOPPING');
-      await p;
-      t.is(worker.getState(), 'STOPPED');
-    } finally {
-      // Make sure Runtime is reset after this test
-      if (Runtime._instance) await Runtime._instance.shutdown();
-      Runtime.instance();
-    }
+    const worker = await Worker.create({
+      ...defaultOptions,
+      shutdownGraceTime: '500ms',
+      taskQueue: 'shutdown-test',
+    });
+    t.is(worker.getState(), 'INITIALIZED');
+    process.emit('SIGINT', 'SIGINT');
+    const p = worker.run();
+    t.is(worker.getState(), 'RUNNING');
+    await p;
+    t.is(worker.getState(), 'STOPPED');
   });
 }
 
@@ -70,9 +58,7 @@ test.serial('Mocked run shuts down gracefully', async (t) => {
     t.is(worker.getState(), 'STOPPED');
     await t.throwsAsync(worker.run(), { message: 'Poller was already started' });
   } finally {
-    // Make sure Runtime is reset after this test
     if (Runtime._instance) await Runtime._instance.shutdown();
-    Runtime.instance();
   }
 });
 
@@ -82,17 +68,15 @@ test.serial('Mocked run shuts down gracefully if interrupted before running', as
       shutdownGraceTime: '500ms',
       taskQueue: 'shutdown-test',
     });
-    worker.native.initiateShutdown = () => new Promise(() => undefined);
+    // worker.native.initiateShutdown = () => new Promise(() => undefined);
     t.is(worker.getState(), 'INITIALIZED');
     process.emit('SIGINT', 'SIGINT');
     const p = worker.run();
-    t.is(worker.getState(), 'STOPPING');
+    t.is(worker.getState(), 'RUNNING');
     await p;
     t.is(worker.getState(), 'STOPPED');
   } finally {
-    // Make sure Runtime is reset after this test
     if (Runtime._instance) await Runtime._instance.shutdown();
-    Runtime.instance();
   }
 });
 

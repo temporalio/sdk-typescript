@@ -378,19 +378,14 @@ export class Runtime {
   /**
    * Used by Workers to register for shutdown signals
    *
-   * Returns false if a shutdown has already been requested. In that case, the Worker should
-   * immediately initiate its shutdown.
-   *
    * Hidden in the docs because it is only meant to be used internally by the Worker.
-   * @returns true if callback was registered, or false if shutdown has already been requested
    * @hidden
    */
-  public registerShutdownSignalCallback(callback: () => void): boolean {
+  public registerShutdownSignalCallback(callback: () => void): void {
     if (this.state === 'running') {
       this.shutdownSignalCallbacks.add(callback);
-      return true;
     } else {
-      return false;
+      queueMicrotask(callback);
     }
   }
 

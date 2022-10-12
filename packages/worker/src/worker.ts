@@ -1596,16 +1596,10 @@ export class Worker {
     }
     this.state = 'RUNNING';
 
-    try {
-      const shutdownCallback = () => this.shutdown();
-      if (!Runtime.instance().registerShutdownSignalCallback(shutdownCallback)) {
-        // Shutdown has already been requested
-        this.shutdown();
-        await this.nativeWorker.finalizeShutdown();
-        this.state = 'STOPPED';
-        return;
-      }
+    const shutdownCallback = () => this.shutdown();
+    Runtime.instance().registerShutdownSignalCallback(shutdownCallback);
 
+    try {
       try {
         await lastValueFrom(
           merge(
