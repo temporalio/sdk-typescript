@@ -101,6 +101,7 @@ export class Runtime {
   protected readonly logPollPromise: Promise<void>;
   public readonly logger: Logger;
   protected readonly shutdownSignalCallbacks = new Set<() => void>();
+  protected state: 'running' | 'shuttingdown' = 'running';
 
   static _instance?: Runtime;
   static instantiator?: 'install' | 'instance';
@@ -380,8 +381,13 @@ export class Runtime {
    * Hidden in the docs because it is only meant to be used internally by the Worker.
    * @hidden
    */
-  public registerShutdownSignalCallback(callback: () => void): void {
-    this.shutdownSignalCallbacks.add(callback);
+  public registerShutdownSignalCallback(callback: () => void): boolean {
+    if (this.state === 'running') {
+      this.shutdownSignalCallbacks.add(callback);
+      return true;
+    } else {
+      return false;
+    }
   }
 
   /**
@@ -416,6 +422,7 @@ export class Runtime {
    * Bound to `this` for use with `process.on` and `process.off`
    */
   protected startShutdownSequence = (): void => {
+    this.state = 'shuttingdown';
     this.teardownShutdownHook();
     for (const callback of this.shutdownSignalCallbacks) {
       queueMicrotask(callback); // Run later
