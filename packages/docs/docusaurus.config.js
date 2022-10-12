@@ -6,7 +6,7 @@ const darkCodeTheme = require('prism-react-renderer/themes/dracula');
 const watch = ['y', 'yes', 't', 'true', '1'].includes(process.env.TYPEDOC_WATCH);
 
 module.exports = {
-  title: 'Temporal Node.js SDK API Reference',
+  title: 'Temporal TypeScript SDK API Reference',
   tagline: 'Build invincible applications',
   url: 'https://typescript.temporal.io',
   baseUrl: '/',
