@@ -79,13 +79,14 @@ import { VMWorkflowCreator } from './workflow/vm';
 import type { RawSourceMap } from 'source-map';
 import * as vm from 'node:vm';
 import * as path from 'node:path';
+import { historyFromJSON } from '@temporalio/common/lib/proto-utils';
+import { activityLogAttributes } from './activity-log-interceptor';
+import { workflowLogAttributes } from './workflow-log-interceptor';
+import { ReplayResults } from './replay';
 
 import IWorkflowActivationJob = coresdk.workflow_activation.IWorkflowActivationJob;
 import EvictionReason = coresdk.workflow_activation.RemoveFromCache.EvictionReason;
 import IRemoveFromCache = coresdk.workflow_activation.IRemoveFromCache;
-import { historyFromJSON } from '@temporalio/common/lib/proto-utils';
-import { activityLogAttributes } from './activity-log-interceptor';
-import { workflowLogAttributes } from './workflow-log-interceptor';
 
 export { DataConverter, defaultPayloadConverter, errors };
 
@@ -144,9 +145,14 @@ export interface NativeWorkerLike {
   logger: Logger;
 }
 
+export interface NativeReplayHandle {
+  worker: NativeWorkerLike;
+  historyPusher: native.HistoryPusher;
+}
+
 export interface WorkerConstructor {
   create(connection: NativeConnection, options: CompiledWorkerOptionsWithBuildId): Promise<NativeWorkerLike>;
-  createReplay(options: CompiledWorkerOptionsWithBuildId, history: History): Promise<NativeWorkerLike>;
+  createReplay(options: CompiledWorkerOptionsWithBuildId): Promise<NativeReplayHandle>;
 }
 
 function isOptionsWithBuildId<T extends CompiledWorkerOptions>(options: T): options is T & { buildId: string } {
@@ -179,13 +185,10 @@ export class NativeWorker implements NativeWorkerLike {
     return new NativeWorker(runtime, nativeWorker);
   }
 
-  public static async createReplay(
-    options: CompiledWorkerOptionsWithBuildId,
-    history: History
-  ): Promise<NativeWorkerLike> {
+  public static async createReplay(options: CompiledWorkerOptionsWithBuildId): Promise<NativeReplayHandle> {
     const runtime = Runtime.instance();
-    const nativeWorker = await runtime.createReplayWorker(options, history);
-    return new NativeWorker(runtime, nativeWorker);
+    const replayer = await runtime.createReplayWorker(options);
+    return { worker: new NativeWorker(runtime, replayer.worker), historyPusher: replayer.pusher };
   }
 
   protected constructor(protected readonly runtime: Runtime, protected readonly nativeWorker: native.Worker) {
@@ -455,31 +458,40 @@ export class Worker {
       throw new TypeError(`Expected a non-null history object, got ${typeof history}`);
     }
     const { eventId } = (history as any).events[0];
+    let hist: History;
     // in a "valid" history, eventId would be Long
     if (typeof eventId === 'string') {
-      return this.runReplayValidHistory(options, historyFromJSON(history));
+      hist = historyFromJSON(history);
     } else {
-      return this.runReplayValidHistory(options, history as History);
+      hist = history;
     }
+    const [worker, pusher] = await this.constructReplayWorker(options);
+    const rt = Runtime.instance();
+    await rt.pushHistory(pusher, 'fakeid', hist);
+    rt.closeHistoryStream(pusher);
+    await this.runReplayerToCompletion(worker);
   }
 
   /**
-   * Internal implementation of `runReplayHistory`, only works on "valid" histories (e.g. not ones loaded straight from
-   * exported JSON)
+   * Create a replay Worker, running all histories provided by the passed in iterable.
+   * If `options.failFast` is set, the function will throw upon the first encountered error.
+   * If not, all histories will be replayed and the returned results object will contain information
+   * about any failures.
+   *
+   * @throws {@link DeterminismViolationError} if in fail fast mode and there is some incompatible
+   * history.
    */
-  protected static async runReplayValidHistory(options: ReplayWorkerOptions, history: History): Promise<void> {
-    const nativeWorkerCtor: WorkerConstructor = this.nativeWorkerCtor;
-    const wftStartedEvent = history.events?.find((e) => e.workflowExecutionStartedEventAttributes != null);
-    if (wftStartedEvent == null) {
-      throw new TypeError('History does not contain a WorkflowExecutionStarted event');
-    }
-    const workflowName = wftStartedEvent.workflowExecutionStartedEventAttributes?.workflowType?.name;
-    if (workflowName == null) {
-      throw new TypeError('WorkflowExecutionStarted event does not contain workflowType.name');
-    }
+  public static async runReplayHistories(
+    options: ReplayWorkerOptions,
+    histories: AsyncIterable<History>
+  ): Promise<ReplayResults> {
+    return { hadAnyFailure: false, failureDetails: new Map() };
+  }
 
+  private static async constructReplayWorker(options: ReplayWorkerOptions): Promise<[Worker, native.HistoryPusher]> {
+    const nativeWorkerCtor: WorkerConstructor = this.nativeWorkerCtor;
     const fixedUpOptions: WorkerOptions = {
-      taskQueue: (options.replayName ?? workflowName) + '-' + this.replayWorkerCount,
+      taskQueue: (options.replayName ?? 'fake_replay_queue') + '-' + this.replayWorkerCount,
       debugMode: true,
       ...options,
     };
@@ -490,12 +502,15 @@ export class Worker {
       throw new TypeError('ReplayWorkerOptions must contain workflowsPath or workflowBundle');
     }
     const workflowCreator = await this.createWorkflowCreator(bundle, compiledOptions);
-    const replayWorker = await nativeWorkerCtor.createReplay(
-      addBuildIdIfMissing(compiledOptions, bundle.code),
-      history
-    );
-    const constructedWorker = new this(replayWorker, workflowCreator, compiledOptions);
+    const replayHandle = await nativeWorkerCtor.createReplay(addBuildIdIfMissing(compiledOptions, bundle.code));
+    return [new this(replayHandle.worker, workflowCreator, compiledOptions), replayHandle.historyPusher];
+  }
 
+  /**
+   * Internal implementation of `runReplayHistory`, only works on "valid" histories (e.g. not ones loaded straight from
+   * exported JSON)
+   */
+  protected static async runReplayerToCompletion(constructedWorker: Worker): Promise<void> {
     const runPromise = constructedWorker.run();
     const pollerShutdown = firstValueFrom(
       constructedWorker.workflowPollerStateSubject.pipe(filter((state) => state !== 'POLLING'))

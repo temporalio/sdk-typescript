@@ -5,7 +5,7 @@ import { msToTs } from '@temporalio/common/lib/time';
 import { coresdk } from '@temporalio/proto';
 import { DefaultLogger } from '@temporalio/worker';
 import { byteArrayToBuffer } from '@temporalio/worker/lib/utils';
-import { errors, NativeWorkerLike, Worker as RealWorker } from '@temporalio/worker/lib/worker';
+import { errors, NativeReplayHandle, NativeWorkerLike, Worker as RealWorker } from '@temporalio/worker/lib/worker';
 import {
   addDefaultWorkerOptions,
   CompiledWorkerOptions,
@@ -56,8 +56,8 @@ export class MockNativeWorker implements NativeWorkerLike {
     return new this();
   }
 
-  public static async createReplay(): Promise<NativeWorkerLike> {
-    return new this();
+  public static async createReplay(): Promise<NativeReplayHandle> {
+    return { worker: new this(), historyPusher: { type: 'HistoryPusher' } };
   }
 
   public async finalizeShutdown(): Promise<void> {

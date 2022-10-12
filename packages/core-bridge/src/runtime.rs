@@ -1,7 +1,4 @@
-use crate::conversions::*;
-use crate::errors::*;
-use crate::helpers::*;
-use crate::worker::*;
+use crate::{conversions::*, errors::*, helpers::*, worker::*};
 use neon::prelude::*;
 use parking_lot::RwLock;
 use std::{
@@ -12,17 +9,19 @@ use std::{
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 use temporal_client::{ClientInitError, ConfiguredClient, TemporalServiceClientWithMetrics};
-use temporal_sdk_core::ephemeral_server::EphemeralServer as CoreEphemeralServer;
 use temporal_sdk_core::{
-    fetch_global_buffered_logs, init_replay_worker, init_worker,
-    protos::temporal::api::history::v1::History, telemetry_init, ClientOptions, RetryClient,
-    WorkerConfig,
+    ephemeral_server::EphemeralServer as CoreEphemeralServer, fetch_global_buffered_logs,
+    init_replay_worker, init_worker, replay::HistoryForReplay, telemetry_init, ClientOptions,
+    RetryClient, WorkerConfig,
 };
 use tokio::{
     runtime::Runtime,
-    sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender},
-    sync::Mutex,
+    sync::{
+        mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender},
+        Mutex,
+    },
 };
+use tokio_stream::wrappers::UnboundedReceiverStream;
 
 pub type RawClient = RetryClient<ConfiguredClient<TemporalServiceClientWithMetrics>>;
 
@@ -86,8 +85,6 @@ pub enum RuntimeRequest {
     InitReplayWorker {
         /// Worker configuration. Must have unique task queue name.
         config: WorkerConfig,
-        /// The history this worker should replay
-        history: History,
         /// Used to send the result back into JS
         callback: Root<JsFunction>,
     },
@@ -216,17 +213,20 @@ pub fn start_bridge_loop(channel: Arc<Channel>, receiver: &mut UnboundedReceiver
                         Ok(cx.boxed(RefCell::new(Some(WorkerHandle { sender: tx }))))
                     });
                 }
-                RuntimeRequest::InitReplayWorker {
-                    config,
-                    history,
-                    callback,
-                } => {
-                    match init_replay_worker(config, &history) {
+                RuntimeRequest::InitReplayWorker { config, callback } => {
+                    let (tunnel, stream) = HistForReplayTunnel::new();
+                    match init_replay_worker(config, Box::pin(stream)) {
                         Ok(worker) => {
                             let (tx, rx) = unbounded_channel();
                             tokio::spawn(start_worker_loop(worker, rx, channel.clone()));
                             send_result(channel.clone(), callback, |cx| {
-                                Ok(cx.boxed(RefCell::new(Some(WorkerHandle { sender: tx }))))
+                                let worker =
+                                    cx.boxed(RefCell::new(Some(WorkerHandle { sender: tx })));
+                                let tunnel = cx.boxed(tunnel);
+                                let retme = cx.empty_object();
+                                retme.set(cx, "worker", worker)?;
+                                retme.set(cx, "pusher", tunnel)?;
+                                Ok(retme)
                             })
                         }
                         Err(err) => send_error(channel.clone(), callback, move |cx| {
@@ -434,3 +434,34 @@ pub fn client_update_headers(mut cx: FunctionContext) -> JsResult<JsUndefined> {
 
     Ok(cx.undefined())
 }
+
+pub(crate) struct HistForReplayTunnel {
+    sender: RefCell<Option<UnboundedSender<HistoryForReplay>>>,
+}
+impl HistForReplayTunnel {
+    fn new() -> (Self, UnboundedReceiverStream<HistoryForReplay>) {
+        let (sender, rx) = unbounded_channel();
+        (
+            HistForReplayTunnel {
+                sender: RefCell::new(Some(sender)),
+            },
+            UnboundedReceiverStream::new(rx),
+        )
+    }
+    pub fn send(&self, hist: HistoryForReplay) -> Result<(), String> {
+        if let Some(tx) = self.sender.borrow().as_ref() {
+            tx.send(hist).map_err(|e| {
+                format!(
+                    "Receive side of history replay channel is gone. This is an sdk bug. {:?}",
+                    e
+                )
+            })
+        } else {
+            Err("Replay worker is already no longer accepting new histories".to_string())
+        }
+    }
+    pub fn shutdown(&self) {
+        self.sender.borrow_mut().take();
+    }
+}
+impl Finalize for HistForReplayTunnel {}

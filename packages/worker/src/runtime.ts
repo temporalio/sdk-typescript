@@ -63,7 +63,7 @@ export interface CompiledRuntimeOptions {
 
 function defaultTelemetryOptions(): TelemetryOptions {
   return {
-    tracingFilter: 'temporal_sdk_core=WARN',
+    tracingFilter: 'temporal_sdk_core=INFO',
     logging: {
       console: {},
     },
@@ -87,6 +87,8 @@ export class CoreLogger extends DefaultLogger {
   }
 }
 
+type TrackedNativeObject = native.Client | native.Worker | native.EphemeralServer | native.ReplayWorker;
+
 /**
  * Core singleton representing an instance of the Rust Core SDK
  *
@@ -96,7 +98,7 @@ export class Runtime {
   /** Track the number of pending creation calls into the tokio runtime to prevent shut down */
   protected pendingCreations = 0;
   /** Track the registered native objects to automatically shutdown when all have been deregistered */
-  protected readonly backRefs = new Set<native.Client | native.Worker | native.EphemeralServer>();
+  protected readonly backRefs = new Set<TrackedNativeObject>();
   protected readonly shouldPollForLogs = new BehaviorSubject<boolean>(false);
   protected readonly logPollPromise: Promise<void>;
   public readonly logger: Logger;
@@ -284,13 +286,19 @@ export class Runtime {
   }
 
   /** @hidden */
-  public async createReplayWorker(options: native.WorkerOptions, history: History): Promise<native.Worker> {
-    return await this.createNative(
-      promisify(native.newReplayWorker),
-      this.native,
-      options,
-      byteArrayToBuffer(temporal.api.history.v1.History.encodeDelimited(history).finish())
-    );
+  public async createReplayWorker(options: native.WorkerOptions): Promise<native.ReplayWorker> {
+    return await this.createNative(promisify(native.newReplayWorker), this.native, options);
+  }
+
+  /** @hidden */
+  public async pushHistory(pusher: native.HistoryPusher, workflowID: string, history: History): Promise<void> {
+    const encoded = byteArrayToBuffer(temporal.api.history.v1.History.encodeDelimited(history).finish());
+    native.pushHistory(pusher, workflowID, encoded);
+  }
+
+  /** @hidden */
+  public closeHistoryStream(pusher: native.HistoryPusher) {
+    native.closeHistoryStream(pusher);
   }
 
   /**
@@ -328,7 +336,7 @@ export class Runtime {
   }
 
   protected async createNative<
-    R extends native.Client | native.Worker | native.EphemeralServer,
+    R extends TrackedNativeObject,
     Args extends any[],
     F extends (...args: Args) => Promise<R>
   >(f: F, ...args: Args): Promise<R> {

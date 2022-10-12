@@ -20,6 +20,8 @@ fn main(mut cx: ModuleContext) -> NeonResult<()> {
     cx.export_function("clientUpdateHeaders", client_update_headers)?;
     cx.export_function("newWorker", worker_new)?;
     cx.export_function("newReplayWorker", replay_worker_new)?;
+    cx.export_function("pushHistory", push_history)?;
+    cx.export_function("closeHistoryStream", close_history_stream)?;
     cx.export_function("workerInitiateShutdown", worker_initiate_shutdown)?;
     cx.export_function("workerFinalizeShutdown", worker_finalize_shutdown)?;
     cx.export_function("clientClose", client_close)?;
