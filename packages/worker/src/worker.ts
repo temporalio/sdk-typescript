@@ -47,6 +47,7 @@ import {
   pipe,
   race,
   Subject,
+  concatMap,
 } from 'rxjs';
 import { delay, filter, first, ignoreElements, last, map, mergeMap, takeUntil, takeWhile, tap } from 'rxjs/operators';
 import { promisify } from 'util';
@@ -477,16 +478,25 @@ export class Worker {
   ): Promise<ReplayResults> {
     const [worker, pusher] = await this.constructReplayWorker(options);
     const rt = Runtime.instance();
-    const feeder = async function () {
-      for await (const hist of histories) {
-        const validated = Worker.validateHistory(hist.history);
-        await rt.pushHistory(pusher, hist.workflowID, validated);
+    const replayDone = new Subject<void>();
+    const feeder = lastValueFrom(
+      from(histories).pipe(
+        concatMap(async (hist) => {
+          const validated = Worker.validateHistory(hist.history);
+          await rt.pushHistory(pusher, hist.workflowID, validated);
+        }),
+        takeUntil(replayDone)
+      )
+    ).finally(() => rt.closeHistoryStream(pusher));
+    const replayer = async function () {
+      try {
+        return await Worker.runReplayerToCompletion(worker, { failFast: options.failFast });
+      } finally {
+        replayDone.next();
       }
-      rt.closeHistoryStream(pusher);
     };
-    await Promise.all([feeder(), this.runReplayerToCompletion(worker, {})]);
-
-    return { hadAnyFailure: false, failureDetails: new Map() };
+    const [_, results] = await Promise.all([feeder, replayer()]);
+    return results;
   }
 
   private static validateHistory(history: unknown): History {
@@ -524,11 +534,15 @@ export class Worker {
    * Internal implementation of `runReplayHistory`, only works on "valid" histories (e.g. not ones
    * loaded straight from exported JSON)
    */
-  protected static async runReplayerToCompletion(constructedWorker: Worker, opts: ReplayRunOptions): Promise<void> {
+  protected static async runReplayerToCompletion(
+    constructedWorker: Worker,
+    opts: ReplayRunOptions
+  ): Promise<ReplayResults> {
     const runPromise = constructedWorker.run();
     const pollerShutdown = firstValueFrom(
       constructedWorker.workflowPollerStateSubject.pipe(filter((state) => state !== 'POLLING'))
     );
+    const results = { hadAnyFailure: false, failureDetails: new Map() };
 
     const evictionPromise = firstValueFrom(
       constructedWorker.evictionsSubject.pipe(
@@ -538,16 +552,24 @@ export class Worker {
             evictJob.message !== this.SELF_INDUCED_SHUTDOWN_EVICTION.message &&
             evictJob.reason !== this.SELF_INDUCED_SHUTDOWN_EVICTION.reason
         ),
-        map(({ evictJob }) => {
-          if (evictJob.reason === EvictionReason.NONDETERMINISM) {
-            throw new DeterminismViolationError(
+        map(({ runId, evictJob }) => {
+          let err = undefined;
+          if (evictJob.reason === EvictionReason.CACHE_FULL) {
+            // Nothing to do here. In multiple-history replay this is fully expected.
+          } else if (evictJob.reason === EvictionReason.NONDETERMINISM) {
+            err = new DeterminismViolationError(
               'Replay failed with a nondeterminism error. This means that the workflow code as written ' +
                 `is not compatible with the history that was fed in. Details: ${evictJob.message}`
             );
-          } else if (evictJob.reason === EvictionReason.CACHE_FULL) {
-            // Nothing to do here. In multiple-history replay this is fully expected.
           } else {
-            throw new Error(`Replay failed. Details: ${evictJob.message}`);
+            err = new Error(`Replay failed. Details: ${evictJob.message}`);
+          }
+          if (err !== undefined) {
+            results.hadAnyFailure = true;
+            results.failureDetails.set(runId, err);
+            if (opts.failFast !== false) {
+              throw err;
+            }
           }
         })
       )
@@ -560,6 +582,7 @@ export class Worker {
         // We may have already shut down and that's fine
       }
     });
+    return results;
   }
 
   protected static async getOrCreateBundle(
