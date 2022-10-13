@@ -43,6 +43,10 @@ export interface WorkflowExecutionDescription {
   raw: DescribeWorkflowExecutionResponse;
 }
 
+export interface FetchedHistory {
+  history: proto.temporal.api.history.v1.History;
+}
+
 export type WorkflowService = proto.temporal.api.workflowservice.v1.WorkflowService;
 export const { WorkflowService } = proto.temporal.api.workflowservice.v1;
 export type OperatorService = proto.temporal.api.operatorservice.v1.OperatorService;

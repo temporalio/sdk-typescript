@@ -27,7 +27,7 @@ import {
 import { tsToMs } from '@temporalio/common/lib/time';
 import { decode, decodeFromPayloadsAtIndex, loadDataConverter } from '@temporalio/common/lib/internal-non-workflow';
 import * as iface from '@temporalio/proto';
-import { DefaultLogger, Runtime, Worker, appendDefaultInterceptors } from '@temporalio/worker';
+import { appendDefaultInterceptors, DefaultLogger, Runtime, Worker } from '@temporalio/worker';
 import pkg from '@temporalio/worker/lib/pkg';
 import * as grpc from '@grpc/grpc-js';
 import v8 from 'v8';
@@ -1314,6 +1314,50 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
     });
     await handle.query(workflows.mutateWorkflowStateQuery);
     // Worker did not crash
+    t.pass();
+  });
+
+  test('Download and replay multiple executions', async (t) => {
+    const { client } = t.context;
+    const tq = 'test';
+    const e1 = await client.start(workflows.argsAndReturn, {
+      taskQueue: tq,
+      workflowId: uuid4(),
+      args: ['Hello', undefined, u8('world!')],
+    });
+    const e2 = await client.start(workflows.cancelFakeProgress, {
+      taskQueue: tq,
+      workflowId: uuid4(),
+    });
+    const e3 = await client.start(workflows.childWorkflowInvoke, {
+      taskQueue: tq,
+      workflowId: uuid4(),
+    });
+    const e4 = await client.start(workflows.activityFailures, {
+      taskQueue: tq,
+      workflowId: uuid4(),
+    });
+    const handles = [e1, e2, e3, e4];
+    await Promise.all(
+      handles.map(async (h) => {
+        return await h.result();
+      })
+    );
+    const execIter = {
+      async *[Symbol.asyncIterator]() {
+        for (const h of handles) {
+          yield { workflowId: h.workflowId, runId: h.firstExecutionRunId };
+        }
+      },
+    };
+
+    const downloadIter = client.downloadLazily(execIter);
+    await Worker.runReplayHistories(
+      {
+        workflowsPath: require.resolve('./workflows'),
+      },
+      downloadIter
+    );
     t.pass();
   });
 }

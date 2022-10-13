@@ -61,6 +61,7 @@ import {
 import {
   ConnectionLike,
   DescribeWorkflowExecutionResponse,
+  FetchedHistory,
   GetWorkflowExecutionHistoryRequest,
   Metadata,
   RequestCancelWorkflowExecutionResponse,
@@ -72,6 +73,7 @@ import {
   WorkflowService,
 } from './types';
 import { compileWorkflowOptions, WorkflowOptions, WorkflowSignalWithStartOptions } from './workflow-options';
+import { HistoryAndWorkflowID } from '@temporalio/worker';
 
 /**
  * A client side handle to a single Workflow instance.
@@ -137,6 +139,11 @@ export interface WorkflowHandle<T extends Workflow = Workflow> extends BaseWorkf
    * Describe the current workflow execution
    */
   describe(): Promise<WorkflowExecutionDescription>;
+
+  /**
+   * Download the entire workflow history
+   */
+  fetchHistory(): Promise<FetchedHistory>;
 
   /**
    * Readonly accessor to the underlying WorkflowClient
@@ -263,6 +270,15 @@ export interface WorkflowResultOptions {
    * @default true
    */
   followRuns?: boolean;
+}
+
+export interface DownloadLazilyOptions {
+  /**
+   * Maximum number of workflows that will be fetched concurrently.
+   *
+   * @default 5
+   */
+  maxConcurrency?: number;
 }
 
 export interface GetWorkflowHandleOptions extends WorkflowResultOptions {
@@ -594,6 +610,31 @@ export class WorkflowClient {
     }
   }
 
+  /**
+   * Lazily downloads the histories of the workflows indicated by the passed in iterator. These
+   * histories may be used in conjunction with replay functionality to verify changes to workflow
+   * code.
+   */
+  public downloadLazily(
+    workflows: AsyncIterable<WorkflowExecution>
+    // opts?: DownloadLazilyOptions
+  ): AsyncIterable<HistoryAndWorkflowID> {
+    const t = this;
+    // TODO: Concurrent downloading obnoxious to impl
+    return {
+      async *[Symbol.asyncIterator]() {
+        for await (const wf of workflows) {
+          const handle = t.getHandle(wf.workflowId, wf.runId);
+          const hist = await handle.fetchHistory();
+          yield {
+            workflowID: wf.workflowId,
+            history: hist.history,
+          };
+        }
+      },
+    };
+  }
+
   protected rethrowGrpcError(err: unknown, workflowExecution: WorkflowExecution, fallbackMessage: string): never {
     if (isServerErrorResponse(err)) {
       if (err.code === grpcStatus.NOT_FOUND) {
@@ -908,6 +949,25 @@ export class WorkflowClient {
           args,
           headers: {},
         }) as Promise<Ret>;
+      },
+      async fetchHistory(): Promise<FetchedHistory> {
+        // TODO: Interceptors? Bleh
+        let nextPageToken: Uint8Array | undefined = undefined;
+        const history = Array<temporal.api.history.v1.IHistoryEvent>();
+        for (;;) {
+          const response: temporal.api.workflowservice.v1.GetWorkflowExecutionHistoryResponse =
+            await this.client.connection.workflowService.getWorkflowExecutionHistory({
+              nextPageToken,
+              namespace: this.client.options.namespace,
+              execution: { workflowId: this.workflowId },
+            });
+          history.push(...(response.history?.events ?? []));
+          if (response.nextPageToken == null || response.nextPageToken.length === 0) break;
+          nextPageToken = response.nextPageToken;
+        }
+        return {
+          history: temporal.api.history.v1.History.create({ events: history }),
+        };
       },
     };
   }
