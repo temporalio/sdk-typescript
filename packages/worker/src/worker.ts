@@ -82,7 +82,7 @@ import * as path from 'node:path';
 import { historyFromJSON } from '@temporalio/common/lib/proto-utils';
 import { activityLogAttributes } from './activity-log-interceptor';
 import { workflowLogAttributes } from './workflow-log-interceptor';
-import { ReplayResults } from './replay';
+import { HistoryAndWorkflowID, ReplayResults, ReplayRunOptions } from './replay';
 
 import IWorkflowActivationJob = coresdk.workflow_activation.IWorkflowActivationJob;
 import EvictionReason = coresdk.workflow_activation.RemoveFromCache.EvictionReason;
@@ -454,22 +454,12 @@ export class Worker {
    * @throws {@link DeterminismViolationError} if the workflow code is not compatible with the history.
    */
   public static async runReplayHistory(options: ReplayWorkerOptions, history: History | unknown): Promise<void> {
-    if (typeof history !== 'object' || history == null) {
-      throw new TypeError(`Expected a non-null history object, got ${typeof history}`);
-    }
-    const { eventId } = (history as any).events[0];
-    let hist: History;
-    // in a "valid" history, eventId would be Long
-    if (typeof eventId === 'string') {
-      hist = historyFromJSON(history);
-    } else {
-      hist = history;
-    }
+    let hist = this.validateHistory(history);
     const [worker, pusher] = await this.constructReplayWorker(options);
     const rt = Runtime.instance();
     await rt.pushHistory(pusher, 'fakeid', hist);
     rt.closeHistoryStream(pusher);
-    await this.runReplayerToCompletion(worker);
+    await this.runReplayerToCompletion(worker, {});
   }
 
   /**
@@ -483,9 +473,33 @@ export class Worker {
    */
   public static async runReplayHistories(
     options: ReplayWorkerOptions,
-    histories: AsyncIterable<History>
+    histories: AsyncIterable<HistoryAndWorkflowID>
   ): Promise<ReplayResults> {
+    const [worker, pusher] = await this.constructReplayWorker(options);
+    const rt = Runtime.instance();
+    const feeder = async function () {
+      for await (const hist of histories) {
+        const validated = Worker.validateHistory(hist.history);
+        await rt.pushHistory(pusher, hist.workflowID, validated);
+      }
+      rt.closeHistoryStream(pusher);
+    };
+    await Promise.all([feeder(), this.runReplayerToCompletion(worker, {})]);
+
     return { hadAnyFailure: false, failureDetails: new Map() };
+  }
+
+  private static validateHistory(history: unknown): History {
+    if (typeof history !== 'object' || history == null) {
+      throw new TypeError(`Expected a non-null history object, got ${typeof history}`);
+    }
+    const { eventId } = (history as any).events[0];
+    // in a "valid" history, eventId would be Long
+    if (typeof eventId === 'string') {
+      return historyFromJSON(history);
+    } else {
+      return history;
+    }
   }
 
   private static async constructReplayWorker(options: ReplayWorkerOptions): Promise<[Worker, native.HistoryPusher]> {
@@ -507,10 +521,10 @@ export class Worker {
   }
 
   /**
-   * Internal implementation of `runReplayHistory`, only works on "valid" histories (e.g. not ones loaded straight from
-   * exported JSON)
+   * Internal implementation of `runReplayHistory`, only works on "valid" histories (e.g. not ones
+   * loaded straight from exported JSON)
    */
-  protected static async runReplayerToCompletion(constructedWorker: Worker): Promise<void> {
+  protected static async runReplayerToCompletion(constructedWorker: Worker, opts: ReplayRunOptions): Promise<void> {
     const runPromise = constructedWorker.run();
     const pollerShutdown = firstValueFrom(
       constructedWorker.workflowPollerStateSubject.pipe(filter((state) => state !== 'POLLING'))
@@ -530,6 +544,8 @@ export class Worker {
               'Replay failed with a nondeterminism error. This means that the workflow code as written ' +
                 `is not compatible with the history that was fed in. Details: ${evictJob.message}`
             );
+          } else if (evictJob.reason === EvictionReason.CACHE_FULL) {
+            // Nothing to do here. In multiple-history replay this is fully expected.
           } else {
             throw new Error(`Replay failed. Details: ${evictJob.message}`);
           }

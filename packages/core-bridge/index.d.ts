@@ -384,7 +384,12 @@ export declare function newReplayWorker(
   workerOptions: WorkerOptions,
   callback: ReplayWorkerCallback
 ): void;
-export declare function pushHistory(pusher: HistoryPusher, workflowID: string, history: ArrayBuffer): void;
+export declare function pushHistory(
+  pusher: HistoryPusher,
+  workflowID: string,
+  history: ArrayBuffer,
+  callback: VoidCallback
+): void;
 export declare function closeHistoryStream(pusher: HistoryPusher): void;
 export declare function workerInitiateShutdown(worker: Worker, callback: VoidCallback): void;
 export declare function workerFinalizeShutdown(worker: Worker): void;

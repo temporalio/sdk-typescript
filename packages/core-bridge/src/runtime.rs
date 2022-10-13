@@ -1,6 +1,7 @@
 use crate::{conversions::*, errors::*, helpers::*, worker::*};
 use neon::prelude::*;
 use parking_lot::RwLock;
+use std::cell::Cell;
 use std::{
     cell::RefCell,
     collections::HashMap,
@@ -14,14 +15,12 @@ use temporal_sdk_core::{
     init_replay_worker, init_worker, replay::HistoryForReplay, telemetry_init, ClientOptions,
     RetryClient, WorkerConfig,
 };
+use tokio::sync::mpsc::{channel, Sender, UnboundedReceiver, UnboundedSender};
 use tokio::{
     runtime::Runtime,
-    sync::{
-        mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender},
-        Mutex,
-    },
+    sync::{mpsc::unbounded_channel, Mutex},
 };
-use tokio_stream::wrappers::UnboundedReceiverStream;
+use tokio_stream::wrappers::ReceiverStream;
 
 pub type RawClient = RetryClient<ConfiguredClient<TemporalServiceClientWithMetrics>>;
 
@@ -83,6 +82,7 @@ pub enum RuntimeRequest {
     },
     /// A request to register a replay worker
     InitReplayWorker {
+        runtime: Arc<RuntimeHandle>,
         /// Worker configuration. Must have unique task queue name.
         config: WorkerConfig,
         /// Used to send the result back into JS
@@ -100,6 +100,11 @@ pub enum RuntimeRequest {
     },
     ShutdownEphemeralServer {
         server: Arc<Mutex<CoreEphemeralServer>>,
+        callback: Root<JsFunction>,
+    },
+    PushReplayHistory {
+        tx: Sender<HistoryForReplay>,
+        pushme: HistoryForReplay,
         callback: Root<JsFunction>,
     },
 }
@@ -213,8 +218,12 @@ pub fn start_bridge_loop(channel: Arc<Channel>, receiver: &mut UnboundedReceiver
                         Ok(cx.boxed(RefCell::new(Some(WorkerHandle { sender: tx }))))
                     });
                 }
-                RuntimeRequest::InitReplayWorker { config, callback } => {
-                    let (tunnel, stream) = HistForReplayTunnel::new();
+                RuntimeRequest::InitReplayWorker {
+                    runtime,
+                    config,
+                    callback,
+                } => {
+                    let (tunnel, stream) = HistForReplayTunnel::new(runtime);
                     match init_replay_worker(config, Box::pin(stream)) {
                         Ok(worker) => {
                             let (tx, rx) = unbounded_channel();
@@ -282,6 +291,27 @@ pub fn start_bridge_loop(channel: Arc<Channel>, receiver: &mut UnboundedReceiver
                                 )
                             },
                         )
+                        .await
+                    });
+                }
+                RuntimeRequest::PushReplayHistory {
+                    tx,
+                    pushme,
+                    callback,
+                } => {
+                    tokio::spawn(async move {
+                        let sendfut = async move {
+                            tx.send(pushme).await.map_err(|e| {
+                                format!(
+                    "Receive side of history replay channel is gone. This is an sdk bug. {:?}",
+                    e
+                                )
+                            })
+                        };
+                        void_future_to_js(channel, callback, sendfut, |cx, err| {
+                            UNEXPECTED_ERROR
+                                .from_string(cx, format!("Error pushing replay history {}", err))
+                        })
                         .await
                     });
                 }
@@ -436,32 +466,31 @@ pub fn client_update_headers(mut cx: FunctionContext) -> JsResult<JsUndefined> {
 }
 
 pub(crate) struct HistForReplayTunnel {
-    sender: RefCell<Option<UnboundedSender<HistoryForReplay>>>,
+    pub(crate) runtime: Arc<RuntimeHandle>,
+    sender: Cell<Option<Sender<HistoryForReplay>>>,
 }
 impl HistForReplayTunnel {
-    fn new() -> (Self, UnboundedReceiverStream<HistoryForReplay>) {
-        let (sender, rx) = unbounded_channel();
+    fn new(runtime: Arc<RuntimeHandle>) -> (Self, ReceiverStream<HistoryForReplay>) {
+        let (sender, rx) = channel(1);
         (
             HistForReplayTunnel {
-                sender: RefCell::new(Some(sender)),
+                runtime,
+                sender: Cell::new(Some(sender)),
             },
-            UnboundedReceiverStream::new(rx),
+            ReceiverStream::new(rx),
         )
     }
-    pub fn send(&self, hist: HistoryForReplay) -> Result<(), String> {
-        if let Some(tx) = self.sender.borrow().as_ref() {
-            tx.send(hist).map_err(|e| {
-                format!(
-                    "Receive side of history replay channel is gone. This is an sdk bug. {:?}",
-                    e
-                )
-            })
+    pub fn get_chan(&self) -> Result<Sender<HistoryForReplay>, &'static str> {
+        let chan = self.sender.take();
+        self.sender.set(chan.clone());
+        if let Some(chan) = chan {
+            Ok(chan)
         } else {
-            Err("Replay worker is already no longer accepting new histories".to_string())
+            Err("History replay channel is already closed")
         }
     }
     pub fn shutdown(&self) {
-        self.sender.borrow_mut().take();
+        self.sender.take();
     }
 }
 impl Finalize for HistForReplayTunnel {}

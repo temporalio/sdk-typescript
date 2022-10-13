@@ -293,7 +293,7 @@ export class Runtime {
   /** @hidden */
   public async pushHistory(pusher: native.HistoryPusher, workflowID: string, history: History): Promise<void> {
     const encoded = byteArrayToBuffer(temporal.api.history.v1.History.encodeDelimited(history).finish());
-    native.pushHistory(pusher, workflowID, encoded);
+    return await promisify(native.pushHistory)(pusher, workflowID, encoded);
   }
 
   /** @hidden */

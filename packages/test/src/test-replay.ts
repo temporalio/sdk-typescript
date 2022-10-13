@@ -94,3 +94,73 @@ test('workflow-task-failure-fails-replay', async (t) => {
     )
   );
 });
+
+test('multiple-histories-replay', async (t) => {
+  const histBin = await fs.promises.readFile(
+    path.resolve(__dirname, '../history_files/cancel_fake_progress_history.bin')
+  );
+  const hist1 = History.decode(histBin);
+  const histJson = await fs.promises.readFile(
+    path.resolve(__dirname, '../history_files/cancel_fake_progress_history.json'),
+    'utf8'
+  );
+  const hist2 = JSON.parse(histJson);
+  let timesCalled = 0;
+  const hists = {
+    async *[Symbol.asyncIterator]() {
+      timesCalled++;
+      yield { workflowID: '1', history: hist1 };
+      timesCalled++;
+      yield { workflowID: '2', history: hist2 };
+      timesCalled++;
+    },
+  };
+
+  const res = await Worker.runReplayHistories(
+    {
+      workflowsPath: require.resolve('./workflows'),
+      replayName: t.title,
+    },
+    hists
+  );
+  t.deepEqual(timesCalled, 3);
+  t.deepEqual(res.hadAnyFailure, false);
+  t.deepEqual(res.failureDetails.size, 0);
+  t.pass();
+});
+
+test('multiple-histories-replay-fails-fast', async (t) => {
+  const histBin = await fs.promises.readFile(
+    path.resolve(__dirname, '../history_files/cancel_fake_progress_history.bin')
+  );
+  const hist1 = History.decode(histBin);
+  hist1.events[0].workflowExecutionStartedEventAttributes!.workflowType!.name = 'http';
+  const histJson = await fs.promises.readFile(
+    path.resolve(__dirname, '../history_files/cancel_fake_progress_history.json'),
+    'utf8'
+  );
+  const hist2 = JSON.parse(histJson);
+  hist2.events[0].workflowExecutionStartedEventAttributes!.workflowType!.name = 'http';
+
+  let timesCalled = 0;
+  const hists = {
+    async *[Symbol.asyncIterator]() {
+      timesCalled++;
+      yield { workflowID: '1', history: hist1 };
+      timesCalled++;
+      yield { workflowID: '2', history: hist2 };
+      timesCalled++;
+    },
+  };
+
+  await t.throwsAsync(
+    Worker.runReplayHistories(
+      {
+        workflowsPath: require.resolve('./workflows'),
+        replayName: t.title,
+      },
+      hists
+    )
+  );
+  t.deepEqual(timesCalled, 1);
+});

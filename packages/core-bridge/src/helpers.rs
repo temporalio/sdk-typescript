@@ -2,7 +2,6 @@ use crate::errors::*;
 use neon::{prelude::*, types::buffer::TypedArray};
 use std::{fmt::Display, future::Future, sync::Arc};
 
-// TODO: Use multiple args if I can get around ICE. Can take channel by ref.
 /// Send a result to JS via callback using a [Channel]
 pub fn send_result<F, T>(channel: Arc<Channel>, callback: Root<JsFunction>, res_fn: F)
 where

@@ -271,6 +271,7 @@ pub fn replay_worker_new(mut cx: FunctionContext) -> JsResult<JsUndefined> {
 
     let config = worker_options.as_worker_config(&mut cx)?;
     let request = RuntimeRequest::InitReplayWorker {
+        runtime: (*runtime).clone(),
         config,
         callback: callback.root(&mut cx),
     };
@@ -285,12 +286,25 @@ pub fn push_history(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     let pusher = cx.argument::<JsBox<HistForReplayTunnel>>(0)?;
     let wfid = cx.argument::<JsString>(1)?;
     let history_binary = cx.argument::<JsArrayBuffer>(2)?;
+    let callback = cx.argument::<JsFunction>(3)?;
     let data = history_binary.as_slice(&mut cx);
     match History::decode_length_delimited(data) {
-        Ok(hist) => match pusher.send(HistoryForReplay::new(hist, wfid.value(&mut cx))) {
-            Ok(_) => Ok(cx.undefined()),
-            Err(s) => cx.throw_error(s),
-        },
+        Ok(hist) => {
+            let wfid = wfid.value(&mut cx);
+            if let Err(e) = pusher.get_chan().map(|chan| {
+                pusher
+                    .runtime
+                    .sender
+                    .send(RuntimeRequest::PushReplayHistory {
+                        tx: chan,
+                        pushme: HistoryForReplay::new(hist, wfid),
+                        callback: callback.root(&mut cx),
+                    })
+            }) {
+                callback_with_unexpected_error(&mut cx, callback, e)?;
+            }
+            Ok(cx.undefined())
+        }
         Err(e) => cx.throw_error(format!("Error decoding history: {:?}", e)),
     }
 }
