@@ -11,6 +11,7 @@ import {
 } from '@temporalio/client';
 import {
   ChildWorkflowFailure,
+  DataConverter,
   defaultFailureConverter,
   defaultPayloadConverter,
   Payload,
@@ -53,6 +54,7 @@ const CHANGE_MARKER_NAME = 'core_patch';
 export interface Context {
   worker: Worker;
   client: WorkflowClient;
+  dataConverter: DataConverter;
   runPromise: Promise<void>;
 }
 
@@ -97,6 +99,7 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
     t.context = {
       worker,
       runPromise,
+      dataConverter,
       client: new WorkflowClient({ connection, dataConverter }),
     };
 
@@ -1355,6 +1358,7 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
     await Worker.runReplayHistories(
       {
         workflowsPath: require.resolve('./workflows'),
+        dataConverter: t.context.dataConverter,
       },
       downloadIter
     );
