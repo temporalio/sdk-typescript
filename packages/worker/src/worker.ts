@@ -477,22 +477,18 @@ export class Worker {
    */
   public static fetchHistories(
     client: WorkflowClient,
-    workflows: AsyncIterable<WorkflowExecution>,
+    workflows: AsyncIterable<WorkflowExecution> | Iterable<WorkflowExecution>,
     opts?: FetchHistoriesOptions
   ): AsyncIterable<MakeRequired<HistoryAndWorkflowId, 'history'>> {
     const downloads = from(workflows).pipe(
-      mergeMap(
-        async (wf) => {
-          const handle = client.getHandle(wf.workflowId, wf.runId);
-          const hist = await handle.fetchHistory();
-          return {
-            workflowId: wf.workflowId,
-            history: hist.history,
-          };
-        },
-        undefined,
-        opts?.maxConcurrency ?? 5
-      )
+      mergeMap(async (wf) => {
+        const handle = client.getHandle(wf.workflowId, wf.runId);
+        const hist = await handle.fetchHistory();
+        return {
+          workflowId: wf.workflowId,
+          history: hist.history,
+        };
+      }, opts?.maxConcurrency ?? 5)
     );
     return eachValueFrom(downloads);
   }
@@ -511,26 +507,31 @@ export class Worker {
     workflowId?: string
   ): Promise<void> {
     const hist = this.validateHistory(history);
-    await this.runReplayHistories(options, {
-      async *[Symbol.asyncIterator]() {
-        yield { history: hist, workflowId: workflowId ?? 'fake' };
-      },
-    });
+    await this.runReplayHistories(options, [{ history: hist, workflowId: workflowId ?? 'fake' }]);
   }
 
   /**
-   * Create a replay Worker, running all histories provided by the passed in iterable.
-   * If `options.failFast` is set, the function will throw upon the first encountered error.
-   * If not, all histories will be replayed and the returned results object will contain information
-   * about any failures.
+   * Create a replay Worker, running all histories provided by the passed in iterable (or
+   * downloading them if a client & iterable of workflow executions is provided).
+   *
+   * If `options.failFast` is set, the function will throw upon the first encountered error. If not,
+   * all histories will be replayed and the returned results object will contain information about
+   * any failures.
    *
    * @throws {@link DeterminismViolationError} if in fail fast mode and there is some incompatible
    * history.
    */
   public static async runReplayHistories(
     options: ReplayWorkerOptions,
-    histories: AsyncIterable<HistoryAndWorkflowId>
+    histories:
+      | AsyncIterable<HistoryAndWorkflowId>
+      | Iterable<HistoryAndWorkflowId>
+      | { client: WorkflowClient; workflows: AsyncIterable<WorkflowExecution> | Iterable<WorkflowExecution> }
   ): Promise<ReplayResults> {
+    if ('client' in histories) {
+      histories = this.fetchHistories(histories.client, histories.workflows);
+    }
+
     const [worker, pusher] = await this.constructReplayWorker(options);
     const rt = Runtime.instance();
     const replayDone = new Subject<void>();
