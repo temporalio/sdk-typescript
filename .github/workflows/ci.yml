@@ -102,7 +102,8 @@ jobs:
         if: ${{ github.ref == 'refs/heads/main' }}
         run: npx vercel deploy packages/docs/build -t ${{ secrets.VERCEL_TOKEN }} --name typescript --scope temporal --prod --yes
       - name: Deploy draft docs
-        if: ${{ github.ref != 'refs/heads/main' }}
+        # Don't run on forks, since secrets won't be available, and command will fail
+        if: ${{ github.repository_owner == 'temporalio' && github.ref != 'refs/heads/main' }}
         run: npx vercel deploy packages/docs/build -t ${{ secrets.VERCEL_TOKEN }} --name typescript --scope temporal --yes
 
   # Run TS linting and ts-prune to find unused code
