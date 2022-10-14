@@ -34,7 +34,6 @@ export function hasOwnProperties<X extends Record<string, unknown>, Y extends Pr
 /**
  * Get `error.message` (or `undefined` if not present)
  */
-// ts-prune-ignore-next
 export function errorMessage(error: unknown): string | undefined {
   if (typeof error === 'string') {
     return error;
@@ -51,7 +50,6 @@ interface ErrorWithCode {
 /**
  * Get `error.code` (or `undefined` if not present)
  */
-// ts-prune-ignore-next
 export function errorCode(error: unknown): string | undefined {
   if (
     typeof error === 'object' &&
