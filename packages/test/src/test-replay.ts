@@ -30,7 +30,7 @@ function historator(hists: Array<History>, goSlow?: boolean) {
     async *[Symbol.asyncIterator]() {
       for (const hist of hists) {
         this.timesCalled++;
-        yield { workflowID: 'fake', history: hist };
+        yield { workflowId: 'fake', history: hist };
         if (goSlow) {
           // This matters because the exception propagation from the worker takes a long time
           // compared to this generator. This sleep makes it more realistic for a

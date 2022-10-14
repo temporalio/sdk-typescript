@@ -1351,7 +1351,7 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
       },
     };
 
-    const downloadIter = client.downloadLazily(execIter);
+    const downloadIter = Worker.fetchHistories(client, execIter);
     await Worker.runReplayHistories(
       {
         workflowsPath: require.resolve('./workflows'),

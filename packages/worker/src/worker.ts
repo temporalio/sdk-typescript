@@ -11,7 +11,6 @@ import {
   Payload,
   SearchAttributes,
   searchAttributePayloadConverter,
-  HistoryAndWorkflowID,
 } from '@temporalio/common';
 import { optionalTsToDate, optionalTsToMs, tsToMs } from '@temporalio/common/lib/time';
 import * as native from '@temporalio/core-bridge';
@@ -30,7 +29,7 @@ import {
   RUN_ID_ATTR_KEY,
   TASK_TOKEN_ATTR_KEY,
 } from '@temporalio/common/lib/otel';
-import { errorMessage } from '@temporalio/common/lib/type-helpers';
+import { errorMessage, MakeRequired } from '@temporalio/common/lib/type-helpers';
 import { coresdk, temporal } from '@temporalio/proto';
 import { DeterminismViolationError, SinkCall, WorkflowInfo } from '@temporalio/workflow';
 import crypto from 'crypto';
@@ -50,6 +49,7 @@ import {
   Subject,
   concatMap,
 } from 'rxjs';
+import { eachValueFrom } from 'rxjs-for-await';
 import { delay, filter, first, ignoreElements, last, map, mergeMap, takeUntil, takeWhile, tap } from 'rxjs/operators';
 import { promisify } from 'util';
 import { Activity, CancelReason } from './activity';
@@ -85,6 +85,7 @@ import { historyFromJSON } from '@temporalio/common/lib/proto-utils';
 import { activityLogAttributes } from './activity-log-interceptor';
 import { workflowLogAttributes } from './workflow-log-interceptor';
 import { ReplayResults, ReplayRunOptions } from './replay';
+import { WorkflowClient, WorkflowExecution } from '@temporalio/client';
 
 import IWorkflowActivationJob = coresdk.workflow_activation.IWorkflowActivationJob;
 import EvictionReason = coresdk.workflow_activation.RemoveFromCache.EvictionReason;
@@ -131,6 +132,26 @@ export type ActivityTaskWithContext = ContextAware<{
   task: coresdk.activity_task.ActivityTask;
   base64TaskToken: string;
 }>;
+
+/**
+ * A workflow's history and ID. Useful for replay.
+ */
+export interface HistoryAndWorkflowId {
+  workflowId: string;
+  history: temporal.api.history.v1.History | unknown;
+}
+
+/**
+ * Options for fetching histories.
+ */
+export interface FetchHistoriesOptions {
+  /**
+   * Maximum number of workflows that will be fetched concurrently.
+   *
+   * @default 5
+   */
+  maxConcurrency?: number;
+}
 
 type CompiledWorkerOptionsWithBuildId = CompiledWorkerOptions & { buildId: string };
 
@@ -450,18 +471,51 @@ export class Worker {
   }
 
   /**
+   * Lazily downloads the histories of the workflows indicated by the passed in iterator. These
+   * histories may be used in conjunction with replay functionality to verify changes to workflow
+   * code.
+   */
+  public static fetchHistories(
+    client: WorkflowClient,
+    workflows: AsyncIterable<WorkflowExecution>,
+    opts?: FetchHistoriesOptions
+  ): AsyncIterable<MakeRequired<HistoryAndWorkflowId, 'history'>> {
+    const downloads = from(workflows).pipe(
+      mergeMap(
+        async (wf) => {
+          const handle = client.getHandle(wf.workflowId, wf.runId);
+          const hist = await handle.fetchHistory();
+          return {
+            workflowId: wf.workflowId,
+            history: hist.history,
+          };
+        },
+        undefined,
+        opts?.maxConcurrency ?? 5
+      )
+    );
+    return eachValueFrom(downloads);
+  }
+
+  /**
    * Create a replay Worker, and run the provided history against it. Will resolve as soon as
    * the history has finished being replayed, or if the workflow produces a nondeterminism error.
    *
+   * @param workflowId If provided, use this as the workflow id during replay. Histories do not
+   * contain a workflow id, so it must be provided separately if your workflow depends on it.
    * @throws {@link DeterminismViolationError} if the workflow code is not compatible with the history.
    */
-  public static async runReplayHistory(options: ReplayWorkerOptions, history: History | unknown): Promise<void> {
+  public static async runReplayHistory(
+    options: ReplayWorkerOptions,
+    history: History | unknown,
+    workflowId?: string
+  ): Promise<void> {
     const hist = this.validateHistory(history);
-    const [worker, pusher] = await this.constructReplayWorker(options);
-    const rt = Runtime.instance();
-    await rt.pushHistory(pusher, 'fakeid', hist);
-    rt.closeHistoryStream(pusher);
-    await this.runReplayerToCompletion(worker, {});
+    await this.runReplayHistories(options, {
+      async *[Symbol.asyncIterator]() {
+        yield { history: hist, workflowId: workflowId ?? 'fake' };
+      },
+    });
   }
 
   /**
@@ -475,7 +529,7 @@ export class Worker {
    */
   public static async runReplayHistories(
     options: ReplayWorkerOptions,
-    histories: AsyncIterable<HistoryAndWorkflowID>
+    histories: AsyncIterable<HistoryAndWorkflowId>
   ): Promise<ReplayResults> {
     const [worker, pusher] = await this.constructReplayWorker(options);
     const rt = Runtime.instance();
@@ -484,7 +538,7 @@ export class Worker {
       from(histories).pipe(
         concatMap(async (hist) => {
           const validated = Worker.validateHistory(hist.history);
-          await rt.pushHistory(pusher, hist.workflowID, validated);
+          await rt.pushHistory(pusher, hist.workflowId, validated);
         }),
         takeUntil(replayDone)
       )

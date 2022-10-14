@@ -2,7 +2,6 @@ import { status as grpcStatus } from '@grpc/grpc-js';
 import {
   CancelledFailure,
   DataConverter,
-  HistoryAndWorkflowID,
   LoadedDataConverter,
   mapFromPayloads,
   mapToPayloads,
@@ -270,15 +269,6 @@ export interface WorkflowResultOptions {
    * @default true
    */
   followRuns?: boolean;
-}
-
-export interface DownloadLazilyOptions {
-  /**
-   * Maximum number of workflows that will be fetched concurrently.
-   *
-   * @default 5
-   */
-  maxConcurrency?: number;
 }
 
 export interface GetWorkflowHandleOptions extends WorkflowResultOptions {
@@ -608,31 +598,6 @@ export class WorkflowClient {
         continue;
       }
     }
-  }
-
-  /**
-   * Lazily downloads the histories of the workflows indicated by the passed in iterator. These
-   * histories may be used in conjunction with replay functionality to verify changes to workflow
-   * code.
-   */
-  public downloadLazily(
-    workflows: AsyncIterable<WorkflowExecution>
-    // opts?: DownloadLazilyOptions
-  ): AsyncIterable<HistoryAndWorkflowID> {
-    // TODO: Concurrent downloading obnoxious to impl
-    const getHandle = this.getHandle;
-    return {
-      async *[Symbol.asyncIterator]() {
-        for await (const wf of workflows) {
-          const handle = getHandle(wf.workflowId, wf.runId);
-          const hist = await handle.fetchHistory();
-          yield {
-            workflowID: wf.workflowId,
-            history: hist.history,
-          };
-        }
-      },
-    };
   }
 
   protected rethrowGrpcError(err: unknown, workflowExecution: WorkflowExecution, fallbackMessage: string): never {
