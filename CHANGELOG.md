@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 Breaking changes marked with a :boom:
 
+## [1.4.3] - 2022-10-14
+
+### Bug Fixes
+
+- [`nyc-test-coverage`] Delay checking for **coverage** until helpers run because **coverage** is undefined when Jest
+  starts ([#910](https://github.com/temporalio/sdk-typescript/pull/910))
+- [`worker`] Avoid a race in shutdown hooks ([#918](https://github.com/temporalio/sdk-typescript/pull/918))
+- [`core`] Ignore cancels of StartFailed state in child workflows, see: https://github.com/temporalio/sdk-core/pull/413
+
 ## [1.4.2] - 2022-10-06
 
 ### Bug Fixes
