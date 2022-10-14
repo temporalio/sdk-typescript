@@ -916,7 +916,6 @@ export class WorkflowClient {
         }) as Promise<Ret>;
       },
       async fetchHistory(): Promise<FetchedHistory> {
-        // TODO: Interceptors? Bleh
         let nextPageToken: Uint8Array | undefined = undefined;
         const history = Array<temporal.api.history.v1.IHistoryEvent>();
         for (;;) {
@@ -931,6 +930,7 @@ export class WorkflowClient {
           nextPageToken = response.nextPageToken;
         }
         return {
+          workflowId: this.workflowId,
           history: temporal.api.history.v1.History.create({ events: history }),
         };
       },

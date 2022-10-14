@@ -44,6 +44,7 @@ export interface WorkflowExecutionDescription {
 }
 
 export interface FetchedHistory {
+  workflowId: string;
   history: proto.temporal.api.history.v1.History;
 }
 

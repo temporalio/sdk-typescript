@@ -85,7 +85,7 @@ import { historyFromJSON } from '@temporalio/common/lib/proto-utils';
 import { activityLogAttributes } from './activity-log-interceptor';
 import { workflowLogAttributes } from './workflow-log-interceptor';
 import { ReplayResults, ReplayRunOptions } from './replay';
-import { WorkflowClient, WorkflowExecution } from '@temporalio/client';
+import { FetchedHistory, WorkflowClient, WorkflowExecution } from '@temporalio/client';
 
 import IWorkflowActivationJob = coresdk.workflow_activation.IWorkflowActivationJob;
 import EvictionReason = coresdk.workflow_activation.RemoveFromCache.EvictionReason;
@@ -479,15 +479,11 @@ export class Worker {
     client: WorkflowClient,
     workflows: AsyncIterable<WorkflowExecution> | Iterable<WorkflowExecution>,
     opts?: FetchHistoriesOptions
-  ): AsyncIterable<MakeRequired<HistoryAndWorkflowId, 'history'>> {
+  ): AsyncIterable<FetchedHistory> {
     const downloads = from(workflows).pipe(
       mergeMap(async (wf) => {
         const handle = client.getHandle(wf.workflowId, wf.runId);
-        const hist = await handle.fetchHistory();
-        return {
-          workflowId: wf.workflowId,
-          history: hist.history,
-        };
+        return await handle.fetchHistory();
       }, opts?.maxConcurrency ?? 5)
     );
     return eachValueFrom(downloads);
