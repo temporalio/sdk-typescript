@@ -11,6 +11,7 @@ import {
   Payload,
   SearchAttributes,
   searchAttributePayloadConverter,
+  HistoryAndWorkflowID,
 } from '@temporalio/common';
 import { optionalTsToDate, optionalTsToMs, tsToMs } from '@temporalio/common/lib/time';
 import * as native from '@temporalio/core-bridge';
@@ -83,7 +84,7 @@ import * as path from 'node:path';
 import { historyFromJSON } from '@temporalio/common/lib/proto-utils';
 import { activityLogAttributes } from './activity-log-interceptor';
 import { workflowLogAttributes } from './workflow-log-interceptor';
-import { HistoryAndWorkflowID, ReplayResults, ReplayRunOptions } from './replay';
+import { ReplayResults, ReplayRunOptions } from './replay';
 
 import IWorkflowActivationJob = coresdk.workflow_activation.IWorkflowActivationJob;
 import EvictionReason = coresdk.workflow_activation.RemoveFromCache.EvictionReason;
@@ -455,7 +456,7 @@ export class Worker {
    * @throws {@link DeterminismViolationError} if the workflow code is not compatible with the history.
    */
   public static async runReplayHistory(options: ReplayWorkerOptions, history: History | unknown): Promise<void> {
-    let hist = this.validateHistory(history);
+    const hist = this.validateHistory(history);
     const [worker, pusher] = await this.constructReplayWorker(options);
     const rt = Runtime.instance();
     await rt.pushHistory(pusher, 'fakeid', hist);

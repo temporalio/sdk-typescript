@@ -297,7 +297,7 @@ export class Runtime {
   }
 
   /** @hidden */
-  public closeHistoryStream(pusher: native.HistoryPusher) {
+  public closeHistoryStream(pusher: native.HistoryPusher): void {
     native.closeHistoryStream(pusher);
   }
 

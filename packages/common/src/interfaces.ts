@@ -62,3 +62,11 @@ export type ActivityInterface = Record<string, ActivityFunction>;
  * Mapping of Activity name to function
  */
 export type UntypedActivities = Record<string, ActivityFunction>;
+
+/**
+ * A workflow history with it's ID. Useful for replay.
+ */
+export interface HistoryAndWorkflowID {
+  workflowID: string;
+  history: temporal.api.history.v1.History | unknown;
+}

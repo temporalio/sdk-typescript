@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-non-null-assertion */
+
 import { temporal } from '@temporalio/proto';
 import { DefaultLogger, Runtime, Worker } from '@temporalio/worker';
 import { DeterminismViolationError } from '@temporalio/workflow';
@@ -77,7 +79,6 @@ test('cancel-fake-progress-replay from JSON', async (t) => {
 test('cancel-fake-progress-replay-nondeterministic', async (t) => {
   const hist = await getHist('cancel_fake_progress_history.bin');
   // Manually alter the workflow type to point to different workflow code
-  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
   hist.events[0].workflowExecutionStartedEventAttributes!.workflowType!.name = 'http';
 
   await t.throwsAsync(
@@ -96,7 +97,6 @@ test('cancel-fake-progress-replay-nondeterministic', async (t) => {
 test('workflow-task-failure-fails-replay', async (t) => {
   const hist = await getHist('cancel_fake_progress_history.bin');
   // Manually alter the workflow type to point to our workflow which will fail workflow tasks
-  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
   hist.events[0].workflowExecutionStartedEventAttributes!.workflowType!.name = 'failsWorkflowTask';
 
   await t.throwsAsync(

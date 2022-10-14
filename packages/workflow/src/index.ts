@@ -50,7 +50,7 @@ export {
   ActivityCancellationType,
   ActivityFailure,
   ActivityFunction,
-  ActivityInterface,
+  ActivityInterface, // eslint-disable-line deprecation/deprecation
   ActivityOptions,
   ApplicationFailure,
   CancelledFailure,

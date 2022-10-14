@@ -2,6 +2,7 @@ import { status as grpcStatus } from '@grpc/grpc-js';
 import {
   CancelledFailure,
   DataConverter,
+  HistoryAndWorkflowID,
   LoadedDataConverter,
   mapFromPayloads,
   mapToPayloads,
@@ -73,7 +74,6 @@ import {
   WorkflowService,
 } from './types';
 import { compileWorkflowOptions, WorkflowOptions, WorkflowSignalWithStartOptions } from './workflow-options';
-import { HistoryAndWorkflowID } from '@temporalio/worker';
 
 /**
  * A client side handle to a single Workflow instance.
@@ -619,12 +619,12 @@ export class WorkflowClient {
     workflows: AsyncIterable<WorkflowExecution>
     // opts?: DownloadLazilyOptions
   ): AsyncIterable<HistoryAndWorkflowID> {
-    const t = this;
     // TODO: Concurrent downloading obnoxious to impl
+    const getHandle = this.getHandle;
     return {
       async *[Symbol.asyncIterator]() {
         for await (const wf of workflows) {
-          const handle = t.getHandle(wf.workflowId, wf.runId);
+          const handle = getHandle(wf.workflowId, wf.runId);
           const hist = await handle.fetchHistory();
           yield {
             workflowID: wf.workflowId,
