@@ -3,6 +3,7 @@ import path from 'node:path';
 import {
   ActivityFailure,
   ApplicationFailure,
+  Client,
   Connection,
   QueryNotRegisteredError,
   WorkflowClient,
@@ -54,6 +55,7 @@ const CHANGE_MARKER_NAME = 'core_patch';
 export interface Context {
   worker: Worker;
   client: WorkflowClient;
+  metaClient: Client;
   dataConverter: DataConverter;
   runPromise: Promise<void>;
 }
@@ -96,11 +98,14 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
     runPromise.catch((err) => {
       console.error('Caught error while worker was running', err);
     });
+
+    const metaClient = new Client({ connection, dataConverter });
     t.context = {
       worker,
       runPromise,
       dataConverter,
-      client: new WorkflowClient({ connection, dataConverter }),
+      client: metaClient.workflow,
+      metaClient,
     };
 
     // In case we're running with temporalite or other non default server.
@@ -1321,22 +1326,22 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
   });
 
   test('Download and replay multiple executions', async (t) => {
-    const { client } = t.context;
+    const { metaClient: client } = t.context;
     const tq = 'test';
-    const e1 = await client.start(workflows.argsAndReturn, {
+    const e1 = await client.workflow.start(workflows.argsAndReturn, {
       taskQueue: tq,
       workflowId: uuid4(),
       args: ['Hello', undefined, u8('world!')],
     });
-    const e2 = await client.start(workflows.cancelFakeProgress, {
+    const e2 = await client.workflow.start(workflows.cancelFakeProgress, {
       taskQueue: tq,
       workflowId: uuid4(),
     });
-    const e3 = await client.start(workflows.childWorkflowInvoke, {
+    const e3 = await client.workflow.start(workflows.childWorkflowInvoke, {
       taskQueue: tq,
       workflowId: uuid4(),
     });
-    const e4 = await client.start(workflows.activityFailures, {
+    const e4 = await client.workflow.start(workflows.activityFailures, {
       taskQueue: tq,
       workflowId: uuid4(),
     });
@@ -1354,13 +1359,12 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
       },
     };
 
-    const downloadIter = Worker.fetchHistories(client, execIter);
     await Worker.runReplayHistories(
       {
         workflowsPath: require.resolve('./workflows'),
         dataConverter: t.context.dataConverter,
       },
-      downloadIter
+      { client, executions: execIter }
     );
     t.pass();
   });

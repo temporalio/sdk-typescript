@@ -43,14 +43,6 @@ export interface WorkflowExecutionDescription {
   raw: DescribeWorkflowExecutionResponse;
 }
 
-/**
- * A history as fetched from a workflow handle, including the workflow's id.
- */
-export interface FetchedHistory {
-  workflowId: string;
-  history: proto.temporal.api.history.v1.History;
-}
-
 export type WorkflowService = proto.temporal.api.workflowservice.v1.WorkflowService;
 export const { WorkflowService } = proto.temporal.api.workflowservice.v1;
 export type OperatorService = proto.temporal.api.operatorservice.v1.OperatorService;

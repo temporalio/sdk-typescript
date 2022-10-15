@@ -29,7 +29,7 @@ import {
   RUN_ID_ATTR_KEY,
   TASK_TOKEN_ATTR_KEY,
 } from '@temporalio/common/lib/otel';
-import { errorMessage, MakeRequired } from '@temporalio/common/lib/type-helpers';
+import { errorMessage } from '@temporalio/common/lib/type-helpers';
 import { coresdk, temporal } from '@temporalio/proto';
 import { DeterminismViolationError, SinkCall, WorkflowInfo } from '@temporalio/workflow';
 import crypto from 'crypto';
@@ -49,7 +49,6 @@ import {
   Subject,
   concatMap,
 } from 'rxjs';
-import { eachValueFrom } from 'rxjs-for-await';
 import { delay, filter, first, ignoreElements, last, map, mergeMap, takeUntil, takeWhile, tap } from 'rxjs/operators';
 import { promisify } from 'util';
 import { Activity, CancelReason } from './activity';
@@ -84,8 +83,7 @@ import * as path from 'node:path';
 import { historyFromJSON } from '@temporalio/common/lib/proto-utils';
 import { activityLogAttributes } from './activity-log-interceptor';
 import { workflowLogAttributes } from './workflow-log-interceptor';
-import { ReplayResults, ReplayRunOptions } from './replay';
-import { FetchedHistory, WorkflowClient, WorkflowExecution } from '@temporalio/client';
+import { fetchWorkflowHistory, ReplayHistoriesOrExecutions, ReplayResults, ReplayRunOptions } from './replay';
 
 import IWorkflowActivationJob = coresdk.workflow_activation.IWorkflowActivationJob;
 import EvictionReason = coresdk.workflow_activation.RemoveFromCache.EvictionReason;
@@ -132,26 +130,6 @@ export type ActivityTaskWithContext = ContextAware<{
   task: coresdk.activity_task.ActivityTask;
   base64TaskToken: string;
 }>;
-
-/**
- * A workflow's history and ID. Useful for replay.
- */
-export interface HistoryAndWorkflowId {
-  workflowId: string;
-  history: temporal.api.history.v1.History | unknown;
-}
-
-/**
- * Options for fetching histories.
- */
-export interface FetchHistoriesOptions {
-  /**
-   * Maximum number of workflows that will be fetched concurrently.
-   *
-   * @default 5
-   */
-  maxConcurrency?: number;
-}
 
 type CompiledWorkerOptionsWithBuildId = CompiledWorkerOptions & { buildId: string };
 
@@ -471,25 +449,6 @@ export class Worker {
   }
 
   /**
-   * Lazily downloads the histories of the workflows indicated by the passed in iterator. These
-   * histories may be used in conjunction with replay functionality to verify changes to workflow
-   * code.
-   */
-  public static fetchHistories(
-    client: WorkflowClient,
-    workflows: AsyncIterable<WorkflowExecution> | Iterable<WorkflowExecution>,
-    opts?: FetchHistoriesOptions
-  ): AsyncIterable<FetchedHistory> {
-    const downloads = from(workflows).pipe(
-      mergeMap(async (wf) => {
-        const handle = client.getHandle(wf.workflowId, wf.runId);
-        return await handle.fetchHistory();
-      }, opts?.maxConcurrency ?? 5)
-    );
-    return eachValueFrom(downloads);
-  }
-
-  /**
    * Create a replay Worker, and run the provided history against it. Will resolve as soon as
    * the history has finished being replayed, or if the workflow produces a nondeterminism error.
    *
@@ -502,8 +461,8 @@ export class Worker {
     history: History | unknown,
     workflowId?: string
   ): Promise<void> {
-    const hist = this.validateHistory(history);
-    await this.runReplayHistories(options, [{ history: hist, workflowId: workflowId ?? 'fake' }]);
+    const validated = this.validateHistory(history);
+    await this.runReplayHistories(options, { histories: [{ history: validated, workflowId: workflowId ?? 'fake' }] });
   }
 
   /**
@@ -516,38 +475,39 @@ export class Worker {
    *
    * @throws {@link DeterminismViolationError} if in fail fast mode and there is some incompatible
    * history.
+   *
+   * @experimental - this API is not considered stable
    */
   public static async runReplayHistories(
     options: ReplayWorkerOptions,
-    histories:
-      | AsyncIterable<HistoryAndWorkflowId>
-      | Iterable<HistoryAndWorkflowId>
-      | { client: WorkflowClient; workflows: AsyncIterable<WorkflowExecution> | Iterable<WorkflowExecution> }
+    historiesOrExecutions: ReplayHistoriesOrExecutions
   ): Promise<ReplayResults> {
-    if ('client' in histories) {
-      histories = this.fetchHistories(histories.client, histories.workflows);
-    }
-
     const [worker, pusher] = await this.constructReplayWorker(options);
     const rt = Runtime.instance();
     const replayDone = new Subject<void>();
-    const feeder = lastValueFrom(
-      from(histories).pipe(
-        concatMap(async (hist) => {
-          const validated = Worker.validateHistory(hist.history);
-          await rt.pushHistory(pusher, hist.workflowId, validated);
-        }),
-        takeUntil(replayDone)
-      )
-    ).finally(() => rt.closeHistoryStream(pusher));
-    const replayer = async function () {
-      try {
-        return await Worker.runReplayerToCompletion(worker, { failFast: options.failFast });
-      } finally {
-        replayDone.next();
-      }
-    };
-    const [_, results] = await Promise.all([feeder, replayer()]);
+    let feed;
+    if ('client' in historiesOrExecutions) {
+      const { client, executions, maxConcurrency } = historiesOrExecutions;
+      feed = from(executions).pipe(
+        mergeMap(async ({ workflowId, runId }) => {
+          const history = await fetchWorkflowHistory(client, workflowId, runId);
+          const validated = this.validateHistory(history);
+          await rt.pushHistory(pusher, workflowId, validated);
+        }, maxConcurrency ?? 5)
+      );
+    } else {
+      feed = from(historiesOrExecutions.histories).pipe(
+        concatMap(async ({ history, workflowId }) => {
+          const validated = this.validateHistory(history);
+          await rt.pushHistory(pusher, workflowId, validated);
+        })
+      );
+    }
+    const feeder = lastValueFrom(feed.pipe(takeUntil(replayDone))).finally(() => rt.closeHistoryStream(pusher));
+    const replayer = this.runReplayerToCompletion(worker, { failFast: options.failFast }).finally(() =>
+      replayDone.next()
+    );
+    const [results] = await Promise.all([replayer, feeder]);
     return results;
   }
 

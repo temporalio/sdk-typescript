@@ -61,7 +61,6 @@ import {
 import {
   ConnectionLike,
   DescribeWorkflowExecutionResponse,
-  FetchedHistory,
   GetWorkflowExecutionHistoryRequest,
   Metadata,
   RequestCancelWorkflowExecutionResponse,
@@ -138,11 +137,6 @@ export interface WorkflowHandle<T extends Workflow = Workflow> extends BaseWorkf
    * Describe the current workflow execution
    */
   describe(): Promise<WorkflowExecutionDescription>;
-
-  /**
-   * Download the entire workflow history
-   */
-  fetchHistory(): Promise<FetchedHistory>;
 
   /**
    * Readonly accessor to the underlying WorkflowClient
@@ -914,25 +908,6 @@ export class WorkflowClient {
           args,
           headers: {},
         }) as Promise<Ret>;
-      },
-      async fetchHistory(): Promise<FetchedHistory> {
-        let nextPageToken: Uint8Array | undefined = undefined;
-        const history = Array<temporal.api.history.v1.IHistoryEvent>();
-        for (;;) {
-          const response: temporal.api.workflowservice.v1.GetWorkflowExecutionHistoryResponse =
-            await this.client.connection.workflowService.getWorkflowExecutionHistory({
-              nextPageToken,
-              namespace: this.client.options.namespace,
-              execution: { workflowId: this.workflowId },
-            });
-          history.push(...(response.history?.events ?? []));
-          if (response.nextPageToken == null || response.nextPageToken.length === 0) break;
-          nextPageToken = response.nextPageToken;
-        }
-        return {
-          workflowId: this.workflowId,
-          history: temporal.api.history.v1.History.create({ events: history }),
-        };
       },
     };
   }

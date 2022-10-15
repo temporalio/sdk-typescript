@@ -41,6 +41,6 @@ export {
   WorkflowBundlePath,
   WorkflowBundlePathWithSourceMap, // eslint-disable-line deprecation/deprecation
 } from './worker-options';
-export { ReplayResults } from './replay';
+export { ReplayExecutions, ReplayHistories, ReplayHistoriesOrExecutions, ReplayResults } from './replay';
 export { WorkflowInboundLogInterceptor, workflowLogAttributes } from './workflow-log-interceptor';
 export { BundleOptions, bundleWorkflowCode, WorkflowBundleWithSourceMap } from './workflow/bundler';

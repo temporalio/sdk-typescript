@@ -12,7 +12,7 @@ export interface Context {
   runtime: Runtime;
 }
 
-async function getHist(fname: string): Promise<History> {
+async function getHistories(fname: string): Promise<History> {
   const isJson = fname.endsWith('json');
   const fpath = path.resolve(__dirname, `../history_files/${fname}`);
   if (isJson) {
@@ -55,7 +55,7 @@ test.before(async (t) => {
 });
 
 test('cancel-fake-progress-replay', async (t) => {
-  const hist = await getHist('cancel_fake_progress_history.bin');
+  const hist = await getHistories('cancel_fake_progress_history.bin');
   await Worker.runReplayHistory(
     {
       workflowsPath: require.resolve('./workflows'),
@@ -66,7 +66,7 @@ test('cancel-fake-progress-replay', async (t) => {
 });
 
 test('cancel-fake-progress-replay from JSON', async (t) => {
-  const hist = await getHist('cancel_fake_progress_history.json');
+  const hist = await getHistories('cancel_fake_progress_history.json');
   await Worker.runReplayHistory(
     {
       workflowsPath: require.resolve('./workflows'),
@@ -77,7 +77,7 @@ test('cancel-fake-progress-replay from JSON', async (t) => {
 });
 
 test('cancel-fake-progress-replay-nondeterministic', async (t) => {
-  const hist = await getHist('cancel_fake_progress_history.bin');
+  const hist = await getHistories('cancel_fake_progress_history.bin');
   // Manually alter the workflow type to point to different workflow code
   hist.events[0].workflowExecutionStartedEventAttributes!.workflowType!.name = 'http';
 
@@ -95,7 +95,7 @@ test('cancel-fake-progress-replay-nondeterministic', async (t) => {
 });
 
 test('workflow-task-failure-fails-replay', async (t) => {
-  const hist = await getHist('cancel_fake_progress_history.bin');
+  const hist = await getHistories('cancel_fake_progress_history.bin');
   // Manually alter the workflow type to point to our workflow which will fail workflow tasks
   hist.events[0].workflowExecutionStartedEventAttributes!.workflowType!.name = 'failsWorkflowTask';
 
@@ -111,29 +111,29 @@ test('workflow-task-failure-fails-replay', async (t) => {
 });
 
 test('multiple-histories-replay', async (t) => {
-  const hist1 = await getHist('cancel_fake_progress_history.bin');
-  const hist2 = await getHist('cancel_fake_progress_history.json');
-  const hists = historator([hist1, hist2]);
+  const hist1 = await getHistories('cancel_fake_progress_history.bin');
+  const hist2 = await getHistories('cancel_fake_progress_history.json');
+  const histories = historator([hist1, hist2]);
 
   const res = await Worker.runReplayHistories(
     {
       workflowsPath: require.resolve('./workflows'),
       replayName: t.title,
     },
-    hists
+    { histories }
   );
-  t.deepEqual(hists.timesCalled, 2);
+  t.deepEqual(histories.timesCalled, 2);
   t.deepEqual(res.hadAnyFailure, false);
   t.deepEqual(res.failureDetails.size, 0);
   t.pass();
 });
 
 test('multiple-histories-replay-fails-fast', async (t) => {
-  const hist1 = await getHist('cancel_fake_progress_history.bin');
-  const hist2 = await getHist('cancel_fake_progress_history.json');
+  const hist1 = await getHistories('cancel_fake_progress_history.bin');
+  const hist2 = await getHistories('cancel_fake_progress_history.json');
   hist1.events[0].workflowExecutionStartedEventAttributes!.workflowType!.name = 'http';
   hist2.events[0].workflowExecutionStartedEventAttributes!.workflowType!.name = 'http';
-  const hists = historator([hist1, hist2], true);
+  const histories = historator([hist1, hist2], true);
 
   await t.throwsAsync(
     Worker.runReplayHistories(
@@ -141,17 +141,17 @@ test('multiple-histories-replay-fails-fast', async (t) => {
         workflowsPath: require.resolve('./workflows'),
         replayName: t.title,
       },
-      hists
+      { histories }
     )
   );
-  t.deepEqual(hists.timesCalled, 1);
+  t.deepEqual(histories.timesCalled, 1);
 });
 
 test('multiple-histories-replay-fails-slow', async (t) => {
-  const hist1 = await getHist('cancel_fake_progress_history.bin');
-  const hist2 = await getHist('cancel_fake_progress_history.json');
+  const hist1 = await getHistories('cancel_fake_progress_history.bin');
+  const hist2 = await getHistories('cancel_fake_progress_history.json');
   hist1.events[0].workflowExecutionStartedEventAttributes!.workflowType!.name = 'http';
-  const hists = historator([hist1, hist2]);
+  const histories = historator([hist1, hist2]);
 
   const res = await Worker.runReplayHistories(
     {
@@ -159,9 +159,9 @@ test('multiple-histories-replay-fails-slow', async (t) => {
       replayName: t.title,
       failFast: false,
     },
-    hists
+    { histories }
   );
-  t.deepEqual(hists.timesCalled, 2);
+  t.deepEqual(histories.timesCalled, 2);
   t.deepEqual(res.hadAnyFailure, true);
   t.deepEqual(res.failureDetails.size, 1);
 });
