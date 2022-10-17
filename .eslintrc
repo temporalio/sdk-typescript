@@ -12,6 +12,7 @@
     "prettier"
   ],
   "rules": {
+    "no-duplicate-imports": "error",
     "object-shorthand": ["error", "always"],
     "deprecation/deprecation": "warn",
     "@typescript-eslint/no-explicit-any": 0,
@@ -42,7 +43,6 @@
     "import/no-mutable-exports": "error",
     "import/unambiguous": "error",
     "import/first": "error",
-    "import/no-duplicates": "error",
     // TODO next PR
     // "import/order": "error",
     "import/newline-after-import": "error",

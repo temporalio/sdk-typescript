@@ -3,7 +3,7 @@ import { SpanContext } from '@opentelemetry/api';
 import { defaultPayloadConverter, fromPayloadsAtIndex } from '@temporalio/common';
 import { msToTs } from '@temporalio/common/lib/time';
 import { coresdk } from '@temporalio/proto';
-import { DefaultLogger } from '@temporalio/worker/lib/logger';
+import { DefaultLogger } from '@temporalio/worker';
 import { byteArrayToBuffer } from '@temporalio/worker/lib/utils';
 import { errors, NativeWorkerLike, Worker as RealWorker } from '@temporalio/worker/lib/worker';
 import {
