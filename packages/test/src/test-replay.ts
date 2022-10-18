@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
 
 import { temporal } from '@temporalio/proto';
-import { DefaultLogger, Runtime, Worker } from '@temporalio/worker';
+import { DefaultLogger, ReplayError, Runtime, Worker } from '@temporalio/worker';
 import { DeterminismViolationError } from '@temporalio/workflow';
 import anyTest, { TestInterface } from 'ava';
 import * as fs from 'fs';
@@ -85,6 +85,7 @@ test('cancel-fake-progress-replay-nondeterministic', async (t) => {
     Worker.runReplayHistory(
       {
         workflowsPath: require.resolve('./workflows'),
+        failFast: false, // Verify this flag is ignored for single replay
       },
       hist
     ),
@@ -99,15 +100,17 @@ test('workflow-task-failure-fails-replay', async (t) => {
   // Manually alter the workflow type to point to our workflow which will fail workflow tasks
   hist.events[0].workflowExecutionStartedEventAttributes!.workflowType!.name = 'failsWorkflowTask';
 
-  await t.throwsAsync(
+  const err: ReplayError = await t.throwsAsync(
     Worker.runReplayHistory(
       {
         workflowsPath: require.resolve('./workflows'),
         replayName: t.title,
       },
       hist
-    )
+    ),
+    { instanceOf: ReplayError }
   );
+  t.false(err.isNonDeterminism);
 });
 
 test('multiple-histories-replay', async (t) => {

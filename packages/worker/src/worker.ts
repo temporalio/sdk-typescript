@@ -84,7 +84,10 @@ import { historyFromJSON } from '@temporalio/common/lib/proto-utils';
 import { activityLogAttributes } from './activity-log-interceptor';
 import { workflowLogAttributes } from './workflow-log-interceptor';
 import {
+  EvictionReason,
   fetchWorkflowHistory,
+  handleReplayEviction,
+  RemoveFromCache,
   ReplayError,
   ReplayHistoriesOrExecutions,
   ReplayResults,
@@ -92,8 +95,6 @@ import {
 } from './replay';
 
 import IWorkflowActivationJob = coresdk.workflow_activation.IWorkflowActivationJob;
-import EvictionReason = coresdk.workflow_activation.RemoveFromCache.EvictionReason;
-import IRemoveFromCache = coresdk.workflow_activation.IRemoveFromCache;
 
 export { DataConverter, defaultPayloadConverter, errors };
 
@@ -385,14 +386,14 @@ export class Worker {
   protected readonly evictionsSubject = new Subject<{
     workflowId?: string;
     runId: string;
-    evictJob: IRemoveFromCache;
+    evictJob: RemoveFromCache;
   }>();
   private readonly runIdsToSpanContext = new Map<string, SpanContext>();
 
   protected static nativeWorkerCtor: WorkerConstructor = NativeWorker;
   // Used to add uniqueness to replay worker task queue names
   protected static replayWorkerCount = 0;
-  private static readonly SELF_INDUCED_SHUTDOWN_EVICTION: IRemoveFromCache = {
+  private static readonly SELF_INDUCED_SHUTDOWN_EVICTION: RemoveFromCache = {
     message: 'Shutting down',
     reason: EvictionReason.FATAL,
   };
@@ -472,21 +473,32 @@ export class Worker {
     workflowId?: string
   ): Promise<void> {
     const validated = this.validateHistory(history);
-    await this.runReplayHistories(options, { histories: [{ history: validated, workflowId: workflowId ?? 'fake' }] });
+    try {
+      await this.runReplayHistories(
+        { ...options, failFast: true }, // Always failFast in single replay
+        { histories: [{ history: validated, workflowId: workflowId ?? 'fake' }] }
+      );
+    } catch (err) {
+      // Before supporting multiple history replays we used to throw DeterminismViolationError, the next line ensures we
+      // maintain that behavior.
+      if (err instanceof ReplayError && err.isNonDeterminism) {
+        throw new DeterminismViolationError(err.message);
+      }
+      throw err;
+    }
   }
 
   /**
-   * Create a replay Worker, running all histories provided by the passed in iterable (or
-   * downloading them if a client & iterable of workflow executions is provided).
+   * Create a replay Worker, running all histories provided by the passed in iterable (or downloading them if a client &
+   * iterable of workflow executions is provided).
    *
-   * If `options.failFast` is set, the function will throw upon the first encountered error. If not,
-   * all histories will be replayed and the returned results object will contain information about
-   * any failures.
+   * If `options.failFast` is set, the function will throw upon the first encountered error. Otherwise, all histories
+   * will be replayed and the returned results object will contain error information.
    *
-   * @throws {@link DeterminismViolationError} if in fail fast mode and there is some incompatible
-   * history.
+   * @throws {@link ReplayError} if in fail-fast mode and there is some incompatible history or on any other error that
+   * may fail a workflow task.
    *
-   * @experimental - this API is not considered stable
+   * @experimental - this API is considered unstable
    */
   public static async runReplayHistories(
     options: ReplayWorkerOptions,
@@ -578,23 +590,8 @@ export class Worker {
           if (workflowId === undefined) {
             throw new errors.UnexpectedError('Expected workflowId to be set on eviction');
           }
-          let error = undefined;
-          if (evictJob.reason === EvictionReason.NONDETERMINISM) {
-            error = new ReplayError(
-              workflowId,
-              runId,
-              true,
-              'Replay failed with a nondeterminism error. This means that the workflow code as written ' +
-                `is not compatible with the history that was fed in. Details: ${evictJob.message}`
-            );
-          } else if (
-            // Both of these reasons are not considered errors.
-            // LANG_REQUESTED is used internally by Core to support duplicate runIds during replay.
-            !(evictJob.reason === EvictionReason.CACHE_FULL || evictJob.reason === EvictionReason.LANG_REQUESTED)
-          ) {
-            error = new ReplayError(workflowId, runId, false, `Replay failed. Details: ${evictJob.message}`);
-          }
-          if (error !== undefined) {
+          const error = handleReplayEviction(evictJob, workflowId, runId);
+          if (error != null) {
             if (opts.failFast !== false) {
               throw error;
             }
