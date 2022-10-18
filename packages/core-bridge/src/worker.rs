@@ -283,21 +283,21 @@ pub fn replay_worker_new(mut cx: FunctionContext) -> JsResult<JsUndefined> {
 }
 
 pub fn push_history(mut cx: FunctionContext) -> JsResult<JsUndefined> {
-    let pusher = cx.argument::<JsBox<HistForReplayTunnel>>(0)?;
-    let wfid = cx.argument::<JsString>(1)?;
+    let pusher = cx.argument::<JsBox<HistoryForReplayTunnel>>(0)?;
+    let workflow_id = cx.argument::<JsString>(1)?;
     let history_binary = cx.argument::<JsArrayBuffer>(2)?;
     let callback = cx.argument::<JsFunction>(3)?;
     let data = history_binary.as_slice(&mut cx);
     match History::decode_length_delimited(data) {
         Ok(hist) => {
-            let wfid = wfid.value(&mut cx);
+            let workflow_id = workflow_id.value(&mut cx);
             if let Err(e) = pusher.get_chan().map(|chan| {
                 pusher
                     .runtime
                     .sender
                     .send(RuntimeRequest::PushReplayHistory {
                         tx: chan,
-                        pushme: HistoryForReplay::new(hist, wfid),
+                        pushme: HistoryForReplay::new(hist, workflow_id),
                         callback: callback.root(&mut cx),
                     })
             }) {
@@ -310,7 +310,7 @@ pub fn push_history(mut cx: FunctionContext) -> JsResult<JsUndefined> {
 }
 
 pub fn close_history_stream(mut cx: FunctionContext) -> JsResult<JsUndefined> {
-    let pusher = cx.argument::<JsBox<HistForReplayTunnel>>(0)?;
+    let pusher = cx.argument::<JsBox<HistoryForReplayTunnel>>(0)?;
     pusher.shutdown();
     Ok(cx.undefined())
 }

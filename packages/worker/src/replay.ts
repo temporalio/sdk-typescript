@@ -3,11 +3,37 @@ import { Client } from '@temporalio/client';
 import { History } from './runtime';
 import { WorkflowExecution } from '@temporalio/client';
 
+/**
+ * Error thrown when using the Worker to replay Workflow(s).
+ */
+export class ReplayError extends Error {
+  public readonly name = 'ReplayError';
+
+  constructor(
+    /**
+     * Workflow ID of the Workflow that failed to replay
+     */
+    public readonly workflowId: string,
+    /**
+     * Run ID of the Workflow that failed to replay
+     */
+    public runId: string,
+    /**
+     * Whether or not this error is caused by non-determinism
+     */
+    public readonly isNonDeterminism: boolean,
+    /**
+     * Why replay failed
+     */
+    message: string
+  ) {
+    super(message);
+  }
+}
+
 export interface ReplayResults {
-  /** True if any workflow failed replay */
-  readonly hadAnyFailure: boolean;
   /** Maps run id to information about the replay failure */
-  readonly failureDetails: Map<string, Error>;
+  readonly errors: ReplayError[];
 }
 
 /**

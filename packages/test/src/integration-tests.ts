@@ -1327,44 +1327,38 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
 
   test('Download and replay multiple executions', async (t) => {
     const { metaClient: client } = t.context;
-    const tq = 'test';
+    const taskQueue = 'test';
     const e1 = await client.workflow.start(workflows.argsAndReturn, {
-      taskQueue: tq,
+      taskQueue,
       workflowId: uuid4(),
       args: ['Hello', undefined, u8('world!')],
     });
     const e2 = await client.workflow.start(workflows.cancelFakeProgress, {
-      taskQueue: tq,
+      taskQueue,
       workflowId: uuid4(),
     });
     const e3 = await client.workflow.start(workflows.childWorkflowInvoke, {
-      taskQueue: tq,
+      taskQueue,
       workflowId: uuid4(),
     });
     const e4 = await client.workflow.start(workflows.activityFailures, {
-      taskQueue: tq,
+      taskQueue,
       workflowId: uuid4(),
     });
     const handles = [e1, e2, e3, e4];
-    await Promise.all(
-      handles.map(async (h) => {
-        return await h.result();
-      })
-    );
-    const execIter = {
-      async *[Symbol.asyncIterator]() {
-        for (const h of handles) {
-          yield { workflowId: h.workflowId, runId: h.firstExecutionRunId };
-        }
-      },
-    };
+    await Promise.all(handles.map((h) => h.result()));
+    const executions = (async function* () {
+      for (const { workflowId, firstExecutionRunId } of handles) {
+        yield { workflowId, runId: firstExecutionRunId };
+      }
+    })();
 
     await Worker.runReplayHistories(
       {
         workflowsPath: require.resolve('./workflows'),
         dataConverter: t.context.dataConverter,
       },
-      { client, executions: execIter }
+      { client, executions }
     );
     t.pass();
   });

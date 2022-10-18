@@ -336,14 +336,6 @@ export interface TemporaliteConfig {
  */
 export type EphemeralServerConfig = TimeSkippingServerConfig | TemporaliteConfig;
 
-/**
- * A history proto with a workflow id, for replay
- */
-export interface HistoryWithWfID {
-  workflowID: string;
-  historyBytes: ArrayBuffer;
-}
-
 export interface Worker {
   type: 'Worker';
 }
@@ -386,7 +378,7 @@ export declare function newReplayWorker(
 ): void;
 export declare function pushHistory(
   pusher: HistoryPusher,
-  workflowID: string,
+  workflowId: string,
   history: ArrayBuffer,
   callback: VoidCallback
 ): void;

@@ -83,7 +83,13 @@ import * as path from 'node:path';
 import { historyFromJSON } from '@temporalio/common/lib/proto-utils';
 import { activityLogAttributes } from './activity-log-interceptor';
 import { workflowLogAttributes } from './workflow-log-interceptor';
-import { fetchWorkflowHistory, ReplayHistoriesOrExecutions, ReplayResults, ReplayRunOptions } from './replay';
+import {
+  fetchWorkflowHistory,
+  ReplayError,
+  ReplayHistoriesOrExecutions,
+  ReplayResults,
+  ReplayRunOptions,
+} from './replay';
 
 import IWorkflowActivationJob = coresdk.workflow_activation.IWorkflowActivationJob;
 import EvictionReason = coresdk.workflow_activation.RemoveFromCache.EvictionReason;
@@ -376,7 +382,11 @@ export class Worker {
   protected readonly numInFlightActivitiesSubject = new BehaviorSubject<number>(0);
   protected readonly numCachedWorkflowsSubject = new BehaviorSubject<number>(0);
   protected readonly numHeartbeatingActivitiesSubject = new BehaviorSubject<number>(0);
-  protected readonly evictionsSubject = new Subject<{ runId: string; evictJob: IRemoveFromCache }>();
+  protected readonly evictionsSubject = new Subject<{
+    workflowId?: string;
+    runId: string;
+    evictJob: IRemoveFromCache;
+  }>();
   private readonly runIdsToSpanContext = new Map<string, SpanContext>();
 
   protected static nativeWorkerCtor: WorkerConstructor = NativeWorker;
@@ -554,7 +564,7 @@ export class Worker {
     const pollerShutdown = firstValueFrom(
       constructedWorker.workflowPollerStateSubject.pipe(filter((state) => state !== 'POLLING'))
     );
-    const results = { hadAnyFailure: false, failureDetails: new Map() };
+    const results: ReplayResults = { errors: [] };
 
     const evictionPromise = firstValueFrom(
       constructedWorker.evictionsSubject.pipe(
@@ -564,23 +574,28 @@ export class Worker {
             evictJob.message !== this.SELF_INDUCED_SHUTDOWN_EVICTION.message &&
             evictJob.reason !== this.SELF_INDUCED_SHUTDOWN_EVICTION.reason
         ),
-        map(({ runId, evictJob }) => {
-          let err = undefined;
+        map(({ workflowId, runId, evictJob }) => {
+          if (workflowId === undefined) {
+            throw new errors.UnexpectedError('Expected workflowId to be set on eviction');
+          }
+          let error = undefined;
           if (evictJob.reason === EvictionReason.CACHE_FULL) {
             // Nothing to do here. In multiple-history replay this is fully expected.
           } else if (evictJob.reason === EvictionReason.NONDETERMINISM) {
-            err = new DeterminismViolationError(
+            error = new ReplayError(
+              workflowId,
+              runId,
+              true,
               'Replay failed with a nondeterminism error. This means that the workflow code as written ' +
                 `is not compatible with the history that was fed in. Details: ${evictJob.message}`
             );
           } else {
-            err = new Error(`Replay failed. Details: ${evictJob.message}`);
+            error = new ReplayError(workflowId, runId, false, `Replay failed. Details: ${evictJob.message}`);
           }
-          if (err !== undefined) {
-            results.hadAnyFailure = true;
-            results.failureDetails.set(runId, err);
+          if (error !== undefined) {
+            results.errors.push(error);
             if (opts.failFast !== false) {
-              throw err;
+              throw error;
             }
           }
         })
@@ -1075,6 +1090,7 @@ export class Worker {
                     const asEvictJob = jobs.splice(removeFromCacheIx, 1)[0].removeFromCache;
                     if (asEvictJob) {
                       this.evictionsSubject.next({
+                        workflowId: state?.info.workflowId,
                         runId: activation.runId,
                         evictJob: asEvictJob,
                       });

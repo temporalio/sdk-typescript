@@ -87,7 +87,7 @@ export class CoreLogger extends DefaultLogger {
   }
 }
 
-type TrackedNativeObject = native.Client | native.Worker | native.EphemeralServer | native.ReplayWorker;
+type TrackedNativeObject = native.Client | native.Worker | native.EphemeralServer;
 
 /**
  * Core singleton representing an instance of the Rust Core SDK
@@ -287,16 +287,33 @@ export class Runtime {
 
   /** @hidden */
   public async createReplayWorker(options: native.WorkerOptions): Promise<native.ReplayWorker> {
-    return await this.createNative(promisify(native.newReplayWorker), this.native, options);
+    return await this.createNativeNoBackRef(async () => {
+      const fn = promisify(native.newReplayWorker);
+      const replayWorker = await fn(this.native, options);
+      this.backRefs.add(replayWorker.worker);
+      return replayWorker;
+    });
   }
 
-  /** @hidden */
-  public async pushHistory(pusher: native.HistoryPusher, workflowID: string, history: History): Promise<void> {
+  /**
+   * Push history to a replay worker's history pusher stream.
+   *
+   * Hidden in the docs because it is only meant to be used internally by the Worker.
+   *
+   * @hidden
+   */
+  public async pushHistory(pusher: native.HistoryPusher, workflowId: string, history: History): Promise<void> {
     const encoded = byteArrayToBuffer(temporal.api.history.v1.History.encodeDelimited(history).finish());
-    return await promisify(native.pushHistory)(pusher, workflowID, encoded);
+    return await promisify(native.pushHistory)(pusher, workflowId, encoded);
   }
 
-  /** @hidden */
+  /**
+   * Close a replay worker's history pusher stream.
+   *
+   * Hidden in the docs because it is only meant to be used internally by the Worker.
+   *
+   * @hidden
+   */
   public closeHistoryStream(pusher: native.HistoryPusher): void {
     native.closeHistoryStream(pusher);
   }
@@ -340,12 +357,21 @@ export class Runtime {
     Args extends any[],
     F extends (...args: Args) => Promise<R>
   >(f: F, ...args: Args): Promise<R> {
+    return this.createNativeNoBackRef(async () => {
+      const ref = await f(...args);
+      this.backRefs.add(ref);
+      return ref;
+    });
+  }
+
+  protected async createNativeNoBackRef<R, Args extends any[], F extends (...args: Args) => Promise<R>>(
+    f: F,
+    ...args: Args
+  ): Promise<R> {
     this.pendingCreations++;
     try {
       try {
-        const ref = await f(...args);
-        this.backRefs.add(ref);
-        return ref;
+        return await f(...args);
       } finally {
         this.pendingCreations--;
       }

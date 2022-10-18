@@ -123,14 +123,14 @@ test('multiple-histories-replay', async (t) => {
     { histories }
   );
   t.deepEqual(histories.timesCalled, 2);
-  t.deepEqual(res.hadAnyFailure, false);
-  t.deepEqual(res.failureDetails.size, 0);
+  t.deepEqual(res.errors.length, 0);
   t.pass();
 });
 
 test('multiple-histories-replay-fails-fast', async (t) => {
   const hist1 = await getHistories('cancel_fake_progress_history.bin');
   const hist2 = await getHistories('cancel_fake_progress_history.json');
+  // change workflow type to break determinism
   hist1.events[0].workflowExecutionStartedEventAttributes!.workflowType!.name = 'http';
   hist2.events[0].workflowExecutionStartedEventAttributes!.workflowType!.name = 'http';
   const histories = historator([hist1, hist2], true);
@@ -150,6 +150,7 @@ test('multiple-histories-replay-fails-fast', async (t) => {
 test('multiple-histories-replay-fails-slow', async (t) => {
   const hist1 = await getHistories('cancel_fake_progress_history.bin');
   const hist2 = await getHistories('cancel_fake_progress_history.json');
+  // change workflow type to break determinism
   hist1.events[0].workflowExecutionStartedEventAttributes!.workflowType!.name = 'http';
   const histories = historator([hist1, hist2]);
 
@@ -162,6 +163,5 @@ test('multiple-histories-replay-fails-slow', async (t) => {
     { histories }
   );
   t.deepEqual(histories.timesCalled, 2);
-  t.deepEqual(res.hadAnyFailure, true);
-  t.deepEqual(res.failureDetails.size, 1);
+  t.deepEqual(res.errors.length, 1);
 });

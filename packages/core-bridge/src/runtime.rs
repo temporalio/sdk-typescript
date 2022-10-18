@@ -223,7 +223,7 @@ pub fn start_bridge_loop(channel: Arc<Channel>, receiver: &mut UnboundedReceiver
                     config,
                     callback,
                 } => {
-                    let (tunnel, stream) = HistForReplayTunnel::new(runtime);
+                    let (tunnel, stream) = HistoryForReplayTunnel::new(runtime);
                     match init_replay_worker(config, Box::pin(stream)) {
                         Ok(worker) => {
                             let (tx, rx) = unbounded_channel();
@@ -465,15 +465,15 @@ pub fn client_update_headers(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     Ok(cx.undefined())
 }
 
-pub(crate) struct HistForReplayTunnel {
+pub(crate) struct HistoryForReplayTunnel {
     pub(crate) runtime: Arc<RuntimeHandle>,
     sender: Cell<Option<Sender<HistoryForReplay>>>,
 }
-impl HistForReplayTunnel {
+impl HistoryForReplayTunnel {
     fn new(runtime: Arc<RuntimeHandle>) -> (Self, ReceiverStream<HistoryForReplay>) {
         let (sender, rx) = channel(1);
         (
-            HistForReplayTunnel {
+            HistoryForReplayTunnel {
                 runtime,
                 sender: Cell::new(Some(sender)),
             },
@@ -493,4 +493,4 @@ impl HistForReplayTunnel {
         self.sender.take();
     }
 }
-impl Finalize for HistForReplayTunnel {}
+impl Finalize for HistoryForReplayTunnel {}
