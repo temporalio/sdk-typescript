@@ -32,6 +32,7 @@ export class ReplayError extends Error {
 }
 
 export interface ReplayResults {
+  readonly hasErrors: boolean;
   /** Maps run id to information about the replay failure */
   readonly errors: ReplayError[];
 }

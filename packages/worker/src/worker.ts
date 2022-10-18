@@ -564,7 +564,7 @@ export class Worker {
     const pollerShutdown = firstValueFrom(
       constructedWorker.workflowPollerStateSubject.pipe(filter((state) => state !== 'POLLING'))
     );
-    const results: ReplayResults = { errors: [] };
+    const replayErrors = Array<ReplayError>();
 
     const evictionPromise = firstValueFrom(
       constructedWorker.evictionsSubject.pipe(
@@ -579,9 +579,7 @@ export class Worker {
             throw new errors.UnexpectedError('Expected workflowId to be set on eviction');
           }
           let error = undefined;
-          if (evictJob.reason === EvictionReason.CACHE_FULL) {
-            // Nothing to do here. In multiple-history replay this is fully expected.
-          } else if (evictJob.reason === EvictionReason.NONDETERMINISM) {
+          if (evictJob.reason === EvictionReason.NONDETERMINISM) {
             error = new ReplayError(
               workflowId,
               runId,
@@ -589,14 +587,18 @@ export class Worker {
               'Replay failed with a nondeterminism error. This means that the workflow code as written ' +
                 `is not compatible with the history that was fed in. Details: ${evictJob.message}`
             );
-          } else {
+          } else if (
+            // Both of these reasons are not considered errors.
+            // LANG_REQUESTED is used internally by Core to support duplicate runIds during replay.
+            !(evictJob.reason === EvictionReason.CACHE_FULL || evictJob.reason === EvictionReason.LANG_REQUESTED)
+          ) {
             error = new ReplayError(workflowId, runId, false, `Replay failed. Details: ${evictJob.message}`);
           }
           if (error !== undefined) {
-            results.errors.push(error);
             if (opts.failFast !== false) {
               throw error;
             }
+            replayErrors.push(error);
           }
         })
       )
@@ -609,7 +611,7 @@ export class Worker {
         // We may have already shut down and that's fine
       }
     });
-    return results;
+    return { errors: replayErrors, hasErrors: replayErrors.length > 0 };
   }
 
   protected static async getOrCreateBundle(

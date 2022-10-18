@@ -24,13 +24,13 @@ async function getHistories(fname: string): Promise<History> {
   }
 }
 
-function historator(hists: Array<History>, goSlow?: boolean) {
+function historator(histories: Array<History>, goSlow?: boolean) {
   return {
     timesCalled: 0,
     async *[Symbol.asyncIterator]() {
-      for (const hist of hists) {
+      for (const history of histories) {
         this.timesCalled++;
-        yield { workflowId: 'fake', history: hist };
+        yield { workflowId: 'fake', history };
         if (goSlow) {
           // This matters because the exception propagation from the worker takes a long time
           // compared to this generator. This sleep makes it more realistic for a
