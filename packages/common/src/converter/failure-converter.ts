@@ -64,7 +64,7 @@ export interface FailureConverter {
   /**
    * Converts a Failure proto message to a JS Error object.
    */
-  failureToError(err: ProtoFailure): TemporalFailure;
+  failureToError(err: ProtoFailure): Error;
 }
 
 /**
@@ -193,7 +193,7 @@ export class DefaultFailureConverter implements FailureConverter {
     return new TemporalFailure(failure.message ?? undefined, this.optionalFailureToOptionalError(failure.cause));
   }
 
-  failureToError(failure: ProtoFailure): TemporalFailure {
+  failureToError(failure: ProtoFailure): Error {
     if (failure.encodedAttributes) {
       const attrs = this.options.payloadConverter.fromPayload<DefaultEncodedFailureAttributes>(
         failure.encodedAttributes
@@ -342,7 +342,7 @@ export class DefaultFailureConverter implements FailureConverter {
   /**
    * Converts a Failure proto message to a JS Error object if defined or returns undefined.
    */
-  optionalFailureToOptionalError(failure: ProtoFailure | undefined | null): TemporalFailure | undefined {
+  optionalFailureToOptionalError(failure: ProtoFailure | undefined | null): Error | undefined {
     return failure ? this.failureToError(failure) : undefined;
   }
 
