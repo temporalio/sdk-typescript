@@ -1,14 +1,8 @@
 name: Stress tests
 
 on:
-  workflow_call:
-    inputs:
-      test-type:
-        required: true
-        type: string
-      test-timeout-minutes:
-        required: true
-        type: number
+  pull_request:
+    types: [opened, synchronize, reopened]
 
 env:
   TEMPORAL_TESTING_LOG_DIR: /tmp/worker-logs
