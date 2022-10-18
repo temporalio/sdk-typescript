@@ -11,64 +11,8 @@ env:
 
 jobs:
   stress-test:
-    runs-on: [self-hosted, Linux, X64]
+    runs-on: [self-hosted]
     steps:
-      - name: Print build info
-        run: 'echo test-type: ${{ inputs.test-type }}, test-timeout-minutes: ${{ inputs.test-timeout-minutes }}'
-      - uses: actions/checkout@v2
-        with:
-          submodules: recursive
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-      - uses: actions/setup-node@v1
-        with:
-          node-version: ${{ matrix.node }}
-      - name: Install protoc
-        uses: arduino/setup-protoc@v1
-        with:
-          version: '3.x'
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-      - uses: Swatinem/rust-cache@v1
-        with:
-          working-directory: packages/core-bridge
-      # Don't build during install phase since we're going to explicitly build
-      - run: npm ci --ignore-scripts
-      - run: npm run build
-        env:
-          BUILD_CORE_RELEASE: true
-
-      # docker-compose
-      - name: Checkout docker-compose repo
-        uses: actions/checkout@v2
-        with:
-          repository: temporalio/docker-compose
-          path: docker-compose
-          ref: v1.17.1
-
-      - name: Start Temporal Server
-        run: docker-compose up -d
-        working-directory: docker-compose
-
-      - name: Wait for Temporal Server
-        run: npm run wait-namespace
-      # end:docker-compose
-
-      - run: mkdir -p $TEMPORAL_TESTING_LOG_DIR/tails
-      - run: mkdir -p $TEMPORAL_TESTING_MEM_LOG_DIR
-      - run: 'timeout ${{ inputs.test-timeout-minutes }}m npm run ${{ inputs.test-type }}'
-      - run: for f in $TEMPORAL_TESTING_LOG_DIR/*.log; do tail -20000 $f > $TEMPORAL_TESTING_LOG_DIR/tails/$(basename $f); done
-        if: ${{ always() }}
-      - uses: actions/upload-artifact@v3
-        if: ${{ always() }}
-        with:
-          name: worker-logs
-          path: ${{ env.TEMPORAL_TESTING_LOG_DIR }}/tails
-      - uses: actions/upload-artifact@v3
-        if: ${{ always() }}
-        with:
-          name: worker-mem-logs
-          path: ${{ env.TEMPORAL_TESTING_MEM_LOG_DIR }}
-
-      # TODO: set up alerting
-      # TODO: record test durations and other metrics like memory usage / cache utilization / CPU
+      - name: Print stuff
+        run: 'echo hi'
+      
