@@ -1,13 +1,10 @@
-use crate::conversions::ObjectHandleConversionsExt;
-use crate::errors::*;
-use crate::helpers::*;
-use crate::runtime::*;
+use crate::{conversions::ObjectHandleConversionsExt, errors::*, helpers::*, runtime::*};
 use futures::stream::StreamExt;
-use neon::prelude::*;
-use neon::types::buffer::TypedArray;
+use neon::{prelude::*, types::buffer::TypedArray};
 use opentelemetry::trace::{FutureExt, SpanContext, TraceContextExt};
 use prost::Message;
 use std::{cell::RefCell, sync::Arc};
+use temporal_sdk_core::replay::HistoryForReplay;
 use temporal_sdk_core::{
     api::{
         errors::{CompleteActivityError, CompleteWfError, PollActivityError, PollWfError},
@@ -270,27 +267,51 @@ pub fn worker_new(mut cx: FunctionContext) -> JsResult<JsUndefined> {
 pub fn replay_worker_new(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     let runtime = cx.argument::<BoxedRuntime>(0)?;
     let worker_options = cx.argument::<JsObject>(1)?;
-    let history_binary = cx.argument::<JsArrayBuffer>(2)?;
-    let callback = cx.argument::<JsFunction>(3)?;
+    let callback = cx.argument::<JsFunction>(2)?;
 
     let config = worker_options.as_worker_config(&mut cx)?;
+    let request = RuntimeRequest::InitReplayWorker {
+        runtime: (*runtime).clone(),
+        config,
+        callback: callback.root(&mut cx),
+    };
+    if let Err(err) = runtime.sender.send(request) {
+        callback_with_unexpected_error(&mut cx, callback, err)?;
+    };
+
+    Ok(cx.undefined())
+}
+
+pub fn push_history(mut cx: FunctionContext) -> JsResult<JsUndefined> {
+    let pusher = cx.argument::<JsBox<HistoryForReplayTunnel>>(0)?;
+    let workflow_id = cx.argument::<JsString>(1)?;
+    let history_binary = cx.argument::<JsArrayBuffer>(2)?;
+    let callback = cx.argument::<JsFunction>(3)?;
     let data = history_binary.as_slice(&mut cx);
     match History::decode_length_delimited(data) {
-        Ok(history) => {
-            let request = RuntimeRequest::InitReplayWorker {
-                config,
-                history,
-                callback: callback.root(&mut cx),
-            };
-            if let Err(err) = runtime.sender.send(request) {
-                callback_with_unexpected_error(&mut cx, callback, err)?;
-            };
+        Ok(hist) => {
+            let workflow_id = workflow_id.value(&mut cx);
+            if let Err(e) = pusher.get_chan().map(|chan| {
+                pusher
+                    .runtime
+                    .sender
+                    .send(RuntimeRequest::PushReplayHistory {
+                        tx: chan,
+                        pushme: HistoryForReplay::new(hist, workflow_id),
+                        callback: callback.root(&mut cx),
+                    })
+            }) {
+                callback_with_unexpected_error(&mut cx, callback, e)?;
+            }
+            Ok(cx.undefined())
         }
-        Err(_) => callback_with_error(&mut cx, callback, |cx| {
-            JsError::type_error(cx, "Cannot decode History from buffer")
-        })?,
+        Err(e) => cx.throw_error(format!("Error decoding history: {:?}", e)),
     }
+}
 
+pub fn close_history_stream(mut cx: FunctionContext) -> JsResult<JsUndefined> {
+    let pusher = cx.argument::<JsBox<HistoryForReplayTunnel>>(0)?;
+    pusher.shutdown();
     Ok(cx.undefined())
 }
 

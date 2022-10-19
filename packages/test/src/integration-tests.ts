@@ -3,6 +3,7 @@ import path from 'node:path';
 import {
   ActivityFailure,
   ApplicationFailure,
+  Client,
   Connection,
   QueryNotRegisteredError,
   WorkflowClient,
@@ -11,6 +12,7 @@ import {
 } from '@temporalio/client';
 import {
   ChildWorkflowFailure,
+  DataConverter,
   defaultFailureConverter,
   defaultPayloadConverter,
   Payload,
@@ -27,7 +29,7 @@ import {
 import { tsToMs } from '@temporalio/common/lib/time';
 import { decode, decodeFromPayloadsAtIndex, loadDataConverter } from '@temporalio/common/lib/internal-non-workflow';
 import * as iface from '@temporalio/proto';
-import { DefaultLogger, Runtime, Worker, appendDefaultInterceptors } from '@temporalio/worker';
+import { appendDefaultInterceptors, DefaultLogger, Runtime, Worker } from '@temporalio/worker';
 import pkg from '@temporalio/worker/lib/pkg';
 import * as grpc from '@grpc/grpc-js';
 import v8 from 'v8';
@@ -53,6 +55,8 @@ const CHANGE_MARKER_NAME = 'core_patch';
 export interface Context {
   worker: Worker;
   client: WorkflowClient;
+  metaClient: Client;
+  dataConverter: DataConverter;
   runPromise: Promise<void>;
 }
 
@@ -94,10 +98,14 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
     runPromise.catch((err) => {
       console.error('Caught error while worker was running', err);
     });
+
+    const metaClient = new Client({ connection, dataConverter });
     t.context = {
       worker,
       runPromise,
-      client: new WorkflowClient({ connection, dataConverter }),
+      dataConverter,
+      client: metaClient.workflow,
+      metaClient,
     };
 
     // In case we're running with temporalite or other non default server.
@@ -1314,6 +1322,44 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
     });
     await handle.query(workflows.mutateWorkflowStateQuery);
     // Worker did not crash
+    t.pass();
+  });
+
+  test('Download and replay multiple executions', async (t) => {
+    const { metaClient: client } = t.context;
+    const taskQueue = 'test';
+    const e1 = await client.workflow.start(workflows.argsAndReturn, {
+      taskQueue,
+      workflowId: uuid4(),
+      args: ['Hello', undefined, u8('world!')],
+    });
+    const e2 = await client.workflow.start(workflows.cancelFakeProgress, {
+      taskQueue,
+      workflowId: uuid4(),
+    });
+    const e3 = await client.workflow.start(workflows.childWorkflowInvoke, {
+      taskQueue,
+      workflowId: uuid4(),
+    });
+    const e4 = await client.workflow.start(workflows.activityFailures, {
+      taskQueue,
+      workflowId: uuid4(),
+    });
+    const handles = [e1, e2, e3, e4];
+    await Promise.all(handles.map((h) => h.result()));
+    const executions = (async function* () {
+      for (const { workflowId, firstExecutionRunId } of handles) {
+        yield { workflowId, runId: firstExecutionRunId };
+      }
+    })();
+
+    await Worker.runReplayHistories(
+      {
+        workflowsPath: require.resolve('./workflows'),
+        dataConverter: t.context.dataConverter,
+      },
+      { client, executions }
+    );
     t.pass();
   });
 }

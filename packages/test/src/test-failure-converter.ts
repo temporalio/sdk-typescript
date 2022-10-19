@@ -1,7 +1,8 @@
 import { TestWorkflowEnvironment } from '@temporalio/testing';
 import { Worker } from '@temporalio/worker';
+import { fetchWorkflowHistory } from '@temporalio/worker/lib/replay';
 import { randomUUID } from 'crypto';
-import { test, bundlerOptions, getHistoryEvents, ByteSkewerPayloadCodec } from './helpers';
+import { test, bundlerOptions, ByteSkewerPayloadCodec } from './helpers';
 import {
   DefaultFailureConverter,
   ApplicationFailure,
@@ -47,8 +48,8 @@ test('Client and Worker use provided failureConverter', async (t) => {
     t.true(err.cause?.stack?.startsWith('ApplicationFailure: error message\n'));
 
     // Verify failure was indeed encoded
-    const events = await getHistoryEvents(handle);
-    const payload = events[events.length - 1].workflowExecutionFailedEventAttributes?.failure?.encodedAttributes;
+    const { events } = await fetchWorkflowHistory(env.client, handle.workflowId);
+    const payload = events?.[events.length - 1].workflowExecutionFailedEventAttributes?.failure?.encodedAttributes;
     const attrs = await decodeFromPayloadsAtIndex<DefaultEncodedFailureAttributes>(
       env.client.options.loadedDataConverter,
       0,

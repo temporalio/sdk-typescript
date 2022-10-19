@@ -348,10 +348,19 @@ export interface Client {
 export interface EphemeralServer {
   type: 'EphemeralServer';
 }
+export interface HistoryPusher {
+  type: 'HistoryPusher';
+}
+export interface ReplayWorker {
+  type: 'ReplayWorker';
+  worker: Worker;
+  pusher: HistoryPusher;
+}
 
 export declare type Callback<T> = (err: Error, result: T) => void;
 export declare type PollCallback = (err: Error, result: ArrayBuffer) => void;
 export declare type WorkerCallback = (err: Error, result: Worker) => void;
+export declare type ReplayWorkerCallback = (err: Error, worker: ReplayWorker) => void;
 export declare type ClientCallback = (err: Error, result: Client) => void;
 export declare type VoidCallback = (err: Error, result: void) => void;
 export declare type LogsCallback = (err: Error, result: LogEntry[]) => void;
@@ -365,9 +374,15 @@ export declare function newWorker(client: Client, workerOptions: WorkerOptions, 
 export declare function newReplayWorker(
   runtime: Runtime,
   workerOptions: WorkerOptions,
-  history: ArrayBuffer,
-  callback: WorkerCallback
+  callback: ReplayWorkerCallback
 ): void;
+export declare function pushHistory(
+  pusher: HistoryPusher,
+  workflowId: string,
+  history: ArrayBuffer,
+  callback: VoidCallback
+): void;
+export declare function closeHistoryStream(pusher: HistoryPusher): void;
 export declare function workerInitiateShutdown(worker: Worker, callback: VoidCallback): void;
 export declare function workerFinalizeShutdown(worker: Worker): void;
 export declare function clientUpdateHeaders(
