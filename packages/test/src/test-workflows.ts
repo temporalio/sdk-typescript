@@ -208,20 +208,20 @@ function makeNotifyHasPatchJob(patchId: string): coresdk.workflow_activation.IWo
   };
 }
 
-async function makeQueryWorkflow(
+function makeQueryWorkflow(
   queryId: string,
   queryType: string,
   queryArgs: any[],
   timestamp: number = Date.now()
-): Promise<coresdk.workflow_activation.IWorkflowActivation> {
-  return makeActivation(timestamp, await makeQueryWorkflowJob(queryId, queryType, ...queryArgs));
+): coresdk.workflow_activation.IWorkflowActivation {
+  return makeActivation(timestamp, makeQueryWorkflowJob(queryId, queryType, ...queryArgs));
 }
 
-async function makeQueryWorkflowJob(
+function makeQueryWorkflowJob(
   queryId: string,
   queryType: string,
   ...queryArgs: any[]
-): Promise<coresdk.workflow_activation.IWorkflowActivationJob> {
+): coresdk.workflow_activation.IWorkflowActivationJob {
   return {
     queryWorkflow: {
       queryId,
@@ -590,7 +590,7 @@ test('invalidOrFailedQueries', async (t) => {
   }
   {
     const completion = cleanWorkflowQueryFailureStackTrace(
-      await activate(t, await makeQueryWorkflow('3', 'invalidAsyncMethod', []))
+      await activate(t, makeQueryWorkflow('3', 'invalidAsyncMethod', []))
     );
     compareCompletion(
       t,
@@ -612,7 +612,7 @@ test('invalidOrFailedQueries', async (t) => {
     );
   }
   {
-    const completion = cleanWorkflowQueryFailureStackTrace(await activate(t, await makeQueryWorkflow('3', 'fail', [])));
+    const completion = cleanWorkflowQueryFailureStackTrace(await activate(t, makeQueryWorkflow('3', 'fail', [])));
     compareCompletion(
       t,
       completion,
@@ -813,7 +813,7 @@ test('unblock - unblockOrCancel', async (t) => {
     compareCompletion(t, completion, makeSuccess([]));
   }
   {
-    const completion = await activate(t, await makeQueryWorkflow('1', 'isBlocked', []));
+    const completion = await activate(t, makeQueryWorkflow('1', 'isBlocked', []));
     compareCompletion(
       t,
       completion,
@@ -830,7 +830,7 @@ test('unblock - unblockOrCancel', async (t) => {
     compareCompletion(t, completion, makeSuccess());
   }
   {
-    const completion = await activate(t, await makeQueryWorkflow('2', 'isBlocked', []));
+    const completion = await activate(t, makeQueryWorkflow('2', 'isBlocked', []));
     compareCompletion(
       t,
       completion,
@@ -1837,6 +1837,37 @@ test('scopeCancelledWhileWaitingOnExternalWorkflowCancellation', async (t) => {
         {
           completeWorkflowExecution: { result: defaultPayloadConverter.toPayload(undefined) },
         },
+      ])
+    );
+  }
+});
+
+test('query not found - successString', async (t) => {
+  const { workflowType } = t.context;
+  {
+    const completion = await activate(
+      t,
+      makeActivation(undefined, makeStartWorkflowJob(workflowType), makeQueryWorkflowJob('qid', 'not-found'))
+    );
+    compareCompletion(
+      t,
+      completion,
+      makeSuccess([
+        makeCompleteWorkflowExecution(defaultPayloadConverter.toPayload('success')),
+        makeRespondToQueryCommand({
+          queryId: 'qid',
+          failed: {
+            message:
+              'Workflow did not register a handler for not-found. Registered queries: [__stack_trace __enhanced_stack_trace]',
+            source: 'TypeScriptSDK',
+            stackTrace:
+              'ReferenceError: Workflow did not register a handler for not-found. Registered queries: [__stack_trace __enhanced_stack_trace]',
+            applicationFailureInfo: {
+              type: 'ReferenceError',
+              nonRetryable: false,
+            },
+          },
+        }),
       ])
     );
   }
