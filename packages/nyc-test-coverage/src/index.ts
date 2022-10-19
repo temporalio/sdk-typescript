@@ -150,7 +150,7 @@ export class WorkflowCoverage {
 
     const newRule = {
       use: {
-        loader: require.resolve('istanbul-instrumenter-loader'),
+        loader: require.resolve('./istanbulLoader'),
         options: { esModules: true },
       },
       enforce: 'post' as const,
@@ -161,6 +161,7 @@ export class WorkflowCoverage {
       ...config,
       module: {
         ...config?.module,
+        // @ts-ignore
         rules: [...(config?.module?.rules || []), newRule],
       },
     };

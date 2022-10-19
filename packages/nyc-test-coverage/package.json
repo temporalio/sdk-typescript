@@ -23,10 +23,13 @@
   "dependencies": {
     "@temporalio/worker": "file:../worker",
     "@temporalio/workflow": "file:../workflow",
-    "istanbul-instrumenter-loader": "^3.0.1",
+    "convert-source-map": "^1.7.0",
+    "istanbul-lib-instrument": "^5.2.1",
     "istanbul-lib-coverage": "^3.2.0"
   },
   "devDependencies": {
+    "@types/convert-source-map": "1.5.2",
+    "@types/istanbul-lib-instrument": "^1.7.4",
     "@types/istanbul-lib-coverage": "^2.0.4"
   },
   "publishConfig": {
