@@ -298,5 +298,5 @@ export async function dispose(): Promise<void> {
 }
 
 export function errorToFailure(err: unknown): ProtoFailure {
-  return state.failureConverter.errorToFailure(err);
+  return state.failureConverter.errorToFailure(err, state.payloadConverter);
 }

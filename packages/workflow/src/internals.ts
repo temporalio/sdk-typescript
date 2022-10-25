@@ -143,11 +143,11 @@ export class Activator implements ActivationHandler {
       resolve(result);
     } else if (activation.result.failed) {
       const { failure } = activation.result.failed;
-      const err = failure ? state.failureConverter.failureToError(failure) : undefined;
+      const err = failure ? state.failureConverter.failureToError(failure, state.payloadConverter) : undefined;
       reject(err);
     } else if (activation.result.cancelled) {
       const { failure } = activation.result.cancelled;
-      const err = failure ? state.failureConverter.failureToError(failure) : undefined;
+      const err = failure ? state.failureConverter.failureToError(failure, state.payloadConverter) : undefined;
       reject(err);
     } else if (activation.result.backoff) {
       reject(new LocalActivityDoBackoff(activation.result.backoff));
@@ -181,7 +181,7 @@ export class Activator implements ActivationHandler {
       if (!activation.cancelled.failure) {
         throw new TypeError('Got no failure in cancelled variant');
       }
-      reject(state.failureConverter.failureToError(activation.cancelled.failure));
+      reject(state.failureConverter.failureToError(activation.cancelled.failure, state.payloadConverter));
     } else {
       throw new TypeError('Got ResolveChildWorkflowExecutionStart with no status');
     }
@@ -201,13 +201,13 @@ export class Activator implements ActivationHandler {
       if (failure === undefined || failure === null) {
         throw new TypeError('Got failed result with no failure attribute');
       }
-      reject(state.failureConverter.failureToError(failure));
+      reject(state.failureConverter.failureToError(failure, state.payloadConverter));
     } else if (activation.result.cancelled) {
       const { failure } = activation.result.cancelled;
       if (failure === undefined || failure === null) {
         throw new TypeError('Got cancelled result with no failure attribute');
       }
-      reject(state.failureConverter.failureToError(failure));
+      reject(state.failureConverter.failureToError(failure, state.payloadConverter));
     }
   }
 
@@ -301,7 +301,7 @@ export class Activator implements ActivationHandler {
   public resolveSignalExternalWorkflow(activation: coresdk.workflow_activation.IResolveSignalExternalWorkflow): void {
     const { resolve, reject } = consumeCompletion('signalWorkflow', getSeq(activation));
     if (activation.failure) {
-      reject(state.failureConverter.failureToError(activation.failure));
+      reject(state.failureConverter.failureToError(activation.failure, state.payloadConverter));
     } else {
       resolve(undefined);
     }
@@ -312,7 +312,7 @@ export class Activator implements ActivationHandler {
   ): void {
     const { resolve, reject } = consumeCompletion('cancelWorkflow', getSeq(activation));
     if (activation.failure) {
-      reject(state.failureConverter.failureToError(activation.failure));
+      reject(state.failureConverter.failureToError(activation.failure, state.payloadConverter));
     } else {
       resolve(undefined);
     }
@@ -611,7 +611,7 @@ export async function handleWorkflowFailure(error: unknown): Promise<void> {
     state.pushCommand(
       {
         failWorkflowExecution: {
-          failure: state.failureConverter.errorToFailure(error),
+          failure: state.failureConverter.errorToFailure(error, state.payloadConverter),
         },
       },
       true
@@ -627,7 +627,10 @@ function completeQuery(queryId: string, result: unknown) {
 
 async function failQuery(queryId: string, error: any) {
   state.pushCommand({
-    respondToQuery: { queryId, failed: state.failureConverter.errorToFailure(ensureTemporalFailure(error)) },
+    respondToQuery: {
+      queryId,
+      failed: state.failureConverter.errorToFailure(ensureTemporalFailure(error), state.payloadConverter),
+    },
   });
 }
 
