@@ -194,8 +194,8 @@ ls packages/core-bridge/releases/
 
 npx lerna version patch --force-publish='*' # or major|minor|etc, or leave out to be prompted. either way, you get a confirmation dialog.
 
-# replace TODO with e.g. `~1.5.0`
-sed -i -e 's/file:\.\.\/.*"/TODO"/g' packages/*/package.json
+# replace TODO with the tilde version, like: ~1.5.0
+sed -i '' 's/file:\.\.\/.*"/TODO"/g' packages/*/package.json
 
 git add packages
 git commit -m 'Depend on ~1.5.0'
