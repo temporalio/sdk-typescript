@@ -193,13 +193,10 @@ for f in ~/Downloads/packages-*.zip; do mkdir "$HOME/Downloads/$(basename -s .zi
 ls packages/core-bridge/releases/
 
 npx lerna version patch --force-publish='*' # or major|minor|etc, or leave out to be prompted. either way, you get a confirmation dialog.
-```
 
-Since `lerna version --exact` doesn't work with local path deps like `file:../common`, do this:
+# replace TODO with e.g. `~1.5.0`
+sed -i -e 's/file:\.\.\/.*"/TODO"/g' packages/*/package.json
 
-- Find & replace `file:../.*"` with eg `~1.5.0"` in `packages/`.
-
-```sh
 git add packages
 git commit -m 'Depend on ~1.5.0'
 git tag v1.5.0 -f
