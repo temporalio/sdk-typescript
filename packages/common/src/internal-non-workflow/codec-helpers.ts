@@ -110,8 +110,10 @@ export async function decodeOptionalFailureToOptionalError(
   converter: LoadedDataConverter,
   failure: ProtoFailure | undefined | null
 ): Promise<TemporalFailure | undefined> {
-  const { failureConverter, payloadCodecs } = converter;
-  return failure ? failureConverter.failureToError(await decodeFailure(payloadCodecs, failure)) : undefined;
+  const { failureConverter, payloadConverter, payloadCodecs } = converter;
+  return failure
+    ? failureConverter.failureToError(await decodeFailure(payloadCodecs, failure), payloadConverter)
+    : undefined;
 }
 
 export async function decodeOptionalMap(
@@ -199,8 +201,8 @@ export async function encodeMapToPayloads<K extends string>(
  * Run {@link errorToFailure} on `error`, and then {@link encodeFailure}.
  */
 export async function encodeErrorToFailure(dataConverter: LoadedDataConverter, error: unknown): Promise<ProtoFailure> {
-  const { failureConverter, payloadCodecs } = dataConverter;
-  return await encodeFailure(payloadCodecs, failureConverter.errorToFailure(error));
+  const { failureConverter, payloadConverter, payloadCodecs } = dataConverter;
+  return await encodeFailure(payloadCodecs, failureConverter.errorToFailure(error, payloadConverter));
 }
 
 /**

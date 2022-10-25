@@ -1481,7 +1481,7 @@ test('resolve activity with failure - http', async (t) => {
       t,
       makeResolveActivity(1, {
         failed: {
-          failure: defaultFailureConverter.errorToFailure(failure),
+          failure: defaultFailureConverter.errorToFailure(failure, defaultPayloadConverter),
         },
       })
     );
