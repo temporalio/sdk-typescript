@@ -99,3 +99,21 @@ test.serial('Mocked run throws if not shut down gracefully', async (t) => {
   t.is(worker.getState(), 'FAILED');
   await t.throwsAsync(worker.run(), { message: 'Poller was already started' });
 });
+
+test.serial('Mocked throws combined error in runUntil', async (t) => {
+  const worker = isolateFreeWorker({
+    shutdownGraceTime: '5ms',
+    taskQueue: 'shutdown-test',
+  });
+  worker.native.initiateShutdown = () => new Promise(() => undefined);
+  const err = await t.throwsAsync(
+    worker.runUntil(async () => {
+      throw new Error('inner');
+    })
+  );
+  t.is(worker.getState(), 'FAILED');
+  t.is(err.message, 'Worker terminated with fatal error in `runUntil`');
+  const { workerError, innerError } = (err as any).cause;
+  t.is(workerError.message, 'Timed out while waiting for worker to shutdown gracefully');
+  t.is(innerError.message, 'inner');
+});

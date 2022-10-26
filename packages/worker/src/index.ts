@@ -28,7 +28,15 @@ export * from './interceptors';
 export * from './logger';
 export { History, Runtime, RuntimeOptions } from './runtime';
 export * from './sinks';
-export { DataConverter, defaultPayloadConverter, errors, State, Worker } from './worker';
+export {
+  CombinedWorkerRunError,
+  CombinedWorkerRunErrorCause,
+  DataConverter,
+  defaultPayloadConverter,
+  errors,
+  State,
+  Worker,
+} from './worker';
 export {
   appendDefaultInterceptors,
   CompiledWorkerOptions,
