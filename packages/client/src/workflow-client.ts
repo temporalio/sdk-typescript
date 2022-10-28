@@ -302,6 +302,10 @@ export interface ListOptions {
    * @default depends on server config, typically 1000
    */
   pageSize?: number;
+  /**
+   * Query string for matching and ordering the results
+   */
+  query?: string;
 }
 
 /**
@@ -930,20 +934,23 @@ export class WorkflowClient {
   /**
    * List workflows by given `query`.
    *
-   * See more info on how to build the query in the Temporal docs: https://docs.temporal.io/visibility
+   * ⚠️ To use advanced query functionality, as of the 1.18 server release, you must use Elasticsearch based visibility.
    *
-   * This API requires Elasticsearch based visibility as of server version 1.18.
+   * More info on the concept of "visibility" and the query syntax on the Temporal documentation site:
+   * https://docs.temporal.io/visibility
    */
-  public async *list(query: string, options?: ListOptions): AsyncIterable<WorkflowExecutionInfo> {
+  public async *list(options?: ListOptions): AsyncIterable<WorkflowExecutionInfo> {
     let nextPageToken: Uint8Array = Buffer.alloc(0);
     for (;;) {
       const response = await this.workflowService.listWorkflowExecutions({
         namespace: this.options.namespace,
-        query,
+        query: options?.query,
         nextPageToken,
         pageSize: options?.pageSize,
       });
       // Not decoding memo payloads concurrently even though we could have to keep the lazy nature of this iterator.
+      // Decoding is done for `memo` fields which tend to be small.
+      // We might decide to change that based on user feedback.
       for (const raw of response.executions) {
         yield await executionInfoFromRaw(raw, this.dataConverter);
       }

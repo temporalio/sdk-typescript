@@ -1350,7 +1350,7 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
     await Promise.all(handles.map((h) => h.result()));
     // Test the list API too while we're at it
     const workflowIds = handles.map(({ workflowId }) => `'${workflowId}'`);
-    const executions = client.workflow.list(`WorkflowId IN (${workflowIds.join(', ')})`);
+    const executions = client.workflow.list({ query: `WorkflowId IN (${workflowIds.join(', ')})` });
 
     await Worker.runReplayHistories(
       {
