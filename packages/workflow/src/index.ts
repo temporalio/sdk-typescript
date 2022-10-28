@@ -49,8 +49,6 @@
 export {
   ActivityCancellationType,
   ActivityFailure,
-  ActivityFunction,
-  ActivityInterface, // eslint-disable-line deprecation/deprecation
   ActivityOptions,
   ApplicationFailure,
   CancelledFailure,
@@ -65,7 +63,21 @@ export {
   TimeoutFailure,
 } from '@temporalio/common';
 export * from '@temporalio/common/lib/errors';
-export * from '@temporalio/common/lib/interfaces';
+export {
+  ActivityFunction,
+  ActivityInterface, // eslint-disable-line deprecation/deprecation
+  Payload,
+  QueryDefinition,
+  SearchAttributes,
+  SearchAttributeValue,
+  SignalDefinition,
+  UntypedActivities,
+  Workflow,
+  WorkflowQueryType,
+  WorkflowResultType,
+  WorkflowReturnType,
+  WorkflowSignalType,
+} from '@temporalio/common/lib/interfaces';
 export * from '@temporalio/common/lib/workflow-handle';
 export * from '@temporalio/common/lib/workflow-options';
 export { AsyncLocalStorage, CancellationScope, CancellationScopeOptions, ROOT_SCOPE } from './cancellation-scope';
