@@ -1,6 +1,7 @@
 import type { SearchAttributes } from '@temporalio/common';
 import * as proto from '@temporalio/proto';
 import type * as grpc from '@grpc/grpc-js';
+import { Replace } from '@temporalio/common/lib/type-helpers';
 
 export interface WorkflowExecution {
   workflowId: string;
@@ -11,6 +12,7 @@ export type GetWorkflowExecutionHistoryRequest =
   proto.temporal.api.workflowservice.v1.IGetWorkflowExecutionHistoryRequest;
 export type DescribeWorkflowExecutionResponse =
   proto.temporal.api.workflowservice.v1.IDescribeWorkflowExecutionResponse;
+export type RawWorkflowExecutionInfo = proto.temporal.api.workflow.v1.IWorkflowExecutionInfo;
 export type TerminateWorkflowExecutionResponse =
   proto.temporal.api.workflowservice.v1.ITerminateWorkflowExecutionResponse;
 export type RequestCancelWorkflowExecutionResponse =
@@ -27,7 +29,7 @@ export type WorkflowExecutionStatusName =
   | 'TIMED_OUT'
   | 'UNKNOWN'; // UNKNOWN is reserved for future enum values
 
-export interface WorkflowExecutionDescription {
+export interface WorkflowExecutionInfo {
   type: string;
   workflowId: string;
   runId: string;
@@ -40,8 +42,15 @@ export interface WorkflowExecutionDescription {
   memo?: Record<string, unknown>;
   searchAttributes: SearchAttributes;
   parentExecution?: Required<proto.temporal.api.common.v1.IWorkflowExecution>;
-  raw: DescribeWorkflowExecutionResponse;
+  raw: RawWorkflowExecutionInfo;
 }
+
+export type WorkflowExecutionDescription = Replace<
+  WorkflowExecutionInfo,
+  {
+    raw: DescribeWorkflowExecutionResponse;
+  }
+>;
 
 export type WorkflowService = proto.temporal.api.workflowservice.v1.WorkflowService;
 export const { WorkflowService } = proto.temporal.api.workflowservice.v1;

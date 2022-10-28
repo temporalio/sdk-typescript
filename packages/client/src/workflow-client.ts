@@ -3,7 +3,6 @@ import {
   CancelledFailure,
   DataConverter,
   LoadedDataConverter,
-  mapFromPayloads,
   mapToPayloads,
   RetryState,
   searchAttributePayloadConverter,
@@ -14,7 +13,6 @@ import {
 import {
   decodeArrayFromPayloads,
   decodeFromPayloadsAtIndex,
-  decodeMapFromPayloads,
   decodeOptionalFailureToOptionalError,
   encodeMapToPayloads,
   encodeToPayloads,
@@ -26,14 +24,12 @@ import {
   BaseWorkflowHandle,
   compileRetryPolicy,
   QueryDefinition,
-  SearchAttributes,
   SignalDefinition,
   WithWorkflowArgs,
   Workflow,
   WorkflowNotFoundError,
   WorkflowResultType,
 } from '@temporalio/common';
-import { optionalTsToDate, tsToDate } from '@temporalio/common/lib/time';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import { Replace } from '@temporalio/common/lib/type-helpers';
 import { temporal } from '@temporalio/proto';
@@ -68,10 +64,11 @@ import {
   TerminateWorkflowExecutionResponse,
   WorkflowExecution,
   WorkflowExecutionDescription,
-  WorkflowExecutionStatusName,
+  WorkflowExecutionInfo,
   WorkflowService,
 } from './types';
 import { compileWorkflowOptions, WorkflowOptions, WorkflowSignalWithStartOptions } from './workflow-options';
+import { executionInfoFromRaw } from './helpers';
 
 /**
  * A client side handle to a single Workflow instance.
@@ -294,6 +291,18 @@ interface WorkflowHandleOptions extends GetWorkflowHandleOptions {
  * Options for starting a Workflow
  */
 export type WorkflowStartOptions<T extends Workflow = Workflow> = WithWorkflowArgs<T, WorkflowOptions>;
+
+/**
+ * Options for {@link WorkflowClient.list}
+ */
+export interface ListOptions {
+  /**
+   * Maximum number of results to fetch per page.
+   *
+   * @default depends on server config, typically 1000
+   */
+  pageSize?: number;
+}
 
 /**
  * Client for starting Workflow executions and creating Workflow handles.
@@ -855,38 +864,9 @@ export class WorkflowClient {
         const raw = await fn({
           workflowExecution: { workflowId, runId },
         });
-        return {
-          /* eslint-disable @typescript-eslint/no-non-null-assertion */
-          type: raw.workflowExecutionInfo!.type!.name!,
-          workflowId: raw.workflowExecutionInfo!.execution!.workflowId!,
-          runId: raw.workflowExecutionInfo!.execution!.runId!,
-          taskQueue: raw.workflowExecutionInfo!.taskQueue!,
-          status: {
-            code: raw.workflowExecutionInfo!.status!,
-            name: workflowStatusCodeToName(raw.workflowExecutionInfo!.status!),
-          },
-          // Safe to convert to number, max history length is 50k, which is much less than Number.MAX_SAFE_INTEGER
-          historyLength: raw.workflowExecutionInfo!.historyLength!.toNumber(),
-          startTime: tsToDate(raw.workflowExecutionInfo!.startTime!),
-          executionTime: optionalTsToDate(raw.workflowExecutionInfo!.executionTime),
-          closeTime: optionalTsToDate(raw.workflowExecutionInfo!.closeTime),
-          memo: await decodeMapFromPayloads(this.client.dataConverter, raw.workflowExecutionInfo!.memo?.fields),
-          searchAttributes: Object.fromEntries(
-            Object.entries(
-              mapFromPayloads(
-                searchAttributePayloadConverter,
-                raw.workflowExecutionInfo!.searchAttributes?.indexedFields ?? {}
-              ) as SearchAttributes
-            ).filter(([_, v]) => v && v.length > 0) // Filter out empty arrays returned by pre 1.18 servers
-          ),
-          parentExecution: raw.workflowExecutionInfo?.parentExecution
-            ? {
-                workflowId: raw.workflowExecutionInfo.parentExecution.workflowId!,
-                runId: raw.workflowExecutionInfo.parentExecution.runId!,
-              }
-            : undefined,
-          raw,
-        };
+        const info = await executionInfoFromRaw(raw.workflowExecutionInfo ?? {}, this.client.dataConverter);
+        (info as unknown as WorkflowExecutionDescription).raw = raw;
+        return info;
       },
       async signal<Args extends any[]>(def: SignalDefinition<Args> | string, ...args: Args): Promise<void> {
         const next = this.client._signalWorkflowHandler.bind(this.client);
@@ -946,6 +926,31 @@ export class WorkflowClient {
       followRuns: options?.followRuns ?? true,
     });
   }
+
+  /**
+   * List workflows by given `query`.
+   *
+   * See more info on how to build the query in the Temporal docs: https://docs.temporal.io/visibility
+   *
+   * This API requires Elasticsearch based visibility as of server version 1.18.
+   */
+  public async *list(query: string, options?: ListOptions): AsyncIterable<WorkflowExecutionInfo> {
+    let nextPageToken: Uint8Array = Buffer.alloc(0);
+    for (;;) {
+      const response = await this.workflowService.listWorkflowExecutions({
+        namespace: this.options.namespace,
+        query,
+        nextPageToken,
+        pageSize: options?.pageSize,
+      });
+      // Not decoding memo payloads concurrently even though we could have to keep the lazy nature of this iterator.
+      for (const raw of response.executions) {
+        yield await executionInfoFromRaw(raw, this.dataConverter);
+      }
+      nextPageToken = response.nextPageToken;
+      if (nextPageToken == null || nextPageToken.length == 0) break;
+    }
+  }
 }
 
 export class QueryRejectedError extends Error {
@@ -959,35 +964,5 @@ export class QueryNotRegisteredError extends Error {
   public readonly name: string = 'QueryNotRegisteredError';
   constructor(message: string, public readonly code: grpcStatus) {
     super(message);
-  }
-}
-
-function workflowStatusCodeToName(code: temporal.api.enums.v1.WorkflowExecutionStatus): WorkflowExecutionStatusName {
-  return workflowStatusCodeToNameInternal(code) ?? 'UNKNOWN';
-}
-
-/**
- * Intentionally leave out `default` branch to get compilation errors when new values are added
- */
-function workflowStatusCodeToNameInternal(
-  code: temporal.api.enums.v1.WorkflowExecutionStatus
-): WorkflowExecutionStatusName {
-  switch (code) {
-    case temporal.api.enums.v1.WorkflowExecutionStatus.WORKFLOW_EXECUTION_STATUS_UNSPECIFIED:
-      return 'UNSPECIFIED';
-    case temporal.api.enums.v1.WorkflowExecutionStatus.WORKFLOW_EXECUTION_STATUS_RUNNING:
-      return 'RUNNING';
-    case temporal.api.enums.v1.WorkflowExecutionStatus.WORKFLOW_EXECUTION_STATUS_FAILED:
-      return 'FAILED';
-    case temporal.api.enums.v1.WorkflowExecutionStatus.WORKFLOW_EXECUTION_STATUS_TIMED_OUT:
-      return 'TIMED_OUT';
-    case temporal.api.enums.v1.WorkflowExecutionStatus.WORKFLOW_EXECUTION_STATUS_CANCELED:
-      return 'CANCELLED';
-    case temporal.api.enums.v1.WorkflowExecutionStatus.WORKFLOW_EXECUTION_STATUS_TERMINATED:
-      return 'TERMINATED';
-    case temporal.api.enums.v1.WorkflowExecutionStatus.WORKFLOW_EXECUTION_STATUS_COMPLETED:
-      return 'COMPLETED';
-    case temporal.api.enums.v1.WorkflowExecutionStatus.WORKFLOW_EXECUTION_STATUS_CONTINUED_AS_NEW:
-      return 'CONTINUED_AS_NEW';
   }
 }
