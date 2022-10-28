@@ -1,9 +1,7 @@
-use crate::conversions::*;
-use crate::errors::*;
-use crate::helpers::*;
-use crate::worker::*;
+use crate::{conversions::*, errors::*, helpers::*, worker::*};
 use neon::prelude::*;
 use parking_lot::RwLock;
+use std::cell::Cell;
 use std::{
     cell::RefCell,
     collections::HashMap,
@@ -12,17 +10,17 @@ use std::{
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 use temporal_client::{ClientInitError, ConfiguredClient, TemporalServiceClientWithMetrics};
-use temporal_sdk_core::ephemeral_server::EphemeralServer as CoreEphemeralServer;
 use temporal_sdk_core::{
-    fetch_global_buffered_logs, init_replay_worker, init_worker,
-    protos::temporal::api::history::v1::History, telemetry_init, ClientOptions, RetryClient,
-    WorkerConfig,
+    ephemeral_server::EphemeralServer as CoreEphemeralServer, fetch_global_buffered_logs,
+    init_replay_worker, init_worker, replay::HistoryForReplay, telemetry_init, ClientOptions,
+    RetryClient, WorkerConfig,
 };
+use tokio::sync::mpsc::{channel, Sender, UnboundedReceiver, UnboundedSender};
 use tokio::{
     runtime::Runtime,
-    sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender},
-    sync::Mutex,
+    sync::{mpsc::unbounded_channel, Mutex},
 };
+use tokio_stream::wrappers::ReceiverStream;
 
 pub type RawClient = RetryClient<ConfiguredClient<TemporalServiceClientWithMetrics>>;
 
@@ -84,10 +82,9 @@ pub enum RuntimeRequest {
     },
     /// A request to register a replay worker
     InitReplayWorker {
+        runtime: Arc<RuntimeHandle>,
         /// Worker configuration. Must have unique task queue name.
         config: WorkerConfig,
-        /// The history this worker should replay
-        history: History,
         /// Used to send the result back into JS
         callback: Root<JsFunction>,
     },
@@ -103,6 +100,11 @@ pub enum RuntimeRequest {
     },
     ShutdownEphemeralServer {
         server: Arc<Mutex<CoreEphemeralServer>>,
+        callback: Root<JsFunction>,
+    },
+    PushReplayHistory {
+        tx: Sender<HistoryForReplay>,
+        pushme: HistoryForReplay,
         callback: Root<JsFunction>,
     },
 }
@@ -217,16 +219,23 @@ pub fn start_bridge_loop(channel: Arc<Channel>, receiver: &mut UnboundedReceiver
                     });
                 }
                 RuntimeRequest::InitReplayWorker {
+                    runtime,
                     config,
-                    history,
                     callback,
                 } => {
-                    match init_replay_worker(config, &history) {
+                    let (tunnel, stream) = HistoryForReplayTunnel::new(runtime);
+                    match init_replay_worker(config, Box::pin(stream)) {
                         Ok(worker) => {
                             let (tx, rx) = unbounded_channel();
                             tokio::spawn(start_worker_loop(worker, rx, channel.clone()));
                             send_result(channel.clone(), callback, |cx| {
-                                Ok(cx.boxed(RefCell::new(Some(WorkerHandle { sender: tx }))))
+                                let worker =
+                                    cx.boxed(RefCell::new(Some(WorkerHandle { sender: tx })));
+                                let tunnel = cx.boxed(tunnel);
+                                let retme = cx.empty_object();
+                                retme.set(cx, "worker", worker)?;
+                                retme.set(cx, "pusher", tunnel)?;
+                                Ok(retme)
                             })
                         }
                         Err(err) => send_error(channel.clone(), callback, move |cx| {
@@ -282,6 +291,27 @@ pub fn start_bridge_loop(channel: Arc<Channel>, receiver: &mut UnboundedReceiver
                                 )
                             },
                         )
+                        .await
+                    });
+                }
+                RuntimeRequest::PushReplayHistory {
+                    tx,
+                    pushme,
+                    callback,
+                } => {
+                    tokio::spawn(async move {
+                        let sendfut = async move {
+                            tx.send(pushme).await.map_err(|e| {
+                                format!(
+                    "Receive side of history replay channel is gone. This is an sdk bug. {:?}",
+                    e
+                                )
+                            })
+                        };
+                        void_future_to_js(channel, callback, sendfut, |cx, err| {
+                            UNEXPECTED_ERROR
+                                .from_string(cx, format!("Error pushing replay history {}", err))
+                        })
                         .await
                     });
                 }
@@ -434,3 +464,33 @@ pub fn client_update_headers(mut cx: FunctionContext) -> JsResult<JsUndefined> {
 
     Ok(cx.undefined())
 }
+
+pub(crate) struct HistoryForReplayTunnel {
+    pub(crate) runtime: Arc<RuntimeHandle>,
+    sender: Cell<Option<Sender<HistoryForReplay>>>,
+}
+impl HistoryForReplayTunnel {
+    fn new(runtime: Arc<RuntimeHandle>) -> (Self, ReceiverStream<HistoryForReplay>) {
+        let (sender, rx) = channel(1);
+        (
+            HistoryForReplayTunnel {
+                runtime,
+                sender: Cell::new(Some(sender)),
+            },
+            ReceiverStream::new(rx),
+        )
+    }
+    pub fn get_chan(&self) -> Result<Sender<HistoryForReplay>, &'static str> {
+        let chan = self.sender.take();
+        self.sender.set(chan.clone());
+        if let Some(chan) = chan {
+            Ok(chan)
+        } else {
+            Err("History replay channel is already closed")
+        }
+    }
+    pub fn shutdown(&self) {
+        self.sender.take();
+    }
+}
+impl Finalize for HistoryForReplayTunnel {}

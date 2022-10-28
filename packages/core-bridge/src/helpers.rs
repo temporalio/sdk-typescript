@@ -1,6 +1,5 @@
 use crate::errors::*;
-use neon::prelude::*;
-use neon::types::buffer::TypedArray;
+use neon::{prelude::*, types::buffer::TypedArray};
 use std::{fmt::Display, future::Future, sync::Arc};
 
 /// Send a result to JS via callback using a [Channel]
@@ -59,7 +58,7 @@ pub fn callback_with_unexpected_error<'a, C, E>(
 ) -> NeonResult<()>
 where
     C: Context<'a>,
-    E: std::fmt::Display,
+    E: Display,
 {
     let err_str = format!("{}", err);
     callback_with_error(cx, callback, move |cx| {

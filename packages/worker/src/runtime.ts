@@ -62,7 +62,7 @@ export interface CompiledRuntimeOptions {
 
 function defaultTelemetryOptions(): TelemetryOptions {
   return {
-    tracingFilter: 'temporal_sdk_core=WARN',
+    tracingFilter: 'temporal_sdk_core=INFO',
     logging: {
       console: {},
     },
@@ -86,6 +86,8 @@ export class CoreLogger extends DefaultLogger {
   }
 }
 
+type TrackedNativeObject = native.Client | native.Worker | native.EphemeralServer;
+
 /**
  * Core singleton representing an instance of the Rust Core SDK
  *
@@ -95,11 +97,12 @@ export class Runtime {
   /** Track the number of pending creation calls into the tokio runtime to prevent shut down */
   protected pendingCreations = 0;
   /** Track the registered native objects to automatically shutdown when all have been deregistered */
-  protected readonly backRefs = new Set<native.Client | native.Worker | native.EphemeralServer>();
+  protected readonly backRefs = new Set<TrackedNativeObject>();
   protected readonly shouldPollForLogs = new BehaviorSubject<boolean>(false);
   protected readonly logPollPromise: Promise<void>;
   public readonly logger: Logger;
   protected readonly shutdownSignalCallbacks = new Set<() => void>();
+  protected state: 'RUNNING' | 'SHUTTING_DOWN' = 'RUNNING';
 
   static _instance?: Runtime;
   static instantiator?: 'install' | 'instance';
@@ -283,13 +286,36 @@ export class Runtime {
   }
 
   /** @hidden */
-  public async createReplayWorker(options: native.WorkerOptions, history: History): Promise<native.Worker> {
-    return await this.createNative(
-      promisify(native.newReplayWorker),
-      this.native,
-      options,
-      byteArrayToBuffer(temporal.api.history.v1.History.encodeDelimited(history).finish())
-    );
+  public async createReplayWorker(options: native.WorkerOptions): Promise<native.ReplayWorker> {
+    return await this.createNativeNoBackRef(async () => {
+      const fn = promisify(native.newReplayWorker);
+      const replayWorker = await fn(this.native, options);
+      this.backRefs.add(replayWorker.worker);
+      return replayWorker;
+    });
+  }
+
+  /**
+   * Push history to a replay worker's history pusher stream.
+   *
+   * Hidden in the docs because it is only meant to be used internally by the Worker.
+   *
+   * @hidden
+   */
+  public async pushHistory(pusher: native.HistoryPusher, workflowId: string, history: History): Promise<void> {
+    const encoded = byteArrayToBuffer(temporal.api.history.v1.History.encodeDelimited(history).finish());
+    return await promisify(native.pushHistory)(pusher, workflowId, encoded);
+  }
+
+  /**
+   * Close a replay worker's history pusher stream.
+   *
+   * Hidden in the docs because it is only meant to be used internally by the Worker.
+   *
+   * @hidden
+   */
+  public closeHistoryStream(pusher: native.HistoryPusher): void {
+    native.closeHistoryStream(pusher);
   }
 
   /**
@@ -327,16 +353,25 @@ export class Runtime {
   }
 
   protected async createNative<
-    R extends native.Client | native.Worker | native.EphemeralServer,
+    R extends TrackedNativeObject,
     Args extends any[],
     F extends (...args: Args) => Promise<R>
   >(f: F, ...args: Args): Promise<R> {
+    return this.createNativeNoBackRef(async () => {
+      const ref = await f(...args);
+      this.backRefs.add(ref);
+      return ref;
+    });
+  }
+
+  protected async createNativeNoBackRef<R, Args extends any[], F extends (...args: Args) => Promise<R>>(
+    f: F,
+    ...args: Args
+  ): Promise<R> {
     this.pendingCreations++;
     try {
       try {
-        const ref = await f(...args);
-        this.backRefs.add(ref);
-        return ref;
+        return await f(...args);
       } finally {
         this.pendingCreations--;
       }
@@ -380,7 +415,11 @@ export class Runtime {
    * @hidden
    */
   public registerShutdownSignalCallback(callback: () => void): void {
-    this.shutdownSignalCallbacks.add(callback);
+    if (this.state === 'RUNNING') {
+      this.shutdownSignalCallbacks.add(callback);
+    } else {
+      queueMicrotask(callback);
+    }
   }
 
   /**
@@ -415,6 +454,7 @@ export class Runtime {
    * Bound to `this` for use with `process.on` and `process.off`
    */
   protected startShutdownSequence = (): void => {
+    this.state = 'SHUTTING_DOWN';
     this.teardownShutdownHook();
     for (const callback of this.shutdownSignalCallbacks) {
       queueMicrotask(callback); // Run later

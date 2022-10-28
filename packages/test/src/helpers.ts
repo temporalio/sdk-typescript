@@ -1,8 +1,6 @@
 import path from 'path';
 import StackUtils from 'stack-utils';
 import { inWorkflowContext } from '@temporalio/workflow';
-import { WorkflowHandle } from '@temporalio/client';
-import type * as proto from '@temporalio/proto';
 import ava from 'ava';
 import { Payload, PayloadCodec } from '@temporalio/common';
 
@@ -57,26 +55,6 @@ export const bundlerOptions = {
     'path',
   ],
 };
-
-/**
- * The missing history event fetcher, one day this will be added to the SDK.
- */
-export async function getHistoryEvents(handle: WorkflowHandle): Promise<proto.temporal.api.history.v1.IHistoryEvent[]> {
-  let nextPageToken: Uint8Array | undefined = undefined;
-  const history = Array<proto.temporal.api.history.v1.IHistoryEvent>();
-  for (;;) {
-    const response: proto.temporal.api.workflowservice.v1.GetWorkflowExecutionHistoryResponse =
-      await handle.client.connection.workflowService.getWorkflowExecutionHistory({
-        nextPageToken,
-        namespace: handle.client.options.namespace,
-        execution: { workflowId: handle.workflowId },
-      });
-    history.push(...(response.history?.events ?? []));
-    if (response.nextPageToken == null || response.nextPageToken.length === 0) break;
-    nextPageToken = response.nextPageToken;
-  }
-  return history;
-}
 
 /**
  * A PayloadCodec used for testing purposes, skews the bytes in the payload data by 1

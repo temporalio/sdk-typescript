@@ -6,9 +6,9 @@ const darkCodeTheme = require('prism-react-renderer/themes/dracula');
 const watch = ['y', 'yes', 't', 'true', '1'].includes(process.env.TYPEDOC_WATCH);
 
 module.exports = {
-  title: 'Temporal Node.js SDK API Reference',
+  title: 'Temporal TypeScript SDK API Reference',
   tagline: 'Build invincible applications',
-  url: 'https://nodejs.temporal.io',
+  url: 'https://typescript.temporal.io',
   baseUrl: '/',
   onBrokenLinks: 'throw',
   onBrokenMarkdownLinks: 'warn',
@@ -75,7 +75,7 @@ module.exports = {
             },
             {
               label: 'YouTube',
-              href: 'https://www.youtube.com/channel/UCGovZyy8OfFPNlNV0i1fI1g',
+              href: 'https://www.youtube.com/c/Temporalio',
             },
             {
               label: 'Temporal Careers',

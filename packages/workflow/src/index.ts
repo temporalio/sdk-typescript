@@ -49,6 +49,8 @@
 export {
   ActivityCancellationType,
   ActivityFailure,
+  ActivityFunction,
+  ActivityInterface, // eslint-disable-line deprecation/deprecation
   ActivityOptions,
   ApplicationFailure,
   CancelledFailure,

@@ -13,13 +13,7 @@ import {
   TimeoutType,
 } from '../failure';
 import { hasOwnProperties, isRecord } from '../type-helpers';
-import {
-  arrayFromPayloads,
-  defaultPayloadConverter,
-  fromPayloadsAtIndex,
-  PayloadConverter,
-  toPayloads,
-} from './payload-converter';
+import { arrayFromPayloads, fromPayloadsAtIndex, PayloadConverter, toPayloads } from './payload-converter';
 
 /**
  * Stack traces will be cutoff when on of these patterns is matched
@@ -60,11 +54,11 @@ export interface FailureConverter {
   /**
    * Converts a caught error to a Failure proto message.
    */
-  errorToFailure(err: unknown): ProtoFailure;
+  errorToFailure(err: unknown, payloadConverter: PayloadConverter): ProtoFailure;
   /**
    * Converts a Failure proto message to a JS Error object.
    */
-  failureToError(err: ProtoFailure): TemporalFailure;
+  failureToError(err: ProtoFailure, payloadConverter: PayloadConverter): Error;
 }
 
 /**
@@ -80,10 +74,6 @@ export interface DefaultEncodedFailureAttributes {
  * Options for the {@link DefaultFailureConverter} constructor.
  */
 export interface DefaultFailureConverterOptions {
-  /**
-   * The {@link PayloadConverter} to use for converting failure attributes.
-   */
-  payloadConverter: PayloadConverter;
   /**
    * Whether to encode error messages and stack traces (for encrypting these attributes use a {@link PayloadCodec}).
    */
@@ -103,10 +93,9 @@ export class DefaultFailureConverter implements FailureConverter {
   public readonly options: DefaultFailureConverterOptions;
 
   constructor(options?: Partial<DefaultFailureConverterOptions>) {
-    const { encodeCommonAttributes, payloadConverter } = options ?? {};
+    const { encodeCommonAttributes } = options ?? {};
     this.options = {
       encodeCommonAttributes: encodeCommonAttributes ?? false,
-      payloadConverter: payloadConverter ?? defaultPayloadConverter,
     };
   }
 
@@ -115,42 +104,41 @@ export class DefaultFailureConverter implements FailureConverter {
    *
    * Does not set common properties, that is done in {@link failureToError}.
    */
-  failureToErrorInner(failure: ProtoFailure): TemporalFailure {
+  failureToErrorInner(failure: ProtoFailure, payloadConverter: PayloadConverter): TemporalFailure {
     if (failure.applicationFailureInfo) {
       return new ApplicationFailure(
         failure.message ?? undefined,
         failure.applicationFailureInfo.type,
         Boolean(failure.applicationFailureInfo.nonRetryable),
-        arrayFromPayloads(this.options.payloadConverter, failure.applicationFailureInfo.details?.payloads),
-        this.optionalFailureToOptionalError(failure.cause)
+        arrayFromPayloads(payloadConverter, failure.applicationFailureInfo.details?.payloads),
+        this.optionalFailureToOptionalError(failure.cause, payloadConverter)
       );
     }
     if (failure.serverFailureInfo) {
       return new ServerFailure(
         failure.message ?? undefined,
         Boolean(failure.serverFailureInfo.nonRetryable),
-        this.optionalFailureToOptionalError(failure.cause)
+        this.optionalFailureToOptionalError(failure.cause, payloadConverter)
       );
     }
     if (failure.timeoutFailureInfo) {
       return new TimeoutFailure(
         failure.message ?? undefined,
-        fromPayloadsAtIndex(
-          this.options.payloadConverter,
-          0,
-          failure.timeoutFailureInfo.lastHeartbeatDetails?.payloads
-        ),
+        fromPayloadsAtIndex(payloadConverter, 0, failure.timeoutFailureInfo.lastHeartbeatDetails?.payloads),
         failure.timeoutFailureInfo.timeoutType ?? TimeoutType.TIMEOUT_TYPE_UNSPECIFIED
       );
     }
     if (failure.terminatedFailureInfo) {
-      return new TerminatedFailure(failure.message ?? undefined, this.optionalFailureToOptionalError(failure.cause));
+      return new TerminatedFailure(
+        failure.message ?? undefined,
+        this.optionalFailureToOptionalError(failure.cause, payloadConverter)
+      );
     }
     if (failure.canceledFailureInfo) {
       return new CancelledFailure(
         failure.message ?? undefined,
-        arrayFromPayloads(this.options.payloadConverter, failure.canceledFailureInfo.details?.payloads),
-        this.optionalFailureToOptionalError(failure.cause)
+        arrayFromPayloads(payloadConverter, failure.canceledFailureInfo.details?.payloads),
+        this.optionalFailureToOptionalError(failure.cause, payloadConverter)
       );
     }
     if (failure.resetWorkflowFailureInfo) {
@@ -158,11 +146,8 @@ export class DefaultFailureConverter implements FailureConverter {
         failure.message ?? undefined,
         'ResetWorkflow',
         false,
-        arrayFromPayloads(
-          this.options.payloadConverter,
-          failure.resetWorkflowFailureInfo.lastHeartbeatDetails?.payloads
-        ),
-        this.optionalFailureToOptionalError(failure.cause)
+        arrayFromPayloads(payloadConverter, failure.resetWorkflowFailureInfo.lastHeartbeatDetails?.payloads),
+        this.optionalFailureToOptionalError(failure.cause, payloadConverter)
       );
     }
     if (failure.childWorkflowExecutionFailureInfo) {
@@ -175,7 +160,7 @@ export class DefaultFailureConverter implements FailureConverter {
         workflowExecution,
         workflowType.name,
         retryState ?? RetryState.RETRY_STATE_UNSPECIFIED,
-        this.optionalFailureToOptionalError(failure.cause)
+        this.optionalFailureToOptionalError(failure.cause, payloadConverter)
       );
     }
     if (failure.activityFailureInfo) {
@@ -187,17 +172,18 @@ export class DefaultFailureConverter implements FailureConverter {
         failure.activityFailureInfo.activityId ?? undefined,
         failure.activityFailureInfo.retryState ?? RetryState.RETRY_STATE_UNSPECIFIED,
         failure.activityFailureInfo.identity ?? undefined,
-        this.optionalFailureToOptionalError(failure.cause)
+        this.optionalFailureToOptionalError(failure.cause, payloadConverter)
       );
     }
-    return new TemporalFailure(failure.message ?? undefined, this.optionalFailureToOptionalError(failure.cause));
+    return new TemporalFailure(
+      failure.message ?? undefined,
+      this.optionalFailureToOptionalError(failure.cause, payloadConverter)
+    );
   }
 
-  failureToError(failure: ProtoFailure): TemporalFailure {
+  failureToError(failure: ProtoFailure, payloadConverter: PayloadConverter): Error {
     if (failure.encodedAttributes) {
-      const attrs = this.options.payloadConverter.fromPayload<DefaultEncodedFailureAttributes>(
-        failure.encodedAttributes
-      );
+      const attrs = payloadConverter.fromPayload<DefaultEncodedFailureAttributes>(failure.encodedAttributes);
       // Don't apply encodedAttributes unless they conform to an expected schema
       if (typeof attrs === 'object' && attrs !== null) {
         const { message, stack_trace } = attrs;
@@ -211,30 +197,30 @@ export class DefaultFailureConverter implements FailureConverter {
         }
       }
     }
-    const err = this.failureToErrorInner(failure);
+    const err = this.failureToErrorInner(failure, payloadConverter);
     err.stack = failure.stackTrace ?? '';
     err.failure = failure;
     return err;
   }
 
-  errorToFailure(err: unknown): ProtoFailure {
-    const failure = this.errorToFailureInner(err);
+  errorToFailure(err: unknown, payloadConverter: PayloadConverter): ProtoFailure {
+    const failure = this.errorToFailureInner(err, payloadConverter);
     if (this.options.encodeCommonAttributes) {
       const { message, stackTrace } = failure;
       failure.message = 'Encoded failure';
       failure.stackTrace = '';
-      failure.encodedAttributes = this.options.payloadConverter.toPayload({ message, stack_trace: stackTrace });
+      failure.encodedAttributes = payloadConverter.toPayload({ message, stack_trace: stackTrace });
     }
     return failure;
   }
 
-  errorToFailureInner(err: unknown): ProtoFailure {
+  errorToFailureInner(err: unknown, payloadConverter: PayloadConverter): ProtoFailure {
     if (err instanceof TemporalFailure) {
       if (err.failure) return err.failure;
       const base = {
         message: err.message,
         stackTrace: cutoffStackTrace(err.stack),
-        cause: this.optionalErrorToOptionalFailure(err.cause),
+        cause: this.optionalErrorToOptionalFailure(err.cause, payloadConverter),
         source: FAILURE_SOURCE,
       };
 
@@ -265,7 +251,7 @@ export class DefaultFailureConverter implements FailureConverter {
             nonRetryable: err.nonRetryable,
             details:
               err.details && err.details.length
-                ? { payloads: toPayloads(this.options.payloadConverter, ...err.details) }
+                ? { payloads: toPayloads(payloadConverter, ...err.details) }
                 : undefined,
           },
         };
@@ -276,7 +262,7 @@ export class DefaultFailureConverter implements FailureConverter {
           canceledFailureInfo: {
             details:
               err.details && err.details.length
-                ? { payloads: toPayloads(this.options.payloadConverter, ...err.details) }
+                ? { payloads: toPayloads(payloadConverter, ...err.details) }
                 : undefined,
           },
         };
@@ -287,7 +273,7 @@ export class DefaultFailureConverter implements FailureConverter {
           timeoutFailureInfo: {
             timeoutType: err.timeoutType,
             lastHeartbeatDetails: err.lastHeartbeatDetails
-              ? { payloads: toPayloads(this.options.payloadConverter, err.lastHeartbeatDetails) }
+              ? { payloads: toPayloads(payloadConverter, err.lastHeartbeatDetails) }
               : undefined,
           },
         };
@@ -317,7 +303,7 @@ export class DefaultFailureConverter implements FailureConverter {
         ...base,
         message: String(err.message) ?? '',
         stackTrace: cutoffStackTrace(String(err.stack)),
-        cause: this.optionalErrorToOptionalFailure(err.cause),
+        cause: this.optionalErrorToOptionalFailure(err.cause, payloadConverter),
       };
     }
 
@@ -342,14 +328,17 @@ export class DefaultFailureConverter implements FailureConverter {
   /**
    * Converts a Failure proto message to a JS Error object if defined or returns undefined.
    */
-  optionalFailureToOptionalError(failure: ProtoFailure | undefined | null): TemporalFailure | undefined {
-    return failure ? this.failureToError(failure) : undefined;
+  optionalFailureToOptionalError(
+    failure: ProtoFailure | undefined | null,
+    payloadConverter: PayloadConverter
+  ): Error | undefined {
+    return failure ? this.failureToError(failure, payloadConverter) : undefined;
   }
 
   /**
    * Converts an error to a Failure proto message if defined or returns undefined
    */
-  optionalErrorToOptionalFailure(err: unknown): ProtoFailure | undefined {
-    return err ? this.errorToFailure(err) : undefined;
+  optionalErrorToOptionalFailure(err: unknown, payloadConverter: PayloadConverter): ProtoFailure | undefined {
+    return err ? this.errorToFailure(err, payloadConverter) : undefined;
   }
 }

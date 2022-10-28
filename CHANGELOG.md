@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 Breaking changes marked with a :boom:
 
+## [1.4.3] - 2022-10-14
+
+### Bug Fixes
+
+- [`nyc-test-coverage`] Delay checking for **coverage** until helpers run because **coverage** is undefined when Jest
+  starts ([#910](https://github.com/temporalio/sdk-typescript/pull/910))
+- [`worker`] Avoid a race in shutdown hooks ([#918](https://github.com/temporalio/sdk-typescript/pull/918))
+- [`core`] Ignore cancels of StartFailed state in child workflows, see: https://github.com/temporalio/sdk-core/pull/413
+
 ## [1.4.2] - 2022-10-06
 
 ### Bug Fixes
@@ -86,6 +95,12 @@ Breaking changes marked with a :boom:
 - Fix double import of long in generated proto TS files ([#891](https://github.com/temporalio/sdk-typescript/pull/891))
 - Fix bundler with default workflow interceptors ([#891](https://github.com/temporalio/sdk-typescript/pull/891))
 - Limit eager activity requests to 3 ([#891](https://github.com/temporalio/sdk-typescript/pull/891))
+
+## [1.3.1] - 2022-10-10
+
+### Bug Fixes
+
+- Depend on `~1.3.1` of `@temporalio/*` packages to prevent `>= 1.4.0` versions from being installed.
 
 ## [1.3.0] - 2022-09-20
 

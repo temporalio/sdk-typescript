@@ -39,6 +39,7 @@ import * as path from 'node:path';
 import * as vm from 'node:vm';
 import {
   BehaviorSubject,
+  concatMap,
   EMPTY,
   firstValueFrom,
   from,
@@ -61,6 +62,16 @@ import * as errors from './errors';
 import { ActivityExecuteInput } from './interceptors';
 import { Logger } from './logger';
 import pkg from './pkg';
+import {
+  EvictionReason,
+  fetchWorkflowHistory,
+  handleReplayEviction,
+  RemoveFromCache,
+  ReplayError,
+  ReplayHistoriesOrExecutions,
+  ReplayResults,
+  ReplayRunOptions,
+} from './replay';
 import { History, Runtime } from './runtime';
 import { closeableGroupBy, mapWithState, mergeMapWithState } from './rxutils';
 import { childSpan, getTracer, instrument } from './tracing';
@@ -84,8 +95,6 @@ import { VMWorkflowCreator } from './workflow/vm';
 import { WorkflowBundleWithSourceMapAndFilename } from './workflow/workflow-worker-thread/input';
 
 import IWorkflowActivationJob = coresdk.workflow_activation.IWorkflowActivationJob;
-import EvictionReason = coresdk.workflow_activation.RemoveFromCache.EvictionReason;
-import IRemoveFromCache = coresdk.workflow_activation.IRemoveFromCache;
 
 export { DataConverter, defaultPayloadConverter, errors };
 
@@ -144,9 +153,14 @@ export interface NativeWorkerLike {
   logger: Logger;
 }
 
+export interface NativeReplayHandle {
+  worker: NativeWorkerLike;
+  historyPusher: native.HistoryPusher;
+}
+
 export interface WorkerConstructor {
   create(connection: NativeConnection, options: CompiledWorkerOptionsWithBuildId): Promise<NativeWorkerLike>;
-  createReplay(options: CompiledWorkerOptionsWithBuildId, history: History): Promise<NativeWorkerLike>;
+  createReplay(options: CompiledWorkerOptionsWithBuildId): Promise<NativeReplayHandle>;
 }
 
 function isOptionsWithBuildId<T extends CompiledWorkerOptions>(options: T): options is T & { buildId: string } {
@@ -179,13 +193,10 @@ export class NativeWorker implements NativeWorkerLike {
     return new NativeWorker(runtime, nativeWorker);
   }
 
-  public static async createReplay(
-    options: CompiledWorkerOptionsWithBuildId,
-    history: History
-  ): Promise<NativeWorkerLike> {
+  public static async createReplay(options: CompiledWorkerOptionsWithBuildId): Promise<NativeReplayHandle> {
     const runtime = Runtime.instance();
-    const nativeWorker = await runtime.createReplayWorker(options, history);
-    return new NativeWorker(runtime, nativeWorker);
+    const replayer = await runtime.createReplayWorker(options);
+    return { worker: new NativeWorker(runtime, replayer.worker), historyPusher: replayer.pusher };
   }
 
   protected constructor(protected readonly runtime: Runtime, protected readonly nativeWorker: native.Worker) {
@@ -372,13 +383,17 @@ export class Worker {
   protected readonly numInFlightActivitiesSubject = new BehaviorSubject<number>(0);
   protected readonly numCachedWorkflowsSubject = new BehaviorSubject<number>(0);
   protected readonly numHeartbeatingActivitiesSubject = new BehaviorSubject<number>(0);
-  protected readonly evictionsSubject = new Subject<{ runId: string; evictJob: IRemoveFromCache }>();
+  protected readonly evictionsSubject = new Subject<{
+    workflowId?: string;
+    runId: string;
+    evictJob: RemoveFromCache;
+  }>();
   private readonly runIdsToSpanContext = new Map<string, SpanContext>();
 
   protected static nativeWorkerCtor: WorkerConstructor = NativeWorker;
   // Used to add uniqueness to replay worker task queue names
   protected static replayWorkerCount = 0;
-  private static readonly SELF_INDUCED_SHUTDOWN_EVICTION: IRemoveFromCache = {
+  private static readonly SELF_INDUCED_SHUTDOWN_EVICTION: RemoveFromCache = {
     message: 'Shutting down',
     reason: EvictionReason.FATAL,
   };
@@ -448,38 +463,93 @@ export class Worker {
    * Create a replay Worker, and run the provided history against it. Will resolve as soon as
    * the history has finished being replayed, or if the workflow produces a nondeterminism error.
    *
+   * @param workflowId If provided, use this as the workflow id during replay. Histories do not
+   * contain a workflow id, so it must be provided separately if your workflow depends on it.
    * @throws {@link DeterminismViolationError} if the workflow code is not compatible with the history.
    */
-  public static async runReplayHistory(options: ReplayWorkerOptions, history: History | unknown): Promise<void> {
+  public static async runReplayHistory(
+    options: ReplayWorkerOptions,
+    history: History | unknown,
+    workflowId?: string
+  ): Promise<void> {
+    const validated = this.validateHistory(history);
+    try {
+      await this.runReplayHistories(
+        { ...options, failFast: true }, // Always failFast in single replay
+        { histories: [{ history: validated, workflowId: workflowId ?? 'fake' }] }
+      );
+    } catch (err) {
+      // Before supporting multiple history replays we used to throw DeterminismViolationError, the next line ensures we
+      // maintain that behavior.
+      if (err instanceof ReplayError && err.isNonDeterminism) {
+        throw new DeterminismViolationError(err.message);
+      }
+      throw err;
+    }
+  }
+
+  /**
+   * Create a replay Worker, running all histories provided by the passed in iterable (or downloading them if a client &
+   * iterable of workflow executions is provided).
+   *
+   * If `options.failFast` is set, the function will throw upon the first encountered error. Otherwise, all histories
+   * will be replayed and the returned results object will contain error information.
+   *
+   * @throws {@link ReplayError} if in fail-fast mode and there is some incompatible history or on any other error that
+   * may fail a workflow task.
+   *
+   * @experimental - this API is considered unstable
+   */
+  public static async runReplayHistories(
+    options: ReplayWorkerOptions,
+    historiesOrExecutions: ReplayHistoriesOrExecutions
+  ): Promise<ReplayResults> {
+    const [worker, pusher] = await this.constructReplayWorker(options);
+    const rt = Runtime.instance();
+    const replayDone = new Subject<void>();
+    let feed;
+    if ('client' in historiesOrExecutions) {
+      const { client, executions, maxConcurrency } = historiesOrExecutions;
+      feed = from(executions).pipe(
+        mergeMap(async ({ workflowId, runId }) => {
+          const history = await fetchWorkflowHistory(client, workflowId, runId);
+          const validated = this.validateHistory(history);
+          await rt.pushHistory(pusher, workflowId, validated);
+        }, maxConcurrency ?? 5)
+      );
+    } else {
+      feed = from(historiesOrExecutions.histories).pipe(
+        concatMap(async ({ history, workflowId }) => {
+          const validated = this.validateHistory(history);
+          await rt.pushHistory(pusher, workflowId, validated);
+        })
+      );
+    }
+    const feeder = lastValueFrom(feed.pipe(takeUntil(replayDone))).finally(() => rt.closeHistoryStream(pusher));
+    const replayer = this.runReplayerToCompletion(worker, { failFast: options.failFast }).finally(() =>
+      replayDone.next()
+    );
+    const [results] = await Promise.all([replayer, feeder]);
+    return results;
+  }
+
+  private static validateHistory(history: unknown): History {
     if (typeof history !== 'object' || history == null) {
       throw new TypeError(`Expected a non-null history object, got ${typeof history}`);
     }
     const { eventId } = (history as any).events[0];
     // in a "valid" history, eventId would be Long
     if (typeof eventId === 'string') {
-      return this.runReplayValidHistory(options, historyFromJSON(history));
+      return historyFromJSON(history);
     } else {
-      return this.runReplayValidHistory(options, history as History);
+      return history;
     }
   }
 
-  /**
-   * Internal implementation of `runReplayHistory`, only works on "valid" histories (e.g. not ones loaded straight from
-   * exported JSON)
-   */
-  protected static async runReplayValidHistory(options: ReplayWorkerOptions, history: History): Promise<void> {
+  private static async constructReplayWorker(options: ReplayWorkerOptions): Promise<[Worker, native.HistoryPusher]> {
     const nativeWorkerCtor: WorkerConstructor = this.nativeWorkerCtor;
-    const wftStartedEvent = history.events?.find((e) => e.workflowExecutionStartedEventAttributes != null);
-    if (wftStartedEvent == null) {
-      throw new TypeError('History does not contain a WorkflowExecutionStarted event');
-    }
-    const workflowName = wftStartedEvent.workflowExecutionStartedEventAttributes?.workflowType?.name;
-    if (workflowName == null) {
-      throw new TypeError('WorkflowExecutionStarted event does not contain workflowType.name');
-    }
-
     const fixedUpOptions: WorkerOptions = {
-      taskQueue: (options.replayName ?? workflowName) + '-' + this.replayWorkerCount,
+      taskQueue: (options.replayName ?? 'fake_replay_queue') + '-' + this.replayWorkerCount,
       debugMode: true,
       ...options,
     };
@@ -490,16 +560,23 @@ export class Worker {
       throw new TypeError('ReplayWorkerOptions must contain workflowsPath or workflowBundle');
     }
     const workflowCreator = await this.createWorkflowCreator(bundle, compiledOptions);
-    const replayWorker = await nativeWorkerCtor.createReplay(
-      addBuildIdIfMissing(compiledOptions, bundle.code),
-      history
-    );
-    const constructedWorker = new this(replayWorker, workflowCreator, compiledOptions);
+    const replayHandle = await nativeWorkerCtor.createReplay(addBuildIdIfMissing(compiledOptions, bundle.code));
+    return [new this(replayHandle.worker, workflowCreator, compiledOptions), replayHandle.historyPusher];
+  }
 
+  /**
+   * Internal implementation of `runReplayHistory`, only works on "valid" histories (e.g. not ones
+   * loaded straight from exported JSON)
+   */
+  protected static async runReplayerToCompletion(
+    constructedWorker: Worker,
+    opts: ReplayRunOptions
+  ): Promise<ReplayResults> {
     const runPromise = constructedWorker.run();
     const pollerShutdown = firstValueFrom(
       constructedWorker.workflowPollerStateSubject.pipe(filter((state) => state !== 'POLLING'))
     );
+    const replayErrors = Array<ReplayError>();
 
     const evictionPromise = firstValueFrom(
       constructedWorker.evictionsSubject.pipe(
@@ -509,14 +586,16 @@ export class Worker {
             evictJob.message !== this.SELF_INDUCED_SHUTDOWN_EVICTION.message &&
             evictJob.reason !== this.SELF_INDUCED_SHUTDOWN_EVICTION.reason
         ),
-        map(({ evictJob }) => {
-          if (evictJob.reason === EvictionReason.NONDETERMINISM) {
-            throw new DeterminismViolationError(
-              'Replay failed with a nondeterminism error. This means that the workflow code as written ' +
-                `is not compatible with the history that was fed in. Details: ${evictJob.message}`
-            );
-          } else {
-            throw new Error(`Replay failed. Details: ${evictJob.message}`);
+        map(({ workflowId, runId, evictJob }) => {
+          if (workflowId === undefined) {
+            throw new errors.UnexpectedError('Expected workflowId to be set on eviction');
+          }
+          const error = handleReplayEviction(evictJob, workflowId, runId);
+          if (error != null) {
+            if (opts.failFast !== false) {
+              throw error;
+            }
+            replayErrors.push(error);
           }
         })
       )
@@ -529,6 +608,7 @@ export class Worker {
         // We may have already shut down and that's fine
       }
     });
+    return { errors: replayErrors, hasErrors: replayErrors.length > 0 };
   }
 
   protected static async getOrCreateBundle(
@@ -1009,6 +1089,7 @@ export class Worker {
                     const asEvictJob = jobs.splice(removeFromCacheIx, 1)[0].removeFromCache;
                     if (asEvictJob) {
                       this.evictionsSubject.next({
+                        workflowId: state?.info.workflowId,
                         runId: activation.runId,
                         evictJob: asEvictJob,
                       });

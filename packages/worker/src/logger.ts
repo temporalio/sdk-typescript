@@ -1,3 +1,4 @@
+import { formatWithOptions } from 'util';
 import { LogLevel, getTimeOfDay } from '@temporalio/core-bridge';
 
 export type LogMetadata = Record<string | symbol, any>;
@@ -28,17 +29,19 @@ export const LogTimestamp = Symbol('log_timestamp');
 
 const severities: LogLevel[] = ['TRACE', 'DEBUG', 'INFO', 'WARN', 'ERROR'];
 
+const format = formatWithOptions.bind(undefined, { colors: true });
+
 /**
- * Log messages using `console.error` and basic formatting
+ * Log messages to `stderr` using basic formatting
  */
 function defaultLogFunction(entry: LogEntry): void {
   const { level, timestampNanos, message, meta } = entry;
 
   const date = new Date(Number(timestampNanos / 1_000_000n));
   if (meta === undefined) {
-    console.error(date, `[${level}]`, message);
+    process.stderr.write(`${format(date)} [${level}] ${message}\n`);
   } else {
-    console.error(date, `[${level}]`, message, meta);
+    process.stderr.write(`${format(date)} [${level}] ${message} ${format(meta)}\n`);
   }
 }
 

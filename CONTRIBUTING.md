@@ -192,9 +192,22 @@ for f in ~/Downloads/packages-*.zip; do mkdir "$HOME/Downloads/$(basename -s .zi
 # we should now have all 5 build targets
 ls packages/core-bridge/releases/
 
-npx lerna version patch --exact --force-publish='*' # or major|minor|etc, or leave out to be prompted. either way, you get a confirmation dialog.
-npx lerna publish from-git # add `--dist-tag next` for pre-release versions
+npx lerna version patch --force-publish='*' # or major|minor|etc, or leave out to be prompted. either way, you get a confirmation dialog.
 
+# replace TODO with the tilde version, like: ~1.5.0
+sed -i '' 's/file:\.\.\/.*"/TODO"/g' packages/*/package.json
+
+git add packages
+git commit -m 'Depend on ~1.5.0'
+git tag v1.5.0 -f
+git push origin v1.5.0 -f
+npx lerna publish from-package # add `--dist-tag next` for pre-release versions
+git reset HEAD^ --hard
+```
+
+Finally:
+
+```
 npm deprecate temporalio@^1.0.0 "Instead of installing temporalio, we recommend directly installing our packages: npm remove temporalio; npm install @temporalio/client @temporalio/worker @temporalio/workflow @temporalio/activity"
 ```
 
@@ -247,35 +260,4 @@ When we want to deprecate a package:
 
 ```
 npm deprecate temporalio@^1.0.0 "deprecation message that will be logged on install"
-```
-
-## Updating the Java test server proto files
-
-[These files](https://github.com/temporalio/sdk-java/tree/master/temporal-test-server/src/main/proto) are taken from the `sdk-java` repo.
-
-```sh
-# Add sdk-java as a git remote
-git remote get-url sdk-java || git remote add sdk-java git@github.com:temporalio/sdk-java.git
-
-# Checkout and pull sdk-java master
-git checkout -B sdk-java-master sdk-java/master
-git pull
-
-# Delete this branch in case it already exists
-git branch -D sdk-java-master-proto-only
-
-# Pick only the 'proto' directory
-git subtree split --squash --prefix=temporal-test-server/src/main/proto/ -b sdk-java-master-proto-only
-
-# Fix the proto paths so they can be checked out into the proper location
-gco sdk-java-master-proto-only
-mkdir -p packages/testing/proto
-git mv $(git ls-files | cut -d / -f 1 | uniq) packages/testing/proto
-git commit -m 'Move protos to testing package'
-
-# Checkout the destination branch (the below command creates a new branch but this is not required)
-git checkout -b my-branch-for-pull-request
-
-# Checkout all proto changes into current branch
-gco sdk-java-master-proto-only packages/testing
 ```

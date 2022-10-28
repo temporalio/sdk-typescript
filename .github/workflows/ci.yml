@@ -100,20 +100,11 @@ jobs:
           ALGOLIA_API_KEY: ${{ secrets.ALGOLIA_API_KEY }}
       - name: Deploy prod docs # TODO: only deploy prod docs when we publish a new version
         if: ${{ github.ref == 'refs/heads/main' }}
-        uses: netlify/actions/cli@master
-        with:
-          args: deploy --dir=packages/docs/build --prod
-        env:
-          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
-          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+        run: npx vercel deploy packages/docs/build -t ${{ secrets.VERCEL_TOKEN }} --name typescript --scope temporal --prod --yes
       - name: Deploy draft docs
-        if: ${{ github.ref != 'refs/heads/main' }}
-        uses: netlify/actions/cli@master
-        with:
-          args: deploy --dir=packages/docs/build
-        env:
-          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
-          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+        # Don't run on forks, since secrets won't be available, and command will fail
+        if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.ref != 'refs/heads/main' }}
+        run: npx vercel deploy packages/docs/build -t ${{ secrets.VERCEL_TOKEN }} --name typescript --scope temporal --yes
 
   # Run TS linting and ts-prune to find unused code
   lint-and-prune:
