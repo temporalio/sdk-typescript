@@ -4,7 +4,7 @@
   "parserOptions": {
     "project": "./packages/*/tsconfig.json"
   },
-  "plugins": ["@typescript-eslint", "eslint-plugin-tsdoc", "deprecation"],
+  "plugins": ["@typescript-eslint", "eslint-plugin-tsdoc", "deprecation", "import"],
   "extends": [
     "eslint:recommended",
     "plugin:@typescript-eslint/eslint-recommended",
@@ -12,6 +12,7 @@
     "prettier"
   ],
   "rules": {
+    "no-duplicate-imports": "error",
     "object-shorthand": ["error", "always"],
     "deprecation/deprecation": "warn",
     "@typescript-eslint/no-explicit-any": 0,
@@ -23,6 +24,42 @@
         "argsIgnorePattern": "^_",
         "varsIgnorePattern": "^_"
       }
-    ]
+    ],
+    "import/no-unresolved": ["error", { "ignore": ["^__temporal_"] }],
+    // TypeScript compilation already ensures that named imports exist in the referenced module
+    "import/named": "off",
+    "import/default": "error",
+    "import/namespace": "error",
+    "import/no-absolute-path": "error",
+    "import/no-self-import": "error",
+    "import/no-cycle": "error",
+    "import/no-useless-path-segments": "error",
+    "import/no-relative-packages": "error",
+    "import/export": "error",
+    "import/no-named-as-default": "error",
+    // TODO enable and fix
+    // "import/no-deprecated": "error",
+    "import/no-extraneous-dependencies": "error",
+    "import/no-mutable-exports": "error",
+    "import/unambiguous": "error",
+    "import/first": "error",
+    // TODO next PR
+    // "import/order": "error",
+    "import/newline-after-import": "error",
+    "import/no-unassigned-import": "error",
+    "import/no-named-default": "error"
+  },
+  "settings": {
+    "import/parsers": {
+      "@typescript-eslint/parser": [".ts"]
+    },
+    "import/resolver": {
+      "typescript": {
+        // always try to resolve types under `<root>@types` directory even it doesn't contain any source code, like
+        // `@types/unist`
+        "alwaysTryTypes": true,
+        "project": ["packages/*/tsconfig.json"]
+      }
+    }
   }
 }

@@ -3,6 +3,7 @@ import chalk from 'chalk';
 import dedent from 'dedent';
 import { Command } from 'commander';
 import path from 'path';
+// eslint-disable-next-line import/no-named-as-default
 import prompts from 'prompts';
 import checkForUpdate from 'update-check';
 

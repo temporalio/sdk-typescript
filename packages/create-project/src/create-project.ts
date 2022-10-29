@@ -3,6 +3,7 @@ import retry from 'async-retry';
 import chalk from 'chalk';
 import chalkTemplate from 'chalk-template';
 import path from 'path';
+// eslint-disable-next-line import/no-named-as-default
 import prompts from 'prompts';
 import { access, rm, readFile } from 'fs/promises';
 

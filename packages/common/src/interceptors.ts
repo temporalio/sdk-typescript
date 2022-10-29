@@ -18,6 +18,7 @@ export type Headers = Record<string, Payload>;
  * @param method the name of the interceptor method to compose
  * @param next the original function to be executed at the end of the interception chain
  */
+// ts-prune-ignore-next (imported via lib/interceptors)
 export function composeInterceptors<I, M extends keyof I>(interceptors: I[], method: M, next: Next<I, M>): Next<I, M> {
   for (let i = interceptors.length - 1; i >= 0; --i) {
     const interceptor = interceptors[i];

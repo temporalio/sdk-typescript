@@ -1,6 +1,5 @@
 import { ServerErrorResponse } from '@grpc/grpc-js';
 import { RetryState, TemporalFailure } from '@temporalio/common';
-export { WorkflowExecutionAlreadyStartedError } from '@temporalio/common';
 
 /**
  * Generic Error class for errors coming from the service

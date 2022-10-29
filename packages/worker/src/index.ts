@@ -33,7 +33,6 @@ export {
   appendDefaultInterceptors,
   CompiledWorkerOptions,
   defaultSinks,
-  defaultWorflowInterceptorModules,
   ReplayWorkerOptions,
   WorkerOptions,
   WorkflowBundle,
@@ -43,4 +42,9 @@ export {
 } from './worker-options';
 export { ReplayError, ReplayExecutions, ReplayHistories, ReplayHistoriesOrExecutions, ReplayResults } from './replay';
 export { WorkflowInboundLogInterceptor, workflowLogAttributes } from './workflow-log-interceptor';
-export { BundleOptions, bundleWorkflowCode, WorkflowBundleWithSourceMap } from './workflow/bundler';
+export {
+  BundleOptions,
+  bundleWorkflowCode,
+  defaultWorflowInterceptorModules,
+  WorkflowBundleWithSourceMap,
+} from './workflow/bundler';

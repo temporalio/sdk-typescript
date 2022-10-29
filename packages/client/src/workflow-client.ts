@@ -1,16 +1,28 @@
 import { status as grpcStatus } from '@grpc/grpc-js';
 import {
+  BaseWorkflowHandle,
   CancelledFailure,
+  compileRetryPolicy,
   DataConverter,
   LoadedDataConverter,
   mapFromPayloads,
   mapToPayloads,
+  QueryDefinition,
   RetryState,
   searchAttributePayloadConverter,
+  SearchAttributes,
+  SignalDefinition,
   TerminatedFailure,
   TimeoutFailure,
   TimeoutType,
+  WithWorkflowArgs,
+  Workflow,
+  WorkflowExecutionAlreadyStartedError,
+  WorkflowNotFoundError,
+  WorkflowResultType,
 } from '@temporalio/common';
+import { tsToDate, optionalTsToDate } from '@temporalio/common/lib/time';
+import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import {
   decodeArrayFromPayloads,
   decodeFromPayloadsAtIndex,
@@ -22,31 +34,12 @@ import {
   isLoadedDataConverter,
   loadDataConverter,
 } from '@temporalio/common/lib/internal-non-workflow';
-import {
-  BaseWorkflowHandle,
-  compileRetryPolicy,
-  QueryDefinition,
-  SearchAttributes,
-  SignalDefinition,
-  WithWorkflowArgs,
-  Workflow,
-  WorkflowNotFoundError,
-  WorkflowResultType,
-} from '@temporalio/common';
-import { optionalTsToDate, tsToDate } from '@temporalio/common/lib/time';
-import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import { Replace } from '@temporalio/common/lib/type-helpers';
 import { temporal } from '@temporalio/proto';
 import os from 'os';
 import { v4 as uuid4 } from 'uuid';
 import { Connection } from './connection';
-import {
-  isServerErrorResponse,
-  ServiceError,
-  WorkflowContinuedAsNewError,
-  WorkflowExecutionAlreadyStartedError,
-  WorkflowFailedError,
-} from './errors';
+import { isServerErrorResponse, ServiceError, WorkflowContinuedAsNewError, WorkflowFailedError } from './errors';
 import {
   WorkflowCancelInput,
   WorkflowClientCallsInterceptor,

@@ -1,21 +1,24 @@
-import { defaultFailureConverter, FailureConverter, PayloadConverter } from '@temporalio/common';
-import type { RawSourceMap } from 'source-map';
 import {
+  defaultFailureConverter,
+  FailureConverter,
+  PayloadConverter,
   arrayFromPayloads,
   defaultPayloadConverter,
   ensureTemporalFailure,
   IllegalStateError,
   TemporalFailure,
   Workflow,
+  WorkflowExecutionAlreadyStartedError,
   WorkflowQueryType,
   WorkflowSignalType,
 } from '@temporalio/common';
+import type { RawSourceMap } from 'source-map';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import { checkExtends } from '@temporalio/common/lib/type-helpers';
 import type { coresdk } from '@temporalio/proto';
 import { alea, RNG } from './alea';
 import { ROOT_SCOPE } from './cancellation-scope';
-import { DeterminismViolationError, isCancellation, WorkflowExecutionAlreadyStartedError } from './errors';
+import { DeterminismViolationError, isCancellation } from './errors';
 import {
   QueryInput,
   SignalInput,
