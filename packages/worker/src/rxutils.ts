@@ -6,8 +6,6 @@ interface StateAndOptionalOutput<T, O> {
   output?: O;
 }
 
-export const definitelyUnusedRemoveOnceWeKnowCiWorks = true;
-
 export type StateAndOutput<T, O> = Required<StateAndOptionalOutput<T, O>>;
 
 export function mergeMapWithState<T, I, O>(

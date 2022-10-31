@@ -3,6 +3,7 @@
 import { execSync } from 'child_process';
 import { rm } from 'fs/promises';
 import path from 'path';
+// eslint-disable-next-line import/no-named-as-default
 import prompts from 'prompts';
 
 const NOT_A_GIT_REPOSITORY_STATUS_CODE = 128;

@@ -4,10 +4,11 @@ import { builtinModules } from 'module';
 import path from 'path';
 import * as unionfs from 'unionfs';
 import util from 'util';
-import webpack from 'webpack';
+import { Configuration, webpack } from 'webpack';
 import { DefaultLogger, Logger } from '../logger';
 import { toMB } from '../utils';
-import { defaultWorflowInterceptorModules } from '../worker-options';
+
+export const defaultWorflowInterceptorModules = [require.resolve('../workflow-log-interceptor')];
 
 export const allowedBuiltinModules = ['assert'];
 export const disallowedBuiltinModules = builtinModules.filter((module) => !allowedBuiltinModules.includes(module));
@@ -51,7 +52,7 @@ export class WorkflowCodeBundler {
   protected readonly payloadConverterPath?: string;
   protected readonly failureConverterPath?: string;
   protected readonly ignoreModules: string[];
-  protected readonly webpackConfigHook: (config: webpack.Configuration) => webpack.Configuration;
+  protected readonly webpackConfigHook: (config: Configuration) => Configuration;
 
   constructor({
     logger,
@@ -177,10 +178,7 @@ export { api };
     entry: string,
     distDir: string
   ): Promise<string> {
-    const captureProblematicModules: webpack.Configuration['externals'] = async (
-      data,
-      _callback
-    ): Promise<undefined> => {
+    const captureProblematicModules: Configuration['externals'] = async (data, _callback): Promise<undefined> => {
       // Ignore the "node:" prefix if any.
       const module: string = data.request?.startsWith('node:')
         ? data.request.slice('node:'.length)
@@ -193,7 +191,7 @@ export { api };
       return undefined;
     };
 
-    const options: webpack.Configuration = {
+    const options: Configuration = {
       resolve: {
         // https://webpack.js.org/configuration/resolve/#resolvemodules
         modules: [path.resolve(__dirname, 'module-overrides'), 'node_modules'],
@@ -345,7 +343,7 @@ export interface BundleOptions {
    * Before Workflow code is bundled with Webpack, `webpackConfigHook` is called with the Webpack
    * {@link https://webpack.js.org/configuration/ | configuration} object so you can modify it.
    */
-  webpackConfigHook?: (config: webpack.Configuration) => webpack.Configuration;
+  webpackConfigHook?: (config: Configuration) => Configuration;
 }
 
 /**

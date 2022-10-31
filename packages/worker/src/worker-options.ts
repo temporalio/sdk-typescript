@@ -11,7 +11,7 @@ import { WorkerInterceptors } from './interceptors';
 import { Runtime } from './runtime';
 import { InjectedSinks } from './sinks';
 import { GiB } from './utils';
-import { WorkflowBundleWithSourceMap } from './workflow/bundler';
+import { defaultWorflowInterceptorModules, WorkflowBundleWithSourceMap } from './workflow/bundler';
 
 export type { WebpackConfiguration };
 
@@ -440,8 +440,6 @@ export function defaultSinks(logger = Runtime.instance().logger): InjectedSinks<
     },
   };
 }
-
-export const defaultWorflowInterceptorModules = [require.resolve('./workflow-log-interceptor')];
 
 /**
  * Appends the default Worker logging interceptors to given interceptor arrays.

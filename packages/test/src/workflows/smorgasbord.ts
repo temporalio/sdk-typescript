@@ -13,7 +13,7 @@ import {
   condition,
   continueAsNew,
 } from '@temporalio/workflow';
-import * as activities from '../activities/';
+import * as activities from '../activities';
 import { signalTarget } from './signal-target';
 import { activityStartedSignal, unblockSignal } from './definitions';
 

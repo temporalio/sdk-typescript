@@ -9,11 +9,9 @@ import {
   LoadedDataConverter,
   mapFromPayloads,
   Payload,
-  SearchAttributes,
   searchAttributePayloadConverter,
+  SearchAttributes,
 } from '@temporalio/common';
-import { optionalTsToDate, optionalTsToMs, tsToMs } from '@temporalio/common/lib/time';
-import * as native from '@temporalio/core-bridge';
 import {
   decodeArrayFromPayloads,
   decodeFromPayloadsAtIndex,
@@ -29,13 +27,19 @@ import {
   RUN_ID_ATTR_KEY,
   TASK_TOKEN_ATTR_KEY,
 } from '@temporalio/common/lib/otel';
+import { historyFromJSON } from '@temporalio/common/lib/proto-utils';
+import { optionalTsToDate, optionalTsToMs, tsToMs } from '@temporalio/common/lib/time';
 import { errorMessage } from '@temporalio/common/lib/type-helpers';
+import * as native from '@temporalio/core-bridge';
 import { coresdk, temporal } from '@temporalio/proto';
 import { DeterminismViolationError, SinkCall, WorkflowInfo } from '@temporalio/workflow';
 import crypto from 'crypto';
 import fs from 'fs/promises';
+import * as path from 'node:path';
+import * as vm from 'node:vm';
 import {
   BehaviorSubject,
+  concatMap,
   EMPTY,
   firstValueFrom,
   from,
@@ -47,16 +51,27 @@ import {
   pipe,
   race,
   Subject,
-  concatMap,
 } from 'rxjs';
 import { delay, filter, first, ignoreElements, last, map, mergeMap, takeUntil, takeWhile, tap } from 'rxjs/operators';
+import type { RawSourceMap } from 'source-map';
 import { promisify } from 'util';
 import { Activity, CancelReason } from './activity';
+import { activityLogAttributes } from './activity-log-interceptor';
 import { extractNativeClient, extractReferenceHolders, InternalNativeConnection, NativeConnection } from './connection';
 import * as errors from './errors';
 import { ActivityExecuteInput } from './interceptors';
 import { Logger } from './logger';
 import pkg from './pkg';
+import {
+  EvictionReason,
+  fetchWorkflowHistory,
+  handleReplayEviction,
+  RemoveFromCache,
+  ReplayError,
+  ReplayHistoriesOrExecutions,
+  ReplayResults,
+  ReplayRunOptions,
+} from './replay';
 import { History, Runtime } from './runtime';
 import { closeableGroupBy, mapWithState, mergeMapWithState } from './rxutils';
 import { childSpan, getTracer, instrument } from './tracing';
@@ -68,31 +83,16 @@ import {
   isCodeBundleOption,
   isPathBundleOption,
   ReplayWorkerOptions,
-  WorkflowBundle,
   WorkerOptions,
-  defaultWorflowInterceptorModules,
+  WorkflowBundle,
 } from './worker-options';
 import { WorkflowCodecRunner } from './workflow-codec-runner';
-import { WorkflowCodeBundler } from './workflow/bundler';
+import { workflowLogAttributes } from './workflow-log-interceptor';
+import { defaultWorflowInterceptorModules, WorkflowCodeBundler } from './workflow/bundler';
 import { Workflow, WorkflowCreator } from './workflow/interface';
 import { ThreadedVMWorkflowCreator } from './workflow/threaded-vm';
 import { VMWorkflowCreator } from './workflow/vm';
-import type { RawSourceMap } from 'source-map';
-import * as vm from 'node:vm';
-import * as path from 'node:path';
-import { historyFromJSON } from '@temporalio/common/lib/proto-utils';
-import { activityLogAttributes } from './activity-log-interceptor';
-import { workflowLogAttributes } from './workflow-log-interceptor';
-import {
-  EvictionReason,
-  fetchWorkflowHistory,
-  handleReplayEviction,
-  RemoveFromCache,
-  ReplayError,
-  ReplayHistoriesOrExecutions,
-  ReplayResults,
-  ReplayRunOptions,
-} from './replay';
+import { WorkflowBundleWithSourceMapAndFilename } from './workflow/workflow-worker-thread/input';
 
 import IWorkflowActivationJob = coresdk.workflow_activation.IWorkflowActivationJob;
 
@@ -1731,12 +1731,6 @@ export class Worker {
       }
     }
   }
-}
-
-export interface WorkflowBundleWithSourceMapAndFilename {
-  code: string;
-  sourceMap: RawSourceMap;
-  filename: string;
 }
 
 export function parseWorkflowCode(code: string, codePath?: string): WorkflowBundleWithSourceMapAndFilename {

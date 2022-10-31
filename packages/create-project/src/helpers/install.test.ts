@@ -3,7 +3,7 @@ import dedent from 'dedent';
 import { readFile, rm, writeFile } from 'fs/promises';
 import os from 'os';
 import path from 'path';
-import { v4 as uuid } from 'uuid';
+import { randomUUID } from 'node:crypto';
 import { replaceSdkVersion } from './install.js';
 import { makeDir } from './make-dir.js';
 
@@ -11,7 +11,7 @@ test('replaceSdkVersion according to configured level', async (t) => {
   console.log('debug windows');
   // console.log('import.meta.url', import.meta.url);
   // console.log('URL', new URL('../../test', import.meta.url));
-  const tempDir = path.join(os.tmpdir(), uuid());
+  const tempDir = path.join(os.tmpdir(), randomUUID());
   console.log('tempDir:', tempDir);
   await makeDir(tempDir);
 

@@ -116,8 +116,10 @@ jobs:
       - uses: actions/setup-node@v1
         with:
           node-version: 16
-      # Don't build during install phase since we don't need builds for linting
       - run: npm ci --ignore-scripts
+      # eslint-import-resolver-typescript requires packages to be built
+      - name: Compile all non-rust code
+        run: npm run build -- --ignore @temporalio/core-bridge
       - run: npm run lint
       - run: npm run lint.prune
 

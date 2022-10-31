@@ -1,3 +1,5 @@
+/* eslint-disable no-duplicate-imports */
+// ^ needed for lint passing in CI
 /**
  * Test the various states of a Worker.
  * Most tests use a mocked core, some tests run serially because they emit signals to the process

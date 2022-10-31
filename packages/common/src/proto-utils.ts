@@ -1,4 +1,4 @@
-import proto from '@temporalio/proto';
+import * as proto from '@temporalio/proto';
 import { fromProto3JSON, toProto3JSON } from 'proto3-json-serializer';
 import { patchProtobufRoot } from '@temporalio/proto/lib/patch-protobuf-root';
 

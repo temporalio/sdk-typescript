@@ -1,7 +1,6 @@
-import { temporal, coresdk } from '@temporalio/proto';
-import { Client } from '@temporalio/client';
+import { Client, WorkflowExecution } from '@temporalio/client';
+import { coresdk, temporal } from '@temporalio/proto';
 import { History } from './runtime';
-import { WorkflowExecution } from '@temporalio/client';
 
 export type EvictionReason = coresdk.workflow_activation.RemoveFromCache.EvictionReason;
 export const EvictionReason = coresdk.workflow_activation.RemoveFromCache.EvictionReason;

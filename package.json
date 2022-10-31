@@ -30,7 +30,7 @@
     "ci-nightly": "node ./packages/test/lib/load/run-all-nightly-scenarios.js",
     "wait-namespace": "node ./scripts/wait-on-temporal.mjs",
     "lint": "eslint packages/*/src --ext .ts --no-error-on-unmatched-pattern && prettier --end-of-line auto --check .",
-    "lint.prune": "ts-prune -p tsconfig.prune.json --ignore \"used in module\" --skip \".d.ts\"",
+    "lint.prune": "ts-prune --error -p tsconfig.prune.json --ignore \"used in module\" --skip \".d.ts\"",
     "format": "prettier --write .",
     "clean": "node ./scripts/clean.mjs",
     "docs": "lerna run --stream maybe-install-deps-and-build-docs"
@@ -70,6 +70,7 @@
     "dedent": "^0.7.0",
     "eslint": "^8.18.0",
     "eslint-config-prettier": "^8.5.0",
+    "eslint-import-resolver-typescript": "^3.3.0",
     "eslint-plugin-deprecation": "^1.3.2",
     "eslint-plugin-import": "^2.26.0",
     "eslint-plugin-tsdoc": "^0.2.16",
