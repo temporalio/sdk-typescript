@@ -27,10 +27,9 @@ const smallCacheArgs: Args = {
 
 export const activityCancellation10kIters: Args = {
   ...baseArgs,
-  '--iterations': 50_000,
-  '--max-cached-wfs': 10000,
-  '--concurrent-wf-clients': 1000,
-  '--workflow': workflows.successString.name,
+  '--iterations': 10_000,
+  '--max-cached-wfs': 500,
+  '--workflow': workflows.cancelFakeProgress.name,
 };
 
 export const queryWithSmallCache100Iters: Args = {

@@ -99,7 +99,7 @@ async function runWorkflows(options: RunWorkflowOptions): Promise<void> {
           recordMemUsage(workerResources?.memory);
         }
         process.stderr.write(
-          `WFs complete (${numComplete}/${stopCondition.num}) -- WFs/s curr ${wfsPerSecond} (acc ${overallWfsPerSecond}) -- ${resourceString}\n`
+          `\rWFs complete (${numComplete}/${stopCondition.num}) -- WFs/s curr ${wfsPerSecond} (acc ${overallWfsPerSecond}) -- ${resourceString}  `
         );
       })
     );
@@ -123,9 +123,9 @@ async function runWorkflows(options: RunWorkflowOptions): Promise<void> {
         }
         const secondsLeft = Math.max(Math.floor(stopCondition.seconds - totalTime), 0);
         process.stderr.write(
-          `WFs complete (${numComplete}) starting new wfs for (${secondsLeft.toFixed(
+          `\rWFs complete (${numComplete}) starting new wfs for (${secondsLeft.toFixed(
             1
-          )}s) more -- WFs/s curr ${wfsPerSecond} (acc ${overallWfsPerSecond}) -- ${resourceString}\n`
+          )}s) more -- WFs/s curr ${wfsPerSecond} (acc ${overallWfsPerSecond}) -- ${resourceString}  `
         );
       })
     );
