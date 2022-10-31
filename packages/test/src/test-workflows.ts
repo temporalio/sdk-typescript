@@ -33,7 +33,7 @@ export interface Context {
 class TestVMWorkflowCreator extends VMWorkflowCreator {
   public logs: Record<string, unknown[][]> = {};
 
-  override injectConsole(context: any, info: WorkflowInfo) {
+  override injectConsole(context: vm.Context, info: WorkflowInfo) {
     const { logs } = this;
     context.console = {
       log(...args: unknown[]) {

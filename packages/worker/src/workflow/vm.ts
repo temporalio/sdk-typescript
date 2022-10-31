@@ -1,4 +1,3 @@
-import { Mutex } from 'async-mutex';
 import { cutoffStackTrace, IllegalStateError } from '@temporalio/common';
 import { coresdk } from '@temporalio/proto';
 import { WorkflowInfo, FileLocation } from '@temporalio/workflow';
@@ -97,8 +96,6 @@ export class VMWorkflowCreator implements WorkflowCreator {
   readonly hasSeparateMicrotaskQueue: boolean;
 
   script?: vm.Script;
-  readonly context: vm.Context;
-  readonly mutex = new Mutex();
 
   constructor(
     script: vm.Script,
@@ -115,57 +112,26 @@ export class VMWorkflowCreator implements WorkflowCreator {
     this.hasSeparateMicrotaskQueue = gte(process.versions.node, '14.6.0');
 
     this.script = script;
-    const cachedModules = new Map<string | Symbol, any>();
-    const __webpack_module_cache__ = new Proxy(
-      {},
-      {
-        get: (_, p) => {
-          const moduleCache = this.context.__TEMPORAL__?.state?.moduleCache;
-          if (moduleCache != null && moduleCache.has(p)) {
-            return moduleCache.get(p);
-          }
-          return cachedModules.get(p);
-        },
-        set: (_, p, val) => {
-          const moduleCache = this.context.__TEMPORAL__?.state?.moduleCache;
-          if (moduleCache != null) {
-            moduleCache.set(p, val);
-          } else {
-            cachedModules.set(p, val);
-          }
-          return true;
-        },
-      }
-    );
-    this.context = vm.createContext(
-      { AsyncLocalStorage, assert, __webpack_module_cache__ },
-      { microtaskMode: 'afterEvaluate' }
-    );
-    this.script.runInContext(this.context);
   }
 
   /**
    * Create a workflow with given options
    */
   async createWorkflow(options: WorkflowCreateOptions): Promise<Workflow> {
-    const context = this.context!;
-    const bag: any = {};
+    const context = await this.getContext();
     const activationContext = { isReplaying: options.info.unsafe.isReplaying };
-    this.injectConsole(bag, options.info, activationContext);
+    this.injectConsole(context, options.info, activationContext);
     const { hasSeparateMicrotaskQueue, isolateExecutionTimeoutMs } = this;
     const workflowModule: WorkflowModule = new Proxy(
       {},
       {
         get(_: any, fn: string) {
           return (...args: any[]) => {
-            context.__TEMPORAL__.state = bag.state;
             context.__TEMPORAL__.args = args;
-            context.console = bag.console;
             const ret = vm.runInContext(`__TEMPORAL__.api.${fn}(...__TEMPORAL__.args)`, context, {
               timeout: isolateExecutionTimeoutMs,
               displayErrors: true,
             });
-            bag.state = context.__TEMPORAL__.state;
 
             // When running with microtaskMode `afterEvaluate`, promises from context cannot be directly awaited outside of it.
             if (
@@ -182,11 +148,11 @@ export class VMWorkflowCreator implements WorkflowCreator {
       }
     ) as any;
 
-    await this.mutex.runExclusive(() => workflowModule.initRuntime({ ...options, sourceMap: this.sourceMap }));
+    await workflowModule.initRuntime({ ...options, sourceMap: this.sourceMap });
 
     const newVM = new VMWorkflow(
       options.info,
-      bag,
+      context,
       workflowModule,
       isolateExecutionTimeoutMs,
       this.hasSeparateMicrotaskQueue,
@@ -196,14 +162,26 @@ export class VMWorkflowCreator implements WorkflowCreator {
     return newVM;
   }
 
-  cachedContexts = new Map<string, any>();
+  protected async getContext(): Promise<vm.Context> {
+    if (this.script === undefined) {
+      throw new IllegalStateError('Isolate context provider was destroyed');
+    }
+    let context;
+    if (this.hasSeparateMicrotaskQueue) {
+      context = vm.createContext({ AsyncLocalStorage, assert }, { microtaskMode: 'afterEvaluate' });
+    } else {
+      context = vm.createContext({ AsyncLocalStorage, assert });
+    }
+    this.script.runInContext(context);
+    return context;
+  }
 
   /**
    * Inject console.log and friends into the Workflow isolate context.
    *
    * Overridable for test purposes.
    */
-  protected injectConsole(context: any, info: WorkflowInfo, ac: ActivationContext): void {
+  protected injectConsole(context: vm.Context, info: WorkflowInfo, ac: ActivationContext): void {
     // isReplaying is mutated by the Workflow class on activation
     context.console = {
       log: (...args: any[]) => {
@@ -469,7 +447,7 @@ export class VMWorkflow implements Workflow {
    */
   public async dispose(): Promise<void> {
     VMWorkflowCreator.workflowByRunId.delete(this.info.runId);
-    // await this.workflowModule.dispose();
-    // delete this.context;
+    await this.workflowModule.dispose();
+    delete this.context;
   }
 }
