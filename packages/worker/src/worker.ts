@@ -1682,15 +1682,17 @@ export class Worker {
    */
   async runUntil<R>(fnOrPromise: Promise<R> | (() => Promise<R>)): Promise<R> {
     const workerRunPromise = this.run();
-    const innerPromise = typeof fnOrPromise === 'function' ? fnOrPromise() : fnOrPromise;
-    const [innerResult, workerRunResult] = await Promise.allSettled([
-      innerPromise.finally(() => {
+    const innerPromise = (async () => {
+      try {
+        const p = typeof fnOrPromise === 'function' ? fnOrPromise() : fnOrPromise;
+        return await p;
+      } finally {
         if (this.state === 'RUNNING') {
           this.shutdown();
         }
-      }),
-      workerRunPromise,
-    ]);
+      }
+    })();
+    const [innerResult, workerRunResult] = await Promise.allSettled([innerPromise, workerRunPromise]);
 
     if (workerRunResult.status === 'rejected') {
       if (innerResult.status === 'rejected') {
