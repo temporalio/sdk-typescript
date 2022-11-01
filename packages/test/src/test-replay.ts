@@ -4,8 +4,9 @@ import * as fs from 'fs';
 import path from 'path';
 import anyTest, { TestFn } from 'ava';
 import { temporal } from '@temporalio/proto';
-import { DefaultLogger, ReplayError, Runtime, Worker } from '@temporalio/worker';
+import { DefaultLogger, ReplayError, Runtime } from '@temporalio/worker';
 import { DeterminismViolationError } from '@temporalio/workflow';
+import { Worker } from './helpers';
 import History = temporal.api.history.v1.History;
 
 export interface Context {

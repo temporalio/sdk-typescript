@@ -2,10 +2,10 @@
 import test from 'ava';
 import { v4 as uuid4 } from 'uuid';
 import { WorkflowClient } from '@temporalio/client';
-import { DefaultLogger, InjectedSinks, Runtime, Worker } from '@temporalio/worker';
+import { DefaultLogger, InjectedSinks, Runtime } from '@temporalio/worker';
 import { WorkflowInfo } from '@temporalio/workflow';
 import { UnsafeWorkflowInfo } from '@temporalio/workflow/src/interfaces';
-import { RUN_INTEGRATION_TESTS } from './helpers';
+import { RUN_INTEGRATION_TESTS, Worker } from './helpers';
 import { defaultOptions } from './mock-native-worker';
 import * as workflows from './workflows';
 
@@ -106,15 +106,29 @@ if (RUN_INTEGRATION_TESTS) {
       unsafe: { isReplaying: false } as UnsafeWorkflowInfo,
     };
 
-    t.deepEqual(recordedCalls, [
-      { info, fn: 'success.runSync', counter: 0 },
-      { info, fn: 'success.runAsync', counter: 1 },
-      { info, fn: 'error.throwSync', counter: 2 },
-      { info, fn: 'error.throwAsync', counter: 3 },
-    ]);
+    /**
+     * Remove the `now()` function from WorkflowInfo.unsafe since it conditionally appears when running with the
+     * `reuseV8Context` worker option.
+     */
+    function sanitizeInfoUnsafe(info: WorkflowInfo) {
+      return { ...info, unsafe: { isReplaying: info.unsafe.isReplaying } };
+    }
 
     t.deepEqual(
-      recordedLogs,
+      recordedCalls.map(({ info, ...rest }) => ({ info: sanitizeInfoUnsafe(info), ...rest })),
+      [
+        { info, fn: 'success.runSync', counter: 0 },
+        { info, fn: 'success.runAsync', counter: 1 },
+        { info, fn: 'error.throwSync', counter: 2 },
+        { info, fn: 'error.throwAsync', counter: 3 },
+      ]
+    );
+
+    t.deepEqual(
+      recordedLogs.map(({ meta, ...rest }) => ({
+        meta: { ...meta, workflowInfo: sanitizeInfoUnsafe(meta.workflowInfo) },
+        ...rest,
+      })),
       thrownErrors.map((error) => ({
         level: 'ERROR',
         message: 'External sink function threw an error',

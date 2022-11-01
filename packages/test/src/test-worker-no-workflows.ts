@@ -1,8 +1,7 @@
 import test from 'ava';
 import { v4 as uuid4 } from 'uuid';
 import { WorkflowClient } from '@temporalio/client';
-import { Worker } from '@temporalio/worker';
-import { RUN_INTEGRATION_TESTS } from './helpers';
+import { RUN_INTEGRATION_TESTS, Worker } from './helpers';
 import { defaultOptions } from './mock-native-worker';
 import { runActivityInDifferentTaskQueue } from './workflows';
 

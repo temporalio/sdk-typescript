@@ -16,19 +16,22 @@ import { msToTs } from '@temporalio/common/lib/time';
 import { coresdk } from '@temporalio/proto';
 import { WorkflowCodeBundler } from '@temporalio/worker/lib/workflow/bundler';
 import { VMWorkflow, VMWorkflowCreator } from '@temporalio/worker/lib/workflow/vm';
+import { ReusableVMWorkflow, ReusableVMWorkflowCreator } from '@temporalio/worker/lib/workflow/reusable-vm';
 import { parseWorkflowCode } from '@temporalio/worker/lib/worker';
 import { WorkflowInfo } from '@temporalio/workflow';
 import * as activityFunctions from './activities';
-import { cleanStackTrace, u8 } from './helpers';
+import { cleanStackTrace, REUSE_V8_CONTEXT, u8 } from './helpers';
 
 export interface Context {
-  workflow: VMWorkflow;
+  workflow: VMWorkflow | ReusableVMWorkflow;
   logs: unknown[][];
   workflowType: string;
   startTime: number;
   runId: string;
-  workflowCreator: TestVMWorkflowCreator;
+  workflowCreator: TestVMWorkflowCreator | TestReusableVMWorkflowCreator;
 }
+
+const test = anyTest as TestFn<Context>;
 
 class TestVMWorkflowCreator extends VMWorkflowCreator {
   public logs: Record<string, unknown[][]> = {};
@@ -43,13 +46,27 @@ class TestVMWorkflowCreator extends VMWorkflowCreator {
   }
 }
 
-const test = anyTest as TestFn<Context>;
+class TestReusableVMWorkflowCreator extends ReusableVMWorkflowCreator {
+  public logs: Record<string, unknown[][]> = {};
+
+  override injectConsole() {
+    const { context } = this;
+    context.console = {
+      log: (...args: unknown[]) => {
+        const { info } = context.__TEMPORAL_ACTIVATOR__;
+        this.logs[info.runId].push(args);
+      },
+    };
+  }
+}
 
 test.before(async (t) => {
   const workflowsPath = path.join(__dirname, 'workflows');
   const bundler = new WorkflowCodeBundler({ workflowsPath });
   const workflowBundle = parseWorkflowCode((await bundler.createBundle()).code);
-  t.context.workflowCreator = await TestVMWorkflowCreator.create(workflowBundle, 100);
+  t.context.workflowCreator = REUSE_V8_CONTEXT
+    ? await TestReusableVMWorkflowCreator.create(workflowBundle, 200)
+    : await TestVMWorkflowCreator.create(workflowBundle, 200);
 });
 
 test.after.always(async (t) => {
@@ -79,7 +96,7 @@ async function createWorkflow(
   workflowType: string,
   runId: string,
   startTime: number,
-  workflowCreator: VMWorkflowCreator
+  workflowCreator: VMWorkflowCreator | ReusableVMWorkflowCreator
 ) {
   const workflow = (await workflowCreator.createWorkflow({
     info: {
@@ -1513,7 +1530,7 @@ test('logAndTimeout', async (t) => {
   const { workflowType, workflow } = t.context;
   await t.throwsAsync(activate(t, makeStartWorkflow(workflowType)), {
     code: 'ERR_SCRIPT_EXECUTION_TIMEOUT',
-    message: 'Script execution timed out after 100ms',
+    message: 'Script execution timed out after 200ms',
   });
   const calls = await workflow.getAndResetSinkCalls();
   t.deepEqual(calls, [

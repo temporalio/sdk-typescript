@@ -4,11 +4,11 @@
  */
 import test from 'ava';
 import { v4 as uuid4 } from 'uuid';
-import { Worker, Runtime, DefaultLogger } from '@temporalio/worker';
+import { Runtime, DefaultLogger } from '@temporalio/worker';
 import { WorkflowClient } from '@temporalio/client';
 import { defaultOptions } from './mock-native-worker';
 import * as workflows from './workflows';
-import { RUN_INTEGRATION_TESTS } from './helpers';
+import { RUN_INTEGRATION_TESTS, Worker } from './helpers';
 
 if (RUN_INTEGRATION_TESTS) {
   test.serial('Runtime can be created and disposed', async (t) => {

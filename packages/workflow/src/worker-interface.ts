@@ -7,7 +7,7 @@ import { IllegalStateError } from '@temporalio/common';
 import { msToTs, tsToMs } from '@temporalio/common/lib/time';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import type { coresdk } from '@temporalio/proto';
-import { storage } from './cancellation-scope';
+import { disableStorage } from './cancellation-scope';
 import { DeterminismViolationError } from './errors';
 import { WorkflowInterceptorsFactory } from './interceptors';
 import { WorkflowCreateOptionsWithSourceMap } from './interfaces';
@@ -99,7 +99,7 @@ export function initRuntime(options: WorkflowCreateOptionsWithSourceMap): void {
   // There's on activator per workflow instance, set it globally on the context.
   // We do this before importing any user code so user code can statically reference @temporalio/workflow functions
   // as well as Date and Math.random.
-  global.__TEMPORAL__.activator = activator;
+  global.__TEMPORAL_ACTIVATOR__ = activator;
 
   // webpack alias to payloadConverterPath
   // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -185,7 +185,7 @@ export function activate(activation: coresdk.workflow_activation.WorkflowActivat
         return;
       }
       activator[job.variant](variant as any /* TS can't infer this type */);
-      if (showUnblockConditions(job)) {
+      if (shouldUnblockConditions(job)) {
         tryUnblockConditions();
       }
     }
@@ -244,13 +244,13 @@ export function tryUnblockConditions(): number {
 /**
  * Predicate used to prevent triggering conditions for non-query and non-patch jobs.
  */
-export function showUnblockConditions(job: coresdk.workflow_activation.IWorkflowActivationJob): boolean {
+export function shouldUnblockConditions(job: coresdk.workflow_activation.IWorkflowActivationJob): boolean {
   return !job.queryWorkflow && !job.notifyHasPatch;
 }
 
 export function dispose(): void {
   const dispose = composeInterceptors(getActivator().interceptors.internals, 'dispose', async () => {
-    storage.disable();
+    disableStorage();
   });
   dispose({});
 }

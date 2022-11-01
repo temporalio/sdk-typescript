@@ -16,10 +16,10 @@ import {
   OpenTelemetryActivityInboundInterceptor,
 } from '@temporalio/interceptors-opentelemetry/lib/worker';
 import { OpenTelemetrySinks, SpanName, SPAN_DELIMITER } from '@temporalio/interceptors-opentelemetry/lib/workflow';
-import { DefaultLogger, InjectedSinks, Runtime, Worker, makeTelemetryFilterString } from '@temporalio/worker';
+import { DefaultLogger, InjectedSinks, makeTelemetryFilterString, Runtime } from '@temporalio/worker';
 import * as activities from './activities';
 import { ConnectionInjectorInterceptor } from './activities/interceptors';
-import { RUN_INTEGRATION_TESTS } from './helpers';
+import { RUN_INTEGRATION_TESTS, Worker } from './helpers';
 import * as workflows from './workflows';
 
 if (RUN_INTEGRATION_TESTS) {

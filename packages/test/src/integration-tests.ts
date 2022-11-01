@@ -37,18 +37,12 @@ import {
 import { tsToMs } from '@temporalio/common/lib/time';
 import { decode, decodeFromPayloadsAtIndex, loadDataConverter } from '@temporalio/common/lib/internal-non-workflow';
 import * as iface from '@temporalio/proto';
-import {
-  appendDefaultInterceptors,
-  DefaultLogger,
-  makeTelemetryFilterString,
-  Runtime,
-  Worker,
-} from '@temporalio/worker';
+import { appendDefaultInterceptors, DefaultLogger, makeTelemetryFilterString, Runtime } from '@temporalio/worker';
 import pkg from '@temporalio/worker/lib/pkg';
 import { UnsafeWorkflowInfo } from '@temporalio/workflow/src/interfaces';
 import * as activities from './activities';
 import { ConnectionInjectorInterceptor } from './activities/interceptors';
-import { cleanOptionalStackTrace, u8 } from './helpers';
+import { cleanOptionalStackTrace, REUSE_V8_CONTEXT, u8, Worker } from './helpers';
 import * as workflows from './workflows';
 import { withZeroesHTTPServer } from './zeroes-http-server';
 
@@ -82,6 +76,8 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
   }
 
   _test.before(async (t) => {
+    // We don't want AVA to whine about unhandled rejections thrown by workflows
+    process.removeAllListeners('unhandledRejection');
     const logger = new DefaultLogger('DEBUG');
     // Use forwarded logging from core
     Runtime.install({
@@ -291,11 +287,18 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
     t.deepEqual(err.cause.cause.details, ['details', 123, false]);
     t.is(
       cleanOptionalStackTrace(err.cause.cause.stack),
-      dedent`
-    ApplicationFailure: Fail me
-        at Function.nonRetryable (common/src/failure.ts)
-        at Activity.throwAnError (test/src/activities/index.ts)
-    `
+      // TODO(bergundy): Figure out why stack trace is different (check Error.prepareStackTrace)
+      REUSE_V8_CONTEXT
+        ? dedent`
+      ApplicationFailure: Fail me
+          at Function.nonRetryable (common/lib/failure.js)
+          at Activity.throwAnError [as fn] (test/lib/activities/index.js)
+      `
+        : dedent`
+      ApplicationFailure: Fail me
+          at Function.nonRetryable (common/src/failure.ts)
+          at Activity.throwAnError [as fn] (test/src/activities/index.ts)
+      `
     );
   });
 

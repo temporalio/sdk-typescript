@@ -1,8 +1,7 @@
 import crypto from 'node:crypto';
 import test from 'ava';
-import { Worker } from '@temporalio/worker';
 import { WorkflowClient } from '@temporalio/client';
-import { RUN_INTEGRATION_TESTS } from './helpers';
+import { RUN_INTEGRATION_TESTS, Worker } from './helpers';
 import * as workflows from './workflows/patch-and-condition-pre-patch';
 
 if (RUN_INTEGRATION_TESTS) {

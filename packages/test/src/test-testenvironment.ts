@@ -3,7 +3,6 @@ import { v4 as uuid4 } from 'uuid';
 import { WorkflowFailedError } from '@temporalio/client';
 import { TestWorkflowEnvironment, workflowInterceptorModules } from '@temporalio/testing';
 import { Connection } from '@temporalio/testing/lib/connection';
-import { Worker } from '@temporalio/worker';
 import {
   assertFromWorkflow,
   raceActivityAndTimer,
@@ -11,6 +10,7 @@ import {
   unblockSignal,
   waitOnSignalWithTimeout,
 } from './workflows/testenv-test-workflows';
+import { Worker } from './helpers';
 
 interface Context {
   testEnv: TestWorkflowEnvironment;

@@ -7,9 +7,8 @@
  * @module
  */
 import test from 'ava';
-import { Worker } from '@temporalio/worker';
 import { Runtime } from '@temporalio/worker';
-import { RUN_INTEGRATION_TESTS } from './helpers';
+import { RUN_INTEGRATION_TESTS, Worker } from './helpers';
 import { defaultOptions, isolateFreeWorker } from './mock-native-worker';
 
 if (RUN_INTEGRATION_TESTS) {

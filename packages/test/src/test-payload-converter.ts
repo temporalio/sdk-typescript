@@ -19,9 +19,9 @@ import {
   ProtobufBinaryPayloadConverter,
   ProtobufJsonPayloadConverter,
 } from '@temporalio/common/lib/protobufs';
-import { DefaultLogger, Runtime, Worker } from '@temporalio/worker';
+import { DefaultLogger, Runtime } from '@temporalio/worker';
 import root from '../protos/root'; // eslint-disable-line import/default
-import { RUN_INTEGRATION_TESTS } from './helpers';
+import { RUN_INTEGRATION_TESTS, Worker } from './helpers';
 import { defaultOptions } from './mock-native-worker';
 import { messageInstance } from './payload-converters/proto-payload-converter';
 import { protobufWorkflow } from './workflows/protobufs';

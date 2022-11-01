@@ -100,6 +100,7 @@ export const LATEST_INTERNAL_PATCH_NUMBER = 1;
  * Implements handlers for all workflow activation jobs.
  */
 export class Activator implements ActivationHandler {
+  readonly moduleCache = new Map<string, unknown>();
   /**
    * Map of task sequence to a Completion
    */
@@ -141,7 +142,7 @@ export class Activator implements ActivationHandler {
    */
   protected readonly showStackTraceSources;
 
-  protected readonly promiseStackStore: PromiseStackStore = {
+  readonly promiseStackStore: PromiseStackStore = {
     promiseToStack: new Map(),
     childToParent: new Map(),
   };
@@ -695,8 +696,12 @@ export class Activator implements ActivationHandler {
   }
 }
 
+export function maybeGetActivator(): Activator | undefined {
+  return (globalThis as any).__TEMPORAL_ACTIVATOR__;
+}
+
 export function getActivator(): Activator {
-  const activator = (globalThis as any).__TEMPORAL__?.activator;
+  const activator = maybeGetActivator();
   if (activator === undefined) {
     throw new IllegalStateError('Workflow uninitialized');
   }

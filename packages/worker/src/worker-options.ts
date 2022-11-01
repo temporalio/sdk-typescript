@@ -284,6 +284,25 @@ export interface WorkerOptions {
    */
   debugMode?: boolean;
 
+  /**
+   * Toggle whether to reuse a single V8 contexts for the workflow sandbox.
+   *
+   * Context reuse significantly decreases the amount of resources taken up by workflows.
+   * From running basic stress tests we've observed 2/3 reduction in memory usage and 1/2 in CPU usage with this feature
+   * turned on.
+   *
+   * This feature is still considered experimental and requires some further testing before we can consider making it
+   * stable or even default.
+   *
+   * When enabled, a process global unhandledRejection handler, a `Error.prepareStackTrace` override and a v8 promise
+   * hook will be set by the worker.
+   *
+   * Introduced in SDK version 1.5.0
+   *
+   * @experimental
+   */
+  reuseV8Context?: boolean;
+
   bundlerOptions?: {
     /**
      * Before Workflow code is bundled with Webpack, `webpackConfigHook` is called with the Webpack

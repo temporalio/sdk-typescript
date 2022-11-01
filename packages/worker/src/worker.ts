@@ -90,6 +90,7 @@ import { workflowLogAttributes } from './workflow-log-interceptor';
 import { defaultWorflowInterceptorModules, WorkflowCodeBundler } from './workflow/bundler';
 import { Workflow, WorkflowCreator } from './workflow/interface';
 import { ThreadedVMWorkflowCreator } from './workflow/threaded-vm';
+import { ReusableVMWorkflowCreator as ReusableVMWorkflowCreator } from './workflow/reusable-vm';
 import { VMWorkflowCreator } from './workflow/vm';
 import { WorkflowBundleWithSourceMapAndFilename } from './workflow/workflow-worker-thread/input';
 import { GracefulShutdownPeriodExpiredError } from './errors';
@@ -472,6 +473,9 @@ export class Worker {
     workflowBundle: WorkflowBundleWithSourceMapAndFilename,
     compiledOptions: CompiledWorkerOptions
   ): Promise<WorkflowCreator> {
+    if (compiledOptions.reuseV8Context) {
+      return await ReusableVMWorkflowCreator.create(workflowBundle, compiledOptions.isolateExecutionTimeoutMs);
+    }
     // This isn't required for vscode, only for Chrome Dev Tools which doesn't support debugging worker threads.
     // We also rely on this in debug-replayer where we inject a global variable to be read from workflow context.
     if (compiledOptions.debugMode) {
