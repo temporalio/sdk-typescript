@@ -11,6 +11,7 @@ import {
   WorkflowExecutionAlreadyStartedError,
   WorkflowQueryType,
   WorkflowSignalType,
+  ProtoFailure,
 } from '@temporalio/common';
 import type { RawSourceMap } from 'source-map';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
@@ -54,12 +55,9 @@ export interface PromiseStackStore {
   promiseToStack: Map<Promise<unknown>, Stack>;
 }
 
-export type ResolveFunction<T = any> = (val: T) => any;
-export type RejectFunction<E = any> = (val: E) => any;
-
 export interface Completion {
-  resolve: ResolveFunction;
-  reject: RejectFunction;
+  resolve(val: unknown): unknown;
+  reject(reason: unknown): unknown;
 }
 
 export interface Condition {
@@ -79,20 +77,23 @@ export type ActivationHandlerFunction<K extends keyof coresdk.workflow_activatio
   activation: NonNullable<coresdk.workflow_activation.IWorkflowActivationJob[K]>
 ) => void;
 
+/**
+ * Verifies all activation job handling methods are implemented
+ */
 export type ActivationHandler = {
   [P in keyof coresdk.workflow_activation.IWorkflowActivationJob]: ActivationHandlerFunction<P>;
 };
 
 /**
- * Keeps all of the Workflow runtime state like pending completions for activities and timers and the scope stack.
+ * Keeps all of the Workflow runtime state like pending completions for activities and timers.
  *
- * State mutates each time the Workflow is activated.
+ * Implements handlers for all workflow activation jobs.
  */
 export class Activator implements ActivationHandler {
   /**
    * Map of task sequence to a Completion
    */
-  public readonly completions = {
+  readonly completions = {
     timer: new Map<number, Completion>(),
     activity: new Map<number, Completion>(),
     childWorkflowStart: new Map<number, Completion>(),
@@ -104,7 +105,7 @@ export class Activator implements ActivationHandler {
   /**
    * Holds buffered signal calls until a handler is registered
    */
-  public readonly bufferedSignals = new Map<string, coresdk.workflow_activation.ISignalWorkflow[]>();
+  readonly bufferedSignals = new Map<string, coresdk.workflow_activation.ISignalWorkflow[]>();
 
   /**
    * Holds buffered query calls until a handler is registered.
@@ -113,51 +114,29 @@ export class Activator implements ActivationHandler {
    * This is required because async interceptors might block workflow function invocation
    * which delays query handler registration.
    */
-  public readonly bufferedQueries = Array<coresdk.workflow_activation.IQueryWorkflow>();
+  protected readonly bufferedQueries = Array<coresdk.workflow_activation.IQueryWorkflow>();
 
   /**
    * Mapping of signal name to handler
    */
-  public readonly signalHandlers = new Map<string, WorkflowSignalType>();
+  readonly signalHandlers = new Map<string, WorkflowSignalType>();
 
   /**
    * Source map file for looking up the source files in response to __enhanced_stack_trace
    */
-  public sourceMap: RawSourceMap;
+  protected readonly sourceMap: RawSourceMap;
 
   /**
    * Whether or not to send the sources in enhanced stack trace query responses
    */
-  public readonly showStackTraceSources;
+  protected readonly showStackTraceSources;
 
-  promiseStackStore: PromiseStackStore = {
+  protected readonly promiseStackStore: PromiseStackStore = {
     promiseToStack: new Map(),
     childToParent: new Map(),
   };
 
-  rootScope = new RootCancellationScope();
-
-  protected getStackTraces(): Stack[] {
-    const { childToParent, promiseToStack } = this.promiseStackStore;
-    const internalNodes = [...childToParent.values()].reduce((acc, curr) => {
-      for (const p of curr) {
-        acc.add(p);
-      }
-      return acc;
-    }, new Set());
-    const stacks = new Map<string, Stack>();
-    for (const child of childToParent.keys()) {
-      if (!internalNodes.has(child)) {
-        const stack = promiseToStack.get(child);
-        if (!stack || !stack.formatted) continue;
-        stacks.set(stack.formatted, stack);
-      }
-    }
-    // Not 100% sure where this comes from, just filter it out
-    stacks.delete('    at Promise.then (<anonymous>)');
-    stacks.delete('    at Promise.then (<anonymous>)\n');
-    return [...stacks].map(([_, stack]) => stack);
-  }
+  public readonly rootScope = new RootCancellationScope();
 
   /**
    * Mapping of query name to handler
@@ -201,17 +180,17 @@ export class Activator implements ActivationHandler {
   /**
    * Loaded in {@link initRuntime}
    */
-  public interceptors: Required<WorkflowInterceptors> = { inbound: [], outbound: [], internals: [] };
+  public readonly interceptors: Required<WorkflowInterceptors> = { inbound: [], outbound: [], internals: [] };
 
   /**
    * Buffer that stores all generated commands, reset after each activation
    */
-  public commands: coresdk.workflow_commands.IWorkflowCommand[] = [];
+  protected commands: coresdk.workflow_commands.IWorkflowCommand[] = [];
 
   /**
    * Stores all {@link condition}s that haven't been unblocked yet
    */
-  public blockedConditions = new Map<number, Condition>();
+  public readonly blockedConditions = new Map<number, Condition>();
 
   /**
    * Is this Workflow completed?
@@ -225,7 +204,14 @@ export class Activator implements ActivationHandler {
   /**
    * Was this Workflow cancelled?
    */
-  public cancelled = false;
+  protected cancelled = false;
+
+  /**
+   * This is tracked to allow buffering queries until a workflow function is called.
+   * TODO(bergundy): I don't think this makes sense since queries run last in an activation and must be responded to in
+   * the same activation.
+   */
+  protected workflowFunctionWasCalled = false;
 
   /**
    * The next (incremental) sequence to assign when generating completable commands
@@ -297,6 +283,28 @@ export class Activator implements ActivationHandler {
     }
   }
 
+  protected getStackTraces(): Stack[] {
+    const { childToParent, promiseToStack } = this.promiseStackStore;
+    const internalNodes = [...childToParent.values()].reduce((acc, curr) => {
+      for (const p of curr) {
+        acc.add(p);
+      }
+      return acc;
+    }, new Set());
+    const stacks = new Map<string, Stack>();
+    for (const child of childToParent.keys()) {
+      if (!internalNodes.has(child)) {
+        const stack = promiseToStack.get(child);
+        if (!stack || !stack.formatted) continue;
+        stacks.set(stack.formatted, stack);
+      }
+    }
+    // Not 100% sure where this comes from, just filter it out
+    stacks.delete('    at Promise.then (<anonymous>)');
+    stacks.delete('    at Promise.then (<anonymous>)\n');
+    return [...stacks].map(([_, stack]) => stack);
+  }
+
   getAndResetSinkCalls(): SinkCall[] {
     const { sinkCalls } = this;
     this.sinkCalls = [];
@@ -317,7 +325,11 @@ export class Activator implements ActivationHandler {
     }
   }
 
-  workflowFunctionWasCalled = false;
+  getAndResetCommands(): coresdk.workflow_commands.IWorkflowCommand[] {
+    const commands = this.commands;
+    this.commands = [];
+    return commands;
+  }
 
   public async startWorkflowNextHandler({ args }: WorkflowExecuteInput): Promise<any> {
     const { workflow } = this;
@@ -373,11 +385,11 @@ export class Activator implements ActivationHandler {
       resolve(result);
     } else if (activation.result.failed) {
       const { failure } = activation.result.failed;
-      const err = failure ? this.failureConverter.failureToError(failure, this.payloadConverter) : undefined;
+      const err = failure ? this.failureToError(failure) : undefined;
       reject(err);
     } else if (activation.result.cancelled) {
       const { failure } = activation.result.cancelled;
-      const err = failure ? this.failureConverter.failureToError(failure, this.payloadConverter) : undefined;
+      const err = failure ? this.failureToError(failure) : undefined;
       reject(err);
     } else if (activation.result.backoff) {
       reject(new LocalActivityDoBackoff(activation.result.backoff));
@@ -411,7 +423,7 @@ export class Activator implements ActivationHandler {
       if (!activation.cancelled.failure) {
         throw new TypeError('Got no failure in cancelled variant');
       }
-      reject(this.failureConverter.failureToError(activation.cancelled.failure, this.payloadConverter));
+      reject(this.failureToError(activation.cancelled.failure));
     } else {
       throw new TypeError('Got ResolveChildWorkflowExecutionStart with no status');
     }
@@ -431,13 +443,13 @@ export class Activator implements ActivationHandler {
       if (failure === undefined || failure === null) {
         throw new TypeError('Got failed result with no failure attribute');
       }
-      reject(this.failureConverter.failureToError(failure, this.payloadConverter));
+      reject(this.failureToError(failure));
     } else if (activation.result.cancelled) {
       const { failure } = activation.result.cancelled;
       if (failure === undefined || failure === null) {
         throw new TypeError('Got cancelled result with no failure attribute');
       }
-      reject(this.failureConverter.failureToError(failure, this.payloadConverter));
+      reject(this.failureToError(failure));
     }
   }
 
@@ -531,7 +543,7 @@ export class Activator implements ActivationHandler {
   public resolveSignalExternalWorkflow(activation: coresdk.workflow_activation.IResolveSignalExternalWorkflow): void {
     const { resolve, reject } = this.consumeCompletion('signalWorkflow', getSeq(activation));
     if (activation.failure) {
-      reject(this.failureConverter.failureToError(activation.failure, this.payloadConverter));
+      reject(this.failureToError(activation.failure));
     } else {
       resolve(undefined);
     }
@@ -542,7 +554,7 @@ export class Activator implements ActivationHandler {
   ): void {
     const { resolve, reject } = this.consumeCompletion('cancelWorkflow', getSeq(activation));
     if (activation.failure) {
-      reject(this.failureConverter.failureToError(activation.failure, this.payloadConverter));
+      reject(this.failureToError(activation.failure));
     } else {
       resolve(undefined);
     }
@@ -585,7 +597,7 @@ export class Activator implements ActivationHandler {
       this.pushCommand(
         {
           failWorkflowExecution: {
-            failure: this.failureConverter.errorToFailure(error, this.payloadConverter),
+            failure: this.errorToFailure(error),
           },
         },
         true
@@ -603,7 +615,7 @@ export class Activator implements ActivationHandler {
     this.pushCommand({
       respondToQuery: {
         queryId,
-        failed: this.failureConverter.errorToFailure(ensureTemporalFailure(error), this.payloadConverter),
+        failed: this.errorToFailure(ensureTemporalFailure(error)),
       },
     });
   }
@@ -635,6 +647,14 @@ export class Activator implements ActivationHandler {
       },
       true
     );
+  }
+
+  errorToFailure(err: unknown): ProtoFailure {
+    return this.failureConverter.errorToFailure(err, this.payloadConverter);
+  }
+
+  failureToError(failure: ProtoFailure): Error {
+    return this.failureConverter.failureToError(failure, this.payloadConverter);
   }
 }
 

@@ -3,7 +3,7 @@
  *
  * @module
  */
-import { IllegalStateError, ProtoFailure } from '@temporalio/common';
+import { IllegalStateError } from '@temporalio/common';
 import { msToTs, tsToMs } from '@temporalio/common/lib/time';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import type { coresdk } from '@temporalio/proto';
@@ -53,12 +53,13 @@ export function overrideGlobals(): void {
    * @param ms sleep duration -  number of milliseconds. If given a negative number, value will be set to 1.
    */
   global.setTimeout = function (cb: (...args: any[]) => any, ms: number, ...args: any[]): number {
+    const activator = getActivator();
     ms = Math.max(1, ms);
-    const seq = getActivator().nextSeqs.timer++;
+    const seq = activator.nextSeqs.timer++;
     // Create a Promise for AsyncLocalStorage to be able to track this completion using promise hooks.
     new Promise((resolve, reject) => {
-      getActivator().completions.timer.set(seq, { resolve, reject });
-      getActivator().pushCommand({
+      activator.completions.timer.set(seq, { resolve, reject });
+      activator.pushCommand({
         startTimer: {
           seq,
           startToFireTimeout: msToTs(ms),
@@ -72,9 +73,10 @@ export function overrideGlobals(): void {
   };
 
   global.clearTimeout = function (handle: number): void {
-    getActivator().nextSeqs.timer++;
-    getActivator().completions.timer.delete(handle);
-    getActivator().pushCommand({
+    const activator = getActivator();
+    activator.nextSeqs.timer++;
+    activator.completions.timer.delete(handle);
+    activator.pushCommand({
       cancelTimer: {
         seq: handle,
       },
@@ -94,8 +96,12 @@ export async function initRuntime(options: WorkflowCreateOptionsWithSourceMap): 
   const { info } = options;
   info.unsafe.now = OriginalDate.now;
   const activator = new Activator(options);
-  /** There can only be one of these */
+  // There's on activator per workflow instance, set it globally on the context.
+  // We do this before importing any user code so user code can statically reference @temporalio/workflow functions
+  // as well as Date and Math.random.
   global.__TEMPORAL__.activator = activator;
+
+  // TODO(bergundy): check if we can use `require` with the ESM sample and make all of the runtime methods sync.
 
   // @ts-expect-error this is a webpack alias to payloadConverterPath
   const customPayloadConverter = (await import('__temporal_custom_payload_converter')).payloadConverter;
@@ -200,10 +206,9 @@ export function concludeActivation(): coresdk.workflow_completion.IWorkflowActiv
   const activator = getActivator();
   const intercept = composeInterceptors(activator.interceptors.internals, 'concludeActivation', (input) => input);
   const { info } = activator;
-  const { commands } = intercept({ commands: activator.commands });
-  activator.commands = [];
+  const { commands } = intercept({ commands: activator.getAndResetCommands() });
   return {
-    runId: info?.runId,
+    runId: info.runId,
     successful: { commands },
   };
 }
@@ -248,9 +253,4 @@ export async function dispose(): Promise<void> {
     storage.disable();
   });
   await dispose({});
-}
-
-export function errorToFailure(err: unknown): ProtoFailure {
-  const activator = getActivator();
-  return activator.failureConverter.errorToFailure(err, activator.payloadConverter);
 }

@@ -408,7 +408,7 @@ export class VMWorkflow implements Workflow {
     if (this.unhandledRejection) {
       return coresdk.workflow_completion.WorkflowActivationCompletion.encodeDelimited({
         runId: activation.runId,
-        failed: { failure: this.workflowModule.errorToFailure(this.unhandledRejection) },
+        failed: { failure: this.context.__TEMPORAL__.activator.errorToFailure(this.unhandledRejection) },
       }).finish();
     }
     return coresdk.workflow_completion.WorkflowActivationCompletion.encodeDelimited(completion).finish();
