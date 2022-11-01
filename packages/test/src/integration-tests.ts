@@ -1325,33 +1325,32 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
     t.pass();
   });
 
-  test('Download and replay multiple executions', async (t) => {
+  /**
+   * NOTE: this test uses the `list` API which requires advanced visibility as of server 1.18.
+   * Run with docker-compose
+   */
+  test('Download and replay multiple executions with client list method', async (t) => {
     const { metaClient: client } = t.context;
     const taskQueue = 'test';
-    const e1 = await client.workflow.start(workflows.argsAndReturn, {
-      taskQueue,
-      workflowId: uuid4(),
-      args: ['Hello', undefined, u8('world!')],
-    });
-    const e2 = await client.workflow.start(workflows.cancelFakeProgress, {
-      taskQueue,
-      workflowId: uuid4(),
-    });
-    const e3 = await client.workflow.start(workflows.childWorkflowInvoke, {
-      taskQueue,
-      workflowId: uuid4(),
-    });
-    const e4 = await client.workflow.start(workflows.activityFailures, {
-      taskQueue,
-      workflowId: uuid4(),
-    });
-    const handles = [e1, e2, e3, e4];
+    const fns = [
+      workflows.http,
+      workflows.cancelFakeProgress,
+      workflows.childWorkflowInvoke,
+      workflows.activityFailures,
+    ];
+    const handles = await Promise.all(
+      fns.map((fn) =>
+        client.workflow.start(fn, {
+          taskQueue,
+          workflowId: uuid4(),
+        })
+      )
+    );
+    // Wait for the workflows to complete first
     await Promise.all(handles.map((h) => h.result()));
-    const executions = (async function* () {
-      for (const { workflowId, firstExecutionRunId } of handles) {
-        yield { workflowId, runId: firstExecutionRunId };
-      }
-    })();
+    // Test the list API too while we're at it
+    const workflowIds = handles.map(({ workflowId }) => `'${workflowId}'`);
+    const executions = client.workflow.list({ query: `WorkflowId IN (${workflowIds.join(', ')})` });
 
     await Worker.runReplayHistories(
       {
