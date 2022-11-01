@@ -121,34 +121,23 @@ export class VMWorkflowCreator implements WorkflowCreator {
     const context = await this.getContext();
     const activationContext = { isReplaying: options.info.unsafe.isReplaying };
     this.injectConsole(context, options.info, activationContext);
-    const { hasSeparateMicrotaskQueue, isolateExecutionTimeoutMs } = this;
+    const { isolateExecutionTimeoutMs } = this;
     const workflowModule: WorkflowModule = new Proxy(
       {},
       {
         get(_: any, fn: string) {
           return (...args: any[]) => {
             context.__TEMPORAL__.args = args;
-            const ret = vm.runInContext(`__TEMPORAL__.api.${fn}(...__TEMPORAL__.args)`, context, {
+            return vm.runInContext(`__TEMPORAL__.api.${fn}(...__TEMPORAL__.args)`, context, {
               timeout: isolateExecutionTimeoutMs,
               displayErrors: true,
             });
-
-            // When running with microtaskMode `afterEvaluate`, promises from context cannot be directly awaited outside of it.
-            if (
-              hasSeparateMicrotaskQueue &&
-              typeof ret === 'object' &&
-              ret != null &&
-              ret.constructor.name === 'Promise'
-            ) {
-              return new Promise((resolve, reject) => ret.then(resolve, reject));
-            }
-            return ret;
           };
         },
       }
     ) as any;
 
-    await workflowModule.initRuntime({ ...options, sourceMap: this.sourceMap });
+    workflowModule.initRuntime({ ...options, sourceMap: this.sourceMap });
 
     const newVM = new VMWorkflow(
       options.info,
