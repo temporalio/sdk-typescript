@@ -35,7 +35,7 @@ import {
   EnhancedStackTrace,
   WorkflowInfo,
 } from './interfaces';
-import { LocalActivityDoBackoff, getState } from './internals';
+import { LocalActivityDoBackoff, getActivator } from './internals';
 import { Sinks } from './sinks';
 import { untrackPromise } from './stack-helpers';
 import { ChildWorkflowHandle, ExternalWorkflowHandle } from './workflow-handle';
@@ -62,7 +62,7 @@ export function addDefaultWorkflowOptions<T extends Workflow>(
  * Push a startTimer command into state accumulator and register completion
  */
 function timerNextHandler(input: TimerInput) {
-  const state = getState();
+  const activator = getActivator();
   return new Promise<void>((resolve, reject) => {
     const scope = CancellationScope.current();
     if (scope.consideredCancelled) {
@@ -72,10 +72,10 @@ function timerNextHandler(input: TimerInput) {
     if (scope.cancellable) {
       untrackPromise(
         scope.cancelRequested.catch((err) => {
-          if (!state.completions.timer.delete(input.seq)) {
+          if (!activator.completions.timer.delete(input.seq)) {
             return; // Already resolved or never scheduled
           }
-          state.pushCommand({
+          activator.pushCommand({
             cancelTimer: {
               seq: input.seq,
             },
@@ -84,13 +84,13 @@ function timerNextHandler(input: TimerInput) {
         })
       );
     }
-    state.pushCommand({
+    activator.pushCommand({
       startTimer: {
         seq: input.seq,
         startToFireTimeout: msToTs(input.durationMs),
       },
     });
-    state.completions.timer.set(input.seq, {
+    activator.completions.timer.set(input.seq, {
       resolve,
       reject,
     });
@@ -106,12 +106,12 @@ function timerNextHandler(input: TimerInput) {
  * If given a negative number or 0, value will be set to 1.
  */
 export function sleep(ms: number | string): Promise<void> {
-  const state = getState();
-  const seq = state.nextSeqs.timer++;
+  const activator = getActivator();
+  const seq = activator.nextSeqs.timer++;
 
   const durationMs = Math.max(1, msToNumber(ms));
 
-  const execute = composeInterceptors(state.interceptors.outbound, 'startTimer', timerNextHandler);
+  const execute = composeInterceptors(activator.interceptors.outbound, 'startTimer', timerNextHandler);
 
   return execute({
     durationMs,
@@ -134,10 +134,10 @@ const validateLocalActivityOptions = validateActivityOptions;
  * Returns `false` if the current scope is already cancelled.
  */
 /**
- * Push a scheduleActivity command into state accumulator and register completion
+ * Push a scheduleActivity command into activator accumulator and register completion
  */
 function scheduleActivityNextHandler({ options, args, headers, seq, activityType }: ActivityInput): Promise<unknown> {
-  const state = getState();
+  const activator = getActivator();
   validateActivityOptions(options);
   return new Promise((resolve, reject) => {
     const scope = CancellationScope.current();
@@ -148,10 +148,10 @@ function scheduleActivityNextHandler({ options, args, headers, seq, activityType
     if (scope.cancellable) {
       untrackPromise(
         scope.cancelRequested.catch(() => {
-          if (!state.completions.activity.has(seq)) {
+          if (!activator.completions.activity.has(seq)) {
             return; // Already resolved or never scheduled
           }
-          state.pushCommand({
+          activator.pushCommand({
             requestCancelActivity: {
               seq,
             },
@@ -159,14 +159,14 @@ function scheduleActivityNextHandler({ options, args, headers, seq, activityType
         })
       );
     }
-    state.pushCommand({
+    activator.pushCommand({
       scheduleActivity: {
         seq,
         activityId: options.activityId ?? `${seq}`,
         activityType,
-        arguments: toPayloads(state.payloadConverter, ...args),
+        arguments: toPayloads(activator.payloadConverter, ...args),
         retryPolicy: options.retry ? compileRetryPolicy(options.retry) : undefined,
-        taskQueue: options.taskQueue || state.info?.taskQueue,
+        taskQueue: options.taskQueue || activator.info?.taskQueue,
         heartbeatTimeout: msOptionalToTs(options.heartbeatTimeout),
         scheduleToCloseTimeout: msOptionalToTs(options.scheduleToCloseTimeout),
         startToCloseTimeout: msOptionalToTs(options.startToCloseTimeout),
@@ -176,7 +176,7 @@ function scheduleActivityNextHandler({ options, args, headers, seq, activityType
         doNotEagerlyExecute: !(options.allowEagerDispatch ?? true),
       },
     });
-    state.completions.activity.set(seq, {
+    activator.completions.activity.set(seq, {
       resolve,
       reject,
     });
@@ -195,7 +195,7 @@ async function scheduleLocalActivityNextHandler({
   attempt,
   originalScheduleTime,
 }: LocalActivityInput): Promise<unknown> {
-  const state = getState();
+  const activator = getActivator();
   validateLocalActivityOptions(options);
 
   return new Promise((resolve, reject) => {
@@ -207,10 +207,10 @@ async function scheduleLocalActivityNextHandler({
     if (scope.cancellable) {
       untrackPromise(
         scope.cancelRequested.catch(() => {
-          if (!state.completions.activity.has(seq)) {
+          if (!activator.completions.activity.has(seq)) {
             return; // Already resolved or never scheduled
           }
-          state.pushCommand({
+          activator.pushCommand({
             requestCancelLocalActivity: {
               seq,
             },
@@ -218,7 +218,7 @@ async function scheduleLocalActivityNextHandler({
         })
       );
     }
-    state.pushCommand({
+    activator.pushCommand({
       scheduleLocalActivity: {
         seq,
         attempt,
@@ -226,7 +226,7 @@ async function scheduleLocalActivityNextHandler({
         // Intentionally not exposing activityId as an option
         activityId: `${seq}`,
         activityType,
-        arguments: toPayloads(state.payloadConverter, ...args),
+        arguments: toPayloads(activator.payloadConverter, ...args),
         retryPolicy: options.retry ? compileRetryPolicy(options.retry) : undefined,
         scheduleToCloseTimeout: msOptionalToTs(options.scheduleToCloseTimeout),
         startToCloseTimeout: msOptionalToTs(options.startToCloseTimeout),
@@ -236,7 +236,7 @@ async function scheduleLocalActivityNextHandler({
         cancellationType: options.cancellationType,
       },
     });
-    state.completions.activity.set(seq, {
+    activator.completions.activity.set(seq, {
       resolve,
       reject,
     });
@@ -248,12 +248,12 @@ async function scheduleLocalActivityNextHandler({
  * @hidden
  */
 export function scheduleActivity<R>(activityType: string, args: any[], options: ActivityOptions): Promise<R> {
-  const state = getState();
+  const activator = getActivator();
   if (options === undefined) {
     throw new TypeError('Got empty activity options');
   }
-  const seq = state.nextSeqs.activity++;
-  const execute = composeInterceptors(state.interceptors.outbound, 'scheduleActivity', scheduleActivityNextHandler);
+  const seq = activator.nextSeqs.activity++;
+  const execute = composeInterceptors(activator.interceptors.outbound, 'scheduleActivity', scheduleActivityNextHandler);
 
   return execute({
     activityType,
@@ -273,7 +273,7 @@ export async function scheduleLocalActivity<R>(
   args: any[],
   options: LocalActivityOptions
 ): Promise<R> {
-  const state = getState();
+  const activator = getActivator();
   if (options === undefined) {
     throw new TypeError('Got empty activity options');
   }
@@ -282,9 +282,9 @@ export async function scheduleLocalActivity<R>(
   let originalScheduleTime = undefined;
 
   for (;;) {
-    const seq = state.nextSeqs.activity++;
+    const seq = activator.nextSeqs.activity++;
     const execute = composeInterceptors(
-      state.interceptors.outbound,
+      activator.interceptors.outbound,
       'scheduleLocalActivity',
       scheduleLocalActivityNextHandler
     );
@@ -320,7 +320,7 @@ function startChildWorkflowExecutionNextHandler({
   workflowType,
   seq,
 }: StartChildWorkflowExecutionInput): Promise<[Promise<string>, Promise<unknown>]> {
-  const state = getState();
+  const activator = getActivator();
   const workflowId = options.workflowId ?? uuid4();
   const startPromise = new Promise<string>((resolve, reject) => {
     const scope = CancellationScope.current();
@@ -331,10 +331,10 @@ function startChildWorkflowExecutionNextHandler({
     if (scope.cancellable) {
       untrackPromise(
         scope.cancelRequested.catch(() => {
-          const complete = !state.completions.childWorkflowComplete.has(seq);
+          const complete = !activator.completions.childWorkflowComplete.has(seq);
 
           if (!complete) {
-            state.pushCommand({
+            activator.pushCommand({
               cancelChildWorkflowExecution: { childWorkflowSeq: seq },
             });
           }
@@ -342,14 +342,14 @@ function startChildWorkflowExecutionNextHandler({
         })
       );
     }
-    state.pushCommand({
+    activator.pushCommand({
       startChildWorkflowExecution: {
         seq,
         workflowId,
         workflowType,
-        input: toPayloads(state.payloadConverter, ...options.args),
+        input: toPayloads(activator.payloadConverter, ...options.args),
         retryPolicy: options.retry ? compileRetryPolicy(options.retry) : undefined,
-        taskQueue: options.taskQueue || state.info?.taskQueue,
+        taskQueue: options.taskQueue || activator.info?.taskQueue,
         workflowExecutionTimeout: msOptionalToTs(options.workflowExecutionTimeout),
         workflowRunTimeout: msOptionalToTs(options.workflowRunTimeout),
         workflowTaskTimeout: msOptionalToTs(options.workflowTaskTimeout),
@@ -362,10 +362,10 @@ function startChildWorkflowExecutionNextHandler({
         searchAttributes: options.searchAttributes
           ? mapToPayloads(searchAttributePayloadConverter, options.searchAttributes)
           : undefined,
-        memo: options.memo && mapToPayloads(state.payloadConverter, options.memo),
+        memo: options.memo && mapToPayloads(activator.payloadConverter, options.memo),
       },
     });
-    state.completions.childWorkflowStart.set(seq, {
+    activator.completions.childWorkflowStart.set(seq, {
       resolve,
       reject,
     });
@@ -376,7 +376,7 @@ function startChildWorkflowExecutionNextHandler({
   const completePromise = new Promise((resolve, reject) => {
     // Chain start Promise rejection to the complete Promise.
     untrackPromise(startPromise.catch(reject));
-    state.completions.childWorkflowComplete.set(seq, {
+    activator.completions.childWorkflowComplete.set(seq, {
       resolve,
       reject,
     });
@@ -391,11 +391,8 @@ function startChildWorkflowExecutionNextHandler({
 }
 
 function signalWorkflowNextHandler({ seq, signalName, args, target, headers }: SignalWorkflowInput) {
-  const state = getState();
+  const activator = getActivator();
   return new Promise<any>((resolve, reject) => {
-    if (state.info === undefined) {
-      throw new IllegalStateError('Workflow uninitialized');
-    }
     const scope = CancellationScope.current();
     if (scope.consideredCancelled) {
       untrackPromise(scope.cancelRequested.catch(reject));
@@ -405,23 +402,23 @@ function signalWorkflowNextHandler({ seq, signalName, args, target, headers }: S
     if (scope.cancellable) {
       untrackPromise(
         scope.cancelRequested.catch(() => {
-          if (!state.completions.signalWorkflow.has(seq)) {
+          if (!activator.completions.signalWorkflow.has(seq)) {
             return;
           }
-          state.pushCommand({ cancelSignalWorkflow: { seq } });
+          activator.pushCommand({ cancelSignalWorkflow: { seq } });
         })
       );
     }
-    state.pushCommand({
+    activator.pushCommand({
       signalExternalWorkflowExecution: {
         seq,
-        args: toPayloads(state.payloadConverter, ...args),
+        args: toPayloads(activator.payloadConverter, ...args),
         headers,
         signalName,
         ...(target.type === 'external'
           ? {
               workflowExecution: {
-                namespace: state.info.namespace,
+                namespace: activator.info.namespace,
                 ...target.workflowExecution,
               },
             }
@@ -431,7 +428,7 @@ function signalWorkflowNextHandler({ seq, signalName, args, target, headers }: S
       },
     });
 
-    state.completions.signalWorkflow.set(seq, { resolve, reject });
+    activator.completions.signalWorkflow.set(seq, { resolve, reject });
   });
 }
 
@@ -572,16 +569,12 @@ const EXTERNAL_WF_CANCEL_PATCH = '__temporal_internal_connect_external_handle_ca
  * It takes a Workflow ID and optional run ID.
  */
 export function getExternalWorkflowHandle(workflowId: string, runId?: string): ExternalWorkflowHandle {
-  const state = getState();
+  const activator = getActivator();
   return {
     workflowId,
     runId,
     cancel() {
       return new Promise<void>((resolve, reject) => {
-        if (state.info === undefined) {
-          throw new IllegalStateError('Uninitialized workflow');
-        }
-
         // Connect this cancel operation to the current cancellation scope.
         // This is behavior was introduced after v0.22.0 and is incompatible
         // with histories generated with previous SDK versions and thus requires
@@ -605,27 +598,27 @@ export function getExternalWorkflowHandle(workflowId: string, runId?: string): E
           }
         }
 
-        const seq = state.nextSeqs.cancelWorkflow++;
-        state.pushCommand({
+        const seq = activator.nextSeqs.cancelWorkflow++;
+        activator.pushCommand({
           requestCancelExternalWorkflowExecution: {
             seq,
             workflowExecution: {
-              namespace: state.info.namespace,
+              namespace: activator.info.namespace,
               workflowId,
               runId,
             },
           },
         });
-        state.completions.cancelWorkflow.set(seq, { resolve, reject });
+        activator.completions.cancelWorkflow.set(seq, { resolve, reject });
       });
     },
     signal<Args extends any[]>(def: SignalDefinition<Args> | string, ...args: Args): Promise<void> {
       return composeInterceptors(
-        state.interceptors.outbound,
+        activator.interceptors.outbound,
         'signalWorkflow',
         signalWorkflowNextHandler
       )({
-        seq: state.nextSeqs.signalWorkflow++,
+        seq: activator.nextSeqs.signalWorkflow++,
         signalName: typeof def === 'string' ? def : def.name,
         args,
         target: {
@@ -698,16 +691,16 @@ export async function startChild<T extends Workflow>(
   workflowTypeOrFunc: string | T,
   options?: WithWorkflowArgs<T, ChildWorkflowOptions>
 ): Promise<ChildWorkflowHandle<T>> {
-  const state = getState();
+  const activator = getActivator();
   const optionsWithDefaults = addDefaultWorkflowOptions(options ?? {});
   const workflowType = typeof workflowTypeOrFunc === 'string' ? workflowTypeOrFunc : workflowTypeOrFunc.name;
   const execute = composeInterceptors(
-    state.interceptors.outbound,
+    activator.interceptors.outbound,
     'startChildWorkflowExecution',
     startChildWorkflowExecutionNextHandler
   );
   const [started, completed] = await execute({
-    seq: state.nextSeqs.childWorkflow++,
+    seq: activator.nextSeqs.childWorkflow++,
     options: optionsWithDefaults,
     headers: {},
     workflowType,
@@ -722,11 +715,11 @@ export async function startChild<T extends Workflow>(
     },
     async signal<Args extends any[]>(def: SignalDefinition<Args> | string, ...args: Args): Promise<void> {
       return composeInterceptors(
-        state.interceptors.outbound,
+        activator.interceptors.outbound,
         'signalWorkflow',
         signalWorkflowNextHandler
       )({
-        seq: state.nextSeqs.signalWorkflow++,
+        seq: activator.nextSeqs.signalWorkflow++,
         signalName: typeof def === 'string' ? def : def.name,
         args,
         target: {
@@ -797,16 +790,16 @@ export async function executeChild<T extends Workflow>(
   workflowTypeOrFunc: string | T,
   options?: WithWorkflowArgs<T, ChildWorkflowOptions>
 ): Promise<WorkflowResultType<T>> {
-  const state = getState();
+  const activator = getActivator();
   const optionsWithDefaults = addDefaultWorkflowOptions(options ?? {});
   const workflowType = typeof workflowTypeOrFunc === 'string' ? workflowTypeOrFunc : workflowTypeOrFunc.name;
   const execute = composeInterceptors(
-    state.interceptors.outbound,
+    activator.interceptors.outbound,
     'startChildWorkflowExecution',
     startChildWorkflowExecutionNextHandler
   );
   const execPromise = execute({
-    seq: state.nextSeqs.childWorkflow++,
+    seq: activator.nextSeqs.childWorkflow++,
     options: optionsWithDefaults,
     headers: {},
     workflowType,
@@ -843,11 +836,7 @@ export async function executeChild<T extends Workflow>(
  * }
  */
 export function workflowInfo(): WorkflowInfo {
-  const state = getState();
-  if (state.info === undefined) {
-    throw new IllegalStateError('Workflow uninitialized');
-  }
-  return state.info;
+  return getActivator().info;
 }
 
 /**
@@ -855,7 +844,7 @@ export function workflowInfo(): WorkflowInfo {
  */
 export function inWorkflowContext(): boolean {
   try {
-    workflowInfo();
+    getActivator();
     return true;
   } catch (err: any) {
     // Use string comparison in case multiple versions of @temporalio/common are
@@ -908,8 +897,8 @@ export function proxySinks<T extends Sinks>(): T {
           {
             get(_, fnName) {
               return (...args: any[]) => {
-                const state = getState();
-                state.sinkCalls.push({
+                const activator = getActivator();
+                activator.sinkCalls.push({
                   ifaceName: ifaceName as string,
                   fnName: fnName as string,
                   args,
@@ -933,7 +922,7 @@ export function proxySinks<T extends Sinks>(): T {
 export function makeContinueAsNewFunc<F extends Workflow>(
   options?: ContinueAsNewOptions
 ): (...args: Parameters<F>) => Promise<never> {
-  const state = getState();
+  const activator = getActivator();
   const info = workflowInfo();
   const { workflowType, taskQueue, ...rest } = options ?? {};
   const requiredOptions = {
@@ -943,11 +932,11 @@ export function makeContinueAsNewFunc<F extends Workflow>(
   };
 
   return (...args: Parameters<F>): Promise<never> => {
-    const fn = composeInterceptors(state.interceptors.outbound, 'continueAsNew', async (input) => {
+    const fn = composeInterceptors(activator.interceptors.outbound, 'continueAsNew', async (input) => {
       const { headers, args, options } = input;
       throw new ContinueAsNew({
         workflowType: options.workflowType,
-        arguments: toPayloads(state.payloadConverter, ...args),
+        arguments: toPayloads(activator.payloadConverter, ...args),
         headers,
         taskQueue: options.taskQueue,
         memo: options.memo,
@@ -1057,24 +1046,21 @@ export function deprecatePatch(patchId: string): void {
 }
 
 function patchInternal(patchId: string, deprecated: boolean): boolean {
-  const state = getState();
+  const activator = getActivator();
   // Patch operation does not support interception at the moment, if it did,
   // this would be the place to start the interception chain
 
-  if (state.workflow === undefined) {
+  if (activator.workflow === undefined) {
     throw new IllegalStateError('Patches cannot be used before Workflow starts');
   }
-  if (state.info === undefined) {
-    throw new IllegalStateError('Workflow uninitialized');
-  }
-  const usePatch = !state.info.unsafe.isReplaying || state.knownPresentPatches.has(patchId);
+  const usePatch = !activator.info.unsafe.isReplaying || activator.knownPresentPatches.has(patchId);
   // Avoid sending commands for patches core already knows about.
   // This optimization enables development of automatic patching tools.
-  if (usePatch && !state.sentPatches.has(patchId)) {
-    state.pushCommand({
+  if (usePatch && !activator.sentPatches.has(patchId)) {
+    activator.pushCommand({
       setPatchMarker: { patchId, deprecated },
     });
-    state.sentPatches.add(patchId);
+    activator.sentPatches.add(patchId);
   }
   return usePatch;
 }
@@ -1107,7 +1093,7 @@ export async function condition(fn: () => boolean, timeout?: number | string): P
 }
 
 function conditionInner(fn: () => boolean): Promise<void> {
-  const state = getState();
+  const activator = getActivator();
   return new Promise((resolve, reject) => {
     const scope = CancellationScope.current();
     if (scope.consideredCancelled) {
@@ -1115,11 +1101,11 @@ function conditionInner(fn: () => boolean): Promise<void> {
       return;
     }
 
-    const seq = state.nextSeqs.condition++;
+    const seq = activator.nextSeqs.condition++;
     if (scope.cancellable) {
       untrackPromise(
         scope.cancelRequested.catch((err) => {
-          state.blockedConditions.delete(seq);
+          activator.blockedConditions.delete(seq);
           reject(err);
         })
       );
@@ -1131,7 +1117,7 @@ function conditionInner(fn: () => boolean): Promise<void> {
       return;
     }
 
-    state.blockedConditions.set(seq, { fn, resolve });
+    activator.blockedConditions.set(seq, { fn, resolve });
   });
 }
 
@@ -1186,18 +1172,18 @@ export function setHandler<Ret, Args extends any[], T extends SignalDefinition<A
   def: T,
   handler: Handler<Ret, Args, T> | undefined
 ): void {
-  const state = getState();
+  const activator = getActivator();
   if (def.type === 'signal') {
-    state.signalHandlers.set(def.name, handler as any);
-    const bufferedSignals = state.bufferedSignals.get(def.name);
+    activator.signalHandlers.set(def.name, handler as any);
+    const bufferedSignals = activator.bufferedSignals.get(def.name);
     if (bufferedSignals !== undefined && handler !== undefined) {
-      state.bufferedSignals.delete(def.name);
+      activator.bufferedSignals.delete(def.name);
       for (const signal of bufferedSignals) {
-        state.activator.signalWorkflow(signal);
+        activator.signalWorkflow(signal);
       }
     }
   } else if (def.type === 'query') {
-    state.queryHandlers.set(def.name, handler as any);
+    activator.queryHandlers.set(def.name, handler as any);
   } else {
     throw new TypeError(`Invalid definition type: ${(def as any).type}`);
   }
@@ -1233,23 +1219,20 @@ export function setHandler<Ret, Args extends any[], T extends SignalDefinition<A
  * @param searchAttributes The Record to merge. Use a value of `[]` to clear a Search Attribute.
  */
 export function upsertSearchAttributes(searchAttributes: SearchAttributes): void {
-  const state = getState();
-  if (!state.info) {
-    throw new IllegalStateError('`state.info` should be defined');
-  }
+  const activator = getActivator();
 
-  const mergedSearchAttributes = { ...state.info.searchAttributes, ...searchAttributes };
+  const mergedSearchAttributes = { ...activator.info.searchAttributes, ...searchAttributes };
   if (!mergedSearchAttributes) {
     throw new Error('searchAttributes must be a non-null SearchAttributes');
   }
 
-  state.pushCommand({
+  activator.pushCommand({
     upsertWorkflowSearchAttributes: {
       searchAttributes: mapToPayloads(searchAttributePayloadConverter, searchAttributes),
     },
   });
 
-  state.info.searchAttributes = mergedSearchAttributes;
+  activator.info.searchAttributes = mergedSearchAttributes;
 }
 
 export const stackTraceQuery = defineQuery<string>('__stack_trace');

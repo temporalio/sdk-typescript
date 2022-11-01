@@ -162,7 +162,8 @@ export class CancellationScope {
    * Get the current "active" scope
    */
   static current(): CancellationScope {
-    return storage.getStore() ?? (globalThis as any).__TEMPORAL__.state.rootScope;
+    // Using globals directly instead of a helper function to avoid circular import
+    return storage.getStore() ?? (globalThis as any).__TEMPORAL__.activator.rootScope;
   }
 
   /** Alias to `new CancellationScope({ cancellable: true }).run(fn)` */

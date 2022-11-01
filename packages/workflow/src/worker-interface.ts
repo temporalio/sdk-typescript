@@ -7,38 +7,15 @@ import { IllegalStateError, ProtoFailure } from '@temporalio/common';
 import { msToTs, tsToMs } from '@temporalio/common/lib/time';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import type { coresdk } from '@temporalio/proto';
-import { alea } from './alea';
 import { storage } from './cancellation-scope';
 import { DeterminismViolationError } from './errors';
 import { WorkflowInterceptorsFactory } from './interceptors';
-import { WorkflowInfo } from './interfaces';
-import { InterceptorsImportFunc, State, getState, WorkflowsImportFunc } from './internals';
+import { WorkflowCreateOptionsWithSourceMap } from './interfaces';
+import { Activator, getActivator } from './internals';
 import { SinkCall } from './sinks';
-import type { RawSourceMap } from 'source-map';
 
 // Export the type for use on the "worker" side
 export { PromiseStackStore } from './internals';
-
-export interface WorkflowCreateOptions {
-  info: WorkflowInfo;
-  randomnessSeed: number[];
-  now: number;
-  patches: string[];
-  showStackTraceSources: boolean;
-}
-
-export interface WorkflowCreateOptionsWithSourceMap extends WorkflowCreateOptions {
-  sourceMap: RawSourceMap;
-}
-
-export interface ImportFunctions {
-  importWorkflows: WorkflowsImportFunc;
-  importInterceptors: InterceptorsImportFunc;
-}
-export function setImportFuncs({ importWorkflows, importInterceptors }: ImportFunctions): void {
-  (globalThis as any).importWorkflows = importWorkflows;
-  (globalThis as any).importInterceptors = importInterceptors;
-}
 
 const global = globalThis as any;
 const OriginalDate = globalThis.Date;
@@ -60,11 +37,11 @@ export function overrideGlobals(): void {
     if (args.length > 0) {
       return new (OriginalDate as any)(...args);
     }
-    return new OriginalDate(getState().now);
+    return new OriginalDate(getActivator().now);
   };
 
   global.Date.now = function () {
-    return getState().now;
+    return getActivator().now;
   };
 
   global.Date.parse = OriginalDate.parse.bind(OriginalDate);
@@ -77,11 +54,11 @@ export function overrideGlobals(): void {
    */
   global.setTimeout = function (cb: (...args: any[]) => any, ms: number, ...args: any[]): number {
     ms = Math.max(1, ms);
-    const seq = getState().nextSeqs.timer++;
+    const seq = getActivator().nextSeqs.timer++;
     // Create a Promise for AsyncLocalStorage to be able to track this completion using promise hooks.
     new Promise((resolve, reject) => {
-      getState().completions.timer.set(seq, { resolve, reject });
-      getState().pushCommand({
+      getActivator().completions.timer.set(seq, { resolve, reject });
+      getActivator().pushCommand({
         startTimer: {
           seq,
           startToFireTimeout: msToTs(ms),
@@ -95,17 +72,17 @@ export function overrideGlobals(): void {
   };
 
   global.clearTimeout = function (handle: number): void {
-    getState().nextSeqs.timer++;
-    getState().completions.timer.delete(handle);
-    getState().pushCommand({
+    getActivator().nextSeqs.timer++;
+    getActivator().completions.timer.delete(handle);
+    getActivator().pushCommand({
       cancelTimer: {
         seq: handle,
       },
     });
   };
 
-  // state.random is mutable, don't hardcode its reference
-  Math.random = () => getState().random();
+  // activator.random is mutable, don't hardcode its reference
+  Math.random = () => getActivator().random();
 }
 
 /**
@@ -113,47 +90,29 @@ export function overrideGlobals(): void {
  *
  * Sets required internal state and instantiates the workflow and interceptors.
  */
-export async function initRuntime({
-  info,
-  randomnessSeed,
-  now,
-  patches,
-  sourceMap,
-  showStackTraceSources,
-}: WorkflowCreateOptionsWithSourceMap): Promise<void> {
-  const state = new State();
+export async function initRuntime(options: WorkflowCreateOptionsWithSourceMap): Promise<void> {
+  const { info } = options;
+  info.unsafe.now = OriginalDate.now;
+  const activator = new Activator(options);
   /** There can only be one of these */
-  global.__TEMPORAL__.state = state;
-
-  state.info = info;
-  state.info.unsafe.now = OriginalDate.now;
-  state.now = now;
-  state.random = alea(randomnessSeed);
-  state.showStackTraceSources = showStackTraceSources;
-  state.sourceMap = sourceMap;
-
-  if (info.unsafe.isReplaying) {
-    for (const patch of patches) {
-      state.knownPresentPatches.add(patch);
-    }
-  }
+  global.__TEMPORAL__.activator = activator;
 
   // @ts-expect-error this is a webpack alias to payloadConverterPath
   const customPayloadConverter = (await import('__temporal_custom_payload_converter')).payloadConverter;
   // The `payloadConverter` export is validated in the Worker
   if (customPayloadConverter !== undefined) {
-    state.payloadConverter = customPayloadConverter;
+    activator.payloadConverter = customPayloadConverter;
   }
   // @ts-expect-error this is a webpack alias to failureConverterPath
   const customFailureConverter = (await import('__temporal_custom_failure_converter')).failureConverter;
   // The `failureConverter` export is validated in the Worker
   if (customFailureConverter !== undefined) {
-    state.failureConverter = customFailureConverter;
+    activator.failureConverter = customFailureConverter;
   }
 
-  const { importWorkflows, importInterceptors } = globalThis as any;
+  const { importWorkflows, importInterceptors } = global.__TEMPORAL__;
   if (importWorkflows === undefined || importInterceptors === undefined) {
-    throw new IllegalStateError('Workflow has not been initialized');
+    throw new IllegalStateError('Workflow bundle did not register import hooks');
   }
 
   const interceptors = await importInterceptors();
@@ -164,9 +123,9 @@ export async function initRuntime({
         throw new TypeError(`interceptors must be a function, got: ${factory}`);
       }
       const interceptors = factory();
-      state.interceptors.inbound.push(...(interceptors.inbound ?? []));
-      state.interceptors.outbound.push(...(interceptors.outbound ?? []));
-      state.interceptors.internals.push(...(interceptors.internals ?? []));
+      activator.interceptors.inbound.push(...(interceptors.inbound ?? []));
+      activator.interceptors.outbound.push(...(interceptors.outbound ?? []));
+      activator.interceptors.internals.push(...(interceptors.internals ?? []));
     }
   }
 
@@ -175,7 +134,7 @@ export async function initRuntime({
   if (typeof workflow !== 'function') {
     throw new TypeError(`'${info.workflowType}' is not a function`);
   }
-  state.workflow = workflow;
+  activator.workflow = workflow;
 }
 
 /**
@@ -183,24 +142,21 @@ export async function initRuntime({
  * @returns a boolean indicating whether job was processed or ignored
  */
 export function activate(activation: coresdk.workflow_activation.WorkflowActivation, batchIndex: number): void {
-  const state = getState();
-  const intercept = composeInterceptors(state.interceptors.internals, 'activate', ({ activation, batchIndex }) => {
+  const activator = getActivator();
+  const intercept = composeInterceptors(activator.interceptors.internals, 'activate', ({ activation, batchIndex }) => {
     if (batchIndex === 0) {
-      if (state.info === undefined) {
-        throw new IllegalStateError('Workflow has not been initialized');
-      }
       if (!activation.jobs) {
         throw new TypeError('Got activation with no jobs');
       }
       if (activation.timestamp != null) {
         // timestamp will not be updated for activation that contain only queries
-        state.now = tsToMs(activation.timestamp);
+        activator.now = tsToMs(activation.timestamp);
       }
       if (activation.historyLength == null) {
         throw new TypeError('Got activation with no historyLength');
       }
-      state.info.unsafe.isReplaying = activation.isReplaying ?? false;
-      state.info.historyLength = activation.historyLength;
+      activator.info.unsafe.isReplaying = activation.isReplaying ?? false;
+      activator.info.historyLength = activation.historyLength;
     }
 
     // Cast from the interface to the class which has the `variant` attribute.
@@ -219,10 +175,10 @@ export function activate(activation: coresdk.workflow_activation.WorkflowActivat
       // The only job that can be executed on a completed workflow is a query.
       // We might get other jobs after completion for instance when a single
       // activation contains multiple jobs and the first one completes the workflow.
-      if (state.completed && job.variant !== 'queryWorkflow') {
+      if (activator.completed && job.variant !== 'queryWorkflow') {
         return;
       }
-      state.activator[job.variant](variant as any /* TS can't infer this type */);
+      activator[job.variant](variant as any /* TS can't infer this type */);
       if (showUnblockConditions(job)) {
         tryUnblockConditions();
       }
@@ -241,11 +197,11 @@ export function activate(activation: coresdk.workflow_activation.WorkflowActivat
  * Activation failures are handled in the main Node.js isolate.
  */
 export function concludeActivation(): coresdk.workflow_completion.IWorkflowActivationCompletion {
-  const state = getState();
-  const intercept = composeInterceptors(state.interceptors.internals, 'concludeActivation', (input) => input);
-  const { info } = state;
-  const { commands } = intercept({ commands: state.commands });
-  state.commands = [];
+  const activator = getActivator();
+  const intercept = composeInterceptors(activator.interceptors.internals, 'concludeActivation', (input) => input);
+  const { info } = activator;
+  const { commands } = intercept({ commands: activator.commands });
+  activator.commands = [];
   return {
     runId: info?.runId,
     successful: { commands },
@@ -253,7 +209,7 @@ export function concludeActivation(): coresdk.workflow_completion.IWorkflowActiv
 }
 
 export function getAndResetSinkCalls(): SinkCall[] {
-  return getState().getAndResetSinkCalls();
+  return getActivator().getAndResetSinkCalls();
 }
 
 /**
@@ -265,12 +221,12 @@ export function tryUnblockConditions(): number {
   let numUnblocked = 0;
   for (;;) {
     const prevUnblocked = numUnblocked;
-    for (const [seq, cond] of getState().blockedConditions.entries()) {
+    for (const [seq, cond] of getActivator().blockedConditions.entries()) {
       if (cond.fn()) {
         cond.resolve();
         numUnblocked++;
         // It is safe to delete elements during map iteration
-        getState().blockedConditions.delete(seq);
+        getActivator().blockedConditions.delete(seq);
       }
     }
     if (prevUnblocked === numUnblocked) {
@@ -288,13 +244,13 @@ export function showUnblockConditions(job: coresdk.workflow_activation.IWorkflow
 }
 
 export async function dispose(): Promise<void> {
-  const dispose = composeInterceptors(getState().interceptors.internals, 'dispose', async () => {
+  const dispose = composeInterceptors(getActivator().interceptors.internals, 'dispose', async () => {
     storage.disable();
   });
   await dispose({});
 }
 
 export function errorToFailure(err: unknown): ProtoFailure {
-  const state = getState();
-  return state.failureConverter.errorToFailure(err, state.payloadConverter);
+  const activator = getActivator();
+  return activator.failureConverter.errorToFailure(err, activator.payloadConverter);
 }

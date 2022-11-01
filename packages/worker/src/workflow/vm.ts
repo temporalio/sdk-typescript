@@ -46,7 +46,7 @@ function getPromiseStackStore(promise: Promise<any>): internals.PromiseStackStor
   // Access the global scope associated with the promise (unique per workflow - vm.context)
   // See for reference https://github.com/patriksimek/vm2/issues/32
   const ctor = promise.constructor.constructor;
-  return ctor('return globalThis.__TEMPORAL__?.state?.promiseStackStore')();
+  return ctor('return globalThis.__TEMPORAL__?.activator?.promiseStackStore')();
 }
 
 /**
@@ -72,7 +72,7 @@ export function setUnhandledRejectionHandler(): void {
     // Get the runId associated with the vm context.
     // See for reference https://github.com/patriksimek/vm2/issues/32
     const ctor = promise.constructor.constructor;
-    const runId = ctor('return globalThis.__TEMPORAL__?.state?.info?.runId')();
+    const runId = ctor('return globalThis.__TEMPORAL__?.activator?.info?.runId')();
     if (runId !== undefined) {
       const workflow = VMWorkflowCreator.workflowByRunId.get(runId);
       if (workflow !== undefined) {

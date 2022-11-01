@@ -148,18 +148,18 @@ import * as api from '@temporalio/workflow/lib/worker-interface.js';
 
 // Bundle all Workflows and interceptor modules for lazy evaluation
 api.overrideGlobals();
-api.setImportFuncs({
-  importWorkflows: () => {
-    return import(/* webpackMode: "eager" */ ${JSON.stringify(this.workflowsPath)});
-  },
-  importInterceptors: () => {
-    return Promise.all([
-      ${interceptorImports}
-    ]);
-  }
-});
 
 export { api };
+
+export function importWorkflows() {
+  return import(/* webpackMode: "eager" */ ${JSON.stringify(this.workflowsPath)});
+}
+
+export function importInterceptors() {
+  return Promise.all([
+    ${interceptorImports}
+  ]);
+}
 `;
     try {
       vol.mkdirSync(path.dirname(target), { recursive: true });
