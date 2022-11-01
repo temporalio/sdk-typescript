@@ -1,3 +1,4 @@
+import type { RawSourceMap } from 'source-map';
 import { RetryPolicy, TemporalFailure, CommonWorkflowOptions, SearchAttributes } from '@temporalio/common';
 import { checkExtends } from '@temporalio/common/lib/type-helpers';
 import type { coresdk } from '@temporalio/proto';
@@ -362,4 +363,16 @@ export interface EnhancedStackTrace {
    */
   sources: Record<string, FileSlice[]>;
   stacks: StackTrace[];
+}
+
+export interface WorkflowCreateOptions {
+  info: WorkflowInfo;
+  randomnessSeed: number[];
+  now: number;
+  patches: string[];
+  showStackTraceSources: boolean;
+}
+
+export interface WorkflowCreateOptionsWithSourceMap extends WorkflowCreateOptions {
+  sourceMap: RawSourceMap;
 }

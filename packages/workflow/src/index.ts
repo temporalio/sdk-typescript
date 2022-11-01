@@ -80,7 +80,7 @@ export {
 } from '@temporalio/common/lib/interfaces';
 export * from '@temporalio/common/lib/workflow-handle';
 export * from '@temporalio/common/lib/workflow-options';
-export { AsyncLocalStorage, CancellationScope, CancellationScopeOptions, ROOT_SCOPE } from './cancellation-scope';
+export { AsyncLocalStorage, CancellationScope, CancellationScopeOptions } from './cancellation-scope';
 export * from './errors';
 export * from './interceptors';
 export {

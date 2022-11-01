@@ -46,7 +46,7 @@ function getPromiseStackStore(promise: Promise<any>): internals.PromiseStackStor
   // Access the global scope associated with the promise (unique per workflow - vm.context)
   // See for reference https://github.com/patriksimek/vm2/issues/32
   const ctor = promise.constructor.constructor;
-  return ctor('return globalThis.__TEMPORAL__?.promiseStackStore')();
+  return ctor('return globalThis.__TEMPORAL__?.activator?.promiseStackStore')();
 }
 
 /**
@@ -72,7 +72,7 @@ export function setUnhandledRejectionHandler(): void {
     // Get the runId associated with the vm context.
     // See for reference https://github.com/patriksimek/vm2/issues/32
     const ctor = promise.constructor.constructor;
-    const runId = ctor('return globalThis.__TEMPORAL__?.runId')();
+    const runId = ctor('return globalThis.__TEMPORAL__?.activator?.info?.runId')();
     if (runId !== undefined) {
       const workflow = VMWorkflowCreator.workflowByRunId.get(runId);
       if (workflow !== undefined) {
@@ -127,11 +127,12 @@ export class VMWorkflowCreator implements WorkflowCreator {
       {
         get(_: any, fn: string) {
           return (...args: any[]) => {
-            context.args = args;
-            const ret = vm.runInContext(`__TEMPORAL__.api.${fn}(...globalThis.args)`, context, {
+            context.__TEMPORAL__.args = args;
+            const ret = vm.runInContext(`__TEMPORAL__.api.${fn}(...__TEMPORAL__.args)`, context, {
               timeout: isolateExecutionTimeoutMs,
               displayErrors: true,
             });
+
             // When running with microtaskMode `afterEvaluate`, promises from context cannot be directly awaited outside of it.
             if (
               hasSeparateMicrotaskQueue &&
@@ -348,7 +349,7 @@ export class VMWorkflow implements Workflow {
 
   constructor(
     public readonly info: WorkflowInfo,
-    protected context: vm.Context | undefined,
+    protected context: any | undefined,
     readonly workflowModule: WorkflowModule,
     public readonly isolateExecutionTimeoutMs: number,
     public readonly hasSeparateMicrotaskQueue: boolean,
@@ -407,7 +408,7 @@ export class VMWorkflow implements Workflow {
     if (this.unhandledRejection) {
       return coresdk.workflow_completion.WorkflowActivationCompletion.encodeDelimited({
         runId: activation.runId,
-        failed: { failure: this.workflowModule.errorToFailure(this.unhandledRejection) },
+        failed: { failure: this.context.__TEMPORAL__.activator.errorToFailure(this.unhandledRejection) },
       }).finish();
     }
     return coresdk.workflow_completion.WorkflowActivationCompletion.encodeDelimited(completion).finish();

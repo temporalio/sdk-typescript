@@ -1,6 +1,6 @@
 import { coresdk } from '@temporalio/proto';
 import { SinkCall } from '@temporalio/workflow';
-import { WorkflowCreateOptions } from '@temporalio/workflow/lib/worker-interface';
+import { WorkflowCreateOptions } from '@temporalio/workflow/lib/interfaces';
 
 export { WorkflowCreateOptions };
 

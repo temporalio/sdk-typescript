@@ -162,7 +162,8 @@ export class CancellationScope {
    * Get the current "active" scope
    */
   static current(): CancellationScope {
-    return storage.getStore() ?? ROOT_SCOPE;
+    // Using globals directly instead of a helper function to avoid circular import
+    return storage.getStore() ?? (globalThis as any).__TEMPORAL__.activator.rootScope;
   }
 
   /** Alias to `new CancellationScope({ cancellable: true }).run(fn)` */
@@ -187,13 +188,14 @@ export class CancellationScope {
 export const storage = new AsyncLocalStorage<CancellationScope>();
 
 export class RootCancellationScope extends CancellationScope {
+  constructor() {
+    super({ cancellable: true, parent: NO_PARENT });
+  }
+
   cancel(): void {
     this.reject(new CancelledFailure('Workflow cancelled'));
   }
 }
-
-/** There can only be one of these */
-export const ROOT_SCOPE = new RootCancellationScope({ cancellable: true, parent: NO_PARENT });
 
 /** This function is here to avoid a circular dependency between this module and workflow.ts */
 let sleep = (_: number | string): Promise<void> => {
