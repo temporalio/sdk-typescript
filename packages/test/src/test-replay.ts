@@ -24,22 +24,12 @@ async function getHistories(fname: string): Promise<History> {
   }
 }
 
-function historator(histories: Array<History>, goSlow?: boolean) {
-  return {
-    timesCalled: 0,
-    async *[Symbol.asyncIterator]() {
-      for (const history of histories) {
-        this.timesCalled++;
-        yield { workflowId: 'fake', history };
-        if (goSlow) {
-          // This matters because the exception propagation from the worker takes a long time
-          // compared to this generator. This sleep makes it more realistic for a
-          // stream-from-net-or-disk situation
-          await new Promise((resolve) => setTimeout(resolve, 1000));
-        }
-      }
-    },
-  };
+function historator(histories: Array<History>) {
+  return (async function* () {
+    for (const history of histories) {
+      yield { workflowId: 'fake', history };
+    }
+  })();
 }
 
 const test = anyTest as TestInterface<Context>;
@@ -125,9 +115,7 @@ test('multiple-histories-replay', async (t) => {
     },
     { histories }
   );
-  t.deepEqual(histories.timesCalled, 2);
-  t.deepEqual(res.errors.length, 0);
-  t.pass();
+  t.is(res.errors.length, 0);
 });
 
 test('multiple-histories-replay-fails-fast', async (t) => {
@@ -136,7 +124,7 @@ test('multiple-histories-replay-fails-fast', async (t) => {
   // change workflow type to break determinism
   hist1.events[0].workflowExecutionStartedEventAttributes!.workflowType!.name = 'http';
   hist2.events[0].workflowExecutionStartedEventAttributes!.workflowType!.name = 'http';
-  const histories = historator([hist1, hist2], true);
+  const histories = historator([hist1, hist2]);
 
   await t.throwsAsync(
     Worker.runReplayHistories(
@@ -147,7 +135,6 @@ test('multiple-histories-replay-fails-fast', async (t) => {
       { histories }
     )
   );
-  t.deepEqual(histories.timesCalled, 1);
 });
 
 test('multiple-histories-replay-fails-slow', async (t) => {
@@ -165,6 +152,5 @@ test('multiple-histories-replay-fails-slow', async (t) => {
     },
     { histories }
   );
-  t.deepEqual(histories.timesCalled, 2);
-  t.deepEqual(res.errors.length, 1);
+  t.is(res.errors.length, 1);
 });

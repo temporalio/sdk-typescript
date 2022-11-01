@@ -140,6 +140,33 @@ export type ActivityTaskWithContext = ContextAware<{
 
 type CompiledWorkerOptionsWithBuildId = CompiledWorkerOptions & { buildId: string };
 
+/**
+ * Combined error information for {@link Worker.runUntil}
+ */
+export interface CombinedWorkerRunErrorCause {
+  /**
+   * Error thrown by a Worker
+   */
+  workerError: unknown;
+  /**
+   * Error thrown by the wrapped promise or function
+   */
+  innerError: unknown;
+}
+
+/**
+ * Error thrown by {@link Worker.runUntil}
+ */
+export class CombinedWorkerRunError extends Error {
+  public readonly name = 'CombinedWorkerRunError';
+  public readonly cause: CombinedWorkerRunErrorCause;
+
+  constructor(message: string, { cause }: { cause: CombinedWorkerRunErrorCause }) {
+    super(message);
+    this.cause = cause;
+  }
+}
+
 export interface NativeWorkerLike {
   type: 'Worker';
   initiateShutdown: Promisify<OmitFirstParam<typeof native.workerInitiateShutdown>>;
@@ -1644,21 +1671,45 @@ export class Worker {
    * @returns the result of `fnOrPromise`
    *
    * Throws on fatal Worker errors.
+   *
+   * **SDK versions `< 1.5.0`**:
+   * This method would not wait for worker to complete shutdown if the inner `fnOrPromise` threw an error.
+   *
+   * **SDK versions `>=1.5.0`**:
+   * This method always waits for both worker shutdown and inner `fnOrPromise` to resolve.
+   * If one of worker run -or- the inner promise throw an error, that error is rethrown.
+   * If both throw an error, a {@link CombinedWorkerRunError} with a `cause` attribute containing both errors.
    */
   async runUntil<R>(fnOrPromise: Promise<R> | (() => Promise<R>)): Promise<R> {
-    const runAndShutdown = async () => {
+    const workerRunPromise = this.run();
+    const innerPromise = (async () => {
       try {
-        if (typeof fnOrPromise === 'function') {
-          return await fnOrPromise();
-        } else {
-          return await fnOrPromise;
-        }
+        const p = typeof fnOrPromise === 'function' ? fnOrPromise() : fnOrPromise;
+        return await p;
       } finally {
-        this.shutdown();
+        if (this.state === 'RUNNING') {
+          this.shutdown();
+        }
       }
-    };
-    const [_, ret] = await Promise.all([this.run(), runAndShutdown()]);
-    return ret;
+    })();
+    const [innerResult, workerRunResult] = await Promise.allSettled([innerPromise, workerRunPromise]);
+
+    if (workerRunResult.status === 'rejected') {
+      if (innerResult.status === 'rejected') {
+        throw new CombinedWorkerRunError('Worker terminated with fatal error in `runUntil`', {
+          cause: {
+            workerError: workerRunResult.reason,
+            innerError: innerResult.reason,
+          },
+        });
+      } else {
+        throw workerRunResult.reason;
+      }
+    } else if (innerResult.status === 'rejected') {
+      throw innerResult.reason;
+    } else {
+      return innerResult.value;
+    }
   }
 
   /**
