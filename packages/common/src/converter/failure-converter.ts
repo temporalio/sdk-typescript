@@ -169,6 +169,7 @@ export class DefaultFailureConverter implements FailureConverter {
         throw new TypeError('Missing activityType?.name on activityFailureInfo');
       }
       return new ActivityFailure(
+        failure.message ?? undefined,
         failure.activityFailureInfo.activityType.name,
         failure.activityFailureInfo.activityId ?? undefined,
         failure.activityFailureInfo.retryState ?? RetryState.RETRY_STATE_UNSPECIFIED,

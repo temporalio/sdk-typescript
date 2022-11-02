@@ -232,13 +232,14 @@ export class ActivityFailure extends TemporalFailure {
   public readonly name: string = 'ActivityFailure';
 
   public constructor(
+    message: string | undefined,
     public readonly activityType: string,
     public readonly activityId: string | undefined,
     public readonly retryState: RetryState,
     public readonly identity: string | undefined,
     cause?: Error
   ) {
-    super('Activity execution failed', cause);
+    super(message, cause);
   }
 }
 
