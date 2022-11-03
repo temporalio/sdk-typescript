@@ -1321,12 +1321,13 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
       workflowId,
     });
     await handle.query(workflows.mutateWorkflowStateQuery);
+    await handle.terminate();
     // Worker did not crash
     t.pass();
   });
 
   /**
-   * NOTE: this test uses the `list` API which requires advanced visibility as of server 1.18.
+   * NOTE: this test uses the `IN` operator API which requires advanced visibility as of server 1.18.
    * Run with docker-compose
    */
   test('Download and replay multiple executions with client list method', async (t) => {

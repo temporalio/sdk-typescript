@@ -206,7 +206,7 @@ export interface WorkflowInternalsInterceptor {
    *
    * Implement this method to perform any resource cleanup.
    */
-  dispose?(input: DisposeInput, next: Next<this, 'dispose'>): Promise<void>;
+  dispose?(input: DisposeInput, next: Next<this, 'dispose'>): void;
 }
 
 /**

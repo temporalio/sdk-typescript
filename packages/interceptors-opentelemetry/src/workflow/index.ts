@@ -130,6 +130,6 @@ export class OpenTelemetryInternalsInterceptor implements WorkflowInternalsInter
     if (contextManager !== undefined) {
       contextManager.disable();
     }
-    await next(input);
+    next(input);
   }
 }

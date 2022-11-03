@@ -92,7 +92,7 @@ export function overrideGlobals(): void {
  *
  * Sets required internal state and instantiates the workflow and interceptors.
  */
-export async function initRuntime(options: WorkflowCreateOptionsWithSourceMap): Promise<void> {
+export function initRuntime(options: WorkflowCreateOptionsWithSourceMap): void {
   const { info } = options;
   info.unsafe.now = OriginalDate.now;
   const activator = new Activator(options);
@@ -101,18 +101,18 @@ export async function initRuntime(options: WorkflowCreateOptionsWithSourceMap): 
   // as well as Date and Math.random.
   global.__TEMPORAL__.activator = activator;
 
-  // TODO(bergundy): check if we can use `require` with the ESM sample and make all of the runtime methods sync.
-
-  // @ts-expect-error this is a webpack alias to payloadConverterPath
-  const customPayloadConverter = (await import('__temporal_custom_payload_converter')).payloadConverter;
+  // webpack alias to payloadConverterPath
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const customPayloadConverter = require('__temporal_custom_payload_converter').payloadConverter;
   // The `payloadConverter` export is validated in the Worker
-  if (customPayloadConverter !== undefined) {
+  if (customPayloadConverter != null) {
     activator.payloadConverter = customPayloadConverter;
   }
-  // @ts-expect-error this is a webpack alias to failureConverterPath
-  const customFailureConverter = (await import('__temporal_custom_failure_converter')).failureConverter;
+  // webpack alias to failureConverterPath
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const customFailureConverter = require('__temporal_custom_failure_converter').failureConverter;
   // The `failureConverter` export is validated in the Worker
-  if (customFailureConverter !== undefined) {
+  if (customFailureConverter != null) {
     activator.failureConverter = customFailureConverter;
   }
 
@@ -121,7 +121,7 @@ export async function initRuntime(options: WorkflowCreateOptionsWithSourceMap): 
     throw new IllegalStateError('Workflow bundle did not register import hooks');
   }
 
-  const interceptors = await importInterceptors();
+  const interceptors = importInterceptors();
   for (const mod of interceptors) {
     const factory: WorkflowInterceptorsFactory = mod.interceptors;
     if (factory !== undefined) {
@@ -135,7 +135,7 @@ export async function initRuntime(options: WorkflowCreateOptionsWithSourceMap): 
     }
   }
 
-  const mod = await importWorkflows();
+  const mod = importWorkflows();
   const workflow = mod[info.workflowType];
   if (typeof workflow !== 'function') {
     throw new TypeError(`'${info.workflowType}' is not a function`);
@@ -248,9 +248,9 @@ export function showUnblockConditions(job: coresdk.workflow_activation.IWorkflow
   return !job.queryWorkflow && !job.notifyHasPatch;
 }
 
-export async function dispose(): Promise<void> {
+export function dispose(): void {
   const dispose = composeInterceptors(getActivator().interceptors.internals, 'dispose', async () => {
     storage.disable();
   });
-  await dispose({});
+  dispose({});
 }
