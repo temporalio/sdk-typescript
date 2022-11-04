@@ -13,10 +13,10 @@
   "license": "MIT",
   "dependencies": {
     "@grpc/grpc-js": "^1.6.7",
-    "@temporalio/activity": "^1.4.4",
-    "@temporalio/client": "^1.4.4",
-    "@temporalio/common": "^1.4.4",
-    "@temporalio/worker": "^1.4.4",
+    "@temporalio/activity": "~1.4.4",
+    "@temporalio/client": "~1.4.4",
+    "@temporalio/common": "~1.4.4",
+    "@temporalio/worker": "~1.4.4",
     "abort-controller": "^3.0.0",
     "ms": "^2.1.3"
   },
