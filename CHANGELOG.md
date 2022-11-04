@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 Breaking changes marked with a :boom:
 
+## [1.4.4] - 2022-11-03
+
+### Bug Fixes
+
+- Don't request eager activities when worker started with no remote activities
+
+  Actual fix made in this Core SDK PR: https://github.com/temporalio/sdk-core/pull/429
+
 ## [1.4.3] - 2022-10-14
 
 ### Bug Fixes
