@@ -194,8 +194,7 @@ ls packages/core-bridge/releases/
 
 npx lerna version patch --force-publish='*' # or major|minor|etc, or leave out to be prompted. either way, you get a confirmation dialog.
 
-# replace TODO with the tilde version, like: ~1.5.0
-sed -i '' 's/file:\.\.\/.*"/TODO"/g' packages/*/package.json
+node ./scripts/tilde-deps.mjs
 
 git add packages
 git commit -m 'Depend on ~1.5.0'
@@ -254,10 +253,4 @@ npm dist-tag rm @temporalio/common/lib/internal-workflow next
 npm dist-tag rm @temporalio/common/lib/internal-non-workflow next
 npm dist-tag rm @temporalio/create next
 npm dist-tag rm temporalio next
-```
-
-When we want to deprecate a package:
-
-```
-npm deprecate temporalio@^1.0.0 "deprecation message that will be logged on install"
 ```
