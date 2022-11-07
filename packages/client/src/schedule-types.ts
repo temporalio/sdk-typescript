@@ -685,7 +685,7 @@ export type LooseRange<Unit> =
   | Unit;
 
 /** @experimental */
-export const Months = [
+export const MONTHS = [
   'JANUARY',
   'FEBRUARY',
   'MARCH',
@@ -701,13 +701,13 @@ export const Months = [
 ] as const;
 
 /** @experimental */
-export type Month = typeof Months[number];
+export type Month = typeof MONTHS[number];
 
 /** @experimental */
-export const DaysOfWeek = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'] as const;
+export const DAYS_OF_WEEK = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'] as const;
 
 /** @experimental */
-export type DayOfWeek = typeof DaysOfWeek[number];
+export type DayOfWeek = typeof DAYS_OF_WEEK[number];
 
 /** @experimental */
 export type ScheduleOptionsAction = ScheduleOptionsStartWorkflowAction<Workflow>;

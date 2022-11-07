@@ -1,6 +1,6 @@
 import { status as grpcStatus } from '@grpc/grpc-js';
 import { DataConverter, LoadedDataConverter, mapToPayloads, searchAttributePayloadConverter } from '@temporalio/common';
-import { composeInterceptors } from '@temporalio/common/lib/interceptors';
+import { composeInterceptors, Headers } from '@temporalio/common/lib/interceptors';
 import {
   encodeMapToPayloads,
   loadDataConverter,
@@ -352,7 +352,8 @@ export class ScheduleClient {
    */
   protected async _updateSchedule(
     scheduleId: string,
-    opts: CompiledScheduleUpdateOptions
+    opts: CompiledScheduleUpdateOptions,
+    header: Headers
   ): Promise<temporal.api.workflowservice.v1.IUpdateScheduleResponse> {
     try {
       return await this.workflowService.updateSchedule({
@@ -360,7 +361,7 @@ export class ScheduleClient {
         scheduleId,
         schedule: {
           spec: encodeScheduleSpec(opts.spec),
-          action: await encodeScheduleAction(this.dataConverter, opts.action, {}),
+          action: await encodeScheduleAction(this.dataConverter, opts.action, header),
           policies: encodeSchedulePolicies(opts.policies),
           state: encodeScheduleState(opts.state),
         },
@@ -515,10 +516,12 @@ export class ScheduleClient {
       },
 
       async update(updateFn): Promise<void> {
-        const actual = await this.describe();
-        const updated = updateFn(actual);
+        const current = await this.describe();
+        // Keep existing headers
+        const currentHeader: Headers = current.raw.schedule?.action?.startWorkflow?.header?.fields ?? {};
+        const updated = updateFn(current);
         assertRequiredScheduleOptions(updated, 'UPDATE');
-        await this.client._updateSchedule(scheduleId, compileUpdatedScheduleOptions(updated));
+        await this.client._updateSchedule(scheduleId, compileUpdatedScheduleOptions(updated), currentHeader);
       },
 
       async delete(): Promise<void> {

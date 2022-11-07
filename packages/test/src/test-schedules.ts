@@ -195,8 +195,7 @@ if (RUN_INTEGRATION_TESTS) {
     }
   });
 
-  // FIXME: Known issue
-  test.skip('startWorkflow headers are kept on update', async (t) => {
+  test('startWorkflow headers are kept on update', async (t) => {
     const clientWithInterceptor = new Client({
       connection: t.context.client.connection,
       interceptors: {

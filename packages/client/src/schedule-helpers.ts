@@ -24,9 +24,9 @@ import {
   ScheduleOverlapPolicy,
   ScheduleUpdateOptions,
   DayOfWeek,
-  DaysOfWeek,
+  DAYS_OF_WEEK,
   Month,
-  Months,
+  MONTHS,
   LooseRange,
   ScheduleSpec,
   CompiledScheduleAction,
@@ -84,10 +84,10 @@ const [encodeDayOfMonth, decodeDayOfMonth] = makeCalendarSpecFieldCoders(
 const [encodeMonth, decodeMonth] = makeCalendarSpecFieldCoders(
   'month',
   function monthNameToNumber(month: Month): number | undefined {
-    const index = Months.indexOf(month);
+    const index = MONTHS.indexOf(month);
     return index >= 0 ? index + 1 : undefined;
   },
-  (month: number) => Months[month - 1],
+  (month: number) => MONTHS[month - 1],
   [{ start: 1, end: 12, step: 1 }], // default to *
   [{ start: 1, end: 12, step: 1 }]
 );
@@ -103,10 +103,10 @@ const [encodeYear, decodeYear] = makeCalendarSpecFieldCoders(
 const [encodeDayOfWeek, decodeDayOfWeek] = makeCalendarSpecFieldCoders(
   'dayOfWeek',
   function dayOfWeekNameToNumber(day: DayOfWeek): number | undefined {
-    const index = DaysOfWeek.indexOf(day);
+    const index = DAYS_OF_WEEK.indexOf(day);
     return index >= 0 ? index : undefined;
   },
-  (day: number) => DaysOfWeek[day],
+  (day: number) => DAYS_OF_WEEK[day],
   [{ start: 0, end: 6, step: 1 }], // default to *
   [{ start: 0, end: 6, step: 1 }]
 );
