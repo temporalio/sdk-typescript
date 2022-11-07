@@ -2,6 +2,7 @@ import { RUN_INTEGRATION_TESTS } from './helpers';
 import anyTest, { TestInterface } from 'ava';
 import { Client, defaultPayloadConverter } from '@temporalio/client';
 import { sleep, uuid4 } from '@temporalio/workflow';
+import asyncRetry from 'async-retry';
 import { msToNumber } from '@temporalio/common/lib/time';
 import { CalendarSpec, CalendarSpecDescription, ListScheduleEntry } from '@temporalio/client/lib/schedule-types';
 import { InvalidScheduleSpecError, ScheduleHandle } from '@temporalio/client/lib/schedule-client';
@@ -285,52 +286,59 @@ if (RUN_INTEGRATION_TESTS) {
   test('Can list Schedules', async (t) => {
     const { client } = t.context;
 
-    const startTime = Date.now();
-    const createdScheduleHandles: ScheduleHandle[] = [];
-    try {
-      for (let i = 10; i < 30; i++) {
-        const scheduleId = `can-list-schedule-${i}-${uuid4()}`;
-        createdScheduleHandles.push(
-          await client.schedule.create({
-            scheduleId,
-            spec: {
-              calendars: [{ hour: { start: 2, end: 7, step: 1 } }],
-            },
-            action: {
-              type: 'startWorkflow',
-              workflowId: `${scheduleId}-workflow`,
-              workflowType: dummyWorkflow,
-              taskQueue,
-            },
-          })
-        );
-      }
-
-      // Wait for visibility to stabilize
-      // FIXME: On my local machine, running _only this test file_, this test fails approx 25% of the time if
-      // timeout = 2000 as even noticed some missing entries at timeout = 3500ms. This is fraught to high flakiness rate in CICD.
-      // Also, with a pause of 3500, total execution time for this single test sometime reach over 6000 ms. This is way too much
-      await new Promise((resolve) => setTimeout(resolve, 3500));
-
-      const listedScheduleHandles: ListScheduleEntry[] = [];
-      for await (const schedule of client.schedule.list({ pageSize: 6 })) {
-        listedScheduleHandles.push(schedule);
-      }
-
-      t.deepEqual(
-        createdScheduleHandles.map((x) => x.scheduleId).sort(),
-        listedScheduleHandles
-          .map((x) => x.scheduleId)
-          .filter((x) => x.match(/^can-list-schedule-/))
-          .sort()
+    const createdScheduleHandlesPromises = [];
+    for (let i = 10; i < 30; i++) {
+      const scheduleId = `can-list-schedule-${i}-${uuid4()}`;
+      createdScheduleHandlesPromises.push(
+        client.schedule.create({
+          scheduleId,
+          spec: {
+            calendars: [{ hour: { start: 2, end: 7, step: 1 } }],
+          },
+          action: {
+            type: 'startWorkflow',
+            workflowId: `${scheduleId}-workflow`,
+            workflowType: dummyWorkflow,
+            taskQueue,
+          },
+        })
       );
+    }
+    const createdScheduleHandles: { [k: string]: ScheduleHandle } = Object.fromEntries(
+      (await Promise.all(createdScheduleHandlesPromises)).map((x) => [x.scheduleId, x])
+    );
+
+    try {
+      // Wait for visibility to stabilize
+      await asyncRetry(
+        async () => {
+          const listedScheduleHandles: ListScheduleEntry[] = [];
+          // Page size is intentionnally low to guarantee multiple pages
+          for await (const schedule of client.schedule.list({ pageSize: 6 })) {
+            listedScheduleHandles.push(schedule);
+          }
+
+          const listedScheduleIds = listedScheduleHandles
+            .map((x) => x.scheduleId)
+            .filter((x) => x.match(/^can-list-schedule-/))
+            .sort();
+
+          const createdSchedulesIds = Object.values(createdScheduleHandles).map((x) => x.scheduleId);
+          if (createdSchedulesIds.length != listedScheduleIds.length) throw new Error('Missing list entries');
+
+          t.deepEqual(listedScheduleIds, createdScheduleHandles);
+        },
+        {
+          retries: 60,
+          maxTimeout: 1000,
+        }
+      );
+
+      t.pass();
     } finally {
-      for (const handle of createdScheduleHandles) {
+      for (const handle of Object.values(createdScheduleHandles)) {
         await handle.delete();
       }
-
-      const endTime = Date.now();
-      console.log(`List schedules test took ${endTime - startTime}ms`);
     }
   });
 
