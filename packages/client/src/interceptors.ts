@@ -161,5 +161,9 @@ export interface CreateScheduleInput {
  */
 export interface ClientInterceptors {
   workflow?: WorkflowClientInterceptors;
+
+  /**
+   * @experimental
+   */
   schedule?: ScheduleClientInterceptor[];
 }

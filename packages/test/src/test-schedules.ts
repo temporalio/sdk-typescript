@@ -4,8 +4,8 @@ import { randomUUID } from 'crypto';
 import { Client, Connection, defaultPayloadConverter } from '@temporalio/client';
 import asyncRetry from 'async-retry';
 import { msToNumber } from '@temporalio/common/lib/time';
-import { CalendarSpec, CalendarSpecDescription, ListScheduleEntry } from '@temporalio/client/lib/schedule-types';
-import { InvalidScheduleSpecError, ScheduleHandle } from '@temporalio/client/lib/schedule-client';
+import { CalendarSpec, CalendarSpecDescription, ScheduleSummary } from '@temporalio/client/lib/schedule-types';
+import { ScheduleHandle } from '@temporalio/client/lib/schedule-client';
 import { TestWorkflowEnvironment } from '@temporalio/testing';
 import { temporal } from '@temporalio/proto';
 import * as grpc from '@grpc/grpc-js';
@@ -255,15 +255,15 @@ if (RUN_INTEGRATION_TESTS) {
 
     try {
       let describedSchedule = await handle.describe();
-      t.false(describedSchedule.paused);
+      t.false(describedSchedule.state.paused);
 
       await handle.pause();
       describedSchedule = await handle.describe();
-      t.true(describedSchedule.paused);
+      t.true(describedSchedule.state.paused);
 
       await handle.unpause();
       describedSchedule = await handle.describe();
-      t.false(describedSchedule.paused);
+      t.false(describedSchedule.state.paused);
     } finally {
       await handle.delete();
     }
@@ -370,7 +370,7 @@ if (RUN_INTEGRATION_TESTS) {
           }));
         },
         {
-          instanceOf: InvalidScheduleSpecError,
+          instanceOf: TypeError,
         }
       );
 
@@ -411,7 +411,7 @@ if (RUN_INTEGRATION_TESTS) {
       // Wait for visibility to stabilize
       await asyncRetry(
         async () => {
-          const listedScheduleHandles: ListScheduleEntry[] = [];
+          const listedScheduleHandles: ScheduleSummary[] = [];
           // Page size is intentionnally low to guarantee multiple pages
           for await (const schedule of client.schedule.list({ pageSize: 6 })) {
             listedScheduleHandles.push(schedule);

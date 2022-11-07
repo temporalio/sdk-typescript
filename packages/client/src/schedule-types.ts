@@ -3,11 +3,12 @@ import { SearchAttributes, Workflow } from '@temporalio/common';
 import type { temporal } from '@temporalio/proto';
 import { WorkflowStartOptions } from './workflow-client';
 
-export interface UpdateScheduleOptions {
-  force: boolean;
-}
-
-export interface ListScheduleEntry {
+/**
+ * The specification of a Schedule to be created, as expected by {@link ScheduleClient.create}.
+ *
+ * @experimental
+ */
+export interface ScheduleOptions {
   /**
    * Schedule Id
    *
@@ -15,14 +16,55 @@ export interface ListScheduleEntry {
    */
   scheduleId: string;
 
-  /** When Actions are taken */
-  spec: RequireAtLeastOne<ScheduleSpecDescription, 'calendars' | 'intervals'>;
+  /**
+   * When Actions should be taken
+   */
+  spec: RequireAtLeastOne<ScheduleSpec, 'calendars' | 'intervals' | 'cronExpressions'>;
+
+  /**
+   * Which Action to take
+   */
+  action: ScheduleOptionsAction;
+
+  policies?: {
+    /**
+     * Controls what happens when an Action would be started by a Schedule at the same time that an older Action is still
+     * running. This can be changed after a Schedule has taken some Actions, and some changes might produce
+     * unintuitive results. In general, the later policy overrides the earlier policy.
+     *
+     * @default {@link ScheduleOverlapPolicy.SKIP}
+     */
+    overlap?: ScheduleOverlapPolicy;
+
+    /**
+     * The Temporal Server might be down or unavailable at the time when a Schedule should take an Action. When the Server
+     * comes back up, `catchupWindow` controls which missed Actions should be taken at that point. The default is one
+     * minute, which means that the Schedule attempts to take any Actions that wouldn't be more than one minute late. It
+     * takes those Actions according to the {@link ScheduleOverlapPolicy}. An outage that lasts longer than the Catchup
+     * Window could lead to missed Actions. (But you can always {@link ScheduleHandle.backfill}.)
+     *
+     * @default 1 minute
+     * @format number of milliseconds or {@link https://www.npmjs.com/package/ms | ms-formatted string}
+     */
+    catchupWindow?: number | string;
+
+    /**
+     * When an Action times out or reaches the end of its Retry Policy, {@link pause}.
+     *
+     * With {@link ScheduleOverlapPolicy.ALLOW_ALL}, this pause might not apply to the next Action, because the next Action
+     * might have already started previous to the failed one finishing. Pausing applies only to Actions that are scheduled
+     * to start after the failed one finishes.
+     *
+     * @default false
+     */
+    pauseOnFailure?: boolean;
+  };
 
   /**
    * Additional non-indexed information attached to the Schedule. The values can be anything that is
    * serializable by the {@link DataConverter}.
    */
-  memo?: Record<string, any>;
+  memo?: Record<string, unknown>;
 
   /**
    * Additional indexed information attached to the Schedule. More info:
@@ -30,467 +72,258 @@ export interface ListScheduleEntry {
    *
    * Values are always converted using {@link JsonPayloadConverter}, even when a custom Data Converter is provided.
    */
-  searchAttributes: SearchAttributes;
+  searchAttributes?: SearchAttributes;
 
   /**
-   * Informative human-readable message with contextual notes, e.g. the reason
-   * a Schedule is paused. The system may overwrite this message on certain
-   * conditions, e.g. when pause-on-failure happens.
+   * The initial state of the schedule, right after creation or update.
    */
-  note?: string;
+  state?: {
+    /**
+     * Start in paused state.
+     *
+     * @default false
+     */
+    paused?: boolean;
 
-  /**
-   * Whether Schedule is currently paused.
-   *
-   * @default false
-   */
-  paused: boolean;
+    /**
+     * Informative human-readable message with contextual notes, e.g. the reason
+     * a Schedule is paused. The system may overwrite this message on certain
+     * conditions, e.g. when pause-on-failure happens.
+     */
+    note?: string;
 
-  /**
-   * Present if action is a {@link StartWorkflowAction}.
-   */
-  workflowType?: string;
+    /**
+     * Limit the number of Actions to take.
+     *
+     * This number is decremented after each Action is taken, and Actions are not
+     * taken when the number is `0` (unless {@link ScheduleHandle.trigger} is called).
+     *
+     * If `undefined`, then no such limit applies.
+     *
+     * @default undefined, which allows for unlimited exections
+     */
+    remainingActions?: number;
 
-  /**
-   * Most recent 10 Actions started (including manual triggers).
-   *
-   * Sorted from older start time to newer.
-   */
-  recentActions: ScheduleAction[];
+    /**
+     * Trigger one Action immediately on create.
+     *
+     * @default false
+     */
+    triggerImmediately?: boolean;
 
-  /** Next 10 scheduled Action times */
-  nextActionTimes: Date[];
+    /**
+     * Runs though the specified time periods and takes Actions as if that time passed by right now, all at once. The
+     * overlap policy can be overridden for the scope of the backfill.
+     */
+    backfill?: Backfill[];
+  };
 }
 
-/**
- * The current Schedule details. They may not match the Schedule as created because:
- * - some fields in the state are modified automatically
- * - the schedule may have been modified by {@link ScheduleHandle.update} or
- *   {@link ScheduleHandle.pause}/{@link ScheduleHandle.unpause}
- */
-export type Schedule = ListScheduleEntry & {
-  /**
-   * Which Action to take
-   */
-  action: ScheduleActionOptions;
-
-  /**
-   * Controls what happens when an Action would be started by a Schedule at the same time that an older Action is still
-   * running.
-   *
-   * @default {@link ScheduleOverlapPolicy.SKIP}
-   */
-  overlap: ScheduleOverlapPolicy;
-
-  /**
-   * The Temporal Server might be down or unavailable at the time when a Schedule should take an Action. When the Server
-   * comes back up, `catchupWindow` controls which missed Actions should be taken at that point. The default is one
-   * minute, which means that the Schedule attempts to take any Actions that wouldn't be more than one minute late. It
-   * takes those Actions according to the {@link ScheduleOverlapPolicy}. An outage that lasts longer than the Catchup
-   * Window could lead to missed Actions. (But you can always {@link ScheduleHandle.backfill}.)
-   *
-   * @default 1 minute
-   * @format number of milliseconds
-   */
-  catchupWindow: number | undefined;
-
-  /**
-   * When an Action times out or reaches the end of its Retry Policy, {@link pause}.
-   *
-   * With {@link ScheduleOverlapPolicy.ALLOW_ALL}, this pause might not apply to the next Action, because the next Action
-   * might have already started previous to the failed one finishing. Pausing applies only to Actions that are scheduled
-   * to start after the failed one finishes.
-   *
-   * @default false
-   */
-  pauseOnFailure: boolean;
-
-  /**
-   * The Actions remaining in this Schedule. Once this number hits `0`, no further Actions are taken (unless {@link
-   * ScheduleHandle.trigger} is called).
-   *
-   * @default undefined (unlimited)
-   */
-  remainingActions?: number;
-
-  /** Number of Actions taken so far. */
-  numActionsTaken: number;
-
-  /** Number of times a scheduled Action was skipped due to missing the catchup window. */
-  numActionsMissedCatchupWindow: number;
-
-  /** Number of Actions skipped due to overlap. */
-  numActionsSkippedOverlap: number;
-
-  /**
-   * Currently-running workflows started by this schedule. (There might be
-   * more than one if the overlap policy allows overlaps.)
-   */
-  runningWorkflows: WorkflowExecutionWithFirstExecutionRunId[];
-
-  createdAt: Date;
-  lastUpdatedAt: Date | undefined;
-
-  raw: temporal.api.workflowservice.v1.IDescribeScheduleResponse;
-};
-
-export type UpdatedSchedule<Action extends Workflow> = Pick<
-  ScheduleOptions<Action>,
-  'spec' | 'action' | 'overlap' | 'catchupWindow' | 'pauseOnFailure' | 'note' | 'paused'
+/** @experimental */
+export type CompiledScheduleOptions = Replace<
+  ScheduleOptions,
+  {
+    action: CompiledScheduleAction;
+  }
 >;
 
 /**
- * Make all properties optional.
+ * The specification of an updated Schedule, as expected by {@link ScheduleHandle.update}.
  *
- * If original Schedule is deleted, okay to use same `id`.
+ * @experimental
  */
-export type ScheduleOptionsOverrides<Action extends Workflow> = Partial<ScheduleOptions<Action>>;
+export type ScheduleUpdateOptions = Omit<ScheduleOptions, 'scheduleId' | 'memo' | 'searchAttributes'>;
 
-export interface WorkflowExecutionWithFirstExecutionRunId {
-  workflowId: string;
+/** @experimental */
+export type CompiledScheduleUpdateOptions = Replace<
+  ScheduleUpdateOptions,
+  {
+    action: CompiledScheduleAction;
+  }
+>;
+
+/**
+ * A summary description of an existing Schedule, as returned by {@link ScheduleClient.list}.
+ *
+ * @experimental
+ */
+export interface ScheduleSummary {
+  /**
+   * The Schedule Id. We recommend using a meaningful business identifier.
+   */
+  scheduleId: string;
 
   /**
-   * The Run Id of the original execution that was started by the Schedule. If the Workflow retried, did
-   * Continue-As-New, or was Reset, the following runs would have different Run Ids.
+   * When will Actions be taken.
    */
-  firstExecutionRunId: string;
+  spec: RequireAtLeastOne<ScheduleSpecDescription, 'calendars' | 'intervals'>;
+
+  /**
+   * The Action that will be taken.
+   */
+  action: ScheduleSummaryAction;
+
+  /**
+   * Additional non-indexed information attached to the Schedule.
+   * The values can be anything that is serializable by the {@link DataConverter}.
+   */
+  memo?: Record<string, unknown>;
+
+  /**
+   * Additional indexed information attached to the Schedule.
+   * More info: https://docs.temporal.io/docs/typescript/search-attributes
+   *
+   * Values are always converted using {@link JsonPayloadConverter}, even when a custom Data Converter is provided.
+   */
+  searchAttributes: SearchAttributes;
+
+  state: {
+    /**
+     * Whether Schedule is currently paused.
+     */
+    paused: boolean;
+
+    /**
+     * Informative human-readable message with contextual notes, e.g. the reason a Schedule is paused.
+     * The system may overwrite this message on certain conditions, e.g. when pause-on-failure happens.
+     */
+    note?: string;
+  };
+
+  info: {
+    /**
+     * Most recent 10 Actions started (including manual triggers), sorted from older start time to newer.
+     */
+    recentActions: ScheduleExecutionResult[];
+
+    /**
+     * Scheduled time of the next 10 executions of this Schedule
+     */
+    nextActionTimes: Date[];
+  };
 }
 
-export interface ScheduleAction {
-  /** Time that the Action was scheduled for, including jitter. */
+/** @experimental */
+export interface ScheduleExecutionResult {
+  /** Time that the Action was scheduled for, including jitter */
   scheduledAt: Date;
 
-  /** Time that the Action was actually taken. */
+  /** Time that the Action was actually taken */
   takenAt: Date;
 
-  /** If action was {@link StartWorkflowAction}. */
-  workflow?: WorkflowExecutionWithFirstExecutionRunId;
+  /** The Action that was taken */
+  action: ScheduleExecutionActionResult;
+}
+
+/** @experimental */
+export type ScheduleExecutionActionResult = ScheduleExecutionStartWorkflowActionResult;
+
+/** @experimental */
+export interface ScheduleExecutionStartWorkflowActionResult {
+  type: 'startWorkflow';
+  workflow: {
+    workflowId: string;
+
+    /**
+     * The Run Id of the original execution that was started by the Schedule. If the Workflow retried, did
+     * Continue-As-New, or was Reset, the following runs would have different Run Ids.
+     */
+    firstExecutionRunId: string;
+  };
 }
 
 /**
- * Policy for overlapping Actions.
- */
-export enum ScheduleOverlapPolicy {
-  /**
-   * Use server default (currently SKIP).
-   *
-   * TODO remove this field if this issue is implemented: https://github.com/temporalio/temporal/issues/3240
-   */
-  UNSPECIFIED = 0,
-
-  /**
-   * Don't start a new Action.
-   */
-  SKIP,
-
-  /**
-   * Start another Action as soon as the current Action completes, but only buffer one Action in this way. If another
-   * Action is supposed to start, but one Action is running and one is already buffered, then only the buffered one will
-   * be started after the running Action finishes.
-   */
-  BUFFER_ONE,
-
-  /**
-   * Allows an unlimited number of Actions to buffer. They are started sequentially.
-   */
-  BUFFER_ALL,
-
-  /**
-   * Cancels the running Action, and then starts the new Action once the cancelled one completes.
-   */
-  CANCEL_OTHER,
-
-  /**
-   * Terminate the running Action and start the new Action immediately.
-   */
-  TERMINATE_OTHER,
-
-  /**
-   * Allow any number of Actions to start immediately.
-   *
-   * This is the only policy under which multiple Actions can run concurrently.
-   */
-  ALLOW_ALL,
-}
-
-checkExtends<
-  keyof typeof temporal.api.enums.v1.ScheduleOverlapPolicy,
-  `SCHEDULE_OVERLAP_POLICY_${keyof typeof ScheduleOverlapPolicy}`
->();
-checkExtends<
-  `SCHEDULE_OVERLAP_POLICY_${keyof typeof ScheduleOverlapPolicy}`,
-  keyof typeof temporal.api.enums.v1.ScheduleOverlapPolicy
->();
-
-export interface Backfill {
-  /** Time range to evaluate Schedule in. */
-  start: Date;
-  end: Date;
-
-  /**
-   * Override the Overlap Policy for this request.
-   */
-  overlap?: ScheduleOverlapPolicy;
-}
-
-/**
- * Example Ranges:
+ * A detailed description of an exisiting Schedule, as returned by {@link ScheduleHandle.describe}.
  *
- * ```
- * { start: 2 } ➡️ 2
- * { start: 2, end: 4 } ➡️ 2, 3, 4
- * { start: 2, end: 10, step: 3 } ➡️ 2, 5, 8
- * ```
+ * @experimental
  */
-export type Range<Unit> = RangeStartOnly<Unit> | RangeStartEndSkip<Unit>;
-
-interface RangeStartOnly<Unit> {
+export type ScheduleDescription = ScheduleSummary & {
   /**
-   * Start of range (inclusive)
+   * The Action that will be taken.
    */
-  start: Unit;
+  action: ScheduleDescriptionAction;
 
-  /**
-   * End of range (inclusive)
-   *
-   * @default `start`
-   */
-  end?: never;
+  policies: {
+    /**
+     * Controls what happens when an Action would be started by a Schedule at the same time that an older Action is still
+     * running.
+     */
+    overlap: ScheduleOverlapPolicy;
 
-  /**
-   * The step to take between each value.
-   *
-   * @default 1
-   */
-  step?: never;
-}
+    /**
+     * The Temporal Server might be down or unavailable at the time when a Schedule should take an Action.
+     * When the Server comes back up, `catchupWindow` controls which missed Actions should be taken at that point.
+     * It takes those Actions according to the {@link ScheduleOverlapPolicy}. An outage that lasts longer than the
+     * Catchup Window could lead to missed Actions. (But you can always {@link ScheduleHandle.backfill}.)
+     *
+     * Unit is miliseconds.
+     */
+    catchupWindow: number;
 
-interface RangeStartEndSkip<Unit> extends Omit<RangeStartOnly<Unit>, 'end' | 'step'> {
-  /**
-   * End of range (inclusive)
-   *
-   * @default `start`
-   */
-  end: Unit;
+    /**
+     * When an Action times out or reaches the end of its Retry Policy, {@link pause}.
+     *
+     * With {@link ScheduleOverlapPolicy.ALLOW_ALL}, this pause might not apply to the next Action, because the next Action
+     * might have already started previous to the failed one finishing. Pausing applies only to Actions that are scheduled
+     * to start after the failed one finishes.
+     */
+    pauseOnFailure: boolean;
+  };
 
-  /**
-   * The step to take between each value.
-   *
-   * @default 1
-   */
-  step?: number;
-}
+  state: ScheduleSummary['state'] & {
+    /**
+     * The Actions remaining in this Schedule.
+     * Once this number hits `0`, no further Actions are taken (unless {@link ScheduleHandle.trigger} is called).
+     *
+     * If `undefined`, then no such limit applies.
+     */
+    remainingActions?: number;
+  };
 
-export type NumberSpec = number | Range<number> | (Range<number> | number)[] | '*';
-export type NumberSpecDescription = Range<number>[];
+  info: ScheduleSummary['info'] & {
+    /**
+     * Number of Actions taken so far.
+     */
+    numActionsTaken: number;
 
-const Months = [
-  'JANUARY',
-  'FEBRUARY',
-  'MARCH',
-  'APRIL',
-  'MAY',
-  'JUNE',
-  'JULY',
-  'AUGUST',
-  'SEPTEMBER',
-  'OCTOBER',
-  'NOVEMBER',
-  'DECEMBER',
-] as const;
-export type Month = typeof Months[number];
-export type MonthSpec = Month | Range<Month> | (Range<Month> | Month)[] | '*';
-export type MonthSpecDescription = Range<Month>[];
+    /**
+     * Number of times a scheduled Action was skipped due to missing the catchup window.
+     */
+    numActionsMissedCatchupWindow: number;
 
-// FIXME-JWH: Consider use a hash lookup for name to number
-export const monthNameToNumber = (month: Month): number | undefined => {
-  const index = Months.indexOf(month);
-  return index >= 0 ? index + 1 : undefined;
+    /**
+     * Number of Actions skipped due to overlap.
+     */
+    numActionsSkippedOverlap: number;
+
+    createdAt: Date;
+    lastUpdatedAt: Date | undefined;
+
+    /**
+     * Currently-running workflows started by this schedule. (There might be
+     * more than one if the overlap policy allows overlaps.)
+     */
+    // FIXME: @dnr Are these also contained in `recentActions`?
+    runningActions: ScheduleExecutionActionResult[];
+  };
+
+  /** @internal */
+  raw: temporal.api.workflowservice.v1.IDescribeScheduleResponse;
 };
-export const monthNumberToName = (month: number): Month => Months[month - 1];
 
-const DaysOfWeek = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'] as const;
-export type Day = typeof DaysOfWeek[number];
-export type DaySpec = Day | Range<Day> | (Range<Day> | Day)[] | '*';
-export type DaySpecDescription = Range<Day>[];
+// Invariant: An existing ScheduleDescription can be used as template to create a new Schedule
+checkExtends<ScheduleOptions, ScheduleDescription>();
 
-// FIXME-JWH: Consider use a hash lookup for name to number
-export const dayOfWeekNameToNumber = (day: Day): number | undefined => {
-  const index = DaysOfWeek.indexOf(day);
-  return index >= 0 ? index : undefined;
-};
-export const dayOfWeekNumberToName = (day: number): Day => DaysOfWeek[day];
-
-/**
- * An event specification relative to the calendar, similar to a traditional cron specification.
- *
- * A second in time matches if all fields match. This includes `dayOfMonth` and `dayOfWeek`.
- */
-export interface CalendarSpec {
-  /**
-   * Valid values: 0–59
-   *
-   * @default 0
-   */
-  second?: NumberSpec;
-
-  /**
-   * Valid values: 0–59
-   *
-   * @default 0
-   */
-  minute?: NumberSpec;
-
-  /**
-   * Valid values: 0–59
-   *
-   * @default 0
-   */
-  hour?: NumberSpec;
-
-  /**
-   * Valid values: 1–31
-   *
-   * @default '*'
-   */
-  dayOfMonth?: NumberSpec;
-
-  /**
-   * @default '*'
-   */
-  month?: MonthSpec;
-
-  /**
-   * Use full years, like `2030`
-   *
-   * @default '*'
-   */
-  year?: NumberSpec;
-
-  /**
-   * @default '*'
-   */
-  dayOfWeek?: DaySpec;
-
-  /**
-   * Description of the intention of this spec.
-   */
-  comment?: string;
-}
-
-/**
- * The version of {@link CalendarSpec} that you get back from {@link ScheduleHandle.describe} and
- * {@link ScheduleClient.list}
- */
-export interface CalendarSpecDescription {
-  /**
-   * Valid values: 0–59
-   *
-   * If the default input is used, the default output will be `[{ start: 0, end: 0, step: 0 }]`.
-   */
-  second: NumberSpecDescription;
-
-  /**
-   * Valid values: 0–59
-   *
-   * If the default input is used, the default output will be `[{ start: 0, end: 0, step: 0 }]`.
-   */
-  minute: NumberSpecDescription;
-
-  /**
-   * Valid values: 0–23
-   *
-   * If the default input is used, the default output will be `[{ start: 0, end: 0, step: 0 }]`.
-   */
-  hour: NumberSpecDescription;
-
-  /**
-   * Valid values: 1–31
-   *
-   * If the default input is used, the default output will be `[{ start: 1, end: 31, step: 1 }]`.
-   */
-  dayOfMonth: NumberSpecDescription;
-  // step will be 0/default over wire
-
-  /**
-   * If the default input is used, the default output will be `[{ start: 'JANUARY' , end: 'DECEMBER', step: 1 }]`.
-   */
-  month: MonthSpecDescription;
-  // will get { start: 1, end: 12, step 0 } from server
-
-  /**
-   * Use full years, like `2030`
-   *
-   * If the default input it used, the default output will be `undefined` (meaning any year).
-   */
-  year: NumberSpecDescription;
-
-  /**
-   * If the default input it used, the default output will be `[{ start: 'SUNDAY', end: 'SATURDAY', step: 1 }]`.
-   */
-  dayOfWeek: DaySpecDescription;
-  // will get { start: 0, end: 6, step 0 } from server
-
-  /**
-   * Description of the intention of this spec.
-   */
-  comment?: string;
-}
-
-/**
- * IntervalSpec matches times that can be expressed as:
- *
- * `Epoch + (n * every) + offset`
- *
- * where `n` is all integers ≥ 0.
- *
- * For example, an `every` of 1 hour with `offset` of zero would match every hour, on the hour. The same `every` but an `offset`
- * of 19 minutes would match every `xx:19:00`. An `every` of 28 days with `offset` zero would match `2022-02-17T00:00:00Z`
- * (among other times). The same `every` with `offset` of 3 days, 5 hours, and 23 minutes would match `2022-02-20T05:23:00Z`
- * instead.
- */
-export interface IntervalSpec {
-  /**
-   * Value is rounded to the nearest second.
-   *
-   * @format number of milliseconds or {@link https://www.npmjs.com/package/ms | ms-formatted string}
-   */
-  every: number | string;
-
-  /**
-   * Value is rounded to the nearest second.
-   *
-   * @default 0
-   * @format number of milliseconds or {@link https://www.npmjs.com/package/ms | ms-formatted string}
-   */
-  offset?: number | string;
-}
-
-/**
- * The version of {@link IntervalSpec} that you get back from {@link ScheduleHandle.describe}
- */
-export interface IntervalSpecDescription {
-  /**
-   * Value is rounded to the nearest second.
-   *
-   * @format number of milliseconds
-   */
-  every: number;
-
-  /**
-   * Value is rounded to the nearest second.
-   *
-   * @default 0
-   * @format number of milliseconds
-   */
-  offset?: number;
-}
+// Invariant: An existing ScheduleDescription can be used as template to update that Schedule
+checkExtends<ScheduleUpdateOptions, ScheduleDescription>();
 
 /**
  * A complete description of a set of absolute times (possibly infinite) that an Action should occur at.
  * The times are the union of `calendars`, `intervals`, and `cronExpressions`, minus the `skip` times. These times
  * never change, except that the definition of a time zone can change over time (most commonly, when daylight saving
  * time policy changes for an area). To create a totally self-contained `ScheduleSpec`, use UTC.
+ *
+ * @experimental
  */
 export interface ScheduleSpec {
   /** Calendar-based specifications of times. */
@@ -586,29 +419,15 @@ export interface ScheduleSpec {
    *
    * Also note that no actions are taken on leap-seconds (e.g. 23:59:60 UTC).
    *
-   * @default UTC
+   * @default 'UTC'
    */
   timezone?: string;
-
-  // Add to SDK if requested by users:
-  //
-  // bytes timezone_data = 11;
-  //
-  // Time zone to interpret all CalendarSpecs in.
-  //
-  // Time zones may be provided by name, corresponding to names in the IANA
-  // time zone database (see https://www.iana.org/time-zones). The definition
-  // will be loaded by the Temporal server from the environment it runs in.
-  //
-  // If your application requires more control over the time zone definition
-  // used, it may pass in a complete definition in the form of a TZif file
-  // from the time zone database. If present, this will be used instead of
-  // loading anything from the environment. You are then responsible for
-  // updating timezone_data when the definition changes.
 }
 
 /**
- * The version of {@link ScheduleSpec} that you get back from {@link ScheduleHandle.describe}
+ * The version of {@link ScheduleSpec} that you get back from {@link ScheduleHandle.describe} and {@link ScheduleClient.list}
+ *
+ * @experimental
  */
 export type ScheduleSpecDescription = Omit<
   ScheduleSpec,
@@ -632,199 +451,395 @@ export type ScheduleSpecDescription = Omit<
   jitter?: number;
 };
 
-export type StartWorkflowAction<Action extends Workflow> = Omit<
-  WorkflowStartOptions<Action>,
-  'workflowIdReusePolicy' | 'cronSchedule' | 'followRuns'
-> & {
-  // This is most convenient for TS typing. Other SDKs may want to implement this differently, for example nesting:
-  // action: {
-  //   startWorkflow: {
-  //     workflowId: 'wf-biz-id',
-  //     ...
-  //   }
-  // }
-  type: 'startWorkflow';
-
-  workflowType: string | Action;
-};
-
-export type ScheduleActionType = Workflow;
+// Invariant: An existing ScheduleSpec can be used as is to create or update a Schedule
+checkExtends<ScheduleSpec, ScheduleSpecDescription>();
 
 /**
- * Currently, Temporal Server only supports {@link StartWorkflowAction}.
+ * An event specification relative to the calendar, similar to a traditional cron specification.
+ *
+ * A second in time matches if all fields match. This includes `dayOfMonth` and `dayOfWeek`.
+ *
+ * @experimental
  */
-export type ScheduleActionOptions<Action extends ScheduleActionType = ScheduleActionType> = StartWorkflowAction<Action>;
-// in future:
-// type SomethingElse = { fieldFoo: string, type: 'startFoo' }
-// type ScheduleActionType = Workflow | SomethingElse
-// type ExpectsSomethingElse<Action extends SomethingElse> = Action extends SomethingElse ? Action : number;
-// type StartSomethingElseAction<Action extends SomethingElse> = ExpectsSomethingElse<Action>
-// type ScheduleActionOptions<Action extends ScheduleActionType> =
-//   StartWorkflowAction<Action> | StartSomethingElseAction<Action>
+export interface CalendarSpec {
+  /**
+   * Valid values: 0–59
+   *
+   * @default 0
+   */
+  second?: LooseRange<number> | LooseRange<number>[] | '*';
+
+  /**
+   * Valid values: 0–59
+   *
+   * @default 0
+   */
+  minute?: LooseRange<number> | LooseRange<number>[] | '*';
+
+  /**
+   * Valid values: 0–59
+   *
+   * @default 0
+   */
+  hour?: LooseRange<number> | LooseRange<number>[] | '*';
+
+  /**
+   * Valid values: 1–31
+   *
+   * @default '*'
+   */
+  dayOfMonth?: LooseRange<number> | LooseRange<number>[] | '*';
+
+  /**
+   * @default '*'
+   */
+  month?: LooseRange<Month> | LooseRange<Month>[] | '*';
+
+  /**
+   * Use full years, like `2030`
+   *
+   * @default '*'
+   */
+  year?: LooseRange<number> | LooseRange<number>[] | '*';
+
+  /**
+   * @default '*'
+   */
+  dayOfWeek?: LooseRange<DayOfWeek> | LooseRange<DayOfWeek>[] | '*';
+
+  /**
+   * Description of the intention of this spec.
+   */
+  comment?: string;
+}
 
 /**
- * Options for starting a Workflow
+ * An event specification relative to the calendar, similar to a traditional cron specification.
+ *
+ * A second in time matches if all fields match. This includes `dayOfMonth` and `dayOfWeek`.
+ *
+ * @experimental
  */
-export interface ScheduleOptions<Action extends ScheduleActionType> {
+export interface CalendarSpecDescription {
   /**
-   * Schedule Id
+   * Valid values: 0–59
    *
-   * We recommend using a meaningful business identifier.
+   * @default Match only when second is 0 (ie. `[{ start: 0, end: 0, step: 0 }]`)
    */
-  scheduleId: string;
-
-  /** When Actions should be taken */
-  spec: RequireAtLeastOne<ScheduleSpec, 'calendars' | 'intervals' | 'cronExpressions'>;
+  second: Range<number>[];
 
   /**
-   * Which Action to take
-   */
-  action: ScheduleActionOptions<Action>;
-
-  /**
-   * Controls what happens when an Action would be started by a Schedule at the same time that an older Action is still
-   * running. This can be changed after a Schedule has taken some Actions, and some changes might produce
-   * unintuitive results. In general, the later policy overrides the earlier policy.
+   * Valid values: 0–59
    *
-   * @default {@link ScheduleOverlapPolicy.SKIP}
+   * @default Match only when minute is 0 (ie. `[{ start: 0, end: 0, step: 0 }]`)
    */
-  overlap?: ScheduleOverlapPolicy;
+  minute: Range<number>[];
 
   /**
-   * The Temporal Server might be down or unavailable at the time when a Schedule should take an Action. When the Server
-   * comes back up, `catchupWindow` controls which missed Actions should be taken at that point. The default is one
-   * minute, which means that the Schedule attempts to take any Actions that wouldn't be more than one minute late. It
-   * takes those Actions according to the {@link ScheduleOverlapPolicy}. An outage that lasts longer than the Catchup
-   * Window could lead to missed Actions. (But you can always {@link ScheduleHandle.backfill}.)
+   * Valid values: 0–23
    *
-   * @default 1 minute
+   * @default Match only when hour is 0 (ie. `[{ start: 0, end: 0, step: 0 }]`)
+   */
+  hour: Range<number>[];
+
+  /**
+   * Valid values: 1–31
+   *
+   * @default Match on any day (ie. `[{ start: 1, end: 31, step: 1 }]`)
+   */
+  dayOfMonth: Range<number>[];
+
+  /**
+   * Valid values are 'JANUARY' to 'DECEMBER'.
+   *
+   * @default Match on any month (ie. `[{ start: 'JANUARY', end: 'DECEMBER', step: 1 }]`)
+   */
+  month: Range<Month>[];
+
+  /**
+   * Use full years, like `2030`
+   *
+   * @default Match on any year
+   */
+  year: Range<number>[];
+
+  /**
+   * Valid values are 'SUNDAY' to 'SATURDAY'.
+   *
+   * @default Match on any day of the week (ie. `[{ start: 'SUNDAY', end: 'SATURDAY', step: 1 }]`)
+   */
+  dayOfWeek: Range<DayOfWeek>[];
+
+  /**
+   * Description of the intention of this spec.
+   */
+  comment?: string;
+}
+
+/**
+ * IntervalSpec matches times that can be expressed as:
+ *
+ * `Epoch + (n * every) + offset`
+ *
+ * where `n` is all integers ≥ 0.
+ *
+ * For example, an `every` of 1 hour with `offset` of zero would match every hour, on the hour. The same `every` but an `offset`
+ * of 19 minutes would match every `xx:19:00`. An `every` of 28 days with `offset` zero would match `2022-02-17T00:00:00Z`
+ * (among other times). The same `every` with `offset` of 3 days, 5 hours, and 23 minutes would match `2022-02-20T05:23:00Z`
+ * instead.
+ *
+ * @experimental
+ */
+export interface IntervalSpec {
+  /**
+   * Value is rounded to the nearest second.
+   *
    * @format number of milliseconds or {@link https://www.npmjs.com/package/ms | ms-formatted string}
    */
-  catchupWindow?: number | string;
+  every: number | string;
 
   /**
-   * When an Action times out or reaches the end of its Retry Policy, {@link pause}.
+   * Value is rounded to the nearest second.
    *
-   * With {@link ScheduleOverlapPolicy.ALLOW_ALL}, this pause might not apply to the next Action, because the next Action
-   * might have already started previous to the failed one finishing. Pausing applies only to Actions that are scheduled
-   * to start after the failed one finishes.
-   *
-   * @default false
+   * @default 0
+   * @format number of milliseconds or {@link https://www.npmjs.com/package/ms | ms-formatted string}
    */
-  pauseOnFailure?: boolean;
-
-  /**
-   * Informative human-readable message with contextual notes, e.g. the reason
-   * a Schedule is paused. The system may overwrite this message on certain
-   * conditions, e.g. when pause-on-failure happens.
-   */
-  note?: string;
-
-  /**
-   * Start in paused state.
-   *
-   * @default false
-   */
-  paused?: boolean;
-
-  /**
-   * Limit the number of Actions to take.
-   *
-   * This number is decremented after each Action is taken, and Actions are not
-   * taken when the number is `0` (unless {@link ScheduleHandle.trigger} is called).
-   *
-   * @default unlimited
-   */
-  remainingActions?: number;
-
-  /**
-   * Trigger one Action immediately.
-   *
-   * @default false
-   */
-  triggerImmediately?: boolean;
-
-  /**
-   * Runs though the specified time periods and takes Actions as if that time passed by right now, all at once. The
-   * overlap policy can be overridden for the scope of the backfill.
-   */
-  backfill?: Backfill[];
-
-  /**
-   * Additional non-indexed information attached to the Schedule. The values can be anything that is
-   * serializable by the {@link DataConverter}.
-   */
-  memo?: Record<string, any>;
-
-  /**
-   * Additional indexed information attached to the Schedule. More info:
-   * https://docs.temporal.io/docs/typescript/search-attributes
-   *
-   * Values are always converted using {@link JsonPayloadConverter}, even when a custom Data Converter is provided.
-   */
-  searchAttributes?: SearchAttributes;
+  offset?: number | string;
 }
 
-export type CompiledScheduleOptions = Replace<
-  ScheduleOptions<Workflow>,
+/**
+ * IntervalSpec matches times that can be expressed as:
+ *
+ * `Epoch + (n * every) + offset`
+ *
+ * where `n` is all integers ≥ 0.
+ *
+ * For example, an `every` of 1 hour with `offset` of zero would match every hour, on the hour. The same `every` but an `offset`
+ * of 19 minutes would match every `xx:19:00`. An `every` of 28 days with `offset` zero would match `2022-02-17T00:00:00Z`
+ * (among other times). The same `every` with `offset` of 3 days, 5 hours, and 23 minutes would match `2022-02-20T05:23:00Z`
+ * instead.
+ *
+ * This is the version of {@link IntervalSpec} that you get back from {@link ScheduleHandle.describe} and {@link ScheduleClient.list}
+ *
+ * @experimental
+ */
+export interface IntervalSpecDescription {
+  /**
+   * Value is rounded to the nearest second.
+   *
+   * @format number of milliseconds
+   */
+  every: number;
+
+  /**
+   * Value is rounded to the nearest second.
+   *
+   * @format number of milliseconds
+   */
+  offset: number;
+}
+
+/**
+ * Range represents a set of values, used to match fields of a calendar. If end < start, then end is
+ * interpreted as equal to start. Similarly, if step is less than 1, then step is interpreted as 1.
+ *
+ * @experimental
+ */
+export interface Range<Unit> {
+  /**
+   * Start of range (inclusive)
+   */
+  start: Unit;
+
+  /**
+   * End of range (inclusive)
+   *
+   * @default `start`
+   */
+  end: Unit;
+
+  /**
+   * The step to take between each value.
+   *
+   * @default 1
+   */
+  step: number;
+}
+
+/**
+ * A {@link Range} definition, with support for loose syntax.
+ *
+ * For example:
+ * ```
+ * 3 ➡️ 3
+ * { start: 2 } ➡️ 2
+ * { start: 2, end: 4 } ➡️ 2, 3, 4
+ * { start: 2, end: 10, step: 3 } ➡️ 2, 5, 8
+ * ```
+ *
+ * @experimental
+ */
+export type LooseRange<Unit> =
+  | Range<Unit>
+  | { start: Range<Unit>['start']; end?: Range<Unit>['end']; step?: never }
+  | Unit;
+
+/** @experimental */
+export const Months = [
+  'JANUARY',
+  'FEBRUARY',
+  'MARCH',
+  'APRIL',
+  'MAY',
+  'JUNE',
+  'JULY',
+  'AUGUST',
+  'SEPTEMBER',
+  'OCTOBER',
+  'NOVEMBER',
+  'DECEMBER',
+] as const;
+
+/** @experimental */
+export type Month = typeof Months[number];
+
+/** @experimental */
+export const DaysOfWeek = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'] as const;
+
+/** @experimental */
+export type DayOfWeek = typeof DaysOfWeek[number];
+
+/** @experimental */
+export type ScheduleOptionsAction = ScheduleOptionsStartWorkflowAction<Workflow>;
+
+/** @experimental */
+export type ScheduleOptionsStartWorkflowAction<W extends Workflow> = {
+  type: 'startWorkflow';
+  workflowType: string | W;
+} & Pick<
+  WorkflowStartOptions<W>,
+  | 'taskQueue'
+  | 'workflowId'
+  | 'args'
+  | 'memo'
+  | 'searchAttributes'
+  | 'retry'
+  | 'workflowExecutionTimeout'
+  | 'workflowRunTimeout'
+  | 'workflowTaskTimeout'
+>;
+
+/** @experimental */
+export type ScheduleSummaryAction = ScheduleSummaryStartWorkflowAction;
+
+/** @experimental */
+export interface ScheduleSummaryStartWorkflowAction {
+  type: 'startWorkflow';
+  workflowType: string;
+}
+/** @experimental */
+export type ScheduleDescriptionAction = ScheduleDescriptionStartWorkflowAction;
+
+/** @experimental */
+export type ScheduleDescriptionStartWorkflowAction = ScheduleSummaryStartWorkflowAction &
+  Pick<
+    WorkflowStartOptions<Workflow>,
+    | 'taskQueue'
+    | 'workflowId'
+    | 'args'
+    | 'memo'
+    | 'searchAttributes'
+    | 'retry'
+    | 'workflowExecutionTimeout'
+    | 'workflowRunTimeout'
+    | 'workflowTaskTimeout'
+  >;
+
+// Invariant: an existing ScheduleDescriptionAction can be used as is to create or update a schedule
+checkExtends<ScheduleOptionsAction, ScheduleDescriptionAction>();
+
+/** @experimental */
+export type CompiledScheduleAction = Replace<
+  ScheduleDescriptionAction,
   {
-    action: Replace<
-      ScheduleActionOptions<Workflow>,
-      {
-        workflowType: string;
-        args: unknown[];
-      }
-    >;
+    workflowType: string;
+    args: unknown[];
   }
 >;
 
-export function compileScheduleOptions<Action extends Workflow>(
-  options: ScheduleOptions<Action>
-): CompiledScheduleOptions {
-  const workflowTypeOrFunc = options.action.workflowType;
-  const workflowType = typeof workflowTypeOrFunc === 'string' ? workflowTypeOrFunc : workflowTypeOrFunc.name;
-  return {
-    ...options,
-    action: {
-      ...options.action,
-      workflowType,
-      args: options.action.args ?? [],
-    },
-  };
-}
-
-export type CompiledUpdatedSchedule = Replace<
-  UpdatedSchedule<Workflow>,
-  {
-    action: Replace<
-      ScheduleActionOptions<Workflow>,
-      {
-        workflowType: string;
-        args: unknown[];
-      }
-    >;
-  }
->;
-
-export function compileUpdatedScheduleOptions<Action extends Workflow>(
-  options: UpdatedSchedule<Action>
-): CompiledUpdatedSchedule {
-  const workflowTypeOrFunc = options.action.workflowType;
-  const workflowType = typeof workflowTypeOrFunc === 'string' ? workflowTypeOrFunc : workflowTypeOrFunc.name;
-  return {
-    ...options,
-    action: {
-      ...options.action,
-      workflowType,
-      args: options.action.args ?? [],
-    },
-  };
-}
-
-export interface ListScheduleOptions {
+/**
+ * Policy for overlapping Actions.
+ *
+ * @experimental
+ */
+export enum ScheduleOverlapPolicy {
   /**
-   * How many results to fetch from the Server at a time.
-   * @default 1000
+   * Use server default (currently SKIP).
+   *
+   * FIXME: remove this field if this issue is implemented: https://github.com/temporalio/temporal/issues/3240
    */
-  pageSize?: number;
+  UNSPECIFIED = 0,
+
+  /**
+   * Don't start a new Action.
+   */
+  SKIP,
+
+  /**
+   * Start another Action as soon as the current Action completes, but only buffer one Action in this way. If another
+   * Action is supposed to start, but one Action is running and one is already buffered, then only the buffered one will
+   * be started after the running Action finishes.
+   */
+  BUFFER_ONE,
+
+  /**
+   * Allows an unlimited number of Actions to buffer. They are started sequentially.
+   */
+  BUFFER_ALL,
+
+  /**
+   * Cancels the running Action, and then starts the new Action once the cancelled one completes.
+   */
+  CANCEL_OTHER,
+
+  /**
+   * Terminate the running Action and start the new Action immediately.
+   */
+  TERMINATE_OTHER,
+
+  /**
+   * Allow any number of Actions to start immediately.
+   *
+   * This is the only policy under which multiple Actions can run concurrently.
+   */
+  ALLOW_ALL,
+}
+
+checkExtends<
+  keyof typeof temporal.api.enums.v1.ScheduleOverlapPolicy,
+  `SCHEDULE_OVERLAP_POLICY_${keyof typeof ScheduleOverlapPolicy}`
+>();
+checkExtends<
+  `SCHEDULE_OVERLAP_POLICY_${keyof typeof ScheduleOverlapPolicy}`,
+  keyof typeof temporal.api.enums.v1.ScheduleOverlapPolicy
+>();
+
+/** @experimental */
+export interface Backfill {
+  /**
+   * Start of the time range to evaluate Schedule in.
+   */
+  start: Date;
+
+  /**
+   * End of the time range to evaluate Schedule in.
+   */
+  end: Date;
+
+  /**
+   * Override the Overlap Policy for this request.
+   *
+   * @default SKIP
+   */
+  overlap?: ScheduleOverlapPolicy;
 }
