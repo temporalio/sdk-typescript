@@ -21,7 +21,7 @@ import {
 } from '@temporalio/common/lib/internal-non-workflow';
 import os from 'os';
 import { Connection } from './connection';
-import { CreateScheduleInput, ScheduleClientCallsInterceptor, ScheduleClientInterceptors } from './interceptors';
+import { CreateScheduleInput, ScheduleClientInterceptor } from './interceptors';
 import { ConnectionLike, Metadata, WorkflowService } from './types';
 import { v4 as uuid4 } from 'uuid';
 import { isServerErrorResponse, ServiceError } from './errors';
@@ -152,7 +152,7 @@ export interface ScheduleClientOptions {
    *
    * Useful for injecting auth headers and tracing Workflow executions
    */
-  interceptors?: ScheduleClientInterceptors;
+  interceptors?: ScheduleClientInterceptor[];
 
   /**
    * Identity to report to the server
@@ -188,12 +188,12 @@ export type LoadedScheduleClientOptions = ScheduleClientOptionsWithDefaults & {
   loadedDataConverter: LoadedDataConverter;
 };
 
-export function defaultScheduleClientOptions(): ScheduleClientOptionsWithDefaults {
+function defaultScheduleClientOptions(): ScheduleClientOptionsWithDefaults {
   return {
     dataConverter: {},
     // The equivalent in Java is ManagementFactory.getRuntimeMXBean().getName()
     identity: `${process.pid}@${os.hostname()}`,
-    interceptors: {},
+    interceptors: [],
     namespace: 'default',
   };
 }
@@ -202,7 +202,6 @@ export function defaultScheduleClientOptions(): ScheduleClientOptionsWithDefault
 
 interface ScheduleHandleOptions {
   scheduleId: string;
-  interceptors: ScheduleClientCallsInterceptor[];
 }
 
 /**
@@ -262,10 +261,8 @@ export class ScheduleClient {
    */
   public async create<Action extends ScheduleActionType>(options: ScheduleOptions<Action>): Promise<ScheduleHandle> {
     const { scheduleId } = options;
-    const interceptors = (this.options.interceptors.calls ?? []).map((ctor) => ctor({ scheduleId }));
-
-    await this._createSchedule(options, interceptors);
-    return this._createScheduleHandle({ scheduleId, interceptors });
+    await this._createSchedule(options);
+    return this._createScheduleHandle({ scheduleId });
   }
 
   /**
@@ -274,13 +271,12 @@ export class ScheduleClient {
    * @returns ???
    */
   protected async _createSchedule<Action extends ScheduleActionType>(
-    options: ScheduleOptions<Action>,
-    interceptors: ScheduleClientCallsInterceptor[]
+    options: ScheduleOptions<Action>
   ): Promise<Uint8Array> {
     // assertRequiredScheduleOptions(options);
     const compiledOptions = compileScheduleOptions(options);
 
-    const create = composeInterceptors(interceptors, 'create', this._createScheduleHandler.bind(this));
+    const create = composeInterceptors(this.options.interceptors, 'create', this._createScheduleHandler.bind(this));
     return create({
       options: compiledOptions,
       headers: {},
@@ -495,16 +491,13 @@ export class ScheduleClient {
    * methods like `handle.describe()` will throw a {@link ScheduleNotFoundError} error.
    */
   public getHandle(scheduleId: string): ScheduleHandle {
-    // FIXME: Is there any use to pass interceptors here?
-    const interceptors = (this.options.interceptors.calls ?? []).map((ctor) => ctor({ scheduleId }));
-    return this._createScheduleHandle({ scheduleId, interceptors });
+    return this._createScheduleHandle({ scheduleId });
   }
 
   /**
    * Create a new schedule handle for new or existing Schedule
    */
-  protected _createScheduleHandle({ scheduleId /*, interceptors */ }: ScheduleHandleOptions): ScheduleHandle {
-    // FIXME: Is there any reason to obtaining interceptors as input here?
+  protected _createScheduleHandle({ scheduleId }: ScheduleHandleOptions): ScheduleHandle {
     return {
       client: this,
       scheduleId,

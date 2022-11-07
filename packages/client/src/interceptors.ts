@@ -132,35 +132,26 @@ export interface WorkflowClientInterceptors {
   calls?: WorkflowClientCallsInterceptorFactory[];
 }
 
-export interface ScheduleClientCallsInterceptor {
+/**
+ * Implement any of these methods to intercept ScheduleClient outbound calls
+ *
+ * @experimental
+ */
+export interface ScheduleClientInterceptor {
   /**
    * Intercept a service call to CreateSchedule
    */
   create?: (input: CreateScheduleInput, next: Next<this, 'create'>) => Promise<Uint8Array /* conflictToken */>;
 }
 
-/** Input for {@link ScheduleClientCallsInterceptor.create} */
+/**
+ * Input for {@link ScheduleClientInterceptor.create}
+ *
+ * @experimental
+ */
 export interface CreateScheduleInput {
   readonly headers: Headers;
   readonly options: CompiledScheduleOptions;
-}
-
-interface ScheduleClientCallsInterceptorFactoryInput {
-  scheduleId: string;
-}
-
-/**
- * A function that takes a {@link ScheduleClientCallsInterceptorFactoryInput} and returns an interceptor
- */
-export interface ScheduleClientCallsInterceptorFactory {
-  (input: ScheduleClientCallsInterceptorFactoryInput): ScheduleClientCallsInterceptor;
-}
-
-/**
- * A mapping of interceptor type of a list of factory functions
- */
-export interface ScheduleClientInterceptors {
-  calls?: ScheduleClientCallsInterceptorFactory[];
 }
 
 /**
@@ -170,5 +161,5 @@ export interface ScheduleClientInterceptors {
  */
 export interface ClientInterceptors {
   workflow?: WorkflowClientInterceptors;
-  schedule?: ScheduleClientInterceptors;
+  schedule?: ScheduleClientInterceptor[];
 }

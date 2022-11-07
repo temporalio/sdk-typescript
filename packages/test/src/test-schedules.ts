@@ -1,13 +1,17 @@
 import { RUN_INTEGRATION_TESTS } from './helpers';
 import anyTest, { TestInterface } from 'ava';
-import { Client, defaultPayloadConverter } from '@temporalio/client';
-import { sleep, uuid4 } from '@temporalio/workflow';
+import { randomUUID } from 'crypto';
+import { Client, Connection, defaultPayloadConverter } from '@temporalio/client';
 import asyncRetry from 'async-retry';
 import { msToNumber } from '@temporalio/common/lib/time';
 import { CalendarSpec, CalendarSpecDescription, ListScheduleEntry } from '@temporalio/client/lib/schedule-types';
 import { InvalidScheduleSpecError, ScheduleHandle } from '@temporalio/client/lib/schedule-client';
+import { TestWorkflowEnvironment } from '@temporalio/testing';
+import { temporal } from '@temporalio/proto';
+import * as grpc from '@grpc/grpc-js';
 
 export interface Context {
+  testEnv: TestWorkflowEnvironment;
   client: Client;
 }
 
@@ -15,6 +19,7 @@ const taskQueue = 'async-activity-completion';
 const test = anyTest as TestInterface<Context>;
 
 const dummyWorkflow = async () => undefined;
+const dummyWorkflow2 = async (_x?: string) => undefined;
 
 const calendarSpecDescriptionDefaults: CalendarSpecDescription = {
   second: [{ start: 0, end: 0, step: 1 }],
@@ -28,22 +33,48 @@ const calendarSpecDescriptionDefaults: CalendarSpecDescription = {
 };
 
 test.before(async (t) => {
+  const testEnv = await TestWorkflowEnvironment.createLocal();
   t.context = {
-    client: new Client(),
+    testEnv,
+    client: testEnv.client,
   };
-  // for await (const schedule of t.context.client.schedule.list()) {
-  //   try {
-  //     await t.context.client.schedule.getHandle(schedule.scheduleId).delete();
-  //   } catch (e) {
-  //     console.log(e);
-  //   }
-  // }
+  // In case we're running with temporalite or other non default server.
+  // NOTE: at the time this was added temporalite did not expose the grpc OperatorService.
+  try {
+    await (testEnv.connection as Connection).operatorService.addSearchAttributes({
+      searchAttributes: {
+        CustomKeywordField: temporal.api.enums.v1.IndexedValueType.INDEXED_VALUE_TYPE_KEYWORD,
+      },
+    });
+  } catch (err: any) {
+    if (err.code !== grpc.status.ALREADY_EXISTS) {
+      throw err;
+    }
+  }
+  // The initialization of the custom search attributes is slooooow. Wait for it to finish
+  await asyncRetry(
+    async () => {
+      const listSearchAttributesResponse = await (
+        testEnv.connection as Connection
+      ).operatorService.listSearchAttributes({});
+      if (!('CustomKeywordField' in listSearchAttributesResponse.customAttributes))
+        throw new Error('Custom search attribute "CustomKeywordField" missing');
+    },
+    {
+      retries: 60,
+      maxTimeout: 1000,
+    }
+  );
+});
+
+test.after.always(async (t) => {
+  await t.context.testEnv?.teardown();
 });
 
 if (RUN_INTEGRATION_TESTS) {
   test('Can create schedule with calendar', async (t) => {
     const { client } = t.context;
-    const scheduleId = `can-create-schedule-with-calendar-${uuid4()}`;
+    const scheduleId = `can-create-schedule-with-calendar-${randomUUID()}`;
     const handle = await client.schedule.create({
       scheduleId,
       spec: {
@@ -69,7 +100,7 @@ if (RUN_INTEGRATION_TESTS) {
 
   test('Can create schedule with intervals', async (t) => {
     const { client } = t.context;
-    const scheduleId = `can-create-schedule-with-inteval-${uuid4()}`;
+    const scheduleId = `can-create-schedule-with-inteval-${randomUUID()}`;
     const handle = await client.schedule.create({
       scheduleId,
       spec: {
@@ -91,9 +122,42 @@ if (RUN_INTEGRATION_TESTS) {
     }
   });
 
+  test('Can create schedule with cron syntax', async (t) => {
+    const { client } = t.context;
+    const scheduleId = `can-create-schedule-with-cron-syntax-${randomUUID()}`;
+    const handle = await client.schedule.create({
+      scheduleId,
+      spec: {
+        cronExpressions: ['0 12 * * MON-WED,FRI'],
+      },
+      action: {
+        type: 'startWorkflow',
+        workflowId: `${scheduleId}-workflow`,
+        workflowType: dummyWorkflow,
+        taskQueue,
+      },
+    });
+
+    try {
+      const describedSchedule = await handle.describe();
+      t.deepEqual(describedSchedule.spec.calendars, [
+        {
+          ...calendarSpecDescriptionDefaults,
+          hour: [{ start: 12, end: 12, step: 1 }],
+          dayOfWeek: [
+            { start: 'MONDAY', end: 'WEDNESDAY', step: 1 },
+            { start: 'FRIDAY', end: 'FRIDAY', step: 1 },
+          ],
+        },
+      ]);
+    } finally {
+      await handle.delete();
+    }
+  });
+
   test('Can create schedule with startWorkflow action', async (t) => {
     const { client } = t.context;
-    const scheduleId = `can-create-schedule-with-startWorkflow-action-${uuid4()}`;
+    const scheduleId = `can-create-schedule-with-startWorkflow-action-${randomUUID()}`;
     const handle = await client.schedule.create({
       scheduleId,
       spec: {
@@ -116,8 +180,8 @@ if (RUN_INTEGRATION_TESTS) {
     try {
       const describedSchedule = await handle.describe();
 
-      t.deepEqual(describedSchedule.action.type, 'startWorkflow');
-      t.deepEqual(describedSchedule.action.workflowType, 'dummyWorkflow');
+      t.is(describedSchedule.action.type, 'startWorkflow');
+      t.is(describedSchedule.action.workflowType, 'dummyWorkflow');
       t.deepEqual(describedSchedule.action.memo, { 'my-memo': 'foo' });
       t.deepEqual(describedSchedule.action.searchAttributes?.CustomKeywordField, ['test-value2']);
     } finally {
@@ -128,25 +192,22 @@ if (RUN_INTEGRATION_TESTS) {
   test('Interceptor is called on create schedule', async (t) => {
     const clientWithInterceptor = new Client({
       interceptors: {
-        schedule: {
-          calls: [
-            (interceptorFactoryInput) => ({
-              async create(input, next) {
-                return next({
-                  ...input,
-                  headers: {
-                    scheduleId: defaultPayloadConverter.toPayload(interceptorFactoryInput.scheduleId),
-                    intercepted: defaultPayloadConverter.toPayload('intercepted'),
-                  },
-                });
-              },
-            }),
-          ],
-        },
+        schedule: [
+          {
+            async create(input, next) {
+              return next({
+                ...input,
+                headers: {
+                  intercepted: defaultPayloadConverter.toPayload('intercepted'),
+                },
+              });
+            },
+          },
+        ],
       },
     });
 
-    const scheduleId = `interceptor-called-on-create-schedule-${uuid4()}`;
+    const scheduleId = `interceptor-called-on-create-schedule-${randomUUID()}`;
     const handle = await clientWithInterceptor.schedule.create({
       scheduleId,
       spec: {
@@ -164,9 +225,7 @@ if (RUN_INTEGRATION_TESTS) {
       const describedSchedule = await handle.describe();
       const outHeaders = describedSchedule.raw.schedule?.action?.startWorkflow?.header;
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      t.deepEqual(scheduleId, defaultPayloadConverter.fromPayload(outHeaders!.fields!.scheduleId!));
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      t.deepEqual('intercepted', defaultPayloadConverter.fromPayload(outHeaders!.fields!.intercepted!));
+      t.is(defaultPayloadConverter.fromPayload(outHeaders!.fields!.intercepted!), 'intercepted');
     } finally {
       await handle.delete();
     }
@@ -174,7 +233,7 @@ if (RUN_INTEGRATION_TESTS) {
 
   test('Can pause and unpause schedule', async (t) => {
     const { client } = t.context;
-    const scheduleId = `can-pause-and-unpause-schedule-${uuid4()}`;
+    const scheduleId = `can-pause-and-unpause-schedule-${randomUUID()}`;
     const handle = await client.schedule.create({
       scheduleId,
       spec: {
@@ -196,15 +255,15 @@ if (RUN_INTEGRATION_TESTS) {
 
     try {
       let describedSchedule = await handle.describe();
-      t.is(false, describedSchedule.paused);
+      t.false(describedSchedule.paused);
 
       await handle.pause();
       describedSchedule = await handle.describe();
-      t.is(true, describedSchedule.paused);
+      t.true(describedSchedule.paused);
 
       await handle.unpause();
       describedSchedule = await handle.describe();
-      t.is(false, describedSchedule.paused);
+      t.false(describedSchedule.paused);
     } finally {
       await handle.delete();
     }
@@ -212,7 +271,7 @@ if (RUN_INTEGRATION_TESTS) {
 
   test('Can update schedule', async (t) => {
     const { client } = t.context;
-    const scheduleId = `can-update-schedule-${uuid4()}`;
+    const scheduleId = `can-update-schedule-${randomUUID()}`;
     const handle = await client.schedule.create({
       scheduleId,
       spec: {
@@ -243,9 +302,47 @@ if (RUN_INTEGRATION_TESTS) {
     }
   });
 
-  test('Schedule updates throws without retry on validation error', async (t) => {
+  test('Can update schedule action', async (t) => {
     const { client } = t.context;
-    const scheduleId = `schedule-update-throws-without-retry-on-validation-error-${uuid4()}`;
+    const scheduleId = `can-update-schedule-action-${randomUUID()}`;
+    const handle = await client.schedule.create({
+      scheduleId,
+      spec: {
+        calendars: [{ hour: { start: 2, end: 7, step: 1 } }],
+      },
+      action: {
+        type: 'startWorkflow',
+        workflowId: `${scheduleId}-workflow`,
+        workflowType: dummyWorkflow,
+        taskQueue,
+      },
+    });
+
+    try {
+      await handle.update((x) => ({
+        ...x,
+        action: {
+          type: 'startWorkflow',
+          workflowId: `${scheduleId}-workflow-2`,
+          workflowType: dummyWorkflow2,
+          args: ['updated'],
+          taskQueue,
+        },
+      }));
+
+      const describedSchedule = await handle.describe();
+      t.is(describedSchedule.action.type, 'startWorkflow');
+      t.is(describedSchedule.action.workflowType, 'dummyWorkflow2');
+      t.deepEqual(describedSchedule.action.args, ['updated']);
+    } finally {
+      await handle.delete();
+    }
+  });
+
+  // FIXME: Reenable this test once temporalite has been upgraded to server 1.18.1+
+  test.skip('Schedule updates throws without retry on validation error', async (t) => {
+    const { client } = t.context;
+    const scheduleId = `schedule-update-throws-without-retry-on-validation-error-${randomUUID()}`;
     const handle = await client.schedule.create({
       scheduleId,
       spec: {
@@ -286,9 +383,11 @@ if (RUN_INTEGRATION_TESTS) {
   test('Can list Schedules', async (t) => {
     const { client } = t.context;
 
+    const groupId = randomUUID();
+
     const createdScheduleHandlesPromises = [];
     for (let i = 10; i < 30; i++) {
-      const scheduleId = `can-list-schedule-${i}-${uuid4()}`;
+      const scheduleId = `can-list-schedule-${groupId}-${i}`;
       createdScheduleHandlesPromises.push(
         client.schedule.create({
           scheduleId,
@@ -320,13 +419,13 @@ if (RUN_INTEGRATION_TESTS) {
 
           const listedScheduleIds = listedScheduleHandles
             .map((x) => x.scheduleId)
-            .filter((x) => x.match(/^can-list-schedule-/))
+            .filter((x) => x.startsWith(`can-list-schedule-${groupId}-`))
             .sort();
 
           const createdSchedulesIds = Object.values(createdScheduleHandles).map((x) => x.scheduleId);
           if (createdSchedulesIds.length != listedScheduleIds.length) throw new Error('Missing list entries');
 
-          t.deepEqual(listedScheduleIds, createdScheduleHandles);
+          t.deepEqual(listedScheduleIds, createdSchedulesIds);
         },
         {
           retries: 60,
@@ -435,7 +534,7 @@ if (RUN_INTEGRATION_TESTS) {
     ];
 
     const { client } = t.context;
-    const scheduleId = `structured-schedule-specs-encoding-${uuid4()}`;
+    const scheduleId = `structured-schedule-specs-encoding-${randomUUID()}`;
     const handle = await client.schedule.create({
       scheduleId,
       spec: {
@@ -453,9 +552,9 @@ if (RUN_INTEGRATION_TESTS) {
       const describedSchedule = await handle.describe();
       const describedCalendars = describedSchedule.spec.calendars ?? [];
 
-      t.is(checks.length, describedCalendars.length);
+      t.is(describedCalendars.length, checks.length);
       for (let i = 0; i < checks.length; i++) {
-        t.deepEqual(checks[i].expected, describedCalendars[i], checks[i].comment);
+        t.deepEqual(describedCalendars[i], checks[i].expected, checks[i].comment);
       }
     } finally {
       await handle.delete();

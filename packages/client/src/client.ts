@@ -97,7 +97,9 @@ export class Client {
    */
   public readonly activity: AsyncCompletionClient;
   /**
-   * Schedule sub-client - use to start and interact with Workflows
+   * Schedule sub-client - use to start and interact with Schedules
+   *
+   * @experimental
    */
   public readonly schedule: ScheduleClient;
 
