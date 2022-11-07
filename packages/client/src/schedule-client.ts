@@ -428,7 +428,7 @@ export class ScheduleClient {
    * await { schedules, nextPageToken } = client.scheduleService.listSchedules()
    * ```
    */
-  public async *list(options?: ListScheduleOptions): AsyncIterator<ListScheduleEntry> {
+  public async *list(options?: ListScheduleOptions): AsyncIterable<ListScheduleEntry> {
     let nextPageToken: Uint8Array | undefined = undefined;
     for (;;) {
       const response: ListSchedulesResponse = await this.scheduleService.listSchedules({
@@ -458,7 +458,7 @@ export class ScheduleClient {
             endAt: optionalTsToDate(raw.info?.spec?.endTime),
             jitter: optionalTsToMs(raw.info?.spec?.jitter),
           },
-          workflowType: raw.info!.workflowType!.name!,
+          workflowType: raw.info?.workflowType?.name,
           memo: await decodeMapFromPayloads(this.dataConverter, raw.memo?.fields),
           searchAttributes: Object.fromEntries(
             Object.entries(
@@ -468,8 +468,8 @@ export class ScheduleClient {
               ) as SearchAttributes
             ).filter(([_, v]) => v && v.length > 0) // Filter out empty arrays returned by pre 1.18 servers
           ),
-          paused: !!raw.info!.paused,
-          note: raw.info!.notes!,
+          paused: !!raw.info?.paused,
+          note: raw.info?.notes,
           recentActions:
             raw.info?.recentActions?.map((x) => ({
               scheduledAt: tsToDate(x.scheduleTime!),
@@ -479,7 +479,7 @@ export class ScheduleClient {
                 firstExecutionRunId: x.startWorkflowResult!.runId!,
               },
             })) ?? [],
-          nextActionTimes: raw.info!.futureActionTimes!.map(tsToDate) ?? [],
+          nextActionTimes: raw.info?.futureActionTimes?.map(tsToDate) ?? [],
         };
       }
 
