@@ -1,4 +1,10 @@
-import { CommonWorkflowOptions, SignalDefinition, WithCompiledWorkflowOptions } from '@temporalio/common';
+import {
+  CommonWorkflowOptions,
+  SignalDefinition,
+  WithCompiledWorkflowOptions,
+  WithWorkflowArgs,
+  Workflow,
+} from '@temporalio/common';
 
 export * from '@temporalio/common/lib/workflow-options';
 
@@ -60,3 +66,8 @@ export interface WorkflowSignalWithStartOptionsWithArgs<SignalArgs extends any[]
    */
   signalArgs: SignalArgs;
 }
+
+/**
+ * Options for starting a Workflow
+ */
+export type WorkflowStartOptions<T extends Workflow = Workflow> = WithWorkflowArgs<T, WorkflowOptions>;

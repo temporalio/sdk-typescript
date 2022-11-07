@@ -6,6 +6,7 @@
 
 import { Headers, Next } from '@temporalio/common';
 import { temporal } from '@temporalio/proto';
+import { CompiledScheduleOptions } from './schedule-types';
 import {
   DescribeWorkflowExecutionResponse,
   RequestCancelWorkflowExecutionResponse,
@@ -132,10 +133,41 @@ export interface WorkflowClientInterceptors {
 }
 
 /**
+ * Implement any of these methods to intercept ScheduleClient outbound calls
+ *
+ * @experimental
+ */
+export interface ScheduleClientInterceptor {
+  /**
+   * Intercept a service call to CreateSchedule
+   */
+  create?: (input: CreateScheduleInput, next: Next<this, 'create'>) => Promise<CreateScheduleOutput>;
+}
+
+/**
+ * Input for {@link ScheduleClientInterceptor.create}
+ *
+ * @experimental
+ */
+export interface CreateScheduleInput {
+  readonly headers: Headers;
+  readonly options: CompiledScheduleOptions;
+}
+
+export type CreateScheduleOutput = {
+  readonly conflictToken: Uint8Array;
+};
+
+/**
  * Interceptors for any high-level SDK client.
  *
- * NOTE: Currently only for {@link WorkflowClient}. More will be added later as needed.
+ * NOTE: Currently only for {@link WorkflowClient} and {@link ScheduleClient}. More will be added later as needed.
  */
 export interface ClientInterceptors {
   workflow?: WorkflowClientInterceptors;
+
+  /**
+   * @experimental
+   */
+  schedule?: ScheduleClientInterceptor[];
 }

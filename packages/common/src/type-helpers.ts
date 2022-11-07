@@ -12,6 +12,11 @@ export function checkExtends<_Orig, _Copy extends _Orig>(): void {
 
 export type Replace<Base, New> = Omit<Base, keyof New> & New;
 
+export type RequireAtLeastOne<Base, Keys extends keyof Base> = Omit<Base, Keys> &
+  {
+    [K in Keys]-?: Required<Pick<Base, K>> & Partial<Pick<Base, Exclude<Keys, K>>>;
+  }[Keys];
+
 export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
 }

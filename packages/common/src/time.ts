@@ -78,3 +78,11 @@ export function optionalTsToDate(ts: Timestamp | null | undefined): Date | undef
   }
   return new Date(tsToMs(ts));
 }
+
+// ts-prune-ignore-next (imported via schedule-helpers.ts)
+export function optionalDateToTs(date: Date | null | undefined): Timestamp | undefined {
+  if (date === undefined || date === null) {
+    return undefined;
+  }
+  return msToTs(date.getTime());
+}
