@@ -6,6 +6,7 @@ import os from 'os';
 import { AsyncCompletionClient } from './async-completion-client';
 import { Connection } from './connection';
 import { ClientInterceptors } from './interceptors';
+import { ScheduleClient } from './schedule-client';
 import { ConnectionLike, Metadata, WorkflowService } from './types';
 import { WorkflowClient } from './workflow-client';
 
@@ -95,6 +96,10 @@ export class Client {
    * (Async) Activity completion sub-client - use to manually manage Activities
    */
   public readonly activity: AsyncCompletionClient;
+  /**
+   * Schedule sub-client - use to start and interact with Workflows
+   */
+  public readonly schedule: ScheduleClient;
 
   constructor(options?: ClientOptions) {
     this.connection = options?.connection ?? Connection.lazy();
@@ -118,6 +123,13 @@ export class Client {
       ...base,
       connection: this.connection,
       dataConverter: loadedDataConverter,
+    });
+
+    this.schedule = new ScheduleClient({
+      ...base,
+      connection: this.connection,
+      dataConverter: loadedDataConverter,
+      interceptors: interceptors.schedule,
     });
   }
 

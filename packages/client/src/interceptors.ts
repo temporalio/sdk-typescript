@@ -6,6 +6,7 @@
 
 import { Headers, Next } from '@temporalio/common';
 import { temporal } from '@temporalio/proto';
+import { CompiledScheduleOptions } from './schedule-types';
 import {
   DescribeWorkflowExecutionResponse,
   RequestCancelWorkflowExecutionResponse,
@@ -131,11 +132,43 @@ export interface WorkflowClientInterceptors {
   calls?: WorkflowClientCallsInterceptorFactory[];
 }
 
+export interface ScheduleClientCallsInterceptor {
+  /**
+   * Intercept a service call to CreateSchedule
+   */
+  create?: (input: CreateScheduleInput, next: Next<this, 'create'>) => Promise<Uint8Array /* conflictToken */>;
+}
+
+/** Input for {@link ScheduleClientCallsInterceptor.create} */
+export interface CreateScheduleInput {
+  readonly headers: Headers;
+  readonly options: CompiledScheduleOptions;
+}
+
+interface ScheduleClientCallsInterceptorFactoryInput {
+  scheduleId: string;
+}
+
+/**
+ * A function that takes a {@link ScheduleClientCallsInterceptorFactoryInput} and returns an interceptor
+ */
+export interface ScheduleClientCallsInterceptorFactory {
+  (input: ScheduleClientCallsInterceptorFactoryInput): ScheduleClientCallsInterceptor;
+}
+
+/**
+ * A mapping of interceptor type of a list of factory functions
+ */
+export interface ScheduleClientInterceptors {
+  calls?: ScheduleClientCallsInterceptorFactory[];
+}
+
 /**
  * Interceptors for any high-level SDK client.
  *
- * NOTE: Currently only for {@link WorkflowClient}. More will be added later as needed.
+ * NOTE: Currently only for {@link WorkflowClient} and {@link ScheduleClient}. More will be added later as needed.
  */
 export interface ClientInterceptors {
   workflow?: WorkflowClientInterceptors;
+  schedule?: ScheduleClientInterceptors;
 }

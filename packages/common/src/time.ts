@@ -78,3 +78,14 @@ export function optionalTsToDate(ts: Timestamp | null | undefined): Date | undef
   }
   return new Date(tsToMs(ts));
 }
+
+export function dateToTs(date: Date): Timestamp {
+  return msToTs(date.getTime());
+}
+
+export function optionalDateToTs(date: Date | null | undefined): Timestamp | undefined {
+  if (date === undefined || date === null) {
+    return undefined;
+  }
+  return msToTs(date.getTime());
+}
