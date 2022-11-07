@@ -141,7 +141,7 @@ export interface ScheduleClientInterceptor {
   /**
    * Intercept a service call to CreateSchedule
    */
-  create?: (input: CreateScheduleInput, next: Next<this, 'create'>) => Promise<Uint8Array /* conflictToken */>;
+  create?: (input: CreateScheduleInput, next: Next<this, 'create'>) => Promise<CreateScheduleOutput>;
 }
 
 /**
@@ -153,6 +153,10 @@ export interface CreateScheduleInput {
   readonly headers: Headers;
   readonly options: CompiledScheduleOptions;
 }
+
+export type CreateScheduleOutput = {
+  readonly conflictToken: Uint8Array;
+};
 
 /**
  * Interceptors for any high-level SDK client.

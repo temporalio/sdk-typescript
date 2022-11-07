@@ -1,6 +1,5 @@
 import { status as grpcStatus } from '@grpc/grpc-js';
 import {
-  compileRetryPolicy,
   DataConverter,
   LoadedDataConverter,
   mapFromPayloads,
@@ -8,25 +7,23 @@ import {
   searchAttributePayloadConverter,
   SearchAttributes,
 } from '@temporalio/common';
-import { composeInterceptors, Headers } from '@temporalio/common/lib/interceptors';
+import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import {
   encodeMapToPayloads,
   loadDataConverter,
   isLoadedDataConverter,
-  encodeToPayloads,
   filterNullAndUndefined,
   decodeMapFromPayloads,
   decodeArrayFromPayloads,
 } from '@temporalio/common/lib/internal-non-workflow';
 import os from 'os';
 import { Connection } from './connection';
-import { CreateScheduleInput, ScheduleClientInterceptor } from './interceptors';
+import { CreateScheduleInput, CreateScheduleOutput, ScheduleClientInterceptor } from './interceptors';
 import { ConnectionLike, Metadata, WorkflowService } from './types';
 import { v4 as uuid4 } from 'uuid';
 import { isServerErrorResponse, ServiceError } from './errors';
 import {
   Backfill,
-  CompiledScheduleOptions,
   CompiledScheduleUpdateOptions,
   IntervalSpecDescription,
   ScheduleSummary,
@@ -39,37 +36,18 @@ import {
 } from './schedule-types';
 import { Replace } from '@temporalio/common/lib/type-helpers';
 import { temporal } from '@temporalio/proto';
-import {
-  msOptionalToTs,
-  msToTs,
-  optionalDateToTs,
-  optionalTsToDate,
-  optionalTsToMs,
-  tsToDate,
-} from '@temporalio/common/lib/time';
-import Long from 'long';
+import { optionalDateToTs, optionalTsToDate, optionalTsToMs, tsToDate } from '@temporalio/common/lib/time';
 import {
   compileScheduleOptions,
   compileUpdatedScheduleOptions,
   decodeOptionalStructuredCalendarSpecs,
   decodeOverlapPolicy,
-  encodeOptionalStructuredCalendarSpecs,
   encodeOverlapPolicy,
-  encodeSchedule,
+  encodeScheduleAction,
+  encodeSchedulePolicies,
+  encodeScheduleSpec,
+  encodeScheduleState,
 } from './schedule-helpers';
-
-type CreateScheduleRequest = temporal.api.workflowservice.v1.ICreateScheduleRequest;
-// type CreateScheduleResponse = temporal.api.workflowservice.v1.ICreateScheduleResponse;
-type DescribeScheduleRequest = temporal.api.workflowservice.v1.IDescribeScheduleRequest;
-type DescribeScheduleResponse = temporal.api.workflowservice.v1.IDescribeScheduleResponse;
-type DeleteScheduleRequest = temporal.api.workflowservice.v1.IDeleteScheduleRequest;
-type DeleteScheduleResponse = temporal.api.workflowservice.v1.IDeleteScheduleResponse;
-type UpdateScheduleRequest = temporal.api.workflowservice.v1.IUpdateScheduleRequest;
-type UpdateScheduleResponse = temporal.api.workflowservice.v1.IUpdateScheduleResponse;
-type PatchScheduleRequest = temporal.api.workflowservice.v1.IPatchScheduleRequest;
-type PatchScheduleResponse = temporal.api.workflowservice.v1.IPatchScheduleResponse;
-type ListSchedulesRequest = temporal.api.workflowservice.v1.IListSchedulesRequest;
-type ListSchedulesResponse = temporal.api.workflowservice.v1.IListSchedulesResponse;
 
 /**
  * Handle to a single Schedule
@@ -109,8 +87,8 @@ export interface ScheduleHandle {
   trigger(overlap?: ScheduleOverlapPolicy): Promise<void>;
 
   /**
-   * Run though the specified time period(s) and take Actions as if that time passed by right now, all at once. The
-   * Overlap Policy can be overridden for the scope of the Backfill.
+   * Run though the specified time period(s) and take Actions as if that time passed by right now, all at once.
+   * The Overlap Policy can be overridden for the scope of the Backfill.
    */
   backfill(options: Backfill | Backfill[]): Promise<void>;
 
@@ -118,15 +96,13 @@ export interface ScheduleHandle {
    * Pause the Schedule
    *
    * @param note A new {@link ScheduleDescription.note}. Defaults to `"Paused via TypeScript SDK"`
-   * @throws {@link ValueError} if empty string is passed
    */
   pause(note?: string): Promise<void>;
 
   /**
    * Unpause the Schedule
    *
-   * @param note A new {@link ScheduleDescription.note}. Defaults to `"Unpaused via TypeScript SDK"`
-   * @throws {@link ValueError} if empty string is passed
+   * @param note A new {@link ScheduleDescription.note}. Defaults to `"Unpaused via TypeScript SDK"
    */
   unpause(note?: string): Promise<void>;
 
@@ -200,9 +176,9 @@ function defaultScheduleClientOptions(): ScheduleClientOptionsWithDefaults {
 }
 
 function assertRequiredScheduleOptions(opts: ScheduleOptions, action: 'CREATE'): void;
-function assertRequiredScheduleOptions(opts: CompiledScheduleUpdateOptions, action: 'UPDATE'): void;
+function assertRequiredScheduleOptions(opts: ScheduleUpdateOptions, action: 'UPDATE'): void;
 function assertRequiredScheduleOptions(
-  opts: ScheduleOptions | CompiledScheduleUpdateOptions,
+  opts: ScheduleOptions | ScheduleUpdateOptions,
   action: 'CREATE' | 'UPDATE'
 ): void {
   const structureName = action === 'CREATE' ? 'ScheduleOptions' : 'UpdatedSchedule';
@@ -224,10 +200,6 @@ function assertRequiredScheduleOptions(
         throw new TypeError(`Missing ${structureName}.action.workflowType for 'startWorkflow' action`);
       }
   }
-}
-
-interface ScheduleHandleOptions {
-  scheduleId: string;
 }
 
 /** @experimental */
@@ -297,22 +269,19 @@ export class ScheduleClient {
    * @returns a ScheduleHandle to the created Schedule
    */
   public async create(options: ScheduleOptions): Promise<ScheduleHandle> {
-    const { scheduleId } = options;
     await this._createSchedule(options);
-    return this._createScheduleHandle({ scheduleId });
+    return this.getHandle(options.scheduleId);
   }
 
   /**
    * Create a new Schedule.
-   *
-   * @returns ???
    */
-  protected async _createSchedule(options: ScheduleOptions): Promise<Uint8Array> {
+  protected async _createSchedule(options: ScheduleOptions): Promise<void> {
     assertRequiredScheduleOptions(options, 'CREATE');
     const compiledOptions = compileScheduleOptions(options);
 
     const create = composeInterceptors(this.options.interceptors, 'create', this._createScheduleHandler.bind(this));
-    return create({
+    await create({
       options: compiledOptions,
       headers: {},
     });
@@ -320,25 +289,29 @@ export class ScheduleClient {
 
   /**
    * Create a new Schedule.
-   *
-   * @returns ???
    */
-  protected async _createScheduleHandler(input: CreateScheduleInput): Promise<Uint8Array> {
+  protected async _createScheduleHandler(input: CreateScheduleInput): Promise<CreateScheduleOutput> {
     const { options: opts, headers } = input;
     const { identity } = this.options;
-    const req: CreateScheduleRequest = {
+    const req: temporal.api.workflowservice.v1.ICreateScheduleRequest = {
       namespace: this.options.namespace,
       identity,
       requestId: uuid4(),
       scheduleId: opts.scheduleId,
-      schedule: await encodeSchedule(this.dataConverter, opts, headers),
-      // FIXME-JWH: The following fields are not updatable
+      schedule: {
+        spec: encodeScheduleSpec(opts.spec),
+        action: await encodeScheduleAction(this.dataConverter, opts.action, headers),
+        policies: encodeSchedulePolicies(opts.policies),
+        state: encodeScheduleState(opts.state),
+      },
+      // FIXME: @dnr The following fields are not updatable.
       memo: opts.memo ? { fields: await encodeMapToPayloads(this.dataConverter, opts.memo) } : undefined,
       searchAttributes: opts.searchAttributes
         ? {
             indexedFields: mapToPayloads(searchAttributePayloadConverter, opts.searchAttributes),
           }
         : undefined,
+      // FIXME: @dnr Ain't initialPatch and schedule.state duplicated? How do they interract?
       initialPatch: {
         pause: opts.state?.paused ? 'Paused via TypeScript SDK"' : undefined,
         triggerImmediately: opts.state?.triggerImmediately
@@ -355,7 +328,7 @@ export class ScheduleClient {
     };
     try {
       const res = await this.workflowService.createSchedule(req);
-      return res.conflictToken;
+      return { conflictToken: res.conflictToken };
     } catch (err: any) {
       if (err.code === grpcStatus.ALREADY_EXISTS) {
         throw new ScheduleAlreadyRunning('Schedule already exists and is running', opts.scheduleId);
@@ -366,10 +339,10 @@ export class ScheduleClient {
 
   /**
    * Describe a Schedule.
-   *
-   * @returns ???
    */
-  protected async _describeSchedule(scheduleId: string): Promise<DescribeScheduleResponse> {
+  protected async _describeSchedule(
+    scheduleId: string
+  ): Promise<temporal.api.workflowservice.v1.IDescribeScheduleResponse> {
     try {
       return await this.workflowService.describeSchedule({
         namespace: this.options.namespace,
@@ -382,21 +355,21 @@ export class ScheduleClient {
 
   /**
    * Update a Schedule.
-   *
-   * @returns ???
    */
   protected async _updateSchedule(
     scheduleId: string,
-    schedule: CompiledScheduleUpdateOptions
-  ): Promise<UpdateScheduleResponse> {
-    assertRequiredScheduleOptions(schedule, 'UPDATE');
+    opts: CompiledScheduleUpdateOptions
+  ): Promise<temporal.api.workflowservice.v1.IUpdateScheduleResponse> {
     try {
       return await this.workflowService.updateSchedule({
         namespace: this.options.namespace,
         scheduleId,
-
-        schedule: await encodeSchedule(this.dataConverter, schedule),
-
+        schedule: {
+          spec: encodeScheduleSpec(opts.spec),
+          action: await encodeScheduleAction(this.dataConverter, opts.action, {}),
+          policies: encodeSchedulePolicies(opts.policies),
+          state: encodeScheduleState(opts.state),
+        },
         identity: this.options.identity,
         requestId: uuid4(),
       });
@@ -407,13 +380,11 @@ export class ScheduleClient {
 
   /**
    * Patch a Schedule.
-   *
-   * @returns ???
    */
   protected async _patchSchedule(
     scheduleId: string,
     patch: temporal.api.schedule.v1.ISchedulePatch
-  ): Promise<PatchScheduleResponse> {
+  ): Promise<temporal.api.workflowservice.v1.IPatchScheduleResponse> {
     try {
       return await this.workflowService.patchSchedule({
         namespace: this.options.namespace,
@@ -429,10 +400,10 @@ export class ScheduleClient {
 
   /**
    * Delete a Schedule.
-   *
-   * @returns ???
    */
-  protected async _deleteSchedule(scheduleId: string): Promise<DeleteScheduleResponse> {
+  protected async _deleteSchedule(
+    scheduleId: string
+  ): Promise<temporal.api.workflowservice.v1.IDeleteScheduleResponse> {
     try {
       return await this.workflowService.deleteSchedule({
         namespace: this.options.namespace,
@@ -463,11 +434,13 @@ export class ScheduleClient {
   public async *list(options?: ListScheduleOptions): AsyncIterable<ScheduleSummary> {
     let nextPageToken: Uint8Array | undefined = undefined;
     for (;;) {
-      const response: ListSchedulesResponse = await this.workflowService.listSchedules({
-        nextPageToken,
-        namespace: this.options.namespace,
-        maximumPageSize: options?.pageSize,
-      });
+      const response: temporal.api.workflowservice.v1.IListSchedulesResponse = await this.workflowService.listSchedules(
+        {
+          nextPageToken,
+          namespace: this.options.namespace,
+          maximumPageSize: options?.pageSize,
+        }
+      );
 
       for (const raw of response.schedules ?? []) {
         yield <ScheduleSummary>{
@@ -539,13 +512,6 @@ export class ScheduleClient {
    * methods like `handle.describe()` will throw a {@link ScheduleNotFoundError} error.
    */
   public getHandle(scheduleId: string): ScheduleHandle {
-    return this._createScheduleHandle({ scheduleId });
-  }
-
-  /**
-   * Create a new schedule handle for new or existing Schedule
-   */
-  protected _createScheduleHandle({ scheduleId }: ScheduleHandleOptions): ScheduleHandle {
     return {
       client: this,
       scheduleId,
@@ -666,6 +632,7 @@ export class ScheduleClient {
       async update(updateFn): Promise<void> {
         const actual = await this.describe();
         const updated = updateFn(actual);
+        assertRequiredScheduleOptions(updated, 'UPDATE');
         await this.client._updateSchedule(scheduleId, compileUpdatedScheduleOptions(updated));
       },
 

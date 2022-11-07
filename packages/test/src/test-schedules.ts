@@ -191,6 +191,7 @@ if (RUN_INTEGRATION_TESTS) {
 
   test('Interceptor is called on create schedule', async (t) => {
     const clientWithInterceptor = new Client({
+      connection: t.context.client.connection,
       interceptors: {
         schedule: [
           {
@@ -222,6 +223,52 @@ if (RUN_INTEGRATION_TESTS) {
     });
 
     try {
+      const describedSchedule = await handle.describe();
+      const outHeaders = describedSchedule.raw.schedule?.action?.startWorkflow?.header;
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      t.is(defaultPayloadConverter.fromPayload(outHeaders!.fields!.intercepted!), 'intercepted');
+    } finally {
+      await handle.delete();
+    }
+  });
+
+  test('startWorkflow headers are kept on update', async (t) => {
+    const clientWithInterceptor = new Client({
+      connection: t.context.client.connection,
+      interceptors: {
+        schedule: [
+          {
+            async create(input, next) {
+              return next({
+                ...input,
+                headers: {
+                  intercepted: defaultPayloadConverter.toPayload('intercepted'),
+                },
+              });
+            },
+          },
+        ],
+      },
+    });
+
+    const scheduleId = `startWorkflow-headerskept-on-update-${randomUUID()}`;
+    const handle = await clientWithInterceptor.schedule.create({
+      scheduleId,
+      spec: {
+        intervals: [{ every: '1h', offset: '5m' }],
+      },
+      action: {
+        type: 'startWorkflow',
+        workflowId: `${scheduleId}-workflow`,
+        workflowType: dummyWorkflow,
+        taskQueue,
+      },
+    });
+
+    try {
+      // Actually perform no change to the schedule
+      await handle.update((x) => x);
+
       const describedSchedule = await handle.describe();
       const outHeaders = describedSchedule.raw.schedule?.action?.startWorkflow?.header;
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
