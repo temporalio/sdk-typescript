@@ -370,13 +370,14 @@ export interface ScheduleSpec {
    *
    * - If year is not given, it defaults to *.
    * - If second is not given, it defaults to 0.
-   * - Shorthands @yearly, @monthly, @weekly, @daily, and @hourly are also
+   * - Shorthands `@yearly`, `@monthly`, `@weekly`, `@daily`, and `@hourly` are also
    * accepted instead of the 5-7 time fields.
-   * - @every <interval>[/<phase>] is accepted and gets compiled into an
-   * IntervalSpec instead. <interval> and <phase> should be a decimal integer
+   * - `@every interval[/<phase>]` is accepted and gets compiled into an
+   * IntervalSpec instead. `<interval>` and `<phase>` should be a decimal integer
    * with a unit suffix s, m, h, or d.
-   * - Optionally, the string can be preceded by CRON_TZ=<timezone name> or
-   * TZ=<timezone name>, which will get copied to {@link timezone}. (In which case the {@link timezone} field should be left empty.)
+   * - Optionally, the string can be preceded by `CRON_TZ=<timezone name>` or
+   * `TZ=<timezone name>`, which will get copied to {@link timezone}.
+   * (In which case the {@link timezone} field should be left empty.)
    * - Optionally, "#" followed by a comment can appear at the end of the string.
    * - Note that the special case that some cron implementations have for
    * treating day_of_month and day_of_week as "or" instead of "and" when both
@@ -430,7 +431,7 @@ export interface ScheduleSpec {
    *
    * Also note that no actions are taken on leap-seconds (e.g. 23:59:60 UTC).
    *
-   * @default 'UTC'
+   * @default UTC
    */
   timezone?: string;
 }
