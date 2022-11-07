@@ -46,8 +46,9 @@ import {
   optionalTsToMs,
   tsToDate,
 } from '@temporalio/common/lib/time';
-import Long from 'long';
 import { RequireAtLeastOne } from '@temporalio/common/src/type-helpers';
+// eslint-disable-next-line import/no-named-as-default
+import Long from 'long';
 
 const [encodeSecond, decodeSecond] = makeCalendarSpecFieldCoders(
   'second',

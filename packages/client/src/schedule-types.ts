@@ -1,7 +1,7 @@
 import { checkExtends, Replace, RequireAtLeastOne } from '@temporalio/common/lib/type-helpers';
 import { SearchAttributes, Workflow } from '@temporalio/common';
 import type { temporal } from '@temporalio/proto';
-import { WorkflowStartOptions } from './workflow-client';
+import { WorkflowStartOptions } from './workflow-options';
 
 /**
  * The specification of a Schedule to be created, as expected by {@link ScheduleClient.create}.

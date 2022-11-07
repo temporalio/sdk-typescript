@@ -60,7 +60,12 @@ import {
   WorkflowExecutionInfo,
   WorkflowService,
 } from './types';
-import { compileWorkflowOptions, WorkflowOptions, WorkflowSignalWithStartOptions } from './workflow-options';
+import {
+  compileWorkflowOptions,
+  WorkflowOptions,
+  WorkflowSignalWithStartOptions,
+  WorkflowStartOptions,
+} from './workflow-options';
 import { executionInfoFromRaw } from './helpers';
 
 /**
@@ -279,11 +284,6 @@ interface WorkflowHandleOptions extends GetWorkflowHandleOptions {
    */
   runIdForResult?: string;
 }
-
-/**
- * Options for starting a Workflow
- */
-export type WorkflowStartOptions<T extends Workflow = Workflow> = WithWorkflowArgs<T, WorkflowOptions>;
 
 /**
  * Options for {@link WorkflowClient.list}

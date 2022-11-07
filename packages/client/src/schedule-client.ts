@@ -41,7 +41,6 @@ import {
   encodeScheduleSpec,
   encodeScheduleState,
 } from './schedule-helpers';
-import ms from 'ms';
 
 /**
  * Handle to a single Schedule
@@ -486,7 +485,7 @@ export class ScheduleClient {
           searchAttributes: decodeSearchAttributes(raw.searchAttributes),
           policies: {
             overlap: decodeOverlapPolicy(raw.schedule.policies?.overlapPolicy),
-            catchupWindow: optionalTsToMs(raw.schedule.policies?.catchupWindow) ?? ms('60s'),
+            catchupWindow: optionalTsToMs(raw.schedule.policies?.catchupWindow) ?? 60_000,
             pauseOnFailure: raw.schedule.policies?.pauseOnFailure === true,
           },
           state: {
