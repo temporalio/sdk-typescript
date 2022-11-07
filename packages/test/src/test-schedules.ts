@@ -45,7 +45,6 @@ if (RUN_INTEGRATION_TESTS) {
       },
       action: {
         type: 'startWorkflow',
-        workflowId: `${scheduleId}-workflow`,
         workflowType: dummyWorkflow,
         taskQueue,
       },
@@ -71,7 +70,6 @@ if (RUN_INTEGRATION_TESTS) {
       },
       action: {
         type: 'startWorkflow',
-        workflowId: `${scheduleId}-workflow`,
         workflowType: dummyWorkflow,
         taskQueue,
       },
@@ -95,7 +93,6 @@ if (RUN_INTEGRATION_TESTS) {
       },
       action: {
         type: 'startWorkflow',
-        workflowId: `${scheduleId}-workflow`,
         workflowType: dummyWorkflow,
         taskQueue,
       },
@@ -128,7 +125,6 @@ if (RUN_INTEGRATION_TESTS) {
       },
       action: {
         type: 'startWorkflow',
-        workflowId: `${scheduleId}-workflow`,
         workflowType: dummyWorkflow,
         taskQueue,
         memo: {
@@ -179,7 +175,6 @@ if (RUN_INTEGRATION_TESTS) {
       },
       action: {
         type: 'startWorkflow',
-        workflowId: `${scheduleId}-workflow`,
         workflowType: dummyWorkflow,
         taskQueue,
       },
@@ -222,7 +217,6 @@ if (RUN_INTEGRATION_TESTS) {
       },
       action: {
         type: 'startWorkflow',
-        workflowId: `${scheduleId}-workflow`,
         workflowType: dummyWorkflow,
         taskQueue,
       },
@@ -251,7 +245,6 @@ if (RUN_INTEGRATION_TESTS) {
       },
       action: {
         type: 'startWorkflow',
-        workflowId: `${scheduleId}-workflow`,
         workflowType: dummyWorkflow,
         taskQueue,
         memo: {
@@ -289,7 +282,6 @@ if (RUN_INTEGRATION_TESTS) {
       },
       action: {
         type: 'startWorkflow',
-        workflowId: `${scheduleId}-workflow`,
         workflowType: dummyWorkflow,
         taskQueue,
       },
@@ -359,7 +351,6 @@ if (RUN_INTEGRATION_TESTS) {
       },
       action: {
         type: 'startWorkflow',
-        workflowId: `${scheduleId}-workflow`,
         workflowType: dummyWorkflow,
         taskQueue,
       },
@@ -405,7 +396,6 @@ if (RUN_INTEGRATION_TESTS) {
           },
           action: {
             type: 'startWorkflow',
-            workflowId: `${scheduleId}-workflow`,
             workflowType: dummyWorkflow,
             taskQueue,
           },
@@ -551,7 +541,6 @@ if (RUN_INTEGRATION_TESTS) {
       },
       action: {
         type: 'startWorkflow',
-        workflowId: `${scheduleId}-workflow`,
         workflowType: dummyWorkflow,
         taskQueue,
       },

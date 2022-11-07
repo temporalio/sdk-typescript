@@ -187,7 +187,7 @@ function assertRequiredScheduleOptions(
       if (!opts.action.taskQueue) {
         throw new TypeError(`Missing ${structureName}.action.taskQueue for 'startWorkflow' action`);
       }
-      if (!opts.action.workflowId) {
+      if (!opts.action.workflowId && action === 'UPDATE') {
         throw new TypeError(`Missing ${structureName}.action.workflowId for 'startWorkflow' action`);
       }
       if (!opts.action.workflowType) {
@@ -298,16 +298,13 @@ export class ScheduleClient {
         policies: encodeSchedulePolicies(opts.policies),
         state: encodeScheduleState(opts.state),
       },
-      // FIXME: @dnr The following fields are not updatable.
       memo: opts.memo ? { fields: await encodeMapToPayloads(this.dataConverter, opts.memo) } : undefined,
       searchAttributes: opts.searchAttributes
         ? {
             indexedFields: mapToPayloads(searchAttributePayloadConverter, opts.searchAttributes),
           }
         : undefined,
-      // FIXME: @dnr Ain't initialPatch and schedule.state duplicated? How do they interract?
       initialPatch: {
-        pause: opts.state?.paused ? 'Paused via TypeScript SDK"' : undefined,
         triggerImmediately: opts.state?.triggerImmediately
           ? { overlapPolicy: temporal.api.enums.v1.ScheduleOverlapPolicy.SCHEDULE_OVERLAP_POLICY_ALLOW_ALL }
           : undefined,
@@ -438,7 +435,6 @@ export class ScheduleClient {
       );
 
       for (const raw of response.schedules ?? []) {
-        // FIXME
         if (!raw.info?.spec) continue;
 
         yield <ScheduleSummary>{

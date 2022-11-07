@@ -132,7 +132,19 @@ export type CompiledScheduleOptions = Replace<
  *
  * @experimental
  */
-export type ScheduleUpdateOptions = Omit<ScheduleOptions, 'scheduleId' | 'memo' | 'searchAttributes'>;
+export type ScheduleUpdateOptions = Replace<
+  Omit<ScheduleOptions, 'scheduleId' | 'memo' | 'searchAttributes'>,
+  {
+    action: Replace<
+      ScheduleOptions['action'],
+      {
+        // No default value on update
+        workflowId: string;
+      }
+    >;
+    state: Omit<ScheduleOptions['state'], 'triggerImmediately' | 'backfill'>;
+  }
+>;
 
 /** @experimental */
 export type CompiledScheduleUpdateOptions = Replace<
@@ -303,7 +315,6 @@ export type ScheduleDescription = ScheduleSummary & {
      * Currently-running workflows started by this schedule. (There might be
      * more than one if the overlap policy allows overlaps.)
      */
-    // FIXME: @dnr Are these also contained in `recentActions`?
     runningActions: ScheduleExecutionActionResult[];
   };
 
@@ -719,7 +730,6 @@ export type ScheduleOptionsStartWorkflowAction<W extends Workflow> = {
 } & Pick<
   WorkflowStartOptions<W>,
   | 'taskQueue'
-  | 'workflowId'
   | 'args'
   | 'memo'
   | 'searchAttributes'
@@ -727,7 +737,15 @@ export type ScheduleOptionsStartWorkflowAction<W extends Workflow> = {
   | 'workflowExecutionTimeout'
   | 'workflowRunTimeout'
   | 'workflowTaskTimeout'
->;
+> & {
+    /**
+     * Workflow id to use when starting. Assign a meaningful business id.
+     * This ID can be used to ensure starting Workflows is idempotent.
+     *
+     * @default `${scheduleId}-workflow`
+     */
+    workflowId?: string;
+  };
 
 /** @experimental */
 export type ScheduleSummaryAction = ScheduleSummaryStartWorkflowAction;
@@ -814,6 +832,8 @@ export enum ScheduleOverlapPolicy {
    */
   ALLOW_ALL,
 }
+
+export type ScheduleOverlapPolicy2 = keyof typeof temporal.api.enums.v1.ScheduleOverlapPolicy;
 
 checkExtends<
   keyof typeof temporal.api.enums.v1.ScheduleOverlapPolicy,

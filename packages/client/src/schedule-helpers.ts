@@ -214,6 +214,7 @@ export function compileScheduleOptions(options: ScheduleOptions): CompiledSchedu
     ...options,
     action: {
       ...options.action,
+      workflowId: options.action.workflowId ?? `${options.scheduleId}-workflow`,
       workflowType,
       args: options.action.args ?? [],
     },
@@ -292,6 +293,7 @@ export function encodeSchedulePolicies(
 
 export function encodeScheduleState(state?: ScheduleOptions['state']): temporal.api.schedule.v1.IScheduleState {
   return {
+    paused: state?.paused,
     notes: state?.note,
     limitedActions: state?.remainingActions !== undefined,
     remainingActions: state?.remainingActions ? Long.fromNumber(state?.remainingActions) : undefined,
