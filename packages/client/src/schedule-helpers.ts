@@ -1,11 +1,19 @@
 import {
   compileRetryPolicy,
+  decompileRetryPolicy,
   LoadedDataConverter,
+  mapFromPayloads,
   mapToPayloads,
   searchAttributePayloadConverter,
+  SearchAttributes,
 } from '@temporalio/common';
 import { Headers } from '@temporalio/common/lib/interceptors';
-import { encodeMapToPayloads, encodeToPayloads } from '@temporalio/common/lib/internal-non-workflow';
+import {
+  decodeArrayFromPayloads,
+  decodeMapFromPayloads,
+  encodeMapToPayloads,
+  encodeToPayloads,
+} from '@temporalio/common/lib/internal-non-workflow';
 import {
   CalendarSpec,
   CalendarSpecDescription,
@@ -21,12 +29,25 @@ import {
   Months,
   LooseRange,
   ScheduleSpec,
-  ScheduleOptionsAction,
   CompiledScheduleAction,
+  ScheduleSpecDescription,
+  IntervalSpecDescription,
+  ScheduleDescriptionAction,
+  ScheduleExecutionActionResult,
+  ScheduleExecutionResult,
+  ScheduleExecutionStartWorkflowActionResult,
 } from './schedule-types';
 import { temporal } from '@temporalio/proto';
-import { msOptionalToTs, msToTs, optionalDateToTs } from '@temporalio/common/lib/time';
+import {
+  msOptionalToTs,
+  msToTs,
+  optionalDateToTs,
+  optionalTsToDate,
+  optionalTsToMs,
+  tsToDate,
+} from '@temporalio/common/lib/time';
 import Long from 'long';
+import { RequireAtLeastOne } from '@temporalio/common/src/type-helpers';
 
 const [encodeSecond, decodeSecond] = makeCalendarSpecFieldCoders(
   'second',
@@ -177,7 +198,8 @@ export function encodeOverlapPolicy(input: ScheduleOverlapPolicy): temporal.api.
   ];
 }
 
-export function decodeOverlapPolicy(input: temporal.api.enums.v1.ScheduleOverlapPolicy): ScheduleOverlapPolicy {
+export function decodeOverlapPolicy(input?: temporal.api.enums.v1.ScheduleOverlapPolicy | null): ScheduleOverlapPolicy {
+  if (!input) return ScheduleOverlapPolicy.UNSPECIFIED;
   const encodedPolicyName = temporal.api.enums.v1.ScheduleOverlapPolicy[input];
   const decodedPolicyName = encodedPolicyName.substring(
     'SCHEDULE_OVERLAP_POLICY_'.length
@@ -274,4 +296,116 @@ export function encodeScheduleState(state?: ScheduleOptions['state']): temporal.
     limitedActions: state?.remainingActions !== undefined,
     remainingActions: state?.remainingActions ? Long.fromNumber(state?.remainingActions) : undefined,
   };
+}
+
+export function decodeScheduleSpec(
+  pb: temporal.api.schedule.v1.IScheduleSpec
+): RequireAtLeastOne<ScheduleSpecDescription, 'calendars' | 'intervals'> {
+  // Note: the server will have compiled calendar and cron_string fields into
+  // structured_calendar (and maybe interval and timezone_name), so at this
+  // point, we'll see only structured_calendar, interval, etc.
+  return {
+    calendars: decodeOptionalStructuredCalendarSpecs(pb.structuredCalendar),
+    intervals: (pb.interval ?? []).map(
+      (x) =>
+        <IntervalSpecDescription>{
+          every: optionalTsToMs(x.interval),
+          offset: optionalTsToMs(x.phase),
+        }
+    ),
+    skip: decodeOptionalStructuredCalendarSpecs(pb.excludeStructuredCalendar),
+    startAt: optionalTsToDate(pb.startTime),
+    endAt: optionalTsToDate(pb.endTime),
+    jitter: optionalTsToMs(pb.jitter),
+  };
+}
+
+export async function decodeScheduleAction(
+  dataConverter: LoadedDataConverter,
+  pb: temporal.api.schedule.v1.IScheduleAction
+): Promise<ScheduleDescriptionAction> {
+  if (pb.startWorkflow) {
+    return {
+      type: 'startWorkflow',
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      workflowId: pb.startWorkflow.workflowId!,
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      workflowType: pb.startWorkflow.workflowType!.name!,
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      taskQueue: pb.startWorkflow.taskQueue!.name!,
+      args: await decodeArrayFromPayloads(dataConverter, pb.startWorkflow.input?.payloads),
+      memo: await decodeMapFromPayloads(dataConverter, pb.startWorkflow.memo?.fields),
+      retry: decompileRetryPolicy(pb.startWorkflow.retryPolicy),
+      searchAttributes: Object.fromEntries(
+        Object.entries(
+          mapFromPayloads(
+            searchAttributePayloadConverter,
+            pb.startWorkflow.searchAttributes?.indexedFields ?? {}
+          ) as SearchAttributes
+        )
+      ),
+      workflowExecutionTimeout: optionalTsToMs(pb.startWorkflow.workflowExecutionTimeout),
+      workflowRunTimeout: optionalTsToMs(pb.startWorkflow.workflowRunTimeout),
+      workflowTaskTimeout: optionalTsToMs(pb.startWorkflow.workflowTaskTimeout),
+    };
+  }
+  throw new Error('Unsupported schedule action');
+}
+
+export function decodeSearchAttributes(
+  pb: temporal.api.common.v1.ISearchAttributes | undefined | null
+): SearchAttributes {
+  if (!pb?.indexedFields) return {};
+  return Object.fromEntries(
+    Object.entries(mapFromPayloads(searchAttributePayloadConverter, pb.indexedFields) as SearchAttributes).filter(
+      ([_, v]) => v && v.length > 0
+    ) // Filter out empty arrays returned by pre 1.18 servers
+  );
+}
+
+export function decodeScheduleRunningActions(
+  pb?: temporal.api.common.v1.IWorkflowExecution[] | null
+): ScheduleExecutionStartWorkflowActionResult[] {
+  if (!pb) return [];
+  return pb.map(
+    (x): ScheduleExecutionStartWorkflowActionResult => ({
+      type: 'startWorkflow',
+      workflow: {
+        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+        workflowId: x.workflowId!,
+        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+        firstExecutionRunId: x.runId!,
+      },
+    })
+  );
+}
+
+export function decodeScheduleRecentActions(
+  pb?: temporal.api.schedule.v1.IScheduleActionResult[] | null
+): ScheduleExecutionResult[] {
+  if (!pb) return [];
+  return (pb as Required<temporal.api.schedule.v1.IScheduleActionResult>[]).map(
+    (executionResult): ScheduleExecutionResult => {
+      let action: ScheduleExecutionActionResult | undefined;
+      if (executionResult.startWorkflowResult) {
+        action = {
+          type: 'startWorkflow',
+          workflow: {
+            // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+            workflowId: executionResult.startWorkflowResult!.workflowId!,
+            // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+            firstExecutionRunId: executionResult.startWorkflowResult!.runId!,
+          },
+        };
+      } else throw new Error('Unsupported schedule action');
+
+      return {
+        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+        scheduledAt: tsToDate(executionResult.scheduleTime!),
+        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+        takenAt: tsToDate(executionResult.actualTime!),
+        action,
+      };
+    }
+  );
 }

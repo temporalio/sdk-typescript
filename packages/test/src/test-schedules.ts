@@ -1,17 +1,13 @@
 import { RUN_INTEGRATION_TESTS } from './helpers';
 import anyTest, { TestInterface } from 'ava';
 import { randomUUID } from 'crypto';
-import { Client, Connection, defaultPayloadConverter } from '@temporalio/client';
+import { Client, defaultPayloadConverter } from '@temporalio/client';
 import asyncRetry from 'async-retry';
 import { msToNumber } from '@temporalio/common/lib/time';
 import { CalendarSpec, CalendarSpecDescription, ScheduleSummary } from '@temporalio/client/lib/schedule-types';
 import { ScheduleHandle } from '@temporalio/client/lib/schedule-client';
-import { TestWorkflowEnvironment } from '@temporalio/testing';
-import { temporal } from '@temporalio/proto';
-import * as grpc from '@grpc/grpc-js';
 
 export interface Context {
-  testEnv: TestWorkflowEnvironment;
   client: Client;
 }
 
@@ -32,46 +28,13 @@ const calendarSpecDescriptionDefaults: CalendarSpecDescription = {
   comment: '',
 };
 
-test.before(async (t) => {
-  const testEnv = await TestWorkflowEnvironment.createLocal();
-  t.context = {
-    testEnv,
-    client: testEnv.client,
-  };
-  // In case we're running with temporalite or other non default server.
-  // NOTE: at the time this was added temporalite did not expose the grpc OperatorService.
-  try {
-    await (testEnv.connection as Connection).operatorService.addSearchAttributes({
-      searchAttributes: {
-        CustomKeywordField: temporal.api.enums.v1.IndexedValueType.INDEXED_VALUE_TYPE_KEYWORD,
-      },
-    });
-  } catch (err: any) {
-    if (err.code !== grpc.status.ALREADY_EXISTS) {
-      throw err;
-    }
-  }
-  // The initialization of the custom search attributes is slooooow. Wait for it to finish
-  await asyncRetry(
-    async () => {
-      const listSearchAttributesResponse = await (
-        testEnv.connection as Connection
-      ).operatorService.listSearchAttributes({});
-      if (!('CustomKeywordField' in listSearchAttributesResponse.customAttributes))
-        throw new Error('Custom search attribute "CustomKeywordField" missing');
-    },
-    {
-      retries: 60,
-      maxTimeout: 1000,
-    }
-  );
-});
-
-test.after.always(async (t) => {
-  await t.context.testEnv?.teardown();
-});
-
 if (RUN_INTEGRATION_TESTS) {
+  test.before(async (t) => {
+    t.context = {
+      client: new Client(),
+    };
+  });
+
   test('Can create schedule with calendar', async (t) => {
     const { client } = t.context;
     const scheduleId = `can-create-schedule-with-calendar-${randomUUID()}`;
@@ -232,7 +195,8 @@ if (RUN_INTEGRATION_TESTS) {
     }
   });
 
-  test('startWorkflow headers are kept on update', async (t) => {
+  // FIXME: Known issue
+  test.skip('startWorkflow headers are kept on update', async (t) => {
     const clientWithInterceptor = new Client({
       connection: t.context.client.connection,
       interceptors: {
@@ -386,8 +350,7 @@ if (RUN_INTEGRATION_TESTS) {
     }
   });
 
-  // FIXME: Reenable this test once temporalite has been upgraded to server 1.18.1+
-  test.skip('Schedule updates throws without retry on validation error', async (t) => {
+  test('Schedule updates throws without retry on validation error', async (t) => {
     const { client } = t.context;
     const scheduleId = `schedule-update-throws-without-retry-on-validation-error-${randomUUID()}`;
     const handle = await client.schedule.create({

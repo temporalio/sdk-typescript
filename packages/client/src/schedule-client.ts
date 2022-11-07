@@ -1,12 +1,5 @@
 import { status as grpcStatus } from '@grpc/grpc-js';
-import {
-  DataConverter,
-  LoadedDataConverter,
-  mapFromPayloads,
-  mapToPayloads,
-  searchAttributePayloadConverter,
-  SearchAttributes,
-} from '@temporalio/common';
+import { DataConverter, LoadedDataConverter, mapToPayloads, searchAttributePayloadConverter } from '@temporalio/common';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import {
   encodeMapToPayloads,
@@ -14,7 +7,6 @@ import {
   isLoadedDataConverter,
   filterNullAndUndefined,
   decodeMapFromPayloads,
-  decodeArrayFromPayloads,
 } from '@temporalio/common/lib/internal-non-workflow';
 import os from 'os';
 import { Connection } from './connection';
@@ -25,14 +17,11 @@ import { isServerErrorResponse, ServiceError } from './errors';
 import {
   Backfill,
   CompiledScheduleUpdateOptions,
-  IntervalSpecDescription,
   ScheduleSummary,
   ScheduleDescription,
   ScheduleOptions,
   ScheduleOverlapPolicy,
   ScheduleUpdateOptions,
-  ScheduleExecutionActionResult,
-  ScheduleExecutionResult,
 } from './schedule-types';
 import { Replace } from '@temporalio/common/lib/type-helpers';
 import { temporal } from '@temporalio/proto';
@@ -40,14 +29,19 @@ import { optionalDateToTs, optionalTsToDate, optionalTsToMs, tsToDate } from '@t
 import {
   compileScheduleOptions,
   compileUpdatedScheduleOptions,
-  decodeOptionalStructuredCalendarSpecs,
   decodeOverlapPolicy,
+  decodeScheduleAction,
+  decodeScheduleRecentActions,
+  decodeScheduleRunningActions,
+  decodeScheduleSpec,
+  decodeSearchAttributes,
   encodeOverlapPolicy,
   encodeScheduleAction,
   encodeSchedulePolicies,
   encodeScheduleSpec,
   encodeScheduleState,
 } from './schedule-helpers';
+import ms from 'ms';
 
 /**
  * Handle to a single Schedule
@@ -181,7 +175,7 @@ function assertRequiredScheduleOptions(
   opts: ScheduleOptions | ScheduleUpdateOptions,
   action: 'CREATE' | 'UPDATE'
 ): void {
-  const structureName = action === 'CREATE' ? 'ScheduleOptions' : 'UpdatedSchedule';
+  const structureName = action === 'CREATE' ? 'ScheduleOptions' : 'ScheduleUpdateOptions';
   if (action === 'CREATE' && !(opts as ScheduleOptions).scheduleId) {
     throw new TypeError(`Missing ${structureName}.scheduleId`);
   }
@@ -443,58 +437,25 @@ export class ScheduleClient {
       );
 
       for (const raw of response.schedules ?? []) {
+        // FIXME
+        if (!raw.info?.spec) continue;
+
         yield <ScheduleSummary>{
           scheduleId: raw.scheduleId,
 
-          spec: {
-            // Note: the server will have compiled calendar and cron_string fields into
-            // structured_calendar (and maybe interval and timezone_name), so at this
-            // point, we'll see only structured_calendar, interval, etc.
-            calendars: decodeOptionalStructuredCalendarSpecs(raw.info?.spec?.structuredCalendar),
-            intervals: (raw.info?.spec?.interval ?? []).map(
-              (x) =>
-                <IntervalSpecDescription>{
-                  every: optionalTsToMs(x.interval),
-                  offset: optionalTsToMs(x.phase),
-                }
-            ),
-            skip: decodeOptionalStructuredCalendarSpecs(raw.info?.spec?.excludeStructuredCalendar),
-            startAt: optionalTsToDate(raw.info?.spec?.startTime),
-            endAt: optionalTsToDate(raw.info?.spec?.endTime),
-            jitter: optionalTsToMs(raw.info?.spec?.jitter),
-          },
+          spec: decodeScheduleSpec(raw.info.spec),
           action: {
             type: 'startWorkflow',
-            workflowType: raw.info?.workflowType?.name,
+            workflowType: raw.info.workflowType?.name,
           },
           memo: await decodeMapFromPayloads(this.dataConverter, raw.memo?.fields),
-          searchAttributes: Object.fromEntries(
-            Object.entries(
-              mapFromPayloads(
-                searchAttributePayloadConverter,
-                raw.searchAttributes?.indexedFields ?? {}
-              ) as SearchAttributes
-            ).filter(([_, v]) => v && v.length > 0) // Filter out empty arrays returned by pre 1.18 servers
-          ),
+          searchAttributes: decodeSearchAttributes(raw.searchAttributes),
           state: {
-            paused: !!raw.info?.paused,
-            note: raw.info?.notes,
+            paused: raw.info.paused === true,
+            note: raw.info.notes ?? undefined,
           },
           info: {
-            recentActions:
-              raw.info?.recentActions?.map(
-                (x): ScheduleExecutionResult => ({
-                  scheduledAt: tsToDate(x.scheduleTime!),
-                  takenAt: tsToDate(x.actualTime!),
-                  action: {
-                    type: 'startWorkflow',
-                    workflow: {
-                      workflowId: x.startWorkflowResult!.workflowId!,
-                      firstExecutionRunId: x.startWorkflowResult!.runId!,
-                    },
-                  },
-                })
-              ) ?? [],
+            recentActions: decodeScheduleRecentActions(raw.info.recentActions),
             nextActionTimes: raw.info?.futureActionTimes?.map(tsToDate) ?? [],
           },
         };
@@ -518,112 +479,36 @@ export class ScheduleClient {
 
       async describe(): Promise<ScheduleDescription> {
         const raw = await this.client._describeSchedule(this.scheduleId);
+        if (!raw.schedule?.spec || !raw.schedule.action)
+          throw new Error('Received invalid Schedule description from server');
         return {
           scheduleId,
-          spec: {
-            // Note: the server will have compiled calendar and cron_string fields into
-            // structured_calendar (and maybe interval and timezone_name), so at this
-            // point, we'll see only structured_calendar, interval, etc.
-            calendars: decodeOptionalStructuredCalendarSpecs(raw.schedule?.spec?.structuredCalendar),
-            intervals: (raw.schedule?.spec?.interval ?? []).map(
-              (x) =>
-                <IntervalSpecDescription>{
-                  every: optionalTsToMs(x.interval),
-                  offset: optionalTsToMs(x.phase),
-                }
-            ),
-            skip: decodeOptionalStructuredCalendarSpecs(raw.schedule?.spec?.excludeStructuredCalendar),
-            startAt: optionalTsToDate(raw.schedule?.spec?.startTime),
-            endAt: optionalTsToDate(raw.schedule?.spec?.endTime),
-            jitter: optionalTsToMs(raw.schedule?.spec?.jitter),
-          },
-          action: {
-            type: 'startWorkflow',
-            /* eslint-disable @typescript-eslint/no-non-null-assertion */
-            workflowId: raw.schedule!.action!.startWorkflow!.workflowId!,
-            workflowType: raw.schedule!.action!.startWorkflow!.workflowType!.name!,
-            taskQueue: raw.schedule!.action!.startWorkflow!.taskQueue!.name!,
-            args: await decodeArrayFromPayloads(
-              this.client.dataConverter,
-              raw.schedule!.action!.startWorkflow!.input!.payloads
-            ),
-            memo: await decodeMapFromPayloads(
-              this.client.dataConverter,
-              raw.schedule!.action!.startWorkflow!.memo?.fields
-            ),
-            retry: raw.schedule!.action!.startWorkflow!.retryPolicy
-              ? {
-                  backoffCoefficient: raw.schedule!.action!.startWorkflow!.retryPolicy!.backoffCoefficient!,
-                  initialInterval: optionalTsToMs(raw.schedule!.action!.startWorkflow!.retryPolicy!.initialInterval),
-                  maximumInterval: optionalTsToMs(raw.schedule!.action!.startWorkflow!.retryPolicy!.maximumInterval),
-                  maximumAttempts: raw.schedule!.action!.startWorkflow!.retryPolicy!.maximumAttempts!,
-                  nonRetryableErrorTypes: raw.schedule!.action!.startWorkflow!.retryPolicy!.nonRetryableErrorTypes!,
-                }
-              : undefined,
-            searchAttributes: Object.fromEntries(
-              Object.entries(
-                mapFromPayloads(
-                  searchAttributePayloadConverter,
-                  raw.schedule!.action!.startWorkflow!.searchAttributes?.indexedFields ?? {}
-                ) as SearchAttributes
-              ).filter(([_, v]) => v && v.length > 0) // Filter out empty arrays returned by pre 1.18 servers
-            ),
-            workflowExecutionTimeout: optionalTsToMs(raw.schedule!.action!.startWorkflow!.workflowExecutionTimeout),
-            workflowRunTimeout: optionalTsToMs(raw.schedule!.action!.startWorkflow!.workflowRunTimeout),
-            workflowTaskTimeout: optionalTsToMs(raw.schedule!.action!.startWorkflow!.workflowTaskTimeout),
-          },
+          spec: decodeScheduleSpec(raw.schedule.spec),
+          action: await decodeScheduleAction(this.client.dataConverter, raw.schedule.action),
           memo: await decodeMapFromPayloads(this.client.dataConverter, raw.memo?.fields),
-          searchAttributes: Object.fromEntries(
-            Object.entries(
-              mapFromPayloads(
-                searchAttributePayloadConverter,
-                raw.searchAttributes?.indexedFields ?? {}
-              ) as SearchAttributes
-            ).filter(([_, v]) => v && v.length > 0) // Filter out empty arrays returned by pre 1.18 servers
-          ),
+          searchAttributes: decodeSearchAttributes(raw.searchAttributes),
           policies: {
-            overlap: decodeOverlapPolicy(raw.schedule!.policies!.overlapPolicy!),
-            catchupWindow: optionalTsToMs(raw.schedule!.policies!.catchupWindow) ?? 60000, // FIXME: Server size normalization
-            pauseOnFailure: !!raw.schedule!.policies!.pauseOnFailure,
+            overlap: decodeOverlapPolicy(raw.schedule.policies?.overlapPolicy),
+            catchupWindow: optionalTsToMs(raw.schedule.policies?.catchupWindow) ?? ms('60s'),
+            pauseOnFailure: raw.schedule.policies?.pauseOnFailure === true,
           },
           state: {
-            paused: !!raw.schedule?.state?.paused,
-            remainingActions: raw.schedule?.state?.limitedActions
-              ? raw.schedule?.state?.remainingActions?.toNumber() || 0
+            paused: raw.schedule.state?.paused === true,
+            note: raw.schedule.state?.notes ?? undefined,
+            remainingActions: raw.schedule.state?.limitedActions
+              ? raw.schedule.state?.remainingActions?.toNumber() || 0
               : undefined,
-            note: raw.schedule!.state!.notes!,
           },
           info: {
+            recentActions: decodeScheduleRecentActions(raw.info?.recentActions),
+            nextActionTimes: raw.info?.futureActionTimes?.map(tsToDate) ?? [],
+            // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
             createdAt: tsToDate(raw.info!.createTime!),
-            lastUpdatedAt: optionalTsToDate(raw.info!.updateTime!),
-            runningActions:
-              raw.info!.runningWorkflows?.map(
-                (x): ScheduleExecutionActionResult => ({
-                  type: 'startWorkflow',
-                  workflow: {
-                    workflowId: x.workflowId!,
-                    firstExecutionRunId: x.runId!,
-                  },
-                })
-              ) ?? [],
-            recentActions:
-              raw.info?.recentActions?.map(
-                (x): ScheduleExecutionResult => ({
-                  scheduledAt: tsToDate(x.scheduleTime!),
-                  takenAt: tsToDate(x.actualTime!),
-                  action: {
-                    type: 'startWorkflow',
-                    workflow: {
-                      workflowId: x.startWorkflowResult!.workflowId!,
-                      firstExecutionRunId: x.startWorkflowResult!.runId!,
-                    },
-                  },
-                })
-              ) ?? [],
-            nextActionTimes: raw.info!.futureActionTimes!.map(tsToDate) ?? [],
-            numActionsMissedCatchupWindow: raw.info!.missedCatchupWindow!.toNumber(),
-            numActionsSkippedOverlap: raw.info!.overlapSkipped!.toNumber(),
-            numActionsTaken: raw.info!.actionCount!.toNumber(),
+            lastUpdatedAt: optionalTsToDate(raw.info?.updateTime),
+            runningActions: decodeScheduleRunningActions(raw.info?.runningWorkflows),
+            numActionsMissedCatchupWindow: raw.info?.missedCatchupWindow?.toNumber() ?? 0,
+            numActionsSkippedOverlap: raw.info?.overlapSkipped?.toNumber() ?? 0,
+            numActionsTaken: raw.info?.actionCount?.toNumber() ?? 0,
           },
           raw,
         };
