@@ -1,5 +1,6 @@
 import * as grpc from '@grpc/grpc-js';
 import { filterNullAndUndefined, normalizeTlsConfig, TLSConfig } from '@temporalio/common/lib/internal-non-workflow';
+import { msOptionalToNumber } from '@temporalio/common/lib/time';
 import { AsyncLocalStorage } from 'async_hooks';
 import type { RPCImpl } from 'protobufjs';
 import { isServerErrorResponse, ServiceError } from './errors';
@@ -90,7 +91,7 @@ export type ConnectionOptionsWithDefaults = Required<Omit<ConnectionOptions, 'tl
 export const LOCAL_TARGET = '127.0.0.1:7233';
 
 function addDefaults(options: ConnectionOptions): ConnectionOptionsWithDefaults {
-  const { channelArgs, interceptors, ...rest } = options;
+  const { channelArgs, interceptors, connectTimeout, ...rest } = options;
   return {
     address: LOCAL_TARGET,
     credentials: grpc.credentials.createInsecure(),
@@ -102,7 +103,7 @@ function addDefaults(options: ConnectionOptions): ConnectionOptionsWithDefaults 
     },
     interceptors: interceptors ?? [makeGrpcRetryInterceptor(defaultGrpcRetryOptions())],
     metadata: {},
-    connectTimeoutMs: 10_000,
+    connectTimeoutMs: msOptionalToNumber(connectTimeout) ?? 10_000,
     ...filterNullAndUndefined(rest),
   };
 }
