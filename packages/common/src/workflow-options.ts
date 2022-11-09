@@ -79,7 +79,7 @@ export interface BaseWorkflowOptions {
    * Specifies additional non-indexed information to attach to the Workflow Execution. The values can be anything that
    * is serializable by {@link DataConverter}.
    */
-  memo?: Record<string, any>;
+  memo?: Record<string, unknown>;
 
   /**
    * Specifies additional indexed information to attach to the Workflow Execution. More info:

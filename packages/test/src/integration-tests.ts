@@ -872,6 +872,88 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
     t.is(timeSlept, 1);
   });
 
+  test('continue-as-new-to-same-workflow keeps memo and search attributes', async (t) => {
+    const { client } = t.context;
+    const workflow = await client.start(workflows.continueAsNewSameWorkflow, {
+      taskQueue: 'test',
+      workflowId: uuid4(),
+      memo: {
+        note: 'foo',
+      },
+      searchAttributes: {
+        CustomKeywordField: ['test-value'],
+        CustomIntField: [1, 2],
+      },
+      followRuns: true,
+    });
+    await workflow.signal(workflows.continueAsNewSignal);
+    await workflow.result();
+
+    const execution = await workflow.describe();
+    t.not(execution.runId, workflow.firstExecutionRunId);
+    t.deepEqual(execution.memo, { note: 'foo' });
+    t.deepEqual(execution.searchAttributes!.CustomKeywordField, ['test-value']);
+    t.deepEqual(execution.searchAttributes!.CustomIntField, [1, 2]);
+  });
+
+  test('continue-as-new-to-different-workflow keeps memo and search attributes by default', async (t) => {
+    const { client } = t.context;
+    const workflow = await client.start(workflows.continueAsNewToDifferentWorkflow, {
+      taskQueue: 'test',
+      workflowId: uuid4(),
+      followRuns: true,
+      memo: {
+        note: 'foo',
+      },
+      searchAttributes: {
+        CustomKeywordField: ['test-value'],
+        CustomIntField: [1, 2],
+      },
+    });
+    await workflow.result();
+    const info = await workflow.describe();
+    t.is(info.type, 'sleeper');
+    t.not(info.runId, workflow.firstExecutionRunId);
+    t.deepEqual(info.memo, { note: 'foo' });
+    t.deepEqual(info.searchAttributes!.CustomKeywordField, ['test-value']);
+    t.deepEqual(info.searchAttributes!.CustomIntField, [1, 2]);
+  });
+
+  test('continue-as-new-to-different-workflow can set memo and search attributes', async (t) => {
+    const { client } = t.context;
+    const workflow = await client.start(workflows.continueAsNewToDifferentWorkflow, {
+      args: [
+        1,
+        {
+          memo: {
+            note: 'bar',
+          },
+          searchAttributes: {
+            CustomKeywordField: ['test-value-2'],
+            CustomIntField: [3, 4],
+          },
+        },
+      ],
+      taskQueue: 'test',
+      workflowId: uuid4(),
+      followRuns: true,
+      memo: {
+        note: 'foo',
+      },
+      searchAttributes: {
+        CustomKeywordField: ['test-value'],
+        CustomIntField: [1, 2],
+      },
+    });
+    await workflow.result();
+    const info = await workflow.describe();
+    t.is(info.type, 'sleeper');
+    t.not(info.runId, workflow.firstExecutionRunId);
+    t.deepEqual(info.memo, { note: 'bar' });
+    t.deepEqual(info.searchAttributes!.CustomKeywordField, ['test-value-2']);
+    t.deepEqual(info.searchAttributes!.CustomIntField, [3, 4]);
+  });
+
   test('signalWithStart works as intended and returns correct runId', async (t) => {
     const { client } = t.context;
     const ogWF = await client.signalWithStart(workflows.interruptableWorkflow, {

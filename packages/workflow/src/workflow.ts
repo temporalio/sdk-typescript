@@ -939,7 +939,7 @@ export function makeContinueAsNewFunc<F extends Workflow>(
         arguments: toPayloads(activator.payloadConverter, ...args),
         headers,
         taskQueue: options.taskQueue,
-        memo: options.memo,
+        memo: options.memo && mapToPayloads(activator.payloadConverter, options.memo),
         searchAttributes: options.searchAttributes
           ? mapToPayloads(searchAttributePayloadConverter, options.searchAttributes)
           : undefined,
