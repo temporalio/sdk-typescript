@@ -1,17 +1,9 @@
 import { status as grpcStatus } from '@grpc/grpc-js';
-import { DataConverter, LoadedDataConverter, mapToPayloads, searchAttributePayloadConverter } from '@temporalio/common';
+import { LoadedDataConverter, mapToPayloads, searchAttributePayloadConverter } from '@temporalio/common';
 import { composeInterceptors, Headers } from '@temporalio/common/lib/interceptors';
-import {
-  encodeMapToPayloads,
-  loadDataConverter,
-  isLoadedDataConverter,
-  filterNullAndUndefined,
-  decodeMapFromPayloads,
-} from '@temporalio/common/lib/internal-non-workflow';
-import os from 'os';
-import { Connection } from './connection';
+import { encodeMapToPayloads, decodeMapFromPayloads } from '@temporalio/common/lib/internal-non-workflow';
 import { CreateScheduleInput, CreateScheduleOutput, ScheduleClientInterceptor } from './interceptors';
-import { ConnectionLike, Metadata, WorkflowService } from './types';
+import { Metadata, WorkflowService } from './types';
 import { v4 as uuid4 } from 'uuid';
 import { isServerErrorResponse, ServiceError } from './errors';
 import {
@@ -23,7 +15,6 @@ import {
   ScheduleOverlapPolicy,
   ScheduleUpdateOptions,
 } from './schedule-types';
-import { Replace } from '@temporalio/common/lib/type-helpers';
 import { temporal } from '@temporalio/proto';
 import { optionalDateToTs, optionalTsToDate, optionalTsToMs, tsToDate } from '@temporalio/common/lib/time';
 import {
@@ -41,6 +32,7 @@ import {
   encodeScheduleSpec,
   encodeScheduleState,
 } from './schedule-helpers';
+import { BaseClient, BaseClientOptions, LoadedWithDefaults } from './base-client';
 
 /**
  * Handle to a single Schedule
@@ -108,65 +100,17 @@ export interface ScheduleHandle {
 /**
  * @experimental
  */
-export interface ScheduleClientOptions {
-  /**
-   * {@link DataConverter} to use for serializing and deserializing payloads
-   */
-  dataConverter?: DataConverter | LoadedDataConverter;
-
+export interface ScheduleClientOptions extends BaseClientOptions {
   /**
    * Used to override and extend default Connection functionality
    *
    * Useful for injecting auth headers and tracing Workflow executions
    */
   interceptors?: ScheduleClientInterceptor[];
-
-  /**
-   * Identity to report to the server
-   *
-   * @default `${process.pid}@${os.hostname()}`
-   */
-  identity?: string;
-
-  /**
-   * Connection to use to communicate with the server.
-   *
-   * By default `ScheduleClient` connects to localhost.
-   *
-   * Connections are expensive to construct and should be reused.
-   */
-  connection?: ConnectionLike;
-
-  /**
-   * Server namespace
-   *
-   * @default default
-   */
-  namespace?: string;
 }
 
 /** @experimental */
-export type ScheduleClientOptionsWithDefaults = Replace<
-  Required<ScheduleClientOptions>,
-  {
-    connection?: ConnectionLike;
-  }
->;
-
-/** @experimental */
-export type LoadedScheduleClientOptions = ScheduleClientOptionsWithDefaults & {
-  loadedDataConverter: LoadedDataConverter;
-};
-
-function defaultScheduleClientOptions(): ScheduleClientOptionsWithDefaults {
-  return {
-    dataConverter: {},
-    // The equivalent in Java is ManagementFactory.getRuntimeMXBean().getName()
-    identity: `${process.pid}@${os.hostname()}`,
-    interceptors: [],
-    namespace: 'default',
-  };
-}
+export type LoadedScheduleClientOptions = LoadedWithDefaults<ScheduleClientOptions>;
 
 function assertRequiredScheduleOptions(opts: ScheduleOptions, action: 'CREATE'): void;
 function assertRequiredScheduleOptions(opts: ScheduleUpdateOptions, action: 'UPDATE'): void;
@@ -209,18 +153,14 @@ export interface ListScheduleOptions {
  *
  * @experimental
  */
-export class ScheduleClient {
+export class ScheduleClient extends BaseClient {
   public readonly options: LoadedScheduleClientOptions;
-  public readonly connection: ConnectionLike;
 
   constructor(options?: ScheduleClientOptions) {
-    this.connection = options?.connection ?? Connection.lazy();
-    const dataConverter = options?.dataConverter;
-    const loadedDataConverter = isLoadedDataConverter(dataConverter) ? dataConverter : loadDataConverter(dataConverter);
+    super(options);
     this.options = {
-      ...defaultScheduleClientOptions(),
-      ...filterNullAndUndefined(options ?? {}),
-      loadedDataConverter,
+      ...this.baseOptions,
+      interceptors: options?.interceptors ?? [],
     };
   }
 
@@ -231,28 +171,6 @@ export class ScheduleClient {
    */
   get workflowService(): WorkflowService {
     return this.connection.workflowService;
-  }
-
-  protected get dataConverter(): LoadedDataConverter {
-    return this.options.loadedDataConverter;
-  }
-
-  /**
-   * Set the deadline for any service requests executed in `fn`'s scope.
-   */
-  async withDeadline<R>(deadline: number | Date, fn: () => Promise<R>): Promise<R> {
-    return await this.connection.withDeadline(deadline, fn);
-  }
-
-  /**
-   * Set metadata for any service requests executed in `fn`'s scope.
-   *
-   * @returns returned value of `fn`
-   *
-   * @see {@link Connection.withMetadata}
-   */
-  async withMetadata<R>(metadata: Metadata, fn: () => Promise<R>): Promise<R> {
-    return await this.connection.withMetadata(metadata, fn);
   }
 
   /**

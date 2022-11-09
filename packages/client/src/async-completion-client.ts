@@ -1,17 +1,9 @@
 import { Status } from '@grpc/grpc-js/build/src/constants';
-import { DataConverter, ensureTemporalFailure, LoadedDataConverter } from '@temporalio/common';
-import {
-  encodeErrorToFailure,
-  encodeToPayloads,
-  filterNullAndUndefined,
-  isLoadedDataConverter,
-  loadDataConverter,
-} from '@temporalio/common/lib/internal-non-workflow';
-import { Replace } from '@temporalio/common/lib/type-helpers';
-import os from 'os';
-import { Connection } from './connection';
+import { ensureTemporalFailure } from '@temporalio/common';
+import { encodeErrorToFailure, encodeToPayloads } from '@temporalio/common/lib/internal-non-workflow';
+import { BaseClient, BaseClientOptions, LoadedWithDefaults } from './base-client';
 import { isServerErrorResponse } from './errors';
-import { ConnectionLike, WorkflowService } from './types';
+import { WorkflowService } from './types';
 
 /**
  * Thrown by {@link AsyncCompletionClient} when trying to complete or heartbeat an Activity that does not exist in the
@@ -40,47 +32,9 @@ export class ActivityCancelledError extends Error {
 /**
  * Options used to configure {@link AsyncCompletionClient}
  */
-export interface AsyncCompletionClientOptions {
-  /**
-   * {@link DataConverter} or {@link LoadedDataConverter} to use for serializing and deserializing payloads
-   */
-  dataConverter?: DataConverter | LoadedDataConverter;
+export type AsyncCompletionClientOptions = BaseClientOptions;
 
-  /**
-   * Identity to report to the server
-   *
-   * @default `${process.pid}@${os.hostname()}`
-   */
-  identity?: string;
-
-  connection?: ConnectionLike;
-
-  /**
-   * Server namespace
-   *
-   * @default default
-   */
-  namespace?: string;
-}
-
-export type AsyncCompletionClientOptionsWithDefaults = Replace<
-  Required<AsyncCompletionClientOptions>,
-  {
-    connection?: ConnectionLike;
-  }
->;
-
-export type LoadedAsyncCompletionClientOptions = AsyncCompletionClientOptionsWithDefaults & {
-  loadedDataConverter: LoadedDataConverter;
-};
-
-export function defaultAsyncCompletionClientOptions(): AsyncCompletionClientOptionsWithDefaults {
-  return {
-    dataConverter: {},
-    identity: `${process.pid}@${os.hostname()}`,
-    namespace: 'default',
-  };
-}
+export type LoadedAsyncCompletionClientOptions = LoadedWithDefaults<AsyncCompletionClientOptions>;
 
 /**
  * A mostly unique Activity identifier including its scheduling workflow's ID
@@ -101,19 +55,12 @@ export interface FullActivityId {
  * Typically this client should not be instantiated directly, instead create the high level {@link Client} and use
  * {@link Client.activity} to complete async activities.
  */
-export class AsyncCompletionClient {
+export class AsyncCompletionClient extends BaseClient {
   public readonly options: LoadedAsyncCompletionClientOptions;
-  public readonly connection: ConnectionLike;
 
   constructor(options?: AsyncCompletionClientOptions) {
-    this.connection = options?.connection ?? Connection.lazy();
-    const dataConverter = options?.dataConverter;
-    const loadedDataConverter = isLoadedDataConverter(dataConverter) ? dataConverter : loadDataConverter(dataConverter);
-    this.options = {
-      ...defaultAsyncCompletionClientOptions(),
-      ...filterNullAndUndefined(options ?? {}),
-      loadedDataConverter,
-    };
+    super(options);
+    this.options = this.baseOptions;
   }
 
   /**
@@ -124,10 +71,6 @@ export class AsyncCompletionClient {
    */
   get workflowService(): WorkflowService {
     return this.connection.workflowService;
-  }
-
-  protected get dataConverter(): LoadedDataConverter {
-    return this.options.loadedDataConverter;
   }
 
   /**

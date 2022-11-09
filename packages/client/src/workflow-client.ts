@@ -67,6 +67,7 @@ import {
   WorkflowStartOptions,
 } from './workflow-options';
 import { executionInfoFromRaw } from './helpers';
+import { BaseClient, BaseClientOptions, LoadedWithDefaults } from './base-client';
 
 /**
  * A client side handle to a single Workflow instance.
@@ -164,12 +165,7 @@ export interface WorkflowHandleWithSignaledRunId<T extends Workflow = Workflow> 
   readonly signaledRunId: string;
 }
 
-export interface WorkflowClientOptions {
-  /**
-   * {@link DataConverter} or {@link LoadedDataConverter} to use for serializing and deserializing payloads
-   */
-  dataConverter?: DataConverter | LoadedDataConverter;
-
+export interface WorkflowClientOptions extends BaseClientOptions {
   /**
    * Used to override and extend default Connection functionality
    *
@@ -179,29 +175,6 @@ export interface WorkflowClientOptions {
   interceptors?: WorkflowClientInterceptors | WorkflowClientInterceptor[];
 
   /**
-   * Identity to report to the server
-   *
-   * @default `${process.pid}@${os.hostname()}`
-   */
-  identity?: string;
-
-  /**
-   * Connection to use to communicate with the server.
-   *
-   * By default `WorkflowClient` connects to localhost.
-   *
-   * Connections are expensive to construct and should be reused.
-   */
-  connection?: ConnectionLike;
-
-  /**
-   * Server namespace
-   *
-   * @default default
-   */
-  namespace?: string;
-
-  /**
    * Should a query be rejected by closed and failed workflows
    *
    * @default QUERY_REJECT_CONDITION_UNSPECIFIED which means that closed and failed workflows are still queryable
@@ -209,26 +182,7 @@ export interface WorkflowClientOptions {
   queryRejectCondition?: temporal.api.enums.v1.QueryRejectCondition;
 }
 
-export type WorkflowClientOptionsWithDefaults = Replace<
-  Required<WorkflowClientOptions>,
-  {
-    connection?: ConnectionLike;
-  }
->;
-export type LoadedWorkflowClientOptions = WorkflowClientOptionsWithDefaults & {
-  loadedDataConverter: LoadedDataConverter;
-};
-
-export function defaultWorkflowClientOptions(): WorkflowClientOptionsWithDefaults {
-  return {
-    dataConverter: {},
-    // The equivalent in Java is ManagementFactory.getRuntimeMXBean().getName()
-    identity: `${process.pid}@${os.hostname()}`,
-    interceptors: [],
-    namespace: 'default',
-    queryRejectCondition: temporal.api.enums.v1.QueryRejectCondition.QUERY_REJECT_CONDITION_UNSPECIFIED,
-  };
-}
+export type LoadedWorkflowClientOptions = LoadedWithDefaults<WorkflowClientOptions>;
 
 function assertRequiredWorkflowOptions(opts: WorkflowOptions): void {
   if (!opts.taskQueue) {
@@ -308,18 +262,16 @@ export interface ListOptions {
  * Typically this client should not be instantiated directly, instead create the high level {@link Client} and use
  * {@link Client.workflow} to interact with Workflows.
  */
-export class WorkflowClient {
+export class WorkflowClient extends BaseClient {
   public readonly options: LoadedWorkflowClientOptions;
-  public readonly connection: ConnectionLike;
 
   constructor(options?: WorkflowClientOptions) {
-    this.connection = options?.connection ?? Connection.lazy();
-    const dataConverter = options?.dataConverter;
-    const loadedDataConverter = isLoadedDataConverter(dataConverter) ? dataConverter : loadDataConverter(dataConverter);
+    super(options);
     this.options = {
-      ...defaultWorkflowClientOptions(),
-      ...filterNullAndUndefined(options ?? {}),
-      loadedDataConverter,
+      ...this.baseOptions,
+      interceptors: options?.interceptors ?? [],
+      queryRejectCondition:
+        options?.queryRejectCondition ?? temporal.api.enums.v1.QueryRejectCondition.QUERY_REJECT_CONDITION_UNSPECIFIED,
     };
   }
 
@@ -331,28 +283,6 @@ export class WorkflowClient {
    */
   get workflowService(): WorkflowService {
     return this.connection.workflowService;
-  }
-
-  protected get dataConverter(): LoadedDataConverter {
-    return this.options.loadedDataConverter;
-  }
-
-  /**
-   * Set the deadline for any service requests executed in `fn`'s scope.
-   */
-  async withDeadline<R>(deadline: number | Date, fn: () => Promise<R>): Promise<R> {
-    return await this.connection.withDeadline(deadline, fn);
-  }
-
-  /**
-   * Set metadata for any service requests executed in `fn`'s scope.
-   *
-   * @returns returned value of `fn`
-   *
-   * @see {@link Connection.withMetadata}
-   */
-  async withMetadata<R>(metadata: Metadata, fn: () => Promise<R>): Promise<R> {
-    return await this.connection.withMetadata(metadata, fn);
   }
 
   /**
