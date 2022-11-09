@@ -8,7 +8,7 @@ import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-grpc';
 import * as opentelemetry from '@opentelemetry/sdk-node';
 import { SemanticResourceAttributes } from '@opentelemetry/semantic-conventions';
 import { Connection, WorkflowClient } from '@temporalio/client';
-import { OpenTelemetryWorkflowClientCallsInterceptor } from '@temporalio/interceptors-opentelemetry/lib/client';
+import { OpenTelemetryWorkflowClientInterceptor } from '@temporalio/interceptors-opentelemetry/lib/client';
 import {
   makeWorkflowExporter,
   OpenTelemetryActivityInboundInterceptor,
@@ -65,9 +65,7 @@ if (RUN_INTEGRATION_TESTS) {
     });
 
     const client = new WorkflowClient({
-      interceptors: {
-        calls: [() => new OpenTelemetryWorkflowClientCallsInterceptor()],
-      },
+      interceptors: [new OpenTelemetryWorkflowClientInterceptor()],
     });
     await worker.runUntil(client.execute(workflows.smorgasbord, { taskQueue: 'test-otel', workflowId: uuid4() }));
     await otel.shutdown();
@@ -174,9 +172,7 @@ if (RUN_INTEGRATION_TESTS) {
     });
 
     const client = new WorkflowClient({
-      interceptors: {
-        calls: [() => new OpenTelemetryWorkflowClientCallsInterceptor()],
-      },
+      interceptors: [new OpenTelemetryWorkflowClientInterceptor()],
     });
     await worker.runUntil(
       client.execute(workflows.cancelFakeProgress, { taskQueue: 'test-otel', workflowId: uuid4() })
