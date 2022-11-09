@@ -189,7 +189,7 @@ export interface ContinueAsNewOptions {
   /**
    * Non-searchable attributes to attach to next Workflow run
    */
-  memo?: Record<string, any>;
+  memo?: Record<string, unknown>;
   /**
    * Searchable attributes to attach to next Workflow run
    */
