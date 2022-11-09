@@ -17,7 +17,7 @@ import { CompiledWorkflowOptions } from './workflow-options';
 
 export { Next, Headers };
 
-/** Input for WorkflowClientCallsInterceptor.start */
+/** Input for WorkflowClientInterceptor.start */
 export interface WorkflowStartInput {
   /** Name of Workflow to start */
   readonly workflowType: string;
@@ -25,7 +25,7 @@ export interface WorkflowStartInput {
   readonly options: CompiledWorkflowOptions;
 }
 
-/** Input for WorkflowClientCallsInterceptor.signal */
+/** Input for WorkflowClientInterceptor.signal */
 export interface WorkflowSignalInput {
   readonly signalName: string;
   readonly args: unknown[];
@@ -33,7 +33,7 @@ export interface WorkflowSignalInput {
   readonly headers: Headers;
 }
 
-/** Input for WorkflowClientCallsInterceptor.signalWithStart */
+/** Input for WorkflowClientInterceptor.signalWithStart */
 export interface WorkflowSignalWithStartInput {
   readonly workflowType: string;
   readonly signalName: string;
@@ -42,7 +42,7 @@ export interface WorkflowSignalWithStartInput {
   readonly options: CompiledWorkflowOptions;
 }
 
-/** Input for WorkflowClientCallsInterceptor.query */
+/** Input for WorkflowClientInterceptor.query */
 export interface WorkflowQueryInput {
   readonly queryType: string;
   readonly args: unknown[];
@@ -51,7 +51,7 @@ export interface WorkflowQueryInput {
   readonly headers: Headers;
 }
 
-/** Input for WorkflowClientCallsInterceptor.terminate */
+/** Input for WorkflowClientInterceptor.terminate */
 export interface WorkflowTerminateInput {
   readonly workflowExecution: WorkflowExecution;
   readonly reason?: string;
@@ -59,13 +59,13 @@ export interface WorkflowTerminateInput {
   readonly firstExecutionRunId?: string;
 }
 
-/** Input for WorkflowClientCallsInterceptor.cancel */
+/** Input for WorkflowClientInterceptor.cancel */
 export interface WorkflowCancelInput {
   readonly workflowExecution: WorkflowExecution;
   readonly firstExecutionRunId?: string;
 }
 
-/** Input for WorkflowClientCallsInterceptor.describe */
+/** Input for WorkflowClientInterceptor.describe */
 export interface WorkflowDescribeInput {
   readonly workflowExecution: WorkflowExecution;
 }
@@ -73,7 +73,7 @@ export interface WorkflowDescribeInput {
 /**
  * Implement any of these methods to intercept WorkflowClient outbound calls
  */
-export interface WorkflowClientCallsInterceptor {
+export interface WorkflowClientInterceptor {
   /**
    * Intercept a service call to startWorkflowExecution
    *
@@ -113,6 +113,10 @@ export interface WorkflowClientCallsInterceptor {
   describe?: (input: WorkflowDescribeInput, next: Next<this, 'describe'>) => Promise<DescribeWorkflowExecutionResponse>;
 }
 
+/** @deprecated: Use WorkflowClientInterceptor instead */
+export type WorkflowClientCallsInterceptor = WorkflowClientInterceptor;
+
+/** @deprecated */
 export interface WorkflowClientCallsInterceptorFactoryInput {
   workflowId: string;
   runId?: string;
@@ -120,6 +124,8 @@ export interface WorkflowClientCallsInterceptorFactoryInput {
 
 /**
  * A function that takes {@link CompiledWorkflowOptions} and returns an interceptor
+ *
+ * @deprecated: Please define interceptors directly, without factory
  */
 export interface WorkflowClientCallsInterceptorFactory {
   (input: WorkflowClientCallsInterceptorFactoryInput): WorkflowClientCallsInterceptor;
@@ -127,8 +133,11 @@ export interface WorkflowClientCallsInterceptorFactory {
 
 /**
  * A mapping of interceptor type of a list of factory functions
+ *
+ * @deprecated: Please define interceptors directly, without factory
  */
 export interface WorkflowClientInterceptors {
+  /** @deprecated */
   calls?: WorkflowClientCallsInterceptorFactory[];
 }
 
@@ -164,7 +173,7 @@ export type CreateScheduleOutput = {
  * NOTE: Currently only for {@link WorkflowClient} and {@link ScheduleClient}. More will be added later as needed.
  */
 export interface ClientInterceptors {
-  workflow?: WorkflowClientInterceptors;
+  workflow?: WorkflowClientInterceptors | WorkflowClientInterceptor[];
 
   /**
    * @experimental

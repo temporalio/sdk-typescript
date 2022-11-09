@@ -48,56 +48,54 @@ if (RUN_INTEGRATION_TESTS) {
       },
     });
     const client = new WorkflowClient({
-      interceptors: {
-        calls: [
-          () => ({
-            async start(input, next) {
-              return next({
-                ...input,
-                headers: {
-                  ...input.headers,
-                  message: defaultPayloadConverter.toPayload(message),
-                },
-              });
-            },
-            async signalWithStart(input, next) {
-              const [decoded] = input.signalArgs;
-              const encoded = [...(decoded as any as string)].reverse().join('');
-              return next({
-                ...input,
-                signalArgs: [encoded],
-                headers: {
-                  ...input.headers,
-                  message: defaultPayloadConverter.toPayload(message),
-                  marker: defaultPayloadConverter.toPayload(true),
-                },
-              });
-            },
-            async signal(input, next) {
-              const [decoded] = input.args;
-              const encoded = [...(decoded as any as string)].reverse().join('');
-              return next({
-                ...input,
-                args: [encoded],
-                headers: {
-                  ...input.headers,
-                  marker: defaultPayloadConverter.toPayload(true),
-                },
-              });
-            },
-            async query(input, next) {
-              const result: string = (await next({
-                ...input,
-                headers: {
-                  ...input.headers,
-                  marker: defaultPayloadConverter.toPayload(true),
-                },
-              })) as any;
-              return [...result].reverse().join('');
-            },
-          }),
-        ],
-      },
+      interceptors: [
+        {
+          async start(input, next) {
+            return next({
+              ...input,
+              headers: {
+                ...input.headers,
+                message: defaultPayloadConverter.toPayload(message),
+              },
+            });
+          },
+          async signalWithStart(input, next) {
+            const [decoded] = input.signalArgs;
+            const encoded = [...(decoded as any as string)].reverse().join('');
+            return next({
+              ...input,
+              signalArgs: [encoded],
+              headers: {
+                ...input.headers,
+                message: defaultPayloadConverter.toPayload(message),
+                marker: defaultPayloadConverter.toPayload(true),
+              },
+            });
+          },
+          async signal(input, next) {
+            const [decoded] = input.args;
+            const encoded = [...(decoded as any as string)].reverse().join('');
+            return next({
+              ...input,
+              args: [encoded],
+              headers: {
+                ...input.headers,
+                marker: defaultPayloadConverter.toPayload(true),
+              },
+            });
+          },
+          async query(input, next) {
+            const result: string = (await next({
+              ...input,
+              headers: {
+                ...input.headers,
+                marker: defaultPayloadConverter.toPayload(true),
+              },
+            })) as any;
+            return [...result].reverse().join('');
+          },
+        },
+      ],
     });
     await worker.runUntil(async () => {
       {
@@ -126,7 +124,7 @@ if (RUN_INTEGRATION_TESTS) {
     });
   });
 
-  test.serial('WorkflowClientCallsInterceptor intercepts terminate and cancel', async (t) => {
+  test.serial('WorkflowClientCallsInterceptor intercepts terminate and cancel (deprecated factory form)', async (t) => {
     const taskQueue = 'test-interceptor-term-and-cancel';
     const message = uuid4();
     // Use these to coordinate with workflow activation to complete only after termination
@@ -147,6 +145,48 @@ if (RUN_INTEGRATION_TESTS) {
           }),
         ],
       },
+    });
+
+    await worker.runUntil(async () => {
+      const wf = await client.start(unblockOrCancel, {
+        taskQueue,
+        workflowId: uuid4(),
+      });
+      await t.throwsAsync(wf.cancel(), {
+        instanceOf: Error,
+        message: 'nope',
+      });
+      await wf.terminate();
+      const error = await t.throwsAsync(wf.result(), {
+        instanceOf: WorkflowFailedError,
+        message,
+      });
+      if (!(error instanceof WorkflowFailedError)) {
+        throw new Error('Unreachable');
+      }
+      t.true(error.cause instanceof TerminatedFailure);
+    });
+  });
+
+  test.serial('WorkflowClientInterceptor intercepts terminate and cancel', async (t) => {
+    const taskQueue = 'test-interceptor-term-and-cancel';
+    const message = uuid4();
+    // Use these to coordinate with workflow activation to complete only after termination
+    const worker = await Worker.create({
+      ...defaultOptions,
+      taskQueue,
+    });
+    const client = new WorkflowClient({
+      interceptors: [
+        {
+          async terminate(input, next) {
+            return next({ ...input, reason: message });
+          },
+          async cancel(_input, _next) {
+            throw new Error('nope');
+          },
+        },
+      ],
     });
 
     await worker.runUntil(async () => {

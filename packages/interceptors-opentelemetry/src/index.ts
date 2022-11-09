@@ -10,4 +10,8 @@
 
 export * from './workflow';
 export * from './worker';
-export { OpenTelemetryWorkflowClientCallsInterceptor } from './client';
+export {
+  OpenTelemetryWorkflowClientInterceptor,
+  /** deprecated: Use OpenTelemetryWorkflowClientInterceptor instead */
+  OpenTelemetryWorkflowClientInterceptor as OpenTelemetryWorkflowClientCallsInterceptor,
+} from './client';

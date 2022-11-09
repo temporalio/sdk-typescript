@@ -38,7 +38,7 @@ import { Connection } from './connection';
 import { isServerErrorResponse, ServiceError, WorkflowContinuedAsNewError, WorkflowFailedError } from './errors';
 import {
   WorkflowCancelInput,
-  WorkflowClientCallsInterceptor,
+  WorkflowClientInterceptor,
   WorkflowClientInterceptors,
   WorkflowDescribeInput,
   WorkflowQueryInput,
@@ -175,7 +175,8 @@ export interface WorkflowClientOptions {
    *
    * Useful for injecting auth headers and tracing Workflow executions
    */
-  interceptors?: WorkflowClientInterceptors;
+  // eslint-disable-next-line deprecation/deprecation
+  interceptors?: WorkflowClientInterceptors | WorkflowClientInterceptor[];
 
   /**
    * Identity to report to the server
@@ -223,7 +224,7 @@ export function defaultWorkflowClientOptions(): WorkflowClientOptionsWithDefault
     dataConverter: {},
     // The equivalent in Java is ManagementFactory.getRuntimeMXBean().getName()
     identity: `${process.pid}@${os.hostname()}`,
-    interceptors: {},
+    interceptors: [],
     namespace: 'default',
     queryRejectCondition: temporal.api.enums.v1.QueryRejectCondition.QUERY_REJECT_CONDITION_UNSPECIFIED,
   };
@@ -274,7 +275,7 @@ export interface GetWorkflowHandleOptions extends WorkflowResultOptions {
 interface WorkflowHandleOptions extends GetWorkflowHandleOptions {
   workflowId: string;
   runId?: string;
-  interceptors: WorkflowClientCallsInterceptor[];
+  interceptors: WorkflowClientInterceptor[];
   /**
    * A runId to use for getting the workflow's result.
    *
@@ -362,7 +363,7 @@ export class WorkflowClient {
   protected async _start<T extends Workflow>(
     workflowTypeOrFunc: string | T,
     options: WithWorkflowArgs<T, WorkflowOptions>,
-    interceptors: WorkflowClientCallsInterceptor[]
+    interceptors: WorkflowClientInterceptor[]
   ): Promise<string> {
     const workflowType = typeof workflowTypeOrFunc === 'string' ? workflowTypeOrFunc : workflowTypeOrFunc.name;
     assertRequiredWorkflowOptions(options);
@@ -386,7 +387,7 @@ export class WorkflowClient {
   protected async _signalWithStart<T extends Workflow, SA extends any[]>(
     workflowTypeOrFunc: string | T,
     options: WithWorkflowArgs<T, WorkflowSignalWithStartOptions<SA>>,
-    interceptors: WorkflowClientCallsInterceptor[]
+    interceptors: WorkflowClientInterceptor[]
   ): Promise<string> {
     const workflowType = typeof workflowTypeOrFunc === 'string' ? workflowTypeOrFunc : workflowTypeOrFunc.name;
     const { signal, signalArgs, ...rest } = options;
@@ -418,8 +419,7 @@ export class WorkflowClient {
     options: WorkflowStartOptions<T>
   ): Promise<WorkflowHandleWithFirstExecutionRunId<T>> {
     const { workflowId } = options;
-    // Cast is needed because it's impossible to deduce the type in this situation
-    const interceptors = (this.options.interceptors.calls ?? []).map((ctor) => ctor({ workflowId }));
+    const interceptors = this.getOrMakeInterceptors(workflowId);
     const runId = await this._start(workflowTypeOrFunc, { ...options, workflowId }, interceptors);
     // runId is not used in handles created with `start*` calls because these
     // handles should allow interacting with the workflow if it continues as new.
@@ -446,7 +446,7 @@ export class WorkflowClient {
     options: WithWorkflowArgs<WorkflowFn, WorkflowSignalWithStartOptions<SignalArgs>>
   ): Promise<WorkflowHandleWithSignaledRunId<WorkflowFn>> {
     const { workflowId } = options;
-    const interceptors = (this.options.interceptors.calls ?? []).map((ctor) => ctor({ workflowId }));
+    const interceptors = this.getOrMakeInterceptors(workflowId);
     const runId = await this._signalWithStart(workflowTypeOrFunc, options, interceptors);
     // runId is not used in handles created with `start*` calls because these
     // handles should allow interacting with the workflow if it continues as new.
@@ -472,7 +472,7 @@ export class WorkflowClient {
     options: WorkflowStartOptions<T>
   ): Promise<WorkflowResultType<T>> {
     const { workflowId } = options;
-    const interceptors = (this.options.interceptors.calls ?? []).map((ctor) => ctor({ workflowId }));
+    const interceptors = this.getOrMakeInterceptors(workflowId);
     await this._start(workflowTypeOrFunc, options, interceptors);
     return await this.result(workflowId, undefined, {
       ...options,
@@ -912,7 +912,7 @@ export class WorkflowClient {
     runId?: string,
     options?: GetWorkflowHandleOptions
   ): WorkflowHandle<T> {
-    const interceptors = (this.options.interceptors.calls ?? []).map((ctor) => ctor({ workflowId, runId }));
+    const interceptors = this.getOrMakeInterceptors(workflowId, runId);
 
     return this._createWorkflowHandle({
       workflowId,
@@ -950,6 +950,15 @@ export class WorkflowClient {
       nextPageToken = response.nextPageToken;
       if (nextPageToken == null || nextPageToken.length == 0) break;
     }
+  }
+
+  protected getOrMakeInterceptors(workflowId: string, runId?: string): WorkflowClientInterceptor[] {
+    if (typeof this.options.interceptors === 'object' && 'calls' in this.options.interceptors) {
+      // eslint-disable-next-line deprecation/deprecation
+      const factories = (this.options.interceptors as WorkflowClientInterceptors).calls ?? [];
+      return factories.map((ctor) => ctor({ workflowId, runId }));
+    }
+    return Array.isArray(this.options.interceptors) ? (this.options.interceptors as WorkflowClientInterceptor[]) : [];
   }
 }
 
