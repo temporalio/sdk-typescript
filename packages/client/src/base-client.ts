@@ -39,7 +39,6 @@ export type WithDefaults<Options extends BaseClientOptions> = //
 
 export type LoadedWithDefaults<Options extends BaseClientOptions> = //
   WithDefaults<Options> & {
-    /** @deprecated: use client.dataConverter instead */
     loadedDataConverter: LoadedDataConverter;
   };
 
