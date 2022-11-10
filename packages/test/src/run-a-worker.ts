@@ -1,5 +1,5 @@
 import arg from 'arg';
-import { Worker, Runtime, DefaultLogger, LogLevel } from '@temporalio/worker';
+import { Worker, Runtime, DefaultLogger, LogLevel, makeTelemetryFilterString } from '@temporalio/worker';
 import * as activities from './activities';
 
 async function main() {
@@ -11,8 +11,10 @@ async function main() {
     Runtime.install({
       logger: new DefaultLogger(logLevel as LogLevel),
       telemetryOptions: {
-        tracingFilter: 'temporal_sdk_core=DEBUG',
-        logging: { forward: { level: logLevel as LogLevel } },
+        logging: {
+          filter: makeTelemetryFilterString({ core: logLevel as LogLevel, other: logLevel as LogLevel }),
+          forward: {},
+        },
       },
     });
   }

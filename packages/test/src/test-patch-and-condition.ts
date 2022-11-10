@@ -14,6 +14,8 @@ if (RUN_INTEGRATION_TESTS) {
     const worker1 = await Worker.create({
       taskQueue: 'patch-in-condition',
       workflowsPath: require.resolve('./workflows/patch-and-condition-pre-patch'),
+      // Avoid waiting for sticky execution timeout on each worker transition
+      maxCachedWorkflows: 0,
     });
 
     // Start the workflow and wait for the first task to be processed
@@ -31,6 +33,7 @@ if (RUN_INTEGRATION_TESTS) {
     const worker2 = await Worker.create({
       taskQueue: 'patch-in-condition',
       workflowsPath: require.resolve('./workflows/patch-and-condition-post-patch'),
+      maxCachedWorkflows: 0,
     });
 
     // Trigger a signal and wait for it to be processed
@@ -43,6 +46,7 @@ if (RUN_INTEGRATION_TESTS) {
     const worker3 = await Worker.create({
       taskQueue: 'patch-in-condition',
       workflowsPath: require.resolve('./workflows/patch-and-condition-post-patch'),
+      maxCachedWorkflows: 0,
     });
 
     // Trigger a workflow task that will cause replay.

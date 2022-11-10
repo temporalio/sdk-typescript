@@ -1,5 +1,4 @@
 use crate::helpers::*;
-use log::LevelFilter;
 use neon::{
     context::Context,
     handle::Handle,
@@ -9,13 +8,15 @@ use neon::{
 use opentelemetry::trace::{SpanContext, SpanId, TraceFlags, TraceId, TraceState};
 use std::{collections::HashMap, net::SocketAddr, str::FromStr, time::Duration};
 use temporal_sdk_core::{
+    api::telemetry::{
+        Logger, MetricTemporality, MetricsExporter, OtelCollectorOptions, TelemetryOptions,
+        TelemetryOptionsBuilder, TraceExportConfig, TraceExporter,
+    },
     api::worker::{WorkerConfig, WorkerConfigBuilder},
     ephemeral_server::{
         TemporaliteConfig, TemporaliteConfigBuilder, TestServerConfig, TestServerConfigBuilder,
     },
-    ClientOptions, ClientOptionsBuilder, ClientTlsConfig, Logger, MetricTemporality,
-    MetricsExporter, OtelCollectorOptions, RetryConfig, TelemetryOptions, TelemetryOptionsBuilder,
-    TlsConfig, TraceExporter, Url,
+    ClientOptions, ClientOptionsBuilder, ClientTlsConfig, RetryConfig, TlsConfig, Url,
 };
 
 pub enum EphemeralServerConfig {
@@ -151,7 +152,7 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
                 ) as u64),
                 max_elapsed_time: js_optional_value_getter!(
                     cx,
-                    &retry_config,
+                    retry_config,
                     "maxElapsedTime",
                     JsNumber
                 )
@@ -176,38 +177,27 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
 
     fn as_telemetry_options(&self, cx: &mut FunctionContext) -> NeonResult<TelemetryOptions> {
         let mut telemetry_opts = TelemetryOptionsBuilder::default();
-
-        if let Some(tf) = js_optional_value_getter!(cx, self, "tracingFilter", JsString) {
-            telemetry_opts.tracing_filter(tf);
-        }
         telemetry_opts.no_temporal_prefix_for_metrics(
             js_optional_value_getter!(cx, self, "noTemporalPrefixForMetrics", JsBoolean)
                 .unwrap_or_default(),
         );
+
         if let Some(ref logging) = js_optional_getter!(cx, self, "logging", JsObject) {
-            if let Some(_) = get_optional(cx, logging, "console") {
-                telemetry_opts.logging(Logger::Console);
-            } else if let Some(ref forward) = js_optional_getter!(cx, logging, "forward", JsObject)
-            {
-                let level = js_value_getter!(cx, forward, "level", JsString);
-                match LevelFilter::from_str(&level) {
-                    Ok(level) => {
-                        telemetry_opts.logging(Logger::Forward(level));
-                    }
-                    Err(err) => cx.throw_type_error(format!(
-                        "Invalid telemetryOptions.logging.forward.level: {}",
-                        err
-                    ))?,
-                }
+            let filter = js_value_getter!(cx, logging, "filter", JsString);
+            if get_optional(cx, logging, "console").is_some() {
+                telemetry_opts.logging(Logger::Console { filter });
+            } else if get_optional(cx, logging, "forward").is_some() {
+                telemetry_opts.logging(Logger::Forward { filter });
             } else {
-                cx.throw_type_error(format!(
-                    "Invalid telemetryOptions.logging, missing `console` or `forward` option"
-                ))?
+                cx.throw_type_error(
+                    "Invalid telemetryOptions.logging, expected either 'console' or 'forward' property",
+                )?;
             }
         }
-        if let Some(metrics) = js_optional_getter!(cx, self, "metrics", JsObject) {
+
+        if let Some(ref metrics) = js_optional_getter!(cx, self, "metrics", JsObject) {
             if let Some(temporality) =
-                js_optional_value_getter!(cx, &metrics, "temporality", JsString)
+                js_optional_value_getter!(cx, metrics, "temporality", JsString)
             {
                 match temporality.as_str() {
                     "cumulative" => {
@@ -221,8 +211,7 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
                     }
                 };
             }
-
-            if let Some(ref prom) = js_optional_getter!(cx, &metrics, "prometheus", JsObject) {
+            if let Some(ref prom) = js_optional_getter!(cx, metrics, "prometheus", JsObject) {
                 let addr = js_value_getter!(cx, prom, "bindAddress", JsString);
                 match addr.parse::<SocketAddr>() {
                     Ok(address) => telemetry_opts.metrics(MetricsExporter::Prometheus(address)),
@@ -230,14 +219,14 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
                         "Invalid telemetryOptions.metrics.prometheus.bindAddress",
                     )?,
                 };
-            } else if let Some(ref otel) = js_optional_getter!(cx, &metrics, "otel", JsObject) {
+            } else if let Some(ref otel) = js_optional_getter!(cx, metrics, "otel", JsObject) {
                 let url = js_value_getter!(cx, otel, "url", JsString);
                 let url = match Url::parse(&url) {
                     Ok(url) => url,
                     Err(_) => cx.throw_type_error("Invalid telemetryOptions.metrics.otel.url")?,
                 };
                 let headers =
-                    if let Some(headers) = js_optional_getter!(cx, otel, "headers", JsObject) {
+                    if let Some(ref headers) = js_optional_getter!(cx, otel, "headers", JsObject) {
                         headers.as_hash_map_of_string_to_string(cx)?
                     } else {
                         Default::default()
@@ -245,32 +234,37 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
                 telemetry_opts
                     .metrics(MetricsExporter::Otel(OtelCollectorOptions { url, headers }));
             } else {
-                cx.throw_type_error(format!(
-                    "Invalid telemetryOptions.metrics, missing `prometheus` or `otel` option"
-                ))?
+                cx.throw_type_error(
+                    "Invalid telemetryOptions.metrics, missing `prometheus` or `otel` option",
+                )?
             }
         }
 
-        if let Some(tracing) = js_optional_getter!(cx, self, "tracing", JsObject) {
-            if let Some(ref otel) = js_optional_getter!(cx, &tracing, "otel", JsObject) {
+        if let Some(ref tracing) = js_optional_getter!(cx, self, "tracing", JsObject) {
+            let filter = js_value_getter!(cx, tracing, "filter", JsString);
+            if let Some(ref otel) = js_optional_getter!(cx, tracing, "otel", JsObject) {
                 let url = js_value_getter!(cx, otel, "url", JsString);
                 let url = match Url::parse(&url) {
                     Ok(url) => url,
                     Err(_) => cx.throw_type_error("Invalid telemetryOptions.tracing.otel.url")?,
                 };
                 let headers =
-                    if let Some(headers) = js_optional_getter!(cx, otel, "headers", JsObject) {
+                    if let Some(ref headers) = js_optional_getter!(cx, otel, "headers", JsObject) {
                         headers.as_hash_map_of_string_to_string(cx)?
                     } else {
                         Default::default()
                     };
-                telemetry_opts.tracing(TraceExporter::Otel(OtelCollectorOptions { url, headers }));
+                telemetry_opts.tracing(TraceExportConfig {
+                    filter,
+                    exporter: TraceExporter::Otel(OtelCollectorOptions { url, headers }),
+                });
             } else {
-                cx.throw_type_error(format!(
-                    "Invalid telemetryOptions.tracing, missing `otel` option"
-                ))?
+                cx.throw_type_error(
+                    "Invalid telemetryOptions.tracing, missing `otel` option",
+                )?
             }
         }
+
         telemetry_opts.build().map_err(|reason| {
             cx.throw_type_error::<_, TelemetryOptions>(format!("{}", reason))
                 .unwrap_err()
@@ -363,7 +357,7 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
         let executable = match exec_type.as_str() {
             "cached-download" => {
                 let version = js_optional_value_getter!(cx, &js_executable, "version", JsString)
-                    .unwrap_or("default".to_owned());
+                    .unwrap_or_else(|| "default".to_owned());
                 let dest_dir =
                     js_optional_value_getter!(cx, &js_executable, "downloadDir", JsString);
 

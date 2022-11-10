@@ -87,10 +87,10 @@ if (RUN_INTEGRATION_TESTS) {
     });
   });
 
-  test.serial('Runtime.instance() throws meaningful error when passed invalid tracingFilter', (t) => {
-    t.throws(() => Runtime.install({ telemetryOptions: { tracingFilter: 2 as any } }), {
+  test.serial('Runtime.instance() throws meaningful error when passed invalid telemetryOptions.logging.filter', (t) => {
+    t.throws(() => Runtime.install({ telemetryOptions: { logging: { filter: 2 as any } } }), {
       instanceOf: TypeError,
-      message: 'Invalid tracingFilter',
+      message: 'Invalid filter',
     });
   });
 }

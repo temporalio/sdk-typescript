@@ -271,6 +271,14 @@ export class WorkflowCodecRunner {
                           headers: noopEncodeMap(command.scheduleLocalActivity.headers),
                         }
                       : undefined,
+                    modifyWorkflowProperties: command.modifyWorkflowProperties
+                      ? {
+                          ...command.modifyWorkflowProperties,
+                          upsertedMemo: {
+                            fields: await encodeMap(this.codecs, command.modifyWorkflowProperties.upsertedMemo?.fields),
+                          },
+                        }
+                      : undefined,
                   })) ?? []
                 )
               : null,

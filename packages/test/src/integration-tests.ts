@@ -29,7 +29,13 @@ import {
 import { tsToMs } from '@temporalio/common/lib/time';
 import { decode, decodeFromPayloadsAtIndex, loadDataConverter } from '@temporalio/common/lib/internal-non-workflow';
 import * as iface from '@temporalio/proto';
-import { appendDefaultInterceptors, DefaultLogger, Runtime, Worker } from '@temporalio/worker';
+import {
+  appendDefaultInterceptors,
+  DefaultLogger,
+  makeTelemetryFilterString,
+  Runtime,
+  Worker,
+} from '@temporalio/worker';
 import pkg from '@temporalio/worker/lib/pkg';
 import * as grpc from '@grpc/grpc-js';
 import v8 from 'v8';
@@ -79,7 +85,15 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
   _test.before(async (t) => {
     const logger = new DefaultLogger('DEBUG');
     // Use forwarded logging from core
-    Runtime.install({ logger, telemetryOptions: { logging: { forward: { level: 'INFO' } } } });
+    Runtime.install({
+      logger,
+      telemetryOptions: {
+        logging: {
+          filter: makeTelemetryFilterString({ core: 'INFO', other: 'INFO' }),
+          forward: {},
+        },
+      },
+    });
     const connection = await Connection.connect();
 
     const worker = await Worker.create({

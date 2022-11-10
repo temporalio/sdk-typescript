@@ -1,9 +1,16 @@
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-grpc';
 import * as opentelemetry from '@opentelemetry/sdk-node';
 import { SemanticResourceAttributes } from '@opentelemetry/semantic-conventions';
-import { TelemetryOptions } from '@temporalio/core-bridge';
+import { LogLevel, TelemetryOptions } from '@temporalio/core-bridge';
 import { Connection } from '@temporalio/client';
-import { DefaultLogger, LogEntry, NativeConnection, Runtime, Worker } from '@temporalio/worker';
+import {
+  DefaultLogger,
+  LogEntry,
+  NativeConnection,
+  Runtime,
+  Worker,
+  makeTelemetryFilterString,
+} from '@temporalio/worker';
 import arg from 'arg';
 import fs from 'fs';
 import http from 'http';
@@ -110,12 +117,13 @@ async function main() {
   const shutdownGraceTime = args['--shutdown-grace-time'] || '30s';
 
   const telemetryOptions: TelemetryOptions = {
-    tracingFilter: `temporal_sdk_core=${logLevel}`,
     logging: {
-      forward: { level: 'DEBUG' },
+      filter: makeTelemetryFilterString({ core: logLevel as LogLevel }),
+      forward: {},
     },
     ...(oTelUrl
       ? {
+          filter: makeTelemetryFilterString({ core: logLevel as LogLevel }),
           tracing: {
             otel: { url: oTelUrl },
           },

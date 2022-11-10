@@ -14,7 +14,6 @@ use testing::*;
 fn main(mut cx: ModuleContext) -> NeonResult<()> {
     cx.export_function("getTimeOfDay", get_time_of_day)?;
     cx.export_function("registerErrors", errors::register_errors)?;
-    cx.export_function("initTelemetry", init_telemetry)?;
     cx.export_function("newRuntime", runtime_new)?;
     cx.export_function("newClient", client_new)?;
     cx.export_function("clientUpdateHeaders", client_update_headers)?;
