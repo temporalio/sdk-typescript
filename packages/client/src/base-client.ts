@@ -2,7 +2,7 @@ import { DataConverter, LoadedDataConverter } from '@temporalio/common';
 import { isLoadedDataConverter, loadDataConverter } from '@temporalio/common/lib/internal-non-workflow';
 import { Connection } from './connection';
 import { ConnectionLike, Metadata } from './types';
-import * as os from 'os';
+import os from 'os';
 
 export interface BaseClientOptions {
   /**
@@ -34,26 +34,31 @@ export interface BaseClientOptions {
   namespace?: string;
 }
 
+export type WithDefaults<Options extends BaseClientOptions> = //
+  Required<Omit<Options, 'connection'>> & Pick<Options, 'connection'>;
+
 export type LoadedWithDefaults<Options extends BaseClientOptions> = //
-  Required<Omit<Options, 'connection'>> &
-    Pick<Options, 'connection'> & {
-      loadedDataConverter: LoadedDataConverter;
-    };
+  WithDefaults<Options> & {
+    /** @deprecated: use client.dataConverter instead */
+    loadedDataConverter: LoadedDataConverter;
+  };
+
+export function defaultBaseClientOptions(): WithDefaults<BaseClientOptions> {
+  return {
+    dataConverter: {},
+    identity: `${process.pid}@${os.hostname()}`,
+    namespace: 'default',
+  };
+}
 
 export class BaseClient {
   public readonly connection: ConnectionLike;
-  protected readonly baseOptions: LoadedWithDefaults<BaseClientOptions>;
+  private readonly loadedDataConverter: LoadedDataConverter;
 
   protected constructor(options?: BaseClientOptions) {
     this.connection = options?.connection ?? Connection.lazy();
     const dataConverter = options?.dataConverter ?? {};
-    const loadedDataConverter = isLoadedDataConverter(dataConverter) ? dataConverter : loadDataConverter(dataConverter);
-    this.baseOptions = {
-      dataConverter,
-      identity: options?.identity ?? `${process.pid}@${os.hostname()}`,
-      namespace: options?.namespace ?? 'default',
-      loadedDataConverter,
-    };
+    this.loadedDataConverter = isLoadedDataConverter(dataConverter) ? dataConverter : loadDataConverter(dataConverter);
   }
 
   /**
@@ -74,7 +79,7 @@ export class BaseClient {
     return await this.connection.withMetadata(metadata, fn);
   }
 
-  protected get dataConverter(): LoadedDataConverter {
-    return this.baseOptions.loadedDataConverter;
+  public get dataConverter(): LoadedDataConverter {
+    return this.loadedDataConverter;
   }
 }

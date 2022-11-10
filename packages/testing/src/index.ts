@@ -95,16 +95,11 @@ class TestEnvClient extends Client {
   constructor(options: TestEnvClientOptions) {
     super(options);
 
-    const { workflow, loadedDataConverter, interceptors, ...base } = this.options;
-
     // Recreate the client (this isn't optimal but it's better than adding public methods just for testing).
     // NOTE: we cast to "any" to work around `workflow` being a readonly attribute.
     (this as any).workflow = new TimeSkippingWorkflowClient({
-      ...base,
-      ...workflow,
+      ...this.workflow.options,
       connection: options.connection,
-      dataConverter: loadedDataConverter,
-      interceptors: interceptors.workflow,
       enableTimeSkipping: options.enableTimeSkipping,
     });
   }

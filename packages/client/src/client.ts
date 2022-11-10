@@ -1,6 +1,7 @@
+import { filterNullAndUndefined } from '@temporalio/common/lib/internal-non-workflow';
 import { temporal } from '@temporalio/proto';
 import { AsyncCompletionClient } from './async-completion-client';
-import { BaseClient, BaseClientOptions, LoadedWithDefaults } from './base-client';
+import { BaseClient, BaseClientOptions, defaultBaseClientOptions, LoadedWithDefaults } from './base-client';
 import { ClientInterceptors } from './interceptors';
 import { ScheduleClient } from './schedule-client';
 import { WorkflowService } from './types';
@@ -30,7 +31,6 @@ export type LoadedClientOptions = LoadedWithDefaults<ClientOptions>;
  * High level SDK client.
  */
 export class Client extends BaseClient {
-  /** @deprecated */
   public readonly options: LoadedClientOptions;
   /**
    * Workflow sub-client - use to start and interact with Workflows
@@ -50,29 +50,33 @@ export class Client extends BaseClient {
   constructor(options?: ClientOptions) {
     super(options);
 
+    const { interceptors, workflow, ...commonOptions } = options ?? {};
+
     this.workflow = new WorkflowClient({
-      ...this.baseOptions,
-      ...(options?.workflow ?? {}),
+      ...commonOptions,
+      ...(workflow ?? {}),
       connection: this.connection,
-      dataConverter: this.baseOptions.loadedDataConverter,
-      interceptors: options?.interceptors?.workflow,
+      dataConverter: this.dataConverter,
+      interceptors: interceptors?.workflow,
     });
 
     this.activity = new AsyncCompletionClient({
-      ...this.baseOptions,
+      ...commonOptions,
       connection: this.connection,
-      dataConverter: this.baseOptions.loadedDataConverter,
+      dataConverter: this.dataConverter,
     });
 
     this.schedule = new ScheduleClient({
-      ...this.baseOptions,
+      ...commonOptions,
       connection: this.connection,
-      dataConverter: this.baseOptions.loadedDataConverter,
-      interceptors: options?.interceptors?.schedule,
+      dataConverter: this.dataConverter,
+      interceptors: interceptors?.schedule,
     });
 
     this.options = {
-      ...this.baseOptions,
+      ...defaultBaseClientOptions(),
+      ...filterNullAndUndefined(commonOptions),
+      loadedDataConverter: this.dataConverter,
       interceptors: {
         workflow: this.workflow.options.interceptors,
         schedule: this.schedule.options.interceptors,

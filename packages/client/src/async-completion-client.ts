@@ -1,7 +1,17 @@
 import { Status } from '@grpc/grpc-js/build/src/constants';
 import { ensureTemporalFailure } from '@temporalio/common';
-import { encodeErrorToFailure, encodeToPayloads } from '@temporalio/common/lib/internal-non-workflow';
-import { BaseClient, BaseClientOptions, LoadedWithDefaults } from './base-client';
+import {
+  encodeErrorToFailure,
+  encodeToPayloads,
+  filterNullAndUndefined,
+} from '@temporalio/common/lib/internal-non-workflow';
+import {
+  BaseClient,
+  BaseClientOptions,
+  defaultBaseClientOptions,
+  LoadedWithDefaults,
+  WithDefaults,
+} from './base-client';
 import { isServerErrorResponse } from './errors';
 import { WorkflowService } from './types';
 
@@ -36,6 +46,10 @@ export type AsyncCompletionClientOptions = BaseClientOptions;
 
 export type LoadedAsyncCompletionClientOptions = LoadedWithDefaults<AsyncCompletionClientOptions>;
 
+function defaultAsyncClientOptions(): WithDefaults<AsyncCompletionClientOptions> {
+  return defaultBaseClientOptions();
+}
+
 /**
  * A mostly unique Activity identifier including its scheduling workflow's ID
  * and an optional runId.
@@ -60,7 +74,11 @@ export class AsyncCompletionClient extends BaseClient {
 
   constructor(options?: AsyncCompletionClientOptions) {
     super(options);
-    this.options = this.baseOptions;
+    this.options = {
+      ...defaultAsyncClientOptions(),
+      ...filterNullAndUndefined(options ?? {}),
+      loadedDataConverter: this.dataConverter,
+    };
   }
 
   /**

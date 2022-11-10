@@ -3,8 +3,6 @@ import {
   BaseWorkflowHandle,
   CancelledFailure,
   compileRetryPolicy,
-  DataConverter,
-  LoadedDataConverter,
   mapToPayloads,
   QueryDefinition,
   RetryState,
@@ -27,14 +25,9 @@ import {
   encodeMapToPayloads,
   encodeToPayloads,
   filterNullAndUndefined,
-  isLoadedDataConverter,
-  loadDataConverter,
 } from '@temporalio/common/lib/internal-non-workflow';
-import { Replace } from '@temporalio/common/lib/type-helpers';
 import { temporal } from '@temporalio/proto';
-import os from 'os';
 import { v4 as uuid4 } from 'uuid';
-import { Connection } from './connection';
 import { isServerErrorResponse, ServiceError, WorkflowContinuedAsNewError, WorkflowFailedError } from './errors';
 import {
   WorkflowCancelInput,
@@ -48,10 +41,8 @@ import {
   WorkflowTerminateInput,
 } from './interceptors';
 import {
-  ConnectionLike,
   DescribeWorkflowExecutionResponse,
   GetWorkflowExecutionHistoryRequest,
-  Metadata,
   RequestCancelWorkflowExecutionResponse,
   StartWorkflowExecutionRequest,
   TerminateWorkflowExecutionResponse,
@@ -67,7 +58,13 @@ import {
   WorkflowStartOptions,
 } from './workflow-options';
 import { executionInfoFromRaw } from './helpers';
-import { BaseClient, BaseClientOptions, LoadedWithDefaults } from './base-client';
+import {
+  BaseClient,
+  BaseClientOptions,
+  defaultBaseClientOptions,
+  LoadedWithDefaults,
+  WithDefaults,
+} from './base-client';
 
 /**
  * A client side handle to a single Workflow instance.
@@ -184,6 +181,14 @@ export interface WorkflowClientOptions extends BaseClientOptions {
 
 export type LoadedWorkflowClientOptions = LoadedWithDefaults<WorkflowClientOptions>;
 
+function defaultWorkflowClientOptions(): WithDefaults<WorkflowClientOptions> {
+  return {
+    ...defaultBaseClientOptions(),
+    interceptors: [],
+    queryRejectCondition: temporal.api.enums.v1.QueryRejectCondition.QUERY_REJECT_CONDITION_UNSPECIFIED,
+  };
+}
+
 function assertRequiredWorkflowOptions(opts: WorkflowOptions): void {
   if (!opts.taskQueue) {
     throw new TypeError('Missing WorkflowOptions.taskQueue');
@@ -268,10 +273,9 @@ export class WorkflowClient extends BaseClient {
   constructor(options?: WorkflowClientOptions) {
     super(options);
     this.options = {
-      ...this.baseOptions,
-      interceptors: options?.interceptors ?? [],
-      queryRejectCondition:
-        options?.queryRejectCondition ?? temporal.api.enums.v1.QueryRejectCondition.QUERY_REJECT_CONDITION_UNSPECIFIED,
+      ...defaultWorkflowClientOptions(),
+      ...filterNullAndUndefined(options ?? {}),
+      loadedDataConverter: this.dataConverter,
     };
   }
 

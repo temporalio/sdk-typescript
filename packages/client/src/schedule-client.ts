@@ -1,9 +1,13 @@
 import { status as grpcStatus } from '@grpc/grpc-js';
-import { LoadedDataConverter, mapToPayloads, searchAttributePayloadConverter } from '@temporalio/common';
+import { mapToPayloads, searchAttributePayloadConverter } from '@temporalio/common';
 import { composeInterceptors, Headers } from '@temporalio/common/lib/interceptors';
-import { encodeMapToPayloads, decodeMapFromPayloads } from '@temporalio/common/lib/internal-non-workflow';
+import {
+  encodeMapToPayloads,
+  decodeMapFromPayloads,
+  filterNullAndUndefined,
+} from '@temporalio/common/lib/internal-non-workflow';
 import { CreateScheduleInput, CreateScheduleOutput, ScheduleClientInterceptor } from './interceptors';
-import { Metadata, WorkflowService } from './types';
+import { WorkflowService } from './types';
 import { v4 as uuid4 } from 'uuid';
 import { isServerErrorResponse, ServiceError } from './errors';
 import {
@@ -32,7 +36,13 @@ import {
   encodeScheduleSpec,
   encodeScheduleState,
 } from './schedule-helpers';
-import { BaseClient, BaseClientOptions, LoadedWithDefaults } from './base-client';
+import {
+  BaseClient,
+  BaseClientOptions,
+  defaultBaseClientOptions,
+  LoadedWithDefaults,
+  WithDefaults,
+} from './base-client';
 
 /**
  * Handle to a single Schedule
@@ -112,6 +122,13 @@ export interface ScheduleClientOptions extends BaseClientOptions {
 /** @experimental */
 export type LoadedScheduleClientOptions = LoadedWithDefaults<ScheduleClientOptions>;
 
+function defaultScheduleClientOptions(): WithDefaults<ScheduleClientOptions> {
+  return {
+    ...defaultBaseClientOptions(),
+    interceptors: [],
+  };
+}
+
 function assertRequiredScheduleOptions(opts: ScheduleOptions, action: 'CREATE'): void;
 function assertRequiredScheduleOptions(opts: ScheduleUpdateOptions, action: 'UPDATE'): void;
 function assertRequiredScheduleOptions(
@@ -159,8 +176,9 @@ export class ScheduleClient extends BaseClient {
   constructor(options?: ScheduleClientOptions) {
     super(options);
     this.options = {
-      ...this.baseOptions,
-      interceptors: options?.interceptors ?? [],
+      ...defaultScheduleClientOptions(),
+      ...filterNullAndUndefined(options ?? {}),
+      loadedDataConverter: this.dataConverter,
     };
   }
 
