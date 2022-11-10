@@ -46,7 +46,7 @@ export type AsyncCompletionClientOptions = BaseClientOptions;
 
 export type LoadedAsyncCompletionClientOptions = LoadedWithDefaults<AsyncCompletionClientOptions>;
 
-function defaultAsyncClientOptions(): WithDefaults<AsyncCompletionClientOptions> {
+function defaultAsyncCompletionClientOptions(): WithDefaults<AsyncCompletionClientOptions> {
   return defaultBaseClientOptions();
 }
 
@@ -75,7 +75,7 @@ export class AsyncCompletionClient extends BaseClient {
   constructor(options?: AsyncCompletionClientOptions) {
     super(options);
     this.options = {
-      ...defaultAsyncClientOptions(),
+      ...defaultAsyncCompletionClientOptions(),
       ...filterNullAndUndefined(options ?? {}),
       loadedDataConverter: this.dataConverter,
     };
