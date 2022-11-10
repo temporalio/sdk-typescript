@@ -320,6 +320,7 @@ export function decodeScheduleSpec(
     startAt: optionalTsToDate(pb.startTime),
     endAt: optionalTsToDate(pb.endTime),
     jitter: optionalTsToMs(pb.jitter),
+    timezone: pb.timezoneName ?? undefined,
   };
 }
 
