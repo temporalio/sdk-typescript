@@ -51,7 +51,7 @@ test('Client and Worker use provided failureConverter', async (t) => {
     const { events } = await fetchWorkflowHistory(env.client, handle.workflowId);
     const payload = events?.[events.length - 1].workflowExecutionFailedEventAttributes?.failure?.encodedAttributes;
     const attrs = await decodeFromPayloadsAtIndex<DefaultEncodedFailureAttributes>(
-      env.client.dataConverter,
+      env.client.options.loadedDataConverter,
       0,
       payload ? [payload] : undefined
     );

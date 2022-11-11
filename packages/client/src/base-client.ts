@@ -78,7 +78,7 @@ export class BaseClient {
     return await this.connection.withMetadata(metadata, fn);
   }
 
-  public get dataConverter(): LoadedDataConverter {
+  protected get dataConverter(): LoadedDataConverter {
     return this.loadedDataConverter;
   }
 }
