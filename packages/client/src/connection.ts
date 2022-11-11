@@ -53,14 +53,14 @@ export interface ConnectionOptions {
   channelArgs?: grpc.ChannelOptions;
 
   /**
-   * Grpc interceptors which will be applied to every RPC call performed by this connection. By default, an interceptor
-   * will be included which automatically retries retryable errors. If you do not wish to perform automatic retries, set
-   * this to an empty list (or a list with your own interceptors). If you want to add your own interceptors while
-   * keeping the default retry behavior, add this to your list of interceptors:
-   * `makeGrpcRetryInterceptor(defaultGrpcRetryOptions())`. See:
+   * {@link https://grpc.github.io/grpc/node/module-src_client_interceptors.html | gRPC interceptors} which will be
+   * applied to every RPC call performed by this connection. By default, an interceptor will be included which
+   * automatically retries retryable errors. If you do not wish to perform automatic retries, set this to an empty list
+   * (or a list with your own interceptors). If you want to add your own interceptors while keeping the default retry
+   * behavior, add this to your list of interceptors: `makeGrpcRetryInterceptor(defaultGrpcRetryOptions())`. See:
    *
-   * - @link makeGrpcRetryInterceptor
-   * - @link defaultGrpcRetryOptions
+   * - {@link makeGrpcRetryInterceptor}
+   * - {@link defaultGrpcRetryOptions}
    */
   interceptors?: grpc.Interceptor[];
 
