@@ -43,10 +43,10 @@ export function cutoffStackTrace(stack?: string): string {
 }
 
 /**
- * A `FailureConverter` is responsible to convert from proto `Failure` instances to JS `Errors` and back.
+ * A `FailureConverter` is responsible for converting from proto `Failure` instances to JS `Errors` and back.
  *
- * It is recommended to use the {@link DefaultFailureConverter} and not attempt to customize the default implementation
- * in order to maintain cross language failure serialization compatibility.
+ * We recommended using the {@link DefaultFailureConverter} instead of customizing the default implementation in order
+ * to maintain cross-language Failure serialization compatibility.
  *
  * @experimental
  */
@@ -81,11 +81,12 @@ export interface DefaultFailureConverterOptions {
 }
 
 /**
- * Default cross language compatible failure converter.
+ * Default, cross-language-compatible Failure converter.
  *
- * By default, it will leave error messages and stack traces as plain text. In order to encrypt those, set
- * `encodeCommonAttributes` to `true` in the constructor options and make sure to use a {@link PayloadCodec} that can
- * encrypt / decrypt payloads in your Worker and Client options.
+ * By default, it will leave error messages and stack traces as plain text. In order to encrypt them, set
+ * `encodeCommonAttributes` to `true` in the constructor options and use a {@link PayloadCodec} that can encrypt /
+ * decrypt Payloads in your {@link WorkerOptions.dataConverter | Worker} and
+ * {@link ClientOptions.dataConverter | Client options}.
  *
  * @experimental
  */

@@ -45,17 +45,24 @@ export interface ActivityOptions {
   retry?: RetryPolicy;
 
   /**
-   * Maximum time of a single Activity execution attempt.
-Note that the Temporal Server doesn't detect Worker process failures directly. It relies on this timeout to detect that an Activity that didn't complete on time. So this timeout should be as short as the longest possible execution of the Activity body. Potentially long running Activities must specify {@link heartbeatTimeout} and call {@link activity.Context.heartbeat} periodically for timely failure detection.
-
+   * Maximum time of a single Activity execution attempt. Note that the Temporal Server doesn't detect Worker process
+   * failures directly. It relies on this timeout to detect that an Activity that didn't complete on time. So this
+   * timeout should be as short as the longest possible execution of the Activity body. Potentially long running
+   * Activities must specify {@link heartbeatTimeout} and call {@link activity.Context.heartbeat} periodically for
+   * timely failure detection.
+   *
    * Either this option or {@link scheduleToCloseTimeout} is required.
+   *
+   * @default `scheduleToCloseTimeout` or unlimited
    * @format number of milliseconds or {@link https://www.npmjs.com/package/ms | ms-formatted string}
    */
   startToCloseTimeout?: string | number;
+
   /**
    * Time that the Activity Task can stay in the Task Queue before it is picked up by a Worker. Do not specify this timeout unless using host specific Task Queues for Activity Tasks are being used for routing.
    * `scheduleToStartTimeout` is always non-retryable. Retrying after this timeout doesn't make sense as it would just put the Activity Task back into the same Task Queue.
-   * @default unlimited
+   *
+   * @default `scheduleToCloseTimeout` or unlimited
    * @format number of milliseconds or {@link https://www.npmjs.com/package/ms | ms-formatted string}
    */
   scheduleToStartTimeout?: string | number;
@@ -64,7 +71,8 @@ Note that the Temporal Server doesn't detect Worker process failures directly. I
    * Total time that a workflow is willing to wait for Activity to complete.
    * `scheduleToCloseTimeout` limits the total time of an Activity's execution including retries (use {@link startToCloseTimeout} to limit the time of a single attempt).
    *
-   * Either this option or {@link startToCloseTimeout} is required
+   * Either this option or {@link startToCloseTimeout} is required.
+   *
    * @default unlimited
    * @format number of milliseconds or {@link https://www.npmjs.com/package/ms | ms-formatted string}
    */
