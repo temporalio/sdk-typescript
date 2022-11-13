@@ -1,9 +1,9 @@
+import test, { ExecutionContext } from 'ava';
+import { v4 as uuid4 } from 'uuid';
 import { WorkflowClient } from '@temporalio/client';
 import { toPayloads } from '@temporalio/common';
 import { coresdk } from '@temporalio/proto';
 import { Worker } from '@temporalio/worker';
-import test, { ExecutionContext } from 'ava';
-import { v4 as uuid4 } from 'uuid';
 import { ProtoActivityResult } from '../protos/root';
 import { protoActivity } from './activities';
 import { cleanOptionalStackTrace, RUN_INTEGRATION_TESTS } from './helpers';

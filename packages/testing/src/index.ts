@@ -8,6 +8,10 @@
  * @module
  */
 
+import path from 'path';
+import events from 'events';
+import { AbortController } from 'abort-controller';
+import ms from 'ms';
 import * as activity from '@temporalio/activity';
 import {
   AsyncCompletionClient,
@@ -28,12 +32,8 @@ import {
   TemporaliteConfig,
   TimeSkippingServerConfig,
 } from '@temporalio/core-bridge';
-import path from 'path';
-import { AbortController } from 'abort-controller';
-import events from 'events';
-import { Connection, TestService } from './connection';
 import { filterNullAndUndefined } from '@temporalio/common/lib/internal-non-workflow';
-import ms from 'ms';
+import { Connection, TestService } from './connection';
 
 export { TimeSkippingServerConfig, TemporaliteConfig, EphemeralServerExecutable } from '@temporalio/core-bridge';
 export { EphemeralServerConfig };

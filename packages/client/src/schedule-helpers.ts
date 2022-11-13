@@ -1,3 +1,4 @@
+import Long from 'long'; // eslint-disable-line import/no-named-as-default
 import {
   compileRetryPolicy,
   decompileRetryPolicy,
@@ -14,6 +15,16 @@ import {
   encodeMapToPayloads,
   encodeToPayloads,
 } from '@temporalio/common/lib/internal-non-workflow';
+import { temporal } from '@temporalio/proto';
+import {
+  msOptionalToTs,
+  msToTs,
+  optionalDateToTs,
+  optionalTsToDate,
+  optionalTsToMs,
+  tsToDate,
+} from '@temporalio/common/lib/time';
+import { RequireAtLeastOne } from '@temporalio/common/src/type-helpers';
 import {
   CalendarSpec,
   CalendarSpecDescription,
@@ -37,18 +48,6 @@ import {
   ScheduleExecutionResult,
   ScheduleExecutionStartWorkflowActionResult,
 } from './schedule-types';
-import { temporal } from '@temporalio/proto';
-import {
-  msOptionalToTs,
-  msToTs,
-  optionalDateToTs,
-  optionalTsToDate,
-  optionalTsToMs,
-  tsToDate,
-} from '@temporalio/common/lib/time';
-import { RequireAtLeastOne } from '@temporalio/common/src/type-helpers';
-// eslint-disable-next-line import/no-named-as-default
-import Long from 'long';
 
 const [encodeSecond, decodeSecond] = makeCalendarSpecFieldCoders(
   'second',

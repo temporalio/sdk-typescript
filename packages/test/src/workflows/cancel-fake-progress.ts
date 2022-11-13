@@ -6,8 +6,8 @@ import {
   setHandler,
   condition,
 } from '@temporalio/workflow';
-import { activityStartedSignal } from './definitions';
 import type * as activities from '../activities';
+import { activityStartedSignal } from './definitions';
 
 const { fakeProgress } = proxyActivities<typeof activities>({
   startToCloseTimeout: '200s',

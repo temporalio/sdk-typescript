@@ -1,3 +1,4 @@
+import type { RawSourceMap } from 'source-map';
 import {
   defaultFailureConverter,
   FailureConverter,
@@ -13,7 +14,6 @@ import {
   WorkflowSignalType,
   ProtoFailure,
 } from '@temporalio/common';
-import type { RawSourceMap } from 'source-map';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import { checkExtends } from '@temporalio/common/lib/type-helpers';
 import type { coresdk } from '@temporalio/proto';

@@ -1,9 +1,9 @@
 import * as realFS from 'fs';
-import * as memfs from 'memfs';
 import { builtinModules } from 'module';
 import path from 'path';
-import * as unionfs from 'unionfs';
 import util from 'util';
+import * as unionfs from 'unionfs';
+import * as memfs from 'memfs';
 import { Configuration, webpack } from 'webpack';
 import { DefaultLogger, Logger } from '../logger';
 import { toMB } from '../utils';

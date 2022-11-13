@@ -1,5 +1,5 @@
-import { CancelledFailure, IllegalStateError } from '@temporalio/common';
 import type { AsyncLocalStorage as ALS } from 'async_hooks';
+import { CancelledFailure, IllegalStateError } from '@temporalio/common';
 import { untrackPromise } from './stack-helpers';
 
 // AsyncLocalStorage is injected via vm module into global scope.

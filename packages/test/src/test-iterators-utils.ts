@@ -1,5 +1,5 @@
-import { mapAsyncIterable } from '@temporalio/client/lib/iterators-utils';
 import test from 'ava';
+import { mapAsyncIterable } from '@temporalio/client/lib/iterators-utils';
 
 test(`mapAsyncIterable (with no concurrency) returns mapped values`, async (t) => {
   async function* source(): AsyncIterable<number> {

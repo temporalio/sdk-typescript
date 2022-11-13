@@ -1,4 +1,6 @@
 /* eslint @typescript-eslint/no-non-null-assertion: 0 */
+import test from 'ava';
+import { v4 as uuid4 } from 'uuid';
 import { WorkflowClient } from '@temporalio/client';
 import {
   BinaryPayloadConverter,
@@ -18,10 +20,7 @@ import {
   ProtobufJsonPayloadConverter,
 } from '@temporalio/common/lib/protobufs';
 import { DefaultLogger, Runtime, Worker } from '@temporalio/worker';
-import test from 'ava';
-import { v4 as uuid4 } from 'uuid';
-// eslint-disable-next-line import/default
-import root from '../protos/root';
+import root from '../protos/root'; // eslint-disable-line import/default
 import { RUN_INTEGRATION_TESTS } from './helpers';
 import { defaultOptions } from './mock-native-worker';
 import { messageInstance } from './payload-converters/proto-payload-converter';

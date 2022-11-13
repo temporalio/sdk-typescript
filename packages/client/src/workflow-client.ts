@@ -1,4 +1,5 @@
 import { status as grpcStatus } from '@grpc/grpc-js';
+import { v4 as uuid4 } from 'uuid';
 import {
   BaseWorkflowHandle,
   CancelledFailure,
@@ -29,7 +30,6 @@ import {
   filterNullAndUndefined,
 } from '@temporalio/common/lib/internal-non-workflow';
 import { temporal } from '@temporalio/proto';
-import { v4 as uuid4 } from 'uuid';
 import { isServerErrorResponse, ServiceError, WorkflowContinuedAsNewError, WorkflowFailedError } from './errors';
 import {
   WorkflowCancelInput,

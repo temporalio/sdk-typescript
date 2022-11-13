@@ -1,11 +1,11 @@
 // Modified from: https://github.com/vercel/next.js/blob/2425f4703c4c6164cecfdb6aa8f80046213f0cc6/packages/create-next-app/create-app.ts
+import path from 'path';
+import { access, rm, readFile } from 'fs/promises';
 import retry from 'async-retry';
 import chalk from 'chalk';
 import chalkTemplate from 'chalk-template';
-import path from 'path';
 // eslint-disable-next-line import/no-named-as-default
 import prompts from 'prompts';
-import { access, rm, readFile } from 'fs/promises';
 
 import {
   downloadAndExtractSample,

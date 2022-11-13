@@ -6,8 +6,8 @@ import {
 } from '@temporalio/common';
 import { optionalTsToDate, tsToDate } from '@temporalio/common/lib/time';
 import { decodeMapFromPayloads } from '@temporalio/common/lib/internal-non-workflow/codec-helpers';
-import { RawWorkflowExecutionInfo, WorkflowExecutionInfo, WorkflowExecutionStatusName } from './types';
 import { temporal } from '@temporalio/proto';
+import { RawWorkflowExecutionInfo, WorkflowExecutionInfo, WorkflowExecutionStatusName } from './types';
 
 function workflowStatusCodeToName(code: temporal.api.enums.v1.WorkflowExecutionStatus): WorkflowExecutionStatusName {
   return workflowStatusCodeToNameInternal(code) ?? 'UNKNOWN';

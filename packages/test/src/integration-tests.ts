@@ -1,5 +1,13 @@
 /* eslint @typescript-eslint/no-non-null-assertion: 0 */
 import path from 'node:path';
+import v8 from 'v8';
+import { readFileSync } from 'node:fs';
+import * as grpc from '@grpc/grpc-js';
+import asyncRetry from 'async-retry';
+import anyTest, { Implementation, TestInterface } from 'ava';
+import dedent from 'dedent';
+import ms from 'ms';
+import { v4 as uuid4 } from 'uuid';
 import {
   ActivityFailure,
   ApplicationFailure,
@@ -37,20 +45,12 @@ import {
   Worker,
 } from '@temporalio/worker';
 import pkg from '@temporalio/worker/lib/pkg';
-import * as grpc from '@grpc/grpc-js';
-import v8 from 'v8';
-import asyncRetry from 'async-retry';
-import anyTest, { Implementation, TestInterface } from 'ava';
-import dedent from 'dedent';
-import ms from 'ms';
-import { v4 as uuid4 } from 'uuid';
+import { UnsafeWorkflowInfo } from '@temporalio/workflow/src/interfaces';
 import * as activities from './activities';
 import { ConnectionInjectorInterceptor } from './activities/interceptors';
 import { cleanOptionalStackTrace, u8 } from './helpers';
 import * as workflows from './workflows';
 import { withZeroesHTTPServer } from './zeroes-http-server';
-import { readFileSync } from 'node:fs';
-import { UnsafeWorkflowInfo } from '@temporalio/workflow/src/interfaces';
 
 const { EVENT_TYPE_TIMER_STARTED, EVENT_TYPE_TIMER_FIRED, EVENT_TYPE_TIMER_CANCELED } =
   iface.temporal.api.enums.v1.EventType;

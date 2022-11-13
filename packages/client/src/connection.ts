@@ -1,8 +1,8 @@
+import { AsyncLocalStorage } from 'async_hooks';
 import * as grpc from '@grpc/grpc-js';
+import type { RPCImpl } from 'protobufjs';
 import { filterNullAndUndefined, normalizeTlsConfig, TLSConfig } from '@temporalio/common/lib/internal-non-workflow';
 import { msOptionalToNumber } from '@temporalio/common/lib/time';
-import { AsyncLocalStorage } from 'async_hooks';
-import type { RPCImpl } from 'protobufjs';
 import { isServerErrorResponse, ServiceError } from './errors';
 import { defaultGrpcRetryOptions, makeGrpcRetryInterceptor } from './grpc-retry';
 import pkg from './pkg';

@@ -1,3 +1,10 @@
+import { promisify } from 'util';
+import * as v8 from 'v8';
+import * as fs from 'fs';
+import * as os from 'os';
+import { Heap } from 'heap-js';
+import { BehaviorSubject, lastValueFrom, of } from 'rxjs';
+import { concatMap, delay, map, repeat } from 'rxjs/operators';
 import * as native from '@temporalio/core-bridge';
 import {
   pollLogs,
@@ -13,20 +20,13 @@ import {
 import { filterNullAndUndefined, normalizeTlsConfig } from '@temporalio/common/lib/internal-non-workflow';
 import { IllegalStateError } from '@temporalio/common';
 import { temporal } from '@temporalio/proto';
-import { Heap } from 'heap-js';
-import { BehaviorSubject, lastValueFrom, of } from 'rxjs';
-import { concatMap, delay, map, repeat } from 'rxjs/operators';
-import { promisify } from 'util';
+import { History } from '@temporalio/common/lib/proto-utils';
+import { msToNumber } from '@temporalio/common/lib/time';
 import * as errors from './errors';
 import { DefaultLogger, LogEntry, Logger, LogTimestamp, timeOfDayToBigint } from './logger';
 import { compileConnectionOptions, getDefaultConnectionOptions, NativeConnectionOptions } from './connection-options';
 import { byteArrayToBuffer, toMB } from './utils';
 import pkg from './pkg';
-import { History } from '@temporalio/common/lib/proto-utils';
-import * as v8 from 'v8';
-import * as fs from 'fs';
-import * as os from 'os';
-import { msToNumber } from '@temporalio/common/lib/time';
 
 export { History };
 

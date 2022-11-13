@@ -1,6 +1,6 @@
-import arg from 'arg';
 import os from 'os';
 import fs from 'fs';
+import arg from 'arg';
 import pidusage from 'pidusage';
 import * as grpc from '@grpc/grpc-js';
 import { v4 as uuid4 } from 'uuid';

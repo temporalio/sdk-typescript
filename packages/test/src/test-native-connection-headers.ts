@@ -1,7 +1,7 @@
-import test from 'ava';
-import { Subject, firstValueFrom } from 'rxjs';
 import util from 'util';
 import path from 'path';
+import test from 'ava';
+import { Subject, firstValueFrom } from 'rxjs';
 import * as grpc from '@grpc/grpc-js';
 import * as protoLoader from '@grpc/proto-loader';
 import { NativeConnection, Worker } from '@temporalio/worker';

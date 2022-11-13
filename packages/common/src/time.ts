@@ -1,7 +1,7 @@
-import type { google } from '@temporalio/proto';
 // eslint-disable-next-line import/no-named-as-default
 import Long from 'long';
 import ms from 'ms';
+import type { google } from '@temporalio/proto';
 import { ValueError } from './errors';
 
 // NOTE: these are the same interface in JS

@@ -9,9 +9,9 @@
  * @module
  */
 
+import { Worker as NodeWorker } from 'worker_threads';
 import { coresdk } from '@temporalio/proto';
 import { IllegalStateError, SinkCall } from '@temporalio/workflow';
-import { Worker as NodeWorker } from 'worker_threads';
 import { UnexpectedError } from '../errors';
 import {
   WorkflowBundleWithSourceMapAndFilename,

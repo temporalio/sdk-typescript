@@ -120,7 +120,7 @@ jobs:
       # eslint-import-resolver-typescript requires packages to be built
       - name: Compile all non-rust code
         run: npm run build -- --ignore @temporalio/core-bridge
-      - run: npm run lint
+      - run: npm run lint.check
       - run: npm run lint.prune
 
   # Compile native bridge code and isolate extension for Windows, Mac and Linux.

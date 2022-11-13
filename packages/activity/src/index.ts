@@ -69,8 +69,8 @@
  * @module
  */
 
-import { AbortSignal } from 'abort-controller';
 import { AsyncLocalStorage } from 'async_hooks';
+import { AbortSignal } from 'abort-controller';
 import { msToNumber } from '@temporalio/common/lib/time';
 
 export {

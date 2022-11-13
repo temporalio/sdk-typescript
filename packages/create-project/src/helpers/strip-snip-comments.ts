@@ -1,6 +1,6 @@
-import glob from 'glob'; // eslint-disable-line import/no-named-as-default
 import path from 'path';
 import { readFile, writeFile } from 'fs/promises';
+import glob from 'glob'; // eslint-disable-line import/no-named-as-default
 
 export async function stripSnipComments(root: string): Promise<void> {
   const files = glob.sync('**/*.ts', { cwd: root });
