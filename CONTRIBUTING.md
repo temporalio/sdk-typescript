@@ -29,10 +29,10 @@ We welcome contributions from the community. To contribute, please start by open
 
 The current maintainers are:
 
-- [Loren `lorensr`](https://github.com/lorensr)
 - [Roey `bergundy`](https://github.com/bergundy)
+- [James `mjameswh`](https://github.com/mjameswh)
 
-If you'd like to join us, [email Loren](mailto:loren@temporal.io). We'd be happy to have help with any of these things:
+If you'd like to join us, [email Roey](mailto:roey@temporal.io). We'd be happy to have help with any of these things:
 
 - Triaging issues
 - Reviewing PRs
@@ -167,6 +167,8 @@ git-cliff --tag 1.0.1 v1.0.0..HEAD | pbcopy
 
 - If PRs came from external contributors, thank them & link their github handles: `([#484](link), thanks to [`@user`](https://github.com/user) 🙏)`
 - Open PR with CHANGELOG change
+- If using a custom [sdk-features](https://github.com/temporalio/sdk-features) branch for PR integration tests, make
+  sure the branch is fully up-to-date with `sdk-features` `main` before merging the CHANGELOG PR
 - Merge PR
 - Checkout latest `main`
 
@@ -216,6 +218,9 @@ npm deprecate temporalio@^1.0.0 "Instead of installing temporalio, we recommend 
   rm $HOME/Downloads/packages-*
   rm packages/core-bridge/releases/
   ```
+
+- If using a custom [sdk-features](https://github.com/temporalio/sdk-features/) branch for PR integration tests, merge
+  that branch into sdk-features `main` and update the SDK workflow definition to trigger `sdk-features` `main`
 
 - If any APIs have changed, open a PR to update [`samples-typescript`](https://github.com/temporalio/samples-typescript/). Once merged, update the `next` branch:
 
