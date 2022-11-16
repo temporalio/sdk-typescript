@@ -10,15 +10,15 @@ use std::{
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 use temporal_client::{ClientInitError, ConfiguredClient, TemporalServiceClientWithMetrics};
+use temporal_sdk_core::api::telemetry::{CoreTelemetry, TelemetryOptions};
+use temporal_sdk_core::CoreRuntime;
 use temporal_sdk_core::{
-    ephemeral_server::EphemeralServer as CoreEphemeralServer, fetch_global_buffered_logs,
-    init_replay_worker, init_worker, replay::HistoryForReplay, telemetry_init, ClientOptions,
-    RetryClient, WorkerConfig,
+    ephemeral_server::EphemeralServer as CoreEphemeralServer, init_replay_worker, init_worker,
+    replay::HistoryForReplay, ClientOptions, RetryClient, WorkerConfig,
 };
-use tokio::sync::mpsc::{channel, Sender, UnboundedReceiver, UnboundedSender};
-use tokio::{
-    runtime::Runtime,
-    sync::{mpsc::unbounded_channel, Mutex},
+use tokio::sync::{
+    mpsc::{channel, unbounded_channel, Sender, UnboundedReceiver, UnboundedSender},
+    Mutex,
 };
 use tokio_stream::wrappers::ReceiverStream;
 
@@ -109,20 +109,20 @@ pub enum RuntimeRequest {
     },
 }
 
-/// Inits a multi-threaded tokio runtime used to interact with sdk-core APIs
-pub fn tokio_runtime() -> Runtime {
-    tokio::runtime::Builder::new_multi_thread()
-        .enable_all()
-        .thread_name("core")
-        .build()
-        .expect("Tokio runtime must construct properly")
-}
-
 /// Builds a tokio runtime and starts polling on [RuntimeRequest]s via an internal channel.
 /// Bridges requests from JS to core and sends responses back to JS using a neon::Channel.
 /// Blocks current thread until a [Shutdown] request is received in channel.
-pub fn start_bridge_loop(channel: Arc<Channel>, receiver: &mut UnboundedReceiver<RuntimeRequest>) {
-    tokio_runtime().block_on(async {
+pub fn start_bridge_loop(
+    telemetry_options: TelemetryOptions,
+    channel: Arc<Channel>,
+    receiver: &mut UnboundedReceiver<RuntimeRequest>,
+) {
+    let mut tokio_builder = tokio::runtime::Builder::new_multi_thread();
+    tokio_builder.enable_all().thread_name("core");
+    let core_runtime =
+        CoreRuntime::new(telemetry_options, tokio_builder).expect("Failed to create CoreRuntime");
+
+    core_runtime.tokio_handle().block_on(async {
         loop {
             let request_option = receiver.recv().await;
             let request = match request_option {
@@ -147,7 +147,7 @@ pub fn start_bridge_loop(channel: Arc<Channel>, receiver: &mut UnboundedReceiver
                     // returned client directly at the moment, when we repurpose the client to be
                     // used by a Worker, `init_worker` will attach the correct metrics meter for
                     // us.
-                    tokio::spawn(async move {
+                    core_runtime.tokio_handle().spawn(async move {
                         match options
                             .connect_no_namespace(None, headers.map(|h| Arc::new(RwLock::new(h))))
                             .await
@@ -187,7 +187,7 @@ pub fn start_bridge_loop(channel: Arc<Channel>, receiver: &mut UnboundedReceiver
                     send_result(channel.clone(), callback, |cx| Ok(cx.undefined()));
                 }
                 RuntimeRequest::PollLogs { callback } => {
-                    let logs = fetch_global_buffered_logs();
+                    let logs = core_runtime.telemetry().fetch_buffered_logs();
                     send_result(channel.clone(), callback, |cx| {
                         let logarr = cx.empty_array();
                         for (i, cl) in logs.into_iter().enumerate() {
@@ -211,12 +211,18 @@ pub fn start_bridge_loop(channel: Arc<Channel>, receiver: &mut UnboundedReceiver
                     callback,
                 } => {
                     let client = (*client).clone();
-                    let worker = init_worker(config, client.into_inner());
-                    let (tx, rx) = unbounded_channel();
-                    tokio::spawn(start_worker_loop(worker, rx, channel.clone()));
-                    send_result(channel.clone(), callback, |cx| {
-                        Ok(cx.boxed(RefCell::new(Some(WorkerHandle { sender: tx }))))
-                    });
+                    match init_worker(&core_runtime, config, client.into_inner()) {
+                        Ok(worker) => {
+                            let (tx, rx) = unbounded_channel();
+                            core_runtime.tokio_handle().spawn(start_worker_loop(worker, rx, channel.clone()));
+                            send_result(channel.clone(), callback, |cx| {
+                                Ok(cx.boxed(RefCell::new(Some(WorkerHandle { sender: tx }))))
+                            });
+                        }
+                        Err(err) => send_error(channel.clone(), callback, move |cx| {
+                            UNEXPECTED_ERROR.from_error(cx, err.deref())
+                        }),
+                    }
                 }
                 RuntimeRequest::InitReplayWorker {
                     runtime,
@@ -227,7 +233,7 @@ pub fn start_bridge_loop(channel: Arc<Channel>, receiver: &mut UnboundedReceiver
                     match init_replay_worker(config, Box::pin(stream)) {
                         Ok(worker) => {
                             let (tx, rx) = unbounded_channel();
-                            tokio::spawn(start_worker_loop(worker, rx, channel.clone()));
+                            core_runtime.tokio_handle().spawn(start_worker_loop(worker, rx, channel.clone()));
                             send_result(channel.clone(), callback, |cx| {
                                 let worker =
                                     cx.boxed(RefCell::new(Some(WorkerHandle { sender: tx })));
@@ -248,7 +254,7 @@ pub fn start_bridge_loop(channel: Arc<Channel>, receiver: &mut UnboundedReceiver
                     config,
                     callback,
                 } => {
-                    tokio::spawn(async move {
+                    core_runtime.tokio_handle().spawn(async move {
                         let result = match config {
                             EphemeralServerConfig::TestServer(config) => {
                                 config.start_server().await
@@ -276,7 +282,7 @@ pub fn start_bridge_loop(channel: Arc<Channel>, receiver: &mut UnboundedReceiver
                     });
                 }
                 RuntimeRequest::ShutdownEphemeralServer { server, callback } => {
-                    tokio::spawn(async move {
+                    core_runtime.tokio_handle().spawn(async move {
                         void_future_to_js(
                             channel,
                             callback,
@@ -299,7 +305,7 @@ pub fn start_bridge_loop(channel: Arc<Channel>, receiver: &mut UnboundedReceiver
                     pushme,
                     callback,
                 } => {
-                    tokio::spawn(async move {
+                    core_runtime.tokio_handle().spawn(async move {
                         let sendfut = async move {
                             tx.send(pushme).await.map_err(|e| {
                                 format!(
@@ -344,24 +350,15 @@ pub fn get_time_of_day(mut cx: FunctionContext) -> JsResult<JsArray> {
     system_time_to_js(&mut cx, SystemTime::now())
 }
 
-/// Initialize Core global telemetry.
+/// Initialize Core global telemetry and create the tokio runtime required to run Core.
 /// This should typically be called once on process startup.
-pub fn init_telemetry(mut cx: FunctionContext) -> JsResult<JsUndefined> {
-    let telemetry_options = cx.argument::<JsObject>(0)?.as_telemetry_options(&mut cx)?;
-    telemetry_init(&telemetry_options).map_err(|err| {
-        cx.throw_type_error::<String, ()>(format!("{}", err))
-            .unwrap_err()
-    })?;
-    Ok(cx.undefined())
-}
-
-/// Create the tokio runtime required to run Core.
 /// Immediately spawns a poller thread that will block on [RuntimeRequest]s
 pub fn runtime_new(mut cx: FunctionContext) -> JsResult<BoxedRuntime> {
+    let telemetry_options = cx.argument::<JsObject>(0)?.as_telemetry_options(&mut cx)?;
     let channel = Arc::new(cx.channel());
     let (sender, mut receiver) = unbounded_channel::<RuntimeRequest>();
 
-    std::thread::spawn(move || start_bridge_loop(channel, &mut receiver));
+    std::thread::spawn(move || start_bridge_loop(telemetry_options, channel, &mut receiver));
 
     Ok(cx.boxed(Arc::new(RuntimeHandle { sender })))
 }

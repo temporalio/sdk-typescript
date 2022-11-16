@@ -26,7 +26,7 @@ export { startDebugReplayer } from './debug-replayer';
 export * from './errors';
 export * from './interceptors';
 export * from './logger';
-export { History, Runtime, RuntimeOptions } from './runtime';
+export { History, Runtime, RuntimeOptions, makeTelemetryFilterString } from './runtime';
 export * from './sinks';
 export {
   CombinedWorkerRunError,

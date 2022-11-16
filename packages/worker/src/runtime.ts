@@ -4,9 +4,8 @@ import {
   runtimeShutdown,
   newClient,
   newRuntime,
-  initTelemetry,
   TelemetryOptions,
-  Logger as TelemLogger,
+  CompiledTelemetryOptions,
   ForwardLogger,
 } from '@temporalio/core-bridge';
 import { filterNullAndUndefined, normalizeTlsConfig } from '@temporalio/common/lib/internal-non-workflow';
@@ -28,7 +27,7 @@ import * as os from 'os';
 
 export { History };
 
-function isForwardingLogger(opts: TelemLogger): opts is ForwardLogger {
+function isForwardingLogger(opts: TelemetryOptions['logging']): opts is ForwardLogger {
   return Object.hasOwnProperty.call(opts, 'forward');
 }
 
@@ -56,17 +55,49 @@ export interface RuntimeOptions {
 
 export interface CompiledRuntimeOptions {
   shutdownSignals: NodeJS.Signals[];
-  telemetryOptions: TelemetryOptions;
+  telemetryOptions: CompiledTelemetryOptions;
   logger: Logger;
 }
 
-function defaultTelemetryOptions(): TelemetryOptions {
-  return {
-    tracingFilter: 'temporal_sdk_core=INFO',
-    logging: {
-      console: {},
-    },
-  };
+export interface MakeTelemetryFilterStringOptions {
+  /**
+   * Determines which level of verbosity to keep for _SDK Core_'s related events.
+   * Any event with a verbosity level less than that value will be discarded.
+   * Possible values are, in order: 'TRACE' | 'DEBUG' | 'INFO' | 'WARN' | 'ERROR'.
+   */
+  core: native.LogLevel;
+
+  /**
+   * Determines which level of verbosity to keep for events related to third
+   * party native packages imported by SDK Core. Any event with a verbosity level
+   * less than that value will be discarded. Possible values are, in order:
+   * 'TRACE' | 'DEBUG' | 'INFO' | 'WARN' | 'ERROR'.
+   *
+   * @defaults `'INFO'`
+   */
+  other?: native.LogLevel;
+}
+
+/**
+ * A helper to build a filter string for use in `RuntimeOptions.telemetryOptions.tracingFilter`.
+ *
+ * Example:
+ *  ```
+ *  telemetryOptions: {
+ *    logging: {
+ *     filter: makeTelemetryFilterString({ core: 'TRACE', other: 'DEBUG' });
+ *     // ...
+ *    },
+ *    tracing: {
+ *     filter: makeTelemetryFilterString({ core: 'DEBUG' });
+ *     // ...
+ *    }
+ *  }
+ * ```
+ */
+export function makeTelemetryFilterString(options: MakeTelemetryFilterStringOptions): string {
+  const { core, other } = { other: 'INFO', ...options };
+  return `${other},temporal_sdk_core=${core},temporal_client=${core},temporal_sdk=${core}`;
 }
 
 /** A logger that buffers logs from both Node.js and Rust Core and emits logs in the right order */
@@ -168,23 +199,44 @@ export class Runtime {
     this.instantiator = instantiator;
 
     const compiledOptions = this.compileOptions(options);
-    if (compiledOptions.telemetryOptions) {
-      initTelemetry(compiledOptions.telemetryOptions);
-    }
-    const runtime = newRuntime();
+    const runtime = newRuntime(compiledOptions.telemetryOptions);
     this._instance = new this(runtime, compiledOptions);
     return this._instance;
   }
 
   // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
   protected static compileOptions(options: RuntimeOptions): CompiledRuntimeOptions {
-    const telemetryOptions = {
-      ...defaultTelemetryOptions(),
-      ...filterNullAndUndefined(options.telemetryOptions ?? {}),
-    };
+    // eslint-disable-next-line deprecation/deprecation
+    const { logging, tracing, tracingFilter, ...otherTelemetryOpts } = options.telemetryOptions ?? {};
+
+    const defaultFilter = tracingFilter ?? makeTelemetryFilterString({ core: 'INFO', other: 'INFO' });
+    const loggingFilter = logging?.filter;
+
+    // eslint-disable-next-line deprecation/deprecation
+    const forwardLevel = (logging as ForwardLogger | undefined)?.forward?.level;
+    const forwardLevelFilter = forwardLevel && makeTelemetryFilterString({ core: forwardLevel, other: forwardLevel });
+
     return {
       shutdownSignals: options.shutdownSignals ?? ['SIGINT', 'SIGTERM', 'SIGQUIT', 'SIGUSR2'],
-      telemetryOptions,
+      telemetryOptions: {
+        logging:
+          !!logging && isForwardingLogger(logging)
+            ? {
+                filter: loggingFilter ?? forwardLevelFilter ?? defaultFilter,
+                forward: {},
+              }
+            : {
+                filter: loggingFilter ?? defaultFilter,
+                console: {},
+              },
+        tracing: tracing?.otel && {
+          filter: defaultFilter,
+          otel: {
+            ...filterNullAndUndefined(tracing.otel),
+          },
+        },
+        ...filterNullAndUndefined(otherTelemetryOpts ?? {}),
+      },
       logger: options.logger ?? new DefaultLogger('INFO'),
     };
   }
