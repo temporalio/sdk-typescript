@@ -44,9 +44,9 @@ export class Client {
       request.once('response', resolve);
     });
     if (response.statusCode !== 200) {
-      const responseBody = await Client.readAll(response);
       let message = response.statusMessage;
       try {
+        const responseBody = await Client.readAll(response);
         message = JSON.parse(responseBody.toString())?.error ?? message;
       } catch {
         // ignore
@@ -70,9 +70,9 @@ export class Client {
       request.once('response', resolve);
     });
     if (response.statusCode !== 200) {
-      const responseBody = await Client.readAll(response);
       let message = response.statusMessage;
       try {
+        const responseBody = await Client.readAll(response);
         message = JSON.parse(responseBody.toString())?.error ?? message;
       } catch {
         // ignore
