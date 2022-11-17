@@ -4,6 +4,7 @@ import {
   CancelledFailure,
   compileRetryPolicy,
   mapToPayloads,
+  HistoryAndWorkflowId,
   QueryDefinition,
   RetryState,
   searchAttributePayloadConverter,
@@ -18,6 +19,7 @@ import {
   WorkflowResultType,
 } from '@temporalio/common';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
+import { History } from '@temporalio/common/lib/proto-utils';
 import {
   decodeArrayFromPayloads,
   decodeFromPayloadsAtIndex,
@@ -65,6 +67,7 @@ import {
   LoadedWithDefaults,
   WithDefaults,
 } from './base-client';
+import { raceMapAsyncIterable } from './iterators-utils';
 
 /**
  * A client side handle to a single Workflow instance.
@@ -130,6 +133,11 @@ export interface WorkflowHandle<T extends Workflow = Workflow> extends BaseWorkf
    * Describe the current workflow execution
    */
   describe(): Promise<WorkflowExecutionDescription>;
+
+  /**
+   * Return a workflow execution's history
+   */
+  fetchHistory(): Promise<History>;
 
   /**
    * Readonly accessor to the underlying WorkflowClient
@@ -259,6 +267,18 @@ export interface ListOptions {
    * Query string for matching and ordering the results
    */
   query?: string;
+}
+
+/**
+ * Options for {@link WorkflowClient.list().intoHistories()}
+ */
+export interface IntoHistoriesOptions {
+  /**
+   * Maximum number of workflow histories to download concurrently.
+   *
+   * @default 5
+   */
+  concurrency?: number;
 }
 
 /**
@@ -799,6 +819,24 @@ export class WorkflowClient extends BaseClient {
         (info as unknown as WorkflowExecutionDescription).raw = raw;
         return info;
       },
+      async fetchHistory() {
+        // FIXME-JWH: determine which of getWorkflowExecutionHistory's options could be useful in user code and tests
+        // FIXME-JWH: Would it be more appropriate for this function to be a generator instead?
+        let nextPageToken: Uint8Array | undefined = undefined;
+        const history = Array<temporal.api.history.v1.IHistoryEvent>();
+        for (;;) {
+          const response: temporal.api.workflowservice.v1.GetWorkflowExecutionHistoryResponse =
+            await this.client.workflowService.getWorkflowExecutionHistory({
+              nextPageToken,
+              namespace: this.client.options.namespace,
+              execution: { workflowId, runId },
+            });
+          history.push(...(response.history?.events ?? []));
+          nextPageToken = response.nextPageToken;
+          if (nextPageToken == null || nextPageToken.length == 0) break;
+        }
+        return temporal.api.history.v1.History.create({ events: history });
+      },
       async signal<Args extends any[]>(def: SignalDefinition<Args> | string, ...args: Args): Promise<void> {
         const next = this.client._signalWorkflowHandler.bind(this.client);
         const fn = interceptors.length ? composeInterceptors(interceptors, 'signal', next) : next;
@@ -858,15 +896,7 @@ export class WorkflowClient extends BaseClient {
     });
   }
 
-  /**
-   * List workflows by given `query`.
-   *
-   * ⚠️ To use advanced query functionality, as of the 1.18 server release, you must use Elasticsearch based visibility.
-   *
-   * More info on the concept of "visibility" and the query syntax on the Temporal documentation site:
-   * https://docs.temporal.io/visibility
-   */
-  public async *list(options?: ListOptions): AsyncIterable<WorkflowExecutionInfo> {
+  protected async *_list(options?: ListOptions): AsyncIterable<WorkflowExecutionInfo> {
     let nextPageToken: Uint8Array = Buffer.alloc(0);
     for (;;) {
       const response = await this.workflowService.listWorkflowExecutions({
@@ -885,6 +915,57 @@ export class WorkflowClient extends BaseClient {
       if (nextPageToken == null || nextPageToken.length == 0) break;
     }
   }
+
+  /**
+   * List workflows by given `query`.
+   *
+   * ⚠️ To use advanced query functionality, as of the 1.18 server release, you must use Elasticsearch based visibility.
+   *
+   * More info on the concept of "visibility" and the query syntax on the Temporal documentation site:
+   * https://docs.temporal.io/visibility
+   */
+  public list(options?: ListOptions): AsyncIterable<WorkflowExecutionInfo> & {
+    intoHistories: (intoHistoriesOptions?: IntoHistoriesOptions) => AsyncIterable<HistoryAndWorkflowId>; // FIXME-JWH: Move to a properly defined interface
+  } {
+    return {
+      [Symbol.asyncIterator]: () => this._list(options)[Symbol.asyncIterator](),
+      intoHistories: (intoHistoriesOptions?: IntoHistoriesOptions) => {
+        return raceMapAsyncIterable(
+          this._list(options),
+          async ({ workflowId, runId }) => ({
+            workflowId,
+            history: await this.getHandle(workflowId, runId).fetchHistory(),
+          }),
+          intoHistoriesOptions?.concurrency ?? 5
+        );
+      },
+    };
+  }
+
+  // FIXME-JWH: Keeping for reuse in list.intohistories() doc
+  // /**
+  //  * An object containing a client and an iterable of workflowIds and optional runIds to used for batch replaying.
+  //  *
+  //  * The client is used to download the histories concurrently.
+  //  *
+  //  * @experimental - this API is not considered stable
+  //  */
+  // export interface ReplayExecutions {
+  //   /**
+  //    * Client used to download histories.
+  //    */
+  //   client: Client;
+  //   /**
+  //    * (Async) Iterable of workflow executions to use as a source for history replays.
+  //    */
+  //   executions: AsyncIterable<WorkflowExecution> | Iterable<WorkflowExecution>;
+  //   /**
+  //    * Maximum number of histories that will be fetched concurrently.
+  //    *
+  //    * @default 5
+  //    */
+  //   maxConcurrency?: number;
+  // }
 
   protected getOrMakeInterceptors(workflowId: string, runId?: string): WorkflowClientInterceptor[] {
     if (typeof this.options.interceptors === 'object' && 'calls' in this.options.interceptors) {
