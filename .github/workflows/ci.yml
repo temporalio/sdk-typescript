@@ -287,7 +287,8 @@ jobs:
     uses: temporalio/sdk-features/.github/workflows/typescript.yaml@main
     with:
       typescript-repo-path: ${{github.event.pull_request.head.repo.full_name}}
-      typescript-repo-ref: ${{github.event.pull_request.head.ref}}
+      version: ${{github.event.pull_request.head.ref}}
+      version-is-repo-ref: true
 
   stress-tests:
     uses: ./.github/workflows/stress.yml
