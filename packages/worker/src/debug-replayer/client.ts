@@ -44,7 +44,14 @@ export class Client {
       request.once('response', resolve);
     });
     if (response.statusCode !== 200) {
-      throw new Error(`Bad response code from VS Code: ${response.statusCode}`);
+      let message = response.statusMessage;
+      try {
+        const responseBody = await Client.readAll(response);
+        message = JSON.parse(responseBody.toString())?.error ?? message;
+      } catch {
+        // ignore
+      }
+      throw new Error(`Bad response code from VS Code: ${response.statusCode}: ${message}`);
     }
     return response;
   }
@@ -63,7 +70,14 @@ export class Client {
       request.once('response', resolve);
     });
     if (response.statusCode !== 200) {
-      throw new Error(`Bad response code from VS Code: ${response.statusCode}`);
+      let message = response.statusMessage;
+      try {
+        const responseBody = await Client.readAll(response);
+        message = JSON.parse(responseBody.toString())?.error ?? message;
+      } catch {
+        // ignore
+      }
+      throw new Error(`Bad response code from VS Code: ${response.statusCode}: ${message}`);
     }
     return response;
   }
