@@ -137,10 +137,13 @@ export function initRuntime(options: WorkflowCreateOptionsWithSourceMap): void {
 
   const mod = importWorkflows();
   const workflow = mod[info.workflowType];
-  if (typeof workflow !== 'function') {
+  if (typeof workflow === 'function') {
+    activator.workflow = workflow;
+  } else if (typeof mod.default === 'function') {
+    activator.workflow = mod.default(info.workflowType);
+  } else {
     throw new TypeError(`'${info.workflowType}' is not a function`);
   }
-  activator.workflow = workflow;
 }
 
 /**
