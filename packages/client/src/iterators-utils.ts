@@ -1,14 +1,32 @@
 import { EventEmitter, on } from 'node:events';
 
+/**
+ * Return an async iterable that transforms items from a source iterable by mapping each item
+ * through a mapping function.
+ *
+ * @param source the source async iterable
+ * @param mapFn a mapping function to apply on every item of the source iterable
+ */
 export async function* mapAsyncIterable<A, B>(
   source: AsyncIterable<A>,
-  func: (val: A) => Promise<B>
+  mapFn: (val: A) => Promise<B>
 ): AsyncIterable<B> {
   for await (const x of source) {
-    yield func(x);
+    yield mapFn(x);
   }
 }
 
+/**
+ * Return an async iterable that transforms items from a source iterable by concurrently mapping
+ * each item through a mapping function.
+ *
+ * Mapped items are returned by the resulting iterator in the order they complete processing,
+ * not the order in which the corresponding source items were obtained from the source iterator.
+ *
+ * @param source the source async iterable
+ * @param mapFn a mapping function to apply on every item of the source iterable
+ * @param concurrency maximum number of items to map concurrently
+ */
 export async function* raceMapAsyncIterable<A, B>(
   source: AsyncIterable<A>,
   mapFn: (val: A) => Promise<B>,
@@ -37,7 +55,7 @@ export async function* raceMapAsyncIterable<A, B>(
           pendingPromisesCount--;
         }
         return maybeStartTasks();
-      })().catch((e) => console.error(e)); // FIXME-JWH: Deal with exceptions
+      })().catch((e) => emiter.emit('error', e));
     }
 
     return !sourceIteratorDone || pendingPromisesCount > 0;

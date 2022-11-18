@@ -254,6 +254,19 @@ interface WorkflowHandleOptions extends GetWorkflowHandleOptions {
 }
 
 /**
+ * An iterable list of WorkflowExecution, as returned by {@link WorkflowClient.list}.
+ */
+interface AsyncWorkflowListIterable extends AsyncIterable<WorkflowExecutionInfo> {
+  /**
+   * Return an iterable list of histories corresponding to this iterable's WorkflowExecution.
+   * Workflow histories will be fetched concurrently.
+   *
+   * Useful in batch replaying
+   */
+  intoHistories: (intoHistoriesOptions?: IntoHistoriesOptions) => AsyncIterable<HistoryAndWorkflowId>;
+}
+
+/**
  * Options for {@link WorkflowClient.list}
  */
 export interface ListOptions {
@@ -820,8 +833,6 @@ export class WorkflowClient extends BaseClient {
         return info;
       },
       async fetchHistory() {
-        // FIXME-JWH: determine which of getWorkflowExecutionHistory's options could be useful in user code and tests
-        // FIXME-JWH: Would it be more appropriate for this function to be a generator instead?
         let nextPageToken: Uint8Array | undefined = undefined;
         const history = Array<temporal.api.history.v1.IHistoryEvent>();
         for (;;) {
@@ -924,9 +935,7 @@ export class WorkflowClient extends BaseClient {
    * More info on the concept of "visibility" and the query syntax on the Temporal documentation site:
    * https://docs.temporal.io/visibility
    */
-  public list(options?: ListOptions): AsyncIterable<WorkflowExecutionInfo> & {
-    intoHistories: (intoHistoriesOptions?: IntoHistoriesOptions) => AsyncIterable<HistoryAndWorkflowId>; // FIXME-JWH: Move to a properly defined interface
-  } {
+  public list(options?: ListOptions): AsyncWorkflowListIterable {
     return {
       [Symbol.asyncIterator]: () => this._list(options)[Symbol.asyncIterator](),
       intoHistories: (intoHistoriesOptions?: IntoHistoriesOptions) => {
@@ -941,31 +950,6 @@ export class WorkflowClient extends BaseClient {
       },
     };
   }
-
-  // FIXME-JWH: Keeping for reuse in list.intohistories() doc
-  // /**
-  //  * An object containing a client and an iterable of workflowIds and optional runIds to used for batch replaying.
-  //  *
-  //  * The client is used to download the histories concurrently.
-  //  *
-  //  * @experimental - this API is not considered stable
-  //  */
-  // export interface ReplayExecutions {
-  //   /**
-  //    * Client used to download histories.
-  //    */
-  //   client: Client;
-  //   /**
-  //    * (Async) Iterable of workflow executions to use as a source for history replays.
-  //    */
-  //   executions: AsyncIterable<WorkflowExecution> | Iterable<WorkflowExecution>;
-  //   /**
-  //    * Maximum number of histories that will be fetched concurrently.
-  //    *
-  //    * @default 5
-  //    */
-  //   maxConcurrency?: number;
-  // }
 
   protected getOrMakeInterceptors(workflowId: string, runId?: string): WorkflowClientInterceptor[] {
     if (typeof this.options.interceptors === 'object' && 'calls' in this.options.interceptors) {
