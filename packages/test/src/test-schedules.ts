@@ -422,7 +422,7 @@ if (RUN_INTEGRATION_TESTS) {
             .sort();
 
           const createdSchedulesIds = Object.values(createdScheduleHandles).map((x) => x.scheduleId);
-          if (createdSchedulesIds.length != listedScheduleIds.length) throw new Error('Missing list entries');
+          if (createdSchedulesIds.length !== listedScheduleIds.length) throw new Error('Missing list entries');
 
           t.deepEqual(listedScheduleIds, createdSchedulesIds);
         },

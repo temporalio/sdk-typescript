@@ -88,10 +88,7 @@ if (RUN_INTEGRATION_TESTS) {
       t.deepEqual(res, args);
 
       // Double check we have all local activity markers in history
-      const { history } = await client.workflowService.getWorkflowExecutionHistory({
-        namespace: 'default',
-        execution: { workflowId: handle.workflowId },
-      });
+      const history = await handle.fetchHistory();
       const markers = history?.events?.filter(
         (ev) => ev.eventType === temporal.api.enums.v1.EventType.EVENT_TYPE_MARKER_RECORDED
       );
@@ -160,10 +157,7 @@ if (RUN_INTEGRATION_TESTS) {
         taskQueue,
       });
       await handle.result();
-      const { history } = await client.workflowService.getWorkflowExecutionHistory({
-        namespace: 'default',
-        execution: { workflowId: handle.workflowId },
-      });
+      const history = await handle.fetchHistory();
       if (history?.events == null) {
         throw new Error('Expected non null events');
       }
@@ -244,10 +238,7 @@ if (RUN_INTEGRATION_TESTS) {
         workflowTaskTimeout: '3s',
       });
       await handle.result();
-      const { history } = await client.workflowService.getWorkflowExecutionHistory({
-        namespace: 'default',
-        execution: { workflowId: handle.workflowId },
-      });
+      const history = await handle.fetchHistory();
       const timers = history?.events?.filter(
         (ev) => ev.eventType === temporal.api.enums.v1.EventType.EVENT_TYPE_TIMER_FIRED
       );

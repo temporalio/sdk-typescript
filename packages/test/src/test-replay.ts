@@ -113,7 +113,7 @@ test('multiple-histories-replay', async (t) => {
       workflowsPath: require.resolve('./workflows'),
       replayName: t.title,
     },
-    { histories }
+    histories
   );
   t.is(res.errors.length, 0);
 });
@@ -132,7 +132,7 @@ test('multiple-histories-replay-fails-fast', async (t) => {
         workflowsPath: require.resolve('./workflows'),
         replayName: t.title,
       },
-      { histories }
+      histories
     )
   );
 });
@@ -150,7 +150,7 @@ test('multiple-histories-replay-fails-slow', async (t) => {
       replayName: t.title,
       failFast: false,
     },
-    { histories }
+    histories
   );
   t.is(res.errors.length, 1);
 });

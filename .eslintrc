@@ -12,6 +12,7 @@
     "prettier"
   ],
   "rules": {
+    "eqeqeq": ["error", "always", { "null": "ignore" }],
     "no-duplicate-imports": "error",
     "object-shorthand": ["error", "always"],
     "deprecation/deprecation": "warn",

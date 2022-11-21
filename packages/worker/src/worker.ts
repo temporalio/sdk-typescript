@@ -64,11 +64,10 @@ import { Logger } from './logger';
 import pkg from './pkg';
 import {
   EvictionReason,
-  fetchWorkflowHistory,
   handleReplayEviction,
   RemoveFromCache,
   ReplayError,
-  ReplayHistoriesOrExecutions,
+  ReplayHistoriesIterable,
   ReplayResults,
   ReplayRunOptions,
 } from './replay';
@@ -503,7 +502,7 @@ export class Worker {
     try {
       await this.runReplayHistories(
         { ...options, failFast: true }, // Always failFast in single replay
-        { histories: [{ history: validated, workflowId: workflowId ?? 'fake' }] }
+        [{ history: validated, workflowId: workflowId ?? 'fake' }]
       );
     } catch (err) {
       // Before supporting multiple history replays we used to throw DeterminismViolationError, the next line ensures we
@@ -529,29 +528,17 @@ export class Worker {
    */
   public static async runReplayHistories(
     options: ReplayWorkerOptions,
-    historiesOrExecutions: ReplayHistoriesOrExecutions
+    histories: ReplayHistoriesIterable
   ): Promise<ReplayResults> {
     const [worker, pusher] = await this.constructReplayWorker(options);
     const rt = Runtime.instance();
     const replayDone = new Subject<void>();
-    let feed;
-    if ('client' in historiesOrExecutions) {
-      const { client, executions, maxConcurrency } = historiesOrExecutions;
-      feed = from(executions).pipe(
-        mergeMap(async ({ workflowId, runId }) => {
-          const history = await fetchWorkflowHistory(client, workflowId, runId);
-          const validated = this.validateHistory(history);
-          await rt.pushHistory(pusher, workflowId, validated);
-        }, maxConcurrency ?? 5)
-      );
-    } else {
-      feed = from(historiesOrExecutions.histories).pipe(
-        concatMap(async ({ history, workflowId }) => {
-          const validated = this.validateHistory(history);
-          await rt.pushHistory(pusher, workflowId, validated);
-        })
-      );
-    }
+    const feed = from(histories).pipe(
+      concatMap(async ({ history, workflowId }) => {
+        const validated = this.validateHistory(history);
+        await rt.pushHistory(pusher, workflowId, validated);
+      })
+    );
     const feeder = lastValueFrom(feed.pipe(takeUntil(replayDone))).finally(() => rt.closeHistoryStream(pusher));
     const replayer = this.runReplayerToCompletion(worker, { failFast: options.failFast }).finally(() =>
       replayDone.next()

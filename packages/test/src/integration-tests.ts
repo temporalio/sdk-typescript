@@ -67,7 +67,6 @@ export interface Context {
 }
 
 const _test = anyTest as TestInterface<Context>;
-const namespace = 'default';
 
 export function runIntegrationTests(codec?: PayloadCodec): void {
   const test = (name: string, fn: Implementation<Context>) => _test(codec ? 'With codec—' + name : name, fn);
@@ -182,10 +181,7 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
     try {
       await asyncRetry(
         async () => {
-          const { history } = await client.workflowService.getWorkflowExecutionHistory({
-            namespace: 'default',
-            execution: { workflowId: handle.workflowId },
-          });
+          const history = await handle.fetchHistory();
           if (
             !history?.events?.some(
               ({ workflowTaskFailedEventAttributes }) =>
@@ -513,11 +509,8 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
     });
     const res = await workflow.result();
     t.is(res, undefined);
-    const execution = await client.workflowService.getWorkflowExecutionHistory({
-      namespace,
-      execution: { workflowId: workflow.workflowId, runId: workflow.firstExecutionRunId },
-    });
-    const timerEvents = execution.history!.events!.filter(({ eventType }) => timerEventTypes.has(eventType!));
+    const history = await workflow.fetchHistory();
+    const timerEvents = history.events!.filter(({ eventType }) => timerEventTypes.has(eventType!));
     t.is(timerEvents.length, 2);
     t.is(timerEvents[0].timerStartedEventAttributes!.timerId, '1');
     t.is(tsToMs(timerEvents[0].timerStartedEventAttributes!.startToFireTimeout), 100);
@@ -532,11 +525,8 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
     });
     const res = await workflow.result();
     t.is(res, undefined);
-    const execution = await client.workflowService.getWorkflowExecutionHistory({
-      namespace,
-      execution: { workflowId: workflow.workflowId, runId: workflow.firstExecutionRunId },
-    });
-    const timerEvents = execution.history!.events!.filter(({ eventType }) => timerEventTypes.has(eventType!));
+    const history = await workflow.fetchHistory();
+    const timerEvents = history.events!.filter(({ eventType }) => timerEventTypes.has(eventType!));
     // Timer is cancelled before it is scheduled
     t.is(timerEvents.length, 0);
   });
@@ -549,11 +539,8 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
     });
     const res = await workflow.result();
     t.is(res, undefined);
-    const execution = await client.workflowService.getWorkflowExecutionHistory({
-      namespace,
-      execution: { workflowId: workflow.workflowId, runId: workflow.firstExecutionRunId },
-    });
-    const timerEvents = execution.history!.events!.filter(({ eventType }) => timerEventTypes.has(eventType!));
+    const history = await workflow.fetchHistory();
+    const timerEvents = history.events!.filter(({ eventType }) => timerEventTypes.has(eventType!));
     t.is(timerEvents.length, 4);
     t.is(timerEvents[0].timerStartedEventAttributes!.timerId, '1');
     t.is(tsToMs(timerEvents[0].timerStartedEventAttributes!.startToFireTimeout), 10000);
@@ -571,11 +558,8 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
     });
     const res = await workflow.result();
     t.is(res, undefined);
-    const execution = await client.workflowService.getWorkflowExecutionHistory({
-      namespace,
-      execution: { workflowId: workflow.workflowId, runId: workflow.firstExecutionRunId },
-    });
-    const hasChangeEvents = execution.history!.events!.filter(
+    const history = await workflow.fetchHistory();
+    const hasChangeEvents = history.events!.filter(
       ({ eventType }) => eventType === iface.temporal.api.enums.v1.EventType.EVENT_TYPE_MARKER_RECORDED
     );
     // There will only be one marker despite there being 2 hasChange calls because they have the
@@ -592,11 +576,8 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
     });
     const res = await workflow.result();
     t.is(res, undefined);
-    const execution = await client.workflowService.getWorkflowExecutionHistory({
-      namespace,
-      execution: { workflowId: workflow.workflowId, runId: workflow.firstExecutionRunId },
-    });
-    const hasChangeEvents = execution.history!.events!.filter(
+    const history = await workflow.fetchHistory();
+    const hasChangeEvents = history.events!.filter(
       ({ eventType }) => eventType === iface.temporal.api.enums.v1.EventType.EVENT_TYPE_MARKER_RECORDED
     );
     t.is(hasChangeEvents.length, 1);
@@ -611,11 +592,8 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
       workflowId: uuid4(),
     });
     await workflow.result();
-    const execution = await client.workflowService.getWorkflowExecutionHistory({
-      namespace,
-      execution: { workflowId: workflow.workflowId, runId: workflow.firstExecutionRunId },
-    });
-    const events = execution.history!.events!.filter(
+    const history = await workflow.fetchHistory();
+    const events = history.events!.filter(
       ({ eventType }) => eventType === iface.temporal.api.enums.v1.EventType.EVENT_TYPE_WORKFLOW_TASK_COMPLETED
     );
     t.is(events.length, 1);
@@ -874,10 +852,7 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
     await workflow.result();
     const info = await workflow.describe();
     t.is(info.raw.workflowExecutionInfo?.type?.name, 'sleeper');
-    const { history } = await client.workflowService.getWorkflowExecutionHistory({
-      namespace,
-      execution: { workflowId: workflow.workflowId, runId: err.newExecutionRunId },
-    });
+    const history = await workflow.fetchHistory();
     const timeSlept = await decodeFromPayloadsAtIndex(
       loadedDataConverter,
       0,
@@ -1027,11 +1002,8 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
     });
     await asyncRetry(
       async () => {
-        const history = await client.workflowService.getWorkflowExecutionHistory({
-          namespace: 'default',
-          execution: { workflowId },
-        });
-        const wftFailedEvent = history.history?.events?.find((ev) => ev.workflowTaskFailedEventAttributes);
+        const history = await handle.fetchHistory();
+        const wftFailedEvent = history.events?.find((ev) => ev.workflowTaskFailedEventAttributes);
         if (wftFailedEvent === undefined) {
           throw new Error('No WFT failed event');
         }
@@ -1058,11 +1030,8 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
     });
     await asyncRetry(
       async () => {
-        const history = await client.workflowService.getWorkflowExecutionHistory({
-          namespace: 'default',
-          execution: { workflowId },
-        });
-        const wftFailedEvent = history.history?.events?.find((ev) => ev.workflowTaskFailedEventAttributes);
+        const history = await handle.fetchHistory();
+        const wftFailedEvent = history.events?.find((ev) => ev.workflowTaskFailedEventAttributes);
         if (wftFailedEvent === undefined) {
           throw new Error('No WFT failed event');
         }
@@ -1090,11 +1059,8 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
     });
     await asyncRetry(
       async () => {
-        const history = await client.workflowService.getWorkflowExecutionHistory({
-          namespace: 'default',
-          execution: { workflowId },
-        });
-        const wftFailedEvent = history.history?.events?.find((ev) => ev.workflowTaskFailedEventAttributes);
+        const history = await handle.fetchHistory();
+        const wftFailedEvent = history.events?.find((ev) => ev.workflowTaskFailedEventAttributes);
         if (wftFailedEvent === undefined) {
           throw new Error('No WFT failed event');
         }
@@ -1398,10 +1364,7 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
       workflowId,
       workflowTaskTimeout: '1m', // Give our local activities enough time to run in CI
     });
-    const { history } = await client.workflowService.getWorkflowExecutionHistory({
-      namespace: 'default',
-      execution: { workflowId },
-    });
+    const history = await client.getHandle(workflowId).fetchHistory();
     if (history?.events == null) {
       throw new Error('Expected non null events');
     }
@@ -1447,14 +1410,14 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
     await Promise.all(handles.map((h) => h.result()));
     // Test the list API too while we're at it
     const workflowIds = handles.map(({ workflowId }) => `'${workflowId}'`);
-    const executions = client.workflow.list({ query: `WorkflowId IN (${workflowIds.join(', ')})` });
+    const histories = client.workflow.list({ query: `WorkflowId IN (${workflowIds.join(', ')})` }).intoHistories();
 
     await Worker.runReplayHistories(
       {
         workflowsPath: require.resolve('./workflows'),
         dataConverter: t.context.dataConverter,
       },
-      { client, executions }
+      histories
     );
     t.pass();
   });
