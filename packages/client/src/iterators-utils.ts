@@ -1,5 +1,6 @@
 import { EventEmitter, on, once } from 'node:events';
 import { AbortController } from 'abort-controller';
+
 export interface MapAsyncOptions {
   /**
    * How many items to map concurrently. If set to less than 2 (or not set), then items are not mapped concurrently.

@@ -958,7 +958,7 @@ export class WorkflowClient extends BaseClient {
             workflowId,
             history: await this.getHandle(workflowId, runId)
               .fetchHistory()
-              .catch((e) => undefined),
+              .catch((_) => undefined),
           }),
           { concurrency: intoHistoriesOptions?.concurrency ?? 5 }
         );
