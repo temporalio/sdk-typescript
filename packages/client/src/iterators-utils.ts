@@ -1,4 +1,4 @@
-import { EventEmitter, on } from 'node:events';
+import { EventEmitter, on, once } from 'node:events';
 
 export interface MapAsyncOptions {
   /**
@@ -10,6 +10,19 @@ export interface MapAsyncOptions {
    * @default 1 (ie. items are not mapped concurrently)
    */
   concurrency?: number;
+
+  /**
+   * Maximum number of mapped items to keep in buffer, ready for consumption.
+   *
+   * Ignored unless `concurrency > 1`. No limit applies if set to `undefined`.
+   *
+   * @default unlimited
+   */
+  bufferLimit?: number | undefined;
+}
+
+function toAsyncIterator<A>(iterable: AsyncIterable<A>): AsyncIterator<A> {
+  return iterable[Symbol.asyncIterator]();
 }
 
 /**
@@ -26,54 +39,77 @@ export interface MapAsyncOptions {
 export async function* mapAsyncIterable<A, B>(
   source: AsyncIterable<A>,
   mapFn: (val: A) => Promise<B>,
-  options: MapAsyncOptions
+  options?: MapAsyncOptions
 ): AsyncIterable<B> {
-  const { concurrency } = { concurrency: 1, ...(options ?? {}) };
+  const { concurrency, bufferLimit } = options ?? {};
 
-  if (concurrency < 2) {
+  if (!concurrency || concurrency < 2) {
     for await (const x of source) {
       yield mapFn(x);
     }
     return;
   }
 
-  const emiter = new EventEmitter();
-  const sourceIterator = source[Symbol.asyncIterator]();
-  let sourceIteratorDone = false;
-  let pendingPromisesCount = 0;
-  let pendingResultsCount = 0;
+  const sourceIterator = toAsyncIterator(source);
 
-  async function maybeStartTasks() {
-    while (!sourceIteratorDone && pendingPromisesCount + pendingResultsCount < concurrency) {
-      const val = await sourceIterator.next();
-      if (val.done) {
-        sourceIteratorDone = true;
-        return pendingPromisesCount > 0;
-      }
+  const emitter = new EventEmitter();
+  const controller = new AbortController();
+  const emitterEventsIterable: AsyncIterable<[B]> = on(emitter, 'result', { signal: controller.signal });
+  const emitterError: Promise<unknown[]> = once(emitter, 'error');
 
-      pendingPromisesCount++;
-      (async () => {
-        try {
-          emiter.emit('result', await mapFn(val.value));
-          pendingResultsCount++;
-        } finally {
-          pendingPromisesCount--;
-        }
-        return maybeStartTasks();
-      })().catch((e) => emiter.emit('error', e));
+  const bufferLimitSemaphore =
+    typeof bufferLimit === 'number'
+      ? (() => {
+          const releaseEvents: AsyncIterator<void> = toAsyncIterator(
+            on(emitter, 'released', { signal: controller.signal })
+          );
+          let value = bufferLimit + concurrency;
+
+          return {
+            acquire: async () => {
+              while (value <= 0) {
+                await Promise.race([releaseEvents.next(), emitterError]);
+              }
+              value--;
+            },
+            release: () => {
+              value++;
+              emitter.emit('released');
+            },
+          };
+        })()
+      : undefined;
+
+  const mapper = async () => {
+    for (;;) {
+      await bufferLimitSemaphore?.acquire();
+      const val = await Promise.race([sourceIterator.next(), emitterError]);
+
+      if (Array.isArray(val)) return;
+      if ((val as IteratorResult<[B]>)?.done) return;
+
+      emitter.emit('result', await mapFn(val.value));
     }
+  };
 
-    return !sourceIteratorDone || pendingPromisesCount > 0;
-  }
+  const mappers = Array(concurrency)
+    .fill(mapper)
+    .map((f: typeof mapper) => f());
 
-  // The listener must be registered before we start emiting events
-  // through the emiter; otherwise, these events get silently discarded.
-  const emiterEventsIterable = on(emiter, 'result');
+  Promise.all(mappers).then(
+    () => controller.abort(),
+    (err) => emitter.emit('error', err)
+  );
 
-  if (!(await maybeStartTasks())) return;
-  for await (const [res] of emiterEventsIterable) {
-    pendingResultsCount--;
-    yield res as B;
-    if (!(await maybeStartTasks())) return;
+  try {
+    for await (const [res] of emitterEventsIterable) {
+      bufferLimitSemaphore?.release();
+      yield res;
+    }
+  } catch (err: unknown) {
+    if ((err as Error)?.name === 'AbortError') {
+      return;
+    }
+    throw err;
   }
 }

@@ -68,5 +68,5 @@ export type UntypedActivities = Record<string, ActivityFunction>;
  */
 export interface HistoryAndWorkflowId {
   workflowId: string;
-  history: temporal.api.history.v1.History | unknown;
+  history: temporal.api.history.v1.History | unknown | undefined;
 }

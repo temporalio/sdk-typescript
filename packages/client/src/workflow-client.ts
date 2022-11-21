@@ -258,7 +258,7 @@ interface WorkflowHandleOptions extends GetWorkflowHandleOptions {
  */
 interface AsyncWorkflowListIterable extends AsyncIterable<WorkflowExecutionInfo> {
   /**
-   * Return an iterable list of histories corresponding to this iterable's WorkflowExecution.
+   * Return an iterable of histories corresponding to this iterable's WorkflowExecutions.
    * Workflow histories will be fetched concurrently.
    *
    * Useful in batch replaying
@@ -292,6 +292,19 @@ export interface IntoHistoriesOptions {
    * @default 5
    */
   concurrency?: number;
+
+  /**
+   * Maximum number of workflow histories to buffer ahead, ready for consumption.
+   *
+   * It is recommended to set `bufferLimit` to a rasonnably low number if it is expected that the
+   * iterable may be stopped before reaching completion (for example, when implementing a fail fast
+   * bach replay test).
+   *
+   * Ignored unless `concurrency > 1`. No limit applies if set to `undefined`.
+   *
+   * @default unlimited
+   */
+  bufferLimit?: number;
 }
 
 /**
@@ -834,7 +847,7 @@ export class WorkflowClient extends BaseClient {
       },
       async fetchHistory() {
         let nextPageToken: Uint8Array | undefined = undefined;
-        const history = Array<temporal.api.history.v1.IHistoryEvent>();
+        const events = Array<temporal.api.history.v1.IHistoryEvent>();
         for (;;) {
           const response: temporal.api.workflowservice.v1.GetWorkflowExecutionHistoryResponse =
             await this.client.workflowService.getWorkflowExecutionHistory({
@@ -842,11 +855,11 @@ export class WorkflowClient extends BaseClient {
               namespace: this.client.options.namespace,
               execution: { workflowId, runId },
             });
-          history.push(...(response.history?.events ?? []));
+          events.push(...(response.history?.events ?? []));
           nextPageToken = response.nextPageToken;
-          if (nextPageToken == null || nextPageToken.length == 0) break;
+          if (nextPageToken == null || nextPageToken.length === 0) break;
         }
-        return temporal.api.history.v1.History.create({ events: history });
+        return temporal.api.history.v1.History.create({ events });
       },
       async signal<Args extends any[]>(def: SignalDefinition<Args> | string, ...args: Args): Promise<void> {
         const next = this.client._signalWorkflowHandler.bind(this.client);
@@ -923,7 +936,7 @@ export class WorkflowClient extends BaseClient {
         yield await executionInfoFromRaw(raw, this.dataConverter);
       }
       nextPageToken = response.nextPageToken;
-      if (nextPageToken == null || nextPageToken.length == 0) break;
+      if (nextPageToken == null || nextPageToken.length === 0) break;
     }
   }
 
@@ -943,7 +956,9 @@ export class WorkflowClient extends BaseClient {
           this._list(options),
           async ({ workflowId, runId }) => ({
             workflowId,
-            history: await this.getHandle(workflowId, runId).fetchHistory(),
+            history: await this.getHandle(workflowId, runId)
+              .fetchHistory()
+              .catch((e) => undefined),
           }),
           { concurrency: intoHistoriesOptions?.concurrency ?? 5 }
         );

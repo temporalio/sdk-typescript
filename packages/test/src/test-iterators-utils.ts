@@ -105,21 +105,88 @@ test(`mapAsyncIterable (with concurrency) doesn't consume more input than requir
     }
   }
 
-  const iterable = mapAsyncIterable(name(), sleepThatTime, { concurrency: 5 });
+  const iterable = mapAsyncIterable(name(), sleepThatTime, { concurrency: 5, bufferLimit: 8 });
   const iterator = iterable[Symbol.asyncIterator]();
 
-  t.is((await iterator.next()).value, 1);
-  t.is((await iterator.next()).value, 2);
-  await new Promise((resolve) => setTimeout(resolve, 100));
-  t.is((await iterator.next()).value, 3);
-  await new Promise((resolve) => setTimeout(resolve, 200));
+  t.is(counter, 0);
+  await iterator.next();
 
-  // Exact count could vary slightly due to some promise timing, but should be
-  // no more than (number of items read from output iterator + concurrency - 1)
-  // The minus one at the end of the formula is because the `maybeStartTasks()`
-  // following the yield in `mapAsyncIterable()` will only be called on
-  // next call to `iterator.next()`;
-  t.true(counter <= 7);
+  // One already read + 5 pending
+  t.is(counter, 6);
+  await iterator.next();
+  t.is(counter, 7);
+
+  // Give time for buffer to get filled
+  await new Promise((resolve) => setTimeout(resolve, 100));
+
+  // Two already read + 8 buffered results + 5 concurrent results
+  t.is(counter, 15);
+});
+
+test(`mapAsyncIterable (with concurrency) doesn't hang on source exceptions`, async (t) => {
+  async function* name(): AsyncIterable<number> {
+    for (;;) {
+      yield 1;
+      yield 2;
+      yield 3;
+      yield 4;
+      throw new Error('Test Exception');
+    }
+  }
+
+  const iterable = mapAsyncIterable(name(), sleepThatTime, { concurrency: 2, bufferLimit: 8 });
+  const iterator = iterable[Symbol.asyncIterator]();
+
+  // Get the iterator started
+  await iterator.next();
+
+  // Give time for buffer to get filled
+  await new Promise((resolve) => setTimeout(resolve, 100));
+
+  await iterator.next();
+  await iterator.next();
+
+  await t.throwsAsync(iterator.next(), {
+    instanceOf: Error,
+    message: 'Test Exception',
+  });
+});
+
+test(`mapAsyncIterable (with concurrency) doesn't hang mapFn exceptions`, async (t) => {
+  async function* name(): AsyncIterable<number> {
+    for (let i = 0; i < 1000; i++) {
+      yield i;
+    }
+  }
+
+  const iterable = mapAsyncIterable(
+    name(),
+    async (x: number) => {
+      await sleepThatTime(x);
+      if (x === 4) throw new Error('Test Exception');
+      return x;
+    },
+    { concurrency: 2, bufferLimit: 8 }
+  );
+  const iterator = iterable[Symbol.asyncIterator]();
+
+  // Start the iterator
+  await iterator.next();
+
+  // Give time for buffer to get filled
+  await new Promise((resolve) => setTimeout(resolve, 100));
+
+  const values: (number | string | boolean)[] = [];
+  for (let i = 0; i < 6; i++) {
+    try {
+      const res = await iterator.next();
+      values.push(res.value ?? res.done);
+    } catch (error) {
+      values.push('error');
+    }
+  }
+
+  t.deepEqual(values.sort(), [1, 2, 3, 'error', true, true]);
 });
 
 async function multBy10(x: number): Promise<number> {
