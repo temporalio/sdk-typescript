@@ -1,7 +1,7 @@
-import { mapAsyncIterable, raceMapAsyncIterable } from '@temporalio/client/lib/iterators-utils';
+import { mapAsyncIterable } from '@temporalio/client/lib/iterators-utils';
 import test from 'ava';
 
-test(`mapAsyncIterable returns mapped values`, async (t) => {
+test(`mapAsyncIterable (with no concurrency) returns mapped values`, async (t) => {
   async function* source(): AsyncIterable<number> {
     yield 1;
     yield new Promise((resolve) => setTimeout(resolve, 50)).then(() => 2);
@@ -16,7 +16,7 @@ test(`mapAsyncIterable returns mapped values`, async (t) => {
   t.deepEqual(results, [10, 20, 30]);
 });
 
-test(`mapAsyncIterable's source function not executed until the mapped iterator actually get invoked`, async (t) => {
+test(`mapAsyncIterable's (with no concurrency) source function not executed until the mapped iterator actually get invoked`, async (t) => {
   let invoked = false;
 
   async function* name(): AsyncIterable<number> {
@@ -34,7 +34,7 @@ test(`mapAsyncIterable's source function not executed until the mapped iterator 
   t.true(invoked);
 });
 
-test(`mapAsyncIterable doesn't consume more input that required`, async (t) => {
+test(`mapAsyncIterable (with no concurrency) doesn't consume more input that required`, async (t) => {
   let counter = 0;
 
   async function* name(): AsyncIterable<number> {
@@ -52,7 +52,7 @@ test(`mapAsyncIterable doesn't consume more input that required`, async (t) => {
   t.is(counter, 2);
 });
 
-test(`raceMapAsyncIterable run tasks concurrently`, async (t) => {
+test(`mapAsyncIterable (with concurrency) run tasks concurrently`, async (t) => {
   async function* name(): AsyncIterable<number> {
     yield 200;
     yield 1;
@@ -65,7 +65,7 @@ test(`raceMapAsyncIterable run tasks concurrently`, async (t) => {
     yield 1;
   }
 
-  const iterable = raceMapAsyncIterable(name(), sleepThatTime, 4);
+  const iterable = mapAsyncIterable(name(), sleepThatTime, { concurrency: 4 });
 
   const startTime = Date.now();
   const values: number[] = [];
@@ -78,7 +78,7 @@ test(`raceMapAsyncIterable run tasks concurrently`, async (t) => {
   t.truthy(endTime - startTime < 400);
 });
 
-test(`raceMapAsyncIterable source function not executed until the mapped iterator actually get invoked`, async (t) => {
+test(`mapAsyncIterable (with concurrency) source function not executed until the mapped iterator actually get invoked`, async (t) => {
   let invoked = false;
 
   async function* name(): AsyncIterable<number> {
@@ -86,7 +86,7 @@ test(`raceMapAsyncIterable source function not executed until the mapped iterato
     yield 1;
   }
 
-  const iterable = raceMapAsyncIterable(name(), multBy10, 4);
+  const iterable = mapAsyncIterable(name(), multBy10, { concurrency: 4 });
   const iterator = iterable[Symbol.asyncIterator]();
 
   await Promise.resolve();
@@ -96,7 +96,7 @@ test(`raceMapAsyncIterable source function not executed until the mapped iterato
   t.true(invoked);
 });
 
-test(`raceMapAsyncIterable doesn't consume more input than required`, async (t) => {
+test(`mapAsyncIterable (with concurrency) doesn't consume more input than required`, async (t) => {
   let counter = 0;
 
   async function* name(): AsyncIterable<number> {
@@ -105,7 +105,7 @@ test(`raceMapAsyncIterable doesn't consume more input than required`, async (t) 
     }
   }
 
-  const iterable = raceMapAsyncIterable(name(), sleepThatTime, 5);
+  const iterable = mapAsyncIterable(name(), sleepThatTime, { concurrency: 5 });
   const iterator = iterable[Symbol.asyncIterator]();
 
   t.is((await iterator.next()).value, 1);
@@ -117,7 +117,7 @@ test(`raceMapAsyncIterable doesn't consume more input than required`, async (t) 
   // Exact count could vary slightly due to some promise timing, but should be
   // no more than (number of items read from output iterator + concurrency - 1)
   // The minus one at the end of the formula is because the `maybeStartTasks()`
-  // following the yield in `raceMapAsyncIterable()` will only be called on
+  // following the yield in `mapAsyncIterable()` will only be called on
   // next call to `iterator.next()`;
   t.true(counter <= 7);
 });

@@ -67,7 +67,7 @@ import {
   LoadedWithDefaults,
   WithDefaults,
 } from './base-client';
-import { raceMapAsyncIterable } from './iterators-utils';
+import { mapAsyncIterable } from './iterators-utils';
 
 /**
  * A client side handle to a single Workflow instance.
@@ -939,13 +939,13 @@ export class WorkflowClient extends BaseClient {
     return {
       [Symbol.asyncIterator]: () => this._list(options)[Symbol.asyncIterator](),
       intoHistories: (intoHistoriesOptions?: IntoHistoriesOptions) => {
-        return raceMapAsyncIterable(
+        return mapAsyncIterable(
           this._list(options),
           async ({ workflowId, runId }) => ({
             workflowId,
             history: await this.getHandle(workflowId, runId).fetchHistory(),
           }),
-          intoHistoriesOptions?.concurrency ?? 5
+          { concurrency: intoHistoriesOptions?.concurrency ?? 5 }
         );
       },
     };
