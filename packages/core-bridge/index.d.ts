@@ -3,6 +3,20 @@ import type { TLSConfig } from '@temporalio/common/lib/internal-non-workflow';
 
 export { TLSConfig };
 
+type Shadow<Base, New> = {
+  [K in keyof Base | keyof New]: K extends keyof Base
+    ? K extends keyof New
+      ? Base[K] extends number | string | boolean | never
+        ? New[K] extends number | string | boolean | never
+          ? New[K]
+          : New[K]
+        : Shadow<Base[K], New[K]>
+      : Base[K]
+    : K extends keyof New
+    ? New[K]
+    : never;
+};
+
 export interface RetryOptions {
   /** Initial wait time before the first retry. */
   initialInterval: number;
@@ -98,8 +112,17 @@ export interface OtelCollectorExporter {
      * Optional set of HTTP request headers to send to Collector (e.g. for authentication)
      */
     headers?: Record<string, string>;
+    /**
+     * Specify how frequently in metrics should be exported.
+     *
+     * @format number of milliseconds or {@link https://www.npmjs.com/package/ms | ms-formatted string}
+     * @defaults 1 second
+     */
+    metricPeriodicity?: string | number;
   };
 }
+
+export type CompiledOtelCollectorExporter = Shadow<OtelCollectorExporter, { otel: { metricPeriodicity: number } }>;
 
 /**
  * Prometheus metrics exporter options
@@ -117,19 +140,6 @@ export interface PrometheusMetricsExporter {
     bindAddress: string;
   };
 }
-
-/**
- * Metrics exporters supported by Core
- *
- * `temporality` is the type of aggregation temporality for metric export. Applies to both Prometheus and OpenTelemetry exporters.
- *
- * See the [OpenTelemetry specification](https://github.com/open-telemetry/opentelemetry-specification/blob/ce50e4634efcba8da445cc23523243cb893905cb/specification/metrics/datamodel.md#temporality) for more information.
- *
- * @experimental
- */
-export type MetricsExporter = {
-  temporality?: 'cumulative' | 'delta';
-} & (PrometheusMetricsExporter | OtelCollectorExporter);
 
 /**
  * Trace exporters supported by Core
@@ -210,8 +220,18 @@ export interface TelemetryOptions {
    *
    * Turned off by default
    */
-  metrics?: MetricsExporter;
+  metrics?: RequireExactlyOne<
+    {
+      temporality?: 'cumulative' | 'delta';
+      prometheus: PrometheusMetricsExporter['prometheus'];
+      otel: OtelCollectorExporter['otel'];
+    },
+    'otel' | 'prometheus'
+  >;
 }
+
+/** @experimental */
+export type MetricsExporter = TelemetryOptions['metrics'];
 
 /** @experimental */
 export type CompiledTelemetryOptions = {
@@ -224,8 +244,16 @@ export type CompiledTelemetryOptions = {
   );
   tracing?: {
     filter: string;
-  } & TraceExporter;
-  metrics?: MetricsExporter;
+    otel: CompiledOtelCollectorExporter['otel'];
+  };
+  metrics?: RequireExactlyOne<
+    {
+      temporality?: 'cumulative' | 'delta';
+      prometheus: PrometheusMetricsExporter['prometheus'];
+      otel: CompiledOtelCollectorExporter['otel'];
+    },
+    'otel' | 'prometheus'
+  >;
 };
 
 export interface WorkerOptions {
