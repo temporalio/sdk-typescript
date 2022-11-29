@@ -86,7 +86,7 @@ if (RUN_INTEGRATION_TESTS) {
       }),
       {
         instanceOf: Error,
-        message: /is importing the following built-in Node modules.*dns/s,
+        message: /is importing the following black-listed modules.*dns/s,
       }
     );
   });
