@@ -241,7 +241,7 @@ export class Runtime {
           otel: {
             url: tracing.otel.url,
             headers: tracing.otel.headers,
-            metricPeriodicity: msToNumber(tracing.otel.metricPeriodicity ?? '1s'),
+            metricsExportInterval: undefined,
           },
         },
         metrics: metrics && {
@@ -251,7 +251,7 @@ export class Runtime {
                 otel: {
                   url: metrics.otel.url,
                   headers: metrics.otel.headers,
-                  metricPeriodicity: msToNumber(metrics.otel.metricPeriodicity ?? '1s'),
+                  metricsExportInterval: msToNumber(metrics.otel.metricsExportInterval ?? '1s'),
                 },
               }
             : {

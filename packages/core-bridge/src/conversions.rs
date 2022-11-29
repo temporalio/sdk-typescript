@@ -260,15 +260,9 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
                     } else {
                         Default::default()
                     };
-                let metric_periodicity = Some(Duration::from_millis(js_value_getter!(
-                    cx,
-                    otel,
-                    "metricPeriodicity",
-                    JsNumber
-                ) as u64));
                 telemetry_opts.tracing(TraceExportConfig {
                     filter,
-                    exporter: TraceExporter::Otel(OtelCollectorOptions { url, headers, metric_periodicity }),
+                    exporter: TraceExporter::Otel(OtelCollectorOptions { url, headers, metric_periodicity: None }),
                 });
             } else {
                 cx.throw_type_error(
