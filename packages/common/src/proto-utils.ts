@@ -1,5 +1,5 @@
-import * as proto from '@temporalio/proto';
 import { fromProto3JSON, toProto3JSON } from 'proto3-json-serializer';
+import * as proto from '@temporalio/proto';
 import { patchProtobufRoot } from '@temporalio/proto/lib/patch-protobuf-root';
 
 export type History = proto.temporal.api.history.v1.IHistory;

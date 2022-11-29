@@ -7,6 +7,8 @@ import { ExportResultCode } from '@opentelemetry/core';
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-grpc';
 import * as opentelemetry from '@opentelemetry/sdk-node';
 import { SemanticResourceAttributes } from '@opentelemetry/semantic-conventions';
+import test from 'ava';
+import { v4 as uuid4 } from 'uuid';
 import { Connection, WorkflowClient } from '@temporalio/client';
 import { OpenTelemetryWorkflowClientInterceptor } from '@temporalio/interceptors-opentelemetry/lib/client';
 import {
@@ -15,8 +17,6 @@ import {
 } from '@temporalio/interceptors-opentelemetry/lib/worker';
 import { OpenTelemetrySinks, SpanName, SPAN_DELIMITER } from '@temporalio/interceptors-opentelemetry/lib/workflow';
 import { DefaultLogger, InjectedSinks, Runtime, Worker, makeTelemetryFilterString } from '@temporalio/worker';
-import test from 'ava';
-import { v4 as uuid4 } from 'uuid';
 import * as activities from './activities';
 import { ConnectionInjectorInterceptor } from './activities/interceptors';
 import { RUN_INTEGRATION_TESTS } from './helpers';

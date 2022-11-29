@@ -4,12 +4,12 @@ import { filter } from 'rxjs/operators';
 import { v4 as uuid4 } from 'uuid';
 import { Worker } from '@temporalio/worker';
 import { ActivityCancelledError, Client, ActivityNotFoundError, WorkflowFailedError } from '@temporalio/client';
-import { RUN_INTEGRATION_TESTS } from './helpers';
-import { runAnAsyncActivity } from './workflows';
-import { createActivities } from './activities/async-completer';
 import { Info } from '@temporalio/activity';
 import { rootCause } from '@temporalio/common';
 import { isCancellation } from '@temporalio/workflow';
+import { RUN_INTEGRATION_TESTS } from './helpers';
+import { runAnAsyncActivity } from './workflows';
+import { createActivities } from './activities/async-completer';
 
 export interface Context {
   worker: Worker;

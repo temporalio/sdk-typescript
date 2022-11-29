@@ -1,6 +1,10 @@
+import fs from 'fs';
+import http from 'http';
+import { inspect } from 'util';
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-grpc';
 import * as opentelemetry from '@opentelemetry/sdk-node';
 import { SemanticResourceAttributes } from '@opentelemetry/semantic-conventions';
+import arg from 'arg';
 import { LogLevel, TelemetryOptions } from '@temporalio/core-bridge';
 import { Connection } from '@temporalio/client';
 import {
@@ -11,13 +15,9 @@ import {
   Worker,
   makeTelemetryFilterString,
 } from '@temporalio/worker';
-import arg from 'arg';
-import fs from 'fs';
-import http from 'http';
-import { inspect } from 'util';
 import * as activities from '../activities';
-import { getRequired, WorkerArgSpec, workerArgSpec } from './args';
 import { ConnectionInjectorInterceptor } from '../activities/interceptors';
+import { getRequired, WorkerArgSpec, workerArgSpec } from './args';
 
 /**
  * Optionally start the opentelemetry node SDK

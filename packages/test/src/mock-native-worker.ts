@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
 import { SpanContext } from '@opentelemetry/api';
+import { lastValueFrom } from 'rxjs';
 import { defaultPayloadConverter, fromPayloadsAtIndex } from '@temporalio/common';
 import { msToTs } from '@temporalio/common/lib/time';
 import { coresdk } from '@temporalio/proto';
@@ -13,7 +14,6 @@ import {
   WorkerOptions,
 } from '@temporalio/worker/lib/worker-options';
 import { WorkflowCreator } from '@temporalio/worker/src/workflow/interface';
-import { lastValueFrom } from 'rxjs';
 import * as activities from './activities';
 
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));

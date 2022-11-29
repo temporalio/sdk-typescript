@@ -1,9 +1,9 @@
+import test from 'ava';
+import { v4 as uuid4 } from 'uuid';
 import { WorkflowClient } from '@temporalio/client';
 import { Payload, PayloadCodec } from '@temporalio/common';
 import { decode } from '@temporalio/common/lib/encoding';
 import { InjectedSinks, Worker } from '@temporalio/worker';
-import test from 'ava';
-import { v4 as uuid4 } from 'uuid';
 import { createConcatActivity } from './activities/create-concat-activity';
 import { RUN_INTEGRATION_TESTS, u8 } from './helpers';
 import { defaultOptions } from './mock-native-worker';

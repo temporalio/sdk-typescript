@@ -1,8 +1,8 @@
 // Modified from: https://github.com/vercel/next.js/blob/2425f4703c4c6164cecfdb6aa8f80046213f0cc6/packages/create-next-app/index.ts
+import path from 'path';
 import chalk from 'chalk';
 import dedent from 'dedent';
 import { Command } from 'commander';
-import path from 'path';
 // eslint-disable-next-line import/no-named-as-default
 import prompts from 'prompts';
 import checkForUpdate from 'update-check';

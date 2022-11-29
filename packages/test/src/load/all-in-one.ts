@@ -1,8 +1,8 @@
 import path from 'path';
+import { ChildProcess, spawn } from 'child_process';
 import arg from 'arg';
 import { waitOnChild, shell, ChildProcessError, killIfExists } from './child-process';
 import { setupArgSpec, starterArgSpec, workerArgSpec, allInOneArgSpec } from './args';
-import { ChildProcess, spawn } from 'child_process';
 
 export function addDefaults(args: arg.Result<any>): arg.Result<any> {
   const now = new Date().toISOString();

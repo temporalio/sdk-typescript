@@ -1,11 +1,11 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
 
+import * as fs from 'fs';
+import path from 'path';
+import anyTest, { TestInterface } from 'ava';
 import { temporal } from '@temporalio/proto';
 import { DefaultLogger, ReplayError, Runtime, Worker } from '@temporalio/worker';
 import { DeterminismViolationError } from '@temporalio/workflow';
-import anyTest, { TestInterface } from 'ava';
-import * as fs from 'fs';
-import path from 'path';
 import History = temporal.api.history.v1.History;
 
 export interface Context {

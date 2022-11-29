@@ -1,6 +1,6 @@
+import type * as grpc from '@grpc/grpc-js';
 import type { SearchAttributes } from '@temporalio/common';
 import * as proto from '@temporalio/proto';
-import type * as grpc from '@grpc/grpc-js';
 import { Replace } from '@temporalio/common/lib/type-helpers';
 
 export interface WorkflowExecution {

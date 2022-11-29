@@ -1,8 +1,8 @@
-import ms from 'ms';
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
-import { Spec, AllInOneArgSpec } from './args';
+import ms from 'ms';
 import * as workflows from '../workflows';
+import { Spec, AllInOneArgSpec } from './args';
 
 export type EvaluatedArgs<T extends Spec> = {
   [K in keyof T]?: ReturnType<T[K]>;

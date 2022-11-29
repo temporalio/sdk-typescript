@@ -1,6 +1,6 @@
+import type { CoverageMapData } from 'istanbul-lib-coverage';
 import { proxySinks, WorkflowInterceptors } from '@temporalio/workflow';
 import { CoverageSinks } from './sinks';
-import type { CoverageMapData } from 'istanbul-lib-coverage';
 
 const { coverage } = proxySinks<CoverageSinks>();
 

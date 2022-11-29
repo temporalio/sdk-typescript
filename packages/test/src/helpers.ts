@@ -1,7 +1,7 @@
 import path from 'path';
 import StackUtils from 'stack-utils';
-import { inWorkflowContext } from '@temporalio/workflow';
 import ava from 'ava';
+import { inWorkflowContext } from '@temporalio/workflow';
 import { Payload, PayloadCodec } from '@temporalio/common';
 
 export function u8(s: string): Uint8Array {

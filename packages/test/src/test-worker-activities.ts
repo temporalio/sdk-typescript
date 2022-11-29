@@ -1,10 +1,10 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
-import * as activity from '@temporalio/activity';
-import { TemporalFailure, defaultPayloadConverter, toPayloads } from '@temporalio/common';
-import { coresdk } from '@temporalio/proto';
 import anyTest, { ExecutionContext, TestInterface } from 'ava';
 import dedent from 'dedent';
 import { v4 as uuid4 } from 'uuid';
+import * as activity from '@temporalio/activity';
+import { TemporalFailure, defaultPayloadConverter, toPayloads } from '@temporalio/common';
+import { coresdk } from '@temporalio/proto';
 import { httpGet } from './activities';
 import { cleanOptionalStackTrace } from './helpers';
 import { defaultOptions, isolateFreeWorker, Worker } from './mock-native-worker';

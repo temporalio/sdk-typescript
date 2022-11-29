@@ -1,3 +1,4 @@
+import { AbortController } from 'abort-controller';
 import { asyncLocalStorage, Context, Info } from '@temporalio/activity';
 import {
   ActivityFunction,
@@ -10,7 +11,6 @@ import {
 import { encodeErrorToFailure, encodeToPayload } from '@temporalio/common/lib/internal-non-workflow';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import { coresdk } from '@temporalio/proto';
-import { AbortController } from 'abort-controller';
 import {
   ActivityExecuteInput,
   ActivityInboundCallsInterceptor,

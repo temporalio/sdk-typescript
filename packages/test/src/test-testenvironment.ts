@@ -1,9 +1,9 @@
+import anyTest, { TestInterface } from 'ava';
+import { v4 as uuid4 } from 'uuid';
 import { WorkflowFailedError } from '@temporalio/client';
 import { TestWorkflowEnvironment, workflowInterceptorModules } from '@temporalio/testing';
 import { Connection } from '@temporalio/testing/lib/connection';
 import { Worker } from '@temporalio/worker';
-import anyTest, { TestInterface } from 'ava';
-import { v4 as uuid4 } from 'uuid';
 import {
   assertFromWorkflow,
   raceActivityAndTimer,

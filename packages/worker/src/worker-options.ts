@@ -1,10 +1,10 @@
+import * as os from 'os';
+import * as v8 from 'v8';
+import type { Configuration as WebpackConfiguration } from 'webpack';
 import { DataConverter, LoadedDataConverter } from '@temporalio/common';
 import { msToNumber } from '@temporalio/common/lib/time';
 import { loadDataConverter } from '@temporalio/common/lib/internal-non-workflow';
 import { LoggerSinks } from '@temporalio/workflow';
-import * as os from 'os';
-import * as v8 from 'v8';
-import type { Configuration as WebpackConfiguration } from 'webpack';
 import { ActivityInboundLogInterceptor } from './activity-log-interceptor';
 import { NativeConnection } from './connection';
 import { WorkerInterceptors } from './interceptors';

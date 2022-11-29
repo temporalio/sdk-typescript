@@ -5,13 +5,13 @@
  * @module
  */
 
+import test from 'ava';
+import dedent from 'dedent';
+import { v4 as uuid4 } from 'uuid';
 import { WorkflowClient, WorkflowFailedError } from '@temporalio/client';
 import { ApplicationFailure, TerminatedFailure } from '@temporalio/common';
 import { DefaultLogger, Runtime, Worker } from '@temporalio/worker';
 import { defaultPayloadConverter, WorkflowInfo } from '@temporalio/workflow';
-import test from 'ava';
-import dedent from 'dedent';
-import { v4 as uuid4 } from 'uuid';
 import { cleanOptionalStackTrace, RUN_INTEGRATION_TESTS } from './helpers';
 import { defaultOptions } from './mock-native-worker';
 import {

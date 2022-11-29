@@ -1,6 +1,6 @@
+import { isMainThread, parentPort as parentPortOrNull } from 'worker_threads';
 import { IllegalStateError } from '@temporalio/common';
 import { coresdk } from '@temporalio/proto';
-import { isMainThread, parentPort as parentPortOrNull } from 'worker_threads';
 import { setUnhandledRejectionHandler, VMWorkflow, VMWorkflowCreator } from './vm';
 import { WorkerThreadRequest } from './workflow-worker-thread/input';
 import { WorkerThreadResponse } from './workflow-worker-thread/output';

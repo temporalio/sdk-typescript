@@ -1,8 +1,8 @@
+import os from 'os';
 import { DataConverter, LoadedDataConverter } from '@temporalio/common';
 import { isLoadedDataConverter, loadDataConverter } from '@temporalio/common/lib/internal-non-workflow';
 import { Connection } from './connection';
 import { ConnectionLike, Metadata } from './types';
-import os from 'os';
 
 export interface BaseClientOptions {
   /**

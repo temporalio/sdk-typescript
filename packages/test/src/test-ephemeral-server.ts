@@ -1,7 +1,7 @@
-import { TestWorkflowEnvironment } from '@temporalio/testing';
-import { bundleWorkflowCode, Worker, WorkflowBundle } from '@temporalio/worker';
 import anyTest, { ExecutionContext, TestInterface } from 'ava';
 import { v4 as uuid4 } from 'uuid';
+import { TestWorkflowEnvironment } from '@temporalio/testing';
+import { bundleWorkflowCode, Worker, WorkflowBundle } from '@temporalio/worker';
 
 interface Context {
   bundle: WorkflowBundle;
