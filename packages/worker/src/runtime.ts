@@ -7,6 +7,8 @@ import {
   TelemetryOptions,
   CompiledTelemetryOptions,
   ForwardLogger,
+  MetricsExporter,
+  OtelCollectorExporter,
 } from '@temporalio/core-bridge';
 import { filterNullAndUndefined, normalizeTlsConfig } from '@temporalio/common/lib/internal-non-workflow';
 import { IllegalStateError } from '@temporalio/common';
@@ -24,11 +26,16 @@ import { History } from '@temporalio/common/lib/proto-utils';
 import * as v8 from 'v8';
 import * as fs from 'fs';
 import * as os from 'os';
+import { msToNumber } from '@temporalio/common/lib/time';
 
 export { History };
 
 function isForwardingLogger(opts: TelemetryOptions['logging']): opts is ForwardLogger {
   return Object.hasOwnProperty.call(opts, 'forward');
+}
+
+function isOtelCollectorExporter(opts: MetricsExporter): opts is OtelCollectorExporter {
+  return Object.hasOwnProperty.call(opts, 'otel');
 }
 
 /**
@@ -207,7 +214,7 @@ export class Runtime {
   // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
   protected static compileOptions(options: RuntimeOptions): CompiledRuntimeOptions {
     // eslint-disable-next-line deprecation/deprecation
-    const { logging, tracing, tracingFilter, ...otherTelemetryOpts } = options.telemetryOptions ?? {};
+    const { logging, tracing, metrics, tracingFilter, ...otherTelemetryOpts } = options.telemetryOptions ?? {};
 
     const defaultFilter = tracingFilter ?? makeTelemetryFilterString({ core: 'INFO', other: 'INFO' });
     const loggingFilter = logging?.filter;
@@ -232,8 +239,26 @@ export class Runtime {
         tracing: tracing?.otel && {
           filter: defaultFilter,
           otel: {
-            ...filterNullAndUndefined(tracing.otel),
+            url: tracing.otel.url,
+            headers: tracing.otel.headers,
+            metricsExportInterval: undefined,
           },
+        },
+        metrics: metrics && {
+          temporality: metrics.temporality,
+          ...(isOtelCollectorExporter(metrics)
+            ? {
+                otel: {
+                  url: metrics.otel.url,
+                  headers: metrics.otel.headers,
+                  metricsExportInterval: msToNumber(metrics.otel.metricsExportInterval ?? '1s'),
+                },
+              }
+            : {
+                prometheus: {
+                  bindAddress: metrics.prometheus.bindAddress,
+                },
+              }),
         },
         ...filterNullAndUndefined(otherTelemetryOpts ?? {}),
       },

@@ -3,6 +3,18 @@ import type { TLSConfig } from '@temporalio/common/lib/internal-non-workflow';
 
 export { TLSConfig };
 
+type Shadow<Base, New> = Base extends object
+  ? New extends object
+    ? {
+        [K in keyof Base | keyof New]: K extends keyof Base
+          ? K extends keyof New
+            ? Shadow<Base[K], New[K]>
+            : Base[K]
+          : New[K];
+      }
+    : New
+  : New;
+
 export interface RetryOptions {
   /** Initial wait time before the first retry. */
   initialInterval: number;
@@ -98,8 +110,21 @@ export interface OtelCollectorExporter {
      * Optional set of HTTP request headers to send to Collector (e.g. for authentication)
      */
     headers?: Record<string, string>;
+    /**
+     * Specify how frequently in metrics should be exported.
+     *
+     * @format number of milliseconds or {@link https://www.npmjs.com/package/ms | ms-formatted string}
+     * @defaults 1 second
+     */
+    metricsExportInterval?: string | number;
   };
 }
+
+/** @experimental */
+export type CompiledOtelTraceExporter = Shadow<OtelCollectorExporter, { otel: { metricsExportInterval?: never } }>;
+
+/** @experimental */
+export type CompiledOtelMetricsExporter = Shadow<OtelCollectorExporter, { otel: { metricsExportInterval: number } }>;
 
 /**
  * Prometheus metrics exporter options
@@ -224,8 +249,10 @@ export type CompiledTelemetryOptions = {
   );
   tracing?: {
     filter: string;
-  } & TraceExporter;
-  metrics?: MetricsExporter;
+  } & CompiledOtelTraceExporter;
+  metrics?: {
+    temporality?: 'cumulative' | 'delta';
+  } & (PrometheusMetricsExporter | CompiledOtelMetricsExporter);
 };
 
 export interface WorkerOptions {
