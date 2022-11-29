@@ -23,6 +23,16 @@
  * Activities can only receive Cancellation if they {@link Context.heartbeat | emit heartbeats} or are Local Activities
  * (which can't heartbeat but receive Cancellation anyway).
  *
+ * Activity implementations should opt-in and subscribe to cancellation using these `Context` APIs: (Usage examples
+ * available below)
+ *
+ * - {@link Context.cancellationSignal | `Context.current().cancellationSignal`} - [`AbortSignal`]
+ * (https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal)
+ * - {@link Context.cancelled | `Context.current().cancelled`} - `Promise` that gets rejected when the activity is
+ * cancelled
+ * - {@link Context.sleep | `Context.current().sleep()`} - "Cancellation aware" sleep function, throws when the activity
+ * is cancelled
+ *
  * An Activity may receive Cancellation if:
  *
  * - The Workflow scope containing the Activity call was requested to be Cancelled and

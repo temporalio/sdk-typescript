@@ -269,7 +269,7 @@ exports.importInterceptors = function importInterceptors() {
 
             if (this.foundProblematicModules.size) {
               const err = new Error(
-                `Your Workflow code (or a library used by your Workflow code) is importing the following built-in Node modules:\n` +
+                `Your Workflow code (or a library used by your Workflow code) is importing the following black-listed modules:\n` +
                   Array.from(this.foundProblematicModules)
                     .map((module) => `  - '${module}'\n`)
                     .join('') +
@@ -277,6 +277,7 @@ exports.importInterceptors = function importInterceptors() {
                   `these modules will not be used at runtime, then you may add their names to 'WorkerOptions.bundlerOptions.ignoreModules' in order to ` +
                   `dismiss this warning. However, if your code execution actually depends on these modules, then you must change the code ` +
                   `or remove the library.\n` +
+                  `This error is typically thrown when activity code is imported from workflows.\n` +
                   `See https://typescript.temporal.io/api/interfaces/worker.workeroptions/#bundleroptions for details.`
               );
 
