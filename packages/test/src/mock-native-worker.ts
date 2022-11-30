@@ -13,9 +13,7 @@ import {
   compileWorkerOptions,
   WorkerOptions,
 } from '@temporalio/worker/lib/worker-options';
-import { WorkflowCreator } from '@temporalio/worker/lib/workflow/interface';
 import type { WorkflowCreator } from '@temporalio/worker/lib/workflow/interface';
-import { lastValueFrom } from 'rxjs';
 import * as activities from './activities';
 
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));

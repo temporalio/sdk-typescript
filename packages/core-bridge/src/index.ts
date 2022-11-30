@@ -10,7 +10,9 @@ type Shadow<Base, New> = Base extends object
           ? K extends keyof New
             ? Shadow<Base[K], New[K]>
             : Base[K]
-          : New[K];
+          : K extends keyof New
+          ? New[K]
+          : never;
       }
     : New
   : New;
