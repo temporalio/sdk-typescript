@@ -16,6 +16,7 @@ import {
   ForwardLogger,
   MetricsExporter,
   OtelCollectorExporter,
+  ShutdownError,
 } from '@temporalio/core-bridge';
 import { filterNullAndUndefined, normalizeTlsConfig } from '@temporalio/common/lib/internal-non-workflow';
 import { IllegalStateError } from '@temporalio/common';
@@ -278,7 +279,7 @@ export class Runtime {
         of(this.shouldPollForLogs).pipe(
           map((subject) => subject.getValue()),
           concatMap((shouldPoll) => {
-            if (!shouldPoll) throw new errors.ShutdownError('Poll stop requested');
+            if (!shouldPoll) throw new ShutdownError('Poll stop requested');
             return poll(this.native);
           }),
           map((logs) => {
@@ -295,7 +296,7 @@ export class Runtime {
       );
     } catch (error) {
       // Prevent unhandled rejection
-      if (error instanceof errors.ShutdownError) return;
+      if (error instanceof ShutdownError) return;
       // Log using the original logger instead of buffering
       this.options.logger.warn('Error gathering forwarded logs from core', { error });
     } finally {

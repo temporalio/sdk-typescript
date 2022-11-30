@@ -53,6 +53,7 @@ import { historyFromJSON } from '@temporalio/common/lib/proto-utils';
 import { optionalTsToDate, optionalTsToMs, tsToMs } from '@temporalio/common/lib/time';
 import { errorMessage } from '@temporalio/common/lib/type-helpers';
 import * as native from '@temporalio/core-bridge';
+import { UnexpectedError } from '@temporalio/core-bridge';
 import { coresdk, temporal } from '@temporalio/proto';
 import { DeterminismViolationError, SinkCall, WorkflowInfo } from '@temporalio/workflow';
 import { Activity, CancelReason } from './activity';
@@ -97,7 +98,6 @@ import IWorkflowActivationJob = coresdk.workflow_activation.IWorkflowActivationJ
 
 export { DataConverter, defaultPayloadConverter, errors };
 
-native.registerErrors(errors);
 /**
  * The worker's possible states
  * * `INITIALIZED` - The initial state of the Worker after calling {@link Worker.create} and successful connection to the server
@@ -602,7 +602,7 @@ export class Worker {
         ),
         map(({ workflowId, runId, evictJob }) => {
           if (workflowId === undefined) {
-            throw new errors.UnexpectedError('Expected workflowId to be set on eviction');
+            throw new UnexpectedError('Expected workflowId to be set on eviction');
           }
           const error = handleReplayEviction(evictJob, workflowId, runId);
           if (error != null) {
@@ -1254,7 +1254,7 @@ export class Worker {
                     span.setAttribute('close', close);
                     return { state, output: { close, completion, parentSpan } };
                   } catch (err) {
-                    if (err instanceof errors.UnexpectedError) {
+                    if (err instanceof UnexpectedError) {
                       isFatalError = true;
                     }
                     throw err;
@@ -1268,7 +1268,7 @@ export class Worker {
                   }
                 });
               } catch (error) {
-                if (error instanceof errors.UnexpectedError) {
+                if (error instanceof UnexpectedError) {
                   // rethrow and fail the worker
                   throw error;
                 }

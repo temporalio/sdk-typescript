@@ -455,8 +455,6 @@ export declare type ClientCallback = (err: Error, result: Client) => void;
 export declare type VoidCallback = (err: Error, result: void) => void;
 export declare type LogsCallback = (err: Error, result: LogEntry[]) => void;
 
-// TODO: improve type, for some reason Error is not accepted here
-export declare function registerErrors(errors: Record<string, any>): void;
 export declare function newRuntime(telemOptions: CompiledTelemetryOptions): Runtime;
 export declare function newClient(runtime: Runtime, clientOptions: ClientOptions, callback: ClientCallback): void;
 export declare function newWorker(client: Client, workerOptions: WorkerOptions, callback: WorkerCallback): void;
@@ -510,3 +508,5 @@ export declare function startEphemeralServer(
 ): void;
 export declare function shutdownEphemeralServer(server: EphemeralServer, callback: Callback<EphemeralServer>): void;
 export declare function getEphemeralServerTarget(server: EphemeralServer): string;
+
+export * from './errors';

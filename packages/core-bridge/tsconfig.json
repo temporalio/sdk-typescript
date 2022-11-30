@@ -5,12 +5,6 @@
     "outDir": "./lib",
     "rootDir": "./src"
   },
-  "references": [
-    { "path": "../client" },
-    { "path": "../core-bridge" },
-    { "path": "../workflow" },
-    { "path": "../activity" },
-    { "path": "../common" }
-  ],
+  "references": [{ "path": "../common" }],
   "include": ["./src/**/*.ts"]
 }

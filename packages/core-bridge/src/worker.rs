@@ -198,7 +198,7 @@ async fn handle_poll_workflow_activation_request(
                 PollWfError::AutocompleteError(CompleteWfError::MalformedWorkflowCompletion {
                     reason,
                     ..
-                }) => Ok(JsError::type_error(cx, reason)?.upcast()),
+                }) => Ok(JsError::type_error(cx, reason)?),
             });
         }
     }

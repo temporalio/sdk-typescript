@@ -1,5 +1,6 @@
 use crate::{conversions::*, errors::*, helpers::*, worker::*};
 use neon::prelude::*;
+use neon::context::Context;
 use parking_lot::RwLock;
 use std::cell::Cell;
 use std::{
@@ -163,7 +164,7 @@ pub fn start_bridge_loop(
                                         TRANSPORT_ERROR.construct_from_error(cx, e)
                                     }
                                     ClientInitError::InvalidUri(e) => {
-                                        Ok(JsError::type_error(cx, format!("{}", e))?.upcast())
+                                        Ok(JsError::type_error(cx, format!("{}", e))?)
                                     }
                                 });
                             }

@@ -23,6 +23,8 @@ export { ActivityInboundLogInterceptor, activityLogAttributes } from './activity
 export { NativeConnection as NativeConnection } from './connection';
 export { NativeConnectionOptions, RequiredNativeConnectionOptions, TLSConfig } from './connection-options';
 export { startDebugReplayer } from './debug-replayer';
+export { IllegalStateError } from '@temporalio/common';
+export { ShutdownError, TransportError, UnexpectedError } from '@temporalio/core-bridge';
 export * from './errors';
 export * from './interceptors';
 export * from './logger';
