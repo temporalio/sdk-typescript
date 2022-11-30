@@ -32,10 +32,10 @@ pub fn get_ephemeral_server_target(mut cx: FunctionContext) -> JsResult<JsString
     let target = server
         .borrow()
         .as_ref()
-        .map(|s| cx.string(s.core_server.blocking_lock().target.to_owned()));
+        .map(|s| cx.string(s.core_server.blocking_lock().target.as_str()));
     if target.is_none() {
         ILLEGAL_STATE_ERROR
-            .from_string(&mut cx, "Tried to use closed test server")
+            .construct_from_string(&mut cx, "Tried to use closed test server")
             .and_then(|err| cx.throw(err))?;
     };
     Ok(target.unwrap())

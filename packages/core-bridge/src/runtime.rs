@@ -155,12 +155,12 @@ pub fn start_bridge_loop(
                             Err(err) => {
                                 send_error(channel.clone(), callback, |cx| match err {
                                     ClientInitError::SystemInfoCallError(e) => TRANSPORT_ERROR
-                                        .from_string(
+                                        .construct_from_string(
                                             cx,
                                             format!("Failed to call GetSystemInfo: {}", e),
                                         ),
                                     ClientInitError::TonicTransportError(e) => {
-                                        TRANSPORT_ERROR.from_error(cx, e)
+                                        TRANSPORT_ERROR.construct_from_error(cx, e)
                                     }
                                     ClientInitError::InvalidUri(e) => {
                                         Ok(JsError::type_error(cx, format!("{}", e))?.upcast())
@@ -214,13 +214,17 @@ pub fn start_bridge_loop(
                     match init_worker(&core_runtime, config, client.into_inner()) {
                         Ok(worker) => {
                             let (tx, rx) = unbounded_channel();
-                            core_runtime.tokio_handle().spawn(start_worker_loop(worker, rx, channel.clone()));
+                            core_runtime.tokio_handle().spawn(start_worker_loop(
+                                worker,
+                                rx,
+                                channel.clone(),
+                            ));
                             send_result(channel.clone(), callback, |cx| {
                                 Ok(cx.boxed(RefCell::new(Some(WorkerHandle { sender: tx }))))
                             });
                         }
                         Err(err) => send_error(channel.clone(), callback, move |cx| {
-                            UNEXPECTED_ERROR.from_error(cx, err.deref())
+                            UNEXPECTED_ERROR.construct_from_error(cx, err.deref())
                         }),
                     }
                 }
@@ -233,7 +237,11 @@ pub fn start_bridge_loop(
                     match init_replay_worker(config, Box::pin(stream)) {
                         Ok(worker) => {
                             let (tx, rx) = unbounded_channel();
-                            core_runtime.tokio_handle().spawn(start_worker_loop(worker, rx, channel.clone()));
+                            core_runtime.tokio_handle().spawn(start_worker_loop(
+                                worker,
+                                rx,
+                                channel.clone(),
+                            ));
                             send_result(channel.clone(), callback, |cx| {
                                 let worker =
                                     cx.boxed(RefCell::new(Some(WorkerHandle { sender: tx })));
@@ -245,7 +253,7 @@ pub fn start_bridge_loop(
                             })
                         }
                         Err(err) => send_error(channel.clone(), callback, move |cx| {
-                            UNEXPECTED_ERROR.from_error(cx, err.deref())
+                            UNEXPECTED_ERROR.construct_from_error(cx, err.deref())
                         }),
                     };
                 }
@@ -267,7 +275,7 @@ pub fn start_bridge_loop(
                             Err(err) => {
                                 let err_str = format!("Failed to start ephemeral server: {}", err);
                                 send_error(channel.clone(), callback, |cx| {
-                                    UNEXPECTED_ERROR.from_string(cx, err_str)
+                                    UNEXPECTED_ERROR.construct_from_string(cx, err_str)
                                 });
                             }
                             Ok(server) => {
@@ -291,7 +299,7 @@ pub fn start_bridge_loop(
                                 guard.shutdown().await
                             },
                             |cx, err| {
-                                UNEXPECTED_ERROR.from_string(
+                                UNEXPECTED_ERROR.construct_from_string(
                                     cx,
                                     format!("Failed to start test server: {}", err),
                                 )
@@ -316,7 +324,7 @@ pub fn start_bridge_loop(
                         };
                         void_future_to_js(channel, callback, sendfut, |cx, err| {
                             UNEXPECTED_ERROR
-                                .from_string(cx, format!("Error pushing replay history {}", err))
+                                .construct_from_string(cx, format!("Error pushing replay history {}", err))
                         })
                         .await
                     });
@@ -429,7 +437,7 @@ pub fn client_close(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     let client = cx.argument::<BoxedClient>(0)?;
     if client.replace(None).is_none() {
         ILLEGAL_STATE_ERROR
-            .from_string(&mut cx, "Client already closed")
+            .construct_from_string(&mut cx, "Client already closed")
             .and_then(|err| cx.throw(err))?;
     };
     Ok(cx.undefined())

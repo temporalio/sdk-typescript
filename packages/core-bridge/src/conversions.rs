@@ -237,8 +237,11 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
                     "metricPeriodicity",
                     JsNumber
                 ) as u64));
-                telemetry_opts
-                    .metrics(MetricsExporter::Otel(OtelCollectorOptions { url, headers, metric_periodicity }));
+                telemetry_opts.metrics(MetricsExporter::Otel(OtelCollectorOptions {
+                    url,
+                    headers,
+                    metric_periodicity,
+                }));
             } else {
                 cx.throw_type_error(
                     "Invalid telemetryOptions.metrics, missing `prometheus` or `otel` option",
@@ -262,12 +265,14 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
                     };
                 telemetry_opts.tracing(TraceExportConfig {
                     filter,
-                    exporter: TraceExporter::Otel(OtelCollectorOptions { url, headers, metric_periodicity: None }),
+                    exporter: TraceExporter::Otel(OtelCollectorOptions {
+                        url,
+                        headers,
+                        metric_periodicity: None,
+                    }),
                 });
             } else {
-                cx.throw_type_error(
-                    "Invalid telemetryOptions.tracing, missing `otel` option",
-                )?
+                cx.throw_type_error("Invalid telemetryOptions.tracing, missing `otel` option")?
             }
         }
 
