@@ -20,11 +20,11 @@ pub trait CustomError {
     where
         C: Context<'a>;
 
-    fn from_string<'a, C>(&self, cx: &mut C, message: impl Into<String>) -> JsResult<'a, JsObject>
+    fn construct_from_string<'a, C>(&self, cx: &mut C, message: impl Into<String>) -> JsResult<'a, JsObject>
     where
         C: Context<'a>;
 
-    fn from_error<'a, C, E>(&self, cx: &mut C, err: E) -> JsResult<'a, JsObject>
+    fn construct_from_error<'a, C, E>(&self, cx: &mut C, err: E) -> JsResult<'a, JsObject>
     where
         C: Context<'a>,
         E: std::error::Error;
@@ -46,7 +46,7 @@ impl CustomError for OnceCell<Root<JsFunction>> {
         error.construct(cx, args)
     }
 
-    fn from_string<'a, C>(&self, cx: &mut C, message: impl Into<String>) -> JsResult<'a, JsObject>
+    fn construct_from_string<'a, C>(&self, cx: &mut C, message: impl Into<String>) -> JsResult<'a, JsObject>
     where
         C: Context<'a>,
     {
@@ -54,12 +54,12 @@ impl CustomError for OnceCell<Root<JsFunction>> {
         self.construct(cx, args)
     }
 
-    fn from_error<'a, C, E>(&self, cx: &mut C, err: E) -> JsResult<'a, JsObject>
+    fn construct_from_error<'a, C, E>(&self, cx: &mut C, err: E) -> JsResult<'a, JsObject>
     where
         C: Context<'a>,
         E: std::error::Error,
     {
-        self.from_string(cx, format!("{:?}", err))
+        self.construct_from_string(cx, format!("{:?}", err))
     }
 }
 

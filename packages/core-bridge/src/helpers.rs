@@ -62,7 +62,7 @@ where
 {
     let err_str = format!("{}", err);
     callback_with_error(cx, callback, move |cx| {
-        UNEXPECTED_ERROR.from_string(cx, err_str)
+        UNEXPECTED_ERROR.construct_from_string(cx, err_str)
     })
 }
 
