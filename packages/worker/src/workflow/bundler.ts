@@ -275,15 +275,10 @@ exports.importInterceptors = function importInterceptors() {
                     .join('') +
                   `These modules can't be used in workflow context as they might break determinism.` +
                   `HINT: Consider the following options:\n` +
-                  ` • Make sure that activity code is not imported from workflow code. Use \`import type\` to import activity function signature.\n` +
+                  ` • Make sure that activity code is not imported from workflow code. Use \`import type\` to import activity function signatures.\n` +
                   ` • Move code that has non-deterministic behaviour to activities.\n` +
                   ` • If you know for sure that a disallowed module will not be used at runtime, add its name to 'WorkerOptions.bundlerOptions.ignoreModules' in order to dismiss this warning.\n` +
-
-                  `these modules will not be used at runtime, then you may add their names to 'WorkerOptions.bundlerOptions.ignoreModules' in order to ` +
-                  `dismiss this warning. However, if your code execution actually depends on these modules, then you must change the code ` +
-                  `or remove the library.\n` +
-                  `This error is typically thrown when activity code is imported from workflows.\n` +
-                  `See https://typescript.temporal.io/api/interfaces/worker.workeroptions/#bundleroptions for details.`
+                  `See also: https://typescript.temporal.io/api/interfaces/worker.workeroptions/#bundleroptions and https://docs.temporal.io/typescript/determinism.`
               );
 
               reject(err);

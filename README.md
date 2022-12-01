@@ -13,7 +13,7 @@
 
 "Temporal TypeScript SDK" is the framework for authoring workflows and activities using either the TypeScript or JavaScript programming languages.
 
-For getting started and general documentation, please refer to the following resources:
+For documentation and samples, see:
 
 - [Code Samples](https://github.com/temporalio/samples-typescript)
 - [TypeScript SDK docs](https://docs.temporal.io/typescript/introduction)
