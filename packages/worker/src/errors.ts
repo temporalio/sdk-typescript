@@ -4,8 +4,3 @@
 export class GracefulShutdownPeriodExpiredError extends Error {
   public readonly name = 'GracefulShutdownPeriodExpiredError';
 }
-
-/**
- * These are rexported here only to maintain
- */
-export { IllegalStateError } from '@temporalio/common';

@@ -5,6 +5,10 @@ const { convertFromNamedError } = require('./lib/errors');
 function wrapErrors(fn) {
   return (...args) => {
     try {
+      // Some of our native functions expect callback functions. When present, these callbacks are
+      // always the last argument passed to the function, and always adhere to the signature
+      // `callback(err, result)`. If a callback is present, then make sure that errors sent
+      // to it are also converted.
       if (typeof args[args.length - 1] === 'function') {
         const callback = args[args.length - 1];
         args[args.length - 1] = (e, x) => callback(convertFromNamedError(e), x);

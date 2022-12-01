@@ -32,7 +32,7 @@ export function convertFromNamedError(e: unknown): unknown {
         return new IllegalStateError(e.message);
       case 'ShutdownError':
         return new ShutdownError(e.message);
-      case 'UnexpectedError':
+      default:
         return new UnexpectedError(e.message);
     }
   }
