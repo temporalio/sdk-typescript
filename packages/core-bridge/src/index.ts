@@ -511,4 +511,4 @@ export declare function startEphemeralServer(
 export declare function shutdownEphemeralServer(server: EphemeralServer, callback: Callback<EphemeralServer>): void;
 export declare function getEphemeralServerTarget(server: EphemeralServer): string;
 
-export * from './errors';
+export { ShutdownError, TransportError, UnexpectedError } from './errors';

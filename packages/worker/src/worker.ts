@@ -59,7 +59,6 @@ import { DeterminismViolationError, SinkCall, WorkflowInfo } from '@temporalio/w
 import { Activity, CancelReason } from './activity';
 import { activityLogAttributes } from './activity-log-interceptor';
 import { extractNativeClient, extractReferenceHolders, InternalNativeConnection, NativeConnection } from './connection';
-import * as errors from './errors';
 import { ActivityExecuteInput } from './interceptors';
 import { Logger } from './logger';
 import pkg from './pkg';
@@ -93,10 +92,11 @@ import { Workflow, WorkflowCreator } from './workflow/interface';
 import { ThreadedVMWorkflowCreator } from './workflow/threaded-vm';
 import { VMWorkflowCreator } from './workflow/vm';
 import { WorkflowBundleWithSourceMapAndFilename } from './workflow/workflow-worker-thread/input';
+import { GracefulShutdownPeriodExpiredError } from './errors';
 
 import IWorkflowActivationJob = coresdk.workflow_activation.IWorkflowActivationJob;
 
-export { DataConverter, defaultPayloadConverter, errors };
+export { DataConverter, defaultPayloadConverter };
 
 /**
  * The worker's possible states
@@ -786,9 +786,7 @@ export class Worker {
         filter((state): state is 'STOPPING' => state === 'STOPPING'),
         delay(this.options.shutdownGraceTimeMs),
         map(() => {
-          throw new errors.GracefulShutdownPeriodExpiredError(
-            'Timed out while waiting for worker to shutdown gracefully'
-          );
+          throw new GracefulShutdownPeriodExpiredError('Timed out while waiting for worker to shutdown gracefully');
         })
       ),
       this.stateSubject.pipe(

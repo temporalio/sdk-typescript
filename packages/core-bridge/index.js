@@ -1,43 +1,17 @@
 const { getPrebuiltPath } = require('./common');
-const { IllegalStateError } = require('@temporalio/common');
 const typescriptExports = require('./lib/index');
+const { convertFromNamedError } = require('./lib/errors');
 
-function handleErrors(fn) {
+function wrapErrors(fn) {
   return (...args) => {
     try {
-      const res = fn(...args);
-      if (res && typeof res.catch === 'function') {
-        return res.catch((e) => {
-          switch (e.name) {
-            case 'TransportError':
-              throw new typescriptExports.TransportError(e.message);
-            case 'IllegalStateError':
-              throw new IllegalStateError(e.message);
-            case 'ShutdownError':
-              throw new typescriptExports.ShutdownError(e.message);
-            case 'UnexpectedError':
-              throw new typescriptExports.UnexpectedError(e.message);
-            default: {
-              throw e;
-            }
-          }
-        });
+      if (typeof args[args.length - 1] === 'function') {
+        const callback = args[args.length - 1];
+        args[args.length - 1] = (e, x) => callback(convertFromNamedError(e), x);
       }
-      return res;
+      return fn(...args);
     } catch (e) {
-      switch (e.name) {
-        case 'TransportError':
-          throw new typescriptExports.TransportError(e.message);
-        case 'IllegalStateError':
-          throw new IllegalStateError(e.message);
-        case 'ShutdownError':
-          throw new typescriptExports.ShutdownError(e.message);
-        case 'UnexpectedError':
-          throw new typescriptExports.UnexpectedError(e.message);
-        default: {
-          throw e;
-        }
-      }
+      throw convertFromNamedError(e);
     }
   };
 }
@@ -45,7 +19,7 @@ function handleErrors(fn) {
 try {
   const nativeLibPath = getPrebuiltPath();
   const nativeExports = Object.fromEntries(
-    Object.entries(require(nativeLibPath)).map(([name, fn]) => [name, handleErrors(fn)])
+    Object.entries(require(nativeLibPath)).map(([name, fn]) => [name, wrapErrors(fn)])
   );
   module.exports = { ...typescriptExports, ...nativeExports };
 } catch (err) {

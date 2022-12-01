@@ -28,8 +28,15 @@ export class NativeConnection {
    * @deprecated use `connect` instead
    */
   static async create(options?: NativeConnectionOptions): Promise<NativeConnection> {
-    const client = await Runtime.instance().createNativeClient(options);
-    return new this(client);
+    try {
+      const client = await Runtime.instance().createNativeClient(options);
+      return new this(client);
+    } catch (err) {
+      if (err instanceof TransportError) {
+        throw new TransportError(err.message);
+      }
+      throw err;
+    }
   }
 
   /**
