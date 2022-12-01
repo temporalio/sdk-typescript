@@ -269,11 +269,16 @@ exports.importInterceptors = function importInterceptors() {
 
             if (this.foundProblematicModules.size) {
               const err = new Error(
-                `Your Workflow code (or a library used by your Workflow code) is importing the following black-listed modules:\n` +
+                `Your Workflow code (or a library used by your Workflow code) is importing the following disallowed modules:\n` +
                   Array.from(this.foundProblematicModules)
                     .map((module) => `  - '${module}'\n`)
                     .join('') +
-                  `Workflow code doesn't have access to built-in Node modules (in order to help enforce determinism). If you are certain ` +
+                  `These modules can't be used in workflow context as they might break determinism.` +
+                  `HINT: Consider the following options:\n` +
+                  ` • Make sure that activity code is not imported from workflow code. Use \`import type\` to import activity function signature.\n` +
+                  ` • Move code that has non-deterministic behaviour to activities.\n` +
+                  ` • If you know for sure that a disallowed module will not be used at runtime, add its name to 'WorkerOptions.bundlerOptions.ignoreModules' in order to dismiss this warning.\n` +
+
                   `these modules will not be used at runtime, then you may add their names to 'WorkerOptions.bundlerOptions.ignoreModules' in order to ` +
                   `dismiss this warning. However, if your code execution actually depends on these modules, then you must change the code ` +
                   `or remove the library.\n` +

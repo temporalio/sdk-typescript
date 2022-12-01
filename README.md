@@ -9,7 +9,7 @@
   </a>
 </div>
 
-[Temporal](https://temporal.io) is a distributed, scalable, durable, and highly available orchestration engine used to execute asynchronous, long-running business logic in a scalable and resilient way.
+[Temporal](https://temporal.io) is a durable execution system that transparently makes your code durable, fault-tolerant, and simple.
 
 "Temporal TypeScript SDK" is the framework for authoring workflows and activities using either the TypeScript or JavaScript programming languages.
 
