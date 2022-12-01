@@ -9,4 +9,3 @@ export class GracefulShutdownPeriodExpiredError extends Error {
  * These are rexported here only to maintain
  */
 export { IllegalStateError } from '@temporalio/common';
-export { ShutdownError, TransportError, UnexpectedError } from '@temporalio/core-bridge';
