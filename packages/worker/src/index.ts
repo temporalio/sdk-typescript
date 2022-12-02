@@ -25,7 +25,7 @@ export { NativeConnectionOptions, RequiredNativeConnectionOptions, TLSConfig } f
 export { startDebugReplayer } from './debug-replayer';
 export { IllegalStateError } from '@temporalio/common';
 export { ShutdownError, TransportError, UnexpectedError } from '@temporalio/core-bridge';
-export { GracefulShutdownPeriodExpiredError } from './errors';
+export { GracefulShutdownPeriodExpiredError, errors } from './errors';
 export * from './interceptors';
 export * from './logger';
 export { History, Runtime, RuntimeOptions, makeTelemetryFilterString } from './runtime';

@@ -11,11 +11,11 @@ function wrapErrors(fn) {
       // to it are also converted.
       if (typeof args[args.length - 1] === 'function') {
         const callback = args[args.length - 1];
-        args[args.length - 1] = (e, x) => callback(convertFromNamedError(e), x);
+        args[args.length - 1] = (e, x) => callback(convertFromNamedError(e, false), x);
       }
       return fn(...args);
     } catch (e) {
-      throw convertFromNamedError(e);
+      throw convertFromNamedError(e, true);
     }
   };
 }

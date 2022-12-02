@@ -3,8 +3,8 @@
   "compilerOptions": {
     "resolveJsonModule": true,
     "outDir": "./lib",
-    "rootDir": "./src"
+    "rootDir": "./ts"
   },
   "references": [{ "path": "../common" }],
-  "include": ["./src/**/*.ts"]
+  "include": ["./ts/**/*.ts"]
 }
