@@ -44,9 +44,9 @@
  * The reason for the Cancellation is available at {@link CancelledFailure.message} or
  * {@link Context#cancellationSignal | Context.cancellationSignal.reason}.
  *
- * There are two ways to handle Activity Cancellation:
+ * Activity implementations should opt-in and subscribe to cancellation using one of the following methods:
  *
- * 1. await on {@link Context.cancelled | `Context.current().cancelled`} or
+ * 1. `await` on {@link Context.cancelled | `Context.current().cancelled`} or
  *    {@link Context.sleep | `Context.current().sleep()`}, which each throw a {@link CancelledFailure}.
  * 1. Pass the context's {@link https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal | `AbortSignal`} at
  *    {@link Context.cancellationSignal | `Context.current().cancellationSignal`} to a library that supports it.
