@@ -4,16 +4,16 @@ import { lastValueFrom } from 'rxjs';
 import { defaultPayloadConverter, fromPayloadsAtIndex } from '@temporalio/common';
 import { msToTs } from '@temporalio/common/lib/time';
 import { coresdk } from '@temporalio/proto';
-import { DefaultLogger } from '@temporalio/worker';
+import { DefaultLogger, ShutdownError } from '@temporalio/worker';
 import { byteArrayToBuffer } from '@temporalio/worker/lib/utils';
-import { errors, NativeReplayHandle, NativeWorkerLike, Worker as RealWorker } from '@temporalio/worker/lib/worker';
+import { NativeReplayHandle, NativeWorkerLike, Worker as RealWorker } from '@temporalio/worker/lib/worker';
 import {
   addDefaultWorkerOptions,
   CompiledWorkerOptions,
   compileWorkerOptions,
   WorkerOptions,
 } from '@temporalio/worker/lib/worker-options';
-import { WorkflowCreator } from '@temporalio/worker/src/workflow/interface';
+import type { WorkflowCreator } from '@temporalio/worker/lib/workflow/interface';
 import * as activities from './activities';
 
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
@@ -65,7 +65,7 @@ export class MockNativeWorker implements NativeWorkerLike {
   }
 
   public async initiateShutdown(): Promise<void> {
-    const shutdownErrorPromise = Promise.reject(new errors.ShutdownError('Core is shut down'));
+    const shutdownErrorPromise = Promise.reject(new ShutdownError('Core is shut down'));
     this.activityTasks.unshift(shutdownErrorPromise);
     this.workflowActivations.unshift(shutdownErrorPromise);
   }

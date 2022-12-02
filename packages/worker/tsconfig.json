@@ -7,6 +7,7 @@
   },
   "references": [
     { "path": "../client" },
+    { "path": "../core-bridge" },
     { "path": "../workflow" },
     { "path": "../activity" },
     { "path": "../common" }

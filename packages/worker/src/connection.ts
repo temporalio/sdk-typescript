@@ -1,9 +1,8 @@
 import util from 'util';
 import { IllegalStateError } from '@temporalio/common';
-import { Client, Worker, clientUpdateHeaders } from '@temporalio/core-bridge';
+import { Client, Worker, clientUpdateHeaders, TransportError } from '@temporalio/core-bridge';
 import { NativeConnectionOptions } from './connection-options';
 import { Runtime } from './runtime';
-import { TransportError } from './errors';
 
 const updateHeaders = util.promisify(clientUpdateHeaders);
 

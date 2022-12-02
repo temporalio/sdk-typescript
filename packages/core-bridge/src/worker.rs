@@ -193,12 +193,12 @@ async fn handle_poll_workflow_activation_request(
         }
         Err(err) => {
             send_error(channel, callback, move |cx| match err {
-                PollWfError::ShutDown => SHUTDOWN_ERROR.construct_from_error(cx, err),
-                PollWfError::TonicError(_) => TRANSPORT_ERROR.construct_from_error(cx, err),
+                PollWfError::ShutDown => make_named_error_from_error(cx, SHUTDOWN_ERROR, err),
+                PollWfError::TonicError(_) => make_named_error_from_error(cx, TRANSPORT_ERROR, err),
                 PollWfError::AutocompleteError(CompleteWfError::MalformedWorkflowCompletion {
                     reason,
                     ..
-                }) => Ok(JsError::type_error(cx, reason)?.upcast()),
+                }) => Ok(JsError::type_error(cx, reason)?),
             });
         }
     }
@@ -226,8 +226,10 @@ pub async fn handle_poll_activity_task_request(
         }
         Err(err) => {
             send_error(channel, callback, move |cx| match err {
-                PollActivityError::ShutDown => SHUTDOWN_ERROR.construct_from_error(cx, err),
-                PollActivityError::TonicError(_) => TRANSPORT_ERROR.construct_from_error(cx, err),
+                PollActivityError::ShutDown => make_named_error_from_error(cx, SHUTDOWN_ERROR, err),
+                PollActivityError::TonicError(_) => {
+                    make_named_error_from_error(cx, TRANSPORT_ERROR, err)
+                }
             });
         }
     }
@@ -372,9 +374,7 @@ pub fn worker_complete_workflow_activation(mut cx: FunctionContext) -> JsResult<
             callback_with_unexpected_error(&mut cx, callback, "Tried to use closed Worker")?;
         }
         Some(worker) => {
-            match WorkflowActivationCompletion::decode_length_delimited(
-                completion.as_slice(&cx),
-            ) {
+            match WorkflowActivationCompletion::decode_length_delimited(completion.as_slice(&cx)) {
                 Ok(completion) => {
                     let request = WorkerRequest::CompleteWorkflowActivation {
                         completion,
@@ -430,22 +430,20 @@ pub fn worker_record_activity_heartbeat(mut cx: FunctionContext) -> JsResult<JsU
     let worker = cx.argument::<BoxedWorker>(0)?;
     let heartbeat = cx.argument::<JsArrayBuffer>(1)?;
     match worker.borrow().as_ref() {
-        None => UNEXPECTED_ERROR
-            .construct_from_string(&mut cx, "Tried to use closed Worker")
-            .and_then(|err| cx.throw(err))?,
-        Some(worker) => {
-            match ActivityHeartbeat::decode_length_delimited(heartbeat.as_slice(&cx)) {
-                Ok(heartbeat) => {
-                    let request = WorkerRequest::RecordActivityHeartbeat { heartbeat };
-                    if let Err(err) = worker.sender.send(request) {
-                        UNEXPECTED_ERROR
-                            .construct_from_error(&mut cx, err)
-                            .and_then(|err| cx.throw(err))?;
-                    }
-                }
-                Err(_) => cx.throw_type_error("Cannot decode ActivityHeartbeat from buffer")?,
-            }
+        None => {
+            make_named_error_from_string(&mut cx, UNEXPECTED_ERROR, "Tried to use closed Worker")
+                .and_then(|err| cx.throw(err))?
         }
+        Some(worker) => match ActivityHeartbeat::decode_length_delimited(heartbeat.as_slice(&cx)) {
+            Ok(heartbeat) => {
+                let request = WorkerRequest::RecordActivityHeartbeat { heartbeat };
+                if let Err(err) = worker.sender.send(request) {
+                    make_named_error_from_error(&mut cx, UNEXPECTED_ERROR, err)
+                        .and_then(|err| cx.throw(err))?;
+                }
+            }
+            Err(_) => cx.throw_type_error("Cannot decode ActivityHeartbeat from buffer")?,
+        },
     };
     Ok(cx.undefined())
 }
@@ -465,8 +463,7 @@ pub fn worker_initiate_shutdown(mut cx: FunctionContext) -> JsResult<JsUndefined
             if let Err(err) = worker.sender.send(WorkerRequest::InitiateShutdown {
                 callback: callback.root(&mut cx),
             }) {
-                UNEXPECTED_ERROR
-                    .construct_from_error(&mut cx, err)
+                make_named_error_from_error(&mut cx, UNEXPECTED_ERROR, err)
                     .and_then(|err| cx.throw(err))?;
             };
         }
@@ -477,8 +474,7 @@ pub fn worker_initiate_shutdown(mut cx: FunctionContext) -> JsResult<JsUndefined
 pub fn worker_finalize_shutdown(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     let worker = cx.argument::<BoxedWorker>(0)?;
     if worker.replace(None).is_none() {
-        ILLEGAL_STATE_ERROR
-            .construct_from_string(&mut cx, "Worker already closed")
+        make_named_error_from_string(&mut cx, ILLEGAL_STATE_ERROR, "Worker already closed")
             .and_then(|err| cx.throw(err))?;
     }
 

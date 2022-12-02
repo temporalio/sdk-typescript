@@ -1,4 +1,5 @@
 use crate::{conversions::*, errors::*, helpers::*, worker::*};
+use neon::context::Context;
 use neon::prelude::*;
 use parking_lot::RwLock;
 use std::cell::Cell;
@@ -154,16 +155,18 @@ pub fn start_bridge_loop(
                         {
                             Err(err) => {
                                 send_error(channel.clone(), callback, |cx| match err {
-                                    ClientInitError::SystemInfoCallError(e) => TRANSPORT_ERROR
-                                        .construct_from_string(
+                                    ClientInitError::SystemInfoCallError(e) => {
+                                        make_named_error_from_string(
                                             cx,
+                                            TRANSPORT_ERROR,
                                             format!("Failed to call GetSystemInfo: {}", e),
-                                        ),
+                                        )
+                                    }
                                     ClientInitError::TonicTransportError(e) => {
-                                        TRANSPORT_ERROR.construct_from_error(cx, e)
+                                        make_named_error_from_error(cx, TRANSPORT_ERROR, e)
                                     }
                                     ClientInitError::InvalidUri(e) => {
-                                        Ok(JsError::type_error(cx, format!("{}", e))?.upcast())
+                                        Ok(JsError::type_error(cx, format!("{}", e))?)
                                     }
                                 });
                             }
@@ -224,7 +227,7 @@ pub fn start_bridge_loop(
                             });
                         }
                         Err(err) => send_error(channel.clone(), callback, move |cx| {
-                            UNEXPECTED_ERROR.construct_from_error(cx, err.deref())
+                            make_named_error_from_error(cx, UNEXPECTED_ERROR, err.deref())
                         }),
                     }
                 }
@@ -253,7 +256,7 @@ pub fn start_bridge_loop(
                             })
                         }
                         Err(err) => send_error(channel.clone(), callback, move |cx| {
-                            UNEXPECTED_ERROR.construct_from_error(cx, err.deref())
+                            make_named_error_from_error(cx, UNEXPECTED_ERROR, err.deref())
                         }),
                     };
                 }
@@ -275,7 +278,7 @@ pub fn start_bridge_loop(
                             Err(err) => {
                                 let err_str = format!("Failed to start ephemeral server: {}", err);
                                 send_error(channel.clone(), callback, |cx| {
-                                    UNEXPECTED_ERROR.construct_from_string(cx, err_str)
+                                    make_named_error_from_string(cx, UNEXPECTED_ERROR, err_str)
                                 });
                             }
                             Ok(server) => {
@@ -299,8 +302,9 @@ pub fn start_bridge_loop(
                                 guard.shutdown().await
                             },
                             |cx, err| {
-                                UNEXPECTED_ERROR.construct_from_string(
+                                make_named_error_from_string(
                                     cx,
+                                    UNEXPECTED_ERROR,
                                     format!("Failed to start test server: {}", err),
                                 )
                             },
@@ -323,8 +327,11 @@ pub fn start_bridge_loop(
                             })
                         };
                         void_future_to_js(channel, callback, sendfut, |cx, err| {
-                            UNEXPECTED_ERROR
-                                .construct_from_string(cx, format!("Error pushing replay history {}", err))
+                            make_named_error_from_string(
+                                cx,
+                                UNEXPECTED_ERROR,
+                                format!("Error pushing replay history {}", err),
+                            )
                         })
                         .await
                     });
@@ -436,8 +443,7 @@ pub fn client_new(mut cx: FunctionContext) -> JsResult<JsUndefined> {
 pub fn client_close(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     let client = cx.argument::<BoxedClient>(0)?;
     if client.replace(None).is_none() {
-        ILLEGAL_STATE_ERROR
-            .construct_from_string(&mut cx, "Client already closed")
+        make_named_error_from_string(&mut cx, ILLEGAL_STATE_ERROR, "Client already closed")
             .and_then(|err| cx.throw(err))?;
     };
     Ok(cx.undefined())
