@@ -41,7 +41,9 @@
     "Cargo.lock",
     "index.js",
     "common.js",
-    "index.d.ts"
+    "index.d.ts",
+    "ts",
+    "lib"
   ],
   "publishConfig": {
     "access": "public"
