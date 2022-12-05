@@ -297,6 +297,7 @@ jobs:
       typescript-repo-path: ${{github.event.pull_request.head.repo.full_name}}
       version: ${{github.event.pull_request.head.ref}}
       version-is-repo-ref: true
+      sdk-features-repo-ref: ts-next
 
   stress-tests:
     uses: ./.github/workflows/stress.yml
