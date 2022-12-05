@@ -1430,7 +1430,7 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
       workflowId,
     });
 
-    t.is(await handle.result(), 0);
+    t.false(await handle.result());
 
     const history = await handle.fetchHistory();
     const timerStartedEvents = history.events!.filter(({ eventType }) => eventType! === EVENT_TYPE_TIMER_STARTED);

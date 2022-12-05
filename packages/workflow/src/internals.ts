@@ -590,7 +590,9 @@ export class Activator implements ActivationHandler {
     if (activation.patchId.startsWith('__sdk_internal_patch_number:')) {
       const internalPatchNumber = parseInt(activation.patchId.substring('__sdk_internal_patch_number:'.length));
       if (internalPatchNumber > LATEST_INTERNAL_PATCH_NUMBER)
-        throw new Error(`Unsupported internal patch number: ${internalPatchNumber} > ${LATEST_INTERNAL_PATCH_NUMBER}`);
+        throw new IllegalStateError(
+          `Unsupported internal patch number: ${internalPatchNumber} > ${LATEST_INTERNAL_PATCH_NUMBER}`
+        );
       if (this.internalPatchNumber < internalPatchNumber) this.internalPatchNumber = internalPatchNumber;
     } else {
       this.knownPresentPatches.add(activation.patchId);

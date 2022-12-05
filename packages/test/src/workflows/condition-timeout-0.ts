@@ -24,19 +24,18 @@ export async function conditionTimeout0(): Promise<number> {
   const aResult = await condition(() => aSignalReceived, 0);
   if (aResult === true || aResult === undefined) counter += 1;
 
+  // Do it a second time, so that we can validate that patching logic works
   const bResult = await condition(() => bSignalReceived, 0);
   if (bResult === true || bResult === undefined) counter += 10;
 
   return counter;
 }
 
-export async function conditionTimeout0Simple(): Promise<number> {
+export async function conditionTimeout0Simple(): Promise<boolean | undefined> {
   let validationTimerFired = false;
   sleep(1000)
     .then(() => (validationTimerFired = true))
     .catch((e) => console.log(e));
 
-  const res = await condition(() => validationTimerFired, 0);
-  if (res === false) return 0;
-  throw ApplicationFailure.nonRetryable(`Unexpected result: '${res}'`);
+  return await condition(() => validationTimerFired, 0);
 }
