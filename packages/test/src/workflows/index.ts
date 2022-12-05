@@ -26,6 +26,7 @@ export * from './child-workflow-termination';
 export * from './child-workflow-timeout';
 export * from './condition';
 export * from './condition-completion-race';
+export * from './condition-timeout-0';
 export * from './continue-as-new-same-workflow';
 export * from './continue-as-new-to-different-workflow';
 export * from './date';

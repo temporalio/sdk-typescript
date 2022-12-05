@@ -85,6 +85,16 @@ export type ActivationHandler = {
 };
 
 /**
+ * SDK Internal Patches are created by the SDK to avoid breaking history when behaviour
+ * of existing API need to be modified. This is the patch number supported by the current
+ * version of the SDK.
+ *
+ * History:
+ * 1: Fix `condition(..., 0)` is not the same as `condition(..., undefined)`
+ */
+export const LATEST_INTERNAL_PATCH_NUMBER = 1;
+
+/**
  * Keeps all of the Workflow runtime state like pending completions for activities and timers.
  *
  * Implements handlers for all workflow activation jobs.
@@ -259,6 +269,12 @@ export class Activator implements ActivationHandler {
    * Patches we sent to core {@link patched}
    */
   public readonly sentPatches = new Set<string>();
+
+  /**
+   * SDK Internal Patches are created by the SDK to avoid breaking history when behaviour
+   * of existing API need to be modified.
+   */
+  public internalPatchNumber = 0;
 
   sinkCalls = Array<SinkCall>();
 
@@ -571,7 +587,26 @@ export class Activator implements ActivationHandler {
     if (!activation.patchId) {
       throw new TypeError('Notify has patch missing patch name');
     }
-    this.knownPresentPatches.add(activation.patchId);
+    if (activation.patchId.startsWith('__sdk_internal_patch_number:')) {
+      const internalPatchNumber = parseInt(activation.patchId.substring('__sdk_internal_patch_number:'.length));
+      if (internalPatchNumber > LATEST_INTERNAL_PATCH_NUMBER)
+        throw new Error(`Unsupported internal patch number: ${internalPatchNumber} > ${LATEST_INTERNAL_PATCH_NUMBER}`);
+      if (this.internalPatchNumber < internalPatchNumber) this.internalPatchNumber = internalPatchNumber;
+    } else {
+      this.knownPresentPatches.add(activation.patchId);
+    }
+  }
+
+  public checkInternalPatchAtLeast(minimumPatchNumber: number): boolean {
+    if (this.internalPatchNumber >= minimumPatchNumber) return true;
+    if (!this.info.unsafe.isReplaying) {
+      this.internalPatchNumber = minimumPatchNumber;
+      this.pushCommand({
+        setPatchMarker: { patchId: `__sdk_internal_patch_number:${LATEST_INTERNAL_PATCH_NUMBER}`, deprecated: false },
+      });
+      return true;
+    }
+    return false;
   }
 
   public removeFromCache(): void {
