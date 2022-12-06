@@ -4,6 +4,160 @@ All notable changes to this project will be documented in this file.
 
 Breaking changes marked with a :boom:
 
+## [1.5.0] - 2022-12-07
+
+### Features
+
+- [`client`] Added (experimental) high level API to list workflows ([#942](https://github.com/temporalio/sdk-typescript/pull/942),
+  [#974](https://github.com/temporalio/sdk-typescript/pull/974)):
+
+  ```
+    for await (const workflowInfo of client.workflow.list({ query: 'WorkflowType="MySuperCoolWorkflow"' })) {
+      console.log(`${workflowInfo.workflowId} ${workflowInfo.runId}`);
+    }
+  ```
+
+  The same API can also be used to obtain a list of workflows histories:
+
+  ```
+    for await (const { workflowId, history }  of client.workflow.list().intoHistories()) {
+      // ...
+    }
+  ```
+
+- [`client`] Added (experimental) high level API to work with Schedules ([#937](https://github.com/temporalio/sdk-typescript/pull/937),
+  [#960](https://github.com/temporalio/sdk-typescript/pull/960)):
+
+  ```
+    // Define a schedule that will start workflow 'RefreshClientTableWorkflow` every day at 5 AM and 1 PM
+    await client.schedule.create({
+      scheduleId: `refresh-client-table-every-morning`,
+      spec: {
+        calendars: [{ hour: [5, 13] }],
+      },
+      action: {
+        type: 'startWorkflow',
+        workflowType: 'RefreshClientTableWorkflow',
+        taskQueue,
+      },
+    });
+  ```
+
+  Note that Schedules requires Temporal version 1.18 or later.
+
+- [`core`] Core's (experimental) telemetry options are now more configurable ([#963](https://github.com/temporalio/sdk-typescript/pull/963),
+  [#977](https://github.com/temporalio/sdk-typescript/pull/977)). Notably, filters can now be specified independently
+  for logging (applicable to both `console` and `forward` loggers) and `tracing`. Function `makeTelemetryFilterString`
+  can be used to easily build filter strings. Also, OTel metrics export interval can now be modified (defaults to 1
+  second).
+
+  Note: the `TelemetryOptions` interface has changed quite a bit. Using appropriate new options is highly recommended.
+  Backward compatibility for legacy options is provided, to the extent possible, but these legacy options have been
+  deprecated.
+
+- [`client`] WorkflowClient now supports a simpler way to define interceptors ([#956](https://github.com/temporalio/sdk-typescript/pull/956)).
+  Interceptors should now be provided as an array of interceptor object, rather than an array of factory to those
+  objects under a field named calls. Former definition syntax is still supported, though deprecated.
+
+  BEFORE:
+
+  ```
+    interceptors: {
+      calls: [
+        (workflowId) => {
+          create(...) => { ... }
+        }
+      ]
+    }
+  ```
+
+  AFTER:
+
+  ```
+    interceptors: [
+      {
+        create(...) => { ... }
+      }
+    ]
+  ```
+
+### Bug Fixes
+
+- [`workflow`] Don't fail workflow task if a query handler was not found ([#932](https://github.com/temporalio/sdk-typescript/pull/932)).
+
+- [`worker`] Wait for worker shutdown if `runUntil` promise throws ([#943](https://github.com/temporalio/sdk-typescript/pull/943)).
+  Previously, `Worker.runUntil` would not wait for worker to complete its shutdown if the inner `fnOrPromise` threw an
+  error. Now, it will always wait for both worker shutdown AND the inner `fnOrPromise` to resolve. If either one throw
+  an error, then that error is rethrown. If _both_ throw an error, a {@link CombinedWorkerRunError} will be thrown
+  instead, with a `cause` attribute containing both errors.
+
+- The (experimental) `FailureConverter` type now receives its `PayloadConverter` through an argument on convertion
+  methods, rather than through an option supplied at construction time ([#936](https://github.com/temporalio/sdk-typescript/pull/936)).
+  This provides a more predictable behaviour in the common case of using the default failure converter. More over,
+  `FailureConverter.errorToFailure` function's return type has been lossen, so that it supports greater customization on
+  user side ([#927](https://github.com/temporalio/sdk-typescript/pull/927))
+
+- [`client`] `ConnectionOptions.connectTimeout` is now being applied correctly ([#954](https://github.com/temporalio/sdk-typescript/pull/954)).
+
+- [`workflow`] Properly encode memos in `makeContinueAsNewFunc` ([#955](https://github.com/temporalio/sdk-typescript/pull/955)).
+  They were previously not encoded at all, resulting in a failure due to invalid data.
+
+- [`worker`] Activity metric `scheduled_to_start_latency` now reports the time from the schedule time of the
+  _current attempt_ to the start time of that same attempt, instead of the time elapsed since the initial schedule time
+  ([#975](https://github.com/temporalio/sdk-typescript/pull/975)). This new definition aligns with other SDKs and is
+  more useful from a monitoring perspective.
+
+- [`workflow`] Previously, `condition(fn, 0)` was incorrectly handled the same as `condition(fn)`, meaning that the
+  function would block indefinitely and would return nothing once `fn` evaluated to true. It now behaves the same as
+  `condition(fn, 1)`, ie. the function will sleep for a very short time, then return true if `fn` evaluates to true,
+  or false if timeout reaches its expiration ([#985](https://github.com/temporalio/sdk-typescript/pull/985)).
+
+- :boom: [`worker`] The experimental API `Worker.runReplayHistories`, used to efficiently replay a large number of
+  workflow histories for test purpose, no longer accepts an iterable of workflow id and run id to be fetched from the
+  server. An iterable of workflow id and the corresponding history must now be provided instead
+  ([#974](https://github.com/temporalio/sdk-typescript/pull/974)).
+
+  This can be produced easily thanks to the new list workflows API:
+
+  ```
+    const histories = client.workflow.list({ query: 'WorkflowType="MyWorkflow"' }).intoHistories({ concurrency: 10 });
+    await Worker.runReplayHistories({ ... }, histories);
+  ```
+
+- :boom: [`core`] Fixed some non-deterministic behaviour in workflows containing local activities, due to heartbeats
+  being incorrectly counted as logical workflow tasks ([#987](https://github.com/temporalio/sdk-typescript/pull/987)).
+
+- [`core`] `core-bridge` has been refactored so that it does not retain static references to custom TypeScript error
+  constructors ([#983](https://github.com/temporalio/sdk-typescript/pull/983)). This change is part of an ongoing effort
+  to resolve multiple issues observed by some users in execution of their unit tests based on sdk-typescript, notably in
+  conjunction with Jest, Mocha and Vitest.
+
+- [`worker`] The default log function now write errors using `process.stderr.write` rather than `console.error`
+  ([#940](https://github.com/temporalio/sdk-typescript/pull/940))
+
+- [`debugger`] Log errors comming from VS Code debugger ([#968](https://github.com/temporalio/sdk-typescript/pull/968))
+
+### Documentation
+
+- Update publish runbook ([#934](https://github.com/temporalio/sdk-typescript/pull/934))
+- Misc minor improvements ([#964](https://github.com/temporalio/sdk-typescript/pull/964))
+- Docs improvements ([#979](https://github.com/temporalio/sdk-typescript/pull/979))
+- Update publishing instructions with regard to sdk-features ([#969](https://github.com/temporalio/sdk-typescript/pull/969))
+- Minor fixes to contrib guide ([#952](https://github.com/temporalio/sdk-typescript/pull/952))
+
+### Miscellaneous Tasks
+
+- [`workflow`] Internal refactoring of module scoped `state` variable ([#944](https://github.com/temporalio/sdk-typescript/pull/944))
+- [`workflow`] Use require instead of import to make worker-interface methods sync ([#946](https://github.com/temporalio/sdk-typescript/pull/946))
+- [`client`] Extract a BaseClient super class ([#957](https://github.com/temporalio/sdk-typescript/pull/957))
+- Improved code linting:
+  - [#771](https://github.com/temporalio/sdk-typescript/pull/771), thanks to [`@JounQin`](https://github.com/JounQin) 🙏)`
+  - [#965](https://github.com/temporalio/sdk-typescript/pull/965)
+  - [#980](https://github.com/temporalio/sdk-typescript/pull/980)
+- [`ci`] Use large GH hosted runner for stress test ([#935](https://github.com/temporalio/sdk-typescript/pull/935))
+- [`ci`] Use latest docker-compose in stress tests ([#941](https://github.com/temporalio/sdk-typescript/pull/941))
+- [`ci`] Don't deploy docs on PRs from forks ([#924](https://github.com/temporalio/sdk-typescript/pull/924))
+
 ## [1.4.4] - 2022-11-03
 
 ### Bug Fixes
