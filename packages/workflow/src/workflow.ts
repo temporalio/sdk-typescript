@@ -1080,7 +1080,11 @@ export function condition(fn: () => boolean, timeout: number | string): Promise<
 export function condition(fn: () => boolean): Promise<void>;
 
 export async function condition(fn: () => boolean, timeout?: number | string): Promise<void | boolean> {
-  if (timeout) {
+  // Prior to 1.5.0, `condition(fn, 0)` was treated as equivalent to `condition(fn, undefined)`
+  if (timeout === 0 && !getActivator().checkInternalPatchAtLeast(1)) {
+    return conditionInner(fn);
+  }
+  if (typeof timeout === 'number' || typeof timeout === 'string') {
     return CancellationScope.cancellable(async () => {
       try {
         return await Promise.race([sleep(timeout).then(() => false), conditionInner(fn).then(() => true)]);
