@@ -51,7 +51,7 @@ Breaking changes marked with a :boom:
 
 - [`core`] Core's (experimental) telemetry options are now more configurable ([#963](https://github.com/temporalio/sdk-typescript/pull/963),
   [#977](https://github.com/temporalio/sdk-typescript/pull/977)). Notably, filters can now be specified independently
-  for logging (applicable to both `console` and `forward` loggers) and `tracing`. Function `makeTelemetryFilterString`
+  for `logging` (applicable to both `console` and `forward` loggers) and `tracing`. Function `makeTelemetryFilterString`
   can be used to easily build filter strings. Also, OTel metrics export interval can now be modified (defaults to 1
   second).
 
@@ -113,8 +113,8 @@ Breaking changes marked with a :boom:
 - [`worker`] Wait for worker shutdown if `runUntil` promise throws ([#943](https://github.com/temporalio/sdk-typescript/pull/943)).
   Previously, `Worker.runUntil` would not wait for worker to complete its shutdown if the inner `fnOrPromise` threw an
   error. Now, it will always wait for both worker shutdown AND the inner `fnOrPromise` to resolve. If either one throw
-  an error, then that error is rethrown. If _both_ throw an error, a {@link CombinedWorkerRunError} will be thrown
-  instead, with a `cause` attribute containing both errors.
+  an error, then that error is rethrown. If _both_ throw an error, a `CombinedWorkerRunError` will be thrown instead,
+  with a `cause` attribute containing both errors.
 
 - The (experimental) `FailureConverter` type now receives its `PayloadConverter` through an argument on convertion
   methods, rather than through an option supplied at construction time ([#936](https://github.com/temporalio/sdk-typescript/pull/936)).
@@ -137,7 +137,7 @@ Breaking changes marked with a :boom:
   `condition(fn, 1)`, ie. the function will sleep for a very short time, then return true if `fn` evaluates to true,
   or false if timeout reaches its expiration ([#985](https://github.com/temporalio/sdk-typescript/pull/985)).
 
-- :boom: [`core`] Fixed some non-deterministic behaviour in workflows containing local activities, due to heartbeats
+- [`core`] Fixed some non-deterministic behaviour in workflows containing local activities, due to heartbeats
   being incorrectly counted as logical workflow tasks ([#987](https://github.com/temporalio/sdk-typescript/pull/987)).
 
 - [`core`] `core-bridge` has been refactored so that it does not retain static references to custom TypeScript error
@@ -146,11 +146,11 @@ Breaking changes marked with a :boom:
   conjunction with Jest, Mocha and Vitest.
 
 - [`worker`] The default log function now write errors using `process.stderr.write` rather than `console.error`
-  ([#940](https://github.com/temporalio/sdk-typescript/pull/940))
+  ([#940](https://github.com/temporalio/sdk-typescript/pull/940)). This avoids complains by some test runners.
 
 - [`debugger`] Log errors comming from VS Code debugger ([#968](https://github.com/temporalio/sdk-typescript/pull/968))
 
-- Update Core SDK:
+- Bug Fixes in Core SDK:
   - Fixed a situation causing Core to send activations containing both a legacy query and other jobs ([#427](https://github.com/temporalio/sdk-core/pull/427))
   - Don't use a process-wide unique id for sticky queues ([#430](https://github.com/temporalio/sdk-core/pull/430))
   - Added support for ignorable history events ([#422](https://github.com/temporalio/sdk-core/pull/422))
