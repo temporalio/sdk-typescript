@@ -4,6 +4,164 @@ All notable changes to this project will be documented in this file.
 
 Breaking changes marked with a :boom:
 
+## [1.5.0] - 2022-12-07
+
+### Features
+
+- [`client`] The experimental `WorkflowHandle.fetchHistory` function can now be used to easily obtain a single
+  Workflow execution's history ([#974](https://github.com/temporalio/sdk-typescript/pull/974)).
+
+- [`client`] Introduced (experimental) high level API to list workflows ([#942](https://github.com/temporalio/sdk-typescript/pull/942),
+  [#974](https://github.com/temporalio/sdk-typescript/pull/974)):
+
+  ```ts
+  for await (const workflowInfo of client.workflow.list({ query: 'WorkflowType="MySuperCoolWorkflow"' })) {
+    console.log(`${workflowInfo.workflowId} ${workflowInfo.runId}`);
+  }
+  ```
+
+  The same API can also be used to efficiently obtain a list of workflows histories. Multiple histories are fetched from
+  the server in parallel (up to `concurrency`, defaults to 5), which may improve performances.
+
+  ```ts
+  for await (const { workflowId, history } of client.workflow.list().intoHistories({ concurrency: 10 })) {
+    // ...
+  }
+  ```
+
+- [`client`] Added (experimental) high level API to work with Schedules ([#937](https://github.com/temporalio/sdk-typescript/pull/937),
+  [#960](https://github.com/temporalio/sdk-typescript/pull/960)):
+
+  ```ts
+  // Define a schedule that will start workflow 'RefreshClientTableWorkflow` every day at 5 AM and 1 PM
+  await client.schedule.create({
+    scheduleId: `refresh-client-table-every-morning`,
+    spec: {
+      calendars: [{ hour: [5, 13] }],
+    },
+    action: {
+      type: 'startWorkflow',
+      workflowType: 'RefreshClientTableWorkflow',
+      taskQueue,
+    },
+  });
+  ```
+
+  Note that Schedules requires Temporal version 1.18 or later.
+
+- [`core`] Core's (experimental) telemetry options are now more configurable ([#963](https://github.com/temporalio/sdk-typescript/pull/963),
+  [#977](https://github.com/temporalio/sdk-typescript/pull/977)). Notably, filters can now be specified independently
+  for `logging` (applicable to both `console` and `forward` loggers) and `tracing`. Function `makeTelemetryFilterString`
+  can be used to easily build filter strings. Also, OTel metrics export interval can now be modified (defaults to 1
+  second).
+
+  Note: the `TelemetryOptions` interface has changed quite a bit. Using appropriate new options is highly recommended.
+  Backward compatibility for legacy options is provided, to the extent possible, but these legacy options have been
+  deprecated.
+
+- [`client`] WorkflowClient now supports a simpler way to define interceptors ([#956](https://github.com/temporalio/sdk-typescript/pull/956)).
+  Interceptors should now be provided as an array of interceptor object, rather than an array of factory to those
+  objects under a field named `calls`. Former definition syntax is still supported, though deprecated.
+
+  **BEFORE**
+
+  ```ts
+    interceptors: {
+      calls: [
+        (workflowId) => {
+          create(...) => { ... }
+        }
+      ]
+    }
+  ```
+
+  **AFTER**
+
+  ```ts
+    interceptors: [
+      {
+        create(...) => { ... }
+      }
+    ]
+  ```
+
+- [`worker`] Introduced an experimental API to efficiently replay a large number of workflow histories. Teams may
+  notably use this API to validate that changes to their workflow code will not cause non-determinism errors on existing
+  workflow instances, before rolling out these changes to production ([#920](https://github.com/temporalio/sdk-typescript/pull/920),
+  [#974](https://github.com/temporalio/sdk-typescript/pull/974)).
+
+  **EXAMPLE USAGE**
+
+  ```ts
+  const histories = client.workflow.list({ query: 'WorkflowType="MyWorkflow"' }).intoHistories({ concurrency: 10 });
+  const replayResults = await Worker.runReplayHistories(
+    {
+      workflowsPath: require.resolve('./workflows'),
+      // ...
+    },
+    histories
+  );
+  console.log(`Found ${replayResults.errors.length} replay errors`);
+  ```
+
+- Added `activity_task_received` metric ([#439](https://github.com/temporalio/sdk-core/pull/439))
+
+### Bug Fixes
+
+- [`workflow`] Don't fail workflow task if a query handler was not found ([#932](https://github.com/temporalio/sdk-typescript/pull/932)).
+
+- [`worker`] Wait for worker shutdown if `runUntil` promise throws ([#943](https://github.com/temporalio/sdk-typescript/pull/943)).
+  Previously, `Worker.runUntil` would not wait for worker to complete its shutdown if the inner `fnOrPromise` threw an
+  error. Now, it will always wait for both worker shutdown AND the inner `fnOrPromise` to resolve. If either one throw
+  an error, then that error is rethrown. If _both_ throw an error, a `CombinedWorkerRunError` will be thrown instead,
+  with a `cause` attribute containing both errors.
+
+- The (experimental) `FailureConverter` type now receives its `PayloadConverter` through an argument on convertion
+  methods, rather than through an option supplied at construction time ([#936](https://github.com/temporalio/sdk-typescript/pull/936)).
+  This provides a more predictable behaviour in the common case of using the default failure converter. More over,
+  `FailureConverter.errorToFailure` function's return type has been lossen, so that it supports greater customization on
+  user side ([#927](https://github.com/temporalio/sdk-typescript/pull/927))
+
+- [`client`] `ConnectionOptions.connectTimeout` is now being applied correctly ([#954](https://github.com/temporalio/sdk-typescript/pull/954)).
+
+- [`workflow`] Properly encode memos in `makeContinueAsNewFunc` ([#955](https://github.com/temporalio/sdk-typescript/pull/955)).
+  They were previously not encoded at all, resulting in a failure due to invalid data.
+
+- [`worker`] Activity metric `scheduled_to_start_latency` now reports the time from the schedule time of the
+  _current attempt_ to the start time of that same attempt, instead of the time elapsed since the initial schedule time
+  ([#975](https://github.com/temporalio/sdk-typescript/pull/975)). This new definition aligns with other SDKs and is
+  more useful from a monitoring perspective.
+
+- [`workflow`] Previously, `condition(fn, 0)` was incorrectly handled the same as `condition(fn)`, meaning that the
+  function would block indefinitely and would return nothing once `fn` evaluated to true. It now behaves the same as
+  `condition(fn, 1)`, ie. the function will sleep for a very short time, then return true if `fn` evaluates to true,
+  or false if timeout reaches its expiration ([#985](https://github.com/temporalio/sdk-typescript/pull/985)).
+
+- [`core`] Fixed some non-deterministic behaviour in workflows containing local activities, due to heartbeats
+  being incorrectly counted as logical workflow tasks ([#987](https://github.com/temporalio/sdk-typescript/pull/987)).
+
+- [`core`] `core-bridge` has been refactored so that it does not retain static references to custom TypeScript error
+  constructors ([#983](https://github.com/temporalio/sdk-typescript/pull/983)). This change is part of an ongoing effort
+  to resolve multiple issues observed by some users in execution of their unit tests based on sdk-typescript, notably in
+  conjunction with Jest, Mocha and Vitest.
+
+- [`worker`] The default log function now write errors using `process.stderr.write` rather than `console.error`
+  ([#940](https://github.com/temporalio/sdk-typescript/pull/940)). This avoids complains by some test runners.
+
+- [`debugger`] Log errors comming from VS Code debugger ([#968](https://github.com/temporalio/sdk-typescript/pull/968))
+
+- Bug Fixes in Core SDK:
+  - Fixed a situation causing Core to send activations containing both a legacy query and other jobs ([#427](https://github.com/temporalio/sdk-core/pull/427))
+  - Don't use a process-wide unique id for sticky queues ([#430](https://github.com/temporalio/sdk-core/pull/430))
+  - Added support for ignorable history events ([#422](https://github.com/temporalio/sdk-core/pull/422))
+  - Avoid hang in duplicated run-ids during replay ([#417](https://github.com/temporalio/sdk-core/pull/417))
+  - Backoff more if we receive ResourceExhausted error ([#408](https://github.com/temporalio/sdk-core/pull/408))
+
+### Miscellaneous Tasks
+
+- Improved code linting ([#771](https://github.com/temporalio/sdk-typescript/pull/771), thanks to [`@JounQin`](https://github.com/JounQin) 🙏)
+- [`client`] Extract a BaseClient super class ([#957](https://github.com/temporalio/sdk-typescript/pull/957))
+
 ## [1.4.4] - 2022-11-03
 
 ### Bug Fixes
