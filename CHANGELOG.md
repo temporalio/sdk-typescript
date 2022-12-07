@@ -11,36 +11,36 @@ Breaking changes marked with a :boom:
 - [`client`] Added (experimental) high level API to list workflows ([#942](https://github.com/temporalio/sdk-typescript/pull/942),
   [#974](https://github.com/temporalio/sdk-typescript/pull/974)):
 
-  ```
-    for await (const workflowInfo of client.workflow.list({ query: 'WorkflowType="MySuperCoolWorkflow"' })) {
-      console.log(`${workflowInfo.workflowId} ${workflowInfo.runId}`);
-    }
+  ```ts
+  for await (const workflowInfo of client.workflow.list({ query: 'WorkflowType="MySuperCoolWorkflow"' })) {
+    console.log(`${workflowInfo.workflowId} ${workflowInfo.runId}`);
+  }
   ```
 
   The same API can also be used to obtain a list of workflows histories:
 
-  ```
-    for await (const { workflowId, history }  of client.workflow.list().intoHistories()) {
-      // ...
-    }
+  ```ts
+  for await (const { workflowId, history } of client.workflow.list().intoHistories()) {
+    // ...
+  }
   ```
 
 - [`client`] Added (experimental) high level API to work with Schedules ([#937](https://github.com/temporalio/sdk-typescript/pull/937),
   [#960](https://github.com/temporalio/sdk-typescript/pull/960)):
 
-  ```
-    // Define a schedule that will start workflow 'RefreshClientTableWorkflow` every day at 5 AM and 1 PM
-    await client.schedule.create({
-      scheduleId: `refresh-client-table-every-morning`,
-      spec: {
-        calendars: [{ hour: [5, 13] }],
-      },
-      action: {
-        type: 'startWorkflow',
-        workflowType: 'RefreshClientTableWorkflow',
-        taskQueue,
-      },
-    });
+  ```ts
+  // Define a schedule that will start workflow 'RefreshClientTableWorkflow` every day at 5 AM and 1 PM
+  await client.schedule.create({
+    scheduleId: `refresh-client-table-every-morning`,
+    spec: {
+      calendars: [{ hour: [5, 13] }],
+    },
+    action: {
+      type: 'startWorkflow',
+      workflowType: 'RefreshClientTableWorkflow',
+      taskQueue,
+    },
+  });
   ```
 
   Note that Schedules requires Temporal version 1.18 or later.
@@ -61,7 +61,7 @@ Breaking changes marked with a :boom:
 
   BEFORE:
 
-  ```
+  ```ts
     interceptors: {
       calls: [
         (workflowId) => {
@@ -73,12 +73,31 @@ Breaking changes marked with a :boom:
 
   AFTER:
 
-  ```
+  ```ts
     interceptors: [
       {
         create(...) => { ... }
       }
     ]
+  ```
+
+- [`worker`] Introduced an experimental API to efficiently replay a large number of workflow histories. Teams may
+  notably use this API to validate that changes to their workflow code will not cause non-determinism errors on existing
+  workflow instances, before rolling out these changes to production ([#920](https://github.com/temporalio/sdk-typescript/pull/920),
+  [#974](https://github.com/temporalio/sdk-typescript/pull/974)).
+
+  EXAMPLE USAGE:
+
+  ```ts
+  const histories = client.workflow.list({ query: 'WorkflowType="MyWorkflow"' }).intoHistories({ concurrency: 10 });
+  const replayResults = await Worker.runReplayHistories(
+    {
+      workflowsPath: require.resolve('./workflows'),
+      // ...
+    },
+    histories
+  );
+  console.log(`Found ${replayResults.errors.length} replay errors`);
   ```
 
 ### Bug Fixes
@@ -112,18 +131,6 @@ Breaking changes marked with a :boom:
   `condition(fn, 1)`, ie. the function will sleep for a very short time, then return true if `fn` evaluates to true,
   or false if timeout reaches its expiration ([#985](https://github.com/temporalio/sdk-typescript/pull/985)).
 
-- :boom: [`worker`] The experimental API `Worker.runReplayHistories`, used to efficiently replay a large number of
-  workflow histories for test purpose, no longer accepts an iterable of workflow id and run id to be fetched from the
-  server. An iterable of workflow id and the corresponding history must now be provided instead
-  ([#974](https://github.com/temporalio/sdk-typescript/pull/974)).
-
-  This can be produced easily thanks to the new list workflows API:
-
-  ```
-    const histories = client.workflow.list({ query: 'WorkflowType="MyWorkflow"' }).intoHistories({ concurrency: 10 });
-    await Worker.runReplayHistories({ ... }, histories);
-  ```
-
 - :boom: [`core`] Fixed some non-deterministic behaviour in workflows containing local activities, due to heartbeats
   being incorrectly counted as logical workflow tasks ([#987](https://github.com/temporalio/sdk-typescript/pull/987)).
 
@@ -137,26 +144,10 @@ Breaking changes marked with a :boom:
 
 - [`debugger`] Log errors comming from VS Code debugger ([#968](https://github.com/temporalio/sdk-typescript/pull/968))
 
-### Documentation
-
-- Update publish runbook ([#934](https://github.com/temporalio/sdk-typescript/pull/934))
-- Misc minor improvements ([#964](https://github.com/temporalio/sdk-typescript/pull/964))
-- Docs improvements ([#979](https://github.com/temporalio/sdk-typescript/pull/979))
-- Update publishing instructions with regard to sdk-features ([#969](https://github.com/temporalio/sdk-typescript/pull/969))
-- Minor fixes to contrib guide ([#952](https://github.com/temporalio/sdk-typescript/pull/952))
-
 ### Miscellaneous Tasks
 
-- [`workflow`] Internal refactoring of module scoped `state` variable ([#944](https://github.com/temporalio/sdk-typescript/pull/944))
-- [`workflow`] Use require instead of import to make worker-interface methods sync ([#946](https://github.com/temporalio/sdk-typescript/pull/946))
+- Improved code linting ([#771](https://github.com/temporalio/sdk-typescript/pull/771), thanks to [`@JounQin`](https://github.com/JounQin) 🙏)
 - [`client`] Extract a BaseClient super class ([#957](https://github.com/temporalio/sdk-typescript/pull/957))
-- Improved code linting:
-  - [#771](https://github.com/temporalio/sdk-typescript/pull/771), thanks to [`@JounQin`](https://github.com/JounQin) 🙏)`
-  - [#965](https://github.com/temporalio/sdk-typescript/pull/965)
-  - [#980](https://github.com/temporalio/sdk-typescript/pull/980)
-- [`ci`] Use large GH hosted runner for stress test ([#935](https://github.com/temporalio/sdk-typescript/pull/935))
-- [`ci`] Use latest docker-compose in stress tests ([#941](https://github.com/temporalio/sdk-typescript/pull/941))
-- [`ci`] Don't deploy docs on PRs from forks ([#924](https://github.com/temporalio/sdk-typescript/pull/924))
 
 ## [1.4.4] - 2022-11-03
 
