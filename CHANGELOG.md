@@ -8,7 +8,10 @@ Breaking changes marked with a :boom:
 
 ### Features
 
-- [`client`] Added (experimental) high level API to list workflows ([#942](https://github.com/temporalio/sdk-typescript/pull/942),
+- [`client`] The experimental `WorkflowHandle.fetchHistory` function can now be used to easily obtain a single
+  Workflow execution's history ([#974](https://github.com/temporalio/sdk-typescript/pull/974)).
+
+- [`client`] Introduced (experimental) high level API to list workflows ([#942](https://github.com/temporalio/sdk-typescript/pull/942),
   [#974](https://github.com/temporalio/sdk-typescript/pull/974)):
 
   ```ts
@@ -17,10 +20,11 @@ Breaking changes marked with a :boom:
   }
   ```
 
-  The same API can also be used to obtain a list of workflows histories:
+  The same API can also be used to efficiently obtain a list of workflows histories. Multiple histories are fetched from
+  the server in parallel (up to `concurrency`, defaults to 5), which may improve performances.
 
   ```ts
-  for await (const { workflowId, history } of client.workflow.list().intoHistories()) {
+  for await (const { workflowId, history } of client.workflow.list().intoHistories({ concurrency: 10 })) {
     // ...
   }
   ```
