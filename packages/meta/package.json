@@ -1,16 +1,16 @@
 {
   "name": "temporalio",
-  "version": "1.4.3",
+  "version": "1.5.0",
   "description": "Temporal.io SDK meta-package",
   "dependencies": {
-    "@temporalio/activity": "file:../activity",
-    "@temporalio/client": "file:../client",
-    "@temporalio/common": "file:../common",
-    "@temporalio/interceptors-opentelemetry": "file:../interceptors-opentelemetry",
-    "@temporalio/proto": "file:../proto",
-    "@temporalio/testing": "file:../testing",
-    "@temporalio/worker": "file:../worker",
-    "@temporalio/workflow": "file:../workflow"
+    "@temporalio/activity": "~1.5.0",
+    "@temporalio/client": "~1.5.0",
+    "@temporalio/common": "~1.5.0",
+    "@temporalio/interceptors-opentelemetry": "~1.5.0",
+    "@temporalio/proto": "~1.5.0",
+    "@temporalio/testing": "~1.5.0",
+    "@temporalio/worker": "~1.5.0",
+    "@temporalio/workflow": "~1.5.0"
   },
   "author": "Temporal Technologies Inc. <sdk@temporal.io>",
   "license": "MIT",
