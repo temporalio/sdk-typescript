@@ -57,9 +57,9 @@ Breaking changes marked with a :boom:
 
 - [`client`] WorkflowClient now supports a simpler way to define interceptors ([#956](https://github.com/temporalio/sdk-typescript/pull/956)).
   Interceptors should now be provided as an array of interceptor object, rather than an array of factory to those
-  objects under a field named calls. Former definition syntax is still supported, though deprecated.
+  objects under a field named `calls`. Former definition syntax is still supported, though deprecated.
 
-  BEFORE:
+  **BEFORE**
 
   ```ts
     interceptors: {
@@ -71,7 +71,7 @@ Breaking changes marked with a :boom:
     }
   ```
 
-  AFTER:
+  **AFTER**
 
   ```ts
     interceptors: [
@@ -86,7 +86,7 @@ Breaking changes marked with a :boom:
   workflow instances, before rolling out these changes to production ([#920](https://github.com/temporalio/sdk-typescript/pull/920),
   [#974](https://github.com/temporalio/sdk-typescript/pull/974)).
 
-  EXAMPLE USAGE:
+  **EXAMPLE USAGE**
 
   ```ts
   const histories = client.workflow.list({ query: 'WorkflowType="MyWorkflow"' }).intoHistories({ concurrency: 10 });
@@ -99,6 +99,8 @@ Breaking changes marked with a :boom:
   );
   console.log(`Found ${replayResults.errors.length} replay errors`);
   ```
+
+- Added `activity_task_received` metric ([#439](https://github.com/temporalio/sdk-core/pull/439))
 
 ### Bug Fixes
 
@@ -143,6 +145,13 @@ Breaking changes marked with a :boom:
   ([#940](https://github.com/temporalio/sdk-typescript/pull/940))
 
 - [`debugger`] Log errors comming from VS Code debugger ([#968](https://github.com/temporalio/sdk-typescript/pull/968))
+
+- Update Core SDK:
+  - Fixed a situation causing Core to send activations containing both a legacy query and other jobs ([#427](https://github.com/temporalio/sdk-core/pull/427))
+  - Don't use a process-wide unique id for sticky queues ([#430](https://github.com/temporalio/sdk-core/pull/430))
+  - Added support for ignorable history events ([#422](https://github.com/temporalio/sdk-core/pull/422))
+  - Avoid hang in duplicated run-ids during replay ([#417](https://github.com/temporalio/sdk-core/pull/417))
+  - Backoff more if we receive ResourceExhausted error ([#408](https://github.com/temporalio/sdk-core/pull/408))
 
 ### Miscellaneous Tasks
 
