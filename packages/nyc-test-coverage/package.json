@@ -1,6 +1,6 @@
 {
   "name": "@temporalio/nyc-test-coverage",
-  "version": "1.5.1",
+  "version": "1.5.2",
   "description": "Temporal.io SDK code coverage integration",
   "keywords": [
     "temporal",
@@ -21,8 +21,8 @@
     "src"
   ],
   "dependencies": {
-    "@temporalio/worker": "~1.5.1",
-    "@temporalio/workflow": "~1.5.1",
+    "@temporalio/worker": "file:../worker",
+    "@temporalio/workflow": "file:../workflow",
     "istanbul-instrumenter-loader": "^3.0.1",
     "istanbul-lib-coverage": "^3.2.0"
   },
