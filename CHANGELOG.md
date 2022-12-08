@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 Breaking changes marked with a :boom:
 
+## [1.5.2] - 2022-12-07
+
+### Bug fixes
+
+- [`core`] Use correct property name for OTel metrics export interval in core-bridge ([#993](https://github.com/temporalio/sdk-typescript/pull/993)).
+
 ## [1.5.0] - 2022-12-07
 
 ### Features
