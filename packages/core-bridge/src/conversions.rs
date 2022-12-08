@@ -234,7 +234,7 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
                 let metric_periodicity = Some(Duration::from_millis(js_value_getter!(
                     cx,
                     otel,
-                    "metricPeriodicity",
+                    "metricsExportInterval",
                     JsNumber
                 ) as u64));
                 telemetry_opts.metrics(MetricsExporter::Otel(OtelCollectorOptions {
