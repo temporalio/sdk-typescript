@@ -2,7 +2,7 @@
 
 import * as fs from 'fs';
 import path from 'path';
-import anyTest, { TestInterface } from 'ava';
+import anyTest, { TestFn } from 'ava';
 import { temporal } from '@temporalio/proto';
 import { DefaultLogger, ReplayError, Runtime, Worker } from '@temporalio/worker';
 import { DeterminismViolationError } from '@temporalio/workflow';
@@ -32,7 +32,7 @@ function historator(histories: Array<History>) {
   })();
 }
 
-const test = anyTest as TestInterface<Context>;
+const test = anyTest as TestFn<Context>;
 
 test.before(async (t) => {
   // We don't want AVA to whine about unhandled rejections thrown by workflows
@@ -90,7 +90,7 @@ test('workflow-task-failure-fails-replay', async (t) => {
   // Manually alter the workflow type to point to our workflow which will fail workflow tasks
   hist.events[0].workflowExecutionStartedEventAttributes!.workflowType!.name = 'failsWorkflowTask';
 
-  const err: ReplayError = await t.throwsAsync(
+  const err: ReplayError | undefined = await t.throwsAsync(
     Worker.runReplayHistory(
       {
         workflowsPath: require.resolve('./workflows'),
@@ -100,7 +100,7 @@ test('workflow-task-failure-fails-replay', async (t) => {
     ),
     { instanceOf: ReplayError }
   );
-  t.false(err.isNonDeterminism);
+  t.false(err?.isNonDeterminism);
 });
 
 test('multiple-histories-replay', async (t) => {

@@ -4,7 +4,7 @@ import v8 from 'v8';
 import { readFileSync } from 'node:fs';
 import * as grpc from '@grpc/grpc-js';
 import asyncRetry from 'async-retry';
-import anyTest, { Implementation, TestInterface } from 'ava';
+import anyTest, { Implementation, TestFn } from 'ava';
 import dedent from 'dedent';
 import ms from 'ms';
 import { v4 as uuid4 } from 'uuid';
@@ -66,10 +66,10 @@ export interface Context {
   runPromise: Promise<void>;
 }
 
-const _test = anyTest as TestInterface<Context>;
+const _test = anyTest as TestFn<Context>;
 
 export function runIntegrationTests(codec?: PayloadCodec): void {
-  const test = (name: string, fn: Implementation<Context>) => _test(codec ? 'With codec—' + name : name, fn);
+  const test = (name: string, fn: Implementation<[], Context>) => _test(codec ? 'With codec—' + name : name, fn);
   const dataConverter = { payloadCodecs: codec ? [codec] : [] };
   const loadedDataConverter = {
     payloadConverter: defaultPayloadConverter,
@@ -236,7 +236,7 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
 
   test('activity-failure with Error', async (t) => {
     const { client } = t.context;
-    const err: WorkflowFailedError = await t.throwsAsync(
+    const err: WorkflowFailedError | undefined = await t.throwsAsync(
       client.execute(workflows.activityFailure, {
         taskQueue: 'test',
         workflowId: uuid4(),
@@ -246,8 +246,8 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
         instanceOf: WorkflowFailedError,
       }
     );
-    t.is(err.message, 'Workflow execution failed');
-    if (!(err.cause instanceof ActivityFailure)) {
+    t.is(err?.message, 'Workflow execution failed');
+    if (!(err?.cause instanceof ActivityFailure)) {
       t.fail('Expected err.cause to be an instance of ActivityFailure');
       return;
     }
@@ -260,14 +260,14 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
       cleanOptionalStackTrace(err.cause.cause.stack),
       dedent`
     Error: Fail me
-        at Activity.throwAnError [as fn] (test/src/activities/index.ts)
+        at Activity.throwAnError (test/src/activities/index.ts)
     `
     );
   });
 
   test('activity-failure with ApplicationFailure', async (t) => {
     const { client } = t.context;
-    const err: WorkflowFailedError = await t.throwsAsync(
+    const err: WorkflowFailedError | undefined = await t.throwsAsync(
       client.execute(workflows.activityFailure, {
         taskQueue: 'test',
         workflowId: uuid4(),
@@ -277,8 +277,8 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
         instanceOf: WorkflowFailedError,
       }
     );
-    t.is(err.message, 'Workflow execution failed');
-    if (!(err.cause instanceof ActivityFailure)) {
+    t.is(err?.message, 'Workflow execution failed');
+    if (!(err?.cause instanceof ActivityFailure)) {
       t.fail('Expected err.cause to be an instance of ActivityFailure');
       return;
     }
@@ -294,7 +294,7 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
       dedent`
     ApplicationFailure: Fail me
         at Function.nonRetryable (common/src/failure.ts)
-        at Activity.throwAnError [as fn] (test/src/activities/index.ts)
+        at Activity.throwAnError (test/src/activities/index.ts)
     `
     );
   });
@@ -314,7 +314,7 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
 
   test('child-workflow-failure', async (t) => {
     const { client } = t.context;
-    const err: WorkflowFailedError = await t.throwsAsync(
+    const err: WorkflowFailedError | undefined = await t.throwsAsync(
       client.execute(workflows.childWorkflowFailure, {
         taskQueue: 'test',
         workflowId: uuid4(),
@@ -323,7 +323,7 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
         instanceOf: WorkflowFailedError,
       }
     );
-    if (!(err.cause instanceof ChildWorkflowFailure)) {
+    if (!(err?.cause instanceof ChildWorkflowFailure)) {
       return t.fail('Expected err.cause to be an instance of ChildWorkflowFailure');
     }
     if (!(err.cause.cause instanceof ApplicationFailure)) {
@@ -354,10 +354,10 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
     }
     const child = client.getHandle(childExecution.workflowId!, childExecution.runId!);
     await child.terminate();
-    const err: WorkflowFailedError = await t.throwsAsync(workflow.result(), {
+    const err: WorkflowFailedError | undefined = await t.throwsAsync(workflow.result(), {
       instanceOf: WorkflowFailedError,
     });
-    if (!(err.cause instanceof ChildWorkflowFailure)) {
+    if (!(err?.cause instanceof ChildWorkflowFailure)) {
       return t.fail('Expected err.cause to be an instance of ChildWorkflowFailure');
     }
     t.is(err.cause.retryState, RetryState.RETRY_STATE_NON_RETRYABLE_FAILURE);
@@ -368,7 +368,7 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
 
   test('child-workflow-timeout', async (t) => {
     const { client } = t.context;
-    const err: WorkflowFailedError = await t.throwsAsync(
+    const err: WorkflowFailedError | undefined = await t.throwsAsync(
       client.execute(workflows.childWorkflowTimeout, {
         taskQueue: 'test',
         workflowId: uuid4(),
@@ -377,7 +377,7 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
         instanceOf: WorkflowFailedError,
       }
     );
-    if (!(err.cause instanceof ChildWorkflowFailure)) {
+    if (!(err?.cause instanceof ChildWorkflowFailure)) {
       return t.fail('Expected err.cause to be an instance of ChildWorkflowFailure');
     }
     t.is(err.cause.retryState, RetryState.RETRY_STATE_TIMEOUT);
@@ -451,10 +451,10 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
       workflowId: uuid4(),
     });
     await workflow.signal(workflows.interruptSignal, 'just because');
-    const err: WorkflowFailedError = await t.throwsAsync(workflow.result(), {
+    const err: WorkflowFailedError | undefined = await t.throwsAsync(workflow.result(), {
       instanceOf: WorkflowFailedError,
     });
-    if (!(err.cause instanceof ApplicationFailure)) {
+    if (!(err?.cause instanceof ApplicationFailure)) {
       return t.fail('Expected err.cause to be an instance of ApplicationFailure');
     }
     t.is(err.cause.message, 'just because');
@@ -467,10 +467,10 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
       workflowId: uuid4(),
     });
     await workflow.signal(workflows.failSignal);
-    const err: WorkflowFailedError = await t.throwsAsync(workflow.result(), {
+    const err: WorkflowFailedError | undefined = await t.throwsAsync(workflow.result(), {
       instanceOf: WorkflowFailedError,
     });
-    if (!(err.cause instanceof ApplicationFailure)) {
+    if (!(err?.cause instanceof ApplicationFailure)) {
       return t.fail('Expected err.cause to be an instance of ApplicationFailure');
     }
     t.is(err.cause.message, 'Signal failed');
@@ -483,10 +483,10 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
       workflowId: uuid4(),
     });
     await workflow.signal(workflows.failSignal);
-    const err: WorkflowFailedError = await t.throwsAsync(workflow.result(), {
+    const err: WorkflowFailedError | undefined = await t.throwsAsync(workflow.result(), {
       instanceOf: WorkflowFailedError,
     });
-    if (!(err.cause instanceof ApplicationFailure)) {
+    if (!(err?.cause instanceof ApplicationFailure)) {
       return t.fail('Expected err.cause to be an instance of ApplicationFailure');
     }
     t.is(err.cause.message, 'Signal failed');
@@ -952,10 +952,10 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
       signalArgs: ['interrupted from signalWithStart'],
     });
     {
-      const err: WorkflowFailedError = await t.throwsAsync(ogWF.result(), {
+      const err: WorkflowFailedError | undefined = await t.throwsAsync(ogWF.result(), {
         instanceOf: WorkflowFailedError,
       });
-      if (!(err.cause instanceof ApplicationFailure)) {
+      if (!(err?.cause instanceof ApplicationFailure)) {
         return t.fail('Expected err.cause to be an instance of ApplicationFailure');
       }
       t.is(err.cause.message, 'interrupted from signalWithStart');
@@ -963,10 +963,10 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
     // Test returned runId
     const workflow = client.getHandle<typeof workflows.interruptableWorkflow>(ogWF.workflowId, ogWF.signaledRunId);
     {
-      const err: WorkflowFailedError = await t.throwsAsync(workflow.result(), {
+      const err: WorkflowFailedError | undefined = await t.throwsAsync(workflow.result(), {
         instanceOf: WorkflowFailedError,
       });
-      if (!(err.cause instanceof ApplicationFailure)) {
+      if (!(err?.cause instanceof ApplicationFailure)) {
         return t.fail('Expected err.cause to be an instance of ApplicationFailure');
       }
       t.is(err.cause.message, 'interrupted from signalWithStart');

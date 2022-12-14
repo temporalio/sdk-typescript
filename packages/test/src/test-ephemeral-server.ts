@@ -1,4 +1,4 @@
-import anyTest, { ExecutionContext, TestInterface } from 'ava';
+import anyTest, { ExecutionContext, TestFn } from 'ava';
 import { v4 as uuid4 } from 'uuid';
 import { TestWorkflowEnvironment } from '@temporalio/testing';
 import { bundleWorkflowCode, Worker, WorkflowBundle } from '@temporalio/worker';
@@ -7,7 +7,7 @@ interface Context {
   bundle: WorkflowBundle;
 }
 
-const test = anyTest as TestInterface<Context>;
+const test = anyTest as TestFn<Context>;
 
 test.before(async (t) => {
   t.context.bundle = await bundleWorkflowCode({ workflowsPath: require.resolve('./workflows') });

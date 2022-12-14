@@ -1,4 +1,4 @@
-import anyTest, { TestInterface } from 'ava';
+import anyTest, { TestFn } from 'ava';
 import { firstValueFrom, Subject } from 'rxjs';
 import { v4 as uuid4 } from 'uuid';
 import { ApplicationFailure, defaultPayloadConverter, WorkflowClient, WorkflowFailedError } from '@temporalio/client';
@@ -16,7 +16,7 @@ interface Context {
   getWorker: () => Promise<Worker>;
 }
 
-const test = anyTest as TestInterface<Context>;
+const test = anyTest as TestFn<Context>;
 
 test.before(async (t) => {
   t.context.workflowBundle = await bundleWorkflowCode({
@@ -100,7 +100,7 @@ if (RUN_INTEGRATION_TESTS) {
     const { client, taskQueue, getWorker } = t.context;
     const worker = await getWorker();
     await worker.runUntil(async () => {
-      const err: WorkflowFailedError = await t.throwsAsync(
+      const err: WorkflowFailedError | undefined = await t.throwsAsync(
         client.execute(workflows.throwAnErrorFromLocalActivity, {
           workflowId: uuid4(),
           taskQueue,
@@ -108,7 +108,7 @@ if (RUN_INTEGRATION_TESTS) {
         }),
         { instanceOf: WorkflowFailedError }
       );
-      t.is(err.cause?.message, 'tesssst');
+      t.is(err?.cause?.message, 'tesssst');
     });
   });
 
@@ -116,7 +116,7 @@ if (RUN_INTEGRATION_TESTS) {
     const { client, taskQueue, getWorker } = t.context;
     const worker = await getWorker();
     await worker.runUntil(async () => {
-      const err: WorkflowFailedError = await t.throwsAsync(
+      const err: WorkflowFailedError | undefined = await t.throwsAsync(
         client.execute(workflows.cancelALocalActivity, {
           workflowId: uuid4(),
           taskQueue,
@@ -125,8 +125,8 @@ if (RUN_INTEGRATION_TESTS) {
         }),
         { instanceOf: WorkflowFailedError }
       );
-      t.true(isCancellation(err.cause));
-      t.is(err.cause?.message, 'Activity cancelled');
+      t.true(isCancellation(err?.cause));
+      t.is(err?.cause?.message, 'Activity cancelled');
     });
   });
 
@@ -134,7 +134,7 @@ if (RUN_INTEGRATION_TESTS) {
     const { client, taskQueue, getWorker } = t.context;
     const worker = await getWorker();
     await worker.runUntil(async () => {
-      const err: WorkflowFailedError = await t.throwsAsync(
+      const err: WorkflowFailedError | undefined = await t.throwsAsync(
         client.execute(workflows.cancelALocalActivity, {
           workflowId: uuid4(),
           taskQueue,
@@ -143,8 +143,8 @@ if (RUN_INTEGRATION_TESTS) {
         }),
         { instanceOf: WorkflowFailedError }
       );
-      t.true(isCancellation(err.cause));
-      t.is(err.cause?.message, 'Activity cancelled');
+      t.true(isCancellation(err?.cause));
+      t.is(err?.cause?.message, 'Activity cancelled');
     });
   });
 
@@ -172,7 +172,7 @@ if (RUN_INTEGRATION_TESTS) {
     const { client, taskQueue, getWorker } = t.context;
     const worker = await getWorker();
     await worker.runUntil(async () => {
-      const err: WorkflowFailedError = await t.throwsAsync(
+      const err: WorkflowFailedError | undefined = await t.throwsAsync(
         client.execute(workflows.throwAnExplicitNonRetryableErrorFromLocalActivity, {
           workflowId: uuid4(),
           taskQueue,
@@ -180,7 +180,7 @@ if (RUN_INTEGRATION_TESTS) {
         }),
         { instanceOf: WorkflowFailedError }
       );
-      t.is(err.cause?.message, 'tesssst');
+      t.is(err?.cause?.message, 'tesssst');
     });
   });
 
@@ -200,7 +200,7 @@ if (RUN_INTEGRATION_TESTS) {
     });
 
     await worker.runUntil(async () => {
-      const err: WorkflowFailedError = await t.throwsAsync(
+      const err: WorkflowFailedError | undefined = await t.throwsAsync(
         client.execute(workflows.throwARetryableErrorWithASingleRetry, {
           workflowId: uuid4(),
           taskQueue,
@@ -208,7 +208,7 @@ if (RUN_INTEGRATION_TESTS) {
         }),
         { instanceOf: WorkflowFailedError }
       );
-      t.is(err.cause?.message, 'tesssst');
+      t.is(err?.cause?.message, 'tesssst');
     });
     // Might be more than 2 if workflow task times out (CI I'm looking at you)
     t.true(attempts >= 2);
@@ -312,9 +312,11 @@ if (RUN_INTEGRATION_TESTS) {
     await firstValueFrom(subj);
     worker.shutdown();
 
-    const err: WorkflowFailedError = await t.throwsAsync(handle.result(), { instanceOf: WorkflowFailedError });
-    t.true(isCancellation(err.cause));
-    t.is(err.cause?.message, 'Activity cancelled');
+    const err: WorkflowFailedError | undefined = await t.throwsAsync(handle.result(), {
+      instanceOf: WorkflowFailedError,
+    });
+    t.true(isCancellation(err?.cause));
+    t.is(err?.cause?.message, 'Activity cancelled');
     console.log('Waiting for worker to complete shutdown');
     await p;
   });
@@ -323,15 +325,15 @@ if (RUN_INTEGRATION_TESTS) {
     const { client, taskQueue, getWorker } = t.context;
     const worker = await getWorker();
     await worker.runUntil(async () => {
-      const err: WorkflowFailedError = await t.throwsAsync(
+      const err: WorkflowFailedError | undefined = await t.throwsAsync(
         client.execute(workflows.runANonExisitingLocalActivity, {
           workflowId: uuid4(),
           taskQueue,
         }),
         { instanceOf: WorkflowFailedError }
       );
-      t.true(err.cause instanceof ApplicationFailure && !err.cause.nonRetryable);
-      t.truthy(err.cause?.message?.startsWith('Activity function activityNotFound is not registered on this Worker'));
+      t.true(err?.cause instanceof ApplicationFailure && !err.cause.nonRetryable);
+      t.truthy(err?.cause?.message?.startsWith('Activity function activityNotFound is not registered on this Worker'));
     });
   });
 }

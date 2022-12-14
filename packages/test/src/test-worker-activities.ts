@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
-import anyTest, { ExecutionContext, TestInterface } from 'ava';
+import anyTest, { ExecutionContext, TestFn } from 'ava';
 import dedent from 'dedent';
 import { v4 as uuid4 } from 'uuid';
 import * as activity from '@temporalio/activity';
@@ -14,7 +14,7 @@ export interface Context {
   worker: Worker;
 }
 
-export const test = anyTest as TestInterface<Context>;
+export const test = anyTest as TestFn<Context>;
 
 export async function runWorker<T>(t: ExecutionContext<Context>, fn: () => Promise<T>): Promise<T> {
   const { worker } = t.context;
@@ -89,7 +89,7 @@ test('Worker runs an activity and reports failure', async (t) => {
           source: 'TypeScriptSDK',
           stackTrace: dedent`
             Error: :(
-                at Activity.throwAnError [as fn] (test/src/activities/index.ts)
+                at Activity.throwAnError (test/src/activities/index.ts)
           `,
           applicationFailureInfo: { type: 'Error', nonRetryable: false },
         },

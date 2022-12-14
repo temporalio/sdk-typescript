@@ -112,7 +112,7 @@ test.serial('Mocked throws combined error in runUntil', async (t) => {
     })
   );
   t.is(worker.getState(), 'FAILED');
-  t.is(err.message, 'Worker terminated with fatal error in `runUntil`');
+  t.is(err?.message, 'Worker terminated with fatal error in `runUntil`');
   const { workerError, innerError } = (err as any).cause;
   t.is(workerError.message, 'Timed out while waiting for worker to shutdown gracefully');
   t.is(innerError.message, 'inner');

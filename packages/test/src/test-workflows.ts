@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
 import path from 'path';
 import vm from 'vm';
-import anyTest, { ExecutionContext, TestInterface } from 'ava';
+import anyTest, { ExecutionContext, TestFn } from 'ava';
 import dedent from 'dedent';
 import Long from 'long'; // eslint-disable-line import/no-named-as-default
 import {
@@ -43,7 +43,7 @@ class TestVMWorkflowCreator extends VMWorkflowCreator {
   }
 }
 
-const test = anyTest as TestInterface<Context>;
+const test = anyTest as TestFn<Context>;
 
 test.before(async (t) => {
   const workflowsPath = path.join(__dirname, 'workflows');
@@ -601,7 +601,7 @@ test('invalidOrFailedQueries', async (t) => {
           failed: {
             message: 'Query handlers should not return a Promise',
             source: 'TypeScriptSDK',
-            stackTrace: 'DeterminismViolationError: Query handlers should not return a Promise\n',
+            stackTrace: 'DeterminismViolationError: Query handlers should not return a Promise',
             applicationFailureInfo: {
               type: 'DeterminismViolationError',
               nonRetryable: false,

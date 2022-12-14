@@ -1,5 +1,5 @@
 import { randomUUID } from 'crypto';
-import anyTest, { TestInterface } from 'ava';
+import anyTest, { TestFn } from 'ava';
 import asyncRetry from 'async-retry';
 import { Client, defaultPayloadConverter } from '@temporalio/client';
 import { msToNumber } from '@temporalio/common/lib/time';
@@ -12,7 +12,7 @@ export interface Context {
 }
 
 const taskQueue = 'async-activity-completion';
-const test = anyTest as TestInterface<Context>;
+const test = anyTest as TestFn<Context>;
 
 const dummyWorkflow = async () => undefined;
 const dummyWorkflow2 = async (_x?: string) => undefined;
