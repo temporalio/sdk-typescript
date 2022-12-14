@@ -292,12 +292,12 @@ jobs:
 
   # Runs the sdk features repo tests with this repo's current SDK code
   sdk-features-tests:
-    uses: temporalio/sdk-features/.github/workflows/typescript.yaml@ts-next
+    uses: temporalio/sdk-features/.github/workflows/typescript.yaml@main
     with:
       typescript-repo-path: ${{github.event.pull_request.head.repo.full_name}}
       version: ${{github.event.pull_request.head.ref}}
       version-is-repo-ref: true
-      sdk-features-repo-ref: ts-next
+      sdk-features-repo-ref: main
 
   stress-tests:
     uses: ./.github/workflows/stress.yml
