@@ -14,7 +14,8 @@
   },
   "ava": {
     "timeout": "60s",
-    "concurrency": 1
+    "concurrency": 1,
+    "workerThreads": false
   },
   "keywords": [
     "temporal",
