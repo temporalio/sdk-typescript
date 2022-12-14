@@ -1,4 +1,4 @@
-import anyTest, { Constructor, Macro, TestInterface } from 'ava';
+import anyTest, { Macro, TestFn, ErrorConstructor } from 'ava';
 import { v4 as uuid4 } from 'uuid';
 import { WorkflowClient, WorkflowFailedError } from '@temporalio/client';
 import { ApplicationFailure, CancelledFailure } from '@temporalio/common';
@@ -16,36 +16,36 @@ export interface Context {
   runPromise: Promise<void>;
 }
 
-const test = anyTest as TestInterface<Context>;
+const test = anyTest as TestFn<Context>;
 const taskQueue = 'test-cancellation';
 
 const testWorkflowCancellation: Macro<
-  [WorkflowCancellationScenarioOutcome, WorkflowCancellationScenarioTiming, Constructor | undefined],
+  [WorkflowCancellationScenarioOutcome, WorkflowCancellationScenarioTiming, ErrorConstructor | undefined],
   Context
-> = async (t, outcome, timing, expected) => {
-  const client = new WorkflowClient();
-  const workflow = await client.start(workflowCancellationScenarios, {
-    args: [outcome, timing],
-    taskQueue,
-    workflowId: uuid4(),
-  });
-  await workflow.cancel();
-  if (expected === undefined) {
-    await workflow.result();
-    t.pass();
-  } else {
-    const err = await t.throwsAsync(workflow.result(), {
-      instanceOf: WorkflowFailedError,
+> = {
+  exec: async (t, outcome, timing, expected) => {
+    const client = new WorkflowClient();
+    const workflow = await client.start(workflowCancellationScenarios, {
+      args: [outcome, timing],
+      taskQueue,
+      workflowId: uuid4(),
     });
-    if (!(err instanceof WorkflowFailedError)) {
-      throw new Error('Unreachable');
+    await workflow.cancel();
+    if (expected === undefined) {
+      await workflow.result();
+      t.pass();
+    } else {
+      const err = await t.throwsAsync(workflow.result(), {
+        instanceOf: WorkflowFailedError,
+      });
+      if (!(err instanceof WorkflowFailedError)) {
+        throw new Error('Unreachable');
+      }
+      t.true(err.cause instanceof expected);
     }
-    t.true(err.cause instanceof expected);
-  }
+  },
+  title: (_providedTitle = '', outcome, timing) => `workflow cancellation scenario ${outcome} ${timing}`,
 };
-
-testWorkflowCancellation.title = (_providedTitle = '', outcome, timing) =>
-  `workflow cancellation scenario ${outcome} ${timing}`;
 
 if (RUN_INTEGRATION_TESTS) {
   test.before(async (t) => {

@@ -1,4 +1,4 @@
-import anyTest, { TestInterface, ExecutionContext } from 'ava';
+import anyTest, { TestFn, ExecutionContext } from 'ava';
 import { v4 as uuid4 } from 'uuid';
 import { Worker, DefaultLogger, LogEntry, defaultSinks } from '@temporalio/worker';
 import { TestWorkflowEnvironment } from '@temporalio/testing';
@@ -7,7 +7,7 @@ import * as workflows from './workflows';
 interface Context {
   testEnv: TestWorkflowEnvironment;
 }
-const test = anyTest as TestInterface<Context>;
+const test = anyTest as TestFn<Context>;
 
 test.before(async (t) => {
   t.context = {

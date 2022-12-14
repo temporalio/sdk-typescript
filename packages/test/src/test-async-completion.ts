@@ -1,4 +1,4 @@
-import anyTest, { TestInterface, ExecutionContext } from 'ava';
+import anyTest, { TestFn, ExecutionContext } from 'ava';
 import { Observable, Subject, firstValueFrom } from 'rxjs';
 import { filter } from 'rxjs/operators';
 import { v4 as uuid4 } from 'uuid';
@@ -28,7 +28,7 @@ const NOT_FOUND_TASK_TOKEN = new Uint8Array([
 ]);
 
 const taskQueue = 'async-activity-completion';
-const test = anyTest as TestInterface<Context>;
+const test = anyTest as TestFn<Context>;
 
 async function activityStarted(t: ExecutionContext<Context>, workflowId: string): Promise<Info> {
   return await firstValueFrom(

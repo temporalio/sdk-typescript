@@ -1,4 +1,4 @@
-import anyTest, { TestInterface } from 'ava';
+import anyTest, { TestFn } from 'ava';
 import { v4 as uuid4 } from 'uuid';
 import { WorkflowFailedError } from '@temporalio/client';
 import { TestWorkflowEnvironment, workflowInterceptorModules } from '@temporalio/testing';
@@ -16,7 +16,7 @@ interface Context {
   testEnv: TestWorkflowEnvironment;
 }
 
-const test = anyTest as TestInterface<Context>;
+const test = anyTest as TestFn<Context>;
 
 test.before(async (t) => {
   t.context = {
@@ -150,7 +150,7 @@ test.serial('Workflow code can run assertions', async (t) => {
     },
   });
 
-  const err: WorkflowFailedError = await t.throwsAsync(
+  const err: WorkflowFailedError | undefined = await t.throwsAsync(
     worker.runUntil(
       client.workflow.execute(assertFromWorkflow, {
         workflowId: uuid4(),
@@ -160,5 +160,5 @@ test.serial('Workflow code can run assertions', async (t) => {
     ),
     { instanceOf: WorkflowFailedError }
   );
-  t.is(err.cause?.message, 'Expected values to be strictly equal:\n\n6 !== 7\n');
+  t.is(err?.cause?.message, 'Expected values to be strictly equal:\n\n6 !== 7\n');
 });

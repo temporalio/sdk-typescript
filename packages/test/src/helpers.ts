@@ -30,10 +30,22 @@ export function cleanOptionalStackTrace(stackTrace: string | undefined | null): 
 /**
  * Relativize paths and remove line and column numbers from stack trace
  */
-export function cleanStackTrace(stack: string): string {
+export function cleanStackTrace(ostack: string): string {
+  // For some reason, a code snippet with carret on error location is sometime prepended before the actual stacktrace.
+  // If there is such a snippet, get rid of it.
+  const stack = ostack.replace(/^.*\n[ ]*\^[ ]*\n+/gms, '');
+
   const su = new StackUtils({ cwd: path.join(__dirname, '../..') });
-  const cleaned = su.clean(stack).trimEnd();
-  return stack.split('\n')[0] + '\n' + (cleaned && cleaned.replace(/:\d+:\d+/g, '').replace(/^/gms, '    at '));
+  const firstLine = stack.split('\n')[0];
+  const cleanedStack = su.clean(stack).trimEnd();
+  const normalizedStack =
+    cleanedStack &&
+    cleanedStack
+      .replace(/:\d+:\d+/g, '')
+      .replace(/^\s*/gms, '    at ')
+      .replace(/\[as fn\] /, '');
+
+  return normalizedStack ? `${firstLine}\n${normalizedStack}` : firstLine;
 }
 
 /**
