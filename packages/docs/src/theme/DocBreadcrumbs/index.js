@@ -1,5 +1,5 @@
 import React from 'react';
-import { useSidebarBreadcrumbs, useHomePageRoute } from '@docusaurus/theme-common';
+import { useSidebarBreadcrumbs, useHomePageRoute } from '@docusaurus/theme-common/internal';
 import Link from '@docusaurus/Link';
 
 export default function DocBreadcrumbs() {

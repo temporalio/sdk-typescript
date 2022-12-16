@@ -151,6 +151,7 @@ module.exports = {
               features: {
                 enable_source_link: false,
                 enable_code_block: true,
+                allowed_target_extensions: ['.md'],
               },
             },
           ],
