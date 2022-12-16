@@ -1,3 +1,4 @@
+import path from 'path';
 import * as libCoverage from 'istanbul-lib-coverage';
 import { InjectedSinks, BundleOptions, WorkerOptions } from '@temporalio/worker';
 import { CoverageSinks } from './sinks';
@@ -29,8 +30,6 @@ export class WorkflowCoverage {
       return workerOptions;
     }
 
-    const workflowsPath = workerOptions.workflowsPath;
-
     return {
       ...workerOptions,
       interceptors: {
@@ -44,7 +43,7 @@ export class WorkflowCoverage {
       bundlerOptions: {
         ...workerOptions.bundlerOptions,
         webpackConfigHook: (config: WebpackConfigType) => {
-          config = this.addInstrumenterRule(workflowsPath, config);
+          config = this.addInstrumenterRule(config);
 
           const existingWebpackConfigHook = workerOptions?.bundlerOptions?.webpackConfigHook;
           if (existingWebpackConfigHook !== undefined) {
@@ -73,12 +72,11 @@ export class WorkflowCoverage {
       return bundleOptions;
     }
 
-    const workflowsPath = bundleOptions.workflowsPath;
     return {
       ...bundleOptions,
       workflowInterceptorModules: [...(bundleOptions.workflowInterceptorModules || []), this.interceptorModule],
       webpackConfigHook: (config: WebpackConfigType) => {
-        config = this.addInstrumenterRule(workflowsPath, config);
+        config = this.addInstrumenterRule(config);
 
         const existingWebpackConfigHook = bundleOptions.webpackConfigHook;
         if (existingWebpackConfigHook !== undefined) {
@@ -140,21 +138,25 @@ export class WorkflowCoverage {
   }
 
   /**
-   * Modify the given Worker config to auto instrument Workflow
-   * code using istanbul-instrumenter-loader
+   * Modify the given Worker config to auto instrument Workflows
    */
-  addInstrumenterRule(workflowsPath: string, config: WebpackConfigType): WebpackConfigType {
+  addInstrumenterRule(config: WebpackConfigType): WebpackConfigType {
     if (!this.hasCoverageGlobal()) {
       return config;
     }
 
     const newRule = {
       use: {
-        loader: require.resolve('istanbul-instrumenter-loader'),
-        options: { esModules: true },
+        loader: require.resolve('./loader'),
       },
       enforce: 'post' as const,
-      include: workflowsPath,
+      test: /\.js$/,
+      exclude: [
+        /\/node_modules\//,
+        path.dirname(require.resolve('@temporalio/common')),
+        path.dirname(require.resolve('@temporalio/workflow')),
+        path.dirname(require.resolve('@temporalio/nyc-test-coverage')),
+      ],
     };
 
     return {

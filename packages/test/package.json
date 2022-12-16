@@ -38,6 +38,7 @@
     "@temporalio/common": "file:../common",
     "@temporalio/core-bridge": "file:../core-bridge",
     "@temporalio/interceptors-opentelemetry": "file:../interceptors-opentelemetry",
+    "@temporalio/nyc-test-coverage": "file:../nyc-test-coverage",
     "@temporalio/proto": "file:../proto",
     "@temporalio/testing": "file:../testing",
     "@temporalio/worker": "file:../worker",
