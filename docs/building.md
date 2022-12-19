@@ -29,4 +29,4 @@ By using Node.js' `n-api` we get a binary which _should_ work on all supported N
 1. Configure cargo for the Windows and Linux build targets
    `cp etc/mac-cargo-config.toml ~/.cargo/config.toml`
 1. Install the project's dependencies with `NPM_CONFIG_FOREGROUND_SCRIPTS=true npm ci` if you haven't already
-1. Build the the bridge with `CC_aarch64_unknown_linux_gnu=aarch64-unknown-linux-gnu-gcc CC_x86_64_unknown_linux_gnu=x86_64-unknown-linux-gnu-gcc npx lerna run --stream build-rust -- -- --target all`
+1. Build the the bridge with `CC_aarch64_unknown_linux_gnu=aarch64-unknown-linux-gnu-gcc CC_x86_64_unknown_linux_gnu=x86_64-unknown-linux-gnu-gcc npx lerna run --stream build-rust -- --target all`
