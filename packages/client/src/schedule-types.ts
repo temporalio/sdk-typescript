@@ -489,7 +489,7 @@ export interface CalendarSpec {
   minute?: LooseRange<number> | LooseRange<number>[] | '*';
 
   /**
-   * Valid values: 0–59
+   * Valid values: 0–23
    *
    * @default 0
    */
