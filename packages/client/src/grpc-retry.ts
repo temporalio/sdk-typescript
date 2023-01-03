@@ -67,7 +67,7 @@ function withDefaultBackoffOptions({
   initialIntervalMs,
 }: Partial<BackoffOptions>): BackoffOptions {
   return {
-    maxAttempts: maxAttempts ?? 10,
+    maxAttempts: maxAttempts ?? 13,
     factor: factor ?? 2,
     maxJitter: maxJitter ?? 0.1,
     initialIntervalMs: initialIntervalMs ?? defaultInitialIntervalMs,
