@@ -167,8 +167,8 @@ git-cliff --tag 1.0.1 v1.0.0..HEAD | pbcopy
 
 - If PRs came from external contributors, thank them & link their github handles: `([#484](link), thanks to [`@user`](https://github.com/user) 🙏)`
 - Open PR with CHANGELOG change
-- If using a custom [sdk-features](https://github.com/temporalio/sdk-features) branch for PR integration tests, make
-  sure the branch is fully up-to-date with `sdk-features` `main` before merging the CHANGELOG PR
+- If using a custom [features](https://github.com/temporalio/features) branch for PR integration tests, make
+  sure the branch is fully up-to-date with `features` `main` before merging the CHANGELOG PR
 - Merge PR
 - Checkout latest `main`
 
@@ -219,8 +219,8 @@ npm deprecate temporalio@^1.0.0 "Instead of installing temporalio, we recommend 
   rm packages/core-bridge/releases/
   ```
 
-- If using a custom [sdk-features](https://github.com/temporalio/sdk-features/) branch for PR integration tests, merge
-  that branch into sdk-features `main` and update the SDK workflow definition to trigger `sdk-features` `main`
+- If using a custom [features](https://github.com/temporalio/features/) branch for PR integration tests, merge
+  that branch into features `main` and update the SDK workflow definition to trigger `features` `main`
 
 - If any APIs have changed, open a PR to update [`samples-typescript`](https://github.com/temporalio/samples-typescript/). Once merged, update the `next` branch:
 
