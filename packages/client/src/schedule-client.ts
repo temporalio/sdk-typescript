@@ -1,6 +1,6 @@
 import { status as grpcStatus } from '@grpc/grpc-js';
 import { v4 as uuid4 } from 'uuid';
-import { mapToPayloads, searchAttributePayloadConverter } from '@temporalio/common';
+import { mapToPayloads, searchAttributePayloadConverter, Workflow } from '@temporalio/common';
 import { composeInterceptors, Headers } from '@temporalio/common/lib/interceptors';
 import {
   encodeMapToPayloads,
@@ -20,6 +20,8 @@ import {
   ScheduleOptions,
   ScheduleOverlapPolicy,
   ScheduleUpdateOptions,
+  ScheduleOptionsAction,
+  ScheduleOptionsStartWorkflowAction,
 } from './schedule-types';
 import {
   compileScheduleOptions,
@@ -67,7 +69,9 @@ export interface ScheduleHandle {
    * sends the returned `UpdatedSchedule` to the Server to update the Schedule definition. Note that,
    * in the future, `updateFn` might be invoked multiple time, with identical or different input.
    */
-  update(updateFn: (previous: ScheduleDescription) => ScheduleUpdateOptions): Promise<void>;
+  update<W extends Workflow = Workflow>(
+    updateFn: (previous: ScheduleDescription) => ScheduleUpdateOptions<ScheduleOptionsStartWorkflowAction<W>>
+  ): Promise<void>;
 
   /**
    * Delete the Schedule
@@ -197,7 +201,10 @@ export class ScheduleClient extends BaseClient {
    * @throws {@link ScheduleAlreadyRunning} if there's a running (not deleted) Schedule with the given `id`
    * @returns a ScheduleHandle to the created Schedule
    */
-  public async create(options: ScheduleOptions): Promise<ScheduleHandle> {
+  public async create<W extends Workflow = Workflow>(
+    options: ScheduleOptions<ScheduleOptionsStartWorkflowAction<W>>
+  ): Promise<ScheduleHandle>;
+  public async create<A extends ScheduleOptionsAction>(options: ScheduleOptions<A>): Promise<ScheduleHandle> {
     await this._createSchedule(options);
     return this.getHandle(options.scheduleId);
   }

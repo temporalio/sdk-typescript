@@ -8,7 +8,7 @@ import { WorkflowStartOptions } from './workflow-options';
  *
  * @experimental
  */
-export interface ScheduleOptions {
+export interface ScheduleOptions<A extends ScheduleOptionsAction = ScheduleOptionsAction> {
   /**
    * Schedule Id
    *
@@ -24,7 +24,7 @@ export interface ScheduleOptions {
   /**
    * Which Action to take
    */
-  action: ScheduleOptionsAction;
+  action: A;
 
   policies?: {
     /**
@@ -132,11 +132,11 @@ export type CompiledScheduleOptions = Replace<
  *
  * @experimental
  */
-export type ScheduleUpdateOptions = Replace<
+export type ScheduleUpdateOptions<A extends ScheduleOptionsAction = ScheduleOptionsAction> = Replace<
   Omit<ScheduleOptions, 'scheduleId' | 'memo' | 'searchAttributes'>,
   {
     action: Replace<
-      ScheduleOptions['action'],
+      A,
       {
         // No default value on update
         workflowId: string;
@@ -833,8 +833,6 @@ export enum ScheduleOverlapPolicy {
    */
   ALLOW_ALL,
 }
-
-export type ScheduleOverlapPolicy2 = keyof typeof temporal.api.enums.v1.ScheduleOverlapPolicy;
 
 checkExtends<
   keyof typeof temporal.api.enums.v1.ScheduleOverlapPolicy,
