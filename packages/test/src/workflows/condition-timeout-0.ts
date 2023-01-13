@@ -3,7 +3,7 @@
  * which means that the condition would block indefinitely and would return undefined once
  * fn evaluates to true, rather than returning true or false.
  */
-import { condition, setHandler, defineSignal, sleep, ApplicationFailure } from '@temporalio/workflow';
+import { condition, setHandler, defineSignal, sleep } from '@temporalio/workflow';
 
 export const aSignal = defineSignal('a');
 export const bSignal = defineSignal('b');

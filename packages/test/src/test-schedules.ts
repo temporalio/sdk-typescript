@@ -1,10 +1,16 @@
 import { randomUUID } from 'crypto';
 import anyTest, { TestFn } from 'ava';
 import asyncRetry from 'async-retry';
-import { Client, defaultPayloadConverter } from '@temporalio/client';
+import {
+  Client,
+  defaultPayloadConverter,
+  CalendarSpec,
+  CalendarSpecDescription,
+  ScheduleHandle,
+  ScheduleSummary,
+  ScheduleUpdateOptions,
+} from '@temporalio/client';
 import { msToNumber } from '@temporalio/common/lib/time';
-import { CalendarSpec, CalendarSpecDescription, ScheduleSummary } from '@temporalio/client/lib/schedule-types';
-import { ScheduleHandle } from '@temporalio/client/lib/schedule-client';
 import { RUN_INTEGRATION_TESTS } from './helpers';
 
 export interface Context {
@@ -15,7 +21,8 @@ const taskQueue = 'async-activity-completion';
 const test = anyTest as TestFn<Context>;
 
 const dummyWorkflow = async () => undefined;
-const dummyWorkflow2 = async (_x?: string) => undefined;
+const dummyWorkflowWith1Arg = async (_s: string) => undefined;
+const dummyWorkflowWith2Args = async (_x: number, _y: number) => undefined;
 
 const calendarSpecDescriptionDefaults: CalendarSpecDescription = {
   second: [{ start: 0, end: 0, step: 1 }],
@@ -29,7 +36,7 @@ const calendarSpecDescriptionDefaults: CalendarSpecDescription = {
 };
 
 if (RUN_INTEGRATION_TESTS) {
-  test.before(async (t) => {
+  test.beforeEach(async (t) => {
     t.context = {
       client: new Client(),
     };
@@ -115,7 +122,7 @@ if (RUN_INTEGRATION_TESTS) {
     }
   });
 
-  test('Can create schedule with startWorkflow action', async (t) => {
+  test('Can create schedule with startWorkflow action (no arg)', async (t) => {
     const { client } = t.context;
     const scheduleId = `can-create-schedule-with-startWorkflow-action-${randomUUID()}`;
     const handle = await client.schedule.create({
@@ -141,6 +148,41 @@ if (RUN_INTEGRATION_TESTS) {
 
       t.is(describedSchedule.action.type, 'startWorkflow');
       t.is(describedSchedule.action.workflowType, 'dummyWorkflow');
+      t.deepEqual(describedSchedule.action.memo, { 'my-memo': 'foo' });
+      t.deepEqual(describedSchedule.action.searchAttributes?.CustomKeywordField, ['test-value2']);
+    } finally {
+      await handle.delete();
+    }
+  });
+
+  test('Can create schedule with startWorkflow action (with args)', async (t) => {
+    const { client } = t.context;
+    const scheduleId = `can-create-schedule-with-startWorkflow-action-${randomUUID()}`;
+    const handle = await client.schedule.create({
+      scheduleId,
+      spec: {
+        calendars: [{ hour: { start: 2, end: 7, step: 1 } }],
+      },
+      action: {
+        type: 'startWorkflow',
+        workflowType: dummyWorkflowWith2Args,
+        args: [3, 4],
+        taskQueue,
+        memo: {
+          'my-memo': 'foo',
+        },
+        searchAttributes: {
+          CustomKeywordField: ['test-value2'],
+        },
+      },
+    });
+
+    try {
+      const describedSchedule = await handle.describe();
+
+      t.is(describedSchedule.action.type, 'startWorkflow');
+      t.is(describedSchedule.action.workflowType, 'dummyWorkflowWith2Args');
+      t.deepEqual(describedSchedule.action.args, [3, 4]);
       t.deepEqual(describedSchedule.action.memo, { 'my-memo': 'foo' });
       t.deepEqual(describedSchedule.action.searchAttributes?.CustomKeywordField, ['test-value2']);
     } finally {
@@ -272,9 +314,9 @@ if (RUN_INTEGRATION_TESTS) {
     }
   });
 
-  test('Can update schedule', async (t) => {
+  test('Can update schedule calendar', async (t) => {
     const { client } = t.context;
-    const scheduleId = `can-update-schedule-${randomUUID()}`;
+    const scheduleId = `can-update-schedule-calendar-${randomUUID()}`;
     const handle = await client.schedule.create({
       scheduleId,
       spec: {
@@ -315,7 +357,8 @@ if (RUN_INTEGRATION_TESTS) {
       action: {
         type: 'startWorkflow',
         workflowId: `${scheduleId}-workflow`,
-        workflowType: dummyWorkflow,
+        workflowType: dummyWorkflowWith1Arg,
+        args: ['foo'],
         taskQueue,
       },
     });
@@ -326,16 +369,48 @@ if (RUN_INTEGRATION_TESTS) {
         action: {
           type: 'startWorkflow',
           workflowId: `${scheduleId}-workflow-2`,
-          workflowType: dummyWorkflow2,
-          args: ['updated'],
+          workflowType: dummyWorkflowWith2Args,
+          args: [3, 4],
           taskQueue,
         },
       }));
 
       const describedSchedule = await handle.describe();
       t.is(describedSchedule.action.type, 'startWorkflow');
-      t.is(describedSchedule.action.workflowType, 'dummyWorkflow2');
-      t.deepEqual(describedSchedule.action.args, ['updated']);
+      t.is(describedSchedule.action.workflowType, 'dummyWorkflowWith2Args');
+      t.deepEqual(describedSchedule.action.args, [3, 4]);
+    } finally {
+      await handle.delete();
+    }
+  });
+
+  test('Can update schedule intervals', async (t) => {
+    const { client } = t.context;
+    const scheduleId = `can-update-schedule-intervals-${randomUUID()}`;
+    const handle = await client.schedule.create({
+      scheduleId,
+      spec: {
+        intervals: [{ every: '5h' }],
+      },
+      action: {
+        type: 'startWorkflow',
+        workflowId: `${scheduleId}-workflow`,
+        workflowType: dummyWorkflowWith1Arg,
+        args: ['foo'],
+        taskQueue,
+      },
+    });
+
+    try {
+      await handle.update((x: ScheduleUpdateOptions) => {
+        x.spec.intervals = [{ every: '3h' }];
+        return x;
+      });
+
+      const describedSchedule = await handle.describe();
+      t.is(describedSchedule.action.type, 'startWorkflow');
+      t.is(describedSchedule.action.workflowType, 'dummyWorkflowWith1Arg');
+      t.deepEqual(describedSchedule.action.args, ['foo']);
     } finally {
       await handle.delete();
     }
