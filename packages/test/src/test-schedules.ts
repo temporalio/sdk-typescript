@@ -1,4 +1,4 @@
-import { randomUUID, X509Certificate } from 'crypto';
+import { randomUUID } from 'crypto';
 import anyTest, { TestFn } from 'ava';
 import asyncRetry from 'async-retry';
 import {
@@ -155,7 +155,7 @@ if (RUN_INTEGRATION_TESTS) {
     }
   });
 
-  test('Can create schedule with startWorkflow action (no arg)', async (t) => {
+  test('Can create schedule with startWorkflow action (with args)', async (t) => {
     const { client } = t.context;
     const scheduleId = `can-create-schedule-with-startWorkflow-action-${randomUUID()}`;
     const handle = await client.schedule.create({
@@ -181,7 +181,8 @@ if (RUN_INTEGRATION_TESTS) {
       const describedSchedule = await handle.describe();
 
       t.is(describedSchedule.action.type, 'startWorkflow');
-      t.is(describedSchedule.action.workflowType, 'dummyWorkflow');
+      t.is(describedSchedule.action.workflowType, 'dummyWorkflowWith2Args');
+      t.deepEqual(describedSchedule.action.args, [3, 4]);
       t.deepEqual(describedSchedule.action.memo, { 'my-memo': 'foo' });
       t.deepEqual(describedSchedule.action.searchAttributes?.CustomKeywordField, ['test-value2']);
     } finally {
@@ -313,9 +314,9 @@ if (RUN_INTEGRATION_TESTS) {
     }
   });
 
-  test('Can update schedule', async (t) => {
+  test('Can update schedule calendar', async (t) => {
     const { client } = t.context;
-    const scheduleId = `can-update-schedule-${randomUUID()}`;
+    const scheduleId = `can-update-schedule-calendar-${randomUUID()}`;
     const handle = await client.schedule.create({
       scheduleId,
       spec: {
@@ -376,8 +377,8 @@ if (RUN_INTEGRATION_TESTS) {
 
       const describedSchedule = await handle.describe();
       t.is(describedSchedule.action.type, 'startWorkflow');
-      t.is(describedSchedule.action.workflowType, 'dummyWorkflow2');
-      t.deepEqual(describedSchedule.action.args, ['updated']);
+      t.is(describedSchedule.action.workflowType, 'dummyWorkflowWith2Args');
+      t.deepEqual(describedSchedule.action.args, [3, 4]);
     } finally {
       await handle.delete();
     }
@@ -408,8 +409,8 @@ if (RUN_INTEGRATION_TESTS) {
 
       const describedSchedule = await handle.describe();
       t.is(describedSchedule.action.type, 'startWorkflow');
-      t.is(describedSchedule.action.workflowType, 'dummyWorkflow2');
-      t.deepEqual(describedSchedule.action.args, ['updated']);
+      t.is(describedSchedule.action.workflowType, 'dummyWorkflowWith1Arg');
+      t.deepEqual(describedSchedule.action.args, ['foo']);
     } finally {
       await handle.delete();
     }
