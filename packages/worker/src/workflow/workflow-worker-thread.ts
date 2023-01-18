@@ -50,9 +50,11 @@ async function handleRequest({ requestId, input }: WorkerThreadRequest): Promise
       }
       const activation = coresdk.workflow_activation.WorkflowActivation.decodeDelimited(input.activation);
       const completion = await workflow.activate(activation);
+      const completionBytes =
+        coresdk.workflow_completion.WorkflowActivationCompletion.encodeDelimited(completion).finish();
       return {
         requestId,
-        result: { type: 'ok', output: { type: 'activation-completion', completion } },
+        result: { type: 'ok', output: { type: 'activation-completion', completion: completionBytes } },
       };
     }
     case 'extract-sink-calls': {

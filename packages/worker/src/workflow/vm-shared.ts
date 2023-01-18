@@ -264,7 +264,9 @@ export abstract class BaseVMWorkflow implements Workflow {
    * The Workflow is activated in batches to ensure correct order of activation
    * job application.
    */
-  public async activate(activation: coresdk.workflow_activation.IWorkflowActivation): Promise<Uint8Array> {
+  public async activate(
+    activation: coresdk.workflow_activation.IWorkflowActivation
+  ): Promise<coresdk.workflow_completion.IWorkflowActivationCompletion> {
     if (this.context === undefined) {
       throw new IllegalStateError('Workflow isolate context uninitialized');
     }
@@ -301,12 +303,12 @@ export abstract class BaseVMWorkflow implements Workflow {
     // Give unhandledRejection handler a chance to be triggered.
     await new Promise(setImmediate);
     if (this.unhandledRejection) {
-      return coresdk.workflow_completion.WorkflowActivationCompletion.encodeDelimited({
+      return {
         runId: activation.runId,
         failed: { failure: this.activator.errorToFailure(this.unhandledRejection) },
-      }).finish();
+      };
     }
-    return coresdk.workflow_completion.WorkflowActivationCompletion.encodeDelimited(completion).finish();
+    return completion;
   }
 
   /**

@@ -8,11 +8,12 @@ export interface Workflow {
   /**
    * Activate the Workflow.
    *
-   * This method should return a serialized {@link coresdk.workflow_completion.WorkflowActivationCompletion}
-   * after processing a single activation.
+   * This method should return a completion after processing a single activation.
    * It is guaranteed to that only a single activation will be processed concurrently for a Workflow execution.
    */
-  activate(activation: coresdk.workflow_activation.IWorkflowActivation): Promise<Uint8Array>;
+  activate(
+    activation: coresdk.workflow_activation.IWorkflowActivation
+  ): Promise<coresdk.workflow_completion.IWorkflowActivationCompletion>;
 
   /**
    * Gets any sink calls recorded during an activation.

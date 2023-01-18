@@ -122,19 +122,18 @@ async function createWorkflow(
 
 async function activate(t: ExecutionContext<Context>, activation: coresdk.workflow_activation.IWorkflowActivation) {
   const { workflow, runId } = t.context;
-  const arr = await workflow.activate(activation);
-  const completion = coresdk.workflow_completion.WorkflowActivationCompletion.decodeDelimited(arr);
+  const completion = await workflow.activate(activation);
   t.deepEqual(completion.runId, runId);
   return completion;
 }
 
 function compareCompletion(
   t: ExecutionContext<Context>,
-  req: coresdk.workflow_completion.WorkflowActivationCompletion,
+  req: coresdk.workflow_completion.IWorkflowActivationCompletion,
   expected: coresdk.workflow_completion.IWorkflowActivationCompletion
 ) {
   t.deepEqual(
-    req.toJSON(),
+    coresdk.workflow_completion.WorkflowActivationCompletion.create(req).toJSON(),
     coresdk.workflow_completion.WorkflowActivationCompletion.create({
       ...expected,
       runId: t.context.runId,
@@ -352,7 +351,7 @@ test('successString', async (t) => {
 });
 
 function cleanWorkflowFailureStackTrace(
-  req: coresdk.workflow_completion.WorkflowActivationCompletion,
+  req: coresdk.workflow_completion.IWorkflowActivationCompletion,
   commandIndex = 0
 ) {
   req.successful!.commands![commandIndex].failWorkflowExecution!.failure!.stackTrace = cleanStackTrace(
@@ -362,7 +361,7 @@ function cleanWorkflowFailureStackTrace(
 }
 
 function cleanWorkflowQueryFailureStackTrace(
-  req: coresdk.workflow_completion.WorkflowActivationCompletion,
+  req: coresdk.workflow_completion.IWorkflowActivationCompletion,
   commandIndex = 0
 ) {
   req.successful!.commands![commandIndex].respondToQuery!.failed!.stackTrace = cleanStackTrace(
@@ -1917,7 +1916,7 @@ test('condition with timeout 0 maintain pre 1.5.0 compatibility - conditionTimeo
     );
   }
   {
-    const completion = await activate(t, await makeFireTimer(1));
+    const completion = await activate(t, makeFireTimer(1));
     compareCompletion(
       t,
       completion,
@@ -1948,7 +1947,7 @@ test('condition with timeout 0 in >1.5.0 - conditionTimeout0', async (t) => {
     );
   }
   {
-    const completion = await activate(t, await makeFireTimer(1));
+    const completion = await activate(t, makeFireTimer(1));
     compareCompletion(
       t,
       completion,
@@ -1961,7 +1960,7 @@ test('condition with timeout 0 in >1.5.0 - conditionTimeout0', async (t) => {
     );
   }
   {
-    const completion = await activate(t, await makeFireTimer(2));
+    const completion = await activate(t, makeFireTimer(2));
     compareCompletion(
       t,
       completion,
