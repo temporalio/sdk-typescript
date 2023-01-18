@@ -143,10 +143,10 @@ export class GlobalHandlers {
           const name = formatCallsiteName(callsite);
 
           this.currentStackTrace?.push({
-            filePath: callsite.getFileName() ?? undefined,
+            filePath: filename ?? undefined,
             functionName: name ?? undefined,
-            line: callsite.getLineNumber() ?? undefined,
-            column: callsite.getColumnNumber() ?? undefined,
+            line: line ?? undefined,
+            column: column ?? undefined,
           });
           return `    at ${callsite}`;
         }

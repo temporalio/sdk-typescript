@@ -254,9 +254,16 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
     t.is(err.cause.cause.message, 'Fail me');
     t.is(
       cleanOptionalStackTrace(err.cause.cause.stack),
-      dedent`
-    Error: Fail me
-        at Activity.throwAnError (test/src/activities/index.ts)
+      // TODO(bergundy): Stack trace should not be different, consequence of overriding the global
+      // Error.prepareStackTrace hoook
+      REUSE_V8_CONTEXT
+        ? dedent`
+      Error: Fail me
+          at Activity.throwAnError (test/lib/activities/index.js)
+      `
+        : dedent`
+      Error: Fail me
+          at Activity.throwAnError (test/src/activities/index.ts)
     `
     );
   });
@@ -287,17 +294,18 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
     t.deepEqual(err.cause.cause.details, ['details', 123, false]);
     t.is(
       cleanOptionalStackTrace(err.cause.cause.stack),
-      // TODO(bergundy): Figure out why stack trace is different (check Error.prepareStackTrace)
+      // TODO(bergundy): Stack trace should not be different, consequence of overriding the global
+      // Error.prepareStackTrace hoook
       REUSE_V8_CONTEXT
         ? dedent`
       ApplicationFailure: Fail me
           at Function.nonRetryable (common/lib/failure.js)
-          at Activity.throwAnError [as fn] (test/lib/activities/index.js)
+          at Activity.throwAnError (test/lib/activities/index.js)
       `
         : dedent`
       ApplicationFailure: Fail me
           at Function.nonRetryable (common/src/failure.ts)
-          at Activity.throwAnError [as fn] (test/src/activities/index.ts)
+          at Activity.throwAnError (test/src/activities/index.ts)
       `
     );
   });
