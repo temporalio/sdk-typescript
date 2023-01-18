@@ -297,7 +297,7 @@ export interface WorkerOptions {
    * When enabled, a process global unhandledRejection handler, a `Error.prepareStackTrace` override and a v8 promise
    * hook will be set by the worker.
    *
-   * Introduced in SDK version 1.5.0
+   * Introduced in SDK version 1.6.0
    *
    * @experimental
    */
