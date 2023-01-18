@@ -217,16 +217,15 @@ export class VMWorkflowThreadProxy implements Workflow {
   async activate(
     activation: coresdk.workflow_activation.IWorkflowActivation
   ): Promise<coresdk.workflow_completion.IWorkflowActivationCompletion> {
-    const arr = coresdk.workflow_activation.WorkflowActivation.encodeDelimited(activation).finish();
     const output = await this.workerThreadClient.send({
       type: 'activate-workflow',
-      activation: arr,
+      activation,
       runId: this.runId,
     });
     if (output?.type !== 'activation-completion') {
       throw new TypeError(`Got invalid response output from Workflow Worker thread ${output}`);
     }
-    return coresdk.workflow_completion.WorkflowActivationCompletion.decodeDelimited(output.completion);
+    return output.completion;
   }
 
   /**

@@ -1,4 +1,5 @@
 import type { RawSourceMap } from 'source-map';
+import { coresdk } from '@temporalio/proto';
 import { WorkflowCreateOptions } from '../interface';
 
 export interface WorkflowBundleWithSourceMapAndFilename {
@@ -38,10 +39,7 @@ export interface CreateWorkflow {
 export interface ActivateWorkflow {
   type: 'activate-workflow';
   runId: string;
-  /**
-   * Serialized coresdk.workflow_activation.WorkflowActivation proto
-   */
-  activation: Uint8Array;
+  activation: coresdk.workflow_activation.IWorkflowActivation;
 }
 
 /**
