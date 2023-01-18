@@ -42,7 +42,7 @@ import pkg from '@temporalio/worker/lib/pkg';
 import { UnsafeWorkflowInfo } from '@temporalio/workflow/src/interfaces';
 import * as activities from './activities';
 import { ConnectionInjectorInterceptor } from './activities/interceptors';
-import { cleanOptionalStackTrace, REUSE_V8_CONTEXT, u8, Worker } from './helpers';
+import { cleanOptionalStackTrace, u8, Worker } from './helpers';
 import * as workflows from './workflows';
 import { withZeroesHTTPServer } from './zeroes-http-server';
 
@@ -76,8 +76,6 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
   }
 
   _test.before(async (t) => {
-    // We don't want AVA to whine about unhandled rejections thrown by workflows
-    process.removeAllListeners('unhandledRejection');
     const logger = new DefaultLogger('DEBUG');
     // Use forwarded logging from core
     Runtime.install({
@@ -255,8 +253,8 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
     t.is(
       cleanOptionalStackTrace(err.cause.cause.stack),
       dedent`
-      Error: Fail me
-          at Activity.throwAnError (test/src/activities/index.ts)
+    Error: Fail me
+        at Activity.throwAnError (test/src/activities/index.ts)
     `
     );
   });
@@ -288,9 +286,9 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
     t.is(
       cleanOptionalStackTrace(err.cause.cause.stack),
       dedent`
-      ApplicationFailure: Fail me
-          at Function.nonRetryable (common/src/failure.ts)
-          at Activity.throwAnError (test/src/activities/index.ts)
+    ApplicationFailure: Fail me
+        at Function.nonRetryable (common/src/failure.ts)
+        at Activity.throwAnError (test/src/activities/index.ts)
       `
     );
   });

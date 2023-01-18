@@ -1,8 +1,3 @@
-/**
- * This is not testable with reusable contexts since the unhandled rejection handler is set on the main Node.js thread.
- *
- * @module
- */
 import test from 'ava';
 import { v4 as uuid4 } from 'uuid';
 import { UnexpectedError, Worker } from '@temporalio/worker';

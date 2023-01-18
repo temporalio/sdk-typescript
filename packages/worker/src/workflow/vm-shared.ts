@@ -18,6 +18,27 @@ export interface ActivationContext {
 // Not present in @types/node for some reason
 const { promiseHooks } = v8 as any;
 
+// Best effort to catch unhandled rejections from workflow code.
+// We crash the thread if we cannot find the culprit.
+export function setUnhandledRejectionHandler(getWorkflowByRunId: (runId: string) => BaseVMWorkflow | undefined): void {
+  process.on('unhandledRejection', (err, promise) => {
+    // Get the runId associated with the vm context.
+    // See for reference https://github.com/patriksimek/vm2/issues/32
+    const ctor = promise.constructor.constructor;
+    const runId = ctor('return globalThis.__TEMPORAL_ACTIVATOR__?.info?.runId')();
+    if (runId !== undefined) {
+      const workflow = getWorkflowByRunId(runId);
+      if (workflow !== undefined) {
+        workflow.setUnhandledRejection(err);
+        return;
+      }
+    }
+    // The user's logger is not accessible in this thread,
+    // dump the error information to stderr and abort.
+    console.error('Unhandled rejection', { runId }, err);
+    process.exit(1);
+  });
+}
 /**
  * Variant of {@link cutoffStackTrace} that works with FileLocation, keep this in sync with the original implementation
  */

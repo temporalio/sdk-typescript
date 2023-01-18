@@ -22,7 +22,6 @@ if (RUN_INTEGRATION_TESTS) {
       const handle = await client.start(workflows.patchInCondition, {
         taskQueue: 'patch-in-condition',
         workflowId,
-        workflowTaskTimeout: '1m', // Give our local activities enough time to run in CI
       });
       await handle.query('__stack_trace');
       return handle;

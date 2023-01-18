@@ -14,14 +14,18 @@ import { generateCommandSignal } from './patch-and-condition-pre-patch';
  *
  */
 export async function patchInCondition(): Promise<void> {
+  let numSignals = 0;
   // The signal handler here is important for the repro.
   // We use it so the workflow generates a command that will conflict with the patch.
   wf.setHandler(generateCommandSignal, async () => {
     // Ignore completion, it's irrelevant, just generate a command
     await wf.sleep('1s');
+    numSignals++;
   });
 
   // Note that the condition always returns false, we don't want it to resolve the promise, just to using it to test the
   // edge case.
-  await Promise.race([wf.sleep('5s'), wf.condition(() => wf.patched('irrelevant') && false)]);
+  await Promise.race([wf.sleep('3s'), wf.condition(() => wf.patched('irrelevant') && false)]);
+  // This is here to ensure that the workflow does not complete in slow CI
+  await wf.condition(() => numSignals === 2);
 }

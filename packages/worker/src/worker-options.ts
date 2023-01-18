@@ -285,14 +285,13 @@ export interface WorkerOptions {
   debugMode?: boolean;
 
   /**
-   * Toggle whether to reuse a single V8 contexts for the workflow sandbox.
+   * Toggle whether to reuse a single V8 context for the workflow sandbox.
    *
    * Context reuse significantly decreases the amount of resources taken up by workflows.
    * From running basic stress tests we've observed 2/3 reduction in memory usage and 1/3 to 1/2 in CPU usage with this
    * feature turned on.
    *
-   * This feature is still considered experimental and requires further testing before we can consider making it stable
-   * or default.
+   * This feature is experimental and requires further testing before it can be considered stable or made default.
    *
    * Introduced in SDK version 1.6.0
    *

@@ -1,6 +1,5 @@
 import { isMainThread, parentPort as parentPortOrNull } from 'worker_threads';
 import { IllegalStateError } from '@temporalio/common';
-import { coresdk } from '@temporalio/proto';
 import { Workflow, WorkflowCreator } from './interface';
 import { ReusableVMWorkflowCreator } from './reusable-vm';
 import { VMWorkflowCreator } from './vm';

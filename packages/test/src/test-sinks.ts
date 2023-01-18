@@ -106,29 +106,15 @@ if (RUN_INTEGRATION_TESTS) {
       unsafe: { isReplaying: false } as UnsafeWorkflowInfo,
     };
 
-    /**
-     * Remove the `now()` function from WorkflowInfo.unsafe since it conditionally appears when running with the
-     * `reuseV8Context` worker option.
-     */
-    function sanitizeInfoUnsafe(info: WorkflowInfo) {
-      return { ...info, unsafe: { isReplaying: info.unsafe.isReplaying } };
-    }
+    t.deepEqual(recordedCalls, [
+      { info, fn: 'success.runSync', counter: 0 },
+      { info, fn: 'success.runAsync', counter: 1 },
+      { info, fn: 'error.throwSync', counter: 2 },
+      { info, fn: 'error.throwAsync', counter: 3 },
+    ]);
 
     t.deepEqual(
-      recordedCalls.map(({ info, ...rest }) => ({ info: sanitizeInfoUnsafe(info), ...rest })),
-      [
-        { info, fn: 'success.runSync', counter: 0 },
-        { info, fn: 'success.runAsync', counter: 1 },
-        { info, fn: 'error.throwSync', counter: 2 },
-        { info, fn: 'error.throwAsync', counter: 3 },
-      ]
-    );
-
-    t.deepEqual(
-      recordedLogs.map(({ meta, ...rest }) => ({
-        meta: { ...meta, workflowInfo: sanitizeInfoUnsafe(meta.workflowInfo) },
-        ...rest,
-      })),
+      recordedLogs,
       thrownErrors.map((error) => ({
         level: 'ERROR',
         message: 'External sink function threw an error',

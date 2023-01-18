@@ -4,10 +4,9 @@ import vm from 'vm';
 import { gte } from 'semver';
 import * as internals from '@temporalio/workflow/lib/worker-interface';
 import { IllegalStateError } from '@temporalio/common';
-import { Runtime } from '../runtime';
 import { Workflow, WorkflowCreateOptions, WorkflowCreator } from './interface';
 import { WorkflowBundleWithSourceMapAndFilename } from './workflow-worker-thread/input';
-import { BaseVMWorkflow, globalHandlers } from './vm-shared';
+import { BaseVMWorkflow, globalHandlers, setUnhandledRejectionHandler } from './vm-shared';
 
 // Thanks MDN: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object/freeze
 function deepFreeze(object: any) {
@@ -30,28 +29,6 @@ function deepFreeze(object: any) {
   }
 
   return Object.freeze(object);
-}
-
-/**
- * Best effort to catch unhandled rejections from workflow code.
- * Crash the process if the rejection did not originate from a workflow.
- * TODO(bergundy): Clean this up a bit, it uses a problematic static `ReusableVMWorkflowCreator.workflowByRunId`.
- * Running multiple workers in the same process will be hard with this approach.
- */
-export function setUnhandledRejectionHandler(): void {
-  process.on('unhandledRejection', (error, promise) => {
-    const { runId } = promise as any;
-    if (runId !== undefined) {
-      const workflow = ReusableVMWorkflowCreator.workflowByRunId.get(runId);
-      if (workflow !== undefined) {
-        workflow.setUnhandledRejection(error);
-        return;
-      }
-    }
-    // Dump the error information and abort.
-    Runtime.instance().logger.error('Unhandled rejection', { runId, error });
-    process.exit(1);
-  });
 }
 
 /**
@@ -83,7 +60,7 @@ export class ReusableVMWorkflowCreator implements WorkflowCreator {
     public readonly isolateExecutionTimeoutMs: number
   ) {
     if (!ReusableVMWorkflowCreator.unhandledRejectionHandlerHasBeenSet) {
-      setUnhandledRejectionHandler();
+      setUnhandledRejectionHandler((runId) => ReusableVMWorkflowCreator.workflowByRunId.get(runId));
       ReusableVMWorkflowCreator.unhandledRejectionHandlerHasBeenSet = true;
     }
 

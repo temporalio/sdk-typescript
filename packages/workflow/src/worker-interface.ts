@@ -13,6 +13,7 @@ import { WorkflowInterceptorsFactory } from './interceptors';
 import { WorkflowCreateOptionsWithSourceMap } from './interfaces';
 import { Activator, getActivator } from './internals';
 import { SinkCall } from './sinks';
+import { setActivatorUntyped } from './global-attributes';
 
 // Export the type for use on the "worker" side
 export { PromiseStackStore } from './internals';
@@ -99,7 +100,7 @@ export function initRuntime(options: WorkflowCreateOptionsWithSourceMap): void {
   // There's on activator per workflow instance, set it globally on the context.
   // We do this before importing any user code so user code can statically reference @temporalio/workflow functions
   // as well as Date and Math.random.
-  global.__TEMPORAL_ACTIVATOR__ = activator;
+  setActivatorUntyped(activator);
 
   // webpack alias to payloadConverterPath
   // eslint-disable-next-line @typescript-eslint/no-var-requires

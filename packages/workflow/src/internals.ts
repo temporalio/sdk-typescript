@@ -33,6 +33,7 @@ import {
 import { SinkCall } from './sinks';
 import { untrackPromise } from './stack-helpers';
 import pkg from './pkg';
+import { maybeGetActivatorUntyped } from './global-attributes';
 
 enum StartChildWorkflowExecutionFailedCause {
   START_CHILD_WORKFLOW_EXECUTION_FAILED_CAUSE_UNSPECIFIED = 0,
@@ -697,7 +698,7 @@ export class Activator implements ActivationHandler {
 }
 
 export function maybeGetActivator(): Activator | undefined {
-  return (globalThis as any).__TEMPORAL_ACTIVATOR__;
+  return maybeGetActivatorUntyped() as Activator | undefined;
 }
 
 export function getActivator(): Activator {
