@@ -288,14 +288,11 @@ export interface WorkerOptions {
    * Toggle whether to reuse a single V8 contexts for the workflow sandbox.
    *
    * Context reuse significantly decreases the amount of resources taken up by workflows.
-   * From running basic stress tests we've observed 2/3 reduction in memory usage and 1/2 in CPU usage with this feature
-   * turned on.
+   * From running basic stress tests we've observed 2/3 reduction in memory usage and 1/3 to 1/2 in CPU usage with this
+   * feature turned on.
    *
-   * This feature is still considered experimental and requires some further testing before we can consider making it
-   * stable or even default.
-   *
-   * When enabled, a process global unhandledRejection handler, a `Error.prepareStackTrace` override and a v8 promise
-   * hook will be set by the worker.
+   * This feature is still considered experimental and requires further testing before we can consider making it stable
+   * or default.
    *
    * Introduced in SDK version 1.6.0
    *
@@ -343,6 +340,7 @@ export type WorkerOptionsWithDefaults = WorkerOptions &
       | 'enableSDKTracing'
       | 'showStackTraceSources'
       | 'debugMode'
+      | 'reuseV8Context'
     >
   > & {
     /**
@@ -356,7 +354,7 @@ export type WorkerOptionsWithDefaults = WorkerOptions &
      *
      * This value is not exposed at the moment.
      *
-     * @default 8
+     * @default 1 for reuseV8Context, otherwise 8
      */
     workflowThreadPoolSize: number;
 
@@ -476,7 +474,7 @@ export function appendDefaultInterceptors(
 }
 
 export function addDefaultWorkerOptions(options: WorkerOptions): WorkerOptionsWithDefaults {
-  const { maxCachedWorkflows, showStackTraceSources, debugMode, namespace, ...rest } = options;
+  const { maxCachedWorkflows, showStackTraceSources, debugMode, namespace, reuseV8Context, ...rest } = options;
 
   return {
     namespace: namespace ?? 'default',
@@ -491,11 +489,12 @@ export function addDefaultWorkerOptions(options: WorkerOptions): WorkerOptionsWi
     defaultHeartbeatThrottleInterval: '30s',
     // 4294967295ms is the maximum allowed time
     isolateExecutionTimeout: debugMode ? '4294967295ms' : '5s',
-    workflowThreadPoolSize: 8,
+    workflowThreadPoolSize: reuseV8Context ? 1 : 8,
     maxCachedWorkflows:
       maxCachedWorkflows ?? Math.floor(Math.max(v8.getHeapStatistics().heap_size_limit / GiB - 1, 1) * 250),
     enableSDKTracing: false,
     showStackTraceSources: showStackTraceSources ?? false,
+    reuseV8Context: reuseV8Context ?? false,
     debugMode: debugMode ?? false,
     interceptors: appendDefaultInterceptors({}),
     sinks: defaultSinks(),

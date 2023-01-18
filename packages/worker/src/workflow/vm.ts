@@ -8,28 +8,6 @@ import { Workflow, WorkflowCreateOptions, WorkflowCreator } from './interface';
 import { WorkflowBundleWithSourceMapAndFilename } from './workflow-worker-thread/input';
 import { ActivationContext, BaseVMWorkflow, globalHandlers, WorkflowModule } from './vm-shared';
 
-// Best effort to catch unhandled rejections from workflow code.
-// We crash the thread if we cannot find the culprit.
-export function setUnhandledRejectionHandler(): void {
-  process.on('unhandledRejection', (err, promise) => {
-    // Get the runId associated with the vm context.
-    // See for reference https://github.com/patriksimek/vm2/issues/32
-    const ctor = promise.constructor.constructor;
-    const runId = ctor('return globalThis.__TEMPORAL_ACTIVATOR__?.info?.runId')();
-    if (runId !== undefined) {
-      const workflow = VMWorkflowCreator.workflowByRunId.get(runId);
-      if (workflow !== undefined) {
-        workflow.setUnhandledRejection(err);
-        return;
-      }
-    }
-    // The user's logger is not accessible in this thread,
-    // dump the error information to stderr and abort.
-    console.error('Unhandled rejection', { runId }, err);
-    process.exit(1);
-  });
-}
-
 /**
  * A WorkflowCreator that creates VMWorkflows in the current isolate
  */
@@ -46,7 +24,7 @@ export class VMWorkflowCreator implements WorkflowCreator {
     public readonly isolateExecutionTimeoutMs: number
   ) {
     if (!VMWorkflowCreator.unhandledRejectionHandlerHasBeenSet) {
-      setUnhandledRejectionHandler();
+      this.setUnhandledRejectionHandler();
       VMWorkflowCreator.unhandledRejectionHandlerHasBeenSet = true;
     }
 
@@ -55,6 +33,28 @@ export class VMWorkflowCreator implements WorkflowCreator {
     this.hasSeparateMicrotaskQueue = gte(process.versions.node, '14.6.0');
 
     this.script = script;
+  }
+
+  // Best effort to catch unhandled rejections from workflow code.
+  // We crash the thread if we cannot find the culprit.
+  setUnhandledRejectionHandler(): void {
+    process.on('unhandledRejection', (err, promise) => {
+      // Get the runId associated with the vm context.
+      // See for reference https://github.com/patriksimek/vm2/issues/32
+      const ctor = promise.constructor.constructor;
+      const runId = ctor('return globalThis.__TEMPORAL_ACTIVATOR__?.info?.runId')();
+      if (runId !== undefined) {
+        const workflow = VMWorkflowCreator.workflowByRunId.get(runId);
+        if (workflow !== undefined) {
+          workflow.setUnhandledRejection(err);
+          return;
+        }
+      }
+      // The user's logger is not accessible in this thread,
+      // dump the error information to stderr and abort.
+      console.error('Unhandled rejection', { runId }, err);
+      process.exit(1);
+    });
   }
 
   /**

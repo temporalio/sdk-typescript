@@ -29,6 +29,7 @@ export interface StarterArgSpec extends Spec {
   '--server-address': typeof String;
   '--worker-pid': typeof Number;
   '--worker-memory-log-file': typeof String;
+  '--worker-cpu-log-file': typeof String;
   '--do-query': typeof String;
   '--initial-query-delay-ms': typeof Number;
   '--query-interval-ms': typeof Number;
@@ -45,6 +46,7 @@ export const starterArgSpec: StarterArgSpec = {
   '--server-address': String,
   '--worker-pid': Number,
   '--worker-memory-log-file': String,
+  '--worker-cpu-log-file': String,
   '--do-query': String,
   '--initial-query-delay-ms': Number,
   '--query-interval-ms': Number,
