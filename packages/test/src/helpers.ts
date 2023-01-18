@@ -55,6 +55,8 @@ function noopTest() {
   // eslint: this function body is empty and it's okay.
 }
 
+noopTest.serial = () => undefined;
+noopTest.macro = () => undefined;
 noopTest.before = () => undefined;
 noopTest.after = () => undefined;
 (noopTest.after as any).always = () => undefined;

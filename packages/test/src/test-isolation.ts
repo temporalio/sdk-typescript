@@ -1,10 +1,10 @@
 import { randomUUID } from 'crypto';
-import { TestFn } from 'ava';
+import { TestFn, ImplementationFn } from 'ava';
 import { TestWorkflowEnvironment } from '@temporalio/testing';
 import { ApplicationFailure, arrayFromPayloads } from '@temporalio/common';
 import { sleep } from '@temporalio/workflow';
 import { WorkflowFailedError } from '@temporalio/client';
-import { test as anyTest, bundlerOptions, Worker } from './helpers';
+import { test as anyTest, bundlerOptions, Worker, REUSE_V8_CONTEXT } from './helpers';
 
 interface Context {
   env: TestWorkflowEnvironment;
@@ -13,6 +13,14 @@ interface Context {
 }
 
 const test = anyTest as TestFn<Context>;
+
+const withReusableContext = test.macro<[ImplementationFn<[], Context>]>(async (t, fn) => {
+  if (!REUSE_V8_CONTEXT) {
+    t.pass('Skipped since REUSE_V8_CONTEXT is not set');
+    return;
+  }
+  await fn(t);
+});
 
 test.before(async (t) => {
   const env = await TestWorkflowEnvironment.createLocal();
@@ -63,7 +71,7 @@ export async function propertyMutator(): Promise<void> {
   }
 }
 
-test('Module state is frozen', async (t) => {
+test('Module state is frozen', withReusableContext, async (t) => {
   const { createWorker, taskQueue, env } = t.context;
   const worker = await createWorker();
   const err = (await worker.runUntil(
@@ -80,7 +88,7 @@ export async function sharedGlobalMutator(): Promise<void> {
   }
 }
 
-test('Shared global state is frozen', async (t) => {
+test('Shared global state is frozen', withReusableContext, async (t) => {
   const { createWorker, taskQueue, env } = t.context;
   const worker = await createWorker();
   const err = (await worker.runUntil(
