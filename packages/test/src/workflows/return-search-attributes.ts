@@ -7,5 +7,6 @@ export async function returnSearchAttributes(): Promise<SearchAttributes | undef
     ...sa,
     datetimeType: [Object.getPrototypeOf(datetime).constructor.name],
     datetimeInstanceofWorks: [datetime instanceof Date],
+    arrayInstanceofWorks: [sa.CustomIntField instanceof Array],
   };
 }

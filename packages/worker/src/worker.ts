@@ -50,7 +50,7 @@ import {
   TASK_TOKEN_ATTR_KEY,
 } from '@temporalio/common/lib/otel';
 import { historyFromJSON } from '@temporalio/common/lib/proto-utils';
-import { optionalTsToDate, optionalTsToMs, tsToMs } from '@temporalio/common/lib/time';
+import { optionalTsToDate, optionalTsToMs, tsToDate, tsToMs } from '@temporalio/common/lib/time';
 import { errorMessage } from '@temporalio/common/lib/type-helpers';
 import * as native from '@temporalio/core-bridge';
 import { UnexpectedError } from '@temporalio/core-bridge';
@@ -254,7 +254,7 @@ function formatTaskToken(taskToken: Uint8Array) {
 /**
  * Notify that an activity has started, used as input to {@link Worker.activityHeartbeatSubject}
  *
- * Used to detect rouge activities.
+ * Used to detect rogue activities.
  */
 interface HeartbeatCreateNotification {
   type: 'create';
@@ -575,7 +575,10 @@ export class Worker {
     }
     const workflowCreator = await this.createWorkflowCreator(bundle, compiledOptions);
     const replayHandle = await nativeWorkerCtor.createReplay(addBuildIdIfMissing(compiledOptions, bundle.code));
-    return [new this(replayHandle.worker, workflowCreator, compiledOptions), replayHandle.historyPusher];
+    return [
+      new this(replayHandle.worker, workflowCreator, compiledOptions, undefined, true),
+      replayHandle.historyPusher,
+    ];
   }
 
   /**
@@ -680,7 +683,8 @@ export class Worker {
      */
     protected readonly workflowCreator: WorkflowCreator | undefined,
     public readonly options: CompiledWorkerOptions,
-    protected readonly connection?: NativeConnection
+    protected readonly connection?: NativeConnection,
+    protected readonly isReplayWorker: boolean = false
   ) {
     this.tracer = getTracer(options.enableSDKTracing);
     this.workflowCodecRunner = new WorkflowCodecRunner(options.loadedDataConverter.payloadCodecs);
@@ -1133,13 +1137,16 @@ export class Worker {
                       if (
                         !(
                           startWorkflow &&
-                          startWorkflow.workflowId &&
-                          startWorkflow.workflowType &&
-                          startWorkflow.randomnessSeed
+                          startWorkflow.workflowId != null &&
+                          startWorkflow.workflowType != null &&
+                          startWorkflow.randomnessSeed != null &&
+                          startWorkflow.firstExecutionRunId != null &&
+                          startWorkflow.attempt != null &&
+                          startWorkflow.startTime != null
                         )
                       ) {
                         throw new TypeError(
-                          `Expected StartWorkflow with workflowId, workflowType and randomnessSeed, got ${JSON.stringify(
+                          `Expected StartWorkflow with workflowId, workflowType, randomnessSeed, firstExecutionRunId, attempt and startTime. Got ${JSON.stringify(
                             maybeStartWorkflow
                           )}`
                         );
@@ -1168,12 +1175,6 @@ export class Worker {
                         searchAttributes,
                       } = startWorkflow;
 
-                      if (firstExecutionRunId === null || firstExecutionRunId === undefined) {
-                        throw new TypeError(`Unexpected value: \`firstExecutionRunId\` is ${firstExecutionRunId}`);
-                      }
-                      if (attempt === null || attempt === undefined) {
-                        throw new TypeError(`Unexpected value: \`attempt\` is ${attempt}`);
-                      }
                       const workflowInfo: WorkflowInfo = {
                         workflowId,
                         runId: activation.runId,
@@ -1198,6 +1199,8 @@ export class Worker {
                         namespace: this.options.namespace,
                         firstExecutionRunId,
                         continuedFromExecutionRunId: continuedFromExecutionRunId || undefined,
+                        startTime: tsToDate(startWorkflow.startTime),
+                        runStartTime: tsToDate(activation.timestamp),
                         executionTimeoutMs: optionalTsToMs(workflowExecutionTimeout),
                         executionExpirationTime: optionalTsToDate(workflowExecutionExpirationTime),
                         runTimeoutMs: optionalTsToMs(workflowRunTimeout),
@@ -1624,7 +1627,7 @@ export class Worker {
   protected activity$(): Observable<void> {
     // This Worker did not register any activities, return early
     if (this.options.activities === undefined || Object.keys(this.options.activities).length === 0) {
-      this.log.warn('No activities registered, not polling for activity tasks');
+      if (!this.isReplayWorker) this.log.warn('No activities registered, not polling for activity tasks');
       this.activityPollerStateSubject.next('SHUTDOWN');
       return EMPTY;
     }
