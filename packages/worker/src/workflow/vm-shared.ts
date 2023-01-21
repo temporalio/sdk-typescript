@@ -22,10 +22,8 @@ const { promiseHooks } = v8 as any;
 // We crash the thread if we cannot find the culprit.
 export function setUnhandledRejectionHandler(getWorkflowByRunId: (runId: string) => BaseVMWorkflow | undefined): void {
   process.on('unhandledRejection', (err, promise) => {
-    // Get the runId associated with the vm context.
-    // See for reference https://github.com/patriksimek/vm2/issues/32
-    const ctor = promise.constructor.constructor;
-    const runId = ctor('return globalThis.__TEMPORAL_ACTIVATOR__?.info?.runId')();
+    const activator = getActivator(promise);
+    const runId = activator?.info?.runId;
     if (runId !== undefined) {
       const workflow = getWorkflowByRunId(runId);
       if (workflow !== undefined) {

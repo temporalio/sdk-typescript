@@ -152,6 +152,10 @@ export class ReusableVMWorkflowCreator implements WorkflowCreator {
               for (const k in keysToDelete) {
                 delete context[k];
               }
+              // Need to preserve this for the unhandledRejection handler.
+              // TODO: There's probably a better way but this is simplest since we want to maintain compatibility with
+              // the non-reusable vm implementation.
+              context.__TEMPORAL_ACTIVATOR__ = bag.__TEMPORAL_ACTIVATOR__;
             }
           };
         },
