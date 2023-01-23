@@ -94,6 +94,8 @@ async function createWorkflow(
       searchAttributes: {},
       historyLength: 3,
       unsafe: { isReplaying: false, now: Date.now },
+      startTime: new Date(),
+      runStartTime: new Date(),
     },
     randomnessSeed: Long.fromInt(1337).toBytes(),
     now: startTime,

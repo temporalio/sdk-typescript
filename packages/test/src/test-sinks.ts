@@ -33,6 +33,15 @@ if (RUN_INTEGRATION_TESTS) {
       fn: string;
     }
 
+    const dummyDate = new Date(2000, 1, 0, 0, 0, 0);
+    function fixWorkflowInfoDates(input: WorkflowInfo): WorkflowInfo {
+      return {
+        ...input,
+        startTime: dummyDate,
+        runStartTime: dummyDate,
+      };
+    }
+
     const recordedCalls: RecordedCall[] = [];
     const taskQueue = `${__filename}-${t.title}`;
     const thrownErrors = Array<DependencyError>();
@@ -40,19 +49,19 @@ if (RUN_INTEGRATION_TESTS) {
       success: {
         runAsync: {
           async fn(info, counter) {
-            recordedCalls.push({ info, counter, fn: 'success.runAsync' });
+            recordedCalls.push({ info: fixWorkflowInfoDates(info), counter, fn: 'success.runAsync' });
           },
         },
         runSync: {
           fn(info, counter) {
-            recordedCalls.push({ info, counter, fn: 'success.runSync' });
+            recordedCalls.push({ info: fixWorkflowInfoDates(info), counter, fn: 'success.runSync' });
           },
         },
       },
       error: {
         throwAsync: {
           async fn(info, counter) {
-            recordedCalls.push({ info, counter, fn: 'error.throwAsync' });
+            recordedCalls.push({ info: fixWorkflowInfoDates(info), counter, fn: 'error.throwAsync' });
             const error = new DependencyError('error', 'throwAsync');
             thrownErrors.push(error);
             throw error;
@@ -60,7 +69,7 @@ if (RUN_INTEGRATION_TESTS) {
         },
         throwSync: {
           fn(info, counter) {
-            recordedCalls.push({ info, counter, fn: 'error.throwSync' });
+            recordedCalls.push({ info: fixWorkflowInfoDates(info), counter, fn: 'error.throwSync' });
             const error = new DependencyError('error', 'throwSync');
             thrownErrors.push(error);
             throw error;
@@ -102,6 +111,8 @@ if (RUN_INTEGRATION_TESTS) {
       parent: undefined,
       searchAttributes: {},
       historyLength: 3,
+      startTime: dummyDate,
+      runStartTime: dummyDate,
       // unsafe.now() doesn't make it through serialization, but .now is required, so we need to cast
       unsafe: { isReplaying: false } as UnsafeWorkflowInfo,
     };
@@ -114,7 +125,13 @@ if (RUN_INTEGRATION_TESTS) {
     ]);
 
     t.deepEqual(
-      recordedLogs,
+      recordedLogs.map((x) => ({
+        ...x,
+        meta: {
+          ...x.meta,
+          workflowInfo: fixWorkflowInfoDates(x.meta.workflowInfo),
+        },
+      })),
       thrownErrors.map((error) => ({
         level: 'ERROR',
         message: 'External sink function threw an error',

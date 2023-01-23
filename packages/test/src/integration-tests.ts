@@ -185,7 +185,8 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
           if (
             !history?.events?.some(
               ({ workflowTaskFailedEventAttributes }) =>
-                workflowTaskFailedEventAttributes?.failure?.message === "'not-found' is not a function"
+                workflowTaskFailedEventAttributes?.failure?.message ===
+                "Failed to initialize workflow of type 'not-found': no such function is exported by the workflow bundle"
             )
           ) {
             throw new Error('Cannot find workflow task failed event');
@@ -646,7 +647,8 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
       CustomKeywordField: ['test-value'],
       CustomIntField: [1, 2],
       CustomDatetimeField: [date.toISOString(), date.toISOString()],
-      datetimeInstanceofWorks: [false],
+      datetimeInstanceofWorks: [true],
+      arrayInstanceofWorks: [true],
       datetimeType: ['Date'],
     });
   });
@@ -712,6 +714,8 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
       workflowType: 'returnWorkflowInfo',
       workflowId,
       historyLength: 3,
+      startTime: result.startTime,
+      runStartTime: result.runStartTime,
       // unsafe.now is a function, so doesn't make it through serialization, but .now is required, so we need to cast
       unsafe: { isReplaying: false } as UnsafeWorkflowInfo,
     });

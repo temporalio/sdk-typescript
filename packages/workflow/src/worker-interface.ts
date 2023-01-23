@@ -10,7 +10,7 @@ import type { coresdk } from '@temporalio/proto';
 import { storage } from './cancellation-scope';
 import { DeterminismViolationError } from './errors';
 import { WorkflowInterceptorsFactory } from './interceptors';
-import { WorkflowCreateOptionsWithSourceMap } from './interfaces';
+import { WorkflowCreateOptionsWithSourceMap, WorkflowInfo } from './interfaces';
 import { Activator, getActivator } from './internals';
 import { SinkCall } from './sinks';
 
@@ -93,9 +93,9 @@ export function overrideGlobals(): void {
  * Sets required internal state and instantiates the workflow and interceptors.
  */
 export function initRuntime(options: WorkflowCreateOptionsWithSourceMap): void {
-  const { info } = options;
+  const info: WorkflowInfo = fixPrototypes(options.info);
   info.unsafe.now = OriginalDate.now;
-  const activator = new Activator(options);
+  const activator = new Activator({ ...options, info });
   // There's on activator per workflow instance, set it globally on the context.
   // We do this before importing any user code so user code can statically reference @temporalio/workflow functions
   // as well as Date and Math.random.
@@ -126,7 +126,7 @@ export function initRuntime(options: WorkflowCreateOptionsWithSourceMap): void {
     const factory: WorkflowInterceptorsFactory = mod.interceptors;
     if (factory !== undefined) {
       if (typeof factory !== 'function') {
-        throw new TypeError(`interceptors must be a function, got: ${factory}`);
+        throw new TypeError(`Failed to initialize workflows interceptors: expected a function, but got: '${factory}'`);
       }
       const interceptors = factory();
       activator.interceptors.inbound.push(...(interceptors.inbound ?? []));
@@ -138,9 +138,32 @@ export function initRuntime(options: WorkflowCreateOptionsWithSourceMap): void {
   const mod = importWorkflows();
   const workflow = mod[info.workflowType];
   if (typeof workflow !== 'function') {
-    throw new TypeError(`'${info.workflowType}' is not a function`);
+    const details =
+      workflow === undefined
+        ? 'no such function is exported by the workflow bundle'
+        : `expected a function, but got: '${typeof info.workflowType}'`;
+    throw new TypeError(`Failed to initialize workflow of type '${info.workflowType}': ${details}`);
   }
   activator.workflow = workflow;
+}
+
+/**
+ * Objects transfered to the VM from outside have prototypes belonging to the
+ * outer context, which means that instanceof won't work inside the VM. This
+ * function recursively walks over the content of an object, and recreate some
+ * of these objects (notably Array, Date and Objects).
+ */
+function fixPrototypes<X>(obj: X): X {
+  if (obj != null && typeof obj === 'object') {
+    switch (Object.getPrototypeOf(obj)?.constructor?.name) {
+      case 'Array':
+        return Array.from((obj as Array<unknown>).map(fixPrototypes)) as X;
+      case 'Date':
+        return new Date(obj as unknown as Date) as X;
+      default:
+        return Object.fromEntries(Object.entries(obj).map(([k, v]): [string, any] => [k, fixPrototypes(v)])) as X;
+    }
+  } else return obj;
 }
 
 /**

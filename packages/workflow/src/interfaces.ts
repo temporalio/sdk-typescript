@@ -81,11 +81,15 @@ export interface WorkflowInfo {
    */
   continuedFromExecutionRunId?: string;
 
-  // TODO expose from Core
   /**
-   * Time at which the Workflow Run started
+   * Time at which this [Workflow Execution Chain](https://docs.temporal.io/workflows#workflow-execution-chain) was started
    */
-  // startTime: Date;
+  startTime: Date;
+
+  /**
+   * Time at which the current Workflow Run started
+   */
+  runStartTime: Date;
 
   /**
    * Milliseconds after which the Workflow Execution is automatically terminated by Temporal Server. Set via {@link WorkflowOptions.workflowExecutionTimeout}.
