@@ -1146,9 +1146,7 @@ export class Worker {
                         )
                       ) {
                         throw new TypeError(
-                          `Expected StartWorkflow with workflowId, workflowType, randomnessSeed, firstExecutionRunId, attempt and startTime. Got ${JSON.stringify(
-                            maybeStartWorkflow
-                          )}`
+                          `Malformed StartWorkflow activation: ${JSON.stringify(maybeStartWorkflow)}`
                         );
                       }
                       if (activation.timestamp == null) {

@@ -82,7 +82,7 @@ export interface WorkflowInfo {
   continuedFromExecutionRunId?: string;
 
   /**
-   * Time at which this Workflow Execution Chain was started
+   * Time at which this [Workflow Execution Chain](https://docs.temporal.io/workflows#workflow-execution-chain) was started
    */
   startTime: Date;
 
