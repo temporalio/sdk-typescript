@@ -10,6 +10,7 @@ import {
   ActivationContext,
   BaseVMWorkflow,
   globalHandlers,
+  injectConsole,
   setUnhandledRejectionHandler,
   WorkflowModule,
 } from './vm-shared';
@@ -46,8 +47,7 @@ export class VMWorkflowCreator implements WorkflowCreator {
    */
   async createWorkflow(options: WorkflowCreateOptions): Promise<Workflow> {
     const context = await this.getContext();
-    const activationContext = { isReplaying: options.info.unsafe.isReplaying };
-    this.injectConsole(context, options.info, activationContext);
+    this.injectConsole(context);
     const { isolateExecutionTimeoutMs } = this;
     const workflowModule: WorkflowModule = new Proxy(
       {},
@@ -73,8 +73,7 @@ export class VMWorkflowCreator implements WorkflowCreator {
       activator,
       workflowModule,
       isolateExecutionTimeoutMs,
-      this.hasSeparateMicrotaskQueue,
-      activationContext
+      this.hasSeparateMicrotaskQueue
     );
     VMWorkflowCreator.workflowByRunId.set(options.info.runId, newVM);
     return newVM;
@@ -96,34 +95,12 @@ export class VMWorkflowCreator implements WorkflowCreator {
   }
 
   /**
-   * Inject console.log and friends into the Workflow isolate context.
+   * Inject console.log and friends into a vm context.
    *
    * Overridable for test purposes.
    */
-  protected injectConsole(context: vm.Context, info: WorkflowInfo, ac: ActivationContext): void {
-    // isReplaying is mutated by the Workflow class on activation
-    context.console = {
-      log: (...args: any[]) => {
-        if (ac.isReplaying) return;
-        console.log(`[${info.workflowType}(${info.workflowId})]`, ...args);
-      },
-      error: (...args: any[]) => {
-        if (ac.isReplaying) return;
-        console.error(`[${info.workflowType}(${info.workflowId})]`, ...args);
-      },
-      warn: (...args: any[]) => {
-        if (ac.isReplaying) return;
-        console.warn(`[${info.workflowType}(${info.workflowId})]`, ...args);
-      },
-      info: (...args: any[]) => {
-        if (ac.isReplaying) return;
-        console.info(`[${info.workflowType}(${info.workflowId})]`, ...args);
-      },
-      debug: (...args: any[]) => {
-        if (ac.isReplaying) return;
-        console.debug(`[${info.workflowType}(${info.workflowId})]`, ...args);
-      },
-    };
+  protected injectConsole(context: vm.Context): void {
+    injectConsole(context);
   }
 
   /**

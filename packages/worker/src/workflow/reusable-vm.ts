@@ -6,7 +6,7 @@ import * as internals from '@temporalio/workflow/lib/worker-interface';
 import { IllegalStateError } from '@temporalio/common';
 import { Workflow, WorkflowCreateOptions, WorkflowCreator } from './interface';
 import { WorkflowBundleWithSourceMapAndFilename } from './workflow-worker-thread/input';
-import { BaseVMWorkflow, globalHandlers, setUnhandledRejectionHandler } from './vm-shared';
+import { BaseVMWorkflow, globalHandlers, injectConsole, setUnhandledRejectionHandler } from './vm-shared';
 
 // Thanks MDN: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object/freeze
 function deepFreeze(object: any) {
@@ -79,7 +79,7 @@ export class ReusableVMWorkflowCreator implements WorkflowCreator {
             return sharedModule;
           }
           const moduleCache = this.context.__TEMPORAL_ACTIVATOR__?.moduleCache;
-          if (moduleCache != null) return moduleCache.get(p);
+          return moduleCache?.get(p);
         },
         set: (_, p, val) => {
           const moduleCache = this.context.__TEMPORAL_ACTIVATOR__?.moduleCache;
@@ -117,13 +117,22 @@ export class ReusableVMWorkflowCreator implements WorkflowCreator {
     }
     return _context;
   }
+
+  /**
+   * Inject console.log and friends into a vm context.
+   *
+   * Overridable for test purposes.
+   */
+  protected injectConsole(): void {
+    injectConsole(this.context);
+  }
+
   /**
    * Create a workflow with given options
    */
   async createWorkflow(options: WorkflowCreateOptions): Promise<Workflow> {
     const context = this.context;
     const bag: Record<string, unknown> = {};
-    const activationContext = { isReplaying: options.info.unsafe.isReplaying };
     const { isolateExecutionTimeoutMs, contextKeysToPreserve } = this;
     const workflowModule: WorkflowModule = new Proxy(
       {},
@@ -171,46 +180,10 @@ export class ReusableVMWorkflowCreator implements WorkflowCreator {
       activator,
       workflowModule,
       isolateExecutionTimeoutMs,
-      this.hasSeparateMicrotaskQueue,
-      activationContext
+      this.hasSeparateMicrotaskQueue
     );
     ReusableVMWorkflowCreator.workflowByRunId.set(options.info.runId, newVM);
     return newVM;
-  }
-
-  /**
-   * Inject console.log and friends into the Workflow isolate context.
-   *
-   * Overridable for test purposes.
-   */
-  protected injectConsole(): void {
-    this.context.console = {
-      log: (...args: any[]) => {
-        const { info } = this.context.__TEMPORAL_ACTIVATOR__;
-        if (info.isReplaying) return;
-        console.log(`[${info.workflowType}(${info.workflowId})]`, ...args);
-      },
-      error: (...args: any[]) => {
-        const { info } = this.context.__TEMPORAL_ACTIVATOR__;
-        if (info.isReplaying) return;
-        console.error(`[${info.workflowType}(${info.workflowId})]`, ...args);
-      },
-      warn: (...args: any[]) => {
-        const { info } = this.context.__TEMPORAL_ACTIVATOR__;
-        if (info.isReplaying) return;
-        console.warn(`[${info.workflowType}(${info.workflowId})]`, ...args);
-      },
-      info: (...args: any[]) => {
-        const { info } = this.context.__TEMPORAL_ACTIVATOR__;
-        if (info.isReplaying) return;
-        console.info(`[${info.workflowType}(${info.workflowId})]`, ...args);
-      },
-      debug: (...args: any[]) => {
-        const { info } = this.context.__TEMPORAL_ACTIVATOR__;
-        if (info.isReplaying) return;
-        console.debug(`[${info.workflowType}(${info.workflowId})]`, ...args);
-      },
-    };
   }
 
   /**

@@ -83,6 +83,22 @@ function formatCallsiteName(callsite: NodeJS.CallSite): string | null {
 }
 
 /**
+ * Inject console.log and friends into a vm context.
+ */
+export function injectConsole(context: vm.Context): void {
+  const consoleMethods = ['log', 'warn', 'error', 'info', 'debug'] as const;
+  type ConsoleMethod = typeof consoleMethods[number];
+  function makeConsoleFn(level: ConsoleMethod) {
+    return function (...args: unknown[]) {
+      const { info } = context.__TEMPORAL_ACTIVATOR__;
+      if (info.isReplaying) return;
+      console[level](`[${info.workflowType}(${info.workflowId})]`, ...args);
+    };
+  }
+  context.console = Object.fromEntries(consoleMethods.map((level) => [level, makeConsoleFn(level)]));
+}
+
+/**
  * Global handlers for overriding stack trace preparation and promise hooks
  */
 export class GlobalHandlers {
@@ -116,7 +132,9 @@ export class GlobalHandlers {
 
   /**
    * Unset all installed global hooks
-   * TODO(bergundy): Where should this be called?
+   *
+   * This method is not called anywhere since we typically install the hooks in a separate thread which is cleaned up
+   * after worker shutdown. Is debug mode we don't clean these up but that should be insignificant.
    */
   uninstall(): void {
     this.stopPromiseHook();
@@ -178,7 +196,7 @@ export class GlobalHandlers {
     // Track Promise aggregators like `race` and `all` to link their internally created promises
     let currentAggregation: Promise<unknown> | undefined = undefined;
 
-    // This also is set globally for the isolate which unless the worker is run in debug mode is insignificant
+    // This also is set globally for the isolate (worker thread), which is insignificant unless the worker is run in debug mode
     if (promiseHooks) {
       // Node >=16.14 only
       this.stopPromiseHook = promiseHooks.createHook({
@@ -191,7 +209,6 @@ export class GlobalHandlers {
           (promise as any).runId = activator.info.runId;
           // Reset currentStackTrace just in case (it will be set in `prepareStackTrace` above)
           this.currentStackTrace = undefined;
-          // To see the full stack replace with commented line
           const fn = promise.constructor.constructor;
           const ErrorCtor = fn('return globalThis.Error')();
 
@@ -266,8 +283,7 @@ export abstract class BaseVMWorkflow implements Workflow {
     protected activator: Activator,
     readonly workflowModule: WorkflowModule,
     public readonly isolateExecutionTimeoutMs: number,
-    public readonly hasSeparateMicrotaskQueue: boolean,
-    public readonly activationContext: ActivationContext
+    public readonly hasSeparateMicrotaskQueue: boolean
   ) {}
 
   /**
@@ -289,7 +305,6 @@ export abstract class BaseVMWorkflow implements Workflow {
     if (this.context === undefined) {
       throw new IllegalStateError('Workflow isolate context uninitialized');
     }
-    this.activationContext.isReplaying = activation.isReplaying ?? false;
     if (!activation.jobs) {
       throw new Error('Expected workflow activation jobs to be defined');
     }

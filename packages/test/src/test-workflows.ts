@@ -18,7 +18,6 @@ import { WorkflowCodeBundler } from '@temporalio/worker/lib/workflow/bundler';
 import { VMWorkflow, VMWorkflowCreator } from '@temporalio/worker/lib/workflow/vm';
 import { ReusableVMWorkflow, ReusableVMWorkflowCreator } from '@temporalio/worker/lib/workflow/reusable-vm';
 import { parseWorkflowCode } from '@temporalio/worker/lib/worker';
-import { WorkflowInfo } from '@temporalio/workflow';
 import * as activityFunctions from './activities';
 import { cleanStackTrace, REUSE_V8_CONTEXT, u8 } from './helpers';
 
@@ -33,16 +32,20 @@ export interface Context {
 
 const test = anyTest as TestFn<Context>;
 
+function injectConsole(logsGetter: (runId: string) => unknown[][], context: vm.Context) {
+  context.console = {
+    log(...args: unknown[]) {
+      const { runId } = context.__TEMPORAL_ACTIVATOR__.info;
+      logsGetter(runId).push(args);
+    },
+  };
+}
+
 class TestVMWorkflowCreator extends VMWorkflowCreator {
   public logs: Record<string, unknown[][]> = {};
 
-  override injectConsole(context: vm.Context, info: WorkflowInfo) {
-    const { logs } = this;
-    context.console = {
-      log(...args: unknown[]) {
-        logs[info.runId].push(args);
-      },
-    };
+  override injectConsole(context: vm.Context) {
+    injectConsole((runId) => this.logs[runId], context);
   }
 }
 
@@ -50,13 +53,7 @@ class TestReusableVMWorkflowCreator extends ReusableVMWorkflowCreator {
   public logs: Record<string, unknown[][]> = {};
 
   override injectConsole() {
-    const { context } = this;
-    context.console = {
-      log: (...args: unknown[]) => {
-        const { info } = context.__TEMPORAL_ACTIVATOR__;
-        this.logs[info.runId].push(args);
-      },
-    };
+    injectConsole((runId) => this.logs[runId], this.context);
   }
 }
 

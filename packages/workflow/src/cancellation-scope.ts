@@ -182,9 +182,6 @@ export class CancellationScope {
   }
 }
 
-/**
- * This is exported so it can be disposed in the worker interface
- */
 const storage = new AsyncLocalStorage<CancellationScope>();
 
 /**

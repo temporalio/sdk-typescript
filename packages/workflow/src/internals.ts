@@ -101,6 +101,9 @@ export const LATEST_INTERNAL_PATCH_NUMBER = 1;
  * Implements handlers for all workflow activation jobs.
  */
 export class Activator implements ActivationHandler {
+  /**
+   * Cache for modules - referenced in reusable-vm.ts
+   */
   readonly moduleCache = new Map<string, unknown>();
   /**
    * Map of task sequence to a Completion
