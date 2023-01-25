@@ -1,4 +1,4 @@
-import { checkExtends, Replace, RequireAtLeastOne } from '@temporalio/common/lib/type-helpers';
+import { checkExtends, Replace } from '@temporalio/common/lib/type-helpers';
 import { SearchAttributes, Workflow } from '@temporalio/common';
 import type { temporal } from '@temporalio/proto';
 import { WorkflowStartOptions } from './workflow-options';
@@ -19,7 +19,7 @@ export interface ScheduleOptions<A extends ScheduleOptionsAction = ScheduleOptio
   /**
    * When Actions should be taken
    */
-  spec: RequireAtLeastOne<ScheduleSpec, 'calendars' | 'intervals' | 'cronExpressions'>;
+  spec: ScheduleSpec;
 
   /**
    * Which Action to take
@@ -157,6 +157,9 @@ export type CompiledScheduleUpdateOptions = Replace<
 /**
  * A summary description of an existing Schedule, as returned by {@link ScheduleClient.list}.
  *
+ * Note that schedule listing is eventual consistent; some returned properties may therefore
+ * be undefined or incorrect for some time after creating or modifying a schedule.
+ *
  * @experimental
  */
 export interface ScheduleSummary {
@@ -168,12 +171,12 @@ export interface ScheduleSummary {
   /**
    * When will Actions be taken.
    */
-  spec: RequireAtLeastOne<ScheduleSpecDescription, 'calendars' | 'intervals'>;
+  spec?: ScheduleSpecDescription;
 
   /**
    * The Action that will be taken.
    */
-  action: ScheduleSummaryAction;
+  action?: ScheduleSummaryAction;
 
   /**
    * Additional non-indexed information attached to the Schedule.
@@ -187,7 +190,7 @@ export interface ScheduleSummary {
    *
    * Values are always converted using {@link JsonPayloadConverter}, even when a custom Data Converter is provided.
    */
-  searchAttributes: SearchAttributes;
+  searchAttributes?: SearchAttributes;
 
   state: {
     /**
@@ -249,7 +252,17 @@ export interface ScheduleExecutionStartWorkflowActionResult {
  *
  * @experimental
  */
-export type ScheduleDescription = ScheduleSummary & {
+export type ScheduleDescription = {
+  /**
+   * The Schedule Id. We recommend using a meaningful business identifier.
+   */
+  scheduleId: string;
+
+  /**
+   * When will Actions be taken.
+   */
+  spec: ScheduleSpecDescription;
+
   /**
    * The Action that will be taken.
    */
@@ -282,7 +295,32 @@ export type ScheduleDescription = ScheduleSummary & {
     pauseOnFailure: boolean;
   };
 
-  state: ScheduleSummary['state'] & {
+  /**
+   * Additional non-indexed information attached to the Schedule.
+   * The values can be anything that is serializable by the {@link DataConverter}.
+   */
+  memo?: Record<string, unknown>;
+
+  /**
+   * Additional indexed information attached to the Schedule.
+   * More info: https://docs.temporal.io/docs/typescript/search-attributes
+   *
+   * Values are always converted using {@link JsonPayloadConverter}, even when a custom Data Converter is provided.
+   */
+  searchAttributes: SearchAttributes;
+
+  state: {
+    /**
+     * Whether Schedule is currently paused.
+     */
+    paused: boolean;
+
+    /**
+     * Informative human-readable message with contextual notes, e.g. the reason a Schedule is paused.
+     * The system may overwrite this message on certain conditions, e.g. when pause-on-failure happens.
+     */
+    note?: string;
+
     /**
      * The Actions remaining in this Schedule.
      * Once this number hits `0`, no further Actions are taken (unless {@link ScheduleHandle.trigger} is called).
@@ -292,7 +330,17 @@ export type ScheduleDescription = ScheduleSummary & {
     remainingActions?: number;
   };
 
-  info: ScheduleSummary['info'] & {
+  info: {
+    /**
+     * Most recent 10 Actions started (including manual triggers), sorted from older start time to newer.
+     */
+    recentActions: ScheduleExecutionResult[];
+
+    /**
+     * Scheduled time of the next 10 executions of this Schedule
+     */
+    nextActionTimes: Date[];
+
     /**
      * Number of Actions taken so far.
      */
@@ -321,6 +369,9 @@ export type ScheduleDescription = ScheduleSummary & {
   /** @internal */
   raw: temporal.api.workflowservice.v1.IDescribeScheduleResponse;
 };
+
+// Invariant: ScheduleDescription contains at least the same fields as ScheduleSummary
+checkExtends<ScheduleSummary, ScheduleDescription>();
 
 // Invariant: An existing ScheduleDescription can be used as template to create a new Schedule
 checkExtends<ScheduleOptions, ScheduleDescription>();

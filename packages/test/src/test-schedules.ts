@@ -122,6 +122,29 @@ if (RUN_INTEGRATION_TESTS) {
     }
   });
 
+  test('Can create schedule without any spec', async (t) => {
+    const { client } = t.context;
+    const scheduleId = `can-create-schedule-without-any-spec-${randomUUID()}`;
+    const handle = await client.schedule.create({
+      scheduleId,
+      spec: {},
+      action: {
+        type: 'startWorkflow',
+        workflowType: dummyWorkflow,
+        taskQueue,
+      },
+    });
+
+    try {
+      const describedSchedule = await handle.describe();
+      t.deepEqual(describedSchedule.spec.calendars, []);
+      t.deepEqual(describedSchedule.spec.intervals, []);
+      t.deepEqual(describedSchedule.spec.skip, []);
+    } finally {
+      await handle.delete();
+    }
+  });
+
   test('Can create schedule with startWorkflow action (no arg)', async (t) => {
     const { client } = t.context;
     const scheduleId = `can-create-schedule-with-startWorkflow-action-${randomUUID()}`;

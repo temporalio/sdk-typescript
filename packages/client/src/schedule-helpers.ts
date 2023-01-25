@@ -24,7 +24,6 @@ import {
   optionalTsToMs,
   tsToDate,
 } from '@temporalio/common/lib/time';
-import { RequireAtLeastOne } from '@temporalio/common/src/type-helpers';
 import {
   CalendarSpec,
   CalendarSpecDescription,
@@ -300,9 +299,7 @@ export function encodeScheduleState(state?: ScheduleOptions['state']): temporal.
   };
 }
 
-export function decodeScheduleSpec(
-  pb: temporal.api.schedule.v1.IScheduleSpec
-): RequireAtLeastOne<ScheduleSpecDescription, 'calendars' | 'intervals'> {
+export function decodeScheduleSpec(pb: temporal.api.schedule.v1.IScheduleSpec): ScheduleSpecDescription {
   // Note: the server will have compiled calendar and cron_string fields into
   // structured_calendar (and maybe interval and timezone_name), so at this
   // point, we'll see only structured_calendar, interval, etc.
