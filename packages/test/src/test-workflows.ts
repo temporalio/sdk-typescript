@@ -16,40 +16,54 @@ import { msToTs } from '@temporalio/common/lib/time';
 import { coresdk } from '@temporalio/proto';
 import { WorkflowCodeBundler } from '@temporalio/worker/lib/workflow/bundler';
 import { VMWorkflow, VMWorkflowCreator } from '@temporalio/worker/lib/workflow/vm';
+import { ReusableVMWorkflow, ReusableVMWorkflowCreator } from '@temporalio/worker/lib/workflow/reusable-vm';
 import { parseWorkflowCode } from '@temporalio/worker/lib/worker';
-import { WorkflowInfo } from '@temporalio/workflow';
 import * as activityFunctions from './activities';
-import { cleanStackTrace, u8 } from './helpers';
+import { cleanStackTrace, REUSE_V8_CONTEXT, u8 } from './helpers';
 
 export interface Context {
-  workflow: VMWorkflow;
+  workflow: VMWorkflow | ReusableVMWorkflow;
   logs: unknown[][];
   workflowType: string;
   startTime: number;
   runId: string;
-  workflowCreator: TestVMWorkflowCreator;
+  workflowCreator: TestVMWorkflowCreator | TestReusableVMWorkflowCreator;
+}
+
+const test = anyTest as TestFn<Context>;
+
+function injectConsole(logsGetter: (runId: string) => unknown[][], context: vm.Context) {
+  context.console = {
+    log(...args: unknown[]) {
+      const { runId } = context.__TEMPORAL_ACTIVATOR__.info;
+      logsGetter(runId).push(args);
+    },
+  };
 }
 
 class TestVMWorkflowCreator extends VMWorkflowCreator {
   public logs: Record<string, unknown[][]> = {};
 
-  override injectConsole(context: vm.Context, info: WorkflowInfo) {
-    const { logs } = this;
-    context.console = {
-      log(...args: unknown[]) {
-        logs[info.runId].push(args);
-      },
-    };
+  override injectConsole(context: vm.Context) {
+    injectConsole((runId) => this.logs[runId], context);
   }
 }
 
-const test = anyTest as TestFn<Context>;
+class TestReusableVMWorkflowCreator extends ReusableVMWorkflowCreator {
+  public logs: Record<string, unknown[][]> = {};
+
+  override injectConsole() {
+    injectConsole((runId) => this.logs[runId], this.context);
+  }
+}
 
 test.before(async (t) => {
   const workflowsPath = path.join(__dirname, 'workflows');
   const bundler = new WorkflowCodeBundler({ workflowsPath });
   const workflowBundle = parseWorkflowCode((await bundler.createBundle()).code);
-  t.context.workflowCreator = await TestVMWorkflowCreator.create(workflowBundle, 100);
+  t.context.workflowCreator = REUSE_V8_CONTEXT
+    ? await TestReusableVMWorkflowCreator.create(workflowBundle, 200)
+    : await TestVMWorkflowCreator.create(workflowBundle, 200);
 });
 
 test.after.always(async (t) => {
@@ -79,7 +93,7 @@ async function createWorkflow(
   workflowType: string,
   runId: string,
   startTime: number,
-  workflowCreator: VMWorkflowCreator
+  workflowCreator: VMWorkflowCreator | ReusableVMWorkflowCreator
 ) {
   const workflow = (await workflowCreator.createWorkflow({
     info: {
@@ -107,19 +121,18 @@ async function createWorkflow(
 
 async function activate(t: ExecutionContext<Context>, activation: coresdk.workflow_activation.IWorkflowActivation) {
   const { workflow, runId } = t.context;
-  const arr = await workflow.activate(activation);
-  const completion = coresdk.workflow_completion.WorkflowActivationCompletion.decodeDelimited(arr);
+  const completion = await workflow.activate(activation);
   t.deepEqual(completion.runId, runId);
   return completion;
 }
 
 function compareCompletion(
   t: ExecutionContext<Context>,
-  req: coresdk.workflow_completion.WorkflowActivationCompletion,
+  req: coresdk.workflow_completion.IWorkflowActivationCompletion,
   expected: coresdk.workflow_completion.IWorkflowActivationCompletion
 ) {
   t.deepEqual(
-    req.toJSON(),
+    coresdk.workflow_completion.WorkflowActivationCompletion.create(req).toJSON(),
     coresdk.workflow_completion.WorkflowActivationCompletion.create({
       ...expected,
       runId: t.context.runId,
@@ -337,7 +350,7 @@ test('successString', async (t) => {
 });
 
 function cleanWorkflowFailureStackTrace(
-  req: coresdk.workflow_completion.WorkflowActivationCompletion,
+  req: coresdk.workflow_completion.IWorkflowActivationCompletion,
   commandIndex = 0
 ) {
   req.successful!.commands![commandIndex].failWorkflowExecution!.failure!.stackTrace = cleanStackTrace(
@@ -347,7 +360,7 @@ function cleanWorkflowFailureStackTrace(
 }
 
 function cleanWorkflowQueryFailureStackTrace(
-  req: coresdk.workflow_completion.WorkflowActivationCompletion,
+  req: coresdk.workflow_completion.IWorkflowActivationCompletion,
   commandIndex = 0
 ) {
   req.successful!.commands![commandIndex].respondToQuery!.failed!.stackTrace = cleanStackTrace(
@@ -1515,7 +1528,7 @@ test('logAndTimeout', async (t) => {
   const { workflowType, workflow } = t.context;
   await t.throwsAsync(activate(t, makeStartWorkflow(workflowType)), {
     code: 'ERR_SCRIPT_EXECUTION_TIMEOUT',
-    message: 'Script execution timed out after 100ms',
+    message: 'Script execution timed out after 200ms',
   });
   const calls = await workflow.getAndResetSinkCalls();
   t.deepEqual(calls, [
@@ -1902,7 +1915,7 @@ test('condition with timeout 0 maintain pre 1.5.0 compatibility - conditionTimeo
     );
   }
   {
-    const completion = await activate(t, await makeFireTimer(1));
+    const completion = await activate(t, makeFireTimer(1));
     compareCompletion(
       t,
       completion,
@@ -1933,7 +1946,7 @@ test('condition with timeout 0 in >1.5.0 - conditionTimeout0', async (t) => {
     );
   }
   {
-    const completion = await activate(t, await makeFireTimer(1));
+    const completion = await activate(t, makeFireTimer(1));
     compareCompletion(
       t,
       completion,
@@ -1946,7 +1959,7 @@ test('condition with timeout 0 in >1.5.0 - conditionTimeout0', async (t) => {
     );
   }
   {
-    const completion = await activate(t, await makeFireTimer(2));
+    const completion = await activate(t, makeFireTimer(2));
     compareCompletion(
       t,
       completion,

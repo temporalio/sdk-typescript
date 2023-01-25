@@ -1,5 +1,4 @@
 import { randomUUID } from 'crypto';
-import { Worker } from '@temporalio/worker';
 import { TestWorkflowEnvironment } from '@temporalio/testing';
 import {
   DefaultFailureConverter,
@@ -9,7 +8,7 @@ import {
 } from '@temporalio/common';
 import { WorkflowFailedError } from '@temporalio/client';
 import { decodeFromPayloadsAtIndex } from '@temporalio/common/lib/internal-non-workflow';
-import { test, bundlerOptions, ByteSkewerPayloadCodec } from './helpers';
+import { test, bundlerOptions, ByteSkewerPayloadCodec, Worker } from './helpers';
 
 export const failureConverter = new DefaultFailureConverter({ encodeCommonAttributes: true });
 

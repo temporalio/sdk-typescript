@@ -1,13 +1,14 @@
+import { coresdk } from '@temporalio/proto';
 import { SinkCall } from '@temporalio/workflow/lib/sinks';
 
 /**
- * A serialized coresdk.workflow_completion.WorkflowActivationCompletion proto.
+ * An activation completion.
  *
  * Used as response to an `ActivateWorkflow` request.
  */
 export interface ActivationCompletion {
   type: 'activation-completion';
-  completion: Uint8Array;
+  completion: coresdk.workflow_completion.IWorkflowActivationCompletion;
 }
 
 /**

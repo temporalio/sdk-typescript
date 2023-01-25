@@ -1,7 +1,8 @@
 import { isMainThread, parentPort as parentPortOrNull } from 'worker_threads';
 import { IllegalStateError } from '@temporalio/common';
-import { coresdk } from '@temporalio/proto';
-import { setUnhandledRejectionHandler, VMWorkflow, VMWorkflowCreator } from './vm';
+import { Workflow, WorkflowCreator } from './interface';
+import { ReusableVMWorkflowCreator } from './reusable-vm';
+import { VMWorkflowCreator } from './vm';
 import { WorkerThreadRequest } from './workflow-worker-thread/input';
 import { WorkerThreadResponse } from './workflow-worker-thread/output';
 
@@ -20,9 +21,8 @@ function ok(requestId: bigint): WorkerThreadResponse {
   return { requestId, result: { type: 'ok' } };
 }
 
-let workflowCreator: VMWorkflowCreator | undefined;
-
-setUnhandledRejectionHandler();
+let workflowCreator: WorkflowCreator | undefined;
+let workflowGetter: (runId: string) => Workflow | undefined;
 
 /**
  * Process a `WorkerThreadRequest` and resolve with a `WorkerThreadResponse`.
@@ -30,7 +30,13 @@ setUnhandledRejectionHandler();
 async function handleRequest({ requestId, input }: WorkerThreadRequest): Promise<WorkerThreadResponse> {
   switch (input.type) {
     case 'init':
-      workflowCreator = await VMWorkflowCreator.create(input.workflowBundle, input.isolateExecutionTimeoutMs);
+      if (input.reuseV8Context) {
+        workflowCreator = await ReusableVMWorkflowCreator.create(input.workflowBundle, input.isolateExecutionTimeoutMs);
+        workflowGetter = (runId) => ReusableVMWorkflowCreator.workflowByRunId.get(runId);
+      } else {
+        workflowCreator = await VMWorkflowCreator.create(input.workflowBundle, input.isolateExecutionTimeoutMs);
+        workflowGetter = (runId) => VMWorkflowCreator.workflowByRunId.get(runId);
+      }
       return ok(requestId);
     case 'destroy':
       await workflowCreator?.destroy();
@@ -39,24 +45,22 @@ async function handleRequest({ requestId, input }: WorkerThreadRequest): Promise
       if (workflowCreator === undefined) {
         throw new IllegalStateError('No WorkflowCreator in Worker thread');
       }
-      const workflow = (await workflowCreator.createWorkflow(input.options)) as VMWorkflow;
-      VMWorkflowCreator.workflowByRunId.set(input.options.info.runId, workflow);
+      await workflowCreator.createWorkflow(input.options);
       return ok(requestId);
     }
     case 'activate-workflow': {
-      const workflow = VMWorkflowCreator.workflowByRunId.get(input.runId);
+      const workflow = workflowGetter(input.runId);
       if (workflow === undefined) {
         throw new IllegalStateError(`Tried to activate non running workflow with runId: ${input.runId}`);
       }
-      const activation = coresdk.workflow_activation.WorkflowActivation.decodeDelimited(input.activation);
-      const completion = await workflow.activate(activation);
+      const completion = await workflow.activate(input.activation);
       return {
         requestId,
         result: { type: 'ok', output: { type: 'activation-completion', completion } },
       };
     }
     case 'extract-sink-calls': {
-      const workflow = VMWorkflowCreator.workflowByRunId.get(input.runId);
+      const workflow = workflowGetter(input.runId);
       if (workflow === undefined) {
         throw new IllegalStateError(`Tried to activate non running workflow with runId: ${input.runId}`);
       }
@@ -67,11 +71,10 @@ async function handleRequest({ requestId, input }: WorkerThreadRequest): Promise
       };
     }
     case 'dispose-workflow': {
-      const workflow = VMWorkflowCreator.workflowByRunId.get(input.runId);
+      const workflow = workflowGetter(input.runId);
       if (workflow === undefined) {
         throw new IllegalStateError(`Tried to dispose non running workflow with runId: ${input.runId}`);
       }
-      VMWorkflowCreator.workflowByRunId.delete(input.runId);
       await workflow.dispose();
       return ok(requestId);
     }

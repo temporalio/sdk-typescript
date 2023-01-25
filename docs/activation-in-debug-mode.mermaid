@@ -1,9 +1,8 @@
-%% Activation diagram for Worker with `reuseV8Context` option off
+%% Activation diagram for Worker with `debugMode` option on
 sequenceDiagram
     participant Server
     participant Core as Rust Core
     participant MT as Node Main Thread
-    participant WT as Node Worker Thread
     participant VM as Workflow VM Sandbox
 
     MT->>+Core: Poll Workflow Activation
@@ -13,21 +12,18 @@ sequenceDiagram
     end
     Core->>-MT: Respond with Activation
     MT->>MT: Decode Payloads
-    MT->>+WT: Run Workflow Activation
     loop patches, signals, completions, queries as jobs
-        WT->>VM: Activate(jobs)
+        MT->>VM: Activate(jobs)
         VM->>VM: Run Microtasks
-        WT->>VM: Try Unblock Conditions
+        MT->>VM: Try Unblock Conditions
     end
-    WT->>VM: Collect Commands
-    WT-->>-MT: Respond to Activation
+    MT->>VM: Collect Commands
     MT->>MT: Encode Payloads
-    MT->>+WT: Collect Sink Calls
-    WT->>VM: Collect Sink Calls
-    VM-->>WT: Respond with Sink Calls
-    WT-->>-MT: Respond with Sink Calls
+    MT->>+VM: Collect Sink Calls
+    VM-->>-MT: Respond with Sink Calls
     MT->>MT: Run Sink Functions
     MT->>Core: Complete Activation
     opt Completed Workflow Task   
         Core->>Server: Complete Workflow Task
     end
+

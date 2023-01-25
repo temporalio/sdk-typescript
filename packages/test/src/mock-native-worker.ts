@@ -66,6 +66,9 @@ export class MockNativeWorker implements NativeWorkerLike {
 
   public async initiateShutdown(): Promise<void> {
     const shutdownErrorPromise = Promise.reject(new ShutdownError('Core is shut down'));
+    shutdownErrorPromise.catch(() => {
+      /* avoid unhandled rejection */
+    });
     this.activityTasks.unshift(shutdownErrorPromise);
     this.workflowActivations.unshift(shutdownErrorPromise);
   }

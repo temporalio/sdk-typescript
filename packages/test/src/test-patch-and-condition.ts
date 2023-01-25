@@ -1,8 +1,7 @@
 import crypto from 'node:crypto';
 import test from 'ava';
-import { Worker } from '@temporalio/worker';
 import { WorkflowClient } from '@temporalio/client';
-import { RUN_INTEGRATION_TESTS } from './helpers';
+import { RUN_INTEGRATION_TESTS, Worker } from './helpers';
 import * as workflows from './workflows/patch-and-condition-pre-patch';
 
 if (RUN_INTEGRATION_TESTS) {
@@ -23,7 +22,6 @@ if (RUN_INTEGRATION_TESTS) {
       const handle = await client.start(workflows.patchInCondition, {
         taskQueue: 'patch-in-condition',
         workflowId,
-        workflowTaskTimeout: '1m', // Give our local activities enough time to run in CI
       });
       await handle.query('__stack_trace');
       return handle;

@@ -3,10 +3,10 @@ import { firstValueFrom, Subject } from 'rxjs';
 import { v4 as uuid4 } from 'uuid';
 import { ApplicationFailure, defaultPayloadConverter, WorkflowClient, WorkflowFailedError } from '@temporalio/client';
 import { temporal } from '@temporalio/proto';
-import { bundleWorkflowCode, Worker, WorkflowBundleWithSourceMap as WorkflowBundle } from '@temporalio/worker';
+import { bundleWorkflowCode, WorkflowBundleWithSourceMap as WorkflowBundle } from '@temporalio/worker';
 import { isCancellation } from '@temporalio/workflow';
 import * as activities from './activities';
-import { RUN_INTEGRATION_TESTS } from './helpers';
+import { RUN_INTEGRATION_TESTS, Worker } from './helpers';
 import * as workflows from './workflows/local-activity-testers';
 
 interface Context {

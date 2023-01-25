@@ -8,9 +8,9 @@ import { join as pathJoin } from 'path';
 import test from 'ava';
 import { v4 as uuid4 } from 'uuid';
 import { moduleMatches } from '@temporalio/worker/lib/workflow/bundler';
-import { bundleWorkflowCode, DefaultLogger, LogEntry, Worker } from '@temporalio/worker';
+import { bundleWorkflowCode, DefaultLogger, LogEntry } from '@temporalio/worker';
 import { WorkflowClient } from '@temporalio/client';
-import { RUN_INTEGRATION_TESTS } from './helpers';
+import { RUN_INTEGRATION_TESTS, Worker } from './helpers';
 import { issue516 } from './mocks/workflows-with-node-dependencies/issue-516';
 import { successString } from './workflows';
 

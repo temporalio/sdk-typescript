@@ -1,8 +1,10 @@
 import path from 'path';
 import StackUtils from 'stack-utils';
-import ava from 'ava';
+import ava, { TestFn } from 'ava';
 import { inWorkflowContext } from '@temporalio/workflow';
 import { Payload, PayloadCodec } from '@temporalio/common';
+import { Worker as RealWorker, WorkerOptions } from '@temporalio/worker';
+import * as worker from '@temporalio/worker';
 
 export function u8(s: string): Uint8Array {
   // TextEncoder requires lib "dom"
@@ -18,6 +20,7 @@ export function isSet(env: string | undefined): boolean {
 }
 
 export const RUN_INTEGRATION_TESTS = inWorkflowContext() || isSet(process.env.RUN_INTEGRATION_TESTS);
+export const REUSE_V8_CONTEXT = inWorkflowContext() || isSet(process.env.REUSE_V8_CONTEXT);
 
 export async function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -48,10 +51,22 @@ export function cleanStackTrace(ostack: string): string {
   return normalizedStack ? `${firstLine}\n${normalizedStack}` : firstLine;
 }
 
+function noopTest() {
+  // eslint: this function body is empty and it's okay.
+}
+
+noopTest.serial = () => undefined;
+noopTest.macro = () => undefined;
+noopTest.before = () => undefined;
+noopTest.after = () => undefined;
+(noopTest.after as any).always = () => undefined;
+noopTest.beforeEach = () => undefined;
+noopTest.afterEach = () => undefined;
+
 /**
- * (Incomplete) helper to allow mixing workflow and non-workflow code in the same test file.
+ * (Mostly complete) helper to allow mixing workflow and non-workflow code in the same test file.
  */
-export const test = inWorkflowContext() ? () => undefined : ava;
+export const test: TestFn<unknown> = inWorkflowContext() ? (noopTest as any) : ava;
 
 export const bundlerOptions = {
   // This is a bit ugly but it does the trick, when a test that includes workflow code tries to import a forbidden
@@ -65,6 +80,7 @@ export const bundlerOptions = {
     'crypto',
     'module',
     'path',
+    'stack-utils',
   ],
 };
 
@@ -84,5 +100,18 @@ export class ByteSkewerPayloadCodec implements PayloadCodec {
       ...payload,
       data: payload.data?.map((byte) => byte - 1),
     }));
+  }
+}
+
+// Hack around Worker not being available in workflow context
+if (inWorkflowContext()) {
+  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+  // @ts-ignore
+  worker.Worker = class {}; // eslint-disable-line import/namespace
+}
+
+export class Worker extends worker.Worker {
+  static async create(options: WorkerOptions): Promise<worker.Worker> {
+    return RealWorker.create({ ...options, reuseV8Context: REUSE_V8_CONTEXT });
   }
 }

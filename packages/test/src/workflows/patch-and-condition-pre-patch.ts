@@ -18,5 +18,7 @@ export async function patchInCondition(): Promise<void> {
     await wf.sleep('1s');
   });
 
-  await wf.sleep('5s');
+  await wf.sleep('3s');
+  // This is here to ensure that the workflow does not complete in slow CI
+  await wf.condition(() => false);
 }

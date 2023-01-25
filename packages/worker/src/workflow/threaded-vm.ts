@@ -125,6 +125,7 @@ export interface ThreadedVMWorkflowCreatorOptions {
   workflowBundle: WorkflowBundleWithSourceMapAndFilename;
   threadPoolSize: number;
   isolateExecutionTimeoutMs: number;
+  reuseV8Context: boolean;
 }
 
 /**
@@ -142,12 +143,15 @@ export class ThreadedVMWorkflowCreator implements WorkflowCreator {
     threadPoolSize,
     workflowBundle,
     isolateExecutionTimeoutMs,
+    reuseV8Context,
   }: ThreadedVMWorkflowCreatorOptions): Promise<ThreadedVMWorkflowCreator> {
     const workerThreadClients = Array(threadPoolSize)
       .fill(0)
       .map(() => new WorkerThreadClient(new NodeWorker(require.resolve('./workflow-worker-thread'))));
     await Promise.all(
-      workerThreadClients.map((client) => client.send({ type: 'init', workflowBundle, isolateExecutionTimeoutMs }))
+      workerThreadClients.map((client) =>
+        client.send({ type: 'init', workflowBundle, isolateExecutionTimeoutMs, reuseV8Context })
+      )
     );
     return new this(workerThreadClients);
   }
@@ -210,11 +214,12 @@ export class VMWorkflowThreadProxy implements Workflow {
   /**
    * Proxy request to the VMWorkflow instance
    */
-  async activate(activation: coresdk.workflow_activation.IWorkflowActivation): Promise<Uint8Array> {
-    const arr = coresdk.workflow_activation.WorkflowActivation.encodeDelimited(activation).finish();
+  async activate(
+    activation: coresdk.workflow_activation.IWorkflowActivation
+  ): Promise<coresdk.workflow_completion.IWorkflowActivationCompletion> {
     const output = await this.workerThreadClient.send({
       type: 'activate-workflow',
-      activation: arr,
+      activation,
       runId: this.runId,
     });
     if (output?.type !== 'activation-completion') {

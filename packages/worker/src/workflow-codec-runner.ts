@@ -179,8 +179,9 @@ export class WorkflowCodecRunner {
   /**
    * Run codec.encode on the Payloads inside the Completion message.
    */
-  public async encodeCompletion(completionBytes: Uint8Array): Promise<Uint8Array> {
-    const completion = coresdk.workflow_completion.WorkflowActivationCompletion.decodeDelimited(completionBytes);
+  public async encodeCompletion(
+    completion: coresdk.workflow_completion.IWorkflowActivationCompletion
+  ): Promise<Uint8Array> {
     const encodedCompletion: EncodedCompletion = {
       ...completion,
       failed: completion.failed

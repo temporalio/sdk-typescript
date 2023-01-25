@@ -1,7 +1,7 @@
 import test from 'ava';
 
-import { IllegalStateError, NativeConnection, TransportError, Worker } from '@temporalio/worker';
-import { RUN_INTEGRATION_TESTS } from './helpers';
+import { IllegalStateError, NativeConnection, TransportError } from '@temporalio/worker';
+import { RUN_INTEGRATION_TESTS, Worker } from './helpers';
 
 test('NativeConnection.connect() throws meaningful error when passed invalid address', async (t) => {
   await t.throwsAsync(NativeConnection.connect({ address: ':invalid' }), {

@@ -4,8 +4,9 @@ import test from 'ava';
 import { Subject, firstValueFrom } from 'rxjs';
 import * as grpc from '@grpc/grpc-js';
 import * as protoLoader from '@grpc/proto-loader';
-import { NativeConnection, Worker } from '@temporalio/worker';
+import { NativeConnection } from '@temporalio/worker';
 import { temporal } from '@temporalio/proto';
+import { Worker } from './helpers';
 
 test('NativeConnection passes headers provided in options', async (t) => {
   const packageDefinition = protoLoader.loadSync(

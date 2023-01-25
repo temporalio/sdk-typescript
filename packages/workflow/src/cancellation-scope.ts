@@ -163,7 +163,7 @@ export class CancellationScope {
    */
   static current(): CancellationScope {
     // Using globals directly instead of a helper function to avoid circular import
-    return storage.getStore() ?? (globalThis as any).__TEMPORAL__.activator.rootScope;
+    return storage.getStore() ?? (globalThis as any).__TEMPORAL_ACTIVATOR__.rootScope;
   }
 
   /** Alias to `new CancellationScope({ cancellable: true }).run(fn)` */
@@ -182,10 +182,14 @@ export class CancellationScope {
   }
 }
 
+const storage = new AsyncLocalStorage<CancellationScope>();
+
 /**
- * This is exported so it can be disposed in the worker interface
+ * Avoid exposing the storage directly so it doesn't get frozen
  */
-export const storage = new AsyncLocalStorage<CancellationScope>();
+export function disableStorage(): void {
+  storage.disable();
+}
 
 export class RootCancellationScope extends CancellationScope {
   constructor() {

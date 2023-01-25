@@ -1,8 +1,9 @@
 import anyTest, { TestFn, ExecutionContext } from 'ava';
 import { v4 as uuid4 } from 'uuid';
-import { Worker, DefaultLogger, LogEntry, defaultSinks } from '@temporalio/worker';
+import { DefaultLogger, LogEntry, defaultSinks } from '@temporalio/worker';
 import { TestWorkflowEnvironment } from '@temporalio/testing';
 import * as workflows from './workflows';
+import { Worker } from './helpers';
 
 interface Context {
   testEnv: TestWorkflowEnvironment;

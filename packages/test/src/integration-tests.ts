@@ -37,18 +37,12 @@ import {
 import { tsToMs } from '@temporalio/common/lib/time';
 import { decode, decodeFromPayloadsAtIndex, loadDataConverter } from '@temporalio/common/lib/internal-non-workflow';
 import * as iface from '@temporalio/proto';
-import {
-  appendDefaultInterceptors,
-  DefaultLogger,
-  makeTelemetryFilterString,
-  Runtime,
-  Worker,
-} from '@temporalio/worker';
+import { appendDefaultInterceptors, DefaultLogger, makeTelemetryFilterString, Runtime } from '@temporalio/worker';
 import pkg from '@temporalio/worker/lib/pkg';
 import { UnsafeWorkflowInfo } from '@temporalio/workflow/src/interfaces';
 import * as activities from './activities';
 import { ConnectionInjectorInterceptor } from './activities/interceptors';
-import { cleanOptionalStackTrace, u8 } from './helpers';
+import { cleanOptionalStackTrace, u8, Worker } from './helpers';
 import * as workflows from './workflows';
 import { withZeroesHTTPServer } from './zeroes-http-server';
 
@@ -296,7 +290,7 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
     ApplicationFailure: Fail me
         at Function.nonRetryable (common/src/failure.ts)
         at Activity.throwAnError (test/src/activities/index.ts)
-    `
+      `
     );
   });
 

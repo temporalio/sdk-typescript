@@ -15,8 +15,14 @@ jobs:
     strategy:
       fail-fast: true
       matrix:
+        reuse-v8-context: [false]
         node: [14, 16]
         os: [ubuntu-latest, macos-latest, windows-latest]
+        include:
+          - os: ubuntu-latest
+            node: 16
+            reuse-v8-context: true
+
     runs-on: ${{ matrix.os }}
     steps:
       - name: Print build information
@@ -66,6 +72,7 @@ jobs:
         env:
           # TODO: Run integration tests on MacOS / Windows probably using temporalite
           RUN_INTEGRATION_TESTS: ${{ startsWith(matrix.os, 'ubuntu') }}
+          REUSE_V8_CONTEXT: ${{ matrix.reuse-v8-context }}
 
       - uses: actions/upload-artifact@v3
         if: ${{ failure() }}
@@ -303,3 +310,11 @@ jobs:
     with:
       test-type: ci-stress
       test-timeout-minutes: 20
+      reuse-v8-context: false
+
+  stress-tests-reuse-context:
+    uses: ./.github/workflows/stress.yml
+    with:
+      test-type: ci-stress
+      test-timeout-minutes: 20
+      reuse-v8-context: true

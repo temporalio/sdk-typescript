@@ -35,7 +35,7 @@ import {
   EnhancedStackTrace,
   WorkflowInfo,
 } from './interfaces';
-import { LocalActivityDoBackoff, getActivator } from './internals';
+import { LocalActivityDoBackoff, getActivator, maybeGetActivator } from './internals';
 import { Sinks } from './sinks';
 import { untrackPromise } from './stack-helpers';
 import { ChildWorkflowHandle, ExternalWorkflowHandle } from './workflow-handle';
@@ -843,18 +843,7 @@ export function workflowInfo(): WorkflowInfo {
  * Returns whether or not code is executing in workflow context
  */
 export function inWorkflowContext(): boolean {
-  try {
-    getActivator();
-    return true;
-  } catch (err: any) {
-    // Use string comparison in case multiple versions of @temporalio/common are
-    // installed in which case an instanceof check would fail.
-    if (err.name === 'IllegalStateError') {
-      return false;
-    } else {
-      throw err;
-    }
-  }
+  return maybeGetActivator() !== undefined;
 }
 
 /**

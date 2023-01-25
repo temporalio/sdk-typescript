@@ -33,6 +33,7 @@ import {
 import { SinkCall } from './sinks';
 import { untrackPromise } from './stack-helpers';
 import pkg from './pkg';
+import { maybeGetActivatorUntyped } from './global-attributes';
 
 enum StartChildWorkflowExecutionFailedCause {
   START_CHILD_WORKFLOW_EXECUTION_FAILED_CAUSE_UNSPECIFIED = 0,
@@ -101,6 +102,10 @@ export const LATEST_INTERNAL_PATCH_NUMBER = 1;
  */
 export class Activator implements ActivationHandler {
   /**
+   * Cache for modules - referenced in reusable-vm.ts
+   */
+  readonly moduleCache = new Map<string, unknown>();
+  /**
    * Map of task sequence to a Completion
    */
   readonly completions = {
@@ -141,7 +146,7 @@ export class Activator implements ActivationHandler {
    */
   protected readonly showStackTraceSources;
 
-  protected readonly promiseStackStore: PromiseStackStore = {
+  readonly promiseStackStore: PromiseStackStore = {
     promiseToStack: new Map(),
     childToParent: new Map(),
   };
@@ -695,8 +700,12 @@ export class Activator implements ActivationHandler {
   }
 }
 
+export function maybeGetActivator(): Activator | undefined {
+  return maybeGetActivatorUntyped() as Activator | undefined;
+}
+
 export function getActivator(): Activator {
-  const activator = (globalThis as any).__TEMPORAL__?.activator;
+  const activator = maybeGetActivator();
   if (activator === undefined) {
     throw new IllegalStateError('Workflow uninitialized');
   }

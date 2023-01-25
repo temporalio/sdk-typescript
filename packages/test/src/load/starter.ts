@@ -75,16 +75,23 @@ interface RunWorkflowOptions {
   minWFPS: number;
   workerPid?: number;
   workerMemoryLogFile?: string;
+  workerCPULogFile?: string;
   queryingOptions?: QueryingOptions;
 }
 
 async function runWorkflows(options: RunWorkflowOptions): Promise<void> {
-  const { workflowName, stopCondition, concurrency, workerPid, workerMemoryLogFile, minWFPS } = options;
+  const { workflowName, stopCondition, concurrency, workerPid, workerMemoryLogFile, workerCPULogFile, minWFPS } =
+    options;
   let observable: Observable<any>;
   let recordMemUsage = (_mem: number) => undefined;
+  let recordCPUUsage = (_cpu: string) => undefined;
   if (workerMemoryLogFile) {
     const stream = fs.createWriteStream(workerMemoryLogFile);
     recordMemUsage = (mem) => void stream.write(`${mem}\n`);
+  }
+  if (workerCPULogFile) {
+    const stream = fs.createWriteStream(workerCPULogFile);
+    recordCPUUsage = (cpu) => void stream.write(`${cpu}\n`);
   }
 
   if (stopCondition instanceof NumberOfWorkflows) {
@@ -96,7 +103,8 @@ async function runWorkflows(options: RunWorkflowOptions): Promise<void> {
         let resourceString = '';
         if (workerResources) {
           resourceString = `CPU ${workerResources.cpu.toFixed(0)}%, MEM ${toMB(workerResources.memory)}MB`;
-          recordMemUsage(workerResources?.memory);
+          recordMemUsage(workerResources.memory);
+          recordCPUUsage(workerResources.cpu.toFixed(0));
         }
         process.stderr.write(
           `\rWFs complete (${numComplete}/${stopCondition.num}) -- WFs/s curr ${wfsPerSecond} (acc ${overallWfsPerSecond}) -- ${resourceString}  `
@@ -119,7 +127,8 @@ async function runWorkflows(options: RunWorkflowOptions): Promise<void> {
         let resourceString = '';
         if (workerResources) {
           resourceString = `CPU ${workerResources.cpu.toFixed(0)}%, MEM ${toMB(workerResources.memory)}MB`;
-          recordMemUsage(workerResources?.memory);
+          recordMemUsage(workerResources.memory);
+          recordCPUUsage(workerResources.cpu.toFixed(0));
         }
         const secondsLeft = Math.max(Math.floor(stopCondition.seconds - totalTime), 0);
         process.stderr.write(
@@ -190,6 +199,7 @@ async function main() {
   const taskQueue = getRequired(args, '--task-queue');
   const workerPid = args['--worker-pid'];
   const workerMemoryLogFile = args['--worker-memory-log-file'];
+  const workerCPULogFile = args['--worker-cpu-log-file'];
 
   const connection = await Connection.connect({ address: serverAddress });
   const client = new WorkflowClient({ connection, namespace });
@@ -208,6 +218,7 @@ async function main() {
     minWFPS,
     workerPid,
     workerMemoryLogFile,
+    workerCPULogFile,
     queryingOptions,
   });
 }
