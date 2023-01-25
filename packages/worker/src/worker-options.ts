@@ -473,8 +473,8 @@ export function appendDefaultInterceptors(
 }
 
 export function addDefaultWorkerOptions(options: WorkerOptions): WorkerOptionsWithDefaults {
-  const { maxCachedWorkflows, showStackTraceSources, debugMode, namespace, reuseV8Context, ...rest } = options;
-
+  const { maxCachedWorkflows, showStackTraceSources, namespace, reuseV8Context, ...rest } = options;
+  const debugMode = options.debugMode || isSet(process.env.TEMPORAL_DEBUG);
   return {
     namespace: namespace ?? 'default',
     identity: `${process.pid}@${os.hostname()}`,
@@ -499,6 +499,12 @@ export function addDefaultWorkerOptions(options: WorkerOptions): WorkerOptionsWi
     sinks: defaultSinks(),
     ...rest,
   };
+}
+
+function isSet(env: string | undefined): boolean {
+  if (env === undefined) return false;
+  env = env.toLocaleLowerCase();
+  return env === '1' || env === 't' || env === 'true';
 }
 
 export function compileWorkerOptions(opts: WorkerOptionsWithDefaults): CompiledWorkerOptions {

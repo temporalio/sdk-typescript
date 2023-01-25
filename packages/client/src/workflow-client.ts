@@ -256,7 +256,7 @@ interface WorkflowHandleOptions extends GetWorkflowHandleOptions {
 /**
  * An iterable list of WorkflowExecution, as returned by {@link WorkflowClient.list}.
  */
-interface AsyncWorkflowListIterable extends AsyncIterable<WorkflowExecutionInfo> {
+export interface AsyncWorkflowListIterable extends AsyncIterable<WorkflowExecutionInfo> {
   /**
    * Return an iterable of histories corresponding to this iterable's WorkflowExecutions.
    * Workflow histories will be fetched concurrently.
