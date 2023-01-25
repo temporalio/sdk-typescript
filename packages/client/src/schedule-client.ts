@@ -143,9 +143,6 @@ function assertRequiredScheduleOptions(
   if (action === 'CREATE' && !(opts as ScheduleOptions).scheduleId) {
     throw new TypeError(`Missing ${structureName}.scheduleId`);
   }
-  if (!(opts.spec.calendars?.length || opts.spec.intervals?.length || opts.spec.cronExpressions?.length)) {
-    throw new TypeError(`At least one ${structureName}.spec.calendars, .intervals or .cronExpressions is required`);
-  }
   switch (opts.action.type) {
     case 'startWorkflow':
       if (!opts.action.taskQueue) {
@@ -377,24 +374,22 @@ export class ScheduleClient extends BaseClient {
       );
 
       for (const raw of response.schedules ?? []) {
-        if (!raw.info?.spec) continue;
-
         yield <ScheduleSummary>{
           scheduleId: raw.scheduleId,
 
-          spec: decodeScheduleSpec(raw.info.spec),
-          action: {
+          spec: decodeScheduleSpec(raw.info?.spec ?? {}),
+          action: raw.info?.workflowType?.name && {
             type: 'startWorkflow',
-            workflowType: raw.info.workflowType?.name,
+            workflowType: raw.info.workflowType.name,
           },
           memo: await decodeMapFromPayloads(this.dataConverter, raw.memo?.fields),
           searchAttributes: decodeSearchAttributes(raw.searchAttributes),
           state: {
-            paused: raw.info.paused === true,
-            note: raw.info.notes ?? undefined,
+            paused: raw.info?.paused === true,
+            note: raw.info?.notes ?? undefined,
           },
           info: {
-            recentActions: decodeScheduleRecentActions(raw.info.recentActions),
+            recentActions: decodeScheduleRecentActions(raw.info?.recentActions),
             nextActionTimes: raw.info?.futureActionTimes?.map(tsToDate) ?? [],
           },
         };
