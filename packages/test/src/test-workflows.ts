@@ -20,6 +20,7 @@ import { ReusableVMWorkflow, ReusableVMWorkflowCreator } from '@temporalio/worke
 import { parseWorkflowCode } from '@temporalio/worker/lib/worker';
 import * as activityFunctions from './activities';
 import { cleanStackTrace, REUSE_V8_CONTEXT, u8 } from './helpers';
+import { ProcessedSignal } from './workflows';
 
 export interface Context {
   workflow: VMWorkflow | ReusableVMWorkflow;
@@ -1964,6 +1965,52 @@ test('condition with timeout 0 in >1.5.0 - conditionTimeout0', async (t) => {
       t,
       completion,
       makeSuccess([makeCompleteWorkflowExecution(defaultPayloadConverter.toPayload(0))])
+    );
+  }
+});
+
+test('Buffered signals are dispatched to correct handler and in correct order - signalsOrdering', async (t) => {
+  const { workflowType } = t.context;
+  {
+    const completion = await activate(
+      t,
+      makeActivation(
+        undefined,
+        makeStartWorkflowJob(workflowType),
+        { signalWorkflow: { signalName: 'non-existant', input: toPayloads(defaultPayloadConverter, 1) } },
+        { signalWorkflow: { signalName: 'signalA', input: toPayloads(defaultPayloadConverter, 2) } },
+        { signalWorkflow: { signalName: 'signalA', input: toPayloads(defaultPayloadConverter, 3) } },
+        { signalWorkflow: { signalName: 'signalC', input: toPayloads(defaultPayloadConverter, 4) } },
+        { signalWorkflow: { signalName: 'signalB', input: toPayloads(defaultPayloadConverter, 5) } },
+        { signalWorkflow: { signalName: 'non-existant', input: toPayloads(defaultPayloadConverter, 6) } },
+        { signalWorkflow: { signalName: 'signalB', input: toPayloads(defaultPayloadConverter, 7) } }
+      )
+    );
+
+    // Signal handlers will be registered in the following order:
+    //
+    // Registration of handler A => Processing of signalA#2
+    // Deregistration of handler A => No more processing of signalA
+    // Registration of handler B => Processing of signalB#5, signalB#7
+    // Registration of default handler => Processing of the rest of signals, in numeric order
+    // Registration of handler C => No signal pending for handler C
+
+    compareCompletion(
+      t,
+      completion,
+      makeSuccess([
+        makeCompleteWorkflowExecution(
+          defaultPayloadConverter.toPayload([
+            { handler: 'signalA', args: [2] },
+            { handler: 'signalB', args: [5] },
+            { handler: 'signalB', args: [7] },
+            { handler: 'default', signalName: 'non-existant', args: [1] },
+            { handler: 'default', signalName: 'signalA', args: [3] },
+            { handler: 'default', signalName: 'signalC', args: [4] },
+            { handler: 'default', signalName: 'non-existant', args: [6] },
+          ] as ProcessedSignal[])
+        ),
+      ])
     );
   }
 });

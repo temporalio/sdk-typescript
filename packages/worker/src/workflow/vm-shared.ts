@@ -338,7 +338,7 @@ export abstract class BaseVMWorkflow implements Workflow {
     await new Promise(setImmediate);
     if (this.unhandledRejection) {
       return {
-        runId: activation.runId,
+        runId: this.activator.info.runId,
         failed: { failure: this.activator.errorToFailure(this.unhandledRejection) },
       };
     }

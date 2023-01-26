@@ -32,7 +32,9 @@ import {
   ChildWorkflowOptionsWithDefaults,
   ContinueAsNew,
   ContinueAsNewOptions,
+  DefaultSignalHandler,
   EnhancedStackTrace,
+  Handler,
   WorkflowInfo,
 } from './interfaces';
 import { LocalActivityDoBackoff, getActivator, maybeGetActivator } from './internals';
@@ -1141,19 +1143,6 @@ export function defineQuery<Ret, Args extends any[] = []>(name: string): QueryDe
 }
 
 /**
- * A handler function capable of accepting the arguments for a given SignalDefinition or QueryDefinition.
- */
-export type Handler<
-  Ret,
-  Args extends any[],
-  T extends SignalDefinition<Args> | QueryDefinition<Ret, Args>
-> = T extends SignalDefinition<infer A>
-  ? (...args: A) => void | Promise<void>
-  : T extends QueryDefinition<infer R, infer A>
-  ? (...args: A) => R
-  : never;
-
-/**
  * Set a handler function for a Workflow query or signal.
  *
  * If this function is called multiple times for a given signal or query name the last handler will overwrite any previous calls.
@@ -1168,17 +1157,45 @@ export function setHandler<Ret, Args extends any[], T extends SignalDefinition<A
   const activator = getActivator();
   if (def.type === 'signal') {
     activator.signalHandlers.set(def.name, handler as any);
-    const bufferedSignals = activator.bufferedSignals.get(def.name);
-    if (bufferedSignals !== undefined && handler !== undefined) {
-      activator.bufferedSignals.delete(def.name);
-      for (const signal of bufferedSignals) {
-        activator.signalWorkflow(signal);
-      }
-    }
+    if (handler !== undefined) dispatchBufferedSignals();
   } else if (def.type === 'query') {
     activator.queryHandlers.set(def.name, handler as any);
   } else {
     throw new TypeError(`Invalid definition type: ${(def as any).type}`);
+  }
+}
+
+/**
+ * Set a signal handler function that will handle signals calls for non-registered signal names.
+ *
+ * Signals are dispatched to the default signal handler in the order that they were accepted by the server.
+ *
+ * If this function is called multiple times for a given signal or query name the last handler will overwrite any previous calls.
+ *
+ * @param handler a function that will handle signals for non-registered signal names, or `undefined` to unset the handler.
+ */
+export function setDefaultSignalHandler(handler: DefaultSignalHandler | undefined): void {
+  const activator = getActivator();
+  activator.defaultSignalHandler = handler;
+  if (handler !== undefined) dispatchBufferedSignals();
+}
+
+function dispatchBufferedSignals() {
+  const activator = getActivator();
+  const bufferedSignals = activator.bufferedSignals;
+  while (bufferedSignals.length) {
+    if (activator.defaultSignalHandler) {
+      // We have a default signal handler, so all signals are dispatchable
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      activator.signalWorkflow(bufferedSignals.shift()!);
+    } else {
+      const foundIndex = bufferedSignals.findIndex(
+        (signal) => activator.signalHandlers.get(signal.signalName ?? '') !== undefined
+      );
+      if (foundIndex === -1) break;
+      const [signal] = bufferedSignals.splice(foundIndex, 1);
+      activator.signalWorkflow(signal);
+    }
   }
 }
 
