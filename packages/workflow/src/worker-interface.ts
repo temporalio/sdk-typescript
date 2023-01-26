@@ -137,15 +137,20 @@ export function initRuntime(options: WorkflowCreateOptionsWithSourceMap): void {
   }
 
   const mod = importWorkflows();
-  const workflow = mod[info.workflowType];
-  if (typeof workflow !== 'function') {
+  const workflowFn = mod[info.workflowType];
+  const defaultWorfklowFn = mod['default'];
+
+  if (typeof workflowFn === 'function') {
+    activator.workflow = workflowFn;
+  } else if (typeof defaultWorfklowFn === 'function') {
+    activator.workflow = defaultWorfklowFn.bind(undefined, info.workflowType);
+  } else {
     const details =
-      workflow === undefined
+      workflowFn === undefined
         ? 'no such function is exported by the workflow bundle'
-        : `expected a function, but got: '${typeof info.workflowType}'`;
+        : `expected a function, but got: '${typeof workflowFn}'`;
     throw new TypeError(`Failed to initialize workflow of type '${info.workflowType}': ${details}`);
   }
-  activator.workflow = workflow;
 }
 
 /**

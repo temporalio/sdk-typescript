@@ -1,5 +1,13 @@
 import type { RawSourceMap } from 'source-map';
-import { RetryPolicy, TemporalFailure, CommonWorkflowOptions, SearchAttributes } from '@temporalio/common';
+import {
+  RetryPolicy,
+  TemporalFailure,
+  CommonWorkflowOptions,
+  SearchAttributes,
+  SignalDefinition,
+  QueryDefinition,
+  WorkflowReturnType,
+} from '@temporalio/common';
 import { checkExtends } from '@temporalio/common/lib/type-helpers';
 import type { coresdk } from '@temporalio/proto';
 
@@ -380,3 +388,47 @@ export interface WorkflowCreateOptions {
 export interface WorkflowCreateOptionsWithSourceMap extends WorkflowCreateOptions {
   sourceMap: RawSourceMap;
 }
+
+/**
+ * A handler function capable of accepting the arguments for a given SignalDefinition or QueryDefinition.
+ */
+export type Handler<
+  Ret,
+  Args extends any[],
+  T extends SignalDefinition<Args> | QueryDefinition<Ret, Args>
+> = T extends SignalDefinition<infer A>
+  ? (...args: A) => void | Promise<void>
+  : T extends QueryDefinition<infer R, infer A>
+  ? (...args: A) => R
+  : never;
+
+/**
+ * ???
+ */
+export type DefaultSignalHandler = (signalName: string, ...args: unknown[]) => void | Promise<void>;
+
+/**
+ * Type of the "default" workflow function. The default workflow function can be used to catch any
+ * workflow type that is not defined explicitely by the workflow bundle.
+ *
+ * A common use case for a default workflow function is to implement custom Domain Specific
+ * Languages (DSLs), where the definition of the workflow is loaded dynamically from some external
+ * source.
+ *
+ * Example usage:
+ * ```ts
+ * const defaultWorkflow: DefaultWorkflowFunction = async function (
+ *   workflowType: string,
+ *   ...args: unknown[]
+ * ): Promise<WorkflowTypeAndArgs> {
+ *   return {
+ *     handler: 'default',
+ *     workflowType,
+ *     args,
+ *   };
+ * };
+ *
+ * export default defaultWorkflow;
+ * ```
+ */
+export type DefaultWorkflowFunction = (workflowType: string, ...args: unknown[]) => WorkflowReturnType;
