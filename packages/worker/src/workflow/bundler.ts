@@ -68,7 +68,7 @@ export class WorkflowCodeBundler {
     this.payloadConverterPath = payloadConverterPath;
     this.failureConverterPath = failureConverterPath;
     this.workflowInterceptorModules = workflowInterceptorModules ?? defaultWorflowInterceptorModules;
-    this.ignoreModules = ignoreModules ?? [];
+    this.ignoreModules = (ignoreModules ?? []).map((x) => (x.startsWith('node:') ? x.substring('node:'.length) : x));
     this.webpackConfigHook = webpackConfigHook ?? ((config) => config);
   }
 
@@ -183,14 +183,20 @@ exports.importInterceptors = function importInterceptors() {
     entry: string,
     distDir: string
   ): Promise<string> {
-    const captureProblematicModules: Configuration['externals'] = async (data, _callback): Promise<undefined> => {
+    const captureProblematicModules: Configuration['externals'] = async (
+      data,
+      _callback
+    ): Promise<string | undefined> => {
       // Ignore the "node:" prefix if any.
       const module: string = data.request?.startsWith('node:')
         ? data.request.slice('node:'.length)
         : data.request ?? '';
 
-      if (moduleMatches(module, disallowedModules) && !moduleMatches(module, this.ignoreModules)) {
-        this.foundProblematicModules.add(module);
+      if (moduleMatches(module, disallowedModules)) {
+        if (!moduleMatches(module, this.ignoreModules)) {
+          this.foundProblematicModules.add(module);
+        }
+        return 'var {}';
       }
 
       return undefined;
