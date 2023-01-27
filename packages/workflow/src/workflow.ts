@@ -41,6 +41,7 @@ import { LocalActivityDoBackoff, getActivator, maybeGetActivator } from './inter
 import { Sinks } from './sinks';
 import { untrackPromise } from './stack-helpers';
 import { ChildWorkflowHandle, ExternalWorkflowHandle } from './workflow-handle';
+import { assert } from 'console';
 
 // Avoid a circular dependency
 registerSleepImplementation(sleep);
@@ -1159,14 +1160,18 @@ export function setHandler<Ret, Args extends any[], T extends SignalDefinition<A
     if (typeof handler === 'function') {
       activator.signalHandlers.set(def.name, handler as any);
       activator.dispatchBufferedSignals();
-    } else {
+    } else if (handler == null) {
       activator.signalHandlers.delete(def.name);
+    } else {
+      throw new TypeError(`Expected handler to be either a function or 'undefined'. Got: '${typeof handler}'`);
     }
   } else if (def.type === 'query') {
     if (typeof handler === 'function') {
       activator.queryHandlers.set(def.name, handler as any);
-    } else {
+    } else if (handler == null) {
       activator.queryHandlers.delete(def.name);
+    } else {
+      throw new TypeError(`Expected handler to be either a function or 'undefined'. Got: '${typeof handler}'`);
     }
   } else {
     throw new TypeError(`Invalid definition type: ${(def as any).type}`);
@@ -1187,8 +1192,10 @@ export function setDefaultSignalHandler(handler: DefaultSignalHandler | undefine
   if (typeof handler === 'function') {
     activator.defaultSignalHandler = handler;
     activator.dispatchBufferedSignals();
-  } else {
+  } else if (handler == null) {
     activator.defaultSignalHandler = undefined;
+  } else {
+    throw new TypeError(`Expected handler to be either a function or 'undefined'. Got: '${typeof handler}'`);
   }
 }
 
