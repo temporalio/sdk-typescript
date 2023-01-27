@@ -73,6 +73,7 @@ export const bundlerOptions = {
   // workflow module, add it to this list:
   ignoreModules: [
     '@temporalio/common/lib/internal-non-workflow',
+    '@temporalio/activity',
     '@temporalio/client',
     '@temporalio/testing',
     '@temporalio/worker',

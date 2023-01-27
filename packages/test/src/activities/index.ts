@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-empty-function */
 /* eslint-disable @typescript-eslint/explicit-module-boundary-types */
 import { Context } from '@temporalio/activity';
-import { WorkflowClient, WorkflowHandle } from '@temporalio/client';
+import { Client, WorkflowHandle } from '@temporalio/client';
 import { ApplicationFailure, QueryDefinition } from '@temporalio/common';
 import { ProtoActivityInput, ProtoActivityResult } from '../../protos/root';
 import { cancellableFetch as cancellableFetchInner } from './cancellable-fetch';
@@ -66,11 +66,11 @@ export async function waitForCancellation(): Promise<void> {
 function getSchedulingWorkflowHandle(): WorkflowHandle {
   const { info, connection, dataConverter } = getContext();
   const { workflowExecution } = info;
-  const client = new WorkflowClient({ connection, namespace: info.workflowNamespace, dataConverter });
-  return client.getHandle(workflowExecution.workflowId, workflowExecution.runId);
+  const client = new Client({ connection, namespace: info.workflowNamespace, dataConverter });
+  return client.workflow.getHandle(workflowExecution.workflowId, workflowExecution.runId);
 }
 
-async function signalSchedulingWorkflow(signalName: string) {
+export async function signalSchedulingWorkflow(signalName: string) {
   const handle = getSchedulingWorkflowHandle();
   await handle.signal(signalName);
 }

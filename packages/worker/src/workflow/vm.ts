@@ -2,12 +2,10 @@ import assert from 'assert';
 import { AsyncLocalStorage } from 'async_hooks';
 import vm from 'vm';
 import { gte } from 'semver';
-import { WorkflowInfo } from '@temporalio/workflow';
 import { IllegalStateError } from '@temporalio/common';
 import { Workflow, WorkflowCreateOptions, WorkflowCreator } from './interface';
 import { WorkflowBundleWithSourceMapAndFilename } from './workflow-worker-thread/input';
 import {
-  ActivationContext,
   BaseVMWorkflow,
   globalHandlers,
   injectConsole,
