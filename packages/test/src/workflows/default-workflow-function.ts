@@ -1,4 +1,4 @@
-import { DefaultWorkflowFunction } from '@temporalio/workflow';
+import { workflowInfo } from '@temporalio/workflow';
 
 export interface WorkflowTypeAndArgs {
   handler: string;
@@ -13,15 +13,10 @@ export async function existing(...args: unknown[]): Promise<WorkflowTypeAndArgs>
   };
 }
 
-const defaultWorkflow: DefaultWorkflowFunction = async function (
-  workflowType: string,
-  ...args: unknown[]
-): Promise<WorkflowTypeAndArgs> {
+export default async function (...args: unknown[]): Promise<WorkflowTypeAndArgs> {
   return {
     handler: 'default',
-    workflowType,
+    workflowType: workflowInfo().workflowType,
     args,
   };
-};
-
-export default defaultWorkflow;
+}

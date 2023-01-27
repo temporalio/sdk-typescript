@@ -88,7 +88,6 @@ export {
   ChildWorkflowOptions,
   ContinueAsNew,
   ContinueAsNewOptions,
-  DefaultWorkflowFunction,
   EnhancedStackTrace,
   FileLocation,
   FileSlice,

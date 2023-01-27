@@ -1156,10 +1156,18 @@ export function setHandler<Ret, Args extends any[], T extends SignalDefinition<A
 ): void {
   const activator = getActivator();
   if (def.type === 'signal') {
-    activator.signalHandlers.set(def.name, handler as any);
-    if (handler !== undefined) dispatchBufferedSignals();
+    if (typeof handler === 'function') {
+      activator.signalHandlers.set(def.name, handler as any);
+      dispatchBufferedSignals();
+    } else {
+      activator.signalHandlers.delete(def.name);
+    }
   } else if (def.type === 'query') {
-    activator.queryHandlers.set(def.name, handler as any);
+    if (typeof handler === 'function') {
+      activator.queryHandlers.set(def.name, handler as any);
+    } else {
+      activator.queryHandlers.delete(def.name);
+    }
   } else {
     throw new TypeError(`Invalid definition type: ${(def as any).type}`);
   }
@@ -1184,14 +1192,12 @@ function dispatchBufferedSignals() {
   const activator = getActivator();
   const bufferedSignals = activator.bufferedSignals;
   while (bufferedSignals.length) {
-    if (activator.defaultSignalHandler) {
+    if (typeof activator.defaultSignalHandler === 'function') {
       // We have a default signal handler, so all signals are dispatchable
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
       activator.signalWorkflow(bufferedSignals.shift()!);
     } else {
-      const foundIndex = bufferedSignals.findIndex(
-        (signal) => activator.signalHandlers.get(signal.signalName ?? '') !== undefined
-      );
+      const foundIndex = bufferedSignals.findIndex((signal) => activator.signalHandlers.has(signal.signalName ?? ''));
       if (foundIndex === -1) break;
       const [signal] = bufferedSignals.splice(foundIndex, 1);
       activator.signalWorkflow(signal);

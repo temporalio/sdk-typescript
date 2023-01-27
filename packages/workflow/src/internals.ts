@@ -532,9 +532,9 @@ export class Activator implements ActivationHandler {
 
   public async signalWorkflowNextHandler({ signalName, args }: SignalInput): Promise<void> {
     const fn = this.signalHandlers.get(signalName);
-    if (fn !== undefined) {
+    if (typeof fn === 'function') {
       return await fn(...args);
-    } else if (this.defaultSignalHandler !== undefined) {
+    } else if (typeof this.defaultSignalHandler === 'function') {
       return await this.defaultSignalHandler(signalName, ...args);
     } else {
       throw new IllegalStateError(`No registered signal handler for signal ${signalName}`);

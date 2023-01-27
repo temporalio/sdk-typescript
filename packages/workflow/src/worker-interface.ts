@@ -143,7 +143,7 @@ export function initRuntime(options: WorkflowCreateOptionsWithSourceMap): void {
   if (typeof workflowFn === 'function') {
     activator.workflow = workflowFn;
   } else if (typeof defaultWorfklowFn === 'function') {
-    activator.workflow = defaultWorfklowFn.bind(undefined, info.workflowType);
+    activator.workflow = defaultWorfklowFn;
   } else {
     const details =
       workflowFn === undefined
