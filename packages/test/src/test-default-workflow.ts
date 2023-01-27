@@ -8,7 +8,7 @@ import { RUN_INTEGRATION_TESTS, Worker } from './helpers';
 import { existing } from './workflows/default-workflow-function';
 
 if (RUN_INTEGRATION_TESTS) {
-  test('Default workflow handler is used if requested workflow does not exists', async (t) => {
+  test('Default workflow handler is used if requested workflow does not exist', async (t) => {
     const taskQueue = `${t.title}-${uuid4()}`;
     const worker = await Worker.create({
       taskQueue,
@@ -23,7 +23,7 @@ if (RUN_INTEGRATION_TESTS) {
     });
   });
 
-  test('Default workflow handler is not used if requested workflow does exists', async (t) => {
+  test('Default workflow handler is not used if requested workflow exists', async (t) => {
     const taskQueue = `${t.title}-${uuid4()}`;
     const worker = await Worker.create({
       taskQueue,

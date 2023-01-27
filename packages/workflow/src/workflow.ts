@@ -1177,7 +1177,7 @@ export function setHandler<Ret, Args extends any[], T extends SignalDefinition<A
 export function setDefaultSignalHandler(handler: DefaultSignalHandler | undefined): void {
   const activator = getActivator();
   activator.defaultSignalHandler = handler;
-  if (handler !== undefined) dispatchBufferedSignals();
+  if (handler != null) dispatchBufferedSignals();
 }
 
 function dispatchBufferedSignals() {

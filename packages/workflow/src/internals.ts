@@ -140,7 +140,7 @@ export class Activator implements ActivationHandler {
   /**
    * A signal handler that catches calls for non-registered signal names.
    */
-  defaultSignalHandler: DefaultSignalHandler | undefined;
+  defaultSignalHandler?: DefaultSignalHandler;
 
   /**
    * Source map file for looking up the source files in response to __enhanced_stack_trace
