@@ -35,3 +35,35 @@ export async function signalsOrdering(): Promise<ProcessedSignal[]> {
 
   return processedSignals;
 }
+
+export async function signalsOrdering2(): Promise<ProcessedSignal[]> {
+  const processedSignals: ProcessedSignal[] = [];
+
+  function handlerA(...args: unknown[]) {
+    processedSignals.push({ handler: 'signalA', args });
+    setHandler(signalA, undefined);
+    setHandler(signalB, handlerB);
+  }
+
+  function handlerB(...args: unknown[]) {
+    processedSignals.push({ handler: 'signalB', args });
+    setHandler(signalB, undefined);
+    setHandler(signalC, handlerC);
+  }
+
+  function handlerC(...args: unknown[]) {
+    processedSignals.push({ handler: 'signalC', args });
+    setHandler(signalC, undefined);
+    setDefaultSignalHandler(handlerDefault);
+  }
+
+  function handlerDefault(signalName: string, ...args: unknown[]) {
+    processedSignals.push({ handler: 'default', signalName, args });
+    setDefaultSignalHandler(undefined);
+    setHandler(signalA, handlerA);
+  }
+
+  setHandler(signalA, handlerA);
+
+  return processedSignals;
+}

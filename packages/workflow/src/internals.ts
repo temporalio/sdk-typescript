@@ -532,9 +532,9 @@ export class Activator implements ActivationHandler {
 
   public async signalWorkflowNextHandler({ signalName, args }: SignalInput): Promise<void> {
     const fn = this.signalHandlers.get(signalName);
-    if (typeof fn === 'function') {
+    if (fn) {
       return await fn(...args);
-    } else if (typeof this.defaultSignalHandler === 'function') {
+    } else if (this.defaultSignalHandler) {
       return await this.defaultSignalHandler(signalName, ...args);
     } else {
       throw new IllegalStateError(`No registered signal handler for signal ${signalName}`);
@@ -547,7 +547,7 @@ export class Activator implements ActivationHandler {
       throw new TypeError('Missing activation signalName');
     }
 
-    if (this.signalHandlers.get(signalName) === undefined && this.defaultSignalHandler === undefined) {
+    if (!this.signalHandlers.has(signalName) && !this.defaultSignalHandler) {
       this.bufferedSignals.push(activation);
       return;
     }
@@ -562,6 +562,22 @@ export class Activator implements ActivationHandler {
       signalName,
       headers: headers ?? {},
     }).catch(this.handleWorkflowFailure.bind(this));
+  }
+
+  public dispatchBufferedSignals(): void {
+    const bufferedSignals = this.bufferedSignals;
+    while (bufferedSignals.length) {
+      if (this.defaultSignalHandler) {
+        // We have a default signal handler, so all signals are dispatchable
+        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+        this.signalWorkflow(bufferedSignals.shift()!);
+      } else {
+        const foundIndex = bufferedSignals.findIndex((signal) => this.signalHandlers.has(signal.signalName ?? ''));
+        if (foundIndex === -1) break;
+        const [signal] = bufferedSignals.splice(foundIndex, 1);
+        this.signalWorkflow(signal);
+      }
+    }
   }
 
   public resolveSignalExternalWorkflow(activation: coresdk.workflow_activation.IResolveSignalExternalWorkflow): void {

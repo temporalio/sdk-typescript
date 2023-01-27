@@ -1158,7 +1158,7 @@ export function setHandler<Ret, Args extends any[], T extends SignalDefinition<A
   if (def.type === 'signal') {
     if (typeof handler === 'function') {
       activator.signalHandlers.set(def.name, handler as any);
-      dispatchBufferedSignals();
+      activator.dispatchBufferedSignals();
     } else {
       activator.signalHandlers.delete(def.name);
     }
@@ -1184,24 +1184,11 @@ export function setHandler<Ret, Args extends any[], T extends SignalDefinition<A
  */
 export function setDefaultSignalHandler(handler: DefaultSignalHandler | undefined): void {
   const activator = getActivator();
-  activator.defaultSignalHandler = handler;
-  if (handler != null) dispatchBufferedSignals();
-}
-
-function dispatchBufferedSignals() {
-  const activator = getActivator();
-  const bufferedSignals = activator.bufferedSignals;
-  while (bufferedSignals.length) {
-    if (typeof activator.defaultSignalHandler === 'function') {
-      // We have a default signal handler, so all signals are dispatchable
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      activator.signalWorkflow(bufferedSignals.shift()!);
-    } else {
-      const foundIndex = bufferedSignals.findIndex((signal) => activator.signalHandlers.has(signal.signalName ?? ''));
-      if (foundIndex === -1) break;
-      const [signal] = bufferedSignals.splice(foundIndex, 1);
-      activator.signalWorkflow(signal);
-    }
+  if (typeof handler === 'function') {
+    activator.defaultSignalHandler = handler;
+    activator.dispatchBufferedSignals();
+  } else {
+    activator.defaultSignalHandler = undefined;
   }
 }
 

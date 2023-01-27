@@ -2014,3 +2014,40 @@ test('Buffered signals are dispatched to correct handler and in correct order - 
     );
   }
 });
+
+test('Buffered signals dispatch is reentrant  - signalsOrdering2', async (t) => {
+  const { workflowType } = t.context;
+  {
+    const completion = await activate(
+      t,
+      makeActivation(
+        undefined,
+        makeStartWorkflowJob(workflowType),
+        { signalWorkflow: { signalName: 'non-existant', input: toPayloads(defaultPayloadConverter, 1) } },
+        { signalWorkflow: { signalName: 'signalA', input: toPayloads(defaultPayloadConverter, 2) } },
+        { signalWorkflow: { signalName: 'signalA', input: toPayloads(defaultPayloadConverter, 3) } },
+        { signalWorkflow: { signalName: 'signalB', input: toPayloads(defaultPayloadConverter, 4) } },
+        { signalWorkflow: { signalName: 'signalB', input: toPayloads(defaultPayloadConverter, 5) } },
+        { signalWorkflow: { signalName: 'signalC', input: toPayloads(defaultPayloadConverter, 6) } },
+        { signalWorkflow: { signalName: 'signalC', input: toPayloads(defaultPayloadConverter, 7) } }
+      )
+    );
+    compareCompletion(
+      t,
+      completion,
+      makeSuccess([
+        makeCompleteWorkflowExecution(
+          defaultPayloadConverter.toPayload([
+            { handler: 'signalA', args: [2] },
+            { handler: 'signalB', args: [4] },
+            { handler: 'signalC', args: [6] },
+            { handler: 'default', signalName: 'non-existant', args: [1] },
+            { handler: 'signalA', args: [3] },
+            { handler: 'signalB', args: [5] },
+            { handler: 'signalC', args: [7] },
+          ] as ProcessedSignal[])
+        ),
+      ])
+    );
+  }
+});
