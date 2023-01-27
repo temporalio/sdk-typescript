@@ -24,7 +24,7 @@ import {
 } from '@temporalio/client';
 import { ActivityFunction, CancelledFailure } from '@temporalio/common';
 import { msToTs, tsToMs } from '@temporalio/common/lib/time';
-import { NativeConnection, Runtime } from '@temporalio/worker';
+import { NativeConnection, Runtime, appendDefaultInterceptors } from '@temporalio/worker';
 import {
   EphemeralServer,
   EphemeralServerConfig,
