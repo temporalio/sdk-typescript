@@ -1,10 +1,10 @@
 import * as activity from '@temporalio/activity';
-import { Connection } from '@temporalio/client';
+import { ConnectionLike } from '@temporalio/client';
 import { defaultDataConverter, LoadedDataConverter } from '@temporalio/common';
 import { ActivityExecuteInput, ActivityInboundCallsInterceptor, Next } from '@temporalio/worker';
 
 export class ConnectionInjectorInterceptor implements ActivityInboundCallsInterceptor {
-  constructor(public readonly connection: Connection, public readonly dataConverter = defaultDataConverter) {}
+  constructor(public readonly connection: ConnectionLike, public readonly dataConverter = defaultDataConverter) {}
   async execute(input: ActivityExecuteInput, next: Next<ActivityInboundCallsInterceptor, 'execute'>): Promise<unknown> {
     Object.assign(activity.Context.current(), {
       connection: this.connection,
@@ -18,7 +18,7 @@ export class ConnectionInjectorInterceptor implements ActivityInboundCallsInterc
  * Extend the basic activity Context
  */
 export interface Context extends activity.Context {
-  connection: Connection;
+  connection: ConnectionLike;
   dataConverter: LoadedDataConverter;
 }
 
