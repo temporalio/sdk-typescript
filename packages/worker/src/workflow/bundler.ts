@@ -187,15 +187,15 @@ exports.importInterceptors = function importInterceptors() {
       data,
       _callback
     ): Promise<string | undefined> => {
-      // Ignore the "node:" prefix if any.
-      const module: string = data.request?.startsWith('node:')
-        ? data.request.slice('node:'.length)
-        : data.request ?? '';
-
-      if (moduleMatches(module, disallowedModules)) {
+      const hasNodePrefix = data.request?.startsWith('node:');
+      const module: string = (hasNodePrefix ? data.request?.slice('node:'.length) : data.request) ?? '';
+      if (hasNodePrefix || moduleMatches(module, disallowedModules) || moduleMatches(module, this.ignoreModules)) {
         if (!moduleMatches(module, this.ignoreModules)) {
           this.foundProblematicModules.add(module);
         }
+
+        // Tell webpack to replace that module by an empty object.
+        // This is functionnally equivalent to `alias: { 'some-module': false }`, but `externals` is called much more early
         return 'var {}';
       }
 
@@ -210,7 +210,6 @@ exports.importInterceptors = function importInterceptors() {
         alias: {
           __temporal_custom_payload_converter$: this.payloadConverterPath ?? false,
           __temporal_custom_failure_converter$: this.failureConverterPath ?? false,
-          ...Object.fromEntries([...this.ignoreModules, ...disallowedModules].map((m) => [m, false])),
         },
       },
       externals: captureProblematicModules,
