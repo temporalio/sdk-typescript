@@ -41,7 +41,6 @@ import { LocalActivityDoBackoff, getActivator, maybeGetActivator } from './inter
 import { Sinks } from './sinks';
 import { untrackPromise } from './stack-helpers';
 import { ChildWorkflowHandle, ExternalWorkflowHandle } from './workflow-handle';
-import { assert } from 'console';
 
 // Avoid a circular dependency
 registerSleepImplementation(sleep);
