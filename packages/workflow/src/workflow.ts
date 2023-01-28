@@ -32,7 +32,9 @@ import {
   ChildWorkflowOptionsWithDefaults,
   ContinueAsNew,
   ContinueAsNewOptions,
+  DefaultSignalHandler,
   EnhancedStackTrace,
+  Handler,
   WorkflowInfo,
 } from './interfaces';
 import { LocalActivityDoBackoff, getActivator, maybeGetActivator } from './internals';
@@ -1141,19 +1143,6 @@ export function defineQuery<Ret, Args extends any[] = []>(name: string): QueryDe
 }
 
 /**
- * A handler function capable of accepting the arguments for a given SignalDefinition or QueryDefinition.
- */
-export type Handler<
-  Ret,
-  Args extends any[],
-  T extends SignalDefinition<Args> | QueryDefinition<Ret, Args>
-> = T extends SignalDefinition<infer A>
-  ? (...args: A) => void | Promise<void>
-  : T extends QueryDefinition<infer R, infer A>
-  ? (...args: A) => R
-  : never;
-
-/**
  * Set a handler function for a Workflow query or signal.
  *
  * If this function is called multiple times for a given signal or query name the last handler will overwrite any previous calls.
@@ -1167,18 +1156,45 @@ export function setHandler<Ret, Args extends any[], T extends SignalDefinition<A
 ): void {
   const activator = getActivator();
   if (def.type === 'signal') {
-    activator.signalHandlers.set(def.name, handler as any);
-    const bufferedSignals = activator.bufferedSignals.get(def.name);
-    if (bufferedSignals !== undefined && handler !== undefined) {
-      activator.bufferedSignals.delete(def.name);
-      for (const signal of bufferedSignals) {
-        activator.signalWorkflow(signal);
-      }
+    if (typeof handler === 'function') {
+      activator.signalHandlers.set(def.name, handler as any);
+      activator.dispatchBufferedSignals();
+    } else if (handler == null) {
+      activator.signalHandlers.delete(def.name);
+    } else {
+      throw new TypeError(`Expected handler to be either a function or 'undefined'. Got: '${typeof handler}'`);
     }
   } else if (def.type === 'query') {
-    activator.queryHandlers.set(def.name, handler as any);
+    if (typeof handler === 'function') {
+      activator.queryHandlers.set(def.name, handler as any);
+    } else if (handler == null) {
+      activator.queryHandlers.delete(def.name);
+    } else {
+      throw new TypeError(`Expected handler to be either a function or 'undefined'. Got: '${typeof handler}'`);
+    }
   } else {
     throw new TypeError(`Invalid definition type: ${(def as any).type}`);
+  }
+}
+
+/**
+ * Set a signal handler function that will handle signals calls for non-registered signal names.
+ *
+ * Signals are dispatched to the default signal handler in the order that they were accepted by the server.
+ *
+ * If this function is called multiple times for a given signal or query name the last handler will overwrite any previous calls.
+ *
+ * @param handler a function that will handle signals for non-registered signal names, or `undefined` to unset the handler.
+ */
+export function setDefaultSignalHandler(handler: DefaultSignalHandler | undefined): void {
+  const activator = getActivator();
+  if (typeof handler === 'function') {
+    activator.defaultSignalHandler = handler;
+    activator.dispatchBufferedSignals();
+  } else if (handler == null) {
+    activator.defaultSignalHandler = undefined;
+  } else {
+    throw new TypeError(`Expected handler to be either a function or 'undefined'. Got: '${typeof handler}'`);
   }
 }
 

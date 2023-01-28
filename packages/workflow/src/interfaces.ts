@@ -1,5 +1,12 @@
 import type { RawSourceMap } from 'source-map';
-import { RetryPolicy, TemporalFailure, CommonWorkflowOptions, SearchAttributes } from '@temporalio/common';
+import {
+  RetryPolicy,
+  TemporalFailure,
+  CommonWorkflowOptions,
+  SearchAttributes,
+  SignalDefinition,
+  QueryDefinition,
+} from '@temporalio/common';
 import { checkExtends } from '@temporalio/common/lib/type-helpers';
 import type { coresdk } from '@temporalio/proto';
 
@@ -380,3 +387,21 @@ export interface WorkflowCreateOptions {
 export interface WorkflowCreateOptionsWithSourceMap extends WorkflowCreateOptions {
   sourceMap: RawSourceMap;
 }
+
+/**
+ * A handler function capable of accepting the arguments for a given SignalDefinition or QueryDefinition.
+ */
+export type Handler<
+  Ret,
+  Args extends any[],
+  T extends SignalDefinition<Args> | QueryDefinition<Ret, Args>
+> = T extends SignalDefinition<infer A>
+  ? (...args: A) => void | Promise<void>
+  : T extends QueryDefinition<infer R, infer A>
+  ? (...args: A) => R
+  : never;
+
+/**
+ * A handler function accepting signals calls for non-registered signal names.
+ */
+export type DefaultSignalHandler = (signalName: string, ...args: unknown[]) => void | Promise<void>;

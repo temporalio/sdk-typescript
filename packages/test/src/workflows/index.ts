@@ -72,6 +72,7 @@ export * from './shield-in-shield';
 export * from './signal-handlers-clear';
 export * from './signal-target';
 export * from './signals-are-always-processed';
+export * from './signals-ordering';
 export * from './sinks';
 export * from './sleep';
 export * from './sleep-invalid-duration';

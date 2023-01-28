@@ -11,10 +11,6 @@ import { partition } from '../utils';
 import { Workflow } from './interface';
 import { WorkflowBundleWithSourceMapAndFilename } from './workflow-worker-thread/input';
 
-export interface ActivationContext {
-  isReplaying: boolean;
-}
-
 // Not present in @types/node for some reason
 const { promiseHooks } = v8 as any;
 
@@ -338,7 +334,7 @@ export abstract class BaseVMWorkflow implements Workflow {
     await new Promise(setImmediate);
     if (this.unhandledRejection) {
       return {
-        runId: activation.runId,
+        runId: this.activator.info.runId,
         failed: { failure: this.activator.errorToFailure(this.unhandledRejection) },
       };
     }

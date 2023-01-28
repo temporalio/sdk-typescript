@@ -23,6 +23,7 @@ import { DeterminismViolationError, isCancellation } from './errors';
 import { QueryInput, SignalInput, WorkflowExecuteInput, WorkflowInterceptors } from './interceptors';
 import {
   ContinueAsNew,
+  DefaultSignalHandler,
   SDKInfo,
   FileSlice,
   EnhancedStackTrace,
@@ -120,7 +121,7 @@ export class Activator implements ActivationHandler {
   /**
    * Holds buffered signal calls until a handler is registered
    */
-  readonly bufferedSignals = new Map<string, coresdk.workflow_activation.ISignalWorkflow[]>();
+  readonly bufferedSignals = Array<coresdk.workflow_activation.ISignalWorkflow>();
 
   /**
    * Holds buffered query calls until a handler is registered.
@@ -135,6 +136,11 @@ export class Activator implements ActivationHandler {
    * Mapping of signal name to handler
    */
   readonly signalHandlers = new Map<string, WorkflowSignalType>();
+
+  /**
+   * A signal handler that catches calls for non-registered signal names.
+   */
+  defaultSignalHandler?: DefaultSignalHandler;
 
   /**
    * Source map file for looking up the source files in response to __enhanced_stack_trace
@@ -526,10 +532,13 @@ export class Activator implements ActivationHandler {
 
   public async signalWorkflowNextHandler({ signalName, args }: SignalInput): Promise<void> {
     const fn = this.signalHandlers.get(signalName);
-    if (fn === undefined) {
+    if (fn) {
+      return await fn(...args);
+    } else if (this.defaultSignalHandler) {
+      return await this.defaultSignalHandler(signalName, ...args);
+    } else {
       throw new IllegalStateError(`No registered signal handler for signal ${signalName}`);
     }
-    return await fn(...args);
   }
 
   public signalWorkflow(activation: coresdk.workflow_activation.ISignalWorkflow): void {
@@ -538,14 +547,8 @@ export class Activator implements ActivationHandler {
       throw new TypeError('Missing activation signalName');
     }
 
-    const fn = this.signalHandlers.get(signalName);
-    if (fn === undefined) {
-      let buffer = this.bufferedSignals.get(signalName);
-      if (buffer === undefined) {
-        buffer = [];
-        this.bufferedSignals.set(signalName, buffer);
-      }
-      buffer.push(activation);
+    if (!this.signalHandlers.has(signalName) && !this.defaultSignalHandler) {
+      this.bufferedSignals.push(activation);
       return;
     }
 
@@ -559,6 +562,22 @@ export class Activator implements ActivationHandler {
       signalName,
       headers: headers ?? {},
     }).catch(this.handleWorkflowFailure.bind(this));
+  }
+
+  public dispatchBufferedSignals(): void {
+    const bufferedSignals = this.bufferedSignals;
+    while (bufferedSignals.length) {
+      if (this.defaultSignalHandler) {
+        // We have a default signal handler, so all signals are dispatchable
+        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+        this.signalWorkflow(bufferedSignals.shift()!);
+      } else {
+        const foundIndex = bufferedSignals.findIndex((signal) => this.signalHandlers.has(signal.signalName ?? ''));
+        if (foundIndex === -1) break;
+        const [signal] = bufferedSignals.splice(foundIndex, 1);
+        this.signalWorkflow(signal);
+      }
+    }
   }
 
   public resolveSignalExternalWorkflow(activation: coresdk.workflow_activation.IResolveSignalExternalWorkflow): void {
