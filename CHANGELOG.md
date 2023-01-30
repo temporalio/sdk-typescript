@@ -29,7 +29,7 @@ Breaking changes marked with a :boom:
 
 - [`workflow`] Added support for default signal handlers ([#1038](https://github.com/temporalio/sdk-typescript/pull/1038)).
 
-  A workflow function may opt in to receive requests for non-registered signals with:
+  A workflow function may opt-in to receive requests for non-registered signals with:
 
   ```ts
   setDefaultSignalHandler((signalName: string, ...args: unknown[]) => {
@@ -45,10 +45,9 @@ Breaking changes marked with a :boom:
 
   - [10 seconds timeout on process exit](https://github.com/temporalio/sdk-typescript/issues/1023),
   - [process crashing unexplainedly](https://github.com/temporalio/sdk-typescript/issues/1033),
-  - "Failed to connect before deadline" errors,
-  - and others.
+  - "Failed to connect before deadline" errors, and more.
 
-  We are waiting for the upstream project to stabilize. In the mean time, we pinned our dependencies on `@grpc/grpc-js` to `1.7.3`. ([#1025](https://github.com/temporalio/sdk-typescript/pull/1025))
+  We pinned our dependencies on `@grpc/grpc-js` to `1.7.3` ([#1025](https://github.com/temporalio/sdk-typescript/pull/1025)). This pin will be removed once we confirm that the upstream project is stable again for our usage.
 
 - [`client`] Multiple small changes to the experimental Schedules API. ([#1028](https://github.com/temporalio/sdk-typescript/pull/1028), [#1032](https://github.com/temporalio/sdk-typescript/pull/1032), [#1009](https://github.com/temporalio/sdk-typescript/pull/1009))
 
