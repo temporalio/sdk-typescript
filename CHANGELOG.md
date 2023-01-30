@@ -8,11 +8,17 @@ Breaking changes marked with a :boom:
 
 ### Features
 
-- [`workflow`] (Experimental) Introduced a major optimization to the workflow runtime ([#951](https://github.com/temporalio/sdk-typescript/pull/951)). This optimization allows the worker to reuse execution context across workflows, without compromising the safety of the deterministic sandbox. Some initial performance tests have demonstrated reduction of RAM usage by as much as 66%, and reduction of CPU usage by up to 50%. To enable this feature, add `reuseV8Context: true` to your `WorkerOptions`.
+- [`workflow`] (Experimental) Introduced a major optimization to the workflow runtime ([#951](https://github.com/temporalio/sdk-typescript/pull/951)).
+
+  This optimization allows the worker to reuse execution context across workflows, without compromising the safety of the deterministic sandbox. Some initial performance tests have demonstrated reduction of RAM usage by as much as 66%, and reduction of CPU usage by up to 50%.
+
+  To enable this feature, add `reuseV8Context: true` to your `WorkerOptions`.
 
 - [`workflow`] Added `workflowInfo().startTime` and `workflowInfo().runStartTime`. ([#1031](https://github.com/temporalio/sdk-typescript/pull/1031))
 
-- [`workflow`] Added support for default workflow handlers ([#1038](https://github.com/temporalio/sdk-typescript/pull/1038)). A workflow bundle may opt-in to receive requests for non-registered workflow types by exporting a default function:
+- [`workflow`] Added support for default workflow handlers ([#1038](https://github.com/temporalio/sdk-typescript/pull/1038)).
+
+  A workflow bundle may opt-in to receive requests for non-registered workflow types by exporting a default function:
 
   ```ts
   export default async function (...args: unknown[]): Promise<unknown> {
@@ -21,7 +27,9 @@ Breaking changes marked with a :boom:
   }
   ```
 
-- [`workflow`] Added support for default signal handlers ([#1038](https://github.com/temporalio/sdk-typescript/pull/1038)). A workflow function may opt in to receive requests for non-registered signals with:
+- [`workflow`] Added support for default signal handlers ([#1038](https://github.com/temporalio/sdk-typescript/pull/1038)).
+
+  A workflow function may opt in to receive requests for non-registered signals with:
 
   ```ts
   setDefaultSignalHandler((signalName: string, ...args: unknown[]) => {
@@ -34,9 +42,12 @@ Breaking changes marked with a :boom:
 ### Bug Fixes
 
 - A recent release of `@grpc/grpc-js` has been causing multiple issues:
-  [10 seconds timeout on process exit](https://github.com/temporalio/sdk-typescript/issues/1023),
-  [process crashing unexplainedly](https://github.com/temporalio/sdk-typescript/issues/1033),
-  "Failed to connect before deadline" errors, and others.
+
+  - [10 seconds timeout on process exit](https://github.com/temporalio/sdk-typescript/issues/1023),
+  - [process crashing unexplainedly](https://github.com/temporalio/sdk-typescript/issues/1033),
+  - "Failed to connect before deadline" errors,
+  - and others.
+
   We are waiting for the upstream project to stabilize. In the mean time, we pinned our dependencies on `@grpc/grpc-js` to `1.7.3`. ([#1025](https://github.com/temporalio/sdk-typescript/pull/1025))
 
 - [`client`] Multiple small changes to the experimental Schedules API. ([#1028](https://github.com/temporalio/sdk-typescript/pull/1028), [#1032](https://github.com/temporalio/sdk-typescript/pull/1032), [#1009](https://github.com/temporalio/sdk-typescript/pull/1009))
