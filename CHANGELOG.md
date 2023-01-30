@@ -55,6 +55,10 @@ Breaking changes marked with a :boom:
 
 - [`create-project`] `create-project` now works correctly on Node 18 ([#995](https://github.com/temporalio/sdk-typescript/pull/995))
 
+- [`core`] Fixed incorrect calculation of schedule-to-start timeouts on local activities ([#450](https://github.com/temporalio/sdk-core/pull/450)).
+
+- [`core`] Fixed some rare cases where sdk-core would panic on unexpected history fetching responses from the server ([#468](https://github.com/temporalio/sdk-core/pull/468)).
+
 ## [1.5.2] - 2022-12-07
 
 ### Bug fixes
