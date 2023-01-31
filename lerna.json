@@ -1,5 +1,5 @@
 {
-  "version": "1.5.2",
+  "version": "1.6.0",
   "npmClient": "npm",
   "command": {
     "publish": {
@@ -10,12 +10,8 @@
       "message": "chore(release): Publish"
     },
     "bootstrap": {
-      "npmClientArgs": [
-        "--no-package-lock"
-      ]
+      "npmClientArgs": ["--no-package-lock"]
     }
   },
-  "packages": [
-    "packages/*"
-  ]
+  "packages": ["packages/*"]
 }
