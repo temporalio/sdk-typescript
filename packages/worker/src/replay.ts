@@ -88,6 +88,7 @@ export function handleReplayEviction(evictJob: RemoveFromCache, workflowId: stri
     case EvictionReason.CACHE_MISS:
     case EvictionReason.TASK_NOT_FOUND:
     case EvictionReason.UNHANDLED_COMMAND:
+    case EvictionReason.PAGINATION_OR_HISTORY_FETCH:
     case EvictionReason.FATAL:
       return new ReplayError(
         workflowId,
