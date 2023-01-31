@@ -57,7 +57,9 @@ Breaking changes marked with a :boom:
 
 - [`core`] Fixed incorrect calculation of schedule-to-start timeouts on local activities ([#450](https://github.com/temporalio/sdk-core/pull/450)).
 
-- [`core`] Fixed some rare cases where sdk-core would panic on unexpected history fetching responses from the server ([#468](https://github.com/temporalio/sdk-core/pull/468)).
+- [`core`] Fixed some rare case where sdk-core would panic on unexpected history fetching responses from the server ([#468](https://github.com/temporalio/sdk-core/pull/468)).
+
+- [`core`] Fixed some rare case where an activation completion might get blocked if fetching history pages failed ([#475](https://github.com/temporalio/sdk-core/pull/475)).
 
 ## [1.5.2] - 2022-12-07
 
