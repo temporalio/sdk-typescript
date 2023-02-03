@@ -187,21 +187,22 @@ export async function createApp({
 
   console.log();
 
-  if (await tryGitInit(root, gitInit)) {
-    console.log('Initialized a git repository.');
-  }
-
   const messageFile = path.join(root, '.post-create');
-
-  console.log();
-  console.log(`${chalk.green('Success!')} Created project ${chalk.bold(appName)} at:`);
-  console.log();
-  console.log(chalk.bold(appPath + '/'));
-  console.log();
 
   try {
     await access(messageFile);
     const message = await readFile(messageFile, 'utf8');
+
+    await rm(messageFile);
+    if (await tryGitInit(root, gitInit)) {
+      console.log('Initialized a git repository.');
+    }
+
+    console.log();
+    console.log(`${chalk.green('Success!')} Created project ${chalk.bold(appName)} at:`);
+    console.log();
+    console.log(chalk.bold(appPath + '/'));
+    console.log();
 
     // Hack for creating a TemplateStringsArray
     // Required by chalk-template
@@ -211,7 +212,6 @@ export async function createApp({
       }
     }
     console.log(chalkTemplate(new MockTemplateString([message])));
-    await rm(messageFile);
   } catch (error) {
     const code = getErrorCode(error);
     if (code !== 'ENOENT') {
