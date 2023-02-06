@@ -618,6 +618,12 @@ export class Activator implements ActivationHandler {
           `Unsupported internal patch number: ${internalPatchNumber} > ${LATEST_INTERNAL_PATCH_NUMBER}`
         );
       if (this.internalPatchNumber < internalPatchNumber) this.internalPatchNumber = internalPatchNumber;
+      // Make sure the internal patch command exists at that point in history, even if the user modifies his code to
+      // no longer rely on the operation that initally required this internal patch. Otherwise, we risks:
+      // Nondeterminism(Non-deprecated patch marker encountered ... but there is no corresponding change command!)
+      this.pushCommand({
+        setPatchMarker: { patchId: `__sdk_internal_patch_number:${LATEST_INTERNAL_PATCH_NUMBER}`, deprecated: false },
+      });
     } else {
       this.knownPresentPatches.add(activation.patchId);
     }
