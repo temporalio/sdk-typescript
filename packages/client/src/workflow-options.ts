@@ -47,7 +47,7 @@ export interface WorkflowSignalWithStartOptionsWithoutArgs<SignalArgs extends an
   /**
    * SignalDefinition or name of signal
    */
-  signal: SignalDefinition | string;
+  signal: SignalDefinition<SignalArgs> | string;
 
   /**
    * Arguments to invoke the signal handler with

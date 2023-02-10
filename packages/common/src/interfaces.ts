@@ -15,26 +15,31 @@ export type WorkflowQueryType = (...args: any[]) => any;
  */
 export type Workflow = (...args: any[]) => WorkflowReturnType;
 
+declare const argsBrand: unique symbol;
 /**
  * An interface representing a Workflow signal definition, as returned from {@link defineSignal}
  *
  * @remarks `_Args` can be used for parameter type inference in handler functions and *WorkflowHandle methods.
  */
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-export interface SignalDefinition<_Args extends any[] = []> {
+export interface SignalDefinition<Args extends any[] = [], Name extends string = string> {
   type: 'signal';
-  name: string;
+  name: Name;
+  [argsBrand]: Args;
 }
 
+declare const retBrand: unique symbol;
 /**
  * An interface representing a Workflow query definition as returned from {@link defineQuery}
  *
  * @remarks `_Args` and `_Ret` can be used for parameter type inference in handler functions and *WorkflowHandle methods.
  */
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-export interface QueryDefinition<_Ret, _Args extends any[] = []> {
+export interface QueryDefinition<Ret, Args extends any[] = [], Name extends string = string> {
   type: 'query';
-  name: string;
+  name: Name;
+  [argsBrand]: Args;
+  [retBrand]: Ret;
 }
 
 /** Get the "unwrapped" return type (without Promise) of the execute handler from Workflow type `W` */
