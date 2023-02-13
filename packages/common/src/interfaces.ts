@@ -19,7 +19,7 @@ declare const argsBrand: unique symbol;
 /**
  * An interface representing a Workflow signal definition, as returned from {@link defineSignal}
  *
- * @remarks `_Args` can be used for parameter type inference in handler functions and *WorkflowHandle methods.
+ * @remarks `Args` can be used for parameter type inference in handler functions and *WorkflowHandle methods.
  */
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 export interface SignalDefinition<Args extends any[] = [], Name extends string = string> {
@@ -32,7 +32,7 @@ declare const retBrand: unique symbol;
 /**
  * An interface representing a Workflow query definition as returned from {@link defineQuery}
  *
- * @remarks `_Args` and `_Ret` can be used for parameter type inference in handler functions and *WorkflowHandle methods.
+ * @remarks `Args` and `Ret` can be used for parameter type inference in handler functions and *WorkflowHandle methods.
  */
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 export interface QueryDefinition<Ret, Args extends any[] = [], Name extends string = string> {
