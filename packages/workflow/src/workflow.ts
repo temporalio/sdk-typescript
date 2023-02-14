@@ -1135,7 +1135,7 @@ export function defineSignal<Args extends any[] = [], Name extends string = stri
  * Definitions are used to register handler in the Workflow via {@link setHandler} and to query Workflows using a {@link WorkflowHandle}.
  * Definitions can be reused in multiple Workflows.
  */
-export function defineQuery<Ret, Args extends any[] = [], Name extends string =  string>(name: string): QueryDefinition<Ret, Args, Name> {
+export function defineQuery<Ret, Args extends any[] = [], Name extends string =  string>(name: Name): QueryDefinition<Ret, Args, Name> {
   return {
     type: 'query',
     name,
