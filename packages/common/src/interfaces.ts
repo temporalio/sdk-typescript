@@ -47,7 +47,7 @@ export interface QueryDefinition<Ret, Args extends any[] = [], Name extends stri
    * This field is not present at run-time.
    */
   [argsBrand]: Args;
-    /**
+  /**
    * Virtual type brand to maintain a distinction between {@link QueryDefinition} types with different return types.
    * This field is not present at run-time.
    */
