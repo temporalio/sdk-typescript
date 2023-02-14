@@ -8,18 +8,20 @@ test('SignalDefinition Name type safety', () => {
   const signalA = defineSignal<[string], 'a'>('a');
   const signalB = defineSignal<[string], 'b'>('b');
 
-  // @ts-expect-error Assert expect a type error when attempting to intermix named signal types
+  type TypeAssertion = typeof signalB extends typeof signalA ? 'intermixable' : 'not-intermixable';
+  
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const cannotIntermixNames: typeof signalA = signalB;
+  const assertion: TypeAssertion = 'not-intermixable';
 });
 
 test('SignalDefinition Args type safety', () => {
   const signalString = defineSignal<[string]>('a');
   const signalNumber = defineSignal<[number]>('b');
 
-  // @ts-expect-error Assert expect a type error when attempting to intermix named signal types
+  type TypeAssertion = typeof signalNumber extends typeof signalString ? 'intermixable' : 'not-intermixable';
+  
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const cannotIntermixArgTypes: typeof signalString = signalNumber;
+  const assertion: TypeAssertion = 'not-intermixable';
 });
 
 test('QueryDefinition Name type safety', () => {
@@ -29,23 +31,26 @@ test('QueryDefinition Name type safety', () => {
   const queryA = defineQuery<void, [string], 'a'>('a');
   const queryB = defineQuery<void, [string], 'b'>('b');
 
-  // @ts-expect-error Assert expect a type error when attempting to intermix named query types
+  type TypeAssertion = typeof queryB extends typeof queryA ? 'intermixable' : 'not-intermixable';
+  
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const cannotIntermixNames: typeof queryA = queryB;
+  const assertion: TypeAssertion = 'not-intermixable';
 });
 
 test('QueryDefinition Args and Ret type safety', () => {
     const retVariantA = defineQuery<string>('a');
     const retVariantB = defineQuery<number>('b');
   
-    // @ts-expect-error Assert expect a type error when attempting to intermix queries with different return types
+    type RetTypeAssertion = typeof retVariantB extends typeof retVariantA ? 'intermixable' : 'not-intermixable';
+  
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const cannotIntermixRetTypes: typeof retVariantA = retVariantB;
+    const retAssertion: RetTypeAssertion = 'not-intermixable';
 
     const argVariantA = defineQuery<string, [number]>('a');
     const argVariantB = defineQuery<string, [string]>('b');
   
-    // @ts-expect-error Assert expect a type error when attempting to intermix queries with different arg types
+    type ArgTypeAssertion = typeof argVariantB extends typeof argVariantA ? 'intermixable' : 'not-intermixable';
+  
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const cannotIntermixRetTypes: typeof argVariantA = argVariantB;
+    const argAssertion: ArgTypeAssertion = 'not-intermixable';
 });
