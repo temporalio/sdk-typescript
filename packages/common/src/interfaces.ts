@@ -19,12 +19,16 @@ declare const argsBrand: unique symbol;
 /**
  * An interface representing a Workflow signal definition, as returned from {@link defineSignal}
  *
- * @remarks `Args` can be used for parameter type inference in handler functions and *WorkflowHandle methods.
+ * @remarks `Args` can be used for parameter type inference in handler functions and *WorkflowHandle methods.  
+ * `Name` can optionally be specified with a string literal type to preserve type-level knowledge of the signal name.
  */
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export interface SignalDefinition<Args extends any[] = [], Name extends string = string> {
   type: 'signal';
   name: Name;
+  /**
+   * Virtual type brand to maintain a distinction between {@link SignalDefinition} types with different args.
+   * This field is not present at run-time.
+   */
   [argsBrand]: Args;
 }
 
@@ -32,13 +36,21 @@ declare const retBrand: unique symbol;
 /**
  * An interface representing a Workflow query definition as returned from {@link defineQuery}
  *
- * @remarks `Args` and `Ret` can be used for parameter type inference in handler functions and *WorkflowHandle methods.
+ * @remarks `Args` and `Ret` can be used for parameter type inference in handler functions and *WorkflowHandle methods.  
+ * `Name` can optionally be specified with a string literal type to preserve type-level knowledge of the query name.
  */
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export interface QueryDefinition<Ret, Args extends any[] = [], Name extends string = string> {
   type: 'query';
   name: Name;
+  /**
+   * Virtual type brand to maintain a distinction between {@link QueryDefinition} types with different args.
+   * This field is not present at run-time.
+   */
   [argsBrand]: Args;
+    /**
+   * Virtual type brand to maintain a distinction between {@link QueryDefinition} types with different return types.
+   * This field is not present at run-time.
+   */
   [retBrand]: Ret;
 }
 
