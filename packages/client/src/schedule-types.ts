@@ -207,12 +207,12 @@ export interface ScheduleSummary {
 
   info: {
     /**
-     * Most recent 10 Actions started (including manual triggers), sorted from older start time to newer.
+     * Most recent actions started (including manual triggers), sorted from older start time to newer.
      */
     recentActions: ScheduleExecutionResult[];
 
     /**
-     * Scheduled time of the next 10 executions of this Schedule
+     * Next upcoming scheduled times of this Schedule
      */
     nextActionTimes: Date[];
   };
@@ -332,12 +332,12 @@ export type ScheduleDescription = {
 
   info: {
     /**
-     * Most recent 10 Actions started (including manual triggers), sorted from older start time to newer.
+     * Most recent actions started (including manual triggers), sorted from older start time to newer.
      */
     recentActions: ScheduleExecutionResult[];
 
     /**
-     * Scheduled time of the next 10 executions of this Schedule
+     * Next upcoming scheduled times of this Schedule
      */
     nextActionTimes: Date[];
 
