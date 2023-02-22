@@ -1122,7 +1122,9 @@ function conditionInner(fn: () => boolean): Promise<void> {
  * Definitions are used to register handler in the Workflow via {@link setHandler} and to signal Workflows using a {@link WorkflowHandle}, {@link ChildWorkflowHandle} or {@link ExternalWorkflowHandle}.
  * Definitions can be reused in multiple Workflows.
  */
-export function defineSignal<Args extends any[] = [], Name extends string = string>(name: Name): SignalDefinition<Args, Name> {
+export function defineSignal<Args extends any[] = [], Name extends string = string>(
+  name: Name
+): SignalDefinition<Args, Name> {
   return {
     type: 'signal',
     name,
@@ -1135,7 +1137,9 @@ export function defineSignal<Args extends any[] = [], Name extends string = stri
  * Definitions are used to register handler in the Workflow via {@link setHandler} and to query Workflows using a {@link WorkflowHandle}.
  * Definitions can be reused in multiple Workflows.
  */
-export function defineQuery<Ret, Args extends any[] = [], Name extends string =  string>(name: Name): QueryDefinition<Ret, Args, Name> {
+export function defineQuery<Ret, Args extends any[] = [], Name extends string = string>(
+  name: Name
+): QueryDefinition<Ret, Args, Name> {
   return {
     type: 'query',
     name,
