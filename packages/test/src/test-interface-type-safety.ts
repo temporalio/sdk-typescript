@@ -1,7 +1,7 @@
 import test from 'ava';
 import { defineSignal, defineQuery } from '@temporalio/workflow';
 
-test('SignalDefinition Name type safety', () => {
+test('SignalDefinition Name type safety', (t) => {
   // @ts-expect-error Assert expect a type error when generic and concrete names do not match
   defineSignal<[string], 'mismatch'>('illegal value');
 
@@ -10,21 +10,21 @@ test('SignalDefinition Name type safety', () => {
 
   type TypeAssertion = typeof signalB extends typeof signalA ? 'intermixable' : 'not-intermixable';
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const assertion: TypeAssertion = 'not-intermixable';
+  const _assertion: TypeAssertion = 'not-intermixable';
+  t.pass();
 });
 
-test('SignalDefinition Args type safety', () => {
+test('SignalDefinition Args type safety', (t) => {
   const signalString = defineSignal<[string]>('a');
   const signalNumber = defineSignal<[number]>('b');
 
   type TypeAssertion = typeof signalNumber extends typeof signalString ? 'intermixable' : 'not-intermixable';
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const assertion: TypeAssertion = 'not-intermixable';
+  const _assertion: TypeAssertion = 'not-intermixable';
+  t.pass();
 });
 
-test('QueryDefinition Name type safety', () => {
+test('QueryDefinition Name type safety', (t) => {
   // @ts-expect-error Assert expect a type error when generic and concrete names do not match
   defineQuery<void, [string], 'mismatch'>('illegal value');
 
@@ -33,24 +33,23 @@ test('QueryDefinition Name type safety', () => {
 
   type TypeAssertion = typeof queryB extends typeof queryA ? 'intermixable' : 'not-intermixable';
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const assertion: TypeAssertion = 'not-intermixable';
+  const _assertion: TypeAssertion = 'not-intermixable';
+  t.pass();
 });
 
-test('QueryDefinition Args and Ret type safety', () => {
+test('QueryDefinition Args and Ret type safety', (t) => {
   const retVariantA = defineQuery<string>('a');
   const retVariantB = defineQuery<number>('b');
 
   type RetTypeAssertion = typeof retVariantB extends typeof retVariantA ? 'intermixable' : 'not-intermixable';
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const retAssertion: RetTypeAssertion = 'not-intermixable';
+  const _retAssertion: RetTypeAssertion = 'not-intermixable';
 
   const argVariantA = defineQuery<string, [number]>('a');
   const argVariantB = defineQuery<string, [string]>('b');
 
   type ArgTypeAssertion = typeof argVariantB extends typeof argVariantA ? 'intermixable' : 'not-intermixable';
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const argAssertion: ArgTypeAssertion = 'not-intermixable';
+  const _argAssertion: ArgTypeAssertion = 'not-intermixable';
+  t.pass();
 });
