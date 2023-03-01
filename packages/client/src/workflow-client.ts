@@ -263,7 +263,7 @@ export interface AsyncWorkflowListIterable extends AsyncIterable<WorkflowExecuti
    *
    * Useful in batch replaying
    */
-  intoHistories: (intoHistoriesOptions?: IntoHistoriesOptions) => AsyncIterable<HistoryAndWorkflowId>;
+  intoHistories: (intoHistoriesOptions?: IntoHistoriesOptions) => AsyncIterableIterator<HistoryAndWorkflowId>;
 }
 
 /**

@@ -33,17 +33,10 @@ export class ReplayError extends Error {
   }
 }
 
-export interface ReplayResults {
-  readonly hasErrors: boolean;
-  /** Maps run id to information about the replay failure */
-  readonly errors: ReplayError[];
-}
-
-/**
- * @internal
- */
-export interface ReplayRunOptions {
-  failFast?: boolean;
+export interface ReplayResult {
+  workflowId: string;
+  runId: string;
+  error?: ReplayError;
 }
 
 /**
@@ -51,7 +44,7 @@ export interface ReplayRunOptions {
  *
  * @experimental - this API is not considered stable
  */
-export type ReplayHistoriesIterable = AsyncIterable<HistoryAndWorkflowId> | Iterable<HistoryAndWorkflowId>;
+export type ReplayHistoriesIterable = AsyncIterableIterator<HistoryAndWorkflowId> | Iterable<HistoryAndWorkflowId>;
 
 /**
  * Handles known possible cases of replay eviction reasons.
@@ -60,7 +53,11 @@ export type ReplayHistoriesIterable = AsyncIterable<HistoryAndWorkflowId> | Iter
  *
  * @internal
  */
-export function handleReplayEviction(evictJob: RemoveFromCache, workflowId: string, runId: string): ReplayError | null {
+export function evictionReasonToReplayError(
+  evictJob: RemoveFromCache,
+  workflowId: string,
+  runId: string
+): ReplayError | undefined {
   switch (evictJob.reason) {
     case EvictionReason.NONDETERMINISM:
       return new ReplayError(
@@ -81,7 +78,7 @@ export function handleReplayEviction(evictJob: RemoveFromCache, workflowId: stri
     // LANG_REQUESTED is used internally by Core to support duplicate runIds during replay.
     case EvictionReason.LANG_REQUESTED:
     case EvictionReason.CACHE_FULL:
-      return null;
+      return undefined;
     case undefined:
     case null:
     case EvictionReason.UNSPECIFIED:

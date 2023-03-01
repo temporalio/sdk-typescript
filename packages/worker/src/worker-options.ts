@@ -408,14 +408,6 @@ export interface ReplayWorkerOptions
    *  @default workflow name from given history
    */
   replayName?: string;
-  /**
-   * If set to false, and replaying with multiple histories, do not throw an exception upon
-   * encountering a problem with replaying a workflow. Instead, finish replaying all workflows
-   * and return a results object containing the failures (if any).
-   *
-   * @default true
-   */
-  failFast?: boolean;
 }
 
 /**

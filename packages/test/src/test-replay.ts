@@ -4,13 +4,22 @@ import * as fs from 'fs';
 import path from 'path';
 import anyTest, { TestFn } from 'ava';
 import { temporal } from '@temporalio/proto';
-import { DefaultLogger, ReplayError, Runtime } from '@temporalio/worker';
+import { bundleWorkflowCode, DefaultLogger, ReplayError, Runtime, WorkflowBundle } from '@temporalio/worker';
 import { DeterminismViolationError } from '@temporalio/workflow';
 import { Worker } from './helpers';
 import History = temporal.api.history.v1.History;
 
+async function gen2array<T>(gen: AsyncIterable<T>): Promise<T[]> {
+  const out: T[] = [];
+  for await (const x of gen) {
+    out.push(x);
+  }
+  return out;
+}
+
 export interface Context {
   runtime: Runtime;
+  bundle: WorkflowBundle;
 }
 
 async function getHistories(fname: string): Promise<History> {
@@ -40,8 +49,11 @@ test.before(async (t) => {
   process.removeAllListeners('unhandledRejection');
   const logger = new DefaultLogger('DEBUG');
   const runtime = Runtime.install({ logger });
+  const bundle = await bundleWorkflowCode({ workflowsPath: require.resolve('./workflows') });
+
   t.context = {
     runtime,
+    bundle,
   };
 });
 
@@ -49,7 +61,7 @@ test('cancel-fake-progress-replay', async (t) => {
   const hist = await getHistories('cancel_fake_progress_history.bin');
   await Worker.runReplayHistory(
     {
-      workflowsPath: require.resolve('./workflows'),
+      workflowBundle: t.context.bundle,
     },
     hist
   );
@@ -60,7 +72,7 @@ test('cancel-fake-progress-replay from JSON', async (t) => {
   const hist = await getHistories('cancel_fake_progress_history.json');
   await Worker.runReplayHistory(
     {
-      workflowsPath: require.resolve('./workflows'),
+      workflowBundle: t.context.bundle,
     },
     hist
   );
@@ -75,8 +87,7 @@ test('cancel-fake-progress-replay-nondeterministic', async (t) => {
   await t.throwsAsync(
     Worker.runReplayHistory(
       {
-        workflowsPath: require.resolve('./workflows'),
-        failFast: false, // Verify this flag is ignored for single replay
+        workflowBundle: t.context.bundle,
       },
       hist
     ),
@@ -94,7 +105,7 @@ test('workflow-task-failure-fails-replay', async (t) => {
   const err: ReplayError | undefined = await t.throwsAsync(
     Worker.runReplayHistory(
       {
-        workflowsPath: require.resolve('./workflows'),
+        workflowBundle: t.context.bundle,
         replayName: t.title,
       },
       hist
@@ -109,25 +120,7 @@ test('multiple-histories-replay', async (t) => {
   const hist2 = await getHistories('cancel_fake_progress_history.json');
   const histories = historator([hist1, hist2]);
 
-  const res = await Worker.runReplayHistories(
-    {
-      workflowsPath: require.resolve('./workflows'),
-      replayName: t.title,
-    },
-    histories
-  );
-  t.is(res.errors.length, 0);
-});
-
-test('multiple-histories-replay-fails-fast', async (t) => {
-  const hist1 = await getHistories('cancel_fake_progress_history.bin');
-  const hist2 = await getHistories('cancel_fake_progress_history.json');
-  // change workflow type to break determinism
-  hist1.events[0].workflowExecutionStartedEventAttributes!.workflowType!.name = 'http';
-  hist2.events[0].workflowExecutionStartedEventAttributes!.workflowType!.name = 'http';
-  const histories = historator([hist1, hist2]);
-
-  await t.throwsAsync(
+  const res = await gen2array(
     Worker.runReplayHistories(
       {
         workflowsPath: require.resolve('./workflows'),
@@ -136,22 +129,43 @@ test('multiple-histories-replay-fails-fast', async (t) => {
       histories
     )
   );
+  t.deepEqual(
+    res.map(({ error }) => error),
+    [undefined, undefined]
+  );
 });
 
-test('multiple-histories-replay-fails-slow', async (t) => {
+test('multiple-histories-replay-returns-errors', async (t) => {
   const hist1 = await getHistories('cancel_fake_progress_history.bin');
   const hist2 = await getHistories('cancel_fake_progress_history.json');
   // change workflow type to break determinism
   hist1.events[0].workflowExecutionStartedEventAttributes!.workflowType!.name = 'http';
+  hist2.events[0].workflowExecutionStartedEventAttributes!.workflowType!.name = 'http';
   const histories = historator([hist1, hist2]);
 
-  const res = await Worker.runReplayHistories(
-    {
-      workflowsPath: require.resolve('./workflows'),
-      replayName: t.title,
-      failFast: false,
-    },
-    histories
+  const results = await gen2array(
+    Worker.runReplayHistories(
+      {
+        workflowBundle: t.context.bundle,
+        replayName: t.title,
+      },
+      histories
+    )
   );
-  t.is(res.errors.length, 1);
+
+  t.is(results.filter(({ error }) => error instanceof ReplayError && error.isNonDeterminism).length, 2);
+});
+
+test('empty-histories-replay-returns-empty-result', async (t) => {
+  const histories = historator([]);
+
+  const res = await gen2array(
+    Worker.runReplayHistories(
+      {
+        workflowBundle: t.context.bundle,
+      },
+      histories
+    )
+  );
+  t.is(res.length, 0);
 });
