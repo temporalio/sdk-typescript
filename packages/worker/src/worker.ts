@@ -580,13 +580,12 @@ export class Worker {
       try {
         await runPromise;
       } catch (err) {
+        /* eslint-disable no-unsafe-finally */
         if (err instanceof native.ShutdownError) {
           return;
         } else if (innerError === undefined) {
-          // eslint-disable-next-line no-unsafe-finally
           throw err;
         } else {
-          // eslint-disable-next-line no-unsafe-finally
           throw new CombinedWorkerRunError('Worker run failed with inner error', {
             cause: {
               workerError: err,
@@ -594,6 +593,7 @@ export class Worker {
             },
           });
         }
+        /* eslint-enable no-unsafe-finally */
       }
     }
   }
