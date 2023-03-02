@@ -55,7 +55,7 @@ import { errorMessage } from '@temporalio/common/lib/type-helpers';
 import * as native from '@temporalio/core-bridge';
 import { UnexpectedError } from '@temporalio/core-bridge';
 import { coresdk, temporal } from '@temporalio/proto';
-import { DeterminismViolationError, SinkCall, WorkflowInfo } from '@temporalio/workflow';
+import { SinkCall, WorkflowInfo } from '@temporalio/workflow';
 import { Activity, CancelReason } from './activity';
 import { activityLogAttributes } from './activity-log-interceptor';
 import { extractNativeClient, extractReferenceHolders, InternalNativeConnection, NativeConnection } from './connection';
@@ -66,7 +66,6 @@ import {
   EvictionReason,
   evictionReasonToReplayError,
   RemoveFromCache,
-  ReplayError,
   ReplayHistoriesIterable,
   ReplayResult,
 } from './replay';
@@ -153,8 +152,7 @@ export interface CombinedWorkerRunErrorCause {
   innerError: unknown;
 }
 
-interface EvictionWithIDs {
-  workflowId: string;
+interface EvictionWithRunID {
   runId: string;
   evictJob: coresdk.workflow_activation.IRemoveFromCache;
 }
@@ -498,6 +496,7 @@ export class Worker {
    * @param workflowId If provided, use this as the workflow id during replay. Histories do not
    * contain a workflow id, so it must be provided separately if your workflow depends on it.
    * @throws {@link DeterminismViolationError} if the workflow code is not compatible with the history.
+   * @throws {@link ReplayError} on any other replay related error.
    */
   public static async runReplayHistory(
     options: ReplayWorkerOptions,
@@ -505,33 +504,17 @@ export class Worker {
     workflowId?: string
   ): Promise<void> {
     const validated = this.validateHistory(history);
-    try {
-      for await (const result of this.runReplayHistories(options, [
-        { history: validated, workflowId: workflowId ?? 'fake' },
-      ])) {
-        if (result.error) {
-          throw result.error;
-        }
-      }
-    } catch (err) {
-      // Before supporting multiple history replays we used to throw DeterminismViolationError, the next line ensures we
-      // maintain that behavior.
-      if (err instanceof ReplayError && err.isNonDeterminism) {
-        throw new DeterminismViolationError(err.message);
-      }
-      throw err;
-    }
+    const result = await this.runReplayHistories(options, [
+      { history: validated, workflowId: workflowId ?? 'fake' },
+    ]).next();
+    if (result.done) throw new IllegalStateError('Expected at least one replay result');
+    if (result.value.error) throw result.value.error;
   }
 
   /**
-   * Create a replay Worker, running all histories provided by the passed in iterable (or downloading them if a client &
-   * iterable of workflow executions is provided).
+   * Create a replay Worker, running all histories provided by the passed in iterable.
    *
-   * If `options.failFast` is set, the function will throw upon the first encountered error. Otherwise, all histories
-   * will be replayed and the returned results object will contain error information.
-   *
-   * @throws {@link ReplayError} if in fail-fast mode and there is some incompatible history or on any other error that
-   * may fail a workflow task.
+   * Returns an async iterable of results for each history replayed.
    *
    * @experimental - this API is considered unstable
    */
@@ -541,7 +524,7 @@ export class Worker {
   ): AsyncIterableIterator<ReplayResult> {
     const [worker, pusher] = await this.constructReplayWorker(options);
     const rt = Runtime.instance();
-    const evictions = on(worker.evictionsEmitter, 'eviction') as AsyncIterableIterator<[EvictionWithIDs]>;
+    const evictions = on(worker.evictionsEmitter, 'eviction') as AsyncIterableIterator<[EvictionWithRunID]>;
     const runPromise = worker.run().then(() => {
       throw new native.ShutdownError('Worker was shutdown');
     });
@@ -559,8 +542,8 @@ export class Worker {
             break; // This shouldn't happen, handle just in case
           }
           const [{ runId, evictJob }] = next.value;
+          const error = evictionReasonToReplayError(evictJob);
           // We replay one workflow at a time so the workflow ID comes from the histories iterable.
-          const error = evictionReasonToReplayError(evictJob, workflowId, runId);
           yield {
             workflowId,
             runId,
@@ -582,6 +565,7 @@ export class Worker {
       } catch (err) {
         /* eslint-disable no-unsafe-finally */
         if (err instanceof native.ShutdownError) {
+          if (innerError !== undefined) throw innerError;
           return;
         } else if (innerError === undefined) {
           throw err;
@@ -618,7 +602,7 @@ export class Worker {
       debugMode: true,
       ...options,
     };
-    this.replayWorkerCount += 1;
+    this.replayWorkerCount++;
     const compiledOptions = compileWorkerOptions(addDefaultWorkerOptions(fixedUpOptions));
     const bundle = await this.getOrCreateBundle(compiledOptions, Runtime.instance().logger);
     if (!bundle) {
@@ -1111,7 +1095,7 @@ export class Worker {
                       this.evictionsEmitter.emit('eviction', {
                         runId: activation.runId,
                         evictJob: asEvictJob,
-                      } as EvictionWithIDs);
+                      } as EvictionWithRunID);
                     }
                   }
                   activation.jobs = jobs;

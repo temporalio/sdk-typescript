@@ -41,7 +41,7 @@ export async function* mapAsyncIterable<A, B>(
   source: AsyncIterable<A>,
   mapFn: (val: A) => Promise<B>,
   options?: MapAsyncOptions
-): AsyncIterableIterator<B> {
+): AsyncIterable<B> {
   const { concurrency, bufferLimit } = options ?? {};
 
   if (!concurrency || concurrency < 2) {

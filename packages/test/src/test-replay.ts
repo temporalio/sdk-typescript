@@ -4,7 +4,7 @@ import * as fs from 'fs';
 import path from 'path';
 import anyTest, { TestFn } from 'ava';
 import { temporal } from '@temporalio/proto';
-import { bundleWorkflowCode, DefaultLogger, ReplayError, Runtime, WorkflowBundle } from '@temporalio/worker';
+import { bundleWorkflowCode, ReplayError, WorkflowBundle } from '@temporalio/worker';
 import { DeterminismViolationError } from '@temporalio/workflow';
 import { Worker } from './helpers';
 import History = temporal.api.history.v1.History;
@@ -18,7 +18,6 @@ async function gen2array<T>(gen: AsyncIterable<T>): Promise<T[]> {
 }
 
 export interface Context {
-  runtime: Runtime;
   bundle: WorkflowBundle;
 }
 
@@ -47,12 +46,9 @@ const test = anyTest as TestFn<Context>;
 test.before(async (t) => {
   // We don't want AVA to whine about unhandled rejections thrown by workflows
   process.removeAllListeners('unhandledRejection');
-  const logger = new DefaultLogger('DEBUG');
-  const runtime = Runtime.install({ logger });
   const bundle = await bundleWorkflowCode({ workflowsPath: require.resolve('./workflows') });
 
   t.context = {
-    runtime,
     bundle,
   };
 });
@@ -102,7 +98,7 @@ test('workflow-task-failure-fails-replay', async (t) => {
   // Manually alter the workflow type to point to our workflow which will fail workflow tasks
   hist.events[0].workflowExecutionStartedEventAttributes!.workflowType!.name = 'failsWorkflowTask';
 
-  const err: ReplayError | undefined = await t.throwsAsync(
+  await t.throwsAsync(
     Worker.runReplayHistory(
       {
         workflowBundle: t.context.bundle,
@@ -112,7 +108,6 @@ test('workflow-task-failure-fails-replay', async (t) => {
     ),
     { instanceOf: ReplayError }
   );
-  t.false(err?.isNonDeterminism);
 });
 
 test('multiple-histories-replay', async (t) => {
@@ -123,7 +118,7 @@ test('multiple-histories-replay', async (t) => {
   const res = await gen2array(
     Worker.runReplayHistories(
       {
-        workflowsPath: require.resolve('./workflows'),
+        workflowBundle: t.context.bundle,
         replayName: t.title,
       },
       histories
@@ -153,7 +148,7 @@ test('multiple-histories-replay-returns-errors', async (t) => {
     )
   );
 
-  t.is(results.filter(({ error }) => error instanceof ReplayError && error.isNonDeterminism).length, 2);
+  t.is(results.filter(({ error }) => error instanceof DeterminismViolationError).length, 2);
 });
 
 test('empty-histories-replay-returns-empty-result', async (t) => {
