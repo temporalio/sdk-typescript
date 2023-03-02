@@ -1,5 +1,6 @@
 import { HistoryAndWorkflowId } from '@temporalio/client';
 import { coresdk } from '@temporalio/proto';
+import { DeterminismViolationError } from '@temporalio/workflow';
 
 export type EvictionReason = coresdk.workflow_activation.RemoveFromCache.EvictionReason;
 export const EvictionReason = coresdk.workflow_activation.RemoveFromCache.EvictionReason;
@@ -10,40 +11,15 @@ export type RemoveFromCache = coresdk.workflow_activation.IRemoveFromCache;
  */
 export class ReplayError extends Error {
   public readonly name = 'ReplayError';
-
-  constructor(
-    /**
-     * Workflow ID of the Workflow that failed to replay
-     */
-    public readonly workflowId: string,
-    /**
-     * Run ID of the Workflow that failed to replay
-     */
-    public runId: string,
-    /**
-     * Whether or not this error is caused by non-determinism
-     */
-    public readonly isNonDeterminism: boolean,
-    /**
-     * Why replay failed
-     */
-    message: string
-  ) {
-    super(message);
-  }
-}
-
-export interface ReplayResults {
-  readonly hasErrors: boolean;
-  /** Maps run id to information about the replay failure */
-  readonly errors: ReplayError[];
 }
 
 /**
- * @internal
+ * Result of a single workflow replay
  */
-export interface ReplayRunOptions {
-  failFast?: boolean;
+export interface ReplayResult {
+  readonly workflowId: string;
+  readonly runId: string;
+  readonly error?: ReplayError | DeterminismViolationError;
 }
 
 /**
@@ -60,28 +36,22 @@ export type ReplayHistoriesIterable = AsyncIterable<HistoryAndWorkflowId> | Iter
  *
  * @internal
  */
-export function handleReplayEviction(evictJob: RemoveFromCache, workflowId: string, runId: string): ReplayError | null {
+export function evictionReasonToReplayError(
+  evictJob: RemoveFromCache
+): ReplayError | DeterminismViolationError | undefined {
   switch (evictJob.reason) {
     case EvictionReason.NONDETERMINISM:
-      return new ReplayError(
-        workflowId,
-        runId,
-        true,
+      return new DeterminismViolationError(
         'Replay failed with a nondeterminism error. This means that the workflow code as written ' +
           `is not compatible with the history that was fed in. Details: ${evictJob.message}`
       );
     case EvictionReason.LANG_FAIL:
-      return new ReplayError(
-        workflowId,
-        runId,
-        false,
-        `Replay failed due workflow task failure. Details: ${evictJob.message}`
-      );
+      return new ReplayError(`Replay failed due workflow task failure. Details: ${evictJob.message}`);
     // Both of these reasons are not considered errors.
     // LANG_REQUESTED is used internally by Core to support duplicate runIds during replay.
     case EvictionReason.LANG_REQUESTED:
     case EvictionReason.CACHE_FULL:
-      return null;
+      return undefined;
     case undefined:
     case null:
     case EvictionReason.UNSPECIFIED:
@@ -91,9 +61,6 @@ export function handleReplayEviction(evictJob: RemoveFromCache, workflowId: stri
     case EvictionReason.PAGINATION_OR_HISTORY_FETCH:
     case EvictionReason.FATAL:
       return new ReplayError(
-        workflowId,
-        runId,
-        false,
         `Replay failed due to internal SDK issue. Code: ${
           evictJob.reason ? EvictionReason[evictJob.reason] : 'absent'
         }, Details: ${evictJob.message}`
