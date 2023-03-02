@@ -1,3 +1,5 @@
+import { TemporalFailure } from './failure';
+
 /**
  * Thrown from code that receives a value that is unexpected or that it's unable to handle.
  */
@@ -31,7 +33,7 @@ export class IllegalStateError extends Error {
  *  - There is closed Workflow in the `Completed` state with the same Workflow Id and the {@link WorkflowOptions.workflowIdReusePolicy}
  *    is `WORKFLOW_ID_REUSE_POLICY_ALLOW_DUPLICATE_FAILED_ONLY`
  */
-export class WorkflowExecutionAlreadyStartedError extends Error {
+export class WorkflowExecutionAlreadyStartedError extends TemporalFailure {
   public readonly name: string = 'WorkflowExecutionAlreadyStartedError';
 
   constructor(message: string, public readonly workflowId: string, public readonly workflowType: string) {
