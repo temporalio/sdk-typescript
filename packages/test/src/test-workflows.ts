@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
-import path from 'path';
-import vm from 'vm';
+import path from 'node:path';
+import vm from 'node:vm';
 import anyTest, { ExecutionContext, TestFn } from 'ava';
 import dedent from 'dedent';
 import Long from 'long'; // eslint-disable-line import/no-named-as-default

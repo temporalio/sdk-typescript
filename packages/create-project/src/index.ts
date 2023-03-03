@@ -1,5 +1,5 @@
 // Modified from: https://github.com/vercel/next.js/blob/2425f4703c4c6164cecfdb6aa8f80046213f0cc6/packages/create-next-app/index.ts
-import path from 'path';
+import path from 'node:path';
 import chalk from 'chalk';
 import dedent from 'dedent';
 import { Command } from 'commander';
@@ -20,7 +20,7 @@ const program = new Command(packageJson.name)
     '-s, --sample <name|github-url>',
     dedent`
   Which sample to bootstrap the project with. You can use the name of a sample
-  from https://github.com/temporalio/samples-typescript or use a GitHub URL. 
+  from https://github.com/temporalio/samples-typescript or use a GitHub URL.
   The URL can have a branch and/or subdirectory—for example:
   https://github.com/temporalio/samples-typescript/tree/next/hello-world
 `

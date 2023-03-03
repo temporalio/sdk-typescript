@@ -1,7 +1,7 @@
 // Modified from: https://github.com/vercel/next.js/blob/2425f4703c4c6164cecfdb6aa8f80046213f0cc6/packages/create-next-app/helpers/is-online.ts
-import { execSync } from 'child_process';
-import dns from 'dns';
-import { URL } from 'url';
+import { execSync } from 'node:child_process';
+import dns from 'node:dns';
+import { URL } from 'node:url';
 
 // Look for any proxy the user might have configured on their machine
 function getProxy(): string | undefined {

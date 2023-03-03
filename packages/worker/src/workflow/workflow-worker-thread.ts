@@ -1,4 +1,4 @@
-import { isMainThread, parentPort as parentPortOrNull } from 'worker_threads';
+import { isMainThread, parentPort as parentPortOrNull } from 'node:worker_threads';
 import { IllegalStateError } from '@temporalio/common';
 import { Workflow, WorkflowCreator } from './interface';
 import { ReusableVMWorkflowCreator } from './reusable-vm';

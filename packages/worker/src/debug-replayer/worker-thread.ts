@@ -1,7 +1,7 @@
 /**
  * Worker thread entrypoint used by ./index.ts to synchronously make an HTTP call to the "runner".
  */
-import { isMainThread, parentPort as parentPortOrNull } from 'worker_threads';
+import { isMainThread, parentPort as parentPortOrNull } from 'node:worker_threads';
 import { Client } from './client';
 
 /**

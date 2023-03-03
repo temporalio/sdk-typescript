@@ -1,5 +1,5 @@
-import * as fs from 'fs';
-import path from 'path';
+import * as fs from 'node:fs';
+import path from 'node:path';
 import test from 'ava';
 import Long from 'long'; // eslint-disable-line import/no-named-as-default
 import { historyFromJSON } from '@temporalio/common/lib/proto-utils';

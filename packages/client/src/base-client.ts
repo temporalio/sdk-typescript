@@ -1,4 +1,4 @@
-import os from 'os';
+import os from 'node:os';
 import { DataConverter, LoadedDataConverter } from '@temporalio/common';
 import { isLoadedDataConverter, loadDataConverter } from '@temporalio/common/lib/internal-non-workflow';
 import { Connection } from './connection';

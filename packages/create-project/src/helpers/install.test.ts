@@ -1,7 +1,7 @@
-import { readFile, rm, writeFile } from 'fs/promises';
-import os from 'os';
-import path from 'path';
-import { randomUUID } from 'crypto';
+import { readFile, rm, writeFile } from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+import { randomUUID } from 'node:crypto';
 import dedent from 'dedent';
 import test from 'ava';
 import { replaceSdkVersion } from './install.js';

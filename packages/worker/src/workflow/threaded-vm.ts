@@ -9,7 +9,7 @@
  * @module
  */
 
-import { Worker as NodeWorker } from 'worker_threads';
+import { Worker as NodeWorker } from 'node:worker_threads';
 import { coresdk } from '@temporalio/proto';
 import { IllegalStateError, SinkCall } from '@temporalio/workflow';
 import { UnexpectedError } from '@temporalio/core-bridge';

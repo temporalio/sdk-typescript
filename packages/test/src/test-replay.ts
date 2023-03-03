@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
 
-import * as fs from 'fs';
-import path from 'path';
+import * as fs from 'node:fs';
+import path from 'node:path';
 import anyTest, { TestFn } from 'ava';
 import { temporal } from '@temporalio/proto';
 import { bundleWorkflowCode, ReplayError, WorkflowBundle } from '@temporalio/worker';

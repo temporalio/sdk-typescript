@@ -1,4 +1,4 @@
-import type { AsyncLocalStorage as ALS } from 'async_hooks';
+import type { AsyncLocalStorage as ALS } from 'node:async_hooks';
 import { CancelledFailure, IllegalStateError } from '@temporalio/common';
 import { untrackPromise } from './stack-helpers';
 

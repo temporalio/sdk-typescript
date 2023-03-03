@@ -1,7 +1,7 @@
-import * as realFS from 'fs';
-import { builtinModules } from 'module';
-import path from 'path';
-import util from 'util';
+import * as realFS from 'node:fs';
+import { builtinModules } from 'node:module';
+import path from 'node:path';
+import util from 'node:util';
 import * as unionfs from 'unionfs';
 import * as memfs from 'memfs';
 import { Configuration, webpack } from 'webpack';

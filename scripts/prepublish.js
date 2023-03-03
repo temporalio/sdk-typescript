@@ -1,6 +1,6 @@
-import fs from 'fs/promises';
-import path from 'path';
-import { URL, fileURLToPath } from 'url';
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import { URL, fileURLToPath } from 'node:url';
 
 const rootPath = fileURLToPath(new URL('..', import.meta.url));
 const packagesPath = path.join(rootPath, 'packages');

@@ -1,6 +1,6 @@
-import assert from 'assert';
-import { AsyncLocalStorage } from 'async_hooks';
-import vm from 'vm';
+import assert from 'node:assert';
+import { AsyncLocalStorage } from 'node:async_hooks';
+import vm from 'node:vm';
 import * as internals from '@temporalio/workflow/lib/worker-interface';
 import { IllegalStateError } from '@temporalio/common';
 import { Workflow, WorkflowCreateOptions, WorkflowCreator } from './interface';

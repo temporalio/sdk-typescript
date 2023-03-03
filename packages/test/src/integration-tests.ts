@@ -1,7 +1,7 @@
 /* eslint @typescript-eslint/no-non-null-assertion: 0 */
-import path from 'path';
-import v8 from 'v8';
-import { readFileSync } from 'fs';
+import path from 'node:path';
+import v8 from 'node:v8';
+import { readFileSync } from 'node:fs';
 import * as grpc from '@grpc/grpc-js';
 import asyncRetry from 'async-retry';
 import anyTest, { Implementation, TestFn } from 'ava';

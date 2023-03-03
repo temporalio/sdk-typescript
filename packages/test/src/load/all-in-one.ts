@@ -1,5 +1,5 @@
-import path from 'path';
-import { ChildProcess, spawn } from 'child_process';
+import path from 'node:path';
+import { ChildProcess, spawn } from 'node:child_process';
 import arg from 'arg';
 import { waitOnChild, shell, ChildProcessError, killIfExists } from './child-process';
 import { setupArgSpec, starterArgSpec, workerArgSpec, allInOneArgSpec } from './args';

@@ -1,5 +1,5 @@
 import 'abort-controller/polyfill'; // eslint-disable-line import/no-unassigned-import
-import { EventEmitter, on, once } from 'events';
+import { EventEmitter, on, once } from 'node:events';
 
 export interface MapAsyncOptions {
   /**
