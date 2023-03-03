@@ -325,7 +325,7 @@ export abstract class BaseVMWorkflow implements Workflow {
         batchIndex++
       );
       if (internals.shouldUnblockConditions(jobs[0])) {
-        await this.tryUnblockConditions();
+        this.tryUnblockConditions();
       }
     }
     const completion = this.workflowModule.concludeActivation();
@@ -353,7 +353,7 @@ export abstract class BaseVMWorkflow implements Workflow {
    * This is performed in a loop allowing microtasks to be processed between
    * each iteration until there are no more conditions to unblock.
    */
-  protected async tryUnblockConditions(): Promise<void> {
+  protected tryUnblockConditions(): void {
     for (;;) {
       const numUnblocked = this.workflowModule.tryUnblockConditions();
       if (numUnblocked === 0) break;
