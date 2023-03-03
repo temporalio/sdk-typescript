@@ -61,7 +61,7 @@ if (RUN_INTEGRATION_TESTS) {
     const taskQueue = `${t.title}-${uuid4()}`;
     const workflowBundle = await bundleWorkflowCode({
       workflowsPath: require.resolve('./mocks/workflows-with-node-dependencies/issue-516'),
-      ignoreModules: ['dns'],
+      ignoreModules: ['dns', 'http'],
     });
     const worker = await Worker.create({
       taskQueue,
