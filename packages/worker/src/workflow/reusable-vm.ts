@@ -1,7 +1,6 @@
 import assert from 'assert';
 import { AsyncLocalStorage } from 'async_hooks';
 import vm from 'vm';
-import { gte } from 'semver';
 import * as internals from '@temporalio/workflow/lib/worker-interface';
 import { IllegalStateError } from '@temporalio/common';
 import { Workflow, WorkflowCreateOptions, WorkflowCreator } from './interface';
@@ -41,8 +40,6 @@ export class ReusableVMWorkflowCreator implements WorkflowCreator {
   private static unhandledRejectionHandlerHasBeenSet = false;
   static workflowByRunId = new Map<string, ReusableVMWorkflow>();
 
-  readonly hasSeparateMicrotaskQueue: boolean;
-
   /**
    * Optional context - this attribute is deleted upon on {@link destroy}
    *
@@ -63,10 +60,6 @@ export class ReusableVMWorkflowCreator implements WorkflowCreator {
       setUnhandledRejectionHandler((runId) => ReusableVMWorkflowCreator.workflowByRunId.get(runId));
       ReusableVMWorkflowCreator.unhandledRejectionHandlerHasBeenSet = true;
     }
-
-    // https://nodejs.org/api/vm.html#vmcreatecontextcontextobject-options
-    // microtaskMode=afterEvaluate was added in 14.6.0
-    this.hasSeparateMicrotaskQueue = gte(process.versions.node, '14.6.0');
 
     const sharedModules = new Map<string | symbol, any>();
     const __webpack_module_cache__ = new Proxy(
@@ -94,11 +87,7 @@ export class ReusableVMWorkflowCreator implements WorkflowCreator {
       }
     );
     const globals = { AsyncLocalStorage, assert, __webpack_module_cache__ };
-    if (this.hasSeparateMicrotaskQueue) {
-      this._context = vm.createContext(globals, { microtaskMode: 'afterEvaluate' });
-    } else {
-      this._context = vm.createContext(globals);
-    }
+    this._context = vm.createContext(globals, { microtaskMode: 'afterEvaluate' });
     this.injectConsole();
     script.runInContext(this.context);
     this.contextKeysToPreserve = new Set(Object.keys(this.context));
@@ -174,14 +163,7 @@ export class ReusableVMWorkflowCreator implements WorkflowCreator {
     workflowModule.initRuntime({ ...options, sourceMap: this.workflowBundle.sourceMap });
     const activator = bag.__TEMPORAL_ACTIVATOR__ as any;
 
-    const newVM = new ReusableVMWorkflow(
-      options.info,
-      context,
-      activator,
-      workflowModule,
-      isolateExecutionTimeoutMs,
-      this.hasSeparateMicrotaskQueue
-    );
+    const newVM = new ReusableVMWorkflow(options.info, context, activator, workflowModule, isolateExecutionTimeoutMs);
     ReusableVMWorkflowCreator.workflowByRunId.set(options.info.runId, newVM);
     return newVM;
   }

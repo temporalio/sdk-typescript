@@ -1,4 +1,4 @@
-import crypto from 'node:crypto';
+import crypto from 'crypto';
 import test from 'ava';
 import { WorkflowClient } from '@temporalio/client';
 import { RUN_INTEGRATION_TESTS, Worker } from './helpers';

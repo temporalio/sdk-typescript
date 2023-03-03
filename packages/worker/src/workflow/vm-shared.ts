@@ -278,8 +278,7 @@ export abstract class BaseVMWorkflow implements Workflow {
     protected context: vm.Context | undefined,
     protected activator: Activator,
     readonly workflowModule: WorkflowModule,
-    public readonly isolateExecutionTimeoutMs: number,
-    public readonly hasSeparateMicrotaskQueue: boolean
+    public readonly isolateExecutionTimeoutMs: number
   ) {}
 
   /**
@@ -356,13 +355,6 @@ export abstract class BaseVMWorkflow implements Workflow {
    */
   protected async tryUnblockConditions(): Promise<void> {
     for (;;) {
-      if (!this.hasSeparateMicrotaskQueue) {
-        // Wait for microtasks to be processed
-        // This is only required if the context doesn't have a separate microtask queue
-        // because when it does we guarantee to wait for microtasks to be processed every
-        // time we enter the context.
-        await new Promise(setImmediate);
-      }
       const numUnblocked = this.workflowModule.tryUnblockConditions();
       if (numUnblocked === 0) break;
     }

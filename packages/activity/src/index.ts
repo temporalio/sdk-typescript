@@ -69,8 +69,8 @@
  * @module
  */
 
+import 'abort-controller/polyfill'; // eslint-disable-line import/no-unassigned-import
 import { AsyncLocalStorage } from 'async_hooks';
-import { AbortSignal } from 'abort-controller';
 import { msToNumber } from '@temporalio/common/lib/time';
 
 export {

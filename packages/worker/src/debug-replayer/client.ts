@@ -1,4 +1,4 @@
-import http from 'node:http';
+import http from 'http';
 import pkg from '../pkg';
 
 interface ClientOptions {

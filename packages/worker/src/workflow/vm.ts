@@ -1,7 +1,6 @@
 import assert from 'assert';
 import { AsyncLocalStorage } from 'async_hooks';
 import vm from 'vm';
-import { gte } from 'semver';
 import { IllegalStateError } from '@temporalio/common';
 import { Workflow, WorkflowCreateOptions, WorkflowCreator } from './interface';
 import { WorkflowBundleWithSourceMapAndFilename } from './workflow-worker-thread/input';
@@ -19,7 +18,6 @@ import {
 export class VMWorkflowCreator implements WorkflowCreator {
   private static unhandledRejectionHandlerHasBeenSet = false;
   static workflowByRunId = new Map<string, VMWorkflow>();
-  readonly hasSeparateMicrotaskQueue: boolean;
 
   script?: vm.Script;
 
@@ -32,10 +30,6 @@ export class VMWorkflowCreator implements WorkflowCreator {
       setUnhandledRejectionHandler((runId) => VMWorkflowCreator.workflowByRunId.get(runId));
       VMWorkflowCreator.unhandledRejectionHandlerHasBeenSet = true;
     }
-
-    // https://nodejs.org/api/vm.html#vmcreatecontextcontextobject-options
-    // microtaskMode=afterEvaluate was added in 14.6.0
-    this.hasSeparateMicrotaskQueue = gte(process.versions.node, '14.6.0');
 
     this.script = script;
   }
@@ -65,14 +59,7 @@ export class VMWorkflowCreator implements WorkflowCreator {
     workflowModule.initRuntime({ ...options, sourceMap: this.workflowBundle.sourceMap });
     const activator = context.__TEMPORAL_ACTIVATOR__ as any;
 
-    const newVM = new VMWorkflow(
-      options.info,
-      context,
-      activator,
-      workflowModule,
-      isolateExecutionTimeoutMs,
-      this.hasSeparateMicrotaskQueue
-    );
+    const newVM = new VMWorkflow(options.info, context, activator, workflowModule, isolateExecutionTimeoutMs);
     VMWorkflowCreator.workflowByRunId.set(options.info.runId, newVM);
     return newVM;
   }
@@ -81,13 +68,8 @@ export class VMWorkflowCreator implements WorkflowCreator {
     if (this.script === undefined) {
       throw new IllegalStateError('Isolate context provider was destroyed');
     }
-    let context;
     const globals = { AsyncLocalStorage, assert, __webpack_module_cache__: {} };
-    if (this.hasSeparateMicrotaskQueue) {
-      context = vm.createContext(globals, { microtaskMode: 'afterEvaluate' });
-    } else {
-      context = vm.createContext(globals);
-    }
+    const context = vm.createContext(globals, { microtaskMode: 'afterEvaluate' });
     this.script.runInContext(context);
     return context;
   }

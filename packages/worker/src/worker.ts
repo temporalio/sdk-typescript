@@ -1,7 +1,7 @@
 import crypto from 'crypto';
 import fs from 'fs/promises';
-import * as path from 'node:path';
-import * as vm from 'node:vm';
+import * as path from 'path';
+import * as vm from 'vm';
 import { promisify } from 'util';
 import EventEmitter = require('events');
 import { on } from 'events';

@@ -1,7 +1,7 @@
-import { resolve } from 'node:path';
-import { readdirSync, readFileSync, rmSync } from 'node:fs';
-import { spawnSync } from 'node:child_process';
-import { URL, fileURLToPath } from 'node:url';
+import { resolve } from 'path';
+import { readdirSync, readFileSync, rmSync } from 'fs';
+import { spawnSync } from 'child_process';
+import { URL, fileURLToPath } from 'url';
 import arg from 'arg';
 import JSON5 from 'json5';
 

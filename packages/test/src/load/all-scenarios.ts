@@ -1,5 +1,5 @@
-import { spawnSync } from 'node:child_process';
-import path from 'node:path';
+import { spawnSync } from 'child_process';
+import path from 'path';
 import ms from 'ms';
 import * as workflows from '../workflows';
 import { Spec, AllInOneArgSpec } from './args';
