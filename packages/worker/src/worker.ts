@@ -769,13 +769,16 @@ export class Worker {
 
   /**
    * An observable that completes when {@link state} becomes `'DRAINED'` or throws if {@link state} transitions to
-   * `'STOPPING'` and remains that way for {@link this.options.shutdownGraceTimeMs}.
+   * `'STOPPING'` and remains that way for {@link this.options.shutdownForceTimeMs}.
    */
-  protected gracefulShutdown$(): Observable<never> {
+  protected forceShutdown$(): Observable<never> {
+    if (this.options.shutdownForceTimeMs == null) {
+      return EMPTY;
+    }
     return race(
       this.stateSubject.pipe(
         filter((state): state is 'STOPPING' => state === 'STOPPING'),
-        delay(this.options.shutdownGraceTimeMs),
+        delay(this.options.shutdownForceTimeMs),
         map(() => {
           throw new GracefulShutdownPeriodExpiredError('Timed out while waiting for worker to shutdown gracefully');
         })
@@ -815,27 +818,7 @@ export class Worker {
     return pipe(
       closeableGroupBy(({ base64TaskToken }) => base64TaskToken),
       mergeMap((group$) => {
-        return merge(
-          group$,
-          this.activityPollerStateSubject.pipe(
-            // Core has indicated that it will not return any more poll results, evict all cached WFs
-            filter((state) => state !== 'POLLING'),
-            first(),
-            map((): ActivityTaskWithContext => {
-              return {
-                parentSpan: this.tracer.startSpan('activity.shutdown.evict'),
-                task: coresdk.activity_task.ActivityTask.create({
-                  // NOTE: taskToken and cancel reason are not sent here.
-                  // We assume that if the task is cancelled with no reason it
-                  // means that the worker is being shut down.
-                  cancel: {},
-                }),
-                base64TaskToken: group$.key,
-              };
-            }),
-            takeUntil(group$.pipe(last(undefined, null)))
-          )
-        ).pipe(
+        return group$.pipe(
           mergeMapWithState(
             async (activity: Activity | undefined, { task, parentSpan, base64TaskToken }) => {
               const { taskToken, variant } = task;
@@ -1708,7 +1691,7 @@ export class Worker {
         await lastValueFrom(
           merge(
             this.unexpectedErrorSubject.pipe(takeUntil(this.stateSubject.pipe(filter((st) => st === 'DRAINED')))),
-            this.gracefulShutdown$(),
+            this.forceShutdown$(),
             this.activityHeartbeat$(),
             merge(this.workflow$(), this.activity$()).pipe(
               tap({

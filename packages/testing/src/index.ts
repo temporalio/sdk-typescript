@@ -209,7 +209,7 @@ export class TestWorkflowEnvironment {
     this.client = new TestEnvClient({
       connection,
       namespace: this.namespace,
-      enableTimeSkipping: options.server.type === 'time-skipping',
+      enableTimeSkipping: supportsTimeSkipping,
       ...options.client,
     });
     // eslint-disable-next-line deprecation/deprecation

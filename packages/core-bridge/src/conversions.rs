@@ -323,6 +323,10 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
             js_optional_getter!(cx, self, "maxTaskQueueActivitiesPerSecond", JsNumber)
                 .map(|num| num.value(cx) as f64);
 
+        let graceful_shutdown_period =
+            js_optional_getter!(cx, self, "shutdownGraceTimeMs", JsNumber)
+                .map(|num| Duration::from_millis(num.value(cx) as u64));
+
         match WorkerConfigBuilder::default()
             .worker_build_id(js_value_getter!(cx, self, "buildId", JsString))
             .client_identity_override(Some(js_value_getter!(cx, self, "identity", JsString)))
@@ -332,6 +336,7 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
             .max_outstanding_local_activities(max_outstanding_local_activities)
             .max_cached_workflows(max_cached_workflows)
             .sticky_queue_schedule_to_start_timeout(sticky_queue_schedule_to_start_timeout)
+            .graceful_shutdown_period(graceful_shutdown_period)
             .namespace(namespace)
             .task_queue(task_queue)
             .max_heartbeat_throttle_interval(max_heartbeat_throttle_interval)
@@ -374,7 +379,7 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
 
                 let exec_version = match version.as_str() {
                     "default" => {
-                        temporal_sdk_core::ephemeral_server::EphemeralExeVersion::Default {
+                        temporal_sdk_core::ephemeral_server::EphemeralExeVersion::SDKDefault {
                             sdk_name: "sdk-typescript".to_owned(),
                             sdk_version,
                         }

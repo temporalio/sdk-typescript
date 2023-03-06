@@ -19,6 +19,7 @@ export function interceptors(): WorkflowInterceptors {
               appErr.stack = err.stack;
               throw appErr;
             }
+            throw err;
           }
         },
         async execute(input, next) {
@@ -30,6 +31,7 @@ export function interceptors(): WorkflowInterceptors {
               appErr.stack = err.stack;
               throw appErr;
             }
+            throw err;
           }
         },
       },

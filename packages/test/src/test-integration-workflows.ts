@@ -1,37 +1,98 @@
 import { randomUUID } from 'crypto';
-import { TestFn } from 'ava';
-import { WorkflowFailedError } from '@temporalio/client';
-import { TestWorkflowEnvironment } from '@temporalio/testing';
-import { bundleWorkflowCode } from '@temporalio/worker';
+import { ExecutionContext, TestFn } from 'ava';
+import { WorkflowFailedError, WorkflowHandle, WorkflowStartOptions } from '@temporalio/client';
+import { TestWorkflowEnvironment, workflowInterceptorModules } from '@temporalio/testing';
+import {
+  appendDefaultInterceptors,
+  bundleWorkflowCode,
+  DefaultLogger,
+  LogLevel,
+  Runtime,
+  WorkerOptions,
+  WorkflowBundle,
+} from '@temporalio/worker';
+import * as activity from '@temporalio/activity';
 import * as workflow from '@temporalio/workflow';
+import { CancelReason } from '@temporalio/worker/src/activity';
 import { test as anyTest, bundlerOptions, Worker } from './helpers';
+import { activityStartedSignal } from './workflows/definitions';
+import { signalSchedulingWorkflow } from './activities/helpers';
+import { ConnectionInjectorInterceptor } from './activities/interceptors';
 
 interface Context {
   env: TestWorkflowEnvironment;
-  taskQueue: string;
-  createWorker(): Promise<Worker>;
+  workflowBundle: WorkflowBundle;
 }
 
 const test = anyTest as TestFn<Context>;
 
+interface Helpers {
+  taskQueue: string;
+  createWorker(opts?: Partial<WorkerOptions>): Promise<Worker>;
+  executeWorkflow<T extends () => Promise<any>>(workflowType: T): Promise<workflow.WorkflowResultType<T>>;
+  executeWorkflow<T extends workflow.Workflow>(
+    fn: T,
+    opts: Omit<WorkflowStartOptions<T>, 'taskQueue' | 'workflowId'>
+  ): Promise<workflow.WorkflowResultType<T>>;
+  startWorkflow<T extends () => Promise<any>>(workflowType: T): Promise<WorkflowHandle<T>>;
+  startWorkflow<T extends workflow.Workflow>(
+    fn: T,
+    opts: Omit<WorkflowStartOptions<T>, 'taskQueue' | 'workflowId'>
+  ): Promise<WorkflowHandle<T>>;
+}
+
+function helpers(t: ExecutionContext<Context>): Helpers {
+  const taskQueue = t.title.replace(/ /g, '_');
+
+  return {
+    taskQueue,
+    async createWorker(opts?: Partial<WorkerOptions>): Promise<Worker> {
+      return await Worker.create({
+        connection: t.context.env.nativeConnection,
+        workflowBundle: t.context.workflowBundle,
+        taskQueue,
+        interceptors: appendDefaultInterceptors({
+          activityInbound: [() => new ConnectionInjectorInterceptor(t.context.env.connection)],
+        }),
+        showStackTraceSources: true,
+        ...opts,
+      });
+    },
+    async executeWorkflow(
+      fn: workflow.Workflow,
+      opts?: Omit<WorkflowStartOptions, 'taskQueue' | 'workflowId'>
+    ): Promise<any> {
+      return await t.context.env.client.workflow.execute(fn, {
+        taskQueue,
+        workflowId: randomUUID(),
+        ...opts,
+      });
+    },
+    async startWorkflow(
+      fn: workflow.Workflow,
+      opts?: Omit<WorkflowStartOptions, 'taskQueue' | 'workflowId'>
+    ): Promise<WorkflowHandle<workflow.Workflow>> {
+      return await t.context.env.client.workflow.start(fn, {
+        taskQueue,
+        workflowId: randomUUID(),
+        ...opts,
+      });
+    },
+  };
+}
+
 test.before(async (t) => {
+  // Ignore invalid log levels
+  Runtime.install({ logger: new DefaultLogger((process.env.TEST_LOG_LEVEL || 'DEBUG').toUpperCase() as LogLevel) });
   const env = await TestWorkflowEnvironment.createLocal();
-  const taskQueue = 'test';
   const workflowBundle = await bundleWorkflowCode({
     ...bundlerOptions,
+    workflowInterceptorModules,
     workflowsPath: __filename,
   });
-  async function createWorker() {
-    return await Worker.create({
-      connection: env.nativeConnection,
-      taskQueue,
-      workflowBundle,
-    });
-  }
   t.context = {
     env,
-    taskQueue,
-    createWorker,
+    workflowBundle,
   };
 });
 
@@ -49,10 +110,10 @@ export async function child(): Promise<void> {
 }
 
 test('Workflow fails if it tries to start a child with an existing workflow ID', async (t) => {
-  const { createWorker, taskQueue, env } = t.context;
+  const { createWorker, executeWorkflow } = helpers(t);
   const worker = await createWorker();
   await worker.runUntil(async () => {
-    const err = await t.throwsAsync(env.client.workflow.execute(parent, { taskQueue, workflowId: randomUUID() }), {
+    const err = await t.throwsAsync(executeWorkflow(parent), {
       instanceOf: WorkflowFailedError,
     });
     t.true(
@@ -61,4 +122,92 @@ test('Workflow fails if it tries to start a child with an existing workflow ID',
         err.cause?.message === 'Workflow execution already started'
     );
   });
+});
+
+export async function runTestActivity(): Promise<void> {
+  await workflow.proxyActivities({ startToCloseTimeout: '1m' }).testActivity();
+}
+
+test('Worker cancels activities after shutdown has been requested', async (t) => {
+  const { createWorker, startWorkflow } = helpers(t);
+  let cancelReason = null as CancelReason | null;
+  const worker = await createWorker({
+    activities: {
+      async testActivity() {
+        const ctx = activity.Context.current();
+        worker.shutdown();
+        try {
+          await ctx.cancelled;
+        } catch (err) {
+          if (err instanceof activity.CancelledFailure) {
+            cancelReason = err.message as CancelReason;
+          }
+          throw err;
+        }
+      },
+    },
+  });
+  const handle = await startWorkflow(runTestActivity);
+  try {
+    // If worker completes within graceful shutdown period, the activity has successfully been cancelled
+    await worker.run();
+  } finally {
+    await handle.terminate();
+  }
+  t.is(cancelReason, 'WORKER_SHUTDOWN');
+});
+
+export async function cancelFakeProgress(activityTaskQueue: string): Promise<void> {
+  const { fakeProgress } = workflow.proxyActivities({
+    taskQueue: activityTaskQueue,
+    startToCloseTimeout: '200s',
+    cancellationType: workflow.ActivityCancellationType.WAIT_CANCELLATION_COMPLETED,
+  });
+
+  await workflow.CancellationScope.cancellable(async () => {
+    const promise = fakeProgress();
+    await new Promise<void>((resolve) => workflow.setHandler(activityStartedSignal, resolve));
+    workflow.CancellationScope.current().cancel();
+    await promise;
+  });
+}
+
+test('Worker allows heartbeating activities after shutdown has been requested', async (t) => {
+  const { createWorker, executeWorkflow, taskQueue } = helpers(t);
+  const activityTaskQueue = `${taskQueue}-activities`;
+
+  let cancelReason = null as CancelReason | null;
+  // TODO: Core prematurely shuts down when polling for workflows, this test should pass with a single worker.
+  const workflowWorker = await createWorker();
+
+  const activityWorker = await createWorker({
+    shutdownGraceTime: '5m',
+    taskQueue: `${taskQueue}-activities`,
+    activities: {
+      async fakeProgress() {
+        await signalSchedulingWorkflow(activityStartedSignal.name);
+        const ctx = activity.Context.current();
+        activityWorker.shutdown();
+        try {
+          for (;;) {
+            await ctx.sleep('100ms');
+            ctx.heartbeat();
+          }
+        } catch (err) {
+          if (err instanceof activity.CancelledFailure) {
+            cancelReason = err.message as CancelReason;
+          }
+          throw err;
+        }
+      },
+    },
+  });
+  const [err] = await workflowWorker.runUntil(
+    Promise.all([
+      t.throwsAsync(executeWorkflow(cancelFakeProgress, { args: [activityTaskQueue] })),
+      activityWorker.run(),
+    ])
+  );
+  t.true(err instanceof WorkflowFailedError && workflow.isCancellation(err.cause));
+  t.is(cancelReason, 'CANCELLED');
 });

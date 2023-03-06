@@ -1,13 +1,13 @@
 /* eslint-disable @typescript-eslint/no-empty-function */
 /* eslint-disable @typescript-eslint/explicit-module-boundary-types */
 import { Context } from '@temporalio/activity';
-import { Client, WorkflowHandle } from '@temporalio/client';
-import { ApplicationFailure, QueryDefinition } from '@temporalio/common';
+import { ApplicationFailure } from '@temporalio/common';
 import { ProtoActivityInput, ProtoActivityResult } from '../../protos/root';
 import { cancellableFetch as cancellableFetchInner } from './cancellable-fetch';
 import { fakeProgress as fakeProgressInner } from './fake-progress';
-import { getContext } from './interceptors';
+import { signalSchedulingWorkflow } from './helpers';
 
+export { queryOwnWf, signalSchedulingWorkflow } from './helpers';
 export { throwSpecificError } from './failure-tester';
 
 /**
@@ -61,23 +61,6 @@ export async function throwAnError(useApplicationFailure: boolean, message: stri
 
 export async function waitForCancellation(): Promise<void> {
   await Context.current().cancelled;
-}
-
-function getSchedulingWorkflowHandle(): WorkflowHandle {
-  const { info, connection, dataConverter } = getContext();
-  const { workflowExecution } = info;
-  const client = new Client({ connection, namespace: info.workflowNamespace, dataConverter });
-  return client.workflow.getHandle(workflowExecution.workflowId, workflowExecution.runId);
-}
-
-export async function signalSchedulingWorkflow(signalName: string) {
-  const handle = getSchedulingWorkflowHandle();
-  await handle.signal(signalName);
-}
-
-export async function queryOwnWf<R, A extends any[]>(queryDef: QueryDefinition<R, A>, ...args: A): Promise<R> {
-  const handle = getSchedulingWorkflowHandle();
-  return await handle.query(queryDef, ...args);
 }
 
 export async function fakeProgress(sleepIntervalMs = 1000, numIters = 1000): Promise<void> {

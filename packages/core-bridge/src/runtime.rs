@@ -144,13 +144,16 @@ pub fn start_bridge_loop(
                     headers,
                     callback,
                 } => {
-                    // `metrics_meter` (second arg) can be None here since we don't use the
-                    // returned client directly at the moment, when we repurpose the client to be
-                    // used by a Worker, `init_worker` will attach the correct metrics meter for
-                    // us.
+                    // `metrics_meter` can be None here since we don't use the returned client
+                    // directly at the moment, when we repurpose the client to be used by a Worker,
+                    // `init_worker` will attach the correct metrics meter for us.
                     core_runtime.tokio_handle().spawn(async move {
+                        let metrics_meter = None;
                         match options
-                            .connect_no_namespace(None, headers.map(|h| Arc::new(RwLock::new(h))))
+                            .connect_no_namespace(
+                                metrics_meter,
+                                headers.map(|h| Arc::new(RwLock::new(h))),
+                            )
                             .await
                         {
                             Err(err) => {
