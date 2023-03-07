@@ -1,4 +1,4 @@
-import { formatWithOptions } from 'util';
+import { formatWithOptions } from 'node:util';
 import { LogLevel, getTimeOfDay } from '@temporalio/core-bridge';
 
 export type LogMetadata = Record<string | symbol, any>;

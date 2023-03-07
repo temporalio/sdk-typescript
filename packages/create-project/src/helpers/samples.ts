@@ -1,8 +1,8 @@
 // Modified from: https://github.com/vercel/next.js/blob/2425f4703c4c6164cecfdb6aa8f80046213f0cc6/packages/create-next-app/helpers/examples.ts
-import { Stream } from 'stream';
-import { promisify } from 'util';
-import { rm, readdir } from 'fs/promises';
-import path from 'path';
+import { Stream } from 'node:stream';
+import { promisify } from 'node:util';
+import { rm, readdir } from 'node:fs/promises';
+import path from 'node:path';
 import * as tar from 'tar';
 import got from 'got';
 import chalk from 'chalk';

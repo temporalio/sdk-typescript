@@ -1,4 +1,4 @@
-import util from 'util';
+import util from 'node:util';
 import { IllegalStateError } from '@temporalio/common';
 import { Client, Worker, clientUpdateHeaders, TransportError } from '@temporalio/core-bridge';
 import { NativeConnectionOptions } from './connection-options';

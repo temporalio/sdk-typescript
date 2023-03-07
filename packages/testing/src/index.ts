@@ -8,9 +8,9 @@
  * @module
  */
 
-import path from 'path';
-import events from 'events';
-import { AbortController } from 'abort-controller';
+import 'abort-controller/polyfill'; // eslint-disable-line import/no-unassigned-import
+import path from 'node:path';
+import events from 'node:events';
 import ms from 'ms';
 import * as activity from '@temporalio/activity';
 import {

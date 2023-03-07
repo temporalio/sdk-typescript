@@ -1,5 +1,5 @@
-import path from 'path';
-import { readFile, writeFile } from 'fs/promises';
+import path from 'node:path';
+import { readFile, writeFile } from 'node:fs/promises';
 import glob from 'glob'; // eslint-disable-line import/no-named-as-default
 
 export async function stripSnipComments(root: string): Promise<void> {

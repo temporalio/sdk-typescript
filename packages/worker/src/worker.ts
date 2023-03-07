@@ -1,10 +1,9 @@
-import crypto from 'crypto';
-import fs from 'fs/promises';
+import crypto from 'node:crypto';
+import fs from 'node:fs/promises';
 import * as path from 'node:path';
 import * as vm from 'node:vm';
-import { promisify } from 'util';
-import EventEmitter = require('events');
-import { on } from 'events';
+import { promisify } from 'node:util';
+import { EventEmitter, on } from 'node:events';
 import * as otel from '@opentelemetry/api';
 import { SpanContext } from '@opentelemetry/api';
 import {

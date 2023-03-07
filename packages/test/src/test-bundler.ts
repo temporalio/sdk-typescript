@@ -2,9 +2,9 @@
  * Test the various states of a Worker.
  * Most tests use a mocked core, some tests run serially because they emit signals to the process
  */
-import { unlink, writeFile } from 'fs/promises';
-import os from 'os';
-import { join as pathJoin } from 'path';
+import { unlink, writeFile } from 'node:fs/promises';
+import os from 'node:os';
+import { join as pathJoin } from 'node:path';
 import test from 'ava';
 import { v4 as uuid4 } from 'uuid';
 import { moduleMatches } from '@temporalio/worker/lib/workflow/bundler';

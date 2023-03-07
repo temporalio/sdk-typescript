@@ -1,5 +1,5 @@
-import v8 from 'v8';
-import vm from 'vm';
+import v8 from 'node:v8';
+import vm from 'node:vm';
 import { SourceMapConsumer } from 'source-map';
 import { cutoffStackTrace, IllegalStateError } from '@temporalio/common';
 import { coresdk } from '@temporalio/proto';
@@ -278,8 +278,7 @@ export abstract class BaseVMWorkflow implements Workflow {
     protected context: vm.Context | undefined,
     protected activator: Activator,
     readonly workflowModule: WorkflowModule,
-    public readonly isolateExecutionTimeoutMs: number,
-    public readonly hasSeparateMicrotaskQueue: boolean
+    public readonly isolateExecutionTimeoutMs: number
   ) {}
 
   /**
@@ -326,7 +325,7 @@ export abstract class BaseVMWorkflow implements Workflow {
         batchIndex++
       );
       if (internals.shouldUnblockConditions(jobs[0])) {
-        await this.tryUnblockConditions();
+        this.tryUnblockConditions();
       }
     }
     const completion = this.workflowModule.concludeActivation();
@@ -354,15 +353,8 @@ export abstract class BaseVMWorkflow implements Workflow {
    * This is performed in a loop allowing microtasks to be processed between
    * each iteration until there are no more conditions to unblock.
    */
-  protected async tryUnblockConditions(): Promise<void> {
+  protected tryUnblockConditions(): void {
     for (;;) {
-      if (!this.hasSeparateMicrotaskQueue) {
-        // Wait for microtasks to be processed
-        // This is only required if the context doesn't have a separate microtask queue
-        // because when it does we guarantee to wait for microtasks to be processed every
-        // time we enter the context.
-        await new Promise(setImmediate);
-      }
       const numUnblocked = this.workflowModule.tryUnblockConditions();
       if (numUnblocked === 0) break;
     }

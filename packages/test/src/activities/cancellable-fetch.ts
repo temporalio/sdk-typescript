@@ -1,8 +1,9 @@
 import fetch from 'node-fetch';
+import type { AbortSignal as FetchAbortSignal } from 'node-fetch/externals';
 import { Context } from '@temporalio/activity';
 
 export async function cancellableFetch(url: string): Promise<Uint8Array> {
-  const response = await fetch(url, { signal: Context.current().cancellationSignal });
+  const response = await fetch(url, { signal: Context.current().cancellationSignal as FetchAbortSignal });
   const contentLengthHeader = response.headers.get('Content-Length');
   if (contentLengthHeader === null) {
     throw new Error('expected Content-Length header to be set');

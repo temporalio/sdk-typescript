@@ -1,6 +1,6 @@
-import fs from 'fs';
-import http from 'http';
-import { inspect } from 'util';
+import fs from 'node:fs';
+import http from 'node:http';
+import { inspect } from 'node:util';
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-grpc';
 import * as opentelemetry from '@opentelemetry/sdk-node';
 import { SemanticResourceAttributes } from '@opentelemetry/semantic-conventions';

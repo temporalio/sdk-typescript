@@ -1,5 +1,5 @@
-import util from 'util';
-import path from 'path';
+import util from 'node:util';
+import path from 'node:path';
 import test from 'ava';
 import { Subject, firstValueFrom } from 'rxjs';
 import * as grpc from '@grpc/grpc-js';

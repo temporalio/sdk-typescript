@@ -23,7 +23,6 @@ const OriginalDate = globalThis.Date;
 
 export function overrideGlobals(): void {
   // Mock any weak reference because GC is non-deterministic and the effect is observable from the Workflow.
-  // WeakRef is implemented in V8 8.4 which is embedded in node >=14.6.0.
   // Workflow developer will get a meaningful exception if they try to use these.
   global.WeakRef = function () {
     throw new DeterminismViolationError('WeakRef cannot be used in Workflows because v8 GC is non-deterministic');

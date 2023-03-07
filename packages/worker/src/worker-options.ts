@@ -1,5 +1,5 @@
-import * as os from 'os';
-import * as v8 from 'v8';
+import * as os from 'node:os';
+import * as v8 from 'node:v8';
 import type { Configuration as WebpackConfiguration } from 'webpack';
 import { DataConverter, LoadedDataConverter } from '@temporalio/common';
 import { msToNumber } from '@temporalio/common/lib/time';
