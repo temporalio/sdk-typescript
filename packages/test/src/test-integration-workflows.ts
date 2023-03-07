@@ -1,5 +1,6 @@
 import { randomUUID } from 'crypto';
 import { ExecutionContext, TestFn } from 'ava';
+import { firstValueFrom, Subject } from 'rxjs';
 import { WorkflowFailedError, WorkflowHandle, WorkflowStartOptions } from '@temporalio/client';
 import { TestWorkflowEnvironment, workflowInterceptorModules } from '@temporalio/testing';
 import {
@@ -147,19 +148,14 @@ test('Worker cancels activities after shutdown has been requested', async (t) =>
       },
     },
   });
-  const handle = await startWorkflow(runTestActivity);
-  try {
-    // If worker completes within graceful shutdown period, the activity has successfully been cancelled
-    await worker.run();
-  } finally {
-    await handle.terminate();
-  }
+  await startWorkflow(runTestActivity);
+  // If worker completes within graceful shutdown period, the activity has successfully been cancelled
+  await worker.run();
   t.is(cancelReason, 'WORKER_SHUTDOWN');
 });
 
-export async function cancelFakeProgress(activityTaskQueue: string): Promise<void> {
-  const { fakeProgress } = workflow.proxyActivities({
-    taskQueue: activityTaskQueue,
+export async function cancelFakeProgress(): Promise<void> {
+  const { fakeProgress, shutdownWorker } = workflow.proxyActivities({
     startToCloseTimeout: '200s',
     cancellationType: workflow.ActivityCancellationType.WAIT_CANCELLATION_COMPLETED,
   });
@@ -168,26 +164,24 @@ export async function cancelFakeProgress(activityTaskQueue: string): Promise<voi
     const promise = fakeProgress();
     await new Promise<void>((resolve) => workflow.setHandler(activityStartedSignal, resolve));
     workflow.CancellationScope.current().cancel();
+    await workflow.CancellationScope.nonCancellable(shutdownWorker);
     await promise;
   });
 }
 
 test('Worker allows heartbeating activities after shutdown has been requested', async (t) => {
-  const { createWorker, executeWorkflow, taskQueue } = helpers(t);
-  const activityTaskQueue = `${taskQueue}-activities`;
+  const { createWorker, startWorkflow } = helpers(t);
 
+  const workerWasShutdownSubject = new Subject<void>();
   let cancelReason = null as CancelReason | null;
-  // TODO: Core prematurely shuts down when polling for workflows, this test should pass with a single worker.
-  const workflowWorker = await createWorker();
 
-  const activityWorker = await createWorker({
+  const worker = await createWorker({
     shutdownGraceTime: '5m',
-    taskQueue: `${taskQueue}-activities`,
     activities: {
       async fakeProgress() {
         await signalSchedulingWorkflow(activityStartedSignal.name);
         const ctx = activity.Context.current();
-        activityWorker.shutdown();
+        await firstValueFrom(workerWasShutdownSubject);
         try {
           for (;;) {
             await ctx.sleep('100ms');
@@ -200,14 +194,13 @@ test('Worker allows heartbeating activities after shutdown has been requested', 
           throw err;
         }
       },
+      async shutdownWorker() {
+        worker.shutdown();
+        workerWasShutdownSubject.next();
+      },
     },
   });
-  const [err] = await workflowWorker.runUntil(
-    Promise.all([
-      t.throwsAsync(executeWorkflow(cancelFakeProgress, { args: [activityTaskQueue] })),
-      activityWorker.run(),
-    ])
-  );
-  t.true(err instanceof WorkflowFailedError && workflow.isCancellation(err.cause));
+  await startWorkflow(cancelFakeProgress);
+  await worker.run();
   t.is(cancelReason, 'CANCELLED');
 });
