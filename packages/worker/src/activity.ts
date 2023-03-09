@@ -74,7 +74,7 @@ export class Activity {
         if (err instanceof Error && err.name === 'CompleteAsyncError') {
           return { willCompleteAsync: {} };
         }
-        if (this.cancelReason === 'WORKER_SHUTDOWN' || this.cancelReason === 'HEARTBEAT_DETAILS_CONVERSION_FAILED') {
+        if (this.cancelReason === 'HEARTBEAT_DETAILS_CONVERSION_FAILED') {
           // Ignore actual failure, it is likely a CancelledFailure but server
           // expects activity to only fail with ApplicationFailure
           return {

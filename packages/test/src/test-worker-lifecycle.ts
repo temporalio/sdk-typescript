@@ -15,7 +15,6 @@ if (RUN_INTEGRATION_TESTS) {
   test.serial('Worker shuts down gracefully', async (t) => {
     const worker = await Worker.create({
       ...defaultOptions,
-      shutdownGraceTime: '500ms',
       taskQueue: 'shutdown-test',
     });
     t.is(worker.getState(), 'INITIALIZED');
@@ -33,7 +32,6 @@ if (RUN_INTEGRATION_TESTS) {
   test.serial('Worker shuts down gracefully if interrupted before running', async (t) => {
     const worker = await Worker.create({
       ...defaultOptions,
-      shutdownGraceTime: '500ms',
       taskQueue: 'shutdown-test',
     });
     t.is(worker.getState(), 'INITIALIZED');
@@ -48,7 +46,6 @@ if (RUN_INTEGRATION_TESTS) {
 test.serial('Mocked run shuts down gracefully', async (t) => {
   try {
     const worker = isolateFreeWorker({
-      shutdownGraceTime: '500ms',
       taskQueue: 'shutdown-test',
     });
     t.is(worker.getState(), 'INITIALIZED');
@@ -66,7 +63,6 @@ test.serial('Mocked run shuts down gracefully', async (t) => {
 test.serial('Mocked run shuts down gracefully if interrupted before running', async (t) => {
   try {
     const worker = isolateFreeWorker({
-      shutdownGraceTime: '500ms',
       taskQueue: 'shutdown-test',
     });
     // worker.native.initiateShutdown = () => new Promise(() => undefined);
@@ -83,7 +79,7 @@ test.serial('Mocked run shuts down gracefully if interrupted before running', as
 
 test.serial('Mocked run throws if not shut down gracefully', async (t) => {
   const worker = isolateFreeWorker({
-    shutdownGraceTime: '5ms',
+    shutdownForceTime: '5ms',
     taskQueue: 'shutdown-test',
   });
   t.is(worker.getState(), 'INITIALIZED');
@@ -101,7 +97,7 @@ test.serial('Mocked run throws if not shut down gracefully', async (t) => {
 
 test.serial('Mocked throws combined error in runUntil', async (t) => {
   const worker = isolateFreeWorker({
-    shutdownGraceTime: '5ms',
+    shutdownForceTime: '5ms',
     taskQueue: 'shutdown-test',
   });
   worker.native.initiateShutdown = () => new Promise(() => undefined);

@@ -2,7 +2,6 @@
 import anyTest, { ExecutionContext, TestFn } from 'ava';
 import dedent from 'dedent';
 import { v4 as uuid4 } from 'uuid';
-import * as activity from '@temporalio/activity';
 import { TemporalFailure, defaultPayloadConverter, toPayloads } from '@temporalio/common';
 import { coresdk } from '@temporalio/proto';
 import { httpGet } from './activities';
@@ -221,45 +220,6 @@ test('Worker fails activity with proper message when it is not registered', asyn
       /^Activity function notFound is not registered on this Worker, available activities: \[.*"progressiveSleep".*\]/
     );
   });
-});
-
-test('Worker cancels activities after shutdown', async (t) => {
-  let activityCancelled = false;
-  const worker = isolateFreeWorker({
-    ...defaultOptions,
-    activities: {
-      async cancellationSnitch() {
-        try {
-          await activity.Context.current().cancelled;
-        } catch (err) {
-          activityCancelled = true;
-          throw err;
-        }
-      },
-    },
-  });
-  t.context.worker = worker;
-
-  const { promise } = await runWorker(t, async () => {
-    const taskToken = Buffer.from(uuid4());
-    return {
-      promise: worker.native.runActivityTask({
-        taskToken,
-        start: {
-          activityType: 'cancellationSnitch',
-          workflowExecution: { workflowId: 'wfid', runId: 'runId' },
-          input: toPayloads(defaultPayloadConverter),
-        },
-      }),
-    };
-  });
-  // Worker has been shutdown, wait for activity to complete
-  const { result } = await promise;
-
-  // The result is failed because an activity shouldn't be resolved as cancelled
-  // unless cancellation was requested.
-  t.truthy(result?.failed);
-  t.true(activityCancelled);
 });
 
 test('Non ApplicationFailure TemporalFailures thrown from Activity are wrapped with ApplicationFailure', async (t) => {

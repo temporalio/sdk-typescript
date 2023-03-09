@@ -2,7 +2,7 @@ import * as os from 'node:os';
 import * as v8 from 'node:v8';
 import type { Configuration as WebpackConfiguration } from 'webpack';
 import { DataConverter, LoadedDataConverter } from '@temporalio/common';
-import { msToNumber } from '@temporalio/common/lib/time';
+import { msOptionalToNumber, msToNumber } from '@temporalio/common/lib/time';
 import { loadDataConverter } from '@temporalio/common/lib/internal-non-workflow';
 import { LoggerSinks } from '@temporalio/workflow';
 import { ActivityInboundLogInterceptor } from './activity-log-interceptor';
@@ -123,10 +123,25 @@ export interface WorkerOptions {
   /**
    * Time to wait for pending tasks to drain after shutdown was requested.
    *
+   * In-flight activities will be cancelled after this period and their current attempt will be resolved as failed if
+   * they confirm cancellation (by throwing a {@link CancelledFailure} or `AbortError`).
+   *
    * @format number of milliseconds or {@link https://www.npmjs.com/package/ms | ms-formatted string}
-   * @default 10s
+   * @default 0
    */
   shutdownGraceTime?: string | number;
+
+  /**
+   * Time to wait before giving up on graceful shutdown and forcefully terminating the worker.
+   *
+   * After this duration, the worker will throw {@link GracefulShutdownPeriodExpiredError} and any running activities
+   * and workflows will **not** be cleaned up. It is recommended to exit the process after this error is thrown.
+   *
+   * Use this option if you **must** guarantee that the worker eventually shuts down.
+   *
+   * @format number of milliseconds or {@link https://www.npmjs.com/package/ms | ms-formatted string}
+   */
+  shutdownForceTime?: string | number;
 
   /**
    * Provide a custom {@link DataConverter}.
@@ -372,6 +387,7 @@ export type WorkerOptionsWithDefaults = WorkerOptions &
  */
 export interface CompiledWorkerOptions extends Omit<WorkerOptionsWithDefaults, 'serverOptions'> {
   shutdownGraceTimeMs: number;
+  shutdownForceTimeMs?: number;
   isolateExecutionTimeoutMs: number;
   stickyQueueScheduleToStartTimeoutMs: number;
   maxHeartbeatThrottleIntervalMs: number;
@@ -468,7 +484,7 @@ export function addDefaultWorkerOptions(options: WorkerOptions): WorkerOptionsWi
   return {
     namespace: namespace ?? 'default',
     identity: `${process.pid}@${os.hostname()}`,
-    shutdownGraceTime: '10s',
+    shutdownGraceTime: 0,
     maxConcurrentActivityTaskExecutions: 100,
     maxConcurrentLocalActivityExecutions: 100,
     enableNonLocalActivities: true,
@@ -501,6 +517,7 @@ export function compileWorkerOptions(opts: WorkerOptionsWithDefaults): CompiledW
   return {
     ...opts,
     shutdownGraceTimeMs: msToNumber(opts.shutdownGraceTime),
+    shutdownForceTimeMs: msOptionalToNumber(opts.shutdownForceTime),
     stickyQueueScheduleToStartTimeoutMs: msToNumber(opts.stickyQueueScheduleToStartTimeout),
     isolateExecutionTimeoutMs: msToNumber(opts.isolateExecutionTimeout),
     maxHeartbeatThrottleIntervalMs: msToNumber(opts.maxHeartbeatThrottleInterval),

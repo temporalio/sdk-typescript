@@ -119,6 +119,7 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
     // NOTE: at the time this was added temporalite did not expose the grpc OperatorService.
     try {
       await connection.operatorService.addSearchAttributes({
+        namespace: 'default',
         searchAttributes: {
           CustomIntField: iface.temporal.api.enums.v1.IndexedValueType.INDEXED_VALUE_TYPE_INT,
           CustomBoolField: iface.temporal.api.enums.v1.IndexedValueType.INDEXED_VALUE_TYPE_BOOL,
