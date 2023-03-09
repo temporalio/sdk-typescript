@@ -41,7 +41,7 @@ test('TestEnvironment sets up test server and is able to run a single workflow',
   await runSimpleWorkflow(t, testEnv);
 });
 
-test('TestEnvironment sets up temporalite and is able to run a single workflow', async (t) => {
+test('TestEnvironment sets up dev server and is able to run a single workflow', async (t) => {
   const testEnv = await TestWorkflowEnvironment.createLocal();
   await runSimpleWorkflow(t, testEnv);
 });
@@ -51,8 +51,8 @@ test.todo('TestEnvironment sets up test server with specified port');
 test.todo('TestEnvironment sets up test server with latest version');
 test.todo('TestEnvironment sets up test server from executable path');
 
-test.todo('TestEnvironment sets up temporalite with extra args');
-test.todo('TestEnvironment sets up temporalite with latest version');
-test.todo('TestEnvironment sets up temporalite from executable path');
-test.todo('TestEnvironment sets up temporalite with custom log level');
-test.todo('TestEnvironment sets up temporalite with custom namespace, IP, db filename, and UI');
+test.todo('TestEnvironment sets up dev server with extra args');
+test.todo('TestEnvironment sets up dev server with latest version');
+test.todo('TestEnvironment sets up dev server from executable path');
+test.todo('TestEnvironment sets up dev server with custom log level');
+test.todo('TestEnvironment sets up dev server with custom namespace, IP, db filename, and UI');

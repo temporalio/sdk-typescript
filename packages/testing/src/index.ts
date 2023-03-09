@@ -29,13 +29,13 @@ import {
   EphemeralServer,
   EphemeralServerConfig,
   getEphemeralServerTarget,
-  TemporaliteConfig,
+  DevServerConfig,
   TimeSkippingServerConfig,
 } from '@temporalio/core-bridge';
 import { filterNullAndUndefined } from '@temporalio/common/lib/internal-non-workflow';
 import { Connection, TestService } from './connection';
 
-export { TimeSkippingServerConfig, TemporaliteConfig, EphemeralServerExecutable } from '@temporalio/core-bridge';
+export { TimeSkippingServerConfig, DevServerConfig, EphemeralServerExecutable } from '@temporalio/core-bridge';
 export { EphemeralServerConfig };
 
 export interface TimeSkippingWorkflowClientOptions extends WorkflowClientOptions {
@@ -121,8 +121,8 @@ export type ClientOptionsForTestEnv = Omit<ClientOptions, 'namespace' | 'connect
 /**
  * Options for {@link TestWorkflowEnvironment.create}
  */
-type TestWorkflowEnvironmentOptions = {
-  server?: EphemeralServerConfig;
+export type TestWorkflowEnvironmentOptions = {
+  server: EphemeralServerConfig;
   client?: ClientOptionsForTestEnv;
 };
 
@@ -138,7 +138,7 @@ export type TimeSkippingTestWorkflowEnvironmentOptions = {
  * Options for {@link TestWorkflowEnvironment.createLocal}
  */
 export type LocalTestWorkflowEnvironmentOptions = {
-  server?: Omit<TemporaliteConfig, 'type'>;
+  server?: Omit<DevServerConfig, 'type'>;
   client?: ClientOptionsForTestEnv;
 };
 
@@ -146,9 +146,6 @@ export type TestWorkflowEnvironmentOptionsWithDefaults = Required<TestWorkflowEn
 
 function addDefaults(opts: TestWorkflowEnvironmentOptions): TestWorkflowEnvironmentOptionsWithDefaults {
   return {
-    server: {
-      type: 'time-skipping',
-    },
     client: {},
     ...opts,
   };
@@ -201,11 +198,12 @@ export class TestWorkflowEnvironment {
     public readonly supportsTimeSkipping: boolean,
     protected readonly server: EphemeralServer,
     connection: Connection,
-    nativeConnection: NativeConnection
+    nativeConnection: NativeConnection,
+    namespace: string | undefined
   ) {
     this.connection = connection;
     this.nativeConnection = nativeConnection;
-    this.namespace = options.server.type === 'temporalite' ? options.server.namespace : undefined;
+    this.namespace = namespace;
     this.client = new TestEnvClient({
       connection,
       namespace: this.namespace,
@@ -239,8 +237,11 @@ export class TestWorkflowEnvironment {
    * In the future, the test server implementation may be changed to another implementation.
    */
   static async createTimeSkipping(opts?: TimeSkippingTestWorkflowEnvironmentOptions): Promise<TestWorkflowEnvironment> {
-    // eslint-disable-next-line deprecation/deprecation
-    return await this.create({ server: { type: 'time-skipping', ...opts?.server }, client: opts?.client });
+    return await this.create({
+      server: { type: 'time-skipping', ...opts?.server },
+      client: opts?.client,
+      supportsTimeSkipping: true,
+    });
   }
 
   /**
@@ -250,38 +251,42 @@ export class TestWorkflowEnvironment {
    * {@link createTimeSkipping} does. {@link supportsTimeSkipping} will always return `false` for this environment.
    * {@link sleep} will sleep the actual amount of time and {@link currentTimeMs} will return the current time.
    *
-   * Internally, this uses [Temporalite](https://github.com/temporalio/temporalite). Which is a self-contained binary
-   * for Temporal using Sqlite persistence. This will download Temporalite to a temporary directory by default if it
-   * has not already been downloaded before and {@link LocalTestWorkflowEnvironmentOptions.server.executable.type} is
-   * `'cached-download'`.
+   * This local environment will be powered by [Temporal CLI](https://github.com/temporalio/cli), which is a
+   * self-contained executable for Temporal. By default, Temporal's database will not be persisted to disk, and no UI
+   * will be started.
    *
-   * In the future, the Temporalite implementation may be changed to another implementation.
+   * The CLI executable will be downloaded and cached to a temporary directory. See
+   * {@link LocalTestWorkflowEnvironmentOptions.server.executable.type} if you'd prefer to provide the CLI executable
+   * yourself.
    */
   static async createLocal(opts?: LocalTestWorkflowEnvironmentOptions): Promise<TestWorkflowEnvironment> {
     // eslint-disable-next-line deprecation/deprecation
-    return await this.create({ server: { type: 'temporalite', ...opts?.server }, client: opts?.client });
+    return await this.create({
+      server: { type: 'dev-server', ...opts?.server },
+      client: opts?.client,
+      namespace: opts?.server?.namespace,
+      supportsTimeSkipping: false,
+    });
   }
 
   /**
    * Create a new test environment
-   *
-   * @deprecated - use {@link createTimeSkipping} or {@link createLocal}
    */
-  static async create(opts?: TestWorkflowEnvironmentOptions): Promise<TestWorkflowEnvironment> {
-    const optsWithDefaults = addDefaults(filterNullAndUndefined(opts ?? {}));
+  private static async create(
+    opts: TestWorkflowEnvironmentOptions & {
+      supportsTimeSkipping: boolean;
+      namespace?: string;
+    }
+  ): Promise<TestWorkflowEnvironment> {
+    const { supportsTimeSkipping, namespace, ...rest } = opts;
+    const optsWithDefaults = addDefaults(filterNullAndUndefined(rest));
     const server = await Runtime.instance().createEphemeralServer(optsWithDefaults.server);
     const address = getEphemeralServerTarget(server);
 
     const nativeConnection = await NativeConnection.connect({ address });
     const connection = await Connection.connect({ address });
 
-    return new this(
-      optsWithDefaults,
-      optsWithDefaults.server.type === 'time-skipping',
-      server,
-      connection,
-      nativeConnection
-    );
+    return new this(optsWithDefaults, supportsTimeSkipping, server, connection, nativeConnection, namespace);
   }
 
   /**

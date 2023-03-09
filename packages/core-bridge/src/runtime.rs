@@ -273,9 +273,7 @@ pub fn start_bridge_loop(
                             EphemeralServerConfig::TestServer(config) => {
                                 config.start_server().await
                             }
-                            EphemeralServerConfig::Temporalite(config) => {
-                                config.start_server().await
-                            }
+                            EphemeralServerConfig::DevServer(config) => config.start_server().await,
                         };
                         match result {
                             Err(err) => {
