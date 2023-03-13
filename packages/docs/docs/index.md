@@ -1,5 +1,7 @@
 ---
 title: Temporal TypeScript SDK API Reference
+description: Temporal TypeScript SDK API reference documentation
+image: /img/social.png
 sidebar_label: Home
 slug: /
 ---
@@ -9,7 +11,7 @@ slug: /
 - API reference: 👇
 
 | Package                                                                  | Description                                                                    |
-| :----------------------------------------------------------------------- | :----------------------------------------------------------------------------- |
+|:-------------------------------------------------------------------------|:-------------------------------------------------------------------------------|
 | [@temporalio/worker](./api/namespaces/worker)                            | Runs Workflows and Activities                                                  |
 | [@temporalio/workflow](./api/namespaces/workflow)                        | Workflow runtime library                                                       |
 | [@temporalio/activity](./api/namespaces/activity)                        | Get current Activity's context                                                 |
