@@ -131,6 +131,9 @@ module.exports = {
         disableSources: true,
         readme: 'none',
         watch,
+        frontmatter: {
+          image: 'img/social.png',
+        },
       },
     ],
     ...(watch
