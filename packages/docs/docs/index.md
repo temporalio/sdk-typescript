@@ -11,7 +11,7 @@ slug: /
 - API reference: 👇
 
 | Package                                                                  | Description                                                                    |
-|:-------------------------------------------------------------------------|:-------------------------------------------------------------------------------|
+| :----------------------------------------------------------------------- | :----------------------------------------------------------------------------- |
 | [@temporalio/worker](./api/namespaces/worker)                            | Runs Workflows and Activities                                                  |
 | [@temporalio/workflow](./api/namespaces/workflow)                        | Workflow runtime library                                                       |
 | [@temporalio/activity](./api/namespaces/activity)                        | Get current Activity's context                                                 |
