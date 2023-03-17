@@ -694,7 +694,7 @@ export async function startChild<T extends Workflow>(
   options?: WithWorkflowArgs<T, ChildWorkflowOptions>
 ): Promise<ChildWorkflowHandle<T>> {
   const activator = getActivator();
-  const optionsWithDefaults = addDefaultWorkflowOptions(options ?? {});
+  const optionsWithDefaults = addDefaultWorkflowOptions(options ?? ({} as any));
   const workflowType = typeof workflowTypeOrFunc === 'string' ? workflowTypeOrFunc : workflowTypeOrFunc.name;
   const execute = composeInterceptors(
     activator.interceptors.outbound,
@@ -793,7 +793,7 @@ export async function executeChild<T extends Workflow>(
   options?: WithWorkflowArgs<T, ChildWorkflowOptions>
 ): Promise<WorkflowResultType<T>> {
   const activator = getActivator();
-  const optionsWithDefaults = addDefaultWorkflowOptions(options ?? {});
+  const optionsWithDefaults = addDefaultWorkflowOptions(options ?? ({} as any));
   const workflowType = typeof workflowTypeOrFunc === 'string' ? workflowTypeOrFunc : workflowTypeOrFunc.name;
   const execute = composeInterceptors(
     activator.interceptors.outbound,
