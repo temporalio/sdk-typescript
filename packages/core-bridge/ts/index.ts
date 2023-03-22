@@ -381,10 +381,10 @@ export interface TimeSkippingServerConfig {
 }
 
 /**
- * Configuration for temporalite.
+ * Configuration for the Temporal CLI dev server.
  */
-export interface TemporaliteConfig {
-  type: 'temporalite';
+export interface DevServerConfig {
+  type: 'dev-server';
   executable?: EphemeralServerExecutable;
   /**
    * Namespace to use - created at startup.
@@ -399,11 +399,13 @@ export interface TemporaliteConfig {
    */
   ip?: string;
   /**
-   * Sqlite DB filename if persisting or non-persistent if none.
+   * Sqlite DB filename if persisting or non-persistent if none (default).
    */
   db_filename?: string;
   /**
    * Whether to enable the UI.
+   *
+   * @default false
    */
   ui?: boolean;
   /**
@@ -424,9 +426,9 @@ export interface TemporaliteConfig {
 /**
  * Configuration for spawning an ephemeral Temporal server.
  *
- * Both the time-skipping test server and temporalite are supported.
+ * Both the time-skipping test server and Temporal CLI dev server are supported.
  */
-export type EphemeralServerConfig = TimeSkippingServerConfig | TemporaliteConfig;
+export type EphemeralServerConfig = TimeSkippingServerConfig | DevServerConfig;
 
 export interface Worker {
   type: 'Worker';

@@ -115,8 +115,7 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
       metaClient,
     };
 
-    // In case we're running with temporalite or other non default server.
-    // NOTE: at the time this was added temporalite did not expose the grpc OperatorService.
+    // In case we're running with a server that doesn't use the docker-compose setup.
     try {
       await connection.operatorService.addSearchAttributes({
         namespace: 'default',

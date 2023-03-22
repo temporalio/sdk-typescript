@@ -14,14 +14,15 @@ use temporal_sdk_core::{
     },
     api::worker::{WorkerConfig, WorkerConfigBuilder},
     ephemeral_server::{
-        TemporaliteConfig, TemporaliteConfigBuilder, TestServerConfig, TestServerConfigBuilder,
+        TemporalDevServerConfig, TemporalDevServerConfigBuilder, TestServerConfig,
+        TestServerConfigBuilder,
     },
     ClientOptions, ClientOptionsBuilder, ClientTlsConfig, RetryConfig, TlsConfig, Url,
 };
 
 pub enum EphemeralServerConfig {
     TestServer(TestServerConfig),
-    Temporalite(TemporaliteConfig),
+    DevServer(TemporalDevServerConfig),
 }
 
 pub trait ArrayHandleConversionsExt {
@@ -403,8 +404,8 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
 
         let server_type = js_value_getter!(cx, self, "type", JsString);
         match server_type.as_str() {
-            "temporalite" => {
-                let mut config = TemporaliteConfigBuilder::default();
+            "dev-server" => {
+                let mut config = TemporalDevServerConfigBuilder::default();
                 config.exe(executable).port(port);
 
                 if let Some(extra_args) = js_optional_getter!(cx, self, "extraArgs", JsArray) {
@@ -427,9 +428,9 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
                 }
 
                 match config.build() {
-                    Ok(config) => Ok(EphemeralServerConfig::Temporalite(config)),
+                    Ok(config) => Ok(EphemeralServerConfig::DevServer(config)),
                     Err(err) => {
-                        cx.throw_type_error(format!("Invalid temporalite config: {:?}", err))
+                        cx.throw_type_error(format!("Invalid dev server config: {:?}", err))
                     }
                 }
             }
@@ -450,7 +451,7 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
                 }
             }
             s => cx.throw_type_error(format!(
-                "Invalid ephemeral server type: {}, expected 'temporalite' or 'time-skipping'",
+                "Invalid ephemeral server type: {}, expected 'dev-server' or 'time-skipping'",
                 s
             )),
         }
