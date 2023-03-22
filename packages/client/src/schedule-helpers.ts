@@ -215,7 +215,7 @@ export function compileScheduleOptions(options: ScheduleOptions): CompiledSchedu
       ...options.action,
       workflowId: options.action.workflowId ?? `${options.scheduleId}-workflow`,
       workflowType,
-      args: options.action.args ?? [],
+      args: (options.action.args ?? []) as unknown[],
     },
   };
 }
@@ -228,7 +228,7 @@ export function compileUpdatedScheduleOptions(options: ScheduleUpdateOptions): C
     action: {
       ...options.action,
       workflowType,
-      args: options.action.args ?? [],
+      args: (options.action.args ?? []) as unknown[],
     },
   };
 }

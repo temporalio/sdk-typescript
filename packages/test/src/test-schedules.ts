@@ -45,16 +45,17 @@ if (RUN_INTEGRATION_TESTS) {
   test('Can create schedule with calendar', async (t) => {
     const { client } = t.context;
     const scheduleId = `can-create-schedule-with-calendar-${randomUUID()}`;
+    const action = {
+      type: 'startWorkflow',
+      workflowType: dummyWorkflow,
+      taskQueue,
+    } as const;
     const handle = await client.schedule.create({
       scheduleId,
       spec: {
         calendars: [{ hour: { start: 2, end: 7, step: 1 } }],
       },
-      action: {
-        type: 'startWorkflow',
-        workflowType: dummyWorkflow,
-        taskQueue,
-      },
+      action,
     });
 
     try {
@@ -181,23 +182,24 @@ if (RUN_INTEGRATION_TESTS) {
   test('Can create schedule with startWorkflow action (with args)', async (t) => {
     const { client } = t.context;
     const scheduleId = `can-create-schedule-with-startWorkflow-action-${randomUUID()}`;
+    const action = {
+      type: 'startWorkflow',
+      workflowType: dummyWorkflowWith2Args,
+      args: [3, 4],
+      taskQueue,
+      memo: {
+        'my-memo': 'foo',
+      },
+      searchAttributes: {
+        CustomKeywordField: ['test-value2'],
+      },
+    } as const;
     const handle = await client.schedule.create({
       scheduleId,
       spec: {
         calendars: [{ hour: { start: 2, end: 7, step: 1 } }],
       },
-      action: {
-        type: 'startWorkflow',
-        workflowType: dummyWorkflowWith2Args,
-        args: [3, 4],
-        taskQueue,
-        memo: {
-          'my-memo': 'foo',
-        },
-        searchAttributes: {
-          CustomKeywordField: ['test-value2'],
-        },
-      },
+      action,
     });
 
     try {
