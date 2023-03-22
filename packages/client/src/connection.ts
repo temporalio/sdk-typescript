@@ -153,6 +153,7 @@ export interface RPCImplOptions {
   client: grpc.Client;
   callContextStorage: AsyncLocalStorage<CallContext>;
   interceptors?: grpc.Interceptor[];
+  staticMetadata: Metadata;
 }
 
 export interface ConnectionCtorOptions {
@@ -221,13 +222,13 @@ export class Connection {
       optionsWithDefaults.channelArgs
     );
     const callContextStorage = new AsyncLocalStorage<CallContext>();
-    callContextStorage.enterWith({ metadata: optionsWithDefaults.metadata });
 
     const workflowRpcImpl = this.generateRPCImplementation({
       serviceName: 'temporal.api.workflowservice.v1.WorkflowService',
       client,
       callContextStorage,
       interceptors: optionsWithDefaults?.interceptors,
+      staticMetadata: optionsWithDefaults.metadata,
     });
     const workflowService = WorkflowService.create(workflowRpcImpl, false, false);
     const operatorRpcImpl = this.generateRPCImplementation({
@@ -235,6 +236,7 @@ export class Connection {
       client,
       callContextStorage,
       interceptors: optionsWithDefaults?.interceptors,
+      staticMetadata: optionsWithDefaults.metadata,
     });
     const operatorService = OperatorService.create(operatorRpcImpl, false, false);
     const healthRpcImpl = this.generateRPCImplementation({
@@ -242,6 +244,7 @@ export class Connection {
       client,
       callContextStorage,
       interceptors: optionsWithDefaults?.interceptors,
+      staticMetadata: optionsWithDefaults.metadata,
     });
     const healthService = HealthService.create(healthRpcImpl, false, false);
 
@@ -329,10 +332,14 @@ export class Connection {
     client,
     callContextStorage,
     interceptors,
+    staticMetadata,
   }: RPCImplOptions): RPCImpl {
     return (method: { name: string }, requestData: any, callback: grpc.requestCallback<any>) => {
       const metadataContainer = new grpc.Metadata();
       const { metadata, deadline } = callContextStorage.getStore() ?? {};
+      for (const [k, v] of Object.entries(staticMetadata)) {
+        metadataContainer.set(k, v);
+      }
       if (metadata != null) {
         for (const [k, v] of Object.entries(metadata)) {
           metadataContainer.set(k, v);
