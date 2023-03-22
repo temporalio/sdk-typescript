@@ -3,6 +3,7 @@ import { readFile, writeFile } from 'node:fs/promises';
 
 import { spawn } from './subprocess.js';
 import { isUrlOk } from './samples.js';
+import { getErrorCode } from './get-error-code.js';
 
 interface InstallArgs {
   root: string;
@@ -45,8 +46,18 @@ export async function updateNodeVersion({ root }: InstallArgs): Promise<void> {
       await writeFile(fileName, fileString.replace(`@tsconfig/node${versionAlreadyInPackageJson}`, packageName));
 
       const tsconfigJson = `${root}/tsconfig.json`;
-      fileString = (await readFile(tsconfigJson)).toString();
-      await writeFile(tsconfigJson, fileString.replace(`@tsconfig/node${versionAlreadyInPackageJson}`, packageName));
+
+      try {
+        fileString = (await readFile(tsconfigJson)).toString();
+        await writeFile(tsconfigJson, fileString.replace(`@tsconfig/node${versionAlreadyInPackageJson}`, packageName));
+      } catch (error) {
+        const code = getErrorCode(error);
+
+        // If the file doesn't exist, that's fine
+        if (code !== 'ENOENT') {
+          throw error;
+        }
+      }
     }
 
     await writeFile(`${root}/.nvmrc`, currentNodeVersion.toString());
