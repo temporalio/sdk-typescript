@@ -1,5 +1,6 @@
 ---
 title: Temporal TypeScript SDK API Reference
+description: Temporal TypeScript SDK API reference documentation
 sidebar_label: Home
 slug: /
 ---

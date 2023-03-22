@@ -16,6 +16,7 @@ module.exports = {
   organizationName: 'temporalio',
   projectName: 'sdk-typescript',
   themeConfig: {
+    image: 'img/social.png',
     prism: {
       theme: lightCodeTheme,
       darkTheme: darkCodeTheme,
@@ -130,6 +131,9 @@ module.exports = {
         disableSources: true,
         readme: 'none',
         watch,
+        frontmatter: {
+          image: 'img/social.png',
+        },
       },
     ],
     ...(watch
