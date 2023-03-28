@@ -31,6 +31,11 @@
   "bugs": {
     "url": "https://github.com/temporalio/sdk-typescript/issues"
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/temporalio/sdk-typescript.git",
+    "directory": "packages/core-bridge"
+  },
   "homepage": "https://github.com/temporalio/sdk-typescript/tree/main/packages/core-bridge",
   "files": [
     "scripts",
