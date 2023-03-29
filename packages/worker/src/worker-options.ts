@@ -172,11 +172,11 @@ export interface WorkerOptions {
   enableNonLocalActivities?: boolean;
 
   /**
-   * Limits the number of activities per second that this worker will process. The worker will not poll for new
-   * activities if by doing so it might receive and execute an activity which would cause it to exceed this limit. Must
-   * be a positive floating point number.
+   * Limits the number of Activities per second that this Worker will process. (Does not limit the number of Local
+   * Activities.) The Worker will not poll for new Activities if by doing so it might receive and execute an Activity
+   * which would cause it to exceed this limit. Must be a positive number.
    *
-   * If unset, no rate limiting will be applied to Worker's activities. (`tctl task-queue describe` will display the
+   * If unset, no rate limiting will be applied to Worker's Activities. (`tctl task-queue describe` will display the
    * absence of a limit as 100,000.)
    */
   maxActivitiesPerSecond?: number;
