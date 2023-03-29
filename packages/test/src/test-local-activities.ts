@@ -126,7 +126,7 @@ if (RUN_INTEGRATION_TESTS) {
         { instanceOf: WorkflowFailedError }
       );
       t.true(isCancellation(err?.cause));
-      t.is(err?.cause?.message, 'Activity cancelled');
+      t.is(err?.cause?.message, 'Local Activity cancelled');
     });
   });
 
@@ -144,7 +144,7 @@ if (RUN_INTEGRATION_TESTS) {
         { instanceOf: WorkflowFailedError }
       );
       t.true(isCancellation(err?.cause));
-      t.is(err?.cause?.message, 'Activity cancelled');
+      t.is(err?.cause?.message, 'Local Activity cancelled');
     });
   });
 
@@ -316,8 +316,8 @@ if (RUN_INTEGRATION_TESTS) {
       instanceOf: WorkflowFailedError,
     });
     t.true(isCancellation(err?.cause));
-    t.is(err?.cause?.message, 'Activity cancelled');
-    console.log('Waiting for worker to complete shutdown');
+    t.is(err?.cause?.message, 'Local Activity cancelled');
+    console.log('Local Waiting for worker to complete shutdown');
     await p;
   });
 
