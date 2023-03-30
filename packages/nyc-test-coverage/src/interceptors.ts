@@ -12,9 +12,13 @@ export const interceptors = (): WorkflowInterceptors => ({
         /* eslint-disable @typescript-eslint/ban-ts-comment */
         // @ts-ignore
         const globalCoverage: CoverageMapData = global.__coverage__;
-
-        coverage.merge(JSON.parse(JSON.stringify(globalCoverage)));
-        clearCoverage(globalCoverage);
+        if (globalCoverage) {
+          // Send coverage data through the sink to be merged into the _real_ global coverage map
+          // Make a deep copy first, otherwise clearCoverage may wipe out the data
+          // before it actually get processed by the sink
+          coverage.merge(JSON.parse(JSON.stringify(globalCoverage)));
+          clearCoverage(globalCoverage);
+        }
 
         return next(input);
       },

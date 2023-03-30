@@ -3,7 +3,8 @@ import * as convert from 'convert-source-map';
 import type { LoaderDefinitionFunction } from 'webpack';
 
 const instrumentWithIstanbulLoader: LoaderDefinitionFunction = function (source, sourceMap): void {
-  const srcMap = sourceMap ?? convert.fromSource(source)?.sourcemap;
+  let srcMap = sourceMap ?? convert.fromSource(source)?.sourcemap;
+  if (typeof srcMap === 'string') srcMap = JSON.parse(srcMap);
 
   const instrumenter = createInstrumenter({
     esModules: true,
