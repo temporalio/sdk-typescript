@@ -35,6 +35,7 @@ import {
   DefaultSignalHandler,
   EnhancedStackTrace,
   Handler,
+  TimeTravelStackTrace,
   WorkflowInfo,
 } from './interfaces';
 import { LocalActivityDoBackoff, getActivator, maybeGetActivator } from './internals';
@@ -1254,3 +1255,4 @@ export function upsertSearchAttributes(searchAttributes: SearchAttributes): void
 
 export const stackTraceQuery = defineQuery<string>('__stack_trace');
 export const enhancedStackTraceQuery = defineQuery<EnhancedStackTrace>('__enhanced_stack_trace');
+export const timeTravelStackTraceQuery = defineQuery<TimeTravelStackTrace>('__time_travel_stack_trace');

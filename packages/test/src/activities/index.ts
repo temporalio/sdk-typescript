@@ -86,6 +86,11 @@ export async function progressiveSleep(): Promise<void> {
   cx.heartbeat(3);
 }
 
+export async function sleepFor(ms = 1000): Promise<void> {
+  const cx = Context.current();
+  await cx.sleep(ms);
+}
+
 export async function protoActivity(args: ProtoActivityInput): Promise<ProtoActivityResult> {
   return ProtoActivityResult.create({ sentence: `${args.name} is ${args.age} years old.` });
 }
