@@ -1443,6 +1443,18 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
     t.is(markersEvents[0].markerRecordedEventAttributes!.markerName, CHANGE_MARKER_NAME);
   });
 
+  test('Enhanced stack trace demo', async (t) => {
+    const { client } = t.context;
+    const workflowId = uuid4();
+    const handle = await client.start(workflows.enhancedStackStuck, {
+      taskQueue: 'test',
+      workflowId,
+    });
+
+    await handle.result();
+    t.pass();
+  });
+
   test('Time travel stack trace', async (t) => {
     const { client } = t.context;
     const workflowId = uuid4();

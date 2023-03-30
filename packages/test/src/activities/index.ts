@@ -86,7 +86,7 @@ export async function progressiveSleep(): Promise<void> {
   cx.heartbeat(3);
 }
 
-export async function sleepFor(ms = 1000): Promise<void> {
+export async function sleepFor(ms: number | string = 1000): Promise<void> {
   const cx = Context.current();
   await cx.sleep(ms);
 }
