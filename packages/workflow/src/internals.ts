@@ -26,8 +26,8 @@ import {
   DefaultSignalHandler,
   SDKInfo,
   FileSlice,
-  EnhancedStackTrace,
   FileLocation,
+  InternalEnhancedStackTrace,
   WorkflowInfo,
   WorkflowCreateOptionsWithSourceMap,
 } from './interfaces';
@@ -47,6 +47,7 @@ checkExtends<StartChildWorkflowExecutionFailedCause, coresdk.child_workflow.Star
 export interface Stack {
   formatted: string;
   structured: FileLocation[];
+  commands?: Array<{ type: string; seq: number }>;
 }
 
 /**
@@ -102,6 +103,7 @@ export const LATEST_INTERNAL_PATCH_NUMBER = 1;
  * Implements handlers for all workflow activation jobs.
  */
 export class Activator implements ActivationHandler {
+  readonly promiseToCommand = new Map<Promise<any>, { seq: number; type: string }>();
   /**
    * Cache for modules - referenced in reusable-vm.ts
    */
@@ -173,10 +175,10 @@ export class Activator implements ActivationHandler {
     ],
     [
       '__enhanced_stack_trace',
-      (): EnhancedStackTrace => {
+      (): InternalEnhancedStackTrace => {
         const { sourceMap } = this;
         const sdk: SDKInfo = { name: 'typescript', version: pkg.version };
-        const stacks = this.getStackTraces().map(({ structured: locations }) => ({ locations }));
+        const stacks = this.getStackTraces().map(({ structured: locations, commands }) => ({ locations, commands }));
         const sources: Record<string, FileSlice[]> = {};
         if (this.showStackTraceSources) {
           for (const { locations } of stacks) {
@@ -310,6 +312,16 @@ export class Activator implements ActivationHandler {
     }
   }
 
+  protected accCommands(p: Promise<any>, commands: Array<{ type: string; seq: number }>) {
+    let command = this.promiseToCommand.get(p);
+    if (command) commands.push(command);
+    const parents = this.promiseStackStore.childToParent.get(p);
+    if (!parents) return;
+    for (const parent of parents) {
+      this.accCommands(parent, commands);
+    }
+  }
+
   protected getStackTraces(): Stack[] {
     const { childToParent, promiseToStack } = this.promiseStackStore;
     const internalNodes = [...childToParent.values()].reduce((acc, curr) => {
@@ -320,9 +332,12 @@ export class Activator implements ActivationHandler {
     }, new Set());
     const stacks = new Map<string, Stack>();
     for (const child of childToParent.keys()) {
+      const commands = new Array<{ type: string; seq: number }>();
+      this.accCommands(child, commands);
       if (!internalNodes.has(child)) {
         const stack = promiseToStack.get(child);
         if (!stack || !stack.formatted) continue;
+        stack.commands = commands;
         stacks.set(stack.formatted, stack);
       }
     }

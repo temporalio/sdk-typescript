@@ -65,7 +65,7 @@ export function addDefaultWorkflowOptions<T extends Workflow>(
  */
 function timerNextHandler(input: TimerInput) {
   const activator = getActivator();
-  return new Promise<void>((resolve, reject) => {
+  const promise = new Promise<void>((resolve, reject) => {
     const scope = CancellationScope.current();
     if (scope.consideredCancelled) {
       untrackPromise(scope.cancelRequested.catch(reject));
@@ -97,6 +97,8 @@ function timerNextHandler(input: TimerInput) {
       reject,
     });
   });
+  activator.promiseToCommand.set(promise, { type: 'startTimer', seq: input.seq });
+  return promise;
 }
 
 /**
@@ -141,7 +143,7 @@ const validateLocalActivityOptions = validateActivityOptions;
 function scheduleActivityNextHandler({ options, args, headers, seq, activityType }: ActivityInput): Promise<unknown> {
   const activator = getActivator();
   validateActivityOptions(options);
-  return new Promise((resolve, reject) => {
+  const promise = new Promise((resolve, reject) => {
     const scope = CancellationScope.current();
     if (scope.consideredCancelled) {
       untrackPromise(scope.cancelRequested.catch(reject));
@@ -183,6 +185,8 @@ function scheduleActivityNextHandler({ options, args, headers, seq, activityType
       reject,
     });
   });
+  activator.promiseToCommand.set(promise, { type: 'scheduleActivity', seq });
+  return promise;
 }
 
 /**

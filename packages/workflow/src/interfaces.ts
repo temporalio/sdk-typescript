@@ -358,8 +358,33 @@ export interface FileLocation {
   functionName?: string;
 }
 
+/**
+ * An internal (Lang<->Core) command identifier
+ */
+export interface InternalCommand {
+  type: string;
+  seq: number;
+}
+
+export interface InternalStackTrace {
+  locations: FileLocation[];
+  commands?: InternalCommand[];
+}
+
 export interface StackTrace {
   locations: FileLocation[];
+  correlatingEventIds?: number[];
+}
+
+export interface InternalEnhancedStackTrace {
+  sdk: SDKInfo;
+  /**
+   * Mapping of file path to file contents.
+   * SDK may choose to send no, some or all sources.
+   * Sources might be trimmed, and some time only the file(s) of the top element of the trace will be sent.
+   */
+  sources: Record<string, FileSlice[]>;
+  stacks: InternalStackTrace[];
 }
 
 /**
@@ -374,6 +399,18 @@ export interface EnhancedStackTrace {
    */
   sources: Record<string, FileSlice[]>;
   stacks: StackTrace[];
+}
+
+export interface TimeTravelStackTrace {
+  sdk: SDKInfo;
+  /**
+   * Mapping of file path to file contents.
+   * SDK may choose to send no, some or all sources.
+   * Sources might be trimmed, and some time only the file(s) of the top element of the trace will be sent.
+   */
+  sources: Record<string, FileSlice[]>;
+  /** A mapping of workflow task started event ID to active stack traces. */
+  stacks: Record<number, StackTrace[]>;
 }
 
 export interface WorkflowCreateOptions {
