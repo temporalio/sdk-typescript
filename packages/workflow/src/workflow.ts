@@ -97,7 +97,7 @@ function timerNextHandler(input: TimerInput) {
       reject,
     });
   });
-  activator.promiseToCommand.set(promise, { type: 'startTimer', seq: input.seq });
+  activator.promiseToCommand.set(promise, { type: 'StartTimer', seq: input.seq });
   return promise;
 }
 
@@ -185,7 +185,7 @@ function scheduleActivityNextHandler({ options, args, headers, seq, activityType
       reject,
     });
   });
-  activator.promiseToCommand.set(promise, { type: 'scheduleActivity', seq });
+  activator.promiseToCommand.set(promise, { type: 'ScheduleActivity', seq });
   return promise;
 }
 
