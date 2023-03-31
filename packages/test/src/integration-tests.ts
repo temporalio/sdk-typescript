@@ -1,7 +1,7 @@
 /* eslint @typescript-eslint/no-non-null-assertion: 0 */
 import path from 'node:path';
 import v8 from 'node:v8';
-import { readFileSync } from 'node:fs';
+import fs, { readFileSync } from 'node:fs';
 import * as grpc from '@grpc/grpc-js';
 import asyncRetry from 'async-retry';
 import anyTest, { Implementation, TestFn } from 'ava';
@@ -45,6 +45,7 @@ import { ConnectionInjectorInterceptor } from './activities/interceptors';
 import { cleanOptionalStackTrace, u8, Worker } from './helpers';
 import * as workflows from './workflows';
 import { withZeroesHTTPServer } from './zeroes-http-server';
+import { timeTravelStackTraceQuery } from '@temporalio/workflow';
 
 const { EVENT_TYPE_TIMER_STARTED, EVENT_TYPE_TIMER_FIRED, EVENT_TYPE_TIMER_CANCELED, EVENT_TYPE_MARKER_RECORDED } =
   iface.temporal.api.enums.v1.EventType;
@@ -83,7 +84,6 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
       telemetryOptions: {
         logging: {
           filter: makeTelemetryFilterString({ core: 'INFO', other: 'INFO' }),
-          forward: {},
         },
       },
     });
@@ -1441,5 +1441,36 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
     const markersEvents = history.events!.filter(({ eventType }) => eventType! === EVENT_TYPE_MARKER_RECORDED);
     t.is(markersEvents.length, 1);
     t.is(markersEvents[0].markerRecordedEventAttributes!.markerName, CHANGE_MARKER_NAME);
+  });
+
+  test('Enhanced stack trace demo', async (t) => {
+    const { client } = t.context;
+    const workflowId = uuid4();
+    const handle = await client.start(workflows.enhancedStackStuck, {
+      taskQueue: 'test',
+      workflowId,
+    });
+
+    await handle.result();
+    t.pass();
+  });
+
+  test('Time travel stack trace', async (t) => {
+    const { client } = t.context;
+    const workflowId = uuid4();
+    const handle = await client.start(workflows.timeTravelStacks, {
+      taskQueue: 'test',
+      workflowId,
+    });
+
+    await handle.result();
+    const res = await handle.query(timeTravelStackTraceQuery);
+    try {
+      fs.writeFileSync('tt_query.json', JSON.stringify(res));
+    } catch (err) {
+      console.error("Couldn't write query json: ", err);
+    }
+
+    t.pass();
   });
 }

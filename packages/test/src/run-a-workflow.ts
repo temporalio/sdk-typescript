@@ -1,6 +1,7 @@
 import arg from 'arg';
 import { WorkflowClient, Connection } from '@temporalio/client';
 import * as workflows from './workflows';
+import { inspect } from 'node:util';
 
 async function main() {
   const argv = arg({
@@ -21,7 +22,7 @@ async function main() {
     taskQueue: 'test',
     args,
   });
-  console.log('complete', { result });
+  console.log('complete', inspect(result, { colors: true, depth: Infinity }));
 }
 
 main().then(

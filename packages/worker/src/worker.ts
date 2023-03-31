@@ -1030,7 +1030,12 @@ export class Worker {
       info: WorkflowInfo;
     }
     return pipe(
-      closeableGroupBy(({ activation }) => activation.runId),
+      closeableGroupBy(({ activation }) => {
+        if (activation.alternateCacheKey) {
+          return activation.alternateCacheKey;
+        }
+        return activation.runId;
+      }),
       mergeMap((group$) => {
         return merge(
           group$.pipe(map((act) => ({ ...act, synthetic: false }))),
@@ -1216,6 +1221,9 @@ export class Worker {
                   try {
                     const decodedActivation = await this.workflowCodecRunner.decodeActivation(activation);
                     const unencodedCompletion = await state.workflow.activate(decodedActivation);
+                    if (group$.key != unencodedCompletion.runId) {
+                      unencodedCompletion.alternateCacheKey = group$.key;
+                    }
                     const completion = await this.workflowCodecRunner.encodeCompletion(unencodedCompletion);
                     this.log.trace('Completed activation', workflowLogAttributes(state.info));
 

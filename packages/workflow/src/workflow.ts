@@ -35,6 +35,7 @@ import {
   DefaultSignalHandler,
   EnhancedStackTrace,
   Handler,
+  TimeTravelStackTrace,
   WorkflowInfo,
 } from './interfaces';
 import { LocalActivityDoBackoff, getActivator, maybeGetActivator } from './internals';
@@ -65,7 +66,7 @@ export function addDefaultWorkflowOptions<T extends Workflow>(
  */
 function timerNextHandler(input: TimerInput) {
   const activator = getActivator();
-  return new Promise<void>((resolve, reject) => {
+  const promise = new Promise<void>((resolve, reject) => {
     const scope = CancellationScope.current();
     if (scope.consideredCancelled) {
       untrackPromise(scope.cancelRequested.catch(reject));
@@ -97,6 +98,8 @@ function timerNextHandler(input: TimerInput) {
       reject,
     });
   });
+  activator.promiseToCommand.set(promise, { type: 'StartTimer', seq: input.seq });
+  return promise;
 }
 
 /**
@@ -141,7 +144,7 @@ const validateLocalActivityOptions = validateActivityOptions;
 function scheduleActivityNextHandler({ options, args, headers, seq, activityType }: ActivityInput): Promise<unknown> {
   const activator = getActivator();
   validateActivityOptions(options);
-  return new Promise((resolve, reject) => {
+  const promise = new Promise((resolve, reject) => {
     const scope = CancellationScope.current();
     if (scope.consideredCancelled) {
       untrackPromise(scope.cancelRequested.catch(reject));
@@ -183,6 +186,8 @@ function scheduleActivityNextHandler({ options, args, headers, seq, activityType
       reject,
     });
   });
+  activator.promiseToCommand.set(promise, { type: 'ScheduleActivity', seq });
+  return promise;
 }
 
 /**
@@ -372,6 +377,7 @@ function startChildWorkflowExecutionNextHandler({
       reject,
     });
   });
+  activator.promiseToCommand.set(startPromise, { type: 'StartChildWorkflow', seq: seq });
 
   // We construct a Promise for the completion of the child Workflow before we know
   // if the Workflow code will await it to capture the result in case it does.
@@ -383,6 +389,7 @@ function startChildWorkflowExecutionNextHandler({
       reject,
     });
   });
+  activator.promiseToCommand.set(completePromise, { type: 'StartChildWorkflow', seq: seq });
   untrackPromise(startPromise);
   untrackPromise(completePromise);
   // Prevent unhandled rejection because the completion might not be awaited
@@ -1250,3 +1257,4 @@ export function upsertSearchAttributes(searchAttributes: SearchAttributes): void
 
 export const stackTraceQuery = defineQuery<string>('__stack_trace');
 export const enhancedStackTraceQuery = defineQuery<EnhancedStackTrace>('__enhanced_stack_trace');
+export const timeTravelStackTraceQuery = defineQuery<TimeTravelStackTrace>('__time_travel_stack_trace');
