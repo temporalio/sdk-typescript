@@ -1,9 +1,8 @@
 // Modified from: https://github.com/vercel/next.js/blob/2425f4703c4c6164cecfdb6aa8f80046213f0cc6/packages/create-next-app/helpers/install.ts
 import { readFile, writeFile } from 'node:fs/promises';
-
+import { glob } from 'glob';
 import { spawn } from './subprocess.js';
 import { isUrlOk } from './samples.js';
-import { getErrorCode } from './get-error-code.js';
 
 interface InstallArgs {
   root: string;
@@ -38,25 +37,14 @@ export async function updateNodeVersion({ root }: InstallArgs): Promise<void> {
 
   if (currentNodeVersion >= minimumValidVersion && currentNodeVersion !== versionAlreadyInPackageJson) {
     const packageName = `@tsconfig/node${currentNodeVersion}`;
-    const fileName = `${root}/package.json`;
 
     const packageExists = await isUrlOk(`https://registry.npmjs.org/${packageName}`);
     if (packageExists) {
-      let fileString = (await readFile(fileName)).toString();
-      await writeFile(fileName, fileString.replace(`@tsconfig/node${versionAlreadyInPackageJson}`, packageName));
+      const fileNames = await glob([`${root}/**/package.json`, `${root}/**/tsconfig.json`]);
 
-      const tsconfigJson = `${root}/tsconfig.json`;
-
-      try {
-        fileString = (await readFile(tsconfigJson)).toString();
-        await writeFile(tsconfigJson, fileString.replace(`@tsconfig/node${versionAlreadyInPackageJson}`, packageName));
-      } catch (error) {
-        const code = getErrorCode(error);
-
-        // If the file doesn't exist, that's fine
-        if (code !== 'ENOENT') {
-          throw error;
-        }
+      for (const fileName of fileNames) {
+        const fileString = (await readFile(fileName)).toString();
+        await writeFile(fileName, fileString.replace(`@tsconfig/node${versionAlreadyInPackageJson}`, packageName));
       }
     }
 
