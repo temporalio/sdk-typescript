@@ -56,7 +56,6 @@ function cutoffStructuredStackTrace(stackTrace: FileLocation[]): void {
     stackTrace.splice(idx);
   }
   const wfModulePath = path.resolve(require.resolve('@temporalio/workflow'), '../..');
-  console.log('wfModulePath', wfModulePath);
   // Also drop all internal calls from the top of the stack
   const isInternalCodePred = ({ filePath, functionName }: FileLocation) => {
     if (!filePath || !functionName) {
@@ -67,7 +66,6 @@ function cutoffStructuredStackTrace(stackTrace: FileLocation[]): void {
   let firstIndexUserCode = stackTrace.length;
   while (firstIndexUserCode--) {
     if (isInternalCodePred(stackTrace[firstIndexUserCode])) {
-      console.log('Stopping at: ', stackTrace[firstIndexUserCode]);
       break;
     }
   }
