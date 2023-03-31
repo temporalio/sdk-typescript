@@ -1,8 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import anyTest, { TestFn } from 'ava';
-import * as grpc from '@grpc/grpc-js';
 import asyncRetry from 'async-retry';
-import { v4 as uuid4 } from 'uuid';
 import {
   Client,
   defaultPayloadConverter,
@@ -13,10 +11,8 @@ import {
   ScheduleSummary,
   ScheduleUpdateOptions,
 } from '@temporalio/client';
-import * as iface from '@temporalio/proto';
 import { msToNumber } from '@temporalio/common/lib/time';
-import * as workflows from './workflows';
-import { RUN_INTEGRATION_TESTS } from './helpers';
+import { registerDefaultCustomSearchAttributes, RUN_INTEGRATION_TESTS } from './helpers';
 
 export interface Context {
   client: Client;
@@ -41,61 +37,11 @@ const calendarSpecDescriptionDefaults: CalendarSpecDescription = {
 };
 
 if (RUN_INTEGRATION_TESTS) {
-  test.before(async () => {
+  test.before(async (t) => {
     const connection = await Connection.connect();
-    try {
-      const client = new Client({ connection }).workflow;
-      // In case we're running with a server that doesn't use the docker-compose setup.
-      try {
-        await connection.operatorService.addSearchAttributes({
-          namespace: 'default',
-          searchAttributes: {
-            CustomIntField: iface.temporal.api.enums.v1.IndexedValueType.INDEXED_VALUE_TYPE_INT,
-            CustomBoolField: iface.temporal.api.enums.v1.IndexedValueType.INDEXED_VALUE_TYPE_BOOL,
-            CustomKeywordField: iface.temporal.api.enums.v1.IndexedValueType.INDEXED_VALUE_TYPE_KEYWORD,
-            CustomTextField: iface.temporal.api.enums.v1.IndexedValueType.INDEXED_VALUE_TYPE_TEXT,
-            CustomDatetimeField: iface.temporal.api.enums.v1.IndexedValueType.INDEXED_VALUE_TYPE_DATETIME,
-            CustomDoubleField: iface.temporal.api.enums.v1.IndexedValueType.INDEXED_VALUE_TYPE_DOUBLE,
-          },
-        });
-      } catch (err: any) {
-        if (err.code !== grpc.status.ALREADY_EXISTS) {
-          throw err;
-        }
-      }
-      // The initialization of the custom search attributes is slooooow. Wait for it to finish
-      await asyncRetry(
-        async () => {
-          try {
-            const handle = await client.start(workflows.sleeper, {
-              workflowId: uuid4(),
-              taskQueue: 'no_one_cares_pointless_queue',
-              workflowExecutionTimeout: 1000,
-              searchAttributes: { CustomIntField: [1] },
-            });
-            await handle.terminate();
-          } catch (e: any) {
-            // We don't stop until we see an error that *isn't* the error about the field not being
-            // valid
-            if (!e.details.includes('CustomIntField')) {
-              return;
-            }
-            throw e;
-          }
-        },
-        {
-          retries: 60,
-          maxTimeout: 1000,
-        }
-      );
-    } finally {
-      await connection.close();
-    }
-  });
-
-  test.beforeEach(async (t) => {
+    await registerDefaultCustomSearchAttributes(connection);
     t.context = {
-      client: new Client(),
+      client: new Client({ connection }),
     };
   });
 
