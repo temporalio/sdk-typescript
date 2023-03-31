@@ -26,6 +26,11 @@
   "bugs": {
     "url": "https://github.com/temporalio/sdk-typescript/issues"
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/temporalio/sdk-typescript.git",
+    "directory": "packages/testing"
+  },
   "homepage": "https://github.com/temporalio/sdk-typescript/tree/main/packages/testing",
   "files": [
     "lib",

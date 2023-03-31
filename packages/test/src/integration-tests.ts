@@ -42,7 +42,7 @@ import pkg from '@temporalio/worker/lib/pkg';
 import { UnsafeWorkflowInfo } from '@temporalio/workflow/src/interfaces';
 import * as activities from './activities';
 import { ConnectionInjectorInterceptor } from './activities/interceptors';
-import { cleanOptionalStackTrace, u8, Worker } from './helpers';
+import { cleanOptionalStackTrace, registerDefaultCustomSearchAttributes, u8, Worker } from './helpers';
 import * as workflows from './workflows';
 import { withZeroesHTTPServer } from './zeroes-http-server';
 
@@ -88,6 +88,7 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
       },
     });
     const connection = await Connection.connect();
+    await registerDefaultCustomSearchAttributes(connection);
 
     const worker = await Worker.create({
       workflowsPath: require.resolve('./workflows'),
@@ -114,50 +115,6 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
       client: metaClient.workflow,
       metaClient,
     };
-
-    // In case we're running with a server that doesn't use the docker-compose setup.
-    try {
-      await connection.operatorService.addSearchAttributes({
-        namespace: 'default',
-        searchAttributes: {
-          CustomIntField: iface.temporal.api.enums.v1.IndexedValueType.INDEXED_VALUE_TYPE_INT,
-          CustomBoolField: iface.temporal.api.enums.v1.IndexedValueType.INDEXED_VALUE_TYPE_BOOL,
-          CustomKeywordField: iface.temporal.api.enums.v1.IndexedValueType.INDEXED_VALUE_TYPE_KEYWORD,
-          CustomTextField: iface.temporal.api.enums.v1.IndexedValueType.INDEXED_VALUE_TYPE_TEXT,
-          CustomDatetimeField: iface.temporal.api.enums.v1.IndexedValueType.INDEXED_VALUE_TYPE_DATETIME,
-          CustomDoubleField: iface.temporal.api.enums.v1.IndexedValueType.INDEXED_VALUE_TYPE_DOUBLE,
-        },
-      });
-    } catch (err: any) {
-      if (err.code !== grpc.status.ALREADY_EXISTS) {
-        throw err;
-      }
-    }
-    // The initialization of the custom search attributes is slooooow. Wait for it to finish
-    await asyncRetry(
-      async () => {
-        try {
-          const handle = await t.context.client.start(workflows.sleeper, {
-            workflowId: uuid4(),
-            taskQueue: 'no_one_cares_pointless_queue',
-            workflowExecutionTimeout: 1000,
-            searchAttributes: { CustomIntField: [1] },
-          });
-          await handle.terminate();
-        } catch (e: any) {
-          // We don't stop until we see an error that *isn't* the error about the field not being
-          // valid
-          if (!e.details.includes('CustomIntField')) {
-            return;
-          }
-          throw e;
-        }
-      },
-      {
-        retries: 60,
-        maxTimeout: 1000,
-      }
-    );
   });
 
   _test.after.always(async (t) => {

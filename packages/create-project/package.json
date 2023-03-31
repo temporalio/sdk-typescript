@@ -42,6 +42,15 @@
     "@types/validate-npm-package-name": "^4.0.0",
     "ava": "^4.3.1"
   },
+  "bugs": {
+    "url": "https://github.com/temporalio/sdk-typescript/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/temporalio/sdk-typescript.git",
+    "directory": "packages/create-project"
+  },
+  "homepage": "https://github.com/temporalio/sdk-typescript/tree/main/packages/create-project",
   "publishConfig": {
     "access": "public"
   },

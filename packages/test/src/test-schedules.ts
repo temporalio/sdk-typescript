@@ -6,12 +6,13 @@ import {
   defaultPayloadConverter,
   CalendarSpec,
   CalendarSpecDescription,
+  Connection,
   ScheduleHandle,
   ScheduleSummary,
   ScheduleUpdateOptions,
 } from '@temporalio/client';
 import { msToNumber } from '@temporalio/common/lib/time';
-import { RUN_INTEGRATION_TESTS } from './helpers';
+import { registerDefaultCustomSearchAttributes, RUN_INTEGRATION_TESTS } from './helpers';
 
 export interface Context {
   client: Client;
@@ -36,13 +37,15 @@ const calendarSpecDescriptionDefaults: CalendarSpecDescription = {
 };
 
 if (RUN_INTEGRATION_TESTS) {
-  test.beforeEach(async (t) => {
+  test.before(async (t) => {
+    const connection = await Connection.connect();
+    await registerDefaultCustomSearchAttributes(connection);
     t.context = {
-      client: new Client(),
+      client: new Client({ connection }),
     };
   });
 
-  test('Can create schedule with calendar', async (t) => {
+  test.serial('Can create schedule with calendar', async (t) => {
     const { client } = t.context;
     const scheduleId = `can-create-schedule-with-calendar-${randomUUID()}`;
     const action = {
@@ -68,7 +71,7 @@ if (RUN_INTEGRATION_TESTS) {
     }
   });
 
-  test('Can create schedule with intervals', async (t) => {
+  test.serial('Can create schedule with intervals', async (t) => {
     const { client } = t.context;
     const scheduleId = `can-create-schedule-with-inteval-${randomUUID()}`;
     const handle = await client.schedule.create({
@@ -91,7 +94,7 @@ if (RUN_INTEGRATION_TESTS) {
     }
   });
 
-  test('Can create schedule with cron syntax', async (t) => {
+  test.serial('Can create schedule with cron syntax', async (t) => {
     const { client } = t.context;
     const scheduleId = `can-create-schedule-with-cron-syntax-${randomUUID()}`;
     const handle = await client.schedule.create({
@@ -123,7 +126,7 @@ if (RUN_INTEGRATION_TESTS) {
     }
   });
 
-  test('Can create schedule without any spec', async (t) => {
+  test.serial('Can create schedule without any spec', async (t) => {
     const { client } = t.context;
     const scheduleId = `can-create-schedule-without-any-spec-${randomUUID()}`;
     const handle = await client.schedule.create({
@@ -146,7 +149,7 @@ if (RUN_INTEGRATION_TESTS) {
     }
   });
 
-  test('Can create schedule with startWorkflow action (no arg)', async (t) => {
+  test.serial('Can create schedule with startWorkflow action (no arg)', async (t) => {
     const { client } = t.context;
     const scheduleId = `can-create-schedule-with-startWorkflow-action-${randomUUID()}`;
     const handle = await client.schedule.create({
@@ -179,7 +182,7 @@ if (RUN_INTEGRATION_TESTS) {
     }
   });
 
-  test('Can create schedule with startWorkflow action (with args)', async (t) => {
+  test.serial('Can create schedule with startWorkflow action (with args)', async (t) => {
     const { client } = t.context;
     const scheduleId = `can-create-schedule-with-startWorkflow-action-${randomUUID()}`;
     const action = {
@@ -257,7 +260,7 @@ if (RUN_INTEGRATION_TESTS) {
     }
   });
 
-  test('startWorkflow headers are kept on update', async (t) => {
+  test.serial('startWorkflow headers are kept on update', async (t) => {
     const clientWithInterceptor = new Client({
       connection: t.context.client.connection,
       interceptors: {
@@ -302,7 +305,7 @@ if (RUN_INTEGRATION_TESTS) {
     }
   });
 
-  test('Can pause and unpause schedule', async (t) => {
+  test.serial('Can pause and unpause schedule', async (t) => {
     const { client } = t.context;
     const scheduleId = `can-pause-and-unpause-schedule-${randomUUID()}`;
     const handle = await client.schedule.create({
@@ -339,7 +342,7 @@ if (RUN_INTEGRATION_TESTS) {
     }
   });
 
-  test('Can update schedule calendar', async (t) => {
+  test.serial('Can update schedule calendar', async (t) => {
     const { client } = t.context;
     const scheduleId = `can-update-schedule-calendar-${randomUUID()}`;
     const handle = await client.schedule.create({
@@ -371,7 +374,7 @@ if (RUN_INTEGRATION_TESTS) {
     }
   });
 
-  test('Can update schedule action', async (t) => {
+  test.serial('Can update schedule action', async (t) => {
     const { client } = t.context;
     const scheduleId = `can-update-schedule-action-${randomUUID()}`;
     const handle = await client.schedule.create({
@@ -409,7 +412,7 @@ if (RUN_INTEGRATION_TESTS) {
     }
   });
 
-  test('Can update schedule intervals', async (t) => {
+  test.serial('Can update schedule intervals', async (t) => {
     const { client } = t.context;
     const scheduleId = `can-update-schedule-intervals-${randomUUID()}`;
     const handle = await client.schedule.create({
@@ -441,7 +444,7 @@ if (RUN_INTEGRATION_TESTS) {
     }
   });
 
-  test('Schedule updates throws without retry on validation error', async (t) => {
+  test.serial('Schedule updates throws without retry on validation error', async (t) => {
     const { client } = t.context;
     const scheduleId = `schedule-update-throws-without-retry-on-validation-error-${randomUUID()}`;
     const handle = await client.schedule.create({
@@ -480,7 +483,7 @@ if (RUN_INTEGRATION_TESTS) {
     }
   });
 
-  test('Can list Schedules', async (t) => {
+  test.serial('Can list Schedules', async (t) => {
     const { client } = t.context;
 
     const groupId = randomUUID();
@@ -540,7 +543,7 @@ if (RUN_INTEGRATION_TESTS) {
     }
   });
 
-  test('Structured calendar specs are encoded and decoded properly', async (t) => {
+  test.serial('Structured calendar specs are encoded and decoded properly', async (t) => {
     const checks: { input: CalendarSpec; expected: CalendarSpecDescription; comment?: string }[] = [
       {
         comment: 'a single value X encode to a range in the form { X, X, 1 }',

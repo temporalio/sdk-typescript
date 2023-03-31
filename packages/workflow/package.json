@@ -7,10 +7,15 @@
     "workflow",
     "isolate"
   ],
-  "homepage": "https://github.com/temporalio/sdk-typescript/tree/main/packages/workflow",
   "bugs": {
     "url": "https://github.com/temporalio/sdk-typescript/issues"
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/temporalio/sdk-typescript.git",
+    "directory": "packages/workflow"
+  },
+  "homepage": "https://github.com/temporalio/sdk-typescript/tree/main/packages/workflow",
   "license": "MIT",
   "author": "Temporal Technologies Inc. <sdk@temporal.io>",
   "main": "lib/index.js",

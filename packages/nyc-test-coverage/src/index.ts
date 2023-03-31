@@ -7,7 +7,7 @@ import { CoverageSinks } from './sinks';
 type WebpackConfigType = ReturnType<NonNullable<BundleOptions['webpackConfigHook']>>;
 
 export class WorkflowCoverage {
-  coverageMap = libCoverage.createCoverageMap();
+  coverageMapsData: libCoverage.CoverageMapData[] = [];
 
   // Check if running through nyc or some other Istanbul-based tool.
   // If not, any `workflowCoverage()` tools are a no-op.
@@ -129,7 +129,7 @@ export class WorkflowCoverage {
       coverage: {
         merge: {
           fn: (_workflowInfo, testCoverage) => {
-            this.coverageMap.merge(testCoverage);
+            this.coverageMapsData.push(testCoverage);
           },
           callDuringReplay: false,
         },
@@ -145,25 +145,45 @@ export class WorkflowCoverage {
       return config;
     }
 
-    const newRule = {
+    const rules = config?.module?.rules || [];
+
+    if (Object.keys(require.cache).some((file) => file.includes('ts-node/register'))) {
+      // ts-node is currently loaded
+      // ts-node and SWC doesn't translate TypeScript code the same way, which will cause
+      // line number mismatches in generated coverage reports.
+      const tsLoaderRule = {
+        test: /\.ts$/,
+        loader: require.resolve('ts-loader'),
+        exclude: /node_modules/,
+      };
+
+      const swcRuleIndex = rules.findIndex((rule) => {
+        const loader = (rule as any).use?.loader;
+        return loader && loader.indexOf('swc-loader') >= 0;
+      });
+
+      rules[swcRuleIndex] = tsLoaderRule;
+    }
+
+    rules.push({
       use: {
         loader: require.resolve('./loader'),
       },
       enforce: 'post' as const,
-      test: /\.js$/,
+      test: /\.[tj]s$/,
       exclude: [
         /\/node_modules\//,
         path.dirname(require.resolve('@temporalio/common')),
         path.dirname(require.resolve('@temporalio/workflow')),
         path.dirname(require.resolve('@temporalio/nyc-test-coverage')),
       ],
-    };
+    });
 
     return {
       ...config,
       module: {
         ...config?.module,
-        rules: [...(config?.module?.rules || []), newRule],
+        rules,
       },
     };
   }
@@ -177,21 +197,11 @@ export class WorkflowCoverage {
       return;
     }
 
-    /* eslint-disable @typescript-eslint/ban-ts-comment */
-    // @ts-ignore
-    this.coverageMap.merge(global.__coverage__);
+    const coverageMap = libCoverage.createCoverageMap();
+    this.coverageMapsData.unshift(global.__coverage__);
+    for (const data of this.coverageMapsData) coverageMap.merge(data);
+    this.coverageMapsData = [];
 
-    const coverageMapData: libCoverage.CoverageMapData = Object.keys(this.coverageMap.data).reduce(
-      (cur: libCoverage.CoverageMapData, path) => {
-        const fileCoverage = this.coverageMap.data[path] as libCoverage.FileCoverage;
-
-        cur[path] = fileCoverage.data;
-        return cur;
-      },
-      {}
-    );
-
-    // @ts-ignore
-    global.__coverage__ = coverageMapData;
+    global.__coverage__ = coverageMap.data;
   }
 }
