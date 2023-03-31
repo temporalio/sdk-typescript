@@ -1,10 +1,8 @@
 // Modified from: https://github.com/vercel/next.js/blob/2425f4703c4c6164cecfdb6aa8f80046213f0cc6/packages/create-next-app/helpers/install.ts
 import { readFile, writeFile } from 'node:fs/promises';
-
+import { glob } from 'glob';
 import { spawn } from './subprocess.js';
 import { isUrlOk } from './samples.js';
-import { getErrorCode } from './get-error-code.js';
-import { glob } from 'glob';
 
 interface InstallArgs {
   root: string;
@@ -39,11 +37,11 @@ export async function updateNodeVersion({ root }: InstallArgs): Promise<void> {
 
   if (currentNodeVersion >= minimumValidVersion && currentNodeVersion !== versionAlreadyInPackageJson) {
     const packageName = `@tsconfig/node${currentNodeVersion}`;
-    
+
     const packageExists = await isUrlOk(`https://registry.npmjs.org/${packageName}`);
     if (packageExists) {
       const fileNames = await glob([`${root}/**/package.json`, `${root}/**/tsconfig.json`]);
-      
+
       for (const fileName of fileNames) {
         const fileString = (await readFile(fileName)).toString();
         await writeFile(fileName, fileString.replace(`@tsconfig/node${versionAlreadyInPackageJson}`, packageName));
