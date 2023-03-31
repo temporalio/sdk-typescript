@@ -377,6 +377,7 @@ function startChildWorkflowExecutionNextHandler({
       reject,
     });
   });
+  activator.promiseToCommand.set(startPromise, { type: 'StartChildWorkflow', seq: seq });
 
   // We construct a Promise for the completion of the child Workflow before we know
   // if the Workflow code will await it to capture the result in case it does.
@@ -388,6 +389,7 @@ function startChildWorkflowExecutionNextHandler({
       reject,
     });
   });
+  activator.promiseToCommand.set(completePromise, { type: 'StartChildWorkflow', seq: seq });
   untrackPromise(startPromise);
   untrackPromise(completePromise);
   // Prevent unhandled rejection because the completion might not be awaited

@@ -1,7 +1,7 @@
 /* eslint @typescript-eslint/no-non-null-assertion: 0 */
 import path from 'node:path';
 import v8 from 'node:v8';
-import { readFileSync } from 'node:fs';
+import fs, { readFileSync } from 'node:fs';
 import * as grpc from '@grpc/grpc-js';
 import asyncRetry from 'async-retry';
 import anyTest, { Implementation, TestFn } from 'ava';
@@ -1465,7 +1465,11 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
 
     await handle.result();
     const res = await handle.query(timeTravelStackTraceQuery);
-    console.log(JSON.stringify(res));
+    try {
+      fs.writeFileSync('tt_query.json', JSON.stringify(res));
+    } catch (err) {
+      console.error("Couldn't write query json: ", err);
+    }
 
     t.pass();
   });
