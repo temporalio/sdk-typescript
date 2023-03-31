@@ -1465,7 +1465,7 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
 
     await handle.result();
     const res = await handle.query(timeTravelStackTraceQuery);
-    console.log(res);
+    console.log(JSON.stringify(res));
 
     t.pass();
   });
