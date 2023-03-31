@@ -52,6 +52,7 @@ See [sdk-structure.md](./docs/sdk-structure.md)
 
 - Install Node 16 and [Temporal Server](https://github.com/temporalio/docker-compose#temporal-server-docker-compose-files)
 - Install the [Rust toolchain](https://rustup.rs/)
+- Install [Protocal Buffers](https://github.com/protocolbuffers/protobuf/releases/)
 - Clone the [sdk-typescript](https://github.com/temporalio/sdk-typescript) repo:
   ```sh
   git clone https://github.com/temporalio/sdk-typescript.git
