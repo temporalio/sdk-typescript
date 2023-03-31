@@ -10,6 +10,7 @@ import { Activator } from '@temporalio/workflow/lib/internals';
 import { partition } from '../utils';
 import { Workflow } from './interface';
 import { WorkflowBundleWithSourceMapAndFilename } from './workflow-worker-thread/input';
+import path from 'node:path';
 
 // Not present in @types/node for some reason
 const { promiseHooks } = v8 as any;
@@ -33,6 +34,7 @@ export function setUnhandledRejectionHandler(getWorkflowByRunId: (runId: string)
     process.exit(1);
   });
 }
+
 /**
  * Variant of {@link cutoffStackTrace} that works with FileLocation, keep this in sync with the original implementation
  */
@@ -52,6 +54,25 @@ function cutoffStructuredStackTrace(stackTrace: FileLocation[]): void {
   });
   if (idx > -1) {
     stackTrace.splice(idx);
+  }
+  const wfModulePath = path.resolve(require.resolve('@temporalio/workflow'), '../..');
+  console.log('wfModulePath', wfModulePath);
+  // Also drop all internal calls from the top of the stack
+  const isInternalCodePred = ({ filePath, functionName }: FileLocation) => {
+    if (!filePath || !functionName) {
+      return true;
+    }
+    return filePath.startsWith(wfModulePath);
+  };
+  let firstIndexUserCode = stackTrace.length;
+  while (firstIndexUserCode--) {
+    if (isInternalCodePred(stackTrace[firstIndexUserCode])) {
+      console.log('Stopping at: ', stackTrace[firstIndexUserCode]);
+      break;
+    }
+  }
+  if (firstIndexUserCode !== stackTrace.length) {
+    stackTrace.splice(0, firstIndexUserCode + 1);
   }
 }
 
@@ -84,6 +105,7 @@ function formatCallsiteName(callsite: NodeJS.CallSite): string | null {
 export function injectConsole(context: vm.Context): void {
   const consoleMethods = ['log', 'warn', 'error', 'info', 'debug'] as const;
   type ConsoleMethod = typeof consoleMethods[number];
+
   function makeConsoleFn(level: ConsoleMethod) {
     return function (...args: unknown[]) {
       const { info } = context.__TEMPORAL_ACTIVATOR__;
@@ -91,6 +113,7 @@ export function injectConsole(context: vm.Context): void {
       console[level](`[${info.workflowType}(${info.workflowId})]`, ...args);
     };
   }
+
   context.console = Object.fromEntries(consoleMethods.map((level) => [level, makeConsoleFn(level)]));
 }
 
