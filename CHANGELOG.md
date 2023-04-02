@@ -24,14 +24,14 @@ Breaking changes marked with a :boom:
   );
   for await (const result of replayResults) {
     const { workflowId, runId, error } = result;
-    // error is either undefined, a ReplayError or a DeterminismViolationError
+    // error is either undefined, a ReplayError, or a DeterminismViolationError
   }
   ```
 
-- :boom: [`worker`] `WorkerOptions.shutdownGraceTime` no longer forcefully shuts the worker down.
+- :boom: [`worker`] `WorkerOptions.shutdownGraceTime` no longer forcefully shuts the worker down. Now, when `shutdownGraceTime` passes, the worker just sends Cancellation to running Activities.
   Set `WorkerOptions.shutdownForceTime` to force shutdown. ([#1072](https://github.com/temporalio/sdk-typescript/pull/1072))
 
-- :boom: [`testing`] Use temporal CLI to power local test environment ([#1077](https://github.com/temporalio/sdk-typescript/pull/1077))
+- :boom: [`testing`] Use [Temporal CLI](https://github.com/temporalio/cli/#temporal-cli) to power local test environment ([#1077](https://github.com/temporalio/sdk-typescript/pull/1077))
 
 ### Bug Fixes
 
