@@ -4,6 +4,75 @@ All notable changes to this project will be documented in this file.
 
 Breaking changes marked with a :boom:
 
+## [1.7.0] - 2023-04-02
+
+### Features
+
+- :boom: [`worker`] The experimental `Worker.runReplayHistories` method, which allows efficient replay of a large number
+  of workflow histories, now returns an `AsyncIterableIterator` ([#1067](https://github.com/temporalio/sdk-typescript/pull/1067))
+
+  **EXAMPLE USAGE**
+
+  ```ts
+  const histories = client.workflow.list({ query: 'WorkflowType="MyWorkflow"' }).intoHistories({ concurrency: 10 });
+  const replayResults = Worker.runReplayHistories(
+    {
+      workflowsPath: require.resolve('./workflows'),
+      // ...
+    },
+    histories
+  );
+  for await (const result of replayResults) {
+    const { workflowId, runId, error } = result;
+    // error is either undefined, a ReplayError or a DeterminismViolationError
+  }
+  ```
+
+- :boom: [`worker`] `WorkerOptions.shutdownGraceTime` no longer forcefully shuts the worker down.
+  Set `WorkerOptions.shutdownForceTime` to force shutdown. ([#1072](https://github.com/temporalio/sdk-typescript/pull/1072))
+
+- :boom: [`testing`] Use temporal CLI to power local test environment ([#1077](https://github.com/temporalio/sdk-typescript/pull/1077))
+
+### Bug Fixes
+
+- Fail Workflow on `WorkflowExecutionAlreadyStartedError` ([#1068](https://github.com/temporalio/sdk-typescript/pull/1068))
+
+- [`create-project`] While fixing dependencies on a newly instantiated project, we now recursively search for
+  package.json and tsconfig.json ([#1089](https://github.com/temporalio/sdk-typescript/pull/1089) thanks to [`@jhubbardsf`](https://github.com/jhubbardsf) 🙏)
+
+- [`create-project`] Remove the `.post-create` file (if it exists), before committing to git ([#1018](https://github.com/temporalio/sdk-typescript/pull/1018))
+
+- Completetly removed support for Node versions <= 14.17. Lot of our dependencies were already
+  requiring Node 14.18+ anyway. ([#1070](https://github.com/temporalio/sdk-typescript/pull/1070))
+
+- Load package `abort-controller` as a polyfill rather than a complete substitution.
+  This will ensure using native implementation of that class in Node 16+ ([#1070](https://github.com/temporalio/sdk-typescript/pull/1070))
+
+  :boom: This change might cause TypeScript to warn about incompatible types when working with libraries that are using
+  custom type definitions for the `AbortSignal` interface.
+
+  ```ts
+  import type { AbortSignal as FetchAbortSignal } from 'node-fetch/externals';
+  // ...
+  const response = await fetch(url, { signal: Context.current().cancellationSignal as FetchAbortSignal });
+  ```
+
+- [`client`] Get rid of experimental `AsyncLocalStorage.enterWith` call ([#1080](https://github.com/temporalio/sdk-typescript/pull/1080))
+
+- [`core`] Fix slot metrics appearing to be off-by-one because of reservation ([#479](https://github.com/temporalio/sdk-core/pull/479))
+
+- [`core`] Fix misnamed metric `workflow_task_execution_failed` ([#481](https://github.com/temporalio/sdk-core/pull/481))
+
+- [`core`] Added an internal patching mechanism for adjusting SDK behavior based on what version of the SDK has previously processed the workflow. Note that this new mechanism requires server Temporal 1.20.0 or above. Any change that depends on such an internal patch will not be effective with older servers. ([#482](https://github.com/temporalio/sdk-core/pull/482))
+
+- :boom: [`core`] Make activity (and child workflow) type / id mismatches will results in a non-deterministic change. That means that renaming an activity or a child workflow will now require a patch. Note that this change has been gated with an internal patch to avoid suddently failing with nondeterminism errors on older activity rename (see details above) ([#475](https://github.com/temporalio/sdk-core/pull/475), [#482](https://github.com/temporalio/sdk-core/pull/482))
+
+- [`core`] Auto-fail new workflow tasks which encounter a problem upon their application, but before any activation has been issued to lang. This may fix some scenarios where previously a WFT would simply time out. ([#482](https://github.com/temporalio/sdk-core/pull/482))
+
+### Documentation
+
+- Add install protocal buffers step to CONTRIBUTING.md doc ([#1086](https://github.com/temporalio/sdk-typescript/pull/1086), thanks to [`@jhubbardsf`](https://github.com/jhubbardsf) 🙏)
+
 ## [1.6.0] - 2023-01-30
 
 ### Features
@@ -59,7 +128,7 @@ Breaking changes marked with a :boom:
 
 - [`core`] Fixed some rare case where sdk-core would panic on unexpected history fetching responses from the server ([#468](https://github.com/temporalio/sdk-core/pull/468)).
 
-- [`core`] Fixed some rare case where an activation completion might get blocked if fetching history pages failed ([#475](https://github.com/temporalio/sdk-core/pull/475)).
+- [`core`] Fixed some rare case where an activation completion might get blocked if fetching history pages failed ([#478](https://github.com/temporalio/sdk-core/pull/478)).
 
 ## [1.5.2] - 2022-12-07
 
