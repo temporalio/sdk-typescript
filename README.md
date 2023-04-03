@@ -1,5 +1,6 @@
-# Temporal TypeScript SDK
-
+<p align="center">
+  <img src="https://assets.temporal.io/w/ts.png" alt="Temporal TypeScript SDK" />
+</p>
 <p align="center">
   <a href="https://www.npmjs.com/search?q=author%3Atemporal-sdk-team">
     <img src="https://img.shields.io/npm/v/temporalio.svg?style=for-the-badge" alt="NPM" />
@@ -7,7 +8,7 @@
   <a href="https://github.com/temporalio/sdk-typescript/blob/main/LICENSE.md">
     <img src="https://img.shields.io/npm/l/temporalio?style=for-the-badge" alt="LICENSE" />
   </a>
-</div>
+</p>
 
 [Temporal](https://temporal.io) is a durable execution system that transparently makes your code durable, fault-tolerant, and simple.
 
