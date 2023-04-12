@@ -53,6 +53,13 @@ export interface ClientOptions {
   tls?: TLSConfig;
 
   /**
+   * If set, override the URI used when determining the `origin` of the server being connected to.
+   * Can be useful in conjunction with {@link TLSConfig.serverNameOverride} if connecting through
+   * a proxy, for example.
+   */
+  originOverride?: string;
+
+  /**
    * Optional retry options for server requests.
    */
   retry?: RetryOptions;
