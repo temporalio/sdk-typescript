@@ -53,13 +53,6 @@ export interface ClientOptions {
   tls?: TLSConfig;
 
   /**
-   * If set, override the URI used when determining the `origin` of the server being connected to.
-   * It's unlikely you need to set this - if {@link TLSConfig.serverNameOverride} is set, that
-   * value will be used as the default authority when connecting.
-   */
-  originOverride?: string;
-
-  /**
    * Optional retry options for server requests.
    */
   retry?: RetryOptions;

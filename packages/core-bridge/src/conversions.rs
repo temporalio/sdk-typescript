@@ -98,16 +98,6 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
             Err(_) => cx.throw_type_error("Invalid serverOptions.address")?,
         };
 
-        let uri = match &js_optional_value_getter!(cx, self, "originOverride", JsString) {
-            None => None,
-            Some(uri) => match Uri::try_from(uri) {
-                Ok(u) => Some(u),
-                Err(e) => {
-                    cx.throw_type_error(format!("Unable to parse originOverride: {:?}", e))?
-                }
-            },
-        };
-
         let tls_cfg = match js_optional_getter!(cx, self, "tls", JsObject) {
             None => None,
             Some(tls) => {
@@ -182,7 +172,6 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
         Ok(client_options
             .client_name("temporal-typescript".to_string())
             .client_version(js_value_getter!(cx, self, "sdkVersion", JsString))
-            .override_origin(uri)
             .target_url(url)
             .retry_config(retry_config)
             .build()
