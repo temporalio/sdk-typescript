@@ -145,18 +145,18 @@ jobs:
       fail-fast: true
       matrix:
         include:
-          - os: ubuntu-18.04
+          - runsOn: buildjet-2vcpu-ubuntu-1804
             target: x86_64-unknown-linux-gnu
-          - os: ubuntu-18.04
+          - runsOn: buildjet-2vcpu-ubuntu-1804
             target: aarch64-unknown-linux-gnu
             rustflags: '-C linker=aarch64-linux-gnu-gcc'
-          - os: macos-latest
+          - runsOn: macos-latest
             target: x86_64-apple-darwin
-          - os: macos-latest
+          - runsOn: macos-latest
             target: aarch64-apple-darwin
-          - os: windows-latest
+          - runsOn: windows-latest
             target: x86_64-pc-windows-msvc
-    runs-on: ${{ matrix.os }}
+    runs-on: ${{ matrix.runsOn }}
     steps:
       - uses: actions/checkout@v2
         with:
@@ -176,7 +176,7 @@ jobs:
         run: rustup target add ${{ matrix.target }}
       - name: Print libc version
         run: ldd --version
-        if: ${{ matrix.os == 'ubuntu-18.04' }}
+        if: ${{ contains(matrix.runsOn, 'ubuntu') }}
       - name: Install gcc-aarch64-linux-gnu
         run: sudo apt update && sudo apt install -y gcc-aarch64-linux-gnu
         if: ${{ matrix.target == 'aarch64-unknown-linux-gnu' }}
@@ -194,7 +194,7 @@ jobs:
       # Restore the CLI JS only on Windows because Windows build changes the
       # file attributes causing publish to think the change is uncommitted
       - run: git restore packages/create-project/cli.js
-        if: ${{ matrix.os == 'windows-latest' }}
+        if: ${{ matrix.runsOn == 'windows-latest' }}
       - run: node scripts/publish-to-verdaccio.js --registry-dir /tmp/registry
       - uses: actions/upload-artifact@v2
         with:
