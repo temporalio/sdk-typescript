@@ -6,9 +6,7 @@ use neon::{
     types::{JsBoolean, JsNumber, JsString},
 };
 use opentelemetry::trace::{SpanContext, SpanId, TraceFlags, TraceId, TraceState};
-use std::convert::TryFrom;
 use std::{collections::HashMap, net::SocketAddr, str::FromStr, time::Duration};
-use temporal_client::tonic::transport::Uri;
 use temporal_sdk_core::{
     api::telemetry::{
         Logger, MetricTemporality, MetricsExporter, OtelCollectorOptions, TelemetryOptions,
