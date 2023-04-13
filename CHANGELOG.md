@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 Breaking changes marked with a :boom:
 
+## [1.7.1] - 2023-04-13
+
+### Features
+
+- [`core`] Allow overriding origin for core connections [#528](https://github.com/temporalio/sdk-core/pull/528)
+
+  Setting `serverNameOverride` in `NativeConnection.tls` will now also set the `:authority` header.
+
+### Bug Fixes
+
+- [`core`] Avoid possible panic on autocompleting WFTs due to failure, and stop checking SA values for determinism [#527](https://github.com/temporalio/sdk-core/pull/527)
+
 ## [1.7.0] - 2023-04-02
 
 ### Features
