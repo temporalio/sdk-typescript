@@ -8,6 +8,7 @@ Breaking changes marked with a :boom:
 
 ### Bug Fixes
 
+- [`core`] Fix internal flags not always being written when they should be [#532](https://github.com/temporalio/sdk-core/pull/532)
 - [`core`] Ensure cancels get delivered after grace, even if poll stream not done [#531](https://github.com/temporalio/sdk-core/pull/531)
 - [`core`] Get rid of leftover warning log line [#530](https://github.com/temporalio/sdk-core/pull/530)
 

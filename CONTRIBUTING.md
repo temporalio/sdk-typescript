@@ -213,8 +213,8 @@ npm deprecate temporalio@^1.0.0 "Instead of installing temporalio, we recommend 
 - Cleanup after publishing:
 
   ```sh
-  rm $HOME/Downloads/packages-*
-  rm packages/core-bridge/releases/
+  rm -rf $HOME/Downloads/packages-*
+  rm -rf packages/core-bridge/releases/*
   ```
 
 - If using a custom [features](https://github.com/temporalio/features/) branch for PR integration tests, merge
