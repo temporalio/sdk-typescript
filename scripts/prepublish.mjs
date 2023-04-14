@@ -14,7 +14,7 @@ for (const dir of packages) {
   const packageJson = JSON.parse(await fs.readFile(packageJsonPath, 'utf8'));
   for (const dep of Object.keys(packageJson.dependencies)) {
     if (dep.startsWith('@temporalio/')) {
-      packageJson.dependencies[dep] = `~${version}`;
+      packageJson.dependencies[dep] = `${version}`;
     }
   }
   const replacedContent = JSON.stringify(packageJson, null, 2);

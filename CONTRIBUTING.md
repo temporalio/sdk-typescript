@@ -197,14 +197,11 @@ ls packages/core-bridge/releases/
 
 npx lerna version patch --force-publish='*' # or major|minor|etc, or leave out to be prompted. either way, you get a confirmation dialog.
 
-node ./scripts/tilde-deps.mjs
-
-git add packages
-git commit -m 'Depend on ~1.5.0'
-git tag v1.5.0 -f
-git push origin v1.5.0 -f
+git checkout -B fix-deps
+node scripts/prepublish.mjs
+git commit -am 'Fix dependencies'
 npx lerna publish from-package # add `--dist-tag next` for pre-release versions
-git reset HEAD^ --hard
+git checkout -
 ```
 
 Finally:

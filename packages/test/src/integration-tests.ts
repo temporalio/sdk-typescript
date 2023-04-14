@@ -1365,14 +1365,17 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
     // Test the list API too while we're at it
     const workflowIds = handles.map(({ workflowId }) => `'${workflowId}'`);
     const histories = client.workflow.list({ query: `WorkflowId IN (${workflowIds.join(', ')})` }).intoHistories();
-
-    await Worker.runReplayHistories(
+    const results = Worker.runReplayHistories(
       {
         workflowsPath: require.resolve('./workflows'),
         dataConverter: t.context.dataConverter,
       },
       histories
     );
+
+    for await (const result of results) {
+      t.is(result.error, undefined);
+    }
     t.pass();
   });
 
