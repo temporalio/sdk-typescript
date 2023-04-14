@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 Breaking changes marked with a :boom:
 
+## [1.7.2] - 2023-04-14
+
+### Bug Fixes
+
+- [`core`] Fix scenario where server sends page token pointing to empty page [#533](https://github.com/temporalio/sdk-core/pull/533)
+- [`core`] Fix internal flags not always being written when they should be [#532](https://github.com/temporalio/sdk-core/pull/532)
+- [`core`] Ensure cancels get delivered after grace, even if poll stream not done [#531](https://github.com/temporalio/sdk-core/pull/531)
+- [`core`] Get rid of leftover warning log line [#530](https://github.com/temporalio/sdk-core/pull/530)
+
 ## [1.7.1] - 2023-04-13
 
 ### Features
