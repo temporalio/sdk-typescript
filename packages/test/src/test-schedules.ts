@@ -2,10 +2,10 @@ import { randomUUID } from 'node:crypto';
 import anyTest, { TestFn } from 'ava';
 import asyncRetry from 'async-retry';
 import {
-  Client,
   defaultPayloadConverter,
   CalendarSpec,
   CalendarSpecDescription,
+  Client,
   Connection,
   ScheduleHandle,
   ScheduleSummary,
@@ -218,7 +218,7 @@ if (RUN_INTEGRATION_TESTS) {
     }
   });
 
-  test('Interceptor is called on create schedule', async (t) => {
+  test.serial('Interceptor is called on create schedule', async (t) => {
     const clientWithInterceptor = new Client({
       connection: t.context.client.connection,
       interceptors: {
