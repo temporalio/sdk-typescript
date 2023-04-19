@@ -83,11 +83,13 @@ async function getArgs() {
   const opts = arg(
     {
       '--registry-dir': String,
+      '--target-dir': String,
     },
     { permissive: true }
   );
-  const registryDir = opts['--registry-dir'] || (await createTempRegistryDir());
-  return { registryDir, initArgs: opts._.length > 0 ? opts._ : [] };
+  const registryDir = opts['--registry-dir'] ?? (await createTempRegistryDir());
+  const targetDir = opts['--target-dir'] ?? 'example';
+  return { registryDir, targetDir, initArgs: opts._.length > 0 ? opts._ : [] };
 }
 
 module.exports = { getArgs, withRegistry };

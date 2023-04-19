@@ -42,17 +42,12 @@ async function kill(child, signal = 'SIGINT') {
 }
 
 async function spawnNpx(args, opts) {
-  let fullCommand = ['npx', '--prefer-offline', '--timing=true', '--yes', '--', ...args];
-
-  // NPM is a .cmd on Windows
-  if (process.platform == 'win32') {
-    fullCommand = ['cmd', '/C', ...fullCommand];
-  }
-
-  await waitOnChild(spawn(fullCommand[0], fullCommand.slice(1), opts));
+  const npx = /^win/.test(process.platform) ? 'npx.cmd' : 'npx';
+  const npxArgs = ['--prefer-offline', '--timing=true', '--yes', '--', ...args];
+  await waitOnChild(spawn(npx, npxArgs, opts));
 }
 
-const shell = process.platform === 'win32';
+const shell = /^win/.test(process.platform);
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 module.exports = { kill, spawnNpx, ChildProcessError, shell, sleep };

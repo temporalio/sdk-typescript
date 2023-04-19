@@ -17,7 +17,9 @@ try {
     } catch (err) {
       if (
         err.details &&
-        (err.details.includes('workflow history not found') || err.details.includes('operation GetCurrentExecution'))
+        (err.details.includes('workflow history not found') ||
+          err.details.includes('Workflow executionsRow not found') ||
+          err.details.includes('operation GetCurrentExecution'))
       ) {
         break;
       }

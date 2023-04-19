@@ -1259,7 +1259,9 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
       const stacks = enhancedStack.stacks.map((s) => ({
         locations: s.locations.map((l) => ({
           ...l,
-          ...(l.filePath ? { filePath: l.filePath.replace(path.resolve(__dirname, '../../../'), '') } : undefined),
+          ...(l.filePath
+            ? { filePath: l.filePath.replace(path.resolve(__dirname, '../../../'), '').replace(/\\/g, '/') }
+            : undefined),
         })),
       }));
       t.is(enhancedStack.sdk.name, 'typescript');
@@ -1341,40 +1343,45 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
 
   /**
    * NOTE: this test uses the `IN` operator API which requires advanced visibility as of server 1.18.
-   * Run with docker-compose
+   * It will silently succeed on servers that only support standard visibility (can't dynamically skip a test).
    */
   test('Download and replay multiple executions with client list method', async (t) => {
-    const { metaClient: client } = t.context;
-    const taskQueue = 'test';
-    const fns = [
-      workflows.http,
-      workflows.cancelFakeProgress,
-      workflows.childWorkflowInvoke,
-      workflows.activityFailures,
-    ];
-    const handles = await Promise.all(
-      fns.map((fn) =>
-        client.workflow.start(fn, {
-          taskQueue,
-          workflowId: uuid4(),
-        })
-      )
-    );
-    // Wait for the workflows to complete first
-    await Promise.all(handles.map((h) => h.result()));
-    // Test the list API too while we're at it
-    const workflowIds = handles.map(({ workflowId }) => `'${workflowId}'`);
-    const histories = client.workflow.list({ query: `WorkflowId IN (${workflowIds.join(', ')})` }).intoHistories();
-    const results = Worker.runReplayHistories(
-      {
-        workflowsPath: require.resolve('./workflows'),
-        dataConverter: t.context.dataConverter,
-      },
-      histories
-    );
+    try {
+      const { metaClient: client } = t.context;
+      const taskQueue = 'test';
+      const fns = [
+        workflows.http,
+        workflows.cancelFakeProgress,
+        workflows.childWorkflowInvoke,
+        workflows.activityFailures,
+      ];
+      const handles = await Promise.all(
+        fns.map((fn) =>
+          client.workflow.start(fn, {
+            taskQueue,
+            workflowId: uuid4(),
+          })
+        )
+      );
+      // Wait for the workflows to complete first
+      await Promise.all(handles.map((h) => h.result()));
+      // Test the list API too while we're at it
+      const workflowIds = handles.map(({ workflowId }) => `'${workflowId}'`);
+      const histories = client.workflow.list({ query: `WorkflowId IN (${workflowIds.join(', ')})` }).intoHistories();
+      const results = await Worker.runReplayHistories(
+        {
+          workflowsPath: require.resolve('./workflows'),
+          dataConverter: t.context.dataConverter,
+        },
+        histories
+      );
 
-    for await (const result of results) {
-      t.is(result.error, undefined);
+      for await (const result of results) {
+        t.is(result.error, undefined);
+      }
+    } catch (e) {
+      // Don't report a test failure if the server does not support extended query
+      if (!(e as Error).message?.includes(`operator 'in' not allowed`)) throw e;
     }
     t.pass();
   });

@@ -172,7 +172,7 @@ export class WorkflowCoverage {
       enforce: 'post' as const,
       test: /\.[tj]s$/,
       exclude: [
-        /\/node_modules\//,
+        /[/\\]node_modules[/\\]/,
         path.dirname(require.resolve('@temporalio/common')),
         path.dirname(require.resolve('@temporalio/workflow')),
         path.dirname(require.resolve('@temporalio/nyc-test-coverage')),

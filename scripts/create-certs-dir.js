@@ -2,6 +2,8 @@
 // Used in CI flow to store the Cloud certs from GH secret into local files for testing the mTLS sample.
 const fs = require('fs-extra');
 
-fs.mkdirsSync('/tmp/temporal-certs');
-fs.writeFileSync('/tmp/temporal-certs/client.pem', process.env.TEMPORAL_CLIENT_CERT);
-fs.writeFileSync('/tmp/temporal-certs/client.key', process.env.TEMPORAL_CLIENT_KEY);
+const targetDir = process.argv[2] ?? '/tmp/temporal-certs';
+
+fs.mkdirsSync(targetDir);
+fs.writeFileSync(`${targetDir}/client.pem`, process.env.TEMPORAL_CLIENT_CERT);
+fs.writeFileSync(`${targetDir}/client.key`, process.env.TEMPORAL_CLIENT_KEY);

@@ -21,7 +21,7 @@ if (RUN_INTEGRATION_TESTS) {
   test('NativeConnection errors have detail', async (t) => {
     await t.throwsAsync(() => NativeConnection.connect({ address: 'localhost:1' }), {
       instanceOf: TransportError,
-      message: /.*Connection refused.*/,
+      message: /.*Connection[ ]?refused.*/i,
     });
   });
 
