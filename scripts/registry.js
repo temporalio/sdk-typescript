@@ -88,7 +88,7 @@ async function getArgs() {
     { permissive: true }
   );
   const registryDir = opts['--registry-dir'] ?? (await createTempRegistryDir());
-  const targetDir = opts['--target-dir'] ?? 'example';
+  const targetDir = opts['--target-dir'] ?? path.join(registryDir, 'example');
   return { registryDir, targetDir, initArgs: opts._.length > 0 ? opts._ : [] };
 }
 
