@@ -1210,7 +1210,7 @@ export function setDefaultSignalHandler(handler: DefaultSignalHandler | undefine
  *
  * ```ts
  * upsertSearchAttributes({
- *   CustomIntField: [1, 2, 3],
+ *   CustomIntField: [1],
  *   CustomBoolField: [true]
  * });
  * upsertSearchAttributes({
