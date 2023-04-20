@@ -1,10 +1,10 @@
-const { resolve } = require('path');
+const { resolve, dirname } = require('path');
 const { writeFileSync } = require('fs');
 const { withRegistry, getArgs } = require('./registry');
 const { spawnNpx } = require('./utils');
 
 async function main() {
-  const { registryDir, initArgs } = await getArgs();
+  const { registryDir, targetDir, initArgs } = await getArgs();
 
   await withRegistry(registryDir, async () => {
     console.log('spawning npx @temporalio/create with args:', initArgs);
@@ -14,12 +14,12 @@ async function main() {
       writeFileSync(npmConfigFile, npmConfig, { encoding: 'utf-8' });
 
       await spawnNpx(
-        ['@temporalio/create', 'example', '--no-git-init', '--temporalio-version', 'latest', ...initArgs],
+        ['@temporalio/create', targetDir, '--no-git-init', '--temporalio-version', 'latest', ...initArgs],
         {
           stdio: 'inherit',
           stdout: 'inherit',
           stderr: 'inherit',
-          cwd: registryDir,
+          cwd: dirname(targetDir),
           env: {
             ...process.env,
             NPM_CONFIG_USERCONFIG: npmConfigFile,

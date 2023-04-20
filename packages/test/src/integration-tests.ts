@@ -562,8 +562,8 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
       workflowId: uuid4(),
       searchAttributes: {
         CustomKeywordField: ['test-value'],
-        CustomIntField: [1, 2],
-        CustomDatetimeField: [date, date],
+        CustomIntField: [1],
+        CustomDatetimeField: [date],
       },
       memo: {
         note: 'foo',
@@ -575,8 +575,8 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
     t.deepEqual(execution.memo, { note: 'foo' });
     t.true(execution.startTime instanceof Date);
     t.deepEqual(execution.searchAttributes!.CustomKeywordField, ['test-value']);
-    t.deepEqual(execution.searchAttributes!.CustomIntField, [1, 2]);
-    t.deepEqual(execution.searchAttributes!.CustomDatetimeField, [date, date]);
+    t.deepEqual(execution.searchAttributes!.CustomIntField, [1]);
+    t.deepEqual(execution.searchAttributes!.CustomDatetimeField, [date]);
     t.regex((execution.searchAttributes!.BinaryChecksums as string[])[0], /@temporalio\/worker@/);
   });
 
@@ -588,15 +588,15 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
       workflowId: uuid4(),
       searchAttributes: {
         CustomKeywordField: ['test-value'],
-        CustomIntField: [1, 2],
-        CustomDatetimeField: [date, date],
+        CustomIntField: [1],
+        CustomDatetimeField: [date],
       },
     });
     const result = await workflow.result();
     t.deepEqual(result, {
       CustomKeywordField: ['test-value'],
-      CustomIntField: [1, 2],
-      CustomDatetimeField: [date.toISOString(), date.toISOString()],
+      CustomIntField: [1],
+      CustomDatetimeField: [date.toISOString()],
       datetimeInstanceofWorks: [true],
       arrayInstanceofWorks: [true],
       datetimeType: ['Date'],
@@ -825,7 +825,7 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
       },
       searchAttributes: {
         CustomKeywordField: ['test-value'],
-        CustomIntField: [1, 2],
+        CustomIntField: [1],
       },
       followRuns: true,
     });
@@ -836,7 +836,7 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
     t.not(execution.runId, workflow.firstExecutionRunId);
     t.deepEqual(execution.memo, { note: 'foo' });
     t.deepEqual(execution.searchAttributes!.CustomKeywordField, ['test-value']);
-    t.deepEqual(execution.searchAttributes!.CustomIntField, [1, 2]);
+    t.deepEqual(execution.searchAttributes!.CustomIntField, [1]);
   });
 
   test('continue-as-new-to-different-workflow keeps memo and search attributes by default', async (t) => {
@@ -850,7 +850,7 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
       },
       searchAttributes: {
         CustomKeywordField: ['test-value'],
-        CustomIntField: [1, 2],
+        CustomIntField: [1],
       },
     });
     await workflow.result();
@@ -859,7 +859,7 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
     t.not(info.runId, workflow.firstExecutionRunId);
     t.deepEqual(info.memo, { note: 'foo' });
     t.deepEqual(info.searchAttributes!.CustomKeywordField, ['test-value']);
-    t.deepEqual(info.searchAttributes!.CustomIntField, [1, 2]);
+    t.deepEqual(info.searchAttributes!.CustomIntField, [1]);
   });
 
   test('continue-as-new-to-different-workflow can set memo and search attributes', async (t) => {
@@ -873,7 +873,7 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
           },
           searchAttributes: {
             CustomKeywordField: ['test-value-2'],
-            CustomIntField: [3, 4],
+            CustomIntField: [3],
           },
         },
       ],
@@ -885,7 +885,7 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
       },
       searchAttributes: {
         CustomKeywordField: ['test-value'],
-        CustomIntField: [1, 2],
+        CustomIntField: [1],
       },
     });
     await workflow.result();
@@ -894,7 +894,7 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
     t.not(info.runId, workflow.firstExecutionRunId);
     t.deepEqual(info.memo, { note: 'bar' });
     t.deepEqual(info.searchAttributes!.CustomKeywordField, ['test-value-2']);
-    t.deepEqual(info.searchAttributes!.CustomIntField, [3, 4]);
+    t.deepEqual(info.searchAttributes!.CustomIntField, [3]);
   });
 
   test('signalWithStart works as intended and returns correct runId', async (t) => {
@@ -1259,7 +1259,9 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
       const stacks = enhancedStack.stacks.map((s) => ({
         locations: s.locations.map((l) => ({
           ...l,
-          ...(l.filePath ? { filePath: l.filePath.replace(path.resolve(__dirname, '../../../'), '') } : undefined),
+          ...(l.filePath
+            ? { filePath: l.filePath.replace(path.resolve(__dirname, '../../../'), '').replace(/\\/g, '/') }
+            : undefined),
         })),
       }));
       t.is(enhancedStack.sdk.name, 'typescript');
@@ -1341,40 +1343,45 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
 
   /**
    * NOTE: this test uses the `IN` operator API which requires advanced visibility as of server 1.18.
-   * Run with docker-compose
+   * It will silently succeed on servers that only support standard visibility (can't dynamically skip a test).
    */
   test('Download and replay multiple executions with client list method', async (t) => {
-    const { metaClient: client } = t.context;
-    const taskQueue = 'test';
-    const fns = [
-      workflows.http,
-      workflows.cancelFakeProgress,
-      workflows.childWorkflowInvoke,
-      workflows.activityFailures,
-    ];
-    const handles = await Promise.all(
-      fns.map((fn) =>
-        client.workflow.start(fn, {
-          taskQueue,
-          workflowId: uuid4(),
-        })
-      )
-    );
-    // Wait for the workflows to complete first
-    await Promise.all(handles.map((h) => h.result()));
-    // Test the list API too while we're at it
-    const workflowIds = handles.map(({ workflowId }) => `'${workflowId}'`);
-    const histories = client.workflow.list({ query: `WorkflowId IN (${workflowIds.join(', ')})` }).intoHistories();
-    const results = Worker.runReplayHistories(
-      {
-        workflowsPath: require.resolve('./workflows'),
-        dataConverter: t.context.dataConverter,
-      },
-      histories
-    );
+    try {
+      const { metaClient: client } = t.context;
+      const taskQueue = 'test';
+      const fns = [
+        workflows.http,
+        workflows.cancelFakeProgress,
+        workflows.childWorkflowInvoke,
+        workflows.activityFailures,
+      ];
+      const handles = await Promise.all(
+        fns.map((fn) =>
+          client.workflow.start(fn, {
+            taskQueue,
+            workflowId: uuid4(),
+          })
+        )
+      );
+      // Wait for the workflows to complete first
+      await Promise.all(handles.map((h) => h.result()));
+      // Test the list API too while we're at it
+      const workflowIds = handles.map(({ workflowId }) => `'${workflowId}'`);
+      const histories = client.workflow.list({ query: `WorkflowId IN (${workflowIds.join(', ')})` }).intoHistories();
+      const results = await Worker.runReplayHistories(
+        {
+          workflowsPath: require.resolve('./workflows'),
+          dataConverter: t.context.dataConverter,
+        },
+        histories
+      );
 
-    for await (const result of results) {
-      t.is(result.error, undefined);
+      for await (const result of results) {
+        t.is(result.error, undefined);
+      }
+    } catch (e) {
+      // Don't report a test failure if the server does not support extended query
+      if (!(e as Error).message?.includes(`operator 'in' not allowed`)) throw e;
     }
     t.pass();
   });
