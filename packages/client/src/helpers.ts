@@ -4,6 +4,7 @@ import {
   searchAttributePayloadConverter,
   SearchAttributes,
 } from '@temporalio/common';
+import { Replace } from '@temporalio/common/lib/type-helpers';
 import { optionalTsToDate, tsToDate } from '@temporalio/common/lib/time';
 import { decodeMapFromPayloads } from '@temporalio/common/lib/internal-non-workflow/codec-helpers';
 import { temporal } from '@temporalio/proto';
@@ -39,10 +40,11 @@ function workflowStatusCodeToNameInternal(
   }
 }
 
-export async function executionInfoFromRaw(
+export async function executionInfoFromRaw<T>(
   raw: RawWorkflowExecutionInfo,
-  dataConverter: LoadedDataConverter
-): Promise<WorkflowExecutionInfo> {
+  dataConverter: LoadedDataConverter,
+  rawDataToEmbed: T
+): Promise<Replace<WorkflowExecutionInfo, { raw: T }>> {
   return {
     /* eslint-disable @typescript-eslint/no-non-null-assertion */
     type: raw.type!.name!,
@@ -70,6 +72,6 @@ export async function executionInfoFromRaw(
           runId: raw.parentExecution.runId!,
         }
       : undefined,
-    raw,
+    raw: rawDataToEmbed,
   };
 }

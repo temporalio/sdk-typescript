@@ -19,6 +19,9 @@ export interface SerializableSpan {
   readonly events: tracing.TimedEvent[];
   readonly duration: otel.HrTime;
   readonly ended: boolean;
+  readonly droppedAttributesCount: number;
+  readonly droppedLinksCount: number;
+  readonly droppedEventsCount: number;
   // readonly resource: Resource;
   // eslint-disable-next-line deprecation/deprecation
   readonly instrumentationLibrary: InstrumentationLibrary;
