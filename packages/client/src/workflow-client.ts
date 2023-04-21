@@ -841,9 +841,11 @@ export class WorkflowClient extends BaseClient {
         const raw = await fn({
           workflowExecution: { workflowId, runId },
         });
-        const info = await executionInfoFromRaw(raw.workflowExecutionInfo ?? {}, this.client.dataConverter);
-        (info as unknown as WorkflowExecutionDescription).raw = raw;
-        return info;
+        const info = await executionInfoFromRaw(raw.workflowExecutionInfo ?? {}, this.client.dataConverter, raw);
+        return {
+          ...info,
+          raw,
+        };
       },
       async fetchHistory() {
         let nextPageToken: Uint8Array | undefined = undefined;
@@ -933,7 +935,7 @@ export class WorkflowClient extends BaseClient {
       // Decoding is done for `memo` fields which tend to be small.
       // We might decide to change that based on user feedback.
       for (const raw of response.executions) {
-        yield await executionInfoFromRaw(raw, this.dataConverter);
+        yield await executionInfoFromRaw(raw, this.dataConverter, raw);
       }
       nextPageToken = response.nextPageToken;
       if (nextPageToken == null || nextPageToken.length === 0) break;
