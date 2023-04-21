@@ -1400,7 +1400,7 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
     const timerStartedEvents = history.events!.filter(({ eventType }) => eventType! === EVENT_TYPE_TIMER_STARTED);
     t.is(timerStartedEvents.length, 2);
     t.is(timerStartedEvents[0].timerStartedEventAttributes!.timerId, '1');
-    t.is(tsToMs(timerStartedEvents[0].timerStartedEventAttributes!.startToFireTimeout), 1000);
+    t.is(tsToMs(timerStartedEvents[0].timerStartedEventAttributes!.startToFireTimeout), 10000);
     t.is(timerStartedEvents[1].timerStartedEventAttributes!.timerId, '2');
     t.is(tsToMs(timerStartedEvents[1].timerStartedEventAttributes!.startToFireTimeout), 1);
 

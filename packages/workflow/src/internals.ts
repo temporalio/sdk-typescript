@@ -285,7 +285,8 @@ export class Activator implements ActivationHandler {
    * SDK Internal Patches are created by the SDK to avoid breaking history when behaviour
    * of existing API need to be modified.
    */
-  public internalPatchNumber = 0;
+  public knownInternalPatchNumber = 0;
+  public sentInternalPatchNumber = 0;
 
   sinkCalls = Array<SinkCall>();
 
@@ -304,8 +305,8 @@ export class Activator implements ActivationHandler {
     this.random = alea(randomnessSeed);
 
     if (info.unsafe.isReplaying) {
-      for (const patch of patches) {
-        this.knownPresentPatches.add(patch);
+      for (const patchId of patches) {
+        this.notifyHasPatch({ patchId });
       }
     }
   }
@@ -617,22 +618,21 @@ export class Activator implements ActivationHandler {
         throw new IllegalStateError(
           `Unsupported internal patch number: ${internalPatchNumber} > ${LATEST_INTERNAL_PATCH_NUMBER}`
         );
-      if (this.internalPatchNumber < internalPatchNumber) this.internalPatchNumber = internalPatchNumber;
+      if (this.knownInternalPatchNumber < internalPatchNumber) this.knownInternalPatchNumber = internalPatchNumber;
     } else {
       this.knownPresentPatches.add(activation.patchId);
     }
   }
 
   public checkInternalPatchAtLeast(minimumPatchNumber: number): boolean {
-    if (this.internalPatchNumber >= minimumPatchNumber) return true;
-    if (!this.info.unsafe.isReplaying) {
-      this.internalPatchNumber = minimumPatchNumber;
+    const usePatch = !this.info.unsafe.isReplaying || this.knownInternalPatchNumber >= minimumPatchNumber;
+    if (usePatch && this.sentInternalPatchNumber < minimumPatchNumber) {
       this.pushCommand({
-        setPatchMarker: { patchId: `__sdk_internal_patch_number:${LATEST_INTERNAL_PATCH_NUMBER}`, deprecated: false },
+        setPatchMarker: { patchId: `__sdk_internal_patch_number:${minimumPatchNumber}`, deprecated: false },
       });
-      return true;
+      this.sentInternalPatchNumber = minimumPatchNumber;
     }
-    return false;
+    return usePatch;
   }
 
   public removeFromCache(): void {

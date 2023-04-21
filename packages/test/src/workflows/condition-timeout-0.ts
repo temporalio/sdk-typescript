@@ -33,7 +33,7 @@ export async function conditionTimeout0(): Promise<number> {
 
 export async function conditionTimeout0Simple(): Promise<boolean | undefined> {
   let validationTimerFired = false;
-  sleep(1000)
+  sleep(10000)
     .then(() => (validationTimerFired = true))
     .catch((e) => console.log(e));
 

@@ -1969,6 +1969,51 @@ test('condition with timeout 0 in >1.5.0 - conditionTimeout0', async (t) => {
   }
 });
 
+test('condition with timeout 0 in >1.5.0 on replay - conditionTimeout0', async (t) => {
+  const { workflowType } = t.context;
+  {
+    const act: coresdk.workflow_activation.IWorkflowActivation = {
+      runId: 'test-runId',
+      timestamp: msToTs(Date.now()),
+      isReplaying: true,
+      jobs: [makeStartWorkflowJob(workflowType), makeNotifyHasPatchJob('__sdk_internal_patch_number:1')],
+    };
+    const completion = await activate(t, act);
+    compareCompletion(
+      t,
+      completion,
+      makeSuccess([
+        makeSetPatchMarker('__sdk_internal_patch_number:1', false),
+        makeStartTimerCommand({
+          seq: 1,
+          startToFireTimeout: msToTs(1),
+        }),
+      ])
+    );
+  }
+  {
+    const completion = await activate(t, makeFireTimer(1));
+    compareCompletion(
+      t,
+      completion,
+      makeSuccess([
+        makeStartTimerCommand({
+          seq: 2,
+          startToFireTimeout: msToTs(1),
+        }),
+      ])
+    );
+  }
+  {
+    const completion = await activate(t, makeFireTimer(2));
+    compareCompletion(
+      t,
+      completion,
+      makeSuccess([makeCompleteWorkflowExecution(defaultPayloadConverter.toPayload(0))])
+    );
+  }
+});
+
 test('Buffered signals are dispatched to correct handler and in correct order - signalsOrdering', async (t) => {
   const { workflowType } = t.context;
   {
