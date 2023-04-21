@@ -83,7 +83,7 @@ function formatCallsiteName(callsite: NodeJS.CallSite): string | null {
  */
 export function injectConsole(context: vm.Context): void {
   const consoleMethods = ['log', 'warn', 'error', 'info', 'debug'] as const;
-  type ConsoleMethod = typeof consoleMethods[number];
+  type ConsoleMethod = (typeof consoleMethods)[number];
   function makeConsoleFn(level: ConsoleMethod) {
     return function (...args: unknown[]) {
       const { info } = context.__TEMPORAL_ACTIVATOR__;

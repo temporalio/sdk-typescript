@@ -8,7 +8,7 @@ export const encodingTypes = {
   METADATA_ENCODING_PROTOBUF_JSON: 'json/protobuf',
   METADATA_ENCODING_PROTOBUF: 'binary/protobuf',
 } as const;
-export type EncodingType = typeof encodingTypes[keyof typeof encodingTypes];
+export type EncodingType = (typeof encodingTypes)[keyof typeof encodingTypes];
 
 export const encodingKeys = {
   METADATA_ENCODING_NULL: encode(encodingTypes.METADATA_ENCODING_NULL),
