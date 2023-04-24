@@ -81,7 +81,6 @@ export const bundlerOptions = {
     '@temporalio/common/lib/internal-non-workflow',
     '@temporalio/activity',
     '@temporalio/client',
-    '@temporalio/proto',
     '@temporalio/testing',
     '@temporalio/worker',
     'ava',

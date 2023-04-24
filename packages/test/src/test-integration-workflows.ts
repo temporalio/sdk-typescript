@@ -3,6 +3,8 @@ import { ExecutionContext, TestFn } from 'ava';
 import { firstValueFrom, Subject } from 'rxjs';
 import { WorkflowFailedError, WorkflowHandle, WorkflowStartOptions } from '@temporalio/client';
 import { TestWorkflowEnvironment, workflowInterceptorModules } from '@temporalio/testing';
+import * as iface from '@temporalio/proto';
+import { tsToMs } from '@temporalio/common/lib/time';
 import {
   appendDefaultInterceptors,
   bundleWorkflowCode,
@@ -19,6 +21,9 @@ import { test as anyTest, bundlerOptions, Worker } from './helpers';
 import { activityStartedSignal } from './workflows/definitions';
 import { signalSchedulingWorkflow } from './activities/helpers';
 import { ConnectionInjectorInterceptor } from './activities/interceptors';
+
+const { EVENT_TYPE_TIMER_STARTED, EVENT_TYPE_MARKER_RECORDED } = iface.temporal.api.enums.v1.EventType;
+const CHANGE_MARKER_NAME = 'core_patch';
 
 interface Context {
   env: TestWorkflowEnvironment;
@@ -203,4 +208,53 @@ test('Worker allows heartbeating activities after shutdown has been requested', 
   await startWorkflow(cancelFakeProgress);
   await worker.run();
   t.is(cancelReason, 'CANCELLED');
+});
+
+export async function conditionTimeout0Simple(): Promise<boolean | undefined> {
+  let validationTimerFired = false;
+  // Don't lower this value, otherwise, in CI, there is risk that the timer fire
+  // while the WFT is being processed, which would result in an UnhandledCommand.
+  workflow
+    .sleep(10_000)
+    .then(() => (validationTimerFired = true))
+    .catch((e) => console.log(e));
+
+  return await workflow.condition(() => validationTimerFired, 0);
+}
+
+test('Internal patches does not cause non-determinism error on replay', async (t) => {
+  const { createWorker, executeWorkflow } = helpers(t);
+  const worker = await createWorker({
+    // Disable workflow caching, to force replay after the condition's sleep
+    maxCachedWorkflows: 0,
+  });
+  await worker.runUntil(async () => {
+    try {
+      await executeWorkflow(conditionTimeout0Simple);
+      t.pass();
+    } catch (e) {
+      t.fail((e as Error).message);
+    }
+  });
+});
+
+test('Condition with timeout 0 does not block indefinitely', async (t) => {
+  const { createWorker, startWorkflow } = helpers(t);
+  const worker = await createWorker();
+  await worker.runUntil(async () => {
+    const handle = await startWorkflow(conditionTimeout0Simple);
+    t.false(await handle.result());
+    const history = await handle.fetchHistory();
+
+    const timerStartedEvents = history.events?.filter(({ eventType }) => eventType === EVENT_TYPE_TIMER_STARTED);
+    t.is(timerStartedEvents?.length, 2);
+    t.is(timerStartedEvents?.[0].timerStartedEventAttributes?.timerId, '1');
+    t.is(tsToMs(timerStartedEvents?.[0].timerStartedEventAttributes?.startToFireTimeout), 10000);
+    t.is(timerStartedEvents?.[1].timerStartedEventAttributes?.timerId, '2');
+    t.is(tsToMs(timerStartedEvents?.[1].timerStartedEventAttributes?.startToFireTimeout), 1);
+
+    const markersEvents = history.events?.filter(({ eventType }) => eventType === EVENT_TYPE_MARKER_RECORDED);
+    t.is(markersEvents?.length, 1);
+    t.is(markersEvents?.[0].markerRecordedEventAttributes?.markerName, CHANGE_MARKER_NAME);
+  });
 });
