@@ -22,7 +22,7 @@
   "author": "Temporal Technologies Inc. <sdk@temporal.io>",
   "license": "MIT",
   "dependencies": {
-    "@opentelemetry/api": "^1.3.0",
+    "@opentelemetry/api": "^1.4.1",
     "@temporalio/common": "file:../common",
     "arg": "^5.0.2",
     "cargo-cp-artifact": "^0.1.6",

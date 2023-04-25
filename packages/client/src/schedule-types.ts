@@ -764,13 +764,13 @@ export const MONTHS = [
 ] as const;
 
 /** @experimental */
-export type Month = typeof MONTHS[number];
+export type Month = (typeof MONTHS)[number];
 
 /** @experimental */
 export const DAYS_OF_WEEK = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'] as const;
 
 /** @experimental */
-export type DayOfWeek = typeof DAYS_OF_WEEK[number];
+export type DayOfWeek = (typeof DAYS_OF_WEEK)[number];
 
 /** @experimental */
 export type ScheduleOptionsAction = ScheduleOptionsStartWorkflowAction<Workflow>;
