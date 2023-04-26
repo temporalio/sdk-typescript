@@ -3,8 +3,6 @@ import { ExecutionContext, TestFn } from 'ava';
 import { firstValueFrom, Subject } from 'rxjs';
 import { WorkflowFailedError, WorkflowHandle, WorkflowStartOptions } from '@temporalio/client';
 import { TestWorkflowEnvironment, workflowInterceptorModules } from '@temporalio/testing';
-import * as iface from '@temporalio/proto';
-import { tsToMs } from '@temporalio/common/lib/time';
 import {
   appendDefaultInterceptors,
   bundleWorkflowCode,
@@ -21,9 +19,6 @@ import { test as anyTest, bundlerOptions, Worker } from './helpers';
 import { activityStartedSignal } from './workflows/definitions';
 import { signalSchedulingWorkflow } from './activities/helpers';
 import { ConnectionInjectorInterceptor } from './activities/interceptors';
-
-const { EVENT_TYPE_TIMER_STARTED, EVENT_TYPE_MARKER_RECORDED } = iface.temporal.api.enums.v1.EventType;
-const CHANGE_MARKER_NAME = 'core_patch';
 
 interface Context {
   env: TestWorkflowEnvironment;
