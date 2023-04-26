@@ -22,11 +22,32 @@ function fixEnumValue<O extends Record<string, any>>(obj: O, attr: keyof O, pref
   );
 }
 
+// fromProto3JSON doesn't allow null values on 'bytes' fields. This turns out to be a problem for payloads.
+// Recursively descend on objects and array, and fix in-place any payload that has a null data field
+function fixPayloads<T>(e: T): void {
+  if (Array.isArray(e)) {
+    e.forEach(fixPayloads);
+  } else if (e && typeof e === 'object') {
+    if ('metadata' in e && 'data' in e) {
+      if ((e as any).data === null) {
+        delete (e as any)['data'];
+      }
+    } else if (!(e instanceof String)) {
+      for (const v of Object.values(e)) {
+        fixPayloads(v);
+      }
+    }
+  }
+}
+
 function fixHistoryEvent(e: Record<string, any>) {
   const type = Object.keys(e).find((k) => k.endsWith('EventAttributes'));
   if (!type) {
     throw new TypeError(`Missing attributes in history event: ${JSON.stringify(e)}`);
   }
+
+  // Fix payloads with null data
+  fixPayloads(e);
 
   return {
     ...e,

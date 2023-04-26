@@ -22,3 +22,26 @@ test('cancel-fake-progress-replay', async (t) => {
   );
   t.is(hist.events?.[0].workflowExecutionStartedEventAttributes?.taskQueue?.kind, TaskQueueKind.TASK_QUEUE_KIND_NORMAL);
 });
+
+test('null payload data doesnt crash', async (t) => {
+  const sample = `{
+    "events": [
+      {
+        "eventId": "16",
+        "eventTime": "2022-07-06T00:33:18.000Z",
+        "eventType": "WorkflowExecutionCompleted",
+        "version": "0",
+        "taskId": "1057236",
+        "workflowExecutionCompletedEventAttributes": {
+          "result": { "payloads": [{ "metadata": { "encoding": "YmluYXJ5L251bGw=" }, "data": null }] },
+          "workflowTaskCompletedEventId": "15",
+          "newExecutionRunId": ""
+        }
+      }
+    ]
+  }`;
+
+  const histJSON = JSON.parse(sample);
+  const hist = historyFromJSON(histJSON);
+  t.deepEqual(hist.events?.[0].eventId, new Long(16));
+});
