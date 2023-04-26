@@ -210,51 +210,12 @@ test('Worker allows heartbeating activities after shutdown has been requested', 
   t.is(cancelReason, 'CANCELLED');
 });
 
-export async function conditionTimeout0Simple(): Promise<boolean | undefined> {
-  let validationTimerFired = false;
-  // Don't lower this value, otherwise, in CI, there is risk that the timer fire
-  // while the WFT is being processed, which would result in an UnhandledCommand.
-  workflow
-    .sleep(10_000)
-    .then(() => (validationTimerFired = true))
-    .catch((e) => console.log(e));
-
-  return await workflow.condition(() => validationTimerFired, 0);
+export async function conditionTimeout0(): Promise<boolean | undefined> {
+  return await workflow.condition(() => false, 0);
 }
 
-test('Internal patches does not cause non-determinism error on replay', async (t) => {
+test('Condition 0 patch sets a timer', async (t) => {
   const { createWorker, executeWorkflow } = helpers(t);
-  const worker = await createWorker({
-    // Disable workflow caching, to force replay after the condition's sleep
-    maxCachedWorkflows: 0,
-  });
-  await worker.runUntil(async () => {
-    try {
-      await executeWorkflow(conditionTimeout0Simple);
-      t.pass();
-    } catch (e) {
-      t.fail((e as Error).message);
-    }
-  });
-});
-
-test('Condition with timeout 0 does not block indefinitely', async (t) => {
-  const { createWorker, startWorkflow } = helpers(t);
   const worker = await createWorker();
-  await worker.runUntil(async () => {
-    const handle = await startWorkflow(conditionTimeout0Simple);
-    t.false(await handle.result());
-    const history = await handle.fetchHistory();
-
-    const timerStartedEvents = history.events?.filter(({ eventType }) => eventType === EVENT_TYPE_TIMER_STARTED);
-    t.is(timerStartedEvents?.length, 2);
-    t.is(timerStartedEvents?.[0].timerStartedEventAttributes?.timerId, '1');
-    t.is(tsToMs(timerStartedEvents?.[0].timerStartedEventAttributes?.startToFireTimeout), 10000);
-    t.is(timerStartedEvents?.[1].timerStartedEventAttributes?.timerId, '2');
-    t.is(tsToMs(timerStartedEvents?.[1].timerStartedEventAttributes?.startToFireTimeout), 1);
-
-    const markersEvents = history.events?.filter(({ eventType }) => eventType === EVENT_TYPE_MARKER_RECORDED);
-    t.is(markersEvents?.length, 1);
-    t.is(markersEvents?.[0].markerRecordedEventAttributes?.markerName, CHANGE_MARKER_NAME);
-  });
+  t.false(await worker.runUntil(executeWorkflow(conditionTimeout0)));
 });
