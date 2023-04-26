@@ -3,7 +3,7 @@
  * which means that the condition would block indefinitely and would return undefined once
  * fn evaluates to true, rather than returning true or false.
  */
-import { condition, setHandler, defineSignal, sleep } from '@temporalio/workflow';
+import { condition, setHandler, defineSignal } from '@temporalio/workflow';
 
 export const aSignal = defineSignal('a');
 export const bSignal = defineSignal('b');
@@ -29,13 +29,4 @@ export async function conditionTimeout0(): Promise<number> {
   if (bResult === true || bResult === undefined) counter += 10;
 
   return counter;
-}
-
-export async function conditionTimeout0Simple(): Promise<boolean | undefined> {
-  let validationTimerFired = false;
-  sleep(1000)
-    .then(() => (validationTimerFired = true))
-    .catch((e) => console.log(e));
-
-  return await condition(() => validationTimerFired, 0);
 }

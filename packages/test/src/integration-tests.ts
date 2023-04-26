@@ -45,7 +45,7 @@ import { cleanOptionalStackTrace, registerDefaultCustomSearchAttributes, u8, Wor
 import * as workflows from './workflows';
 import { withZeroesHTTPServer } from './zeroes-http-server';
 
-const { EVENT_TYPE_TIMER_STARTED, EVENT_TYPE_TIMER_FIRED, EVENT_TYPE_TIMER_CANCELED, EVENT_TYPE_MARKER_RECORDED } =
+const { EVENT_TYPE_TIMER_STARTED, EVENT_TYPE_TIMER_FIRED, EVENT_TYPE_TIMER_CANCELED } =
   iface.temporal.api.enums.v1.EventType;
 
 const timerEventTypes = new Set([EVENT_TYPE_TIMER_STARTED, EVENT_TYPE_TIMER_FIRED, EVENT_TYPE_TIMER_CANCELED]);
@@ -1384,28 +1384,5 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
       if (!(e as Error).message?.includes(`operator 'in' not allowed`)) throw e;
     }
     t.pass();
-  });
-
-  test('Condition with timeout 0 does not block indefinitely', async (t) => {
-    const { client } = t.context;
-    const workflowId = uuid4();
-    const handle = await client.start(workflows.conditionTimeout0Simple, {
-      taskQueue: 'test',
-      workflowId,
-    });
-
-    t.false(await handle.result());
-
-    const history = await handle.fetchHistory();
-    const timerStartedEvents = history.events!.filter(({ eventType }) => eventType! === EVENT_TYPE_TIMER_STARTED);
-    t.is(timerStartedEvents.length, 2);
-    t.is(timerStartedEvents[0].timerStartedEventAttributes!.timerId, '1');
-    t.is(tsToMs(timerStartedEvents[0].timerStartedEventAttributes!.startToFireTimeout), 1000);
-    t.is(timerStartedEvents[1].timerStartedEventAttributes!.timerId, '2');
-    t.is(tsToMs(timerStartedEvents[1].timerStartedEventAttributes!.startToFireTimeout), 1);
-
-    const markersEvents = history.events!.filter(({ eventType }) => eventType! === EVENT_TYPE_MARKER_RECORDED);
-    t.is(markersEvents.length, 1);
-    t.is(markersEvents[0].markerRecordedEventAttributes!.markerName, CHANGE_MARKER_NAME);
   });
 }

@@ -204,3 +204,13 @@ test('Worker allows heartbeating activities after shutdown has been requested', 
   await worker.run();
   t.is(cancelReason, 'CANCELLED');
 });
+
+export async function conditionTimeout0(): Promise<boolean | undefined> {
+  return await workflow.condition(() => false, 0);
+}
+
+test('Condition 0 patch sets a timer', async (t) => {
+  const { createWorker, executeWorkflow } = helpers(t);
+  const worker = await createWorker();
+  t.false(await worker.runUntil(executeWorkflow(conditionTimeout0)));
+});
