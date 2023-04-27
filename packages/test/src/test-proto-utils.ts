@@ -22,3 +22,35 @@ test('cancel-fake-progress-replay', async (t) => {
   );
   t.is(hist.events?.[0].workflowExecutionStartedEventAttributes?.taskQueue?.kind, TaskQueueKind.TASK_QUEUE_KIND_NORMAL);
 });
+
+test('null payload data doesnt crash', async (t) => {
+  const historyJson = {
+    events: [
+      {
+        eventId: '16',
+        eventTime: '2022-07-06T00:33:18.000Z',
+        eventType: 'WorkflowExecutionCompleted',
+        version: '0',
+        taskId: '1057236',
+        workflowExecutionCompletedEventAttributes: {
+          result: { payloads: [{ metadata: { encoding: 'YmluYXJ5L251bGw=' }, data: null }] },
+          workflowTaskCompletedEventId: '15',
+          newExecutionRunId: '',
+        },
+      },
+    ],
+  };
+
+  // This would throw an error if payload data was still null
+  const history = historyFromJSON(historyJson);
+
+  // Make sure that other history properties were not corrupted
+  t.is(
+    Buffer.from(
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      history.events?.[0].workflowExecutionCompletedEventAttributes?.result?.payloads?.[0].metadata!
+        .encoding as Uint8Array
+    ).toString(),
+    'binary/null'
+  );
+});
