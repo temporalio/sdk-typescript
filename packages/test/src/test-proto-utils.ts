@@ -24,24 +24,33 @@ test('cancel-fake-progress-replay', async (t) => {
 });
 
 test('null payload data doesnt crash', async (t) => {
-  const sample = `{
-    "events": [
+  const historyJson = {
+    events: [
       {
-        "eventId": "16",
-        "eventTime": "2022-07-06T00:33:18.000Z",
-        "eventType": "WorkflowExecutionCompleted",
-        "version": "0",
-        "taskId": "1057236",
-        "workflowExecutionCompletedEventAttributes": {
-          "result": { "payloads": [{ "metadata": { "encoding": "YmluYXJ5L251bGw=" }, "data": null }] },
-          "workflowTaskCompletedEventId": "15",
-          "newExecutionRunId": ""
-        }
-      }
-    ]
-  }`;
+        eventId: '16',
+        eventTime: '2022-07-06T00:33:18.000Z',
+        eventType: 'WorkflowExecutionCompleted',
+        version: '0',
+        taskId: '1057236',
+        workflowExecutionCompletedEventAttributes: {
+          result: { payloads: [{ metadata: { encoding: 'YmluYXJ5L251bGw=' }, data: null }] },
+          workflowTaskCompletedEventId: '15',
+          newExecutionRunId: '',
+        },
+      },
+    ],
+  };
 
-  const histJSON = JSON.parse(sample);
-  const hist = historyFromJSON(histJSON);
-  t.deepEqual(hist.events?.[0].eventId, new Long(16));
+  // This would throw an error if payload data was still null
+  const history = historyFromJSON(historyJson);
+
+  // Make sure that other history properties were not corrupted
+  t.is(
+    Buffer.from(
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      history.events?.[0].workflowExecutionCompletedEventAttributes?.result?.payloads?.[0].metadata!
+        .encoding as Uint8Array
+    ).toString(),
+    'binary/null'
+  );
 });
