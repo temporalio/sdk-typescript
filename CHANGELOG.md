@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 Breaking changes marked with a :boom:
 
+## [1.7.4] - 2023-04-27
+
+### Bug Fixes
+
+- Publish all pre-built binaries, 1.7.3 included only arm64 darwin
+
 ## [1.7.3] - 2023-04-27
 
 ### Bug Fixes
