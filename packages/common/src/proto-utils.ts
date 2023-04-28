@@ -17,7 +17,7 @@ function pascalCaseToConstantCase(s: string) {
 function fixEnumValue<O extends Record<string, any>>(obj: O, attr: keyof O, prefix: string) {
   return (
     obj[attr] && {
-      [attr]: `${prefix}_${pascalCaseToConstantCase(obj[attr])}`,
+      [attr]: obj[attr].startsWith(prefix) ? obj[attr] : `${prefix}_${pascalCaseToConstantCase(obj[attr])}`,
     }
   );
 }

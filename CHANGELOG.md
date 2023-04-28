@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 
 Breaking changes marked with a :boom:
 
+## [1.7.3] - 2023-04-27
+
+### Bug Fixes
+
+- [`workflow`] Fix internal patches NDE on replay ([#1106](https://github.com/temporalio/sdk-typescript/pull/1106))
+- Fix `null` payload data in `historyFromJSON` ([#1109](https://github.com/temporalio/sdk-typescript/pull/1109))
+- [`core`] Fix issues with pagination and event loss in some edge cases ([#537](https://github.com/temporalio/sdk-core/pull/537) + [#538](https://github.com/temporalio/sdk-core/pull/538))
+- [`core`] Fix child wf state machine returning fatal instead of NDE ([#536](https://github.com/temporalio/sdk-core/pull/536))
+
+### Features
+
+- Make proto JSON enum conversion noop if already in right format ([#1110](https://github.com/temporalio/sdk-typescript/pull/1110))
+
+### Miscellaneous Tasks
+
+- Upgrade opentelemetry dependencies ([#1107](https://github.com/temporalio/sdk-typescript/pull/1107) thanks to [`@maxgurewitz`](https://github.com/maxgurewitz) 🙏)
+
 ## [1.7.2] - 2023-04-14
 
 ### Bug Fixes
