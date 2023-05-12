@@ -38,7 +38,7 @@ import {
   WorkflowInfo,
 } from './interfaces';
 import { LocalActivityDoBackoff, getActivator, maybeGetActivator } from './internals';
-import { Sinks } from './sinks';
+import { LoggerSinks, Sinks } from './sinks';
 import { untrackPromise } from './stack-helpers';
 import { ChildWorkflowHandle, ExternalWorkflowHandle } from './workflow-handle';
 
@@ -1253,3 +1253,20 @@ export function upsertSearchAttributes(searchAttributes: SearchAttributes): void
 
 export const stackTraceQuery = defineQuery<string>('__stack_trace');
 export const enhancedStackTraceQuery = defineQuery<EnhancedStackTrace>('__enhanced_stack_trace');
+
+const loggerSinks = proxySinks<LoggerSinks>();
+
+/**
+ * Default workflow logger.
+ * This logger is replay-aware and will omit log messages on workflow replay.
+ * The messages emitted by this logger are funnelled to the worker's `defaultSinks`, which are installed by default.
+ *
+ * Note that since sinks are used to power this logger, any log attributes must be transferable via the
+ * {@link https://nodejs.org/api/worker_threads.html#worker_threads_port_postmessage_value_transferlist | postMessage}
+ * API.
+ *
+ * `defaultSinks` accepts a user logger and defaults to the `Runtime`'s logger.
+ *
+ * See the documentation for `WorkerOptions`, `defaultSinks`, and `Runtime` for more information.
+ */
+export const log = loggerSinks.defaultWorkerLogger;
