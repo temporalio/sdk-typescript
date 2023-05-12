@@ -8,6 +8,7 @@ import { LoggerSinks } from '@temporalio/workflow';
 import { ActivityInboundLogInterceptor } from './activity-log-interceptor';
 import { NativeConnection } from './connection';
 import { WorkerInterceptors } from './interceptors';
+import { Logger } from './logger';
 import { Runtime } from './runtime';
 import { InjectedSinks } from './sinks';
 import { GiB } from './utils';
@@ -431,31 +432,36 @@ export interface ReplayWorkerOptions
  *
  * @param logger a {@link Logger} - defaults to the {@link Runtime} singleton logger.
  */
-export function defaultSinks(logger = Runtime.instance().logger): InjectedSinks<LoggerSinks> {
+export function defaultSinks(logger?: Logger): InjectedSinks<LoggerSinks> {
   return {
     defaultWorkerLogger: {
       trace: {
         fn(_, message, attrs) {
+          logger ??= Runtime.instance().logger;
           logger.trace(message, attrs);
         },
       },
       debug: {
         fn(_, message, attrs) {
+          logger ??= Runtime.instance().logger;
           logger.debug(message, attrs);
         },
       },
       info: {
         fn(_, message, attrs) {
+          logger ??= Runtime.instance().logger;
           logger.info(message, attrs);
         },
       },
       warn: {
         fn(_, message, attrs) {
+          logger ??= Runtime.instance().logger;
           logger.warn(message, attrs);
         },
       },
       error: {
         fn(_, message, attrs) {
+          logger ??= Runtime.instance().logger;
           logger.error(message, attrs);
         },
       },
