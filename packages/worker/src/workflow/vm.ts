@@ -2,6 +2,8 @@ import assert from 'node:assert';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import vm from 'node:vm';
 import { IllegalStateError } from '@temporalio/common';
+import { getTimeOfDay } from '@temporalio/core-bridge';
+import { timeOfDayToBigint } from '../logger';
 import { Workflow, WorkflowCreateOptions, WorkflowCreator } from './interface';
 import { WorkflowBundleWithSourceMapAndFilename } from './workflow-worker-thread/input';
 import {
@@ -56,7 +58,11 @@ export class VMWorkflowCreator implements WorkflowCreator {
       }
     ) as any;
 
-    workflowModule.initRuntime({ ...options, sourceMap: this.workflowBundle.sourceMap });
+    workflowModule.initRuntime({
+      ...options,
+      sourceMap: this.workflowBundle.sourceMap,
+      getTimeOfDay: () => timeOfDayToBigint(getTimeOfDay()),
+    });
     const activator = context.__TEMPORAL_ACTIVATOR__ as any;
 
     const newVM = new VMWorkflow(options.info, context, activator, workflowModule, isolateExecutionTimeoutMs);

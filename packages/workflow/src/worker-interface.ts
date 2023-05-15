@@ -10,7 +10,7 @@ import type { coresdk } from '@temporalio/proto';
 import { disableStorage } from './cancellation-scope';
 import { DeterminismViolationError } from './errors';
 import { WorkflowInterceptorsFactory } from './interceptors';
-import { WorkflowCreateOptionsWithSourceMap, WorkflowInfo } from './interfaces';
+import { WorkflowCreateOptionsInternal, WorkflowInfo } from './interfaces';
 import { Activator, getActivator } from './internals';
 import { SinkCall } from './sinks';
 import { setActivatorUntyped } from './global-attributes';
@@ -92,7 +92,7 @@ export function overrideGlobals(): void {
  *
  * Sets required internal state and instantiates the workflow and interceptors.
  */
-export function initRuntime(options: WorkflowCreateOptionsWithSourceMap): void {
+export function initRuntime(options: WorkflowCreateOptionsInternal): void {
   const info: WorkflowInfo = fixPrototypes(options.info);
   info.unsafe.now = OriginalDate.now;
   const activator = new Activator({ ...options, info });

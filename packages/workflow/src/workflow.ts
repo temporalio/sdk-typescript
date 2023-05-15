@@ -1257,6 +1257,12 @@ export const enhancedStackTraceQuery = defineQuery<EnhancedStackTrace>('__enhanc
 const loggerSinks = proxySinks<LoggerSinks>();
 
 /**
+ * Symbol used by the SDK logger to extract a timestamp from log attributes.
+ * Also defined in `worker/logger.ts` - intentionally not shared.
+ */
+const LogTimestamp = Symbol.for('log_timestamp');
+
+/**
  * Default workflow logger.
  * This logger is replay-aware and will omit log messages on workflow replay.
  * The messages emitted by this logger are funnelled to the worker's `defaultSinks`, which are installed by default.
@@ -1269,4 +1275,18 @@ const loggerSinks = proxySinks<LoggerSinks>();
  *
  * See the documentation for `WorkerOptions`, `defaultSinks`, and `Runtime` for more information.
  */
-export const log = loggerSinks.defaultWorkerLogger;
+export const log: LoggerSinks['defaultWorkerLogger'] = Object.fromEntries(
+  (['trace', 'debug', 'info', 'warn', 'error'] as Array<keyof LoggerSinks['defaultWorkerLogger']>).map((level) => {
+    return [
+      level,
+      (message: string, attrs: Record<string, unknown>) => {
+        return loggerSinks.defaultWorkerLogger[level](message, {
+          // Inject the call time in nanosecond resolution as expected by the worker logger.
+          [LogTimestamp]: getActivator().getTimeOfDay(),
+          // Only available from node 17.
+          ...((globalThis as any).structuredClone ? (globalThis as any).structuredClone(attrs) : attrs),
+        });
+      },
+    ];
+  })
+) as any;
