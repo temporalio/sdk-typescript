@@ -21,6 +21,7 @@ import { parseWorkflowCode } from '@temporalio/worker/lib/worker';
 import * as activityFunctions from './activities';
 import { cleanStackTrace, REUSE_V8_CONTEXT, u8 } from './helpers';
 import { ProcessedSignal } from './workflows';
+import { LogTimestamp } from '@temporalio/worker';
 
 export interface Context {
   workflow: VMWorkflow | ReusableVMWorkflow;
@@ -1532,6 +1533,7 @@ test('logAndTimeout', async (t) => {
     message: 'Script execution timed out after 200ms',
   });
   const calls = await workflow.getAndResetSinkCalls();
+  delete calls[0].args[1][LogTimestamp];
   t.deepEqual(calls, [
     {
       ifaceName: 'defaultWorkerLogger',
