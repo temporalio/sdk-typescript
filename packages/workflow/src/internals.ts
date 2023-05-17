@@ -29,7 +29,7 @@ import {
   EnhancedStackTrace,
   FileLocation,
   WorkflowInfo,
-  WorkflowCreateOptionsWithSourceMap,
+  WorkflowCreateOptionsInternal,
 } from './interfaces';
 import { SinkCall } from './sinks';
 import { untrackPromise } from './stack-helpers';
@@ -271,16 +271,26 @@ export class Activator implements ActivationHandler {
    */
   public readonly sentPatches = new Set<string>();
 
+  /**
+   * Buffered sink calls per activation
+   */
   sinkCalls = Array<SinkCall>();
+
+  /**
+   * A nanosecond resolution time function, externally injected
+   */
+  public readonly getTimeOfDay: () => bigint;
 
   constructor({
     info,
     now,
     showStackTraceSources,
     sourceMap,
+    getTimeOfDay,
     randomnessSeed,
     patches,
-  }: WorkflowCreateOptionsWithSourceMap) {
+  }: WorkflowCreateOptionsInternal) {
+    this.getTimeOfDay = getTimeOfDay;
     this.info = info;
     this.now = now;
     this.showStackTraceSources = showStackTraceSources;

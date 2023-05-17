@@ -25,7 +25,7 @@ export interface Logger {
 
 export { LogLevel };
 
-export const LogTimestamp = Symbol('log_timestamp');
+export const LogTimestamp = Symbol.for('log_timestamp');
 
 const severities: LogLevel[] = ['TRACE', 'DEBUG', 'INFO', 'WARN', 'ERROR'];
 

@@ -1,13 +1,12 @@
 import {
   isCancellation,
-  LoggerSinks,
   Next,
-  proxySinks,
   WorkflowExecuteInput,
   WorkflowInboundCallsInterceptor,
   workflowInfo,
   WorkflowInfo,
   WorkflowInterceptorsFactory,
+  log,
 } from '@temporalio/workflow';
 import { untrackPromise } from '@temporalio/workflow/lib/stack-helpers';
 
@@ -31,12 +30,10 @@ export class WorkflowInboundLogInterceptor implements WorkflowInboundCallsInterc
   }
 
   execute(input: WorkflowExecuteInput, next: Next<WorkflowInboundCallsInterceptor, 'execute'>): Promise<unknown> {
-    const { defaultWorkerLogger: logger } = proxySinks<LoggerSinks>();
-
-    logger.debug('Workflow started', this.logAttributes());
+    log.debug('Workflow started', this.logAttributes());
     const p = next(input).then(
       (res) => {
-        logger.debug('Workflow completed', this.logAttributes());
+        log.debug('Workflow completed', this.logAttributes());
         return res;
       },
       (error) => {
@@ -44,14 +41,14 @@ export class WorkflowInboundLogInterceptor implements WorkflowInboundCallsInterc
         // e.g. by jest or when multiple versions are installed.
         if (typeof error === 'object' && error != null) {
           if (isCancellation(error)) {
-            logger.debug('Workflow completed as cancelled', this.logAttributes());
+            log.debug('Workflow completed as cancelled', this.logAttributes());
             throw error;
           } else if (error.name === 'ContinueAsNew') {
-            logger.debug('Workflow continued as new', this.logAttributes());
+            log.debug('Workflow continued as new', this.logAttributes());
             throw error;
           }
         }
-        logger.warn('Workflow failed', { error, ...this.logAttributes() });
+        log.warn('Workflow failed', { error, ...this.logAttributes() });
         throw error;
       }
     );

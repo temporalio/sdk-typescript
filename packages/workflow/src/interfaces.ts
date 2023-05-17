@@ -384,8 +384,9 @@ export interface WorkflowCreateOptions {
   showStackTraceSources: boolean;
 }
 
-export interface WorkflowCreateOptionsWithSourceMap extends WorkflowCreateOptions {
+export interface WorkflowCreateOptionsInternal extends WorkflowCreateOptions {
   sourceMap: RawSourceMap;
+  getTimeOfDay(): bigint;
 }
 
 /**
