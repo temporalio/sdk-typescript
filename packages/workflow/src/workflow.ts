@@ -895,7 +895,8 @@ export function proxySinks<T extends Sinks>(): T {
                 activator.sinkCalls.push({
                   ifaceName: ifaceName as string,
                   fnName: fnName as string,
-                  args,
+                  // Only available from node 17.
+                  args: (globalThis as any).structuredClone ? (globalThis as any).structuredClone(args) : args,
                 });
               };
             },
@@ -1283,8 +1284,7 @@ export const log: LoggerSinks['defaultWorkerLogger'] = Object.fromEntries(
         return loggerSinks.defaultWorkerLogger[level](message, {
           // Inject the call time in nanosecond resolution as expected by the worker logger.
           [LogTimestamp]: getActivator().getTimeOfDay(),
-          // Only available from node 17.
-          ...((globalThis as any).structuredClone ? (globalThis as any).structuredClone(attrs) : attrs),
+          ...attrs,
         });
       },
     ];
