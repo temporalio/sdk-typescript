@@ -121,7 +121,7 @@ pub fn start_bridge_loop(
     let mut tokio_builder = tokio::runtime::Builder::new_multi_thread();
     tokio_builder.enable_all().thread_name("core");
     let core_runtime =
-        CoreRuntime::new(telemetry_options, tokio_builder).expect("Failed to create CoreRuntime");
+        Arc::new(CoreRuntime::new(telemetry_options, tokio_builder).expect("Failed to create CoreRuntime"));
 
     core_runtime.tokio_handle().block_on(async {
         loop {
@@ -144,14 +144,11 @@ pub fn start_bridge_loop(
                     headers,
                     callback,
                 } => {
-                    // `metrics_meter` can be None here since we don't use the returned client
-                    // directly at the moment, when we repurpose the client to be used by a Worker,
-                    // `init_worker` will attach the correct metrics meter for us.
+                    let runtime_clone = core_runtime.clone();
                     core_runtime.tokio_handle().spawn(async move {
-                        let metrics_meter = None;
                         match options
                             .connect_no_namespace(
-                                metrics_meter,
+                                runtime_clone.metric_meter().as_deref(),
                                 headers.map(|h| Arc::new(RwLock::new(h))),
                             )
                             .await
