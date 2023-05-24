@@ -66,7 +66,7 @@ const [encodeMinute, decodeMinue] = makeCalendarSpecFieldCoders(
 
 const [encodeHour, decodeHour] = makeCalendarSpecFieldCoders(
   'hour',
-  (x: number) => (typeof x === 'number' && x >= 0 && x <= 59 ? x : undefined),
+  (x: number) => (typeof x === 'number' && x >= 0 && x <= 23 ? x : undefined),
   (x: number) => x,
   [{ start: 0, end: 0, step: 0 }], // default to 0
   [{ start: 0, end: 23, step: 1 }]
@@ -74,7 +74,7 @@ const [encodeHour, decodeHour] = makeCalendarSpecFieldCoders(
 
 const [encodeDayOfMonth, decodeDayOfMonth] = makeCalendarSpecFieldCoders(
   'dayOfMonth',
-  (x: number) => (typeof x === 'number' && x >= 0 && x <= 6 ? x : undefined),
+  (x: number) => (typeof x === 'number' && x >= 0 && x <= 31 ? x : undefined),
   (x: number) => x,
   [{ start: 1, end: 31, step: 1 }], // default to *
   [{ start: 1, end: 31, step: 1 }]
