@@ -165,7 +165,7 @@ export class TestWorkflowEnvironment {
   /**
    * Get an established {@link Connection} to the ephemeral server
    */
-  public readonly connection: ConnectionLike;
+  public readonly connection: Connection;
 
   /**
    * A {@link TestEnvClient} for interacting with the ephemeral server
