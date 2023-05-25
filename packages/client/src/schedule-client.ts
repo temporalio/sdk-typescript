@@ -260,7 +260,6 @@ export class ScheduleClient extends BaseClient {
       const res = await this.workflowService.createSchedule(req);
       return { conflictToken: res.conflictToken };
     } catch (err: any) {
-      if (err instanceof TypeError) throw err;
       if (err.code === grpcStatus.ALREADY_EXISTS) {
         throw new ScheduleAlreadyRunning('Schedule already exists and is running', opts.scheduleId);
       }
@@ -292,21 +291,21 @@ export class ScheduleClient extends BaseClient {
     opts: CompiledScheduleUpdateOptions,
     header: Headers
   ): Promise<temporal.api.workflowservice.v1.IUpdateScheduleResponse> {
+    const req = {
+      namespace: this.options.namespace,
+      scheduleId,
+      schedule: {
+        spec: encodeScheduleSpec(opts.spec),
+        action: await encodeScheduleAction(this.dataConverter, opts.action, header),
+        policies: encodeSchedulePolicies(opts.policies),
+        state: encodeScheduleState(opts.state),
+      },
+      identity: this.options.identity,
+      requestId: uuid4(),
+    };
     try {
-      return await this.workflowService.updateSchedule({
-        namespace: this.options.namespace,
-        scheduleId,
-        schedule: {
-          spec: encodeScheduleSpec(opts.spec),
-          action: await encodeScheduleAction(this.dataConverter, opts.action, header),
-          policies: encodeSchedulePolicies(opts.policies),
-          state: encodeScheduleState(opts.state),
-        },
-        identity: this.options.identity,
-        requestId: uuid4(),
-      });
+      return await this.workflowService.updateSchedule(req);
     } catch (err: any) {
-      if (err instanceof TypeError) throw err;
       this.rethrowGrpcError(err, scheduleId, 'Failed to update schedule');
     }
   }
