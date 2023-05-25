@@ -497,6 +497,7 @@ export class ScheduleClient extends BaseClient {
   }
 
   protected rethrowGrpcError(err: unknown, scheduleId: string, fallbackMessage: string): never {
+    if (err instanceof TypeError) throw err;
     if (isServerErrorResponse(err)) {
       if (err.code === grpcStatus.NOT_FOUND) {
         throw new ScheduleNotFoundError(err.details ?? 'Schedule not found', scheduleId);

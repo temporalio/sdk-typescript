@@ -139,7 +139,7 @@ function makeCalendarSpecFieldCoders<Unit>(
         const value = encodeValueFn(item as Unit);
         if (value !== undefined) return { start: value, end: value, step: 1 };
       }
-      throw new Error(`Invalid CalendarSpec component for field ${fieldName}: '${item}' of type '${typeof item}'`);
+      throw new TypeError(`Invalid CalendarSpec component for field ${fieldName}: '${item}' of type '${typeof item}'`);
     });
   }
 
@@ -349,7 +349,7 @@ export async function decodeScheduleAction(
       workflowTaskTimeout: optionalTsToMs(pb.startWorkflow.workflowTaskTimeout),
     };
   }
-  throw new Error('Unsupported schedule action');
+  throw new TypeError('Unsupported schedule action');
 }
 
 export function decodeSearchAttributes(
@@ -397,7 +397,7 @@ export function decodeScheduleRecentActions(
             firstExecutionRunId: executionResult.startWorkflowResult!.runId!,
           },
         };
-      } else throw new Error('Unsupported schedule action');
+      } else throw new TypeError('Unsupported schedule action');
 
       return {
         // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
