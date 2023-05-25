@@ -17,7 +17,6 @@ import {
   AsyncCompletionClient,
   Client,
   ClientOptions,
-  ConnectionLike,
   WorkflowClient,
   WorkflowClientOptions,
   WorkflowResultOptions,
