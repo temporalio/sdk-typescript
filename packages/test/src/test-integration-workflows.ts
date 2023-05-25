@@ -14,7 +14,8 @@ import {
 } from '@temporalio/worker';
 import * as activity from '@temporalio/activity';
 import * as workflow from '@temporalio/workflow';
-import { CancelReason } from '@temporalio/worker/src/activity';
+import { CancelReason } from '@temporalio/worker/lib/activity';
+import { tsToMs } from '@temporalio/common/lib/time';
 import { test as anyTest, bundlerOptions, Worker } from './helpers';
 import { activityStartedSignal } from './workflows/definitions';
 import { signalSchedulingWorkflow } from './activities/helpers';
@@ -125,8 +126,8 @@ test('Workflow fails if it tries to start a child with an existing workflow ID',
   });
 });
 
-export async function runTestActivity(): Promise<void> {
-  await workflow.proxyActivities({ startToCloseTimeout: '1m' }).testActivity();
+export async function runTestActivity(activityOptions?: workflow.ActivityOptions): Promise<void> {
+  await workflow.proxyActivities({ startToCloseTimeout: '1m', ...activityOptions }).testActivity();
 }
 
 test('Worker cancels activities after shutdown has been requested', async (t) => {
@@ -213,4 +214,26 @@ test('Condition 0 patch sets a timer', async (t) => {
   const { createWorker, executeWorkflow } = helpers(t);
   const worker = await createWorker();
   t.false(await worker.runUntil(executeWorkflow(conditionTimeout0)));
+});
+
+test('Activity initialInterval is not getting rounded', async (t) => {
+  const { createWorker, startWorkflow } = helpers(t);
+  const worker = await createWorker({
+    activities: {
+      testActivity: () => undefined,
+    },
+  });
+  const handle = await startWorkflow(runTestActivity, {
+    args: [
+      {
+        startToCloseTimeout: '5s',
+        retry: { initialInterval: '50ms', maximumAttempts: 1 },
+      },
+    ],
+  });
+  await worker.runUntil(handle.result());
+  const { events } = await handle.fetchHistory();
+  const activityTaskScheduledEvents = events?.find((ev) => ev.activityTaskScheduledEventAttributes);
+  const retryPolicy = activityTaskScheduledEvents?.activityTaskScheduledEventAttributes?.retryPolicy;
+  t.is(tsToMs(retryPolicy?.initialInterval), 50);
 });
