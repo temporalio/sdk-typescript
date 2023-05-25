@@ -260,6 +260,7 @@ export class ScheduleClient extends BaseClient {
       const res = await this.workflowService.createSchedule(req);
       return { conflictToken: res.conflictToken };
     } catch (err: any) {
+      if (err instanceof TypeError) throw err;
       if (err.code === grpcStatus.ALREADY_EXISTS) {
         throw new ScheduleAlreadyRunning('Schedule already exists and is running', opts.scheduleId);
       }
@@ -305,6 +306,7 @@ export class ScheduleClient extends BaseClient {
         requestId: uuid4(),
       });
     } catch (err: any) {
+      if (err instanceof TypeError) throw err;
       this.rethrowGrpcError(err, scheduleId, 'Failed to update schedule');
     }
   }

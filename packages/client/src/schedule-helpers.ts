@@ -66,7 +66,7 @@ const [encodeMinute, decodeMinue] = makeCalendarSpecFieldCoders(
 
 const [encodeHour, decodeHour] = makeCalendarSpecFieldCoders(
   'hour',
-  (x: number) => (typeof x === 'number' && x >= 0 && x <= 59 ? x : undefined),
+  (x: number) => (typeof x === 'number' && x >= 0 && x <= 23 ? x : undefined),
   (x: number) => x,
   [{ start: 0, end: 0, step: 0 }], // default to 0
   [{ start: 0, end: 23, step: 1 }]
@@ -74,7 +74,7 @@ const [encodeHour, decodeHour] = makeCalendarSpecFieldCoders(
 
 const [encodeDayOfMonth, decodeDayOfMonth] = makeCalendarSpecFieldCoders(
   'dayOfMonth',
-  (x: number) => (typeof x === 'number' && x >= 0 && x <= 6 ? x : undefined),
+  (x: number) => (typeof x === 'number' && x >= 0 && x <= 31 ? x : undefined),
   (x: number) => x,
   [{ start: 1, end: 31, step: 1 }], // default to *
   [{ start: 1, end: 31, step: 1 }]
@@ -139,7 +139,7 @@ function makeCalendarSpecFieldCoders<Unit>(
         const value = encodeValueFn(item as Unit);
         if (value !== undefined) return { start: value, end: value, step: 1 };
       }
-      throw new Error(`Invalid CalendarSpec component for field ${fieldName}: '${item}' of type '${typeof item}'`);
+      throw new TypeError(`Invalid CalendarSpec component for field ${fieldName}: '${item}' of type '${typeof item}'`);
     });
   }
 
@@ -349,7 +349,7 @@ export async function decodeScheduleAction(
       workflowTaskTimeout: optionalTsToMs(pb.startWorkflow.workflowTaskTimeout),
     };
   }
-  throw new Error('Unsupported schedule action');
+  throw new TypeError('Unsupported schedule action');
 }
 
 export function decodeSearchAttributes(
@@ -397,7 +397,7 @@ export function decodeScheduleRecentActions(
             firstExecutionRunId: executionResult.startWorkflowResult!.runId!,
           },
         };
-      } else throw new Error('Unsupported schedule action');
+      } else throw new TypeError('Unsupported schedule action');
 
       return {
         // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
