@@ -35,8 +35,15 @@ export async function updateNodeVersion({ root }: InstallArgs): Promise<void> {
   const versionAlreadyInPackageJson = 16;
   const minimumValidVersion = 14;
 
-  if (currentNodeVersion >= minimumValidVersion && currentNodeVersion !== versionAlreadyInPackageJson) {
-    const packageName = `@tsconfig/node${currentNodeVersion}`;
+  // For some reason, the @tsconfig/node20 package exists, but is currently unusable because it
+  // refers to a --lib value that isn't supported in latest release of TypeScript.
+  // FIXME: Update this once @tsconfig/node20 is fixed.
+  const maximumValidVersion = 18;
+
+  const tsconfigNodeVersion = Math.max(minimumValidVersion, Math.min(currentNodeVersion, maximumValidVersion));
+
+  if (tsconfigNodeVersion !== versionAlreadyInPackageJson) {
+    const packageName = `@tsconfig/node${tsconfigNodeVersion}`;
 
     const packageExists = await isUrlOk(`https://registry.npmjs.org/${packageName}`);
     if (packageExists) {
