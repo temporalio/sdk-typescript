@@ -28,7 +28,17 @@ function mtime(path) {
 }
 
 async function compileProtos(outputFile, ...args) {
-  const pbjsArgs = [...args, '--wrap', 'commonjs', '--force-long', '--no-verify', '--out', outputFile, ...protoFiles];
+  const pbjsArgs = [
+    ...args,
+    '--wrap',
+    'commonjs',
+    '--force-long',
+    '--no-verify',
+    '--alt-comment',
+    '--out',
+    outputFile,
+    ...protoFiles,
+  ];
   return await promisify(pbjs.main)(pbjsArgs);
 }
 

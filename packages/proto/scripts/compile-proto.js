@@ -1,4 +1,4 @@
-const { rm } = require('fs/promises');
+const { rm, readFile, writeFile } = require('fs/promises');
 const { resolve } = require('path');
 const { promisify } = require('util');
 const dedent = require('dedent');
@@ -42,6 +42,7 @@ async function compileProtos(dtsOutputFile, ...args) {
     'commonjs',
     '--force-long',
     '--no-verify',
+    '--alt-comment',
     '--root',
     '__temporal',
     resolve(require.resolve('protobufjs'), '../google/protobuf/descriptor.proto'),
@@ -59,6 +60,16 @@ async function compileProtos(dtsOutputFile, ...args) {
   console.log(`Creating protobuf TS definitions from ${coreProtoPath} and ${workflowServiceProtoPath}`);
   try {
     await promisify(pbjs.main)([...pbjsArgs, '--target', 'static-module', '--out', tempFile]);
+
+    // pbts internally calls jsdoc, which do strict validation of jsdoc tags.
+    // Unfortunately, some protobuf comment about cron syntax contains the
+    // "@every" shorthand at the begining of a line, making it appear as a
+    // (invalid) jsdoc tag. We fix this by rewriting all cron shorthand
+    // using markdown "code" syntax.
+    let tempFileContent = await readFile(tempFile, 'utf8');
+    tempFileContent = tempFileContent.replace(/(@(?:yearly|monthly|weekly|daily|hourly|every))/g, '`$1`');
+    await writeFile(tempFile, tempFileContent, 'utf-8');
+
     await promisify(pbts.main)(['--out', dtsOutputFile, tempFile]);
   } finally {
     await rm(tempFile);
