@@ -18,6 +18,7 @@ import {
   WorkflowExecutionAlreadyStartedError,
   WorkflowNotFoundError,
   WorkflowResultType,
+  extractWorkflowType,
 } from '@temporalio/common';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import { History } from '@temporalio/common/lib/proto-utils';
@@ -345,7 +346,7 @@ export class WorkflowClient extends BaseClient {
     options: WithWorkflowArgs<T, WorkflowOptions>,
     interceptors: WorkflowClientInterceptor[]
   ): Promise<string> {
-    const workflowType = typeof workflowTypeOrFunc === 'string' ? workflowTypeOrFunc : workflowTypeOrFunc.name;
+    const workflowType = extractWorkflowType(workflowTypeOrFunc);
     assertRequiredWorkflowOptions(options);
     const compiledOptions = compileWorkflowOptions(ensureArgs(options));
 
@@ -369,7 +370,7 @@ export class WorkflowClient extends BaseClient {
     options: WithWorkflowArgs<T, WorkflowSignalWithStartOptions<SA>>,
     interceptors: WorkflowClientInterceptor[]
   ): Promise<string> {
-    const workflowType = typeof workflowTypeOrFunc === 'string' ? workflowTypeOrFunc : workflowTypeOrFunc.name;
+    const workflowType = extractWorkflowType(workflowTypeOrFunc);
     const { signal, signalArgs, ...rest } = options;
     assertRequiredWorkflowOptions(rest);
     const compiledOptions = compileWorkflowOptions(ensureArgs(rest));

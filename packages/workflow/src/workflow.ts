@@ -2,6 +2,7 @@ import {
   ActivityFunction,
   ActivityOptions,
   compileRetryPolicy,
+  extractWorkflowType,
   IllegalStateError,
   LocalActivityOptions,
   mapToPayloads,
@@ -698,7 +699,7 @@ export async function startChild<T extends Workflow>(
 ): Promise<ChildWorkflowHandle<T>> {
   const activator = getActivator();
   const optionsWithDefaults = addDefaultWorkflowOptions(options ?? ({} as any));
-  const workflowType = typeof workflowTypeOrFunc === 'string' ? workflowTypeOrFunc : workflowTypeOrFunc.name;
+  const workflowType = extractWorkflowType(workflowTypeOrFunc);
   const execute = composeInterceptors(
     activator.interceptors.outbound,
     'startChildWorkflowExecution',
@@ -797,7 +798,7 @@ export async function executeChild<T extends Workflow>(
 ): Promise<WorkflowResultType<T>> {
   const activator = getActivator();
   const optionsWithDefaults = addDefaultWorkflowOptions(options ?? ({} as any));
-  const workflowType = typeof workflowTypeOrFunc === 'string' ? workflowTypeOrFunc : workflowTypeOrFunc.name;
+  const workflowType = extractWorkflowType(workflowTypeOrFunc);
   const execute = composeInterceptors(
     activator.interceptors.outbound,
     'startChildWorkflowExecution',

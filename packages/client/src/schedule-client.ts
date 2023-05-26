@@ -379,7 +379,7 @@ export class ScheduleClient extends BaseClient {
           scheduleId: raw.scheduleId,
 
           spec: decodeScheduleSpec(raw.info?.spec ?? {}),
-          action: raw.info?.workflowType?.name && {
+          action: raw.info?.workflowType && {
             type: 'startWorkflow',
             workflowType: raw.info.workflowType.name,
           },
