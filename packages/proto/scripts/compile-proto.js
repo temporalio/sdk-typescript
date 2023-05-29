@@ -64,10 +64,12 @@ async function compileProtos(dtsOutputFile, ...args) {
     // pbts internally calls jsdoc, which do strict validation of jsdoc tags.
     // Unfortunately, some protobuf comment about cron syntax contains the
     // "@every" shorthand at the begining of a line, making it appear as a
-    // (invalid) jsdoc tag. We fix this by rewriting all cron shorthand
-    // using markdown "code" syntax.
+    // (invalid) jsdoc tag. Similarly, docusaurus trips on <interval> and other
+    // things that looks like html tags. We fix both cases by rewriting these
+    // using markdown "inline code" syntax.
     let tempFileContent = await readFile(tempFile, 'utf8');
     tempFileContent = tempFileContent.replace(/(@(?:yearly|monthly|weekly|daily|hourly|every))/g, '`$1`');
+    tempFileContent = tempFileContent.replace(/<((?:interval|phase|timezone)(?: [^>]+)?)>/g, '`<$1>`');
     await writeFile(tempFile, tempFileContent, 'utf-8');
 
     await promisify(pbts.main)(['--out', dtsOutputFile, tempFile]);
