@@ -109,6 +109,7 @@ function timerNextHandler(input: TimerInput) {
  * If given a negative number or 0, value will be set to 1.
  */
 export function sleep(ms: number | string): Promise<void> {
+  assertInWorkflowContext('Workflow.sleep(...) may only be used from a Workflow Execution');
   const activator = getActivator();
   const seq = activator.nextSeqs.timer++;
 
@@ -251,6 +252,7 @@ async function scheduleLocalActivityNextHandler({
  * @hidden
  */
 export function scheduleActivity<R>(activityType: string, args: any[], options: ActivityOptions): Promise<R> {
+  assertInWorkflowContext('Workflow.scheduleActivity(...) may only be used from a Workflow Execution');
   const activator = getActivator();
   if (options === undefined) {
     throw new TypeError('Got empty activity options');
@@ -276,6 +278,7 @@ export async function scheduleLocalActivity<R>(
   args: any[],
   options: LocalActivityOptions
 ): Promise<R> {
+  assertInWorkflowContext('Workflow.scheduleLocalActivity(...) may only be used from a Workflow Execution');
   const activator = getActivator();
   if (options === undefined) {
     throw new TypeError('Got empty activity options');
@@ -575,6 +578,9 @@ const CONDITION_0_PATCH = '__sdk_internal_patch_number:1';
  * It takes a Workflow ID and optional run ID.
  */
 export function getExternalWorkflowHandle(workflowId: string, runId?: string): ExternalWorkflowHandle {
+  assertInWorkflowContext(
+    'Workflow.getExternalWorkflowHandle(...) may only be used from a Workflow Execution. Consider using Client.workflow.getHandle(...) instead.)'
+  );
   const activator = getActivator();
   return {
     workflowId,
@@ -697,6 +703,9 @@ export async function startChild<T extends Workflow>(
   workflowTypeOrFunc: string | T,
   options?: WithWorkflowArgs<T, ChildWorkflowOptions>
 ): Promise<ChildWorkflowHandle<T>> {
+  assertInWorkflowContext(
+    'Workflow.startChild(...) may only be used from a Workflow Execution. Consider using Client.workflow.start(...) instead.)'
+  );
   const activator = getActivator();
   const optionsWithDefaults = addDefaultWorkflowOptions(options ?? ({} as any));
   const workflowType = extractWorkflowType(workflowTypeOrFunc);
@@ -796,6 +805,9 @@ export async function executeChild<T extends Workflow>(
   workflowTypeOrFunc: string | T,
   options?: WithWorkflowArgs<T, ChildWorkflowOptions>
 ): Promise<WorkflowResultType<T>> {
+  assertInWorkflowContext(
+    'Workflow.executeChild(...) may only be used from a Workflow Execution. Consider using Client.workflow.execute(...) instead.'
+  );
   const activator = getActivator();
   const optionsWithDefaults = addDefaultWorkflowOptions(options ?? ({} as any));
   const workflowType = extractWorkflowType(workflowTypeOrFunc);
@@ -842,6 +854,7 @@ export async function executeChild<T extends Workflow>(
  * }
  */
 export function workflowInfo(): WorkflowInfo {
+  assertInWorkflowContext('Workflow.workflowInfo(...) may only be used from a Workflow Execution.');
   return getActivator().info;
 }
 
@@ -892,6 +905,7 @@ export function proxySinks<T extends Sinks>(): T {
           {
             get(_, fnName) {
               return (...args: any[]) => {
+                assertInWorkflowContext('Proxied sinks functions may only be used from a Workflow Execution.');
                 const activator = getActivator();
                 activator.sinkCalls.push({
                   ifaceName: ifaceName as string,
@@ -918,6 +932,9 @@ export function proxySinks<T extends Sinks>(): T {
 export function makeContinueAsNewFunc<F extends Workflow>(
   options?: ContinueAsNewOptions
 ): (...args: Parameters<F>) => Promise<never> {
+  assertInWorkflowContext(
+    'Workflow.continueAsNew(...) and Workflow.makeContinueAsNewFunc(...) may only be used from a Workflow Execution.'
+  );
   const activator = getActivator();
   const info = workflowInfo();
   const { workflowType, taskQueue, ...rest } = options ?? {};
@@ -1042,6 +1059,9 @@ export function deprecatePatch(patchId: string): void {
 }
 
 function patchInternal(patchId: string, deprecated: boolean): boolean {
+  assertInWorkflowContext(
+    'Workflow.patch(...) and Workflow.deprecatePatch may only be used from a Workflow Execution.'
+  );
   const activator = getActivator();
   // Patch operation does not support interception at the moment, if it did,
   // this would be the place to start the interception chain
@@ -1076,6 +1096,7 @@ export function condition(fn: () => boolean, timeout: number | string): Promise<
 export function condition(fn: () => boolean): Promise<void>;
 
 export async function condition(fn: () => boolean, timeout?: number | string): Promise<void | boolean> {
+  assertInWorkflowContext('Workflow.condition(...) may only be used from a Workflow Execution.');
   // Prior to 1.5.0, `condition(fn, 0)` was treated as equivalent to `condition(fn, undefined)`
   if (timeout === 0 && !patched(CONDITION_0_PATCH)) {
     return conditionInner(fn);
@@ -1163,6 +1184,7 @@ export function setHandler<Ret, Args extends any[], T extends SignalDefinition<A
   def: T,
   handler: Handler<Ret, Args, T> | undefined
 ): void {
+  assertInWorkflowContext('Workflow.setHandler(...) may only be used from a Workflow Execution.');
   const activator = getActivator();
   if (def.type === 'signal') {
     if (typeof handler === 'function') {
@@ -1196,6 +1218,7 @@ export function setHandler<Ret, Args extends any[], T extends SignalDefinition<A
  * @param handler a function that will handle signals for non-registered signal names, or `undefined` to unset the handler.
  */
 export function setDefaultSignalHandler(handler: DefaultSignalHandler | undefined): void {
+  assertInWorkflowContext('Workflow.setDefaultSignalHandler(...) may only be used from a Workflow Execution.');
   const activator = getActivator();
   if (typeof handler === 'function') {
     activator.defaultSignalHandler = handler;
@@ -1237,6 +1260,7 @@ export function setDefaultSignalHandler(handler: DefaultSignalHandler | undefine
  * @param searchAttributes The Record to merge. Use a value of `[]` to clear a Search Attribute.
  */
 export function upsertSearchAttributes(searchAttributes: SearchAttributes): void {
+  assertInWorkflowContext('Workflow.upsertSearchAttributes(...) may only be used from a Workflow Execution.');
   const activator = getActivator();
 
   const mergedSearchAttributes = { ...activator.info.searchAttributes, ...searchAttributes };
@@ -1282,6 +1306,7 @@ export const log: LoggerSinks['defaultWorkerLogger'] = Object.fromEntries(
     return [
       level,
       (message: string, attrs: Record<string, unknown>) => {
+        assertInWorkflowContext('Workflow.log(...) may only be used from a Workflow Execution.)');
         return loggerSinks.defaultWorkerLogger[level](message, {
           // Inject the call time in nanosecond resolution as expected by the worker logger.
           [LogTimestamp]: getActivator().getTimeOfDay(),
@@ -1291,3 +1316,9 @@ export const log: LoggerSinks['defaultWorkerLogger'] = Object.fromEntries(
     ];
   })
 ) as any;
+
+function assertInWorkflowContext(message: string): void {
+  if (maybeGetActivator() == null) {
+    throw new IllegalStateError(message);
+  }
+}
