@@ -5,6 +5,13 @@ import { IllegalStateError } from '@temporalio/common';
  */
 export class ShutdownError extends Error {
   public readonly name = 'ShutdownError';
+
+  /**
+   * Instanceof check that is works when multiple versions of @temporalio/core-bridge are installed.
+   */
+  public static is(error: unknown): error is ShutdownError {
+    return error instanceof ShutdownError || (error instanceof Error && error.name === 'ShutdownError');
+  }
 }
 
 /**
@@ -21,6 +28,7 @@ export class TransportError extends Error {
 export class UnexpectedError extends Error {
   public readonly name = 'UnexpectedError';
 }
+
 export { IllegalStateError };
 
 export function convertFromNamedError(e: unknown, keepStackTrace: boolean): unknown {

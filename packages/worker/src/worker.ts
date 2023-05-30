@@ -52,7 +52,7 @@ import { historyFromJSON } from '@temporalio/common/lib/proto-utils';
 import { optionalTsToDate, optionalTsToMs, tsToDate, tsToMs } from '@temporalio/common/lib/time';
 import { errorMessage } from '@temporalio/common/lib/type-helpers';
 import * as native from '@temporalio/core-bridge';
-import { UnexpectedError } from '@temporalio/core-bridge';
+import { ShutdownError, UnexpectedError } from '@temporalio/core-bridge';
 import { coresdk, temporal } from '@temporalio/proto';
 import { SinkCall, WorkflowInfo } from '@temporalio/workflow';
 import { Activity, CancelReason } from './activity';
@@ -525,7 +525,7 @@ export class Worker {
     const rt = Runtime.instance();
     const evictions = on(worker.evictionsEmitter, 'eviction') as AsyncIterableIterator<[EvictionWithRunID]>;
     const runPromise = worker.run().then(() => {
-      throw new native.ShutdownError('Worker was shutdown');
+      throw new ShutdownError('Worker was shutdown');
     });
     void runPromise.catch(() => {
       // ignore to avoid unhandled rejections
@@ -563,7 +563,7 @@ export class Worker {
         await runPromise;
       } catch (err) {
         /* eslint-disable no-unsafe-finally */
-        if (err instanceof native.ShutdownError) {
+        if (ShutdownError.is(err)) {
           if (innerError !== undefined) throw innerError;
           return;
         } else if (innerError === undefined) {
@@ -800,8 +800,8 @@ export class Worker {
         for (;;) {
           try {
             yield await pollFn();
-          } catch (err: any) {
-            if (err.name === 'ShutdownError') {
+          } catch (err) {
+            if (ShutdownError.is(err)) {
               break;
             }
             throw err;
@@ -1461,7 +1461,7 @@ export class Worker {
 
           return { activation, parentSpan };
         },
-        (err) => err instanceof Error && err.name === 'ShutdownError'
+        ShutdownError.is
       );
     }).pipe(
       tap({
@@ -1577,7 +1577,7 @@ export class Worker {
           }
           return { task, parentSpan, base64TaskToken };
         },
-        (err) => err instanceof Error && err.name === 'ShutdownError'
+        ShutdownError.is
       );
     }).pipe(
       tap({

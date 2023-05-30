@@ -104,10 +104,22 @@ export class CompleteAsyncError extends Error {
   constructor() {
     super();
   }
+
+  /**
+   * Instanceof check that is works when multiple versions of @temporalio/activity are installed.
+   */
+  public static is(error: unknown): error is CompleteAsyncError {
+    return error instanceof CompleteAsyncError || (error instanceof Error && error.name === 'CompleteAsyncError');
+  }
 }
 
-/** @ignore */
-export const asyncLocalStorage = new AsyncLocalStorage<Context>();
+// Make it safe to use @temporalio/activity with multiple versions installed.
+const asyncLocalStorageSymbol = Symbol.for('__temporal_activity_context_storage__');
+if (!(globalThis as any)[asyncLocalStorageSymbol]) {
+  (globalThis as any)[asyncLocalStorageSymbol] = new AsyncLocalStorage<Context>();
+}
+
+export const asyncLocalStorage: AsyncLocalStorage<Context> = (globalThis as any)[asyncLocalStorageSymbol];
 
 /**
  * Holds information about the current Activity Execution. Retrieved inside an Activity with `Context.current().info`.

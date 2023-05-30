@@ -174,6 +174,13 @@ export class ContinueAsNew extends Error {
   constructor(public readonly command: coresdk.workflow_commands.IContinueAsNewWorkflowExecution) {
     super('Workflow continued as new');
   }
+
+  /**
+   * Instanceof check that is works when multiple versions of @temporalio/workflow are installed.
+   */
+  public static is(error: unknown): error is ContinueAsNew {
+    return error instanceof ContinueAsNew || (error instanceof Error && error.name === 'ContinueAsNew');
+  }
 }
 
 /**
