@@ -35,9 +35,8 @@ export async function updateNodeVersion({ root }: InstallArgs): Promise<void> {
   const versionAlreadyInPackageJson = 16;
   const minimumValidVersion = 14;
 
-  // For some reason, the @tsconfig/node20 package exists, but is currently unusable because it
-  // refers to a --lib value that isn't supported in latest release of TypeScript.
-  // FIXME: Update this once @tsconfig/node20 is fixed.
+  // The @tsconfig/node20 sets "--lib es2023", which require TypeScript 5.x.
+  // FIXME: Remove this once samples have been updated to TypeScript ^5.0.0.
   const maximumValidVersion = 18;
 
   const tsconfigNodeVersion = Math.max(minimumValidVersion, Math.min(currentNodeVersion, maximumValidVersion));

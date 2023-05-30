@@ -159,7 +159,7 @@ export function extractWorkflowType<T extends Workflow>(workflowTypeOrFunc: stri
   if (typeof workflowTypeOrFunc === 'string') return workflowTypeOrFunc as string;
   if (typeof workflowTypeOrFunc === 'function') {
     if (workflowTypeOrFunc?.name) return workflowTypeOrFunc.name;
-    throw new TypeError(`Invalid workflow type: the workflow function is anonymous`);
+    throw new TypeError('Invalid workflow type: the workflow function is anonymous');
   }
   throw new TypeError(
     `Invalid workflow type: expected either a string or a function, got '${typeof workflowTypeOrFunc}'`
