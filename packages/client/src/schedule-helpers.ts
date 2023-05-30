@@ -2,6 +2,7 @@ import Long from 'long'; // eslint-disable-line import/no-named-as-default
 import {
   compileRetryPolicy,
   decompileRetryPolicy,
+  extractWorkflowType,
   LoadedDataConverter,
   mapFromPayloads,
   mapToPayloads,
@@ -208,7 +209,7 @@ export function decodeOverlapPolicy(input?: temporal.api.enums.v1.ScheduleOverla
 
 export function compileScheduleOptions(options: ScheduleOptions): CompiledScheduleOptions {
   const workflowTypeOrFunc = options.action.workflowType;
-  const workflowType = typeof workflowTypeOrFunc === 'string' ? workflowTypeOrFunc : workflowTypeOrFunc.name;
+  const workflowType = extractWorkflowType(workflowTypeOrFunc);
   return {
     ...options,
     action: {
@@ -222,7 +223,7 @@ export function compileScheduleOptions(options: ScheduleOptions): CompiledSchedu
 
 export function compileUpdatedScheduleOptions(options: ScheduleUpdateOptions): CompiledScheduleUpdateOptions {
   const workflowTypeOrFunc = options.action.workflowType;
-  const workflowType = typeof workflowTypeOrFunc === 'string' ? workflowTypeOrFunc : workflowTypeOrFunc.name;
+  const workflowType = extractWorkflowType(workflowTypeOrFunc);
   return {
     ...options,
     action: {

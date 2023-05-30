@@ -154,3 +154,14 @@ export function compileWorkflowOptions<T extends CommonWorkflowOptions>(options:
     workflowTaskTimeout: msOptionalToTs(workflowTaskTimeout),
   };
 }
+
+export function extractWorkflowType<T extends Workflow>(workflowTypeOrFunc: string | T): string {
+  if (typeof workflowTypeOrFunc === 'string') return workflowTypeOrFunc as string;
+  if (typeof workflowTypeOrFunc === 'function') {
+    if (workflowTypeOrFunc?.name) return workflowTypeOrFunc.name;
+    throw new TypeError('Invalid workflow type: the workflow function is anonymous');
+  }
+  throw new TypeError(
+    `Invalid workflow type: expected either a string or a function, got '${typeof workflowTypeOrFunc}'`
+  );
+}

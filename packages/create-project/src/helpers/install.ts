@@ -35,8 +35,14 @@ export async function updateNodeVersion({ root }: InstallArgs): Promise<void> {
   const versionAlreadyInPackageJson = 16;
   const minimumValidVersion = 14;
 
-  if (currentNodeVersion >= minimumValidVersion && currentNodeVersion !== versionAlreadyInPackageJson) {
-    const packageName = `@tsconfig/node${currentNodeVersion}`;
+  // The @tsconfig/node20 sets "--lib es2023", which require TypeScript 5.x.
+  // FIXME: Remove this once samples have been updated to TypeScript ^5.0.0.
+  const maximumValidVersion = 18;
+
+  const tsconfigNodeVersion = Math.max(minimumValidVersion, Math.min(currentNodeVersion, maximumValidVersion));
+
+  if (tsconfigNodeVersion !== versionAlreadyInPackageJson) {
+    const packageName = `@tsconfig/node${tsconfigNodeVersion}`;
 
     const packageExists = await isUrlOk(`https://registry.npmjs.org/${packageName}`);
     if (packageExists) {
