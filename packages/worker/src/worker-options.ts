@@ -195,9 +195,30 @@ export interface WorkerOptions {
   /**
    * Maximum number of Workflow tasks to execute concurrently.
    * Adjust this to improve Worker resource consumption.
+   * Can't be lower than 2 if `maxCachedWorkflows` is non-zero.
    * @default 100
    */
   maxConcurrentWorkflowTaskExecutions?: number;
+
+  /**
+   * Maximum number of Workflow tasks to poll concurrently.
+   * Increase this setting if your Worker is failing to fill in all of its
+   * `maxConcurrentWorkflowTaskExecutions` slots despite a backlog of Workflow
+   * Tasks in the Task Queue (ie. due to network latency). Can't be higher than
+   * `maxConcurrentWorkflowTaskExecutions`.
+   * @default min(5, maxConcurrentWorkflowTaskExecutions)
+   */
+  maxConcurrentWorkflowTaskPolls?: number;
+
+  /**
+   * Maximum number of Activity tasks to poll concurrently.
+   * Increase this setting if your Worker is failing to fill in all of its
+   * `maxConcurrentActivityTaskExecutions` slots despite a backlog of Activity
+   * Tasks in the Task Queue (ie. due to network latency). Can't be higher than
+   * `maxConcurrentActivityTaskExecutions`.
+   * @default min(5, maxConcurrentActivityTaskExecutions)
+   */
+  maxConcurrentActivityTaskPolls?: number;
 
   /**
    * How long a workflow task is allowed to sit on the sticky queue before it is timed out
@@ -347,6 +368,8 @@ export type WorkerOptionsWithDefaults = WorkerOptions &
       | 'maxConcurrentActivityTaskExecutions'
       | 'maxConcurrentLocalActivityExecutions'
       | 'maxConcurrentWorkflowTaskExecutions'
+      | 'maxConcurrentWorkflowTaskPolls'
+      | 'maxConcurrentActivityTaskPolls'
       | 'enableNonLocalActivities'
       | 'stickyQueueScheduleToStartTimeout'
       | 'maxCachedWorkflows'
@@ -487,14 +510,17 @@ export function appendDefaultInterceptors(
 export function addDefaultWorkerOptions(options: WorkerOptions): WorkerOptionsWithDefaults {
   const { maxCachedWorkflows, showStackTraceSources, namespace, reuseV8Context, ...rest } = options;
   const debugMode = options.debugMode || isSet(process.env.TEMPORAL_DEBUG);
+  const maxConcurrentWorkflowTaskExecutions = options.maxConcurrentWorkflowTaskExecutions ?? 100;
+  const maxConcurrentActivityTaskExecutions = options.maxConcurrentActivityTaskExecutions ?? 100;
+
   return {
     namespace: namespace ?? 'default',
     identity: `${process.pid}@${os.hostname()}`,
     shutdownGraceTime: 0,
-    maxConcurrentActivityTaskExecutions: 100,
     maxConcurrentLocalActivityExecutions: 100,
     enableNonLocalActivities: true,
-    maxConcurrentWorkflowTaskExecutions: 100,
+    maxConcurrentWorkflowTaskPolls: Math.min(5, maxConcurrentWorkflowTaskExecutions),
+    maxConcurrentActivityTaskPolls: Math.min(5, maxConcurrentActivityTaskExecutions),
     stickyQueueScheduleToStartTimeout: '10s',
     maxHeartbeatThrottleInterval: '60s',
     defaultHeartbeatThrottleInterval: '30s',
@@ -510,6 +536,8 @@ export function addDefaultWorkerOptions(options: WorkerOptions): WorkerOptionsWi
     interceptors: appendDefaultInterceptors({}),
     sinks: defaultSinks(),
     ...rest,
+    maxConcurrentWorkflowTaskExecutions,
+    maxConcurrentActivityTaskExecutions,
   };
 }
 
@@ -520,6 +548,25 @@ function isSet(env: string | undefined): boolean {
 }
 
 export function compileWorkerOptions(opts: WorkerOptionsWithDefaults): CompiledWorkerOptions {
+  if (opts.maxCachedWorkflows !== 0 && opts.maxCachedWorkflows < 2) {
+    Runtime.instance().logger.warn(
+      'maxCachedWorkflows must be either 0 (ie. cache is disabled) or greater than 1. Defaulting to 2.'
+    );
+    opts.maxCachedWorkflows = 2;
+  }
+  if (opts.maxCachedWorkflows > 0 && opts.maxConcurrentWorkflowTaskExecutions > opts.maxCachedWorkflows) {
+    Runtime.instance().logger.warn(
+      "maxConcurrentWorkflowTaskExecutions can't exceed maxCachedWorkflows (unless cache is disabled). Defaulting to maxCachedWorkflows."
+    );
+    opts.maxConcurrentWorkflowTaskExecutions = opts.maxCachedWorkflows;
+  }
+  if (opts.maxCachedWorkflows > 0 && opts.maxConcurrentWorkflowTaskExecutions < 2) {
+    Runtime.instance().logger.warn(
+      "maxConcurrentWorkflowTaskExecutions can't be lower than 2 if maxCachedWorkflows is non-zero. Defaulting to 2."
+    );
+    opts.maxConcurrentWorkflowTaskExecutions = 2;
+  }
+
   return {
     ...opts,
     shutdownGraceTimeMs: msToNumber(opts.shutdownGraceTime),

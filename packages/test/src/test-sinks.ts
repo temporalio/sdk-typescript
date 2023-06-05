@@ -162,8 +162,8 @@ if (RUN_INTEGRATION_TESTS) {
       ...defaultOptions,
       taskQueue,
       sinks,
-      maxCachedWorkflows: 1,
-      maxConcurrentWorkflowTaskExecutions: 1,
+      maxCachedWorkflows: 0,
+      maxConcurrentWorkflowTaskExecutions: 2,
     });
     const client = new WorkflowClient();
     await Promise.all([
@@ -201,8 +201,8 @@ if (RUN_INTEGRATION_TESTS) {
       ...defaultOptions,
       taskQueue,
       sinks,
-      maxCachedWorkflows: 1,
-      maxConcurrentWorkflowTaskExecutions: 1,
+      maxCachedWorkflows: 0,
+      maxConcurrentWorkflowTaskExecutions: 2,
     });
     const client = new WorkflowClient();
     await worker.runUntil(client.execute(workflows.logSinkTester, { taskQueue, workflowId: uuid4() }));
