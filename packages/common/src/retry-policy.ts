@@ -1,6 +1,6 @@
 import type { temporal } from '@temporalio/proto';
 import { ValueError } from './errors';
-import { msOptionalToNumber, msOptionalToTs, msToNumber, msToTs, optionalTsToMs } from './time';
+import { Duration, msOptionalToNumber, msOptionalToTs, msToNumber, msToTs, optionalTsToMs } from './time';
 
 /**
  * Options for retrying Workflows and Activities
@@ -19,7 +19,7 @@ export interface RetryPolicy {
    * @format number of milliseconds or {@link https://www.npmjs.com/package/ms | ms-formatted string}
    * @default 1 second
    */
-  initialInterval?: string | number;
+  initialInterval?: Duration;
   /**
    * Maximum number of attempts. When exceeded, retries stop (even if {@link ActivityOptions.scheduleToCloseTimeout}
    * hasn't been reached).
@@ -35,7 +35,7 @@ export interface RetryPolicy {
    * @default 100x of {@link initialInterval}
    * @format number of milliseconds or {@link https://www.npmjs.com/package/ms | ms-formatted string}
    */
-  maximumInterval?: string | number;
+  maximumInterval?: Duration;
 
   /**
    * List of application failures types to not retry.

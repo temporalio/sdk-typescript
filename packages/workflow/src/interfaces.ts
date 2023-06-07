@@ -6,6 +6,7 @@ import {
   SearchAttributes,
   SignalDefinition,
   QueryDefinition,
+  Duration,
 } from '@temporalio/common';
 import { checkExtends } from '@temporalio/common/lib/type-helpers';
 import type { coresdk } from '@temporalio/proto';
@@ -191,12 +192,12 @@ export interface ContinueAsNewOptions {
    * Timeout for the entire Workflow run
    * @format {@link https://www.npmjs.com/package/ms | ms-formatted string}
    */
-  workflowRunTimeout?: string;
+  workflowRunTimeout?: Duration;
   /**
    * Timeout for a single Workflow task
    * @format {@link https://www.npmjs.com/package/ms | ms-formatted string}
    */
-  workflowTaskTimeout?: string;
+  workflowTaskTimeout?: Duration;
   /**
    * Non-searchable attributes to attach to next Workflow run
    */

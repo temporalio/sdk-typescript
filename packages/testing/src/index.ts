@@ -11,7 +11,6 @@
 import 'abort-controller/polyfill'; // eslint-disable-line import/no-unassigned-import
 import path from 'node:path';
 import events from 'node:events';
-import ms from 'ms';
 import * as activity from '@temporalio/activity';
 import {
   AsyncCompletionClient,
@@ -21,8 +20,8 @@ import {
   WorkflowClientOptions,
   WorkflowResultOptions,
 } from '@temporalio/client';
-import { ActivityFunction, CancelledFailure } from '@temporalio/common';
-import { msToTs, tsToMs } from '@temporalio/common/lib/time';
+import { ActivityFunction, CancelledFailure, Duration } from '@temporalio/common';
+import { msToNumber, msToTs, tsToMs } from '@temporalio/common/lib/time';
 import { NativeConnection, Runtime } from '@temporalio/worker';
 import {
   EphemeralServer,
@@ -341,11 +340,11 @@ export class TestWorkflowEnvironment {
    * });
    * ```
    */
-  sleep = async (durationMs: number | string): Promise<void> => {
+  sleep = async (durationMs: Duration): Promise<void> => {
     if (this.supportsTimeSkipping) {
       await (this.connection as Connection).testService.unlockTimeSkippingWithSleep({ duration: msToTs(durationMs) });
     } else {
-      await new Promise((resolve) => setTimeout(resolve, typeof durationMs === 'string' ? ms(durationMs) : durationMs));
+      await new Promise((resolve) => setTimeout(resolve, msToNumber(durationMs)));
     }
   };
 

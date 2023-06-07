@@ -71,7 +71,7 @@
 
 import 'abort-controller/polyfill'; // eslint-disable-line import/no-unassigned-import
 import { AsyncLocalStorage } from 'node:async_hooks';
-import { msToNumber } from '@temporalio/common/lib/time';
+import { Duration, msToNumber } from '@temporalio/common/lib/time';
 
 export {
   ActivityFunction,
@@ -279,7 +279,7 @@ export class Context {
    * @param ms Sleep duration: number of milliseconds or {@link https://www.npmjs.com/package/ms | ms-formatted string}
    * @returns A Promise that either resolves when `ms` is reached or rejects when the Activity is cancelled
    */
-  public sleep(ms: number | string): Promise<void> {
+  public sleep(ms: Duration): Promise<void> {
     let handle: NodeJS.Timeout;
     const timer = new Promise<void>((resolve) => {
       handle = setTimeout(resolve, msToNumber(ms));

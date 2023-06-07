@@ -5,7 +5,6 @@ import { readFileSync } from 'node:fs';
 import asyncRetry from 'async-retry';
 import anyTest, { Implementation, TestFn } from 'ava';
 import dedent from 'dedent';
-import ms from 'ms';
 import { v4 as uuid4 } from 'uuid';
 import {
   ActivityFailure,
@@ -33,7 +32,7 @@ import {
   WorkflowExecutionAlreadyStartedError,
   WorkflowNotFoundError,
 } from '@temporalio/common';
-import { tsToMs } from '@temporalio/common/lib/time';
+import { msToNumber, tsToMs } from '@temporalio/common/lib/time';
 import { decode, decodeFromPayloadsAtIndex, loadDataConverter } from '@temporalio/common/lib/internal-non-workflow';
 import * as iface from '@temporalio/proto';
 import { appendDefaultInterceptors, DefaultLogger, makeTelemetryFilterString, Runtime } from '@temporalio/worker';
@@ -709,7 +708,7 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
       workflowRunTimeout: '2s',
       workflowExecutionTimeout: '3s',
       workflowTaskTimeout: '1s',
-    };
+    } as const;
     const workflow = await client.start(workflows.sleeper, options);
     // Throws because we use a different task queue
     await t.throwsAsync(() => workflow.result(), {
@@ -735,9 +734,12 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
       iface.temporal.api.enums.v1.TaskQueueKind.TASK_QUEUE_KIND_NORMAL
     );
 
-    t.is(tsToMs(execution.raw.executionConfig!.workflowRunTimeout!), ms(options.workflowRunTimeout));
-    t.is(tsToMs(execution.raw.executionConfig!.workflowExecutionTimeout!), ms(options.workflowExecutionTimeout));
-    t.is(tsToMs(execution.raw.executionConfig!.defaultWorkflowTaskTimeout!), ms(options.workflowTaskTimeout));
+    t.is(tsToMs(execution.raw.executionConfig!.workflowRunTimeout!), msToNumber(options.workflowRunTimeout));
+    t.is(
+      tsToMs(execution.raw.executionConfig!.workflowExecutionTimeout!),
+      msToNumber(options.workflowExecutionTimeout)
+    );
+    t.is(tsToMs(execution.raw.executionConfig!.defaultWorkflowTaskTimeout!), msToNumber(options.workflowTaskTimeout));
   });
 
   test('WorkflowHandle.result() throws if terminated', async (t) => {
