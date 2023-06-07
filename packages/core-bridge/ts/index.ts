@@ -1,4 +1,5 @@
 import { SpanContext } from '@opentelemetry/api';
+import { Duration } from '@temporalio/common';
 import type { TLSConfig } from '@temporalio/common/lib/internal-non-workflow';
 
 export { TLSConfig };
@@ -118,7 +119,7 @@ export interface OtelCollectorExporter {
      * @format number of milliseconds or {@link https://www.npmjs.com/package/ms | ms-formatted string}
      * @defaults 1 second
      */
-    metricsExportInterval?: string | number;
+    metricsExportInterval?: Duration;
   };
 }
 

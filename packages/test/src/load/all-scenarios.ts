@@ -1,6 +1,6 @@
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
-import ms from 'ms';
+import { msToNumber } from '@temporalio/common/lib/time';
 import * as workflows from '../workflows';
 import { Spec, AllInOneArgSpec } from './args';
 
@@ -48,7 +48,7 @@ export const longHistoriesWithSmallCache100Iters: Args = {
 
 export const longHaul: Args = {
   ...baseArgs,
-  '--for-seconds': ms('4h') / 1000,
+  '--for-seconds': msToNumber('4h') / 1000,
   '--min-wfs-per-sec': 5,
   '--concurrent-wf-clients': 100,
   '--workflow': workflows.cancelFakeProgress.name,

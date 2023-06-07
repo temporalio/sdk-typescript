@@ -1,5 +1,5 @@
 import * as time from './time';
-import { Timestamp } from './time';
+import { type Timestamp, Duration } from './time';
 
 /**
  * Lossy conversion function from Timestamp to number due to possible overflow.
@@ -35,7 +35,7 @@ export function msNumberToTs(millis: number): Timestamp {
  * @hidden
  * @deprecated - meant for internal use only
  */
-export function msToTs(str: string | number): Timestamp {
+export function msToTs(str: Duration): Timestamp {
   return time.msToTs(str);
 }
 
@@ -43,7 +43,7 @@ export function msToTs(str: string | number): Timestamp {
  * @hidden
  * @deprecated - meant for internal use only
  */
-export function msOptionalToTs(str: string | number | undefined): Timestamp | undefined {
+export function msOptionalToTs(str: Duration | undefined): Timestamp | undefined {
   return time.msOptionalToTs(str);
 }
 
@@ -51,7 +51,7 @@ export function msOptionalToTs(str: string | number | undefined): Timestamp | un
  * @hidden
  * @deprecated - meant for internal use only
  */
-export function msOptionalToNumber(val: string | number | undefined): number | undefined {
+export function msOptionalToNumber(val: Duration | undefined): number | undefined {
   return time.msOptionalToNumber(val);
 }
 
@@ -59,7 +59,7 @@ export function msOptionalToNumber(val: string | number | undefined): number | u
  * @hidden
  * @deprecated - meant for internal use only
  */
-export function msToNumber(val: string | number): number {
+export function msToNumber(val: Duration): number {
   return time.msToNumber(val);
 }
 

@@ -17,7 +17,7 @@ import {
   WorkflowResultType,
   WorkflowReturnType,
 } from '@temporalio/common';
-import { msOptionalToTs, msToNumber, msToTs, tsToMs } from '@temporalio/common/lib/time';
+import { Duration, msOptionalToTs, msToNumber, msToTs, tsToMs } from '@temporalio/common/lib/time';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import { CancellationScope, registerSleepImplementation } from './cancellation-scope';
 import {
@@ -108,7 +108,7 @@ function timerNextHandler(input: TimerInput) {
  * @param ms sleep duration - number of milliseconds or {@link https://www.npmjs.com/package/ms | ms-formatted string}.
  * If given a negative number or 0, value will be set to 1.
  */
-export function sleep(ms: number | string): Promise<void> {
+export function sleep(ms: Duration): Promise<void> {
   const activator = assertInWorkflowContext('Workflow.sleep(...) may only be used from a Workflow Execution');
   const seq = activator.nextSeqs.timer++;
 
@@ -1085,14 +1085,14 @@ function patchInternal(patchId: string, deprecated: boolean): boolean {
  *
  * @returns a boolean indicating whether the condition was true before the timeout expires
  */
-export function condition(fn: () => boolean, timeout: number | string): Promise<boolean>;
+export function condition(fn: () => boolean, timeout: Duration): Promise<boolean>;
 
 /**
  * Returns a Promise that resolves when `fn` evaluates to `true`.
  */
 export function condition(fn: () => boolean): Promise<void>;
 
-export async function condition(fn: () => boolean, timeout?: number | string): Promise<void | boolean> {
+export async function condition(fn: () => boolean, timeout?: Duration): Promise<void | boolean> {
   assertInWorkflowContext('Workflow.condition(...) may only be used from a Workflow Execution.');
   // Prior to 1.5.0, `condition(fn, 0)` was treated as equivalent to `condition(fn, undefined)`
   if (timeout === 0 && !patched(CONDITION_0_PATCH)) {

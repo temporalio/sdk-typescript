@@ -1,5 +1,5 @@
 import { checkExtends, Replace } from '@temporalio/common/lib/type-helpers';
-import { SearchAttributes, Workflow } from '@temporalio/common';
+import { Duration, SearchAttributes, Workflow } from '@temporalio/common';
 import type { temporal } from '@temporalio/proto';
 import { WorkflowStartOptions } from './workflow-options';
 
@@ -46,7 +46,7 @@ export interface ScheduleOptions<A extends ScheduleOptionsAction = ScheduleOptio
      * @default 1 minute
      * @format number of milliseconds or {@link https://www.npmjs.com/package/ms | ms-formatted string}
      */
-    catchupWindow?: number | string;
+    catchupWindow?: Duration;
 
     /**
      * When an Action times out or reaches the end of its Retry Policy, {@link pause}.
@@ -465,7 +465,7 @@ export interface ScheduleSpec {
    * @default 0
    * @format number of milliseconds or {@link https://www.npmjs.com/package/ms | ms-formatted string}
    */
-  jitter?: number | string;
+  jitter?: Duration;
 
   /**
    * IANA timezone name, for example `US/Pacific`.
@@ -659,7 +659,7 @@ export interface IntervalSpec {
    *
    * @format number of milliseconds or {@link https://www.npmjs.com/package/ms | ms-formatted string}
    */
-  every: number | string;
+  every: Duration;
 
   /**
    * Value is rounded to the nearest second.
@@ -667,7 +667,7 @@ export interface IntervalSpec {
    * @default 0
    * @format number of milliseconds or {@link https://www.npmjs.com/package/ms | ms-formatted string}
    */
-  offset?: number | string;
+  offset?: Duration;
 }
 
 /**

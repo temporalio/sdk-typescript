@@ -1,7 +1,7 @@
 import type { temporal, google } from '@temporalio/proto';
 import { SearchAttributes, Workflow } from './interfaces';
 import { RetryPolicy } from './retry-policy';
-import { msOptionalToTs } from './time';
+import { Duration, msOptionalToTs } from './time';
 import { checkExtends, Replace } from './type-helpers';
 
 // Avoid importing the proto implementation to reduce workflow bundle size
@@ -113,7 +113,7 @@ export interface WorkflowDurationOptions {
    *
    * @format number of milliseconds or {@link https://www.npmjs.com/package/ms | ms-formatted string}
    */
-  workflowRunTimeout?: string | number;
+  workflowRunTimeout?: Duration;
 
   /**
    *
@@ -123,14 +123,14 @@ export interface WorkflowDurationOptions {
    *
    * @format number of milliseconds or {@link https://www.npmjs.com/package/ms | ms-formatted string}
    */
-  workflowExecutionTimeout?: string | number;
+  workflowExecutionTimeout?: Duration;
 
   /**
    * Maximum execution time of a single workflow task. Default is 10 seconds.
    *
    * @format number of milliseconds or {@link https://www.npmjs.com/package/ms | ms-formatted string}
    */
-  workflowTaskTimeout?: string | number;
+  workflowTaskTimeout?: Duration;
 }
 
 export type CommonWorkflowOptions = BaseWorkflowOptions & WorkflowDurationOptions;
