@@ -51,10 +51,11 @@ function errorNameToClass(name: string): ErrorConstructor {
  * Uses postMessage to send messages and listens on the `message` event to receive messages.
  */
 export class WorkerThreadClient {
-  requestIdx = 0n;
-  requestIdToCompletion = new Map<bigint, Completion<WorkerThreadOutput>>();
-  shutDownRequested = false;
-  workerExited = false;
+  private requestIdx = 0n;
+  private requestIdToCompletion = new Map<bigint, Completion<WorkerThreadOutput>>();
+  private shutDownRequested = false;
+  private workerExited = false;
+  private activeWorkflowCount = 0;
 
   constructor(protected workerThread: NodeWorker) {
     workerThread.on('message', ({ requestId, result }: WorkerThreadResponse) => {
@@ -98,6 +99,11 @@ export class WorkerThreadClient {
   async send(input: WorkerThreadInput): Promise<WorkerThreadOutput> {
     const requestId = this.requestIdx++;
     const request: WorkerThreadRequest = { requestId, input };
+    if (request.input.type === 'create-workflow') {
+      this.activeWorkflowCount++;
+    } else if (request.input.type === 'dispose-workflow') {
+      this.activeWorkflowCount--;
+    }
     this.workerThread.postMessage(request);
     const promise = new Promise<WorkerThreadOutput>((resolve, reject) => {
       this.requestIdToCompletion.set(requestId, { resolve, reject });
@@ -119,6 +125,10 @@ export class WorkerThreadClient {
       throw new UnexpectedError(`Failed to terminate Worker thread, exit code: ${exitCode}`);
     }
   }
+
+  public getActiveWorkflowCount(): number {
+    return this.activeWorkflowCount;
+  }
 }
 
 export interface ThreadedVMWorkflowCreatorOptions {
@@ -132,8 +142,6 @@ export interface ThreadedVMWorkflowCreatorOptions {
  * A WorkflowCreator that creates vm Workflows inside Worker threads
  */
 export class ThreadedVMWorkflowCreator implements WorkflowCreator {
-  protected workflowThreadIdx = 0;
-
   /**
    * Create an instance of ThreadedVMWorkflowCreator asynchronously.
    *
@@ -162,10 +170,10 @@ export class ThreadedVMWorkflowCreator implements WorkflowCreator {
    * Create a workflow with given options
    */
   async createWorkflow(options: WorkflowCreateOptions): Promise<Workflow> {
-    const workflowThreadIdx = this.workflowThreadIdx;
-    const workflow = await VMWorkflowThreadProxy.create(this.workerThreadClients[workflowThreadIdx], options);
-    this.workflowThreadIdx = (this.workflowThreadIdx + 1) % this.workerThreadClients.length;
-    return workflow;
+    const workerThreadClient = this.workerThreadClients.reduce((prev, curr) =>
+      prev.getActiveWorkflowCount() < curr.getActiveWorkflowCount() ? prev : curr
+    );
+    return await VMWorkflowThreadProxy.create(workerThreadClient, options);
   }
 
   /**

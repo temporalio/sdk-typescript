@@ -206,7 +206,7 @@ export interface WorkerOptions {
    * `maxConcurrentWorkflowTaskExecutions` slots despite a backlog of Workflow
    * Tasks in the Task Queue (ie. due to network latency). Can't be higher than
    * `maxConcurrentWorkflowTaskExecutions`.
-   * @default min(5, maxConcurrentWorkflowTaskExecutions)
+   * @default min(2, maxConcurrentWorkflowTaskExecutions)
    */
   maxConcurrentWorkflowTaskPolls?: number;
 
@@ -216,7 +216,7 @@ export interface WorkerOptions {
    * `maxConcurrentActivityTaskExecutions` slots despite a backlog of Activity
    * Tasks in the Task Queue (ie. due to network latency). Can't be higher than
    * `maxConcurrentActivityTaskExecutions`.
-   * @default min(5, maxConcurrentActivityTaskExecutions)
+   * @default min(2, maxConcurrentActivityTaskExecutions)
    */
   maxConcurrentActivityTaskPolls?: number;
 
@@ -243,6 +243,17 @@ export interface WorkerOptions {
    * @default `max(maxHeapMemory / 1GiB - 1, 1) * 250`
    */
   maxCachedWorkflows?: number;
+
+  /**
+   * Controls the number of Worker threads the Worker should create.
+   *
+   * Threads are used to create {@link https://nodejs.org/api/vm.html | vm }s for the isolated Workflow environment.
+   *
+   * New Workflows are created on this pool in a round-robin fashion.
+   *
+   * @default 1 for reuseV8Context, otherwise 8. Ignored if `debugMode` is enabled.
+   */
+  workflowThreadPoolSize?: number;
 
   /**
    * Longest interval for throttling activity heartbeats
@@ -373,6 +384,7 @@ export type WorkerOptionsWithDefaults = WorkerOptions &
       | 'enableNonLocalActivities'
       | 'stickyQueueScheduleToStartTimeout'
       | 'maxCachedWorkflows'
+      | 'workflowThreadPoolSize'
       | 'maxHeartbeatThrottleInterval'
       | 'defaultHeartbeatThrottleInterval'
       | 'enableSDKTracing'
@@ -519,8 +531,8 @@ export function addDefaultWorkerOptions(options: WorkerOptions): WorkerOptionsWi
     shutdownGraceTime: 0,
     maxConcurrentLocalActivityExecutions: 100,
     enableNonLocalActivities: true,
-    maxConcurrentWorkflowTaskPolls: Math.min(5, maxConcurrentWorkflowTaskExecutions),
-    maxConcurrentActivityTaskPolls: Math.min(5, maxConcurrentActivityTaskExecutions),
+    maxConcurrentWorkflowTaskPolls: Math.min(2, maxConcurrentWorkflowTaskExecutions),
+    maxConcurrentActivityTaskPolls: Math.min(2, maxConcurrentActivityTaskExecutions),
     stickyQueueScheduleToStartTimeout: '10s',
     maxHeartbeatThrottleInterval: '60s',
     defaultHeartbeatThrottleInterval: '30s',
