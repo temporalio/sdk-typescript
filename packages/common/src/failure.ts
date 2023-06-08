@@ -35,7 +35,40 @@ checkExtends<RetryState, temporal.api.enums.v1.RetryState>();
 
 export type WorkflowExecution = temporal.api.common.v1.IWorkflowExecution;
 
-const isTemporalFailure = Symbol.for('__temporal_is_temporal_failure__');
+const isLineageTrackingError = Symbol.for('__temporal_is_lineage_tracking_error__');
+
+/**
+ * Base error class used to track the class lineage of any of its subclasses.
+ *
+ * This error is never directly instantiated but is used throughout the SDK code to support an alternative form of
+ * instanceof checks that works when multiple versions of the temporalio package are present.
+ *
+ * See {@link LineageTrackingError.is} and the `is` method on each subclass.
+ */
+export class LineageTrackingError extends Error {
+  public readonly name: string = 'LineageTrackingError';
+  /**
+   * Marker to determine whether an error is an instance of LineageTrackingError.
+   */
+  protected readonly [isLineageTrackingError] = true;
+  /**
+   * Array that stores subclass names.
+   * @hidden
+   */
+  public readonly lineage = Array<string>();
+
+  constructor(message?: string) {
+    super(message ?? undefined);
+  }
+
+  /**
+   * Instanceof check that is works when multiple versions of @temporalio/common are installed.
+   */
+  static is(error: unknown): error is LineageTrackingError {
+    // Cast to any since isLineageTrackingError is intentionally left protected.
+    return error instanceof LineageTrackingError || (error instanceof Error && (error as any)[isLineageTrackingError]);
+  }
+}
 
 /**
  * Represents failures that can cross Workflow and Activity boundaries.
@@ -44,14 +77,8 @@ const isTemporalFailure = Symbol.for('__temporal_is_temporal_failure__');
  *
  * The only child class you should ever throw from your code is {@link ApplicationFailure}.
  */
-export class TemporalFailure extends Error {
+export class TemporalFailure extends LineageTrackingError {
   public readonly name: string = 'TemporalFailure';
-  /**
-   * Marker to determine whether an error is an instance of TemporalFailure.
-   *
-   * Required to support multiple installed versions of the temporalio packages.
-   */
-  protected readonly [isTemporalFailure] = true;
   /**
    * The original failure that constructed this error.
    *
@@ -61,13 +88,16 @@ export class TemporalFailure extends Error {
 
   constructor(message?: string | undefined | null, public readonly cause?: Error) {
     super(message ?? undefined);
+    this.lineage.unshift('TemporalFailure');
   }
 
   /**
    * Instanceof check that is works when multiple versions of @temporalio/common are installed.
    */
   static is(error: unknown): error is TemporalFailure {
-    return error instanceof Error && (error as any)[isTemporalFailure];
+    return (
+      error instanceof TemporalFailure || (LineageTrackingError.is(error) && error.lineage.includes('TemporalFailure'))
+    );
   }
 }
 
@@ -77,13 +107,16 @@ export class ServerFailure extends TemporalFailure {
 
   constructor(message: string | undefined, public readonly nonRetryable: boolean, cause?: Error) {
     super(message, cause);
+    this.lineage.unshift('ServerFailure');
   }
 
   /**
    * Instanceof check that is works when multiple versions of @temporalio/common are installed.
    */
   static is(error: unknown): error is ServerFailure {
-    return TemporalFailure.is(error) && error.name === 'ServerFailure';
+    return (
+      error instanceof ServerFailure || (LineageTrackingError.is(error) && error.lineage.includes('ServerFailure'))
+    );
   }
 }
 
@@ -123,13 +156,17 @@ export class ApplicationFailure extends TemporalFailure {
     cause?: Error
   ) {
     super(message, cause);
+    this.lineage.unshift('ApplicationFailure');
   }
 
   /**
    * Instanceof check that is works when multiple versions of @temporalio/common are installed.
    */
   static is(error: unknown): error is ApplicationFailure {
-    return TemporalFailure.is(error) && error.name === 'ApplicationFailure';
+    return (
+      error instanceof ApplicationFailure ||
+      (LineageTrackingError.is(error) && error.lineage.includes('ApplicationFailure'))
+    );
   }
 
   /**
@@ -222,13 +259,17 @@ export class CancelledFailure extends TemporalFailure {
 
   constructor(message: string | undefined, public readonly details: unknown[] = [], cause?: Error) {
     super(message, cause);
+    this.lineage.unshift('CancelledFailure');
   }
 
   /**
    * Instanceof check that is works when multiple versions of @temporalio/common are installed.
    */
   static is(error: unknown): error is CancelledFailure {
-    return TemporalFailure.is(error) && error.name === 'CancelledFailure';
+    return (
+      error instanceof CancelledFailure ||
+      (LineageTrackingError.is(error) && error.lineage.includes('CancelledFailure'))
+    );
   }
 }
 
@@ -240,13 +281,17 @@ export class TerminatedFailure extends TemporalFailure {
 
   constructor(message: string | undefined, cause?: Error) {
     super(message, cause);
+    this.lineage.unshift('TerminatedFailure');
   }
 
   /**
    * Instanceof check that is works when multiple versions of @temporalio/common are installed.
    */
   static is(error: unknown): error is TerminatedFailure {
-    return TemporalFailure.is(error) && error.name === 'TerminatedFailure';
+    return (
+      error instanceof TerminatedFailure ||
+      (LineageTrackingError.is(error) && error.lineage.includes('TerminatedFailure'))
+    );
   }
 }
 
@@ -262,13 +307,16 @@ export class TimeoutFailure extends TemporalFailure {
     public readonly timeoutType: TimeoutType
   ) {
     super(message);
+    this.lineage.unshift('TimeoutFailure');
   }
 
   /**
    * Instanceof check that is works when multiple versions of @temporalio/common are installed.
    */
   static is(error: unknown): error is TimeoutFailure {
-    return TemporalFailure.is(error) && error.name === 'TimeoutFailure';
+    return (
+      error instanceof TimeoutFailure || (LineageTrackingError.is(error) && error.lineage.includes('TimeoutFailure'))
+    );
   }
 }
 
@@ -290,13 +338,16 @@ export class ActivityFailure extends TemporalFailure {
     cause?: Error
   ) {
     super(message, cause);
+    this.lineage.unshift('ActivityFailure');
   }
 
   /**
    * Instanceof check that is works when multiple versions of @temporalio/common are installed.
    */
   static is(error: unknown): error is ActivityFailure {
-    return TemporalFailure.is(error) && error.name === 'ActivityFailure';
+    return (
+      error instanceof ActivityFailure || (LineageTrackingError.is(error) && error.lineage.includes('ActivityFailure'))
+    );
   }
 }
 
@@ -317,13 +368,17 @@ export class ChildWorkflowFailure extends TemporalFailure {
     cause?: Error
   ) {
     super('Child Workflow execution failed', cause);
+    this.lineage.unshift('ChildWorkflowFailure');
   }
 
   /**
    * Instanceof check that is works when multiple versions of @temporalio/common are installed.
    */
   static is(error: unknown): error is ChildWorkflowFailure {
-    return TemporalFailure.is(error) && error.name === 'ChildWorkflowFailure';
+    return (
+      error instanceof ChildWorkflowFailure ||
+      (LineageTrackingError.is(error) && error.lineage.includes('ChildWorkflowFailure'))
+    );
   }
 }
 

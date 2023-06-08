@@ -1,4 +1,4 @@
-import { TemporalFailure } from './failure';
+import { LineageTrackingError, TemporalFailure } from './failure';
 
 /**
  * Thrown from code that receives a value that is unexpected or that it's unable to handle.
@@ -38,6 +38,17 @@ export class WorkflowExecutionAlreadyStartedError extends TemporalFailure {
 
   constructor(message: string, public readonly workflowId: string, public readonly workflowType: string) {
     super(message);
+    this.lineage.unshift('WorkflowExecutionAlreadyStartedError');
+  }
+
+  /**
+   * Instanceof check that is works when multiple versions of @temporalio/common are installed.
+   */
+  static is(error: unknown): error is WorkflowExecutionAlreadyStartedError {
+    return (
+      error instanceof WorkflowExecutionAlreadyStartedError ||
+      (LineageTrackingError.is(error) && error.lineage.includes('WorkflowExecutionAlreadyStartedError'))
+    );
   }
 }
 

@@ -1,16 +1,23 @@
-import { IllegalStateError } from '@temporalio/common';
+import { LineageTrackingError, IllegalStateError } from '@temporalio/common';
 
 /**
  * The worker has been shut down
  */
-export class ShutdownError extends Error {
+export class ShutdownError extends LineageTrackingError {
   public readonly name = 'ShutdownError';
+
+  constructor(message?: string) {
+    super(message);
+    this.lineage.unshift('ShutdownError');
+  }
 
   /**
    * Instanceof check that is works when multiple versions of @temporalio/core-bridge are installed.
    */
   public static is(error: unknown): error is ShutdownError {
-    return error instanceof ShutdownError || (error instanceof Error && error.name === 'ShutdownError');
+    return (
+      error instanceof ShutdownError || (LineageTrackingError.is(error) && error.lineage.includes('ShutdownError'))
+    );
   }
 }
 
