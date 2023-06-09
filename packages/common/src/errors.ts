@@ -42,7 +42,7 @@ export class WorkflowExecutionAlreadyStartedError extends TemporalFailure {
   }
 
   /**
-   * Instanceof check that is works when multiple versions of @temporalio/common are installed.
+   * Instanceof check that works when multiple versions of @temporalio/common are installed.
    */
   static is(error: unknown): error is WorkflowExecutionAlreadyStartedError {
     return (

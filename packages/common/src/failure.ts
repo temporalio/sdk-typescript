@@ -62,7 +62,7 @@ export class LineageTrackingError extends Error {
   }
 
   /**
-   * Instanceof check that is works when multiple versions of @temporalio/common are installed.
+   * Instanceof check that works when multiple versions of @temporalio/common are installed.
    */
   static is(error: unknown): error is LineageTrackingError {
     // Cast to any since isLineageTrackingError is intentionally left protected.
@@ -92,7 +92,7 @@ export class TemporalFailure extends LineageTrackingError {
   }
 
   /**
-   * Instanceof check that is works when multiple versions of @temporalio/common are installed.
+   * Instanceof check that works when multiple versions of @temporalio/common are installed.
    */
   static is(error: unknown): error is TemporalFailure {
     return (
@@ -111,7 +111,7 @@ export class ServerFailure extends TemporalFailure {
   }
 
   /**
-   * Instanceof check that is works when multiple versions of @temporalio/common are installed.
+   * Instanceof check that works when multiple versions of @temporalio/common are installed.
    */
   static is(error: unknown): error is ServerFailure {
     return (
@@ -160,7 +160,7 @@ export class ApplicationFailure extends TemporalFailure {
   }
 
   /**
-   * Instanceof check that is works when multiple versions of @temporalio/common are installed.
+   * Instanceof check that works when multiple versions of @temporalio/common are installed.
    */
   static is(error: unknown): error is ApplicationFailure {
     return (
@@ -263,7 +263,7 @@ export class CancelledFailure extends TemporalFailure {
   }
 
   /**
-   * Instanceof check that is works when multiple versions of @temporalio/common are installed.
+   * Instanceof check that works when multiple versions of @temporalio/common are installed.
    */
   static is(error: unknown): error is CancelledFailure {
     return (
@@ -285,7 +285,7 @@ export class TerminatedFailure extends TemporalFailure {
   }
 
   /**
-   * Instanceof check that is works when multiple versions of @temporalio/common are installed.
+   * Instanceof check that works when multiple versions of @temporalio/common are installed.
    */
   static is(error: unknown): error is TerminatedFailure {
     return (
@@ -311,7 +311,7 @@ export class TimeoutFailure extends TemporalFailure {
   }
 
   /**
-   * Instanceof check that is works when multiple versions of @temporalio/common are installed.
+   * Instanceof check that works when multiple versions of @temporalio/common are installed.
    */
   static is(error: unknown): error is TimeoutFailure {
     return (
@@ -342,7 +342,7 @@ export class ActivityFailure extends TemporalFailure {
   }
 
   /**
-   * Instanceof check that is works when multiple versions of @temporalio/common are installed.
+   * Instanceof check that works when multiple versions of @temporalio/common are installed.
    */
   static is(error: unknown): error is ActivityFailure {
     return (
@@ -372,7 +372,7 @@ export class ChildWorkflowFailure extends TemporalFailure {
   }
 
   /**
-   * Instanceof check that is works when multiple versions of @temporalio/common are installed.
+   * Instanceof check that works when multiple versions of @temporalio/common are installed.
    */
   static is(error: unknown): error is ChildWorkflowFailure {
     return (

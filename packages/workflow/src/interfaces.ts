@@ -178,7 +178,7 @@ export class ContinueAsNew extends LineageTrackingError {
   }
 
   /**
-   * Instanceof check that is works when multiple versions of @temporalio/workflow are installed.
+   * Instanceof check that works when multiple versions of @temporalio/workflow are installed.
    */
   public static is(error: unknown): error is ContinueAsNew {
     return (

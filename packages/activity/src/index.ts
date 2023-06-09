@@ -108,7 +108,7 @@ export class CompleteAsyncError extends LineageTrackingError {
   }
 
   /**
-   * Instanceof check that is works when multiple versions of @temporalio/activity are installed.
+   * Instanceof check that works when multiple versions of @temporalio/activity are installed.
    */
   public static is(error: unknown): error is CompleteAsyncError {
     return (

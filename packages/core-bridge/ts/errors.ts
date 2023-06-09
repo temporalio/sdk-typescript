@@ -12,7 +12,7 @@ export class ShutdownError extends LineageTrackingError {
   }
 
   /**
-   * Instanceof check that is works when multiple versions of @temporalio/core-bridge are installed.
+   * Instanceof check that works when multiple versions of @temporalio/core-bridge are installed.
    */
   public static is(error: unknown): error is ShutdownError {
     return (
