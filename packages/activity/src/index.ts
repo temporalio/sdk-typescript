@@ -72,7 +72,6 @@
 import 'abort-controller/polyfill'; // eslint-disable-line import/no-unassigned-import
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { Duration, msToNumber } from '@temporalio/common/lib/time';
-import { LineageTrackingError } from '@temporalio/common';
 
 export {
   ActivityFunction,
@@ -81,6 +80,8 @@ export {
   CancelledFailure,
   UntypedActivities,
 } from '@temporalio/common';
+
+const isCompleteAsyncError = Symbol.for('__temporal_isCompleteAsyncError');
 
 /**
  * Throw this error from an Activity in order to make the Worker forget about this Activity.
@@ -99,22 +100,23 @@ export {
  *}
  *```
  */
-export class CompleteAsyncError extends LineageTrackingError {
+export class CompleteAsyncError extends Error {
   public readonly name: string = 'CompleteAsyncError';
 
   constructor() {
     super();
-    this.lineage.unshift('CompleteAsyncError');
   }
+
+  /**
+   * Marker to determine whether an error is an instance of CompleteAsyncError.
+   */
+  protected readonly [isCompleteAsyncError] = true;
 
   /**
    * Instanceof check that works when multiple versions of @temporalio/activity are installed.
    */
-  public static is(error: unknown): error is CompleteAsyncError {
-    return (
-      error instanceof CompleteAsyncError ||
-      (LineageTrackingError.is(error) && error.lineage.includes('CompleteAsyncError'))
-    );
+  static is(error: unknown): error is CompleteAsyncError {
+    return error instanceof CompleteAsyncError || (error instanceof Error && (error as any)[isCompleteAsyncError]);
   }
 }
 

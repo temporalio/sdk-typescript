@@ -1,7 +1,6 @@
 import type { RawSourceMap } from 'source-map';
 import {
   RetryPolicy,
-  LineageTrackingError,
   TemporalFailure,
   CommonWorkflowOptions,
   SearchAttributes,
@@ -166,24 +165,28 @@ export interface ParentWorkflowInfo {
   namespace: string;
 }
 
+const isContinueAsNew = Symbol.for('__temporal_isContinueAsNew');
+
 /**
  * Not an actual error, used by the Workflow runtime to abort execution when {@link continueAsNew} is called
  */
-export class ContinueAsNew extends LineageTrackingError {
+export class ContinueAsNew extends Error {
   public readonly name = 'ContinueAsNew';
 
   constructor(public readonly command: coresdk.workflow_commands.IContinueAsNewWorkflowExecution) {
     super('Workflow continued as new');
-    this.lineage.unshift('ContinueAsNew');
   }
+
+  /**
+   * Marker to determine whether an error is an instance of ContinueAsNew.
+   */
+  protected readonly [isContinueAsNew] = true;
 
   /**
    * Instanceof check that works when multiple versions of @temporalio/workflow are installed.
    */
-  public static is(error: unknown): error is ContinueAsNew {
-    return (
-      error instanceof ContinueAsNew || (LineageTrackingError.is(error) && error.lineage.includes('ContinueAsNew'))
-    );
+  static is(error: unknown): error is ContinueAsNew {
+    return error instanceof ContinueAsNew || (error instanceof Error && (error as any)[isContinueAsNew]);
   }
 }
 
