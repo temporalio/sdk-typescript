@@ -1,4 +1,5 @@
-import { Context, Info } from '@temporalio/activity';
+import { CompleteAsyncError, Context, Info } from '@temporalio/activity';
+import { CancelledFailure } from '@temporalio/common';
 import { ActivityInboundCallsInterceptor, ActivityExecuteInput, Next } from './interceptors';
 import { Logger } from './logger';
 
@@ -43,18 +44,16 @@ export class ActivityInboundLogInterceptor implements ActivityInboundCallsInterc
       const durationNanos = process.hrtime.bigint() - startTime;
       const durationMs = Number(durationNanos / 1_000_000n);
 
-      // Avoid using instanceof checks in case the modules they're defined in loaded more than once,
-      // e.g. by jest or when multiple versions are installed.
       if (error === UNINITIALIZED) {
         this.logger.debug('Activity completed', { durationMs, ...this.logAttributes() });
       } else if (
         typeof error === 'object' &&
         error != null &&
-        (error.name === 'CancelledFailure' || error.name === 'AbortError') &&
+        (CancelledFailure.is(error) || error.name === 'AbortError') &&
         this.ctx.cancellationSignal.aborted
       ) {
         this.logger.debug('Activity completed as cancelled', { durationMs, ...this.logAttributes() });
-      } else if (typeof error === 'object' && error != null && error.name === 'CompleteAsyncError') {
+      } else if (CompleteAsyncError.is(error)) {
         this.logger.debug('Activity will complete asynchronously', { durationMs, ...this.logAttributes() });
       } else {
         this.logger.warn('Activity failed', { error, durationMs, ...this.logAttributes() });

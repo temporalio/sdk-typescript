@@ -165,6 +165,8 @@ export interface ParentWorkflowInfo {
   namespace: string;
 }
 
+const isContinueAsNew = Symbol.for('__temporal_isContinueAsNew');
+
 /**
  * Not an actual error, used by the Workflow runtime to abort execution when {@link continueAsNew} is called
  */
@@ -173,6 +175,18 @@ export class ContinueAsNew extends Error {
 
   constructor(public readonly command: coresdk.workflow_commands.IContinueAsNewWorkflowExecution) {
     super('Workflow continued as new');
+  }
+
+  /**
+   * Marker to determine whether an error is an instance of ContinueAsNew.
+   */
+  protected readonly [isContinueAsNew] = true;
+
+  /**
+   * Instanceof check that works when multiple versions of @temporalio/workflow are installed.
+   */
+  static is(error: unknown): error is ContinueAsNew {
+    return error instanceof ContinueAsNew || (error instanceof Error && (error as any)[isContinueAsNew]);
   }
 }
 

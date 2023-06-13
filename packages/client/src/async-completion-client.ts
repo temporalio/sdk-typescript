@@ -207,33 +207,36 @@ export class AsyncCompletionClient extends BaseClient {
   heartbeat(fullActivityId: FullActivityId, details?: unknown): Promise<void>;
 
   async heartbeat(taskTokenOrFullActivityId: Uint8Array | FullActivityId, details?: unknown): Promise<void> {
+    let cancelRequested = false;
     try {
-      if (taskTokenOrFullActivityId instanceof Uint8Array) {
-        const { cancelRequested } = await this.workflowService.recordActivityTaskHeartbeat({
-          identity: this.options.identity,
-          namespace: this.options.namespace,
-          taskToken: taskTokenOrFullActivityId,
-          details: { payloads: await encodeToPayloads(this.dataConverter, details) },
-        });
-        if (cancelRequested) {
-          throw new ActivityCancelledError('cancelled');
-        }
-      } else {
-        const { cancelRequested } = await this.workflowService.recordActivityTaskHeartbeatById({
-          identity: this.options.identity,
-          namespace: this.options.namespace,
-          ...taskTokenOrFullActivityId,
-          details: { payloads: await encodeToPayloads(this.dataConverter, details) },
-        });
-        if (cancelRequested) {
-          throw new ActivityCancelledError('cancelled');
-        }
-      }
+      const response = await this._sendHeartbeat(taskTokenOrFullActivityId, details);
+      cancelRequested = response.cancelRequested;
     } catch (err) {
-      if (err instanceof ActivityCancelledError) {
-        throw err;
-      }
       this.handleError(err);
+    }
+    if (cancelRequested) {
+      throw new ActivityCancelledError('cancelled');
+    }
+  }
+
+  private async _sendHeartbeat(
+    taskTokenOrFullActivityId: Uint8Array | FullActivityId,
+    details?: unknown
+  ): Promise<{ cancelRequested: boolean }> {
+    if (taskTokenOrFullActivityId instanceof Uint8Array) {
+      return await this.workflowService.recordActivityTaskHeartbeat({
+        identity: this.options.identity,
+        namespace: this.options.namespace,
+        taskToken: taskTokenOrFullActivityId,
+        details: { payloads: await encodeToPayloads(this.dataConverter, details) },
+      });
+    } else {
+      return await this.workflowService.recordActivityTaskHeartbeatById({
+        identity: this.options.identity,
+        namespace: this.options.namespace,
+        ...taskTokenOrFullActivityId,
+        details: { payloads: await encodeToPayloads(this.dataConverter, details) },
+      });
     }
   }
 }

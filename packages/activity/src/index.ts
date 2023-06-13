@@ -81,6 +81,8 @@ export {
   UntypedActivities,
 } from '@temporalio/common';
 
+const isCompleteAsyncError = Symbol.for('__temporal_isCompleteAsyncError');
+
 /**
  * Throw this error from an Activity in order to make the Worker forget about this Activity.
  *
@@ -104,10 +106,27 @@ export class CompleteAsyncError extends Error {
   constructor() {
     super();
   }
+
+  /**
+   * Marker to determine whether an error is an instance of CompleteAsyncError.
+   */
+  protected readonly [isCompleteAsyncError] = true;
+
+  /**
+   * Instanceof check that works when multiple versions of @temporalio/activity are installed.
+   */
+  static is(error: unknown): error is CompleteAsyncError {
+    return error instanceof CompleteAsyncError || (error instanceof Error && (error as any)[isCompleteAsyncError]);
+  }
 }
 
-/** @ignore */
-export const asyncLocalStorage = new AsyncLocalStorage<Context>();
+// Make it safe to use @temporalio/activity with multiple versions installed.
+const asyncLocalStorageSymbol = Symbol.for('__temporal_activity_context_storage__');
+if (!(globalThis as any)[asyncLocalStorageSymbol]) {
+  (globalThis as any)[asyncLocalStorageSymbol] = new AsyncLocalStorage<Context>();
+}
+
+export const asyncLocalStorage: AsyncLocalStorage<Context> = (globalThis as any)[asyncLocalStorageSymbol];
 
 /**
  * Holds information about the current Activity Execution. Retrieved inside an Activity with `Context.current().info`.
