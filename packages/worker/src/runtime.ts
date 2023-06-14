@@ -4,7 +4,7 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import { Heap } from 'heap-js';
 import { BehaviorSubject, lastValueFrom, of } from 'rxjs';
-import { concatMap, delay, map, repeat } from 'rxjs/operators';
+import { concatMap, delay, map, repeat, takeWhile } from 'rxjs/operators';
 import * as native from '@temporalio/core-bridge';
 import {
   pollLogs,
@@ -16,7 +16,6 @@ import {
   ForwardLogger,
   MetricsExporter,
   OtelCollectorExporter,
-  ShutdownError,
 } from '@temporalio/core-bridge';
 import { filterNullAndUndefined, normalizeTlsConfig } from '@temporalio/common/lib/internal-non-workflow';
 import { IllegalStateError } from '@temporalio/common';
@@ -277,10 +276,8 @@ export class Runtime {
       await lastValueFrom(
         of(this.shouldPollForLogs).pipe(
           map((subject) => subject.getValue()),
-          concatMap((shouldPoll) => {
-            if (!shouldPoll) throw new ShutdownError('Poll stop requested');
-            return poll(this.native);
-          }),
+          takeWhile((shouldPoll) => shouldPoll),
+          concatMap(() => poll(this.native)),
           map((logs) => {
             for (const log of logs) {
               logger.log(log.level, log.message, {
@@ -294,8 +291,6 @@ export class Runtime {
         )
       );
     } catch (error) {
-      // Prevent unhandled rejection
-      if (error instanceof ShutdownError) return;
       // Log using the original logger instead of buffering
       this.options.logger.warn('Error gathering forwarded logs from core', { error });
     } finally {

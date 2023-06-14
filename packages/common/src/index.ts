@@ -19,7 +19,7 @@ export * from './failure';
 export { Headers, Next } from './interceptors';
 export * from './interfaces';
 export * from './retry-policy';
-export { Timestamp } from './time';
+export { type Timestamp, Duration } from './time';
 export * from './workflow-handle';
 export * from './workflow-options';
 

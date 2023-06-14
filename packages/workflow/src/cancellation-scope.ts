@@ -1,5 +1,5 @@
 import type { AsyncLocalStorage as ALS } from 'node:async_hooks';
-import { CancelledFailure, IllegalStateError } from '@temporalio/common';
+import { CancelledFailure, Duration, IllegalStateError } from '@temporalio/common';
 import { untrackPromise } from './stack-helpers';
 
 // AsyncLocalStorage is injected via vm module into global scope.
@@ -202,7 +202,7 @@ export class RootCancellationScope extends CancellationScope {
 }
 
 /** This function is here to avoid a circular dependency between this module and workflow.ts */
-let sleep = (_: number | string): Promise<void> => {
+let sleep = (_: Duration): Promise<void> => {
   throw new IllegalStateError('Workflow has not been properly initialized');
 };
 

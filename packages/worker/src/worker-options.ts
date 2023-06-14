@@ -2,7 +2,7 @@ import * as os from 'node:os';
 import * as v8 from 'node:v8';
 import type { Configuration as WebpackConfiguration } from 'webpack';
 import { DataConverter, LoadedDataConverter } from '@temporalio/common';
-import { msOptionalToNumber, msToNumber } from '@temporalio/common/lib/time';
+import { Duration, msOptionalToNumber, msToNumber } from '@temporalio/common/lib/time';
 import { loadDataConverter } from '@temporalio/common/lib/internal-non-workflow';
 import { LoggerSinks } from '@temporalio/workflow';
 import { ActivityInboundLogInterceptor } from './activity-log-interceptor';
@@ -140,7 +140,7 @@ export interface WorkerOptions {
    * @format number of milliseconds or {@link https://www.npmjs.com/package/ms | ms-formatted string}
    * @default 0
    */
-  shutdownGraceTime?: string | number;
+  shutdownGraceTime?: Duration;
 
   /**
    * Time to wait before giving up on graceful shutdown and forcefully terminating the worker.
@@ -152,7 +152,7 @@ export interface WorkerOptions {
    *
    * @format number of milliseconds or {@link https://www.npmjs.com/package/ms | ms-formatted string}
    */
-  shutdownForceTime?: string | number;
+  shutdownForceTime?: Duration;
 
   /**
    * Provide a custom {@link DataConverter}.
@@ -275,7 +275,7 @@ export interface WorkerOptions {
    * @format number of milliseconds or {@link https://www.npmjs.com/package/ms | ms-formatted string}
    * @default 10s
    */
-  stickyQueueScheduleToStartTimeout?: string;
+  stickyQueueScheduleToStartTimeout?: Duration;
 
   /**
    * The number of Workflow isolates to keep in cached in memory
@@ -316,7 +316,7 @@ export interface WorkerOptions {
    * @format number of milliseconds or {@link https://www.npmjs.com/package/ms | ms-formatted string}
    * @default 60 seconds
    */
-  maxHeartbeatThrottleInterval?: number | string;
+  maxHeartbeatThrottleInterval?: Duration;
 
   /**
    * Default interval for throttling activity heartbeats in case
@@ -327,7 +327,7 @@ export interface WorkerOptions {
    * @format number of milliseconds or {@link https://www.npmjs.com/package/ms | ms-formatted string}
    * @default 30 seconds
    */
-  defaultHeartbeatThrottleInterval?: number | string;
+  defaultHeartbeatThrottleInterval?: Duration;
 
   /**
    * A mapping of interceptor type to a list of factories or module paths.
@@ -468,7 +468,7 @@ export type WorkerOptionsWithDefaults = WorkerOptions &
      *
      * @default 5s
      */
-    isolateExecutionTimeout: string | number;
+    isolateExecutionTimeout: Duration;
   };
 
 /**

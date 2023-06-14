@@ -57,8 +57,10 @@ export interface FailureConverter {
   errorToFailure(err: unknown, payloadConverter: PayloadConverter): ProtoFailure;
   /**
    * Converts a Failure proto message to a JS Error object.
+   *
+   * The returned error must be an instance of `TemporalFailure`.
    */
-  failureToError(err: ProtoFailure, payloadConverter: PayloadConverter): Error;
+  failureToError(err: ProtoFailure, payloadConverter: PayloadConverter): TemporalFailure;
 }
 
 /**
@@ -183,7 +185,7 @@ export class DefaultFailureConverter implements FailureConverter {
     );
   }
 
-  failureToError(failure: ProtoFailure, payloadConverter: PayloadConverter): Error {
+  failureToError(failure: ProtoFailure, payloadConverter: PayloadConverter): TemporalFailure {
     if (failure.encodedAttributes) {
       const attrs = payloadConverter.fromPayload<DefaultEncodedFailureAttributes>(failure.encodedAttributes);
       // Don't apply encodedAttributes unless they conform to an expected schema
@@ -217,7 +219,7 @@ export class DefaultFailureConverter implements FailureConverter {
   }
 
   errorToFailureInner(err: unknown, payloadConverter: PayloadConverter): ProtoFailure {
-    if (err instanceof TemporalFailure) {
+    if (TemporalFailure.is(err)) {
       if (err.failure) return err.failure;
       const base = {
         message: err.message,
@@ -226,7 +228,7 @@ export class DefaultFailureConverter implements FailureConverter {
         source: FAILURE_SOURCE,
       };
 
-      if (err instanceof ActivityFailure) {
+      if (ActivityFailure.is(err)) {
         return {
           ...base,
           activityFailureInfo: {
@@ -235,7 +237,7 @@ export class DefaultFailureConverter implements FailureConverter {
           },
         };
       }
-      if (err instanceof ChildWorkflowFailure) {
+      if (ChildWorkflowFailure.is(err)) {
         return {
           ...base,
           childWorkflowExecutionFailureInfo: {
@@ -245,7 +247,7 @@ export class DefaultFailureConverter implements FailureConverter {
           },
         };
       }
-      if (err instanceof ApplicationFailure) {
+      if (ApplicationFailure.is(err)) {
         return {
           ...base,
           applicationFailureInfo: {
@@ -258,7 +260,7 @@ export class DefaultFailureConverter implements FailureConverter {
           },
         };
       }
-      if (err instanceof CancelledFailure) {
+      if (CancelledFailure.is(err)) {
         return {
           ...base,
           canceledFailureInfo: {
@@ -269,7 +271,7 @@ export class DefaultFailureConverter implements FailureConverter {
           },
         };
       }
-      if (err instanceof TimeoutFailure) {
+      if (TimeoutFailure.is(err)) {
         return {
           ...base,
           timeoutFailureInfo: {
@@ -280,16 +282,16 @@ export class DefaultFailureConverter implements FailureConverter {
           },
         };
       }
-      if (err instanceof TerminatedFailure) {
-        return {
-          ...base,
-          terminatedFailureInfo: {},
-        };
-      }
-      if (err instanceof ServerFailure) {
+      if (ServerFailure.is(err)) {
         return {
           ...base,
           serverFailureInfo: { nonRetryable: err.nonRetryable },
+        };
+      }
+      if (TerminatedFailure.is(err)) {
+        return {
+          ...base,
+          terminatedFailureInfo: {},
         };
       }
       // Just a TemporalFailure
@@ -333,7 +335,7 @@ export class DefaultFailureConverter implements FailureConverter {
   optionalFailureToOptionalError(
     failure: ProtoFailure | undefined | null,
     payloadConverter: PayloadConverter
-  ): Error | undefined {
+  ): TemporalFailure | undefined {
     return failure ? this.failureToError(failure, payloadConverter) : undefined;
   }
 

@@ -619,10 +619,10 @@ export class Activator implements ActivationHandler {
   async handleWorkflowFailure(error: unknown): Promise<void> {
     if (this.cancelled && isCancellation(error)) {
       this.pushCommand({ cancelWorkflowExecution: {} }, true);
-    } else if (error instanceof ContinueAsNew) {
+    } else if (ContinueAsNew.is(error)) {
       this.pushCommand({ continueAsNewWorkflowExecution: error.command }, true);
     } else {
-      if (!(error instanceof TemporalFailure)) {
+      if (!TemporalFailure.is(error)) {
         // This results in an unhandled rejection which will fail the activation
         // preventing it from completing.
         throw error;

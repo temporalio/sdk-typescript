@@ -25,6 +25,8 @@ export class IllegalStateError extends Error {
   public readonly name: string = 'IllegalStateError';
 }
 
+const isWorkflowExecutionAlreadyStartedError = Symbol.for('__temporal_isWorkflowExecutionAlreadyStartedError');
+
 /**
  * This exception is thrown in the following cases:
  *  - Workflow with the same Workflow Id is currently running
@@ -38,6 +40,21 @@ export class WorkflowExecutionAlreadyStartedError extends TemporalFailure {
 
   constructor(message: string, public readonly workflowId: string, public readonly workflowType: string) {
     super(message);
+  }
+
+  /**
+   * Marker to determine whether an error is an instance of WorkflowExecutionAlreadyStartedError.
+   */
+  protected readonly [isWorkflowExecutionAlreadyStartedError] = true;
+
+  /**
+   * Instanceof check that works when multiple versions of @temporalio/common are installed.
+   */
+  static is(error: unknown): error is WorkflowExecutionAlreadyStartedError {
+    return (
+      error instanceof WorkflowExecutionAlreadyStartedError ||
+      (error instanceof Error && (error as any)[isWorkflowExecutionAlreadyStartedError])
+    );
   }
 }
 

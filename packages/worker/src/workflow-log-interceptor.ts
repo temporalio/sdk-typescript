@@ -7,6 +7,7 @@ import {
   WorkflowInfo,
   WorkflowInterceptorsFactory,
   log,
+  ContinueAsNew,
 } from '@temporalio/workflow';
 import { untrackPromise } from '@temporalio/workflow/lib/stack-helpers';
 
@@ -43,7 +44,7 @@ export class WorkflowInboundLogInterceptor implements WorkflowInboundCallsInterc
           if (isCancellation(error)) {
             log.debug('Workflow completed as cancelled', this.logAttributes());
             throw error;
-          } else if (error.name === 'ContinueAsNew') {
+          } else if (ContinueAsNew.is(error)) {
             log.debug('Workflow continued as new', this.logAttributes());
             throw error;
           }

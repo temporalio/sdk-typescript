@@ -1,6 +1,6 @@
 // eslint-disable-next-line import/no-named-as-default
 import Long from 'long';
-import ms from 'ms';
+import ms, { StringValue } from 'ms';
 import type { google } from '@temporalio/proto';
 import { ValueError } from './errors';
 
@@ -10,6 +10,11 @@ import { ValueError } from './errors';
 // The conversion functions below should work for both
 
 export type Timestamp = google.protobuf.ITimestamp;
+
+/**
+ * A duration, expressed either as a number of milliseconds, or as a {@link https://www.npmjs.com/package/ms | ms-formatted string}.
+ */
+export type Duration = StringValue | number;
 
 /**
  * Lossy conversion function from Timestamp to number due to possible overflow.
@@ -45,27 +50,32 @@ export function msNumberToTs(millis: number): Timestamp {
   return { seconds: Long.fromNumber(seconds), nanos };
 }
 
-export function msToTs(str: string | number): Timestamp {
-  if (typeof str === 'number') {
-    return msNumberToTs(str);
-  }
-  return msNumberToTs(ms(str));
+export function msToTs(str: Duration): Timestamp {
+  return msNumberToTs(msToNumber(str));
 }
 
-export function msOptionalToTs(str: string | number | undefined): Timestamp | undefined {
+export function msOptionalToTs(str: Duration | undefined): Timestamp | undefined {
   return str ? msToTs(str) : undefined;
 }
 
-export function msOptionalToNumber(val: string | number | undefined): number | undefined {
+export function msOptionalToNumber(val: Duration | undefined): number | undefined {
   if (val === undefined) return undefined;
   return msToNumber(val);
 }
 
-export function msToNumber(val: string | number): number {
+export function msToNumber(val: Duration): number {
   if (typeof val === 'number') {
     return val;
   }
-  return ms(val);
+  return msWithValidation(val);
+}
+
+function msWithValidation(str: StringValue): number {
+  const millis = ms(str);
+  if (millis == null || isNaN(millis)) {
+    throw new TypeError(`Invalid duration string: '${str}'`);
+  }
+  return millis;
 }
 
 export function tsToDate(ts: Timestamp): Date {

@@ -35,6 +35,8 @@ checkExtends<RetryState, temporal.api.enums.v1.RetryState>();
 
 export type WorkflowExecution = temporal.api.common.v1.IWorkflowExecution;
 
+const isTemporalFailure = Symbol.for('__temporal_isTemporalFailure');
+
 /**
  * Represents failures that can cross Workflow and Activity boundaries.
  *
@@ -54,7 +56,21 @@ export class TemporalFailure extends Error {
   constructor(message?: string | undefined | null, public readonly cause?: Error) {
     super(message ?? undefined);
   }
+
+  /**
+   * Marker to determine whether an error is an instance of TemporalFailure.
+   */
+  protected readonly [isTemporalFailure] = true;
+
+  /**
+   * Instanceof check that works when multiple versions of @temporalio/common are installed.
+   */
+  static is(error: unknown): error is TemporalFailure {
+    return error instanceof TemporalFailure || (error instanceof Error && (error as any)[isTemporalFailure]);
+  }
 }
+
+const isServerFailure = Symbol.for('__temporal_isServerFailure');
 
 /** Exceptions originated at the Temporal service. */
 export class ServerFailure extends TemporalFailure {
@@ -63,7 +79,21 @@ export class ServerFailure extends TemporalFailure {
   constructor(message: string | undefined, public readonly nonRetryable: boolean, cause?: Error) {
     super(message, cause);
   }
+
+  /**
+   * Marker to determine whether an error is an instance of ServerFailure.
+   */
+  protected readonly [isServerFailure] = true;
+
+  /**
+   * Instanceof check that works when multiple versions of @temporalio/common are installed.
+   */
+  static is(error: unknown): error is ServerFailure {
+    return error instanceof ServerFailure || (error instanceof Error && (error as any)[isServerFailure]);
+  }
 }
+
+const isApplicationFailure = Symbol.for('__temporal_isApplicationFailure');
 
 /**
  * `ApplicationFailure`s are used to communicate application-specific failures in Workflows and Activities.
@@ -101,6 +131,18 @@ export class ApplicationFailure extends TemporalFailure {
     cause?: Error
   ) {
     super(message, cause);
+  }
+
+  /**
+   * Marker to determine whether an error is an instance of ApplicationFailure.
+   */
+  protected readonly [isApplicationFailure] = true;
+
+  /**
+   * Instanceof check that works when multiple versions of @temporalio/common are installed.
+   */
+  static is(error: unknown): error is ApplicationFailure {
+    return error instanceof ApplicationFailure || (error instanceof Error && (error as any)[isApplicationFailure]);
   }
 
   /**
@@ -181,6 +223,8 @@ export interface ApplicationFailureOptions {
   cause?: Error;
 }
 
+const isCancelledFailure = Symbol.for('__temporal_isCancelledFailure');
+
 /**
  * This error is thrown when Cancellation has been requested. To allow Cancellation to happen, let it propagate. To
  * ignore Cancellation, catch it and continue executing. Note that Cancellation can only be requested a single time, so
@@ -194,7 +238,21 @@ export class CancelledFailure extends TemporalFailure {
   constructor(message: string | undefined, public readonly details: unknown[] = [], cause?: Error) {
     super(message, cause);
   }
+
+  /**
+   * Marker to determine whether an error is an instance of CancelledFailure.
+   */
+  protected readonly [isCancelledFailure] = true;
+
+  /**
+   * Instanceof check that works when multiple versions of @temporalio/common are installed.
+   */
+  static is(error: unknown): error is CancelledFailure {
+    return error instanceof CancelledFailure || (error instanceof Error && (error as any)[isCancelledFailure]);
+  }
 }
+
+const isTerminatedFailure = Symbol.for('__temporal_isTerminatedFailure');
 
 /**
  * Used as the `cause` when a Workflow has been terminated
@@ -205,7 +263,21 @@ export class TerminatedFailure extends TemporalFailure {
   constructor(message: string | undefined, cause?: Error) {
     super(message, cause);
   }
+
+  /**
+   * Marker to determine whether an error is an instance of TerminatedFailure.
+   */
+  protected readonly [isTerminatedFailure] = true;
+
+  /**
+   * Instanceof check that works when multiple versions of @temporalio/common are installed.
+   */
+  static is(error: unknown): error is TerminatedFailure {
+    return error instanceof TerminatedFailure || (error instanceof Error && (error as any)[isTerminatedFailure]);
+  }
 }
+
+const isTimeoutFailure = Symbol.for('__temporal_isTimeoutFailure');
 
 /**
  * Used to represent timeouts of Activities and Workflows
@@ -220,7 +292,21 @@ export class TimeoutFailure extends TemporalFailure {
   ) {
     super(message);
   }
+
+  /**
+   * Marker to determine whether an error is an instance of TimeoutFailure.
+   */
+  protected readonly [isTimeoutFailure] = true;
+
+  /**
+   * Instanceof check that works when multiple versions of @temporalio/common are installed.
+   */
+  static is(error: unknown): error is TimeoutFailure {
+    return error instanceof TimeoutFailure || (error instanceof Error && (error as any)[isTimeoutFailure]);
+  }
 }
+
+const isActivityFailure = Symbol.for('__temporal_isActivityFailure');
 
 /**
  * Contains information about an Activity failure. Always contains the original reason for the failure as its `cause`.
@@ -241,7 +327,21 @@ export class ActivityFailure extends TemporalFailure {
   ) {
     super(message, cause);
   }
+
+  /**
+   * Marker to determine whether an error is an instance of ActivityFailure.
+   */
+  protected readonly [isActivityFailure] = true;
+
+  /**
+   * Instanceof check that works when multiple versions of @temporalio/common are installed.
+   */
+  static is(error: unknown): error is ActivityFailure {
+    return error instanceof ActivityFailure || (error instanceof Error && (error as any)[isActivityFailure]);
+  }
 }
+
+const isChildWorkflowFailure = Symbol.for('__temporal_isChildWorkflowFailure');
 
 /**
  * Contains information about a Child Workflow failure. Always contains the reason for the failure as its {@link cause}.
@@ -261,6 +361,18 @@ export class ChildWorkflowFailure extends TemporalFailure {
   ) {
     super('Child Workflow execution failed', cause);
   }
+
+  /**
+   * Marker to determine whether an error is an instance of ChildWorkflowFailure.
+   */
+  protected readonly [isChildWorkflowFailure] = true;
+
+  /**
+   * Instanceof check that works when multiple versions of @temporalio/common are installed.
+   */
+  static is(error: unknown): error is ChildWorkflowFailure {
+    return error instanceof ChildWorkflowFailure || (error instanceof Error && (error as any)[isChildWorkflowFailure]);
+  }
 }
 
 /**
@@ -273,7 +385,7 @@ export class ChildWorkflowFailure extends TemporalFailure {
  * - `stack`: `error.stack` or `''`
  */
 export function ensureApplicationFailure(error: unknown): ApplicationFailure {
-  if (error instanceof ApplicationFailure) {
+  if (ApplicationFailure.is(error)) {
     return error;
   }
 
@@ -292,7 +404,7 @@ export function ensureApplicationFailure(error: unknown): ApplicationFailure {
  * Otherwise returns an `ApplicationFailure` with `String(err)` as the message.
  */
 export function ensureTemporalFailure(err: unknown): TemporalFailure {
-  if (err instanceof TemporalFailure) {
+  if (TemporalFailure.is(err)) {
     return err;
   }
   return ensureApplicationFailure(err);
@@ -305,7 +417,7 @@ export function ensureTemporalFailure(err: unknown): TemporalFailure {
  * Otherwise, return `error.message`.
  */
 export function rootCause(error: unknown): string | undefined {
-  if (error instanceof TemporalFailure) {
+  if (TemporalFailure.is(error)) {
     return error.cause ? rootCause(error.cause) : error.message;
   }
   if (error instanceof Error) {

@@ -1,5 +1,5 @@
 import 'abort-controller/polyfill'; // eslint-disable-line import/no-unassigned-import
-import { asyncLocalStorage, Context, Info } from '@temporalio/activity';
+import { asyncLocalStorage, CompleteAsyncError, Context, Info } from '@temporalio/activity';
 import {
   ActivityFunction,
   ApplicationFailure,
@@ -71,7 +71,7 @@ export class Activity {
         const result = await execute(input);
         return { completed: { result: await encodeToPayload(this.dataConverter, result) } };
       } catch (err) {
-        if (err instanceof Error && err.name === 'CompleteAsyncError') {
+        if (CompleteAsyncError.is(err)) {
           return { willCompleteAsync: {} };
         }
         if (this.cancelReason === 'HEARTBEAT_DETAILS_CONVERSION_FAILED') {
@@ -87,7 +87,7 @@ export class Activity {
           };
         } else if (this.cancelReason) {
           // Either a CancelledFailure that we threw or AbortError from AbortController
-          if (err instanceof CancelledFailure) {
+          if (CancelledFailure.is(err)) {
             const failure = await encodeErrorToFailure(this.dataConverter, err);
             failure.stackTrace = undefined;
             return { cancelled: { failure } };
