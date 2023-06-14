@@ -7,13 +7,19 @@ import { Worker } from './helpers';
 
 interface Context {
   testEnv: TestWorkflowEnvironment;
+  taskQueue: string;
 }
 const test = anyTest as TestFn<Context>;
 
 test.before(async (t) => {
   t.context = {
     testEnv: await TestWorkflowEnvironment.createTimeSkipping(),
+    taskQueue: '', // Will be set in beforeEach
   };
+});
+
+test.beforeEach(async (t) => {
+  t.context.taskQueue = uuid4();
 });
 
 test.after.always(async (t) => {
@@ -26,7 +32,7 @@ async function withWorker(t: ExecutionContext<Context>, p: Promise<any>): Promis
   const logger = new DefaultLogger('DEBUG', (entry) => logs.push(entry));
   const worker = await Worker.create({
     connection: nativeConnection,
-    taskQueue: 'test',
+    taskQueue: t.context.taskQueue,
     workflowsPath: require.resolve('./workflows'),
     sinks: defaultSinks(logger),
   });
@@ -40,13 +46,13 @@ test.serial('WorkflowInboundLogInterceptor logs when workflow completes', async 
   const workflowId = uuid4();
   const [startLog, endLog] = await withWorker(
     t,
-    client.workflow.execute(workflows.successString, { workflowId, taskQueue: 'test' })
+    client.workflow.execute(workflows.successString, { workflowId, taskQueue: t.context.taskQueue })
   );
   t.is(startLog.level, 'DEBUG');
   t.is(startLog.message, 'Workflow started');
   t.is(startLog.meta?.workflowId, workflowId);
   t.true(typeof startLog.meta?.runId === 'string');
-  t.is(startLog.meta?.taskQueue, 'test');
+  t.is(startLog.meta?.taskQueue, t.context.taskQueue);
   t.is(startLog.meta?.namespace, 'default');
   t.is(startLog.meta?.workflowType, 'successString');
   t.is(endLog.level, 'DEBUG');
@@ -61,7 +67,7 @@ test.serial('WorkflowInboundLogInterceptor logs when workflow continues as new',
       client.workflow.execute(workflows.continueAsNewSameWorkflow, {
         args: ['execute', 'execute'],
         workflowId: uuid4(),
-        taskQueue: 'test',
+        taskQueue: t.context.taskQueue,
         followRuns: false,
       })
     )
@@ -77,7 +83,7 @@ test.serial('WorkflowInboundLogInterceptor logs warning when workflow fails', as
     t.throwsAsync(
       client.workflow.execute(workflows.throwAsync, {
         workflowId: uuid4(),
-        taskQueue: 'test',
+        taskQueue: t.context.taskQueue,
         followRuns: false,
       })
     )
