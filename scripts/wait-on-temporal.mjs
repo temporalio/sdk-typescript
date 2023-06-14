@@ -3,6 +3,7 @@ import { Connection } from '@temporalio/client';
 
 const maxAttempts = 100;
 const retryIntervalSecs = 1;
+const runId = '26323773-ab30-4442-9a20-c5640b31a7a3';
 
 try {
   for (let attempt = 1; attempt <= maxAttempts; ++attempt) {
@@ -12,7 +13,7 @@ try {
       // See: https://github.com/temporalio/temporal/issues/1336
       await client.workflowService.getWorkflowExecutionHistory({
         namespace: 'default',
-        execution: { workflowId: 'fake', runId: '26323773-ab30-4442-9a20-c5640b31a7a3' },
+        execution: { workflowId: 'fake', runId },
       });
     } catch (err) {
       if (
