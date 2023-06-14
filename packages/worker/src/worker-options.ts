@@ -11,7 +11,7 @@ import { WorkerInterceptors } from './interceptors';
 import { Logger } from './logger';
 import { Runtime } from './runtime';
 import { InjectedSinks } from './sinks';
-import { GiB } from './utils';
+import { MiB } from './utils';
 import { defaultWorflowInterceptorModules, WorkflowBundleWithSourceMap } from './workflow/bundler';
 
 export type { WebpackConfiguration };
@@ -53,6 +53,10 @@ export function isPathBundleOption(bundleOpt: WorkflowBundleOption): bundleOpt i
 
 /**
  * Options to configure the {@link Worker}
+ *
+ * Some options can signifciantly affect Workers performance. Default settings are generally appropriate for
+ * day-to-day developments, but unlikely to be suitable for production use. We recommend that you explicitely set
+ * values every performance-related options on production deployment.
  */
 export interface WorkerOptions {
   /**
@@ -64,6 +68,12 @@ export interface WorkerOptions {
 
   /**
    * A human-readable string that can identify your worker
+   *
+   * Note that in most production environments, the `identity` value set by default may be unhelful for traceability
+   * purpose. It is highly recommended that you set this value to something that will allow you to efficiently identify
+   * that particular Worker container/process/logs in your infrastructure (eg. the task ID allocated to this container
+   * by your orchestrator).
+   *
    * @default `${process.pid}@${os.hostname()}`
    */
   identity?: string;
@@ -193,25 +203,64 @@ export interface WorkerOptions {
   maxTaskQueueActivitiesPerSecond?: number;
 
   /**
-   * Maximum number of Workflow tasks to execute concurrently.
-   * Adjust this to improve Worker resource consumption.
+   * Maximum number of Workflow Tasks to execute concurrently.
+   *
+   * In general, a Workflow Worker's performance is mostly network bound (due to latency in communications with the
+   * Temporal server). Accepting multiple Workflow Tasks concurrently helps compensate for network latency, until the
+   * point where the Worker gets CPU bound.
+   *
+   * Increasing this number will have no impact if Workflow Task pollers can't fill available execution slots fast
+   * enough. Therefore, when adjusting this value, you may want to similarly adjust `maxConcurrentWorkflowTaskPolls`.
+   * See {@link WorkerOptions.maxConcurrentWorkflowTaskPolls} for more information.
+   *
+   * Also, setting this value too high might cause Workflow Task timeouts due to the fact that the Worker is not able
+   * to complete processing accepted Workflow Tasks fast enough. Increasing the number of Workflow threads
+   * (see {@link WorkerOptions.workflowThreadPoolSize}) may help in that case.
+   *
+   * As a general guidelines:
+   * - High latency to Temporal Server => Increase this number
+   * - Very Short Workflow Tasks (ie. that notably implies no Local Activities) => increase this number
+   * - Very long/heavy Workflow Histories => decrease this number
+   * - Low CPU usage despite backlog of Workflow Tasks => increase this number
+   * - High number of Workflow Task Timeout => decrease this number
+   *
+   * In our reference performance test against Temporal Cloud, running with a single Workflow thread and the Reuse V8
+   * Context option enabled, we reached peak performance with a `maxConcurrentWorkflowTaskExecutions` of `120`, and
+   * `maxConcurrentWorkflowTaskPolls` of `60`. Your millage may vary.
+   *
    * Can't be lower than 2 if `maxCachedWorkflows` is non-zero.
-   * @default 100
+   * @default 40
    */
   maxConcurrentWorkflowTaskExecutions?: number;
 
   /**
-   * Maximum number of Workflow tasks to poll concurrently.
-   * Increase this setting if your Worker is failing to fill in all of its
-   * `maxConcurrentWorkflowTaskExecutions` slots despite a backlog of Workflow
-   * Tasks in the Task Queue (ie. due to network latency). Can't be higher than
-   * `maxConcurrentWorkflowTaskExecutions`.
-   * @default min(2, maxConcurrentWorkflowTaskExecutions)
+   * Maximum number of Workflow Tasks to poll concurrently.
+   *
+   * In general, a Workflow Worker's performance is mostly network bound (due to latency in communications with the
+   * Temporal server). Polling multiple Workflow Tasks concurrently helps compensate for this latency, by ensuring that
+   * the Worker never get starved, waiting for the server to return new Workflow Tasks to execute.
+   *
+   * This setting is highly related with {@link WorkerOptions.maxConcurrentWorkflowTaskExecutions}. In various
+   * performance tests, we generally got optimal performance by setting this value to about half of
+   * `maxConcurrentWorkflowTaskExecutions`. Your millage may vary.
+   *
+   * Setting this value higher than needed will generally not have negative impact on this Worker's performance; your
+   * server may however impose a limit on the total number of concurrent Workflow Task pollers.
+   *
+   * As a general guidelines:
+   * - By default, set this value to half of `maxConcurrentWorkflowTaskExecutions`.
+   * - **Increase** if actual number of Workflow Tasks being processed concurrently is lower than
+   *   `maxConcurrentWorkflowTaskExecutions` despite a backlog of Workflow Tasks in the Task Queue.
+   * - Keep low on Task Queues that have very few concurrent Workflow Executions.
+   *
+   * Can't be higher than `maxConcurrentWorkflowTaskExecutions`, and can't be lower than 2.
+   * @default min(10, maxConcurrentWorkflowTaskExecutions)
    */
   maxConcurrentWorkflowTaskPolls?: number;
 
   /**
    * Maximum number of Activity tasks to poll concurrently.
+   *
    * Increase this setting if your Worker is failing to fill in all of its
    * `maxConcurrentActivityTaskExecutions` slots despite a backlog of Activity
    * Tasks in the Task Queue (ie. due to network latency). Can't be higher than
@@ -231,16 +280,23 @@ export interface WorkerOptions {
   /**
    * The number of Workflow isolates to keep in cached in memory
    *
-   * Cached Workflows continue execution from their last stopping point.
-   * If the Worker is asked to run an uncached Workflow, it will need to replay the entire Workflow history.
-   * Use as a dial for trading memory for CPU time.
+   * Cached Workflows continue execution from their last stopping point. If the Worker is asked to run an uncached
+   * Workflow, it will need to fetch and replay the entire Workflow history.
    *
-   * Most users are able to fit at least 250 Workflows per GB of available memory.
-   * The major factors contributing to a Workflow's memory weight are the size of allocations made
-   * by the Workflow itself and the size of the Workflow bundle (code and source map).
-   * For the SDK test Workflows, we managed to fit 750 Workflows per GB.
+   * **When `reuseV8Context` is disabled** — Most users are able to fit at least 250 Workflows per GB of available
+   * memory. The major factors contributing to a Workflow's memory weight are the size of allocations made by the
+   * Workflow itself and by all loaded librairies (including the Node JS builtin context), as well as the size of the
+   * Workflow bundle (code and source map). For the SDK test Workflows, we managed to fit 750 Workflows per GB. Your
+   * millage may vary.
    *
-   * @default `max(maxHeapMemory / 1GiB - 1, 1) * 250`
+   * **When `reuseV8Context` is enabled** — Since most objects are shared/reused across Workflows, the per-Workflow
+   * memory footprint is much smaller. The major factor contributing to a Workflow's memory weight is the size of
+   * allocations made by the Workflow itself. Most users are able to fit at least 600 Workflows per GB of available
+   * memory. In one reference performance test, memory usage grew by approximately 1 MB per cached Workflow (that is
+   * including memory used for activity executions of these Workflows). Your millage may vary.
+   *
+   * @default if `reuseV8Context = true`, then `max(maxHeapMemory - 400MB, 1) * (250WF / 1024MB)`.
+   *          Otherwise `max(maxHeapMemory - 200MB, 1) * (600WF / 1024MB)`
    */
   maxCachedWorkflows?: number;
 
@@ -249,7 +305,7 @@ export interface WorkerOptions {
    *
    * Threads are used to create {@link https://nodejs.org/api/vm.html | vm }s for the isolated Workflow environment.
    *
-   * New Workflows are created on this pool in a round-robin fashion.
+   * New Workflows are created on the thread having the least active Workflows.
    *
    * @default 1 for reuseV8Context, otherwise 8. Ignored if `debugMode` is enabled.
    */
@@ -522,8 +578,13 @@ export function appendDefaultInterceptors(
 export function addDefaultWorkerOptions(options: WorkerOptions): WorkerOptionsWithDefaults {
   const { maxCachedWorkflows, showStackTraceSources, namespace, reuseV8Context, ...rest } = options;
   const debugMode = options.debugMode || isSet(process.env.TEMPORAL_DEBUG);
-  const maxConcurrentWorkflowTaskExecutions = options.maxConcurrentWorkflowTaskExecutions ?? 100;
+  const maxConcurrentWorkflowTaskExecutions = options.maxConcurrentWorkflowTaskExecutions ?? 40;
   const maxConcurrentActivityTaskExecutions = options.maxConcurrentActivityTaskExecutions ?? 100;
+
+  const heapSizeMiB = v8.getHeapStatistics().heap_size_limit / MiB;
+  const defaultMaxCachedWorkflows = reuseV8Context
+    ? Math.floor((Math.max(heapSizeMiB - 200, 1) * 600) / 1024)
+    : Math.floor((Math.max(heapSizeMiB - 400, 1) * 250) / 1024);
 
   return {
     namespace: namespace ?? 'default',
@@ -531,16 +592,15 @@ export function addDefaultWorkerOptions(options: WorkerOptions): WorkerOptionsWi
     shutdownGraceTime: 0,
     maxConcurrentLocalActivityExecutions: 100,
     enableNonLocalActivities: true,
-    maxConcurrentWorkflowTaskPolls: Math.min(2, maxConcurrentWorkflowTaskExecutions),
-    maxConcurrentActivityTaskPolls: Math.min(2, maxConcurrentActivityTaskExecutions),
+    maxConcurrentWorkflowTaskPolls: Math.min(10, maxConcurrentWorkflowTaskExecutions),
+    maxConcurrentActivityTaskPolls: Math.min(10, maxConcurrentActivityTaskExecutions),
     stickyQueueScheduleToStartTimeout: '10s',
     maxHeartbeatThrottleInterval: '60s',
     defaultHeartbeatThrottleInterval: '30s',
     // 4294967295ms is the maximum allowed time
     isolateExecutionTimeout: debugMode ? '4294967295ms' : '5s',
     workflowThreadPoolSize: reuseV8Context ? 1 : 8,
-    maxCachedWorkflows:
-      maxCachedWorkflows ?? Math.floor(Math.max(v8.getHeapStatistics().heap_size_limit / GiB - 1, 1) * 250),
+    maxCachedWorkflows: maxCachedWorkflows ?? defaultMaxCachedWorkflows,
     enableSDKTracing: false,
     showStackTraceSources: showStackTraceSources ?? false,
     reuseV8Context: reuseV8Context ?? false,
