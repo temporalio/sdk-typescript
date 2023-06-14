@@ -1,5 +1,5 @@
 import os from 'node:os';
-import fs from 'node:fs';
+import fs, { readFileSync } from 'node:fs';
 import arg from 'arg';
 import pidusage from 'pidusage';
 import * as grpc from '@grpc/grpc-js';
@@ -201,7 +201,22 @@ async function main() {
   const workerMemoryLogFile = args['--worker-memory-log-file'];
   const workerCPULogFile = args['--worker-cpu-log-file'];
 
-  const connection = await Connection.connect({ address: serverAddress });
+  const clientCertPath = args['--client-cert-path'];
+  const clientKeyPath = args['--client-key-path'];
+
+  const tlsConfig =
+    clientCertPath && clientKeyPath
+      ? {
+          tls: {
+            clientCertPair: {
+              crt: readFileSync(clientCertPath),
+              key: readFileSync(clientKeyPath),
+            },
+          },
+        }
+      : {};
+
+  const connection = await Connection.connect({ address: serverAddress, ...tlsConfig });
   const client = new WorkflowClient({ connection, namespace });
   const stopCondition = runForSeconds ? new UntilSecondsElapsed(runForSeconds) : new NumberOfWorkflows(iterations);
   const queryingOptions = queryName ? { queryName, queryIntervalMs, initialQueryDelayMs } : undefined;

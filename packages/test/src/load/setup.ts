@@ -1,3 +1,4 @@
+import { readFileSync } from 'fs';
 import arg from 'arg';
 import { Connection } from '@temporalio/client';
 import { createNamespace, waitOnNamespace } from '@temporalio/testing/lib/utils';
@@ -8,8 +9,31 @@ async function main() {
 
   const serverAddress = getRequired(args, '--server-address');
   const namespace = getRequired(args, '--ns');
+  const clientCertPath = args['--client-cert-path'];
+  const clientKeyPath = args['--client-key-path'];
 
-  const connection = await Connection.connect({ address: serverAddress });
+  const tlsConfig =
+    clientCertPath && clientKeyPath
+      ? {
+          tls: {
+            clientCertPair: {
+              crt: readFileSync(clientCertPath),
+              key: readFileSync(clientKeyPath),
+            },
+          },
+        }
+      : {};
+
+  const connection = await Connection.connect({ address: serverAddress, ...tlsConfig });
+
+  console.log('Checking if namespace already exists', { namespace });
+  try {
+    await waitOnNamespace(connection, namespace, 1, 0);
+    // Namespace already exists. Nothing to do
+    return;
+  } catch (e) {
+    // Ignore error. Will create namespace if it does not exist
+  }
 
   await createNamespace(connection, namespace);
   console.log('Registered namespace', { namespace });

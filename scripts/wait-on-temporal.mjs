@@ -19,7 +19,9 @@ try {
         err.details &&
         (err.details.includes('workflow history not found') ||
           err.details.includes('Workflow executionsRow not found') ||
-          err.details.includes('operation GetCurrentExecution'))
+          err.details.includes('operation GetCurrentExecution') ||
+          err.details.includes('operation GetWorkflowExecution encountered not found') ||
+          err.details.includes(runId))
       ) {
         break;
       }
