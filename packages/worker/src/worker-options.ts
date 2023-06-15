@@ -54,9 +54,9 @@ export function isPathBundleOption(bundleOpt: WorkflowBundleOption): bundleOpt i
 /**
  * Options to configure the {@link Worker}
  *
- * Some options can signifciantly affect Workers performance. Default settings are generally appropriate for
- * day-to-day developments, but unlikely to be suitable for production use. We recommend that you explicitely set
- * values every performance-related options on production deployment.
+ * Some options can significantly affect Worker's performance. Default settings are generally appropriate for
+ * day-to-day development, but unlikely to be suitable for production use. We recommend that you explicitly set
+ * values for every performance-related option on production deployment.
  */
 export interface WorkerOptions {
   /**
@@ -69,9 +69,9 @@ export interface WorkerOptions {
   /**
    * A human-readable string that can identify your worker
    *
-   * Note that in most production environments, the `identity` value set by default may be unhelful for traceability
-   * purpose. It is highly recommended that you set this value to something that will allow you to efficiently identify
-   * that particular Worker container/process/logs in your infrastructure (eg. the task ID allocated to this container
+   * Note that in most production environments, the `identity` value set by default may be unhelpful for traceability
+   * purposes. It is highly recommended that you set this value to something that will allow you to efficiently identify
+   * that particular Worker container/process/logs in your infrastructure (ex: the task ID allocated to this container
    * by your orchestrator).
    *
    * @default `${process.pid}@${os.hostname()}`
@@ -205,7 +205,7 @@ export interface WorkerOptions {
   /**
    * Maximum number of Workflow Tasks to execute concurrently.
    *
-   * In general, a Workflow Worker's performance is mostly network bound (due to latency in communications with the
+   * In general, a Workflow Worker's performance is mostly network bound (due to communication latency with the
    * Temporal server). Accepting multiple Workflow Tasks concurrently helps compensate for network latency, until the
    * point where the Worker gets CPU bound.
    *
@@ -219,10 +219,10 @@ export interface WorkerOptions {
    *
    * As a general guidelines:
    * - High latency to Temporal Server => Increase this number
-   * - Very Short Workflow Tasks (ie. that notably implies no Local Activities) => increase this number
+   * - Very short Workflow Tasks (no lengthy Local Activities) => increase this number
    * - Very long/heavy Workflow Histories => decrease this number
    * - Low CPU usage despite backlog of Workflow Tasks => increase this number
-   * - High number of Workflow Task Timeout => decrease this number
+   * - High number of Workflow Task timeouts => decrease this number
    *
    * In our reference performance test against Temporal Cloud, running with a single Workflow thread and the Reuse V8
    * Context option enabled, we reached peak performance with a `maxConcurrentWorkflowTaskExecutions` of `120`, and
@@ -236,9 +236,9 @@ export interface WorkerOptions {
   /**
    * Maximum number of Workflow Tasks to poll concurrently.
    *
-   * In general, a Workflow Worker's performance is mostly network bound (due to latency in communications with the
+   * In general, a Workflow Worker's performance is mostly network bound (due to communication latency with the
    * Temporal server). Polling multiple Workflow Tasks concurrently helps compensate for this latency, by ensuring that
-   * the Worker never get starved, waiting for the server to return new Workflow Tasks to execute.
+   * the Worker is not starved waiting for the server to return new Workflow Tasks to execute.
    *
    * This setting is highly related with {@link WorkerOptions.maxConcurrentWorkflowTaskExecutions}. In various
    * performance tests, we generally got optimal performance by setting this value to about half of
@@ -251,7 +251,7 @@ export interface WorkerOptions {
    * - By default, set this value to half of `maxConcurrentWorkflowTaskExecutions`.
    * - **Increase** if actual number of Workflow Tasks being processed concurrently is lower than
    *   `maxConcurrentWorkflowTaskExecutions` despite a backlog of Workflow Tasks in the Task Queue.
-   * - Keep low on Task Queues that have very few concurrent Workflow Executions.
+   * - Keep this value low for Task Queues which have very few concurrent Workflow Executions.
    *
    * Can't be higher than `maxConcurrentWorkflowTaskExecutions`, and can't be lower than 2.
    * @default min(10, maxConcurrentWorkflowTaskExecutions)
