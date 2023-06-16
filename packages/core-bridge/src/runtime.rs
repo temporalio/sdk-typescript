@@ -120,8 +120,9 @@ pub fn start_bridge_loop(
 ) {
     let mut tokio_builder = tokio::runtime::Builder::new_multi_thread();
     tokio_builder.enable_all().thread_name("core");
-    let core_runtime =
-        Arc::new(CoreRuntime::new(telemetry_options, tokio_builder).expect("Failed to create CoreRuntime"));
+    let core_runtime = Arc::new(
+        CoreRuntime::new(telemetry_options, tokio_builder).expect("Failed to create CoreRuntime"),
+    );
 
     core_runtime.tokio_handle().block_on(async {
         loop {

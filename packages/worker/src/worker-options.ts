@@ -295,8 +295,8 @@ export interface WorkerOptions {
    * memory. In one reference performance test, memory usage grew by approximately 1 MB per cached Workflow (that is
    * including memory used for activity executions of these Workflows). Your millage may vary.
    *
-   * @default if `reuseV8Context = true`, then `max(maxHeapMemory - 400MB, 1) * (250WF / 1024MB)`.
-   *          Otherwise `max(maxHeapMemory - 200MB, 1) * (600WF / 1024MB)`
+   * @default if `reuseV8Context = true`, then `max(floor(max(maxHeapMemory - 200MB, 0) * (600WF / 1024MB)), 10)`.
+   *          Otherwise `max(floor(max(maxHeapMemory - 400MB, 0) * (250WF / 1024MB)), 10)`
    */
   maxCachedWorkflows?: number;
 
@@ -581,8 +581,8 @@ export function addDefaultWorkerOptions(options: WorkerOptions): WorkerOptionsWi
 
   const heapSizeMiB = v8.getHeapStatistics().heap_size_limit / MiB;
   const defaultMaxCachedWorkflows = reuseV8Context
-    ? Math.floor((Math.max(heapSizeMiB - 200, 1) * 600) / 1024)
-    : Math.floor((Math.max(heapSizeMiB - 400, 1) * 250) / 1024);
+    ? Math.max(Math.floor((Math.max(heapSizeMiB - 200, 0) * 600) / 1024), 10)
+    : Math.max(Math.floor((Math.max(heapSizeMiB - 400, 0) * 250) / 1024), 10);
 
   return {
     namespace: namespace ?? 'default',
