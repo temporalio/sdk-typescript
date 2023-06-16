@@ -1,12 +1,12 @@
-import fs, { read, readFileSync } from 'node:fs';
-import http from 'node:http';
-import { inspect } from 'node:util';
-import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-grpc';
-import * as opentelemetry from '@opentelemetry/sdk-node';
-import { SemanticResourceAttributes } from '@opentelemetry/semantic-conventions';
-import arg from 'arg';
-import { LogLevel, TelemetryOptions } from '@temporalio/core-bridge';
-import { Connection } from '@temporalio/client';
+import fs, { readFileSync } from "node:fs";
+import http from "node:http";
+import { inspect } from "node:util";
+import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-grpc";
+import * as opentelemetry from "@opentelemetry/sdk-node";
+import { SemanticResourceAttributes } from "@opentelemetry/semantic-conventions";
+import arg from "arg";
+import { LogLevel, TelemetryOptions } from "@temporalio/core-bridge";
+import { Connection } from "@temporalio/client";
 import {
   DefaultLogger,
   LogEntry,
@@ -14,17 +14,20 @@ import {
   Runtime,
   Worker,
   makeTelemetryFilterString,
-} from '@temporalio/worker';
-import * as activities from '../activities';
-import { ConnectionInjectorInterceptor } from '../activities/interceptors';
-import { getRequired, WorkerArgSpec, workerArgSpec } from './args';
+} from "@temporalio/worker";
+import * as activities from "../activities";
+import { ConnectionInjectorInterceptor } from "../activities/interceptors";
+import { getRequired, WorkerArgSpec, workerArgSpec } from "./args";
 
 /**
  * Optionally start the opentelemetry node SDK
  */
-async function withOptionalOtel(args: arg.Result<WorkerArgSpec>, fn: () => Promise<any>): Promise<void> {
-  const url = args['--otel-url'];
-  const taskQueue = getRequired(args, '--task-queue');
+async function withOptionalOtel(
+  args: arg.Result<WorkerArgSpec>,
+  fn: () => Promise<any>
+): Promise<void> {
+  const url = args["--otel-url"];
+  const taskQueue = getRequired(args, "--task-queue");
 
   if (!url) {
     await fn();
@@ -34,7 +37,7 @@ async function withOptionalOtel(args: arg.Result<WorkerArgSpec>, fn: () => Promi
   const traceExporter = new OTLPTraceExporter({ url });
   const otel = new opentelemetry.NodeSDK({
     resource: new opentelemetry.resources.Resource({
-      [SemanticResourceAttributes.SERVICE_NAME]: 'load-worker',
+      [SemanticResourceAttributes.SERVICE_NAME]: "load-worker",
       taskQueue,
     }),
     traceExporter,
@@ -63,24 +66,24 @@ async function withOptionalStatusServer(
 
   const server = await new Promise<http.Server>((resolve, reject) => {
     const server = http.createServer((req, res) => {
-      if (req.method !== 'GET') {
-        res.writeHead(405, 'Method not allowed');
+      if (req.method !== "GET") {
+        res.writeHead(405, "Method not allowed");
         res.end();
         return;
       }
-      if (req.url !== '/') {
-        res.writeHead(404, 'Not found');
+      if (req.url !== "/") {
+        res.writeHead(404, "Not found");
         res.end();
         return;
       }
-      res.setHeader('Content-Type', 'application/json');
+      res.setHeader("Content-Type", "application/json");
       res.write(JSON.stringify(worker.getStatus()));
       res.end();
     });
     server.listen(port, () => resolve(server));
-    server.once('error', reject);
+    server.once("error", reject);
   });
-  console.log('Status server listening on', server?.address());
+  console.log("Status server listening on", server?.address());
   try {
     await fn();
   } finally {
@@ -96,30 +99,36 @@ function createLogFunction(stream: fs.WriteStream) {
     if (meta === undefined) {
       stream.write(`${date.toISOString()} [${level}] ${message}\n`);
     } else {
-      stream.write(`${date.toISOString()} [${level}] ${message} ${inspect(meta)}\n`);
+      stream.write(
+        `${date.toISOString()} [${level}] ${message} ${inspect(meta)}\n`
+      );
     }
   };
 }
 
 async function main() {
   const args = arg<WorkerArgSpec>(workerArgSpec);
-  const maxConcurrentActivityTaskExecutions = args['--max-concurrent-at-executions'] ?? 100;
-  const maxConcurrentWorkflowTaskExecutions = args['--max-concurrent-wft-executions'] ?? 100;
-  const maxConcurrentLocalActivityExecutions = args['--max-concurrent-la-executions'] ?? 100;
-  const maxCachedWorkflows = args['--max-cached-wfs'];
-  const maxConcurrentWorkflowTaskPolls = args['--max-wft-pollers'] ?? 2;
-  const maxConcurrentActivityTaskPolls = args['--max-at-pollers'] ?? 2;
-  const workflowThreadPoolSize: number | undefined = args['--wf-thread-pool-size'];
-  const oTelUrl = args['--otel-url'];
-  const logLevel = (args['--log-level'] || 'INFO').toUpperCase();
-  const logFile = args['--log-file'];
-  const serverAddress = getRequired(args, '--server-address');
-  const clientCertPath = args['--client-cert-path'];
-  const clientKeyPath = args['--client-key-path'];
-  const namespace = getRequired(args, '--ns');
-  const taskQueue = getRequired(args, '--task-queue');
-  const statusPort = args['--status-port'];
-  const shutdownGraceTime = args['--shutdown-grace-time'] || '30s';
+  const maxConcurrentActivityTaskExecutions =
+    args["--max-concurrent-at-executions"] ?? 100;
+  const maxConcurrentWorkflowTaskExecutions =
+    args["--max-concurrent-wft-executions"] ?? 100;
+  const maxConcurrentLocalActivityExecutions =
+    args["--max-concurrent-la-executions"] ?? 100;
+  const maxCachedWorkflows = args["--max-cached-wfs"];
+  const maxConcurrentWorkflowTaskPolls = args["--max-wft-pollers"] ?? 2;
+  const maxConcurrentActivityTaskPolls = args["--max-at-pollers"] ?? 2;
+  const workflowThreadPoolSize: number | undefined =
+    args["--wf-thread-pool-size"];
+  const oTelUrl = args["--otel-url"];
+  const logLevel = (args["--log-level"] || "INFO").toUpperCase();
+  const logFile = args["--log-file"];
+  const serverAddress = getRequired(args, "--server-address");
+  const clientCertPath = args["--client-cert-path"];
+  const clientKeyPath = args["--client-key-path"];
+  const namespace = getRequired(args, "--ns");
+  const taskQueue = getRequired(args, "--task-queue");
+  const statusPort = args["--status-port"];
+  const shutdownGraceTime = args["--shutdown-grace-time"] || "30s";
 
   const telemetryOptions: TelemetryOptions = {
     logging: {
@@ -137,7 +146,10 @@ async function main() {
   };
 
   const logger = logFile
-    ? new DefaultLogger(logLevel as any, createLogFunction(fs.createWriteStream(logFile, 'utf8')))
+    ? new DefaultLogger(
+        logLevel as any,
+        createLogFunction(fs.createWriteStream(logFile, "utf8"))
+      )
     : new DefaultLogger(logLevel as any);
   Runtime.install({
     telemetryOptions,
@@ -171,7 +183,7 @@ async function main() {
       connection,
       namespace,
       activities,
-      workflowsPath: require.resolve('../workflows'),
+      workflowsPath: require.resolve("../workflows"),
       taskQueue,
       maxConcurrentActivityTaskExecutions,
       maxConcurrentLocalActivityExecutions,
@@ -182,14 +194,21 @@ async function main() {
       maxConcurrentActivityTaskPolls,
       maxConcurrentWorkflowTaskPolls,
       interceptors: {
-        activityInbound: [() => new ConnectionInjectorInterceptor(clientConnection)],
+        activityInbound: [
+          () => new ConnectionInjectorInterceptor(clientConnection),
+        ],
       },
       // Can't reuse the helper because it defines `test` and ava thinks it's an ava test.
-      reuseV8Context: ['1', 't', 'true'].includes((process.env.REUSE_V8_CONTEXT ?? 'false').toLowerCase()),
+      reuseV8Context: ["1", "t", "true"].includes(
+        (process.env.REUSE_V8_CONTEXT ?? "false").toLowerCase()
+      ),
     });
 
     await withOptionalStatusServer(worker, statusPort, async () => {
-      const interval = setInterval(() => logger.info('worker status', worker.getStatus()), 30_000);
+      const interval = setInterval(
+        () => logger.info("worker status", worker.getStatus()),
+        30_000
+      );
       try {
         await worker.run();
       } finally {
