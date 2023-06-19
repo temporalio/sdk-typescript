@@ -71,7 +71,8 @@
 
 import 'abort-controller/polyfill'; // eslint-disable-line import/no-unassigned-import
 import { AsyncLocalStorage } from 'node:async_hooks';
-import { Duration, msToNumber } from '@temporalio/common/lib/time';
+import { Logger, Duration } from '@temporalio/common';
+import { msToNumber } from '@temporalio/common/lib/time';
 
 export {
   ActivityFunction,
@@ -243,6 +244,18 @@ export class Context {
    * The heartbeat implementation, injected via the constructor.
    */
   protected readonly heartbeatFn: (details?: any) => void;
+  /**
+   * The logger for this Activity.
+   *
+   * This defaults to the `Runtime`'s Logger (see {@link Runtime.logger}). If the {@link ActivityInboundLogInterceptor}
+   * is installed (by default, it is; see {@link WorkerOptions.interceptors}), then various attributes from the current
+   * Activity context will automatically be included as metadata on every log entries, and some key events of the
+   * Activity's life cycle will automatically be logged (at 'DEBUG' level for most messages; 'WARN' for failures).
+   *
+   * To use a different Logger, either overwrite this property from an Activity Interceptor, or explicitly register the
+   * `ActivityInboundLogInterceptor` with your custom Logger.
+   */
+  public logger: Logger;
 
   /**
    * **Not** meant to instantiated by Activity code, used by the worker.
@@ -253,12 +266,14 @@ export class Context {
     info: Info,
     cancelled: Promise<never>,
     cancellationSignal: AbortSignal,
-    heartbeat: (details?: any) => void
+    heartbeat: (details?: any) => void,
+    logger: Logger
   ) {
     this.info = info;
     this.cancelled = cancelled;
     this.cancellationSignal = cancellationSignal;
     this.heartbeatFn = heartbeat;
+    this.logger = logger;
   }
 
   /**

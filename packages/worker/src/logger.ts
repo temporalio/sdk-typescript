@@ -1,7 +1,9 @@
 import { formatWithOptions } from 'node:util';
-import { LogLevel, getTimeOfDay } from '@temporalio/core-bridge';
+import { getTimeOfDay } from '@temporalio/core-bridge';
+import { LogLevel, LogMetadata, Logger } from '@temporalio/common';
 
-export type LogMetadata = Record<string | symbol, any>;
+/** @deprecated Import from @temporalio/common instead */
+export { LogLevel, LogMetadata, Logger };
 
 export interface LogEntry {
   level: LogLevel;
@@ -10,20 +12,6 @@ export interface LogEntry {
   /** Custom attributes */
   meta?: LogMetadata;
 }
-
-/**
- * Implement this interface in order to customize worker logging
- */
-export interface Logger {
-  log(level: LogLevel, message: string, meta?: LogMetadata): any;
-  trace(message: string, meta?: LogMetadata): any;
-  debug(message: string, meta?: LogMetadata): any;
-  info(message: string, meta?: LogMetadata): any;
-  warn(message: string, meta?: LogMetadata): any;
-  error(message: string, meta?: LogMetadata): any;
-}
-
-export { LogLevel };
 
 export const LogTimestamp = Symbol.for('log_timestamp');
 

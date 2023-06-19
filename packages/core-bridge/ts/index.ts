@@ -1,8 +1,11 @@
 import { SpanContext } from '@opentelemetry/api';
-import { Duration } from '@temporalio/common';
+import { LogLevel, Duration } from '@temporalio/common';
 import type { TLSConfig } from '@temporalio/common/lib/internal-non-workflow';
 
 export { TLSConfig };
+
+/** @deprecated Import from @temporalio/common instead */
+export { LogLevel };
 
 type Shadow<Base, New> = Base extends object
   ? New extends object
@@ -323,9 +326,6 @@ export interface WorkerOptions {
    */
   maxActivitiesPerSecond?: number;
 }
-
-/** Log level - must match rust log level names */
-export type LogLevel = 'TRACE' | 'DEBUG' | 'INFO' | 'WARN' | 'ERROR';
 
 export interface LogEntry {
   /** Log message */

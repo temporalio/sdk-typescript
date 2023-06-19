@@ -25,7 +25,33 @@ export function activityLogAttributes(info: Info): Record<string, unknown> {
 
 /** Logs Activity execution starts and their completions */
 export class ActivityInboundLogInterceptor implements ActivityInboundCallsInterceptor {
-  constructor(protected readonly ctx: Context, protected readonly logger: Logger) {}
+  /**
+   * @deprecated Use `Context.current().logger` instead
+   */
+  protected readonly logger: Logger;
+
+  constructor(protected readonly ctx: Context, logger?: Logger | undefined) {
+    // If a parent logger was explicitly provided on this interceptor, then use it.
+    // Otherwise, use the logger that is already set on the activity context.
+    // By default, that will be Runtime.logger, but another interceptor might have overriden it,
+    // in which case we would want to use that one as our parent logger.
+    const parentLogger = logger ?? ctx.logger;
+    this.logger = parentLogger; // eslint-disable-this-line deprecation/deprecation
+
+    this.ctx.logger = Object.fromEntries(
+      (['trace', 'debug', 'info', 'warn', 'error'] as const).map((level) => {
+        return [
+          level,
+          (message: string, attrs: Record<string, unknown>) => {
+            return parentLogger[level](message, {
+              ...this.logAttributes(),
+              ...attrs,
+            });
+          },
+        ];
+      })
+    ) as any;
+  }
 
   protected logAttributes(): Record<string, unknown> {
     return activityLogAttributes(this.ctx.info);
@@ -34,7 +60,7 @@ export class ActivityInboundLogInterceptor implements ActivityInboundCallsInterc
   async execute(input: ActivityExecuteInput, next: Next<ActivityInboundCallsInterceptor, 'execute'>): Promise<unknown> {
     let error: any = UNINITIALIZED; // In case someone decides to throw undefined...
     const startTime = process.hrtime.bigint();
-    this.logger.debug('Activity started', this.logAttributes());
+    this.ctx.logger.debug('Activity started');
     try {
       return await next(input);
     } catch (err: any) {
@@ -45,18 +71,18 @@ export class ActivityInboundLogInterceptor implements ActivityInboundCallsInterc
       const durationMs = Number(durationNanos / 1_000_000n);
 
       if (error === UNINITIALIZED) {
-        this.logger.debug('Activity completed', { durationMs, ...this.logAttributes() });
+        this.ctx.logger.debug('Activity completed', { durationMs });
       } else if (
         typeof error === 'object' &&
         error != null &&
         (CancelledFailure.is(error) || error.name === 'AbortError') &&
         this.ctx.cancellationSignal.aborted
       ) {
-        this.logger.debug('Activity completed as cancelled', { durationMs, ...this.logAttributes() });
+        this.ctx.logger.debug('Activity completed as cancelled', { durationMs });
       } else if (CompleteAsyncError.is(error)) {
-        this.logger.debug('Activity will complete asynchronously', { durationMs, ...this.logAttributes() });
+        this.ctx.logger.debug('Activity will complete asynchronously', { durationMs });
       } else {
-        this.logger.warn('Activity failed', { error, durationMs, ...this.logAttributes() });
+        this.ctx.logger.warn('Activity failed', { error, durationMs });
       }
     }
   }

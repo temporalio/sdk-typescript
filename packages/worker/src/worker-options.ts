@@ -476,7 +476,7 @@ export function defaultSinks(logger?: Logger): InjectedSinks<LoggerSinks> {
  */
 export function appendDefaultInterceptors(
   interceptors: WorkerInterceptors,
-  logger = Runtime.instance().logger
+  logger?: Logger | undefined
 ): WorkerInterceptors {
   return {
     activityInbound: [...(interceptors.activityInbound ?? []), (ctx) => new ActivityInboundLogInterceptor(ctx, logger)],
