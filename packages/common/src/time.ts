@@ -16,6 +16,8 @@ export type Timestamp = google.protobuf.ITimestamp;
  */
 export type Duration = StringValue | number;
 
+export type { StringValue } from 'ms';
+
 /**
  * Lossy conversion function from Timestamp to number due to possible overflow.
  * If ts is null or undefined returns undefined.
