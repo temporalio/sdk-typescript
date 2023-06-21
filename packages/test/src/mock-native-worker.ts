@@ -4,7 +4,7 @@ import { lastValueFrom } from 'rxjs';
 import { defaultPayloadConverter, fromPayloadsAtIndex } from '@temporalio/common';
 import { msToTs } from '@temporalio/common/lib/time';
 import { coresdk } from '@temporalio/proto';
-import { DefaultLogger, ShutdownError } from '@temporalio/worker';
+import { DefaultLogger, Runtime, ShutdownError } from '@temporalio/worker';
 import { byteArrayToBuffer } from '@temporalio/worker/lib/utils';
 import { NativeReplayHandle, NativeWorkerLike, Worker as RealWorker } from '@temporalio/worker/lib/worker';
 import {
@@ -164,6 +164,9 @@ export class Worker extends RealWorker {
   }
 
   public constructor(workflowCreator: WorkflowCreator, opts: CompiledWorkerOptions) {
+    // Worker.create() accesses Runtime.instance(), which has some side effects that would not happen (or that would
+    // happen too late) when creating a MockWorker. Force the singleton to be created now, if it doesn't already exist.
+    Runtime.instance();
     const nativeWorker = new MockNativeWorker();
     super(nativeWorker, workflowCreator, opts);
   }

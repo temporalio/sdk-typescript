@@ -323,10 +323,10 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
 
         let max_worker_activities_per_second =
             js_optional_getter!(cx, self, "maxActivitiesPerSecond", JsNumber)
-                .map(|num| num.value(cx) as f64);
+                .map(|num| num.value(cx));
         let max_task_queue_activities_per_second =
             js_optional_getter!(cx, self, "maxTaskQueueActivitiesPerSecond", JsNumber)
-                .map(|num| num.value(cx) as f64);
+                .map(|num| num.value(cx));
 
         let graceful_shutdown_period =
             js_optional_getter!(cx, self, "shutdownGraceTimeMs", JsNumber)

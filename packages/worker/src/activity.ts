@@ -16,6 +16,7 @@ import {
   ActivityInboundCallsInterceptor,
   ActivityInboundCallsInterceptorFactory,
 } from './interceptors';
+import { Runtime } from './runtime';
 
 export type CancelReason =
   | keyof typeof coresdk.activity_task.ActivityCancelReason
@@ -47,7 +48,13 @@ export class Activity {
         reject(new CancelledFailure(reason));
       };
     });
-    this.context = new Context(info, promise, this.abortController.signal, this.heartbeatCallback);
+    this.context = new Context(
+      info,
+      promise,
+      this.abortController.signal,
+      this.heartbeatCallback,
+      Runtime.instance().logger
+    );
     // Prevent unhandled rejection
     promise.catch(() => undefined);
     this.interceptors = {

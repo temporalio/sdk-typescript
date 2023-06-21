@@ -18,6 +18,7 @@ export * from './errors';
 export * from './failure';
 export { Headers, Next } from './interceptors';
 export * from './interfaces';
+export * from './logger';
 export * from './retry-policy';
 export { type Timestamp, Duration, StringValue } from './time';
 export * from './workflow-handle';
