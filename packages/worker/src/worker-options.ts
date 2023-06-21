@@ -217,16 +217,18 @@ export interface WorkerOptions {
    * to complete processing accepted Workflow Tasks fast enough. Increasing the number of Workflow threads
    * (see {@link WorkerOptions.workflowThreadPoolSize}) may help in that case.
    *
-   * As a general guidelines:
+   * General guidelines:
    * - High latency to Temporal Server => Increase this number
    * - Very short Workflow Tasks (no lengthy Local Activities) => increase this number
    * - Very long/heavy Workflow Histories => decrease this number
    * - Low CPU usage despite backlog of Workflow Tasks => increase this number
    * - High number of Workflow Task timeouts => decrease this number
    *
-   * In our reference performance test against Temporal Cloud, running with a single Workflow thread and the Reuse V8
-   * Context option enabled, we reached peak performance with a `maxConcurrentWorkflowTaskExecutions` of `120`, and
-   * `maxConcurrentWorkflowTaskPolls` of `60`. Your millage may vary.
+   * In some performance test against Temporal Cloud, running with a single Workflow thread and the Reuse V8 Context
+   * option enabled, we reached peak performance with a `maxConcurrentWorkflowTaskExecutions` of `120`, and
+   * `maxConcurrentWorkflowTaskPolls` of `60` (worker machine: Apple M2 Max; ping of 74 ms to Temporal Cloud;
+   * load test scenario: "activityCancellation10kIters", which has short histories, running a single activity).
+   * Your millage may vary.
    *
    * Can't be lower than 2 if `maxCachedWorkflows` is non-zero.
    * @default 40
@@ -244,10 +246,10 @@ export interface WorkerOptions {
    * performance tests, we generally got optimal performance by setting this value to about half of
    * `maxConcurrentWorkflowTaskExecutions`. Your millage may vary.
    *
-   * Setting this value higher than needed will generally not have negative impact on this Worker's performance; your
-   * server may however impose a limit on the total number of concurrent Workflow Task pollers.
+   * Setting this value higher than needed may have negative impact on the server's performance. Consequently, the
+   * server may impose a limit on the total number of concurrent Workflow Task pollers.
    *
-   * As a general guidelines:
+   * General guidelines:
    * - By default, set this value to half of `maxConcurrentWorkflowTaskExecutions`.
    * - **Increase** if actual number of Workflow Tasks being processed concurrently is lower than
    *   `maxConcurrentWorkflowTaskExecutions` despite a backlog of Workflow Tasks in the Task Queue.
@@ -283,17 +285,28 @@ export interface WorkerOptions {
    * Cached Workflows continue execution from their last stopping point. If the Worker is asked to run an uncached
    * Workflow, it will need to fetch and replay the entire Workflow history.
    *
-   * **When `reuseV8Context` is disabled** — Most users are able to fit at least 250 Workflows per GB of available
-   * memory. The major factors contributing to a Workflow's memory weight are the size of allocations made by the
-   * Workflow itself and by all loaded librairies (including the Node JS builtin context), as well as the size of the
-   * Workflow bundle (code and source map). For the SDK test Workflows, we managed to fit 750 Workflows per GB. Your
-   * millage may vary.
+   * #### When `reuseV8Context` is disabled
+   * The major factors contributing to a Workflow Execution's memory weight are:
    *
-   * **When `reuseV8Context` is enabled** — Since most objects are shared/reused across Workflows, the per-Workflow
-   * memory footprint is much smaller. The major factor contributing to a Workflow's memory weight is the size of
-   * allocations made by the Workflow itself. Most users are able to fit at least 600 Workflows per GB of available
-   * memory. In one reference performance test, memory usage grew by approximately 1 MB per cached Workflow (that is
-   * including memory used for activity executions of these Workflows). Your millage may vary.
+   * - its input arguments;
+   * - allocations made and retained by the Workflow itself;
+   * - allocations made and retained by all loaded librairies (including the Node JS builtin context);
+   * - the size of all Payloads sent or received by the Workflow (see Core SDK issue #363).
+   *
+   * Most users are able to fil at least 250 Workflows per GB of available memory. In some performance test, we
+   * managed to fit 750 Workflows per GB. Your millage may vary.
+   *
+   * #### When `reuseV8Context` is enabled
+   * The major factors contributing to a Workflow Execution's memory weight are:
+   *
+   * - its input arguments;
+   * - allocations made and retained by the Workflow itself;
+   * - the size of all Payloads sent or received by the Workflow (see Core SDK issue #363).
+   *
+   * Since most objects are shared/reused across Workflows, the per-Workflow memory footprint is much smaller. Most
+   * users are able to fit at least 600 Workflows per GB of available memory. In one reference performance test,
+   * memory usage grew by approximately 1 MB per cached Workflow (that is including memory used for activity executions
+   * of these Workflows). Your millage may vary.
    *
    * @default if `reuseV8Context = true`, then `max(floor(max(maxHeapMemory - 200MB, 0) * (600WF / 1024MB)), 10)`.
    *          Otherwise `max(floor(max(maxHeapMemory - 400MB, 0) * (250WF / 1024MB)), 10)`
@@ -301,13 +314,40 @@ export interface WorkerOptions {
   maxCachedWorkflows?: number;
 
   /**
-   * Controls the number of Worker threads the Worker should create.
+   * Controls the number of threads to be created for executing Workflow Tasks.
    *
-   * Threads are used to create {@link https://nodejs.org/api/vm.html | vm }s for the isolated Workflow environment.
+   * Adjusting this value is generally not useful, as a Workflow Worker's performance is mostly network bound (due to
+   * communication latency with the Temporal server) rather than CPU bound. Increasing this may however help reduce
+   * the probability of Workflow Tasks Timeouts in some particular situations, for example when replaying many very
+   * large Workflow Histories at the same time. It may also make sense to tune this value if
+   * `maxConcurrentWorkflowTaskExecutions` and `maxConcurrentWorkflowTaskPolls` are increased enough so that the Worker
+   * doesn't get starved waiting for Workflow Tasks to execute.
    *
-   * New Workflows are created on the thread having the least active Workflows.
+   * There is no major downside in setting this value _slightly) higher than needed; consider however that there is a
+   * per-thread cost, both in terms of memory footprint and CPU usage, so arbitrarily setting some high number is
+   * definitely not advisable.
    *
-   * @default 1 for reuseV8Context, otherwise 8. Ignored if `debugMode` is enabled.
+   * ### Threading model
+   *
+   * All interactions with Core SDK (including polling for Workflow Activations and sending back completion results)
+   * happens on the main thread. The main thread then dispatches Workflow Activations to some worker thread, which
+   * create and maintain a per-Workflow isolated execution environments (aka. the Workflow Sandbox), implemented as
+   * {@link https://nodejs.org/api/vm.html | VM } contexts.
+   *
+   * **When `reuseV8Context` is disabled**, a new VM context is created for each Workflow handled by the Worker.
+   * Creating a new VM context is a relatively lengthy operation which blocks the Node.js event loop. Using multiple
+   * threads helps compensate the impact of this operation on the Worker's performance.
+   *
+   * **When `reuseV8Context` is enabled**, a single VM context is created for each worker thread, then reused for every
+   * Workflows handled by that thread (per-Workflow objects get shuffled in and out of that context on every Workflow
+   * Task). Consequently, there is generally no advantage in using multiple threads when `reuseV8Context` is enabled.
+   *
+   * If more than one thread is used, Workflows will be load-balanced evenly between worker threads on the first
+   * Activation of a Workflow Execution, based on the number of Workflows currently owned by each worker thread;
+   * futher Activations of that Workflow Execution will then be handled by the same thread, until the Workflow Execution
+   * gets evicted from cache.
+   *
+   * @default 1 if 'reuseV8Context' is enabled; 2 otherwise. Ignored if `debugMode` is enabled.
    */
   workflowThreadPoolSize?: number;
 
@@ -448,19 +488,6 @@ export type WorkerOptionsWithDefaults = WorkerOptions &
     >
   > & {
     /**
-     * Controls the number of Worker threads the Worker should create.
-     *
-     * Threads are used to create {@link https://nodejs.org/api/vm.html | vm }s for the isolated Workflow environment.
-     *
-     * New Workflows are created on this pool in a round-robin fashion.
-     *
-     * This value is not exposed at the moment.
-     *
-     * @default 1 for reuseV8Context, otherwise 8
-     */
-    workflowThreadPoolSize: number;
-
-    /**
      * Time to wait for result when calling a Workflow isolate function.
      * @format number of milliseconds or {@link https://www.npmjs.com/package/ms | ms-formatted string}
      *
@@ -597,7 +624,7 @@ export function addDefaultWorkerOptions(options: WorkerOptions): WorkerOptionsWi
     defaultHeartbeatThrottleInterval: '30s',
     // 4294967295ms is the maximum allowed time
     isolateExecutionTimeout: debugMode ? '4294967295ms' : '5s',
-    workflowThreadPoolSize: reuseV8Context ? 1 : 8,
+    workflowThreadPoolSize: reuseV8Context ? 1 : 2,
     maxCachedWorkflows: maxCachedWorkflows ?? defaultMaxCachedWorkflows,
     enableSDKTracing: false,
     showStackTraceSources: showStackTraceSources ?? false,

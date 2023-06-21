@@ -5,6 +5,8 @@ const maxAttempts = 100;
 const retryIntervalSecs = 1;
 const runId = '26323773-ab30-4442-9a20-c5640b31a7a3';
 
+// Starting with 1.20, we should no longer need to wait on namespace
+// TODO: Remove all of this once we are confident that this is no longer required
 try {
   for (let attempt = 1; attempt <= maxAttempts; ++attempt) {
     try {

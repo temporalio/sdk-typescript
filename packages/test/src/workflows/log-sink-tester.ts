@@ -16,7 +16,7 @@ export async function logSinkTester(): Promise<void> {
       wf.workflowInfo().historyLength
     }`
   );
-  // We rely on this test to run with workflow cache disabled. This sleep() will
+  // We rely on this test to run with workflow cache disabled. This sleep()
   // therefore ends the current WFT, evicting the workflow from cache, and thus
   // causing replay of the first sink call.
   await wf.sleep(1);
