@@ -69,6 +69,9 @@ import {
   WithDefaults,
 } from './base-client';
 import { mapAsyncIterable } from './iterators-utils';
+import { BuildIdOperation, WorkerBuildIdVersionSets } from './build-id-types';
+import IUpdateWorkerBuildIdCompatibilityRequest = temporal.api.workflowservice.v1.IUpdateWorkerBuildIdCompatibilityRequest;
+import { assertNever } from '@temporalio/common/lib/type-helpers';
 
 /**
  * A client side handle to a single Workflow instance.
@@ -581,10 +584,68 @@ export class WorkflowClient extends BaseClient {
     }
   }
 
+  /**
+   * Used to add new Build IDs or otherwise update the relative compatibility of Build IDs as
+   * defined on a specific task queue for the Worker Versioning feature. For more on this feature,
+   * see https://docs.temporal.io/workers#worker-versioning
+   *
+   * @param taskQueue The task queue to make changes to.
+   * @param operation The operation to be performed.
+   */
+  public async updateWorkerBuildIdCompatability(taskQueue: string, operation: BuildIdOperation): Promise<void> {
+    let request: IUpdateWorkerBuildIdCompatibilityRequest = {
+      namespace: this.options.namespace,
+      taskQueue: taskQueue,
+    };
+    switch (operation._type) {
+      case 'NewIdInNewDefaultSet':
+        request.addNewBuildIdInNewDefaultSet = operation.buildId;
+        break;
+      case 'NewCompatibleVersion':
+        request.addNewCompatibleBuildId = {
+          newBuildId: operation.buildId,
+          existingCompatibleBuildId: operation.existingCompatibleBuildId,
+        };
+        break;
+      case 'PromoteSetByBuildId':
+        request.promoteSetByBuildId = operation.buildId;
+        break;
+      case 'PromoteBuildIdWithinSet':
+        request.promoteBuildIdWithinSet = operation.buildId;
+        break;
+      case 'MergeSets':
+        request.mergeSets = {
+          primarySetBuildId: operation.primaryBuildId,
+          secondarySetBuildId: operation.secondaryBuildId,
+        };
+        break;
+      default:
+        assertNever(operation);
+    }
+    await this.workflowService.updateWorkerBuildIdCompatibility(request);
+  }
+
+  /**
+   * Fetch the sets of compatible Build Ids for a given task queue.
+   *
+   * @param taskQueue The task queue to fetch the compatibility information for.
+   * @returns The sets of compatible Build Ids for the given task queue, or undefined if the queue
+   *          has no Build IDs defined on it.
+   */
+  public async getWorkerBuildIdCompatability(taskQueue: string): Promise<WorkerBuildIdVersionSets | undefined> {
+    let resp = await this.workflowService.getWorkerBuildIdCompatibility({
+      taskQueue: taskQueue,
+      namespace: this.options.namespace,
+    });
+    if (resp.majorVersionSets == null || resp.majorVersionSets.length === 0) {
+      return undefined;
+    }
+    return new WorkerBuildIdVersionSets(resp);
+  }
+
   protected rethrowGrpcError(err: unknown, fallbackMessage: string, workflowExecution?: WorkflowExecution): never {
     if (isGrpcServiceError(err)) {
       rethrowKnownErrorTypes(err);
-
       if (err.code === grpcStatus.NOT_FOUND) {
         throw new WorkflowNotFoundError(
           err.details ?? 'Workflow not found',
@@ -994,6 +1055,7 @@ export class WorkflowClient extends BaseClient {
 
 export class QueryRejectedError extends Error {
   public readonly name: string = 'QueryRejectedError';
+
   constructor(public readonly status: temporal.api.enums.v1.WorkflowExecutionStatus) {
     super('Query rejected');
   }
@@ -1001,6 +1063,7 @@ export class QueryRejectedError extends Error {
 
 export class QueryNotRegisteredError extends Error {
   public readonly name: string = 'QueryNotRegisteredError';
+
   constructor(message: string, public readonly code: grpcStatus) {
     super(message);
   }

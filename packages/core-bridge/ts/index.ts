@@ -270,6 +270,13 @@ export interface WorkerOptions {
    * A string that should be unique to the exact worker code/binary being executed
    */
   buildId: string;
+  /**
+   * If set true, this worker opts into the worker versioning feature. This ensures it only receives
+   * workflow tasks for workflows which it claims to be compatible with.
+   *
+   * For more information, see https://docs.temporal.io/workers#worker-versioning
+   */
+  useWorkerVersioning: boolean;
 
   /**
    * The task queue the worker will pull from
