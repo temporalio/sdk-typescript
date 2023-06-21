@@ -294,6 +294,10 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
             js_value_getter!(cx, self, "maxConcurrentLocalActivityExecutions", JsNumber) as usize;
         let max_outstanding_workflow_tasks =
             js_value_getter!(cx, self, "maxConcurrentWorkflowTaskExecutions", JsNumber) as usize;
+        let max_concurrent_wft_polls =
+            js_value_getter!(cx, self, "maxConcurrentWorkflowTaskPolls", JsNumber) as usize;
+        let max_concurrent_at_polls =
+            js_value_getter!(cx, self, "maxConcurrentActivityTaskPolls", JsNumber) as usize;
         let sticky_queue_schedule_to_start_timeout = Duration::from_millis(js_value_getter!(
             cx,
             self,
@@ -335,6 +339,8 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
             .max_outstanding_workflow_tasks(max_outstanding_workflow_tasks)
             .max_outstanding_activities(max_outstanding_activities)
             .max_outstanding_local_activities(max_outstanding_local_activities)
+            .max_concurrent_wft_polls(max_concurrent_wft_polls)
+            .max_concurrent_at_polls(max_concurrent_at_polls)
             .max_cached_workflows(max_cached_workflows)
             .sticky_queue_schedule_to_start_timeout(sticky_queue_schedule_to_start_timeout)
             .graceful_shutdown_period(graceful_shutdown_period)

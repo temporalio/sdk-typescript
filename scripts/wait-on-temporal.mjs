@@ -3,7 +3,10 @@ import { Connection } from '@temporalio/client';
 
 const maxAttempts = 100;
 const retryIntervalSecs = 1;
+const runId = '26323773-ab30-4442-9a20-c5640b31a7a3';
 
+// Starting with 1.20, we should no longer need to wait on namespace
+// TODO: Remove all of this once we are confident that this is no longer required
 try {
   for (let attempt = 1; attempt <= maxAttempts; ++attempt) {
     try {
@@ -12,14 +15,16 @@ try {
       // See: https://github.com/temporalio/temporal/issues/1336
       await client.workflowService.getWorkflowExecutionHistory({
         namespace: 'default',
-        execution: { workflowId: 'fake', runId: '26323773-ab30-4442-9a20-c5640b31a7a3' },
+        execution: { workflowId: 'fake', runId },
       });
     } catch (err) {
       if (
         err.details &&
         (err.details.includes('workflow history not found') ||
           err.details.includes('Workflow executionsRow not found') ||
-          err.details.includes('operation GetCurrentExecution'))
+          err.details.includes('operation GetCurrentExecution') ||
+          err.details.includes('operation GetWorkflowExecution encountered not found') ||
+          err.details.includes(runId))
       ) {
         break;
       }

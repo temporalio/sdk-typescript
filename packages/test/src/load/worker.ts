@@ -1,4 +1,4 @@
-import fs from 'node:fs';
+import fs, { readFileSync } from 'node:fs';
 import http from 'node:http';
 import { inspect } from 'node:util';
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-grpc';
@@ -107,10 +107,15 @@ async function main() {
   const maxConcurrentWorkflowTaskExecutions = args['--max-concurrent-wft-executions'] ?? 100;
   const maxConcurrentLocalActivityExecutions = args['--max-concurrent-la-executions'] ?? 100;
   const maxCachedWorkflows = args['--max-cached-wfs'];
+  const maxConcurrentWorkflowTaskPolls = args['--max-wft-pollers'] ?? 2;
+  const maxConcurrentActivityTaskPolls = args['--max-at-pollers'] ?? 2;
+  const workflowThreadPoolSize: number | undefined = args['--wf-thread-pool-size'];
   const oTelUrl = args['--otel-url'];
   const logLevel = (args['--log-level'] || 'INFO').toUpperCase();
   const logFile = args['--log-file'];
   const serverAddress = getRequired(args, '--server-address');
+  const clientCertPath = args['--client-cert-path'];
+  const clientKeyPath = args['--client-key-path'];
   const namespace = getRequired(args, '--ns');
   const taskQueue = getRequired(args, '--task-queue');
   const statusPort = args['--status-port'];
@@ -139,12 +144,26 @@ async function main() {
     logger,
   });
 
+  const tlsConfig =
+    clientCertPath && clientKeyPath
+      ? {
+          tls: {
+            clientCertPair: {
+              crt: readFileSync(clientCertPath),
+              key: readFileSync(clientKeyPath),
+            },
+          },
+        }
+      : {};
+
   const clientConnection = await Connection.connect({
     address: serverAddress,
+    ...tlsConfig,
   });
 
   const connection = await NativeConnection.connect({
     address: serverAddress,
+    ...tlsConfig,
   });
 
   await withOptionalOtel(args, async () => {
@@ -159,6 +178,9 @@ async function main() {
       maxConcurrentWorkflowTaskExecutions,
       maxCachedWorkflows,
       shutdownGraceTime,
+      workflowThreadPoolSize,
+      maxConcurrentActivityTaskPolls,
+      maxConcurrentWorkflowTaskPolls,
       interceptors: {
         activityInbound: [() => new ConnectionInjectorInterceptor(clientConnection)],
       },

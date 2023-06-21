@@ -281,6 +281,16 @@ export interface WorkerOptions {
   maxConcurrentLocalActivityExecutions: number;
 
   /**
+   * Maximum number of Workflow tasks to poll concurrently.
+   */
+  maxConcurrentWorkflowTaskPolls: number;
+
+  /**
+   * Maximum number of Activity tasks to poll concurrently.
+   */
+  maxConcurrentActivityTaskPolls: number;
+
+  /**
    * If set to `false` this worker will only handle workflow tasks and local activities, it will not
    * poll for activity tasks.
    */

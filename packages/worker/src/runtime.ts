@@ -536,31 +536,51 @@ export class Runtime {
 
   protected checkHeapSizeLimit(): void {
     if (process.platform === 'linux') {
-      const cgroupMemoryConstraint = Number(
-        this.tryReadFileSync(/* cgroup v2 */ '/sys/fs/cgroup/memory.max') ??
-          this.tryReadFileSync(/* cgroup v1 */ '/sys/fs/cgroup/memory/memory.limit_in_bytes')
-      );
+      // References:
+      // - https://facebookmicrosites.github.io/cgroup2/docs/memory-controller.html
+      // - https://www.kernel.org/doc/Documentation/cgroup-v1/memory.txt
+      const cgroupMemoryConstraint =
+        this.tryReadNumberFileSync(/* cgroup v2 */ '/sys/fs/cgroup/memory.high') ??
+        this.tryReadNumberFileSync(/* cgroup v2 */ '/sys/fs/cgroup/memory.max') ??
+        this.tryReadNumberFileSync(/* cgroup v1 */ '/sys/fs/cgroup/memory/memory.limit_in_bytes');
+      const cgroupMemoryReservation =
+        this.tryReadNumberFileSync(/* cgroup v2 */ '/sys/fs/cgroup/memory.low') ??
+        this.tryReadNumberFileSync(/* cgroup v2 */ '/sys/fs/cgroup/memory.min') ??
+        this.tryReadNumberFileSync(/* cgroup v1 */ '/sys/fs/cgroup/memory/soft_limit_in_bytes');
 
-      if (cgroupMemoryConstraint < os.totalmem() && cgroupMemoryConstraint < v8.getHeapStatistics().heap_size_limit) {
-        const totalMemInMb = toMB(os.totalmem(), 0);
-        const suggestedOldSpaceSizeInMb = toMB(os.totalmem() * 0.75, 0);
+      const applicableMemoryConstraint = cgroupMemoryReservation ?? cgroupMemoryConstraint;
+      if (
+        applicableMemoryConstraint &&
+        applicableMemoryConstraint < os.totalmem() &&
+        applicableMemoryConstraint < v8.getHeapStatistics().heap_size_limit
+      ) {
+        let dockerArgs = '';
+        if (cgroupMemoryConstraint) {
+          dockerArgs += `--memory=${toMB(cgroupMemoryConstraint, 0)}m `;
+        }
+        if (cgroupMemoryReservation) {
+          dockerArgs += `--memory-reservation=${toMB(cgroupMemoryReservation, 0)}m `;
+        }
+
+        const suggestedOldSpaceSizeInMb = toMB(applicableMemoryConstraint * 0.75, 0);
 
         this.logger.warn(
           `This program is running inside a containerized environment with a memory constraint ` +
-            `(eg. docker --memory ${totalMemInMb}m). Node itself does not consider this memory constraint ` +
+            `(eg. '${dockerArgs}' or similar). Node itself does not consider this memory constraint ` +
             `in how it manages its heap memory. There is consequently a high probability that ` +
             `the process will crash due to running out of memory. To increase reliability, we recommend ` +
             `adding '--max-old-space-size=${suggestedOldSpaceSizeInMb}' to your node arguments. ` +
-            `Refer to https://docs.temporal.io/application-development/worker-performance for more ` +
-            `advice on tuning your workers.`
+            `Refer to https://docs.temporal.io/dev-guide/typescript/foundations#run-a-worker-on-docker ` +
+            `for more advice on tuning your Workers.`
         );
       }
     }
   }
 
-  protected tryReadFileSync(file: string): string | undefined {
+  protected tryReadNumberFileSync(file: string): number | undefined {
     try {
-      return fs.readFileSync(file, { encoding: 'ascii' }) as string;
+      const val = Number(fs.readFileSync(file, { encoding: 'ascii' }));
+      return isNaN(val) ? undefined : val;
     } catch (e) {
       return undefined;
     }
