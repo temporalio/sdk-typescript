@@ -2,7 +2,6 @@ import type { coresdk } from '@temporalio/proto';
 import { IllegalStateError, ParentWorkflowInfo } from '@temporalio/workflow';
 
 export const MiB = 1024 ** 2;
-export const GiB = MiB * 1024;
 
 // ts-prune-ignore-next (no idea why ts-prune is complaining all of a sudden)
 export function partition<T>(arr: T[], predicate: (x: T) => boolean): [T[], T[]] {

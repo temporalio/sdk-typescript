@@ -162,8 +162,8 @@ if (RUN_INTEGRATION_TESTS) {
       ...defaultOptions,
       taskQueue,
       sinks,
-      maxCachedWorkflows: 1,
-      maxConcurrentWorkflowTaskExecutions: 1,
+      maxCachedWorkflows: 0,
+      maxConcurrentWorkflowTaskExecutions: 2,
     });
     const client = new WorkflowClient();
     await Promise.all([
@@ -179,7 +179,7 @@ if (RUN_INTEGRATION_TESTS) {
 
     t.deepEqual(recordedMessages, [
       'Workflow execution started, replaying: false, hl: 3',
-      'Workflow execution completed, replaying: false, hl: 12',
+      'Workflow execution completed, replaying: false, hl: 8',
     ]);
   });
 
@@ -201,8 +201,8 @@ if (RUN_INTEGRATION_TESTS) {
       ...defaultOptions,
       taskQueue,
       sinks,
-      maxCachedWorkflows: 1,
-      maxConcurrentWorkflowTaskExecutions: 1,
+      maxCachedWorkflows: 0,
+      maxConcurrentWorkflowTaskExecutions: 2,
     });
     const client = new WorkflowClient();
     await worker.runUntil(client.execute(workflows.logSinkTester, { taskQueue, workflowId: uuid4() }));
@@ -212,6 +212,6 @@ if (RUN_INTEGRATION_TESTS) {
       'Workflow execution started, replaying: false, hl: 3',
       'Workflow execution started, replaying: true, hl: 3',
     ]);
-    t.is(recordedMessages[recordedMessages.length - 1], 'Workflow execution completed, replaying: false, hl: 12');
+    t.is(recordedMessages[recordedMessages.length - 1], 'Workflow execution completed, replaying: false, hl: 8');
   });
 }

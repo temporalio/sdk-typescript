@@ -137,12 +137,12 @@ export function initRuntime(options: WorkflowCreateOptionsInternal): void {
 
   const mod = importWorkflows();
   const workflowFn = mod[info.workflowType];
-  const defaultWorfklowFn = mod['default'];
+  const defaultWorkflowFn = mod['default'];
 
   if (typeof workflowFn === 'function') {
     activator.workflow = workflowFn;
-  } else if (typeof defaultWorfklowFn === 'function') {
-    activator.workflow = defaultWorfklowFn;
+  } else if (typeof defaultWorkflowFn === 'function') {
+    activator.workflow = defaultWorkflowFn;
   } else {
     const details =
       workflowFn === undefined

@@ -11,11 +11,15 @@ export type Spec = Record<string, () => any>;
 export interface SetupArgSpec extends Spec {
   '--ns': typeof String;
   '--server-address': typeof String;
+  '--client-cert-path': typeof String;
+  '--client-key-path': typeof String;
 }
 
 export const setupArgSpec: SetupArgSpec = {
   '--ns': String,
   '--server-address': String,
+  '--client-cert-path': String,
+  '--client-key-path': String,
 };
 
 export interface StarterArgSpec extends Spec {
@@ -33,6 +37,8 @@ export interface StarterArgSpec extends Spec {
   '--do-query': typeof String;
   '--initial-query-delay-ms': typeof Number;
   '--query-interval-ms': typeof Number;
+  '--client-cert-path': typeof String;
+  '--client-key-path': typeof String;
 }
 
 export const starterArgSpec: StarterArgSpec = {
@@ -50,6 +56,8 @@ export const starterArgSpec: StarterArgSpec = {
   '--do-query': String,
   '--initial-query-delay-ms': Number,
   '--query-interval-ms': Number,
+  '--client-cert-path': String,
+  '--client-key-path': String,
 };
 
 export interface WorkerArgSpec extends Spec {
@@ -59,12 +67,17 @@ export interface WorkerArgSpec extends Spec {
   '--max-concurrent-at-executions': typeof Number;
   '--max-concurrent-wft-executions': typeof Number;
   '--max-concurrent-la-executions': typeof Number;
+  '--max-wft-pollers': typeof Number;
+  '--max-at-pollers': typeof Number;
+  '--wf-thread-pool-size': typeof Number;
   '--log-level': typeof String;
   '--log-file': typeof String;
   '--server-address': typeof String;
   '--otel-url': typeof String;
   '--status-port': typeof Number;
   '--shutdown-grace-time-ms': typeof String;
+  '--client-cert-path': typeof String;
+  '--client-key-path': typeof String;
 }
 
 export const workerArgSpec: WorkerArgSpec = {
@@ -74,13 +87,17 @@ export const workerArgSpec: WorkerArgSpec = {
   '--max-concurrent-at-executions': Number,
   '--max-concurrent-wft-executions': Number,
   '--max-concurrent-la-executions': Number,
-  '--isolate-pool-size': Number,
+  '--max-wft-pollers': Number,
+  '--max-at-pollers': Number,
+  '--wf-thread-pool-size': Number,
   '--log-level': String,
   '--log-file': String,
   '--server-address': String,
   '--otel-url': String,
   '--status-port': Number,
   '--shutdown-grace-time-ms': String,
+  '--client-cert-path': String,
+  '--client-key-path': String,
 };
 
 export interface WrapperArgSpec extends Spec {
