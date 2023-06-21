@@ -253,7 +253,8 @@ export class Context {
    * Activity's life cycle will automatically be logged (at 'DEBUG' level for most messages; 'WARN' for failures).
    *
    * To use a different Logger, either overwrite this property from an Activity Interceptor, or explicitly register the
-   * `ActivityInboundLogInterceptor` with your custom Logger.
+   * `ActivityInboundLogInterceptor` with your custom Logger. You may also subclass `ActivityInboundLogInterceptor` to
+   * customize attributes that are emitted as metadata.
    */
   public logger: Logger;
 
