@@ -36,7 +36,7 @@ export class ActivityInboundLogInterceptor implements ActivityInboundCallsInterc
     // By default, that will be Runtime.logger, but another interceptor might have overriden it,
     // in which case we would want to use that one as our parent logger.
     const parentLogger = logger ?? ctx.logger;
-    this.logger = parentLogger; // eslint-disable-this-line deprecation/deprecation
+    this.logger = parentLogger; // eslint-disable-line deprecation/deprecation
 
     this.ctx.logger = Object.fromEntries(
       (['trace', 'debug', 'info', 'warn', 'error'] as const).map((level) => {
