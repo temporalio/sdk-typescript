@@ -137,8 +137,7 @@ export interface LocalActivityOptions {
 
   /**
    * Indicates how long the caller is willing to wait for local activity completion. Limits how
-   * long retries will be attempted. When not specified defaults to the workflow execution
-   * timeout (which may be unset).
+   * long retries will be attempted.
    *
    * Either this option or {@link startToCloseTimeout} is required.
    *
