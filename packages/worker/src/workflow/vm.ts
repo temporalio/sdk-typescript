@@ -1,6 +1,8 @@
 import assert from 'node:assert';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import vm from 'node:vm';
+import url from 'node:url';
+import { Buffer } from 'node:buffer';
 import { IllegalStateError } from '@temporalio/common';
 import { getTimeOfDay } from '@temporalio/core-bridge';
 import { timeOfDayToBigint } from '../logger';
@@ -74,7 +76,8 @@ export class VMWorkflowCreator implements WorkflowCreator {
     if (this.script === undefined) {
       throw new IllegalStateError('Isolate context provider was destroyed');
     }
-    const globals = { AsyncLocalStorage, assert, __webpack_module_cache__: {} };
+    const SafeBuffer = { ...Buffer, allocUnsafeSlow: Buffer.alloc, allocUnsafe: Buffer.alloc };
+    const globals = { AsyncLocalStorage, assert, __webpack_module_cache__: {}, Buffer: SafeBuffer, url };
     const context = vm.createContext(globals, { microtaskMode: 'afterEvaluate' });
     this.script.runInContext(context);
     return context;
