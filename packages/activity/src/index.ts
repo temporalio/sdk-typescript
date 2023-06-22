@@ -176,10 +176,8 @@ export interface Info {
   scheduledTimestampMs: number;
   /**
    * Timeout for this Activity from schedule to close in milliseconds.
-   *
-   * Might be undefined for local activities.
    */
-  scheduleToCloseTimeoutMs?: number;
+  scheduleToCloseTimeoutMs: number;
   /**
    * Timeout for this Activity from start to close in milliseconds
    */

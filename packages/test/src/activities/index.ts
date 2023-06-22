@@ -21,10 +21,6 @@ export async function echo(message?: string): Promise<string> {
   return message;
 }
 
-export async function isLocal(): Promise<boolean> {
-  return Context.current().info.isLocal;
-}
-
 export async function httpGet(url: string): Promise<string> {
   return `<html><body>hello from ${url}</body></html>`;
 }

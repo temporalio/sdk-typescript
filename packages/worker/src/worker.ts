@@ -1818,6 +1818,6 @@ async function extractActivityInfo(
     workflowNamespace: start.workflowNamespace,
     scheduledTimestampMs: tsToMs(start.scheduledTime),
     startToCloseTimeoutMs: tsToMs(start.startToCloseTimeout),
-    scheduleToCloseTimeoutMs: optionalTsToMs(start.scheduleToCloseTimeout),
+    scheduleToCloseTimeoutMs: tsToMs(start.scheduleToCloseTimeout),
   };
 }
