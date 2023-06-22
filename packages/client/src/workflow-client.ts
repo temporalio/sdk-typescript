@@ -591,6 +591,8 @@ export class WorkflowClient extends BaseClient {
    *
    * @param taskQueue The task queue to make changes to.
    * @param operation The operation to be performed.
+   *
+   * @experimental
    */
   public async updateWorkerBuildIdCompatability(taskQueue: string, operation: BuildIdOperation): Promise<void> {
     let request: IUpdateWorkerBuildIdCompatibilityRequest = {
@@ -631,6 +633,8 @@ export class WorkflowClient extends BaseClient {
    * @param taskQueue The task queue to fetch the compatibility information for.
    * @returns The sets of compatible Build Ids for the given task queue, or undefined if the queue
    *          has no Build IDs defined on it.
+   *
+   * @experimental
    */
   public async getWorkerBuildIdCompatability(taskQueue: string): Promise<WorkerBuildIdVersionSets | undefined> {
     let resp = await this.workflowService.getWorkerBuildIdCompatibility({

@@ -86,6 +86,8 @@ export interface WorkerOptions {
    * {@link WorkerOptions.useWorkerVersioning}.
    *
    * @default `@temporalio/worker` package name and version + checksum of workflow bundle's code
+   *
+   * @experimental
    */
   buildId?: string;
 
@@ -94,6 +96,8 @@ export interface WorkerOptions {
    * workflow tasks for workflows which it claims to be compatible with.
    *
    * For more information, see https://docs.temporal.io/workers#worker-versioning
+   *
+   * @experimental
    */
   useWorkerVersioning?: boolean;
 
