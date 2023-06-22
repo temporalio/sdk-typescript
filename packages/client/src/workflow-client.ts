@@ -597,23 +597,23 @@ export class WorkflowClient extends BaseClient {
       namespace: this.options.namespace,
       taskQueue: taskQueue,
     };
-    switch (operation._type) {
-      case 'NewIdInNewDefaultSet':
+    switch (operation.operation) {
+      case 'NEW_ID_IN_NEW_DEFAULT_SET':
         request.addNewBuildIdInNewDefaultSet = operation.buildId;
         break;
-      case 'NewCompatibleVersion':
+      case 'NEW_COMPATIBLE_VERSION':
         request.addNewCompatibleBuildId = {
           newBuildId: operation.buildId,
           existingCompatibleBuildId: operation.existingCompatibleBuildId,
         };
         break;
-      case 'PromoteSetByBuildId':
+      case 'PROMOTE_SET_BY_BUILD_ID':
         request.promoteSetByBuildId = operation.buildId;
         break;
-      case 'PromoteBuildIdWithinSet':
+      case 'PROMOTE_BUILD_ID_WITHIN_SET':
         request.promoteBuildIdWithinSet = operation.buildId;
         break;
-      case 'MergeSets':
+      case 'MERGE_SETS':
         request.mergeSets = {
           primarySetBuildId: operation.primaryBuildId,
           secondarySetBuildId: operation.secondaryBuildId,
