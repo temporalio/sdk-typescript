@@ -82,6 +82,8 @@ Breaking changes marked with a :boom:
   some runtime overhead, it leads to more predictable experience, as well as better exceptions when
   passing non-transferrable objects to a sink.
 
+- [`core`] Add the `sticky_cache_total_forced_eviction` metric ([Core #569](https://github.com/temporalio/sdk-core/pull/569)).
+
 ### Bug Fixes
 
 - [`core`] Metrics that should be produced by the SDK Core's internal Client would previously not
@@ -92,7 +94,7 @@ Breaking changes marked with a :boom:
 - Removed most `instanceof` checks from SDK, and remplaced them by `XxxError.is(...)` checks, based on the presence of
   a symbol property. We believe this should help resolve most of the problems that previously been observed when
   multiple copies or different versions of SDK packages are installed in a same project (([#1128](https://github.com/temporalio/sdk-typescript/pull/1128))).
-- [`workflow`] Make Local Activily timeouts in `ActivityInfo` match those of non-Local Activities ([#1133](https://github.com/temporalio/sdk-typescript/pull/1133))
+- [`workflow`] Make Local Activily timeouts in `ActivityInfo` match those of non-Local Activities ([#1133](https://github.com/temporalio/sdk-typescript/pull/1133), [Core #569](https://github.com/temporalio/sdk-core/pull/569)).
 
 ## [1.7.4] - 2023-04-27
 
