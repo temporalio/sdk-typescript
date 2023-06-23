@@ -6,14 +6,14 @@
 import assert from 'assert';
 import { v4 as uuid4 } from 'uuid';
 import anyTest, { TestFn } from 'ava';
-import { WorkflowClient } from '@temporalio/client';
+import { Client } from '@temporalio/client';
 import { DefaultLogger, Runtime } from '@temporalio/worker';
 import { RUN_INTEGRATION_TESTS, Worker } from './helpers';
 import * as activities from './activities';
 import { unblockSignal } from './workflows';
 
 export interface Context {
-  client: WorkflowClient;
+  client: Client;
 }
 
 const test = anyTest as TestFn<Context>;
@@ -22,7 +22,7 @@ if (RUN_INTEGRATION_TESTS) {
   test.before(async (t) => {
     Runtime.install({ logger: new DefaultLogger('DEBUG') });
     t.context = {
-      client: new WorkflowClient(),
+      client: new Client(),
     };
   });
 
@@ -31,7 +31,7 @@ if (RUN_INTEGRATION_TESTS) {
     const wf1Id = 'worker-versioning-1-' + uuid4();
     const wf2Id = 'worker-versioning-2-' + uuid4();
     const client = t.context.client;
-    await client.updateWorkerBuildIdCompatibility(taskQueue, {
+    await client.taskQueue.updateWorkerBuildIdCompatibility(taskQueue, {
       operation: 'newIdInNewDefaultSet',
       buildId: '1.0',
     });
@@ -49,15 +49,15 @@ if (RUN_INTEGRATION_TESTS) {
       t.fail('Worker 1.0 run error: ' + JSON.stringify(err));
     });
 
-    const wf1 = await client.start('unblockOrCancel', {
+    const wf1 = await client.workflow.start('unblockOrCancel', {
       taskQueue,
       workflowId: wf1Id,
     });
-    await client.updateWorkerBuildIdCompatibility(taskQueue, {
+    await client.taskQueue.updateWorkerBuildIdCompatibility(taskQueue, {
       operation: 'newIdInNewDefaultSet',
       buildId: '2.0',
     });
-    const wf2 = await client.start('unblockOrCancel', {
+    const wf2 = await client.workflow.start('unblockOrCancel', {
       taskQueue,
       workflowId: wf2Id,
     });
@@ -92,24 +92,24 @@ if (RUN_INTEGRATION_TESTS) {
     const taskQueue = 'worker-versioning-client-updates-' + uuid4();
     const conn = t.context.client;
 
-    await conn.updateWorkerBuildIdCompatibility(taskQueue, {
+    await conn.taskQueue.updateWorkerBuildIdCompatibility(taskQueue, {
       operation: 'newIdInNewDefaultSet',
       buildId: '1.0',
     });
-    let resp = await conn.getWorkerBuildIdCompatability(taskQueue);
+    let resp = await conn.taskQueue.getWorkerBuildIdCompatability(taskQueue);
     assert.equal(resp?.defaultBuildId(), '1.0');
 
-    await conn.updateWorkerBuildIdCompatibility(taskQueue, {
+    await conn.taskQueue.updateWorkerBuildIdCompatibility(taskQueue, {
       operation: 'newCompatibleVersion',
       buildId: '1.1',
       existingCompatibleBuildId: '1.0',
     });
-    resp = await conn.getWorkerBuildIdCompatability(taskQueue);
+    resp = await conn.taskQueue.getWorkerBuildIdCompatability(taskQueue);
     assert.equal(resp?.defaultBuildId(), '1.1');
 
     // Target nonexistent build ID
     await t.throwsAsync(
-      conn.updateWorkerBuildIdCompatibility(taskQueue, {
+      conn.taskQueue.updateWorkerBuildIdCompatibility(taskQueue, {
         operation: 'newCompatibleVersion',
         buildId: '1.2',
         existingCompatibleBuildId: 'amnotreal',
@@ -117,33 +117,33 @@ if (RUN_INTEGRATION_TESTS) {
       { message: /amnotreal not found/ }
     );
 
-    await conn.updateWorkerBuildIdCompatibility(taskQueue, {
+    await conn.taskQueue.updateWorkerBuildIdCompatibility(taskQueue, {
       operation: 'promoteBuildIdWithinSet',
       buildId: '1.0',
     });
-    resp = await conn.getWorkerBuildIdCompatability(taskQueue);
+    resp = await conn.taskQueue.getWorkerBuildIdCompatability(taskQueue);
     assert.equal(resp?.defaultBuildId(), '1.0');
 
-    await conn.updateWorkerBuildIdCompatibility(taskQueue, {
+    await conn.taskQueue.updateWorkerBuildIdCompatibility(taskQueue, {
       operation: 'newIdInNewDefaultSet',
       buildId: '2.0',
     });
-    resp = await conn.getWorkerBuildIdCompatability(taskQueue);
+    resp = await conn.taskQueue.getWorkerBuildIdCompatability(taskQueue);
     assert.equal(resp?.defaultBuildId(), '2.0');
 
-    await conn.updateWorkerBuildIdCompatibility(taskQueue, {
+    await conn.taskQueue.updateWorkerBuildIdCompatibility(taskQueue, {
       operation: 'promoteSetByBuildId',
       buildId: '1.0',
     });
-    resp = await conn.getWorkerBuildIdCompatability(taskQueue);
+    resp = await conn.taskQueue.getWorkerBuildIdCompatability(taskQueue);
     assert.equal(resp?.defaultBuildId(), '1.0');
 
-    await conn.updateWorkerBuildIdCompatibility(taskQueue, {
+    await conn.taskQueue.updateWorkerBuildIdCompatibility(taskQueue, {
       operation: 'mergeSets',
       primaryBuildId: '2.0',
       secondaryBuildId: '1.0',
     });
-    resp = await conn.getWorkerBuildIdCompatability(taskQueue);
+    resp = await conn.taskQueue.getWorkerBuildIdCompatability(taskQueue);
     assert.equal(resp?.defaultBuildId(), '2.0');
 
     t.pass();

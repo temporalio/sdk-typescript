@@ -584,69 +584,6 @@ export class WorkflowClient extends BaseClient {
     }
   }
 
-  /**
-   * Used to add new Build Ids or otherwise update the relative compatibility of Build Ids as
-   * defined on a specific task queue for the Worker Versioning feature. For more on this feature,
-   * see https://docs.temporal.io/workers#worker-versioning
-   *
-   * @param taskQueue The task queue to make changes to.
-   * @param operation The operation to be performed.
-   *
-   * @experimental
-   */
-  public async updateWorkerBuildIdCompatibility(taskQueue: string, operation: BuildIdOperation): Promise<void> {
-    const request: IUpdateWorkerBuildIdCompatibilityRequest = {
-      namespace: this.options.namespace,
-      taskQueue,
-    };
-    switch (operation.operation) {
-      case 'newIdInNewDefaultSet':
-        request.addNewBuildIdInNewDefaultSet = operation.buildId;
-        break;
-      case 'newCompatibleVersion':
-        request.addNewCompatibleBuildId = {
-          newBuildId: operation.buildId,
-          existingCompatibleBuildId: operation.existingCompatibleBuildId,
-        };
-        break;
-      case 'promoteSetByBuildId':
-        request.promoteSetByBuildId = operation.buildId;
-        break;
-      case 'promoteBuildIdWithinSet':
-        request.promoteBuildIdWithinSet = operation.buildId;
-        break;
-      case 'mergeSets':
-        request.mergeSets = {
-          primarySetBuildId: operation.primaryBuildId,
-          secondarySetBuildId: operation.secondaryBuildId,
-        };
-        break;
-      default:
-        assertNever(operation);
-    }
-    await this.workflowService.updateWorkerBuildIdCompatibility(request);
-  }
-
-  /**
-   * Fetch the sets of compatible Build Ids for a given task queue.
-   *
-   * @param taskQueue The task queue to fetch the compatibility information for.
-   * @returns The sets of compatible Build Ids for the given task queue, or undefined if the queue
-   *          has no Build Ids defined on it.
-   *
-   * @experimental
-   */
-  public async getWorkerBuildIdCompatability(taskQueue: string): Promise<WorkerBuildIdVersionSets | undefined> {
-    const resp = await this.workflowService.getWorkerBuildIdCompatibility({
-      taskQueue,
-      namespace: this.options.namespace,
-    });
-    if (resp.majorVersionSets == null || resp.majorVersionSets.length === 0) {
-      return undefined;
-    }
-    return versionSetsFromProto(resp);
-  }
-
   protected rethrowGrpcError(err: unknown, fallbackMessage: string, workflowExecution?: WorkflowExecution): never {
     if (isGrpcServiceError(err)) {
       rethrowKnownErrorTypes(err);
