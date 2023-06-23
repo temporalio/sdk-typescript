@@ -31,6 +31,7 @@ import {
   filterNullAndUndefined,
 } from '@temporalio/common/lib/internal-non-workflow';
 import { temporal } from '@temporalio/proto';
+import { assertNever } from '@temporalio/common/lib/type-helpers';
 import { ServiceError, WorkflowContinuedAsNewError, WorkflowFailedError, isGrpcServiceError } from './errors';
 import {
   WorkflowCancelInput,
@@ -71,7 +72,6 @@ import {
 import { mapAsyncIterable } from './iterators-utils';
 import { BuildIdOperation, WorkerBuildIdVersionSets } from './build-id-types';
 import IUpdateWorkerBuildIdCompatibilityRequest = temporal.api.workflowservice.v1.IUpdateWorkerBuildIdCompatibilityRequest;
-import { assertNever } from '@temporalio/common/lib/type-helpers';
 
 /**
  * A client side handle to a single Workflow instance.
@@ -595,27 +595,27 @@ export class WorkflowClient extends BaseClient {
    * @experimental
    */
   public async updateWorkerBuildIdCompatability(taskQueue: string, operation: BuildIdOperation): Promise<void> {
-    let request: IUpdateWorkerBuildIdCompatibilityRequest = {
+    const request: IUpdateWorkerBuildIdCompatibilityRequest = {
       namespace: this.options.namespace,
-      taskQueue: taskQueue,
+      taskQueue,
     };
     switch (operation.operation) {
-      case 'NEW_ID_IN_NEW_DEFAULT_SET':
+      case 'newIdInNewDefaultSet':
         request.addNewBuildIdInNewDefaultSet = operation.buildId;
         break;
-      case 'NEW_COMPATIBLE_VERSION':
+      case 'newCompatibleVersion':
         request.addNewCompatibleBuildId = {
           newBuildId: operation.buildId,
           existingCompatibleBuildId: operation.existingCompatibleBuildId,
         };
         break;
-      case 'PROMOTE_SET_BY_BUILD_ID':
+      case 'promoteSetByBuildId':
         request.promoteSetByBuildId = operation.buildId;
         break;
-      case 'PROMOTE_BUILD_ID_WITHIN_SET':
+      case 'promoteBuildIdWithinSet':
         request.promoteBuildIdWithinSet = operation.buildId;
         break;
-      case 'MERGE_SETS':
+      case 'mergeSets':
         request.mergeSets = {
           primarySetBuildId: operation.primaryBuildId,
           secondarySetBuildId: operation.secondaryBuildId,
@@ -637,8 +637,8 @@ export class WorkflowClient extends BaseClient {
    * @experimental
    */
   public async getWorkerBuildIdCompatability(taskQueue: string): Promise<WorkerBuildIdVersionSets | undefined> {
-    let resp = await this.workflowService.getWorkerBuildIdCompatibility({
-      taskQueue: taskQueue,
+    const resp = await this.workflowService.getWorkerBuildIdCompatibility({
+      taskQueue,
       namespace: this.options.namespace,
     });
     if (resp.majorVersionSets == null || resp.majorVersionSets.length === 0) {

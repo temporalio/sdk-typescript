@@ -19,7 +19,7 @@ export type BuildIdOperation =
  * @experimental
  */
 interface NewIdInNewDefaultSet {
-  operation: 'NEW_ID_IN_NEW_DEFAULT_SET';
+  operation: 'newIdInNewDefaultSet';
   buildId: string;
 }
 
@@ -31,7 +31,7 @@ interface NewIdInNewDefaultSet {
  * @experimental
  */
 interface NewCompatibleVersion {
-  operation: 'NEW_COMPATIBLE_VERSION';
+  operation: 'newCompatibleVersion';
   // buildId The Build Id to add to an existing compatible set.
   buildId: string;
   // A Build Id which must already be defined on the task queue, and is used to
@@ -50,7 +50,7 @@ interface NewCompatibleVersion {
  * @experimental
  */
 interface PromoteSetByBuildId {
-  operation: 'PROMOTE_SET_BY_BUILD_ID';
+  operation: 'promoteSetByBuildId';
   buildId: string;
 }
 
@@ -61,7 +61,7 @@ interface PromoteSetByBuildId {
  * @experimental
  */
 interface PromoteBuildIdWithinSet {
-  operation: 'PROMOTE_BUILD_ID_WITHIN_SET';
+  operation: 'promoteBuildIdWithinSet';
   buildId: string;
 }
 
@@ -73,7 +73,7 @@ interface PromoteBuildIdWithinSet {
  * @experimental
  */
 interface MergeSets {
-  operation: 'MERGE_SETS';
+  operation: 'mergeSets';
   // A Build Id which is used to find the primary set to be merged.
   primaryBuildId: string;
   // A Build Id which is used to find the secondary set to be merged.

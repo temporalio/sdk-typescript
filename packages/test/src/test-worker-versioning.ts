@@ -3,12 +3,12 @@
  *
  * @module
  */
+import assert from 'assert';
 import { v4 as uuid4 } from 'uuid';
+import anyTest, { TestFn } from 'ava';
 import { WorkflowClient } from '@temporalio/client';
 import { DefaultLogger, Runtime } from '@temporalio/worker';
 import { RUN_INTEGRATION_TESTS, Worker } from './helpers';
-import assert from 'assert';
-import anyTest, { TestFn } from 'ava';
 import * as activities from './activities';
 import { unblockSignal } from './workflows';
 
@@ -32,7 +32,7 @@ if (RUN_INTEGRATION_TESTS) {
     const wf2Id = 'worker-versioning-2-' + uuid4();
     const client = t.context.client;
     await client.updateWorkerBuildIdCompatability(taskQueue, {
-      operation: 'NEW_ID_IN_NEW_DEFAULT_SET',
+      operation: 'newIdInNewDefaultSet',
       buildId: '1.0',
     });
 
@@ -54,7 +54,7 @@ if (RUN_INTEGRATION_TESTS) {
       workflowId: wf1Id,
     });
     await client.updateWorkerBuildIdCompatability(taskQueue, {
-      operation: 'NEW_ID_IN_NEW_DEFAULT_SET',
+      operation: 'newIdInNewDefaultSet',
       buildId: '2.0',
     });
     const wf2 = await client.start('unblockOrCancel', {
@@ -93,14 +93,14 @@ if (RUN_INTEGRATION_TESTS) {
     const conn = t.context.client;
 
     await conn.updateWorkerBuildIdCompatability(taskQueue, {
-      operation: 'NEW_ID_IN_NEW_DEFAULT_SET',
+      operation: 'newIdInNewDefaultSet',
       buildId: '1.0',
     });
     let resp = await conn.getWorkerBuildIdCompatability(taskQueue);
     assert.equal(resp?.defaultBuildId(), '1.0');
 
     await conn.updateWorkerBuildIdCompatability(taskQueue, {
-      operation: 'NEW_COMPATIBLE_VERSION',
+      operation: 'newCompatibleVersion',
       buildId: '1.1',
       existingCompatibleBuildId: '1.0',
     });
@@ -110,7 +110,7 @@ if (RUN_INTEGRATION_TESTS) {
     // Target nonexistent build ID
     await t.throwsAsync(
       conn.updateWorkerBuildIdCompatability(taskQueue, {
-        operation: 'NEW_COMPATIBLE_VERSION',
+        operation: 'newCompatibleVersion',
         buildId: '1.2',
         existingCompatibleBuildId: 'amnotreal',
       }),
@@ -118,28 +118,28 @@ if (RUN_INTEGRATION_TESTS) {
     );
 
     await conn.updateWorkerBuildIdCompatability(taskQueue, {
-      operation: 'PROMOTE_BUILD_ID_WITHIN_SET',
+      operation: 'promoteBuildIdWithinSet',
       buildId: '1.0',
     });
     resp = await conn.getWorkerBuildIdCompatability(taskQueue);
     assert.equal(resp?.defaultBuildId(), '1.0');
 
     await conn.updateWorkerBuildIdCompatability(taskQueue, {
-      operation: 'NEW_ID_IN_NEW_DEFAULT_SET',
+      operation: 'newIdInNewDefaultSet',
       buildId: '2.0',
     });
     resp = await conn.getWorkerBuildIdCompatability(taskQueue);
     assert.equal(resp?.defaultBuildId(), '2.0');
 
     await conn.updateWorkerBuildIdCompatability(taskQueue, {
-      operation: 'PROMOTE_SET_BY_BUILD_ID',
+      operation: 'promoteSetByBuildId',
       buildId: '1.0',
     });
     resp = await conn.getWorkerBuildIdCompatability(taskQueue);
     assert.equal(resp?.defaultBuildId(), '1.0');
 
     await conn.updateWorkerBuildIdCompatability(taskQueue, {
-      operation: 'MERGE_SETS',
+      operation: 'mergeSets',
       primaryBuildId: '2.0',
       secondaryBuildId: '1.0',
     });
