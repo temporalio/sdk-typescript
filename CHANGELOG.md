@@ -9,7 +9,7 @@ Breaking changes marked with a :boom:
 ### Features
 
 - [`worker`] Add support for using multiple concurrent pollers to getch Workflow Task and Activity Task from Task Queues
-  (#1132). The number of pollers for each type can be controlled through the `WorkerOptions.maxConcurrentWorkflowTaskPolls`
+  ([#1132](https://github.com/temporalio/sdk-typescript/pull/1132)). The number of pollers for each type can be controlled through the `WorkerOptions.maxConcurrentWorkflowTaskPolls`
   and `WorkerOptions.maxConcurrentActivityTaskPolls` properties. Properly adjusting these values should allow better
   filling of the corresponding execution slots, which may signficiantly improve a Worker's throughput. Default are
   10 Workflow Task Pollers and 2 Activity Task Pollers; we however strongly recommend tuning these values
@@ -20,24 +20,23 @@ Breaking changes marked with a :boom:
   also tuned. This was not problem previously because the single poller was unlikely to fill in all execution slot
   anyway, so maximum would rarely be reached.
 
-- [`workflow`] The `reuseV8Context` worker option is no longer marked as experimental (#1132). This is a major
-  optimization of the Workflow sandboxing runtime; it allows the worker to reuse execution context across Workflows,
-  without compromising the safety of the deterministic sandbox. It significantly reduces RAM and CPU usage. The formula
-  used to auto-configure `maxCachedWorkflows` has also been reviewed to reflect a lower memory usage requirement when
-  `reuseV8Context` is enabled.
+- [`workflow`] The `reuseV8Context` worker option is no longer marked as experimental ([#1132](https://github.com/temporalio/sdk-typescript/pull/1132)).
+  This is a major optimization of the Workflow sandboxing runtime; it allows the worker to reuse execution context
+  across Workflows, without compromising the safety of the deterministic sandbox. It significantly reduces RAM and CPU
+  usage. The formula used to auto-configure `maxCachedWorkflows` has also been reviewed to reflect a lower memory usage
+  requirement when `reuseV8Context` is enabled.
 
-  At this point, you still need to opt-in to this feature by adding `reuseV8Context: true` to your
-  `WorkerOptions`, as we believe most teams should reconsider their workers's performance settings
-  after enabling this option.
+  At this point, you still need to opt-in to this feature by adding `reuseV8Context: true` to your `WorkerOptions`, as
+  we believe most teams should reconsider their workers's performance settings after enabling this option.
 
-  :boom: Note that we are planing enabling this option by default starting with 1.9.0. If for some
-  reason, you prefer to delay enabling this optimization, then we recommend that you explicitely add
-  `reuseV8Context: false` to your worker options.
+  :boom: Note that we are planing enabling this option by default starting with 1.9.0. If for some reason, you prefer to
+  delay enabling this optimization, then we recommend that you explicitely add `reuseV8Context: false` to your worker
+  options.
 
-- We now provide out-of-the-box log support from both Workflows and Activity contexts (#1117, #1138).
+- We now provide out-of-the-box log support from both Workflows and Activity contexts ([#1117](https://github.com/temporalio/sdk-typescript/pull/1117), [#1138](https://github.com/temporalio/sdk-typescript/pull/1138))).
 
-  For Workflows, the logger funnels messages through the `defaultWorkerLogger` sink, which itself
-  defaults to forwarding messages to `Runtime.instance().logger`.
+  For Workflows, the logger funnels messages through the `defaultWorkerLogger` sink, which itself defaults to forwarding
+  messages to `Runtime.instance().logger`.
 
   Example usage:
 
@@ -49,10 +48,9 @@ Breaking changes marked with a :boom:
   }
   ```
 
-  For Activities, the logger can be accessed as `Context.logger`. It defaults to
-  `Runtime.instance().logger`, but may be overriden by interceptors (ie. to set a custom logger).
-  `ActivityInboundLogInterceptor` is still installed by default, adding enriched metadata from
-  activity context on each log entry.
+  For Activities, the logger can be accessed as `Context.logger`. It defaults to `Runtime.instance().logger`, but may be
+  overriden by interceptors (ie. to set a custom logger). `ActivityInboundLogInterceptor` is still installed by default,
+  adding enriched metadata from activity context on each log entry.
 
   Example usage:
 
@@ -65,22 +63,20 @@ Breaking changes marked with a :boom:
   }
   ```
 
-- :boom: Protect against 'ms' durations errors (#1136) There has been several reports of situations
-  where invalid durations resulted in unexpected and hard to diagnose issues (eg. can you can
-  predict what `const bool = condition(fn, '1 month')` will do?) We now provide type definitions for
-  "ms-formated strings", through the newly introduced `Duration` type, which is either a
-  well formed `ms`-formated string or a number of milliseconds. Invalid ms-formated-strings will
-  also throw at runtime.
+- :boom: Protect against 'ms' durations errors ([#1136](https://github.com/temporalio/sdk-typescript/pull/1136)) There
+  has been several reports of situations where invalid durations resulted in unexpected and hard to diagnose issues
+  (eg. can you can predict what `const bool = condition(fn, '1 month')` will do?) We now provide type definitions for
+  "ms-formated strings", through the newly introduced `Duration` type, which is either a well formed `ms`-formated
+  string or a number of milliseconds. Invalid ms-formated-strings will also throw at runtime.
 
-  Note: this might cause build errors in situations where a non-const string value is passed
-  somewhere we expect a `Duration`. Consider either validating and converting these strings _before_
-  passing them as `Duration`, or simply cast them to `Duration` and deal with runtime exception that
-  might be thrown if an invalid value is provided.
+  Note: this might cause build errors in situations where a non-const string value is passed somewhere we expect a
+  `Duration`. Consider either validating and converting these strings _before_ passing them as `Duration`, or simply
+  cast them to `Duration` and deal with runtime exception that might be thrown if an invalid value is provided.
 
-- [`workflow`] Clone sink args at call time on Node 17+ (#1118) A subtile aspect of Workflow Sinks
-  is that calls are actually buffered and get executed only once the current Workflow Task completes.
-  That sometime caused unexpected behavior where an object passed as argument to a sink function is
-  mutated afterward.
+- [`workflow`] Clone sink args at call time on Node 17+ ([#1118](https://github.com/temporalio/sdk-typescript/pull/1118)).
+  A subtile aspect of Workflow Sinks is that calls are actually buffered and get executed only once the current
+  Workflow Task completes. That sometime caused unexpected behavior where an object passed as argument to a sink
+  function is mutated afterward.
 
   On Node.js 17+, we now clone sink arguments at call time, using `structuredClone`. While this adds
   some runtime overhead, it leads to more predictable experience, as well as better exceptions when
@@ -89,14 +85,14 @@ Breaking changes marked with a :boom:
 ### Bug Fixes
 
 - [`core`] Metrics that should be produced by the SDK Core's internal Client would previously not
-  get emited. This has been fixed. (#1119)
-- [`client`] Fix incorrect schedule spec boundaries checks on hour and day of month (#1120)
+  get emited. This has been fixed. ([#1119](https://github.com/temporalio/sdk-typescript/pull/1119))
+- [`client`] Fix incorrect schedule spec boundaries checks on hour and day of month ([#1120](https://github.com/temporalio/sdk-typescript/pull/1120))
 - [`workflow`] We know throw more meaningful errors when Workflow-only APIs are used from
-  non-Workflow context, and some other situations. (#1126)
-- Eemoved most `instanceof` checks from SDK, and remplaced them by `XxxError.is(...)` checks, based on the presence of
+  non-Workflow context, and some other situations. ([#1126](https://github.com/temporalio/sdk-typescript/pull/1126))
+- Removed most `instanceof` checks from SDK, and remplaced them by `XxxError.is(...)` checks, based on the presence of
   a symbol property. We believe this should help resolve most of the problems that previously been observed when
-  multiple copies or different versions of SDK packages are installed in a same project.
-- [`workflow`] Make Local Activily timeouts in `ActivityInfo` match those of non-Local Activities (#1133)
+  multiple copies or different versions of SDK packages are installed in a same project (([#1128](https://github.com/temporalio/sdk-typescript/pull/1128))).
+- [`workflow`] Make Local Activily timeouts in `ActivityInfo` match those of non-Local Activities ([#1133](https://github.com/temporalio/sdk-typescript/pull/1133))
 
 ## [1.7.4] - 2023-04-27
 
