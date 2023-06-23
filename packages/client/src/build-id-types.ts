@@ -26,16 +26,16 @@ interface NewIdInNewDefaultSet {
 /**
  * This operation adds a new Build Id into an existing compatible set. The newly added ID becomes
  * the default for that compatible set, and thus new workflow tasks for workflows which have been
- * executing on workers in that set will now start on this new Build ID.
+ * executing on workers in that set will now start on this new Build Id.
  *
  * @experimental
  */
 interface NewCompatibleVersion {
   operation: 'newCompatibleVersion';
-  // buildId The Build Id to add to an existing compatible set.
+  // The Build Id to add to an existing compatible set.
   buildId: string;
   // A Build Id which must already be defined on the task queue, and is used to
-  // find the compatible set to add the new ID to.
+  // find the compatible set to add the new id to.
   existingCompatibleBuildId: string;
   // If set to true, the targeted set will also be promoted to become the
   // overall default set for the queue.
@@ -43,8 +43,8 @@ interface NewCompatibleVersion {
 }
 
 /**
- * This operation promotes a set of compatible Build IDs to become the current
- * default set for the task queue. Any Build ID in the set may be used to
+ * This operation promotes a set of compatible Build Ids to become the current
+ * default set for the task queue. Any Build Id in the set may be used to
  * target it.
  *
  * @experimental
@@ -55,7 +55,7 @@ interface PromoteSetByBuildId {
 }
 
 /**
- * This operation promotes a Build ID within an existing set to become the
+ * This operation promotes a Build Id within an existing set to become the
  * default ID for that set.
  *
  * @experimental
@@ -81,7 +81,7 @@ interface MergeSets {
 }
 
 /**
- * Represents the sets of compatible Build ID versions associated with some
+ * Represents the sets of compatible Build Id versions associated with some
  * Task Queue, as fetched by {@link WorkflowClient.getWorkerBuildIdCompatability}.
  *
  * @experimental
@@ -97,7 +97,7 @@ export class WorkerBuildIdVersionSets {
   }
 
   /**
-   * Returns the default set of compatible Build IDs for the task queue these sets are
+   * Returns the default set of compatible Build Ids for the task queue these sets are
    * associated with.
    */
   public defaultSet(): BuildIdVersionSet {
@@ -105,7 +105,7 @@ export class WorkerBuildIdVersionSets {
   }
 
   /**
-   * Returns the overall default Build ID for the task queue these sets are
+   * Returns the overall default Build Id for the task queue these sets are
    * associated with.
    */
   public defaultBuildId(): string {
@@ -114,7 +114,7 @@ export class WorkerBuildIdVersionSets {
 }
 
 /**
- * Represents one set of compatible Build IDs.
+ * Represents one set of compatible Build Ids.
  *
  * @experimental
  */
@@ -123,13 +123,13 @@ export class BuildIdVersionSet {
 
   constructor(set: temporal.api.taskqueue.v1.ICompatibleVersionSet) {
     if (set == null || set.buildIds == null || set.buildIds.length === 0) {
-      throw new Error('Compatible version sets must contain at least one Build ID');
+      throw new Error('Compatible version sets must contain at least one Build Id');
     }
     this.buildIds = set.buildIds;
   }
 
   /**
-   * Returns the default Build ID for this set
+   * Returns the default Build Id for this set
    */
   public default(): string {
     return this.buildIds[this.buildIds.length - 1];

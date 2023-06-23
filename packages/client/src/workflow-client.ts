@@ -585,7 +585,7 @@ export class WorkflowClient extends BaseClient {
   }
 
   /**
-   * Used to add new Build IDs or otherwise update the relative compatibility of Build IDs as
+   * Used to add new Build Ids or otherwise update the relative compatibility of Build Ids as
    * defined on a specific task queue for the Worker Versioning feature. For more on this feature,
    * see https://docs.temporal.io/workers#worker-versioning
    *
@@ -632,7 +632,7 @@ export class WorkflowClient extends BaseClient {
    *
    * @param taskQueue The task queue to fetch the compatibility information for.
    * @returns The sets of compatible Build Ids for the given task queue, or undefined if the queue
-   *          has no Build IDs defined on it.
+   *          has no Build Ids defined on it.
    *
    * @experimental
    */
