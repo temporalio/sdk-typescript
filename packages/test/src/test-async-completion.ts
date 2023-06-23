@@ -51,7 +51,8 @@ const NOT_FOUND_TASK_TOKEN = new Uint8Array([
 //
 async function makeNotFoundTaskToken(conn: Connection, namespace: string): Promise<Uint8Array> {
   const { namespaceInfo } = await conn.workflowService.describeNamespace({ namespace });
-  const buf = Buffer.copyBytesFrom(NOT_FOUND_TASK_TOKEN);
+  const buf = Buffer.alloc(NOT_FOUND_TASK_TOKEN.length);
+  buf.set(NOT_FOUND_TASK_TOKEN);
   buf.subarray(2, 38).set(Buffer.from(namespaceInfo?.id as string));
   return new Uint8Array(buf);
 }
