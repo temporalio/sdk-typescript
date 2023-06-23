@@ -1,7 +1,7 @@
 import { temporal } from '@temporalio/proto';
 
 /**
- * Operations that can be passed to {@link WorkflowClient.updateWorkerBuildIdCompatability}.
+ * Operations that can be passed to {@link WorkflowClient.updateWorkerBuildIdCompatibility}.
  *
  * @experimental
  */
@@ -13,7 +13,7 @@ export type BuildIdOperation =
   | MergeSets;
 
 /**
- * This operation adds a new Build Id into a new set, which will be used as the default set for
+ * Adds a new Build Id into a new set, which will be used as the default set for
  * the queue. This means all new workflows will start on this Build Id.
  *
  * @experimental
@@ -24,7 +24,7 @@ interface NewIdInNewDefaultSet {
 }
 
 /**
- * This operation adds a new Build Id into an existing compatible set. The newly added ID becomes
+ * Adds a new Build Id into an existing compatible set. The newly added ID becomes
  * the default for that compatible set, and thus new workflow tasks for workflows which have been
  * executing on workers in that set will now start on this new Build Id.
  *
@@ -39,11 +39,11 @@ interface NewCompatibleVersion {
   existingCompatibleBuildId: string;
   // If set to true, the targeted set will also be promoted to become the
   // overall default set for the queue.
-  makeSetDefault?: boolean;
+  promoteSet?: boolean;
 }
 
 /**
- * This operation promotes a set of compatible Build Ids to become the current
+ * Promotes a set of compatible Build Ids to become the current
  * default set for the task queue. Any Build Id in the set may be used to
  * target it.
  *
@@ -55,8 +55,8 @@ interface PromoteSetByBuildId {
 }
 
 /**
- * This operation promotes a Build Id within an existing set to become the
- * default ID for that set.
+ * Promotes a Build Id within an existing set to become the default ID for that
+ * set.
  *
  * @experimental
  */
@@ -66,9 +66,9 @@ interface PromoteBuildIdWithinSet {
 }
 
 /**
- * This operation merges two sets into one set, thus declaring all the Build Ids in both as
- * compatible with one another. The default of the primary set is maintained as the merged set's
- * overall default.
+ * Merges two sets into one set, thus declaring all the Build Ids in both as
+ * compatible with one another. The default of the primary set is maintained as
+ * the merged set's overall default.
  *
  * @experimental
  */

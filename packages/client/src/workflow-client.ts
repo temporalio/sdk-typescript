@@ -594,7 +594,7 @@ export class WorkflowClient extends BaseClient {
    *
    * @experimental
    */
-  public async updateWorkerBuildIdCompatability(taskQueue: string, operation: BuildIdOperation): Promise<void> {
+  public async updateWorkerBuildIdCompatibility(taskQueue: string, operation: BuildIdOperation): Promise<void> {
     const request: IUpdateWorkerBuildIdCompatibilityRequest = {
       namespace: this.options.namespace,
       taskQueue,
