@@ -86,31 +86,23 @@ interface MergeSets {
  *
  * @experimental
  */
-export class WorkerBuildIdVersionSets {
-  public readonly versionSets: BuildIdVersionSet[];
-
-  constructor(resp: temporal.api.workflowservice.v1.GetWorkerBuildIdCompatibilityResponse) {
-    if (resp == null || resp.majorVersionSets == null || resp.majorVersionSets.length === 0) {
-      throw new Error('Must be constructed from a compatability response with at least one version set');
-    }
-    this.versionSets = resp.majorVersionSets.map((set) => new BuildIdVersionSet(set));
-  }
+export interface WorkerBuildIdVersionSets {
+  /**
+   * All version sets that were fetched for this task queue.
+   */
+  readonly versionSets: BuildIdVersionSet[];
 
   /**
    * Returns the default set of compatible Build Ids for the task queue these sets are
    * associated with.
    */
-  public defaultSet(): BuildIdVersionSet {
-    return new BuildIdVersionSet(this.versionSets[this.versionSets.length - 1]);
-  }
+  defaultSet(): BuildIdVersionSet;
 
   /**
    * Returns the overall default Build Id for the task queue these sets are
    * associated with.
    */
-  public defaultBuildId(): string {
-    return this.defaultSet().default();
-  }
+  defaultBuildId(): string;
 }
 
 /**
@@ -118,20 +110,39 @@ export class WorkerBuildIdVersionSets {
  *
  * @experimental
  */
-export class BuildIdVersionSet {
-  public readonly buildIds: string[];
+export interface BuildIdVersionSet {
+  // All build IDs contained in the set.
+  readonly buildIds: string[];
 
-  constructor(set: temporal.api.taskqueue.v1.ICompatibleVersionSet) {
-    if (set == null || set.buildIds == null || set.buildIds.length === 0) {
-      throw new Error('Compatible version sets must contain at least one Build Id');
-    }
-    this.buildIds = set.buildIds;
-  }
+  // Returns the default Build Id for this set
+  default(): string;
+}
 
-  /**
-   * Returns the default Build Id for this set
-   */
-  public default(): string {
-    return this.buildIds[this.buildIds.length - 1];
+export function versionSetsFromProto(
+  resp: temporal.api.workflowservice.v1.GetWorkerBuildIdCompatibilityResponse
+): WorkerBuildIdVersionSets {
+  if (resp == null || resp.majorVersionSets == null || resp.majorVersionSets.length === 0) {
+    throw new Error('Must be constructed from a compatability response with at least one version set');
   }
+  return {
+    versionSets: resp.majorVersionSets.map((set) => versionSetFromProto(set)),
+    defaultSet(): BuildIdVersionSet {
+      return this.versionSets[this.versionSets.length - 1];
+    },
+    defaultBuildId(): string {
+      return this.defaultSet().default();
+    },
+  };
+}
+
+function versionSetFromProto(set: temporal.api.taskqueue.v1.ICompatibleVersionSet): BuildIdVersionSet {
+  if (set == null || set.buildIds == null || set.buildIds.length === 0) {
+    throw new Error('Compatible version sets must contain at least one Build Id');
+  }
+  return {
+    buildIds: set.buildIds,
+    default(): string {
+      return this.buildIds[this.buildIds.length - 1];
+    },
+  };
 }

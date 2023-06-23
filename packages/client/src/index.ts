@@ -38,4 +38,4 @@ export * from './workflow-client';
 export * from './workflow-options';
 export * from './schedule-types';
 export * from './schedule-client';
-export * from './build-id-types';
+export { WorkerBuildIdVersionSets, BuildIdVersionSet, BuildIdOperation } from './build-id-types';

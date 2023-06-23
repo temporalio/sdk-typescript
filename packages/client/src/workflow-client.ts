@@ -70,7 +70,7 @@ import {
   WithDefaults,
 } from './base-client';
 import { mapAsyncIterable } from './iterators-utils';
-import { BuildIdOperation, WorkerBuildIdVersionSets } from './build-id-types';
+import { BuildIdOperation, versionSetsFromProto, WorkerBuildIdVersionSets } from './build-id-types';
 import IUpdateWorkerBuildIdCompatibilityRequest = temporal.api.workflowservice.v1.IUpdateWorkerBuildIdCompatibilityRequest;
 
 /**
@@ -644,7 +644,7 @@ export class WorkflowClient extends BaseClient {
     if (resp.majorVersionSets == null || resp.majorVersionSets.length === 0) {
       return undefined;
     }
-    return new WorkerBuildIdVersionSets(resp);
+    return versionSetsFromProto(resp);
   }
 
   protected rethrowGrpcError(err: unknown, fallbackMessage: string, workflowExecution?: WorkflowExecution): never {
