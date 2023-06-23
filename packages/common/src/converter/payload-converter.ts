@@ -1,5 +1,6 @@
+import type { temporal } from '@temporalio/proto';
 import { decode, encode } from '../encoding';
-import { IllegalStateError, PayloadConverterError, ValueError } from '../errors';
+import { PayloadConverterError, ValueError } from '../errors';
 import { Payload } from '../interfaces';
 import { encodingKeys, encodingTypes, METADATA_ENCODING_KEY } from './types';
 
@@ -140,14 +141,19 @@ export class CompositePayloadConverter implements PayloadConverter {
    * Returns the first successful result, throws {@link ValueError} if there is no converter that can handle the value.
    */
   public toPayload<T>(value: T): Payload {
+    let lastError: unknown = undefined;
     for (const converter of this.converters) {
-      const result = converter.toPayload(value);
-      if (result !== undefined) {
-        return result;
+      try {
+        const result = converter.toPayload(value);
+        if (result !== undefined) {
+          return result;
+        }
+      } catch (e) {
+        lastError = e;
       }
     }
 
-    throw new ValueError(`Unable to convert ${value} to payload`);
+    throw new ValueError(`Unable to convert ${value} to payload`, lastError);
   }
 
   /**
@@ -224,12 +230,7 @@ export class JsonPayloadConverter implements PayloadConverterWithEncoding {
       return undefined;
     }
 
-    let json;
-    try {
-      json = JSON.stringify(value);
-    } catch (e) {
-      return undefined;
-    }
+    const json = JSON.stringify(value);
 
     return {
       metadata: {
@@ -288,9 +289,14 @@ export class SearchAttributePayloadConverter implements PayloadConverter {
     }
 
     // JSON.stringify takes care of converting Dates to ISO strings
-    const ret = this.jsonConverter.toPayload(values);
+    let ret: temporal.api.common.v1.IPayload | undefined;
+    try {
+      ret = this.jsonConverter.toPayload(values);
+    } catch (e) {
+      throw new ValueError(`Could not convert search attributes to payloads: ${(e as Error)?.message ?? e}`);
+    }
     if (ret === undefined) {
-      throw new IllegalStateError('Could not convert search attributes to payloads');
+      throw new ValueError('Could not convert search attributes to payloads');
     }
     return ret;
   }

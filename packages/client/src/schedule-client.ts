@@ -1,6 +1,6 @@
 import { status as grpcStatus } from '@grpc/grpc-js';
 import { v4 as uuid4 } from 'uuid';
-import { mapToPayloads, searchAttributePayloadConverter, Workflow } from '@temporalio/common';
+import { mapToPayloads, NamespaceNotFoundError, searchAttributePayloadConverter, Workflow } from '@temporalio/common';
 import { composeInterceptors, Headers } from '@temporalio/common/lib/interceptors';
 import {
   encodeMapToPayloads,
@@ -263,7 +263,7 @@ export class ScheduleClient extends BaseClient {
       if (err.code === grpcStatus.ALREADY_EXISTS) {
         throw new ScheduleAlreadyRunning('Schedule already exists and is running', opts.scheduleId);
       }
-      this.rethrowGrpcError(err, opts.scheduleId, 'Failed to create schedule');
+      this.rethrowGrpcError(err, 'Failed to create schedule', opts.scheduleId);
     }
   }
 
@@ -279,7 +279,7 @@ export class ScheduleClient extends BaseClient {
         scheduleId,
       });
     } catch (err: any) {
-      this.rethrowGrpcError(err, scheduleId, 'Failed to describe schedule');
+      this.rethrowGrpcError(err, 'Failed to describe schedule', scheduleId);
     }
   }
 
@@ -306,7 +306,7 @@ export class ScheduleClient extends BaseClient {
     try {
       return await this.workflowService.updateSchedule(req);
     } catch (err: any) {
-      this.rethrowGrpcError(err, scheduleId, 'Failed to update schedule');
+      this.rethrowGrpcError(err, 'Failed to update schedule', scheduleId);
     }
   }
 
@@ -326,7 +326,7 @@ export class ScheduleClient extends BaseClient {
         patch,
       });
     } catch (err: any) {
-      this.rethrowGrpcError(err, scheduleId, 'Failed to patch schedule');
+      this.rethrowGrpcError(err, 'Failed to patch schedule', scheduleId);
     }
   }
 
@@ -343,7 +343,7 @@ export class ScheduleClient extends BaseClient {
         scheduleId,
       });
     } catch (err: any) {
-      this.rethrowGrpcError(err, scheduleId, 'Failed to delete schedule');
+      this.rethrowGrpcError(err, 'Failed to delete schedule', scheduleId);
     }
   }
 
@@ -366,13 +366,16 @@ export class ScheduleClient extends BaseClient {
   public async *list(options?: ListScheduleOptions): AsyncIterable<ScheduleSummary> {
     let nextPageToken: Uint8Array | undefined = undefined;
     for (;;) {
-      const response: temporal.api.workflowservice.v1.IListSchedulesResponse = await this.workflowService.listSchedules(
-        {
+      let response: temporal.api.workflowservice.v1.ListSchedulesResponse;
+      try {
+        response = await this.workflowService.listSchedules({
           nextPageToken,
           namespace: this.options.namespace,
           maximumPageSize: options?.pageSize,
-        }
-      );
+        });
+      } catch (e) {
+        this.rethrowGrpcError(e, 'Failed to list schedules', undefined);
+      }
 
       for (const raw of response.schedules ?? []) {
         yield <ScheduleSummary>{
@@ -497,10 +500,15 @@ export class ScheduleClient extends BaseClient {
     };
   }
 
-  protected rethrowGrpcError(err: unknown, scheduleId: string, fallbackMessage: string): never {
+  protected rethrowGrpcError(err: unknown, fallbackMessage: string, scheduleId?: string): never {
     if (isServerErrorResponse(err)) {
       if (err.code === grpcStatus.NOT_FOUND) {
-        throw new ScheduleNotFoundError(err.details ?? 'Schedule not found', scheduleId);
+        const matcher = err.message.match(/^5 NOT_FOUND: Namespace (.*?) is not found./);
+        if (matcher) {
+          throw new NamespaceNotFoundError(matcher[1]);
+        } else {
+          throw new ScheduleNotFoundError(err.details ?? 'Schedule not found', scheduleId ?? '');
+        }
       }
       if (
         err.code === grpcStatus.INVALID_ARGUMENT &&

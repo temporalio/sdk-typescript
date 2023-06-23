@@ -72,3 +72,14 @@ export class WorkflowNotFoundError extends Error {
     super(message);
   }
 }
+
+/**
+ * Thrown when the specified namespace is not known to Temporal Server.
+ */
+export class NamespaceNotFoundError extends Error {
+  public readonly name: string = 'NamespaceNotFoundError';
+
+  constructor(public readonly namespace: string) {
+    super(`Namespace not found: '${namespace}'`);
+  }
+}

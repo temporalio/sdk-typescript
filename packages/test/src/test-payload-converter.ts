@@ -76,7 +76,7 @@ test('JsonPayloadConverter converts from non undefined', (t) => {
   t.deepEqual(converter.toPayload('abc'), payload('abc'));
 
   t.is(converter.toPayload(undefined), undefined);
-  t.is(converter.toPayload(0n), undefined);
+  t.throws(() => converter.toPayload(0n), { instanceOf: TypeError, message: 'Do not know how to serialize a BigInt' });
 });
 
 test('JsonPayloadConverter converts to object', (t) => {
