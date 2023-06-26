@@ -1,15 +1,16 @@
+import { filterNullAndUndefined } from '@temporalio/common/lib/internal-non-workflow';
+import { assertNever, RequireAtLeastOne } from '@temporalio/common/lib/type-helpers';
+import { temporal } from '@temporalio/proto';
 import { BaseClient, BaseClientOptions, defaultBaseClientOptions, LoadedWithDefaults } from './base-client';
 import { WorkflowService } from './types';
-import { filterNullAndUndefined } from '@temporalio/common/lib/internal-non-workflow';
 import { BuildIdOperation, versionSetsFromProto, WorkerBuildIdVersionSets } from './build-id-types';
-import { assertNever } from '@temporalio/common/lib/type-helpers';
-import { temporal } from '@temporalio/proto';
 import IUpdateWorkerBuildIdCompatibilityRequest = temporal.api.workflowservice.v1.IUpdateWorkerBuildIdCompatibilityRequest;
+import GetWorkerTaskReachabilityResponse = temporal.api.workflowservice.v1.GetWorkerTaskReachabilityResponse;
 
 /**
  * @experimental
  */
-export interface TaskQueueClientOptions extends BaseClientOptions {}
+export type TaskQueueClientOptions = BaseClientOptions;
 
 /**
  * @experimental
@@ -99,5 +100,127 @@ export class TaskQueueClient extends BaseClient {
       return undefined;
     }
     return versionSetsFromProto(resp);
+  }
+
+  /**
+   * Fetches task reachability to determine whether a worker may be retired. The request may specify
+   * task queues to query for or let the server fetch all task queues mapped to the given build IDs.
+   *
+   * When requesting a large number of task queues or all task queues associated with the given
+   * build ids in a namespace, all task queues will be listed in the response but some of them may
+   * not contain reachability information due to a server enforced limit. When reaching the limit,
+   * task queues that reachability information could not be retrieved for will be marked with a
+   * `NotFetched` entry in {@link BuildIdReachability.taskQueueReachability}. The caller may issue
+   * another call to get the reachability for those task queues.
+   */
+  public async getBuildIdReachability(options: ReachabilityOptions): Promise<ReachabilityResponse> {
+    const resp = await this.workflowService.getWorkerTaskReachability({
+      namespace: this.options.namespace,
+      taskQueues: options.taskQueues,
+      buildIds: options.buildIds,
+      reachability: reachabilityTypeToProto(options.reachability),
+    });
+    return reachabilityResponseFromProto(resp);
+  }
+}
+
+/**
+ * Options for {@link TaskQueueClient.getBuildIdReachability}
+ */
+export type ReachabilityOptions = RequireAtLeastOne<BaseReachabilityOptions, 'buildIds' | 'taskQueues'>;
+
+/**
+ * There are different types of reachability:
+ *   - `NewWorkflows`: The Build Id might be used by new workflows
+ *   - `ExistingWorkflows` The Build Id might be used by open workflows and/or closed workflows.
+ *   - `OpenWorkflows` The Build Id might be used by open workflows
+ *   - `ClosedWorkflows` The Build Id might be used by closed workflows
+ */
+export type ReachabilityType = 'NewWorkflows' | 'ExistingWorkflows' | 'OpenWorkflows' | 'ClosedWorkflows';
+
+interface BaseReachabilityOptions {
+  /**
+   * A list of build ids to query the reachability of. Currently, at least one Build Id must be
+   * specified, but this restriction may be lifted in the future.
+   */
+  buildIds: string[];
+  /**
+   *  A list of task queues with Build Ids defined on them that the request is
+   *  concerned with.
+   */
+  taskQueues?: string[];
+  /** The kind of reachability this request is concerned with. */
+  reachability?: ReachabilityType;
+}
+
+export interface ReachabilityResponse {
+  /** Maps Build Ids to their reachability information. */
+  buildIdReachability: Map<string, BuildIdReachability>;
+}
+
+type ReachabilityTypeResponse = ReachabilityType | 'NotFetched';
+
+export interface BuildIdReachability {
+  /**
+   *  Maps Task Queue names to how the Build Id may be reachable from them. If they are not
+   *  reachable, the map value will be an empty array.
+   */
+  taskQueueReachability: Map<string, ReachabilityTypeResponse[]>;
+}
+
+function reachabilityTypeToProto(type: ReachabilityType | undefined): temporal.api.enums.v1.TaskReachability {
+  switch (type) {
+    case undefined:
+      return temporal.api.enums.v1.TaskReachability.TASK_REACHABILITY_UNSPECIFIED;
+    case 'NewWorkflows':
+      return temporal.api.enums.v1.TaskReachability.TASK_REACHABILITY_NEW_WORKFLOWS;
+    case 'ExistingWorkflows':
+      return temporal.api.enums.v1.TaskReachability.TASK_REACHABILITY_EXISTING_WORKFLOWS;
+    case 'OpenWorkflows':
+      return temporal.api.enums.v1.TaskReachability.TASK_REACHABILITY_OPEN_WORKFLOWS;
+    case 'ClosedWorkflows':
+      return temporal.api.enums.v1.TaskReachability.TASK_REACHABILITY_CLOSED_WORKFLOWS;
+    default:
+      assertNever(type);
+  }
+}
+
+function reachabilityResponseFromProto(resp: GetWorkerTaskReachabilityResponse): ReachabilityResponse {
+  return {
+    buildIdReachability: new Map(
+      resp.buildIdReachability.map((bir) => {
+        const taskQueueReachability = new Map<string, ReachabilityTypeResponse[]>();
+        if (bir.taskQueueReachability != null) {
+          for (const tqr of bir.taskQueueReachability) {
+            if (tqr.taskQueue == null) {
+              continue;
+            }
+            if (tqr.reachability == null) {
+              taskQueueReachability.set(tqr.taskQueue, []);
+              continue;
+            }
+            taskQueueReachability.set(tqr.taskQueue, tqr.reachability.map(reachabilityTypeFromProto));
+          }
+        }
+        return [bir.buildId ?? '', { taskQueueReachability }];
+      })
+    ),
+  };
+}
+
+function reachabilityTypeFromProto(rtype: temporal.api.enums.v1.TaskReachability): ReachabilityTypeResponse {
+  switch (rtype) {
+    case temporal.api.enums.v1.TaskReachability.TASK_REACHABILITY_UNSPECIFIED:
+      return 'NotFetched';
+    case temporal.api.enums.v1.TaskReachability.TASK_REACHABILITY_NEW_WORKFLOWS:
+      return 'NewWorkflows';
+    case temporal.api.enums.v1.TaskReachability.TASK_REACHABILITY_EXISTING_WORKFLOWS:
+      return 'ExistingWorkflows';
+    case temporal.api.enums.v1.TaskReachability.TASK_REACHABILITY_OPEN_WORKFLOWS:
+      return 'OpenWorkflows';
+    case temporal.api.enums.v1.TaskReachability.TASK_REACHABILITY_CLOSED_WORKFLOWS:
+      return 'ClosedWorkflows';
+    default:
+      return assertNever(rtype);
   }
 }

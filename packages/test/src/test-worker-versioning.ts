@@ -146,6 +146,11 @@ if (RUN_INTEGRATION_TESTS) {
     resp = await conn.taskQueue.getWorkerBuildIdCompatability(taskQueue);
     assert.equal(resp?.defaultBuildId(), '2.0');
 
+    const reachResp = await conn.taskQueue.getBuildIdReachability({ buildIds: ['2.0', '1.0', '1.1'] });
+    assert.deepEqual(reachResp.buildIdReachability.get('2.0')?.taskQueueReachability.get(taskQueue), ['NewWorkflows']);
+    assert.deepEqual(reachResp.buildIdReachability.get('1.1')?.taskQueueReachability.get(taskQueue), []);
+    assert.deepEqual(reachResp.buildIdReachability.get('1.0')?.taskQueueReachability.get(taskQueue), []);
+
     t.pass();
   });
 }

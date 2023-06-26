@@ -31,7 +31,6 @@ import {
   filterNullAndUndefined,
 } from '@temporalio/common/lib/internal-non-workflow';
 import { temporal } from '@temporalio/proto';
-import { assertNever } from '@temporalio/common/lib/type-helpers';
 import { ServiceError, WorkflowContinuedAsNewError, WorkflowFailedError, isGrpcServiceError } from './errors';
 import {
   WorkflowCancelInput,
@@ -70,8 +69,6 @@ import {
   WithDefaults,
 } from './base-client';
 import { mapAsyncIterable } from './iterators-utils';
-import { BuildIdOperation, versionSetsFromProto, WorkerBuildIdVersionSets } from './build-id-types';
-import IUpdateWorkerBuildIdCompatibilityRequest = temporal.api.workflowservice.v1.IUpdateWorkerBuildIdCompatibilityRequest;
 
 /**
  * A client side handle to a single Workflow instance.

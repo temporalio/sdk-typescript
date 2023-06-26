@@ -6,7 +6,7 @@ import { ClientInterceptors } from './interceptors';
 import { ScheduleClient } from './schedule-client';
 import { WorkflowService } from './types';
 import { WorkflowClient } from './workflow-client';
-import { TaskQueueClient } from "./task-queue-client";
+import { TaskQueueClient } from './task-queue-client';
 
 export interface ClientOptions extends BaseClientOptions {
   /**
