@@ -68,6 +68,7 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
     payloadCodecs: codec ? [codec] : [],
     failureConverter: defaultFailureConverter,
   };
+
   async function fromPayload(payload: Payload) {
     const [decodedPayload] = await decode(dataConverter.payloadCodecs, [payload]);
     return defaultPayloadConverter.fromPayload(decodedPayload);
@@ -549,7 +550,11 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
     t.is(events.length, 1);
     const [event] = events;
     t.regex(event.workflowTaskCompletedEventAttributes!.identity!, /\d+@.+/);
-    t.is(event.workflowTaskCompletedEventAttributes!.workerVersion?.buildId, t.context.worker.options.buildId);
+    let binid = event.workflowTaskCompletedEventAttributes!.binaryChecksum!;
+    if (binid === '') {
+      binid = event.workflowTaskCompletedEventAttributes!.workerVersion!.buildId!;
+    }
+    t.regex(binid, /@temporalio\/worker@\d+\.\d+\.\d+/);
   });
 
   test('WorkflowHandle.describe result is wrapped', async (t) => {
@@ -577,10 +582,12 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
     t.deepEqual(execution.searchAttributes!.CustomKeywordField, ['test-value']);
     t.deepEqual(execution.searchAttributes!.CustomIntField, [1]);
     t.deepEqual(execution.searchAttributes!.CustomDatetimeField, [date]);
-    t.deepEqual(execution.searchAttributes!.BuildIds, [
-      'unversioned',
-      `unversioned:${t.context.worker.options.buildId}`,
-    ]);
+    const binSum = execution.searchAttributes!.BinaryChecksums as string[];
+    if (binSum != null) {
+      t.regex(binSum[0], /@temporalio\/worker@/);
+    } else {
+      t.regex((execution.searchAttributes!.BuildIds as string[])[0], /unversioned/);
+    }
   });
 
   test('Workflow can read Search Attributes set at start', async (t) => {
@@ -624,7 +631,8 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
       CustomDoubleField: [3.14],
     });
     const { searchAttributes } = await workflow.describe();
-    t.deepEqual(searchAttributes, {
+    const { BinaryChecksums, BuildIds, ...rest } = searchAttributes;
+    t.deepEqual(rest, {
       CustomBoolField: [true],
       CustomKeywordField: ['durable code'],
       CustomTextField: ['is useful'],
@@ -632,6 +640,20 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
       CustomDoubleField: [3.14],
       BuildIds: ['unversioned', `unversioned:${t.context.worker.options.buildId}`],
     });
+    let checksum: any;
+    if (BinaryChecksums != null) {
+      t.true(BinaryChecksums.length === 1);
+      checksum = BinaryChecksums[0];
+    } else {
+      t.true(BuildIds!.length === 2);
+      t.deepEqual(BuildIds![0], 'unversioned');
+      checksum = BuildIds![1];
+    }
+    t.true(
+      typeof checksum === 'string' &&
+        checksum.includes(`@temporalio/worker@${pkg.version}+`) &&
+        /\+[a-f0-9]{64}$/.test(checksum) // bundle checksum
+    );
   });
 
   test('Workflow can read WorkflowInfo', async (t) => {
@@ -676,12 +698,21 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
     await workflow.result();
     const execution = await workflow.describe();
     t.deepEqual(execution.type, 'argsAndReturn');
-    t.deepEqual(Object.keys(execution.raw.workflowExecutionInfo!.searchAttributes!.indexedFields!), ['BuildIds']);
+    const indexedFields = execution.raw.workflowExecutionInfo!.searchAttributes!.indexedFields!;
+    const indexedFieldKeys = Object.keys(indexedFields);
 
-    const buildIds = searchAttributePayloadConverter.fromPayload(
-      execution.raw.workflowExecutionInfo!.searchAttributes!.indexedFields!.BuildIds!
-    );
-    t.deepEqual(buildIds, ['unversioned', `unversioned:${t.context.worker.options.buildId}`]);
+    let encodedId: any;
+    if (indexedFieldKeys.includes('BinaryChecksums')) {
+      encodedId = indexedFields.BinaryChecksums!;
+    } else {
+      encodedId = indexedFields.BuildIds!;
+    }
+    t.true(encodedId != null);
+
+    const checksums = searchAttributePayloadConverter.fromPayload(encodedId);
+    console.log(checksums);
+    t.true(checksums instanceof Array);
+    t.regex((checksums as string[]).pop()!, /@temporalio\/worker@\d+\.\d+\.\d+/);
     t.is(execution.raw.executionConfig?.taskQueue?.name, 'test');
     t.is(
       execution.raw.executionConfig?.taskQueue?.kind,
@@ -1074,14 +1105,21 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
   test('WorkflowClient.start fails with WorkflowExecutionAlreadyStartedError', async (t) => {
     const { client } = t.context;
     const workflowId = uuid4();
-    const handle = await client.start(workflows.sleeper, { taskQueue: 'test', workflowId, args: [10000000] });
+    const handle = await client.start(workflows.sleeper, {
+      taskQueue: 'test',
+      workflowId,
+      args: [10000000],
+    });
     try {
       await t.throwsAsync(
         client.start(workflows.sleeper, {
           taskQueue: 'test',
           workflowId,
         }),
-        { instanceOf: WorkflowExecutionAlreadyStartedError, message: 'Workflow execution already started' }
+        {
+          instanceOf: WorkflowExecutionAlreadyStartedError,
+          message: 'Workflow execution already started',
+        }
       );
     } finally {
       await handle.terminate();
@@ -1091,7 +1129,10 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
   test('Handle from WorkflowClient.start follows only own execution chain', async (t) => {
     const { client } = t.context;
     const workflowId = uuid4();
-    const handleFromThrowerStart = await client.start(workflows.throwAsync, { taskQueue: 'test', workflowId });
+    const handleFromThrowerStart = await client.start(workflows.throwAsync, {
+      taskQueue: 'test',
+      workflowId,
+    });
     const handleFromGet = client.getHandle(workflowId);
     await t.throwsAsync(handleFromGet.result(), { message: /.*/ });
     const handleFromSleeperStart = await client.start(workflows.sleeper, {

@@ -5,7 +5,8 @@
  */
 import assert from 'assert';
 import { v4 as uuid4 } from 'uuid';
-import anyTest, { TestFn } from 'ava';
+import anyTest, { ImplementationFn, TestFn } from 'ava';
+import { status } from '@grpc/grpc-js';
 import { Client } from '@temporalio/client';
 import { DefaultLogger, Runtime } from '@temporalio/worker';
 import { RUN_INTEGRATION_TESTS, Worker } from './helpers';
@@ -14,19 +15,43 @@ import { unblockSignal } from './workflows';
 
 export interface Context {
   client: Client;
+  doSkip: boolean;
 }
 
 const test = anyTest as TestFn<Context>;
+const withSkipper = test.macro<[ImplementationFn<[], Context>]>(async (t, fn) => {
+  if (t.context.doSkip) {
+    t.log('Skipped since this server does not support worker versioning');
+    t.pass();
+    return;
+  }
+  await fn(t);
+});
 
 if (RUN_INTEGRATION_TESTS) {
   test.before(async (t) => {
     Runtime.install({ logger: new DefaultLogger('DEBUG') });
+    const client = new Client();
+    // Test if this server supports worker versioning
+    let doSkip = false;
+    const taskQueue = 'test-worker-versioning' + uuid4();
+    try {
+      await client.taskQueue.updateWorkerBuildIdCompatibility(taskQueue, {
+        operation: 'newIdInNewDefaultSet',
+        buildId: '1.0',
+      });
+    } catch (e: any) {
+      if (e.code === status.PERMISSION_DENIED) {
+        doSkip = true;
+      }
+    }
     t.context = {
-      client: new Client(),
+      client,
+      doSkip,
     };
   });
 
-  test('Worker versioning workers get appropriate tasks', async (t) => {
+  test('Worker versioning workers get appropriate tasks', withSkipper, async (t) => {
     const taskQueue = 'worker-versioning-tasks-' + uuid4();
     const wf1Id = 'worker-versioning-1-' + uuid4();
     const wf2Id = 'worker-versioning-2-' + uuid4();
@@ -88,7 +113,7 @@ if (RUN_INTEGRATION_TESTS) {
     t.pass();
   });
 
-  test('Worker versioning client updates', async (t) => {
+  test('Worker versioning client updates', withSkipper, async (t) => {
     const taskQueue = 'worker-versioning-client-updates-' + uuid4();
     const conn = t.context.client;
 
