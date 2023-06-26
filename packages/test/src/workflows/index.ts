@@ -44,7 +44,6 @@ export { interceptedChild, interceptorExample } from './interceptor-example';
 export { internalsInterceptorExample } from './internals-interceptor-example';
 export * from './interrupt-signal';
 export * from './invalid-or-failed-queries';
-export * from './issue-731';
 export * from './log-before-timing-out';
 export * from './log-sink-tester';
 export * from './long-history-generator';
