@@ -141,19 +141,14 @@ export class CompositePayloadConverter implements PayloadConverter {
    * Returns the first successful result, throws {@link ValueError} if there is no converter that can handle the value.
    */
   public toPayload<T>(value: T): Payload {
-    let lastError: unknown = undefined;
     for (const converter of this.converters) {
-      try {
-        const result = converter.toPayload(value);
-        if (result !== undefined) {
-          return result;
-        }
-      } catch (e) {
-        lastError = e;
+      const result = converter.toPayload(value);
+      if (result !== undefined) {
+        return result;
       }
     }
 
-    throw new ValueError(`Unable to convert ${value} to payload`, lastError);
+    throw new ValueError(`Unable to convert ${value} to payload`);
   }
 
   /**
@@ -230,7 +225,12 @@ export class JsonPayloadConverter implements PayloadConverterWithEncoding {
       return undefined;
     }
 
-    const json = JSON.stringify(value);
+    let json;
+    try {
+      json = JSON.stringify(value);
+    } catch (err) {
+      return undefined;
+    }
 
     return {
       metadata: {
@@ -289,12 +289,7 @@ export class SearchAttributePayloadConverter implements PayloadConverter {
     }
 
     // JSON.stringify takes care of converting Dates to ISO strings
-    let ret: temporal.api.common.v1.IPayload | undefined;
-    try {
-      ret = this.jsonConverter.toPayload(values);
-    } catch (e) {
-      throw new ValueError(`Could not convert search attributes to payloads: ${(e as Error)?.message ?? e}`);
-    }
+    const ret = this.jsonConverter.toPayload(values);
     if (ret === undefined) {
       throw new ValueError('Could not convert search attributes to payloads');
     }
