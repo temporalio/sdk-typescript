@@ -1,8 +1,6 @@
 import assert from 'node:assert';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import vm from 'node:vm';
-import url from 'node:url';
-import { Buffer } from 'node:buffer';
 import * as internals from '@temporalio/workflow/lib/worker-interface';
 import { IllegalStateError } from '@temporalio/common';
 import { getTimeOfDay } from '@temporalio/core-bridge';
@@ -90,8 +88,7 @@ export class ReusableVMWorkflowCreator implements WorkflowCreator {
         },
       }
     );
-    const SafeBuffer = { ...Buffer, allocUnsafeSlow: Buffer.alloc, allocUnsafe: Buffer.alloc };
-    const globals = { AsyncLocalStorage, assert, __webpack_module_cache__, Buffer: SafeBuffer, url };
+    const globals = { AsyncLocalStorage, assert, __webpack_module_cache__ };
     this._context = vm.createContext(globals, { microtaskMode: 'afterEvaluate' });
     this.injectConsole();
     script.runInContext(this.context);
