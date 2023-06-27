@@ -213,7 +213,7 @@ function reachabilityTypeToProto(type: ReachabilityType | undefined | null): tem
   }
 }
 
-function reachabilityResponseFromProto(resp: GetWorkerTaskReachabilityResponse): ReachabilityResponse {
+export function reachabilityResponseFromProto(resp: GetWorkerTaskReachabilityResponse): ReachabilityResponse {
   const buildIdReachability: Record<string, BuildIdReachability> = {};
   for (const bir of resp.buildIdReachability) {
     const taskQueueReachability: Record<string, ReachabilityTypeResponse[]> = {};

@@ -7,6 +7,7 @@ import assert from 'assert';
 import { v4 as uuid4 } from 'uuid';
 import anyTest, { ImplementationFn, TestFn } from 'ava';
 import { status } from '@grpc/grpc-js';
+import asyncRetry from 'async-retry';
 import { Client } from '@temporalio/client';
 import { DefaultLogger, Runtime } from '@temporalio/worker';
 import { RUN_INTEGRATION_TESTS, Worker } from './helpers';
@@ -41,7 +42,8 @@ if (RUN_INTEGRATION_TESTS) {
         buildId: '1.0',
       });
     } catch (e: any) {
-      if (e.code === status.PERMISSION_DENIED || e.code === status.UNIMPLEMENTED) {
+      const cause = e.cause;
+      if (cause && (cause.code === status.PERMISSION_DENIED || cause.code === status.UNIMPLEMENTED)) {
         doSkip = true;
       } else {
         throw e;
@@ -173,10 +175,15 @@ if (RUN_INTEGRATION_TESTS) {
     resp = await conn.taskQueue.getBuildIdCompatability(taskQueue);
     assert.equal(resp?.defaultBuildId, '2.0');
 
-    const reachResp = await conn.taskQueue.getBuildIdReachability({ buildIds: ['2.0', '1.0', '1.1'] });
-    assert.deepEqual(reachResp.buildIdReachability['2.0']?.taskQueueReachability[taskQueue], ['NewWorkflows']);
-    assert.deepEqual(reachResp.buildIdReachability['1.1']?.taskQueueReachability[taskQueue], []);
-    assert.deepEqual(reachResp.buildIdReachability['1.0']?.taskQueueReachability[taskQueue], []);
+    await asyncRetry(
+      async () => {
+        const reachResp = await conn.taskQueue.getBuildIdReachability({ buildIds: ['2.0', '1.0', '1.1'] });
+        assert.deepEqual(reachResp.buildIdReachability['2.0']?.taskQueueReachability[taskQueue], ['NewWorkflows']);
+        assert.deepEqual(reachResp.buildIdReachability['1.1']?.taskQueueReachability[taskQueue], []);
+        assert.deepEqual(reachResp.buildIdReachability['1.0']?.taskQueueReachability[taskQueue], []);
+      },
+      { maxTimeout: 1000 }
+    );
 
     t.pass();
   });
