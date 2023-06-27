@@ -97,7 +97,9 @@ export class ProtobufBinaryPayloadConverter extends ProtobufPayloadConverter {
 
   public fromPayload<T>(content: Payload): T {
     const { messageType, data } = this.validatePayload(content);
-    return messageType.decode(data) as unknown as T;
+    // Wrap with Uint8Array from this context to ensure `instanceof` works
+    const localData = data ? new Uint8Array(data.buffer, data.byteOffset, data.length) : data;
+    return messageType.decode(localData) as unknown as T;
   }
 }
 

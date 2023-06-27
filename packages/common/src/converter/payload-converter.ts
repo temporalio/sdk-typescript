@@ -209,7 +209,12 @@ export class BinaryPayloadConverter implements PayloadConverterWithEncoding {
   }
 
   public fromPayload<T>(content: Payload): T {
-    return content.data as any;
+    return (
+      // Wrap with Uint8Array from this context to ensure `instanceof` works
+      (
+        content.data ? new Uint8Array(content.data.buffer, content.data.byteOffset, content.data.length) : content.data
+      ) as any
+    );
   }
 }
 
