@@ -35,9 +35,10 @@ export class TaskQueueClient extends BaseClient {
   }
 
   /**
-   * Raw gRPC access to the Temporal service. Schedule-related methods are included in {@link WorkflowService}.
+   * Raw gRPC access to the Temporal service.
    *
-   * **NOTE**: The namespace provided in {@link options} is **not** automatically set on requests made to the service.
+   * **NOTE**: The namespace provided in {@link options} is **not** automatically set on requests
+   * using this service attribute.
    */
   get workflowService(): WorkflowService {
     return this.connection.workflowService;
@@ -51,16 +52,16 @@ export class TaskQueueClient extends BaseClient {
    * @param taskQueue The task queue to make changes to.
    * @param operation The operation to be performed.
    */
-  public async updateWorkerBuildIdCompatibility(taskQueue: string, operation: BuildIdOperation): Promise<void> {
+  public async updateBuildIdCompatibility(taskQueue: string, operation: BuildIdOperation): Promise<void> {
     const request: IUpdateWorkerBuildIdCompatibilityRequest = {
       namespace: this.options.namespace,
       taskQueue,
     };
     switch (operation.operation) {
-      case 'newIdInNewDefaultSet':
+      case 'addNewIdInNewDefaultSet':
         request.addNewBuildIdInNewDefaultSet = operation.buildId;
         break;
-      case 'newCompatibleVersion':
+      case 'addNewCompatibleVersion':
         request.addNewCompatibleBuildId = {
           newBuildId: operation.buildId,
           existingCompatibleBuildId: operation.existingCompatibleBuildId,
@@ -91,7 +92,7 @@ export class TaskQueueClient extends BaseClient {
    * @returns The sets of compatible Build Ids for the given task queue, or undefined if the queue
    *          has no Build Ids defined on it.
    */
-  public async getWorkerBuildIdCompatability(taskQueue: string): Promise<WorkerBuildIdVersionSets | undefined> {
+  public async getBuildIdCompatability(taskQueue: string): Promise<WorkerBuildIdVersionSets | undefined> {
     const resp = await this.workflowService.getWorkerBuildIdCompatibility({
       taskQueue,
       namespace: this.options.namespace,
@@ -155,7 +156,7 @@ interface BaseReachabilityOptions {
 
 export interface ReachabilityResponse {
   /** Maps Build Ids to their reachability information. */
-  buildIdReachability: Map<string, BuildIdReachability>;
+  buildIdReachability: Record<string, BuildIdReachability>;
 }
 
 type ReachabilityTypeResponse = ReachabilityType | 'NotFetched';
@@ -165,11 +166,12 @@ export interface BuildIdReachability {
    *  Maps Task Queue names to how the Build Id may be reachable from them. If they are not
    *  reachable, the map value will be an empty array.
    */
-  taskQueueReachability: Map<string, ReachabilityTypeResponse[]>;
+  taskQueueReachability: Record<string, ReachabilityTypeResponse[]>;
 }
 
-function reachabilityTypeToProto(type: ReachabilityType | undefined): temporal.api.enums.v1.TaskReachability {
+function reachabilityTypeToProto(type: ReachabilityType | undefined | null): temporal.api.enums.v1.TaskReachability {
   switch (type) {
+    case null:
     case undefined:
       return temporal.api.enums.v1.TaskReachability.TASK_REACHABILITY_UNSPECIFIED;
     case 'NewWorkflows':
@@ -186,25 +188,25 @@ function reachabilityTypeToProto(type: ReachabilityType | undefined): temporal.a
 }
 
 function reachabilityResponseFromProto(resp: GetWorkerTaskReachabilityResponse): ReachabilityResponse {
-  return {
-    buildIdReachability: new Map(
-      resp.buildIdReachability.map((bir) => {
-        const taskQueueReachability = new Map<string, ReachabilityTypeResponse[]>();
-        if (bir.taskQueueReachability != null) {
-          for (const tqr of bir.taskQueueReachability) {
-            if (tqr.taskQueue == null) {
-              continue;
-            }
-            if (tqr.reachability == null) {
-              taskQueueReachability.set(tqr.taskQueue, []);
-              continue;
-            }
-            taskQueueReachability.set(tqr.taskQueue, tqr.reachability.map(reachabilityTypeFromProto));
-          }
+  const buildIdReachability: Record<string, BuildIdReachability> = {};
+  for (const bir of resp.buildIdReachability) {
+    const taskQueueReachability: Record<string, ReachabilityTypeResponse[]> = {};
+    if (bir.taskQueueReachability != null) {
+      for (const tqr of bir.taskQueueReachability) {
+        if (tqr.taskQueue == null) {
+          continue;
         }
-        return [bir.buildId ?? '', { taskQueueReachability }];
-      })
-    ),
+        if (tqr.reachability == null) {
+          taskQueueReachability[tqr.taskQueue] = [];
+          continue;
+        }
+        taskQueueReachability[tqr.taskQueue] = tqr.reachability.map(reachabilityTypeFromProto);
+      }
+    }
+    buildIdReachability[bir.buildId ?? ''] = { taskQueueReachability };
+  }
+  return {
+    buildIdReachability,
   };
 }
 

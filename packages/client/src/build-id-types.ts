@@ -1,13 +1,13 @@
 import { temporal } from '@temporalio/proto';
 
 /**
- * Operations that can be passed to {@link WorkflowClient.updateWorkerBuildIdCompatibility}.
+ * Operations that can be passed to {@link TaskQueueClient.updateBuildIdCompatibility}.
  *
  * @experimental
  */
 export type BuildIdOperation =
-  | NewIdInNewDefaultSet
-  | NewCompatibleVersion
+  | AddNewIdInNewDefaultSet
+  | AddNewCompatibleVersion
   | PromoteSetByBuildId
   | PromoteBuildIdWithinSet
   | MergeSets;
@@ -18,8 +18,8 @@ export type BuildIdOperation =
  *
  * @experimental
  */
-interface NewIdInNewDefaultSet {
-  operation: 'newIdInNewDefaultSet';
+interface AddNewIdInNewDefaultSet {
+  operation: 'addNewIdInNewDefaultSet';
   buildId: string;
 }
 
@@ -30,8 +30,8 @@ interface NewIdInNewDefaultSet {
  *
  * @experimental
  */
-interface NewCompatibleVersion {
-  operation: 'newCompatibleVersion';
+interface AddNewCompatibleVersion {
+  operation: 'addNewCompatibleVersion';
   // The Build Id to add to an existing compatible set.
   buildId: string;
   // A Build Id which must already be defined on the task queue, and is used to
@@ -82,7 +82,7 @@ interface MergeSets {
 
 /**
  * Represents the sets of compatible Build Id versions associated with some
- * Task Queue, as fetched by {@link WorkflowClient.getWorkerBuildIdCompatability}.
+ * Task Queue, as fetched by {@link TaskQueueClient.getBuildIdCompatability}.
  *
  * @experimental
  */
@@ -96,13 +96,13 @@ export interface WorkerBuildIdVersionSets {
    * Returns the default set of compatible Build Ids for the task queue these sets are
    * associated with.
    */
-  defaultSet(): BuildIdVersionSet;
+  defaultSet: BuildIdVersionSet;
 
   /**
    * Returns the overall default Build Id for the task queue these sets are
    * associated with.
    */
-  defaultBuildId(): string;
+  defaultBuildId: string;
 }
 
 /**
@@ -126,11 +126,11 @@ export function versionSetsFromProto(
   }
   return {
     versionSets: resp.majorVersionSets.map((set) => versionSetFromProto(set)),
-    defaultSet(): BuildIdVersionSet {
+    get defaultSet(): BuildIdVersionSet {
       return this.versionSets[this.versionSets.length - 1];
     },
-    defaultBuildId(): string {
-      return this.defaultSet().default();
+    get defaultBuildId(): string {
+      return this.defaultSet.default();
     },
   };
 }
