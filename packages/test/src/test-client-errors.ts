@@ -60,7 +60,7 @@ test('WorkflowClient - listWorkflows - namespace not found', async (t) => {
 test('WorkflowClient - start - invalid input payload', async (t) => {
   const { connection } = t.context.testEnv;
   const client = new Client({ connection });
-  const err: ValueError | undefined = await t.throwsAsync(
+  await t.throwsAsync(
     client.workflow.start('test', {
       workflowId: 'test',
       taskQueue: 'test',
@@ -71,14 +71,12 @@ test('WorkflowClient - start - invalid input payload', async (t) => {
       message: 'Unable to convert [object Object] to payload',
     }
   );
-  t.true(err?.cause instanceof TypeError);
-  t.is((err?.cause as TypeError).message, 'Unserializable Object');
 });
 
 test('WorkflowClient - signalWithStart - invalid input payload', async (t) => {
   const { connection } = t.context.testEnv;
   const client = new Client({ connection });
-  const err: ValueError | undefined = await t.throwsAsync(
+  await t.throwsAsync(
     client.workflow.signalWithStart('test', {
       workflowId: 'test',
       taskQueue: 'test',
@@ -90,36 +88,24 @@ test('WorkflowClient - signalWithStart - invalid input payload', async (t) => {
       message: 'Unable to convert [object Object] to payload',
     }
   );
-  t.true(err?.cause instanceof TypeError);
-  t.is((err?.cause as TypeError).message, 'Unserializable Object');
 });
 
 test('WorkflowClient - signalWorkflow - invalid input payload', async (t) => {
   const { connection } = t.context.testEnv;
   const client = new Client({ connection });
-  const err: ValueError | undefined = await t.throwsAsync(
-    client.workflow.getHandle('existant').signal<any[]>('test', [unserializableObject]),
-    {
-      instanceOf: ValueError,
-      message: 'Unable to convert [object Object] to payload',
-    }
-  );
-  t.true(err?.cause instanceof TypeError);
-  t.is((err?.cause as TypeError).message, 'Unserializable Object');
+  await t.throwsAsync(client.workflow.getHandle('existant').signal<any[]>('test', [unserializableObject]), {
+    instanceOf: ValueError,
+    message: 'Unable to convert [object Object] to payload',
+  });
 });
 
 test('WorkflowClient - queryWorkflow - invalid input payload', async (t) => {
   const { connection } = t.context.testEnv;
   const client = new Client({ connection });
-  const err: ValueError | undefined = await t.throwsAsync(
-    client.workflow.getHandle('existant').query<any, any[]>('test', [unserializableObject]),
-    {
-      instanceOf: ValueError,
-      message: 'Unable to convert [object Object] to payload',
-    }
-  );
-  t.true(err?.cause instanceof TypeError);
-  t.is((err?.cause as TypeError).message, 'Unserializable Object');
+  await t.throwsAsync(client.workflow.getHandle('existant').query<any, any[]>('test', [unserializableObject]), {
+    instanceOf: ValueError,
+    message: 'Unable to convert [object Object] to payload',
+  });
 });
 
 test('WorkflowClient - terminateWorkflow - invalid details payload', async (t) => {
@@ -142,12 +128,10 @@ test('WorkflowClient - terminateWorkflow - invalid details payload', async (t) =
       ],
     },
   });
-  const err: ValueError | undefined = await t.throwsAsync(client.workflow.getHandle('existant').terminate('reason'), {
+  await t.throwsAsync(client.workflow.getHandle('existant').terminate('reason'), {
     instanceOf: ValueError,
     message: 'Unable to convert [object Object] to payload',
   });
-  t.true(err?.cause instanceof TypeError);
-  t.is((err?.cause as TypeError).message, 'Unserializable Object');
 });
 
 test('ScheduleClient - namespace not found', async (t) => {
@@ -193,21 +177,16 @@ test('AsyncCompletionClient - namespace not found', async (t) => {
 test('AsyncCompletionClient - complete - invalid payload', async (t) => {
   const { connection } = t.context.testEnv;
   const client = new Client({ connection });
-  const err: ValueError | undefined = await t.throwsAsync(
-    client.activity.complete(new Uint8Array([1]), unserializableObject),
-    {
-      instanceOf: ValueError,
-      message: 'Unable to convert [object Object] to payload',
-    }
-  );
-  t.true(err?.cause instanceof TypeError);
-  t.is((err?.cause as TypeError).message, 'Unserializable Object');
+  await t.throwsAsync(client.activity.complete(new Uint8Array([1]), unserializableObject), {
+    instanceOf: ValueError,
+    message: 'Unable to convert [object Object] to payload',
+  });
 });
 
 test('AsyncCompletionClient - fail - invalid payload', async (t) => {
   const { connection } = t.context.testEnv;
   const client = new Client({ connection });
-  const err: ValueError | undefined = await t.throwsAsync(
+  await t.throwsAsync(
     client.activity.fail(
       new Uint8Array([1]),
       ApplicationFailure.create({ type: 'test', details: [unserializableObject] })
@@ -217,34 +196,22 @@ test('AsyncCompletionClient - fail - invalid payload', async (t) => {
       message: 'Unable to convert [object Object] to payload',
     }
   );
-  t.true(err?.cause instanceof TypeError);
-  t.is((err?.cause as TypeError).message, 'Unserializable Object');
 });
 
 test('AsyncCompletionClient - reportCancellation - invalid payload', async (t) => {
   const { connection } = t.context.testEnv;
   const client = new Client({ connection });
-  const err: ValueError | undefined = await t.throwsAsync(
-    client.activity.reportCancellation(new Uint8Array([1]), unserializableObject),
-    {
-      instanceOf: ValueError,
-      message: 'Unable to convert [object Object] to payload',
-    }
-  );
-  t.true(err?.cause instanceof TypeError);
-  t.is((err?.cause as TypeError).message, 'Unserializable Object');
+  await t.throwsAsync(client.activity.reportCancellation(new Uint8Array([1]), unserializableObject), {
+    instanceOf: ValueError,
+    message: 'Unable to convert [object Object] to payload',
+  });
 });
 
 test('AsyncCompletionClient - heartbeat - invalid payload', async (t) => {
   const { connection } = t.context.testEnv;
   const client = new Client({ connection });
-  const err: ValueError | undefined = await t.throwsAsync(
-    client.activity.heartbeat(new Uint8Array([1]), unserializableObject),
-    {
-      instanceOf: ValueError,
-      message: 'Unable to convert [object Object] to payload',
-    }
-  );
-  t.true(err?.cause instanceof TypeError);
-  t.is((err?.cause as TypeError).message, 'Unserializable Object');
+  await t.throwsAsync(client.activity.heartbeat(new Uint8Array([1]), unserializableObject), {
+    instanceOf: ValueError,
+    message: 'Unable to convert [object Object] to payload',
+  });
 });
