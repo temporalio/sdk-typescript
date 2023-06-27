@@ -2,7 +2,6 @@ import { promisify } from 'node:util';
 import * as v8 from 'node:v8';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
-import * as timers from 'node:timers/promises';
 import { Heap } from 'heap-js';
 import { Subject, firstValueFrom } from 'rxjs';
 import * as native from '@temporalio/core-bridge';
@@ -282,7 +281,10 @@ export class Runtime {
           });
         }
         logger.flush();
-        const stop = await Promise.race([stopPollingForLogs.then(() => true), timers.setTimeout(3).then(() => false)]);
+        const stop = await Promise.race([
+          stopPollingForLogs.then(() => true),
+          new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 3)),
+        ]);
         if (stop) {
           break;
         }
