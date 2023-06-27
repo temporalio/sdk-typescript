@@ -78,7 +78,7 @@ export async function executionInfoFromRaw<T>(
   };
 }
 
-type ErrorDetailsNames = `temporal.api.errordetails.v1.${keyof typeof temporal.api.errordetails.v1}`;
+type ErrorDetailsName = `temporal.api.errordetails.v1.${keyof typeof temporal.api.errordetails.v1}`;
 
 /**
  * If the error type can be determined based on embedded grpc error details,
@@ -92,21 +92,19 @@ export function rethrowKnownErrorTypes(err: GrpcServiceError): void {
   // We really don't expect multiple error details, but this really is an array, so just in case...
   for (const entry of getGrpcStatusDetails(err) ?? []) {
     if (!entry.type_url || !entry.value) continue;
-    const type = entry.type_url.replace(/^type.googleapis.com\//, '') as ErrorDetailsNames;
+    const type = entry.type_url.replace(/^type.googleapis.com\//, '') as ErrorDetailsName;
 
     switch (type) {
       case 'temporal.api.errordetails.v1.NamespaceNotFoundFailure': {
         const { namespace } = temporal.api.errordetails.v1.NamespaceNotFoundFailure.decode(entry.value);
         throw new NamespaceNotFoundError(namespace);
       }
-      default:
-        break;
     }
   }
 }
 
 function getGrpcStatusDetails(err: GrpcServiceError): google.rpc.Status['details'] | undefined {
-  const statusBuffer = err.metadata.get('grpc-status-details-bin')[0];
+  const statusBuffer = err.metadata.get('grpc-status-details-bin')?.[0];
   if (!statusBuffer || typeof statusBuffer === 'string') {
     return undefined;
   }
