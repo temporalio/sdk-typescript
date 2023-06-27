@@ -1,4 +1,4 @@
-import { ServerErrorResponse } from '@grpc/grpc-js';
+import { ServiceError as GrpcServiceError } from '@grpc/grpc-js';
 import { RetryState, TemporalFailure } from '@temporalio/common';
 
 /**
@@ -47,10 +47,11 @@ export class WorkflowContinuedAsNewError extends Error {
   }
 }
 
-/**
- * Type assertion helper, assertion is mostly empty because any additional
- * properties are optional.
- */
-export function isServerErrorResponse(err: unknown): err is ServerErrorResponse {
-  return err instanceof Error;
+export function isGrpcServiceError(err: unknown): err is GrpcServiceError {
+  return err instanceof Error && (err as any).details !== undefined && (err as any).metadata !== undefined;
 }
+
+/**
+ * @deprecated Use `isGrpcServiceError` instead
+ */
+export const isServerErrorResponse = isGrpcServiceError;

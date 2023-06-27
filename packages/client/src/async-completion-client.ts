@@ -1,5 +1,5 @@
 import { status as grpcStatus } from '@grpc/grpc-js';
-import { NamespaceNotFoundError, ensureTemporalFailure } from '@temporalio/common';
+import { ensureTemporalFailure } from '@temporalio/common';
 import type { temporal } from '@temporalio/proto';
 import {
   encodeErrorToFailure,
@@ -13,8 +13,9 @@ import {
   LoadedWithDefaults,
   WithDefaults,
 } from './base-client';
-import { isServerErrorResponse } from './errors';
+import { isGrpcServiceError } from './errors';
 import { WorkflowService } from './types';
+import { rethrowKnownErrorTypes } from './helpers';
 
 /**
  * Thrown by {@link AsyncCompletionClient} when trying to complete or heartbeat an Activity that does not exist in the
@@ -96,15 +97,13 @@ export class AsyncCompletionClient extends BaseClient {
    * Transforms grpc errors into well defined TS errors.
    */
   protected handleError(err: unknown): never {
-    if (isServerErrorResponse(err)) {
+    if (isGrpcServiceError(err)) {
+      rethrowKnownErrorTypes(err);
+
       if (err.code === grpcStatus.NOT_FOUND) {
-        const matcher = err.message.match(/^5 NOT_FOUND: Namespace (.*?) is not found./);
-        if (matcher) {
-          throw new NamespaceNotFoundError(matcher[1]);
-        } else {
-          throw new ActivityNotFoundError('Not found');
-        }
+        throw new ActivityNotFoundError('Not found');
       }
+
       throw new ActivityCompletionError(err.details || err.message);
     }
     throw new ActivityCompletionError('Unexpected failure');

@@ -19,7 +19,6 @@ import {
   WorkflowNotFoundError,
   WorkflowResultType,
   extractWorkflowType,
-  NamespaceNotFoundError,
 } from '@temporalio/common';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import { History } from '@temporalio/common/lib/proto-utils';
@@ -32,7 +31,7 @@ import {
   filterNullAndUndefined,
 } from '@temporalio/common/lib/internal-non-workflow';
 import { temporal } from '@temporalio/proto';
-import { isServerErrorResponse, ServiceError, WorkflowContinuedAsNewError, WorkflowFailedError } from './errors';
+import { ServiceError, WorkflowContinuedAsNewError, WorkflowFailedError, isGrpcServiceError } from './errors';
 import {
   WorkflowCancelInput,
   WorkflowClientInterceptor,
@@ -61,7 +60,7 @@ import {
   WorkflowSignalWithStartOptions,
   WorkflowStartOptions,
 } from './workflow-options';
-import { executionInfoFromRaw } from './helpers';
+import { executionInfoFromRaw, rethrowKnownErrorTypes } from './helpers';
 import {
   BaseClient,
   BaseClientOptions,
@@ -583,22 +582,20 @@ export class WorkflowClient extends BaseClient {
   }
 
   protected rethrowGrpcError(err: unknown, fallbackMessage: string, workflowExecution?: WorkflowExecution): never {
-    if (isServerErrorResponse(err)) {
+    if (isGrpcServiceError(err)) {
+      rethrowKnownErrorTypes(err);
+
       if (err.code === grpcStatus.NOT_FOUND) {
-        const matcher = err.message.match(/^5 NOT_FOUND: Namespace (.*?) is not found./);
-        if (matcher) {
-          throw new NamespaceNotFoundError(matcher[1]);
-        } else {
-          throw new WorkflowNotFoundError(
-            err.details ?? 'Workflow not found',
-            workflowExecution?.workflowId ?? '',
-            workflowExecution?.runId
-          );
-        }
+        throw new WorkflowNotFoundError(
+          err.details ?? 'Workflow not found',
+          workflowExecution?.workflowId ?? '',
+          workflowExecution?.runId
+        );
       }
+
       throw new ServiceError(fallbackMessage, { cause: err });
     }
-    throw new ServiceError('Unexpected error while making gRPC request');
+    throw new ServiceError('Unexpected error while making gRPC request', { cause: err as Error });
   }
 
   /**
@@ -621,8 +618,11 @@ export class WorkflowClient extends BaseClient {
     try {
       response = await this.workflowService.queryWorkflow(req);
     } catch (err) {
-      if (isServerErrorResponse(err) && err.code === grpcStatus.INVALID_ARGUMENT) {
-        throw new QueryNotRegisteredError(err.message.replace(/^3 INVALID_ARGUMENT: /, ''), err.code);
+      if (isGrpcServiceError(err)) {
+        rethrowKnownErrorTypes(err);
+        if (err.code === grpcStatus.INVALID_ARGUMENT) {
+          throw new QueryNotRegisteredError(err.message.replace(/^3 INVALID_ARGUMENT: /, ''), err.code);
+        }
       }
       this.rethrowGrpcError(err, 'Failed to query Workflow', input.workflowExecution);
     }

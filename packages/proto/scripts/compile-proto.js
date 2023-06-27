@@ -1,9 +1,8 @@
 const { rm, readFile, writeFile } = require('fs/promises');
 const { resolve } = require('path');
 const { promisify } = require('util');
-const dedent = require('dedent');
 const glob = require('glob');
-const { statSync, mkdirSync, readFileSync, writeFileSync } = require('fs');
+const { statSync, mkdirSync } = require('fs');
 const pbjs = require('protobufjs-cli/pbjs');
 const pbts = require('protobufjs-cli/pbts');
 
@@ -15,12 +14,14 @@ const protoBaseDir = resolve(__dirname, '../../core-bridge/sdk-core/protos');
 const coreProtoPath = resolve(protoBaseDir, 'local/temporal/sdk/core/core_interface.proto');
 const workflowServiceProtoPath = resolve(protoBaseDir, 'api_upstream/temporal/api/workflowservice/v1/service.proto');
 const operatorServiceProtoPath = resolve(protoBaseDir, 'api_upstream/temporal/api/operatorservice/v1/service.proto');
+const errorDetailsProtoPath = resolve(protoBaseDir, 'api_upstream/temporal/api/errordetails/v1/message.proto');
 const testServiceRRProtoPath = resolve(
   protoBaseDir,
   'testsrv_upstream/temporal/api/testservice/v1/request_response.proto'
 );
 const testServiceProtoPath = resolve(protoBaseDir, 'testsrv_upstream/temporal/api/testservice/v1/service.proto');
 const healthServiceProtoPath = resolve(protoBaseDir, 'grpc/health/v1/health.proto');
+const googleRpcStatusProtoPath = resolve(protoBaseDir, 'google/rpc/status.proto');
 
 function mtime(path) {
   try {
@@ -49,9 +50,11 @@ async function compileProtos(dtsOutputFile, ...args) {
     coreProtoPath,
     workflowServiceProtoPath,
     operatorServiceProtoPath,
+    errorDetailsProtoPath,
     testServiceRRProtoPath,
     testServiceProtoPath,
     healthServiceProtoPath,
+    googleRpcStatusProtoPath,
   ];
 
   console.log(`Creating protobuf JS definitions from ${coreProtoPath} and ${workflowServiceProtoPath}`);

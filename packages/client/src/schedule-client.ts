@@ -1,6 +1,6 @@
 import { status as grpcStatus } from '@grpc/grpc-js';
 import { v4 as uuid4 } from 'uuid';
-import { mapToPayloads, NamespaceNotFoundError, searchAttributePayloadConverter, Workflow } from '@temporalio/common';
+import { mapToPayloads, searchAttributePayloadConverter, Workflow } from '@temporalio/common';
 import { composeInterceptors, Headers } from '@temporalio/common/lib/interceptors';
 import {
   encodeMapToPayloads,
@@ -11,7 +11,7 @@ import { temporal } from '@temporalio/proto';
 import { optionalDateToTs, optionalTsToDate, optionalTsToMs, tsToDate } from '@temporalio/common/lib/time';
 import { CreateScheduleInput, CreateScheduleOutput, ScheduleClientInterceptor } from './interceptors';
 import { WorkflowService } from './types';
-import { isServerErrorResponse, ServiceError } from './errors';
+import { isGrpcServiceError, ServiceError } from './errors';
 import {
   Backfill,
   CompiledScheduleUpdateOptions,
@@ -45,6 +45,7 @@ import {
   LoadedWithDefaults,
   WithDefaults,
 } from './base-client';
+import { rethrowKnownErrorTypes } from './helpers';
 
 /**
  * Handle to a single Schedule
@@ -501,14 +502,11 @@ export class ScheduleClient extends BaseClient {
   }
 
   protected rethrowGrpcError(err: unknown, fallbackMessage: string, scheduleId?: string): never {
-    if (isServerErrorResponse(err)) {
+    if (isGrpcServiceError(err)) {
+      rethrowKnownErrorTypes(err);
+
       if (err.code === grpcStatus.NOT_FOUND) {
-        const matcher = err.message.match(/^5 NOT_FOUND: Namespace (.*?) is not found./);
-        if (matcher) {
-          throw new NamespaceNotFoundError(matcher[1]);
-        } else {
-          throw new ScheduleNotFoundError(err.details ?? 'Schedule not found', scheduleId ?? '');
-        }
+        throw new ScheduleNotFoundError(err.details ?? 'Schedule not found', scheduleId ?? '');
       }
       if (
         err.code === grpcStatus.INVALID_ARGUMENT &&
@@ -516,9 +514,10 @@ export class ScheduleClient extends BaseClient {
       ) {
         throw new TypeError(err.message.replace(/^3 INVALID_ARGUMENT: Invalid schedule spec: /, ''));
       }
+
       throw new ServiceError(fallbackMessage, { cause: err });
     }
-    throw new ServiceError('Unexpected error while making gRPC request');
+    throw new ServiceError('Unexpected error while making gRPC request', { cause: err as Error });
   }
 }
 
