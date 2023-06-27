@@ -454,8 +454,9 @@ export class Worker {
     // so it can be automatically closed when this Worker shuts down.
     const connection = options.connection ?? (await InternalNativeConnection.connect());
     let nativeWorker: NativeWorkerLike;
+    const compiledOptionsWithBuildId = addBuildIdIfMissing(compiledOptions, bundle?.code);
     try {
-      nativeWorker = await nativeWorkerCtor.create(connection, addBuildIdIfMissing(compiledOptions, bundle?.code));
+      nativeWorker = await nativeWorkerCtor.create(connection, compiledOptionsWithBuildId);
     } catch (err) {
       // We just created this connection, close it
       if (!options.connection) {
@@ -464,7 +465,7 @@ export class Worker {
       throw err;
     }
     extractReferenceHolders(connection).add(nativeWorker);
-    return new this(nativeWorker, workflowCreator, compiledOptions, connection);
+    return new this(nativeWorker, workflowCreator, compiledOptionsWithBuildId, connection);
   }
 
   protected static async createWorkflowCreator(

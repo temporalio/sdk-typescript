@@ -3,7 +3,7 @@ import * as grpc from '@grpc/grpc-js';
 import type { RPCImpl } from 'protobufjs';
 import { filterNullAndUndefined, normalizeTlsConfig, TLSConfig } from '@temporalio/common/lib/internal-non-workflow';
 import { Duration, msOptionalToNumber } from '@temporalio/common/lib/time';
-import { isServerErrorResponse, ServiceError } from './errors';
+import { isGrpcServiceError, ServiceError } from './errors';
 import { defaultGrpcRetryOptions, makeGrpcRetryInterceptor } from './grpc-retry';
 import pkg from './pkg';
 import { CallContext, HealthService, Metadata, OperatorService, WorkflowService } from './types';
@@ -276,7 +276,7 @@ export class Connection {
         try {
           await this.withDeadline(deadline, () => this.workflowService.getSystemInfo({}));
         } catch (err) {
-          if (isServerErrorResponse(err)) {
+          if (isGrpcServiceError(err)) {
             // Ignore old servers
             if (err.code !== grpc.status.UNIMPLEMENTED) {
               throw new ServiceError('Failed to connect to Temporal server', { cause: err });

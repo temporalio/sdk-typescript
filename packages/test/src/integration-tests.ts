@@ -549,7 +549,7 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
     t.is(events.length, 1);
     const [event] = events;
     t.regex(event.workflowTaskCompletedEventAttributes!.identity!, /\d+@.+/);
-    t.regex(event.workflowTaskCompletedEventAttributes!.binaryChecksum!, /@temporalio\/worker@\d+\.\d+\.\d+/);
+    t.is(event.workflowTaskCompletedEventAttributes!.workerVersion?.buildId, t.context.worker.options.buildId);
   });
 
   test('WorkflowHandle.describe result is wrapped', async (t) => {
@@ -569,6 +569,7 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
       },
     });
     await workflow.result();
+
     const execution = await workflow.describe();
     t.deepEqual(execution.type, 'argsAndReturn');
     t.deepEqual(execution.memo, { note: 'foo' });
@@ -576,7 +577,10 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
     t.deepEqual(execution.searchAttributes!.CustomKeywordField, ['test-value']);
     t.deepEqual(execution.searchAttributes!.CustomIntField, [1]);
     t.deepEqual(execution.searchAttributes!.CustomDatetimeField, [date]);
-    t.regex((execution.searchAttributes!.BinaryChecksums as string[])[0], /@temporalio\/worker@/);
+    t.deepEqual(execution.searchAttributes!.BuildIds, [
+      'unversioned',
+      `unversioned:${t.context.worker.options.buildId}`,
+    ]);
   });
 
   test('Workflow can read Search Attributes set at start', async (t) => {
@@ -620,22 +624,14 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
       CustomDoubleField: [3.14],
     });
     const { searchAttributes } = await workflow.describe();
-    const { BinaryChecksums, ...rest } = searchAttributes;
-    t.deepEqual(rest, {
+    t.deepEqual(searchAttributes, {
       CustomBoolField: [true],
       CustomKeywordField: ['durable code'],
       CustomTextField: ['is useful'],
       CustomDatetimeField: [date],
       CustomDoubleField: [3.14],
+      BuildIds: ['unversioned', `unversioned:${t.context.worker.options.buildId}`],
     });
-    t.true(BinaryChecksums?.length === 1);
-    const [checksum] = BinaryChecksums ?? ['invalid'];
-    console.log(checksum);
-    t.true(
-      typeof checksum === 'string' &&
-        checksum.startsWith(`@temporalio/worker@${pkg.version}+`) &&
-        /\+[a-f0-9]{64}$/.test(checksum) // bundle checksum
-    );
   });
 
   test('Workflow can read WorkflowInfo', async (t) => {
@@ -680,15 +676,12 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
     await workflow.result();
     const execution = await workflow.describe();
     t.deepEqual(execution.type, 'argsAndReturn');
-    t.deepEqual(Object.keys(execution.raw.workflowExecutionInfo!.searchAttributes!.indexedFields!), [
-      'BinaryChecksums',
-    ]);
+    t.deepEqual(Object.keys(execution.raw.workflowExecutionInfo!.searchAttributes!.indexedFields!), ['BuildIds']);
 
-    const checksums = searchAttributePayloadConverter.fromPayload(
-      execution.raw.workflowExecutionInfo!.searchAttributes!.indexedFields!.BinaryChecksums!
+    const buildIds = searchAttributePayloadConverter.fromPayload(
+      execution.raw.workflowExecutionInfo!.searchAttributes!.indexedFields!.BuildIds!
     );
-    t.true(checksums instanceof Array && checksums.length === 1);
-    t.regex((checksums as string[])[0], /@temporalio\/worker@\d+\.\d+\.\d+/);
+    t.deepEqual(buildIds, ['unversioned', `unversioned:${t.context.worker.options.buildId}`]);
     t.is(execution.raw.executionConfig?.taskQueue?.name, 'test');
     t.is(
       execution.raw.executionConfig?.taskQueue?.kind,

@@ -1,5 +1,6 @@
+import type { temporal } from '@temporalio/proto';
 import { decode, encode } from '../encoding';
-import { IllegalStateError, PayloadConverterError, ValueError } from '../errors';
+import { PayloadConverterError, ValueError } from '../errors';
 import { Payload } from '../interfaces';
 import { encodingKeys, encodingTypes, METADATA_ENCODING_KEY } from './types';
 
@@ -232,7 +233,7 @@ export class JsonPayloadConverter implements PayloadConverterWithEncoding {
     let json;
     try {
       json = JSON.stringify(value);
-    } catch (e) {
+    } catch (err) {
       return undefined;
     }
 
@@ -295,7 +296,7 @@ export class SearchAttributePayloadConverter implements PayloadConverter {
     // JSON.stringify takes care of converting Dates to ISO strings
     const ret = this.jsonConverter.toPayload(values);
     if (ret === undefined) {
-      throw new IllegalStateError('Could not convert search attributes to payloads');
+      throw new ValueError('Could not convert search attributes to payloads');
     }
     return ret;
   }
