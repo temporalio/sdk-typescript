@@ -1,9 +1,11 @@
+import { status } from '@grpc/grpc-js';
 import { filterNullAndUndefined } from '@temporalio/common/lib/internal-non-workflow';
 import { assertNever, RequireAtLeastOne } from '@temporalio/common/lib/type-helpers';
 import { temporal } from '@temporalio/proto';
 import { BaseClient, BaseClientOptions, defaultBaseClientOptions, LoadedWithDefaults } from './base-client';
 import { WorkflowService } from './types';
 import { BuildIdOperation, versionSetsFromProto, WorkerBuildIdVersionSets } from './build-id-types';
+import { isServerErrorResponse, ServiceError } from './errors';
 import IUpdateWorkerBuildIdCompatibilityRequest = temporal.api.workflowservice.v1.IUpdateWorkerBuildIdCompatibilityRequest;
 import GetWorkerTaskReachabilityResponse = temporal.api.workflowservice.v1.GetWorkerTaskReachabilityResponse;
 
@@ -82,7 +84,11 @@ export class TaskQueueClient extends BaseClient {
       default:
         assertNever(operation);
     }
-    await this.workflowService.updateWorkerBuildIdCompatibility(request);
+    try {
+      await this.workflowService.updateWorkerBuildIdCompatibility(request);
+    } catch (e) {
+      this.rethrowGrpcError(e, 'Unexpected error updating Build Id compatibility');
+    }
   }
 
   /**
@@ -93,10 +99,15 @@ export class TaskQueueClient extends BaseClient {
    *          has no Build Ids defined on it.
    */
   public async getBuildIdCompatability(taskQueue: string): Promise<WorkerBuildIdVersionSets | undefined> {
-    const resp = await this.workflowService.getWorkerBuildIdCompatibility({
-      taskQueue,
-      namespace: this.options.namespace,
-    });
+    let resp;
+    try {
+      resp = await this.workflowService.getWorkerBuildIdCompatibility({
+        taskQueue,
+        namespace: this.options.namespace,
+      });
+    } catch (e) {
+      this.rethrowGrpcError(e, 'Unexpected error fetching Build Id compatibility');
+    }
     if (resp.majorVersionSets == null || resp.majorVersionSets.length === 0) {
       return undefined;
     }
@@ -115,13 +126,28 @@ export class TaskQueueClient extends BaseClient {
    * another call to get the reachability for those task queues.
    */
   public async getBuildIdReachability(options: ReachabilityOptions): Promise<ReachabilityResponse> {
-    const resp = await this.workflowService.getWorkerTaskReachability({
-      namespace: this.options.namespace,
-      taskQueues: options.taskQueues,
-      buildIds: options.buildIds,
-      reachability: reachabilityTypeToProto(options.reachability),
-    });
+    let resp;
+    try {
+      resp = await this.workflowService.getWorkerTaskReachability({
+        namespace: this.options.namespace,
+        taskQueues: options.taskQueues,
+        buildIds: options.buildIds,
+        reachability: reachabilityTypeToProto(options.reachability),
+      });
+    } catch (e) {
+      this.rethrowGrpcError(e, 'Unexpected error fetching Build Id reachability');
+    }
     return reachabilityResponseFromProto(resp);
+  }
+
+  protected rethrowGrpcError(err: unknown, fallbackMessage: string): never {
+    if (isServerErrorResponse(err)) {
+      if (err.code === status.NOT_FOUND) {
+        throw new BuildIdNotFoundError(err.details ?? 'Build Id not found');
+      }
+      throw new ServiceError(fallbackMessage, { cause: err });
+    }
+    throw new ServiceError('Unexpected error while making gRPC request');
   }
 }
 
@@ -224,5 +250,22 @@ function reachabilityTypeFromProto(rtype: temporal.api.enums.v1.TaskReachability
       return 'ClosedWorkflows';
     default:
       return assertNever(rtype);
+  }
+}
+
+/**
+ * Thrown when one or more Build Ids are not found while using the {@link TaskQueueClient}.
+ *
+ * It could be because:
+ * - Id passed is incorrect
+ * - Build Id has been scavenged by the server.
+ *
+ * @experimental
+ */
+export class BuildIdNotFoundError extends Error {
+  public readonly name: string = 'BuildIdNotFoundError';
+
+  constructor(message: string) {
+    super(message);
   }
 }
