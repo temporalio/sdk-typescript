@@ -290,7 +290,7 @@ export class Context {
    * Calling `heartbeat()` from a Local Activity has no effect.
    *
    * The SDK automatically throttles heartbeat calls to the server with a duration of 80% of the specified activity
-   * heartbeat timeout.
+   * heartbeat timeout. Throttling behavior may be customized with the `{@link maxHeartbeatThrottleInterval | https://typescript.temporal.io/api/interfaces/worker.WorkerOptions#maxheartbeatthrottleinterval} and {@link defaultHeartbeatThrottleInterval | https://typescript.temporal.io/api/interfaces/worker.WorkerOptions#defaultheartbeatthrottleinterval} worker options.
    *
    * Activities must heartbeat in order to receive Cancellation (unless they're Local Activities, which don't need to).
    *
