@@ -6,6 +6,7 @@ import { ClientInterceptors } from './interceptors';
 import { ScheduleClient } from './schedule-client';
 import { WorkflowService } from './types';
 import { WorkflowClient } from './workflow-client';
+import { TaskQueueClient } from './task-queue-client';
 
 export interface ClientOptions extends BaseClientOptions {
   /**
@@ -46,6 +47,12 @@ export class Client extends BaseClient {
    * @experimental
    */
   public readonly schedule: ScheduleClient;
+  /**
+   * Task Queue sub-client - use to perform operations on Task Queues
+   *
+   * @experimental
+   */
+  public readonly taskQueue: TaskQueueClient;
 
   constructor(options?: ClientOptions) {
     super(options);
@@ -71,6 +78,12 @@ export class Client extends BaseClient {
       connection: this.connection,
       dataConverter: this.dataConverter,
       interceptors: interceptors?.schedule,
+    });
+
+    this.taskQueue = new TaskQueueClient({
+      ...commonOptions,
+      connection: this.connection,
+      dataConverter: this.dataConverter,
     });
 
     this.options = {

@@ -38,3 +38,14 @@ export * from './workflow-client';
 export * from './workflow-options';
 export * from './schedule-types';
 export * from './schedule-client';
+export * from './task-queue-client';
+export {
+  WorkerBuildIdVersionSets,
+  BuildIdVersionSet,
+  BuildIdOperation,
+  PromoteSetByBuildId,
+  PromoteBuildIdWithinSet,
+  MergeSets,
+  AddNewIdInNewDefaultSet,
+  AddNewCompatibleVersion,
+} from './build-id-types';

@@ -4,6 +4,11 @@ export type AnyFunc = (...args: any[]) => any;
 export type OmitLast<T> = T extends [...infer REST, any] ? REST : never;
 /** F with all arguments but the last */
 export type OmitLastParam<F extends AnyFunc> = (...args: OmitLast<Parameters<F>>) => ReturnType<F>;
+/** Require that T has at least one of the provided properties defined */
+export type RequireAtLeastOne<T, Keys extends keyof T = keyof T> = Pick<T, Exclude<keyof T, Keys>> &
+  {
+    [K in Keys]-?: Required<Pick<T, K>> & Partial<Pick<T, Exclude<Keys, K>>>;
+  }[Keys];
 
 /** Verify that an type _Copy extends _Orig */
 export function checkExtends<_Orig, _Copy extends _Orig>(): void {
@@ -60,4 +65,11 @@ export function errorCode(error: unknown): string | undefined {
   }
 
   return undefined;
+}
+
+/**
+ * Asserts that some type is the never type
+ */
+export function assertNever(msg: string, x: never): never {
+  throw new TypeError(msg + ': ' + x);
 }

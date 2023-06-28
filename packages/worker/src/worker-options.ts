@@ -81,11 +81,27 @@ export interface WorkerOptions {
   /**
    * A string that should be unique to the exact worker code/binary being executed.
    *
-   * This is used to populate the `binaryChecksum` attribute in history events originated from this Worker.
+   * This is used to uniquely identify the worker's code for a handful of purposes, including the
+   * worker versioning feature if you have opted into that with
+   * {@link WorkerOptions.useWorkerVersioning}. It will also populate the `binaryChecksum` field
+   * on older servers.
    *
    * @default `@temporalio/worker` package name and version + checksum of workflow bundle's code
+   *
+   * @experimental
    */
   buildId?: string;
+
+  /**
+   * If set true, this worker opts into the worker versioning feature. This ensures it only receives
+   * workflow tasks for workflows which it claims to be compatible with. The {@link buildId} field
+   * is used as this worker's version when enabled.
+   *
+   * For more information, see https://docs.temporal.io/workers#worker-versioning
+   *
+   * @experimental
+   */
+  useWorkerVersioning?: boolean;
 
   /**
    * The namespace this worker will connect to
@@ -469,6 +485,7 @@ export type WorkerOptionsWithDefaults = WorkerOptions &
       WorkerOptions,
       | 'namespace'
       | 'identity'
+      | 'useWorkerVersioning'
       | 'shutdownGraceTime'
       | 'maxConcurrentActivityTaskExecutions'
       | 'maxConcurrentLocalActivityExecutions'
@@ -614,6 +631,7 @@ export function addDefaultWorkerOptions(options: WorkerOptions): WorkerOptionsWi
   return {
     namespace: namespace ?? 'default',
     identity: `${process.pid}@${os.hostname()}`,
+    useWorkerVersioning: options.useWorkerVersioning ?? false,
     shutdownGraceTime: 0,
     maxConcurrentLocalActivityExecutions: 100,
     enableNonLocalActivities: true,

@@ -10,3 +10,4 @@ packages/testing/test-server*
 packages/testing/generated-protos/
 packages/core-bridge/releases
 packages/*/package-lock.json
+/sdk-node.iml
