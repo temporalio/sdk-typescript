@@ -23,7 +23,6 @@ import { delay, filter, first, ignoreElements, last, map, mergeMap, takeUntil, t
 import type { RawSourceMap } from 'source-map';
 import { Info as ActivityInfo } from '@temporalio/activity';
 import {
-  ActivityFunction,
   DataConverter,
   decompileRetryPolicy,
   defaultPayloadConverter,
@@ -473,19 +472,33 @@ export class Worker {
     workflowBundle: WorkflowBundleWithSourceMapAndFilename,
     compiledOptions: CompiledWorkerOptions
   ): Promise<WorkflowCreator> {
+    const registeredActivityNames = new Set(
+      Object.entries(compiledOptions.activities ?? {})
+        .filter(([_, v]) => typeof v === 'function')
+        .map(([k]) => k)
+    );
     // This isn't required for vscode, only for Chrome Dev Tools which doesn't support debugging worker threads.
     // We also rely on this in debug-replayer where we inject a global variable to be read from workflow context.
     if (compiledOptions.debugMode) {
       if (compiledOptions.reuseV8Context) {
-        return await ReusableVMWorkflowCreator.create(workflowBundle, compiledOptions.isolateExecutionTimeoutMs);
+        return await ReusableVMWorkflowCreator.create(
+          workflowBundle,
+          compiledOptions.isolateExecutionTimeoutMs,
+          registeredActivityNames
+        );
       }
-      return await VMWorkflowCreator.create(workflowBundle, compiledOptions.isolateExecutionTimeoutMs);
+      return await VMWorkflowCreator.create(
+        workflowBundle,
+        compiledOptions.isolateExecutionTimeoutMs,
+        registeredActivityNames
+      );
     } else {
       return await ThreadedVMWorkflowCreator.create({
         workflowBundle,
         threadPoolSize: compiledOptions.workflowThreadPoolSize,
         isolateExecutionTimeoutMs: compiledOptions.isolateExecutionTimeoutMs,
         reuseV8Context: compiledOptions.reuseV8Context ?? false,
+        registeredActivityNames,
       });
     }
   }
@@ -857,8 +870,8 @@ export class Worker {
 
                     const { activityType } = info;
                     // activities is of type "object" which does not support string indexes
-                    const fn = this.getActivityFunction(activityType);
-                    if (fn == null) {
+                    const fn = (this.options.activities as any)?.[activityType];
+                    if (typeof fn !== 'function') {
                       output = {
                         type: 'result',
                         result: {
@@ -1218,7 +1231,6 @@ export class Worker {
                   try {
                     const decodedActivation = await this.workflowCodecRunner.decodeActivation(activation);
                     const unencodedCompletion = await state.workflow.activate(decodedActivation);
-                    this.validateCompletion(unencodedCompletion);
                     const completion = await this.workflowCodecRunner.encodeCompletion(unencodedCompletion);
                     this.log.trace('Completed activation', workflowLogAttributes(state.info));
 
@@ -1275,38 +1287,6 @@ export class Worker {
       map(({ completion, parentSpan }) => ({ completion, parentSpan })),
       filter((result): result is ContextAware<{ completion: Uint8Array }> => result.completion !== undefined)
     );
-  }
-
-  /**
-   * Valiates an activation completion, throws an error if validation fails.
-   */
-  protected validateCompletion(completion: coresdk.workflow_completion.IWorkflowActivationCompletion): void {
-    if (!completion.successful?.commands) {
-      return;
-    }
-    for (const command of completion.successful.commands) {
-      if (command.scheduleLocalActivity) {
-        const { activityType } = command.scheduleLocalActivity;
-        if (!activityType) {
-          throw new TypeError('Local activity command missing activityType attribute');
-        }
-        const fn = this.getActivityFunction(activityType);
-        if (fn == null) {
-          throw new ReferenceError(`Local activity of type '${activityType}' not registered on worker`);
-        }
-      }
-    }
-  }
-
-  /**
-   * Gets an activity function of given type.
-   */
-  protected getActivityFunction(activityType: string): ActivityFunction<any[], any> | undefined {
-    const fn = (this.options.activities as any)?.[activityType];
-    if (typeof fn !== 'function') {
-      return undefined;
-    }
-    return fn;
   }
 
   /**

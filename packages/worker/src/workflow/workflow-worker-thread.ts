@@ -31,10 +31,18 @@ async function handleRequest({ requestId, input }: WorkerThreadRequest): Promise
   switch (input.type) {
     case 'init':
       if (input.reuseV8Context) {
-        workflowCreator = await ReusableVMWorkflowCreator.create(input.workflowBundle, input.isolateExecutionTimeoutMs);
+        workflowCreator = await ReusableVMWorkflowCreator.create(
+          input.workflowBundle,
+          input.isolateExecutionTimeoutMs,
+          input.registeredActivityNames
+        );
         workflowGetter = (runId) => ReusableVMWorkflowCreator.workflowByRunId.get(runId);
       } else {
-        workflowCreator = await VMWorkflowCreator.create(input.workflowBundle, input.isolateExecutionTimeoutMs);
+        workflowCreator = await VMWorkflowCreator.create(
+          input.workflowBundle,
+          input.isolateExecutionTimeoutMs,
+          input.registeredActivityNames
+        );
         workflowGetter = (runId) => VMWorkflowCreator.workflowByRunId.get(runId);
       }
       return ok(requestId);

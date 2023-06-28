@@ -64,8 +64,8 @@ test.before(async (t) => {
   const bundler = new WorkflowCodeBundler({ workflowsPath });
   const workflowBundle = parseWorkflowCode((await bundler.createBundle()).code);
   t.context.workflowCreator = REUSE_V8_CONTEXT
-    ? await TestReusableVMWorkflowCreator.create(workflowBundle, 200)
-    : await TestVMWorkflowCreator.create(workflowBundle, 200);
+    ? await TestReusableVMWorkflowCreator.create(workflowBundle, 200, new Set())
+    : await TestVMWorkflowCreator.create(workflowBundle, 200, new Set());
 });
 
 test.after.always(async (t) => {

@@ -199,6 +199,11 @@ async function scheduleLocalActivityNextHandler({
   originalScheduleTime,
 }: LocalActivityInput): Promise<unknown> {
   const activator = getActivator();
+  // Eagerly fail the local activity (which will in turn fail the workflow task.
+  // Do not fail on replay where the local activities may not be registered on the replay worker.
+  if (!workflowInfo().unsafe.isReplaying && !activator.registeredActivityNames.has(activityType)) {
+    throw new ReferenceError(`Local activity of type '${activityType}' not registered on worker`);
+  }
   validateLocalActivityOptions(options);
 
   return new Promise((resolve, reject) => {

@@ -1,6 +1,5 @@
 import { randomUUID } from 'crypto';
 import { firstValueFrom, Subject } from 'rxjs';
-import asyncRetry from 'async-retry';
 import { ExecutionContext, TestFn } from 'ava';
 import { Context as ActivityContext } from '@temporalio/activity';
 import {
@@ -26,6 +25,7 @@ import {
 import * as workflow from '@temporalio/workflow';
 import { test as anyTest, bundlerOptions, Worker } from './helpers';
 import { ConnectionInjectorInterceptor } from './activities/interceptors';
+import * as assert from 'assert';
 
 // FIXME MOVE THIS SECTION SOMEWHERE IT CAN BE SHARED //
 
@@ -142,7 +142,7 @@ export async function runMyLocalActivityWithOption(
   return await workflow.proxyLocalActivities(opts).myLocalActivity();
 }
 
-test.serial('Local activity with ', async (t) => {
+test.serial('Local activity with various timeouts', async (t) => {
   const { executeWorkflow, createWorker } = helpers(t);
   const worker = await createWorker({
     activities: {
@@ -524,47 +524,43 @@ test.serial('Local activity can be intercepted', async (t) => {
   });
 });
 
-export async function runANonExisitingLocalActivity(): Promise<void> {
+export async function runNonExisitingLocalActivity(): Promise<void> {
   const { activityNotFound } = workflow.proxyLocalActivities({
     startToCloseTimeout: '1m',
   });
 
-  await activityNotFound();
+  try {
+    await activityNotFound();
+  } catch (err) {
+    if (err instanceof ReferenceError) {
+      return;
+    }
+    throw err;
+  }
+  throw ApplicationFailure.nonRetryable('Unreachable');
 }
 
-test.serial('Workflow task fails if local activity not registered on Worker', async (t) => {
+test.serial('Local activity not registered on Worker throws ReferenceError in workflow context', async (t) => {
+  const { executeWorkflow, createWorker } = helpers(t);
+  const worker = await createWorker();
+  await worker.runUntil(executeWorkflow(runNonExisitingLocalActivity));
+  t.pass();
+});
+
+test.serial('Local activity not registered on replay Worker does not throw', async (t) => {
   const { startWorkflow, createWorker } = helpers(t);
   const worker = await createWorker({
     activities: {
-      // We need at least one activity, so that the Worker start its activity poller
-      async dummy(): Promise<string> {
-        return 'dummy';
+      async echo(input: string) {
+        return input;
       },
     },
   });
-  await worker.runUntil(async () => {
-    const handle = await startWorkflow(runANonExisitingLocalActivity, {});
-    await asyncRetry(
-      async () => {
-        const history = await handle.fetchHistory();
-        if (history?.events == null) {
-          throw new Error('Expected non null events');
-        }
-        const taskFailedEvent = history.events.find(
-          ({ workflowTaskFailedEventAttributes }) => workflowTaskFailedEventAttributes != null
-        );
-        if (taskFailedEvent == null) {
-          throw new Error('Expected workflow task failure');
-        }
-      },
-      {
-        retries: 20,
-        minTimeout: 100,
-        maxTimeout: 100,
-      }
-    );
-    t.pass();
-  });
+  const handle = await startWorkflow(runOneLocalActivity, { args: ['hello'] });
+  await worker.runUntil(() => handle.result());
+  const history = await handle.fetchHistory();
+  await Worker.runReplayHistory({ workflowBundle: t.context.workflowBundle }, history, handle.workflowId);
+  t.pass();
 });
 
 /**

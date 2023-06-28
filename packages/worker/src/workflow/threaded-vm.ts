@@ -136,6 +136,7 @@ export interface ThreadedVMWorkflowCreatorOptions {
   threadPoolSize: number;
   isolateExecutionTimeoutMs: number;
   reuseV8Context: boolean;
+  registeredActivityNames: Set<string>;
 }
 
 /**
@@ -152,13 +153,20 @@ export class ThreadedVMWorkflowCreator implements WorkflowCreator {
     workflowBundle,
     isolateExecutionTimeoutMs,
     reuseV8Context,
+    registeredActivityNames,
   }: ThreadedVMWorkflowCreatorOptions): Promise<ThreadedVMWorkflowCreator> {
     const workerThreadClients = Array(threadPoolSize)
       .fill(0)
       .map(() => new WorkerThreadClient(new NodeWorker(require.resolve('./workflow-worker-thread'))));
     await Promise.all(
       workerThreadClients.map((client) =>
-        client.send({ type: 'init', workflowBundle, isolateExecutionTimeoutMs, reuseV8Context })
+        client.send({
+          type: 'init',
+          workflowBundle,
+          isolateExecutionTimeoutMs,
+          reuseV8Context,
+          registeredActivityNames,
+        })
       )
     );
     return new this(workerThreadClients);
