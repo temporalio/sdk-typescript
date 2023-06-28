@@ -23,6 +23,7 @@ import { delay, filter, first, ignoreElements, last, map, mergeMap, takeUntil, t
 import type { RawSourceMap } from 'source-map';
 import { Info as ActivityInfo } from '@temporalio/activity';
 import {
+  ActivityFunction,
   DataConverter,
   decompileRetryPolicy,
   defaultPayloadConverter,
@@ -856,8 +857,8 @@ export class Worker {
 
                     const { activityType } = info;
                     // activities is of type "object" which does not support string indexes
-                    const fn = (this.options.activities as any)?.[activityType];
-                    if (typeof fn !== 'function') {
+                    const fn = this.getActivityFunction(activityType);
+                    if (fn == null) {
                       output = {
                         type: 'result',
                         result: {
@@ -1217,6 +1218,7 @@ export class Worker {
                   try {
                     const decodedActivation = await this.workflowCodecRunner.decodeActivation(activation);
                     const unencodedCompletion = await state.workflow.activate(decodedActivation);
+                    this.validateCompletion(unencodedCompletion);
                     const completion = await this.workflowCodecRunner.encodeCompletion(unencodedCompletion);
                     this.log.trace('Completed activation', workflowLogAttributes(state.info));
 
@@ -1273,6 +1275,38 @@ export class Worker {
       map(({ completion, parentSpan }) => ({ completion, parentSpan })),
       filter((result): result is ContextAware<{ completion: Uint8Array }> => result.completion !== undefined)
     );
+  }
+
+  /**
+   * Valiates an activation completion, throws an error if validation fails.
+   */
+  protected validateCompletion(completion: coresdk.workflow_completion.IWorkflowActivationCompletion): void {
+    if (!completion.successful?.commands) {
+      return;
+    }
+    for (const command of completion.successful.commands) {
+      if (command.scheduleLocalActivity) {
+        const { activityType } = command.scheduleLocalActivity;
+        if (!activityType) {
+          throw new TypeError('Local activity command missing activityType attribute');
+        }
+        const fn = this.getActivityFunction(activityType);
+        if (fn == null) {
+          throw new ReferenceError(`Local activity of type '${activityType}' not registered on worker`);
+        }
+      }
+    }
+  }
+
+  /**
+   * Gets an activity function of given type.
+   */
+  protected getActivityFunction(activityType: string): ActivityFunction<any[], any> | undefined {
+    const fn = (this.options.activities as any)?.[activityType];
+    if (typeof fn !== 'function') {
+      return undefined;
+    }
+    return fn;
   }
 
   /**

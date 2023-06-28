@@ -1,5 +1,6 @@
 import { randomUUID } from 'crypto';
 import { firstValueFrom, Subject } from 'rxjs';
+import asyncRetry from 'async-retry';
 import { ExecutionContext, TestFn } from 'ava';
 import { Context as ActivityContext } from '@temporalio/activity';
 import {
@@ -524,17 +525,15 @@ test.serial('Local activity can be intercepted', async (t) => {
 });
 
 export async function runANonExisitingLocalActivity(): Promise<void> {
-  // TODO: default behavior should be to not retry activities that are not found
   const { activityNotFound } = workflow.proxyLocalActivities({
     startToCloseTimeout: '1m',
-    retry: { maximumAttempts: 1 },
   });
 
   await activityNotFound();
 }
 
-test.serial('Local activity fails if not registered on Worker', async (t) => {
-  const { executeWorkflow, createWorker } = helpers(t);
+test.serial('Workflow task fails if local activity not registered on Worker', async (t) => {
+  const { startWorkflow, createWorker } = helpers(t);
   const worker = await createWorker({
     activities: {
       // We need at least one activity, so that the Worker start its activity poller
@@ -544,12 +543,27 @@ test.serial('Local activity fails if not registered on Worker', async (t) => {
     },
   });
   await worker.runUntil(async () => {
-    const err: WorkflowFailedError | undefined = await t.throwsAsync(
-      executeWorkflow(runANonExisitingLocalActivity, {}),
-      { instanceOf: WorkflowFailedError }
+    const handle = await startWorkflow(runANonExisitingLocalActivity, {});
+    await asyncRetry(
+      async () => {
+        const history = await handle.fetchHistory();
+        if (history?.events == null) {
+          throw new Error('Expected non null events');
+        }
+        const taskFailedEvent = history.events.find(
+          ({ workflowTaskFailedEventAttributes }) => workflowTaskFailedEventAttributes != null
+        );
+        if (taskFailedEvent == null) {
+          throw new Error('Expected workflow task failure');
+        }
+      },
+      {
+        retries: 20,
+        minTimeout: 100,
+        maxTimeout: 100,
+      }
     );
-    t.true(err?.cause instanceof ApplicationFailure && !err.cause.nonRetryable);
-    t.truthy(err?.cause?.message?.startsWith('Activity function activityNotFound is not registered on this Worker'));
+    t.pass();
   });
 });
 
