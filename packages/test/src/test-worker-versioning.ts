@@ -8,7 +8,7 @@ import { v4 as uuid4 } from 'uuid';
 import anyTest, { ImplementationFn, TestFn } from 'ava';
 import { status } from '@grpc/grpc-js';
 import asyncRetry from 'async-retry';
-import { Client } from '@temporalio/client';
+import { BuildIdNotFoundError, Client, UnversionedBuildId } from '@temporalio/client';
 import { DefaultLogger, Runtime } from '@temporalio/worker';
 import { RUN_INTEGRATION_TESTS, Worker } from './helpers';
 import * as activities from './activities';
@@ -143,7 +143,7 @@ if (RUN_INTEGRATION_TESTS) {
         buildId: '1.2',
         existingCompatibleBuildId: 'amnotreal',
       }),
-      { message: /amnotreal not found/ }
+      { message: /amnotreal not found/, instanceOf: BuildIdNotFoundError }
     );
 
     await conn.taskQueue.updateBuildIdCompatibility(taskQueue, {
@@ -181,6 +181,16 @@ if (RUN_INTEGRATION_TESTS) {
         assert.deepEqual(reachResp.buildIdReachability['2.0']?.taskQueueReachability[taskQueue], ['NewWorkflows']);
         assert.deepEqual(reachResp.buildIdReachability['1.1']?.taskQueueReachability[taskQueue], []);
         assert.deepEqual(reachResp.buildIdReachability['1.0']?.taskQueueReachability[taskQueue], []);
+      },
+      { maxTimeout: 1000 }
+    );
+    await asyncRetry(
+      async () => {
+        const reachResp = await conn.taskQueue.getBuildIdReachability({
+          buildIds: [UnversionedBuildId],
+          taskQueues: [taskQueue],
+        });
+        assert.deepEqual(reachResp.buildIdReachability[UnversionedBuildId]?.taskQueueReachability[taskQueue], []);
       },
       { maxTimeout: 1000 }
     );

@@ -1,5 +1,5 @@
 import test from 'ava';
-import { reachabilityResponseFromProto } from '@temporalio/client/lib/task-queue-client';
+import { reachabilityResponseFromProto, UnversionedBuildId } from '@temporalio/client/lib/task-queue-client';
 import { temporal } from '@temporalio/proto';
 import TaskReachability = temporal.api.enums.v1.TaskReachability;
 import GetWorkerTaskReachabilityResponse = temporal.api.workflowservice.v1.GetWorkerTaskReachabilityResponse;
@@ -65,16 +65,27 @@ test('Worker versioning workers get appropriate tasks', async (t) => {
             },
           ],
         },
+        {
+          buildId: '', // Unversioned
+          taskQueueReachability: [
+            {
+              taskQueue: 'foo',
+              reachability: [],
+            },
+          ],
+        },
       ],
     })
   );
 
+  console.warn(res.buildIdReachability);
   t.deepEqual(res.buildIdReachability['2.0'].taskQueueReachability.foo, ['NewWorkflows']);
   t.deepEqual(res.buildIdReachability['1.0'].taskQueueReachability.foo, ['OpenWorkflows']);
   t.deepEqual(res.buildIdReachability['1.1'].taskQueueReachability.foo, ['ExistingWorkflows', 'NewWorkflows']);
   t.deepEqual(res.buildIdReachability['0.1'].taskQueueReachability.foo, ['ClosedWorkflows']);
   t.deepEqual(res.buildIdReachability['unreachable'].taskQueueReachability.foo, []);
   t.deepEqual(res.buildIdReachability['badboi'].taskQueueReachability.foo, ['NotFetched']);
+  t.deepEqual(res.buildIdReachability[UnversionedBuildId].taskQueueReachability.foo, []);
 
   t.pass();
 });

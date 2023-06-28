@@ -5,7 +5,8 @@ import { temporal } from '@temporalio/proto';
 import { BaseClient, BaseClientOptions, defaultBaseClientOptions, LoadedWithDefaults } from './base-client';
 import { WorkflowService } from './types';
 import { BuildIdOperation, versionSetsFromProto, WorkerBuildIdVersionSets } from './build-id-types';
-import { isServerErrorResponse, ServiceError } from './errors';
+import { isGrpcServiceError, ServiceError } from './errors';
+import { rethrowKnownErrorTypes } from './helpers';
 import IUpdateWorkerBuildIdCompatibilityRequest = temporal.api.workflowservice.v1.IUpdateWorkerBuildIdCompatibilityRequest;
 import GetWorkerTaskReachabilityResponse = temporal.api.workflowservice.v1.GetWorkerTaskReachabilityResponse;
 
@@ -18,6 +19,13 @@ export type TaskQueueClientOptions = BaseClientOptions;
  * @experimental
  */
 export type LoadedTaskQueueClientOptions = LoadedWithDefaults<TaskQueueClientOptions>;
+
+/**
+ * A stand-in for a Build Id for unversioned Workers
+ * @experimental
+ */
+export const UnversionedBuildId = Symbol.for('__temporal_unversionedBuildId');
+export type UnversionedBuildIdType = typeof UnversionedBuildId;
 
 /**
  * Client for starting Workflow executions and creating Workflow handles
@@ -82,7 +90,7 @@ export class TaskQueueClient extends BaseClient {
         };
         break;
       default:
-        assertNever(operation);
+        assertNever('Unknown build id update operation', operation);
     }
     try {
       await this.workflowService.updateWorkerBuildIdCompatibility(request);
@@ -127,11 +135,17 @@ export class TaskQueueClient extends BaseClient {
    */
   public async getBuildIdReachability(options: ReachabilityOptions): Promise<ReachabilityResponse> {
     let resp;
+    const buildIds = options.buildIds?.map((bid) => {
+      if (bid === UnversionedBuildId) {
+        return '';
+      }
+      return bid;
+    });
     try {
       resp = await this.workflowService.getWorkerTaskReachability({
         namespace: this.options.namespace,
         taskQueues: options.taskQueues,
-        buildIds: options.buildIds,
+        buildIds,
         reachability: reachabilityTypeToProto(options.reachability),
       });
     } catch (e) {
@@ -141,7 +155,8 @@ export class TaskQueueClient extends BaseClient {
   }
 
   protected rethrowGrpcError(err: unknown, fallbackMessage: string): never {
-    if (isServerErrorResponse(err)) {
+    if (isGrpcServiceError(err)) {
+      rethrowKnownErrorTypes(err);
       if (err.code === status.NOT_FOUND) {
         throw new BuildIdNotFoundError(err.details ?? 'Build Id not found');
       }
@@ -165,15 +180,18 @@ export type ReachabilityOptions = RequireAtLeastOne<BaseReachabilityOptions, 'bu
  */
 export type ReachabilityType = 'NewWorkflows' | 'ExistingWorkflows' | 'OpenWorkflows' | 'ClosedWorkflows';
 
-interface BaseReachabilityOptions {
+/**
+ * See {@link ReachabilityOptions}
+ */
+export interface BaseReachabilityOptions {
   /**
    * A list of build ids to query the reachability of. Currently, at least one Build Id must be
    * specified, but this restriction may be lifted in the future.
    */
-  buildIds: string[];
+  buildIds: (string | UnversionedBuildIdType)[];
   /**
-   *  A list of task queues with Build Ids defined on them that the request is
-   *  concerned with.
+   * A list of task queues with Build Ids defined on them that the request is
+   * concerned with.
    */
   taskQueues?: string[];
   /** The kind of reachability this request is concerned with. */
@@ -182,10 +200,10 @@ interface BaseReachabilityOptions {
 
 export interface ReachabilityResponse {
   /** Maps Build Ids to their reachability information. */
-  buildIdReachability: Record<string, BuildIdReachability>;
+  buildIdReachability: Record<string | UnversionedBuildIdType, BuildIdReachability>;
 }
 
-type ReachabilityTypeResponse = ReachabilityType | 'NotFetched';
+export type ReachabilityTypeResponse = ReachabilityType | 'NotFetched';
 
 export interface BuildIdReachability {
   /**
@@ -209,30 +227,36 @@ function reachabilityTypeToProto(type: ReachabilityType | undefined | null): tem
     case 'ClosedWorkflows':
       return temporal.api.enums.v1.TaskReachability.TASK_REACHABILITY_CLOSED_WORKFLOWS;
     default:
-      assertNever(type);
+      assertNever('Unknown Build Id reachability operation', type);
   }
 }
 
 export function reachabilityResponseFromProto(resp: GetWorkerTaskReachabilityResponse): ReachabilityResponse {
-  const buildIdReachability: Record<string, BuildIdReachability> = {};
-  for (const bir of resp.buildIdReachability) {
-    const taskQueueReachability: Record<string, ReachabilityTypeResponse[]> = {};
-    if (bir.taskQueueReachability != null) {
-      for (const tqr of bir.taskQueueReachability) {
-        if (tqr.taskQueue == null) {
-          continue;
-        }
-        if (tqr.reachability == null) {
-          taskQueueReachability[tqr.taskQueue] = [];
-          continue;
-        }
-        taskQueueReachability[tqr.taskQueue] = tqr.reachability.map(reachabilityTypeFromProto);
-      }
-    }
-    buildIdReachability[bir.buildId ?? ''] = { taskQueueReachability };
-  }
   return {
-    buildIdReachability,
+    buildIdReachability: Object.fromEntries(
+      resp.buildIdReachability.map((bir) => {
+        const taskQueueReachability: Record<string, ReachabilityTypeResponse[]> = {};
+        if (bir.taskQueueReachability != null) {
+          for (const tqr of bir.taskQueueReachability) {
+            if (tqr.taskQueue == null) {
+              continue;
+            }
+            if (tqr.reachability == null) {
+              taskQueueReachability[tqr.taskQueue] = [];
+              continue;
+            }
+            taskQueueReachability[tqr.taskQueue] = tqr.reachability.map(reachabilityTypeFromProto);
+          }
+        }
+        let bid: string | UnversionedBuildIdType;
+        if (bir.buildId) {
+          bid = bir.buildId;
+        } else {
+          bid = UnversionedBuildId;
+        }
+        return [bid, { taskQueueReachability }];
+      })
+    ) as Record<string | UnversionedBuildIdType, BuildIdReachability>,
   };
 }
 
@@ -249,7 +273,7 @@ function reachabilityTypeFromProto(rtype: temporal.api.enums.v1.TaskReachability
     case temporal.api.enums.v1.TaskReachability.TASK_REACHABILITY_CLOSED_WORKFLOWS:
       return 'ClosedWorkflows';
     default:
-      return assertNever(rtype);
+      return assertNever('Unknown Build Id reachability operation', rtype);
   }
 }
 

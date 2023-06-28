@@ -70,6 +70,6 @@ export function errorCode(error: unknown): string | undefined {
 /**
  * Asserts that some type is the never type
  */
-export function assertNever(x: never): never {
-  throw new TypeError('Unexpected object: ' + x);
+export function assertNever(msg: string, x: never): never {
+  throw new TypeError(msg + ': ' + x);
 }

@@ -18,7 +18,7 @@ export type BuildIdOperation =
  *
  * @experimental
  */
-interface AddNewIdInNewDefaultSet {
+export interface AddNewIdInNewDefaultSet {
   operation: 'addNewIdInNewDefaultSet';
   buildId: string;
 }
@@ -30,7 +30,7 @@ interface AddNewIdInNewDefaultSet {
  *
  * @experimental
  */
-interface AddNewCompatibleVersion {
+export interface AddNewCompatibleVersion {
   operation: 'addNewCompatibleVersion';
   // The Build Id to add to an existing compatible set.
   buildId: string;
@@ -49,7 +49,7 @@ interface AddNewCompatibleVersion {
  *
  * @experimental
  */
-interface PromoteSetByBuildId {
+export interface PromoteSetByBuildId {
   operation: 'promoteSetByBuildId';
   buildId: string;
 }
@@ -60,7 +60,7 @@ interface PromoteSetByBuildId {
  *
  * @experimental
  */
-interface PromoteBuildIdWithinSet {
+export interface PromoteBuildIdWithinSet {
   operation: 'promoteBuildIdWithinSet';
   buildId: string;
 }
@@ -72,7 +72,7 @@ interface PromoteBuildIdWithinSet {
  *
  * @experimental
  */
-interface MergeSets {
+export interface MergeSets {
   operation: 'mergeSets';
   // A Build Id which is used to find the primary set to be merged.
   primaryBuildId: string;
@@ -115,7 +115,7 @@ export interface BuildIdVersionSet {
   readonly buildIds: string[];
 
   // Returns the default Build Id for this set
-  default(): string;
+  readonly default: string;
 }
 
 export function versionSetsFromProto(
@@ -130,7 +130,7 @@ export function versionSetsFromProto(
       return this.versionSets[this.versionSets.length - 1];
     },
     get defaultBuildId(): string {
-      return this.defaultSet.default();
+      return this.defaultSet.default;
     },
   };
 }
@@ -141,8 +141,6 @@ function versionSetFromProto(set: temporal.api.taskqueue.v1.ICompatibleVersionSe
   }
   return {
     buildIds: set.buildIds,
-    default(): string {
-      return this.buildIds[this.buildIds.length - 1];
-    },
+    default: set.buildIds[set.buildIds.length - 1],
   };
 }

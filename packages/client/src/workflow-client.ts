@@ -584,6 +584,7 @@ export class WorkflowClient extends BaseClient {
   protected rethrowGrpcError(err: unknown, fallbackMessage: string, workflowExecution?: WorkflowExecution): never {
     if (isGrpcServiceError(err)) {
       rethrowKnownErrorTypes(err);
+
       if (err.code === grpcStatus.NOT_FOUND) {
         throw new WorkflowNotFoundError(
           err.details ?? 'Workflow not found',
@@ -993,7 +994,6 @@ export class WorkflowClient extends BaseClient {
 
 export class QueryRejectedError extends Error {
   public readonly name: string = 'QueryRejectedError';
-
   constructor(public readonly status: temporal.api.enums.v1.WorkflowExecutionStatus) {
     super('Query rejected');
   }
@@ -1001,7 +1001,6 @@ export class QueryRejectedError extends Error {
 
 export class QueryNotRegisteredError extends Error {
   public readonly name: string = 'QueryNotRegisteredError';
-
   constructor(message: string, public readonly code: grpcStatus) {
     super(message);
   }

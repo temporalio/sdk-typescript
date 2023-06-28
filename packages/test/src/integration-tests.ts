@@ -586,7 +586,10 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
     if (binSum != null) {
       t.regex(binSum[0], /@temporalio\/worker@/);
     } else {
-      t.regex((execution.searchAttributes!.BuildIds as string[])[0], /unversioned/);
+      t.deepEqual(execution.searchAttributes!.BuildIds, [
+        'unversioned',
+        `unversioned:${t.context.worker.options.buildId}`,
+      ]);
     }
   });
 
@@ -638,7 +641,6 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
       CustomTextField: ['is useful'],
       CustomDatetimeField: [date],
       CustomDoubleField: [3.14],
-      BuildIds: ['unversioned', `unversioned:${t.context.worker.options.buildId}`],
     });
     let checksum: any;
     if (BinaryChecksums != null) {
