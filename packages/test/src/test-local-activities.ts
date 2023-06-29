@@ -25,7 +25,6 @@ import {
 import * as workflow from '@temporalio/workflow';
 import { test as anyTest, bundlerOptions, Worker } from './helpers';
 import { ConnectionInjectorInterceptor } from './activities/interceptors';
-import * as assert from 'assert';
 
 // FIXME MOVE THIS SECTION SOMEWHERE IT CAN BE SHARED //
 

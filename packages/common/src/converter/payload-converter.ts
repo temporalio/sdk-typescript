@@ -1,4 +1,3 @@
-import type { temporal } from '@temporalio/proto';
 import { decode, encode } from '../encoding';
 import { PayloadConverterError, ValueError } from '../errors';
 import { Payload } from '../interfaces';
