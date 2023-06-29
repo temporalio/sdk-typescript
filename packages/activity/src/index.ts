@@ -255,7 +255,7 @@ export class Context {
    * `ActivityInboundLogInterceptor` with your custom Logger. You may also subclass `ActivityInboundLogInterceptor` to
    * customize attributes that are emitted as metadata.
    */
-  public logger: Logger;
+  public log: Logger;
 
   /**
    * **Not** meant to instantiated by Activity code, used by the worker.
@@ -273,7 +273,7 @@ export class Context {
     this.cancelled = cancelled;
     this.cancellationSignal = cancellationSignal;
     this.heartbeatFn = heartbeat;
-    this.logger = logger;
+    this.log = logger;
   }
 
   /**

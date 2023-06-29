@@ -35,10 +35,10 @@ export class ActivityInboundLogInterceptor implements ActivityInboundCallsInterc
     // Otherwise, use the logger that is already set on the activity context.
     // By default, that will be Runtime.logger, but another interceptor might have overriden it,
     // in which case we would want to use that one as our parent logger.
-    const parentLogger = logger ?? ctx.logger;
+    const parentLogger = logger ?? ctx.log;
     this.logger = parentLogger; // eslint-disable-line deprecation/deprecation
 
-    this.ctx.logger = Object.fromEntries(
+    this.ctx.log = Object.fromEntries(
       (['trace', 'debug', 'info', 'warn', 'error'] as const).map((level) => {
         return [
           level,
@@ -60,7 +60,7 @@ export class ActivityInboundLogInterceptor implements ActivityInboundCallsInterc
   async execute(input: ActivityExecuteInput, next: Next<ActivityInboundCallsInterceptor, 'execute'>): Promise<unknown> {
     let error: any = UNINITIALIZED; // In case someone decides to throw undefined...
     const startTime = process.hrtime.bigint();
-    this.ctx.logger.debug('Activity started');
+    this.ctx.log.debug('Activity started');
     try {
       return await next(input);
     } catch (err: any) {
@@ -71,18 +71,18 @@ export class ActivityInboundLogInterceptor implements ActivityInboundCallsInterc
       const durationMs = Number(durationNanos / 1_000_000n);
 
       if (error === UNINITIALIZED) {
-        this.ctx.logger.debug('Activity completed', { durationMs });
+        this.ctx.log.debug('Activity completed', { durationMs });
       } else if (
         typeof error === 'object' &&
         error != null &&
         (CancelledFailure.is(error) || error.name === 'AbortError') &&
         this.ctx.cancellationSignal.aborted
       ) {
-        this.ctx.logger.debug('Activity completed as cancelled', { durationMs });
+        this.ctx.log.debug('Activity completed as cancelled', { durationMs });
       } else if (CompleteAsyncError.is(error)) {
-        this.ctx.logger.debug('Activity will complete asynchronously', { durationMs });
+        this.ctx.log.debug('Activity will complete asynchronously', { durationMs });
       } else {
-        this.ctx.logger.warn('Activity failed', { error, durationMs });
+        this.ctx.log.warn('Activity failed', { error, durationMs });
       }
     }
   }
