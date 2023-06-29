@@ -161,6 +161,7 @@ Breaking changes marked with a :boom:
 - [`workflow`] Ensure payload converters keep Uint8Array type equality ([#1143](https://github.com/temporalio/sdk-typescript/pull/1133))
 - Fail workflow task if local activity not registered with worker ([#1152](https://github.com/temporalio/sdk-typescript/pull/1152))
 - [`core`] Don't increment terminal command metrics when replaying ([Core #572](https://github.com/temporalio/sdk-core/pull/572))
+- [`core`] Fix start-to-close local activity timeouts not being retryable like they should be ([#Core 576](https://github.com/temporalio/sdk-core/pull/576))
 
 ### Documentation
 
