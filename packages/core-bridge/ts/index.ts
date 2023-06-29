@@ -276,7 +276,7 @@ export interface WorkerOptions {
    *
    * For more information, see https://docs.temporal.io/workers#worker-versioning
    */
-  useWorkerVersioning: boolean;
+  useVersioning: boolean;
 
   /**
    * The task queue the worker will pull from

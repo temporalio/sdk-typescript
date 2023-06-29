@@ -8,6 +8,65 @@ Breaking changes marked with a :boom:
 
 ### Features
 
+- [`worker`] Add support for [worker versioning](https://docs.temporal.io/workers#worker-versioning) ([#1146](https://github.com/temporalio/sdk-typescript/pull/1146)).
+
+  Worker versioning is available from server version 1.21 (if enabled in dynamic configuration).
+
+  :warning: Experimental - While the feature is well tested and is considered functionally stable, the SDK APIs are
+  considered experimental.
+
+  To use worker versioning with the TypeScript SDK, use the following steps:
+
+  ```ts
+  import { Client } from '@temporalio/client';
+  import { Worker } from '@temporalio/worker';
+
+  const buildId = 'id-generated-from-continuous-integration';
+
+  // Deploy new workers, opt them in to versioning.
+  const worker = await Worker.create({
+    workflowsPath: require.resolve('./workflows'),
+    buildId,
+    useVersioning: true,
+    // ...
+  });
+
+  // ...
+
+  // In a separate process, when all workers are up, update the build id compatibility for the task queue.
+  const client = new Client({
+    /* options */
+  });
+  // If the current version is incompatible with the previous ones:
+  await client.taskQueue.updateBuildIdCompatibility('my-task-queue', {
+    operation: 'addNewIdInNewDefaultSet',
+    buildId,
+  });
+  // Or, if the current version is compatible with a previous one:
+  await client.taskQueue.updateBuildIdCompatibility('my-task-queue', {
+    operation: 'addNewCompatibleVersion',
+    buildId,
+    existingCompatibleBuildId: 'some-other-build-id',
+  });
+
+  // Check if workers are reachable before retiring them (even if their build ids are associated with multiple task
+  // queues):
+  const { buildIdReachability } = await client.taskQueue.getReachability({ buildIds: ['some-other-build-id'] });
+  const { taskQueueReachability } = buildIdReachability['some-other-build-id'];
+  for (const [taskQueue, reachability] of Object.entries(taskQueueReachability)) {
+    if (reachability.length > 0) {
+      if (reachability[0] === 'NotFetched') {
+        // We asked the server for too many reachability entries (build ids or task queues),
+        // This build id / task queue reachability should be fetched in another request.
+        // Fetch this information here or later...
+      } else {
+        console.log('Build id still reachable on:', taskQueue);
+      }
+    }
+  }
+  // Check if build id is reachable...
+  ```
+
 - [`worker`] Add support for using multiple concurrent pollers to getch Workflow Task and Activity Task from Task Queues
   ([#1132](https://github.com/temporalio/sdk-typescript/pull/1132)). The number of pollers for each type can be controlled through the `WorkerOptions.maxConcurrentWorkflowTaskPolls`
   and `WorkerOptions.maxConcurrentActivityTaskPolls` properties. Properly adjusting these values should allow better

@@ -133,7 +133,7 @@ export class TaskQueueClient extends BaseClient {
    * `NotFetched` entry in {@link BuildIdReachability.taskQueueReachability}. The caller may issue
    * another call to get the reachability for those task queues.
    */
-  public async getBuildIdReachability(options: ReachabilityOptions): Promise<ReachabilityResponse> {
+  public async getReachability(options: ReachabilityOptions): Promise<ReachabilityResponse> {
     let resp;
     const buildIds = options.buildIds?.map((bid) => {
       if (bid === UnversionedBuildId) {
@@ -167,7 +167,7 @@ export class TaskQueueClient extends BaseClient {
 }
 
 /**
- * Options for {@link TaskQueueClient.getBuildIdReachability}
+ * Options for {@link TaskQueueClient.getReachability}
  */
 export type ReachabilityOptions = RequireAtLeastOne<BaseReachabilityOptions, 'buildIds' | 'taskQueues'>;
 

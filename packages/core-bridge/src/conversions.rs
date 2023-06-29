@@ -335,7 +335,7 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
         match WorkerConfigBuilder::default()
             .worker_build_id(js_value_getter!(cx, self, "buildId", JsString))
             .client_identity_override(Some(js_value_getter!(cx, self, "identity", JsString)))
-            .use_worker_versioning(js_value_getter!(cx, self, "useWorkerVersioning", JsBoolean))
+            .use_worker_versioning(js_value_getter!(cx, self, "useVersioning", JsBoolean))
             .no_remote_activities(!enable_remote_activities)
             .max_outstanding_workflow_tasks(max_outstanding_workflow_tasks)
             .max_outstanding_activities(max_outstanding_activities)

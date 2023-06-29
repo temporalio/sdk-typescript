@@ -83,7 +83,7 @@ export interface WorkerOptions {
    *
    * This is used to uniquely identify the worker's code for a handful of purposes, including the
    * worker versioning feature if you have opted into that with
-   * {@link WorkerOptions.useWorkerVersioning}. It will also populate the `binaryChecksum` field
+   * {@link WorkerOptions.useVersioning}. It will also populate the `binaryChecksum` field
    * on older servers.
    *
    * @default `@temporalio/worker` package name and version + checksum of workflow bundle's code
@@ -101,7 +101,7 @@ export interface WorkerOptions {
    *
    * @experimental
    */
-  useWorkerVersioning?: boolean;
+  useVersioning?: boolean;
 
   /**
    * The namespace this worker will connect to
@@ -485,7 +485,7 @@ export type WorkerOptionsWithDefaults = WorkerOptions &
       WorkerOptions,
       | 'namespace'
       | 'identity'
-      | 'useWorkerVersioning'
+      | 'useVersioning'
       | 'shutdownGraceTime'
       | 'maxConcurrentActivityTaskExecutions'
       | 'maxConcurrentLocalActivityExecutions'
@@ -550,6 +550,7 @@ export interface ReplayWorkerOptions
     | 'maxTaskQueueActivitiesPerSecond'
     | 'stickyQueueScheduleToStartTimeout'
     | 'maxCachedWorkflows'
+    | 'useVersioning'
   > {
   /**
    *  A optional name for this replay worker. It will be combined with an incremental ID to form a unique
@@ -631,7 +632,7 @@ export function addDefaultWorkerOptions(options: WorkerOptions): WorkerOptionsWi
   return {
     namespace: namespace ?? 'default',
     identity: `${process.pid}@${os.hostname()}`,
-    useWorkerVersioning: options.useWorkerVersioning ?? false,
+    useVersioning: options.useVersioning ?? false,
     shutdownGraceTime: 0,
     maxConcurrentLocalActivityExecutions: 100,
     enableNonLocalActivities: true,
