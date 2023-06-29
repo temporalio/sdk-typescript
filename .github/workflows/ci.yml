@@ -316,3 +316,10 @@ jobs:
       test-type: ci-stress
       test-timeout-minutes: 20
       reuse-v8-context: true
+
+  nightly-reuse-context:
+    uses: ./.github/workflows/stress.yml
+    with:
+      test-type: ci-nightly
+      test-timeout-minutes: 360 # yes, 6 hours
+      reuse-v8-context: true
