@@ -472,19 +472,33 @@ export class Worker {
     workflowBundle: WorkflowBundleWithSourceMapAndFilename,
     compiledOptions: CompiledWorkerOptions
   ): Promise<WorkflowCreator> {
+    const registeredActivityNames = new Set(
+      Object.entries(compiledOptions.activities ?? {})
+        .filter(([_, v]) => typeof v === 'function')
+        .map(([k]) => k)
+    );
     // This isn't required for vscode, only for Chrome Dev Tools which doesn't support debugging worker threads.
     // We also rely on this in debug-replayer where we inject a global variable to be read from workflow context.
     if (compiledOptions.debugMode) {
       if (compiledOptions.reuseV8Context) {
-        return await ReusableVMWorkflowCreator.create(workflowBundle, compiledOptions.isolateExecutionTimeoutMs);
+        return await ReusableVMWorkflowCreator.create(
+          workflowBundle,
+          compiledOptions.isolateExecutionTimeoutMs,
+          registeredActivityNames
+        );
       }
-      return await VMWorkflowCreator.create(workflowBundle, compiledOptions.isolateExecutionTimeoutMs);
+      return await VMWorkflowCreator.create(
+        workflowBundle,
+        compiledOptions.isolateExecutionTimeoutMs,
+        registeredActivityNames
+      );
     } else {
       return await ThreadedVMWorkflowCreator.create({
         workflowBundle,
         threadPoolSize: compiledOptions.workflowThreadPoolSize,
         isolateExecutionTimeoutMs: compiledOptions.isolateExecutionTimeoutMs,
         reuseV8Context: compiledOptions.reuseV8Context ?? false,
+        registeredActivityNames,
       });
     }
   }

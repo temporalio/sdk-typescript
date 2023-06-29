@@ -281,6 +281,8 @@ export class Activator implements ActivationHandler {
    */
   public readonly getTimeOfDay: () => bigint;
 
+  public readonly registeredActivityNames: Set<string>;
+
   constructor({
     info,
     now,
@@ -289,6 +291,7 @@ export class Activator implements ActivationHandler {
     getTimeOfDay,
     randomnessSeed,
     patches,
+    registeredActivityNames,
   }: WorkflowCreateOptionsInternal) {
     this.getTimeOfDay = getTimeOfDay;
     this.info = info;
@@ -296,6 +299,7 @@ export class Activator implements ActivationHandler {
     this.showStackTraceSources = showStackTraceSources;
     this.sourceMap = sourceMap;
     this.random = alea(randomnessSeed);
+    this.registeredActivityNames = registeredActivityNames;
 
     if (info.unsafe.isReplaying) {
       for (const patchId of patches) {

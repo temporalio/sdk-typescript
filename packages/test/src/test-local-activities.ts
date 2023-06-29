@@ -141,7 +141,7 @@ export async function runMyLocalActivityWithOption(
   return await workflow.proxyLocalActivities(opts).myLocalActivity();
 }
 
-test.serial('Local activity with ', async (t) => {
+test.serial('Local activity with various timeouts', async (t) => {
   const { executeWorkflow, createWorker } = helpers(t);
   const worker = await createWorker({
     activities: {
@@ -523,34 +523,43 @@ test.serial('Local activity can be intercepted', async (t) => {
   });
 });
 
-export async function runANonExisitingLocalActivity(): Promise<void> {
-  // TODO: default behavior should be to not retry activities that are not found
+export async function runNonExisitingLocalActivity(): Promise<void> {
   const { activityNotFound } = workflow.proxyLocalActivities({
     startToCloseTimeout: '1m',
-    retry: { maximumAttempts: 1 },
   });
 
-  await activityNotFound();
+  try {
+    await activityNotFound();
+  } catch (err) {
+    if (err instanceof ReferenceError) {
+      return;
+    }
+    throw err;
+  }
+  throw ApplicationFailure.nonRetryable('Unreachable');
 }
 
-test.serial('Local activity fails if not registered on Worker', async (t) => {
+test.serial('Local activity not registered on Worker throws ReferenceError in workflow context', async (t) => {
   const { executeWorkflow, createWorker } = helpers(t);
+  const worker = await createWorker();
+  await worker.runUntil(executeWorkflow(runNonExisitingLocalActivity));
+  t.pass();
+});
+
+test.serial('Local activity not registered on replay Worker does not throw', async (t) => {
+  const { startWorkflow, createWorker } = helpers(t);
   const worker = await createWorker({
     activities: {
-      // We need at least one activity, so that the Worker start its activity poller
-      async dummy(): Promise<string> {
-        return 'dummy';
+      async echo(input: string) {
+        return input;
       },
     },
   });
-  await worker.runUntil(async () => {
-    const err: WorkflowFailedError | undefined = await t.throwsAsync(
-      executeWorkflow(runANonExisitingLocalActivity, {}),
-      { instanceOf: WorkflowFailedError }
-    );
-    t.true(err?.cause instanceof ApplicationFailure && !err.cause.nonRetryable);
-    t.truthy(err?.cause?.message?.startsWith('Activity function activityNotFound is not registered on this Worker'));
-  });
+  const handle = await startWorkflow(runOneLocalActivity, { args: ['hello'] });
+  await worker.runUntil(() => handle.result());
+  const history = await handle.fetchHistory();
+  await Worker.runReplayHistory({ workflowBundle: t.context.workflowBundle }, history, handle.workflowId);
+  t.pass();
 });
 
 /**

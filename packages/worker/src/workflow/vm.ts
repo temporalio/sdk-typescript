@@ -25,8 +25,9 @@ export class VMWorkflowCreator implements WorkflowCreator {
 
   constructor(
     script: vm.Script,
-    public readonly workflowBundle: WorkflowBundleWithSourceMapAndFilename,
-    public readonly isolateExecutionTimeoutMs: number
+    protected readonly workflowBundle: WorkflowBundleWithSourceMapAndFilename,
+    protected readonly isolateExecutionTimeoutMs: number,
+    protected readonly registeredActivityNames: Set<string>
   ) {
     if (!VMWorkflowCreator.unhandledRejectionHandlerHasBeenSet) {
       setUnhandledRejectionHandler((runId) => VMWorkflowCreator.workflowByRunId.get(runId));
@@ -62,6 +63,7 @@ export class VMWorkflowCreator implements WorkflowCreator {
       ...options,
       sourceMap: this.workflowBundle.sourceMap,
       getTimeOfDay: () => timeOfDayToBigint(getTimeOfDay()),
+      registeredActivityNames: this.registeredActivityNames,
     });
     const activator = context.__TEMPORAL_ACTIVATOR__ as any;
 
@@ -97,12 +99,13 @@ export class VMWorkflowCreator implements WorkflowCreator {
   public static async create<T extends typeof VMWorkflowCreator>(
     this: T,
     workflowBundle: WorkflowBundleWithSourceMapAndFilename,
-    isolateExecutionTimeoutMs: number
+    isolateExecutionTimeoutMs: number,
+    registeredActivityNames: Set<string>
   ): Promise<InstanceType<T>> {
     globalHandlers.install();
     await globalHandlers.addWorkflowBundle(workflowBundle);
     const script = new vm.Script(workflowBundle.code, { filename: workflowBundle.filename });
-    return new this(script, workflowBundle, isolateExecutionTimeoutMs) as InstanceType<T>;
+    return new this(script, workflowBundle, isolateExecutionTimeoutMs, registeredActivityNames) as InstanceType<T>;
   }
 
   /**

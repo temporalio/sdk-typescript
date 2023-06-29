@@ -15,6 +15,7 @@ export interface Init {
   type: 'init';
   isolateExecutionTimeoutMs: number;
   workflowBundle: WorkflowBundleWithSourceMapAndFilename;
+  registeredActivityNames: Set<string>;
   reuseV8Context: boolean;
 }
 
