@@ -2,6 +2,7 @@ import { randomUUID } from 'crypto';
 import { TestFn, ImplementationFn } from 'ava';
 import { TestWorkflowEnvironment } from '@temporalio/testing';
 import { ApplicationFailure, arrayFromPayloads } from '@temporalio/common';
+import { bundleWorkflowCode, WorkflowBundle } from '@temporalio/worker';
 import { sleep } from '@temporalio/workflow';
 import { WorkflowFailedError } from '@temporalio/client';
 import { test as anyTest, bundlerOptions, Worker, REUSE_V8_CONTEXT } from './helpers';
@@ -9,6 +10,7 @@ import { test as anyTest, bundlerOptions, Worker, REUSE_V8_CONTEXT } from './hel
 interface Context {
   env: TestWorkflowEnvironment;
   taskQueue: string;
+  workflowBundle: WorkflowBundle;
   createWorker(): Promise<Worker>;
 }
 
@@ -23,20 +25,19 @@ const withReusableContext = test.macro<[ImplementationFn<[], Context>]>(async (t
 });
 
 test.before(async (t) => {
-  const env = await TestWorkflowEnvironment.createLocal();
-  const taskQueue = 'test';
-  async function createWorker() {
+  t.context.env = await TestWorkflowEnvironment.createLocal();
+  t.context.workflowBundle = await bundleWorkflowCode({ workflowsPath: __filename, ...bundlerOptions });
+});
+
+test.beforeEach(async (t) => {
+  t.context.taskQueue = t.title.replace(/ /g, '_');
+  t.context.createWorker = async () => {
+    const { env, workflowBundle, taskQueue } = t.context;
     return await Worker.create({
       connection: env.nativeConnection,
-      workflowsPath: __filename,
+      workflowBundle,
       taskQueue,
-      bundlerOptions,
     });
-  }
-  t.context = {
-    env,
-    taskQueue,
-    createWorker,
   };
 });
 

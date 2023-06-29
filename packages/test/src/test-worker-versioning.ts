@@ -4,7 +4,7 @@
  * @module
  */
 import assert from 'assert';
-import { v4 as uuid4 } from 'uuid';
+import { randomUUID } from 'crypto';
 import anyTest, { ImplementationFn, TestFn } from 'ava';
 import { status } from '@grpc/grpc-js';
 import asyncRetry from 'async-retry';
@@ -35,7 +35,7 @@ if (RUN_INTEGRATION_TESTS) {
     const client = new Client();
     // Test if this server supports worker versioning
     let doSkip = false;
-    const taskQueue = 'test-worker-versioning' + uuid4();
+    const taskQueue = 'test-worker-versioning' + randomUUID();
     try {
       await client.taskQueue.updateBuildIdCompatibility(taskQueue, {
         operation: 'addNewIdInNewDefaultSet',
@@ -56,9 +56,9 @@ if (RUN_INTEGRATION_TESTS) {
   });
 
   test('Worker versioning workers get appropriate tasks', withSkipper, async (t) => {
-    const taskQueue = 'worker-versioning-tasks-' + uuid4();
-    const wf1Id = 'worker-versioning-1-' + uuid4();
-    const wf2Id = 'worker-versioning-2-' + uuid4();
+    const taskQueue = 'worker-versioning-tasks-' + randomUUID();
+    const wf1Id = 'worker-versioning-1-' + randomUUID();
+    const wf2Id = 'worker-versioning-2-' + randomUUID();
     const client = t.context.client;
     await client.taskQueue.updateBuildIdCompatibility(taskQueue, {
       operation: 'addNewIdInNewDefaultSet',
@@ -69,9 +69,8 @@ if (RUN_INTEGRATION_TESTS) {
       workflowsPath: require.resolve('./workflows'),
       activities,
       taskQueue,
-      showStackTraceSources: true,
       buildId: '1.0',
-      useWorkerVersioning: true,
+      useVersioning: true,
     });
     const worker1Prom = worker1.run();
     worker1Prom.catch((err) => {
@@ -96,9 +95,8 @@ if (RUN_INTEGRATION_TESTS) {
       workflowsPath: require.resolve('./workflows'),
       activities,
       taskQueue,
-      showStackTraceSources: true,
       buildId: '2.0',
-      useWorkerVersioning: true,
+      useVersioning: true,
     });
     const worker2Prom = worker2.run();
     worker2Prom.catch((err) => {
@@ -118,7 +116,7 @@ if (RUN_INTEGRATION_TESTS) {
   });
 
   test('Worker versioning client updates', withSkipper, async (t) => {
-    const taskQueue = 'worker-versioning-client-updates-' + uuid4();
+    const taskQueue = 'worker-versioning-client-updates-' + randomUUID();
     const conn = t.context.client;
 
     await conn.taskQueue.updateBuildIdCompatibility(taskQueue, {
@@ -177,7 +175,7 @@ if (RUN_INTEGRATION_TESTS) {
 
     await asyncRetry(
       async () => {
-        const reachResp = await conn.taskQueue.getBuildIdReachability({ buildIds: ['2.0', '1.0', '1.1'] });
+        const reachResp = await conn.taskQueue.getReachability({ buildIds: ['2.0', '1.0', '1.1'] });
         assert.deepEqual(reachResp.buildIdReachability['2.0']?.taskQueueReachability[taskQueue], ['NewWorkflows']);
         assert.deepEqual(reachResp.buildIdReachability['1.1']?.taskQueueReachability[taskQueue], []);
         assert.deepEqual(reachResp.buildIdReachability['1.0']?.taskQueueReachability[taskQueue], []);
@@ -186,7 +184,7 @@ if (RUN_INTEGRATION_TESTS) {
     );
     await asyncRetry(
       async () => {
-        const reachResp = await conn.taskQueue.getBuildIdReachability({
+        const reachResp = await conn.taskQueue.getReachability({
           buildIds: [UnversionedBuildId],
           taskQueues: [taskQueue],
         });

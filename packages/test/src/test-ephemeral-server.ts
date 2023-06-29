@@ -6,6 +6,7 @@ import { Worker } from './helpers';
 
 interface Context {
   bundle: WorkflowBundle;
+  taskQueue: string;
 }
 
 const test = anyTest as TestFn<Context>;
@@ -14,9 +15,13 @@ test.before(async (t) => {
   t.context.bundle = await bundleWorkflowCode({ workflowsPath: require.resolve('./workflows') });
 });
 
+test.beforeEach(async (t) => {
+  t.context.taskQueue = t.title.replace(/ /g, '_');
+});
+
 async function runSimpleWorkflow(t: ExecutionContext<Context>, testEnv: TestWorkflowEnvironment) {
   try {
-    const taskQueue = 'test';
+    const { taskQueue } = t.context;
     const { client, nativeConnection, namespace } = testEnv;
     const worker = await Worker.create({
       connection: nativeConnection,

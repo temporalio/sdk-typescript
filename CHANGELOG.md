@@ -4,6 +4,169 @@ All notable changes to this project will be documented in this file.
 
 Breaking changes marked with a :boom:
 
+## [1.8.0] - 2023-06-22
+
+### Features
+
+- [`worker`] Add support for [worker versioning](https://docs.temporal.io/workers#worker-versioning) ([#1146](https://github.com/temporalio/sdk-typescript/pull/1146)).
+
+  Worker versioning is available from server version 1.21 (if enabled in dynamic configuration).
+
+  :warning: Experimental - While the feature is well tested and is considered functionally stable, the SDK APIs are
+  considered experimental.
+
+  To use worker versioning with the TypeScript SDK, use the following steps:
+
+  ```ts
+  import { Client } from '@temporalio/client';
+  import { Worker } from '@temporalio/worker';
+
+  const buildId = 'id-generated-from-continuous-integration';
+
+  // Deploy new workers, opt them in to versioning.
+  const worker = await Worker.create({
+    workflowsPath: require.resolve('./workflows'),
+    buildId,
+    useVersioning: true,
+    // ...
+  });
+
+  // ...
+
+  // In a separate process, when all workers are up, update the build id compatibility for the task queue.
+  const client = new Client({
+    /* options */
+  });
+  // If the current version is incompatible with the previous ones:
+  await client.taskQueue.updateBuildIdCompatibility('my-task-queue', {
+    operation: 'addNewIdInNewDefaultSet',
+    buildId,
+  });
+  // Or, if the current version is compatible with a previous one:
+  await client.taskQueue.updateBuildIdCompatibility('my-task-queue', {
+    operation: 'addNewCompatibleVersion',
+    buildId,
+    existingCompatibleBuildId: 'some-other-build-id',
+  });
+
+  // Check if workers are reachable before retiring them (even if their build ids are associated with multiple task
+  // queues):
+  const { buildIdReachability } = await client.taskQueue.getReachability({ buildIds: ['some-other-build-id'] });
+  const { taskQueueReachability } = buildIdReachability['some-other-build-id'];
+  for (const [taskQueue, reachability] of Object.entries(taskQueueReachability)) {
+    if (reachability.length > 0) {
+      if (reachability[0] === 'NotFetched') {
+        // We asked the server for too many reachability entries (build ids or task queues),
+        // This build id / task queue reachability should be fetched in another request.
+        // Fetch this information here or later...
+      } else {
+        console.log('Build id still reachable on:', taskQueue);
+      }
+    }
+  }
+  // Check if build id is reachable...
+  ```
+
+- [`worker`] Add support for using multiple concurrent pollers to fetch Workflow Tasks and Activity Tasks from Task Queues
+  ([#1132](https://github.com/temporalio/sdk-typescript/pull/1132)).
+
+  The number of pollers for each type can be controlled through the `WorkerOptions.maxConcurrentWorkflowTaskPolls`
+  and `WorkerOptions.maxConcurrentActivityTaskPolls` properties. Properly adjusting these values should allow better
+  filling of the corresponding execution slots, which may signficiantly improve a Worker's throughput. Defaults are
+  10 Workflow Task Pollers and 2 Activity Task Pollers; we however strongly recommend tuning these values
+  based on workload specific performance tests.
+
+  Default value for `maxConcurrentWorkflowTaskExecutions` has also been reduced to 40 (it was previously 100), as recent
+  performance tests demonstrate that higher values increase the risk of Workflow Task Timeouts unless other options are
+  also tuned. This was not problem previously because the single poller was unlikely to fill all execution slots, so
+  maximum would rarely be reached.
+
+- [`workflow`] The `reuseV8Context` worker option is no longer marked as experimental ([#1132](https://github.com/temporalio/sdk-typescript/pull/1132)).
+  This is a major optimization of the Workflow sandboxing runtime; it allows the worker to reuse a single execution
+  context across Workflow instances, without compromising the safety of the deterministic sandbox. It significantly
+  reduces RAM and CPU usage. The formula used to auto-configure `maxCachedWorkflows` has also been reviewed to reflect a
+  lower memory usage requirement when `reuseV8Context` is enabled.
+
+  At this point, you still need to opt-in to this feature by adding `reuseV8Context: true` to your `WorkerOptions`, as
+  we believe most teams should reconsider their workers's performance settings after enabling this option.
+
+  :boom: Note that we are planing enabling this option by default starting with 1.9.0. If for some reason, you prefer to
+  delay enabling this optimization, then we recommend that you explicitly add `reuseV8Context: false` to your worker
+  options.
+
+- We now provide out-of-the-box log support from both Workflows and Activity contexts ([#1117](https://github.com/temporalio/sdk-typescript/pull/1117), [#1138](https://github.com/temporalio/sdk-typescript/pull/1138))).
+
+  For Workflows, the logger funnels messages through the `defaultWorkerLogger` sink, which itself defaults to forwarding
+  messages to `Runtime.instance().logger`.
+
+  Example usage:
+
+  ```ts
+  import * as workflow from '@temporalio/workflow';
+
+  export async function myWorkflow(): Promise<void> {
+    workflow.log.info('hello from my workflow', { key: 'value' });
+  }
+  ```
+
+  For Activities, the logger can be accessed as `Context.logger`. It defaults to `Runtime.instance().logger`, but may be
+  overriden by interceptors (ie. to set a custom logger). `ActivityInboundLogInterceptor` is still installed by default,
+  adding enriched metadata from activity context on each log entry.
+
+  Example usage:
+
+  ```ts
+  import * as activity from '@temporalio/activity';
+
+  export async function myActivity(): Promise<void> {
+    const context = activity.Context.current();
+    context.log.info('hello from my activity', { key: 'value' });
+  }
+  ```
+
+- :boom: Protect against 'ms' durations errors ([#1136](https://github.com/temporalio/sdk-typescript/pull/1136)).
+  There have been several reports of situations where invalid durations resulted in unexpected and hard to diagnose
+  issues (e.g. can you can predict what `const bool = condition(fn, '1 month')` will do?). We now provide type
+  definitions for "ms-formated strings" through the newly introduced `Duration` type, which is either a well formed
+  `ms`-formated string or a number of milliseconds. Invalid ms-formated-strings will also throw at runtime.
+
+  Note: this might cause build errors in situations where a non-const string value is passed somewhere we expect a
+  `Duration`. Consider either validating and converting these strings _before_ passing them as `Duration`, or simply
+  cast them to `Duration` and deal with runtime exception that might be thrown if an invalid value is provided.
+
+- [`workflow`] Clone sink args at call time on Node 17+
+  ([#1118](https://github.com/temporalio/sdk-typescript/pull/1118)). A subtle aspect of Workflow Sinks is that calls
+  are actually buffered and get executed only once the current Workflow activation completes. That sometime caused
+  unexpected behavior where an object passed as argument to a sink function is mutated after the invocation.
+
+  On Node.js 17+, we now clone sink arguments at call time, using `structuredClone`. While this adds some runtime
+  overhead, it leads to more predictable experience, as well as better exceptions when passing non-transferrable objects
+  to a sink.
+
+- [`core`] Add the `sticky_cache_total_forced_eviction` metric ([Core #569](https://github.com/temporalio/sdk-core/pull/569))
+
+- [`client`] Throw more specific errors from Client APIs ([#1147](https://github.com/temporalio/sdk-typescript/pull/1147))
+
+### Bug Fixes
+
+- [`core`] Metrics that should be produced by the SDK Core's internal Client would previously not
+  get emited. This has been fixed. ([#1119](https://github.com/temporalio/sdk-typescript/pull/1119))
+- [`client`] Fix incorrect schedule spec boundaries checks on hour and day of month ([#1120](https://github.com/temporalio/sdk-typescript/pull/1120))
+- [`workflow`] We know throw more meaningful errors when Workflow-only APIs are used from
+  non-Workflow context, and some other situations. ([#1126](https://github.com/temporalio/sdk-typescript/pull/1126))
+- Removed most `instanceof` checks from SDK, and remplaced them by `XxxError.is(...)` checks, based on the presence of
+  a symbol property. We believe this should help resolve most of the problems that previously been observed when
+  multiple copies or different versions of SDK packages are installed in a same project (([#1128](https://github.com/temporalio/sdk-typescript/pull/1128))).
+- [`workflow`] Make Local Activily timeouts in `ActivityInfo` match those of non-Local Activities ([#1133](https://github.com/temporalio/sdk-typescript/pull/1133), [Core #569](https://github.com/temporalio/sdk-core/pull/569)).
+- [`workflow`] Ensure payload converters keep Uint8Array type equality ([#1143](https://github.com/temporalio/sdk-typescript/pull/1133))
+- Fail workflow task if local activity not registered with worker ([#1152](https://github.com/temporalio/sdk-typescript/pull/1152))
+- [`core`] Don't increment terminal command metrics when replaying ([Core #572](https://github.com/temporalio/sdk-core/pull/572))
+- [`core`] Fix start-to-close local activity timeouts not being retryable like they should be ([#Core 576](https://github.com/temporalio/sdk-core/pull/576))
+
+### Documentation
+
+- Improve documentation for activity heartbeat and cancellationSignal ([#1151](https://github.com/temporalio/sdk-typescript/pull/1151))
+
 ## [1.7.4] - 2023-04-27
 
 ### Bug Fixes

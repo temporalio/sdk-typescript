@@ -30,7 +30,7 @@ test("Activity Context's logger defaults to Runtime's Logger", async (t) => {
   const env = new MockActivityEnvironment();
   const logs: LogEntry[] = await env.run(async () => {
     const ctx = activity.Context.current();
-    ctx.logger.debug('log message from activity');
+    ctx.log.debug('log message from activity');
     return (ctx as MyTestActivityContext).logs;
   });
   const activityLogEntry = logs.find((entry) => entry.message === 'log message from activity');
@@ -44,7 +44,7 @@ test("Activity Log Interceptor dont override Context's logger by default", async
     const ctx = activity.Context.current();
     const interceptor = new ActivityInboundLogInterceptor(ctx);
     const execute = composeInterceptors([interceptor], 'execute', async () => {
-      ctx.logger.debug('log message from activity');
+      ctx.log.debug('log message from activity');
     });
     try {
       await execute({ args: [], headers: {} });
@@ -87,7 +87,7 @@ async function runActivity(
 
 test('ActivityInboundLogInterceptor overrides Context logger if specified', async (t) => {
   const logs = await runActivity(async () => {
-    activity.Context.current().logger.debug('log message from activity');
+    activity.Context.current().log.debug('log message from activity');
   });
   t.is(logs.length, 3);
   const [_, midLog] = logs;
