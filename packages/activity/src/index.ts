@@ -230,10 +230,11 @@ export class Context {
    * An {@link https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal | `AbortSignal`} that can be used to react to
    * Activity cancellation.
    *
-   * Used by {@link https://www.npmjs.com/package/node-fetch#request-cancellation-with-abortsignal | fetch} to abort an
+   * This can be passed in to libraries such as
+   * {@link https://www.npmjs.com/package/node-fetch#request-cancellation-with-abortsignal | fetch} to abort an
    * in-progress request and
    * {@link https://nodejs.org/api/child_process.html#child_process_child_process_spawn_command_args_options child_process}
-   * to abort a child process, and is supported by some other libraries as well.
+   * to abort a child process, as well as other built-in node modules and modules found on npm.
    *
    * @see [Cancellation](/api/namespaces/activity#cancellation)
    */
@@ -288,7 +289,13 @@ export class Context {
    *
    * Calling `heartbeat()` from a Local Activity has no effect.
    *
+   * The SDK automatically throttles heartbeat calls to the server with a duration of 80% of the specified activity
+   * heartbeat timeout. Throttling behavior may be customized with the `{@link maxHeartbeatThrottleInterval | https://typescript.temporal.io/api/interfaces/worker.WorkerOptions#maxheartbeatthrottleinterval} and {@link defaultHeartbeatThrottleInterval | https://typescript.temporal.io/api/interfaces/worker.WorkerOptions#defaultheartbeatthrottleinterval} worker options.
+   *
    * Activities must heartbeat in order to receive Cancellation (unless they're Local Activities, which don't need to).
+   *
+   * :warning: Cancellation is not propagated from this function, use {@link cancelled} or {@link cancellationSignal} to
+   * subscribe to cancellation notifications.
    */
   public heartbeat(details?: unknown): void {
     this.heartbeatFn(details);
