@@ -109,7 +109,7 @@ Breaking changes marked with a :boom:
   }
   ```
 
-  For Activities, the logger can be accessed as `Context.logger`. It defaults to `Runtime.instance().logger`, but may be
+  For Activities, the logger can be accessed as `Context.log`. It defaults to `Runtime.instance().logger`, but may be
   overriden by interceptors (ie. to set a custom logger). `ActivityInboundLogInterceptor` is still installed by default,
   adding enriched metadata from activity context on each log entry.
 
@@ -152,7 +152,7 @@ Breaking changes marked with a :boom:
 - [`core`] Metrics that should be produced by the SDK Core's internal Client would previously not
   get emited. This has been fixed. ([#1119](https://github.com/temporalio/sdk-typescript/pull/1119))
 - [`client`] Fix incorrect schedule spec boundaries checks on hour and day of month ([#1120](https://github.com/temporalio/sdk-typescript/pull/1120))
-- [`workflow`] We know throw more meaningful errors when Workflow-only APIs are used from
+- [`workflow`] We now throw more meaningful errors when Workflow-only APIs are used from
   non-Workflow context, and some other situations. ([#1126](https://github.com/temporalio/sdk-typescript/pull/1126))
 - Removed most `instanceof` checks from SDK, and remplaced them by `XxxError.is(...)` checks, based on the presence of
   a symbol property. We believe this should help resolve most of the problems that previously been observed when
