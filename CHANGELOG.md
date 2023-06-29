@@ -143,7 +143,9 @@ Breaking changes marked with a :boom:
   overhead, it leads to more predictable experience, as well as better exceptions when passing non-transferrable objects
   to a sink.
 
-- [`core`] Add the `sticky_cache_total_forced_eviction` metric ([Core #569](https://github.com/temporalio/sdk-core/pull/569)).
+- [`core`] Add the `sticky_cache_total_forced_eviction` metric ([Core #569](https://github.com/temporalio/sdk-core/pull/569))
+
+- [`client`] Throw more specific errors from Client APIs ([#1147](https://github.com/temporalio/sdk-typescript/pull/1147))
 
 ### Bug Fixes
 
@@ -156,6 +158,13 @@ Breaking changes marked with a :boom:
   a symbol property. We believe this should help resolve most of the problems that previously been observed when
   multiple copies or different versions of SDK packages are installed in a same project (([#1128](https://github.com/temporalio/sdk-typescript/pull/1128))).
 - [`workflow`] Make Local Activily timeouts in `ActivityInfo` match those of non-Local Activities ([#1133](https://github.com/temporalio/sdk-typescript/pull/1133), [Core #569](https://github.com/temporalio/sdk-core/pull/569)).
+- [`workflow`] Ensure payload converters keep Uint8Array type equality ([#1143](https://github.com/temporalio/sdk-typescript/pull/1133))
+- Fail workflow task if local activity not registered with worker ([#1152](https://github.com/temporalio/sdk-typescript/pull/1152))
+- [`core`] Don't increment terminal command metrics when replaying ([Core #572](https://github.com/temporalio/sdk-core/pull/572))
+
+### Documentation
+
+- Improve documentation for activity heartbeat and cancellationSignal ([#1151](https://github.com/temporalio/sdk-typescript/pull/1151))
 
 ## [1.7.4] - 2023-04-27
 
