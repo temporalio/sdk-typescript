@@ -7,6 +7,7 @@ import {
   SignalDefinition,
   QueryDefinition,
   Duration,
+  VersioningIntent,
 } from '@temporalio/common';
 import { checkExtends } from '@temporalio/common/lib/type-helpers';
 import type { coresdk } from '@temporalio/proto';
@@ -220,6 +221,13 @@ export interface ContinueAsNewOptions {
    * Searchable attributes to attach to next Workflow run
    */
   searchAttributes?: SearchAttributes;
+  /**
+   * When using the Worker Versioning feature, specifies whether this Workflow should
+   * Continue-as-New onto a worker with a compatible Build Id or not. See {@link VersioningIntent}.
+   *
+   * @experimental
+   */
+  versioningIntent?: VersioningIntent;
 }
 
 /**
@@ -322,6 +330,14 @@ export interface ChildWorkflowOptions extends CommonWorkflowOptions {
    * @default {@link ParentClosePolicy.PARENT_CLOSE_POLICY_TERMINATE}
    */
   parentClosePolicy?: ParentClosePolicy;
+
+  /**
+   * When using the Worker Versioning feature, specifies whether this Child Workflow should run on
+   * a worker with a compatible Build Id or not. See {@link VersioningIntent}.
+   *
+   * @experimental
+   */
+  versioningIntent?: VersioningIntent;
 }
 
 export type RequiredChildWorkflowOptions = Required<Pick<ChildWorkflowOptions, 'workflowId' | 'cancellationType'>> & {

@@ -2,6 +2,7 @@ import type { coresdk } from '@temporalio/proto';
 import { RetryPolicy } from './retry-policy';
 import { checkExtends } from './type-helpers';
 import { Duration } from './time';
+import { VersioningIntent } from './versioning-intent';
 
 // Avoid importing the proto implementation to reduce workflow bundle size
 // Copied from coresdk.workflow_commands.ActivityCancellationType
@@ -100,6 +101,14 @@ export interface ActivityOptions {
    * @default true
    */
   allowEagerDispatch?: boolean;
+
+  /**
+   * When using the Worker Versioning feature, specifies whether this Activity should run on a
+   * worker with a compatible Build Id or not. See {@link VersioningIntent}.
+   *
+   * @experimental
+   */
+  versioningIntent?: VersioningIntent;
 }
 
 /**
