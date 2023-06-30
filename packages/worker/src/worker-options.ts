@@ -13,6 +13,7 @@ import { Runtime } from './runtime';
 import { InjectedSinks } from './sinks';
 import { MiB } from './utils';
 import { defaultWorflowInterceptorModules, WorkflowBundleWithSourceMap } from './workflow/bundler';
+import { workflowLogAttributes } from './workflow-log-interceptor';
 
 export type { WebpackConfiguration };
 
@@ -565,38 +566,41 @@ export interface ReplayWorkerOptions
  * Returns the `defaultWorkerLogger` sink which forwards logs from the Workflow sandbox to a given logger.
  *
  * @param logger a {@link Logger} - defaults to the {@link Runtime} singleton logger.
+ *
+ * @param attributesGetter a function that maps WorkflowInfo to a set of log attributes that are attached to every log
+ * record - experimental.
  */
-export function defaultSinks(logger?: Logger): InjectedSinks<LoggerSinks> {
+export function defaultSinks(logger?: Logger, attributesGetter = workflowLogAttributes): InjectedSinks<LoggerSinks> {
   return {
     defaultWorkerLogger: {
       trace: {
-        fn(_, message, attrs) {
+        fn(info, message, attrs) {
           logger ??= Runtime.instance().logger;
-          logger.trace(message, attrs);
+          logger.trace(message, { ...attributesGetter(info), ...attrs });
         },
       },
       debug: {
-        fn(_, message, attrs) {
+        fn(info, message, attrs) {
           logger ??= Runtime.instance().logger;
-          logger.debug(message, attrs);
+          logger.debug(message, { ...attributesGetter(info), ...attrs });
         },
       },
       info: {
-        fn(_, message, attrs) {
+        fn(info, message, attrs) {
           logger ??= Runtime.instance().logger;
-          logger.info(message, attrs);
+          logger.info(message, { ...attributesGetter(info), ...attrs });
         },
       },
       warn: {
-        fn(_, message, attrs) {
+        fn(info, message, attrs) {
           logger ??= Runtime.instance().logger;
-          logger.warn(message, attrs);
+          logger.warn(message, { ...attributesGetter(info), ...attrs });
         },
       },
       error: {
-        fn(_, message, attrs) {
+        fn(info, message, attrs) {
           logger ??= Runtime.instance().logger;
-          logger.error(message, attrs);
+          logger.error(message, { ...attributesGetter(info), ...attrs });
         },
       },
     },
