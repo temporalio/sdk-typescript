@@ -283,6 +283,8 @@ export class Activator implements ActivationHandler {
 
   public readonly registeredActivityNames: Set<string>;
 
+  public logAttributes: Record<string, unknown> = {};
+
   constructor({
     info,
     now,

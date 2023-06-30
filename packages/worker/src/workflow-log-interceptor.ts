@@ -8,8 +8,11 @@ import {
   WorkflowInterceptorsFactory,
   log,
   ContinueAsNew,
+  WorkflowInternalsInterceptor,
+  ActivateInput,
 } from '@temporalio/workflow';
 import { untrackPromise } from '@temporalio/workflow/lib/stack-helpers';
+import { getActivator } from '@temporalio/workflow/lib/internals';
 
 /**
  * Returns a map of attributes to be set on log messages for a given Workflow
@@ -24,17 +27,13 @@ export function workflowLogAttributes(info: WorkflowInfo): Record<string, unknow
   };
 }
 
-/** Logs Workflow execution starts and completions */
+/** Logs workflow execution starts and completions */
 export class WorkflowInboundLogInterceptor implements WorkflowInboundCallsInterceptor {
-  protected logAttributes(): Record<string, unknown> {
-    return workflowLogAttributes(workflowInfo());
-  }
-
   execute(input: WorkflowExecuteInput, next: Next<WorkflowInboundCallsInterceptor, 'execute'>): Promise<unknown> {
-    log.debug('Workflow started', this.logAttributes());
+    log.debug('Workflow started');
     const p = next(input).then(
       (res) => {
-        log.debug('Workflow completed', this.logAttributes());
+        log.debug('Workflow completed');
         return res;
       },
       (error) => {
@@ -42,14 +41,14 @@ export class WorkflowInboundLogInterceptor implements WorkflowInboundCallsInterc
         // e.g. by jest or when multiple versions are installed.
         if (typeof error === 'object' && error != null) {
           if (isCancellation(error)) {
-            log.debug('Workflow completed as cancelled', this.logAttributes());
+            log.debug('Workflow completed as cancelled');
             throw error;
           } else if (ContinueAsNew.is(error)) {
-            log.debug('Workflow continued as new', this.logAttributes());
+            log.debug('Workflow continued as new');
             throw error;
           }
         }
-        log.warn('Workflow failed', { error, ...this.logAttributes() });
+        log.warn('Workflow failed', { error });
         throw error;
       }
     );
@@ -59,5 +58,25 @@ export class WorkflowInboundLogInterceptor implements WorkflowInboundCallsInterc
   }
 }
 
+/** Installs log attributes to be emitted in every log message from the workflow logger  */
+export class WorkflowLogAttributesInterceptor implements WorkflowInternalsInterceptor {
+  private installed = false;
+
+  protected logAttributes(): Record<string, unknown> {
+    return workflowLogAttributes(workflowInfo());
+  }
+
+  activate(input: ActivateInput, next: Next<WorkflowInternalsInterceptor, 'activate'>): void {
+    if (!this.installed) {
+      getActivator().logAttributes = this.logAttributes();
+      this.installed = true;
+    }
+    return next(input);
+  }
+}
+
 // ts-prune-ignore-next
-export const interceptors: WorkflowInterceptorsFactory = () => ({ inbound: [new WorkflowInboundLogInterceptor()] });
+export const interceptors: WorkflowInterceptorsFactory = () => ({
+  inbound: [new WorkflowInboundLogInterceptor()],
+  internals: [new WorkflowLogAttributesInterceptor()],
+});
