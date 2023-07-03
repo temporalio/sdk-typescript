@@ -249,7 +249,7 @@ Breaking changes marked with a :boom:
 
 - [`create-project`] Remove the `.post-create` file (if it exists), before committing to git ([#1018](https://github.com/temporalio/sdk-typescript/pull/1018))
 
-- Completetly removed support for Node versions <= 14.17. Lot of our dependencies were already
+- :boom: Completetly removed support for Node versions <= 14.17. Lot of our dependencies were already
   requiring Node 14.18+ anyway. ([#1070](https://github.com/temporalio/sdk-typescript/pull/1070))
 
 - Load package `abort-controller` as a polyfill rather than a complete substitution.
