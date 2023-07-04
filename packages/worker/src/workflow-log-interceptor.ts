@@ -3,14 +3,15 @@ import {
   Next,
   WorkflowExecuteInput,
   WorkflowInboundCallsInterceptor,
+  WorkflowOutboundCallsInterceptor,
   workflowInfo,
   WorkflowInfo,
   WorkflowInterceptorsFactory,
   log,
   ContinueAsNew,
+  GetLogAttributesInput,
 } from '@temporalio/workflow';
 import { untrackPromise } from '@temporalio/workflow/lib/stack-helpers';
-import { getActivator } from '@temporalio/workflow/lib/internals';
 
 /**
  * Returns a map of attributes to be set on log messages for a given Workflow
@@ -25,14 +26,13 @@ export function workflowLogAttributes(info: WorkflowInfo): Record<string, unknow
   };
 }
 
-/** Logs workflow execution starts and completions */
-export class WorkflowInboundLogInterceptor implements WorkflowInboundCallsInterceptor {
-  protected logAttributes(): Record<string, unknown> {
-    return workflowLogAttributes(workflowInfo());
-  }
-
-  constructor() {
-    getActivator().logAttributes = this.logAttributes.bind(this);
+/** Logs workflow execution starts and completions, attaches log attributes to `workflow.log` calls  */
+export class WorkflowLogInterceptor implements WorkflowInboundCallsInterceptor, WorkflowOutboundCallsInterceptor {
+  getLogAttributes(
+    input: GetLogAttributesInput,
+    next: Next<WorkflowOutboundCallsInterceptor, 'getLogAttributes'>
+  ): Record<string, unknown> {
+    return next({ ...input, ...workflowLogAttributes(workflowInfo()) });
   }
 
   execute(input: WorkflowExecuteInput, next: Next<WorkflowInboundCallsInterceptor, 'execute'>): Promise<unknown> {
@@ -64,5 +64,11 @@ export class WorkflowInboundLogInterceptor implements WorkflowInboundCallsInterc
   }
 }
 
+/** @deprecated use {@link WorkflowLogInterceptor} instead */
+export const WorkflowInboundLogInterceptor = WorkflowLogInterceptor;
+
 // ts-prune-ignore-next
-export const interceptors: WorkflowInterceptorsFactory = () => ({ inbound: [new WorkflowInboundLogInterceptor()] });
+export const interceptors: WorkflowInterceptorsFactory = () => {
+  const interceptor = new WorkflowLogInterceptor();
+  return { inbound: [interceptor], outbound: [interceptor] };
+};

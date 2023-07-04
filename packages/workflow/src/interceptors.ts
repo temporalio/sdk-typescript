@@ -8,7 +8,7 @@
 
 import { ActivityOptions, Headers, LocalActivityOptions, Next, Timestamp, WorkflowExecution } from '@temporalio/common';
 import type { coresdk } from '@temporalio/proto';
-import { ChildWorkflowOptionsWithDefaults, ContinueAsNewOptions } from './interfaces';
+import { ChildWorkflowOptionsWithDefaults, ContinueAsNewOptions, WorkflowInfo } from './interfaces';
 
 export { Next, Headers };
 
@@ -118,6 +118,8 @@ export interface SignalWorkflowInput {
       };
 }
 
+export type GetLogAttributesInput = Record<string, unknown>;
+
 /**
  * Implement any of these methods to intercept Workflow code calls to the Temporal APIs, like scheduling an activity and starting a timer
  */
@@ -161,6 +163,13 @@ export interface WorkflowOutboundCallsInterceptor {
     input: StartChildWorkflowExecutionInput,
     next: Next<this, 'startChildWorkflowExecution'>
   ) => Promise<[Promise<string>, Promise<unknown>]>;
+
+  /**
+   * Called on each invocation of the `workflow.log` methods.
+   *
+   * The attributes returned in this call are attached to every log message.
+   */
+  getLogAttributes?: (input: GetLogAttributesInput, next: Next<this, 'getLogAttributes'>) => Record<string, unknown>;
 }
 
 /** Input for WorkflowInternalsInterceptor.concludeActivation */
