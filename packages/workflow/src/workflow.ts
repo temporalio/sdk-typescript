@@ -1313,7 +1313,7 @@ export const log: LoggerSinks['defaultWorkerLogger'] = Object.fromEntries(
         return loggerSinks.defaultWorkerLogger[level](message, {
           // Inject the call time in nanosecond resolution as expected by the worker logger.
           [LogTimestamp]: activator.getTimeOfDay(),
-          ...activator.logAttributes,
+          ...activator.logAttributes(workflowInfo()),
           ...attrs,
         });
       },

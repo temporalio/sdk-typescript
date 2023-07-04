@@ -283,7 +283,7 @@ export class Activator implements ActivationHandler {
 
   public readonly registeredActivityNames: Set<string>;
 
-  public logAttributes: Record<string, unknown> = {};
+  public logAttributes: (workflowInfo: WorkflowInfo) => Record<string, unknown> = () => ({});
 
   constructor({
     info,

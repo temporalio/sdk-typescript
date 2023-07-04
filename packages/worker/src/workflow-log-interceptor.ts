@@ -8,8 +8,6 @@ import {
   WorkflowInterceptorsFactory,
   log,
   ContinueAsNew,
-  WorkflowInternalsInterceptor,
-  ActivateInput,
 } from '@temporalio/workflow';
 import { untrackPromise } from '@temporalio/workflow/lib/stack-helpers';
 import { getActivator } from '@temporalio/workflow/lib/internals';
@@ -29,6 +27,14 @@ export function workflowLogAttributes(info: WorkflowInfo): Record<string, unknow
 
 /** Logs workflow execution starts and completions */
 export class WorkflowInboundLogInterceptor implements WorkflowInboundCallsInterceptor {
+  protected logAttributes(): Record<string, unknown> {
+    return workflowLogAttributes(workflowInfo());
+  }
+
+  constructor() {
+    getActivator().logAttributes = this.logAttributes.bind(this);
+  }
+
   execute(input: WorkflowExecuteInput, next: Next<WorkflowInboundCallsInterceptor, 'execute'>): Promise<unknown> {
     log.debug('Workflow started');
     const p = next(input).then(
@@ -58,25 +64,5 @@ export class WorkflowInboundLogInterceptor implements WorkflowInboundCallsInterc
   }
 }
 
-/** Installs log attributes to be emitted in every log message from the workflow logger  */
-export class WorkflowLogAttributesInterceptor implements WorkflowInternalsInterceptor {
-  private installed = false;
-
-  protected logAttributes(): Record<string, unknown> {
-    return workflowLogAttributes(workflowInfo());
-  }
-
-  activate(input: ActivateInput, next: Next<WorkflowInternalsInterceptor, 'activate'>): void {
-    if (!this.installed) {
-      getActivator().logAttributes = this.logAttributes();
-      this.installed = true;
-    }
-    return next(input);
-  }
-}
-
 // ts-prune-ignore-next
-export const interceptors: WorkflowInterceptorsFactory = () => ({
-  inbound: [new WorkflowInboundLogInterceptor()],
-  internals: [new WorkflowLogAttributesInterceptor()],
-});
+export const interceptors: WorkflowInterceptorsFactory = () => ({ inbound: [new WorkflowInboundLogInterceptor()] });
