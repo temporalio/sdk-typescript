@@ -8,7 +8,7 @@
 
 import { ActivityOptions, Headers, LocalActivityOptions, Next, Timestamp, WorkflowExecution } from '@temporalio/common';
 import type { coresdk } from '@temporalio/proto';
-import { ChildWorkflowOptionsWithDefaults, ContinueAsNewOptions, WorkflowInfo } from './interfaces';
+import { ChildWorkflowOptionsWithDefaults, ContinueAsNewOptions } from './interfaces';
 
 export { Next, Headers };
 
@@ -118,6 +118,7 @@ export interface SignalWorkflowInput {
       };
 }
 
+/** Input for WorkflowOutboundCallsInterceptor.getLogAttributes */
 export type GetLogAttributesInput = Record<string, unknown>;
 
 /**
