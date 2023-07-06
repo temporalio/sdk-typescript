@@ -3,11 +3,13 @@ import {
   Next,
   WorkflowExecuteInput,
   WorkflowInboundCallsInterceptor,
+  WorkflowOutboundCallsInterceptor,
   workflowInfo,
   WorkflowInfo,
   WorkflowInterceptorsFactory,
   log,
   ContinueAsNew,
+  GetLogAttributesInput,
 } from '@temporalio/workflow';
 import { untrackPromise } from '@temporalio/workflow/lib/stack-helpers';
 
@@ -24,17 +26,20 @@ export function workflowLogAttributes(info: WorkflowInfo): Record<string, unknow
   };
 }
 
-/** Logs Workflow execution starts and completions */
-export class WorkflowInboundLogInterceptor implements WorkflowInboundCallsInterceptor {
-  protected logAttributes(): Record<string, unknown> {
-    return workflowLogAttributes(workflowInfo());
+/** Logs workflow execution starts and completions, attaches log attributes to `workflow.log` calls  */
+export class WorkflowLogInterceptor implements WorkflowInboundCallsInterceptor, WorkflowOutboundCallsInterceptor {
+  getLogAttributes(
+    input: GetLogAttributesInput,
+    next: Next<WorkflowOutboundCallsInterceptor, 'getLogAttributes'>
+  ): Record<string, unknown> {
+    return next({ ...input, ...workflowLogAttributes(workflowInfo()) });
   }
 
   execute(input: WorkflowExecuteInput, next: Next<WorkflowInboundCallsInterceptor, 'execute'>): Promise<unknown> {
-    log.debug('Workflow started', this.logAttributes());
+    log.debug('Workflow started');
     const p = next(input).then(
       (res) => {
-        log.debug('Workflow completed', this.logAttributes());
+        log.debug('Workflow completed');
         return res;
       },
       (error) => {
@@ -42,14 +47,14 @@ export class WorkflowInboundLogInterceptor implements WorkflowInboundCallsInterc
         // e.g. by jest or when multiple versions are installed.
         if (typeof error === 'object' && error != null) {
           if (isCancellation(error)) {
-            log.debug('Workflow completed as cancelled', this.logAttributes());
+            log.debug('Workflow completed as cancelled');
             throw error;
           } else if (ContinueAsNew.is(error)) {
-            log.debug('Workflow continued as new', this.logAttributes());
+            log.debug('Workflow continued as new');
             throw error;
           }
         }
-        log.warn('Workflow failed', { error, ...this.logAttributes() });
+        log.warn('Workflow failed', { error });
         throw error;
       }
     );
@@ -59,5 +64,11 @@ export class WorkflowInboundLogInterceptor implements WorkflowInboundCallsInterc
   }
 }
 
+/** @deprecated use {@link WorkflowLogInterceptor} instead */
+export const WorkflowInboundLogInterceptor = WorkflowLogInterceptor;
+
 // ts-prune-ignore-next
-export const interceptors: WorkflowInterceptorsFactory = () => ({ inbound: [new WorkflowInboundLogInterceptor()] });
+export const interceptors: WorkflowInterceptorsFactory = () => {
+  const interceptor = new WorkflowLogInterceptor();
+  return { inbound: [interceptor], outbound: [interceptor] };
+};
