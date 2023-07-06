@@ -1308,11 +1308,13 @@ export const log: LoggerSinks['defaultWorkerLogger'] = Object.fromEntries(
   (['trace', 'debug', 'info', 'warn', 'error'] as Array<keyof LoggerSinks['defaultWorkerLogger']>).map((level) => {
     return [
       level,
-      (message: string, attrs: Record<string, unknown>) => {
-        assertInWorkflowContext('Workflow.log(...) may only be used from a Workflow Execution.)');
+      (message: string, attrs?: Record<string, unknown>) => {
+        const activator = assertInWorkflowContext('Workflow.log(...) may only be used from a Workflow Execution.');
+        const getLogAttributes = composeInterceptors(activator.interceptors.outbound, 'getLogAttributes', (a) => a);
         return loggerSinks.defaultWorkerLogger[level](message, {
           // Inject the call time in nanosecond resolution as expected by the worker logger.
-          [LogTimestamp]: getActivator().getTimeOfDay(),
+          [LogTimestamp]: activator.getTimeOfDay(),
+          ...getLogAttributes({}),
           ...attrs,
         });
       },
