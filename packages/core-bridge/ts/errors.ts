@@ -17,7 +17,7 @@ export class ShutdownError extends Error {
    * Instanceof check that works when multiple versions of @temporalio/core-bridge are installed.
    */
   static is(error: unknown): error is ShutdownError {
-    return error instanceof ShutdownError || (error instanceof Error && (error as any)[isShutdownError]);
+    return error instanceof ShutdownError || (error as any)?.[isShutdownError] === true;
   }
 }
 
