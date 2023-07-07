@@ -186,7 +186,7 @@ export class ContinueAsNew extends Error {
    * Instanceof check that works when multiple versions of @temporalio/workflow are installed.
    */
   static is(error: unknown): error is ContinueAsNew {
-    return error instanceof ContinueAsNew || (error instanceof Error && (error as any)[isContinueAsNew]);
+    return error instanceof ContinueAsNew || (error as any)?.[isContinueAsNew] === true;
   }
 }
 

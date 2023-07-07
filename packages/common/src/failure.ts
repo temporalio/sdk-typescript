@@ -66,7 +66,7 @@ export class TemporalFailure extends Error {
    * Instanceof check that works when multiple versions of @temporalio/common are installed.
    */
   static is(error: unknown): error is TemporalFailure {
-    return error instanceof TemporalFailure || (error instanceof Error && (error as any)[isTemporalFailure]);
+    return error instanceof TemporalFailure || (error as any)?.[isTemporalFailure] === true;
   }
 }
 
@@ -89,7 +89,7 @@ export class ServerFailure extends TemporalFailure {
    * Instanceof check that works when multiple versions of @temporalio/common are installed.
    */
   static is(error: unknown): error is ServerFailure {
-    return error instanceof ServerFailure || (error instanceof Error && (error as any)[isServerFailure]);
+    return error instanceof ServerFailure || (error as any)?.[isServerFailure] === true;
   }
 }
 
@@ -142,7 +142,7 @@ export class ApplicationFailure extends TemporalFailure {
    * Instanceof check that works when multiple versions of @temporalio/common are installed.
    */
   static is(error: unknown): error is ApplicationFailure {
-    return error instanceof ApplicationFailure || (error instanceof Error && (error as any)[isApplicationFailure]);
+    return error instanceof ApplicationFailure || (error as any)?.[isApplicationFailure] === true;
   }
 
   /**
@@ -248,7 +248,7 @@ export class CancelledFailure extends TemporalFailure {
    * Instanceof check that works when multiple versions of @temporalio/common are installed.
    */
   static is(error: unknown): error is CancelledFailure {
-    return error instanceof CancelledFailure || (error instanceof Error && (error as any)[isCancelledFailure]);
+    return error instanceof CancelledFailure || (error as any)?.[isCancelledFailure] === true;
   }
 }
 
@@ -273,7 +273,7 @@ export class TerminatedFailure extends TemporalFailure {
    * Instanceof check that works when multiple versions of @temporalio/common are installed.
    */
   static is(error: unknown): error is TerminatedFailure {
-    return error instanceof TerminatedFailure || (error instanceof Error && (error as any)[isTerminatedFailure]);
+    return error instanceof TerminatedFailure || (error as any)?.[isTerminatedFailure] === true;
   }
 }
 
@@ -302,7 +302,7 @@ export class TimeoutFailure extends TemporalFailure {
    * Instanceof check that works when multiple versions of @temporalio/common are installed.
    */
   static is(error: unknown): error is TimeoutFailure {
-    return error instanceof TimeoutFailure || (error instanceof Error && (error as any)[isTimeoutFailure]);
+    return error instanceof TimeoutFailure || (error as any)?.[isTimeoutFailure] === true;
   }
 }
 
@@ -337,7 +337,7 @@ export class ActivityFailure extends TemporalFailure {
    * Instanceof check that works when multiple versions of @temporalio/common are installed.
    */
   static is(error: unknown): error is ActivityFailure {
-    return error instanceof ActivityFailure || (error instanceof Error && (error as any)[isActivityFailure]);
+    return error instanceof ActivityFailure || (error as any)?.[isActivityFailure] === true;
   }
 }
 
@@ -371,7 +371,7 @@ export class ChildWorkflowFailure extends TemporalFailure {
    * Instanceof check that works when multiple versions of @temporalio/common are installed.
    */
   static is(error: unknown): error is ChildWorkflowFailure {
-    return error instanceof ChildWorkflowFailure || (error instanceof Error && (error as any)[isChildWorkflowFailure]);
+    return error instanceof ChildWorkflowFailure || (error as any)?.[isChildWorkflowFailure] === true;
   }
 }
 
