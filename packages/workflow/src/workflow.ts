@@ -18,6 +18,7 @@ import {
   WorkflowResultType,
   WorkflowReturnType,
 } from '@temporalio/common';
+import { assertNever } from '@temporalio/common/lib/type-helpers';
 import { Duration, msOptionalToTs, msToNumber, msToTs, tsToMs } from '@temporalio/common/lib/time';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import { coresdk } from '@temporalio/proto';
@@ -1330,11 +1331,13 @@ function assertInWorkflowContext(message: string): Activator {
 
 function versioningIntentToProto(intent: VersioningIntent | undefined): coresdk.common.VersioningIntent {
   switch (intent) {
-    case 'Default':
+    case 'DEFAULT':
       return coresdk.common.VersioningIntent.DEFAULT;
-    case 'Compatible':
+    case 'COMPATIBLE':
       return coresdk.common.VersioningIntent.COMPATIBLE;
-    default:
+    case undefined:
       return coresdk.common.VersioningIntent.UNSPECIFIED;
+    default:
+      assertNever('Unexpected VersioningIntent', intent);
   }
 }

@@ -7,7 +7,6 @@ import { temporal } from '@temporalio/proto';
 import { bundleWorkflowCode, ReplayError, WorkflowBundle } from '@temporalio/worker';
 import { DeterminismViolationError } from '@temporalio/workflow';
 import { Worker } from './helpers';
-import History = temporal.api.history.v1.History;
 
 async function gen2array<T>(gen: AsyncIterable<T>): Promise<T[]> {
   const out: T[] = [];
@@ -21,7 +20,7 @@ export interface Context {
   bundle: WorkflowBundle;
 }
 
-async function getHistories(fname: string): Promise<History> {
+async function getHistories(fname: string): Promise<temporal.api.history.v1.History> {
   const isJson = fname.endsWith('json');
   const fpath = path.resolve(__dirname, `../history_files/${fname}`);
   if (isJson) {
@@ -29,11 +28,11 @@ async function getHistories(fname: string): Promise<History> {
     return JSON.parse(hist);
   } else {
     const hist = await fs.promises.readFile(fpath);
-    return History.decode(hist);
+    return temporal.api.history.v1.History.decode(hist);
   }
 }
 
-function historator(histories: Array<History>) {
+function historator(histories: Array<temporal.api.history.v1.History>) {
   return (async function* () {
     for (const history of histories) {
       yield { workflowId: 'fake', history };

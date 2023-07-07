@@ -7,8 +7,10 @@ import { WorkflowService } from './types';
 import { BuildIdOperation, versionSetsFromProto, WorkerBuildIdVersionSets } from './build-id-types';
 import { isGrpcServiceError, ServiceError } from './errors';
 import { rethrowKnownErrorTypes } from './helpers';
-import IUpdateWorkerBuildIdCompatibilityRequest = temporal.api.workflowservice.v1.IUpdateWorkerBuildIdCompatibilityRequest;
-import GetWorkerTaskReachabilityResponse = temporal.api.workflowservice.v1.GetWorkerTaskReachabilityResponse;
+
+type IUpdateWorkerBuildIdCompatibilityRequest =
+  temporal.api.workflowservice.v1.IUpdateWorkerBuildIdCompatibilityRequest;
+type GetWorkerTaskReachabilityResponse = temporal.api.workflowservice.v1.GetWorkerTaskReachabilityResponse;
 
 /**
  * @experimental
@@ -173,12 +175,12 @@ export type ReachabilityOptions = RequireAtLeastOne<BaseReachabilityOptions, 'bu
 
 /**
  * There are different types of reachability:
- *   - `NewWorkflows`: The Build Id might be used by new workflows
- *   - `ExistingWorkflows` The Build Id might be used by open workflows and/or closed workflows.
- *   - `OpenWorkflows` The Build Id might be used by open workflows
- *   - `ClosedWorkflows` The Build Id might be used by closed workflows
+ *   - `NEW_WORKFLOWS`: The Build Id might be used by new workflows
+ *   - `EXISTING_WORKFLOWS` The Build Id might be used by open workflows and/or closed workflows.
+ *   - `OPEN_WORKFLOWS` The Build Id might be used by open workflows
+ *   - `CLOSED_WORKFLOWS` The Build Id might be used by closed workflows
  */
-export type ReachabilityType = 'NewWorkflows' | 'ExistingWorkflows' | 'OpenWorkflows' | 'ClosedWorkflows';
+export type ReachabilityType = 'NEW_WORKFLOWS' | 'EXISTING_WORKFLOWS' | 'OPEN_WORKFLOWS' | 'CLOSED_WORKFLOWS';
 
 /**
  * See {@link ReachabilityOptions}
@@ -203,7 +205,7 @@ export interface ReachabilityResponse {
   buildIdReachability: Record<string | UnversionedBuildIdType, BuildIdReachability>;
 }
 
-export type ReachabilityTypeResponse = ReachabilityType | 'NotFetched';
+export type ReachabilityTypeResponse = ReachabilityType | 'NOT_FETCHED';
 
 export interface BuildIdReachability {
   /**
@@ -218,13 +220,13 @@ function reachabilityTypeToProto(type: ReachabilityType | undefined | null): tem
     case null:
     case undefined:
       return temporal.api.enums.v1.TaskReachability.TASK_REACHABILITY_UNSPECIFIED;
-    case 'NewWorkflows':
+    case 'NEW_WORKFLOWS':
       return temporal.api.enums.v1.TaskReachability.TASK_REACHABILITY_NEW_WORKFLOWS;
-    case 'ExistingWorkflows':
+    case 'EXISTING_WORKFLOWS':
       return temporal.api.enums.v1.TaskReachability.TASK_REACHABILITY_EXISTING_WORKFLOWS;
-    case 'OpenWorkflows':
+    case 'OPEN_WORKFLOWS':
       return temporal.api.enums.v1.TaskReachability.TASK_REACHABILITY_OPEN_WORKFLOWS;
-    case 'ClosedWorkflows':
+    case 'CLOSED_WORKFLOWS':
       return temporal.api.enums.v1.TaskReachability.TASK_REACHABILITY_CLOSED_WORKFLOWS;
     default:
       assertNever('Unknown Build Id reachability operation', type);
@@ -263,15 +265,15 @@ export function reachabilityResponseFromProto(resp: GetWorkerTaskReachabilityRes
 function reachabilityTypeFromProto(rtype: temporal.api.enums.v1.TaskReachability): ReachabilityTypeResponse {
   switch (rtype) {
     case temporal.api.enums.v1.TaskReachability.TASK_REACHABILITY_UNSPECIFIED:
-      return 'NotFetched';
+      return 'NOT_FETCHED';
     case temporal.api.enums.v1.TaskReachability.TASK_REACHABILITY_NEW_WORKFLOWS:
-      return 'NewWorkflows';
+      return 'NEW_WORKFLOWS';
     case temporal.api.enums.v1.TaskReachability.TASK_REACHABILITY_EXISTING_WORKFLOWS:
-      return 'ExistingWorkflows';
+      return 'EXISTING_WORKFLOWS';
     case temporal.api.enums.v1.TaskReachability.TASK_REACHABILITY_OPEN_WORKFLOWS:
-      return 'OpenWorkflows';
+      return 'OPEN_WORKFLOWS';
     case temporal.api.enums.v1.TaskReachability.TASK_REACHABILITY_CLOSED_WORKFLOWS:
-      return 'ClosedWorkflows';
+      return 'CLOSED_WORKFLOWS';
     default:
       return assertNever('Unknown Build Id reachability operation', rtype);
   }
