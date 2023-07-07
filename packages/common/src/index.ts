@@ -23,6 +23,7 @@ export * from './retry-policy';
 export { type Timestamp, Duration, StringValue } from './time';
 export * from './workflow-handle';
 export * from './workflow-options';
+export * from './versioning-intent';
 
 /**
  * Encode a UTF-8 string into a Uint8Array

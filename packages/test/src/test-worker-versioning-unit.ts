@@ -1,8 +1,9 @@
 import test from 'ava';
 import { reachabilityResponseFromProto, UnversionedBuildId } from '@temporalio/client/lib/task-queue-client';
 import { temporal } from '@temporalio/proto';
-import TaskReachability = temporal.api.enums.v1.TaskReachability;
-import GetWorkerTaskReachabilityResponse = temporal.api.workflowservice.v1.GetWorkerTaskReachabilityResponse;
+
+const TaskReachability = temporal.api.enums.v1.TaskReachability;
+const GetWorkerTaskReachabilityResponse = temporal.api.workflowservice.v1.GetWorkerTaskReachabilityResponse;
 
 test('Worker versioning workers get appropriate tasks', async (t) => {
   const res = reachabilityResponseFromProto(
@@ -79,12 +80,12 @@ test('Worker versioning workers get appropriate tasks', async (t) => {
   );
 
   console.warn(res.buildIdReachability);
-  t.deepEqual(res.buildIdReachability['2.0'].taskQueueReachability.foo, ['NewWorkflows']);
-  t.deepEqual(res.buildIdReachability['1.0'].taskQueueReachability.foo, ['OpenWorkflows']);
-  t.deepEqual(res.buildIdReachability['1.1'].taskQueueReachability.foo, ['ExistingWorkflows', 'NewWorkflows']);
-  t.deepEqual(res.buildIdReachability['0.1'].taskQueueReachability.foo, ['ClosedWorkflows']);
+  t.deepEqual(res.buildIdReachability['2.0'].taskQueueReachability.foo, ['NEW_WORKFLOWS']);
+  t.deepEqual(res.buildIdReachability['1.0'].taskQueueReachability.foo, ['OPEN_WORKFLOWS']);
+  t.deepEqual(res.buildIdReachability['1.1'].taskQueueReachability.foo, ['EXISTING_WORKFLOWS', 'NEW_WORKFLOWS']);
+  t.deepEqual(res.buildIdReachability['0.1'].taskQueueReachability.foo, ['CLOSED_WORKFLOWS']);
   t.deepEqual(res.buildIdReachability['unreachable'].taskQueueReachability.foo, []);
-  t.deepEqual(res.buildIdReachability['badboi'].taskQueueReachability.foo, ['NotFetched']);
+  t.deepEqual(res.buildIdReachability['badboi'].taskQueueReachability.foo, ['NOT_FETCHED']);
   t.deepEqual(res.buildIdReachability[UnversionedBuildId].taskQueueReachability.foo, []);
 
   t.pass();

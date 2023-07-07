@@ -92,7 +92,7 @@ import { VMWorkflowCreator } from './workflow/vm';
 import { WorkflowBundleWithSourceMapAndFilename } from './workflow/workflow-worker-thread/input';
 import { GracefulShutdownPeriodExpiredError } from './errors';
 
-import IWorkflowActivationJob = coresdk.workflow_activation.IWorkflowActivationJob;
+type IWorkflowActivationJob = coresdk.workflow_activation.IWorkflowActivationJob;
 
 export { DataConverter, defaultPayloadConverter };
 

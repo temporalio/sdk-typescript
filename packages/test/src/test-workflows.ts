@@ -6,8 +6,8 @@ import dedent from 'dedent';
 import Long from 'long'; // eslint-disable-line import/no-named-as-default
 import {
   ApplicationFailure,
-  defaultPayloadConverter,
   defaultFailureConverter,
+  defaultPayloadConverter,
   Payload,
   RetryState,
   toPayloads,
@@ -757,6 +757,7 @@ test('cancelWorkflow', async (t) => {
           startToCloseTimeout: msToTs('10m'),
           taskQueue: 'test',
           doNotEagerlyExecute: false,
+          versioningIntent: coresdk.common.VersioningIntent.UNSPECIFIED,
         }),
       ])
     );
@@ -791,6 +792,7 @@ test('cancelWorkflow', async (t) => {
           startToCloseTimeout: msToTs('10m'),
           taskQueue: 'test',
           doNotEagerlyExecute: false,
+          versioningIntent: coresdk.common.VersioningIntent.UNSPECIFIED,
         }),
       ])
     );
@@ -909,6 +911,7 @@ test('nonCancellable', async (t) => {
           startToCloseTimeout: msToTs('10m'),
           taskQueue: 'test',
           doNotEagerlyExecute: false,
+          versioningIntent: coresdk.common.VersioningIntent.UNSPECIFIED,
         }),
       ])
     );
@@ -937,6 +940,7 @@ test('resumeAfterCancellation', async (t) => {
           startToCloseTimeout: msToTs('10m'),
           taskQueue: 'test',
           doNotEagerlyExecute: false,
+          versioningIntent: coresdk.common.VersioningIntent.UNSPECIFIED,
         }),
       ])
     );
@@ -973,6 +977,7 @@ test('handleExternalWorkflowCancellationWhileActivityRunning', async (t) => {
           startToCloseTimeout: msToTs('10m'),
           taskQueue: 'test',
           doNotEagerlyExecute: false,
+          versioningIntent: coresdk.common.VersioningIntent.UNSPECIFIED,
         }),
       ])
     );
@@ -998,6 +1003,7 @@ test('handleExternalWorkflowCancellationWhileActivityRunning', async (t) => {
           startToCloseTimeout: msToTs('10m'),
           taskQueue: 'test',
           doNotEagerlyExecute: false,
+          versioningIntent: coresdk.common.VersioningIntent.UNSPECIFIED,
         }),
       ])
     );
@@ -1028,6 +1034,7 @@ test('nestedCancellation', async (t) => {
           startToCloseTimeout: msToTs('10m'),
           taskQueue: 'test',
           doNotEagerlyExecute: false,
+          versioningIntent: coresdk.common.VersioningIntent.UNSPECIFIED,
         }),
       ])
     );
@@ -1051,6 +1058,7 @@ test('nestedCancellation', async (t) => {
           startToCloseTimeout: msToTs('10m'),
           taskQueue: 'test',
           doNotEagerlyExecute: false,
+          versioningIntent: coresdk.common.VersioningIntent.UNSPECIFIED,
         }),
       ])
     );
@@ -1074,6 +1082,7 @@ test('nestedCancellation', async (t) => {
           startToCloseTimeout: msToTs('10m'),
           taskQueue: 'test',
           doNotEagerlyExecute: false,
+          versioningIntent: coresdk.common.VersioningIntent.UNSPECIFIED,
         }),
       ])
     );
@@ -1114,6 +1123,7 @@ test('sharedScopes', async (t) => {
               startToCloseTimeout: msToTs('10m'),
               taskQueue: 'test',
               doNotEagerlyExecute: false,
+              versioningIntent: coresdk.common.VersioningIntent.UNSPECIFIED,
             })
           )
         )
@@ -1150,6 +1160,7 @@ test('shieldAwaitedInRootScope', async (t) => {
           startToCloseTimeout: msToTs('10m'),
           taskQueue: 'test',
           doNotEagerlyExecute: false,
+          versioningIntent: coresdk.common.VersioningIntent.UNSPECIFIED,
         }),
       ])
     );
@@ -1343,6 +1354,7 @@ test('cancelActivityAfterFirstCompletion', async (t) => {
           startToCloseTimeout: msToTs('10m'),
           taskQueue: 'test',
           doNotEagerlyExecute: false,
+          versioningIntent: coresdk.common.VersioningIntent.UNSPECIFIED,
         }),
       ])
     );
@@ -1364,6 +1376,7 @@ test('cancelActivityAfterFirstCompletion', async (t) => {
           startToCloseTimeout: msToTs('10m'),
           taskQueue: 'test',
           doNotEagerlyExecute: false,
+          versioningIntent: coresdk.common.VersioningIntent.UNSPECIFIED,
         }),
       ])
     );
@@ -1409,6 +1422,7 @@ test('multipleActivitiesSingleTimeout', async (t) => {
               startToCloseTimeout: msToTs('1s'),
               taskQueue: 'test',
               doNotEagerlyExecute: false,
+              versioningIntent: coresdk.common.VersioningIntent.UNSPECIFIED,
             })
           )
         )),
@@ -1450,6 +1464,7 @@ test('resolve activity with result - http', async (t) => {
           startToCloseTimeout: msToTs('1 minute'),
           taskQueue: 'test',
           doNotEagerlyExecute: false,
+          versioningIntent: coresdk.common.VersioningIntent.UNSPECIFIED,
         }),
       ])
     );
@@ -1485,6 +1500,7 @@ test('resolve activity with failure - http', async (t) => {
           startToCloseTimeout: msToTs('1 minute'),
           taskQueue: 'test',
           doNotEagerlyExecute: false,
+          versioningIntent: coresdk.common.VersioningIntent.UNSPECIFIED,
         }),
       ])
     );
@@ -1566,6 +1582,7 @@ test('continueAsNewSameWorkflow', async (t) => {
             workflowType,
             taskQueue: 'test',
             arguments: toPayloads(defaultPayloadConverter, 'signal'),
+            versioningIntent: coresdk.common.VersioningIntent.UNSPECIFIED,
           },
         },
       ])

@@ -12,13 +12,16 @@ import {
   SignalDefinition,
   toPayloads,
   UntypedActivities,
+  VersioningIntent,
   WithWorkflowArgs,
   Workflow,
   WorkflowResultType,
   WorkflowReturnType,
 } from '@temporalio/common';
+import { assertNever } from '@temporalio/common/lib/type-helpers';
 import { Duration, msOptionalToTs, msToNumber, msToTs, tsToMs } from '@temporalio/common/lib/time';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
+import { coresdk } from '@temporalio/proto';
 import { CancellationScope, registerSleepImplementation } from './cancellation-scope';
 import {
   ActivityInput,
@@ -132,11 +135,6 @@ function validateActivityOptions(options: ActivityOptions): void {
 const validateLocalActivityOptions = validateActivityOptions;
 
 /**
- * Hooks up activity promise to current cancellation scope and completion callbacks.
- *
- * Returns `false` if the current scope is already cancelled.
- */
-/**
  * Push a scheduleActivity command into activator accumulator and register completion
  */
 function scheduleActivityNextHandler({ options, args, headers, seq, activityType }: ActivityInput): Promise<unknown> {
@@ -177,6 +175,7 @@ function scheduleActivityNextHandler({ options, args, headers, seq, activityType
         headers,
         cancellationType: options.cancellationType,
         doNotEagerlyExecute: !(options.allowEagerDispatch ?? true),
+        versioningIntent: versioningIntentToProto(options.versioningIntent),
       },
     });
     activator.completions.activity.set(seq, {
@@ -375,6 +374,7 @@ function startChildWorkflowExecutionNextHandler({
           ? mapToPayloads(searchAttributePayloadConverter, options.searchAttributes)
           : undefined,
         memo: options.memo && mapToPayloads(activator.payloadConverter, options.memo),
+        versioningIntent: versioningIntentToProto(options.versioningIntent),
       },
     });
     activator.completions.childWorkflowStart.set(seq, {
@@ -514,7 +514,7 @@ export type ActivityInterfaceFor<T> = {
  * });
  *
  * export function execute(): Promise<void> {
- *   const response = await httpGet('http://example.com');
+ *   const response = await httpGet("http://example.com");
  *   // ...
  * }
  * ```
@@ -891,8 +891,8 @@ export function inWorkflowContext(): boolean {
  * export function myWorkflow() {
  *   return {
  *     async execute() {
- *       logger.info('hey ho');
- *       logger.error('lets go');
+ *       logger.info("hey ho");
+ *       logger.error("lets go");
  *     }
  *   };
  * }
@@ -961,6 +961,7 @@ export function makeContinueAsNewFunc<F extends Workflow>(
           : undefined,
         workflowRunTimeout: msOptionalToTs(options.workflowRunTimeout),
         workflowTaskTimeout: msOptionalToTs(options.workflowTaskTimeout),
+        versioningIntent: versioningIntentToProto(options.versioningIntent),
       });
     });
     return fn({
@@ -1326,4 +1327,17 @@ function assertInWorkflowContext(message: string): Activator {
   const activator = maybeGetActivator();
   if (activator == null) throw new IllegalStateError(message);
   return activator;
+}
+
+function versioningIntentToProto(intent: VersioningIntent | undefined): coresdk.common.VersioningIntent {
+  switch (intent) {
+    case 'DEFAULT':
+      return coresdk.common.VersioningIntent.DEFAULT;
+    case 'COMPATIBLE':
+      return coresdk.common.VersioningIntent.COMPATIBLE;
+    case undefined:
+      return coresdk.common.VersioningIntent.UNSPECIFIED;
+    default:
+      assertNever('Unexpected VersioningIntent', intent);
+  }
 }
