@@ -117,7 +117,7 @@ export class CompleteAsyncError extends Error {
    * Instanceof check that works when multiple versions of @temporalio/activity are installed.
    */
   static is(error: unknown): error is CompleteAsyncError {
-    return error instanceof CompleteAsyncError || (error instanceof Error && (error as any)[isCompleteAsyncError]);
+    return error instanceof CompleteAsyncError || (error as any)?.[isCompleteAsyncError] === true;
   }
 }
 
