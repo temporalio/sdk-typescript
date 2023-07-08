@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 Breaking changes marked with a :boom:
 
+## [1.8.1] - 2023-07-07
+
+### Bug Fixes
+
+- Remove instanceof Error checks from `is` methods ([#1162](https://github.com/temporalio/sdk-typescript/pull/1162)).
+  This fixes various regressions observed when running Workflow tests with Jest.
+
+- Add the `VersioningIntent` parameters on the experiemental [worker versioning](https://docs.temporal.io/workers#worker-versioning)
+  feature ([#1156](https://github.com/temporalio/sdk-typescript/pull/1156)). Also, all values of the `ReachabilityType`
+  type has been converted to SCREAMING_CASE.
+
+- [`workflow`] Make `workflows.log()`'s `attributes` argument optional ([#1159](https://github.com/temporalio/sdk-typescript/pull/1159)).
+
+- [`workflow`] Attach `workflows.log()`'s `attributes` to every workflow log message ([#1159](https://github.com/temporalio/sdk-typescript/pull/1159)).
+
 ## [1.8.0] - 2023-06-29
 
 ### Features
