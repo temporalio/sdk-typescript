@@ -260,7 +260,7 @@ export class SearchAttributePayloadConverter implements PayloadConverter {
   validNonDateTypes = ['string', 'number', 'boolean'];
 
   public toPayload(values: unknown): Payload {
-    if (!(values instanceof Array)) {
+    if (!Array.isArray(values)) {
       throw new ValueError(`SearchAttribute value must be an array`);
     }
 
@@ -309,7 +309,7 @@ export class SearchAttributePayloadConverter implements PayloadConverter {
     }
 
     const value = this.jsonConverter.fromPayload(payload);
-    let arrayWrappedValue = value instanceof Array ? value : [value];
+    let arrayWrappedValue = Array.isArray(value) ? value : [value];
 
     const searchAttributeType = decode(payload.metadata.type);
     if (searchAttributeType === 'Datetime') {

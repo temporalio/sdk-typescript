@@ -1,30 +1,19 @@
 import { IllegalStateError } from '@temporalio/common';
-
-const isShutdownError: unique symbol = Symbol.for('__temporal_isShutdownError');
+import { isError, symbolBasedInstanceOf } from '@temporalio/common/lib/type-helpers';
 
 /**
  * The worker has been shut down
  */
+@symbolBasedInstanceOf('ShutdownError')
 export class ShutdownError extends Error {
   public readonly name = 'ShutdownError';
-
-  /**
-   * Marker to determine whether an error is an instance of TerminatedFailure.
-   */
-  protected readonly [isShutdownError] = true;
-
-  /**
-   * Instanceof check that works when multiple versions of @temporalio/core-bridge are installed.
-   */
-  static is(error: unknown): error is ShutdownError {
-    return error instanceof ShutdownError || (error as any)?.[isShutdownError] === true;
-  }
 }
 
 /**
  * Thrown after shutdown was requested as a response to a poll function, JS should stop polling
  * once this error is encountered
  */
+@symbolBasedInstanceOf('TransportError')
 export class TransportError extends Error {
   public readonly name = 'TransportError';
 }
@@ -32,17 +21,20 @@ export class TransportError extends Error {
 /**
  * Something unexpected happened, considered fatal
  */
+@symbolBasedInstanceOf('UnexpectedError')
 export class UnexpectedError extends Error {
   public readonly name = 'UnexpectedError';
 }
 
 export { IllegalStateError };
 
+// Check if the error's class is exactly Error (not a descendant of it), in a realm-safe way
+function isBareError(e: unknown): e is Error {
+  return isError(e) && Object.getPrototypeOf(e)?.name === 'Error';
+}
+
 export function convertFromNamedError(e: unknown, keepStackTrace: boolean): unknown {
-  // Check if the error's class is exactly Error (not a descendant of it).
-  // The instanceof check both ensure that e is indeed an object AND avoid
-  // TypeScript from complaining on accessing Error properties.
-  if (e instanceof Error && Object.getPrototypeOf(e).name === 'Error') {
+  if (isBareError(e)) {
     let newerr: Error;
     switch (e.name) {
       case 'TransportError':

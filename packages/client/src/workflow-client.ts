@@ -22,6 +22,7 @@ import {
 } from '@temporalio/common';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import { History } from '@temporalio/common/lib/proto-utils';
+import { symbolBasedInstanceOf } from '@temporalio/common/lib/type-helpers';
 import {
   decodeArrayFromPayloads,
   decodeFromPayloadsAtIndex,
@@ -992,6 +993,7 @@ export class WorkflowClient extends BaseClient {
   }
 }
 
+@symbolBasedInstanceOf('QueryRejectedError')
 export class QueryRejectedError extends Error {
   public readonly name: string = 'QueryRejectedError';
   constructor(public readonly status: temporal.api.enums.v1.WorkflowExecutionStatus) {
@@ -999,6 +1001,7 @@ export class QueryRejectedError extends Error {
   }
 }
 
+@symbolBasedInstanceOf('QueryNotRegisteredError')
 export class QueryNotRegisteredError extends Error {
   public readonly name: string = 'QueryNotRegisteredError';
   constructor(message: string, public readonly code: grpcStatus) {

@@ -49,7 +49,7 @@ export class WorkflowLogInterceptor implements WorkflowInboundCallsInterceptor, 
           if (isCancellation(error)) {
             log.debug('Workflow completed as cancelled');
             throw error;
-          } else if (ContinueAsNew.is(error)) {
+          } else if (error instanceof ContinueAsNew) {
             log.debug('Workflow continued as new');
             throw error;
           }

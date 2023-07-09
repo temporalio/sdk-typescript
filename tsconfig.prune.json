@@ -9,7 +9,6 @@
     "./packages/activity/src/index.ts",
     "./packages/client/src/index.ts",
     "./packages/common/src/index.ts",
-    "./packages/common/src/type-helpers.ts",
     "./packages/create-project/src/index.ts",
     "./packages/interceptors-opentelemetry/src/index.ts",
     "./packages/nyc-test-coverage/src/index.ts",

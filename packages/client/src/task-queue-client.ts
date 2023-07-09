@@ -1,6 +1,6 @@
 import { status } from '@grpc/grpc-js';
 import { filterNullAndUndefined } from '@temporalio/common/lib/internal-non-workflow';
-import { assertNever, RequireAtLeastOne } from '@temporalio/common/lib/type-helpers';
+import { assertNever, symbolBasedInstanceOf, RequireAtLeastOne } from '@temporalio/common/lib/type-helpers';
 import { temporal } from '@temporalio/proto';
 import { BaseClient, BaseClientOptions, defaultBaseClientOptions, LoadedWithDefaults } from './base-client';
 import { WorkflowService } from './types';
@@ -288,6 +288,7 @@ function reachabilityTypeFromProto(rtype: temporal.api.enums.v1.TaskReachability
  *
  * @experimental
  */
+@symbolBasedInstanceOf('BuildIdNotFoundError')
 export class BuildIdNotFoundError extends Error {
   public readonly name: string = 'BuildIdNotFoundError';
 

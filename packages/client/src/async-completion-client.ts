@@ -6,6 +6,7 @@ import {
   encodeToPayloads,
   filterNullAndUndefined,
 } from '@temporalio/common/lib/internal-non-workflow';
+import { symbolBasedInstanceOf } from '@temporalio/common/lib/type-helpers';
 import {
   BaseClient,
   BaseClientOptions,
@@ -21,6 +22,7 @@ import { rethrowKnownErrorTypes } from './helpers';
  * Thrown by {@link AsyncCompletionClient} when trying to complete or heartbeat an Activity that does not exist in the
  * system.
  */
+@symbolBasedInstanceOf('ActivityNotFoundError')
 export class ActivityNotFoundError extends Error {
   public readonly name = 'ActivityNotFoundError';
 }
@@ -29,6 +31,7 @@ export class ActivityNotFoundError extends Error {
  * Thrown by {@link AsyncCompletionClient} when trying to complete or heartbeat
  * an Activity for any reason apart from {@link ActivityNotFoundError}.
  */
+@symbolBasedInstanceOf('ActivityCompletionError')
 export class ActivityCompletionError extends Error {
   public readonly name = 'ActivityCompletionError';
 }
@@ -37,6 +40,7 @@ export class ActivityCompletionError extends Error {
  * Thrown by {@link AsyncCompletionClient.heartbeat} when the Workflow has
  * requested to cancel the reporting Activity.
  */
+@symbolBasedInstanceOf('ActivityCancelledError')
 export class ActivityCancelledError extends Error {
   public readonly name = 'ActivityCancelledError';
 }

@@ -10,6 +10,7 @@ import {
 } from '@temporalio/common';
 import { encodeErrorToFailure, encodeToPayload } from '@temporalio/common/lib/internal-non-workflow';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
+import { isAbortError } from '@temporalio/common/lib/type-helpers';
 import { coresdk } from '@temporalio/proto';
 import {
   ActivityExecuteInput,
@@ -78,7 +79,7 @@ export class Activity {
         const result = await execute(input);
         return { completed: { result: await encodeToPayload(this.dataConverter, result) } };
       } catch (err) {
-        if (CompleteAsyncError.is(err)) {
+        if (err instanceof CompleteAsyncError) {
           return { willCompleteAsync: {} };
         }
         if (this.cancelReason === 'HEARTBEAT_DETAILS_CONVERSION_FAILED') {
@@ -94,11 +95,11 @@ export class Activity {
           };
         } else if (this.cancelReason) {
           // Either a CancelledFailure that we threw or AbortError from AbortController
-          if (CancelledFailure.is(err)) {
+          if (err instanceof CancelledFailure) {
             const failure = await encodeErrorToFailure(this.dataConverter, err);
             failure.stackTrace = undefined;
             return { cancelled: { failure } };
-          } else if (err instanceof Error && err.name === 'AbortError') {
+          } else if (isAbortError(err)) {
             return { cancelled: { failure: { source: FAILURE_SOURCE, canceledFailureInfo: {} } } };
           }
         }
