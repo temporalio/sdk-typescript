@@ -527,7 +527,7 @@ export class ScheduleClient extends BaseClient {
  *
  * @experimental
  */
-@symbolBasedInstanceOf('ScheduleAlreadyExistsError')
+@symbolBasedInstanceOf('ScheduleAlreadyRunning')
 export class ScheduleAlreadyRunning extends Error {
   public readonly name: string = 'ScheduleAlreadyRunning';
 
