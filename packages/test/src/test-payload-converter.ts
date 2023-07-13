@@ -25,6 +25,7 @@ import { RUN_INTEGRATION_TESTS, Worker } from './helpers';
 import { defaultOptions } from './mock-native-worker';
 import { messageInstance } from './payload-converters/proto-payload-converter';
 import { protobufWorkflow } from './workflows/protobufs';
+import { echoBinaryProtobuf } from './workflows/echo-binary-protobuf';
 
 test('UndefinedPayloadConverter converts from undefined only', (t) => {
   const converter = new UndefinedPayloadConverter();
@@ -207,6 +208,30 @@ if (RUN_INTEGRATION_TESTS) {
       }
     });
     t.pass();
+  });
+
+  test('Worker encodes/decodes a protobuf containing a binary array', async (t) => {
+    const binaryInstance = root.BinaryMessage.create({ data: encode('abc') });
+    const dataConverter = { payloadConverterPath: require.resolve('./payload-converters/proto-payload-converter') };
+    const taskQueue = `${__filename}/${t.title}`;
+
+    const worker = await Worker.create({
+      ...defaultOptions,
+      workflowsPath: require.resolve('./workflows/echo-binary-protobuf'),
+      taskQueue,
+      dataConverter,
+    });
+
+    const client = new WorkflowClient({ dataConverter });
+
+    await worker.runUntil(async () => {
+      const result = await client.execute(echoBinaryProtobuf, {
+        args: [binaryInstance],
+        workflowId: uuid4(),
+        taskQueue,
+      });
+      t.deepEqual(result, binaryInstance);
+    });
   });
 }
 

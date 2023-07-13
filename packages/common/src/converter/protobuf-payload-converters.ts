@@ -121,17 +121,57 @@ export class ProtobufJsonPayloadConverter extends ProtobufPayloadConverter {
       return undefined;
     }
 
-    const jsonValue = protoJsonSerializer.toProto3JSON(value);
+    const hasBufferChanged = setBufferInGlobal();
+    try {
+      const jsonValue = protoJsonSerializer.toProto3JSON(value);
 
-    return this.constructPayload({
-      messageTypeName: getNamespacedTypeName(value.$type),
-      message: encode(JSON.stringify(jsonValue)),
-    });
+      return this.constructPayload({
+        messageTypeName: getNamespacedTypeName(value.$type),
+        message: encode(JSON.stringify(jsonValue)),
+      });
+    } finally {
+      resetBufferInGlobal(hasBufferChanged);
+    }
   }
 
   public fromPayload<T>(content: Payload): T {
-    const { messageType, data } = this.validatePayload(content);
-    return protoJsonSerializer.fromProto3JSON(messageType, JSON.parse(decode(data))) as unknown as T;
+    const hasBufferChanged = setBufferInGlobal();
+    try {
+      const { messageType, data } = this.validatePayload(content);
+      const res = protoJsonSerializer.fromProto3JSON(messageType, JSON.parse(decode(data))) as unknown as T;
+      replaceBuffers(res);
+      return res;
+    } finally {
+      resetBufferInGlobal(hasBufferChanged);
+    }
+  }
+}
+
+function replaceBuffers<X>(obj: X) {
+  if (obj != null && typeof obj === 'object') {
+    for (const [key, value] of Object.entries(obj)) {
+      if (Buffer.isBuffer(value)) {
+        type T = keyof typeof obj;
+        // Need to copy. `Buffer` manages a pool slab, internally reused when Buffer objects are GC.
+        obj[key as T] = new Uint8Array(value) as any;
+      } else {
+        replaceBuffers(value);
+      }
+    }
+  }
+}
+
+function setBufferInGlobal(): boolean {
+  if (typeof globalThis.Buffer === 'undefined') {
+    globalThis.Buffer = globalThis.constructor.constructor('return globalThis.Buffer')();
+    return true;
+  }
+  return false;
+}
+
+function resetBufferInGlobal(hasChanged: boolean): void {
+  if (hasChanged) {
+    delete (globalThis as any).Buffer;
   }
 }
 
