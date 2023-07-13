@@ -148,14 +148,23 @@ export class ProtobufJsonPayloadConverter extends ProtobufPayloadConverter {
 }
 
 function replaceBuffers<X>(obj: X) {
+  const replaceBuffersImpl = <Y>(value: any, key: string | number, target: Y) => {
+    if (Buffer.isBuffer(value)) {
+      // Need to copy. `Buffer` manages a pool slab, internally reused when Buffer objects are GC.
+      type T = keyof typeof target;
+      target[key as T] = new Uint8Array(value) as any;
+    } else {
+      replaceBuffers(value);
+    }
+  };
+
   if (obj != null && typeof obj === 'object') {
-    for (const [key, value] of Object.entries(obj)) {
-      if (Buffer.isBuffer(value)) {
-        type T = keyof typeof obj;
-        // Need to copy. `Buffer` manages a pool slab, internally reused when Buffer objects are GC.
-        obj[key as T] = new Uint8Array(value) as any;
-      } else {
-        replaceBuffers(value);
+    // Performance optimization for large arrays
+    if (Array.isArray(obj)) {
+      obj.forEach(replaceBuffersImpl);
+    } else {
+      for (const [key, value] of Object.entries(obj)) {
+        replaceBuffersImpl(value, key, obj);
       }
     }
   }
