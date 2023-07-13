@@ -168,7 +168,7 @@ test('ProtobufJSONPayloadConverter converts binary', (t) => {
   });
 
   const testInstance = converter.fromPayload<root.BinaryMessage>(encoded!);
-  t.deepEqual(testInstance.data, Buffer.from(instance.data));
+  t.deepEqual(testInstance.data, instance.data);
 });
 
 if (RUN_INTEGRATION_TESTS) {
