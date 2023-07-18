@@ -149,9 +149,6 @@ function assertRequiredScheduleOptions(
       if (!opts.action.taskQueue) {
         throw new TypeError(`Missing ${structureName}.action.taskQueue for 'startWorkflow' action`);
       }
-      if (!opts.action.workflowId && action === 'UPDATE') {
-        throw new TypeError(`Missing ${structureName}.action.workflowId for 'startWorkflow' action`);
-      }
       if (!opts.action.workflowType) {
         throw new TypeError(`Missing ${structureName}.action.workflowType for 'startWorkflow' action`);
       }
@@ -459,7 +456,11 @@ export class ScheduleClient extends BaseClient {
         const currentHeader: Headers = current.raw.schedule?.action?.startWorkflow?.header?.fields ?? {};
         const updated = updateFn(current);
         assertRequiredScheduleOptions(updated, 'UPDATE');
-        await this.client._updateSchedule(scheduleId, compileUpdatedScheduleOptions(updated), currentHeader);
+        await this.client._updateSchedule(
+          scheduleId,
+          compileUpdatedScheduleOptions(scheduleId, updated),
+          currentHeader
+        );
       },
 
       async delete(): Promise<void> {
