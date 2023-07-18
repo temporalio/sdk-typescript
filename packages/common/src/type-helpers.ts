@@ -21,7 +21,6 @@ export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
 }
 
-// ts-prune-ignore-next
 export function hasOwnProperty<X extends Record<string, unknown>, Y extends PropertyKey>(
   record: X,
   prop: Y
