@@ -73,7 +73,7 @@ import 'abort-controller/polyfill'; // eslint-disable-line import/no-unassigned-
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { Logger, Duration } from '@temporalio/common';
 import { msToNumber } from '@temporalio/common/lib/time';
-import { symbolBasedInstanceOf } from '@temporalio/common/lib/type-helpers';
+import { SymbolBasedInstanceOfError } from '@temporalio/common/lib/type-helpers';
 
 export {
   ActivityFunction,
@@ -100,14 +100,8 @@ export {
  *}
  *```
  */
-@symbolBasedInstanceOf('CompleteAsyncError')
-export class CompleteAsyncError extends Error {
-  public readonly name: string = 'CompleteAsyncError';
-
-  constructor() {
-    super();
-  }
-}
+@SymbolBasedInstanceOfError('CompleteAsyncError')
+export class CompleteAsyncError extends Error {}
 
 // Make it safe to use @temporalio/activity with multiple versions installed.
 const asyncLocalStorageSymbol = Symbol.for('__temporal_activity_context_storage__');

@@ -15,7 +15,7 @@ import {
   ProtoFailure,
 } from '@temporalio/common';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
-import { checkExtends, symbolBasedInstanceOf } from '@temporalio/common/lib/type-helpers';
+import { checkExtends, SymbolBasedInstanceOfError } from '@temporalio/common/lib/type-helpers';
 import type { coresdk } from '@temporalio/proto';
 import { alea, RNG } from './alea';
 import { RootCancellationScope } from './cancellation-scope';
@@ -70,10 +70,11 @@ export interface Condition {
 /**
  * A class that acts as a marker for this special result type
  */
-@symbolBasedInstanceOf('LocalActivityDoBackoff')
-export class LocalActivityDoBackoff {
-  public readonly name = 'LocalActivityDoBackoff';
-  constructor(public readonly backoff: coresdk.activity_result.IDoBackoff) {}
+@SymbolBasedInstanceOfError('LocalActivityDoBackoff')
+export class LocalActivityDoBackoff extends Error {
+  constructor(public readonly backoff: coresdk.activity_result.IDoBackoff) {
+    super();
+  }
 }
 
 export type ActivationHandlerFunction<K extends keyof coresdk.workflow_activation.IWorkflowActivationJob> = (

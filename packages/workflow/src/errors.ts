@@ -1,21 +1,17 @@
 import { ActivityFailure, CancelledFailure, ChildWorkflowFailure } from '@temporalio/common';
-import { symbolBasedInstanceOf } from '@temporalio/common/lib/type-helpers';
+import { SymbolBasedInstanceOfError } from '@temporalio/common/lib/type-helpers';
 
 /**
  * Base class for all workflow errors
  */
-@symbolBasedInstanceOf('WorkflowError')
-export class WorkflowError extends Error {
-  public readonly name: string = 'WorkflowError';
-}
+@SymbolBasedInstanceOfError('WorkflowError')
+export class WorkflowError extends Error {}
 
 /**
  * Thrown in workflow when it tries to do something that non-deterministic such as construct a WeakRef()
  */
-@symbolBasedInstanceOf('DeterminismViolationError')
-export class DeterminismViolationError extends WorkflowError {
-  public readonly name: string = 'DeterminismViolationError';
-}
+@SymbolBasedInstanceOfError('DeterminismViolationError')
+export class DeterminismViolationError extends WorkflowError {}
 
 /**
  * Returns whether provided `err` is caused by cancellation

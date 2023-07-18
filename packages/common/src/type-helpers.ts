@@ -87,12 +87,17 @@ export function assertNever(msg: string, x: never): never {
   throw new TypeError(msg + ': ' + x);
 }
 
-export type Class = {
-  new (...args: any[]): any;
-  prototype: object;
+export type Class<E extends Error> = {
+  new (...args: any[]): E;
+  prototype: E;
 };
 
 /**
+ * A decorator to be used on error classes. It adds the 'name' property AND provides a custom
+ * 'instanceof' handler that works correctly across execution contexts.
+ *
+ * ### Details ###
+ *
  * According to the EcmaScript's spec, the default behavior of JavaScript's `x instanceof Y` operator is to walk up the
  * prototype chain of object 'x', checking if any constructor in that hierarchy is _exactly the same object_ as the
  * constructor function 'Y'.
@@ -111,10 +116,11 @@ export type Class = {
  * cross-copies-of-the-same-lib safe. It works by adding a special symbol property to the prototype of 'clazz', and then
  * checking for the presence of that symbol.
  */
-export function symbolBasedInstanceOf(markerName: string): (clazz: Class) => void {
-  return (clazz: Class): void => {
+export function SymbolBasedInstanceOfError<E extends Error>(markerName: string): (clazz: Class<E>) => void {
+  return (clazz: Class<E>): void => {
     const marker = Symbol.for(`__temporal_is${markerName}`);
 
+    Object.defineProperty(clazz.prototype, 'name', { value: markerName, enumerable: true });
     Object.defineProperty(clazz.prototype, marker, { value: true, enumerable: false });
     Object.defineProperty(clazz, Symbol.hasInstance, {
       // eslint-disable-next-line object-shorthand

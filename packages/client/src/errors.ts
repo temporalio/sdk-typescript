@@ -1,13 +1,12 @@
 import { ServiceError as GrpcServiceError } from '@grpc/grpc-js';
 import { RetryState, TemporalFailure } from '@temporalio/common';
-import { isError, isRecord, symbolBasedInstanceOf } from '@temporalio/common/lib/type-helpers';
+import { isError, isRecord, SymbolBasedInstanceOfError } from '@temporalio/common/lib/type-helpers';
 
 /**
  * Generic Error class for errors coming from the service
  */
-@symbolBasedInstanceOf('ServiceError')
+@SymbolBasedInstanceOfError('ServiceError')
 export class ServiceError extends Error {
-  public readonly name: string = 'ServiceError';
   public readonly cause?: Error;
 
   constructor(message: string, opts?: { cause: Error }) {
@@ -25,9 +24,8 @@ export class ServiceError extends Error {
  * For example if the workflow is cancelled, `cause` will be set to
  * {@link CancelledFailure}.
  */
-@symbolBasedInstanceOf('WorkflowFailedError')
+@SymbolBasedInstanceOfError('WorkflowFailedError')
 export class WorkflowFailedError extends Error {
-  public readonly name: string = 'WorkflowFailedError';
   public constructor(
     message: string,
     public readonly cause: TemporalFailure | undefined,
@@ -43,9 +41,8 @@ export class WorkflowFailedError extends Error {
  *
  * Only thrown if asked not to follow the chain of execution (see {@link WorkflowOptions.followRuns}).
  */
-@symbolBasedInstanceOf('WorkflowContinuedAsNewError')
+@SymbolBasedInstanceOfError('WorkflowExecutionContinuedAsNewError')
 export class WorkflowContinuedAsNewError extends Error {
-  public readonly name: string = 'WorkflowExecutionContinuedAsNewError';
   public constructor(message: string, public readonly newExecutionRunId: string) {
     super(message);
   }

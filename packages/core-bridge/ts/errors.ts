@@ -1,30 +1,24 @@
 import { IllegalStateError } from '@temporalio/common';
-import { isError, symbolBasedInstanceOf } from '@temporalio/common/lib/type-helpers';
+import { isError, SymbolBasedInstanceOfError } from '@temporalio/common/lib/type-helpers';
 
 /**
  * The worker has been shut down
  */
-@symbolBasedInstanceOf('ShutdownError')
-export class ShutdownError extends Error {
-  public readonly name = 'ShutdownError';
-}
+@SymbolBasedInstanceOfError('ShutdownError')
+export class ShutdownError extends Error {}
 
 /**
  * Thrown after shutdown was requested as a response to a poll function, JS should stop polling
  * once this error is encountered
  */
-@symbolBasedInstanceOf('TransportError')
-export class TransportError extends Error {
-  public readonly name = 'TransportError';
-}
+@SymbolBasedInstanceOfError('TransportError')
+export class TransportError extends Error {}
 
 /**
  * Something unexpected happened, considered fatal
  */
-@symbolBasedInstanceOf('UnexpectedError')
-export class UnexpectedError extends Error {
-  public readonly name = 'UnexpectedError';
-}
+@SymbolBasedInstanceOfError('UnexpectedError')
+export class UnexpectedError extends Error {}
 
 export { IllegalStateError };
 

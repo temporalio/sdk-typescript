@@ -1,6 +1,6 @@
 import vm from 'vm';
 import anyTest, { TestFn } from 'ava';
-import { symbolBasedInstanceOf } from '@temporalio/common/lib/type-helpers';
+import { SymbolBasedInstanceOfError } from '@temporalio/common/lib/type-helpers';
 
 interface Context {
   cx1: (script: string) => any;
@@ -9,18 +9,18 @@ interface Context {
 const test = anyTest as TestFn<Context>;
 
 const script = new vm.Script(`
-  class ClassA {};
+  class ClassA extends Error {};
   class ClassB extends ClassA {}
   class ClassC extends ClassB {}
 `);
 
 test.beforeEach((t) => {
   const cx1 = vm.createContext();
-  cx1.symbolBasedInstanceOf = symbolBasedInstanceOf;
+  cx1.SymbolBasedInstanceOfError = SymbolBasedInstanceOfError;
   script.runInContext(cx1);
 
   const cx2 = vm.createContext();
-  cx2.symbolBasedInstanceOf = symbolBasedInstanceOf;
+  cx2.SymbolBasedInstanceOfError = SymbolBasedInstanceOfError;
   script.runInContext(cx2);
 
   t.context = {
@@ -30,7 +30,7 @@ test.beforeEach((t) => {
 });
 
 // This test is trivial and obvious. It is only meant to clearly establish a baseline for other tests.
-test.serial('BASELINE - instanceof works as expected in single realm, without symbolBasedInstanceOf', (t) => {
+test.serial('BASELINE - instanceof works as expected in single realm, without SymbolBasedInstanceOfError', (t) => {
   const { cx1 } = t.context;
 
   t.true(cx1('new ClassA()') instanceof cx1('ClassA'));
@@ -51,7 +51,7 @@ test.serial('BASELINE - instanceof works as expected in single realm, without sy
 });
 
 // This test demonstrates that cross-realm instanceof is indeed broken by default.
-test.serial('BASELINE - instanceof is broken in cross realms, without symbolBasedInstanceOf', (t) => {
+test.serial('BASELINE - instanceof is broken in cross realms, without SymbolBasedInstanceOfError', (t) => {
   const { cx1, cx2 } = t.context;
 
   t.false(cx1('new ClassA()') instanceof cx2('ClassA'));
@@ -71,11 +71,11 @@ test.serial('BASELINE - instanceof is broken in cross realms, without symbolBase
   t.false(cx1('new ClassC()') instanceof cx2('Object'));
 });
 
-test.serial(`symbolBasedInstanceOf doesn't break any default behaviour of instanceof in single realm`, (t) => {
+test.serial(`SymbolBasedInstanceOfError doesn't break any default behaviour of instanceof in single realm`, (t) => {
   const { cx1 } = t.context;
 
-  cx1(`symbolBasedInstanceOf('ClassA')(ClassA)`);
-  cx1(`symbolBasedInstanceOf('ClassB')(ClassB)`);
+  cx1(`SymbolBasedInstanceOfError('ClassA')(ClassA)`);
+  cx1(`SymbolBasedInstanceOfError('ClassB')(ClassB)`);
 
   t.true(cx1('new ClassA()') instanceof cx1('ClassA'));
   t.true(cx1('new ClassB()') instanceof cx1('ClassA'));
@@ -94,14 +94,14 @@ test.serial(`symbolBasedInstanceOf doesn't break any default behaviour of instan
   t.true(cx1('new ClassC()') instanceof cx1('Object'));
 });
 
-test.serial(`instanceof is working as expected across realms with symbolBasedInstanceOf`, (t) => {
+test.serial(`instanceof is working as expected across realms with SymbolBasedInstanceOfError`, (t) => {
   const { cx1, cx2 } = t.context;
 
-  cx1(`symbolBasedInstanceOf('ClassA')(ClassA)`);
-  cx1(`symbolBasedInstanceOf('ClassB')(ClassB)`);
+  cx1(`SymbolBasedInstanceOfError('ClassA')(ClassA)`);
+  cx1(`SymbolBasedInstanceOfError('ClassB')(ClassB)`);
 
-  cx2(`symbolBasedInstanceOf('ClassA')(ClassA)`);
-  cx2(`symbolBasedInstanceOf('ClassB')(ClassB)`);
+  cx2(`SymbolBasedInstanceOfError('ClassA')(ClassA)`);
+  cx2(`SymbolBasedInstanceOfError('ClassB')(ClassB)`);
 
   t.true(cx1('new ClassA()') instanceof cx2('ClassA'));
   t.true(cx1('new ClassB()') instanceof cx2('ClassA'));
@@ -114,22 +114,22 @@ test.serial(`instanceof is working as expected across realms with symbolBasedIns
   t.false(cx1('new ClassA()') instanceof cx2('ClassC'));
   t.false(cx1('new ClassB()') instanceof cx2('ClassC'));
 
-  // This one is surprising but expected, as symbolBasedInstanceOf was never called on ClassC;
+  // This one is surprising but expected, as SymbolBasedInstanceOfError was never called on ClassC;
   // it therefore reverts to the default behavior of instanceof, which is not cross-realm safe.
   t.false(cx1('new ClassC()') instanceof cx2('ClassC'));
 
   // The followings are surprising, but expected, as 'Object' differs between realms.
-  // symbolBasedInstanceOf doesn't help with that.
+  // SymbolBasedInstanceOfError doesn't help with that.
   t.false(cx1('new ClassA()') instanceof cx2('Object'));
   t.false(cx1('new ClassB()') instanceof cx2('Object'));
   t.false(cx1('new ClassC()') instanceof cx2('Object'));
 });
 
 // This test demonstrates that cross-realm instanceof is indeed broken by default.
-test.serial('symbolBasedInstanceOf doesnt break on non-object values', (t) => {
+test.serial('SymbolBasedInstanceOfError doesnt break on non-object values', (t) => {
   const { cx1 } = t.context;
 
-  cx1(`symbolBasedInstanceOf('ClassA')(ClassA)`);
+  cx1(`SymbolBasedInstanceOfError('ClassA')(ClassA)`);
 
   t.false((true as any) instanceof cx1('ClassA'));
   t.false((12 as any) instanceof cx1('ClassA'));
@@ -142,16 +142,24 @@ test.serial('symbolBasedInstanceOf doesnt break on non-object values', (t) => {
   t.false((Symbol() as any) instanceof cx1('ClassA'));
 });
 
-test.serial('Same context with same symbolBasedInstanceOf calls also works', (t) => {
-  class ClassA {}
-  class ClassB {}
+test.serial('Same context with same SymbolBasedInstanceOfError calls also works', (t) => {
+  class ClassA extends Error {}
+  class ClassB extends Error {}
 
   t.false(new ClassA() instanceof ClassB);
   t.false(new ClassB() instanceof ClassA);
 
-  symbolBasedInstanceOf('Foo')(ClassA);
-  symbolBasedInstanceOf('Foo')(ClassB);
+  SymbolBasedInstanceOfError('Foo')(ClassA);
+  SymbolBasedInstanceOfError('Foo')(ClassB);
 
   t.true(new ClassA() instanceof ClassB);
   t.true(new ClassB() instanceof ClassA);
+});
+
+test.serial('SymbolBasedInstanceOfError correctly sets the name property', (t) => {
+  @SymbolBasedInstanceOfError('CustomName')
+  class ClassA extends Error {}
+
+  t.true(new ClassA() instanceof ClassA);
+  t.is(new ClassA().name, 'CustomName');
 });

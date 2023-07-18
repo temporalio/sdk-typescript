@@ -1,13 +1,11 @@
 import { TemporalFailure } from './failure';
-import { symbolBasedInstanceOf } from './type-helpers';
+import { SymbolBasedInstanceOfError } from './type-helpers';
 
 /**
  * Thrown from code that receives a value that is unexpected or that it's unable to handle.
  */
-@symbolBasedInstanceOf('ValueError')
+@SymbolBasedInstanceOfError('ValueError')
 export class ValueError extends Error {
-  public readonly name: string = 'ValueError';
-
   constructor(message: string | undefined, public readonly cause?: unknown) {
     super(message ?? undefined);
   }
@@ -16,18 +14,14 @@ export class ValueError extends Error {
 /**
  * Thrown when a Payload Converter is misconfigured.
  */
-@symbolBasedInstanceOf('PayloadConverterError')
-export class PayloadConverterError extends ValueError {
-  public readonly name: string = 'PayloadConverterError';
-}
+@SymbolBasedInstanceOfError('PayloadConverterError')
+export class PayloadConverterError extends ValueError {}
 
 /**
  * Used in different parts of the SDK to note that something unexpected has happened.
  */
-@symbolBasedInstanceOf('IllegalStateError')
-export class IllegalStateError extends Error {
-  public readonly name: string = 'IllegalStateError';
-}
+@SymbolBasedInstanceOfError('IllegalStateError')
+export class IllegalStateError extends Error {}
 
 /**
  * This exception is thrown in the following cases:
@@ -37,10 +31,8 @@ export class IllegalStateError extends Error {
  *  - There is closed Workflow in the `Completed` state with the same Workflow Id and the {@link WorkflowOptions.workflowIdReusePolicy}
  *    is `WORKFLOW_ID_REUSE_POLICY_ALLOW_DUPLICATE_FAILED_ONLY`
  */
-@symbolBasedInstanceOf('WorkflowExecutionAlreadyStartedError')
+@SymbolBasedInstanceOfError('WorkflowExecutionAlreadyStartedError')
 export class WorkflowExecutionAlreadyStartedError extends TemporalFailure {
-  public readonly name: string = 'WorkflowExecutionAlreadyStartedError';
-
   constructor(message: string, public readonly workflowId: string, public readonly workflowType: string) {
     super(message);
   }
@@ -53,10 +45,8 @@ export class WorkflowExecutionAlreadyStartedError extends TemporalFailure {
  * - Workflow is closed (for some calls, e.g. `terminate`)
  * - Workflow was deleted from the Server after reaching its retention limit
  */
-@symbolBasedInstanceOf('WorkflowNotFoundError')
+@SymbolBasedInstanceOfError('WorkflowNotFoundError')
 export class WorkflowNotFoundError extends Error {
-  public readonly name: string = 'WorkflowNotFoundError';
-
   constructor(message: string, public readonly workflowId: string, public readonly runId: string | undefined) {
     super(message);
   }
@@ -65,10 +55,8 @@ export class WorkflowNotFoundError extends Error {
 /**
  * Thrown when the specified namespace is not known to Temporal Server.
  */
-@symbolBasedInstanceOf('NamespaceNotFoundError')
+@SymbolBasedInstanceOfError('NamespaceNotFoundError')
 export class NamespaceNotFoundError extends Error {
-  public readonly name: string = 'NamespaceNotFoundError';
-
   constructor(public readonly namespace: string) {
     super(`Namespace not found: '${namespace}'`);
   }

@@ -50,7 +50,7 @@ import {
 } from '@temporalio/common/lib/otel';
 import { historyFromJSON } from '@temporalio/common/lib/proto-utils';
 import { optionalTsToDate, optionalTsToMs, tsToDate, tsToMs } from '@temporalio/common/lib/time';
-import { errorMessage, isError, symbolBasedInstanceOf } from '@temporalio/common/lib/type-helpers';
+import { errorMessage, isError, SymbolBasedInstanceOfError } from '@temporalio/common/lib/type-helpers';
 import * as native from '@temporalio/core-bridge';
 import { ShutdownError, UnexpectedError } from '@temporalio/core-bridge';
 import { coresdk, temporal } from '@temporalio/proto';
@@ -159,9 +159,8 @@ interface EvictionWithRunID {
 /**
  * Error thrown by {@link Worker.runUntil} and {@link Worker.runReplayHistories}
  */
-@symbolBasedInstanceOf('CombinedWorkerRunError')
+@SymbolBasedInstanceOfError('CombinedWorkerRunError')
 export class CombinedWorkerRunError extends Error {
-  public readonly name = 'CombinedWorkerRunError';
   public readonly cause: CombinedWorkerRunErrorCause;
 
   constructor(message: string, { cause }: { cause: CombinedWorkerRunErrorCause }) {

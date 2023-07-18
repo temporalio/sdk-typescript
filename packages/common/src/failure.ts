@@ -1,5 +1,5 @@
 import type { temporal } from '@temporalio/proto';
-import { checkExtends, errorMessage, isRecord, symbolBasedInstanceOf } from './type-helpers';
+import { checkExtends, errorMessage, isRecord, SymbolBasedInstanceOfError } from './type-helpers';
 
 export const FAILURE_SOURCE = 'TypeScriptSDK';
 export type ProtoFailure = temporal.api.failure.v1.IFailure;
@@ -42,9 +42,8 @@ export type WorkflowExecution = temporal.api.common.v1.IWorkflowExecution;
  *
  * The only child class you should ever throw from your code is {@link ApplicationFailure}.
  */
-@symbolBasedInstanceOf('TemporalFailure')
+@SymbolBasedInstanceOfError('TemporalFailure')
 export class TemporalFailure extends Error {
-  public readonly name: string = 'TemporalFailure';
   /**
    * The original failure that constructed this error.
    *
@@ -58,10 +57,8 @@ export class TemporalFailure extends Error {
 }
 
 /** Exceptions originated at the Temporal service. */
-@symbolBasedInstanceOf('ServerFailure')
+@SymbolBasedInstanceOfError('ServerFailure')
 export class ServerFailure extends TemporalFailure {
-  public readonly name: string = 'ServerFailure';
-
   constructor(message: string | undefined, public readonly nonRetryable: boolean, cause?: Error) {
     super(message, cause);
   }
@@ -89,10 +86,8 @@ export class ServerFailure extends TemporalFailure {
  * `ApplicationFailure` from the last Activity Task will be the `cause` of the {@link ActivityFailure} thrown in the
  * Workflow.
  */
-@symbolBasedInstanceOf('ApplicationFailure')
+@SymbolBasedInstanceOfError('ApplicationFailure')
 export class ApplicationFailure extends TemporalFailure {
-  public readonly name: string = 'ApplicationFailure';
-
   /**
    * Alternatively, use {@link fromError} or {@link create}.
    */
@@ -191,10 +186,8 @@ export interface ApplicationFailureOptions {
  *
  * When a Workflow or Activity has been successfully cancelled, a `CancelledFailure` will be the `cause`.
  */
-@symbolBasedInstanceOf('CancelledFailure')
+@SymbolBasedInstanceOfError('CancelledFailure')
 export class CancelledFailure extends TemporalFailure {
-  public readonly name: string = 'CancelledFailure';
-
   constructor(message: string | undefined, public readonly details: unknown[] = [], cause?: Error) {
     super(message, cause);
   }
@@ -203,10 +196,8 @@ export class CancelledFailure extends TemporalFailure {
 /**
  * Used as the `cause` when a Workflow has been terminated
  */
-@symbolBasedInstanceOf('TerminatedFailure')
+@SymbolBasedInstanceOfError('TerminatedFailure')
 export class TerminatedFailure extends TemporalFailure {
-  public readonly name: string = 'TerminatedFailure';
-
   constructor(message: string | undefined, cause?: Error) {
     super(message, cause);
   }
@@ -215,10 +206,8 @@ export class TerminatedFailure extends TemporalFailure {
 /**
  * Used to represent timeouts of Activities and Workflows
  */
-@symbolBasedInstanceOf('TimeoutFailure')
+@SymbolBasedInstanceOfError('TimeoutFailure')
 export class TimeoutFailure extends TemporalFailure {
-  public readonly name: string = 'TimeoutFailure';
-
   constructor(
     message: string | undefined,
     public readonly lastHeartbeatDetails: unknown,
@@ -234,10 +223,8 @@ export class TimeoutFailure extends TemporalFailure {
  *
  * This exception is expected to be thrown only by the framework code.
  */
-@symbolBasedInstanceOf('ActivityFailure')
+@SymbolBasedInstanceOfError('ActivityFailure')
 export class ActivityFailure extends TemporalFailure {
-  public readonly name: string = 'ActivityFailure';
-
   public constructor(
     message: string | undefined,
     public readonly activityType: string,
@@ -256,10 +243,8 @@ export class ActivityFailure extends TemporalFailure {
  *
  * This exception is expected to be thrown only by the framework code.
  */
-@symbolBasedInstanceOf('ChildWorkflowFailure')
+@SymbolBasedInstanceOfError('ChildWorkflowFailure')
 export class ChildWorkflowFailure extends TemporalFailure {
-  public readonly name: string = 'ChildWorkflowFailure';
-
   public constructor(
     public readonly namespace: string | undefined,
     public readonly execution: WorkflowExecution,
