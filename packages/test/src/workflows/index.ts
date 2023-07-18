@@ -91,5 +91,6 @@ export * from './two-strings';
 export { isBlockedQuery, unblockOrCancel } from './unblock-or-cancel';
 export * from './unhandled-rejection';
 export * from './upsert-and-read-search-attributes';
+export * from './url-whatwg';
 export * from './wait-on-user';
 export * from './workflow-cancellation-scenarios';
