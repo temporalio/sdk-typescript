@@ -135,7 +135,13 @@ export type CompiledScheduleOptions = Replace<
 export type ScheduleUpdateOptions<A extends ScheduleOptionsAction = ScheduleOptionsAction> = Replace<
   Omit<ScheduleOptions, 'scheduleId' | 'memo' | 'searchAttributes'>,
   {
-    action: A;
+    action: Replace<
+      A,
+      {
+        // No default value on update
+        workflowId: string;
+      }
+    >;
     state: Omit<ScheduleOptions['state'], 'triggerImmediately' | 'backfill'>;
   }
 >;
