@@ -163,6 +163,16 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
     t.is(res, 'Hello, world!');
   });
 
+  test('url-whatwg', async (t) => {
+    const { client } = t.context;
+    const res = await client.execute(workflows.urlEcho, {
+      taskQueue: 'test',
+      workflowId: uuid4(),
+      args: ['http://foo.com'],
+    });
+    t.is(res, 'http://foo.com/?counter=1');
+  });
+
   test('cancel-fake-progress', async (t) => {
     const { client } = t.context;
     await client.execute(workflows.cancelFakeProgress, {

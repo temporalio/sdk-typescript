@@ -1,4 +1,5 @@
 import assert from 'node:assert';
+import { URL, URLSearchParams } from 'node:url';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import vm from 'node:vm';
 import * as internals from '@temporalio/workflow/lib/worker-interface';
@@ -90,7 +91,7 @@ export class ReusableVMWorkflowCreator implements WorkflowCreator {
         },
       }
     );
-    const globals = { AsyncLocalStorage, assert, __webpack_module_cache__ };
+    const globals = { AsyncLocalStorage, URL, URLSearchParams, assert, __webpack_module_cache__ };
     this._context = vm.createContext(globals, { microtaskMode: 'afterEvaluate' });
     this.injectConsole();
     script.runInContext(this.context);

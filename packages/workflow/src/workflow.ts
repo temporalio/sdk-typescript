@@ -774,7 +774,7 @@ export async function executeChild<T extends Workflow>(
  * @return The result of the child Workflow.
  */
 export async function executeChild<T extends Workflow>(
-  workflowType: T,
+  workflowFunc: T,
   options: WithWorkflowArgs<T, ChildWorkflowOptions>
 ): Promise<WorkflowResultType<T>>;
 
