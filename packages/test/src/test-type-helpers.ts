@@ -125,7 +125,6 @@ test.serial(`instanceof is working as expected across realms with SymbolBasedIns
   t.false(cx1('new ClassC()') instanceof cx2('Object'));
 });
 
-// This test demonstrates that cross-realm instanceof is indeed broken by default.
 test.serial('SymbolBasedInstanceOfError doesnt break on non-object values', (t) => {
   const { cx1 } = t.context;
 
