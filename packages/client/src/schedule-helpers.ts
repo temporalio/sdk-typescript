@@ -221,13 +221,17 @@ export function compileScheduleOptions(options: ScheduleOptions): CompiledSchedu
   };
 }
 
-export function compileUpdatedScheduleOptions(options: ScheduleUpdateOptions): CompiledScheduleUpdateOptions {
+export function compileUpdatedScheduleOptions(
+  scheduleId: string,
+  options: ScheduleUpdateOptions
+): CompiledScheduleUpdateOptions {
   const workflowTypeOrFunc = options.action.workflowType;
   const workflowType = extractWorkflowType(workflowTypeOrFunc);
   return {
     ...options,
     action: {
       ...options.action,
+      workflowId: options.action.workflowId ?? `${scheduleId}-workflow`,
       workflowType,
       args: (options.action.args ?? []) as unknown[],
     },
