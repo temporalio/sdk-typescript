@@ -139,6 +139,9 @@ export class ProtobufJsonPayloadConverter extends ProtobufPayloadConverter {
     try {
       const { messageType, data } = this.validatePayload(content);
       const res = protoJsonSerializer.fromProto3JSON(messageType, JSON.parse(decode(data))) as unknown as T;
+      if (Buffer.isBuffer(res)) {
+        return new Uint8Array(res) as any;
+      }
       replaceBuffers(res);
       return res;
     } finally {
