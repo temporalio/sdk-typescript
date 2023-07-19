@@ -12,7 +12,7 @@ import {
   TimeoutFailure,
   TimeoutType,
 } from '../failure';
-import { hasOwnProperties, isRecord } from '../type-helpers';
+import { isError } from '../type-helpers';
 import { arrayFromPayloads, fromPayloadsAtIndex, PayloadConverter, toPayloads } from './payload-converter';
 
 /**
@@ -219,7 +219,7 @@ export class DefaultFailureConverter implements FailureConverter {
   }
 
   errorToFailureInner(err: unknown, payloadConverter: PayloadConverter): ProtoFailure {
-    if (TemporalFailure.is(err)) {
+    if (err instanceof TemporalFailure) {
       if (err.failure) return err.failure;
       const base = {
         message: err.message,
@@ -228,7 +228,7 @@ export class DefaultFailureConverter implements FailureConverter {
         source: FAILURE_SOURCE,
       };
 
-      if (ActivityFailure.is(err)) {
+      if (err instanceof ActivityFailure) {
         return {
           ...base,
           activityFailureInfo: {
@@ -237,7 +237,7 @@ export class DefaultFailureConverter implements FailureConverter {
           },
         };
       }
-      if (ChildWorkflowFailure.is(err)) {
+      if (err instanceof ChildWorkflowFailure) {
         return {
           ...base,
           childWorkflowExecutionFailureInfo: {
@@ -247,7 +247,7 @@ export class DefaultFailureConverter implements FailureConverter {
           },
         };
       }
-      if (ApplicationFailure.is(err)) {
+      if (err instanceof ApplicationFailure) {
         return {
           ...base,
           applicationFailureInfo: {
@@ -260,7 +260,7 @@ export class DefaultFailureConverter implements FailureConverter {
           },
         };
       }
-      if (CancelledFailure.is(err)) {
+      if (err instanceof CancelledFailure) {
         return {
           ...base,
           canceledFailureInfo: {
@@ -271,7 +271,7 @@ export class DefaultFailureConverter implements FailureConverter {
           },
         };
       }
-      if (TimeoutFailure.is(err)) {
+      if (err instanceof TimeoutFailure) {
         return {
           ...base,
           timeoutFailureInfo: {
@@ -282,13 +282,13 @@ export class DefaultFailureConverter implements FailureConverter {
           },
         };
       }
-      if (ServerFailure.is(err)) {
+      if (err instanceof ServerFailure) {
         return {
           ...base,
           serverFailureInfo: { nonRetryable: err.nonRetryable },
         };
       }
-      if (TerminatedFailure.is(err)) {
+      if (err instanceof TerminatedFailure) {
         return {
           ...base,
           terminatedFailureInfo: {},
@@ -302,12 +302,12 @@ export class DefaultFailureConverter implements FailureConverter {
       source: FAILURE_SOURCE,
     };
 
-    if (isRecord(err) && hasOwnProperties(err, ['message', 'stack'])) {
+    if (isError(err)) {
       return {
         ...base,
         message: String(err.message) ?? '',
-        stackTrace: cutoffStackTrace(String(err.stack)),
-        cause: this.optionalErrorToOptionalFailure(err.cause, payloadConverter),
+        stackTrace: cutoffStackTrace(err.stack),
+        cause: this.optionalErrorToOptionalFailure((err as any).cause, payloadConverter),
       };
     }
 

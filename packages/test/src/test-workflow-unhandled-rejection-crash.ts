@@ -9,7 +9,7 @@ import { throwUnhandledRejection } from './workflows';
 if (RUN_INTEGRATION_TESTS) {
   test('Worker crashes if workflow throws unhandled rejection that cannot be associated with a workflow run', async (t) => {
     // To debug Workflows with this worker run the test with `ava debug` and add breakpoints to your Workflows
-    const taskQueue = 'unhandled-rejection-crash';
+    const taskQueue = `unhandled-rejection-crash-${uuid4()}`;
     const worker = await Worker.create({ ...defaultOptions, taskQueue });
     const client = new WorkflowClient();
     const handle = await client.start(throwUnhandledRejection, {

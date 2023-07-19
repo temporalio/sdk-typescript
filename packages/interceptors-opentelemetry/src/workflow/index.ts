@@ -59,7 +59,7 @@ export class OpenTelemetryInboundInterceptor implements WorkflowInboundCallsInte
       spanName: `${SpanName.WORKFLOW_EXECUTE}${SPAN_DELIMITER}${workflowInfo().workflowType}`,
       fn: () => next(input),
       context,
-      acceptableErrors: ContinueAsNew.is,
+      acceptableErrors: (err) => err instanceof ContinueAsNew,
     });
   }
 }
@@ -120,7 +120,7 @@ export class OpenTelemetryOutboundInterceptor implements WorkflowOutboundCallsIn
           headers,
         });
       },
-      acceptableErrors: ContinueAsNew.is,
+      acceptableErrors: (err) => err instanceof ContinueAsNew,
     });
   }
 }
