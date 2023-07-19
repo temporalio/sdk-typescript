@@ -396,7 +396,6 @@ if (RUN_INTEGRATION_TESTS) {
         ...x,
         action: {
           type: 'startWorkflow',
-          workflowId: `${scheduleId}-workflow-2`,
           workflowType: dummyWorkflowWith2Args,
           args: [3, 4],
           taskQueue,
