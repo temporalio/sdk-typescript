@@ -14,6 +14,8 @@ import {
 
 import { encodingTypes, METADATA_ENCODING_KEY, METADATA_MESSAGE_TYPE_KEY } from './types';
 
+const GLOBAL_BUFFER = globalThis.constructor.constructor('return globalThis.Buffer')();
+
 abstract class ProtobufPayloadConverter implements PayloadConverterWithEncoding {
   protected readonly root: Root | undefined;
   public abstract encodingType: string;
@@ -175,7 +177,7 @@ function replaceBuffers<X>(obj: X) {
 
 function setBufferInGlobal(): boolean {
   if (typeof globalThis.Buffer === 'undefined') {
-    globalThis.Buffer = globalThis.constructor.constructor('return globalThis.Buffer')();
+    globalThis.Buffer = GLOBAL_BUFFER;
     return true;
   }
   return false;
