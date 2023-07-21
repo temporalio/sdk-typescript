@@ -9,7 +9,7 @@ import {
   Duration,
   VersioningIntent,
 } from '@temporalio/common';
-import { checkExtends } from '@temporalio/common/lib/type-helpers';
+import { checkExtends, SymbolBasedInstanceOfError } from '@temporalio/common/lib/type-helpers';
 import type { coresdk } from '@temporalio/proto';
 
 /**
@@ -166,28 +166,13 @@ export interface ParentWorkflowInfo {
   namespace: string;
 }
 
-const isContinueAsNew = Symbol.for('__temporal_isContinueAsNew');
-
 /**
  * Not an actual error, used by the Workflow runtime to abort execution when {@link continueAsNew} is called
  */
+@SymbolBasedInstanceOfError('ContinueAsNew')
 export class ContinueAsNew extends Error {
-  public readonly name = 'ContinueAsNew';
-
   constructor(public readonly command: coresdk.workflow_commands.IContinueAsNewWorkflowExecution) {
     super('Workflow continued as new');
-  }
-
-  /**
-   * Marker to determine whether an error is an instance of ContinueAsNew.
-   */
-  protected readonly [isContinueAsNew] = true;
-
-  /**
-   * Instanceof check that works when multiple versions of @temporalio/workflow are installed.
-   */
-  static is(error: unknown): error is ContinueAsNew {
-    return error instanceof ContinueAsNew || (error as any)?.[isContinueAsNew] === true;
   }
 }
 

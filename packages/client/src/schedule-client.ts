@@ -9,6 +9,7 @@ import {
 } from '@temporalio/common/lib/internal-non-workflow';
 import { temporal } from '@temporalio/proto';
 import { optionalDateToTs, optionalTsToDate, optionalTsToMs, tsToDate } from '@temporalio/common/lib/time';
+import { SymbolBasedInstanceOfError } from '@temporalio/common/lib/type-helpers';
 import { CreateScheduleInput, CreateScheduleOutput, ScheduleClientInterceptor } from './interceptors';
 import { WorkflowService } from './types';
 import { isGrpcServiceError, ServiceError } from './errors';
@@ -148,9 +149,6 @@ function assertRequiredScheduleOptions(
     case 'startWorkflow':
       if (!opts.action.taskQueue) {
         throw new TypeError(`Missing ${structureName}.action.taskQueue for 'startWorkflow' action`);
-      }
-      if (!opts.action.workflowId && action === 'UPDATE') {
-        throw new TypeError(`Missing ${structureName}.action.workflowId for 'startWorkflow' action`);
       }
       if (!opts.action.workflowType) {
         throw new TypeError(`Missing ${structureName}.action.workflowType for 'startWorkflow' action`);
@@ -459,7 +457,11 @@ export class ScheduleClient extends BaseClient {
         const currentHeader: Headers = current.raw.schedule?.action?.startWorkflow?.header?.fields ?? {};
         const updated = updateFn(current);
         assertRequiredScheduleOptions(updated, 'UPDATE');
-        await this.client._updateSchedule(scheduleId, compileUpdatedScheduleOptions(updated), currentHeader);
+        await this.client._updateSchedule(
+          scheduleId,
+          compileUpdatedScheduleOptions(scheduleId, updated),
+          currentHeader
+        );
       },
 
       async delete(): Promise<void> {
@@ -526,9 +528,8 @@ export class ScheduleClient extends BaseClient {
  *
  * @experimental
  */
+@SymbolBasedInstanceOfError('ScheduleAlreadyRunning')
 export class ScheduleAlreadyRunning extends Error {
-  public readonly name: string = 'ScheduleAlreadyRunning';
-
   constructor(message: string, public readonly scheduleId: string) {
     super(message);
   }
@@ -542,9 +543,8 @@ export class ScheduleAlreadyRunning extends Error {
  *
  * @experimental
  */
+@SymbolBasedInstanceOfError('ScheduleNotFoundError')
 export class ScheduleNotFoundError extends Error {
-  public readonly name: string = 'ScheduleNotFoundError';
-
   constructor(message: string, public readonly scheduleId: string) {
     super(message);
   }
