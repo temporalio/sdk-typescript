@@ -14,6 +14,8 @@ import {
 
 import { encodingTypes, METADATA_ENCODING_KEY, METADATA_MESSAGE_TYPE_KEY } from './types';
 
+const GLOBAL_BUFFER = globalThis.constructor.constructor('return globalThis.Buffer')();
+
 abstract class ProtobufPayloadConverter implements PayloadConverterWithEncoding {
   protected readonly root: Root | undefined;
   public abstract encodingType: string;
@@ -121,17 +123,69 @@ export class ProtobufJsonPayloadConverter extends ProtobufPayloadConverter {
       return undefined;
     }
 
-    const jsonValue = protoJsonSerializer.toProto3JSON(value);
+    const hasBufferChanged = setBufferInGlobal();
+    try {
+      const jsonValue = protoJsonSerializer.toProto3JSON(value);
 
-    return this.constructPayload({
-      messageTypeName: getNamespacedTypeName(value.$type),
-      message: encode(JSON.stringify(jsonValue)),
-    });
+      return this.constructPayload({
+        messageTypeName: getNamespacedTypeName(value.$type),
+        message: encode(JSON.stringify(jsonValue)),
+      });
+    } finally {
+      resetBufferInGlobal(hasBufferChanged);
+    }
   }
 
   public fromPayload<T>(content: Payload): T {
-    const { messageType, data } = this.validatePayload(content);
-    return protoJsonSerializer.fromProto3JSON(messageType, JSON.parse(decode(data))) as unknown as T;
+    const hasBufferChanged = setBufferInGlobal();
+    try {
+      const { messageType, data } = this.validatePayload(content);
+      const res = protoJsonSerializer.fromProto3JSON(messageType, JSON.parse(decode(data))) as unknown as T;
+      if (Buffer.isBuffer(res)) {
+        return new Uint8Array(res) as any;
+      }
+      replaceBuffers(res);
+      return res;
+    } finally {
+      resetBufferInGlobal(hasBufferChanged);
+    }
+  }
+}
+
+function replaceBuffers<X>(obj: X) {
+  const replaceBuffersImpl = <Y>(value: any, key: string | number, target: Y) => {
+    if (Buffer.isBuffer(value)) {
+      // Need to copy. `Buffer` manages a pool slab, internally reused when Buffer objects are GC.
+      type T = keyof typeof target;
+      target[key as T] = new Uint8Array(value) as any;
+    } else {
+      replaceBuffers(value);
+    }
+  };
+
+  if (obj != null && typeof obj === 'object') {
+    // Performance optimization for large arrays
+    if (Array.isArray(obj)) {
+      obj.forEach(replaceBuffersImpl);
+    } else {
+      for (const [key, value] of Object.entries(obj)) {
+        replaceBuffersImpl(value, key, obj);
+      }
+    }
+  }
+}
+
+function setBufferInGlobal(): boolean {
+  if (typeof globalThis.Buffer === 'undefined') {
+    globalThis.Buffer = GLOBAL_BUFFER;
+    return true;
+  }
+  return false;
+}
+
+function resetBufferInGlobal(hasChanged: boolean): void {
+  if (hasChanged) {
+    delete (globalThis as any).Buffer;
   }
 }
 
