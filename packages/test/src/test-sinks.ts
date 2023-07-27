@@ -146,7 +146,7 @@ if (RUN_INTEGRATION_TESTS) {
   });
 
   test('Sink functions are not called during replay if callDuringReplay is unset', async (t) => {
-    const recordedMessages = Array<{ message: string; hl: number; isReplaying: boolean }>();
+    const recordedMessages = Array<{ message: string; historyLength: number; isReplaying: boolean }>();
     const taskQueue = `${__filename}-${t.title}`;
     const sinks: InjectedSinks<workflows.LoggerSinks> = {
       logger: {
@@ -154,7 +154,7 @@ if (RUN_INTEGRATION_TESTS) {
           async fn(info, message) {
             recordedMessages.push({
               message,
-              hl: info.historyLength,
+              historyLength: info.historyLength,
               isReplaying: info.unsafe.isReplaying,
             });
           },
@@ -184,19 +184,19 @@ if (RUN_INTEGRATION_TESTS) {
     t.deepEqual(recordedMessages, [
       {
         message: 'Workflow execution started, replaying: false, hl: 3',
-        hl: 3,
+        historyLength: 3,
         isReplaying: false,
       },
       {
         message: 'Workflow execution completed, replaying: false, hl: 8',
-        hl: 8,
+        historyLength: 8,
         isReplaying: false,
       },
     ]);
   });
 
   test('Sink functions are called during replay if callDuringReplay is set', async (t) => {
-    const recordedMessages = Array<{ message: string; hl: number; isReplaying: boolean }>();
+    const recordedMessages = Array<{ message: string; historyLength: number; isReplaying: boolean }>();
     const taskQueue = `${__filename}-${t.title}`;
     const sinks: InjectedSinks<workflows.LoggerSinks> = {
       logger: {
@@ -204,7 +204,7 @@ if (RUN_INTEGRATION_TESTS) {
           async fn(info, message) {
             recordedMessages.push({
               message,
-              hl: info.historyLength,
+              historyLength: info.historyLength,
               isReplaying: info.unsafe.isReplaying,
             });
           },
@@ -227,24 +227,24 @@ if (RUN_INTEGRATION_TESTS) {
     t.deepEqual(recordedMessages.slice(0, 2), [
       {
         message: 'Workflow execution started, replaying: false, hl: 3',
-        hl: 3,
+        historyLength: 3,
         isReplaying: false,
       },
       {
         message: 'Workflow execution started, replaying: true, hl: 3',
-        hl: 3,
+        historyLength: 3,
         isReplaying: true,
       },
     ]);
     t.deepEqual(recordedMessages[recordedMessages.length - 1], {
       message: 'Workflow execution completed, replaying: false, hl: 8',
-      hl: 8,
+      historyLength: 8,
       isReplaying: false,
     });
   });
 
   test('Sink functions are not called in runReplayHistories if callDuringReplay is unset', async (t) => {
-    const recordedMessages = Array<{ message: string; hl: number; isReplaying: boolean }>();
+    const recordedMessages = Array<{ message: string; historyLength: number; isReplaying: boolean }>();
     const taskQueue = `${__filename}-${t.title}`;
     const sinks: InjectedSinks<workflows.LoggerSinks> = {
       logger: {
@@ -252,7 +252,7 @@ if (RUN_INTEGRATION_TESTS) {
           async fn(info, message) {
             recordedMessages.push({
               message,
-              hl: info.historyLength,
+              historyLength: info.historyLength,
               isReplaying: info.unsafe.isReplaying,
             });
           },
@@ -289,7 +289,7 @@ if (RUN_INTEGRATION_TESTS) {
   });
 
   test('Sink functions are called in runReplayHistories if callDuringReplay is set', async (t) => {
-    const recordedMessages = Array<{ message: string; hl: number; isReplaying: boolean }>();
+    const recordedMessages = Array<{ message: string; historyLength: number; isReplaying: boolean }>();
     const taskQueue = `${__filename}-${t.title}`;
     const sinks: InjectedSinks<workflows.LoggerSinks> = {
       logger: {
@@ -297,7 +297,7 @@ if (RUN_INTEGRATION_TESTS) {
           async fn(info, message) {
             recordedMessages.push({
               message,
-              hl: info.historyLength,
+              historyLength: info.historyLength,
               isReplaying: info.unsafe.isReplaying,
             });
           },
@@ -336,12 +336,12 @@ if (RUN_INTEGRATION_TESTS) {
       {
         message: 'Workflow execution started, replaying: true, hl: 3',
         isReplaying: true,
-        hl: 3,
+        historyLength: 3,
       },
       {
         message: 'Workflow execution completed, replaying: false, hl: 7',
         isReplaying: false,
-        hl: 7,
+        historyLength: 7,
       },
     ]);
   });

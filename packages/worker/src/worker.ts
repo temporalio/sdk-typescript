@@ -91,6 +91,7 @@ import { ThreadedVMWorkflowCreator } from './workflow/threaded-vm';
 import { VMWorkflowCreator } from './workflow/vm';
 import { WorkflowBundleWithSourceMapAndFilename } from './workflow/workflow-worker-thread/input';
 import { GracefulShutdownPeriodExpiredError } from './errors';
+import { InjectedSinkFunction } from './sinks';
 
 type IWorkflowActivationJob = coresdk.workflow_activation.IWorkflowActivationJob;
 
@@ -1233,6 +1234,7 @@ export class Worker {
                     // TODO: Also update state.info.searchAttributes here
                   }
 
+                  let hasActivationFailed = false;
                   let isFatalError = false;
                   try {
                     const decodedActivation = await this.workflowCodecRunner.decodeActivation(activation);
@@ -1243,6 +1245,7 @@ export class Worker {
                     span.setAttribute('close', close);
                     return { state, output: { close, completion, parentSpan } };
                   } catch (err) {
+                    hasActivationFailed = true;
                     if (err instanceof UnexpectedError) {
                       isFatalError = true;
                     }
@@ -1251,7 +1254,7 @@ export class Worker {
                     // Fatal error means we cannot call into this workflow again unfortunately
                     if (!isFatalError) {
                       const externalCalls = await state.workflow.getAndResetSinkCalls();
-                      await this.processSinkCalls(externalCalls, state.info);
+                      await this.processSinkCalls(externalCalls, state.info, hasActivationFailed);
                     }
                   }
                 });
@@ -1302,32 +1305,68 @@ export class Worker {
    * This function does not throw, it will log in case of missing sinks
    * or failed sink function invocations.
    */
-  protected async processSinkCalls(externalCalls: SinkCall[], workflowInfo: WorkflowInfo): Promise<void> {
-    // When processing workflows through runReplayHistories, Core may still send non-replay activations on the very
-    // last Workflow Task in some cases. Though Core is technically exact here, the fact that sinks marked with
-    // callDuringReplay = false may get called on a replay worker is definitely a surprising behavior. For that
-    // reason, we extend the isReplaying flag in this case to also include anything running under in a replay worker.
-    const isReplaying = workflowInfo.unsafe.isReplaying || this.isReplayWorker;
+  protected async processSinkCalls(
+    externalCalls: SinkCall[],
+    workflowInfo: WorkflowInfo,
+    hasActivationFailed: boolean
+  ): Promise<void> {
     const { sinks } = this.options;
-    for (const { ifaceName, fnName, args } of externalCalls) {
-      const dep = sinks?.[ifaceName]?.[fnName];
-      if (dep === undefined) {
+
+    const mappedCalls = externalCalls
+      // Map sink call to the corresponding sink function definition
+      .map((call) => ({ call, sink: sinks?.[call.ifaceName]?.[call.fnName] }))
+      // Reject calls to undefined sink definitions
+      .filter(({ call: { ifaceName, fnName }, sink }) => {
+        if (sink !== undefined) return true;
         this.log.error('Workflow referenced an unregistered external sink', {
           ifaceName,
           fnName,
         });
-      } else if (dep.callDuringReplay || !isReplaying) {
-        try {
-          await dep.fn(workflowInfo, ...args);
-        } catch (error) {
-          this.log.error('External sink function threw an error', {
-            ifaceName,
-            fnName,
-            error,
-            workflowInfo,
-          });
+        return false;
+      })
+      // Make a wrapper function, to make things easier afterward
+      .map(({ call, sink }) => ({
+        call: async () => {
+          try {
+            await sink?.fn(workflowInfo, ...call.args);
+          } catch (error) {
+            this.log.error('External sink function threw an error', {
+              ifaceName: call.ifaceName,
+              fnName: call.fnName,
+              error,
+              workflowInfo,
+            });
+          }
+        },
+        sink: sink as InjectedSinkFunction<any>,
+      }));
+
+    // If appropriate, reject calls to sink functions not configured with `callDuringReplay = true`,
+    // and those configured with and `callOnFailedActivations = false`.
+    // Note: When processing workflows through runReplayHistories, Core may still send non-replay activations on the
+    // very last Workflow Task in some cases. Though Core is technically exact here, the fact that sinks marked with
+    // callDuringReplay = false may get called on a replay worker is definitely a surprising behavior. For that
+    // reason, we extend the isReplaying flag in this case to also include anything running under in a replay worker.
+    const isReplaying = workflowInfo.unsafe.isReplaying || this.isReplayWorker;
+    const filteredCalls = mappedCalls
+      .filter(({ sink }) => sink.callDuringReplay || !isReplaying)
+      .filter(({ sink }) => sink.callOnFailedActivations || !hasActivationFailed);
+
+    const pendingPromises: Promise<void>[] = [];
+    for (const { sink, call } of filteredCalls) {
+      if (sink.callSerially) {
+        if (pendingPromises.length > 0) {
+          await Promise.allSettled(await pendingPromises);
+          pendingPromises.length = 0;
         }
+        await call();
+      } else {
+        pendingPromises.push(call());
       }
+    }
+
+    if (pendingPromises.length > 0) {
+      await Promise.allSettled(await pendingPromises);
     }
   }
 
