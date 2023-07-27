@@ -1095,7 +1095,6 @@ export class Worker {
                       } as EvictionWithRunID);
                     }
                   }
-
                   activation.jobs = jobs;
                   if (jobs.length === 0) {
                     this.log.trace('Disposing workflow', {
