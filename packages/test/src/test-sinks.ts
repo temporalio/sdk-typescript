@@ -339,8 +339,8 @@ if (RUN_INTEGRATION_TESTS) {
         hl: 3,
       },
       {
-        message: 'Workflow execution completed, replaying: true, hl: 7',
-        isReplaying: true,
+        message: 'Workflow execution completed, replaying: false, hl: 7',
+        isReplaying: false,
         hl: 7,
       },
     ]);
