@@ -146,13 +146,17 @@ if (RUN_INTEGRATION_TESTS) {
   });
 
   test('Sink functions are not called during replay if callDuringReplay is unset', async (t) => {
-    const recordedMessages = Array<string>();
+    const recordedMessages = Array<{ message: string; hl: number; isReplaying: boolean }>();
     const taskQueue = `${__filename}-${t.title}`;
     const sinks: InjectedSinks<workflows.LoggerSinks> = {
       logger: {
         info: {
-          async fn(_info, message) {
-            recordedMessages.push(message);
+          async fn(info, message) {
+            recordedMessages.push({
+              message,
+              hl: info.historyLength,
+              isReplaying: info.unsafe.isReplaying,
+            });
           },
         },
       },
@@ -178,19 +182,31 @@ if (RUN_INTEGRATION_TESTS) {
     ]);
 
     t.deepEqual(recordedMessages, [
-      'Workflow execution started, replaying: false, hl: 3',
-      'Workflow execution completed, replaying: false, hl: 8',
+      {
+        message: 'Workflow execution started, replaying: false, hl: 3',
+        hl: 3,
+        isReplaying: false,
+      },
+      {
+        message: 'Workflow execution completed, replaying: false, hl: 8',
+        hl: 8,
+        isReplaying: false,
+      },
     ]);
   });
 
   test('Sink functions are called during replay if callDuringReplay is set', async (t) => {
-    const recordedMessages = Array<string>();
+    const recordedMessages = Array<{ message: string; hl: number; isReplaying: boolean }>();
     const taskQueue = `${__filename}-${t.title}`;
     const sinks: InjectedSinks<workflows.LoggerSinks> = {
       logger: {
         info: {
-          async fn(_info, message) {
-            recordedMessages.push(message);
+          async fn(info, message) {
+            recordedMessages.push({
+              message,
+              hl: info.historyLength,
+              isReplaying: info.unsafe.isReplaying,
+            });
           },
           callDuringReplay: true,
         },
@@ -209,9 +225,124 @@ if (RUN_INTEGRATION_TESTS) {
 
     // Note that task may be replayed more than once and record the first messages multiple times.
     t.deepEqual(recordedMessages.slice(0, 2), [
-      'Workflow execution started, replaying: false, hl: 3',
-      'Workflow execution started, replaying: true, hl: 3',
+      {
+        message: 'Workflow execution started, replaying: false, hl: 3',
+        hl: 3,
+        isReplaying: false,
+      },
+      {
+        message: 'Workflow execution started, replaying: true, hl: 3',
+        hl: 3,
+        isReplaying: true,
+      },
     ]);
-    t.is(recordedMessages[recordedMessages.length - 1], 'Workflow execution completed, replaying: false, hl: 8');
+    t.deepEqual(recordedMessages[recordedMessages.length - 1], {
+      message: 'Workflow execution completed, replaying: false, hl: 8',
+      hl: 8,
+      isReplaying: false,
+    });
+  });
+
+  test('Sink functions are not called in runReplayHistories if callDuringReplay is unset', async (t) => {
+    const recordedMessages = Array<{ message: string; hl: number; isReplaying: boolean }>();
+    const taskQueue = `${__filename}-${t.title}`;
+    const sinks: InjectedSinks<workflows.LoggerSinks> = {
+      logger: {
+        info: {
+          async fn(info, message) {
+            recordedMessages.push({
+              message,
+              hl: info.historyLength,
+              isReplaying: info.unsafe.isReplaying,
+            });
+          },
+        },
+      },
+    };
+
+    const worker = await Worker.create({
+      ...defaultOptions,
+      taskQueue,
+      sinks,
+    });
+    const client = new WorkflowClient();
+    const workflowId = uuid4();
+    await worker.runUntil(async () => {
+      await client.execute(workflows.logSinkTester, { taskQueue, workflowId });
+    });
+    const history = await client.getHandle(workflowId).fetchHistory();
+
+    // Last 3 events are WorkflowExecutionStarted, WorkflowTaskCompleted and WorkflowExecutionCompleted
+    history.events = history!.events!.slice(0, -3);
+
+    recordedMessages.length = 0;
+    await Worker.runReplayHistory(
+      {
+        ...defaultOptions,
+        sinks,
+      },
+      history,
+      workflowId
+    );
+
+    t.deepEqual(recordedMessages, []);
+  });
+
+  test('Sink functions are called in runReplayHistories if callDuringReplay is set', async (t) => {
+    const recordedMessages = Array<{ message: string; hl: number; isReplaying: boolean }>();
+    const taskQueue = `${__filename}-${t.title}`;
+    const sinks: InjectedSinks<workflows.LoggerSinks> = {
+      logger: {
+        info: {
+          async fn(info, message) {
+            recordedMessages.push({
+              message,
+              hl: info.historyLength,
+              isReplaying: info.unsafe.isReplaying,
+            });
+          },
+          callDuringReplay: true,
+        },
+      },
+    };
+
+    const worker = await Worker.create({
+      ...defaultOptions,
+      taskQueue,
+      sinks,
+    });
+    const client = new WorkflowClient();
+    const workflowId = uuid4();
+    await worker.runUntil(async () => {
+      await client.execute(workflows.logSinkTester, { taskQueue, workflowId });
+    });
+    const history = await client.getHandle(workflowId).fetchHistory();
+
+    // Last 3 events are WorkflowExecutionStarted, WorkflowTaskCompleted and WorkflowExecutionCompleted
+    history.events = history!.events!.slice(0, -3);
+
+    recordedMessages.length = 0;
+    await Worker.runReplayHistory(
+      {
+        ...defaultOptions,
+        sinks,
+      },
+      history,
+      workflowId
+    );
+
+    // Note that task may be replayed more than once and record the first messages multiple times.
+    t.deepEqual(recordedMessages.slice(0, 2), [
+      {
+        message: 'Workflow execution started, replaying: true, hl: 3',
+        isReplaying: true,
+        hl: 3,
+      },
+      {
+        message: 'Workflow execution completed, replaying: true, hl: 7',
+        isReplaying: true,
+        hl: 7,
+      },
+    ]);
   });
 }

@@ -1095,6 +1095,7 @@ export class Worker {
                       } as EvictionWithRunID);
                     }
                   }
+
                   activation.jobs = jobs;
                   if (jobs.length === 0) {
                     this.log.trace('Disposing workflow', {
@@ -1225,6 +1226,12 @@ export class Worker {
                         'Received workflow activation for an untracked workflow with no start workflow job'
                       );
                     }
+                  } else {
+                    // The following are updated inside the workflow context on every activation.
+                    // At this point, however, state.info is not the same object as the one inside the workflow context.
+                    state.info.historyLength = activation.historyLength;
+                    state.info.unsafe.isReplaying = activation.isReplaying;
+                    // TODO: Also update state.info.searchAttributes here
                   }
 
                   let isFatalError = false;
@@ -1245,8 +1252,7 @@ export class Worker {
                     // Fatal error means we cannot call into this workflow again unfortunately
                     if (!isFatalError) {
                       const externalCalls = await state.workflow.getAndResetSinkCalls();
-                      // TODO: state.info.searchAttributes are not updated here
-                      await this.processSinkCalls(externalCalls, state.info, activation.isReplaying);
+                      await this.processSinkCalls(externalCalls, state.info);
                     }
                   }
                 });
@@ -1297,30 +1303,33 @@ export class Worker {
    * This function does not throw, it will log in case of missing sinks
    * or failed sink function invocations.
    */
-  protected async processSinkCalls(externalCalls: SinkCall[], info: WorkflowInfo, isReplaying: boolean): Promise<void> {
+  protected async processSinkCalls(externalCalls: SinkCall[], workflowInfo: WorkflowInfo): Promise<void> {
+    // When processing workflows through runReplayHistories, Core may still send non-replay activations on the very
+    // last Workflow Task in some cases. Though Core is technically exact here, the fact that sinks marked with
+    // callDuringReplay = false may get called on a replay worker is definitely a surprising behavior. For that
+    // reason, we extend the isReplaying flag in this case to also include anything running under in a replay worker.
+    const isReplaying = workflowInfo.unsafe.isReplaying || this.isReplayWorker;
     const { sinks } = this.options;
-    await Promise.all(
-      externalCalls.map(async ({ ifaceName, fnName, args }) => {
-        const dep = sinks?.[ifaceName]?.[fnName];
-        if (dep === undefined) {
-          this.log.error('Workflow referenced an unregistered external sink', {
+    for (const { ifaceName, fnName, args } of externalCalls) {
+      const dep = sinks?.[ifaceName]?.[fnName];
+      if (dep === undefined) {
+        this.log.error('Workflow referenced an unregistered external sink', {
+          ifaceName,
+          fnName,
+        });
+      } else if (dep.callDuringReplay || !isReplaying) {
+        try {
+          await dep.fn(workflowInfo, ...args);
+        } catch (error) {
+          this.log.error('External sink function threw an error', {
             ifaceName,
             fnName,
+            error,
+            workflowInfo,
           });
-        } else if (dep.callDuringReplay || !isReplaying) {
-          try {
-            await dep.fn(info, ...args);
-          } catch (error) {
-            this.log.error('External sink function threw an error', {
-              ifaceName,
-              fnName,
-              error,
-              workflowInfo: info,
-            });
-          }
         }
-      })
-    );
+      }
+    }
   }
 
   /**
