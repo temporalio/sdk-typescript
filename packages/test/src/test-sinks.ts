@@ -2,8 +2,8 @@
 import test from 'ava';
 import { v4 as uuid4 } from 'uuid';
 import { WorkflowClient } from '@temporalio/client';
-import { DefaultLogger, InjectedSinks, Runtime } from '@temporalio/worker';
-import { WorkflowInfo } from '@temporalio/workflow';
+import { DefaultLogger, InjectedSinks, Runtime, LoggerSinks as DefaultLoggerSinks } from '@temporalio/worker';
+import { SearchAttributes, WorkflowInfo } from '@temporalio/workflow';
 import { UnsafeWorkflowInfo } from '@temporalio/workflow/src/interfaces';
 import { RUN_INTEGRATION_TESTS, Worker } from './helpers';
 import { defaultOptions } from './mock-native-worker';
@@ -348,4 +348,80 @@ if (RUN_INTEGRATION_TESTS) {
       },
     ]);
   });
+
+  test('Sink functions contains upserted search attributes', async (t) => {
+    const taskQueue = `${__filename}-${t.title}`;
+
+    const recordedMessages = Array<{ message: string; searchAttributes: SearchAttributes }>();
+    const logCollectorSinkFn = async (info: WorkflowInfo, message: string, _attributes?: unknown) => {
+      recordedMessages.push({
+        message,
+        searchAttributes: info.searchAttributes,
+      });
+    };
+
+    const sinks: InjectedSinks<DefaultLoggerSinks> = {
+      defaultWorkerLogger: {
+        info: { fn: logCollectorSinkFn },
+        debug: { fn: logCollectorSinkFn },
+        warn: { fn: logCollectorSinkFn },
+        error: { fn: logCollectorSinkFn },
+        trace: { fn: logCollectorSinkFn },
+      },
+    };
+
+    const worker = await Worker.create({
+      ...defaultOptions,
+      taskQueue,
+      sinks,
+    });
+    const client = new WorkflowClient();
+    await worker.runUntil(
+      client.execute(workflows.upsertAndReadSearchAttributes, { taskQueue, workflowId: uuid4(), args: [0] })
+    );
+
+    t.deepEqual(recordedMessages, []);
+  });
+
+  // test('Workflow can upsert Search Attributes', async (t) => {
+  //   const date = new Date();
+  //   const { client } = t.context;
+  //   const workflow = await client.start(workflows.upsertAndReadSearchAttributes, {
+  //     taskQueue: 'test',
+  //     workflowId: uuid4(),
+  //     args: [date.getTime()],
+  //   });
+  //   const result = await workflow.result();
+  //   t.deepEqual(result, {
+  //     CustomBoolField: [true],
+  //     CustomIntField: [], // clear
+  //     CustomKeywordField: ['durable code'],
+  //     CustomTextField: ['is useful'],
+  //     CustomDatetimeField: [date.toISOString()],
+  //     CustomDoubleField: [3.14],
+  //   });
+  //   const { searchAttributes } = await workflow.describe();
+  //   const { BinaryChecksums, BuildIds, ...rest } = searchAttributes;
+  //   t.deepEqual(rest, {
+  //     CustomBoolField: [true],
+  //     CustomKeywordField: ['durable code'],
+  //     CustomTextField: ['is useful'],
+  //     CustomDatetimeField: [date],
+  //     CustomDoubleField: [3.14],
+  //   });
+  //   let checksum: any;
+  //   if (BinaryChecksums != null) {
+  //     t.true(BinaryChecksums.length === 1);
+  //     checksum = BinaryChecksums[0];
+  //   } else {
+  //     t.true(BuildIds!.length === 2);
+  //     t.deepEqual(BuildIds![0], 'unversioned');
+  //     checksum = BuildIds![1];
+  //   }
+  //   t.true(
+  //     typeof checksum === 'string' &&
+  //       checksum.includes(`@temporalio/worker@${pkg.version}+`) &&
+  //       /\+[a-f0-9]{64}$/.test(checksum) // bundle checksum
+  //   );
+  // });
 }
