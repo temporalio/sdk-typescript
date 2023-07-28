@@ -370,58 +370,38 @@ if (RUN_INTEGRATION_TESTS) {
       },
     };
 
+    const client = new WorkflowClient();
+    const date = new Date();
+
     const worker = await Worker.create({
       ...defaultOptions,
       taskQueue,
       sinks,
     });
-    const client = new WorkflowClient();
     await worker.runUntil(
-      client.execute(workflows.upsertAndReadSearchAttributes, { taskQueue, workflowId: uuid4(), args: [0] })
+      client.execute(workflows.upsertAndReadSearchAttributes, {
+        taskQueue,
+        workflowId: uuid4(),
+        args: [date.getTime()],
+      })
     );
 
-    t.deepEqual(recordedMessages, []);
+    t.deepEqual(recordedMessages, [
+      {
+        message: 'Workflow started',
+        searchAttributes: {},
+      },
+      {
+        message: 'Workflow completed',
+        searchAttributes: {
+          CustomBoolField: [true],
+          CustomIntField: [], // clear
+          CustomKeywordField: ['durable code'],
+          CustomTextField: ['is useful'],
+          CustomDatetimeField: [date],
+          CustomDoubleField: [3.14],
+        },
+      },
+    ]);
   });
-
-  // test('Workflow can upsert Search Attributes', async (t) => {
-  //   const date = new Date();
-  //   const { client } = t.context;
-  //   const workflow = await client.start(workflows.upsertAndReadSearchAttributes, {
-  //     taskQueue: 'test',
-  //     workflowId: uuid4(),
-  //     args: [date.getTime()],
-  //   });
-  //   const result = await workflow.result();
-  //   t.deepEqual(result, {
-  //     CustomBoolField: [true],
-  //     CustomIntField: [], // clear
-  //     CustomKeywordField: ['durable code'],
-  //     CustomTextField: ['is useful'],
-  //     CustomDatetimeField: [date.toISOString()],
-  //     CustomDoubleField: [3.14],
-  //   });
-  //   const { searchAttributes } = await workflow.describe();
-  //   const { BinaryChecksums, BuildIds, ...rest } = searchAttributes;
-  //   t.deepEqual(rest, {
-  //     CustomBoolField: [true],
-  //     CustomKeywordField: ['durable code'],
-  //     CustomTextField: ['is useful'],
-  //     CustomDatetimeField: [date],
-  //     CustomDoubleField: [3.14],
-  //   });
-  //   let checksum: any;
-  //   if (BinaryChecksums != null) {
-  //     t.true(BinaryChecksums.length === 1);
-  //     checksum = BinaryChecksums[0];
-  //   } else {
-  //     t.true(BuildIds!.length === 2);
-  //     t.deepEqual(BuildIds![0], 'unversioned');
-  //     checksum = BuildIds![1];
-  //   }
-  //   t.true(
-  //     typeof checksum === 'string' &&
-  //       checksum.includes(`@temporalio/worker@${pkg.version}+`) &&
-  //       /\+[a-f0-9]{64}$/.test(checksum) // bundle checksum
-  //   );
-  // });
 }

@@ -40,10 +40,6 @@ export interface SinkCall {
   ifaceName: string;
   fnName: string;
   args: any[];
-}
-
-export interface SinkCallsDetails {
-  calls: SinkCall[];
   workflowInfo: WorkflowInfo;
 }
 

@@ -67,27 +67,25 @@ async function handleRequest({ requestId, input }: WorkerThreadRequest): Promise
         result: { type: 'ok', output: { type: 'activation-completion', completion } },
       };
     }
-    case 'get-sink-calls-details': {
+    case 'extract-sink-calls': {
       const workflow = workflowGetter(input.runId);
       if (workflow === undefined) {
         throw new IllegalStateError(`Tried to activate non running workflow with runId: ${input.runId}`);
       }
-      const details = await workflow.getSinkCallsDetails();
-
-      // Delete .now because functions can't be serialized / sent to thread.
-      // Do this on a copy of the object, as workflowInfo is the live object.
-      details.workflowInfo = {
-        ...details.workflowInfo,
-        unsafe: { ...details.workflowInfo.unsafe },
-      };
-      delete (details.workflowInfo.unsafe as any).now;
+      const calls = await workflow.getAndResetSinkCalls();
+      calls.map((call) => {
+        // Delete .now because functions can't be serialized / sent to thread.
+        // Do this on a copy of the object, as workflowInfo is the live object.
+        call.workflowInfo = {
+          ...call.workflowInfo,
+          unsafe: { ...call.workflowInfo.unsafe },
+        };
+        delete (call.workflowInfo.unsafe as any).now;
+      });
 
       return {
         requestId,
-        result: {
-          type: 'ok',
-          output: { type: 'get-sink-calls-details', details },
-        },
+        result: { type: 'ok', output: { type: 'sink-calls', calls } },
       };
     }
     case 'dispose-workflow': {

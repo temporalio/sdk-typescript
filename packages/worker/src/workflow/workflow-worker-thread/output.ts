@@ -1,5 +1,5 @@
 import { coresdk } from '@temporalio/proto';
-import { SinkCallsDetails } from '@temporalio/workflow/lib/sinks';
+import { SinkCall } from '@temporalio/workflow/lib/sinks';
 
 /**
  * An activation completion.
@@ -12,14 +12,14 @@ export interface ActivationCompletion {
 }
 
 /**
- * Response to a get-sink-calls-details request.
+ * Response to a `ExtractSinkCalls` request.
  */
-export interface GetSinkCallsDetailsOutput {
-  type: 'get-sink-calls-details';
-  details: SinkCallsDetails;
+export interface SinkCallList {
+  type: 'sink-calls';
+  calls: SinkCall[];
 }
 
-export type WorkerThreadOutput = ActivationCompletion | GetSinkCallsDetailsOutput | undefined;
+export type WorkerThreadOutput = ActivationCompletion | SinkCallList | undefined;
 
 /**
  * Successful result for a given request

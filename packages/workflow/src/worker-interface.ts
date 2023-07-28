@@ -12,7 +12,7 @@ import { DeterminismViolationError } from './errors';
 import { WorkflowInterceptorsFactory } from './interceptors';
 import { WorkflowCreateOptionsInternal, WorkflowInfo } from './interfaces';
 import { Activator, getActivator } from './internals';
-import { SinkCallsDetails } from './sinks';
+import { SinkCall } from './sinks';
 import { setActivatorUntyped } from './global-attributes';
 
 // Export the type for use on the "worker" side
@@ -241,11 +241,8 @@ export function concludeActivation(): coresdk.workflow_completion.IWorkflowActiv
   };
 }
 
-export function getSinkCallsDetails(): SinkCallsDetails {
-  return {
-    calls: getActivator().getAndResetSinkCalls(),
-    workflowInfo: getActivator().info,
-  };
+export function getAndResetSinkCalls(): SinkCall[] {
+  return getActivator().getAndResetSinkCalls();
 }
 
 /**

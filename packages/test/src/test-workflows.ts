@@ -1548,8 +1548,10 @@ test('logAndTimeout', async (t) => {
     code: 'ERR_SCRIPT_EXECUTION_TIMEOUT',
     message: 'Script execution timed out after 200ms',
   });
-  const { calls } = await workflow.getSinkCallsDetails();
+  const calls = await workflow.getAndResetSinkCalls();
+  // Ignore LogTimestamp and workflowInfo for the purpose of this compare
   delete calls[0].args[1][LogTimestamp];
+  delete (calls[0] as any).workflowInfo;
   t.deepEqual(calls, [
     {
       ifaceName: 'defaultWorkerLogger',
