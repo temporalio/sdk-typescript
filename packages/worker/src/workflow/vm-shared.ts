@@ -4,7 +4,7 @@ import { SourceMapConsumer } from 'source-map';
 import { cutoffStackTrace, IllegalStateError } from '@temporalio/common';
 import { coresdk } from '@temporalio/proto';
 import type { WorkflowInfo, FileLocation } from '@temporalio/workflow';
-import { SinkCall } from '@temporalio/workflow/lib/sinks';
+import { SinkCallsDetails } from '@temporalio/workflow/lib/sinks';
 import * as internals from '@temporalio/workflow/lib/worker-interface';
 import { Activator } from '@temporalio/workflow/lib/internals';
 import { partition } from '../utils';
@@ -284,8 +284,8 @@ export abstract class BaseVMWorkflow implements Workflow {
   /**
    * Send request to the Workflow runtime's worker-interface
    */
-  async getAndResetSinkCalls(): Promise<SinkCall[]> {
-    return this.workflowModule.getAndResetSinkCalls();
+  async getSinkCallsDetails(): Promise<SinkCallsDetails> {
+    return this.workflowModule.getSinkCallsDetails();
   }
 
   /**

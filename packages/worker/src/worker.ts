@@ -1041,9 +1041,9 @@ export class Worker {
     if (workflowCreator === undefined) {
       throw new IllegalStateError('Cannot process workflows without an IsolateContextProvider');
     }
-    interface WorkflowWithInfo {
+    interface WorkflowWithLogAttributes {
       workflow: Workflow;
-      info: WorkflowInfo;
+      logAttributes: Record<string, unknown>;
     }
     return pipe(
       closeableGroupBy(({ activation }) => activation.runId),
@@ -1072,10 +1072,10 @@ export class Worker {
           }),
           mergeMapWithState(
             async (
-              state: WorkflowWithInfo | undefined,
+              state: WorkflowWithLogAttributes | undefined,
               { activation, parentSpan, synthetic }
             ): Promise<{
-              state: WorkflowWithInfo | undefined;
+              state: WorkflowWithLogAttributes | undefined;
               output: ContextAware<{ completion?: Uint8Array; close: boolean }>;
             }> => {
               try {
@@ -1099,7 +1099,7 @@ export class Worker {
                   activation.jobs = jobs;
                   if (jobs.length === 0) {
                     this.log.trace('Disposing workflow', {
-                      ...(state ? workflowLogAttributes(state.info) : { runId: activation.runId }),
+                      ...(state ? state.logAttributes : { runId: activation.runId }),
                     });
                     await state?.workflow.dispose();
                     if (!close) {
@@ -1199,7 +1199,8 @@ export class Worker {
                           isReplaying: activation.isReplaying,
                         },
                       };
-                      this.log.trace('Creating workflow', workflowLogAttributes(workflowInfo));
+                      const logAttributes = workflowLogAttributes(workflowInfo);
+                      this.log.trace('Creating workflow', logAttributes);
                       const patchJobs = activation.jobs.filter((j): j is PatchJob => j.notifyHasPatch != null);
                       const patches = patchJobs.map(({ notifyHasPatch }) => {
                         const { patchId } = notifyHasPatch;
@@ -1219,19 +1220,13 @@ export class Worker {
                         });
                       });
 
-                      state = { workflow, info: workflowInfo };
+                      state = { workflow, logAttributes };
                       this.numCachedWorkflowsSubject.next(this.numCachedWorkflowsSubject.value + 1);
                     } else {
                       throw new IllegalStateError(
                         'Received workflow activation for an untracked workflow with no start workflow job'
                       );
                     }
-                  } else {
-                    // The following are updated inside the workflow context on every activation.
-                    // At this point, however, state.info is not the same object as the one inside the workflow context.
-                    state.info.historyLength = activation.historyLength;
-                    state.info.unsafe.isReplaying = activation.isReplaying;
-                    // TODO: Also update state.info.searchAttributes here
                   }
 
                   let hasActivationFailed = false;
@@ -1240,7 +1235,7 @@ export class Worker {
                     const decodedActivation = await this.workflowCodecRunner.decodeActivation(activation);
                     const unencodedCompletion = await state.workflow.activate(decodedActivation);
                     const completion = await this.workflowCodecRunner.encodeCompletion(unencodedCompletion);
-                    this.log.trace('Completed activation', workflowLogAttributes(state.info));
+                    this.log.trace('Completed activation', state.logAttributes);
 
                     span.setAttribute('close', close);
                     return { state, output: { close, completion, parentSpan } };
@@ -1253,8 +1248,8 @@ export class Worker {
                   } finally {
                     // Fatal error means we cannot call into this workflow again unfortunately
                     if (!isFatalError) {
-                      const externalCalls = await state.workflow.getAndResetSinkCalls();
-                      await this.processSinkCalls(externalCalls, state.info, hasActivationFailed);
+                      const { calls, workflowInfo } = await state.workflow.getSinkCallsDetails();
+                      await this.processSinkCalls(calls, workflowInfo, hasActivationFailed);
                     }
                   }
                 });
@@ -1264,7 +1259,7 @@ export class Worker {
                   throw error;
                 }
                 this.log.error('Failed to activate workflow', {
-                  ...(state ? workflowLogAttributes(state.info) : { runId: activation.runId }),
+                  ...(state ? state.logAttributes : { runId: activation.runId }),
                   error,
                   workflowExists: state !== undefined,
                 });

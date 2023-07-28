@@ -35,6 +35,7 @@ if (RUN_INTEGRATION_TESTS) {
 
     const dummyDate = new Date(2000, 1, 0, 0, 0, 0);
     function fixWorkflowInfoDates(input: WorkflowInfo): WorkflowInfo {
+      delete (input.unsafe as any).now;
       return {
         ...input,
         startTime: dummyDate,
@@ -114,7 +115,9 @@ if (RUN_INTEGRATION_TESTS) {
       startTime: dummyDate,
       runStartTime: dummyDate,
       // unsafe.now() doesn't make it through serialization, but .now is required, so we need to cast
-      unsafe: { isReplaying: false } as UnsafeWorkflowInfo,
+      unsafe: {
+        isReplaying: false,
+      } as UnsafeWorkflowInfo,
     };
 
     t.deepEqual(recordedCalls, [

@@ -11,7 +11,8 @@
 
 import { Worker as NodeWorker } from 'node:worker_threads';
 import { coresdk } from '@temporalio/proto';
-import { IllegalStateError, SinkCall } from '@temporalio/workflow';
+import { IllegalStateError } from '@temporalio/workflow';
+import { SinkCallsDetails } from '@temporalio/workflow/lib/sinks';
 import { UnexpectedError } from '@temporalio/core-bridge';
 import {
   WorkflowBundleWithSourceMapAndFilename,
@@ -216,15 +217,16 @@ export class VMWorkflowThreadProxy implements Workflow {
   /**
    * Proxy request to the VMWorkflow instance
    */
-  async getAndResetSinkCalls(): Promise<SinkCall[]> {
+  async getSinkCallsDetails(): Promise<SinkCallsDetails> {
     const output = await this.workerThreadClient.send({
-      type: 'extract-sink-calls',
+      type: 'get-sink-calls-details',
       runId: this.runId,
     });
-    if (output?.type !== 'sink-calls') {
+    if (output?.type !== 'get-sink-calls-details') {
       throw new TypeError(`Got invalid response output from Workflow Worker thread ${output}`);
     }
-    return output.calls;
+    output.details.workflowInfo.unsafe.now = Date.now;
+    return output.details;
   }
 
   /**

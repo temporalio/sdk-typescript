@@ -46,8 +46,8 @@ export interface ActivateWorkflow {
 /**
  * Extract buffered sink calls from Workflow by runId
  */
-export interface ExtractSinkCalls {
-  type: 'extract-sink-calls';
+export interface GetSinkCallsDetailsInput {
+  type: 'get-sink-calls-details';
   runId: string;
 }
 
@@ -59,7 +59,13 @@ export interface DisposeWorkflow {
   runId: string;
 }
 
-export type WorkerThreadInput = Init | Destroy | CreateWorkflow | ActivateWorkflow | ExtractSinkCalls | DisposeWorkflow;
+export type WorkerThreadInput =
+  | Init
+  | Destroy
+  | CreateWorkflow
+  | ActivateWorkflow
+  | GetSinkCallsDetailsInput
+  | DisposeWorkflow;
 
 /**
  * Request including a unique ID and input.
