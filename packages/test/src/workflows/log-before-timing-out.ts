@@ -1,10 +1,9 @@
-import { proxySinks } from '@temporalio/workflow';
-import { LoggerSinks } from './definitions';
+import { LoggerSinks, proxySinks } from '@temporalio/workflow';
 
-const { logger } = proxySinks<LoggerSinks>();
+const { defaultWorkerLogger } = proxySinks<LoggerSinks>();
 
 export async function logAndTimeout(): Promise<void> {
-  logger.info('logging before getting stuck');
+  defaultWorkerLogger.info('logging before getting stuck');
   for (;;) {
     /* Workflow should never complete */
   }

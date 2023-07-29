@@ -92,7 +92,6 @@ import { VMWorkflowCreator } from './workflow/vm';
 import { WorkflowBundleWithSourceMapAndFilename } from './workflow/workflow-worker-thread/input';
 import { GracefulShutdownPeriodExpiredError } from './errors';
 import { InjectedSinkFunction } from './sinks';
-import { activate } from '@temporalio/workflow/src/worker-interface';
 
 type IWorkflowActivationJob = coresdk.workflow_activation.IWorkflowActivationJob;
 
@@ -1315,7 +1314,7 @@ export class Worker {
   ): Promise<void> {
     const { sinks } = this.options;
 
-    const mappedCalls = externalCalls
+    const filteredCalls = externalCalls
       // Map sink call to the corresponding sink function definition
       .map((call) => ({ call, sink: sinks?.[call.ifaceName]?.[call.fnName] }))
       // Reject calls to undefined sink definitions
@@ -1327,31 +1326,28 @@ export class Worker {
         });
         return false;
       })
-      // Make a wrapper function, to make things easier afterward
-      .map(({ call, sink }) => ({
-        call: async () => {
-          try {
-            await sink?.fn(call.workflowInfo, ...call.args);
-          } catch (error) {
-            this.log.error('External sink function threw an error', {
-              ifaceName: call.ifaceName,
-              fnName: call.fnName,
-              error,
-              workflowInfo: call.workflowInfo,
-            });
-          }
-        },
-        sink: sink as InjectedSinkFunction<any>,
-      }));
+      // If appropriate, reject calls to sink functions not configured with `callDuringReplay = true`
+      .filter(({ sink }) => sink?.callDuringReplay || !isReplaying);
 
-    // If appropriate, reject calls to sink functions not configured with `callDuringReplay = true`,
-    // and those configured with and `callOnFailedActivations = false`.
-    const filteredCalls = mappedCalls
-      .filter(({ sink }) => sink.callDuringReplay || !isReplaying)
-      .filter(({ sink }) => sink.callOnFailedActivations || !activationFailed);
+    // Make a wrapper function, to make things easier afterward
+    const mappedCalls = filteredCalls.map(({ call, sink }) => ({
+      call: async () => {
+        try {
+          await sink?.fn(call.workflowInfo, ...call.args);
+        } catch (error) {
+          this.log.error('External sink function threw an error', {
+            ifaceName: call.ifaceName,
+            fnName: call.fnName,
+            error,
+            workflowInfo: call.workflowInfo,
+          });
+        }
+      },
+      sink: sink as InjectedSinkFunction<any>,
+    }));
 
     const pendingPromises: Promise<void>[] = [];
-    for (const { sink, call } of filteredCalls) {
+    for (const { sink, call } of mappedCalls) {
       if (sink.callSerially) {
         if (pendingPromises.length > 0) {
           await Promise.allSettled(await pendingPromises);

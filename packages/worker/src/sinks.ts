@@ -41,10 +41,13 @@ import { Sinks, Sink, SinkFunction, WorkflowInfo } from '@temporalio/workflow';
  * function calls may increase total execution time, and therefore increase the risk of Workflow
  * Task Timeout.
  *
- * By default, sink functions are called no matter if the activation completed normally or resulted
- * in an error being thrown. This generally is the expected behavior, notably when sinks are used
- * for logging and tracing. A sink may however opt out of being called if the activation ended in an
- * error, by setting the `callOnFailedActivations` option to `false`.
+ * Please note that sink functions only provide best-effort delivery semantics, which is generally
+ * suitable for log messages and general metrics collection. However, in various situations, a sink
+ * function call may execute more than once even though the sink function is configured with
+ * `callInReplay: false`. Similarly, sink function execution errors only results in log messages,
+ * and are therefore likely to go unnoticed. For use cases that require _at-least-once_ execution
+ * guarantees, please consider using local activities instead. For use cases that require
+ * _exactly-once_ or _at-most-once_ execution guarantees, please consider using regular activities.
  */
 export interface InjectedSinkFunction<F extends SinkFunction> {
   /**
@@ -53,7 +56,20 @@ export interface InjectedSinkFunction<F extends SinkFunction> {
   fn(info: WorkflowInfo, ...args: Parameters<F>): void | Promise<void>;
 
   /**
-   * Whether or not `fn` will be called during Workflow replay. Defaults to `false`.
+   * Whether or not the function will be called during Workflow replay.
+   *
+   * Take note that setting `callDuringReplay` to `false` (or leaving it unset) doesn't guarantee
+   * that the sink function will only ever run once for a particular Workflow execution at a
+   * particular point of its history. In particular, calls to sink functions will be executed
+   * even if the current workflow task ends up failling or timing out. In such situations, a call to
+   * a sink function configured with `callDuringReplay: false` will be executed again, since
+   * the workflow task is not being replayed (ie. retrying a workflow task is not the same as
+   * replaying it).
+   *
+   * For use cases that require _at-most-once_ or _exactly-once_ guarantees, please consider using
+   * a regular activity instead.
+   *
+   * Defaults to `false`.
    */
   callDuringReplay?: boolean;
 
@@ -71,13 +87,6 @@ export interface InjectedSinkFunction<F extends SinkFunction> {
    * Defaults to `false`.
    */
   callSerially?: boolean;
-
-  /**
-   * Wether this sink function should be called if the activation resulted in an error being thrown.
-   *
-   * Defaults to `true`.
-   */
-  callOnFailedActivations?: boolean;
 }
 
 /**

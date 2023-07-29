@@ -2,7 +2,13 @@
 import test from 'ava';
 import { v4 as uuid4 } from 'uuid';
 import { WorkflowClient } from '@temporalio/client';
-import { DefaultLogger, InjectedSinks, Runtime, LoggerSinks as DefaultLoggerSinks } from '@temporalio/worker';
+import {
+  DefaultLogger,
+  InjectedSinks,
+  Runtime,
+  LoggerSinks as DefaultLoggerSinks,
+  InjectedSinkFunction,
+} from '@temporalio/worker';
 import { SearchAttributes, WorkflowInfo } from '@temporalio/workflow';
 import { UnsafeWorkflowInfo } from '@temporalio/workflow/src/interfaces';
 import { RUN_INTEGRATION_TESTS, Worker } from './helpers';
@@ -13,6 +19,21 @@ class DependencyError extends Error {
   constructor(public readonly ifaceName: string, public readonly fnName: string) {
     super(`${ifaceName}.${fnName}`);
   }
+}
+
+function asDefaultLoggerSink(
+  fn: (info: WorkflowInfo, message: string, attrs?: Record<string, unknown>) => Promise<void>,
+  opts?: Omit<InjectedSinkFunction<any>, 'fn'>
+): InjectedSinks<DefaultLoggerSinks> {
+  return {
+    defaultWorkerLogger: {
+      trace: { fn, ...(opts ?? {}) },
+      debug: { fn, ...(opts ?? {}) },
+      info: { fn, ...(opts ?? {}) },
+      warn: { fn, ...(opts ?? {}) },
+      error: { fn, ...(opts ?? {}) },
+    },
+  };
 }
 
 if (RUN_INTEGRATION_TESTS) {
@@ -149,12 +170,13 @@ if (RUN_INTEGRATION_TESTS) {
   });
 
   test('Sink functions are not called during replay if callDuringReplay is unset', async (t) => {
-    const recordedMessages = Array<{ message: string; historyLength: number; isReplaying: boolean }>();
     const taskQueue = `${__filename}-${t.title}`;
-    const sinks: InjectedSinks<workflows.LoggerSinks> = {
-      logger: {
+
+    const recordedMessages = Array<{ message: string; historyLength: number; isReplaying: boolean }>();
+    const sinks: InjectedSinks<workflows.CustomLoggerSinks> = {
+      customLogger: {
         info: {
-          async fn(info, message) {
+          fn: async (info, message) => {
             recordedMessages.push({
               message,
               historyLength: info.historyLength,
@@ -165,6 +187,7 @@ if (RUN_INTEGRATION_TESTS) {
       },
     };
 
+    const client = new WorkflowClient();
     const worker = await Worker.create({
       ...defaultOptions,
       taskQueue,
@@ -172,17 +195,7 @@ if (RUN_INTEGRATION_TESTS) {
       maxCachedWorkflows: 0,
       maxConcurrentWorkflowTaskExecutions: 2,
     });
-    const client = new WorkflowClient();
-    await Promise.all([
-      (async () => {
-        try {
-          await client.execute(workflows.logSinkTester, { taskQueue, workflowId: uuid4() });
-        } finally {
-          worker.shutdown();
-        }
-      })(),
-      worker.run(),
-    ]);
+    await worker.runUntil(client.execute(workflows.logSinkTester, { taskQueue, workflowId: uuid4() }));
 
     t.deepEqual(recordedMessages, [
       {
@@ -199,12 +212,13 @@ if (RUN_INTEGRATION_TESTS) {
   });
 
   test('Sink functions are called during replay if callDuringReplay is set', async (t) => {
-    const recordedMessages = Array<{ message: string; historyLength: number; isReplaying: boolean }>();
     const taskQueue = `${__filename}-${t.title}`;
-    const sinks: InjectedSinks<workflows.LoggerSinks> = {
-      logger: {
+
+    const recordedMessages = Array<{ message: string; historyLength: number; isReplaying: boolean }>();
+    const sinks: InjectedSinks<workflows.CustomLoggerSinks> = {
+      customLogger: {
         info: {
-          async fn(info, message) {
+          fn: async (info, message) => {
             recordedMessages.push({
               message,
               historyLength: info.historyLength,
@@ -248,11 +262,10 @@ if (RUN_INTEGRATION_TESTS) {
 
   test('Sink functions are not called in runReplayHistories if callDuringReplay is unset', async (t) => {
     const recordedMessages = Array<{ message: string; historyLength: number; isReplaying: boolean }>();
-    const taskQueue = `${__filename}-${t.title}`;
-    const sinks: InjectedSinks<workflows.LoggerSinks> = {
-      logger: {
+    const sinks: InjectedSinks<workflows.CustomLoggerSinks> = {
+      customLogger: {
         info: {
-          async fn(info, message) {
+          fn: async (info, message) => {
             recordedMessages.push({
               message,
               historyLength: info.historyLength,
@@ -263,16 +276,15 @@ if (RUN_INTEGRATION_TESTS) {
       },
     };
 
+    const client = new WorkflowClient();
+    const taskQueue = `${__filename}-${t.title}`;
     const worker = await Worker.create({
       ...defaultOptions,
       taskQueue,
       sinks,
     });
-    const client = new WorkflowClient();
     const workflowId = uuid4();
-    await worker.runUntil(async () => {
-      await client.execute(workflows.logSinkTester, { taskQueue, workflowId });
-    });
+    await worker.runUntil(client.execute(workflows.logSinkTester, { taskQueue, workflowId }));
     const history = await client.getHandle(workflowId).fetchHistory();
 
     // Last 3 events are WorkflowExecutionStarted, WorkflowTaskCompleted and WorkflowExecutionCompleted
@@ -292,12 +304,13 @@ if (RUN_INTEGRATION_TESTS) {
   });
 
   test('Sink functions are called in runReplayHistories if callDuringReplay is set', async (t) => {
-    const recordedMessages = Array<{ message: string; historyLength: number; isReplaying: boolean }>();
     const taskQueue = `${__filename}-${t.title}`;
-    const sinks: InjectedSinks<workflows.LoggerSinks> = {
-      logger: {
+
+    const recordedMessages = Array<{ message: string; historyLength: number; isReplaying: boolean }>();
+    const sinks: InjectedSinks<workflows.CustomLoggerSinks> = {
+      customLogger: {
         info: {
-          async fn(info, message) {
+          fn: async (info, message) => {
             recordedMessages.push({
               message,
               historyLength: info.historyLength,
@@ -334,7 +347,6 @@ if (RUN_INTEGRATION_TESTS) {
       workflowId
     );
 
-    // Note that task may be replayed more than once and record the first messages multiple times.
     t.deepEqual(recordedMessages.slice(0, 2), [
       {
         message: 'Workflow execution started, replaying: true, hl: 3',
@@ -353,22 +365,12 @@ if (RUN_INTEGRATION_TESTS) {
     const taskQueue = `${__filename}-${t.title}`;
 
     const recordedMessages = Array<{ message: string; searchAttributes: SearchAttributes }>();
-    const logCollectorSinkFn = async (info: WorkflowInfo, message: string, _attributes?: unknown) => {
+    const sinks = asDefaultLoggerSink(async (info, message, _attrs) => {
       recordedMessages.push({
         message,
         searchAttributes: info.searchAttributes,
       });
-    };
-
-    const sinks: InjectedSinks<DefaultLoggerSinks> = {
-      defaultWorkerLogger: {
-        info: { fn: logCollectorSinkFn },
-        debug: { fn: logCollectorSinkFn },
-        warn: { fn: logCollectorSinkFn },
-        error: { fn: logCollectorSinkFn },
-        trace: { fn: logCollectorSinkFn },
-      },
-    };
+    });
 
     const client = new WorkflowClient();
     const date = new Date();
