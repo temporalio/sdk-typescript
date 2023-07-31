@@ -1,4 +1,5 @@
 import { HistoryAndWorkflowId } from '@temporalio/client';
+import { SymbolBasedInstanceOfError } from '@temporalio/common/lib/type-helpers';
 import { coresdk } from '@temporalio/proto';
 import { DeterminismViolationError } from '@temporalio/workflow';
 
@@ -9,9 +10,8 @@ export type RemoveFromCache = coresdk.workflow_activation.IRemoveFromCache;
 /**
  * Error thrown when using the Worker to replay Workflow(s).
  */
-export class ReplayError extends Error {
-  public readonly name = 'ReplayError';
-}
+@SymbolBasedInstanceOfError('ReplayError')
+export class ReplayError extends Error {}
 
 /**
  * Result of a single workflow replay

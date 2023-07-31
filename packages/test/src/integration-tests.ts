@@ -723,7 +723,7 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
 
     const checksums = searchAttributePayloadConverter.fromPayload(encodedId);
     console.log(checksums);
-    t.true(checksums instanceof Array);
+    t.true(Array.isArray(checksums));
     t.regex((checksums as string[]).pop()!, /@temporalio\/worker@\d+\.\d+\.\d+/);
     t.is(execution.raw.executionConfig?.taskQueue?.name, 'test');
     t.is(

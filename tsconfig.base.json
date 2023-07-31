@@ -5,6 +5,7 @@
     "incremental": true,
     "module": "commonjs",
     "moduleResolution": "node",
-    "sourceMap": true
+    "sourceMap": true,
+    "experimentalDecorators": true
   }
 }

@@ -1,5 +1,6 @@
 import { CompleteAsyncError, Context, Info } from '@temporalio/activity';
 import { CancelledFailure } from '@temporalio/common';
+import { isAbortError } from '@temporalio/common/lib/type-helpers';
 import { ActivityInboundCallsInterceptor, ActivityExecuteInput, Next } from './interceptors';
 import { Logger } from './logger';
 
@@ -72,14 +73,9 @@ export class ActivityInboundLogInterceptor implements ActivityInboundCallsInterc
 
       if (error === UNINITIALIZED) {
         this.ctx.log.debug('Activity completed', { durationMs });
-      } else if (
-        typeof error === 'object' &&
-        error != null &&
-        (CancelledFailure.is(error) || error.name === 'AbortError') &&
-        this.ctx.cancellationSignal.aborted
-      ) {
+      } else if ((error instanceof CancelledFailure || isAbortError(error)) && this.ctx.cancellationSignal.aborted) {
         this.ctx.log.debug('Activity completed as cancelled', { durationMs });
-      } else if (CompleteAsyncError.is(error)) {
+      } else if (error instanceof CompleteAsyncError) {
         this.ctx.log.debug('Activity will complete asynchronously', { durationMs });
       } else {
         this.ctx.log.warn('Activity failed', { error, durationMs });

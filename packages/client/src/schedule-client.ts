@@ -9,6 +9,7 @@ import {
 } from '@temporalio/common/lib/internal-non-workflow';
 import { temporal } from '@temporalio/proto';
 import { optionalDateToTs, optionalTsToDate, optionalTsToMs, tsToDate } from '@temporalio/common/lib/time';
+import { SymbolBasedInstanceOfError } from '@temporalio/common/lib/type-helpers';
 import { CreateScheduleInput, CreateScheduleOutput, ScheduleClientInterceptor } from './interceptors';
 import { WorkflowService } from './types';
 import { isGrpcServiceError, ServiceError } from './errors';
@@ -527,9 +528,8 @@ export class ScheduleClient extends BaseClient {
  *
  * @experimental
  */
+@SymbolBasedInstanceOfError('ScheduleAlreadyRunning')
 export class ScheduleAlreadyRunning extends Error {
-  public readonly name: string = 'ScheduleAlreadyRunning';
-
   constructor(message: string, public readonly scheduleId: string) {
     super(message);
   }
@@ -543,9 +543,8 @@ export class ScheduleAlreadyRunning extends Error {
  *
  * @experimental
  */
+@SymbolBasedInstanceOfError('ScheduleNotFoundError')
 export class ScheduleNotFoundError extends Error {
-  public readonly name: string = 'ScheduleNotFoundError';
-
   constructor(message: string, public readonly scheduleId: string) {
     super(message);
   }

@@ -1,5 +1,6 @@
 import 'abort-controller/polyfill'; // eslint-disable-line import/no-unassigned-import
 import { EventEmitter, on, once } from 'node:events';
+import { isAbortError } from '@temporalio/common/lib/type-helpers';
 
 export interface MapAsyncOptions {
   /**
@@ -108,7 +109,7 @@ export async function* mapAsyncIterable<A, B>(
       yield res;
     }
   } catch (err: unknown) {
-    if ((err as Error)?.name === 'AbortError') {
+    if (isAbortError(err)) {
       return;
     }
     throw err;

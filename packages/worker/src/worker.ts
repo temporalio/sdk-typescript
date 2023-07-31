@@ -50,7 +50,7 @@ import {
 } from '@temporalio/common/lib/otel';
 import { historyFromJSON } from '@temporalio/common/lib/proto-utils';
 import { optionalTsToDate, optionalTsToMs, tsToDate, tsToMs } from '@temporalio/common/lib/time';
-import { errorMessage } from '@temporalio/common/lib/type-helpers';
+import { errorMessage, isError, SymbolBasedInstanceOfError } from '@temporalio/common/lib/type-helpers';
 import * as native from '@temporalio/core-bridge';
 import { ShutdownError, UnexpectedError } from '@temporalio/core-bridge';
 import { coresdk, temporal } from '@temporalio/proto';
@@ -160,8 +160,8 @@ interface EvictionWithRunID {
 /**
  * Error thrown by {@link Worker.runUntil} and {@link Worker.runReplayHistories}
  */
+@SymbolBasedInstanceOfError('CombinedWorkerRunError')
 export class CombinedWorkerRunError extends Error {
-  public readonly name = 'CombinedWorkerRunError';
   public readonly cause: CombinedWorkerRunErrorCause;
 
   constructor(message: string, { cause }: { cause: CombinedWorkerRunErrorCause }) {
@@ -579,7 +579,7 @@ export class Worker {
         await runPromise;
       } catch (err) {
         /* eslint-disable no-unsafe-finally */
-        if (ShutdownError.is(err)) {
+        if (err instanceof ShutdownError) {
           if (innerError !== undefined) throw innerError;
           return;
         } else if (innerError === undefined) {
@@ -817,7 +817,7 @@ export class Worker {
           try {
             yield await pollFn();
           } catch (err) {
-            if (ShutdownError.is(err)) {
+            if (err instanceof ShutdownError) {
               break;
             }
             throw err;
@@ -902,7 +902,7 @@ export class Worker {
                                 err
                               )}`,
                               applicationFailureInfo: {
-                                type: err instanceof Error ? err.name : undefined,
+                                type: isError(err) ? err.name : undefined,
                                 nonRetryable: false,
                               },
                             },
@@ -1511,7 +1511,7 @@ export class Worker {
 
           return { activation, parentSpan };
         },
-        ShutdownError.is
+        (err) => err instanceof ShutdownError
       );
     }).pipe(
       tap({
@@ -1627,7 +1627,7 @@ export class Worker {
           }
           return { task, parentSpan, base64TaskToken };
         },
-        ShutdownError.is
+        (err) => err instanceof ShutdownError
       );
     }).pipe(
       tap({
