@@ -1229,7 +1229,6 @@ export class Worker {
                     }
                   }
 
-                  let activationFailed = false;
                   let isFatalError = false;
                   try {
                     const decodedActivation = await this.workflowCodecRunner.decodeActivation(activation);
@@ -1240,7 +1239,6 @@ export class Worker {
                     span.setAttribute('close', close);
                     return { state, output: { close, completion, parentSpan } };
                   } catch (err) {
-                    activationFailed = true;
                     if (err instanceof UnexpectedError) {
                       isFatalError = true;
                     }
@@ -1256,7 +1254,7 @@ export class Worker {
                       const isReplaying = activation.isReplaying || this.isReplayWorker;
 
                       const calls = await state.workflow.getAndResetSinkCalls();
-                      await this.processSinkCalls(calls, isReplaying, activationFailed);
+                      await this.processSinkCalls(calls, isReplaying);
                     }
                   }
                 });
@@ -1307,11 +1305,7 @@ export class Worker {
    * This function does not throw, it will log in case of missing sinks
    * or failed sink function invocations.
    */
-  protected async processSinkCalls(
-    externalCalls: SinkCall[],
-    isReplaying: boolean,
-    activationFailed: boolean
-  ): Promise<void> {
+  protected async processSinkCalls(externalCalls: SinkCall[], isReplaying: boolean): Promise<void> {
     const { sinks } = this.options;
 
     const filteredCalls = externalCalls

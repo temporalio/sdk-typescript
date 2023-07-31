@@ -27,11 +27,11 @@ function asDefaultLoggerSink(
 ): InjectedSinks<DefaultLoggerSinks> {
   return {
     defaultWorkerLogger: {
-      trace: { fn, ...(opts ?? {}) },
-      debug: { fn, ...(opts ?? {}) },
-      info: { fn, ...(opts ?? {}) },
-      warn: { fn, ...(opts ?? {}) },
-      error: { fn, ...(opts ?? {}) },
+      trace: { fn, ...opts },
+      debug: { fn, ...opts },
+      info: { fn, ...opts },
+      warn: { fn, ...opts },
+      error: { fn, ...opts },
     },
   };
 }
@@ -176,7 +176,7 @@ if (RUN_INTEGRATION_TESTS) {
     const sinks: InjectedSinks<workflows.CustomLoggerSinks> = {
       customLogger: {
         info: {
-          fn: async (info, message) => {
+          async fn(info, message) {
             recordedMessages.push({
               message,
               historyLength: info.historyLength,

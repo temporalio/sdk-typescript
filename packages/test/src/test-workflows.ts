@@ -1550,8 +1550,10 @@ test('logAndTimeout', async (t) => {
   });
   const calls = await workflow.getAndResetSinkCalls();
   // Ignore LogTimestamp and workflowInfo for the purpose of this compare
-  delete calls[0].args[1][LogTimestamp];
-  delete (calls[0] as any).workflowInfo;
+  calls.forEach((call) => {
+    delete call.args[1]?.[LogTimestamp];
+    delete (call as any).workflowInfo;
+  });
   t.deepEqual(calls, [
     {
       ifaceName: 'defaultWorkerLogger',
@@ -1567,7 +1569,20 @@ test('logAndTimeout', async (t) => {
         },
       ],
     },
-    { ifaceName: 'logger', fnName: 'info', args: ['logging before getting stuck'] },
+    {
+      ifaceName: 'defaultWorkerLogger',
+      fnName: 'info',
+      args: [
+        'logging before getting stuck',
+        {
+          namespace: 'default',
+          runId: 'beforeEach hook for logAndTimeout',
+          taskQueue: 'test',
+          workflowId: 'test-workflowId',
+          workflowType: 'logAndTimeout',
+        },
+      ],
+    },
   ]);
 });
 

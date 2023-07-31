@@ -6,12 +6,15 @@
  */
 
 import * as wf from '@temporalio/workflow';
+// @@@SNIPSTART typescript-logger-sink-interface
+import type { Sinks } from '@temporalio/workflow';
 
-export interface CustomLoggerSinks extends wf.Sinks {
+export interface CustomLoggerSinks extends Sinks {
   customLogger: {
     info(message: string): void;
   };
 }
+// @@@SNIPEND
 
 const { customLogger } = wf.proxySinks<CustomLoggerSinks>();
 
