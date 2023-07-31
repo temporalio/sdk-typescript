@@ -73,6 +73,8 @@ test.after.always(async (t) => {
 });
 
 test.beforeEach(async (t) => {
+  // Default is 200ms, which is borderline in our GitHub Actions CI and tends to cause flakes
+  t.timeout(400);
   const { workflowCreator } = t.context;
   const workflowType = t.title.match(/\S+$/)![0];
   const runId = t.title;
