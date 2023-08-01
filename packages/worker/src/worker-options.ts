@@ -399,19 +399,17 @@ export interface WorkerOptions {
   /**
    * Implementation of the {@link Sinks} interface, a mapping of name to {@link InjectedSink}.
    *
-   * Sinks are a mechanism for exporting data from the Workflow sandbox to the
-   * Node.js environment, they are necessary because the Workflow has no way to
-   * communicate with the outside World.
+   * Sinks are a mechanism for exporting data from the Workflow sandbox to the Node.js environment, they are necessary
+   * because the Workflow has no way to communicate with the outside World.
    *
-   * Sinks are typically used for exporting logs, metrics and traces out from the
-   * Workflow.
+   * Sinks are typically used for exporting logs, metrics and traces out from the Workflow.
    *
-   * Sink functions may not return values to the Workflow in order to prevent
-   * breaking determinism.
+   * Sink functions may not return values to the Workflow in order to prevent breaking determinism.
    *
-   * By default the defaultWorkerLogger sink is installed and is required by {@link WorkflowInboundLogInterceptor}.
-   *
-   * If you wish to customize the sinks while keeping the defaults, merge yours with {@link defaultSinks}.
+   * The SDK itself may register sinks functions required to support workflow features. At the moment, the only such
+   * sink is 'defaultWorkerLogger', which is used by the workflow context logger (ie. `workflow.log.info()` and
+   * friends); other sinks may be added in the future. You may override these default sinks by explicitely registering
+   * sinks with the same name.
    */
   sinks?: InjectedSinks<any>;
 
@@ -619,7 +617,7 @@ export function appendDefaultInterceptors(
 }
 
 export function addDefaultWorkerOptions(options: WorkerOptions): WorkerOptionsWithDefaults {
-  const { maxCachedWorkflows, showStackTraceSources, namespace, reuseV8Context, ...rest } = options;
+  const { maxCachedWorkflows, showStackTraceSources, namespace, reuseV8Context, sinks, ...rest } = options;
   const debugMode = options.debugMode || isSet(process.env.TEMPORAL_DEBUG);
   const maxConcurrentWorkflowTaskExecutions = options.maxConcurrentWorkflowTaskExecutions ?? 40;
   const maxConcurrentActivityTaskExecutions = options.maxConcurrentActivityTaskExecutions ?? 100;
@@ -650,7 +648,7 @@ export function addDefaultWorkerOptions(options: WorkerOptions): WorkerOptionsWi
     reuseV8Context: reuseV8Context ?? false,
     debugMode: debugMode ?? false,
     interceptors: appendDefaultInterceptors({}),
-    sinks: defaultSinks(),
+    sinks: { ...defaultSinks(), ...sinks },
     ...rest,
     maxConcurrentWorkflowTaskExecutions,
     maxConcurrentActivityTaskExecutions,

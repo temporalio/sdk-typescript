@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
 import path from 'node:path';
+import console from 'node:console';
 import vm from 'node:vm';
 import anyTest, { ExecutionContext, TestFn } from 'ava';
 import dedent from 'dedent';
@@ -74,14 +75,15 @@ test.after.always(async (t) => {
 
 test.beforeEach(async (t) => {
   // Default is 200ms, which is borderline in our GitHub Actions CI and tends to cause flakes
-  t.timeout(400);
   const { workflowCreator } = t.context;
   const workflowType = t.title.match(/\S+$/)![0];
   const runId = t.title;
   const logs = new Array<unknown[]>();
   workflowCreator.logs[runId] = logs;
   const startTime = Date.now();
+  console.time('createWorkflow');
   const workflow = await createWorkflow(workflowType, runId, startTime, workflowCreator);
+  console.timeEnd('createWorkflow');
 
   t.context = {
     logs,
@@ -1551,7 +1553,7 @@ test('logAndTimeout', async (t) => {
     message: 'Script execution timed out after 200ms',
   });
   const calls = await workflow.getAndResetSinkCalls();
-  // Ignore LogTimestamp and workflowInfo for the purpose of this compare
+  // Ignore LogTimestamp and workflowInfo for the purpose of this comparison
   calls.forEach((call) => {
     delete call.args[1]?.[LogTimestamp];
     delete (call as any).workflowInfo;
