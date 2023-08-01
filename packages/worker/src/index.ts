@@ -37,6 +37,7 @@ export {
   defaultPayloadConverter,
   State,
   Worker,
+  WorkerStatus,
 } from './worker';
 export {
   appendDefaultInterceptors,
