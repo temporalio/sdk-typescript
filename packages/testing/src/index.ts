@@ -376,6 +376,7 @@ export const defaultActivityInfo: activity.Info = {
   activityType: 'unknown',
   workflowType: 'test',
   base64TaskToken: Buffer.from('test').toString('base64'),
+  heartbeatTimeoutMs: undefined,
   heartbeatDetails: undefined,
   activityNamespace: 'default',
   workflowNamespace: 'default',
@@ -383,6 +384,7 @@ export const defaultActivityInfo: activity.Info = {
   scheduledTimestampMs: 1,
   startToCloseTimeoutMs: 1000,
   scheduleToCloseTimeoutMs: 1000,
+  currentAttemptScheduledTimestampMs: 1,
 };
 
 /**
