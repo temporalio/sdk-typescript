@@ -201,6 +201,7 @@ exports.importInterceptors = function importInterceptors() {
         // https://webpack.js.org/configuration/resolve/#resolvemodules
         modules: [path.resolve(__dirname, 'module-overrides'), 'node_modules'],
         extensions: ['.ts', '.js'],
+        extensionAlias: { '.js': ['.ts', '.js'] },
         alias: {
           __temporal_custom_payload_converter$: this.payloadConverterPath ?? false,
           __temporal_custom_failure_converter$: this.failureConverterPath ?? false,

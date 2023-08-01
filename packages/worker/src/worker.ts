@@ -1844,11 +1844,13 @@ async function extractActivityInfo(
     isLocal: start.isLocal,
     activityType: start.activityType,
     workflowType: start.workflowType,
+    heartbeatTimeoutMs: start.heartbeatTimeout ? tsToMs(start.heartbeatTimeout) : undefined,
     heartbeatDetails: await decodeFromPayloadsAtIndex(dataConverter, 0, start.heartbeatDetails),
     activityNamespace,
     workflowNamespace: start.workflowNamespace,
     scheduledTimestampMs: tsToMs(start.scheduledTime),
     startToCloseTimeoutMs: tsToMs(start.startToCloseTimeout),
     scheduleToCloseTimeoutMs: tsToMs(start.scheduleToCloseTimeout),
+    currentAttemptScheduledTimestampMs: tsToMs(start.currentAttemptScheduledTime),
   };
 }
