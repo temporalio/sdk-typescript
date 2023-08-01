@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
 import path from 'node:path';
-import console from 'node:console';
+import process from 'node:process';
 import vm from 'node:vm';
 import anyTest, { ExecutionContext, TestFn } from 'ava';
 import dedent from 'dedent';
@@ -81,9 +81,10 @@ test.beforeEach(async (t) => {
   const logs = new Array<unknown[]>();
   workflowCreator.logs[runId] = logs;
   const startTime = Date.now();
-  console.time('createWorkflow');
+  const before = process.hrtime();
   const workflow = await createWorkflow(workflowType, runId, startTime, workflowCreator);
-  console.timeEnd('createWorkflow');
+  const elapsed = process.hrtime(before);
+  console.log(`test-workflows.ts :: createWorkflow :: took ${elapsed[0]} s ${Math.floor(elapsed[1] / 1000000)} ms`);
 
   t.context = {
     logs,

@@ -91,7 +91,6 @@ import { ThreadedVMWorkflowCreator } from './workflow/threaded-vm';
 import { VMWorkflowCreator } from './workflow/vm';
 import { WorkflowBundleWithSourceMapAndFilename } from './workflow/workflow-worker-thread/input';
 import { GracefulShutdownPeriodExpiredError } from './errors';
-import { InjectedSinkFunction } from './sinks';
 
 type IWorkflowActivationJob = coresdk.workflow_activation.IWorkflowActivationJob;
 
@@ -1324,8 +1323,8 @@ export class Worker {
       .filter(({ sink }) => sink?.callDuringReplay || !isReplaying);
 
     // Make a wrapper function, to make things easier afterward
-    const mappedCalls = filteredCalls.map(({ call, sink }) => ({
-      call: async () => {
+    await Promise.all(
+      filteredCalls.map(async ({ call, sink }) => {
         try {
           await sink?.fn(call.workflowInfo, ...call.args);
         } catch (error) {
@@ -1336,43 +1335,8 @@ export class Worker {
             workflowInfo: call.workflowInfo,
           });
         }
-      },
-      ifaceName: call.ifaceName,
-      sink: sink as InjectedSinkFunction<any>,
-    }));
-
-    const groupedCalls: { [k: string]: { call: () => Promise<void>; sink: InjectedSinkFunction<any> }[] } = {};
-    for (const { call, ifaceName, sink } of mappedCalls) {
-      const group = groupedCalls[ifaceName] || [];
-      group.push({ call, sink });
-      groupedCalls[ifaceName] = group;
-    }
-
-    for (const ifaceName of Object.keys(groupedCalls)) {
-      const iface = sinks?.[ifaceName];
-      const group = groupedCalls[ifaceName];
-
-      if (iface.concurrency === 'PARALLEL') {
-      }
-    }
-
-    // Call each sink group in parallel
-    const pendingPromises: Promise<void>[] = [];
-    for (const { sink, call } of mappedCalls) {
-      if (sink.callSerially) {
-        if (pendingPromises.length > 0) {
-          await Promise.all(await pendingPromises);
-          pendingPromises.length = 0;
-        }
-        await call();
-      } else {
-        pendingPromises.push(call());
-      }
-    }
-
-    if (pendingPromises.length > 0) {
-      await Promise.all(await pendingPromises);
-    }
+      })
+    );
   }
 
   /**
