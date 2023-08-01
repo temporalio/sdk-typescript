@@ -1337,14 +1337,31 @@ export class Worker {
           });
         }
       },
+      ifaceName: call.ifaceName,
       sink: sink as InjectedSinkFunction<any>,
     }));
 
+    const groupedCalls: { [k: string]: { call: () => Promise<void>; sink: InjectedSinkFunction<any> }[] } = {};
+    for (const { call, ifaceName, sink } of mappedCalls) {
+      const group = groupedCalls[ifaceName] || [];
+      group.push({ call, sink });
+      groupedCalls[ifaceName] = group;
+    }
+
+    for (const ifaceName of Object.keys(groupedCalls)) {
+      const iface = sinks?.[ifaceName];
+      const group = groupedCalls[ifaceName];
+
+      if (iface.concurrency === 'PARALLEL') {
+      }
+    }
+
+    // Call each sink group in parallel
     const pendingPromises: Promise<void>[] = [];
     for (const { sink, call } of mappedCalls) {
       if (sink.callSerially) {
         if (pendingPromises.length > 0) {
-          await Promise.allSettled(await pendingPromises);
+          await Promise.all(await pendingPromises);
           pendingPromises.length = 0;
         }
         await call();
@@ -1354,7 +1371,7 @@ export class Worker {
     }
 
     if (pendingPromises.length > 0) {
-      await Promise.allSettled(await pendingPromises);
+      await Promise.all(await pendingPromises);
     }
   }
 

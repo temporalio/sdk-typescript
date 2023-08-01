@@ -72,7 +72,14 @@ export interface InjectedSinkFunction<F extends SinkFunction> {
    * Defaults to `false`.
    */
   callDuringReplay?: boolean;
+}
 
+/**
+ * Converts a {@link Sink} from a mapping of name to function to a mapping of name to {@link InjectedSinkFunction}
+ */
+export type InjectedSink<T extends Sink> = {
+  [P in keyof T]: InjectedSinkFunction<T[P]>;
+} & {
   /**
    * If set to `true`, execution calls to this sink function will be serialized, ensuring strict
    * ordering of this sink function execution with respect to any other sink function.
@@ -86,14 +93,7 @@ export interface InjectedSinkFunction<F extends SinkFunction> {
    *
    * Defaults to `false`.
    */
-  callSerially?: boolean;
-}
-
-/**
- * Converts a {@link Sink} from a mapping of name to function to a mapping of name to {@link InjectedSinkFunction}
- */
-export type InjectedSink<T extends Sink> = {
-  [P in keyof T]: InjectedSinkFunction<T[P]>;
+  concurrency?: 'ALL_PARALLEL' | 'serial-per';
 };
 
 /**
