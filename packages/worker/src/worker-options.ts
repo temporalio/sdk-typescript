@@ -415,7 +415,7 @@ export interface WorkerOptions {
    *
    * Sink functions are always invoked in the order that calls were maded in workflow code. Note
    * however that async sink functions are not awaited individually. Consequently, sink functions that
-   * internally perform async operations may end up executing in parallel.
+   * internally perform async operations may end up executing concurrently.
    *
    * Please note that sink functions only provide best-effort delivery semantics, which is generally
    * suitable for log messages and general metrics collection. However, in various situations, a sink
