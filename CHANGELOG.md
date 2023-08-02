@@ -4,6 +4,40 @@ All notable changes to this project will be documented in this file.
 
 Breaking changes marked with a :boom:
 
+## [1.8.2] - 2023-08-02
+
+### Features
+
+- [`workflow`] Add support for URL/URLSearchParams inside the workflow sandbox ([#1173](https://github.com/temporalio/sdk-typescript/pull/1173))
+
+### Bug Fixes
+
+- Use custom symbol-based implementation of `instanceof` for all of our custom error classes ([#1166](https://github.com/temporalio/sdk-typescript/pull/1166)).
+  This is a complete rework of the fixes introduced in 1.8.0 and 1.8.1, both of which turned out to be insufficients.
+  `instanceof` now works correctly both accross execution contexts and when running tests with Jest. The static `is`
+  function introduced previously on some of our error calsses is no longer required, as the `instanceof` operator itself
+  now behave correctly; these `is` functions have therefore been removed.
+
+- [`client`] Make `action.workflowId` optional on Schedule update ([#1176](https://github.com/temporalio/sdk-typescript/pull/1176))
+
+- [`activity`] `heartbeatTimeoutMs` is not correctly set on Activity's `Context.current().info`. The
+  `currentAttemptScheduledTimestampMs` property has also been added to that data structure ([#1187](https://github.com/temporalio/sdk-typescript/pull/1187))
+
+- [`workflow`] The Workflow Bundler is now smarter regarding requiring files with incorrect or missing file extensions ([#1186](https://github.com/temporalio/sdk-typescript/pull/1186)). Thanks to [`@GauBen`](https://github.com/GauBen) 🙏.
+
+- [`workflow`] Fix incorrect values of `workflowInfo.historyLength` and `workflowInfo.unsafe.isReplaying` as reported in
+  out-of-sandbox log messages, and as argument of sink function implementations ([#1181](https://github.com/temporalio/sdk-typescript/pull/1181)).
+
+- [`workflow`] Sink functions configured with `callDuringReplay = false` are no longer invoked from a replay-only worker
+  (ie. `Worker.runReplayHistories()`); it was previously possible for these to get called in some cases on the very last
+  WFT ([#1181](https://github.com/temporalio/sdk-typescript/pull/1181)).
+
+- [`workflow`] Encoding and decoding of protobuf JSON payloads is now working in workflow context. This was previously
+  failing, due to the fact that an underlying library depends on the `Buffer` class, which is not available inside the
+  workflow sandbox ([#1170](https://github.com/temporalio/sdk-typescript/pull/1170)). Thanks to [`@antlai-temporal`](https://github.com/antlai-temporal) 🙏.
+
+- [`worker`] Export the `WorkerStatus` interface ([#1184](https://github.com/temporalio/sdk-typescript/pull/1184)).
+
 ## [1.8.1] - 2023-07-07
 
 ### Bug Fixes
