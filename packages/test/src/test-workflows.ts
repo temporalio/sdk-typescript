@@ -81,10 +81,7 @@ test.beforeEach(async (t) => {
   const logs = new Array<unknown[]>();
   workflowCreator.logs[runId] = logs;
   const startTime = Date.now();
-  const before = process.hrtime();
   const workflow = await createWorkflow(workflowType, runId, startTime, workflowCreator);
-  const elapsed = process.hrtime(before);
-  console.log(`test-workflows.ts :: createWorkflow :: took ${elapsed[0]} s ${Math.floor(elapsed[1] / 1000000)} ms`);
 
   t.context = {
     logs,
