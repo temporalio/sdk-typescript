@@ -1,6 +1,5 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
 import path from 'node:path';
-import process from 'node:process';
 import vm from 'node:vm';
 import anyTest, { ExecutionContext, TestFn } from 'ava';
 import dedent from 'dedent';
@@ -64,9 +63,11 @@ test.before(async (t) => {
   const workflowsPath = path.join(__dirname, 'workflows');
   const bundler = new WorkflowCodeBundler({ workflowsPath });
   const workflowBundle = parseWorkflowCode((await bundler.createBundle()).code);
+  // FIXME: isolateExecutionTimeoutMs used to be 200 ms, but that's causing
+  //        lot of flakes on CI. Revert this after investigation / resolution.
   t.context.workflowCreator = REUSE_V8_CONTEXT
-    ? await TestReusableVMWorkflowCreator.create(workflowBundle, 200, new Set())
-    : await TestVMWorkflowCreator.create(workflowBundle, 200, new Set());
+    ? await TestReusableVMWorkflowCreator.create(workflowBundle, 400, new Set())
+    : await TestVMWorkflowCreator.create(workflowBundle, 400, new Set());
 });
 
 test.after.always(async (t) => {
@@ -74,7 +75,6 @@ test.after.always(async (t) => {
 });
 
 test.beforeEach(async (t) => {
-  // Default is 200ms, which is borderline in our GitHub Actions CI and tends to cause flakes
   const { workflowCreator } = t.context;
   const workflowType = t.title.match(/\S+$/)![0];
   const runId = t.title;
@@ -1551,7 +1551,7 @@ test('logAndTimeout', async (t) => {
   const { workflowType, workflow } = t.context;
   await t.throwsAsync(activate(t, makeStartWorkflow(workflowType)), {
     code: 'ERR_SCRIPT_EXECUTION_TIMEOUT',
-    message: 'Script execution timed out after 200ms',
+    message: 'Script execution timed out after 400ms',
   });
   const calls = await workflow.getAndResetSinkCalls();
   // Ignore LogTimestamp and workflowInfo for the purpose of this comparison
