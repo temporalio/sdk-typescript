@@ -38,6 +38,11 @@ Breaking changes marked with a :boom:
 
 - [`worker`] Export the `WorkerStatus` interface ([#1184](https://github.com/temporalio/sdk-typescript/pull/1184)).
 
+- [`core`] Improve warning message on error response to completion ([temporalio/sdk-core#581](https://github.com/temporalio/sdk-core/pull/581))
+  Thanks to [`@dandavison`](https://github.com/dandavison) 🙏.
+
+- [`core`] Fix abandoned children nondeterminism if they complete ([temporalio/sdk-core#580](https://github.com/temporalio/sdk-core/pull/580)).
+
 ## [1.8.1] - 2023-07-07
 
 ### Bug Fixes
