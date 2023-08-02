@@ -1040,9 +1040,9 @@ export class Worker {
     if (workflowCreator === undefined) {
       throw new IllegalStateError('Cannot process workflows without an IsolateContextProvider');
     }
-    interface WorkflowWithInfo {
+    interface WorkflowWithLogAttributes {
       workflow: Workflow;
-      info: WorkflowInfo;
+      logAttributes: Record<string, unknown>;
     }
     return pipe(
       closeableGroupBy(({ activation }) => activation.runId),
@@ -1071,10 +1071,10 @@ export class Worker {
           }),
           mergeMapWithState(
             async (
-              state: WorkflowWithInfo | undefined,
+              state: WorkflowWithLogAttributes | undefined,
               { activation, parentSpan, synthetic }
             ): Promise<{
-              state: WorkflowWithInfo | undefined;
+              state: WorkflowWithLogAttributes | undefined;
               output: ContextAware<{ completion?: Uint8Array; close: boolean }>;
             }> => {
               try {
@@ -1098,7 +1098,7 @@ export class Worker {
                   activation.jobs = jobs;
                   if (jobs.length === 0) {
                     this.log.trace('Disposing workflow', {
-                      ...(state ? workflowLogAttributes(state.info) : { runId: activation.runId }),
+                      ...(state ? state.logAttributes : { runId: activation.runId }),
                     });
                     await state?.workflow.dispose();
                     if (!close) {
@@ -1198,7 +1198,8 @@ export class Worker {
                           isReplaying: activation.isReplaying,
                         },
                       };
-                      this.log.trace('Creating workflow', workflowLogAttributes(workflowInfo));
+                      const logAttributes = workflowLogAttributes(workflowInfo);
+                      this.log.trace('Creating workflow', logAttributes);
                       const patchJobs = activation.jobs.filter((j): j is PatchJob => j.notifyHasPatch != null);
                       const patches = patchJobs.map(({ notifyHasPatch }) => {
                         const { patchId } = notifyHasPatch;
@@ -1218,7 +1219,7 @@ export class Worker {
                         });
                       });
 
-                      state = { workflow, info: workflowInfo };
+                      state = { workflow, logAttributes };
                       this.numCachedWorkflowsSubject.next(this.numCachedWorkflowsSubject.value + 1);
                     } else {
                       throw new IllegalStateError(
@@ -1232,7 +1233,7 @@ export class Worker {
                     const decodedActivation = await this.workflowCodecRunner.decodeActivation(activation);
                     const unencodedCompletion = await state.workflow.activate(decodedActivation);
                     const completion = await this.workflowCodecRunner.encodeCompletion(unencodedCompletion);
-                    this.log.trace('Completed activation', workflowLogAttributes(state.info));
+                    this.log.trace('Completed activation', state.logAttributes);
 
                     span.setAttribute('close', close);
                     return { state, output: { close, completion, parentSpan } };
@@ -1244,9 +1245,15 @@ export class Worker {
                   } finally {
                     // Fatal error means we cannot call into this workflow again unfortunately
                     if (!isFatalError) {
-                      const externalCalls = await state.workflow.getAndResetSinkCalls();
-                      // TODO: state.info.searchAttributes are not updated here
-                      await this.processSinkCalls(externalCalls, state.info, activation.isReplaying);
+                      // When processing workflows through runReplayHistories, Core may still send non-replay
+                      // activations on the very last Workflow Task in some cases. Though Core is technically exact
+                      // here, the fact that sinks marked with callDuringReplay = false may get called on a replay
+                      // worker is definitely a surprising behavior. For that reason, we extend the isReplaying flag in
+                      // this case to also include anything running under in a replay worker.
+                      const isReplaying = activation.isReplaying || this.isReplayWorker;
+
+                      const calls = await state.workflow.getAndResetSinkCalls();
+                      await this.processSinkCalls(calls, isReplaying);
                     }
                   }
                 });
@@ -1256,7 +1263,7 @@ export class Worker {
                   throw error;
                 }
                 this.log.error('Failed to activate workflow', {
-                  ...(state ? workflowLogAttributes(state.info) : { runId: activation.runId }),
+                  ...(state ? state.logAttributes : { runId: activation.runId }),
                   error,
                   workflowExists: state !== undefined,
                 });
@@ -1297,27 +1304,36 @@ export class Worker {
    * This function does not throw, it will log in case of missing sinks
    * or failed sink function invocations.
    */
-  protected async processSinkCalls(externalCalls: SinkCall[], info: WorkflowInfo, isReplaying: boolean): Promise<void> {
+  protected async processSinkCalls(externalCalls: SinkCall[], isReplaying: boolean): Promise<void> {
     const { sinks } = this.options;
+
+    const filteredCalls = externalCalls
+      // Map sink call to the corresponding sink function definition
+      .map((call) => ({ call, sink: sinks?.[call.ifaceName]?.[call.fnName] }))
+      // Reject calls to undefined sink definitions
+      .filter(({ call: { ifaceName, fnName }, sink }) => {
+        if (sink !== undefined) return true;
+        this.log.error('Workflow referenced an unregistered external sink', {
+          ifaceName,
+          fnName,
+        });
+        return false;
+      })
+      // If appropriate, reject calls to sink functions not configured with `callDuringReplay = true`
+      .filter(({ sink }) => sink?.callDuringReplay || !isReplaying);
+
+    // Make a wrapper function, to make things easier afterward
     await Promise.all(
-      externalCalls.map(async ({ ifaceName, fnName, args }) => {
-        const dep = sinks?.[ifaceName]?.[fnName];
-        if (dep === undefined) {
-          this.log.error('Workflow referenced an unregistered external sink', {
-            ifaceName,
-            fnName,
+      filteredCalls.map(async ({ call, sink }) => {
+        try {
+          await sink?.fn(call.workflowInfo, ...call.args);
+        } catch (error) {
+          this.log.error('External sink function threw an error', {
+            ifaceName: call.ifaceName,
+            fnName: call.fnName,
+            error,
+            workflowInfo: call.workflowInfo,
           });
-        } else if (dep.callDuringReplay || !isReplaying) {
-          try {
-            await dep.fn(info, ...args);
-          } catch (error) {
-            this.log.error('External sink function threw an error', {
-              ifaceName,
-              fnName,
-              error,
-              workflowInfo: info,
-            });
-          }
         }
       })
     );

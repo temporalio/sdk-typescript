@@ -17,17 +17,32 @@
 import { Sinks, Sink, SinkFunction, WorkflowInfo } from '@temporalio/workflow';
 
 /**
- * Takes a {@link SinkFunction} and turns it into a type safe specification
- * consisting of the function implementation type and call configuration.
+ * Registration of a {@link SinkFunction}, including per-sink-function options.
  *
- * `InjectedSinkFunction` consists of these attributes:
- *
- * - `fn` - type of the implementation function for sink function `F`
- * - `callDuringReplay` - whether or not `fn` will be called during Workflow
- *   replay - defaults to `false`
+ * See {@link WorkerOptions.sinks} for more details.
  */
 export interface InjectedSinkFunction<F extends SinkFunction> {
+  /**
+   * The implementation function for sink function `F`
+   */
   fn(info: WorkflowInfo, ...args: Parameters<F>): void | Promise<void>;
+
+  /**
+   * Whether or not the function will be called during Workflow replay.
+   *
+   * Take note that setting `callDuringReplay` to `false` (or leaving it unset) doesn't guarantee
+   * that the sink function will only ever run once for a particular Workflow execution at a
+   * particular point of its history. In particular, calls to sink functions will be executed
+   * even if the current workflow task ends up failling or timing out. In such situations, a call to
+   * a sink function configured with `callDuringReplay: false` will be executed again, since
+   * the workflow task is not being replayed (ie. retrying a workflow task is not the same as
+   * replaying it).
+   *
+   * For use cases that require _at-most-once_ or _exactly-once_ guarantees, please consider using
+   * a regular activity instead.
+   *
+   * Defaults to `false`.
+   */
   callDuringReplay?: boolean;
 }
 

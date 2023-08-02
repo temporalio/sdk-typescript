@@ -14,6 +14,8 @@
  * @module
  */
 
+import { WorkflowInfo } from './interfaces';
+
 /**
  * Any function signature can be used for Sink functions as long as the return type is `void`.
  *
@@ -38,6 +40,7 @@ export interface SinkCall {
   ifaceName: string;
   fnName: string;
   args: any[];
+  workflowInfo: WorkflowInfo;
 }
 
 /**

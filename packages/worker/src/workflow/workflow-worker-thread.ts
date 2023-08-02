@@ -73,6 +73,16 @@ async function handleRequest({ requestId, input }: WorkerThreadRequest): Promise
         throw new IllegalStateError(`Tried to activate non running workflow with runId: ${input.runId}`);
       }
       const calls = await workflow.getAndResetSinkCalls();
+      calls.map((call) => {
+        // Delete .now because functions can't be serialized / sent to thread.
+        // Do this on a copy of the object, as workflowInfo is the live object.
+        call.workflowInfo = {
+          ...call.workflowInfo,
+          unsafe: { ...call.workflowInfo.unsafe },
+        };
+        delete (call.workflowInfo.unsafe as any).now;
+      });
+
       return {
         requestId,
         result: { type: 'ok', output: { type: 'sink-calls', calls } },

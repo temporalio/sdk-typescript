@@ -911,11 +911,19 @@ export function proxySinks<T extends Sinks>(): T {
                 const activator = assertInWorkflowContext(
                   'Proxied sinks functions may only be used from a Workflow Execution.'
                 );
+                const info = workflowInfo();
                 activator.sinkCalls.push({
                   ifaceName: ifaceName as string,
                   fnName: fnName as string,
                   // Only available from node 17.
                   args: (globalThis as any).structuredClone ? (globalThis as any).structuredClone(args) : args,
+                  // Clone the workflowInfo object so that any further mutations to it does not get reflected in sink
+                  workflowInfo: {
+                    ...info,
+                    // Make sure to clone any sub-property that may get mutated during the lifespan of an activation
+                    searchAttributes: { ...info.searchAttributes },
+                    memo: info.memo ? { ...info.memo } : undefined,
+                  },
                 });
               };
             },

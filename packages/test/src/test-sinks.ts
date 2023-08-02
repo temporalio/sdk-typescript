@@ -2,8 +2,14 @@
 import test from 'ava';
 import { v4 as uuid4 } from 'uuid';
 import { WorkflowClient } from '@temporalio/client';
-import { DefaultLogger, InjectedSinks, Runtime } from '@temporalio/worker';
-import { WorkflowInfo } from '@temporalio/workflow';
+import {
+  DefaultLogger,
+  InjectedSinks,
+  Runtime,
+  LoggerSinks as DefaultLoggerSinks,
+  InjectedSinkFunction,
+} from '@temporalio/worker';
+import { SearchAttributes, WorkflowInfo } from '@temporalio/workflow';
 import { UnsafeWorkflowInfo } from '@temporalio/workflow/src/interfaces';
 import { RUN_INTEGRATION_TESTS, Worker } from './helpers';
 import { defaultOptions } from './mock-native-worker';
@@ -13,6 +19,21 @@ class DependencyError extends Error {
   constructor(public readonly ifaceName: string, public readonly fnName: string) {
     super(`${ifaceName}.${fnName}`);
   }
+}
+
+function asDefaultLoggerSink(
+  fn: (info: WorkflowInfo, message: string, attrs?: Record<string, unknown>) => Promise<void>,
+  opts?: Omit<InjectedSinkFunction<any>, 'fn'>
+): InjectedSinks<DefaultLoggerSinks> {
+  return {
+    defaultWorkerLogger: {
+      trace: { fn, ...opts },
+      debug: { fn, ...opts },
+      info: { fn, ...opts },
+      warn: { fn, ...opts },
+      error: { fn, ...opts },
+    },
+  };
 }
 
 if (RUN_INTEGRATION_TESTS) {
@@ -35,6 +56,7 @@ if (RUN_INTEGRATION_TESTS) {
 
     const dummyDate = new Date(2000, 1, 0, 0, 0, 0);
     function fixWorkflowInfoDates(input: WorkflowInfo): WorkflowInfo {
+      delete (input.unsafe as any).now;
       return {
         ...input,
         startTime: dummyDate,
@@ -114,7 +136,9 @@ if (RUN_INTEGRATION_TESTS) {
       startTime: dummyDate,
       runStartTime: dummyDate,
       // unsafe.now() doesn't make it through serialization, but .now is required, so we need to cast
-      unsafe: { isReplaying: false } as UnsafeWorkflowInfo,
+      unsafe: {
+        isReplaying: false,
+      } as UnsafeWorkflowInfo,
     };
 
     t.deepEqual(recordedCalls, [
@@ -146,18 +170,24 @@ if (RUN_INTEGRATION_TESTS) {
   });
 
   test('Sink functions are not called during replay if callDuringReplay is unset', async (t) => {
-    const recordedMessages = Array<string>();
     const taskQueue = `${__filename}-${t.title}`;
-    const sinks: InjectedSinks<workflows.LoggerSinks> = {
-      logger: {
+
+    const recordedMessages = Array<{ message: string; historyLength: number; isReplaying: boolean }>();
+    const sinks: InjectedSinks<workflows.CustomLoggerSinks> = {
+      customLogger: {
         info: {
-          async fn(_info, message) {
-            recordedMessages.push(message);
+          async fn(info, message) {
+            recordedMessages.push({
+              message,
+              historyLength: info.historyLength,
+              isReplaying: info.unsafe.isReplaying,
+            });
           },
         },
       },
     };
 
+    const client = new WorkflowClient();
     const worker = await Worker.create({
       ...defaultOptions,
       taskQueue,
@@ -165,32 +195,35 @@ if (RUN_INTEGRATION_TESTS) {
       maxCachedWorkflows: 0,
       maxConcurrentWorkflowTaskExecutions: 2,
     });
-    const client = new WorkflowClient();
-    await Promise.all([
-      (async () => {
-        try {
-          await client.execute(workflows.logSinkTester, { taskQueue, workflowId: uuid4() });
-        } finally {
-          worker.shutdown();
-        }
-      })(),
-      worker.run(),
-    ]);
+    await worker.runUntil(client.execute(workflows.logSinkTester, { taskQueue, workflowId: uuid4() }));
 
     t.deepEqual(recordedMessages, [
-      'Workflow execution started, replaying: false, hl: 3',
-      'Workflow execution completed, replaying: false, hl: 8',
+      {
+        message: 'Workflow execution started, replaying: false, hl: 3',
+        historyLength: 3,
+        isReplaying: false,
+      },
+      {
+        message: 'Workflow execution completed, replaying: false, hl: 8',
+        historyLength: 8,
+        isReplaying: false,
+      },
     ]);
   });
 
   test('Sink functions are called during replay if callDuringReplay is set', async (t) => {
-    const recordedMessages = Array<string>();
     const taskQueue = `${__filename}-${t.title}`;
-    const sinks: InjectedSinks<workflows.LoggerSinks> = {
-      logger: {
+
+    const recordedMessages = Array<{ message: string; historyLength: number; isReplaying: boolean }>();
+    const sinks: InjectedSinks<workflows.CustomLoggerSinks> = {
+      customLogger: {
         info: {
-          async fn(_info, message) {
-            recordedMessages.push(message);
+          fn: async (info, message) => {
+            recordedMessages.push({
+              message,
+              historyLength: info.historyLength,
+              isReplaying: info.unsafe.isReplaying,
+            });
           },
           callDuringReplay: true,
         },
@@ -209,9 +242,168 @@ if (RUN_INTEGRATION_TESTS) {
 
     // Note that task may be replayed more than once and record the first messages multiple times.
     t.deepEqual(recordedMessages.slice(0, 2), [
-      'Workflow execution started, replaying: false, hl: 3',
-      'Workflow execution started, replaying: true, hl: 3',
+      {
+        message: 'Workflow execution started, replaying: false, hl: 3',
+        historyLength: 3,
+        isReplaying: false,
+      },
+      {
+        message: 'Workflow execution started, replaying: true, hl: 3',
+        historyLength: 3,
+        isReplaying: true,
+      },
     ]);
-    t.is(recordedMessages[recordedMessages.length - 1], 'Workflow execution completed, replaying: false, hl: 8');
+    t.deepEqual(recordedMessages[recordedMessages.length - 1], {
+      message: 'Workflow execution completed, replaying: false, hl: 8',
+      historyLength: 8,
+      isReplaying: false,
+    });
+  });
+
+  test('Sink functions are not called in runReplayHistories if callDuringReplay is unset', async (t) => {
+    const recordedMessages = Array<{ message: string; historyLength: number; isReplaying: boolean }>();
+    const sinks: InjectedSinks<workflows.CustomLoggerSinks> = {
+      customLogger: {
+        info: {
+          fn: async (info, message) => {
+            recordedMessages.push({
+              message,
+              historyLength: info.historyLength,
+              isReplaying: info.unsafe.isReplaying,
+            });
+          },
+        },
+      },
+    };
+
+    const client = new WorkflowClient();
+    const taskQueue = `${__filename}-${t.title}`;
+    const worker = await Worker.create({
+      ...defaultOptions,
+      taskQueue,
+      sinks,
+    });
+    const workflowId = uuid4();
+    await worker.runUntil(client.execute(workflows.logSinkTester, { taskQueue, workflowId }));
+    const history = await client.getHandle(workflowId).fetchHistory();
+
+    // Last 3 events are WorkflowExecutionStarted, WorkflowTaskCompleted and WorkflowExecutionCompleted
+    history.events = history!.events!.slice(0, -3);
+
+    recordedMessages.length = 0;
+    await Worker.runReplayHistory(
+      {
+        ...defaultOptions,
+        sinks,
+      },
+      history,
+      workflowId
+    );
+
+    t.deepEqual(recordedMessages, []);
+  });
+
+  test('Sink functions are called in runReplayHistories if callDuringReplay is set', async (t) => {
+    const taskQueue = `${__filename}-${t.title}`;
+
+    const recordedMessages = Array<{ message: string; historyLength: number; isReplaying: boolean }>();
+    const sinks: InjectedSinks<workflows.CustomLoggerSinks> = {
+      customLogger: {
+        info: {
+          fn: async (info, message) => {
+            recordedMessages.push({
+              message,
+              historyLength: info.historyLength,
+              isReplaying: info.unsafe.isReplaying,
+            });
+          },
+          callDuringReplay: true,
+        },
+      },
+    };
+
+    const worker = await Worker.create({
+      ...defaultOptions,
+      taskQueue,
+      sinks,
+    });
+    const client = new WorkflowClient();
+    const workflowId = uuid4();
+    await worker.runUntil(async () => {
+      await client.execute(workflows.logSinkTester, { taskQueue, workflowId });
+    });
+    const history = await client.getHandle(workflowId).fetchHistory();
+
+    // Last 3 events are WorkflowExecutionStarted, WorkflowTaskCompleted and WorkflowExecutionCompleted
+    history.events = history!.events!.slice(0, -3);
+
+    recordedMessages.length = 0;
+    await Worker.runReplayHistory(
+      {
+        ...defaultOptions,
+        sinks,
+      },
+      history,
+      workflowId
+    );
+
+    t.deepEqual(recordedMessages.slice(0, 2), [
+      {
+        message: 'Workflow execution started, replaying: true, hl: 3',
+        isReplaying: true,
+        historyLength: 3,
+      },
+      {
+        message: 'Workflow execution completed, replaying: false, hl: 7',
+        isReplaying: false,
+        historyLength: 7,
+      },
+    ]);
+  });
+
+  test('Sink functions contains upserted search attributes', async (t) => {
+    const taskQueue = `${__filename}-${t.title}`;
+
+    const recordedMessages = Array<{ message: string; searchAttributes: SearchAttributes }>();
+    const sinks = asDefaultLoggerSink(async (info, message, _attrs) => {
+      recordedMessages.push({
+        message,
+        searchAttributes: info.searchAttributes,
+      });
+    });
+
+    const client = new WorkflowClient();
+    const date = new Date();
+
+    const worker = await Worker.create({
+      ...defaultOptions,
+      taskQueue,
+      sinks,
+    });
+    await worker.runUntil(
+      client.execute(workflows.upsertAndReadSearchAttributes, {
+        taskQueue,
+        workflowId: uuid4(),
+        args: [date.getTime()],
+      })
+    );
+
+    t.deepEqual(recordedMessages, [
+      {
+        message: 'Workflow started',
+        searchAttributes: {},
+      },
+      {
+        message: 'Workflow completed',
+        searchAttributes: {
+          CustomBoolField: [true],
+          CustomIntField: [], // clear
+          CustomKeywordField: ['durable code'],
+          CustomTextField: ['is useful'],
+          CustomDatetimeField: [date],
+          CustomDoubleField: [3.14],
+        },
+      },
+    ]);
   });
 }

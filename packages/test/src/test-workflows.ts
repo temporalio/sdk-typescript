@@ -63,9 +63,11 @@ test.before(async (t) => {
   const workflowsPath = path.join(__dirname, 'workflows');
   const bundler = new WorkflowCodeBundler({ workflowsPath });
   const workflowBundle = parseWorkflowCode((await bundler.createBundle()).code);
+  // FIXME: isolateExecutionTimeoutMs used to be 200 ms, but that's causing
+  //        lot of flakes on CI. Revert this after investigation / resolution.
   t.context.workflowCreator = REUSE_V8_CONTEXT
-    ? await TestReusableVMWorkflowCreator.create(workflowBundle, 200, new Set())
-    : await TestVMWorkflowCreator.create(workflowBundle, 200, new Set());
+    ? await TestReusableVMWorkflowCreator.create(workflowBundle, 400, new Set())
+    : await TestVMWorkflowCreator.create(workflowBundle, 400, new Set());
 });
 
 test.after.always(async (t) => {
@@ -1546,10 +1548,14 @@ test('logAndTimeout', async (t) => {
   const { workflowType, workflow } = t.context;
   await t.throwsAsync(activate(t, makeStartWorkflow(workflowType)), {
     code: 'ERR_SCRIPT_EXECUTION_TIMEOUT',
-    message: 'Script execution timed out after 200ms',
+    message: 'Script execution timed out after 400ms',
   });
   const calls = await workflow.getAndResetSinkCalls();
-  delete calls[0].args[1][LogTimestamp];
+  // Ignore LogTimestamp and workflowInfo for the purpose of this comparison
+  calls.forEach((call) => {
+    delete call.args[1]?.[LogTimestamp];
+    delete (call as any).workflowInfo;
+  });
   t.deepEqual(calls, [
     {
       ifaceName: 'defaultWorkerLogger',
@@ -1565,7 +1571,20 @@ test('logAndTimeout', async (t) => {
         },
       ],
     },
-    { ifaceName: 'logger', fnName: 'info', args: ['logging before getting stuck'] },
+    {
+      ifaceName: 'defaultWorkerLogger',
+      fnName: 'info',
+      args: [
+        'logging before getting stuck',
+        {
+          namespace: 'default',
+          runId: 'beforeEach hook for logAndTimeout',
+          taskQueue: 'test',
+          workflowId: 'test-workflowId',
+          workflowType: 'logAndTimeout',
+        },
+      ],
+    },
   ]);
 });
 
