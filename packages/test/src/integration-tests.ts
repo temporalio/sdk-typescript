@@ -30,6 +30,7 @@ import {
   TimeoutType,
   WorkflowExecution,
   WorkflowExecutionAlreadyStartedError,
+  WorkflowIdReusePolicy,
   WorkflowNotFoundError,
 } from '@temporalio/common';
 import { msToNumber, tsToMs } from '@temporalio/common/lib/time';
@@ -1136,6 +1137,28 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
     } finally {
       await handle.terminate();
     }
+  });
+
+  test('WorkflowClient.signalWithStart fails with WorkflowExecutionAlreadyStartedError', async (t) => {
+    const { client } = t.context;
+    const workflowId = uuid4();
+    await client.execute(workflows.sleeper, {
+      taskQueue: 'test',
+      workflowId,
+    });
+    await t.throwsAsync(
+      client.signalWithStart(workflows.sleeper, {
+        taskQueue: 'test',
+        workflowId,
+        signal: workflows.interruptSignal,
+        signalArgs: ['interrupted from signalWithStart'],
+        workflowIdReusePolicy: WorkflowIdReusePolicy.WORKFLOW_ID_REUSE_POLICY_REJECT_DUPLICATE,
+      }),
+      {
+        instanceOf: WorkflowExecutionAlreadyStartedError,
+        message: 'Workflow execution already started',
+      }
+    );
   });
 
   test('Handle from WorkflowClient.start follows only own execution chain', async (t) => {

@@ -12,7 +12,7 @@ import { Logger } from './logger';
 import { Runtime } from './runtime';
 import { InjectedSinks } from './sinks';
 import { MiB } from './utils';
-import { defaultWorflowInterceptorModules, WorkflowBundleWithSourceMap } from './workflow/bundler';
+import { defaultWorkflowInterceptorModules, WorkflowBundleWithSourceMap } from './workflow/bundler';
 
 export type { WebpackConfiguration };
 
@@ -631,7 +631,7 @@ export function appendDefaultInterceptors(
 ): WorkerInterceptors {
   return {
     activityInbound: [...(interceptors.activityInbound ?? []), (ctx) => new ActivityInboundLogInterceptor(ctx, logger)],
-    workflowModules: [...(interceptors.workflowModules ?? []), ...defaultWorflowInterceptorModules],
+    workflowModules: [...(interceptors.workflowModules ?? []), ...defaultWorkflowInterceptorModules],
   };
 }
 
