@@ -84,7 +84,7 @@ import {
 } from './worker-options';
 import { WorkflowCodecRunner } from './workflow-codec-runner';
 import { workflowLogAttributes } from './workflow-log-interceptor';
-import { defaultWorflowInterceptorModules, WorkflowCodeBundler } from './workflow/bundler';
+import { defaultWorkflowInterceptorModules, WorkflowCodeBundler } from './workflow/bundler';
 import { Workflow, WorkflowCreator } from './workflow/interface';
 import { ReusableVMWorkflowCreator } from './workflow/reusable-vm';
 import { ThreadedVMWorkflowCreator } from './workflow/threaded-vm';
@@ -643,7 +643,7 @@ export class Worker {
       }
       const modules = compiledOptions.interceptors?.workflowModules;
       // Warn if user tries to customize the default set of workflow interceptor modules
-      if (modules && new Set([...modules, ...defaultWorflowInterceptorModules]).size !== modules.length) {
+      if (modules && new Set([...modules, ...defaultWorkflowInterceptorModules]).size !== modules.length) {
         logger.warn(
           'Ignoring WorkerOptions.interceptors.workflowModules because WorkerOptions.workflowBundle is set.\n' +
             'To use workflow interceptors with a workflowBundle, pass them in the call to bundleWorkflowCode.'

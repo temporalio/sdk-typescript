@@ -23,7 +23,7 @@ export interface ReplayResult {
 }
 
 /**
- * An iterable on worflow histories and their IDs, used for batch replaying.
+ * An iterable on workflow histories and their IDs, used for batch replaying.
  *
  * @experimental - this API is not considered stable
  */

@@ -59,6 +59,10 @@ export {
 export {
   BundleOptions,
   bundleWorkflowCode,
-  defaultWorflowInterceptorModules,
+  defaultWorkflowInterceptorModules,
+  /**
+   * @deprecated Use `defaultWorkflowInterceptorModules` instead
+   */
+  defaultWorkflowInterceptorModules as defaultWorflowInterceptorModules,
   WorkflowBundleWithSourceMap,
 } from './workflow/bundler';
