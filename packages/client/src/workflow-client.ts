@@ -700,7 +700,14 @@ export class WorkflowClient extends BaseClient {
     };
     try {
       return (await this.workflowService.signalWithStartWorkflowExecution(req)).runId;
-    } catch (err) {
+    } catch (err: any) {
+      if (err.code === grpcStatus.ALREADY_EXISTS) {
+        throw new WorkflowExecutionAlreadyStartedError(
+          'Workflow execution already started',
+          options.workflowId,
+          workflowType
+        );
+      }
       this.rethrowGrpcError(err, 'Failed to signalWithStart Workflow', { workflowId: options.workflowId });
     }
   }
