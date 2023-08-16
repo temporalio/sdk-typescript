@@ -12,16 +12,14 @@ import {
   SignalDefinition,
   toPayloads,
   UntypedActivities,
-  VersioningIntent,
   WithWorkflowArgs,
   Workflow,
   WorkflowResultType,
   WorkflowReturnType,
 } from '@temporalio/common';
-import { assertNever } from '@temporalio/common/lib/type-helpers';
+import { versioningIntentToProto } from '@temporalio/common/lib/versioning-intent-enum';
 import { Duration, msOptionalToTs, msToNumber, msToTs, tsToMs } from '@temporalio/common/lib/time';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
-import { coresdk } from '@temporalio/proto';
 import { CancellationScope, registerSleepImplementation } from './cancellation-scope';
 import {
   ActivityInput,
@@ -1335,17 +1333,4 @@ function assertInWorkflowContext(message: string): Activator {
   const activator = maybeGetActivator();
   if (activator == null) throw new IllegalStateError(message);
   return activator;
-}
-
-function versioningIntentToProto(intent: VersioningIntent | undefined): coresdk.common.VersioningIntent {
-  switch (intent) {
-    case 'DEFAULT':
-      return coresdk.common.VersioningIntent.DEFAULT;
-    case 'COMPATIBLE':
-      return coresdk.common.VersioningIntent.COMPATIBLE;
-    case undefined:
-      return coresdk.common.VersioningIntent.UNSPECIFIED;
-    default:
-      assertNever('Unexpected VersioningIntent', intent);
-  }
 }

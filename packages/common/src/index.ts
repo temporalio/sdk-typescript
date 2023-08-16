@@ -20,7 +20,7 @@ export { Headers, Next } from './interceptors';
 export * from './interfaces';
 export * from './logger';
 export * from './retry-policy';
-export { type Timestamp, Duration, StringValue } from './time';
+export type { Timestamp, Duration, StringValue } from './time';
 export * from './workflow-handle';
 export * from './workflow-options';
 export * from './versioning-intent';
