@@ -704,7 +704,7 @@ export class WorkflowClient extends BaseClient {
       if (err.code === grpcStatus.ALREADY_EXISTS) {
         throw new WorkflowExecutionAlreadyStartedError(
           'Workflow execution already started',
-          opts.workflowId,
+          options.workflowId,
           workflowType
         );
       }
