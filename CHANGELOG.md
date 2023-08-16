@@ -2111,7 +2111,7 @@ Breaking changes marked with a :boom:
     `execute` methods
   - `WorkflowClient.signalWithStart` was added
   - To get a handle to an existing Workflow use `WorkflowClient.getHandle`
-  - `wf.createChildWorklowHandle` was renamed to `wf.startChild` and
+  - `wf.createChildWorkflowHandle` was renamed to `wf.startChild` and
     immediately starts the Workflow
   - `wf.executeChild` replaces `ChildWorkflowHandle.execute`
   - `wf.createExternalWorkflowHandle` was renamed to
