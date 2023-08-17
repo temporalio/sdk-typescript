@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 Breaking changes marked with a :boom:
 
+## [1.8.3] - 2023-08-16
+
+### Bug Fixes
+
+- [`workflow`] Remove accidental import of large protos into workflow library
+  ([#1203](https://github.com/temporalio/sdk-typescript/pull/1203)). This had
+  been causing significant memory usage increases on workflow workers since 1.8.1.
+- [`core`] Fix removal of deprecated patch call adjacent to other patch
+  ([#587](https://github.com/temporalio/sdk-core/pull/587))
+- [`client`] Throw `WorkflowExecutionAlreadyStartedError` on `signalWithStart`
+  ([#1199](https://github.com/temporalio/sdk-typescript/pull/1199) thanks to
+  [`@satazor`](https://github.com/satazor) 🙏)
+
 ## [1.8.2] - 2023-08-02
 
 ### Features
