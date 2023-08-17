@@ -86,6 +86,8 @@ export interface WorkerOptions {
    * {@link WorkerOptions.useVersioning}. It will also populate the `binaryChecksum` field
    * on older servers.
    *
+   * ℹ️ Required if {@link useVersioning} is `true`.
+   *
    * @default `@temporalio/worker` package name and version + checksum of workflow bundle's code
    *
    * @experimental
@@ -636,7 +638,16 @@ export function appendDefaultInterceptors(
 }
 
 export function addDefaultWorkerOptions(options: WorkerOptions): WorkerOptionsWithDefaults {
-  const { maxCachedWorkflows, showStackTraceSources, namespace, reuseV8Context, sinks, ...rest } = options;
+  const {
+    buildId,
+    useVersioning,
+    maxCachedWorkflows,
+    showStackTraceSources,
+    namespace,
+    reuseV8Context,
+    sinks,
+    ...rest
+  } = options;
   const debugMode = options.debugMode || isSet(process.env.TEMPORAL_DEBUG);
   const maxConcurrentWorkflowTaskExecutions = options.maxConcurrentWorkflowTaskExecutions ?? 40;
   const maxConcurrentActivityTaskExecutions = options.maxConcurrentActivityTaskExecutions ?? 100;
@@ -646,10 +657,15 @@ export function addDefaultWorkerOptions(options: WorkerOptions): WorkerOptionsWi
     ? Math.max(Math.floor((Math.max(heapSizeMiB - 200, 0) * 600) / 1024), 10)
     : Math.max(Math.floor((Math.max(heapSizeMiB - 400, 0) * 250) / 1024), 10);
 
+  if (useVersioning && !buildId) {
+    throw new TypeError('Must provide a buildId if useVersioning is true');
+  }
+
   return {
     namespace: namespace ?? 'default',
     identity: `${process.pid}@${os.hostname()}`,
-    useVersioning: options.useVersioning ?? false,
+    useVersioning: useVersioning ?? false,
+    buildId,
     shutdownGraceTime: 0,
     maxConcurrentLocalActivityExecutions: 100,
     enableNonLocalActivities: true,

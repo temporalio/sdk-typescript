@@ -1,9 +1,21 @@
 import test from 'ava';
 import { reachabilityResponseFromProto, UnversionedBuildId } from '@temporalio/client/lib/task-queue-client';
 import { temporal } from '@temporalio/proto';
+import { Worker } from '@temporalio/worker';
 
 const TaskReachability = temporal.api.enums.v1.TaskReachability;
 const GetWorkerTaskReachabilityResponse = temporal.api.workflowservice.v1.GetWorkerTaskReachabilityResponse;
+
+test('Worker.create fails if useVersioning is true and not provided a buildId', async (t) => {
+  const err = await t.throwsAsync(() =>
+    Worker.create({
+      taskQueue: 'foo',
+      useVersioning: true,
+    })
+  );
+  t.true(err instanceof TypeError);
+  t.is(err?.message, 'Must provide a buildId if useVersioning is true');
+});
 
 test('Worker versioning workers get appropriate tasks', async (t) => {
   const res = reachabilityResponseFromProto(
