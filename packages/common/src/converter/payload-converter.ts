@@ -268,7 +268,7 @@ export class SearchAttributePayloadConverter implements PayloadConverter {
       const firstValue = values[0];
       const firstType = typeof firstValue;
       if (firstType === 'object') {
-        for (const idx in values) {
+        for (const idx of values) {
           const value = values[idx];
           if (!(value instanceof Date)) {
             throw new ValueError(
@@ -281,7 +281,7 @@ export class SearchAttributePayloadConverter implements PayloadConverter {
           throw new ValueError(`SearchAttribute array values must be: string | number | boolean | Date`);
         }
 
-        for (const idx in values) {
+        for (const idx of values) {
           const value = values[idx];
           if (typeof value !== firstType) {
             throw new ValueError(
