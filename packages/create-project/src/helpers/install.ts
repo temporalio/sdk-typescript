@@ -62,7 +62,7 @@ export async function replaceSdkVersion({ root, sdkVersion }: InstallArgs): Prom
   const fileName = `${root}/package.json`;
 
   const packageJson = JSON.parse(await readFile(fileName, 'utf8'));
-  for (const packageName of packageJson.dependencies) {
+  for (const packageName in packageJson.dependencies) {
     if (packageName.startsWith('@temporalio/')) {
       packageJson.dependencies[packageName] = sdkVersion;
     }
