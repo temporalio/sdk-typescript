@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 Breaking changes marked with a :boom:
 
+## [1.8.4] - 2023-08-22
+
+### Bug Fixes
+
+- [`workflow`] Fix a particular case where `isReplaying` would be incorrectly `true` if a query came in right after a
+  cache eviction ([#1211](https://github.com/temporalio/sdk-typescript/pull/1211)). This could notably cause situations
+  where calls to sink functions not configured with `calledDuringReplay = true` would not be relayed, as well as
+  situations where `patched(...)` would return false even though this part of the code was being executed for the
+  first time.
+
+- [`workflow`] Avoid errors in Search Attributes Payload Converter if enumerable properties had been
+  added on `Array.prototype` ([#1209](https://github.com/temporalio/sdk-typescript/pull/1209)).
+
+- [`worker`] Validate `buildId` is set when `useVersioning` is true ([#1207](https://github.com/temporalio/sdk-typescript/pull/1207)).
+
 ## [1.8.3] - 2023-08-16
 
 ### Bug Fixes
@@ -11,8 +26,10 @@ Breaking changes marked with a :boom:
 - [`workflow`] Remove accidental import of large protos into workflow library
   ([#1203](https://github.com/temporalio/sdk-typescript/pull/1203)). This had
   been causing significant memory usage increases on workflow workers since 1.8.1.
+
 - [`core`] Fix removal of deprecated patch call adjacent to other patch
   ([#587](https://github.com/temporalio/sdk-core/pull/587))
+
 - [`client`] Throw `WorkflowExecutionAlreadyStartedError` on `signalWithStart`
   ([#1199](https://github.com/temporalio/sdk-typescript/pull/1199) thanks to
   [`@satazor`](https://github.com/satazor) 🙏)
