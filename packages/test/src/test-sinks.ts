@@ -111,6 +111,9 @@ if (RUN_INTEGRATION_TESTS) {
       await wf.result();
       return wf;
     });
+    // historySizeBytes changes in every run, e.g., due to variable encoding of process id
+    const expectedHistorySizeBytes = recordedCalls[0].info.historySizeBytes;
+    t.assert(typeof expectedHistorySizeBytes === 'number' && expectedHistorySizeBytes > 300);
     const info: WorkflowInfo = {
       namespace: 'default',
       firstExecutionRunId: wf.firstExecutionRunId,
@@ -133,6 +136,8 @@ if (RUN_INTEGRATION_TESTS) {
       parent: undefined,
       searchAttributes: {},
       historyLength: 3,
+      historySizeBytes: expectedHistorySizeBytes,
+      continueAsNewSuggested: false,
       startTime: dummyDate,
       runStartTime: dummyDate,
       // unsafe.now() doesn't make it through serialization, but .now is required, so we need to cast

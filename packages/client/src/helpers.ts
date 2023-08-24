@@ -59,6 +59,8 @@ export async function executionInfoFromRaw<T>(
     },
     // Safe to convert to number, max history length is 50k, which is much less than Number.MAX_SAFE_INTEGER
     historyLength: raw.historyLength!.toNumber(),
+    // Exact truncation for multi-petabyte histories
+    historySizeBytes: raw.historySizeBytes!.toNumber(),
     startTime: tsToDate(raw.startTime!),
     executionTime: optionalTsToDate(raw.executionTime),
     closeTime: optionalTsToDate(raw.closeTime),

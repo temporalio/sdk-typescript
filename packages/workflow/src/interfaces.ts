@@ -71,6 +71,23 @@ export interface WorkflowInfo {
   historyLength: number;
 
   /**
+   * Size of Workflow history in bytes until the current Workflow Task.
+   *
+   * This value changes during the lifetime of an Execution.
+   *
+   * You may safely use this information to decide when to {@link continueAsNew}.
+   */
+  historySizeBytes: number;
+
+  /**
+   * A hint provided by the last Workflow Task Started event recommending whether to
+   * {@link continueAsNew}.
+   *
+   * This value changes during the lifetime of an Execution.
+   */
+  continueAsNewSuggested: boolean;
+
+  /**
    * Task queue this Workflow is executing on
    */
   taskQueue: string;
