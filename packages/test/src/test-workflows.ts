@@ -113,7 +113,7 @@ async function createWorkflow(
       historyLength: 3,
       // Assuming 100 bytes per entry
       historySizeBytes: 300,
-      continueAsNewSuggested: workflowType === 'continueAsNewSuggested',
+      continueAsNewSuggested: false,
       unsafe: { isReplaying: false, now: Date.now },
       startTime: new Date(),
       runStartTime: new Date(),
@@ -358,7 +358,9 @@ test('successString', async (t) => {
 
 test('continueAsNewSuggested', async (t) => {
   const { workflowType } = t.context;
-  const req = await activate(t, makeStartWorkflow(workflowType));
+  const activation = makeStartWorkflow(workflowType);
+  activation.continueAsNewSuggested = true;
+  const req = await activate(t, activation);
   compareCompletion(t, req, makeSuccess([makeCompleteWorkflowExecution(defaultPayloadConverter.toPayload(true))]));
 });
 
