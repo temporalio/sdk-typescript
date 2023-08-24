@@ -10,6 +10,7 @@ import {
   METADATA_ENCODING_KEY,
   METADATA_MESSAGE_TYPE_KEY,
   PayloadConverterError,
+  SearchAttributePayloadConverter,
   UndefinedPayloadConverter,
   ValueError,
 } from '@temporalio/common';
@@ -169,6 +170,21 @@ test('ProtobufJSONPayloadConverter converts binary', (t) => {
 
   const testInstance = converter.fromPayload<root.BinaryMessage>(encoded!);
   t.deepEqual(testInstance.data, instance.data);
+});
+
+test(`SearchAttributePayloadConverter doesn't fail if Array.prototype contains enumerable properties`, (t) => {
+  try {
+    const converter = new SearchAttributePayloadConverter();
+    Object.defineProperty(Array.prototype, 'foo', {
+      configurable: true,
+      value: 123,
+      enumerable: true,
+    });
+    converter.toPayload(['test']);
+    t.pass();
+  } finally {
+    delete (Array.prototype as any).foo;
+  }
 });
 
 if (RUN_INTEGRATION_TESTS) {

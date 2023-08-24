@@ -30,6 +30,7 @@ export * from './condition-timeout-0';
 export * from './continue-as-new-same-workflow';
 export * from './continue-as-new-suggested';
 export * from './continue-as-new-to-different-workflow';
+export * from './core-issue-589';
 export * from './date';
 export * from './deferred-resolve';
 export * from './definitions';

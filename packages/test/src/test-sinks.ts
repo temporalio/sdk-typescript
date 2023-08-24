@@ -8,6 +8,7 @@ import {
   Runtime,
   LoggerSinks as DefaultLoggerSinks,
   InjectedSinkFunction,
+  WorkerOptions,
 } from '@temporalio/worker';
 import { SearchAttributes, WorkflowInfo } from '@temporalio/workflow';
 import { UnsafeWorkflowInfo } from '@temporalio/workflow/src/interfaces';
@@ -408,6 +409,58 @@ if (RUN_INTEGRATION_TESTS) {
           CustomDatetimeField: [date],
           CustomDoubleField: [3.14],
         },
+      },
+    ]);
+  });
+
+  test('Core issue 589', async (t) => {
+    const taskQueue = `${__filename}-${t.title}`;
+
+    const recordedMessages = Array<{ message: string; historyLength: number; isReplaying: boolean }>();
+    const sinks: InjectedSinks<workflows.CustomLoggerSinks> = {
+      customLogger: {
+        info: {
+          fn: async (info, message) => {
+            recordedMessages.push({
+              message,
+              historyLength: info.historyLength,
+              isReplaying: info.unsafe.isReplaying,
+            });
+          },
+          callDuringReplay: true,
+        },
+      },
+    };
+
+    const client = new WorkflowClient();
+    const handle = await client.start(workflows.coreIssue589, { taskQueue, workflowId: uuid4() });
+
+    const workerOptions: WorkerOptions = {
+      ...defaultOptions,
+      taskQueue,
+      sinks,
+      maxCachedWorkflows: 2,
+      maxConcurrentWorkflowTaskExecutions: 2,
+
+      // Cut down on execution time
+      stickyQueueScheduleToStartTimeout: 1,
+    };
+
+    await (await Worker.create(workerOptions)).runUntil(new Promise((resolve) => setTimeout(resolve, 1000)));
+    await (
+      await Worker.create(workerOptions)
+    ).runUntil(async () => {
+      await handle.query('q').catch(() => undefined);
+      await handle.signal(workflows.unblockSignal);
+      await handle.result();
+    });
+
+    const checkpointEntries = recordedMessages.filter((m) => m.message.startsWith('Checkpoint'));
+    t.deepEqual(checkpointEntries, [
+      {
+        message: 'Checkpoint, replaying: false, hl: 8',
+        historyLength: 8,
+        isReplaying: false,
       },
     ]);
   });
