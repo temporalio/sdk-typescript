@@ -80,7 +80,7 @@ export interface WorkflowInfo {
   historySizeBytes: number;
 
   /**
-   * A hint provided by the last Workflow Task Started event recommending whether to
+   * A hint provided by the current WorkflowTaskStarted event recommending whether to
    * {@link continueAsNew}.
    *
    * This value changes during the lifetime of an Execution.

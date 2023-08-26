@@ -230,6 +230,40 @@ test('HistorySizeBytes grows with new WFT', async (t) => {
   t.assert(after > before && before > 100);
 });
 
+test('HistorySizeBytes is visible in WorkflowExecutionInfo', async (t) => {
+  const { createWorker, startWorkflow } = helpers(t);
+  const worker = await createWorker();
+  const handle = await startWorkflow(historySizeBytesGrows);
+
+  await worker.runUntil(handle.result());
+  const historySizeBytes = (await handle.describe()).historySizeBytes;
+  t.assert(historySizeBytes > 100);
+});
+
+export async function suggestedCAN(): Promise<boolean> {
+  const MAX_EVENTS = 40_000;
+  const BATCH_SIZE = 100;
+  const EVENTS_PER_COMMAND = 2;
+  for (let i = 0; i < MAX_EVENTS / (BATCH_SIZE * EVENTS_PER_COMMAND); i++) {
+    const batch: Promise<void>[] = [];
+    for (let j = 0; j < BATCH_SIZE; j++) {
+      batch.push(workflow.sleep(1));
+    }
+    await Promise.all(batch);
+    if (workflow.workflowInfo().continueAsNewSuggested) {
+      return true;
+    }
+  }
+  return false;
+}
+
+test('ContinueAsNew is suggested', async (t) => {
+  const { createWorker, executeWorkflow } = helpers(t);
+  const worker = await createWorker();
+  const flaggedCAN = await worker.runUntil(executeWorkflow(suggestedCAN));
+  t.assert(flaggedCAN);
+});
+
 test('Activity initialInterval is not getting rounded', async (t) => {
   const { createWorker, startWorkflow } = helpers(t);
   const worker = await createWorker({
