@@ -243,13 +243,8 @@ test('HistorySizeBytes is visible in WorkflowExecutionInfo', async (t) => {
 export async function suggestedCAN(): Promise<boolean> {
   const MAX_EVENTS = 40_000;
   const BATCH_SIZE = 100;
-  const EVENTS_PER_COMMAND = 2;
-  for (let i = 0; i < MAX_EVENTS / (BATCH_SIZE * EVENTS_PER_COMMAND); i++) {
-    const batch: Promise<void>[] = [];
-    for (let j = 0; j < BATCH_SIZE; j++) {
-      batch.push(workflow.sleep(1));
-    }
-    await Promise.all(batch);
+  while (workflow.workflowInfo().historyLength < MAX_EVENTS) {
+    await Promise.all(new Array(BATCH_SIZE).fill(undefined).map((_) => workflow.sleep(1)));
     if (workflow.workflowInfo().continueAsNewSuggested) {
       return true;
     }

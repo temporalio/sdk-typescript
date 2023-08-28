@@ -111,7 +111,6 @@ async function createWorkflow(
       taskQueue: 'test',
       searchAttributes: {},
       historyLength: 3,
-      // Assuming 100 bytes per entry
       historySizeBytes: 300,
       continueAsNewSuggested: false,
       unsafe: { isReplaying: false, now: Date.now },
