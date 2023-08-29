@@ -237,7 +237,7 @@ test('HistorySizeBytes is visible in WorkflowExecutionInfo', async (t) => {
 
   await worker.runUntil(handle.result());
   const historySizeBytes = (await handle.describe()).historySizeBytes;
-  t.assert(historySizeBytes > 100);
+  t.assert(historySizeBytes && historySizeBytes > 100);
 });
 
 export async function suggestedCAN(): Promise<boolean> {

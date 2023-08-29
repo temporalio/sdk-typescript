@@ -186,21 +186,17 @@ export function activate(activation: coresdk.workflow_activation.WorkflowActivat
         // timestamp will not be updated for activation that contain only queries
         activator.now = tsToMs(activation.timestamp);
       }
-      if (activation.historyLength == null) {
-        throw new TypeError('Got activation with no historyLength');
-      }
-      if (activation.historySizeBytes == null) {
-        throw new TypeError('Got activation with no historySizeBytes');
-      }
-      if (activation.continueAsNewSuggested == null) {
-        throw new TypeError('Got activation with no continueAsNewSuggested');
-      }
 
-      activator.info.unsafe.isReplaying = activation.isReplaying ?? false;
-      activator.info.historyLength = activation.historyLength;
+      // The Rust Core ensures that these activation fields are not null
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      activator.info.unsafe.isReplaying = activation.isReplaying!;
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      activator.info.historyLength = activation.historyLength!;
       // Exact truncation for multi-petabyte histories
-      activator.info.historySizeBytes = activation.historySizeBytes.toNumber();
-      activator.info.continueAsNewSuggested = activation.continueAsNewSuggested;
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      activator.info.historySizeBytes = activation.historySizeBytes!.toNumber();
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      activator.info.continueAsNewSuggested = activation.continueAsNewSuggested!;
     }
 
     // Cast from the interface to the class which has the `variant` attribute.

@@ -66,6 +66,8 @@ export interface WorkflowInfo {
    *
    * This value changes during the lifetime of an Execution.
    *
+   * When this value is zero the history length is unknown.
+   *
    * You may safely use this information to decide when to {@link continueAsNew}.
    */
   historyLength: number;
@@ -74,6 +76,8 @@ export interface WorkflowInfo {
    * Size of Workflow history in bytes until the current Workflow Task.
    *
    * This value changes during the lifetime of an Execution.
+   *
+   * When this value is zero the history size is unknown.
    *
    * You may safely use this information to decide when to {@link continueAsNew}.
    */
@@ -84,6 +88,8 @@ export interface WorkflowInfo {
    * {@link continueAsNew}.
    *
    * This value changes during the lifetime of an Execution.
+   *
+   * When it is not supported by the server it defaults to `false`.
    */
   continueAsNewSuggested: boolean;
 
