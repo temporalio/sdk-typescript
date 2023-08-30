@@ -1,3 +1,5 @@
+// eslint-disable-next-line import/no-named-as-default
+import Long from 'long';
 import { ServiceError as GrpcServiceError } from '@grpc/grpc-js';
 import {
   LoadedDataConverter,
