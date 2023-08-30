@@ -194,7 +194,9 @@ export function activate(activation: coresdk.workflow_activation.WorkflowActivat
       activator.info.historyLength = activation.historyLength!;
       // Exact truncation for multi-petabyte histories
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      activator.info.historySizeBytes = activation.historySizeBytes!.toNumber();
+      const historySizeBytes = activation.historySizeBytes!.toNumber();
+      // A zero value means that it was not set by the server
+      activator.info.historySizeBytes = historySizeBytes ? historySizeBytes : undefined;
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
       activator.info.continueAsNewSuggested = activation.continueAsNewSuggested!;
     }

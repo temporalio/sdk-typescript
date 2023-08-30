@@ -1157,6 +1157,8 @@ export class Worker {
                         searchAttributes,
                       } = startWorkflow;
 
+                      // Exact truncation for multi-petabyte histories
+                      const historySizeBytes = activation.historySizeBytes.toNumber();
                       const workflowInfo: WorkflowInfo = {
                         workflowId,
                         runId: activation.runId,
@@ -1193,8 +1195,8 @@ export class Worker {
                         // 0 is the default, and not a valid value, since crons are at least a minute apart
                         cronScheduleToScheduleInterval: optionalTsToMs(cronScheduleToScheduleInterval) || undefined,
                         historyLength: activation.historyLength,
-                        // Exact truncation for multi-petabyte histories
-                        historySizeBytes: activation.historySizeBytes.toNumber(),
+                        // A zero value means that it was not set by the server
+                        historySizeBytes: historySizeBytes ? historySizeBytes : undefined,
                         continueAsNewSuggested: activation.continueAsNewSuggested,
                         unsafe: {
                           now: () => Date.now(), // re-set in initRuntime

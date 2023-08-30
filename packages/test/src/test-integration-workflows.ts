@@ -216,7 +216,7 @@ test('Condition 0 patch sets a timer', async (t) => {
   t.false(await worker.runUntil(executeWorkflow(conditionTimeout0)));
 });
 
-export async function historySizeBytesGrows(): Promise<[number, number]> {
+export async function historySizeBytesGrows(): Promise<[number | undefined, number | undefined]> {
   const before = workflow.workflowInfo().historySizeBytes;
   await workflow.sleep(1);
   const after = workflow.workflowInfo().historySizeBytes;
@@ -227,7 +227,7 @@ test('HistorySizeBytes grows with new WFT', async (t) => {
   const { createWorker, executeWorkflow } = helpers(t);
   const worker = await createWorker();
   const [before, after] = await worker.runUntil(executeWorkflow(historySizeBytesGrows));
-  t.assert(after > before && before > 100);
+  t.assert(after && before && after > before && before > 100);
 });
 
 test('HistorySizeBytes is visible in WorkflowExecutionInfo', async (t) => {

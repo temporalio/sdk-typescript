@@ -77,11 +77,11 @@ export interface WorkflowInfo {
    *
    * This value changes during the lifetime of an Execution.
    *
-   * When this value is zero the history size is unknown.
+   * This value is only available in server versions > 1.20
    *
    * You may safely use this information to decide when to {@link continueAsNew}.
    */
-  historySizeBytes: number;
+  historySizeBytes?: number;
 
   /**
    * A hint provided by the current WorkflowTaskStarted event recommending whether to
