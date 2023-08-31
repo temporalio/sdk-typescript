@@ -695,9 +695,9 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
       workflowType: 'returnWorkflowInfo',
       workflowId,
       historyLength: 3,
-      // historySizeBytes changes in every run, e.g., due to variable encoding of process id
-      historySizeBytes: result.historySizeBytes,
       continueAsNewSuggested: false,
+      // values ignored for the purpose of comparison
+      historySizeBytes: result.historySizeBytes,
       startTime: result.startTime,
       runStartTime: result.runStartTime,
       // unsafe.now is a function, so doesn't make it through serialization, but .now is required, so we need to cast

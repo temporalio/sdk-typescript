@@ -1,5 +1,4 @@
-// eslint-disable-next-line import/no-named-as-default
-import Long from 'long';
+import Long from 'long'; // eslint-disable-line import/no-named-as-default
 import ms, { StringValue } from 'ms';
 import type { google } from '@temporalio/proto';
 import { ValueError } from './errors';

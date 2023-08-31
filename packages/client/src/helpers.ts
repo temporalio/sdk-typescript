@@ -1,5 +1,3 @@
-// eslint-disable-next-line import/no-named-as-default
-import Long from 'long';
 import { ServiceError as GrpcServiceError } from '@grpc/grpc-js';
 import {
   LoadedDataConverter,
@@ -49,9 +47,6 @@ export async function executionInfoFromRaw<T>(
   dataConverter: LoadedDataConverter,
   rawDataToEmbed: T
 ): Promise<Replace<WorkflowExecutionInfo, { raw: T }>> {
-  const optionalLongToNumber = (x: Long | null | undefined): number | undefined =>
-    x === undefined || x === null ? undefined : x.toNumber();
-
   return {
     /* eslint-disable @typescript-eslint/no-non-null-assertion */
     type: raw.type!.name!,
@@ -65,7 +60,7 @@ export async function executionInfoFromRaw<T>(
     // Safe to convert to number, max history length is 50k, which is much less than Number.MAX_SAFE_INTEGER
     historyLength: raw.historyLength!.toNumber(),
     // Exact truncation for multi-petabyte histories
-    historySizeBytes: optionalLongToNumber(raw.historySizeBytes),
+    historySizeBytes: raw.historySizeBytes?.toNumber() || undefined,
     startTime: tsToDate(raw.startTime!),
     executionTime: optionalTsToDate(raw.executionTime),
     closeTime: optionalTsToDate(raw.closeTime),

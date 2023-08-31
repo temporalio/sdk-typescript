@@ -66,8 +66,6 @@ export interface WorkflowInfo {
    *
    * This value changes during the lifetime of an Execution.
    *
-   * When this value is zero the history length is unknown.
-   *
    * You may safely use this information to decide when to {@link continueAsNew}.
    */
   historyLength: number;
