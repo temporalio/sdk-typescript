@@ -87,7 +87,7 @@ export interface WorkflowInfo {
    *
    * This value changes during the lifetime of an Execution.
    *
-   * When it is not supported by the server it defaults to `false`.
+   * Supported only on Temporal Server 1.20+, always `false` on older servers.
    */
   continueAsNewSuggested: boolean;
 
