@@ -40,7 +40,6 @@ export interface WorkflowExecutionInfo {
 ￼   * Size of Workflow history in bytes.
 ￼   *
 ￼   * This value is only available in server versions >= 1.20
-￼   *
 ￼   */
   historySize?: number;
   startTime: Date;
