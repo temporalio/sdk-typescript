@@ -37,11 +37,9 @@ export interface WorkflowExecutionInfo {
   status: { code: proto.temporal.api.enums.v1.WorkflowExecutionStatus; name: WorkflowExecutionStatusName };
   historyLength: number;
   /**
-￼   * Size of Workflow history in bytes until the current Workflow Task.
+￼   * Size of Workflow history in bytes.
 ￼   *
-￼   * This value changes during the lifetime of an Execution.
-￼   *
-￼   * This value is only available in server versions > 1.20
+￼   * This value is only available in server versions >= 1.20
 ￼   *
 ￼   */
   historySize?: number;
