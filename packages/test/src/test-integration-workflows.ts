@@ -216,28 +216,28 @@ test('Condition 0 patch sets a timer', async (t) => {
   t.false(await worker.runUntil(executeWorkflow(conditionTimeout0)));
 });
 
-export async function historySizeBytesGrows(): Promise<[number | undefined, number | undefined]> {
-  const before = workflow.workflowInfo().historySizeBytes;
+export async function historySizeGrows(): Promise<[number, number]> {
+  const before = workflow.workflowInfo().historySize;
   await workflow.sleep(1);
-  const after = workflow.workflowInfo().historySizeBytes;
+  const after = workflow.workflowInfo().historySize;
   return [before, after];
 }
 
-test('HistorySizeBytes grows with new WFT', async (t) => {
+test('HistorySize grows with new WFT', async (t) => {
   const { createWorker, executeWorkflow } = helpers(t);
   const worker = await createWorker();
-  const [before, after] = await worker.runUntil(executeWorkflow(historySizeBytesGrows));
-  t.true(after && before && after > before && before > 100);
+  const [before, after] = await worker.runUntil(executeWorkflow(historySizeGrows));
+  t.true(after > before && before > 100);
 });
 
-test('HistorySizeBytes is visible in WorkflowExecutionInfo', async (t) => {
+test('HistorySize is visible in WorkflowExecutionInfo', async (t) => {
   const { createWorker, startWorkflow } = helpers(t);
   const worker = await createWorker();
-  const handle = await startWorkflow(historySizeBytesGrows);
+  const handle = await startWorkflow(historySizeGrows);
 
   await worker.runUntil(handle.result());
-  const historySizeBytes = (await handle.describe()).historySizeBytes;
-  t.true(historySizeBytes && historySizeBytes > 100);
+  const historySize = (await handle.describe()).historySize;
+  t.true(historySize && historySize > 100);
 });
 
 export async function suggestedCAN(): Promise<boolean> {

@@ -75,11 +75,11 @@ export interface WorkflowInfo {
    *
    * This value changes during the lifetime of an Execution.
    *
-   * This value is only available in server versions > 1.20
+   * Supported only on Temporal Server 1.20+, always zero on older servers.
    *
    * You may safely use this information to decide when to {@link continueAsNew}.
    */
-  historySizeBytes?: number;
+  historySize: number;
 
   /**
    * A hint provided by the current WorkflowTaskStarted event recommending whether to

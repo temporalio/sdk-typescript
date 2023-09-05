@@ -109,8 +109,8 @@ if (RUN_INTEGRATION_TESTS) {
     });
 
     // Capture volatile values that are hard to predict
-    const { historySizeBytes, startTime, runStartTime } = recordedCalls[0].info;
-    t.assert(typeof historySizeBytes === 'number' && historySizeBytes > 300);
+    const { historySize, startTime, runStartTime } = recordedCalls[0].info;
+    t.true(historySize > 300);
 
     const info: WorkflowInfo = {
       namespace: 'default',
@@ -136,7 +136,7 @@ if (RUN_INTEGRATION_TESTS) {
       historyLength: 3,
       continueAsNewSuggested: false,
       // values ignored for the purpose of comparison
-      historySizeBytes,
+      historySize,
       startTime,
       runStartTime,
       // unsafe.now() doesn't make it through serialization, but .now is required, so we need to cast
