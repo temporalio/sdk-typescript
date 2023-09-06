@@ -216,6 +216,52 @@ test('Condition 0 patch sets a timer', async (t) => {
   t.false(await worker.runUntil(executeWorkflow(conditionTimeout0)));
 });
 
+export async function historySizeGrows(): Promise<[number, number]> {
+  const before = workflow.workflowInfo().historySize;
+  await workflow.sleep(1);
+  const after = workflow.workflowInfo().historySize;
+  return [before, after];
+}
+
+test('HistorySize grows with new WFT', async (t) => {
+  const { createWorker, executeWorkflow } = helpers(t);
+  const worker = await createWorker();
+  const [before, after] = await worker.runUntil(executeWorkflow(historySizeGrows));
+  t.true(after > before && before > 100);
+});
+
+test('HistorySize is visible in WorkflowExecutionInfo', async (t) => {
+  const { createWorker, startWorkflow } = helpers(t);
+  const worker = await createWorker();
+  const handle = await startWorkflow(historySizeGrows);
+
+  await worker.runUntil(handle.result());
+  const historySize = (await handle.describe()).historySize;
+  t.true(historySize && historySize > 100);
+});
+
+export async function suggestedCAN(): Promise<boolean> {
+  const maxEvents = 40_000;
+  const batchSize = 100;
+  if (workflow.workflowInfo().continueAsNewSuggested) {
+    return false;
+  }
+  while (workflow.workflowInfo().historyLength < maxEvents) {
+    await Promise.all(new Array(batchSize).fill(undefined).map((_) => workflow.sleep(1)));
+    if (workflow.workflowInfo().continueAsNewSuggested) {
+      return true;
+    }
+  }
+  return false;
+}
+
+test('ContinueAsNew is suggested', async (t) => {
+  const { createWorker, executeWorkflow } = helpers(t);
+  const worker = await createWorker();
+  const flaggedCAN = await worker.runUntil(executeWorkflow(suggestedCAN));
+  t.true(flaggedCAN);
+});
+
 test('Activity initialInterval is not getting rounded', async (t) => {
   const { createWorker, startWorkflow } = helpers(t);
   const worker = await createWorker({

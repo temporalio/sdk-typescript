@@ -111,6 +111,8 @@ async function createWorkflow(
       taskQueue: 'test',
       searchAttributes: {},
       historyLength: 3,
+      historySize: 300,
+      continueAsNewSuggested: false,
       unsafe: { isReplaying: false, now: Date.now },
       startTime: new Date(),
       runStartTime: new Date(),
@@ -351,6 +353,14 @@ test('successString', async (t) => {
   const { workflowType } = t.context;
   const req = await activate(t, makeStartWorkflow(workflowType));
   compareCompletion(t, req, makeSuccess([makeCompleteWorkflowExecution(defaultPayloadConverter.toPayload('success'))]));
+});
+
+test('continueAsNewSuggested', async (t) => {
+  const { workflowType } = t.context;
+  const activation = makeStartWorkflow(workflowType);
+  activation.continueAsNewSuggested = true;
+  const req = await activate(t, activation);
+  compareCompletion(t, req, makeSuccess([makeCompleteWorkflowExecution(defaultPayloadConverter.toPayload(true))]));
 });
 
 function cleanWorkflowFailureStackTrace(

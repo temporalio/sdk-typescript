@@ -55,14 +55,9 @@ if (RUN_INTEGRATION_TESTS) {
       fn: string;
     }
 
-    const dummyDate = new Date(2000, 1, 0, 0, 0, 0);
     function fixWorkflowInfoDates(input: WorkflowInfo): WorkflowInfo {
       delete (input.unsafe as any).now;
-      return {
-        ...input,
-        startTime: dummyDate,
-        runStartTime: dummyDate,
-      };
+      return input;
     }
 
     const recordedCalls: RecordedCall[] = [];
@@ -112,6 +107,11 @@ if (RUN_INTEGRATION_TESTS) {
       await wf.result();
       return wf;
     });
+
+    // Capture volatile values that are hard to predict
+    const { historySize, startTime, runStartTime } = recordedCalls[0].info;
+    t.true(historySize > 300);
+
     const info: WorkflowInfo = {
       namespace: 'default',
       firstExecutionRunId: wf.firstExecutionRunId,
@@ -134,8 +134,11 @@ if (RUN_INTEGRATION_TESTS) {
       parent: undefined,
       searchAttributes: {},
       historyLength: 3,
-      startTime: dummyDate,
-      runStartTime: dummyDate,
+      continueAsNewSuggested: false,
+      // values ignored for the purpose of comparison
+      historySize,
+      startTime,
+      runStartTime,
       // unsafe.now() doesn't make it through serialization, but .now is required, so we need to cast
       unsafe: {
         isReplaying: false,

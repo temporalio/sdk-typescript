@@ -71,6 +71,27 @@ export interface WorkflowInfo {
   historyLength: number;
 
   /**
+   * Size of Workflow history in bytes until the current Workflow Task.
+   *
+   * This value changes during the lifetime of an Execution.
+   *
+   * Supported only on Temporal Server 1.20+, always zero on older servers.
+   *
+   * You may safely use this information to decide when to {@link continueAsNew}.
+   */
+  historySize: number;
+
+  /**
+   * A hint provided by the current WorkflowTaskStarted event recommending whether to
+   * {@link continueAsNew}.
+   *
+   * This value changes during the lifetime of an Execution.
+   *
+   * Supported only on Temporal Server 1.20+, always `false` on older servers.
+   */
+  continueAsNewSuggested: boolean;
+
+  /**
    * Task queue this Workflow is executing on
    */
   taskQueue: string;

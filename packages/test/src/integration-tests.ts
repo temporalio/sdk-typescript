@@ -680,6 +680,7 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
       },
     });
     const result = await workflow.result();
+    t.assert(result.historySize > 300);
     t.deepEqual(result, {
       memo: {
         nested: { object: true },
@@ -694,6 +695,9 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
       workflowType: 'returnWorkflowInfo',
       workflowId,
       historyLength: 3,
+      continueAsNewSuggested: false,
+      // values ignored for the purpose of comparison
+      historySize: result.historySize,
       startTime: result.startTime,
       runStartTime: result.runStartTime,
       // unsafe.now is a function, so doesn't make it through serialization, but .now is required, so we need to cast

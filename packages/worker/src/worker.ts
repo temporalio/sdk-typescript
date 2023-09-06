@@ -1193,6 +1193,10 @@ export class Worker {
                         // 0 is the default, and not a valid value, since crons are at least a minute apart
                         cronScheduleToScheduleInterval: optionalTsToMs(cronScheduleToScheduleInterval) || undefined,
                         historyLength: activation.historyLength,
+                        // Exact truncation for multi-petabyte histories
+                        // A zero value means that it was not set by the server
+                        historySize: activation.historySizeBytes.toNumber(),
+                        continueAsNewSuggested: activation.continueAsNewSuggested,
                         unsafe: {
                           now: () => Date.now(), // re-set in initRuntime
                           isReplaying: activation.isReplaying,
