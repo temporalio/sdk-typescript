@@ -145,8 +145,6 @@ export interface WorkflowClientInterceptors {
 
 /**
  * Implement any of these methods to intercept ScheduleClient outbound calls
- *
- * @experimental
  */
 export interface ScheduleClientInterceptor {
   /**
@@ -157,8 +155,6 @@ export interface ScheduleClientInterceptor {
 
 /**
  * Input for {@link ScheduleClientInterceptor.create}
- *
- * @experimental
  */
 export interface CreateScheduleInput {
   readonly headers: Headers;
@@ -178,8 +174,5 @@ export interface ClientInterceptors {
   // eslint-disable-next-line deprecation/deprecation
   workflow?: WorkflowClientInterceptors | WorkflowClientInterceptor[];
 
-  /**
-   * @experimental
-   */
   schedule?: ScheduleClientInterceptor[];
 }

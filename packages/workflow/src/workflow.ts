@@ -546,8 +546,6 @@ export function proxyActivities<A = UntypedActivities>(options: ActivityOptions)
  * @return a {@link https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Proxy | Proxy}
  *         for which each attribute is a callable Activity function
  *
- * @experimental
- *
  * @see {@link proxyActivities} for examples
  */
 export function proxyLocalActivities<A = UntypedActivities>(options: LocalActivityOptions): ActivityInterfaceFor<A> {

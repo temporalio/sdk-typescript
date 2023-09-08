@@ -195,8 +195,6 @@ export interface DisposeInput {}
  * Interceptor for the internals of the Workflow runtime.
  *
  * Use to manipulate or trace Workflow activations.
- *
- * @experimental
  */
 export interface WorkflowInternalsInterceptor {
   /**
