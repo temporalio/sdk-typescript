@@ -444,11 +444,14 @@ if (RUN_INTEGRATION_TESTS) {
       stickyQueueScheduleToStartTimeout: 1,
     };
 
-    await (await Worker.create(workerOptions)).runUntil(new Promise((resolve) => setTimeout(resolve, 1000)));
+    // Start the first worker and wait for the first task to complete before shutdown that worker
+    await (await Worker.create(workerOptions)).runUntil(handle.query('q'));
+
+    // Start the second worker
     await (
       await Worker.create(workerOptions)
     ).runUntil(async () => {
-      await handle.query('q').catch(() => undefined);
+      await handle.query('q');
       await handle.signal(workflows.unblockSignal);
       await handle.result();
     });

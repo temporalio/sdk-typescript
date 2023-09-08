@@ -573,7 +573,7 @@ export function proxyLocalActivities<A = UntypedActivities>(options: LocalActivi
 
 // TODO: deprecate this patch after "enough" time has passed
 const EXTERNAL_WF_CANCEL_PATCH = '__temporal_internal_connect_external_handle_cancel_to_scope';
-// This generic name of this patch comes from an attempt to build a generic internal patching mechanism.
+// The name of this patch comes from an attempt to build a generic internal patching mechanism.
 // That effort has been abandoned in favor of a newer WorkflowTaskCompletedMetadata based mechanism.
 const CONDITION_0_PATCH = '__sdk_internal_patch_number:1';
 
