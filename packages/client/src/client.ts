@@ -43,8 +43,6 @@ export class Client extends BaseClient {
   public readonly activity: AsyncCompletionClient;
   /**
    * Schedule sub-client - use to start and interact with Schedules
-   *
-   * @experimental
    */
   public readonly schedule: ScheduleClient;
   /**

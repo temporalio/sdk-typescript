@@ -5,8 +5,6 @@ import { WorkflowStartOptions } from './workflow-options';
 
 /**
  * The specification of a Schedule to be created, as expected by {@link ScheduleClient.create}.
- *
- * @experimental
  */
 export interface ScheduleOptions<A extends ScheduleOptionsAction = ScheduleOptionsAction> {
   /**
@@ -119,7 +117,6 @@ export interface ScheduleOptions<A extends ScheduleOptionsAction = ScheduleOptio
   };
 }
 
-/** @experimental */
 export type CompiledScheduleOptions = Replace<
   ScheduleOptions,
   {
@@ -129,8 +126,6 @@ export type CompiledScheduleOptions = Replace<
 
 /**
  * The specification of an updated Schedule, as expected by {@link ScheduleHandle.update}.
- *
- * @experimental
  */
 export type ScheduleUpdateOptions<A extends ScheduleOptionsAction = ScheduleOptionsAction> = Replace<
   Omit<ScheduleOptions, 'scheduleId' | 'memo' | 'searchAttributes'>,
@@ -140,7 +135,6 @@ export type ScheduleUpdateOptions<A extends ScheduleOptionsAction = ScheduleOpti
   }
 >;
 
-/** @experimental */
 export type CompiledScheduleUpdateOptions = Replace<
   ScheduleUpdateOptions,
   {
@@ -153,8 +147,6 @@ export type CompiledScheduleUpdateOptions = Replace<
  *
  * Note that schedule listing is eventual consistent; some returned properties may therefore
  * be undefined or incorrect for some time after creating or modifying a schedule.
- *
- * @experimental
  */
 export interface ScheduleSummary {
   /**
@@ -212,7 +204,6 @@ export interface ScheduleSummary {
   };
 }
 
-/** @experimental */
 export interface ScheduleExecutionResult {
   /** Time that the Action was scheduled for, including jitter */
   scheduledAt: Date;
@@ -224,10 +215,8 @@ export interface ScheduleExecutionResult {
   action: ScheduleExecutionActionResult;
 }
 
-/** @experimental */
 export type ScheduleExecutionActionResult = ScheduleExecutionStartWorkflowActionResult;
 
-/** @experimental */
 export interface ScheduleExecutionStartWorkflowActionResult {
   type: 'startWorkflow';
   workflow: {
@@ -243,8 +232,6 @@ export interface ScheduleExecutionStartWorkflowActionResult {
 
 /**
  * A detailed description of an exisiting Schedule, as returned by {@link ScheduleHandle.describe}.
- *
- * @experimental
  */
 export type ScheduleDescription = {
   /**
@@ -378,8 +365,6 @@ checkExtends<ScheduleUpdateOptions, ScheduleDescription>();
  * The times are the union of `calendars`, `intervals`, and `cronExpressions`, minus the `skip` times. These times
  * never change, except that the definition of a time zone can change over time (most commonly, when daylight saving
  * time policy changes for an area). To create a totally self-contained `ScheduleSpec`, use UTC.
- *
- * @experimental
  */
 export interface ScheduleSpec {
   /** Calendar-based specifications of times. */
@@ -483,8 +468,6 @@ export interface ScheduleSpec {
 
 /**
  * The version of {@link ScheduleSpec} that you get back from {@link ScheduleHandle.describe} and {@link ScheduleClient.list}
- *
- * @experimental
  */
 export type ScheduleSpecDescription = Omit<
   ScheduleSpec,
@@ -515,8 +498,6 @@ checkExtends<ScheduleSpec, ScheduleSpecDescription>();
  * An event specification relative to the calendar, similar to a traditional cron specification.
  *
  * A second in time matches if all fields match. This includes `dayOfMonth` and `dayOfWeek`.
- *
- * @experimental
  */
 export interface CalendarSpec {
   /**
@@ -574,8 +555,6 @@ export interface CalendarSpec {
  * An event specification relative to the calendar, similar to a traditional cron specification.
  *
  * A second in time matches if all fields match. This includes `dayOfMonth` and `dayOfWeek`.
- *
- * @experimental
  */
 export interface CalendarSpecDescription {
   /**
@@ -644,8 +623,6 @@ export interface CalendarSpecDescription {
  * of 19 minutes would match every `xx:19:00`. An `every` of 28 days with `offset` zero would match `2022-02-17T00:00:00Z`
  * (among other times). The same `every` with `offset` of 3 days, 5 hours, and 23 minutes would match `2022-02-20T05:23:00Z`
  * instead.
- *
- * @experimental
  */
 export interface IntervalSpec {
   /**
@@ -677,8 +654,6 @@ export interface IntervalSpec {
  * instead.
  *
  * This is the version of {@link IntervalSpec} that you get back from {@link ScheduleHandle.describe} and {@link ScheduleClient.list}
- *
- * @experimental
  */
 export interface IntervalSpecDescription {
   /**
@@ -699,8 +674,6 @@ export interface IntervalSpecDescription {
 /**
  * Range represents a set of values, used to match fields of a calendar. If end < start, then end is
  * interpreted as equal to start. Similarly, if step is less than 1, then step is interpreted as 1.
- *
- * @experimental
  */
 export interface Range<Unit> {
   /**
@@ -733,15 +706,12 @@ export interface Range<Unit> {
  * { start: 2, end: 4 } ➡️ 2, 3, 4
  * { start: 2, end: 10, step: 3 } ➡️ 2, 5, 8
  * ```
- *
- * @experimental
  */
 export type LooseRange<Unit> =
   | Range<Unit>
   | { start: Range<Unit>['start']; end?: Range<Unit>['end']; step?: never }
   | Unit;
 
-/** @experimental */
 export const MONTHS = [
   'JANUARY',
   'FEBRUARY',
@@ -757,19 +727,14 @@ export const MONTHS = [
   'DECEMBER',
 ] as const;
 
-/** @experimental */
 export type Month = (typeof MONTHS)[number];
 
-/** @experimental */
 export const DAYS_OF_WEEK = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'] as const;
 
-/** @experimental */
 export type DayOfWeek = (typeof DAYS_OF_WEEK)[number];
 
-/** @experimental */
 export type ScheduleOptionsAction = ScheduleOptionsStartWorkflowAction<Workflow>;
 
-/** @experimental */
 export type ScheduleOptionsStartWorkflowAction<W extends Workflow> = {
   type: 'startWorkflow';
   workflowType: string | W;
@@ -793,18 +758,15 @@ export type ScheduleOptionsStartWorkflowAction<W extends Workflow> = {
     workflowId?: string;
   };
 
-/** @experimental */
 export type ScheduleSummaryAction = ScheduleSummaryStartWorkflowAction;
 
-/** @experimental */
 export interface ScheduleSummaryStartWorkflowAction {
   type: 'startWorkflow';
   workflowType: string;
 }
-/** @experimental */
+
 export type ScheduleDescriptionAction = ScheduleDescriptionStartWorkflowAction;
 
-/** @experimental */
 export type ScheduleDescriptionStartWorkflowAction = ScheduleSummaryStartWorkflowAction &
   Pick<
     WorkflowStartOptions<Workflow>,
@@ -822,7 +784,6 @@ export type ScheduleDescriptionStartWorkflowAction = ScheduleSummaryStartWorkflo
 // Invariant: an existing ScheduleDescriptionAction can be used as is to create or update a schedule
 checkExtends<ScheduleOptionsAction, ScheduleDescriptionAction>();
 
-/** @experimental */
 export type CompiledScheduleAction = Replace<
   ScheduleDescriptionAction,
   {
@@ -833,8 +794,6 @@ export type CompiledScheduleAction = Replace<
 
 /**
  * Policy for overlapping Actions.
- *
- * @experimental
  */
 export enum ScheduleOverlapPolicy {
   /**
@@ -888,7 +847,6 @@ checkExtends<
   keyof typeof temporal.api.enums.v1.ScheduleOverlapPolicy
 >();
 
-/** @experimental */
 export interface Backfill {
   /**
    * Start of the time range to evaluate Schedule in.

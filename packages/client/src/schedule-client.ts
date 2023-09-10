@@ -50,8 +50,6 @@ import { rethrowKnownErrorTypes } from './helpers';
 
 /**
  * Handle to a single Schedule
- *
- * @experimental
  */
 export interface ScheduleHandle {
   /**
@@ -113,9 +111,6 @@ export interface ScheduleHandle {
   readonly client: ScheduleClient;
 }
 
-/**
- * @experimental
- */
 export interface ScheduleClientOptions extends BaseClientOptions {
   /**
    * Used to override and extend default Connection functionality
@@ -125,7 +120,6 @@ export interface ScheduleClientOptions extends BaseClientOptions {
   interceptors?: ScheduleClientInterceptor[];
 }
 
-/** @experimental */
 export type LoadedScheduleClientOptions = LoadedWithDefaults<ScheduleClientOptions>;
 
 function defaultScheduleClientOptions(): WithDefaults<ScheduleClientOptions> {
@@ -156,7 +150,6 @@ function assertRequiredScheduleOptions(
   }
 }
 
-/** @experimental */
 export interface ListScheduleOptions {
   /**
    * How many results to fetch from the Server at a time.
@@ -167,8 +160,6 @@ export interface ListScheduleOptions {
 
 /**
  * Client for starting Workflow executions and creating Workflow handles
- *
- * @experimental
  */
 export class ScheduleClient extends BaseClient {
   public readonly options: LoadedScheduleClientOptions;
@@ -525,8 +516,6 @@ export class ScheduleClient extends BaseClient {
 
 /**
  * Thrown from {@link ScheduleClient.create} if there's a running (not deleted) Schedule with the given `id`.
- *
- * @experimental
  */
 @SymbolBasedInstanceOfError('ScheduleAlreadyRunning')
 export class ScheduleAlreadyRunning extends Error {
@@ -540,8 +529,6 @@ export class ScheduleAlreadyRunning extends Error {
  * It could be because:
  * - Id passed is incorrect
  * - Schedule was deleted
- *
- * @experimental
  */
 @SymbolBasedInstanceOfError('ScheduleNotFoundError')
 export class ScheduleNotFoundError extends Error {

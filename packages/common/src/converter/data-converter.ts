@@ -38,8 +38,6 @@ export interface DataConverter {
    * Path of a file that has a `failureConverter` named export.
    * `failureConverter` should be an object that implements {@link FailureConverter}.
    * If no path is provided, {@link defaultFailureConverter} is used.
-   *
-   * @experimental
    */
   failureConverterPath?: string;
 

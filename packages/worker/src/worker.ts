@@ -529,8 +529,6 @@ export class Worker {
    * Create a replay Worker, running all histories provided by the passed in iterable.
    *
    * Returns an async iterable of results for each history replayed.
-   *
-   * @experimental - this API is considered unstable
    */
   public static async *runReplayHistories(
     options: ReplayWorkerOptions,
