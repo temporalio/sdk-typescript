@@ -58,8 +58,10 @@ test('QueryDefinition Args and Ret type safety', (t) => {
 test('Can call signal on any WorkflowHandle', async (t) => {
   // This function definition is an assertion by itself. TSC will throw a compile time error if
   // the signature of the signal function is not compatible across all WorkflowHandle variants.
-  function _assertion<T extends Workflow>(handle: WorkflowHandle<T> | ChildWorkflowHandle<T> | ExternalWorkflowHandle) {
-    handle.signal(defineSignal('signal'));
+  async function _assertion<T extends Workflow>(
+    handle: WorkflowHandle<T> | ChildWorkflowHandle<T> | ExternalWorkflowHandle
+  ) {
+    await handle.signal(defineSignal('signal'));
   }
 
   t.pass();
