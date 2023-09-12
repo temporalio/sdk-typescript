@@ -12,7 +12,7 @@ This file will no longer be maintained.
 
 ### Features
 
-- [`workflow`] Add ` historySizeInBytes`` and  `continueAsNewSuggested`` to `WorkflowInfo`` ([#1223](https://github.com/temporalio/sdk-typescript/pull/1223)).
+- [`workflow`] Add ` historySizeInBytes` and `continueAsNewSuggested` to `WorkflowInfo` ([#1223](https://github.com/temporalio/sdk-typescript/pull/1223)).
 
 - Remove experimental flags on the following APIs ([#1235](https://github.com/temporalio/sdk-typescript/pull/1235)):
   - Schedules
