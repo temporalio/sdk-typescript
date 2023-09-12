@@ -3,8 +3,7 @@ import * as v8 from 'node:v8';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import { Heap } from 'heap-js';
-import { BehaviorSubject, lastValueFrom, of } from 'rxjs';
-import { concatMap, delay, map, repeat, takeWhile } from 'rxjs/operators';
+import { Subject, firstValueFrom } from 'rxjs';
 import * as native from '@temporalio/core-bridge';
 import {
   pollLogs,
@@ -107,7 +106,7 @@ export function makeTelemetryFilterString(options: MakeTelemetryFilterStringOpti
 }
 
 /** A logger that buffers logs from both Node.js and Rust Core and emits logs in the right order */
-export class CoreLogger extends DefaultLogger {
+class BufferedLogger extends DefaultLogger {
   protected buffer = new Heap<LogEntry>((a, b) => Number(a.timestampNanos - b.timestampNanos));
 
   constructor(protected readonly next: Logger) {
@@ -135,7 +134,7 @@ export class Runtime {
   protected pendingCreations = 0;
   /** Track the registered native objects to automatically shutdown when all have been deregistered */
   protected readonly backRefs = new Set<TrackedNativeObject>();
-  protected readonly shouldPollForLogs = new BehaviorSubject<boolean>(false);
+  protected readonly stopPollingForLogs = new Subject<void>();
   protected readonly logPollPromise: Promise<void>;
   public readonly logger: Logger;
   protected readonly shutdownSignalCallbacks = new Set<() => void>();
@@ -152,7 +151,7 @@ export class Runtime {
 
   protected constructor(public readonly native: native.Runtime, public readonly options: CompiledRuntimeOptions) {
     if (this.isForwardingLogs()) {
-      const logger = (this.logger = new CoreLogger(this.options.logger));
+      const logger = (this.logger = new BufferedLogger(this.options.logger));
       this.logPollPromise = this.initLogPolling(logger);
     } else {
       this.logger = this.options.logger;
@@ -265,31 +264,37 @@ export class Runtime {
     };
   }
 
-  protected async initLogPolling(logger: CoreLogger): Promise<void> {
-    this.shouldPollForLogs.next(true);
-
+  protected async initLogPolling(logger: BufferedLogger): Promise<void> {
     if (!this.isForwardingLogs()) {
       return;
     }
+
+    const stopPollingForLogs = firstValueFrom(this.stopPollingForLogs);
+
     const poll = promisify(pollLogs);
+    const doPoll = async () => {
+      const logs = await poll(this.native);
+      for (const log of logs) {
+        const meta: Record<string | symbol, unknown> = {
+          [LogTimestamp]: timeOfDayToBigint(log.timestamp),
+        };
+        logger.log(log.level, log.message, meta);
+      }
+    };
+
     try {
-      await lastValueFrom(
-        of(this.shouldPollForLogs).pipe(
-          map((subject) => subject.getValue()),
-          takeWhile((shouldPoll) => shouldPoll),
-          concatMap(() => poll(this.native)),
-          map((logs) => {
-            for (const log of logs) {
-              logger.log(log.level, log.message, {
-                [LogTimestamp]: timeOfDayToBigint(log.timestamp),
-              });
-            }
-            logger.flush();
-          }),
-          delay(3), // Don't go wild polling as fast as possible
-          repeat()
-        )
-      );
+      for (;;) {
+        await doPoll();
+        logger.flush();
+        const stop = await Promise.race([
+          stopPollingForLogs.then(() => true),
+          new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 3)),
+        ]);
+        if (stop) {
+          await doPoll();
+          break;
+        }
+      }
     } catch (error) {
       // Log using the original logger instead of buffering
       this.options.logger.warn('Error gathering forwarded logs from core', { error });
@@ -311,7 +316,7 @@ export class Runtime {
    */
   flushLogs(): void {
     if (this.isForwardingLogs()) {
-      const logger = this.logger as CoreLogger;
+      const logger = this.logger as BufferedLogger;
       logger.flush();
     }
   }
@@ -474,7 +479,7 @@ export class Runtime {
   public async shutdown(): Promise<void> {
     delete Runtime._instance;
     this.teardownShutdownHook();
-    this.shouldPollForLogs.next(false);
+    this.stopPollingForLogs.next();
     // This will effectively drain all logs
     await this.logPollPromise;
     await promisify(runtimeShutdown)(this.native);
