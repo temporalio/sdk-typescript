@@ -4,6 +4,42 @@ All notable changes to this project will be documented in this file.
 
 Breaking changes marked with a :boom:
 
+NOTE: Starting with v1.9.0, release notes will only be published through our
+[GitHub release page](https://github.com/temporalio/sdk-typescript/releases).
+This file will no longer be maintained.
+
+## [1.8.5] - 2023-09-12
+
+### Features
+
+- [`workflow`] Add ` historySizeInBytes`` and  `continueAsNewSuggested`` to `WorkflowInfo`` ([#1223](https://github.com/temporalio/sdk-typescript/pull/1223)).
+
+- Remove experimental flags on the following APIs ([#1235](https://github.com/temporalio/sdk-typescript/pull/1235)):
+  - Schedules
+  - Failure Converters
+  - Local Activities
+  - Replay Histories
+
+### Bug Fixes
+
+- [`workflow`] Fix a particular case where `isReplaying` could be incorrectly `false` if a query came
+  in right after a cache eviction and there had been a signal in the last workflow task before the
+  cache eviction ([#1234](https://github.com/temporalio/sdk-typescript/pull/1234)). This could notably
+  cause situations where calls to sink functions configured with `calledDuringReplay = false` would
+  be called more than once for a same code location, as well as situations where `patched(...)` would
+  return true even though that patch had not been set on the first execution.
+
+- [`workflow`] Make `ExternalWorkflowHandle.signal` signature match that of `BaseWorkflowHandle.signal`
+  ([#1237](https://github.com/temporalio/sdk-typescript/pull/1237)). Thanks to
+  [`@gabrielsantosblanchet`](https://github.com/gabrielsantosblanchet) and
+  [`@josiah-roberts`](https://github.com/josiah-roberts) 🙏.
+
+- [`worker`] Avoid rxjs error while flushing logs on worker shutdown
+  ([#1238](https://github.com/temporalio/sdk-typescript/pull/1238)).
+
+- Upgrade `protobufjs` dependencies ([#1219](https://github.com/temporalio/sdk-typescript/pull/1219)).
+  Thanks to [`@alex-dixon`](https://github.com/alex-dixon) 🙏.
+
 ## [1.8.4] - 2023-08-22
 
 ### Bug Fixes
