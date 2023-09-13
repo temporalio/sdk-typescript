@@ -1,6 +1,31 @@
 name: Stress tests
 
 on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        type: string
+        description: Git ref to run tests on
+        required: true
+        default: main
+      test-type:
+        description: Type of test to run
+        options:
+          - ci-stress
+          - ci-nightly
+        required: true
+        type: string
+      test-timeout-minutes:
+        description: Timeout for the test in minutes
+        required: true
+        type: number
+        default: 20
+      reuse-v8-context:
+        description: Whether to enable the "reuse V8 context" feature
+        required: true
+        type: boolean
+        default: true
+
   workflow_call:
     inputs:
       test-type:
