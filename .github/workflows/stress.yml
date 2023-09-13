@@ -14,7 +14,7 @@ on:
           - ci-stress
           - ci-nightly
         required: true
-        type: string
+        type: choice
       test-timeout-minutes:
         description: 'Timeout for the test, in minutes (stress: 20, nightly: 360)'
         required: true
