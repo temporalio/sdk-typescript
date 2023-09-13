@@ -8,6 +8,13 @@ NOTE: Starting with v1.9.0, release notes will only be published through our
 [GitHub release page](https://github.com/temporalio/sdk-typescript/releases).
 This file will no longer be maintained.
 
+## [1.8.6] - 2023-09-13
+
+### Bug Fixes
+
+- [`worker`] Fix a memory leak introduced in v1.8.5
+  ([#1242](https://github.com/temporalio/sdk-typescript/pull/1242))
+
 ## [1.8.5] - 2023-09-12
 
 ### Features
