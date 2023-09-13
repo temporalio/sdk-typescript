@@ -3,7 +3,6 @@ import * as v8 from 'node:v8';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import { Heap } from 'heap-js';
-import { Subject, firstValueFrom } from 'rxjs';
 import * as native from '@temporalio/core-bridge';
 import {
   pollLogs,
@@ -134,7 +133,8 @@ export class Runtime {
   protected pendingCreations = 0;
   /** Track the registered native objects to automatically shutdown when all have been deregistered */
   protected readonly backRefs = new Set<TrackedNativeObject>();
-  protected readonly stopPollingForLogs = new Subject<void>();
+  protected stopPollingForLogs = false;
+  protected stopPollingForLogsCallback?: () => void;
   protected readonly logPollPromise: Promise<void>;
   public readonly logger: Logger;
   protected readonly shutdownSignalCallbacks = new Set<() => void>();
@@ -269,8 +269,6 @@ export class Runtime {
       return;
     }
 
-    const stopPollingForLogs = firstValueFrom(this.stopPollingForLogs);
-
     const poll = promisify(pollLogs);
     const doPoll = async () => {
       const logs = await poll(this.native);
@@ -286,14 +284,13 @@ export class Runtime {
       for (;;) {
         await doPoll();
         logger.flush();
-        const stop = await Promise.race([
-          stopPollingForLogs.then(() => true),
-          new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 3)),
-        ]);
-        if (stop) {
-          await doPoll();
+        if (this.stopPollingForLogs) {
           break;
         }
+        await new Promise<void>((resolve) => {
+          setTimeout(resolve, 3);
+          this.stopPollingForLogsCallback = resolve;
+        });
       }
     } catch (error) {
       // Log using the original logger instead of buffering
@@ -479,7 +476,8 @@ export class Runtime {
   public async shutdown(): Promise<void> {
     delete Runtime._instance;
     this.teardownShutdownHook();
-    this.stopPollingForLogs.next();
+    this.stopPollingForLogs = true;
+    this.stopPollingForLogsCallback?.();
     // This will effectively drain all logs
     await this.logPollPromise;
     await promisify(runtimeShutdown)(this.native);
