@@ -1,6 +1,6 @@
 {
   "name": "@temporalio/nyc-test-coverage",
-  "version": "1.8.5",
+  "version": "1.8.6",
   "description": "Temporal.io SDK code coverage integration",
   "keywords": [
     "temporal",
