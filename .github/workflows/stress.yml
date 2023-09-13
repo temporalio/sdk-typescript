@@ -16,10 +16,10 @@ on:
         required: true
         type: string
       test-timeout-minutes:
-        description: Timeout for the test in minutes
+        description: 'Timeout for the test, in minutes (stress: 20, nightly: 360)'
         required: true
         type: number
-        default: 20
+        default: 360
       reuse-v8-context:
         description: Whether to enable the "reuse V8 context" feature
         required: true
