@@ -297,6 +297,8 @@ export class Context {
     if (store === undefined) {
       throw new Error('Activity context not initialized');
     }
+    store.sleep = store.sleep.bind(store);
+    store.heartbeat = store.heartbeat.bind(store);
     return store;
   }
 
