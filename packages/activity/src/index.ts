@@ -283,7 +283,7 @@ export class Context {
    * :warning: Cancellation is not propagated from this function, use {@link cancelled} or {@link cancellationSignal} to
    * subscribe to cancellation notifications.
    */
-  public heartbeat(details?: unknown): void {
+  public heartbeat = (details?: unknown): void => {
     this.heartbeatFn(details);
   }
 
@@ -297,8 +297,6 @@ export class Context {
     if (store === undefined) {
       throw new Error('Activity context not initialized');
     }
-    store.sleep = store.sleep.bind(store);
-    store.heartbeat = store.heartbeat.bind(store);
     return store;
   }
 
@@ -307,7 +305,7 @@ export class Context {
    * @param ms Sleep duration: number of milliseconds or {@link https://www.npmjs.com/package/ms | ms-formatted string}
    * @returns A Promise that either resolves when `ms` is reached or rejects when the Activity is cancelled
    */
-  public sleep(ms: Duration): Promise<void> {
+  public sleep = (ms: Duration): Promise<void> => {
     let handle: NodeJS.Timeout;
     const timer = new Promise<void>((resolve) => {
       handle = setTimeout(resolve, msToNumber(ms));
