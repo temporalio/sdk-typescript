@@ -12,11 +12,11 @@
   "author": "Temporal Technologies Inc. <sdk@temporal.io>",
   "license": "MIT",
   "dependencies": {
-    "@opentelemetry/api": "^1.4.1",
+    "@opentelemetry/api": "^1.6.0",
     "@temporalio/proto": "file:../proto",
-    "long": "^5.2.0",
+    "long": "^5.2.3",
     "ms": "^3.0.0-canary.1",
-    "proto3-json-serializer": "^1.0.3",
+    "proto3-json-serializer": "^2.0.0",
     "protobufjs": "^7.2.5"
   },
   "bugs": {
