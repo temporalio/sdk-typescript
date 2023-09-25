@@ -283,9 +283,9 @@ export class Context {
    * :warning: Cancellation is not propagated from this function, use {@link cancelled} or {@link cancellationSignal} to
    * subscribe to cancellation notifications.
    */
-  public heartbeat(details?: unknown): void {
+  public heartbeat = (details?: unknown): void => {
     this.heartbeatFn(details);
-  }
+  };
 
   /**
    * Gets the context of the current Activity.
@@ -305,11 +305,11 @@ export class Context {
    * @param ms Sleep duration: number of milliseconds or {@link https://www.npmjs.com/package/ms | ms-formatted string}
    * @returns A Promise that either resolves when `ms` is reached or rejects when the Activity is cancelled
    */
-  public sleep(ms: Duration): Promise<void> {
+  public sleep = (ms: Duration): Promise<void> => {
     let handle: NodeJS.Timeout;
     const timer = new Promise<void>((resolve) => {
       handle = setTimeout(resolve, msToNumber(ms));
     });
     return Promise.race([this.cancelled.finally(() => clearTimeout(handle)), timer]);
-  }
+  };
 }
