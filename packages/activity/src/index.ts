@@ -285,7 +285,7 @@ export class Context {
    */
   public heartbeat = (details?: unknown): void => {
     this.heartbeatFn(details);
-  }
+  };
 
   /**
    * Gets the context of the current Activity.
@@ -311,5 +311,5 @@ export class Context {
       handle = setTimeout(resolve, msToNumber(ms));
     });
     return Promise.race([this.cancelled.finally(() => clearTimeout(handle)), timer]);
-  }
+  };
 }
