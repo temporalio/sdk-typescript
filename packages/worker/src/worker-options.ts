@@ -88,6 +88,9 @@ export interface WorkerOptions {
    *
    * ℹ️ Required if {@link useVersioning} is `true`.
    *
+   * :warning: NOTE: When used with versioning, you must call {@link updateBuildIdCompatibility}.
+   * Otherwise, this Worker will not pick up any tasks.
+   *
    * @default `@temporalio/worker` package name and version + checksum of workflow bundle's code
    *
    * @experimental
