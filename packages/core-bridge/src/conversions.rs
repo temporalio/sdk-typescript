@@ -332,6 +332,9 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
             js_optional_getter!(cx, self, "shutdownGraceTimeMs", JsNumber)
                 .map(|num| Duration::from_millis(num.value(cx) as u64));
 
+        let nonsticky_to_sticky_poll_ratio =
+            js_value_getter!(cx, self, "nonStickyToStickyPollRatio", JsNumber) as f32;
+
         match WorkerConfigBuilder::default()
             .worker_build_id(js_value_getter!(cx, self, "buildId", JsString))
             .client_identity_override(Some(js_value_getter!(cx, self, "identity", JsString)))
@@ -342,6 +345,7 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
             .max_outstanding_local_activities(max_outstanding_local_activities)
             .max_concurrent_wft_polls(max_concurrent_wft_polls)
             .max_concurrent_at_polls(max_concurrent_at_polls)
+            .nonsticky_to_sticky_poll_ratio(nonsticky_to_sticky_poll_ratio)
             .max_cached_workflows(max_cached_workflows)
             .sticky_queue_schedule_to_start_timeout(sticky_queue_schedule_to_start_timeout)
             .graceful_shutdown_period(graceful_shutdown_period)

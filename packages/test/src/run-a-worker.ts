@@ -22,6 +22,7 @@ async function main() {
     activities,
     workflowsPath: require.resolve('./workflows'),
     taskQueue: 'test',
+    nonStickyToStickyPollRatio: 0.5,
   });
   await worker.run();
   console.log('Worker gracefully shutdown');
