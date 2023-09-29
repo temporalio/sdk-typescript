@@ -286,6 +286,7 @@ export interface WorkerOptions {
   maxConcurrentActivityTaskExecutions: number;
   maxConcurrentWorkflowTaskExecutions: number;
   maxConcurrentLocalActivityExecutions: number;
+  nonStickyToStickyPollRatio: number;
 
   /**
    * Maximum number of Workflow tasks to poll concurrently.
