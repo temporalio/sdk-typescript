@@ -207,12 +207,11 @@ pub fn start_bridge_loop(
                             let msg = cx.string(cl.message);
                             logobj.set(cx, "message", msg).unwrap();
 
-                            let fieldsobj = cx.empty_object();
-                            for (k, v) in cl.fields {
-                                let v = cx.string(v.to_string());
-                                fieldsobj.set(cx, k.as_str(), v).unwrap();
-                            }
-                            logobj.set(cx, "fields", fieldsobj).unwrap();
+                            let fieldsobj = hashmap_to_js_value(cx, cl.fields);
+                            logobj.set(cx, "fields", fieldsobj.unwrap()).unwrap();
+
+                            let target = cx.string(cl.target);
+                            logobj.set(cx, "target", target).unwrap();
 
                             logarr.set(cx, i as u32, logobj).unwrap();
                         }

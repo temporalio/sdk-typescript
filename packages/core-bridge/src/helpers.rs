@@ -1,6 +1,6 @@
 use crate::errors::*;
 use neon::{prelude::*, types::buffer::TypedArray};
-use std::{fmt::Display, future::Future, sync::Arc};
+use std::{fmt::Display, future::Future, sync::Arc, collections::HashMap};
 
 /// Send a result to JS via callback using a [Channel]
 pub fn send_result<F, T>(channel: Arc<Channel>, callback: Root<JsFunction>, res_fn: F)
@@ -186,4 +186,57 @@ where
     } else {
         cx.throw_type_error::<_, Vec<u8>>(format!("Invalid or missing {}", full_attr_path))
     }
+}
+
+// Recursively convert a Serde value to a JS value
+pub fn serde_value_to_js_value<'a>(cx: &mut impl Context<'a>, val: serde_json::Value) -> JsResult<'a, JsValue> {
+    match val {
+        serde_json::Value::String(s) => Ok(cx.string(s).upcast()),
+        serde_json::Value::Number(n) => Ok(cx.number(n.as_f64().unwrap()).upcast()),
+        serde_json::Value::Bool(b) => Ok(cx.boolean(b).upcast()),
+        serde_json::Value::Null => Ok(cx.null().upcast()),
+        serde_json::Value::Array(vec    ) => {
+            let arr: Handle<'a, JsArray> = JsArray::new(cx, vec.len() as u32);
+            for (i, v) in vec.into_iter().enumerate() {
+                let v = serde_value_to_js_value(cx, v)?;
+                arr.set(cx, i as u32, v)?;
+            }
+            Ok(arr.upcast())
+        }
+        serde_json::Value::Object(map) => {
+            let obj: Handle<'a, JsObject> = cx.empty_object();
+            for (k, v) in map {
+                let k = cx.string(snake_to_camel(k));
+                let v=  serde_value_to_js_value(cx, v)?;
+                obj.set(cx, k, v)?;
+            }
+            Ok(obj.upcast())
+        }
+    }
+}
+
+pub fn hashmap_to_js_value<'a>(cx: &mut impl Context<'a>, map: HashMap<String, serde_json::Value>) -> JsResult<'a, JsObject> {
+    let obj: Handle<'a, JsObject> = cx.empty_object();
+    for (k, v) in map {
+        let k = cx.string(snake_to_camel(k));
+        let v = serde_value_to_js_value(cx, v)?;
+        obj.set(cx, k, v)?;
+    }
+    Ok(obj)
+}
+
+fn snake_to_camel(s: String) -> String {
+    let mut result = String::new();
+    let mut capitalize = false;
+    for c in s.chars() {
+        if c == '_' {
+            capitalize = true;
+        } else if capitalize {
+            result.push(c.to_ascii_uppercase());
+            capitalize = false;
+        } else {
+            result.push(c);
+        }
+    }
+    result
 }

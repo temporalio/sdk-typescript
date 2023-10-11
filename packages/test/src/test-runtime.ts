@@ -2,11 +2,11 @@
  * Test the lifecycle of the Runtime singleton.
  * Tests run serially because Runtime is a singleton.
  */
-import { setTimeout } from 'node:timers/promises';
 import test from 'ava';
 import { v4 as uuid4 } from 'uuid';
+import asyncRetry from 'async-retry';
 import { Runtime, DefaultLogger, LogEntry, makeTelemetryFilterString } from '@temporalio/worker';
-import { WorkflowClient } from '@temporalio/client';
+import { Client, WorkflowClient } from '@temporalio/client';
 import { defaultOptions } from './mock-native-worker';
 import * as workflows from './workflows';
 import { RUN_INTEGRATION_TESTS, Worker } from './helpers';
@@ -81,19 +81,41 @@ if (RUN_INTEGRATION_TESTS) {
       logger,
       telemetryOptions: { logging: { forward: {}, filter: makeTelemetryFilterString({ core: 'DEBUG' }) } },
     });
-    {
-      const runtime = Runtime.instance();
-      t.is(runtime.options.logger, logger);
-    }
-    const worker = await Worker.create({
-      ...defaultOptions,
-      taskQueue: 'q1', // Same as the first Worker created
-    });
-    await worker.runUntil(Promise.resolve());
+    try {
+      {
+        const runtime = Runtime.instance();
+        t.is(runtime.options.logger, logger);
+      }
+      await new Client().workflow.start('not-existant', { taskQueue: 'q1', workflowId: uuid4() });
+      const worker = await Worker.create({
+        ...defaultOptions,
+        taskQueue: 'q1',
+      });
+      await worker.runUntil(() =>
+        asyncRetry(
+          () => {
+            if (!logEntries.some((x) => x.message === 'Failing workflow task'))
+              throw new Error('Waiting for failing workflow task');
+          },
+          { minTimeout: 100, factor: 1, maxTimeout: 5000 }
+        )
+      );
 
-    const initWorkerEntry = logEntries.filter((x) => x.message === 'Initializing worker')?.[0];
-    t.true(initWorkerEntry !== undefined);
-    t.is(initWorkerEntry.meta?.['task_queue'], 'q1');
+      const initWorkerEntry = logEntries.filter((x) => x.message === 'Initializing worker')?.[0];
+      t.true(initWorkerEntry !== undefined);
+      t.is(initWorkerEntry.meta?.['taskQueue'], 'q1');
+
+      const failingWftEntry = logEntries.filter((x) => x.message === 'Failing workflow task')?.[0];
+      t.true(failingWftEntry !== undefined);
+      t.is(failingWftEntry.meta?.['taskQueue'], 'q1');
+      t.is(typeof failingWftEntry.meta?.['completion'], 'string');
+      t.is(typeof failingWftEntry.meta?.['failure'], 'string');
+      t.is(typeof failingWftEntry.meta?.['runId'], 'string');
+      t.is(typeof failingWftEntry.meta?.['workflowId'], 'string');
+      t.is(typeof failingWftEntry.meta?.['subsystem'], 'string');
+    } finally {
+      await Runtime.instance().shutdown();
+    }
   });
 
   test.serial('Runtime.instance() throws meaningful error when passed invalid tracing.otel.url', (t) => {
