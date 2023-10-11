@@ -276,6 +276,11 @@ export class Runtime {
         const meta: Record<string | symbol, unknown> = {
           [LogTimestamp]: timeOfDayToBigint(log.timestamp),
         };
+        if (log.fields) {
+          for (const [key, value] of Object.entries(log.fields)) {
+            meta[key] = JSON.parse(value);
+          }
+        }
         logger.log(log.level, log.message, meta);
       }
     };

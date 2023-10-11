@@ -355,6 +355,9 @@ export interface LogEntry {
   timestamp: [number, number];
   /** Log level */
   level: LogLevel;
+
+  /*** Metadata fields */
+  fields: Record<string, string>;
 }
 
 /**

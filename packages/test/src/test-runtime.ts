@@ -2,9 +2,10 @@
  * Test the lifecycle of the Runtime singleton.
  * Tests run serially because Runtime is a singleton.
  */
+import { setTimeout } from 'node:timers/promises';
 import test from 'ava';
 import { v4 as uuid4 } from 'uuid';
-import { Runtime, DefaultLogger } from '@temporalio/worker';
+import { Runtime, DefaultLogger, LogEntry, makeTelemetryFilterString } from '@temporalio/worker';
 import { WorkflowClient } from '@temporalio/client';
 import { defaultOptions } from './mock-native-worker';
 import * as workflows from './workflows';
@@ -71,6 +72,28 @@ if (RUN_INTEGRATION_TESTS) {
       t.is(runtime.options.logger, logger);
       await runtime.shutdown();
     }
+  });
+
+  test.serial('Runtime.instance() Core forwarded logs contains metadata', async (t) => {
+    const logEntries: LogEntry[] = [];
+    const logger = new DefaultLogger('DEBUG', (entry) => logEntries.push(entry));
+    Runtime.install({
+      logger,
+      telemetryOptions: { logging: { forward: {}, filter: makeTelemetryFilterString({ core: 'DEBUG' }) } },
+    });
+    {
+      const runtime = Runtime.instance();
+      t.is(runtime.options.logger, logger);
+    }
+    const worker = await Worker.create({
+      ...defaultOptions,
+      taskQueue: 'q1', // Same as the first Worker created
+    });
+    await worker.runUntil(Promise.resolve());
+
+    const initWorkerEntry = logEntries.filter((x) => x.message === 'Initializing worker')?.[0];
+    t.true(initWorkerEntry !== undefined);
+    t.is(initWorkerEntry.meta?.['task_queue'], 'q1');
   });
 
   test.serial('Runtime.instance() throws meaningful error when passed invalid tracing.otel.url', (t) => {

@@ -195,15 +195,25 @@ pub fn start_bridge_loop(
                     send_result(channel.clone(), callback, |cx| {
                         let logarr = cx.empty_array();
                         for (i, cl) in logs.into_iter().enumerate() {
-                            // Not much to do here except for panic when there's an
-                            // error here.
+                            // Not much to do here except for panic when there's an error here.
                             let logobj = cx.empty_object();
+
                             let level = cx.string(cl.level.to_string());
                             logobj.set(cx, "level", level).unwrap();
+
                             let ts = system_time_to_js(cx, cl.timestamp).unwrap();
                             logobj.set(cx, "timestamp", ts).unwrap();
+
                             let msg = cx.string(cl.message);
                             logobj.set(cx, "message", msg).unwrap();
+
+                            let fieldsobj = cx.empty_object();
+                            for (k, v) in cl.fields {
+                                let v = cx.string(v.to_string());
+                                fieldsobj.set(cx, k.as_str(), v).unwrap();
+                            }
+                            logobj.set(cx, "fields", fieldsobj).unwrap();
+
                             logarr.set(cx, i as u32, logobj).unwrap();
                         }
                         Ok(logarr)
