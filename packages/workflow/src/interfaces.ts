@@ -20,46 +20,46 @@ export interface WorkflowInfo {
    * ID of the Workflow, this can be set by the client during Workflow creation.
    * A single Workflow may run multiple times e.g. when scheduled with cron.
    */
-  workflowId: string;
+  readonly workflowId: string;
 
   /**
    * ID of a single Workflow run
    */
-  runId: string;
+  readonly runId: string;
 
   /**
    * Workflow function's name
    */
-  workflowType: string;
+  readonly workflowType: string;
 
   /**
    * Indexed information attached to the Workflow Execution
    *
    * This value may change during the lifetime of an Execution.
    */
-  searchAttributes: SearchAttributes;
+  readonly searchAttributes: SearchAttributes;
 
   /**
    * Non-indexed information attached to the Workflow Execution
    */
-  memo?: Record<string, unknown>;
+  readonly memo?: Record<string, unknown>;
 
   /**
    * Parent Workflow info (present if this is a Child Workflow)
    */
-  parent?: ParentWorkflowInfo;
+  readonly parent?: ParentWorkflowInfo;
 
   /**
    * Result from the previous Run (present if this is a Cron Workflow or was Continued As New).
    *
    * An array of values, since other SDKs may return multiple values from a Workflow.
    */
-  lastResult?: unknown;
+  readonly lastResult?: unknown;
 
   /**
    * Failure from the previous Run (present when this Run is a retry, or the last Run of a Cron Workflow failed)
    */
-  lastFailure?: TemporalFailure;
+  readonly lastFailure?: TemporalFailure;
 
   /**
    * Length of Workflow history up until the current Workflow Task.
@@ -68,7 +68,7 @@ export interface WorkflowInfo {
    *
    * You may safely use this information to decide when to {@link continueAsNew}.
    */
-  historyLength: number;
+  readonly historyLength: number;
 
   /**
    * Size of Workflow history in bytes until the current Workflow Task.
@@ -79,7 +79,7 @@ export interface WorkflowInfo {
    *
    * You may safely use this information to decide when to {@link continueAsNew}.
    */
-  historySize: number;
+  readonly historySize: number;
 
   /**
    * A hint provided by the current WorkflowTaskStarted event recommending whether to
@@ -89,79 +89,79 @@ export interface WorkflowInfo {
    *
    * Supported only on Temporal Server 1.20+, always `false` on older servers.
    */
-  continueAsNewSuggested: boolean;
+  readonly continueAsNewSuggested: boolean;
 
   /**
    * Task queue this Workflow is executing on
    */
-  taskQueue: string;
+  readonly taskQueue: string;
 
   /**
    * Namespace this Workflow is executing in
    */
-  namespace: string;
+  readonly namespace: string;
 
   /**
    * Run Id of the first Run in this Execution Chain
    */
-  firstExecutionRunId: string;
+  readonly firstExecutionRunId: string;
 
   /**
    * The last Run Id in this Execution Chain
    */
-  continuedFromExecutionRunId?: string;
+  readonly continuedFromExecutionRunId?: string;
 
   /**
    * Time at which this [Workflow Execution Chain](https://docs.temporal.io/workflows#workflow-execution-chain) was started
    */
-  startTime: Date;
+  readonly startTime: Date;
 
   /**
    * Time at which the current Workflow Run started
    */
-  runStartTime: Date;
+  readonly runStartTime: Date;
 
   /**
    * Milliseconds after which the Workflow Execution is automatically terminated by Temporal Server. Set via {@link WorkflowOptions.workflowExecutionTimeout}.
    */
-  executionTimeoutMs?: number;
+  readonly executionTimeoutMs?: number;
 
   /**
    * Time at which the Workflow Execution expires
    */
-  executionExpirationTime?: Date;
+  readonly executionExpirationTime?: Date;
 
   /**
    * Milliseconds after which the Workflow Run is automatically terminated by Temporal Server. Set via {@link WorkflowOptions.workflowRunTimeout}.
    */
-  runTimeoutMs?: number;
+  readonly runTimeoutMs?: number;
 
   /**
    * Maximum execution time of a Workflow Task in milliseconds. Set via {@link WorkflowOptions.workflowTaskTimeout}.
    */
-  taskTimeoutMs: number;
+  readonly taskTimeoutMs: number;
 
   /**
    * Retry Policy for this Execution. Set via {@link WorkflowOptions.retry}.
    */
-  retryPolicy?: RetryPolicy;
+  readonly retryPolicy?: RetryPolicy;
 
   /**
    * Starts at 1 and increments for every retry if there is a `retryPolicy`
    */
-  attempt: number;
+  readonly attempt: number;
 
   /**
    * Cron Schedule for this Execution. Set via {@link WorkflowOptions.cronSchedule}.
    */
-  cronSchedule?: string;
+  readonly cronSchedule?: string;
 
   /**
    * Milliseconds between Cron Runs
    */
-  cronScheduleToScheduleInterval?: number;
+  readonly cronScheduleToScheduleInterval?: number;
 
-  unsafe: UnsafeWorkflowInfo;
+  readonly unsafe: UnsafeWorkflowInfo;
 }
 
 /**
@@ -176,9 +176,9 @@ export interface UnsafeWorkflowInfo {
    * The safe version of time is `new Date()` and `Date.now()`, which are set on the first invocation of a Workflow
    * Task and stay constant for the duration of the Task and during replay.
    */
-  now(): number;
+  readonly now: () => number;
 
-  isReplaying: boolean;
+  readonly isReplaying: boolean;
 }
 
 export interface ParentWorkflowInfo {

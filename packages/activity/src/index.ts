@@ -73,7 +73,7 @@ import 'abort-controller/polyfill'; // eslint-disable-line import/no-unassigned-
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { Logger, Duration } from '@temporalio/common';
 import { msToNumber } from '@temporalio/common/lib/time';
-import { SymbolBasedInstanceOfError } from '@temporalio/common/lib/type-helpers';
+import { SymbolBasedInstanceOfError, deepFreeze } from '@temporalio/common/lib/type-helpers';
 
 export {
   ActivityFunction,
@@ -115,78 +115,78 @@ export const asyncLocalStorage: AsyncLocalStorage<Context> = (globalThis as any)
  * Holds information about the current Activity Execution. Retrieved inside an Activity with `Context.current().info`.
  */
 export interface Info {
-  taskToken: Uint8Array;
+  readonly taskToken: Uint8Array;
   /**
    * Base64 encoded `taskToken`
    */
-  base64TaskToken: string;
-  activityId: string;
+  readonly base64TaskToken: string;
+  readonly activityId: string;
   /**
    * Exposed Activity function name
    */
-  activityType: string;
+  readonly activityType: string;
   /**
    * The namespace this Activity is running in
    */
-  activityNamespace: string;
+  readonly activityNamespace: string;
   /**
    * Attempt number for this activity
    */
-  attempt: number;
+  readonly attempt: number;
   /**
    * Whether this activity is scheduled in local or remote mode
    */
-  isLocal: boolean;
+  readonly isLocal: boolean;
   /**
    * Information about the Workflow that scheduled the Activity
    */
-  workflowExecution: {
-    workflowId: string;
-    runId: string;
+  readonly workflowExecution: {
+    readonly workflowId: string;
+    readonly runId: string;
   };
   /**
    * The namespace of the Workflow that scheduled this Activity
    */
-  workflowNamespace: string;
+  readonly workflowNamespace: string;
   /**
    * The module name of the Workflow that scheduled this Activity
    */
-  workflowType: string;
+  readonly workflowType: string;
   /**
    * Timestamp for when this Activity was scheduled in milliseconds
    */
-  scheduledTimestampMs: number;
+  readonly scheduledTimestampMs: number;
   /**
    * Timeout for this Activity from schedule to close in milliseconds.
    */
-  scheduleToCloseTimeoutMs: number;
+  readonly scheduleToCloseTimeoutMs: number;
   /**
    * Timeout for this Activity from start to close in milliseconds
    */
-  startToCloseTimeoutMs: number;
+  readonly startToCloseTimeoutMs: number;
   /**
    * Timestamp for when the current attempt of this Activity was scheduled in milliseconds
    */
-  currentAttemptScheduledTimestampMs: number;
+  readonly currentAttemptScheduledTimestampMs: number;
   /**
    * Heartbeat timeout in milliseconds.
    * If this timeout is defined, the Activity must heartbeat before the timeout is reached.
    * The Activity must **not** heartbeat in case this timeout is not defined.
    */
-  heartbeatTimeoutMs?: number;
+  readonly heartbeatTimeoutMs?: number;
   /**
    * The {@link Context.heartbeat | details} from the last recorded heartbeat from the last attempt of this Activity.
    *
    * Use this to resume your Activity from a checkpoint.
    */
-  heartbeatDetails: any;
+  readonly heartbeatDetails: any;
 
   /**
    * Task Queue the Activity is scheduled in.
    *
    * For Local Activities, this is set to the Workflow's Task Queue.
    */
-  taskQueue: string;
+  readonly taskQueue: string;
 }
 
 /**
@@ -201,17 +201,33 @@ export interface Info {
  */
 export class Context {
   /**
+   * Gets the context of the current Activity.
+   *
+   * Uses {@link https://nodejs.org/docs/latest-v14.x/api/async_hooks.html#async_hooks_class_asynclocalstorage | AsyncLocalStorage} under the hood to make it accessible in nested callbacks and promises.
+   */
+  public static current(): Context {
+    const store = asyncLocalStorage.getStore();
+    if (store === undefined) {
+      throw new Error('Activity context not initialized');
+    }
+    return store;
+  }
+
+  /**
    * Holds information about the current executing Activity.
    */
-  public info: Info;
+  public readonly info: Info;
+
   /**
-   * Await this promise in an Activity to get notified of cancellation.
+   * A Promise that fails with a {@link CancelledFailure} when cancellation of this activity is requested. The promise
+   * is guaranteed to never successfully resolve. Await this promise in an Activity to get notified of cancellation.
    *
-   * This promise will never resolve—it will only be rejected with a {@link CancelledFailure}.
+   * Note that to get notified of cancellation, an activity must _also_ {@link Context.heartbeat}.
    *
    * @see [Cancellation](/api/namespaces/activity#cancellation)
    */
   public readonly cancelled: Promise<never>;
+
   /**
    * An {@link https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal | `AbortSignal`} that can be used to react to
    * Activity cancellation.
@@ -222,13 +238,17 @@ export class Context {
    * {@link https://nodejs.org/api/child_process.html#child_process_child_process_spawn_command_args_options child_process}
    * to abort a child process, as well as other built-in node modules and modules found on npm.
    *
+   * Note that to get notified of cancellation, an activity must _also_ {@link Context.heartbeat}.
+   *
    * @see [Cancellation](/api/namespaces/activity#cancellation)
    */
   public readonly cancellationSignal: AbortSignal;
+
   /**
    * The heartbeat implementation, injected via the constructor.
    */
   protected readonly heartbeatFn: (details?: any) => void;
+
   /**
    * The logger for this Activity.
    *
@@ -255,7 +275,11 @@ export class Context {
     heartbeat: (details?: any) => void,
     logger: Logger
   ) {
-    this.info = info;
+    // Note that we don't freeze the context object itself, because some users add properties to it (generally from
+    // interceptors). We even had samples promoting that practice. We should probably deprecate that at some point, but
+    // lets give us some time before we do.
+    this.info = deepFreeze(info);
+
     this.cancelled = cancelled;
     this.cancellationSignal = cancellationSignal;
     this.heartbeatFn = heartbeat;
@@ -283,33 +307,104 @@ export class Context {
    * :warning: Cancellation is not propagated from this function, use {@link cancelled} or {@link cancellationSignal} to
    * subscribe to cancellation notifications.
    */
-  public heartbeat = (details?: unknown): void => {
+  public readonly heartbeat = (details?: unknown): void => {
     this.heartbeatFn(details);
   };
-
-  /**
-   * Gets the context of the current Activity.
-   *
-   * Uses {@link https://nodejs.org/docs/latest-v14.x/api/async_hooks.html#async_hooks_class_asynclocalstorage | AsyncLocalStorage} under the hood to make it accessible in nested callbacks and promises.
-   */
-  public static current(): Context {
-    const store = asyncLocalStorage.getStore();
-    if (store === undefined) {
-      throw new Error('Activity context not initialized');
-    }
-    return store;
-  }
 
   /**
    * Helper function for sleeping in an Activity.
    * @param ms Sleep duration: number of milliseconds or {@link https://www.npmjs.com/package/ms | ms-formatted string}
    * @returns A Promise that either resolves when `ms` is reached or rejects when the Activity is cancelled
    */
-  public sleep = (ms: Duration): Promise<void> => {
+  public readonly sleep = (ms: Duration): Promise<void> => {
     let handle: NodeJS.Timeout;
     const timer = new Promise<void>((resolve) => {
       handle = setTimeout(resolve, msToNumber(ms));
     });
     return Promise.race([this.cancelled.finally(() => clearTimeout(handle)), timer]);
   };
+}
+
+/**
+ * The current Activity's context.
+ */
+export function activityInfo(): Info {
+  // For consistency with workflow.workflowInfo(), we want activityInfo() to be a function, rather than a const object.
+  return Context.current().info;
+}
+
+/**
+ * The logger for this Activity.
+ *
+ * This is a shortcut for `Context.current().log` (see {@link Context.log}).
+ */
+export const log: Logger = new Proxy({} as Logger, {
+  // For consistency with both workflow.log and Context.current().log, we want activity.log to be an object, rather than
+  // a function. However, Context.current().log may legitimately change during the lifetime of an Activity, so we can't
+  // just initialize that field to the value of Context.current().log and move on. Hence the proxy.
+  get(_, prop) {
+    if (typeof prop === 'string') {
+      return (Context.current().log as any)[prop];
+    }
+  },
+});
+
+/**
+ * Helper function for sleeping in an Activity.
+ *
+ * This is a shortcut for `Context.current().sleep(ms)` (see {@link Context.sleep}).
+ *
+ * @param ms Sleep duration: number of milliseconds or {@link https://www.npmjs.com/package/ms | ms-formatted string}
+ * @returns A Promise that either resolves when `ms` is reached or rejects when the Activity is cancelled
+ */
+export function sleep(ms: Duration): Promise<void> {
+  return Context.current().sleep(ms);
+}
+
+/**
+ * Send a {@link https://docs.temporal.io/concepts/what-is-an-activity-heartbeat | heartbeat} from an Activity.
+ *
+ * If an Activity times out, then during the next retry, the last value of `details` is available at
+ * {@link Info.heartbeatDetails}. This acts as a periodic checkpoint mechanism for the progress of an Activity.
+ *
+ * If an Activity times out on the final retry (relevant in cases in which {@link RetryPolicy.maximumAttempts} is
+ * set), the Activity function call in the Workflow code will throw an {@link ActivityFailure} with the `cause`
+ * attribute set to a {@link TimeoutFailure}, which has the last value of `details` available at
+ * {@link TimeoutFailure.lastHeartbeatDetails}.
+ *
+ * This is a shortcut for `Context.current().heatbeat(ms)` (see {@link Context.heartbeat}).
+ */
+export function heartbeat(details?: unknown): void {
+  Context.current().heartbeat(details);
+}
+
+/**
+ * Return a Promise that fails with a {@link CancelledFailure} when cancellation of this activity is requested. The
+ * promise is guaranteed to never successfully resolve. Await this promise in an Activity to get notified of
+ * cancellation.
+ *
+ * Note that to get notified of cancellation, an activity must _also_ do {@link Context.heartbeat}.
+ *
+ * This is a shortcut for `Context.current().cancelled` (see {@link Context.cancelled}).
+ */
+export function cancelled(): Promise<never> {
+  return Context.current().cancelled;
+}
+
+/**
+ * Return an {@link https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal | `AbortSignal`} that can be used to
+ * react to Activity cancellation.
+ *
+ * This can be passed in to libraries such as
+ * {@link https://www.npmjs.com/package/node-fetch#request-cancellation-with-abortsignal | fetch} to abort an
+ * in-progress request and
+ * {@link https://nodejs.org/api/child_process.html#child_process_child_process_spawn_command_args_options child_process}
+ * to abort a child process, as well as other built-in node modules and modules found on npm.
+ *
+ * Note that to get notified of cancellation, an activity must _also_ do {@link Context.heartbeat}.
+ *
+ * This is a shortcut for `Context.current().cancellationSignal` (see {@link Context.cancellationSignal}).
+ */
+export function cancellationSignal(): AbortSignal {
+  return Context.current().cancellationSignal;
 }

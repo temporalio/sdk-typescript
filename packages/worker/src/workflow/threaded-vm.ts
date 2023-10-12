@@ -225,7 +225,14 @@ export class VMWorkflowThreadProxy implements Workflow {
       throw new TypeError(`Got invalid response output from Workflow Worker thread ${output}`);
     }
     output.calls.forEach((call) => {
-      call.workflowInfo.unsafe.now = Date.now;
+      const info = call.workflowInfo;
+      call.workflowInfo = {
+        ...info,
+        unsafe: {
+          ...info.unsafe,
+          now: Date.now,
+        },
+      };
     });
     return output.calls;
   }
