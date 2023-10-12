@@ -2404,6 +2404,7 @@ dependencies = [
  "parking_lot",
  "prost",
  "prost-types",
+ "serde_json",
  "temporal-client",
  "temporal-sdk-core",
  "tokio",

@@ -16,7 +16,7 @@ import {
   OtelCollectorExporter,
 } from '@temporalio/core-bridge';
 import { filterNullAndUndefined, normalizeTlsConfig } from '@temporalio/common/lib/internal-non-workflow';
-import { IllegalStateError } from '@temporalio/common';
+import { IllegalStateError, LogMetadata } from '@temporalio/common';
 import { temporal } from '@temporalio/proto';
 import { History } from '@temporalio/common/lib/proto-utils';
 import { msToNumber } from '@temporalio/common/lib/time';
@@ -273,8 +273,10 @@ export class Runtime {
     const doPoll = async () => {
       const logs = await poll(this.native);
       for (const log of logs) {
-        const meta: Record<string | symbol, unknown> = {
+        const meta: LogMetadata = {
           [LogTimestamp]: timeOfDayToBigint(log.timestamp),
+          subsystem: log.target,
+          ...log.fields,
         };
         logger.log(log.level, log.message, meta);
       }
