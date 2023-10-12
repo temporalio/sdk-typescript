@@ -1,6 +1,6 @@
 use crate::errors::*;
 use neon::{prelude::*, types::buffer::TypedArray};
-use std::{fmt::Display, future::Future, sync::Arc, collections::HashMap};
+use std::{fmt::Display, future::Future, sync::Arc};
 
 /// Send a result to JS via callback using a [Channel]
 pub fn send_result<F, T>(channel: Arc<Channel>, callback: Root<JsFunction>, res_fn: F)
@@ -204,18 +204,12 @@ pub fn serde_value_to_js_value<'a>(cx: &mut impl Context<'a>, val: serde_json::V
             Ok(arr.upcast())
         }
         serde_json::Value::Object(map) => {
-            let obj: Handle<'a, JsObject> = cx.empty_object();
-            for (k, v) in map {
-                let k = cx.string(snake_to_camel(k));
-                let v=  serde_value_to_js_value(cx, v)?;
-                obj.set(cx, k, v)?;
-            }
-            Ok(obj.upcast())
+            hashmap_to_js_value(cx, map).map(|v| v.upcast())
         }
     }
 }
 
-pub fn hashmap_to_js_value<'a>(cx: &mut impl Context<'a>, map: HashMap<String, serde_json::Value>) -> JsResult<'a, JsObject> {
+pub fn hashmap_to_js_value<'a>(cx: &mut impl Context<'a>, map: impl IntoIterator<Item = (String, serde_json::Value)>) -> JsResult<'a, JsObject> {
     let obj: Handle<'a, JsObject> = cx.empty_object();
     for (k, v) in map {
         let k = cx.string(snake_to_camel(k));
@@ -225,18 +219,38 @@ pub fn hashmap_to_js_value<'a>(cx: &mut impl Context<'a>, map: HashMap<String, s
     Ok(obj)
 }
 
-fn snake_to_camel(s: String) -> String {
-    let mut result = String::new();
-    let mut capitalize = false;
-    for c in s.chars() {
-        if c == '_' {
-            capitalize = true;
-        } else if capitalize {
-            result.push(c.to_ascii_uppercase());
-            capitalize = false;
-        } else {
-            result.push(c);
+fn snake_to_camel(input: String) -> String {
+    match input.find('_') {
+        None => input,
+        Some(first) => {
+            let mut result = String::with_capacity(input.len());
+            if first > 0 {
+                result.push_str(&input[..first]);
+            }
+            let mut capitalize = true;
+            for c in input[first+1..].chars() {
+                if c == '_' {
+                    capitalize = true;
+                } else if capitalize {
+                    result.push(c.to_ascii_uppercase());
+                    capitalize = false;
+                } else {
+                    result.push(c.to_ascii_lowercase());
+                }
+            }
+            result
         }
     }
-    result
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn snake_to_camel_works() {
+        assert_eq!(snake_to_camel("this_is_a_test".into()), "thisIsATest");
+        assert_eq!(snake_to_camel("this___IS_a_TEST".into()), "thisIsATest");
+        assert_eq!(snake_to_camel("éàç_this_is_a_test".into()), "éàçThisIsATest");
+    }
 }
