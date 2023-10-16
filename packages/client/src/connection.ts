@@ -21,20 +21,46 @@ export interface ConnectionOptions {
   address?: string;
 
   /**
-   * TLS configuration.
-   * Pass a falsy value to use a non-encrypted connection or `true` or `{}` to
-   * connect with TLS without any customization.
+   * TLS configuration. Pass a falsy value to use a non-encrypted connection,
+   * or `true` or `{}` to connect with TLS without any customization.
+   *
+   * For advanced scenario, a prebuilt {@link grpc.ChannelCredentials} object
+   * may instead be specified using the {@link credentials} property.
    *
    * Either {@link credentials} or this may be specified for configuring TLS
+   *
+   * @default TLS is disabled
    */
   tls?: TLSConfig | boolean | null;
 
   /**
-   * Channel credentials, create using the factory methods defined {@link https://grpc.github.io/grpc/node/grpc.credentials.html | here}
+   * gRPC channel credentials.
+   *
+   * `ChannelCredentials` are things like SSL credentials that can be used to secure a connection.
+   * There may be only one `ChannelCredentials`. They can be created using some of the factory
+   * methods defined {@link https://grpc.github.io/grpc/node/grpc.credentials.html | here}
+   *
+   * Specifying a prebuilt `ChannelCredentials` should only be required for advanced use cases.
+   * For simple TLS use cases, using the {@link tls} property is recommended. To register
+   * `CallCredentials` (eg. metadata-based authentication), use the {@link callCredentials} property.
    *
    * Either {@link tls} or this may be specified for configuring TLS
    */
   credentials?: grpc.ChannelCredentials;
+
+  /**
+   * gRPC call credentials.
+   *
+   * `CallCredentials` generaly modify metadata; they can be attached to a connection to affect all method
+   * calls made using that connection. They can be created using some of the factory methods defined
+   * {@link https://grpc.github.io/grpc/node/grpc.credentials.html | here}
+   *
+   * If `callCredentials` are specified, they will be composed with channel credentials
+   * (either the one created implicitely by using the {@link tls} option, or the one specified
+   * explicitly through {@link credentials}). Notice that gRPC doesn't allow registering
+   * `callCredentials` on insecure connections.
+   */
+  callCredentials?: grpc.CallCredentials[];
 
   /**
    * GRPC Channel arguments
@@ -84,7 +110,9 @@ export interface ConnectionOptions {
   connectTimeout?: Duration;
 }
 
-export type ConnectionOptionsWithDefaults = Required<Omit<ConnectionOptions, 'tls' | 'connectTimeout'>> & {
+export type ConnectionOptionsWithDefaults = Required<
+  Omit<ConnectionOptions, 'tls' | 'connectTimeout' | 'callCredentials'>
+> & {
   connectTimeoutMs: number;
 };
 
@@ -114,7 +142,7 @@ function addDefaults(options: ConnectionOptions): ConnectionOptionsWithDefaults 
  * - Add default port to address if port not specified
  */
 function normalizeGRPCConfig(options?: ConnectionOptions): ConnectionOptions {
-  const { tls: tlsFromConfig, credentials, ...rest } = options || {};
+  const { tls: tlsFromConfig, credentials, callCredentials, ...rest } = options || {};
   if (rest.address) {
     // eslint-disable-next-line prefer-const
     let [host, port] = rest.address.split(':', 2);
@@ -128,10 +156,9 @@ function normalizeGRPCConfig(options?: ConnectionOptions): ConnectionOptions {
     }
     return {
       ...rest,
-      credentials: grpc.credentials.createSsl(
-        tls.serverRootCACertificate,
-        tls.clientCertPair?.key,
-        tls.clientCertPair?.crt
+      credentials: grpc.credentials.combineChannelCredentials(
+        grpc.credentials.createSsl(tls.serverRootCACertificate, tls.clientCertPair?.key, tls.clientCertPair?.crt),
+        ...(callCredentials ?? [])
       ),
       channelArgs: {
         ...rest.channelArgs,
@@ -144,7 +171,13 @@ function normalizeGRPCConfig(options?: ConnectionOptions): ConnectionOptions {
       },
     };
   } else {
-    return rest;
+    return {
+      ...rest,
+      credentials: grpc.credentials.combineChannelCredentials(
+        credentials ?? grpc.credentials.createInsecure(),
+        ...(callCredentials ?? [])
+      ),
+    };
   }
 }
 
