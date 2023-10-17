@@ -257,6 +257,20 @@ export interface WorkerOptions {
   maxConcurrentWorkflowTaskExecutions?: number;
 
   /**
+   * `maxConcurrentWorkflowTaskPolls` * this number = the number of max pollers that will
+   * be allowed for the nonsticky queue when sticky tasks are enabled. If both defaults are used,
+   * the sticky queue will allow 8 max pollers while the nonsticky queue will allow 2. The
+   * minimum for either poller is 1, so if `maxConcurrentWorkflowTaskPolls` is 1 and sticky queues are
+   * enabled, there will be 2 concurrent polls.
+   *
+   * ⚠️ This API is experimental and may be removed in the future if the poll scaling algorithm changes.
+   *
+   * @experimental This API is experimental and may be removed in the future if the poll scaling algorithm changes.
+   * @default 0.2
+   */
+  nonStickyToStickyPollRatio?: number;
+
+  /**
    * Maximum number of Workflow Tasks to poll concurrently.
    *
    * In general, a Workflow Worker's performance is mostly network bound (due to communication latency with the
@@ -514,6 +528,7 @@ export type WorkerOptionsWithDefaults = WorkerOptions &
       | 'maxConcurrentWorkflowTaskExecutions'
       | 'maxConcurrentWorkflowTaskPolls'
       | 'maxConcurrentActivityTaskPolls'
+      | 'nonStickyToStickyPollRatio'
       | 'enableNonLocalActivities'
       | 'stickyQueueScheduleToStartTimeout'
       | 'maxCachedWorkflows'
@@ -564,6 +579,9 @@ export interface ReplayWorkerOptions
     | 'maxConcurrentActivityTaskExecutions'
     | 'maxConcurrentLocalActivityExecutions'
     | 'maxConcurrentWorkflowTaskExecutions'
+    | 'maxConcurrentActivityTaskPolls'
+    | 'maxConcurrentWorkflowTaskPolls'
+    | 'nonStickyToStickyPollRatio'
     | 'maxHeartbeatThrottleInterval'
     | 'defaultHeartbeatThrottleInterval'
     | 'debugMode'
@@ -649,6 +667,7 @@ export function addDefaultWorkerOptions(options: WorkerOptions): WorkerOptionsWi
     namespace,
     reuseV8Context,
     sinks,
+    nonStickyToStickyPollRatio,
     ...rest
   } = options;
   const debugMode = options.debugMode || isSet(process.env.TEMPORAL_DEBUG);
@@ -686,6 +705,7 @@ export function addDefaultWorkerOptions(options: WorkerOptions): WorkerOptionsWi
     reuseV8Context: reuseV8Context ?? false,
     debugMode: debugMode ?? false,
     interceptors: appendDefaultInterceptors({}),
+    nonStickyToStickyPollRatio: nonStickyToStickyPollRatio ?? 0.2,
     sinks: { ...defaultSinks(), ...sinks },
     ...rest,
     maxConcurrentWorkflowTaskExecutions,
