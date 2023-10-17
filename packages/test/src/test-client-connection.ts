@@ -1,5 +1,6 @@
 import util from 'node:util';
 import path from 'node:path';
+import fs from 'node:fs/promises';
 import test from 'ava';
 import * as grpc from '@grpc/grpc-js';
 import * as protoLoader from '@grpc/proto-loader';
@@ -20,6 +21,23 @@ async function bindLocalhost(server: grpc.Server): Promise<number> {
   return await util.promisify(server.bindAsync.bind(server))('127.0.0.1:0', grpc.ServerCredentials.createInsecure());
 }
 
+async function bindLocalhostTls(server: grpc.Server): Promise<number> {
+  const caCert = await fs.readFile(path.resolve(__dirname, `../tls_certs/test-ca.crt`));
+  const serverChainCert = await fs.readFile(path.resolve(__dirname, `../tls_certs/test-server-chain.crt`));
+  const serverKey = await fs.readFile(path.resolve(__dirname, `../tls_certs/test-server.key`));
+  const credentials = grpc.ServerCredentials.createSsl(
+    caCert,
+    [
+      {
+        cert_chain: serverChainCert,
+        private_key: serverKey,
+      },
+    ],
+    true
+  );
+  return await util.promisify(server.bindAsync.bind(server))('localhost:0', credentials);
+}
+
 test('withMetadata / withDeadline set the CallContext for RPC call', async (t) => {
   const server = new grpc.Server();
   let gotTestHeaders = false;
@@ -32,7 +50,7 @@ test('withMetadata / withDeadline set the CallContext for RPC call', async (t) =
         temporal.api.workflowservice.v1.IRegisterNamespaceRequest,
         temporal.api.workflowservice.v1.IRegisterNamespaceResponse
       >,
-      callback: grpc.sendUnaryData<temporal.api.workflowservice.v1.IRegisterNamespaceResponse>
+      callback: grpc.sendUnaryData<temporal.api.workflowservice.v1.IDescribeWorkflowExecutionResponse>
     ) {
       const [testValue] = call.metadata.get('test');
       const [otherValue] = call.metadata.get('otherKey');
@@ -111,7 +129,7 @@ test('grpc retry passes request and headers on retry, propagates responses', asy
         temporal.api.workflowservice.v1.IDescribeWorkflowExecutionRequest,
         temporal.api.workflowservice.v1.IDescribeWorkflowExecutionResponse
       >,
-      callback: grpc.sendUnaryData<temporal.api.workflowservice.v1.IRegisterNamespaceResponse>
+      callback: grpc.sendUnaryData<temporal.api.workflowservice.v1.IDescribeWorkflowExecutionResponse>
     ) {
       const { namespace } = call.request;
       if (typeof namespace === 'string') {
@@ -171,4 +189,90 @@ test('Default keepalive settings are set while maintaining user provided channel
   t.is(channelArgs['grpc.enable_channelz'], 1);
   // User setting overrides default
   t.is(channelArgs['grpc.keepalive_permit_without_calls'], 0);
+});
+
+test('Can configure TLS + call credentials', async (t) => {
+  const meta = Array<string[]>();
+
+  const server = new grpc.Server();
+
+  server.addService(workflowServiceProtoDescriptor.temporal.api.workflowservice.v1.WorkflowService.service, {
+    getSystemInfo(
+      call: grpc.ServerUnaryCall<
+        temporal.api.workflowservice.v1.IGetSystemInfoRequest,
+        temporal.api.workflowservice.v1.IGetSystemInfoResponse
+      >,
+      callback: grpc.sendUnaryData<temporal.api.workflowservice.v1.IGetSystemInfoResponse>
+    ) {
+      const [aValue] = call.metadata.get('a');
+      const [authorizationValue] = call.metadata.get('authorization');
+      if (typeof aValue === 'string' && typeof authorizationValue === 'string') {
+        meta.push([aValue, authorizationValue]);
+      }
+
+      const response: temporal.api.workflowservice.v1.IGetSystemInfoResponse = {
+        serverVersion: 'test',
+        capabilities: undefined,
+      };
+      callback(null, response);
+    },
+
+    describeWorkflowExecution(
+      call: grpc.ServerUnaryCall<
+        temporal.api.workflowservice.v1.IDescribeWorkflowExecutionRequest,
+        temporal.api.workflowservice.v1.IDescribeWorkflowExecutionResponse
+      >,
+      callback: grpc.sendUnaryData<temporal.api.workflowservice.v1.IDescribeWorkflowExecutionResponse>
+    ) {
+      const [aValue] = call.metadata.get('a');
+      const [authorizationValue] = call.metadata.get('authorization');
+      if (typeof aValue === 'string' && typeof authorizationValue === 'string') {
+        meta.push([aValue, authorizationValue]);
+      }
+
+      const response: temporal.api.workflowservice.v1.IDescribeWorkflowExecutionResponse = {
+        workflowExecutionInfo: { execution: { workflowId: 'test' } },
+      };
+      callback(null, response);
+    },
+  });
+  const port = await bindLocalhostTls(server);
+  server.start();
+
+  let callNumber = 0;
+  const oauth2Client: grpc.OAuth2Client = {
+    getRequestHeaders: async () => {
+      const accessToken = `oauth2-access-token-${++callNumber}`;
+      return { authorization: `Bearer ${accessToken}` };
+    },
+  };
+
+  // Default interceptor config with backoff factor of 1 to speed things up
+  // const interceptor = makeGrpcRetryInterceptor(defaultGrpcRetryOptions({ factor: 1 }));
+  const conn = await Connection.connect({
+    address: `localhost:${port}`,
+    metadata: { a: 'bc' },
+    tls: {
+      serverRootCACertificate: await fs.readFile(path.resolve(__dirname, `../tls_certs/test-ca.crt`)),
+      clientCertPair: {
+        crt: await fs.readFile(path.resolve(__dirname, `../tls_certs/test-client-chain.crt`)),
+        key: await fs.readFile(path.resolve(__dirname, `../tls_certs/test-client.key`)),
+      },
+      serverNameOverride: 'Server',
+    },
+    callCredentials: [grpc.credentials.createFromGoogleCredential(oauth2Client)],
+  });
+
+  // Make three calls
+  await conn.workflowService.describeWorkflowExecution({ namespace: 'a' });
+  await conn.workflowService.describeWorkflowExecution({ namespace: 'b' });
+  await conn.workflowService.describeWorkflowExecution({ namespace: 'c' });
+
+  // Check that both connection level metadata and call credentials metadata are sent correctly
+  t.deepEqual(meta, [
+    ['bc', 'Bearer oauth2-access-token-1'],
+    ['bc', 'Bearer oauth2-access-token-2'],
+    ['bc', 'Bearer oauth2-access-token-3'],
+    ['bc', 'Bearer oauth2-access-token-4'],
+  ]);
 });
