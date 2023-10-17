@@ -357,14 +357,6 @@ export const log: Logger = {
   },
 };
 
-new Proxy({} as Logger, {
-  get(_, prop) {
-    if (typeof prop === 'string') {
-      return (Context.current().log as any)[prop];
-    }
-  },
-});
-
 /**
  * Helper function for sleeping in an Activity.
  *
