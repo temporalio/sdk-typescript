@@ -10,7 +10,7 @@ import type { coresdk } from '@temporalio/proto';
 import { disableStorage } from './cancellation-scope';
 import { DeterminismViolationError } from './errors';
 import { WorkflowInterceptorsFactory } from './interceptors';
-import { WorkflowCreateOptionsInternal, WorkflowInfo } from './interfaces';
+import { WorkflowCreateOptionsInternal } from './interfaces';
 import { Activator, getActivator } from './internals';
 import { SinkCall } from './sinks';
 import { setActivatorUntyped } from './global-attributes';
