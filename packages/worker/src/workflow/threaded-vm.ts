@@ -224,15 +224,9 @@ export class VMWorkflowThreadProxy implements Workflow {
     if (output?.type !== 'sink-calls') {
       throw new TypeError(`Got invalid response output from Workflow Worker thread ${output}`);
     }
+
     output.calls.forEach((call) => {
-      const info = call.workflowInfo;
-      call.workflowInfo = {
-        ...info,
-        unsafe: {
-          ...info.unsafe,
-          now: Date.now,
-        },
-      };
+      (call.workflowInfo.unsafe.now as any) = Date.now;
     });
     return output.calls;
   }

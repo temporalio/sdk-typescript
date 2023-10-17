@@ -15,7 +15,7 @@ import {
   ProtoFailure,
 } from '@temporalio/common';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
-import { checkExtends, deepFreeze, SymbolBasedInstanceOfError } from '@temporalio/common/lib/type-helpers';
+import { checkExtends, SymbolBasedInstanceOfError } from '@temporalio/common/lib/type-helpers';
 import type { coresdk } from '@temporalio/proto';
 import { alea, RNG } from './alea';
 import { RootCancellationScope } from './cancellation-scope';
@@ -296,7 +296,7 @@ export class Activator implements ActivationHandler {
     registeredActivityNames,
   }: WorkflowCreateOptionsInternal) {
     this.getTimeOfDay = getTimeOfDay;
-    this.info = deepFreeze(info);
+    this.info = info;
     this.now = now;
     this.showStackTraceSources = showStackTraceSources;
     this.sourceMap = sourceMap;
@@ -311,7 +311,7 @@ export class Activator implements ActivationHandler {
   }
 
   mutateWorkflowInfo(fn: (info: WorkflowInfo) => WorkflowInfo): void {
-    this.info = deepFreeze(fn(this.info));
+    this.info = fn(this.info);
   }
 
   protected getStackTraces(): Stack[] {

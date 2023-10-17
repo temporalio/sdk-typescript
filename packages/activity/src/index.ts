@@ -71,9 +71,9 @@
 
 import 'abort-controller/polyfill'; // eslint-disable-line import/no-unassigned-import
 import { AsyncLocalStorage } from 'node:async_hooks';
-import { Logger, Duration } from '@temporalio/common';
+import { Logger, Duration, LogLevel, LogMetadata } from '@temporalio/common';
 import { msToNumber } from '@temporalio/common/lib/time';
-import { SymbolBasedInstanceOfError, deepFreeze } from '@temporalio/common/lib/type-helpers';
+import { SymbolBasedInstanceOfError } from '@temporalio/common/lib/type-helpers';
 
 export {
   ActivityFunction,
@@ -275,11 +275,7 @@ export class Context {
     heartbeat: (details?: any) => void,
     logger: Logger
   ) {
-    // Note that we don't freeze the context object itself, because some users add properties to it (generally from
-    // interceptors). We even had samples promoting that practice. We should probably deprecate that at some point, but
-    // lets give us some time before we do.
-    this.info = deepFreeze(info);
-
+    this.info = info;
     this.cancelled = cancelled;
     this.cancellationSignal = cancellationSignal;
     this.heartbeatFn = heartbeat;
@@ -338,10 +334,30 @@ export function activityInfo(): Info {
  *
  * This is a shortcut for `Context.current().log` (see {@link Context.log}).
  */
-export const log: Logger = new Proxy({} as Logger, {
-  // For consistency with both workflow.log and Context.current().log, we want activity.log to be an object, rather than
-  // a function. However, Context.current().log may legitimately change during the lifetime of an Activity, so we can't
-  // just initialize that field to the value of Context.current().log and move on. Hence the proxy.
+export const log: Logger = {
+  // Context.current().log may legitimately change during the lifetime of an Activity, so we can't
+  // just initialize that field to the value of Context.current().log and move on. Hence this indirection.
+  log(level: LogLevel, message: string, meta?: LogMetadata): any {
+    return Context.current().log.log(level, message, meta);
+  },
+  trace(message: string, meta?: LogMetadata): any {
+    return Context.current().log.trace(message, meta);
+  },
+  debug(message: string, meta?: LogMetadata): any {
+    return Context.current().log.debug(message, meta);
+  },
+  info(message: string, meta?: LogMetadata): any {
+    return Context.current().log.info(message, meta);
+  },
+  warn(message: string, meta?: LogMetadata): any {
+    return Context.current().log.warn(message, meta);
+  },
+  error(message: string, meta?: LogMetadata): any {
+    return Context.current().log.error(message, meta);
+  },
+};
+
+new Proxy({} as Logger, {
   get(_, prop) {
     if (typeof prop === 'string') {
       return (Context.current().log as any)[prop];
