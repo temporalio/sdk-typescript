@@ -4,8 +4,9 @@
  */
 import test from 'ava';
 import { v4 as uuid4 } from 'uuid';
-import { Runtime, DefaultLogger } from '@temporalio/worker';
-import { WorkflowClient } from '@temporalio/client';
+import asyncRetry from 'async-retry';
+import { Runtime, DefaultLogger, LogEntry, makeTelemetryFilterString } from '@temporalio/worker';
+import { Client, WorkflowClient } from '@temporalio/client';
 import { defaultOptions } from './mock-native-worker';
 import * as workflows from './workflows';
 import { RUN_INTEGRATION_TESTS, Worker } from './helpers';
@@ -70,6 +71,50 @@ if (RUN_INTEGRATION_TESTS) {
       const runtime = Runtime.instance();
       t.is(runtime.options.logger, logger);
       await runtime.shutdown();
+    }
+  });
+
+  test.serial('Runtime.instance() Core forwarded logs contains metadata', async (t) => {
+    const logEntries: LogEntry[] = [];
+    const logger = new DefaultLogger('DEBUG', (entry) => logEntries.push(entry));
+    Runtime.install({
+      logger,
+      telemetryOptions: { logging: { forward: {}, filter: makeTelemetryFilterString({ core: 'DEBUG' }) } },
+    });
+    try {
+      {
+        const runtime = Runtime.instance();
+        t.is(runtime.options.logger, logger);
+      }
+      await new Client().workflow.start('not-existant', { taskQueue: 'q1', workflowId: uuid4() });
+      const worker = await Worker.create({
+        ...defaultOptions,
+        taskQueue: 'q1',
+      });
+      await worker.runUntil(() =>
+        asyncRetry(
+          () => {
+            if (!logEntries.some((x) => x.message === 'Failing workflow task'))
+              throw new Error('Waiting for failing workflow task');
+          },
+          { minTimeout: 100, factor: 1, maxTimeout: 5000 }
+        )
+      );
+
+      const initWorkerEntry = logEntries.filter((x) => x.message === 'Initializing worker')?.[0];
+      t.true(initWorkerEntry !== undefined);
+      t.is(initWorkerEntry.meta?.['taskQueue'], 'q1');
+
+      const failingWftEntry = logEntries.filter((x) => x.message === 'Failing workflow task')?.[0];
+      t.true(failingWftEntry !== undefined);
+      t.is(failingWftEntry.meta?.['taskQueue'], 'q1');
+      t.is(typeof failingWftEntry.meta?.['completion'], 'string');
+      t.is(typeof failingWftEntry.meta?.['failure'], 'string');
+      t.is(typeof failingWftEntry.meta?.['runId'], 'string');
+      t.is(typeof failingWftEntry.meta?.['workflowId'], 'string');
+      t.is(typeof failingWftEntry.meta?.['subsystem'], 'string');
+    } finally {
+      await Runtime.instance().shutdown();
     }
   });
 

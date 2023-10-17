@@ -345,6 +345,10 @@ export interface WorkerOptions {
   maxActivitiesPerSecond?: number;
 }
 
+export type LogEntryMetadata = {
+  [key: string]: string | number | boolean | LogEntryMetadata;
+};
+
 export interface LogEntry {
   /** Log message */
   message: string;
@@ -354,8 +358,15 @@ export interface LogEntry {
    * Should be switched to bigint once it is supported in neon.
    */
   timestamp: [number, number];
+
   /** Log level */
   level: LogLevel;
+
+  /** Name of the Core subsystem that emitted that log entry */
+  target: string;
+
+  /*** Metadata fields */
+  fields: LogEntryMetadata;
 }
 
 /**
