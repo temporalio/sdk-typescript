@@ -165,7 +165,7 @@ function scheduleActivityNextHandler({ options, args, headers, seq, activityType
         activityType,
         arguments: toPayloads(activator.payloadConverter, ...args),
         retryPolicy: options.retry ? compileRetryPolicy(options.retry) : undefined,
-        taskQueue: options.taskQueue || activator.info?.taskQueue,
+        taskQueue: options.taskQueue || activator.info.taskQueue,
         heartbeatTimeout: msOptionalToTs(options.heartbeatTimeout),
         scheduleToCloseTimeout: msOptionalToTs(options.scheduleToCloseTimeout),
         startToCloseTimeout: msOptionalToTs(options.startToCloseTimeout),
@@ -198,7 +198,7 @@ async function scheduleLocalActivityNextHandler({
   const activator = getActivator();
   // Eagerly fail the local activity (which will in turn fail the workflow task.
   // Do not fail on replay where the local activities may not be registered on the replay worker.
-  if (!workflowInfo().unsafe.isReplaying && !activator.registeredActivityNames.has(activityType)) {
+  if (!activator.info.unsafe.isReplaying && !activator.registeredActivityNames.has(activityType)) {
     throw new ReferenceError(`Local activity of type '${activityType}' not registered on worker`);
   }
   validateLocalActivityOptions(options);
@@ -358,11 +358,11 @@ function startChildWorkflowExecutionNextHandler({
         workflowType,
         input: toPayloads(activator.payloadConverter, ...options.args),
         retryPolicy: options.retry ? compileRetryPolicy(options.retry) : undefined,
-        taskQueue: options.taskQueue || activator.info?.taskQueue,
+        taskQueue: options.taskQueue || activator.info.taskQueue,
         workflowExecutionTimeout: msOptionalToTs(options.workflowExecutionTimeout),
         workflowRunTimeout: msOptionalToTs(options.workflowRunTimeout),
         workflowTaskTimeout: msOptionalToTs(options.workflowTaskTimeout),
-        namespace: workflowInfo().namespace, // Not configurable
+        namespace: activator.info.namespace, // Not configurable
         headers,
         cancellationType: options.cancellationType,
         workflowIdReusePolicy: options.workflowIdReusePolicy,
@@ -830,9 +830,11 @@ export async function executeChild<T extends Workflow>(
 /**
  * Get information about the current Workflow.
  *
- * ⚠️ We recommend calling `workflowInfo()` whenever accessing {@link WorkflowInfo} fields. Some WorkflowInfo fields
- * change during the lifetime of an Execution—like {@link WorkflowInfo.historyLength} and
- * {@link WorkflowInfo.searchAttributes}—and some may be changeable in the future—like {@link WorkflowInfo.taskQueue}.
+ * WARNING: This function returns a frozen copy of WorkflowInfo, at the point where this method has been called.
+ * Changes happening at later point in workflow execution will not be reflected in the returned object.
+ *
+ * For this reason, we recommend calling `workflowInfo()` on every access to {@link WorkflowInfo}'s fields,
+ * rather than caching the `WorkflowInfo` object (or part of it) in a local variable. For example:
  *
  * ```ts
  * // GOOD
@@ -843,6 +845,8 @@ export async function executeChild<T extends Workflow>(
  * }
  * ```
  *
+ * vs
+ *
  * ```ts
  * // BAD
  * function myWorkflow() {
@@ -851,6 +855,7 @@ export async function executeChild<T extends Workflow>(
  *   ...
  *   doSomethingElse(attributes)
  * }
+ * ```
  */
 export function workflowInfo(): WorkflowInfo {
   const activator = assertInWorkflowContext('Workflow.workflowInfo(...) may only be used from a Workflow Execution.');
@@ -907,19 +912,16 @@ export function proxySinks<T extends Sinks>(): T {
                 const activator = assertInWorkflowContext(
                   'Proxied sinks functions may only be used from a Workflow Execution.'
                 );
-                const info = workflowInfo();
                 activator.sinkCalls.push({
                   ifaceName: ifaceName as string,
                   fnName: fnName as string,
-                  // Only available from node 17.
+                  // Sink function don't get called immediately. Make a clone of sink's args, so that further mutations
+                  // to these objects don't corrupt the args that the sink function will receive. Only available from node 17.
                   args: (globalThis as any).structuredClone ? (globalThis as any).structuredClone(args) : args,
-                  // Clone the workflowInfo object so that any further mutations to it does not get reflected in sink
-                  workflowInfo: {
-                    ...info,
-                    // Make sure to clone any sub-property that may get mutated during the lifespan of an activation
-                    searchAttributes: { ...info.searchAttributes },
-                    memo: info.memo ? { ...info.memo } : undefined,
-                  },
+                  // activator.info is internally copy-on-write. This ensure that any further mutations
+                  // to the workflow state in the context of the present activation will not corrupt the
+                  // workflowInfo state that gets passed when the sink function actually gets called.
+                  workflowInfo: activator.info,
                 });
               };
             },
@@ -1271,8 +1273,7 @@ export function upsertSearchAttributes(searchAttributes: SearchAttributes): void
     'Workflow.upsertSearchAttributes(...) may only be used from a Workflow Execution.'
   );
 
-  const mergedSearchAttributes = { ...activator.info.searchAttributes, ...searchAttributes };
-  if (!mergedSearchAttributes) {
+  if (searchAttributes == null) {
     throw new Error('searchAttributes must be a non-null SearchAttributes');
   }
 
@@ -1282,7 +1283,15 @@ export function upsertSearchAttributes(searchAttributes: SearchAttributes): void
     },
   });
 
-  activator.info.searchAttributes = mergedSearchAttributes;
+  activator.mutateWorkflowInfo((info: WorkflowInfo): WorkflowInfo => {
+    return {
+      ...info,
+      searchAttributes: {
+        ...info.searchAttributes,
+        ...searchAttributes,
+      },
+    };
+  });
 }
 
 export const stackTraceQuery = defineQuery<string>('__stack_trace');

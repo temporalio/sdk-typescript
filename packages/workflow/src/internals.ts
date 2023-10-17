@@ -253,7 +253,7 @@ export class Activator implements ActivationHandler {
   /**
    * Information about the current Workflow
    */
-  public readonly info: WorkflowInfo;
+  public info: WorkflowInfo;
 
   /**
    * A deterministic RNG, used by the isolate's overridden Math.random
@@ -308,6 +308,10 @@ export class Activator implements ActivationHandler {
         this.notifyHasPatch({ patchId });
       }
     }
+  }
+
+  mutateWorkflowInfo(fn: (info: WorkflowInfo) => WorkflowInfo): void {
+    this.info = fn(this.info);
   }
 
   protected getStackTraces(): Stack[] {

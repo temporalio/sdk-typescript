@@ -4,34 +4,12 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 import vm from 'node:vm';
 import * as internals from '@temporalio/workflow/lib/worker-interface';
 import { IllegalStateError } from '@temporalio/common';
+import { deepFreeze } from '@temporalio/common/lib/type-helpers';
 import { getTimeOfDay } from '@temporalio/core-bridge';
 import { timeOfDayToBigint } from '../logger';
 import { Workflow, WorkflowCreateOptions, WorkflowCreator } from './interface';
 import { WorkflowBundleWithSourceMapAndFilename } from './workflow-worker-thread/input';
 import { BaseVMWorkflow, globalHandlers, injectConsole, setUnhandledRejectionHandler } from './vm-shared';
-
-// Thanks MDN: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object/freeze
-function deepFreeze(object: any) {
-  // Retrieve the property names defined on object
-  const propNames = Object.getOwnPropertyNames(object);
-
-  // Freeze properties before freezing self
-  for (const name of propNames) {
-    const value = object[name];
-
-    if (value && typeof value === 'object') {
-      try {
-        deepFreeze(value);
-      } catch (err) {
-        // This is okay, there are some typed arrays that cannot be frozen (encodingKeys)
-      }
-    } else if (typeof value === 'function') {
-      Object.freeze(value);
-    }
-  }
-
-  return Object.freeze(object);
-}
 
 /**
  * A WorkflowCreator that creates VMWorkflows in the current isolate
