@@ -263,10 +263,9 @@ export interface WorkerOptions {
    * minimum for either poller is 1, so if `maxConcurrentWorkflowTaskPolls` is 1 and sticky queues are
    * enabled, there will be 2 concurrent polls.
    *
-   * ⚠️T This API is experimental and may be removed in the future if the poll scaling algorithm changes.
+   * ⚠️ This API is experimental and may be removed in the future if the poll scaling algorithm changes.
    *
-   * @experimental
-   *
+   * @experimental This API is experimental and may be removed in the future if the poll scaling algorithm changes.
    * @default 0.2
    */
   nonStickyToStickyPollRatio?: number;
@@ -529,6 +528,7 @@ export type WorkerOptionsWithDefaults = WorkerOptions &
       | 'maxConcurrentWorkflowTaskExecutions'
       | 'maxConcurrentWorkflowTaskPolls'
       | 'maxConcurrentActivityTaskPolls'
+      | 'nonStickyToStickyPollRatio'
       | 'enableNonLocalActivities'
       | 'stickyQueueScheduleToStartTimeout'
       | 'maxCachedWorkflows'
