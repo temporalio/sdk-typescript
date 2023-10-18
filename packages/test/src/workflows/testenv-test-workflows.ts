@@ -16,10 +16,18 @@ export async function raceActivityAndTimer(expectedWinner: 'timer' | 'activity')
   const timerShouldWin = expectedWinner === 'timer';
   const timerDuration = timerShouldWin ? 1_000_000 : 1_500_000;
   const activityDuration = timerShouldWin ? 1_500_000 : 1_000_000;
-  return await Promise.race([
-    sleep(timerDuration).then(() => 'timer'),
-    activities.sleep(activityDuration).then(() => 'activity'),
-  ]);
+
+  const timerPromise = sleep(timerDuration).then(() => 'timer');
+  const activityPromise = activities.sleep(activityDuration).then(() => 'activity');
+  const winner = await Promise.race([timerPromise, activityPromise]);
+
+  // TODO: there's an issue with the Java test server where if an activity does not complete
+  // before its scheduling workflow, time skipping stays locked, thus potentially causing errors
+  // on later tests. Work around this by making sure activity is completed before returning.
+  // See https://github.com/temporalio/sdk-java/issues/1138
+  await activityPromise;
+
+  return winner;
 }
 
 export async function waitOnSignalWithTimeout(): Promise<void> {
