@@ -765,7 +765,7 @@ export class Worker {
    */
   shutdown(): void {
     if (this.state !== 'RUNNING') {
-      throw new IllegalStateError('Not running');
+      throw new IllegalStateError(`Not running. Current state: ${this.state}`);
     }
     this.state = 'STOPPING';
     this.nativeWorker
