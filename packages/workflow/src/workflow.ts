@@ -39,8 +39,7 @@ import {
   Handler,
   WorkflowInfo,
 } from './interfaces';
-import { Activator, LocalActivityDoBackoff, getActivator, maybeGetActivator } from './internals';
-import { LoggerSinks, Sinks } from './sinks';
+import { LocalActivityDoBackoff, assertInWorkflowContext, getActivator, maybeGetActivator } from './internals';
 import { untrackPromise } from './stack-helpers';
 import { ChildWorkflowHandle, ExternalWorkflowHandle } from './workflow-handle';
 
@@ -870,69 +869,6 @@ export function inWorkflowContext(): boolean {
 }
 
 /**
- * Get a reference to Sinks for exporting data out of the Workflow.
- *
- * These Sinks **must** be registered with the Worker in order for this
- * mechanism to work.
- *
- * @example
- * ```ts
- * import { proxySinks, Sinks } from '@temporalio/workflow';
- *
- * interface MySinks extends Sinks {
- *   logger: {
- *     info(message: string): void;
- *     error(message: string): void;
- *   };
- * }
- *
- * const { logger } = proxySinks<MyDependencies>();
- * logger.info('setting up');
- *
- * export function myWorkflow() {
- *   return {
- *     async execute() {
- *       logger.info("hey ho");
- *       logger.error("lets go");
- *     }
- *   };
- * }
- * ```
- */
-export function proxySinks<T extends Sinks>(): T {
-  return new Proxy(
-    {},
-    {
-      get(_, ifaceName) {
-        return new Proxy(
-          {},
-          {
-            get(_, fnName) {
-              return (...args: any[]) => {
-                const activator = assertInWorkflowContext(
-                  'Proxied sinks functions may only be used from a Workflow Execution.'
-                );
-                activator.sinkCalls.push({
-                  ifaceName: ifaceName as string,
-                  fnName: fnName as string,
-                  // Sink function don't get called immediately. Make a clone of sink's args, so that further mutations
-                  // to these objects don't corrupt the args that the sink function will receive. Only available from node 17.
-                  args: (globalThis as any).structuredClone ? (globalThis as any).structuredClone(args) : args,
-                  // activator.info is internally copy-on-write. This ensure that any further mutations
-                  // to the workflow state in the context of the present activation will not corrupt the
-                  // workflowInfo state that gets passed when the sink function actually gets called.
-                  workflowInfo: activator.info,
-                });
-              };
-            },
-          }
-        );
-      },
-    }
-  ) as any;
-}
-
-/**
  * Returns a function `f` that will cause the current Workflow to ContinueAsNew when called.
  *
  * `f` takes the same arguments as the Workflow function supplied to typeparam `F`.
@@ -1296,48 +1232,3 @@ export function upsertSearchAttributes(searchAttributes: SearchAttributes): void
 
 export const stackTraceQuery = defineQuery<string>('__stack_trace');
 export const enhancedStackTraceQuery = defineQuery<EnhancedStackTrace>('__enhanced_stack_trace');
-
-const loggerSinks = proxySinks<LoggerSinks>();
-
-/**
- * Symbol used by the SDK logger to extract a timestamp from log attributes.
- * Also defined in `worker/logger.ts` - intentionally not shared.
- */
-const LogTimestamp = Symbol.for('log_timestamp');
-
-/**
- * Default workflow logger.
- * This logger is replay-aware and will omit log messages on workflow replay.
- * The messages emitted by this logger are funnelled to the worker's `defaultSinks`, which are installed by default.
- *
- * Note that since sinks are used to power this logger, any log attributes must be transferable via the
- * {@link https://nodejs.org/api/worker_threads.html#worker_threads_port_postmessage_value_transferlist | postMessage}
- * API.
- *
- * `defaultSinks` accepts a user logger and defaults to the `Runtime`'s logger.
- *
- * See the documentation for `WorkerOptions`, `defaultSinks`, and `Runtime` for more information.
- */
-export const log: LoggerSinks['defaultWorkerLogger'] = Object.fromEntries(
-  (['trace', 'debug', 'info', 'warn', 'error'] as Array<keyof LoggerSinks['defaultWorkerLogger']>).map((level) => {
-    return [
-      level,
-      (message: string, attrs?: Record<string, unknown>) => {
-        const activator = assertInWorkflowContext('Workflow.log(...) may only be used from a Workflow Execution.');
-        const getLogAttributes = composeInterceptors(activator.interceptors.outbound, 'getLogAttributes', (a) => a);
-        return loggerSinks.defaultWorkerLogger[level](message, {
-          // Inject the call time in nanosecond resolution as expected by the worker logger.
-          [LogTimestamp]: activator.getTimeOfDay(),
-          ...getLogAttributes({}),
-          ...attrs,
-        });
-      },
-    ];
-  })
-) as any;
-
-function assertInWorkflowContext(message: string): Activator {
-  const activator = maybeGetActivator();
-  if (activator == null) throw new IllegalStateError(message);
-  return activator;
-}

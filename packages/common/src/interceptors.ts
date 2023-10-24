@@ -12,7 +12,10 @@ export type Next<IF, FN extends keyof IF> = Required<IF>[FN] extends AnyFunc ? O
 export type Headers = Record<string, Payload>;
 
 /**
- * Composes all interceptor methods into a single function
+ * Composes all interceptor methods into a single function.
+ *
+ * Calling the composed function results in calling each of the provided interceptor, in order (from the first to
+ * the last), followed by the original function provided as argument to `composeInterceptors()`.
  *
  * @param interceptors a list of interceptors
  * @param method the name of the interceptor method to compose

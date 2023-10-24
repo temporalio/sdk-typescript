@@ -98,7 +98,16 @@ export {
   UnsafeWorkflowInfo,
   WorkflowInfo,
 } from './interfaces';
-export { LoggerSinks, Sink, SinkCall, SinkFunction, Sinks } from './sinks';
 export { Trigger } from './trigger';
 export * from './workflow';
 export { ChildWorkflowHandle, ExternalWorkflowHandle } from './workflow-handle';
+export { proxySinks, Sink, SinkCall, SinkFunction, Sinks } from './sinks';
+export {
+  log,
+  /**
+   * @deprecated Do not use LoggerSinks directly. To log from Workflow code, use the `log` object
+   *             exported by the `@temporalio/workflow` package. To capture log messages emitted
+   *             by Workflow code, set the {@see Runtime.logger} property.
+   */
+  LoggerSinks,
+} from './logs';

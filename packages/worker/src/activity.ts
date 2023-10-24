@@ -31,6 +31,7 @@ export class Activity {
   public readonly abortController: AbortController = new AbortController();
   public readonly interceptors: {
     inbound: ActivityInboundCallsInterceptor[];
+    outbound: ActivityOutboundCallsInterceptor[];
   };
 
   constructor(
@@ -40,6 +41,7 @@ export class Activity {
     public readonly heartbeatCallback: Context['heartbeat'],
     interceptors?: {
       inbound?: ActivityInboundCallsInterceptorFactory[];
+      outbound: ActivityOutboundCallsInterceptorFactory[];
     }
   ) {
     const promise = new Promise<never>((_, reject) => {

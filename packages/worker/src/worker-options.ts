@@ -9,10 +9,11 @@ import { ActivityInboundLogInterceptor } from './activity-log-interceptor';
 import { NativeConnection } from './connection';
 import { WorkerInterceptors } from './interceptors';
 import { Logger } from './logger';
+import { initLoggerSink } from './workflow/logger';
 import { Runtime } from './runtime';
 import { InjectedSinks } from './sinks';
 import { MiB } from './utils';
-import { defaultWorkflowInterceptorModules, WorkflowBundleWithSourceMap } from './workflow/bundler';
+import { WorkflowBundleWithSourceMap } from './workflow/bundler';
 
 export type { WebpackConfiguration };
 
@@ -407,11 +408,14 @@ export interface WorkerOptions {
   /**
    * A mapping of interceptor type to a list of factories or module paths.
    *
-   * By default, {@link ActivityInboundLogInterceptor} and {@link WorkflowInboundLogInterceptor} are installed. If you
-   * wish to customize the interceptors while keeping the defaults, use {@link appendDefaultInterceptors}.
+   * Interceptors are called in order, from the first to the last, each one making the call to the next one, and the
+   * last one calling the original (SDK provided) function.
    *
    * When using {@link workflowBundle}, these Workflow interceptors (`WorkerInterceptors.workflowModules`) are not used.
    * Instead, provide them via {@link BundleOptions.workflowInterceptorModules} when calling {@link bundleWorkflowCode}.
+   *
+   * Before v1.9.0, calling `appendDefaultInterceptors()` was required when registering custom interceptors in order to
+   * preserve SDK's logging interceptors. This is no longer the case.
    */
   interceptors?: WorkerInterceptors;
 
@@ -444,10 +448,9 @@ export interface WorkerOptions {
    * guarantees, please consider using local activities instead. For use cases that require
    * _exactly-once_ or _at-most-once_ execution guarantees, please consider using regular activities.
    *
-   * The SDK itself may register sinks functions required to support workflow features. At the moment, the only such
-   * sink is 'defaultWorkerLogger', which is used by the workflow context logger (ie. `workflow.log.info()` and
-   * friends); other sinks may be added in the future. You may override these default sinks by explicitely registering
-   * sinks with the same name.
+   * The SDK itself may register sinks functions required to support workflow features. The name,
+   * signature and semantic of these sinks functions is considered an internal detail and may change
+   * in the future without notice. Please do not use them directly nor override them.
    */
   sinks?: InjectedSinks<any>;
 
@@ -594,59 +597,33 @@ export interface ReplayWorkerOptions
 }
 
 /**
- * Returns the `defaultWorkerLogger` sink which forwards logs from the Workflow sandbox to a given logger.
+ * Build the sink used internally by the SDK to forwards log messages from the Workflow sandbox to an actual logger.
  *
  * @param logger a {@link Logger} - defaults to the {@link Runtime} singleton logger.
+ *
+ * @deprecated Calling `defaultSink()` is no longer required. To configure a custom logger, set the
+ *             {@see Runtime.logger} property instead.
  */
 export function defaultSinks(logger?: Logger): InjectedSinks<LoggerSinks> {
-  return {
-    defaultWorkerLogger: {
-      trace: {
-        fn(_, message, attrs) {
-          logger ??= Runtime.instance().logger;
-          logger.trace(message, attrs);
-        },
-      },
-      debug: {
-        fn(_, message, attrs) {
-          logger ??= Runtime.instance().logger;
-          logger.debug(message, attrs);
-        },
-      },
-      info: {
-        fn(_, message, attrs) {
-          logger ??= Runtime.instance().logger;
-          logger.info(message, attrs);
-        },
-      },
-      warn: {
-        fn(_, message, attrs) {
-          logger ??= Runtime.instance().logger;
-          logger.warn(message, attrs);
-        },
-      },
-      error: {
-        fn(_, message, attrs) {
-          logger ??= Runtime.instance().logger;
-          logger.error(message, attrs);
-        },
-      },
-    },
-  };
+  return initLoggerSink(logger);
 }
 
 /**
  * Appends the default Worker logging interceptors to given interceptor arrays.
  *
  * @param logger a {@link Logger} - defaults to the {@link Runtime} singleton logger.
+ *
+ * @deprecated Calling `appendDefaultInterceptors()` is no longer required. To configure a custom logger, set the
+ *             {@see Runtime.logger} property instead.
  */
 export function appendDefaultInterceptors(
   interceptors: WorkerInterceptors,
   logger?: Logger | undefined
 ): WorkerInterceptors {
+  if (!logger || logger === Runtime.instance().logger) return interceptors;
   return {
-    activityInbound: [...(interceptors.activityInbound ?? []), (ctx) => new ActivityInboundLogInterceptor(ctx, logger)],
-    workflowModules: [...(interceptors.workflowModules ?? []), ...defaultWorkflowInterceptorModules],
+    activityInbound: [(ctx) => new ActivityInboundLogInterceptor(ctx, logger), ...(interceptors.activityInbound ?? [])],
+    workflowModules: interceptors.workflowModules ?? [],
   };
 }
 
@@ -695,9 +672,17 @@ export function addDefaultWorkerOptions(options: WorkerOptions): WorkerOptionsWi
     showStackTraceSources: showStackTraceSources ?? false,
     reuseV8Context: reuseV8Context ?? false,
     debugMode: debugMode ?? false,
-    interceptors: appendDefaultInterceptors({}),
+    interceptors: {
+      activityInbound: options.interceptors?.activityInbound?.some((x) => x instanceof ActivityInboundLogInterceptor)
+        ? options.interceptors?.activityInbound
+        : [(ctx) => new ActivityInboundLogInterceptor(ctx), ...(options.interceptors?.activityInbound ?? [])],
+      workflowModules: options.interceptors?.workflowModules ?? [],
+    },
     nonStickyToStickyPollRatio: nonStickyToStickyPollRatio ?? 0.2,
-    sinks: { ...defaultSinks(), ...sinks },
+    sinks: {
+      ...initLoggerSink(Runtime.instance().logger),
+      ...sinks,
+    },
     ...rest,
     maxConcurrentWorkflowTaskExecutions,
     maxConcurrentActivityTaskExecutions,

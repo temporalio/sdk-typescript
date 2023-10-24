@@ -36,6 +36,21 @@ export interface ActivityInboundCallsInterceptorFactory {
   (ctx: ActivityContext): ActivityInboundCallsInterceptor;
 }
 
+/** Input for ActivityOutboundCallsInterceptor.getLogAttributes */
+export type GetLogAttributesInput = Record<string, unknown>;
+
+/**
+ * Implement any of these methods to intercept Activity outbound calls
+ */
+export interface ActivityOutboundCallsInterceptor {
+  /**
+   * Called on each invocation of the `activity.log` methods.
+   *
+   * The attributes returned in this call are attached to every log message.
+   */
+  getLogAttributes?: (input: GetLogAttributesInput, next: Next<this, 'getLogAttributes'>) => Record<string, unknown>;
+}
+
 /**
  * Structure for passing in Worker interceptors via {@link WorkerOptions}
  */

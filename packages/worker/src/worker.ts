@@ -45,7 +45,7 @@ import { errorMessage, isError, SymbolBasedInstanceOfError } from '@temporalio/c
 import * as native from '@temporalio/core-bridge';
 import { ShutdownError, UnexpectedError } from '@temporalio/core-bridge';
 import { coresdk, temporal } from '@temporalio/proto';
-import { SinkCall, WorkflowInfo } from '@temporalio/workflow';
+import { type SinkCall, type WorkflowInfo } from '@temporalio/workflow';
 import { Activity, CancelReason } from './activity';
 import { activityLogAttributes } from './activity-log-interceptor';
 import { extractNativeClient, extractReferenceHolders, InternalNativeConnection, NativeConnection } from './connection';

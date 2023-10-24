@@ -12,7 +12,7 @@ import { DeterminismViolationError } from './errors';
 import { WorkflowInterceptorsFactory } from './interceptors';
 import { WorkflowCreateOptionsInternal } from './interfaces';
 import { Activator, getActivator } from './internals';
-import { SinkCall } from './sinks';
+import { type SinkCall } from './sinks';
 import { setActivatorUntyped } from './global-attributes';
 
 // Export the type for use on the "worker" side
