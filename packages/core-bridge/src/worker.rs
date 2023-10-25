@@ -1,7 +1,6 @@
 use crate::{conversions::ObjectHandleConversionsExt, errors::*, helpers::*, runtime::*};
 use futures::stream::StreamExt;
 use neon::{prelude::*, types::buffer::TypedArray};
-use opentelemetry::trace::{FutureExt, SpanContext, TraceContextExt};
 use prost::Message;
 use std::{cell::RefCell, sync::Arc};
 use temporal_sdk_core::replay::HistoryForReplay;
@@ -42,27 +41,23 @@ pub enum WorkerRequest {
     },
     /// A request to poll for workflow activations
     PollWorkflowActivation {
-        otel_span: SpanContext,
         /// Used to send the result back into JS
         callback: Root<JsFunction>,
     },
     /// A request to complete a single workflow activation
     CompleteWorkflowActivation {
         completion: WorkflowActivationCompletion,
-        otel_span: SpanContext,
         /// Used to send the result back into JS
         callback: Root<JsFunction>,
     },
     /// A request to poll for activity tasks
     PollActivityTask {
-        otel_span: SpanContext,
         /// Used to report completion or error back into JS
         callback: Root<JsFunction>,
     },
     /// A request to complete a single activity task
     CompleteActivityTask {
         completion: ActivityTaskCompletion,
-        otel_span: SpanContext,
         /// Used to send the result back into JS
         callback: Root<JsFunction>,
     },
@@ -89,35 +84,29 @@ pub async fn start_worker_loop(
                         send_result(channel, callback, |cx| Ok(cx.undefined()));
                     }
                     WorkerRequest::PollWorkflowActivation {
-                        otel_span,
                         callback,
                     } => {
                         handle_poll_workflow_activation_request(
-                            worker, otel_span, channel, callback,
+                            worker, channel, callback,
                         )
                         .await
                     }
                     WorkerRequest::PollActivityTask {
-                        otel_span,
                         callback,
                     } => {
-                        handle_poll_activity_task_request(worker, otel_span, channel, callback)
+                        handle_poll_activity_task_request(worker, channel, callback)
                             .await
                     }
                     WorkerRequest::CompleteWorkflowActivation {
                         completion,
-                        otel_span,
                         callback,
                     } => {
-                        let otel_ctx =
-                            opentelemetry::Context::new().with_remote_span_context(otel_span);
                         void_future_to_js(
                             channel,
                             callback,
                             async move {
                                 worker
                                     .complete_workflow_activation(completion)
-                                    .with_context(otel_ctx)
                                     .await
                             },
                             |cx, err| -> JsResult<JsObject> {
@@ -132,18 +121,14 @@ pub async fn start_worker_loop(
                     }
                     WorkerRequest::CompleteActivityTask {
                         completion,
-                        otel_span,
                         callback,
                     } => {
-                        let otel_ctx =
-                            opentelemetry::Context::new().with_remote_span_context(otel_span);
                         void_future_to_js(
                             channel,
                             callback,
                             async move {
                                 worker
                                     .complete_activity_task(completion)
-                                    .with_context(otel_ctx)
                                     .await
                             },
                             |cx, err| -> JsResult<JsObject> {
@@ -170,14 +155,11 @@ pub async fn start_worker_loop(
 /// Called within the poll loop thread, calls core and triggers JS callback with result
 async fn handle_poll_workflow_activation_request(
     worker: &CoreWorker,
-    span_context: SpanContext,
     channel: Arc<Channel>,
     callback: Root<JsFunction>,
 ) {
-    let otel_ctx = opentelemetry::Context::new().with_remote_span_context(span_context);
     match worker
         .poll_workflow_activation()
-        .with_context(otel_ctx)
         .await
     {
         Ok(task) => {
@@ -207,12 +189,10 @@ async fn handle_poll_workflow_activation_request(
 /// Called within the poll loop thread, calls core and triggers JS callback with result
 pub async fn handle_poll_activity_task_request(
     worker: &CoreWorker,
-    span_context: SpanContext,
     channel: Arc<Channel>,
     callback: Root<JsFunction>,
 ) {
-    let otel_ctx = opentelemetry::Context::new().with_remote_span_context(span_context);
-    match worker.poll_activity_task().with_context(otel_ctx).await {
+    match worker.poll_activity_task().await {
         Ok(task) => {
             send_result(channel, callback, move |cx| {
                 let len = task.encoded_len();
@@ -321,15 +301,13 @@ pub fn close_history_stream(mut cx: FunctionContext) -> JsResult<JsUndefined> {
 /// There should be only one concurrent poll request for this type.
 pub fn worker_poll_workflow_activation(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     let worker = cx.argument::<BoxedWorker>(0)?;
-    let otel_span = cx.argument::<JsObject>(1)?;
-    let callback = cx.argument::<JsFunction>(2)?;
+    let callback = cx.argument::<JsFunction>(1)?;
     match worker.borrow().as_ref() {
         None => {
             callback_with_unexpected_error(&mut cx, callback, "Tried to use closed Worker")?;
         }
         Some(worker) => {
             let request = WorkerRequest::PollWorkflowActivation {
-                otel_span: otel_span.as_otel_span_context(&mut cx)?,
                 callback: callback.root(&mut cx),
             };
             if let Err(err) = worker.sender.send(request) {
@@ -344,15 +322,13 @@ pub fn worker_poll_workflow_activation(mut cx: FunctionContext) -> JsResult<JsUn
 /// There should be only one concurrent poll request for this type.
 pub fn worker_poll_activity_task(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     let worker = cx.argument::<BoxedWorker>(0)?;
-    let otel_span = cx.argument::<JsObject>(1)?;
-    let callback = cx.argument::<JsFunction>(2)?;
+    let callback = cx.argument::<JsFunction>(1)?;
     match worker.borrow().as_ref() {
         None => {
             callback_with_unexpected_error(&mut cx, callback, "Tried to use closed Worker")?;
         }
         Some(worker) => {
             let request = WorkerRequest::PollActivityTask {
-                otel_span: otel_span.as_otel_span_context(&mut cx)?,
                 callback: callback.root(&mut cx),
             };
             if let Err(err) = worker.sender.send(request) {
@@ -366,9 +342,8 @@ pub fn worker_poll_activity_task(mut cx: FunctionContext) -> JsResult<JsUndefine
 /// Submit a workflow activation completion to core.
 pub fn worker_complete_workflow_activation(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     let worker = cx.argument::<BoxedWorker>(0)?;
-    let otel_span = cx.argument::<JsObject>(1)?;
-    let completion = cx.argument::<JsArrayBuffer>(2)?;
-    let callback = cx.argument::<JsFunction>(3)?;
+    let completion = cx.argument::<JsArrayBuffer>(1)?;
+    let callback = cx.argument::<JsFunction>(2)?;
     match worker.borrow().as_ref() {
         None => {
             callback_with_unexpected_error(&mut cx, callback, "Tried to use closed Worker")?;
@@ -378,7 +353,6 @@ pub fn worker_complete_workflow_activation(mut cx: FunctionContext) -> JsResult<
                 Ok(completion) => {
                     let request = WorkerRequest::CompleteWorkflowActivation {
                         completion,
-                        otel_span: otel_span.as_otel_span_context(&mut cx)?,
                         callback: callback.root(&mut cx),
                     };
                     if let Err(err) = worker.sender.send(request) {
@@ -397,9 +371,8 @@ pub fn worker_complete_workflow_activation(mut cx: FunctionContext) -> JsResult<
 /// Submit an activity task completion to core.
 pub fn worker_complete_activity_task(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     let worker = cx.argument::<BoxedWorker>(0)?;
-    let otel_span = cx.argument::<JsObject>(1)?;
-    let result = cx.argument::<JsArrayBuffer>(2)?;
-    let callback = cx.argument::<JsFunction>(3)?;
+    let result = cx.argument::<JsArrayBuffer>(1)?;
+    let callback = cx.argument::<JsFunction>(2)?;
     match worker.borrow().as_ref() {
         None => {
             callback_with_unexpected_error(&mut cx, callback, "Tried to use closed Worker")?;
@@ -409,7 +382,6 @@ pub fn worker_complete_activity_task(mut cx: FunctionContext) -> JsResult<JsUnde
                 Ok(completion) => {
                     let request = WorkerRequest::CompleteActivityTask {
                         completion,
-                        otel_span: otel_span.as_otel_span_context(&mut cx)?,
                         callback: callback.root(&mut cx),
                     };
                     if let Err(err) = worker.sender.send(request) {

@@ -92,10 +92,6 @@ export interface MakeTelemetryFilterStringOptions {
  *     filter: makeTelemetryFilterString({ core: 'TRACE', other: 'DEBUG' });
  *     // ...
  *    },
- *    tracing: {
- *     filter: makeTelemetryFilterString({ core: 'DEBUG' });
- *     // ...
- *    }
  *  }
  * ```
  */
@@ -212,7 +208,7 @@ export class Runtime {
   // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
   protected static compileOptions(options: RuntimeOptions): CompiledRuntimeOptions {
     // eslint-disable-next-line deprecation/deprecation
-    const { logging, tracing, metrics, tracingFilter, ...otherTelemetryOpts } = options.telemetryOptions ?? {};
+    const { logging, metrics, tracingFilter, ...otherTelemetryOpts } = options.telemetryOptions ?? {};
 
     const defaultFilter = tracingFilter ?? makeTelemetryFilterString({ core: 'INFO', other: 'INFO' });
     const loggingFilter = logging?.filter;
@@ -234,14 +230,6 @@ export class Runtime {
                 filter: loggingFilter ?? defaultFilter,
                 console: {},
               },
-        tracing: tracing?.otel && {
-          filter: defaultFilter,
-          otel: {
-            url: tracing.otel.url,
-            headers: tracing.otel.headers,
-            metricsExportInterval: undefined,
-          },
-        },
         metrics: metrics && {
           temporality: metrics.temporality,
           ...(isOtelCollectorExporter(metrics)

@@ -1,5 +1,4 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
-import { SpanContext } from '@opentelemetry/api';
 import { lastValueFrom } from 'rxjs';
 import { defaultPayloadConverter, fromPayloadsAtIndex } from '@temporalio/common';
 import { msToTs } from '@temporalio/common/lib/time';
@@ -93,12 +92,12 @@ export class MockNativeWorker implements NativeWorkerLike {
     }
   }
 
-  public async completeWorkflowActivation(_spanContext: SpanContext, result: ArrayBuffer): Promise<void> {
+  public async completeWorkflowActivation(result: ArrayBuffer): Promise<void> {
     this.workflowCompletionCallback!(result);
     this.workflowCompletionCallback = undefined;
   }
 
-  public async completeActivityTask(_spanContext: SpanContext, result: ArrayBuffer): Promise<void> {
+  public async completeActivityTask(result: ArrayBuffer): Promise<void> {
     this.activityCompletionCallback!(result);
     this.activityCompletionCallback = undefined;
   }

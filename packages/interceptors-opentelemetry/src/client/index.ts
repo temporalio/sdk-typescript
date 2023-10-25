@@ -1,7 +1,6 @@
 import * as otel from '@opentelemetry/api';
 import { Next, WorkflowClientInterceptor, WorkflowStartInput } from '@temporalio/client';
-import { headersWithContext, RUN_ID_ATTR_KEY } from '@temporalio/common/lib/otel';
-import { instrument } from '../instrumentation';
+import { instrument, headersWithContext, RUN_ID_ATTR_KEY } from '../instrumentation';
 import { SpanName, SPAN_DELIMITER } from '../workflow';
 
 export interface InterceptorOptions {

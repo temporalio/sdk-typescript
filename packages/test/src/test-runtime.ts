@@ -97,7 +97,7 @@ if (RUN_INTEGRATION_TESTS) {
             if (!logEntries.some((x) => x.message === 'Failing workflow task'))
               throw new Error('Waiting for failing workflow task');
           },
-          { minTimeout: 100, factor: 1, maxTimeout: 5000 }
+          { maxTimeout: 5000, retries: 50 }
         )
       );
 
@@ -118,10 +118,10 @@ if (RUN_INTEGRATION_TESTS) {
     }
   });
 
-  test.serial('Runtime.instance() throws meaningful error when passed invalid tracing.otel.url', (t) => {
-    t.throws(() => Runtime.install({ telemetryOptions: { tracing: { otel: { url: ':invalid' } } } }), {
+  test.serial('Runtime.instance() throws meaningful error when passed invalid metrics.otel.url', (t) => {
+    t.throws(() => Runtime.install({ telemetryOptions: { metrics: { otel: { url: ':invalid' } } } }), {
       instanceOf: TypeError,
-      message: 'Invalid telemetryOptions.tracing.otel.url',
+      message: 'Invalid telemetryOptions.metrics.otel.url',
     });
   });
 

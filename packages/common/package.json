@@ -12,7 +12,6 @@
   "author": "Temporal Technologies Inc. <sdk@temporal.io>",
   "license": "MIT",
   "dependencies": {
-    "@opentelemetry/api": "^1.4.1",
     "@temporalio/proto": "file:../proto",
     "long": "^5.2.0",
     "ms": "^3.0.0-canary.1",

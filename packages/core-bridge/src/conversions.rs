@@ -5,12 +5,11 @@ use neon::{
     prelude::*,
     types::{JsBoolean, JsNumber, JsString},
 };
-use opentelemetry::trace::{SpanContext, SpanId, TraceFlags, TraceId, TraceState};
-use std::{collections::HashMap, net::SocketAddr, str::FromStr, time::Duration};
+use std::{collections::HashMap, net::SocketAddr, time::Duration};
 use temporal_sdk_core::{
     api::telemetry::{
         Logger, MetricTemporality, MetricsExporter, OtelCollectorOptions, TelemetryOptions,
-        TelemetryOptionsBuilder, TraceExportConfig, TraceExporter,
+        TelemetryOptionsBuilder,
     },
     api::worker::{WorkerConfig, WorkerConfigBuilder},
     ephemeral_server::{
@@ -44,7 +43,6 @@ impl ArrayHandleConversionsExt for Handle<'_, JsArray> {
 
 pub trait ObjectHandleConversionsExt {
     fn set_default(&self, cx: &mut FunctionContext, key: &str, value: &str) -> NeonResult<()>;
-    fn as_otel_span_context(&self, ctx: &mut FunctionContext) -> NeonResult<SpanContext>;
     fn as_client_options(&self, ctx: &mut FunctionContext) -> NeonResult<ClientOptions>;
     fn as_telemetry_options(&self, cx: &mut FunctionContext) -> NeonResult<TelemetryOptions>;
     fn as_worker_config(&self, cx: &mut FunctionContext) -> NeonResult<WorkerConfig>;
@@ -60,19 +58,6 @@ pub trait ObjectHandleConversionsExt {
 }
 
 impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
-    fn as_otel_span_context(&self, ctx: &mut FunctionContext) -> NeonResult<SpanContext> {
-        let trace_id = js_value_getter!(ctx, self, "traceId", JsString);
-        let span_id = js_value_getter!(ctx, self, "spanId", JsString);
-        let trace_flags = js_value_getter!(ctx, self, "traceFlags", JsNumber);
-        Ok(SpanContext::new(
-            TraceId::from_hex(&trace_id).expect("TraceId is valid"),
-            SpanId::from_hex(&span_id).expect("SpanId is valid"),
-            TraceFlags::new(trace_flags as u8),
-            false,
-            TraceState::from_str("").expect("Trace state must be valid"),
-        ))
-    }
-
     fn as_hash_map_of_string_to_string(
         &self,
         cx: &mut FunctionContext,
@@ -213,7 +198,7 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
                 };
             }
             if let Some(ref prom) = js_optional_getter!(cx, metrics, "prometheus", JsObject) {
-                let addr = js_value_getter!(cx, prom, "bindAddress", JsString);
+                                let addr = js_value_getter!(cx, prom, "bindAddress", JsString);
                 match addr.parse::<SocketAddr>() {
                     Ok(address) => telemetry_opts.metrics(MetricsExporter::Prometheus(address)),
                     Err(_) => cx.throw_type_error(
@@ -247,33 +232,6 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
                 cx.throw_type_error(
                     "Invalid telemetryOptions.metrics, missing `prometheus` or `otel` option",
                 )?
-            }
-        }
-
-        if let Some(ref tracing) = js_optional_getter!(cx, self, "tracing", JsObject) {
-            let filter = js_value_getter!(cx, tracing, "filter", JsString);
-            if let Some(ref otel) = js_optional_getter!(cx, tracing, "otel", JsObject) {
-                let url = js_value_getter!(cx, otel, "url", JsString);
-                let url = match Url::parse(&url) {
-                    Ok(url) => url,
-                    Err(_) => cx.throw_type_error("Invalid telemetryOptions.tracing.otel.url")?,
-                };
-                let headers =
-                    if let Some(ref headers) = js_optional_getter!(cx, otel, "headers", JsObject) {
-                        headers.as_hash_map_of_string_to_string(cx)?
-                    } else {
-                        Default::default()
-                    };
-                telemetry_opts.tracing(TraceExportConfig {
-                    filter,
-                    exporter: TraceExporter::Otel(OtelCollectorOptions {
-                        url,
-                        headers,
-                        metric_periodicity: None,
-                    }),
-                });
-            } else {
-                cx.throw_type_error("Invalid telemetryOptions.tracing, missing `otel` option")?
             }
         }
 

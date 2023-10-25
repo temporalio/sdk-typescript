@@ -13,7 +13,6 @@
   "author": "Temporal Technologies Inc. <sdk@temporal.io>",
   "license": "MIT",
   "dependencies": {
-    "@opentelemetry/api": "^1.4.1",
     "@swc/core": "^1.2.204",
     "@temporalio/activity": "file:../activity",
     "@temporalio/client": "file:../client",

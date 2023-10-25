@@ -74,6 +74,7 @@ if (RUN_INTEGRATION_TESTS) {
     t.log(
       spans.map((span) => ({ name: span.name, parentSpanId: span.parentSpanId, spanId: span.spanContext().spanId }))
     );
+
     const firstExecuteSpan = spans.find(
       ({ name, parentSpanId }) =>
         name === `${SpanName.WORKFLOW_EXECUTE}${SPAN_DELIMITER}smorgasbord` &&
@@ -81,6 +82,7 @@ if (RUN_INTEGRATION_TESTS) {
     );
     t.true(firstExecuteSpan !== undefined);
     t.true(firstExecuteSpan!.status.code === SpanStatusCode.OK);
+
     const continueAsNewSpan = spans.find(
       ({ name, parentSpanId }) =>
         name === `${SpanName.CONTINUE_AS_NEW}${SPAN_DELIMITER}smorgasbord` &&
@@ -88,6 +90,7 @@ if (RUN_INTEGRATION_TESTS) {
     );
     t.true(continueAsNewSpan !== undefined);
     t.true(continueAsNewSpan!.status.code === SpanStatusCode.OK);
+
     const parentExecuteSpan = spans.find(
       ({ name, parentSpanId }) =>
         name === `${SpanName.WORKFLOW_EXECUTE}${SPAN_DELIMITER}smorgasbord` &&
@@ -100,30 +103,35 @@ if (RUN_INTEGRATION_TESTS) {
         parentSpanId === parentExecuteSpan?.spanContext().spanId
     );
     t.true(firstActivityStartSpan !== undefined);
+
     const firstActivityExecuteSpan = spans.find(
       ({ name, parentSpanId }) =>
         name === `${SpanName.ACTIVITY_EXECUTE}${SPAN_DELIMITER}fakeProgress` &&
         parentSpanId === firstActivityStartSpan?.spanContext().spanId
     );
     t.true(firstActivityExecuteSpan !== undefined);
+
     const secondActivityStartSpan = spans.find(
       ({ name, parentSpanId }) =>
         name === `${SpanName.ACTIVITY_START}${SPAN_DELIMITER}queryOwnWf` &&
         parentSpanId === parentExecuteSpan?.spanContext().spanId
     );
     t.true(secondActivityStartSpan !== undefined);
+
     const secondActivityExecuteSpan = spans.find(
       ({ name, parentSpanId }) =>
         name === `${SpanName.ACTIVITY_EXECUTE}${SPAN_DELIMITER}queryOwnWf` &&
         parentSpanId === secondActivityStartSpan?.spanContext().spanId
     );
     t.true(secondActivityExecuteSpan !== undefined);
+
     const childWorkflowStartSpan = spans.find(
       ({ name, parentSpanId }) =>
         name === `${SpanName.CHILD_WORKFLOW_START}${SPAN_DELIMITER}signalTarget` &&
         parentSpanId === parentExecuteSpan?.spanContext().spanId
     );
     t.true(childWorkflowStartSpan !== undefined);
+
     const childWorkflowExecuteSpan = spans.find(
       ({ name, parentSpanId }) =>
         name === `${SpanName.WORKFLOW_EXECUTE}${SPAN_DELIMITER}signalTarget` &&
@@ -134,8 +142,8 @@ if (RUN_INTEGRATION_TESTS) {
   });
 
   // Un-skip this test and run it by hand to inspect outputted traces
-  test.serial.skip('Otel spans connected', async (t) => {
-    const oTelUrl = 'grpc://localhost:4317';
+  test.serial('Otel spans connected', async (t) => {
+    const oTelUrl = 'http://127.0.0.1:4317';
     const exporter = new OTLPTraceExporter({ url: oTelUrl });
     const staticResource = new opentelemetry.resources.Resource({
       [SemanticResourceAttributes.SERVICE_NAME]: 'ts-test-otel-worker',
@@ -174,9 +182,7 @@ if (RUN_INTEGRATION_TESTS) {
     const client = new WorkflowClient({
       interceptors: [new OpenTelemetryWorkflowClientInterceptor()],
     });
-    await worker.runUntil(
-      client.execute(workflows.cancelFakeProgress, { taskQueue: 'test-otel', workflowId: uuid4() })
-    );
+    await worker.runUntil(client.execute(workflows.smorgasbord, { taskQueue: 'test-otel', workflowId: uuid4() }));
     // Allow some time to ensure spans are flushed out to collector
     await new Promise((resolve) => setTimeout(resolve, 5000));
     t.pass();
