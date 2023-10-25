@@ -2,9 +2,8 @@ import * as otel from '@opentelemetry/api';
 import { Resource } from '@opentelemetry/resources';
 import { ReadableSpan, SpanExporter } from '@opentelemetry/sdk-trace-base';
 import { Context as ActivityContext } from '@temporalio/activity';
-import { extractContextFromHeaders } from '@temporalio/common/lib/otel';
 import { ActivityExecuteInput, ActivityInboundCallsInterceptor, InjectedSink, Next } from '@temporalio/worker';
-import { instrument } from '../instrumentation';
+import { instrument, extractContextFromHeaders } from '../instrumentation';
 import { OpenTelemetryWorkflowExporter, SerializableSpan, SpanName, SPAN_DELIMITER } from '../workflow';
 
 export interface InterceptorOptions {

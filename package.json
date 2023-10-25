@@ -40,7 +40,6 @@
     "@temporalio/client": "file:packages/client",
     "@temporalio/common": "file:packages/common",
     "@temporalio/create": "file:packages/create-project",
-    "@temporalio/interceptors-opentelemetry": "file:packages/interceptors-opentelemetry",
     "@temporalio/nyc-test-coverage": "file:packages/nyc-test-coverage",
     "@temporalio/proto": "file:packages/proto",
     "@temporalio/test": "file:packages/test",
@@ -50,10 +49,6 @@
     "temporalio": "file:packages/meta"
   },
   "devDependencies": {
-    "@opentelemetry/api": "^1.4.1",
-    "@opentelemetry/core": "^1.12.0",
-    "@opentelemetry/sdk-node": "^0.38.0",
-    "@opentelemetry/semantic-conventions": "^1.12.0",
     "@tsconfig/node14": "^1.0.3",
     "@types/dedent": "^0.7.0",
     "@types/fs-extra": "^9.0.13",

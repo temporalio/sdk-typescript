@@ -4,8 +4,6 @@ import * as path from 'node:path';
 import * as vm from 'node:vm';
 import { promisify } from 'node:util';
 import { EventEmitter, on } from 'node:events';
-import * as otel from '@opentelemetry/api';
-import { SpanContext } from '@opentelemetry/api';
 import {
   BehaviorSubject,
   EMPTY,
@@ -41,13 +39,6 @@ import {
   encodeErrorToFailure,
   encodeToPayload,
 } from '@temporalio/common/lib/internal-non-workflow';
-import {
-  extractSpanContextFromHeaders,
-  linkSpans,
-  NUM_JOBS_ATTR_KEY,
-  RUN_ID_ATTR_KEY,
-  TASK_TOKEN_ATTR_KEY,
-} from '@temporalio/common/lib/otel';
 import { historyFromJSON } from '@temporalio/common/lib/proto-utils';
 import { optionalTsToDate, optionalTsToMs, tsToDate, tsToMs } from '@temporalio/common/lib/time';
 import { errorMessage, isError, SymbolBasedInstanceOfError } from '@temporalio/common/lib/type-helpers';
@@ -70,7 +61,6 @@ import {
 } from './replay';
 import { History, Runtime } from './runtime';
 import { closeableGroupBy, mapWithState, mergeMapWithState } from './rxutils';
-import { childSpan, getTracer, instrument } from './tracing';
 import { byteArrayToBuffer, convertToParentWorkflowType } from './utils';
 import {
   addDefaultWorkerOptions,
@@ -123,17 +113,14 @@ type Promisify<T> = T extends (...args: any[]) => void
   : never;
 
 type PatchJob = NonNullableObject<Pick<coresdk.workflow_activation.IWorkflowActivationJob, 'notifyHasPatch'>>;
-type ContextAware<T> = T & {
-  parentSpan: otel.Span;
-};
 
-export type ActivationWithContext = ContextAware<{
+export type ActivationWithContext = {
   activation: coresdk.workflow_activation.WorkflowActivation;
-}>;
-export type ActivityTaskWithContext = ContextAware<{
+};
+export type ActivityTaskWithContext = {
   task: coresdk.activity_task.ActivityTask;
   base64TaskToken: string;
-}>;
+};
 
 type CompiledWorkerOptionsWithBuildId = CompiledWorkerOptions & { buildId: string };
 
@@ -413,7 +400,6 @@ export class Worker {
   protected readonly numCachedWorkflowsSubject = new BehaviorSubject<number>(0);
   protected readonly numHeartbeatingActivitiesSubject = new BehaviorSubject<number>(0);
   protected readonly evictionsEmitter = new EventEmitter();
-  private readonly runIdsToSpanContext = new Map<string, SpanContext>();
 
   protected static nativeWorkerCtor: WorkerConstructor = NativeWorker;
   // Used to add uniqueness to replay worker task queue names
@@ -422,7 +408,6 @@ export class Worker {
     message: 'Shutting down',
     reason: EvictionReason.FATAL,
   };
-  protected readonly tracer: otel.Tracer;
   protected readonly workflowCodecRunner: WorkflowCodecRunner;
 
   /**
@@ -686,7 +671,6 @@ export class Worker {
     protected readonly connection?: NativeConnection,
     protected readonly isReplayWorker: boolean = false
   ) {
-    this.tracer = getTracer(options.enableSDKTracing);
     this.workflowCodecRunner = new WorkflowCodecRunner(options.loadedDataConverter.payloadCodecs);
   }
 
@@ -827,148 +811,136 @@ export class Worker {
   /**
    * Process Activity tasks
    */
-  protected activityOperator(): OperatorFunction<ActivityTaskWithContext, ContextAware<{ completion: Uint8Array }>> {
+  protected activityOperator(): OperatorFunction<ActivityTaskWithContext, { completion: Uint8Array }> {
     return pipe(
       closeableGroupBy(({ base64TaskToken }) => base64TaskToken),
       mergeMap((group$) => {
         return group$.pipe(
           mergeMapWithState(
-            async (activity: Activity | undefined, { task, parentSpan, base64TaskToken }) => {
+            async (activity: Activity | undefined, { task, base64TaskToken }) => {
               const { taskToken, variant } = task;
               if (!variant) {
                 throw new TypeError('Got an activity task without a "variant" attribute');
               }
 
-              return await instrument(this.tracer, parentSpan, `activity.${variant}`, async (span) => {
-                // We either want to return an activity result (for failures) or pass on the activity for running at a later stage
-                // If cancel is requested we ignore the result of this function
-                // We don't run the activity directly in this operator because we need to return the activity in the state
-                // so it can be cancelled if requested
-                let output:
-                  | {
-                      type: 'result';
-                      result: coresdk.activity_result.IActivityExecutionResult;
-                      parentSpan: otel.Span;
-                    }
-                  | { type: 'run'; activity: Activity; input: ActivityExecuteInput; parentSpan: otel.Span }
-                  | { type: 'ignore'; parentSpan: otel.Span };
-                switch (variant) {
-                  case 'start': {
-                    if (activity !== undefined) {
-                      throw new IllegalStateError(
-                        `Got start event for an already running activity: ${base64TaskToken}`
-                      );
-                    }
-                    const info = await extractActivityInfo(
-                      task,
-                      this.options.loadedDataConverter,
-                      this.options.namespace,
-                      this.options.taskQueue
-                    );
+              // We either want to return an activity result (for failures) or pass on the activity for running at a later stage
+              // If cancel is requested we ignore the result of this function
+              // We don't run the activity directly in this operator because we need to return the activity in the state
+              // so it can be cancelled if requested
+              let output:
+                | {
+                    type: 'result';
+                    result: coresdk.activity_result.IActivityExecutionResult;
+                  }
+                | { type: 'run'; activity: Activity; input: ActivityExecuteInput }
+                | { type: 'ignore' };
+              switch (variant) {
+                case 'start': {
+                  if (activity !== undefined) {
+                    throw new IllegalStateError(`Got start event for an already running activity: ${base64TaskToken}`);
+                  }
+                  const info = await extractActivityInfo(
+                    task,
+                    this.options.loadedDataConverter,
+                    this.options.namespace,
+                    this.options.taskQueue
+                  );
 
-                    const { activityType } = info;
-                    // activities is of type "object" which does not support string indexes
-                    const fn = (this.options.activities as any)?.[activityType];
-                    if (typeof fn !== 'function') {
-                      output = {
-                        type: 'result',
-                        result: {
-                          failed: {
-                            failure: {
-                              message: `Activity function ${activityType} is not registered on this Worker, available activities: ${JSON.stringify(
-                                Object.keys(this.options.activities ?? {})
-                              )}`,
-                              applicationFailureInfo: { type: 'NotFoundError', nonRetryable: false },
-                            },
+                  const { activityType } = info;
+                  // activities is of type "object" which does not support string indexes
+                  const fn = (this.options.activities as any)?.[activityType];
+                  if (typeof fn !== 'function') {
+                    output = {
+                      type: 'result',
+                      result: {
+                        failed: {
+                          failure: {
+                            message: `Activity function ${activityType} is not registered on this Worker, available activities: ${JSON.stringify(
+                              Object.keys(this.options.activities ?? {})
+                            )}`,
+                            applicationFailureInfo: { type: 'NotFoundError', nonRetryable: false },
                           },
                         },
-                        parentSpan,
-                      };
-                      break;
-                    }
-                    let args: unknown[];
-                    try {
-                      args = await decodeArrayFromPayloads(this.options.loadedDataConverter, task.start?.input);
-                    } catch (err) {
-                      output = {
-                        type: 'result',
-                        result: {
-                          failed: {
-                            failure: {
-                              message: `Failed to parse activity args for activity ${activityType}: ${errorMessage(
-                                err
-                              )}`,
-                              applicationFailureInfo: {
-                                type: isError(err) ? err.name : undefined,
-                                nonRetryable: false,
-                              },
-                            },
-                          },
-                        },
-                        parentSpan,
-                      };
-                      break;
-                    }
-                    const headers = task.start?.headerFields ?? {};
-                    const input = {
-                      args,
-                      headers,
+                      },
                     };
-
-                    this.log.trace('Starting activity', activityLogAttributes(info));
-
-                    activity = new Activity(
-                      info,
-                      fn,
-                      this.options.loadedDataConverter,
-                      (details) =>
-                        this.activityHeartbeatSubject.next({
-                          type: 'heartbeat',
-                          info,
-                          taskToken,
-                          base64TaskToken,
-                          details,
-                          onError() {
-                            activity?.cancel('HEARTBEAT_DETAILS_CONVERSION_FAILED'); // activity must be defined
+                    break;
+                  }
+                  let args: unknown[];
+                  try {
+                    args = await decodeArrayFromPayloads(this.options.loadedDataConverter, task.start?.input);
+                  } catch (err) {
+                    output = {
+                      type: 'result',
+                      result: {
+                        failed: {
+                          failure: {
+                            message: `Failed to parse activity args for activity ${activityType}: ${errorMessage(err)}`,
+                            applicationFailureInfo: {
+                              type: isError(err) ? err.name : undefined,
+                              nonRetryable: false,
+                            },
                           },
-                        }),
-                      { inbound: this.options.interceptors?.activityInbound }
-                    );
-                    output = { type: 'run', activity, input, parentSpan };
+                        },
+                      },
+                    };
                     break;
                   }
-                  case 'cancel': {
-                    output = { type: 'ignore', parentSpan };
-                    if (activity === undefined) {
-                      this.log.error('Tried to cancel a non-existing activity', { taskToken: base64TaskToken });
-                      span.setAttribute('found', false);
-                      break;
-                    }
-                    // NOTE: activity will not be considered cancelled until it confirms cancellation (by throwing a CancelledFailure)
-                    this.log.trace('Cancelling activity', activityLogAttributes(activity.info));
-                    span.setAttribute('found', true);
-                    const reason = task.cancel?.reason;
-                    if (reason === undefined || reason === null) {
-                      // Special case of Lang side cancellation during shutdown (see `activity.shutdown.evict` above)
-                      activity.cancel('WORKER_SHUTDOWN');
-                    } else {
-                      activity.cancel(coresdk.activity_task.ActivityCancelReason[reason] as CancelReason);
-                    }
-                    break;
-                  }
+                  const headers = task.start?.headerFields ?? {};
+                  const input = {
+                    args,
+                    headers,
+                  };
+
+                  this.log.trace('Starting activity', activityLogAttributes(info));
+
+                  activity = new Activity(
+                    info,
+                    fn,
+                    this.options.loadedDataConverter,
+                    (details) =>
+                      this.activityHeartbeatSubject.next({
+                        type: 'heartbeat',
+                        info,
+                        taskToken,
+                        base64TaskToken,
+                        details,
+                        onError() {
+                          activity?.cancel('HEARTBEAT_DETAILS_CONVERSION_FAILED'); // activity must be defined
+                        },
+                      }),
+                    { inbound: this.options.interceptors?.activityInbound }
+                  );
+                  output = { type: 'run', activity, input };
+                  break;
                 }
-                return { state: activity, output: { taskToken, output } };
-              });
+                case 'cancel': {
+                  output = { type: 'ignore' };
+                  if (activity === undefined) {
+                    this.log.error('Tried to cancel a non-existing activity', { taskToken: base64TaskToken });
+                    break;
+                  }
+                  // NOTE: activity will not be considered cancelled until it confirms cancellation (by throwing a CancelledFailure)
+                  this.log.trace('Cancelling activity', activityLogAttributes(activity.info));
+                  const reason = task.cancel?.reason;
+                  if (reason === undefined || reason === null) {
+                    // Special case of Lang side cancellation during shutdown (see `activity.shutdown.evict` above)
+                    activity.cancel('WORKER_SHUTDOWN');
+                  } else {
+                    activity.cancel(coresdk.activity_task.ActivityCancelReason[reason] as CancelReason);
+                  }
+                  break;
+                }
+              }
+              return { state: activity, output: { taskToken, output } };
             },
             undefined // initial value
           ),
           mergeMap(async ({ output, taskToken }) => {
             if (output.type === 'ignore') {
-              output.parentSpan.end();
               return undefined;
             }
             if (output.type === 'result') {
-              return { taskToken, result: output.result, parentSpan: output.parentSpan };
+              return { taskToken, result: output.result };
             }
             const { base64TaskToken } = output.activity.info;
 
@@ -977,53 +949,49 @@ export class Worker {
               base64TaskToken,
             });
 
-            return await instrument(this.tracer, output.parentSpan, 'activity.run', async (span) => {
-              let result;
+            let result;
 
-              this.numInFlightActivitiesSubject.next(this.numInFlightActivitiesSubject.value + 1);
-              try {
-                result = await output.activity.run(output.input);
-              } finally {
-                this.numInFlightActivitiesSubject.next(this.numInFlightActivitiesSubject.value - 1);
-                group$.close();
-              }
-              const status = result.failed ? 'failed' : result.completed ? 'completed' : 'cancelled';
-              span.setAttributes({ status });
+            this.numInFlightActivitiesSubject.next(this.numInFlightActivitiesSubject.value + 1);
+            try {
+              result = await output.activity.run(output.input);
+            } finally {
+              this.numInFlightActivitiesSubject.next(this.numInFlightActivitiesSubject.value - 1);
+              group$.close();
+            }
+            const status = result.failed ? 'failed' : result.completed ? 'completed' : 'cancelled';
 
-              if (status === 'failed') {
-                // Make sure to flush the last heartbeat
-                this.log.trace('Activity failed, waiting for heartbeats to be flushed', {
-                  ...activityLogAttributes(output.activity.info),
-                  status,
-                });
-                await new Promise<void>((resolve) => {
-                  this.activityHeartbeatSubject.next({
-                    type: 'completion',
-                    flushRequired: true,
-                    base64TaskToken,
-                    callback: resolve,
-                  });
-                });
-              } else {
-                // Notify the Activity heartbeat state mapper that the Activity has completed
-                this.activityHeartbeatSubject.next({
-                  type: 'completion',
-                  flushRequired: false,
-                  base64TaskToken,
-                  callback: () => undefined,
-                });
-              }
-              this.log.trace('Activity resolved', {
+            if (status === 'failed') {
+              // Make sure to flush the last heartbeat
+              this.log.trace('Activity failed, waiting for heartbeats to be flushed', {
                 ...activityLogAttributes(output.activity.info),
                 status,
               });
-              return { taskToken, result, parentSpan: output.parentSpan };
+              await new Promise<void>((resolve) => {
+                this.activityHeartbeatSubject.next({
+                  type: 'completion',
+                  flushRequired: true,
+                  base64TaskToken,
+                  callback: resolve,
+                });
+              });
+            } else {
+              // Notify the Activity heartbeat state mapper that the Activity has completed
+              this.activityHeartbeatSubject.next({
+                type: 'completion',
+                flushRequired: false,
+                base64TaskToken,
+                callback: () => undefined,
+              });
+            }
+            this.log.trace('Activity resolved', {
+              ...activityLogAttributes(output.activity.info),
+              status,
             });
+            return { taskToken, result };
           }),
           filter(<T>(result: T): result is Exclude<T, undefined> => result !== undefined),
-          map(({ parentSpan, ...rest }) => ({
+          map((rest) => ({
             completion: coresdk.ActivityTaskCompletion.encodeDelimited(rest).finish(),
-            parentSpan,
           }))
         );
       })
@@ -1033,7 +1001,7 @@ export class Worker {
   /**
    * Process Workflow activations
    */
-  protected workflowOperator(): OperatorFunction<ActivationWithContext, ContextAware<{ completion: Uint8Array }>> {
+  protected workflowOperator(): OperatorFunction<ActivationWithContext, { completion: Uint8Array }> {
     const { workflowCreator } = this;
     if (workflowCreator === undefined) {
       throw new IllegalStateError('Cannot process workflows without an IsolateContextProvider');
@@ -1051,9 +1019,8 @@ export class Worker {
             // Core has indicated that it will not return any more poll results, evict all cached WFs
             filter((state) => state !== 'POLLING'),
             first(),
-            map((): ContextAware<{ activation: coresdk.workflow_activation.WorkflowActivation; synthetic: true }> => {
+            map((): { activation: coresdk.workflow_activation.WorkflowActivation; synthetic: true } => {
               return {
-                parentSpan: this.tracer.startSpan('workflow.shutdown.evict'),
                 activation: coresdk.workflow_activation.WorkflowActivation.create({
                   runId: group$.key,
                   jobs: [{ removeFromCache: Worker.SELF_INDUCED_SHUTDOWN_EVICTION }],
@@ -1070,195 +1037,184 @@ export class Worker {
           mergeMapWithState(
             async (
               state: WorkflowWithLogAttributes | undefined,
-              { activation, parentSpan, synthetic }
+              { activation, synthetic }
             ): Promise<{
               state: WorkflowWithLogAttributes | undefined;
-              output: ContextAware<{ completion?: Uint8Array; close: boolean }>;
+              output: { completion?: Uint8Array; close: boolean };
             }> => {
               try {
-                return await instrument(this.tracer, parentSpan, 'workflow.process', async (span) => {
-                  span.setAttributes({
-                    numInFlightActivations: this.numInFlightActivationsSubject.value,
-                    numCachedWorkflows: this.numCachedWorkflowsSubject.value,
+                const removeFromCacheIx = activation.jobs.findIndex(({ removeFromCache }) => removeFromCache);
+                const close = removeFromCacheIx !== -1;
+                const jobs = activation.jobs;
+                if (close) {
+                  const asEvictJob = jobs.splice(removeFromCacheIx, 1)[0].removeFromCache;
+                  if (asEvictJob) {
+                    this.evictionsEmitter.emit('eviction', {
+                      runId: activation.runId,
+                      evictJob: asEvictJob,
+                    } as EvictionWithRunID);
+                  }
+                }
+                activation.jobs = jobs;
+                if (jobs.length === 0) {
+                  this.log.trace('Disposing workflow', {
+                    ...(state ? state.logAttributes : { runId: activation.runId }),
                   });
-                  const removeFromCacheIx = activation.jobs.findIndex(({ removeFromCache }) => removeFromCache);
-                  const close = removeFromCacheIx !== -1;
-                  const jobs = activation.jobs;
-                  if (close) {
-                    const asEvictJob = jobs.splice(removeFromCacheIx, 1)[0].removeFromCache;
-                    if (asEvictJob) {
-                      this.evictionsEmitter.emit('eviction', {
-                        runId: activation.runId,
-                        evictJob: asEvictJob,
-                      } as EvictionWithRunID);
-                    }
+                  await state?.workflow.dispose();
+                  if (!close) {
+                    throw new IllegalStateError('Got a Workflow activation with no jobs');
                   }
-                  activation.jobs = jobs;
-                  if (jobs.length === 0) {
-                    this.log.trace('Disposing workflow', {
-                      ...(state ? state.logAttributes : { runId: activation.runId }),
+                  const completion = synthetic
+                    ? undefined
+                    : coresdk.workflow_completion.WorkflowActivationCompletion.encodeDelimited({
+                        runId: activation.runId,
+                        successful: {},
+                      }).finish();
+                  return { state: undefined, output: { close, completion } };
+                }
+
+                if (state === undefined) {
+                  // Find a workflow start job in the activation jobs list
+                  const maybeStartWorkflow = activation.jobs.find((j) => j.startWorkflow);
+                  if (maybeStartWorkflow !== undefined) {
+                    const startWorkflow = maybeStartWorkflow.startWorkflow;
+                    if (
+                      !(
+                        startWorkflow &&
+                        startWorkflow.workflowId != null &&
+                        startWorkflow.workflowType != null &&
+                        startWorkflow.randomnessSeed != null &&
+                        startWorkflow.firstExecutionRunId != null &&
+                        startWorkflow.attempt != null &&
+                        startWorkflow.startTime != null
+                      )
+                    ) {
+                      throw new TypeError(`Malformed StartWorkflow activation: ${JSON.stringify(maybeStartWorkflow)}`);
+                    }
+                    if (activation.timestamp == null) {
+                      throw new TypeError('Got activation with no timestamp, cannot create a new Workflow instance');
+                    }
+                    const {
+                      workflowId,
+                      randomnessSeed,
+                      workflowType,
+                      parentWorkflowInfo,
+                      workflowExecutionTimeout,
+                      workflowRunTimeout,
+                      workflowTaskTimeout,
+                      continuedFromExecutionRunId,
+                      continuedFailure,
+                      lastCompletionResult,
+                      firstExecutionRunId,
+                      retryPolicy,
+                      attempt,
+                      cronSchedule,
+                      workflowExecutionExpirationTime,
+                      cronScheduleToScheduleInterval,
+                      memo,
+                      searchAttributes,
+                    } = startWorkflow;
+
+                    const workflowInfo: WorkflowInfo = {
+                      workflowId,
+                      runId: activation.runId,
+                      workflowType,
+                      searchAttributes:
+                        (mapFromPayloads(
+                          searchAttributePayloadConverter,
+                          searchAttributes?.indexedFields
+                        ) as SearchAttributes) || {},
+                      memo: await decodeMapFromPayloads(this.options.loadedDataConverter, memo?.fields),
+                      parent: convertToParentWorkflowType(parentWorkflowInfo),
+                      lastResult: await decodeFromPayloadsAtIndex(
+                        this.options.loadedDataConverter,
+                        0,
+                        lastCompletionResult?.payloads
+                      ),
+                      lastFailure: await decodeOptionalFailureToOptionalError(
+                        this.options.loadedDataConverter,
+                        continuedFailure
+                      ),
+                      taskQueue: this.options.taskQueue,
+                      namespace: this.options.namespace,
+                      firstExecutionRunId,
+                      continuedFromExecutionRunId: continuedFromExecutionRunId || undefined,
+                      startTime: tsToDate(startWorkflow.startTime),
+                      runStartTime: tsToDate(activation.timestamp),
+                      executionTimeoutMs: optionalTsToMs(workflowExecutionTimeout),
+                      executionExpirationTime: optionalTsToDate(workflowExecutionExpirationTime),
+                      runTimeoutMs: optionalTsToMs(workflowRunTimeout),
+                      taskTimeoutMs: tsToMs(workflowTaskTimeout),
+                      retryPolicy: decompileRetryPolicy(retryPolicy),
+                      attempt,
+                      cronSchedule: cronSchedule || undefined,
+                      // 0 is the default, and not a valid value, since crons are at least a minute apart
+                      cronScheduleToScheduleInterval: optionalTsToMs(cronScheduleToScheduleInterval) || undefined,
+                      historyLength: activation.historyLength,
+                      // Exact truncation for multi-petabyte histories
+                      // A zero value means that it was not set by the server
+                      historySize: activation.historySizeBytes.toNumber(),
+                      continueAsNewSuggested: activation.continueAsNewSuggested,
+                      unsafe: {
+                        now: () => Date.now(), // re-set in initRuntime
+                        isReplaying: activation.isReplaying,
+                      },
+                    };
+                    const logAttributes = workflowLogAttributes(workflowInfo);
+                    this.log.trace('Creating workflow', logAttributes);
+                    const patchJobs = activation.jobs.filter((j): j is PatchJob => j.notifyHasPatch != null);
+                    const patches = patchJobs.map(({ notifyHasPatch }) => {
+                      const { patchId } = notifyHasPatch;
+                      if (!patchId) {
+                        throw new TypeError('Got a patch without a patchId');
+                      }
+                      return patchId;
                     });
-                    await state?.workflow.dispose();
-                    if (!close) {
-                      throw new IllegalStateError('Got a Workflow activation with no jobs');
-                    }
-                    const completion = synthetic
-                      ? undefined
-                      : coresdk.workflow_completion.WorkflowActivationCompletion.encodeDelimited({
-                          runId: activation.runId,
-                          successful: {},
-                        }).finish();
-                    return { state: undefined, output: { close, completion, parentSpan } };
+
+                    const workflow = await workflowCreator.createWorkflow({
+                      info: workflowInfo,
+                      randomnessSeed: randomnessSeed.toBytes(),
+                      now: tsToMs(activation.timestamp),
+                      patches,
+                      showStackTraceSources: this.options.showStackTraceSources,
+                    });
+
+                    state = { workflow, logAttributes };
+                    this.numCachedWorkflowsSubject.next(this.numCachedWorkflowsSubject.value + 1);
+                  } else {
+                    throw new IllegalStateError(
+                      'Received workflow activation for an untracked workflow with no start workflow job'
+                    );
                   }
+                }
 
-                  if (state === undefined) {
-                    // Find a workflow start job in the activation jobs list
-                    const maybeStartWorkflow = activation.jobs.find((j) => j.startWorkflow);
-                    if (maybeStartWorkflow !== undefined) {
-                      const startWorkflow = maybeStartWorkflow.startWorkflow;
-                      if (
-                        !(
-                          startWorkflow &&
-                          startWorkflow.workflowId != null &&
-                          startWorkflow.workflowType != null &&
-                          startWorkflow.randomnessSeed != null &&
-                          startWorkflow.firstExecutionRunId != null &&
-                          startWorkflow.attempt != null &&
-                          startWorkflow.startTime != null
-                        )
-                      ) {
-                        throw new TypeError(
-                          `Malformed StartWorkflow activation: ${JSON.stringify(maybeStartWorkflow)}`
-                        );
-                      }
-                      if (activation.timestamp == null) {
-                        throw new TypeError('Got activation with no timestamp, cannot create a new Workflow instance');
-                      }
-                      const {
-                        workflowId,
-                        randomnessSeed,
-                        workflowType,
-                        parentWorkflowInfo,
-                        workflowExecutionTimeout,
-                        workflowRunTimeout,
-                        workflowTaskTimeout,
-                        continuedFromExecutionRunId,
-                        continuedFailure,
-                        lastCompletionResult,
-                        firstExecutionRunId,
-                        retryPolicy,
-                        attempt,
-                        cronSchedule,
-                        workflowExecutionExpirationTime,
-                        cronScheduleToScheduleInterval,
-                        memo,
-                        searchAttributes,
-                      } = startWorkflow;
+                let isFatalError = false;
+                try {
+                  const decodedActivation = await this.workflowCodecRunner.decodeActivation(activation);
+                  const unencodedCompletion = await state.workflow.activate(decodedActivation);
+                  const completion = await this.workflowCodecRunner.encodeCompletion(unencodedCompletion);
+                  this.log.trace('Completed activation', state.logAttributes);
 
-                      const workflowInfo: WorkflowInfo = {
-                        workflowId,
-                        runId: activation.runId,
-                        workflowType,
-                        searchAttributes:
-                          (mapFromPayloads(
-                            searchAttributePayloadConverter,
-                            searchAttributes?.indexedFields
-                          ) as SearchAttributes) || {},
-                        memo: await decodeMapFromPayloads(this.options.loadedDataConverter, memo?.fields),
-                        parent: convertToParentWorkflowType(parentWorkflowInfo),
-                        lastResult: await decodeFromPayloadsAtIndex(
-                          this.options.loadedDataConverter,
-                          0,
-                          lastCompletionResult?.payloads
-                        ),
-                        lastFailure: await decodeOptionalFailureToOptionalError(
-                          this.options.loadedDataConverter,
-                          continuedFailure
-                        ),
-                        taskQueue: this.options.taskQueue,
-                        namespace: this.options.namespace,
-                        firstExecutionRunId,
-                        continuedFromExecutionRunId: continuedFromExecutionRunId || undefined,
-                        startTime: tsToDate(startWorkflow.startTime),
-                        runStartTime: tsToDate(activation.timestamp),
-                        executionTimeoutMs: optionalTsToMs(workflowExecutionTimeout),
-                        executionExpirationTime: optionalTsToDate(workflowExecutionExpirationTime),
-                        runTimeoutMs: optionalTsToMs(workflowRunTimeout),
-                        taskTimeoutMs: tsToMs(workflowTaskTimeout),
-                        retryPolicy: decompileRetryPolicy(retryPolicy),
-                        attempt,
-                        cronSchedule: cronSchedule || undefined,
-                        // 0 is the default, and not a valid value, since crons are at least a minute apart
-                        cronScheduleToScheduleInterval: optionalTsToMs(cronScheduleToScheduleInterval) || undefined,
-                        historyLength: activation.historyLength,
-                        // Exact truncation for multi-petabyte histories
-                        // A zero value means that it was not set by the server
-                        historySize: activation.historySizeBytes.toNumber(),
-                        continueAsNewSuggested: activation.continueAsNewSuggested,
-                        unsafe: {
-                          now: () => Date.now(), // re-set in initRuntime
-                          isReplaying: activation.isReplaying,
-                        },
-                      };
-                      const logAttributes = workflowLogAttributes(workflowInfo);
-                      this.log.trace('Creating workflow', logAttributes);
-                      const patchJobs = activation.jobs.filter((j): j is PatchJob => j.notifyHasPatch != null);
-                      const patches = patchJobs.map(({ notifyHasPatch }) => {
-                        const { patchId } = notifyHasPatch;
-                        if (!patchId) {
-                          throw new TypeError('Got a patch without a patchId');
-                        }
-                        return patchId;
-                      });
-
-                      const workflow = await instrument(this.tracer, span, 'workflow.create', async () => {
-                        return await workflowCreator.createWorkflow({
-                          info: workflowInfo,
-                          randomnessSeed: randomnessSeed.toBytes(),
-                          now: tsToMs(activation.timestamp),
-                          patches,
-                          showStackTraceSources: this.options.showStackTraceSources,
-                        });
-                      });
-
-                      state = { workflow, logAttributes };
-                      this.numCachedWorkflowsSubject.next(this.numCachedWorkflowsSubject.value + 1);
-                    } else {
-                      throw new IllegalStateError(
-                        'Received workflow activation for an untracked workflow with no start workflow job'
-                      );
-                    }
+                  return { state, output: { close, completion } };
+                } catch (err) {
+                  if (err instanceof UnexpectedError) {
+                    isFatalError = true;
                   }
+                  throw err;
+                } finally {
+                  // Fatal error means we cannot call into this workflow again unfortunately
+                  if (!isFatalError) {
+                    // When processing workflows through runReplayHistories, Core may still send non-replay
+                    // activations on the very last Workflow Task in some cases. Though Core is technically exact
+                    // here, the fact that sinks marked with callDuringReplay = false may get called on a replay
+                    // worker is definitely a surprising behavior. For that reason, we extend the isReplaying flag in
+                    // this case to also include anything running under in a replay worker.
+                    const isReplaying = activation.isReplaying || this.isReplayWorker;
 
-                  let isFatalError = false;
-                  try {
-                    const decodedActivation = await this.workflowCodecRunner.decodeActivation(activation);
-                    const unencodedCompletion = await state.workflow.activate(decodedActivation);
-                    const completion = await this.workflowCodecRunner.encodeCompletion(unencodedCompletion);
-                    this.log.trace('Completed activation', state.logAttributes);
-
-                    span.setAttribute('close', close);
-                    return { state, output: { close, completion, parentSpan } };
-                  } catch (err) {
-                    if (err instanceof UnexpectedError) {
-                      isFatalError = true;
-                    }
-                    throw err;
-                  } finally {
-                    // Fatal error means we cannot call into this workflow again unfortunately
-                    if (!isFatalError) {
-                      // When processing workflows through runReplayHistories, Core may still send non-replay
-                      // activations on the very last Workflow Task in some cases. Though Core is technically exact
-                      // here, the fact that sinks marked with callDuringReplay = false may get called on a replay
-                      // worker is definitely a surprising behavior. For that reason, we extend the isReplaying flag in
-                      // this case to also include anything running under in a replay worker.
-                      const isReplaying = activation.isReplaying || this.isReplayWorker;
-
-                      const calls = await state.workflow.getAndResetSinkCalls();
-                      await this.processSinkCalls(calls, isReplaying);
-                    }
+                    const calls = await state.workflow.getAndResetSinkCalls();
+                    await this.processSinkCalls(calls, isReplaying);
                   }
-                });
+                }
               } catch (error) {
                 if (error instanceof UnexpectedError) {
                   // rethrow and fail the worker
@@ -1277,7 +1233,7 @@ export class Worker {
                 }).finish();
                 // We do not dispose of the Workflow yet, wait to be evicted from Core.
                 // This is done to simplify the Workflow lifecycle so Core is the sole driver.
-                return { state: undefined, output: { close: true, completion, parentSpan } };
+                return { state: undefined, output: { close: true, completion } };
               }
             },
             undefined
@@ -1286,15 +1242,14 @@ export class Worker {
             this.numInFlightActivationsSubject.next(this.numInFlightActivationsSubject.value - 1);
             if (close) {
               group$.close();
-              this.runIdsToSpanContext.delete(group$.key);
               this.numCachedWorkflowsSubject.next(this.numCachedWorkflowsSubject.value - 1);
             }
           }),
           takeWhile(({ close }) => !close, true /* inclusive */)
         );
       }),
-      map(({ completion, parentSpan }) => ({ completion, parentSpan })),
-      filter((result): result is ContextAware<{ completion: Uint8Array }> => result.completion !== undefined)
+      map(({ completion }) => ({ completion })),
+      filter((result): result is { completion: Uint8Array } => result.completion !== undefined)
     );
   }
 
@@ -1472,30 +1427,17 @@ export class Worker {
    */
   protected workflowPoll$(): Observable<ActivationWithContext> {
     return this.pollLoop$(async () => {
-      const parentSpan = this.tracer.startSpan('workflow.activation');
-      return await instrument(
-        this.tracer,
-        parentSpan,
-        'workflow.poll',
-        async (span) => {
-          this.hasOutstandingWorkflowPoll = true;
-          let buffer: ArrayBuffer;
-          try {
-            buffer = await this.nativeWorker.pollWorkflowActivation(span.spanContext());
-          } finally {
-            this.hasOutstandingWorkflowPoll = false;
-          }
-          const activation = coresdk.workflow_activation.WorkflowActivation.decode(new Uint8Array(buffer));
-          const { runId, ...rest } = activation;
-          this.log.trace('Got workflow activation', activation);
+      this.hasOutstandingWorkflowPoll = true;
+      let buffer: ArrayBuffer;
+      try {
+        buffer = await this.nativeWorker.pollWorkflowActivation();
+      } finally {
+        this.hasOutstandingWorkflowPoll = false;
+      }
+      const activation = coresdk.workflow_activation.WorkflowActivation.decode(new Uint8Array(buffer));
+      this.log.trace('Got workflow activation', activation);
 
-          span.setAttribute(RUN_ID_ATTR_KEY, runId).setAttribute(NUM_JOBS_ATTR_KEY, rest.jobs.length);
-          await this.linkWorkflowSpans(runId, rest.jobs, parentSpan);
-
-          return { activation, parentSpan };
-        },
-        (err) => err instanceof ShutdownError
-      );
+      return { activation };
     }).pipe(
       tap({
         complete: () => {
@@ -1506,34 +1448,6 @@ export class Worker {
         },
       })
     );
-  }
-
-  /**
-   * Given a run ID, some jobs from a new WFT, and the parent span or the workflow activation,
-   * handle linking any span context that exists in the WF headers to our internal spans.
-   *
-   * The result here is that our SDK spans in node and core are separate from the user's spans
-   * that they create when they use interceptors, with our spans being linked to theirs.
-   *
-   * If the activation includes WF start, headers will be extracted and cached. If it does not,
-   * any previously such extracted header will be used for the run.
-   */
-  private async linkWorkflowSpans(runId: string, jobs: IWorkflowActivationJob[], parentSpan: otel.Span) {
-    let linkedContext = this.runIdsToSpanContext.get(runId);
-    // If there is an otel context in the headers, link our trace for the workflow to the
-    // trace in the header.
-    for (const j of jobs) {
-      if (j.startWorkflow != null) {
-        const ctx = await extractSpanContextFromHeaders(j.startWorkflow.headers ?? {});
-        if (ctx !== undefined && linkedContext === undefined) {
-          this.runIdsToSpanContext.set(runId, ctx);
-          linkedContext = ctx;
-        }
-      }
-    }
-    if (linkedContext != null) {
-      linkSpans(parentSpan, linkedContext);
-    }
   }
 
   /**
@@ -1548,21 +1462,8 @@ export class Worker {
     }
     return this.workflowPoll$().pipe(
       this.workflowOperator(),
-      mergeMap(async ({ completion, parentSpan: root }) => {
-        const span = childSpan(this.tracer, root, 'workflow.complete');
-        try {
-          await this.nativeWorker.completeWorkflowActivation(
-            span.spanContext(),
-            completion.buffer.slice(completion.byteOffset)
-          );
-          span.setStatus({ code: otel.SpanStatusCode.OK });
-        } catch (err) {
-          span.setStatus({ code: otel.SpanStatusCode.ERROR, message: errorMessage(err) });
-          throw err;
-        } finally {
-          span.end();
-          root.end();
-        }
+      mergeMap(async ({ completion }) => {
+        await this.nativeWorker.completeWorkflowActivation(completion.buffer.slice(completion.byteOffset));
       }),
       tap({
         complete: () => {
@@ -1577,41 +1478,22 @@ export class Worker {
    */
   protected activityPoll$(): Observable<ActivityTaskWithContext> {
     return this.pollLoop$(async () => {
-      const parentSpan = this.tracer.startSpan('activity.task');
-      return await instrument(
-        this.tracer,
-        parentSpan,
-        'activity.poll',
-        async (span) => {
-          this.hasOutstandingActivityPoll = true;
-          let buffer: ArrayBuffer;
-          try {
-            buffer = await this.nativeWorker.pollActivityTask(span.spanContext());
-          } finally {
-            this.hasOutstandingActivityPoll = false;
-          }
-          const task = coresdk.activity_task.ActivityTask.decode(new Uint8Array(buffer));
-          const { taskToken, ...rest } = task;
-          const base64TaskToken = formatTaskToken(taskToken);
-          this.log.trace('Got activity task', { taskToken: base64TaskToken, ...rest });
-          const { variant } = task;
-          if (variant === undefined) {
-            throw new TypeError('Got an activity task without a "variant" attribute');
-          }
-          parentSpan.setAttributes({
-            [TASK_TOKEN_ATTR_KEY]: base64TaskToken,
-            variant,
-            [RUN_ID_ATTR_KEY]: task.start?.workflowExecution?.runId ?? 'unknown',
-          });
-          // If the activity had otel headers, link to that span
-          if (task.start?.headerFields) {
-            const ctx = await extractSpanContextFromHeaders(task.start.headerFields);
-            linkSpans(parentSpan, ctx);
-          }
-          return { task, parentSpan, base64TaskToken };
-        },
-        (err) => err instanceof ShutdownError
-      );
+      this.hasOutstandingActivityPoll = true;
+      let buffer: ArrayBuffer;
+      try {
+        buffer = await this.nativeWorker.pollActivityTask();
+      } finally {
+        this.hasOutstandingActivityPoll = false;
+      }
+      const task = coresdk.activity_task.ActivityTask.decode(new Uint8Array(buffer));
+      const { taskToken, ...rest } = task;
+      const base64TaskToken = formatTaskToken(taskToken);
+      this.log.trace('Got activity task', { taskToken: base64TaskToken, ...rest });
+      const { variant } = task;
+      if (variant === undefined) {
+        throw new TypeError('Got an activity task without a "variant" attribute');
+      }
+      return { task, base64TaskToken };
     }).pipe(
       tap({
         complete: () => {
@@ -1633,17 +1515,8 @@ export class Worker {
     }
     return this.activityPoll$().pipe(
       this.activityOperator(),
-      mergeMap(async ({ completion, parentSpan }) => {
-        try {
-          await instrument(this.tracer, parentSpan, 'activity.complete', () =>
-            this.nativeWorker.completeActivityTask(
-              parentSpan.spanContext(),
-              completion.buffer.slice(completion.byteOffset)
-            )
-          );
-        } finally {
-          parentSpan.end();
-        }
+      mergeMap(async ({ completion }) => {
+        await this.nativeWorker.completeActivityTask(completion.buffer.slice(completion.byteOffset));
       }),
       tap({ complete: () => this.log.debug('Activities complete') })
     );

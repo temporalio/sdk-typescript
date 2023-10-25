@@ -16,7 +16,6 @@ export {
   OtelCollectorExporter,
   PrometheusMetricsExporter,
   TelemetryOptions,
-  TraceExporter,
 } from '@temporalio/core-bridge';
 export { LoggerSinks } from '@temporalio/workflow';
 export { ActivityInboundLogInterceptor, activityLogAttributes } from './activity-log-interceptor';

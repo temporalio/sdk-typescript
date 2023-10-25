@@ -452,16 +452,9 @@ export interface WorkerOptions {
   sinks?: InjectedSinks<any>;
 
   /**
-   * Enable opentelemetry tracing of SDK internals like polling, processing and completing tasks.
-   *
-   * Useful for debugging issues with the SDK itself.
-   *
-   * For completeness the Rust Core also generates opentelemetry spans which connect to the Worker's spans.
-   * Configure {@link CoreOptions.telemetryOptions} to enable tracing in Core.
-   *
-   * @default false
+   * @deprecated SDK tracing is no longer supported. This option is ignored.
    */
-  enableSDKTracing?: boolean;
+  enableSDKTracing?: unknown;
 
   /**
    * Whether or not to send the sources in enhanced stack trace query responses
@@ -535,7 +528,6 @@ export type WorkerOptionsWithDefaults = WorkerOptions &
       | 'workflowThreadPoolSize'
       | 'maxHeartbeatThrottleInterval'
       | 'defaultHeartbeatThrottleInterval'
-      | 'enableSDKTracing'
       | 'showStackTraceSources'
       | 'debugMode'
       | 'reuseV8Context'
@@ -700,7 +692,6 @@ export function addDefaultWorkerOptions(options: WorkerOptions): WorkerOptionsWi
     isolateExecutionTimeout: debugMode ? '4294967295ms' : '5s',
     workflowThreadPoolSize: reuseV8Context ? 1 : 2,
     maxCachedWorkflows: maxCachedWorkflows ?? defaultMaxCachedWorkflows,
-    enableSDKTracing: false,
     showStackTraceSources: showStackTraceSources ?? false,
     reuseV8Context: reuseV8Context ?? false,
     debugMode: debugMode ?? false,
