@@ -454,7 +454,7 @@ export interface WorkerOptions {
   /**
    * @deprecated SDK tracing is no longer supported. This option is ignored.
    */
-  enableSDKTracing?: unknown;
+  enableSDKTracing?: boolean;
 
   /**
    * Whether or not to send the sources in enhanced stack trace query responses

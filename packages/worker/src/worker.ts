@@ -82,8 +82,6 @@ import { VMWorkflowCreator } from './workflow/vm';
 import { WorkflowBundleWithSourceMapAndFilename } from './workflow/workflow-worker-thread/input';
 import { GracefulShutdownPeriodExpiredError } from './errors';
 
-type IWorkflowActivationJob = coresdk.workflow_activation.IWorkflowActivationJob;
-
 export { DataConverter, defaultPayloadConverter };
 
 /**
@@ -114,10 +112,9 @@ type Promisify<T> = T extends (...args: any[]) => void
 
 type PatchJob = NonNullableObject<Pick<coresdk.workflow_activation.IWorkflowActivationJob, 'notifyHasPatch'>>;
 
-export type ActivationWithContext = {
-  activation: coresdk.workflow_activation.WorkflowActivation;
-};
-export type ActivityTaskWithContext = {
+type WorkflowActivation = coresdk.workflow_activation.WorkflowActivation;
+
+export type ActivityTaskWithBase64Token = {
   task: coresdk.activity_task.ActivityTask;
   base64TaskToken: string;
 };
@@ -811,7 +808,7 @@ export class Worker {
   /**
    * Process Activity tasks
    */
-  protected activityOperator(): OperatorFunction<ActivityTaskWithContext, { completion: Uint8Array }> {
+  protected activityOperator(): OperatorFunction<ActivityTaskWithBase64Token, Uint8Array> {
     return pipe(
       closeableGroupBy(({ base64TaskToken }) => base64TaskToken),
       mergeMap((group$) => {
@@ -990,9 +987,7 @@ export class Worker {
             return { taskToken, result };
           }),
           filter(<T>(result: T): result is Exclude<T, undefined> => result !== undefined),
-          map((rest) => ({
-            completion: coresdk.ActivityTaskCompletion.encodeDelimited(rest).finish(),
-          }))
+          map((rest) => coresdk.ActivityTaskCompletion.encodeDelimited(rest).finish())
         );
       })
     );
@@ -1001,20 +996,20 @@ export class Worker {
   /**
    * Process Workflow activations
    */
-  protected workflowOperator(): OperatorFunction<ActivationWithContext, { completion: Uint8Array }> {
+  protected workflowOperator(): OperatorFunction<WorkflowActivation, Uint8Array> {
     const { workflowCreator } = this;
     if (workflowCreator === undefined) {
-      throw new IllegalStateError('Cannot process workflows without an IsolateContextProvider');
+      throw new IllegalStateError('Cannot process workflows without a WorkflowCreator');
     }
     interface WorkflowWithLogAttributes {
       workflow: Workflow;
       logAttributes: Record<string, unknown>;
     }
     return pipe(
-      closeableGroupBy(({ activation }) => activation.runId),
+      closeableGroupBy((activation) => activation.runId),
       mergeMap((group$) => {
         return merge(
-          group$.pipe(map((act) => ({ ...act, synthetic: false }))),
+          group$.pipe(map((activation) => ({ activation, synthetic: false }))),
           this.workflowPollerStateSubject.pipe(
             // Core has indicated that it will not return any more poll results, evict all cached WFs
             filter((state) => state !== 'POLLING'),
@@ -1248,8 +1243,8 @@ export class Worker {
           takeWhile(({ close }) => !close, true /* inclusive */)
         );
       }),
-      map(({ completion }) => ({ completion })),
-      filter((result): result is { completion: Uint8Array } => result.completion !== undefined)
+      map(({ completion }) => completion),
+      filter((result): result is Uint8Array => result !== undefined)
     );
   }
 
@@ -1425,7 +1420,7 @@ export class Worker {
   /**
    * Poll core for `WorkflowActivation`s while respecting worker state.
    */
-  protected workflowPoll$(): Observable<ActivationWithContext> {
+  protected workflowPoll$(): Observable<WorkflowActivation> {
     return this.pollLoop$(async () => {
       this.hasOutstandingWorkflowPoll = true;
       let buffer: ArrayBuffer;
@@ -1437,7 +1432,7 @@ export class Worker {
       const activation = coresdk.workflow_activation.WorkflowActivation.decode(new Uint8Array(buffer));
       this.log.trace('Got workflow activation', activation);
 
-      return { activation };
+      return activation;
     }).pipe(
       tap({
         complete: () => {
@@ -1462,7 +1457,7 @@ export class Worker {
     }
     return this.workflowPoll$().pipe(
       this.workflowOperator(),
-      mergeMap(async ({ completion }) => {
+      mergeMap(async (completion) => {
         await this.nativeWorker.completeWorkflowActivation(completion.buffer.slice(completion.byteOffset));
       }),
       tap({
@@ -1476,7 +1471,7 @@ export class Worker {
   /**
    * Poll core for `ActivityTask`s while respecting worker state
    */
-  protected activityPoll$(): Observable<ActivityTaskWithContext> {
+  protected activityPoll$(): Observable<ActivityTaskWithBase64Token> {
     return this.pollLoop$(async () => {
       this.hasOutstandingActivityPoll = true;
       let buffer: ArrayBuffer;
@@ -1515,7 +1510,7 @@ export class Worker {
     }
     return this.activityPoll$().pipe(
       this.activityOperator(),
-      mergeMap(async ({ completion }) => {
+      mergeMap(async (completion) => {
         await this.nativeWorker.completeActivityTask(completion.buffer.slice(completion.byteOffset));
       }),
       tap({ complete: () => this.log.debug('Activities complete') })
