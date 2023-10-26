@@ -210,7 +210,7 @@ export class Runtime {
     // eslint-disable-next-line deprecation/deprecation
     const { logging, metrics, tracingFilter, ...otherTelemetryOpts } = options.telemetryOptions ?? {};
 
-    const defaultFilter = tracingFilter ?? makeTelemetryFilterString({ core: 'INFO', other: 'INFO' });
+    const defaultFilter = tracingFilter ?? makeTelemetryFilterString({ core: 'WARN', other: 'ERROR' });
     const loggingFilter = logging?.filter;
 
     // eslint-disable-next-line deprecation/deprecation
