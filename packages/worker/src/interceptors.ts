@@ -52,6 +52,13 @@ export interface ActivityOutboundCallsInterceptor {
 }
 
 /**
+ * A function that takes Activity Context and returns an interceptor
+ */
+export interface ActivityOutboundCallsInterceptorFactory {
+  (ctx: ActivityContext): ActivityOutboundCallsInterceptor;
+}
+
+/**
  * Structure for passing in Worker interceptors via {@link WorkerOptions}
  */
 export interface WorkerInterceptors {

@@ -1,7 +1,13 @@
 import { CompleteAsyncError, Context, Info } from '@temporalio/activity';
 import { CancelledFailure } from '@temporalio/common';
 import { isAbortError } from '@temporalio/common/lib/type-helpers';
-import { ActivityInboundCallsInterceptor, ActivityExecuteInput, Next } from './interceptors';
+import {
+  ActivityInboundCallsInterceptor,
+  ActivityExecuteInput,
+  Next,
+  ActivityOutboundCallsInterceptor,
+  GetLogAttributesInput,
+} from './interceptors';
 import { Logger } from './logger';
 
 const UNINITIALIZED = Symbol('UNINITIALIZED');
@@ -25,37 +31,45 @@ export function activityLogAttributes(info: Info): Record<string, unknown> {
 }
 
 /** Logs Activity execution starts and their completions */
-export class ActivityInboundLogInterceptor implements ActivityInboundCallsInterceptor {
+export class ActivityInboundLogInterceptor
+  implements ActivityInboundCallsInterceptor, ActivityOutboundCallsInterceptor
+{
   /**
    * @deprecated Use `Context.current().logger` instead
    */
   protected readonly logger: Logger;
 
   constructor(protected readonly ctx: Context, logger?: Logger | undefined) {
-    // If a parent logger was explicitly provided on this interceptor, then use it.
-    // Otherwise, use the logger that is already set on the activity context.
-    // By default, that will be Runtime.logger, but another interceptor might have overriden it,
-    // in which case we would want to use that one as our parent logger.
-    const parentLogger = logger ?? ctx.log;
-    this.logger = parentLogger; // eslint-disable-line deprecation/deprecation
+    this.logger = logger ?? ctx.log; // eslint-disable-line deprecation/deprecation
 
-    this.ctx.log = Object.fromEntries(
-      (['trace', 'debug', 'info', 'warn', 'error'] as const).map((level) => {
-        return [
-          level,
-          (message: string, attrs: Record<string, unknown>) => {
-            return parentLogger[level](message, {
-              ...this.logAttributes(),
-              ...attrs,
-            });
-          },
-        ];
-      })
-    ) as any;
+    // If a logger was explicitly provided on this interceptor, then use it.
+    // Note that injecting a logger this way is deprecated.
+    if (logger) {
+      this.ctx.log = Object.fromEntries(
+        (['trace', 'debug', 'info', 'warn', 'error'] as const).map((level) => {
+          return [
+            level,
+            (message: string, attrs: Record<string, unknown>) => {
+              return logger[level](message, {
+                ...this.logAttributes(),
+                ...attrs,
+              });
+            },
+          ];
+        })
+      ) as any;
+    }
   }
 
   protected logAttributes(): Record<string, unknown> {
     return activityLogAttributes(this.ctx.info);
+  }
+
+  public getLogAttributes(
+    input: GetLogAttributesInput,
+    next: Next<ActivityOutboundCallsInterceptor, 'getLogAttributes'>
+  ): Record<string, unknown> {
+    return next({ ...input, ...this.logAttributes() });
   }
 
   async execute(input: ActivityExecuteInput, next: Next<ActivityInboundCallsInterceptor, 'execute'>): Promise<unknown> {

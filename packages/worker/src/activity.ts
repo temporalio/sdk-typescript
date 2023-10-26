@@ -16,8 +16,12 @@ import {
   ActivityExecuteInput,
   ActivityInboundCallsInterceptor,
   ActivityInboundCallsInterceptorFactory,
+  ActivityOutboundCallsInterceptor,
+  ActivityOutboundCallsInterceptorFactory,
+  GetLogAttributesInput,
 } from './interceptors';
 import { Runtime } from './runtime';
+import { Logger } from './logger';
 
 export type CancelReason =
   | keyof typeof coresdk.activity_task.ActivityCancelReason
@@ -41,7 +45,7 @@ export class Activity {
     public readonly heartbeatCallback: Context['heartbeat'],
     interceptors?: {
       inbound?: ActivityInboundCallsInterceptorFactory[];
-      outbound: ActivityOutboundCallsInterceptorFactory[];
+      outbound?: ActivityOutboundCallsInterceptorFactory[];
     }
   ) {
     const promise = new Promise<never>((_, reject) => {
@@ -56,13 +60,19 @@ export class Activity {
       promise,
       this.abortController.signal,
       this.heartbeatCallback,
-      Runtime.instance().logger
+      Runtime.instance().logger,
+      this.getLogAttributes.bind(this)
     );
-    // Prevent unhandled rejection
-    promise.catch(() => undefined);
     this.interceptors = {
       inbound: (interceptors?.inbound ?? []).map((factory) => factory(this.context)),
+      outbound: (interceptors?.outbound ?? []).map((factory) => factory(this.context)),
     };
+    // Prevent unhandled rejection
+    promise.catch(() => undefined);
+  }
+
+  protected getLogAttributes(input: GetLogAttributesInput): Record<string, unknown> {
+    return composeInterceptors(this.interceptors.outbound, 'getLogAttributes', (a) => a)(input);
   }
 
   /**

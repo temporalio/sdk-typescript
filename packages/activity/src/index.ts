@@ -252,16 +252,26 @@ export class Context {
   /**
    * The logger for this Activity.
    *
-   * This defaults to the `Runtime`'s Logger (see {@link Runtime.logger}). If the {@link ActivityInboundLogInterceptor}
-   * is installed (by default, it is; see {@link WorkerOptions.interceptors}), then various attributes from the current
-   * Activity context will automatically be included as metadata on every log entries, and some key events of the
-   * Activity's life cycle will automatically be logged (at 'DEBUG' level for most messages; 'WARN' for failures).
+   * This defaults to the `Runtime`'s Logger (see {@link Runtime.logger}). Attributes from the current Activity context
+   * will automatically be included as metadata on every log entries, and some key events of the Activity's life cycle
+   * will automatically be logged (at 'DEBUG' level for most messages; 'WARN' for failures).
    *
-   * To use a different Logger, either overwrite this property from an Activity Interceptor, or explicitly register the
-   * `ActivityInboundLogInterceptor` with your custom Logger. You may also subclass `ActivityInboundLogInterceptor` to
-   * customize attributes that are emitted as metadata.
+   * To add custom metadata to log attributes, register a {@link ActivityOutboundCallsInterceptor} that intercepts the
+   * `getLogAttributes()` method.
+   *
+   * Modifying the context logger (eg. `context.log = myCustomLogger`) is deprecated. To customize where log messages
+   * are sent, set the {@see Runtime.logger} property instead.
    */
-  public log: Logger;
+  public get log(): Logger {
+    return this.#wrappedLogger;
+  }
+
+  public set log(logger: Logger) {
+    this.#parentLogger = logger;
+  }
+
+  #parentLogger: Logger;
+  #wrappedLogger: Logger;
 
   /**
    * **Not** meant to instantiated by Activity code, used by the worker.
@@ -273,13 +283,35 @@ export class Context {
     cancelled: Promise<never>,
     cancellationSignal: AbortSignal,
     heartbeat: (details?: any) => void,
-    logger: Logger
+    logger: Logger,
+    getLogAttributes: (input: Record<string, unknown>) => Record<string, unknown>
   ) {
     this.info = info;
     this.cancelled = cancelled;
     this.cancellationSignal = cancellationSignal;
     this.heartbeatFn = heartbeat;
-    this.log = logger;
+
+    this.#parentLogger = logger;
+    this.#wrappedLogger = {
+      log: (level, message, attrs) => {
+        return this.#parentLogger.log(level, message, { ...getLogAttributes({}), ...attrs });
+      },
+      trace: (message, attrs) => {
+        return this.#parentLogger.trace(message, { ...getLogAttributes({}), ...attrs });
+      },
+      debug: (message, attrs) => {
+        return this.#parentLogger.debug(message, { ...getLogAttributes({}), ...attrs });
+      },
+      info: (message, attrs) => {
+        return this.#parentLogger.info(message, { ...getLogAttributes({}), ...attrs });
+      },
+      warn: (message, attrs) => {
+        return this.#parentLogger.warn(message, { ...getLogAttributes({}), ...attrs });
+      },
+      error: (message, attrs) => {
+        return this.#parentLogger.error(message, { ...getLogAttributes({}), ...attrs });
+      },
+    };
   }
 
   /**
