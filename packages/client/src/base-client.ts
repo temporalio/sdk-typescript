@@ -1,3 +1,5 @@
+// Keep this around until we drop support for Node 14.
+import 'abort-controller/polyfill'; // eslint-disable-line import/no-unassigned-import
 import os from 'node:os';
 import { DataConverter, LoadedDataConverter } from '@temporalio/common';
 import { isLoadedDataConverter, loadDataConverter } from '@temporalio/common/lib/internal-non-workflow';
@@ -65,6 +67,18 @@ export class BaseClient {
    */
   public async withDeadline<R>(deadline: number | Date, fn: () => Promise<R>): Promise<R> {
     return await this.connection.withDeadline(deadline, fn);
+  }
+
+  /**
+   * Set an {@link https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal | `AbortSignal`} that, when aborted,
+   * cancels any ongoing requests executed in `fn`'s scope.
+   *
+   * @returns value returned from `fn`
+   *
+   * @see {@link Connection.withAbortSignal}
+   */
+  async withAbortSignal<ReturnType>(abortSignal: AbortSignal, fn: () => Promise<ReturnType>): Promise<ReturnType> {
+    return await this.connection.withAbortSignal(abortSignal, fn);
   }
 
   /**

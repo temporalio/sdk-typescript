@@ -82,6 +82,8 @@ export interface CallContext {
    * Metadata to set on gRPC requests
    */
   metadata?: Metadata;
+
+  abortSignal?: AbortSignal;
 }
 
 /**
@@ -105,4 +107,12 @@ export interface ConnectionLike {
    * @returns returned value of `fn`
    */
   withMetadata<R>(metadata: Metadata, fn: () => Promise<R>): Promise<R>;
+
+  /**
+   * Set an {@link https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal | `AbortSignal`} that, when aborted,
+   * cancels any ongoing requests executed in `fn`'s scope.
+   *
+   * @returns value returned from `fn`
+   */
+  withAbortSignal<R>(abortSignal: AbortSignal, fn: () => Promise<R>): Promise<R>;
 }

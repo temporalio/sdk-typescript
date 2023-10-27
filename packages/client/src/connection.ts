@@ -1,3 +1,5 @@
+// Keep this around until we drop support for Node 14.
+import 'abort-controller/polyfill'; // eslint-disable-line import/no-unassigned-import
 import { AsyncLocalStorage } from 'node:async_hooks';
 import * as grpc from '@grpc/grpc-js';
 import type { RPCImpl } from 'protobufjs';
@@ -375,7 +377,7 @@ export class Connection {
   }: RPCImplOptions): RPCImpl {
     return (method: { name: string }, requestData: any, callback: grpc.requestCallback<any>) => {
       const metadataContainer = new grpc.Metadata();
-      const { metadata, deadline } = callContextStorage.getStore() ?? {};
+      const { metadata, deadline, abortSignal } = callContextStorage.getStore() ?? {};
       for (const [k, v] of Object.entries(staticMetadata)) {
         metadataContainer.set(k, v);
       }
@@ -384,7 +386,7 @@ export class Connection {
           metadataContainer.set(k, v);
         }
       }
-      return client.makeUnaryRequest(
+      const call = client.makeUnaryRequest(
         `/${serviceName}/${method.name}`,
         (arg: any) => arg,
         (arg: any) => arg,
@@ -393,6 +395,11 @@ export class Connection {
         { interceptors, deadline },
         callback
       );
+      if (abortSignal != null) {
+        abortSignal.addEventListener('abort', () => call.cancel());
+      }
+
+      return call;
     };
   }
 
@@ -403,7 +410,27 @@ export class Connection {
    */
   async withDeadline<ReturnType>(deadline: number | Date, fn: () => Promise<ReturnType>): Promise<ReturnType> {
     const cc = this.callContextStorage.getStore();
-    return await this.callContextStorage.run({ deadline, metadata: cc?.metadata }, fn);
+    return await this.callContextStorage.run({ ...cc, deadline }, fn);
+  }
+
+  /**
+   * Set an {@link https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal | `AbortSignal`} that, when aborted,
+   * cancels any ongoing requests executed in `fn`'s scope.
+   *
+   * @returns value returned from `fn`
+   *
+   * @example
+   *
+   * ```ts
+   * const ctrl = new AbortController();
+   * setTimeout(() => ctrl.abort(), 10_000);
+   * // 👇 throws if incomplete by the timeout.
+   * await conn.withAbortSignal(ctrl.signal, () => client.start(options));
+   * ```
+   */
+  async withAbortSignal<ReturnType>(abortSignal: AbortSignal, fn: () => Promise<ReturnType>): Promise<ReturnType> {
+    const cc = this.callContextStorage.getStore();
+    return await this.callContextStorage.run({ ...cc, abortSignal }, fn);
   }
 
   /**
@@ -416,16 +443,15 @@ export class Connection {
    *
    * @example
    *
-   *```ts
-   *const workflowHandle = await conn.withMetadata({ apiKey: 'secret' }, () =>
-   *  conn.withMetadata({ otherKey: 'set' }, () => client.start(options)))
-   *);
-   *```
+   * ```ts
+   * const workflowHandle = await conn.withMetadata({ apiKey: 'secret' }, () =>
+   *   conn.withMetadata({ otherKey: 'set' }, () => client.start(options)))
+   * );
+   * ```
    */
   async withMetadata<ReturnType>(metadata: Metadata, fn: () => Promise<ReturnType>): Promise<ReturnType> {
     const cc = this.callContextStorage.getStore();
-    metadata = { ...cc?.metadata, ...metadata };
-    return await this.callContextStorage.run({ metadata, deadline: cc?.deadline }, fn);
+    return await this.callContextStorage.run({ ...cc, metadata: { ...cc?.metadata, ...metadata } }, fn);
   }
 
   /**
