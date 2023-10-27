@@ -73,8 +73,9 @@ test('withMetadata / withDeadline / withAbortSignal set the CallContext for RPC 
       }
       callback(null, {});
     },
-    // Simulate a hanging call to test abort signal support.
-    updateNamespace() {},
+    updateNamespace() {
+      // Simulate a hanging call to test abort signal support.
+    },
   });
   const port = await bindLocalhost(server);
   server.start();
