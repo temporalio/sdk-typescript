@@ -242,7 +242,7 @@ export class Connection {
    * The Operator Service API defines how Temporal SDKs and other clients interact with the Temporal
    * server to perform administrative functions like registering a search attribute or a namespace.
    *
-   * This API is NOT compatible with Temporal Cloud. Attempt to call these APIs against a Temporal
+   * This Service API is NOT compatible with Temporal Cloud. Attempt to use it against a Temporal
    * Cloud namespace will result in gRPC `unauthorized` error.
    */
   public readonly operatorService: OperatorService;
