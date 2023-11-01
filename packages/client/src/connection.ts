@@ -238,6 +238,12 @@ export class Connection {
   /**
    * Raw gRPC access to Temporal Server's
    * {@link https://github.com/temporalio/api/blob/master/temporal/api/operatorservice/v1/service.proto | Operator service}
+   *
+   * The Operator Service API defines how Temporal SDKs and other clients interact with the Temporal
+   * server to perform administrative functions like registering a search attribute or a namespace.
+   *
+   * This Service API is NOT compatible with Temporal Cloud. Attempt to use it against a Temporal
+   * Cloud namespace will result in gRPC `unauthorized` error.
    */
   public readonly operatorService: OperatorService;
   public readonly healthService: HealthService;
