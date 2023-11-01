@@ -27,12 +27,19 @@ export {
 } from '@temporalio/workflow';
 export {
   /**
-   * @deprecated Extending `ActivityInboundLogInterceptor` is deprecated. To customize activity log attributes, simply
-   *             register a custom `WorkflowInterceptors` that intercepts the `outbound.getLogAttributes()` method.
+   * @deprecated `ActivityInboundLogInterceptor` is deprecated. To customize activity log attributes,
+   *             simply register a custom `WorkflowInterceptors` that intercepts the
+   *             `outbound.getLogAttributes()` method. To customize where log messages are sent,
+   *             set the {@see Runtime.logger} property.
    */
   ActivityInboundLogInterceptor,
-  activityLogAttributes,
 } from './activity-log-interceptor';
+export {
+  /**
+   * @deprecated
+   */
+  activityLogAttributes,
+} from './activity';
 export { NativeConnection as NativeConnection } from './connection';
 export { NativeConnectionOptions, RequiredNativeConnectionOptions, TLSConfig } from './connection-options';
 export { startDebugReplayer } from './debug-replayer';

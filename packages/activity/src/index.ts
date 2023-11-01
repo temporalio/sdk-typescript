@@ -259,19 +259,12 @@ export class Context {
    * To add custom metadata to log attributes, register a {@link ActivityOutboundCallsInterceptor} that intercepts the
    * `getLogAttributes()` method.
    *
-   * Modifying the context logger (eg. `context.log = myCustomLogger`) is deprecated. To customize where log messages
-   * are sent, set the {@see Runtime.logger} property instead.
+   * Modifying the context logger (eg. `context.log = myCustomLogger` or by an `ActivityInboundLogInterceptor`
+   * with a custom logger as argument) is deprecated. Doing so will prevent automatic inclusion of custom log attributes
+   * through the `getLogAttributes()` interceptor. To customize _where_ log messages are sent, set the
+   * {@see Runtime.logger} property instead.
    */
-  public get log(): Logger {
-    return this.#wrappedLogger;
-  }
-
-  public set log(logger: Logger) {
-    this.#parentLogger = logger;
-  }
-
-  #parentLogger: Logger;
-  #wrappedLogger: Logger;
+  public log: Logger;
 
   /**
    * **Not** meant to instantiated by Activity code, used by the worker.
@@ -283,35 +276,13 @@ export class Context {
     cancelled: Promise<never>,
     cancellationSignal: AbortSignal,
     heartbeat: (details?: any) => void,
-    logger: Logger,
-    getLogAttributes: (input: Record<string, unknown>) => Record<string, unknown>
+    log: Logger
   ) {
     this.info = info;
     this.cancelled = cancelled;
     this.cancellationSignal = cancellationSignal;
     this.heartbeatFn = heartbeat;
-
-    this.#parentLogger = logger;
-    this.#wrappedLogger = {
-      log: (level, message, attrs) => {
-        return this.#parentLogger.log(level, message, { ...getLogAttributes({}), ...attrs });
-      },
-      trace: (message, attrs) => {
-        return this.#parentLogger.trace(message, { ...getLogAttributes({}), ...attrs });
-      },
-      debug: (message, attrs) => {
-        return this.#parentLogger.debug(message, { ...getLogAttributes({}), ...attrs });
-      },
-      info: (message, attrs) => {
-        return this.#parentLogger.info(message, { ...getLogAttributes({}), ...attrs });
-      },
-      warn: (message, attrs) => {
-        return this.#parentLogger.warn(message, { ...getLogAttributes({}), ...attrs });
-      },
-      error: (message, attrs) => {
-        return this.#parentLogger.error(message, { ...getLogAttributes({}), ...attrs });
-      },
-    };
+    this.log = log;
   }
 
   /**

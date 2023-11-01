@@ -18,7 +18,6 @@ import {
   ActivityInboundCallsInterceptorFactory,
   ActivityOutboundCallsInterceptor,
   ActivityOutboundCallsInterceptorFactory,
-  GetLogAttributesInput,
 } from './interceptors';
 import { Runtime } from './runtime';
 import { Logger } from './logger';
@@ -60,8 +59,7 @@ export class Activity {
       promise,
       this.abortController.signal,
       this.heartbeatCallback,
-      Runtime.instance().logger,
-      this.getLogAttributes.bind(this)
+      this.makeActivityLogger()
     );
     this.interceptors = {
       inbound: (interceptors?.inbound ?? []).map((factory) => factory(this.context)),
@@ -71,8 +69,35 @@ export class Activity {
     promise.catch(() => undefined);
   }
 
-  protected getLogAttributes(input: GetLogAttributesInput): Record<string, unknown> {
-    return composeInterceptors(this.interceptors.outbound, 'getLogAttributes', (a) => a)(input);
+  protected getLogAttributes(): Record<string, unknown> {
+    const logAttributes = activityLogAttributes(this.info);
+    // In case some interceptor uses the logger while initializing...
+    if (this.interceptors == null) return logAttributes;
+    return composeInterceptors(this.interceptors.outbound, 'getLogAttributes', (a) => a)(logAttributes);
+  }
+
+  protected makeActivityLogger(): Logger {
+    const parentLogger = Runtime.instance().logger;
+    return {
+      log: (level, message, attrs) => {
+        return parentLogger.log(level, message, { ...this.getLogAttributes(), ...attrs });
+      },
+      trace: (message, attrs) => {
+        return parentLogger.trace(message, { ...this.getLogAttributes(), ...attrs });
+      },
+      debug: (message, attrs) => {
+        return parentLogger.debug(message, { ...this.getLogAttributes(), ...attrs });
+      },
+      info: (message, attrs) => {
+        return parentLogger.info(message, { ...this.getLogAttributes(), ...attrs });
+      },
+      warn: (message, attrs) => {
+        return parentLogger.warn(message, { ...this.getLogAttributes(), ...attrs });
+      },
+      error: (message, attrs) => {
+        return parentLogger.error(message, { ...this.getLogAttributes(), ...attrs });
+      },
+    };
   }
 
   /**
@@ -123,4 +148,22 @@ export class Activity {
       }
     });
   }
+}
+
+/**
+ * Returns a map of attributes to be set on log messages for a given Activity
+ */
+export function activityLogAttributes(info: Info): Record<string, unknown> {
+  return {
+    isLocal: info.isLocal,
+    attempt: info.attempt,
+    namespace: info.workflowNamespace,
+    taskToken: info.base64TaskToken,
+    workflowId: info.workflowExecution.workflowId,
+    workflowRunId: info.workflowExecution.runId,
+    workflowType: info.workflowType,
+    activityId: info.activityId,
+    activityType: info.activityType,
+    taskQueue: info.taskQueue,
+  };
 }

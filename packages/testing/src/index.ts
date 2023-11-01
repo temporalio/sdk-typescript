@@ -412,8 +412,7 @@ export class MockActivityEnvironment extends events.EventEmitter {
       promise,
       abortController.signal,
       heartbeatCallback,
-      Runtime.instance().logger,
-      (attrs) => attrs
+      Runtime.instance().logger
     );
     promise.catch(() => {
       /* avoid unhandled rejection */
