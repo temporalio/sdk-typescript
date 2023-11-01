@@ -106,6 +106,8 @@ export interface ActivityOptions {
    * When using the Worker Versioning feature, specifies whether this Activity should run on a
    * worker with a compatible Build Id or not. See {@link VersioningIntent}.
    *
+   * @defaultValue 'COMPATIBLE'
+   *
    * @experimental
    */
   versioningIntent?: VersioningIntent;
