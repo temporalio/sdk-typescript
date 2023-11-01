@@ -231,7 +231,7 @@ export interface ContinueAsNewOptions {
    * When using the Worker Versioning feature, specifies whether this Workflow should
    * Continue-as-New onto a worker with a compatible Build Id or not. See {@link VersioningIntent}.
    *
-   * @defaultValue 'COMPATIBLE'
+   * @default 'COMPATIBLE'
    *
    * @experimental
    */
@@ -343,7 +343,7 @@ export interface ChildWorkflowOptions extends CommonWorkflowOptions {
    * When using the Worker Versioning feature, specifies whether this Child Workflow should run on
    * a worker with a compatible Build Id or not. See {@link VersioningIntent}.
    *
-   * @defaultValue 'COMPATIBLE'
+   * @default 'COMPATIBLE'
    *
    * @experimental
    */
