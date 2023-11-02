@@ -425,7 +425,7 @@ export class Connection {
    * const ctrl = new AbortController();
    * setTimeout(() => ctrl.abort(), 10_000);
    * // 👇 throws if incomplete by the timeout.
-   * await conn.withAbortSignal(ctrl.signal, () => client.start(options));
+   * await conn.withAbortSignal(ctrl.signal, () => client.workflow.execute(myWorkflow, options));
    * ```
    */
   async withAbortSignal<ReturnType>(abortSignal: AbortSignal, fn: () => Promise<ReturnType>): Promise<ReturnType> {

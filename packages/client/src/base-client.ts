@@ -71,13 +71,13 @@ export class BaseClient {
 
   /**
    * Set an {@link https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal | `AbortSignal`} that, when aborted,
-   * cancels any ongoing requests executed in `fn`'s scope.
+   * cancels any ongoing service requests executed in `fn`'s scope.
    *
    * @returns value returned from `fn`
    *
    * @see {@link Connection.withAbortSignal}
    */
-  async withAbortSignal<ReturnType>(abortSignal: AbortSignal, fn: () => Promise<ReturnType>): Promise<ReturnType> {
+  async withAbortSignal<R>(abortSignal: AbortSignal, fn: () => Promise<R>): Promise<R> {
     return await this.connection.withAbortSignal(abortSignal, fn);
   }
 
