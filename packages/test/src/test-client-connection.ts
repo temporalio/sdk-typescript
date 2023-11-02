@@ -4,7 +4,7 @@ import fs from 'node:fs/promises';
 import test from 'ava';
 import * as grpc from '@grpc/grpc-js';
 import * as protoLoader from '@grpc/proto-loader';
-import { Connection, defaultGrpcRetryOptions, makeGrpcRetryInterceptor } from '@temporalio/client';
+import { Connection, defaultGrpcRetryOptions, isGrpcServiceError, makeGrpcRetryInterceptor } from '@temporalio/client';
 import pkg from '@temporalio/client/lib/pkg';
 import { temporal, grpc as grpcProto } from '@temporalio/proto';
 
@@ -38,7 +38,7 @@ async function bindLocalhostTls(server: grpc.Server): Promise<number> {
   return await util.promisify(server.bindAsync.bind(server))('localhost:0', credentials);
 }
 
-test('withMetadata / withDeadline set the CallContext for RPC call', async (t) => {
+test('withMetadata / withDeadline / withAbortSignal set the CallContext for RPC call', async (t) => {
   const server = new grpc.Server();
   let gotTestHeaders = false;
   let gotDeadline = false;
@@ -73,6 +73,9 @@ test('withMetadata / withDeadline set the CallContext for RPC call', async (t) =
       }
       callback(null, {});
     },
+    updateNamespace() {
+      // Simulate a hanging call to test abort signal support.
+    },
   });
   const port = await bindLocalhost(server);
   server.start();
@@ -84,6 +87,10 @@ test('withMetadata / withDeadline set the CallContext for RPC call', async (t) =
   );
   t.true(gotTestHeaders);
   t.true(gotDeadline);
+  const ctrl = new AbortController();
+  setTimeout(() => ctrl.abort(), 10);
+  const err = await t.throwsAsync(conn.withAbortSignal(ctrl.signal, () => conn.workflowService.updateNamespace({})));
+  t.true(isGrpcServiceError(err) && err.code === grpc.status.CANCELLED);
 });
 
 test('healthService works', async (t) => {
