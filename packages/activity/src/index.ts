@@ -260,7 +260,7 @@ export class Context {
    * To add custom metadata to log attributes, register a {@link ActivityOutboundCallsInterceptor} that intercepts the
    * `getLogAttributes()` method.
    *
-   * Modifying the context logger (eg. `context.log = myCustomLogger` or by an `ActivityInboundLogInterceptor`
+   * Modifying the context logger (eg. `context.log = myCustomLogger` or by an {@link ActivityInboundLogInterceptor}
    * with a custom logger as argument) is deprecated. Doing so will prevent automatic inclusion of custom log attributes
    * through the `getLogAttributes()` interceptor. To customize _where_ log messages are sent, set the
    * {@see Runtime.logger} property instead.

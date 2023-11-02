@@ -22,6 +22,8 @@ import {
 import { Runtime } from './runtime';
 import { Logger } from './logger';
 
+const UNINITIALIZED = Symbol('UNINITIALIZED');
+
 export type CancelReason =
   | keyof typeof coresdk.activity_task.ActivityCancelReason
   | 'WORKER_SHUTDOWN'
@@ -105,15 +107,39 @@ export class Activity {
    *
    * Exist mostly for cutting it out of the stack trace for failures.
    */
-  protected async execute({ args }: ActivityExecuteInput): Promise<coresdk.activity_result.IActivityExecutionResult> {
-    return await this.fn(...args);
+  protected async execute(input: ActivityExecuteInput): Promise<unknown> {
+    let error: any = UNINITIALIZED; // In case someone decides to throw undefined...
+    const startTime = process.hrtime.bigint();
+    this.context.log.debug('Activity started');
+    try {
+      const execute = composeInterceptors(this.interceptors.inbound, 'execute', ({ args }) => this.fn(...args));
+      return await execute(input);
+    } catch (err: any) {
+      error = err;
+      throw err;
+    } finally {
+      const durationNanos = process.hrtime.bigint() - startTime;
+      const durationMs = Number(durationNanos / 1_000_000n);
+
+      if (error === UNINITIALIZED) {
+        this.context.log.debug('Activity completed', { durationMs });
+      } else if (
+        (error instanceof CancelledFailure || isAbortError(error)) &&
+        this.context.cancellationSignal.aborted
+      ) {
+        this.context.log.debug('Activity completed as cancelled', { durationMs });
+      } else if (error instanceof CompleteAsyncError) {
+        this.context.log.debug('Activity will complete asynchronously', { durationMs });
+      } else {
+        this.context.log.warn('Activity failed', { error, durationMs });
+      }
+    }
   }
 
   public run(input: ActivityExecuteInput): Promise<coresdk.activity_result.IActivityExecutionResult> {
     return asyncLocalStorage.run(this.context, async (): Promise<coresdk.activity_result.IActivityExecutionResult> => {
       try {
-        const execute = composeInterceptors(this.interceptors.inbound, 'execute', (inp) => this.execute(inp));
-        const result = await execute(input);
+        const result = await this.execute(input);
         return { completed: { result: await encodeToPayload(this.dataConverter, result) } };
       } catch (err) {
         if (err instanceof CompleteAsyncError) {

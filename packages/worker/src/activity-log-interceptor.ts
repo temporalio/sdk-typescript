@@ -1,12 +1,8 @@
-import { CompleteAsyncError, Context } from '@temporalio/activity';
-import { CancelledFailure } from '@temporalio/common';
-import { isAbortError } from '@temporalio/common/lib/type-helpers';
+import { Context } from '@temporalio/activity';
 import { ActivityInboundCallsInterceptor, ActivityExecuteInput, Next } from './interceptors';
 import { Logger } from './logger';
 import { activityLogAttributes } from './activity';
 import { Runtime } from './runtime';
-
-const UNINITIALIZED = Symbol('UNINITIALIZED');
 
 /**
  * Logs Activity execution starts and their completions
@@ -56,27 +52,8 @@ export class ActivityInboundLogInterceptor implements ActivityInboundCallsInterc
   }
 
   async execute(input: ActivityExecuteInput, next: Next<ActivityInboundCallsInterceptor, 'execute'>): Promise<unknown> {
-    let error: any = UNINITIALIZED; // In case someone decides to throw undefined...
-    const startTime = process.hrtime.bigint();
-    this.ctx.log.debug('Activity started');
-    try {
-      return await next(input);
-    } catch (err: any) {
-      error = err;
-      throw err;
-    } finally {
-      const durationNanos = process.hrtime.bigint() - startTime;
-      const durationMs = Number(durationNanos / 1_000_000n);
-
-      if (error === UNINITIALIZED) {
-        this.ctx.log.debug('Activity completed', { durationMs });
-      } else if ((error instanceof CancelledFailure || isAbortError(error)) && this.ctx.cancellationSignal.aborted) {
-        this.ctx.log.debug('Activity completed as cancelled', { durationMs });
-      } else if (error instanceof CompleteAsyncError) {
-        this.ctx.log.debug('Activity will complete asynchronously', { durationMs });
-      } else {
-        this.ctx.log.warn('Activity failed', { error, durationMs });
-      }
-    }
+    // Logging of activity's life cycle events is now handled in `worker/src/activity.ts`
+    // This interceptor is mostly .
+    return next(input);
   }
 }
