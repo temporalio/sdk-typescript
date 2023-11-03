@@ -53,11 +53,15 @@ type Type = Record<string, unknown>;
 type Namespace = { nested: Record<string, unknown> };
 
 function isType(value: unknown): value is Type {
-  return isRecord(value) && value.constructor.name === 'Type';
+  // constructor.name may get mangled by minifiers; thanksfuly protobufjs also sets a constructor.className property
+  return isRecord(value) && (value.constructor.name === 'Type' || (value.constructor as any).className === 'Type');
 }
 
 function isNamespace(value: unknown): value is Namespace {
-  return isRecord(value) && value.constructor.name === 'Namespace';
+  // constructor.name may get mangled by minifiers; thanksfuly protobufjs also sets a constructor.className property
+  return (
+    isRecord(value) && (value.constructor.name === 'Namespace' || (value.constructor as any).className === 'Namespace')
+  );
 }
 
 // Duplicate from type-helpers instead of importing in order to avoid circular dependency
