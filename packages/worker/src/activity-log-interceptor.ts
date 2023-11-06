@@ -53,7 +53,7 @@ export class ActivityInboundLogInterceptor implements ActivityInboundCallsInterc
 
   async execute(input: ActivityExecuteInput, next: Next<ActivityInboundCallsInterceptor, 'execute'>): Promise<unknown> {
     // Logging of activity's life cycle events is now handled in `worker/src/activity.ts`
-    // This interceptor is mostly .
+    // This interceptor is now a noop in most cases, except for legacy support of some deprecated usage.
     return next(input);
   }
 }

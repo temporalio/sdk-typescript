@@ -89,11 +89,13 @@ export {
    *             register a custom `WorkflowInterceptors` that intercepts the `outbound.getLogAttributes()` method.
    */
   WorkflowLogInterceptor,
+} from './workflow-log-interceptor';
+export {
   /**
    * @deprecated This function is meant for internal usage. Don't use it.
    */
   workflowLogAttributes,
-} from './workflow-log-interceptor';
+} from '@temporalio/workflow/lib/logs';
 export { BundleOptions, bundleWorkflowCode, WorkflowBundleWithSourceMap } from './workflow/bundler';
 /**
  * @deprecated Including `defaultWorkflowInterceptorModules` in BundlerOptions.workflowInterceptorModules is no longer required.

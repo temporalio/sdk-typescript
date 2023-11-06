@@ -385,6 +385,7 @@ export class Activator implements ActivationHandler {
 
   public startWorkflow(activation: coresdk.workflow_activation.IStartWorkflow): void {
     const execute = composeInterceptors(this.interceptors.inbound, 'execute', this.startWorkflowNextHandler.bind(this));
+
     untrackPromise(
       execute({
         headers: activation.headers ?? {},
