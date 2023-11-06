@@ -9,6 +9,7 @@ import { ActivityInboundLogInterceptor } from './activity-log-interceptor';
 import { NativeConnection } from './connection';
 import { WorkerInterceptors } from './interceptors';
 import { Logger } from './logger';
+import { initLoggerSink } from './workflow/logger';
 import { Runtime } from './runtime';
 import { InjectedSinks } from './sinks';
 import { MiB } from './utils';
@@ -444,10 +445,9 @@ export interface WorkerOptions {
    * guarantees, please consider using local activities instead. For use cases that require
    * _exactly-once_ or _at-most-once_ execution guarantees, please consider using regular activities.
    *
-   * The SDK itself may register sinks functions required to support workflow features. At the moment, the only such
-   * sink is 'defaultWorkerLogger', which is used by the workflow context logger (ie. `workflow.log.info()` and
-   * friends); other sinks may be added in the future. You may override these default sinks by explicitely registering
-   * sinks with the same name.
+   * The SDK itself may register sinks functions required to support workflow features. The name,
+   * signature and semantic of these sinks functions is considered an internal detail and may change
+   * in the future without notice. Please do not use them directly nor override them.
    */
   sinks?: InjectedSinks<any>;
 
@@ -594,45 +594,15 @@ export interface ReplayWorkerOptions
 }
 
 /**
- * Returns the `defaultWorkerLogger` sink which forwards logs from the Workflow sandbox to a given logger.
+ * Build the sink used internally by the SDK to forwards log messages from the Workflow sandbox to an actual logger.
  *
  * @param logger a {@link Logger} - defaults to the {@link Runtime} singleton logger.
+ *
+ * @deprecated Calling `defaultSink()` is no longer required. To configure a custom logger, set the
+ *             {@see Runtime.logger} property instead.
  */
 export function defaultSinks(logger?: Logger): InjectedSinks<LoggerSinks> {
-  return {
-    defaultWorkerLogger: {
-      trace: {
-        fn(_, message, attrs) {
-          logger ??= Runtime.instance().logger;
-          logger.trace(message, attrs);
-        },
-      },
-      debug: {
-        fn(_, message, attrs) {
-          logger ??= Runtime.instance().logger;
-          logger.debug(message, attrs);
-        },
-      },
-      info: {
-        fn(_, message, attrs) {
-          logger ??= Runtime.instance().logger;
-          logger.info(message, attrs);
-        },
-      },
-      warn: {
-        fn(_, message, attrs) {
-          logger ??= Runtime.instance().logger;
-          logger.warn(message, attrs);
-        },
-      },
-      error: {
-        fn(_, message, attrs) {
-          logger ??= Runtime.instance().logger;
-          logger.error(message, attrs);
-        },
-      },
-    },
-  };
+  return initLoggerSink(logger);
 }
 
 /**
@@ -697,7 +667,10 @@ export function addDefaultWorkerOptions(options: WorkerOptions): WorkerOptionsWi
     debugMode: debugMode ?? false,
     interceptors: appendDefaultInterceptors({}),
     nonStickyToStickyPollRatio: nonStickyToStickyPollRatio ?? 0.2,
-    sinks: { ...defaultSinks(), ...sinks },
+    sinks: {
+      ...initLoggerSink(Runtime.instance().logger),
+      ...sinks,
+    },
     ...rest,
     maxConcurrentWorkflowTaskExecutions,
     maxConcurrentActivityTaskExecutions,
