@@ -7,7 +7,15 @@ import {
   GetLogAttributesInput,
 } from '@temporalio/workflow';
 
-/** Logs workflow execution starts and completions, attaches log attributes to `workflow.log` calls  */
+/**
+ * This interceptor used to be meant to log Workflow execution starts and completions, and attaches log attributes to
+ * `workflow.log` calls. It is now deprecated and behaves as a noop in most cases. It is only kept arround to avoid
+ * breaking code out there that was previously refering to it.
+ *
+ * @deprecated `WorkflowLogInterceptor` is deprecated. Workflow life cycle events are now automatically logged
+ *             by the SDK. To customize workflow log attributes, simply register a custom `WorkflowInterceptors` that
+ *             intercepts the `outbound.getLogAttributes()` method.
+ */
 export class WorkflowLogInterceptor implements WorkflowInboundCallsInterceptor, WorkflowOutboundCallsInterceptor {
   getLogAttributes(
     input: GetLogAttributesInput,
@@ -18,12 +26,15 @@ export class WorkflowLogInterceptor implements WorkflowInboundCallsInterceptor, 
 
   execute(input: WorkflowExecuteInput, next: Next<WorkflowInboundCallsInterceptor, 'execute'>): Promise<unknown> {
     // Logging of workflow's life cycle events is now handled in `workflow/src/logs.ts`
-    // This interceptor is now a noop in most cases, except for legacy support of some deprecated usage.
     return next(input);
   }
 }
 
-/** @deprecated use {@link WorkflowLogInterceptor} instead */
+/**
+ * @deprecated `WorkflowInboundLogInterceptor` is deprecated. Workflow life cycle events are now automatically logged
+ *             by the SDK. To customize workflow log attributes, simply register a custom `WorkflowInterceptors` that
+ *             intercepts the `outbound.getLogAttributes()` method.
+ */
 export const WorkflowInboundLogInterceptor = WorkflowLogInterceptor;
 
 // ts-prune-ignore-next

@@ -67,9 +67,7 @@ export class WorkflowCodeBundler {
     this.workflowsPath = workflowsPath;
     this.payloadConverterPath = payloadConverterPath;
     this.failureConverterPath = failureConverterPath;
-    this.workflowInterceptorModules = workflowInterceptorModules?.includes(defaultWorkflowInterceptorModules[0])
-      ? workflowInterceptorModules
-      : [...(workflowInterceptorModules ?? []), ...defaultWorkflowInterceptorModules];
+    this.workflowInterceptorModules = workflowInterceptorModules ?? [];
     this.ignoreModules = ignoreModules ?? [];
     this.webpackConfigHook = webpackConfigHook ?? ((config) => config);
   }

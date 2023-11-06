@@ -5,12 +5,14 @@ import { activityLogAttributes } from './activity';
 import { Runtime } from './runtime';
 
 /**
- * Logs Activity execution starts and their completions
+ * This interceptor used to be meant to log Activity execution starts and their completions.
+ * It is now deprecated and behaves as a noop in most cases. It is only kept arround to avoid
+ * breaking code out there that was previously refering to it.
  *
- * @deprecated `ActivityInboundLogInterceptor` is deprecated. To customize activity log attributes,
- *             simply register a custom `WorkflowInterceptors` that intercepts the
- *             `outbound.getLogAttributes()` method. To customize where log messages are sent,
- *             set the {@see Runtime.logger} property.
+ * @deprecated `ActivityInboundLogInterceptor` is deprecated. Activity life cycle events are now automatically logged
+ *             by the SDK. To customize activity log attributes, simply register a custom
+ *             `ActivityOutboundCallsInterceptor` that intercepts the `getLogAttributes()` method. To customize where
+ *             log messages are sent, set the {@see Runtime.logger} property.
  */
 export class ActivityInboundLogInterceptor implements ActivityInboundCallsInterceptor {
   protected readonly logger: Logger;

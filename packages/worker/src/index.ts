@@ -32,11 +32,11 @@ export {
    *             `outbound.getLogAttributes()` method. To customize where log messages are sent,
    *             set the {@see Runtime.logger} property.
    */
-  ActivityInboundLogInterceptor,
+  ActivityInboundLogInterceptor, // eslint-disable-line deprecation/deprecation
 } from './activity-log-interceptor';
 export {
   /**
-   * @deprecated
+   * @deprecated This function is meant for internal usage. Don't use it.
    */
   activityLogAttributes,
 } from './activity';
@@ -80,15 +80,17 @@ export {
 export { ReplayError, ReplayHistoriesIterable, ReplayResult } from './replay';
 export {
   /**
-   * @deprecated Extending `WorkflowInboundLogInterceptor` is deprecated. To customize workflow log attributes, simply
-   *             register a custom `WorkflowInterceptors` that intercepts the `outbound.getLogAttributes()` method.
+   * @deprecated `WorkflowInboundLogInterceptor` is deprecated. Workflow life cycle events are now automatically logged
+   *             by the SDK. To customize workflow log attributes, simply register a custom `WorkflowInterceptors` that
+   *             intercepts the `outbound.getLogAttributes()` method.
    */
   WorkflowInboundLogInterceptor, // eslint-disable-line deprecation/deprecation
   /**
-   * @deprecated Extending `WorkflowLogInterceptor` is deprecated. To customize workflow log attributes, simply
-   *             register a custom `WorkflowInterceptors` that intercepts the `outbound.getLogAttributes()` method.
+   * @deprecated `WorkflowLogInterceptor` is deprecated. Workflow life cycle events are now automatically logged
+   *             by the SDK. To customize workflow log attributes, simply register a custom `WorkflowInterceptors` that
+   *             intercepts the `outbound.getLogAttributes()` method.
    */
-  WorkflowLogInterceptor,
+  WorkflowLogInterceptor, // eslint-disable-line deprecation/deprecation
 } from './workflow-log-interceptor';
 export {
   /**
