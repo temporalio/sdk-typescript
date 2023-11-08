@@ -11,6 +11,7 @@
 import 'abort-controller/polyfill'; // eslint-disable-line import/no-unassigned-import
 import path from 'node:path';
 import events from 'node:events';
+import { AsyncLocalStorage } from 'node:async_hooks';
 import * as activity from '@temporalio/activity';
 import {
   AsyncCompletionClient,
@@ -20,9 +21,21 @@ import {
   WorkflowClientOptions,
   WorkflowResultOptions,
 } from '@temporalio/client';
-import { ActivityFunction, CancelledFailure, Duration } from '@temporalio/common';
+import {
+  ActivityFunction,
+  Duration,
+  IllegalStateError,
+  defaultFailureConverter,
+  defaultPayloadConverter,
+} from '@temporalio/common';
 import { msToNumber, msToTs, tsToMs } from '@temporalio/common/lib/time';
-import { NativeConnection, Runtime } from '@temporalio/worker';
+import {
+  ActivityInboundCallsInterceptorFactory,
+  ActivityOutboundCallsInterceptorFactory,
+  NativeConnection,
+  Runtime,
+} from '@temporalio/worker';
+import { Activity } from '@temporalio/worker/lib/activity';
 import {
   EphemeralServer,
   EphemeralServerConfig,
@@ -364,6 +377,13 @@ export class TestWorkflowEnvironment {
   }
 }
 
+export interface MockActivityEnvironmentOptions {
+  interceptors?: {
+    inbound?: ActivityInboundCallsInterceptorFactory[];
+    outbound?: ActivityOutboundCallsInterceptorFactory[];
+  };
+}
+
 /**
  * Used as the default activity info for Activities executed in the {@link MockActivityEnvironment}
  */
@@ -387,6 +407,8 @@ export const defaultActivityInfo: activity.Info = {
   currentAttemptScheduledTimestampMs: 1,
 };
 
+const mockActivityContextStorage: AsyncLocalStorage<() => Promise<unknown>> = new AsyncLocalStorage();
+
 /**
  * An execution environment for testing Activities.
  *
@@ -396,33 +418,39 @@ export const defaultActivityInfo: activity.Info = {
 export class MockActivityEnvironment extends events.EventEmitter {
   public cancel: (reason?: any) => void = () => undefined;
   public readonly context: activity.Context;
+  private readonly activity: Activity;
 
-  constructor(info?: Partial<activity.Info>) {
+  constructor(info?: Partial<activity.Info>, opts?: MockActivityEnvironmentOptions) {
     super();
-    const abortController = new AbortController();
-    const promise = new Promise<never>((_, reject) => {
-      this.cancel = (reason?: any) => {
-        abortController.abort();
-        reject(new CancelledFailure(reason));
-      };
-    });
     const heartbeatCallback = (details?: unknown) => this.emit('heartbeat', details);
-    this.context = new activity.Context(
+    const loadedDataConverter = {
+      payloadConverter: defaultPayloadConverter,
+      payloadCodecs: [],
+      failureConverter: defaultFailureConverter,
+    };
+    this.activity = new Activity(
       { ...defaultActivityInfo, ...info },
-      promise,
-      abortController.signal,
+      () =>
+        (
+          mockActivityContextStorage.getStore() ??
+          (() => {
+            throw new IllegalStateError('Illegal State: no activity function set');
+          })
+        )(),
+      loadedDataConverter,
       heartbeatCallback,
-      Runtime.instance().logger
+      opts?.interceptors
     );
-    promise.catch(() => {
-      /* avoid unhandled rejection */
-    });
+    this.context = this.activity.context;
+    this.cancel = this.activity.cancel;
   }
 
   /**
    * Run a function in Activity Context
    */
-  public run<P extends any[], R, F extends ActivityFunction<P, R>>(fn: F, ...args: P): Promise<R> {
-    return activity.asyncLocalStorage.run(this.context, fn, ...args);
+  public async run<P extends any[], R, F extends ActivityFunction<P, R>>(fn: F, ...args: P): Promise<R> {
+    return (await mockActivityContextStorage.run(fn, () =>
+      this.activity.runNoEncoding({ args, headers: {} })
+    )) as Promise<R>;
   }
 }

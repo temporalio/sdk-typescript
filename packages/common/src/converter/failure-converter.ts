@@ -15,17 +15,31 @@ import {
 import { isError } from '../type-helpers';
 import { arrayFromPayloads, fromPayloadsAtIndex, PayloadConverter, toPayloads } from './payload-converter';
 
+function combineRegExp(...regexps: RegExp[]): RegExp {
+  return new RegExp(regexps.map((x) => `(?:${x.source})`).join('|'));
+}
+
 /**
  * Stack traces will be cutoff when on of these patterns is matched
  */
-const CUTOFF_STACK_PATTERNS = [
+const CUTOFF_STACK_PATTERNS = combineRegExp(
   /** Activity execution */
   /\s+at Activity\.execute \(.*[\\/]worker[\\/](?:src|lib)[\\/]activity\.[jt]s:\d+:\d+\)/,
   /** Workflow activation */
   /\s+at Activator\.\S+NextHandler \(.*[\\/]workflow[\\/](?:src|lib)[\\/]internals\.[jt]s:\d+:\d+\)/,
   /** Workflow run anything in context */
-  /\s+at Script\.runInContext \((?:node:vm|vm\.js):\d+:\d+\)/,
-];
+  /\s+at Script\.runInContext \((?:node:vm|vm\.js):\d+:\d+\)/
+);
+
+/**
+ * Any stack trace frames that match any of those wil be ignored
+ */
+const IGNORED_STACK_FRAMES_PATTERNS = combineRegExp(
+  /** Internal functions used to recursively chain interceptors */
+  /\s+at next \(.*[\\/]common[\\/](?:src|lib)[\\/]interceptors\.[jt]s:\d+:\d+\)/,
+  /** Internal functions used to recursively chain interceptors */
+  /\s+at executeNextHandler \(.*[\\/]worker[\\/](?:src|lib)[\\/]activity\.[jt]s:\d+:\d+\)/
+);
 
 /**
  * Cuts out the framework part of a stack trace, leaving only user code entries
@@ -34,10 +48,8 @@ export function cutoffStackTrace(stack?: string): string {
   const lines = (stack ?? '').split(/\r?\n/);
   const acc = Array<string>();
   lineLoop: for (const line of lines) {
-    for (const pattern of CUTOFF_STACK_PATTERNS) {
-      if (pattern.test(line)) break lineLoop;
-    }
-    acc.push(line);
+    if (CUTOFF_STACK_PATTERNS.test(line)) break lineLoop;
+    if (!IGNORED_STACK_FRAMES_PATTERNS.test(line)) acc.push(line);
   }
   return acc.join('\n');
 }

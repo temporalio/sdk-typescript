@@ -408,9 +408,12 @@ export interface WorkerOptions {
   /**
    * A mapping of interceptor type to a list of factories or module paths.
    *
-   * By default, {@link ActivityInboundLogInterceptor} and {@link WorkflowInboundLogInterceptor} are installed. If you
-   * wish to customize the interceptors while keeping the defaults, use {@link appendDefaultInterceptors}.
+   * Interceptors are called in order, from the first to the last, each one making the call to the next one, and the
+   * last one calling the original (SDK provided) function.
    *
+   * By default, {@link WorkflowInboundLogInterceptor} is installed. If you wish to customize the interceptors while
+   * keeping the defaults, use {@link appendDefaultInterceptors}.
+
    * When using {@link workflowBundle}, these Workflow interceptors (`WorkerInterceptors.workflowModules`) are not used.
    * Instead, provide them via {@link BundleOptions.workflowInterceptorModules} when calling {@link bundleWorkflowCode}.
    */
@@ -614,8 +617,22 @@ export function appendDefaultInterceptors(
   interceptors: WorkerInterceptors,
   logger?: Logger | undefined
 ): WorkerInterceptors {
+  if (!logger || logger === Runtime.instance().logger) {
+    // No need for the ActivityInboundLogInterceptor if not changing the logger.
+    // Don't worry on this being unclean, this code will be optimized in the next PR.
+    return {
+      activityInbound: interceptors.activityInbound ?? [],
+      activityOutbound: interceptors.activityOutbound ?? [],
+      workflowModules: [...(interceptors.workflowModules ?? []), ...defaultWorkflowInterceptorModules],
+    };
+  }
+
   return {
-    activityInbound: [...(interceptors.activityInbound ?? []), (ctx) => new ActivityInboundLogInterceptor(ctx, logger)],
+    activityInbound: [
+      (ctx) => new ActivityInboundLogInterceptor(ctx, logger), // eslint-disable-line deprecation/deprecation
+      ...(interceptors.activityInbound ?? []),
+    ],
+    activityOutbound: interceptors.activityOutbound ?? [],
     workflowModules: [...(interceptors.workflowModules ?? []), ...defaultWorkflowInterceptorModules],
   };
 }
@@ -665,7 +682,11 @@ export function addDefaultWorkerOptions(options: WorkerOptions): WorkerOptionsWi
     showStackTraceSources: showStackTraceSources ?? false,
     reuseV8Context: reuseV8Context ?? false,
     debugMode: debugMode ?? false,
-    interceptors: appendDefaultInterceptors({}),
+    interceptors: appendDefaultInterceptors({
+      activityInbound: options.interceptors?.activityInbound ?? [],
+      activityOutbound: options.interceptors?.activityOutbound ?? [],
+      workflowModules: options.interceptors?.workflowModules ?? [],
+    }),
     nonStickyToStickyPollRatio: nonStickyToStickyPollRatio ?? 0.2,
     sinks: {
       ...initLoggerSink(Runtime.instance().logger),

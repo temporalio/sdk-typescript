@@ -223,6 +223,7 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
       dedent`
     Error: Fail me
         at Activity.throwAnError (test/src/activities/index.ts)
+        at ConnectionInjectorInterceptor.execute (test/src/activities/interceptors.ts)
     `
     );
   });
@@ -257,6 +258,7 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
     ApplicationFailure: Fail me
         at Function.nonRetryable (common/src/failure.ts)
         at Activity.throwAnError (test/src/activities/index.ts)
+        at ConnectionInjectorInterceptor.execute (test/src/activities/interceptors.ts)
       `
     );
   });

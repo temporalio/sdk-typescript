@@ -17,8 +17,7 @@ export {
   PrometheusMetricsExporter,
   TelemetryOptions,
 } from '@temporalio/core-bridge';
-export { ActivityInboundLogInterceptor, activityLogAttributes } from './activity-log-interceptor';
-export { NativeConnection as NativeConnection } from './connection';
+export { NativeConnection } from './connection';
 export { NativeConnectionOptions, RequiredNativeConnectionOptions, TLSConfig } from './connection-options';
 export { startDebugReplayer } from './debug-replayer';
 export { IllegalStateError } from '@temporalio/common';
@@ -61,6 +60,21 @@ export {
 
 // Anything below this line is deprecated
 
+export {
+  /**
+   * @deprecated `ActivityInboundLogInterceptor` is deprecated. Activity life cycle events are now automatically logged
+   *             by the SDK. To customize activity log attributes, register a custom `ActivityOutboundCallsInterceptor`
+   *             that intercepts the `getLogAttributes()` method. To customize where log messages are sent,
+   *             set the {@see Runtime.logger} property.
+   */
+  ActivityInboundLogInterceptor, // eslint-disable-line deprecation/deprecation
+} from './activity-log-interceptor';
+export {
+  /**
+   * @deprecated This function is meant for internal usage. Don't use it.
+   */
+  activityLogAttributes,
+} from './activity';
 export {
   /**
    * @deprecated Including `defaultSinks()` in the worker options is no longer required. To configure

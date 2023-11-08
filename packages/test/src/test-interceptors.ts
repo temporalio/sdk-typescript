@@ -245,7 +245,6 @@ if (RUN_INTEGRATION_TESTS) {
       ApplicationFailure: Expected anything other than 1
           at Function.nonRetryable (common/src/failure.ts)
           at Object.continueAsNew (test/src/workflows/interceptor-example.ts)
-          at next (common/src/interceptors.ts)
           at workflow/src/workflow.ts
           at continueAsNewToDifferentWorkflow (test/src/workflows/continue-as-new-to-different-workflow.ts)
     `
