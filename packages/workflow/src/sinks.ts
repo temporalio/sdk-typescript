@@ -90,7 +90,7 @@ export function proxySinks<T extends Sinks>(): T {
                 activator.sinkCalls.push({
                   ifaceName: ifaceName as string,
                   fnName: fnName as string,
-                  // Sink function don't get called immediately. Make a clone of sink's args, so that further mutations
+                  // Sink function doesn't get called immediately. Make a clone of the sink's args, so that further mutations
                   // to these objects don't corrupt the args that the sink function will receive. Only available from node 17.
                   args: (globalThis as any).structuredClone ? (globalThis as any).structuredClone(args) : args,
                   // activator.info is internally copy-on-write. This ensure that any further mutations
