@@ -149,7 +149,7 @@ function normalizeGRPCConfig(options?: ConnectionOptions): ConnectionOptions {
     // eslint-disable-next-line prefer-const
     let [host, port] = rest.address.split(':', 2);
     port = port || '7233';
-    rest.address = `${host}:${port}`;
+    rest.address = port === "null" ? host : `${host}:${port}`;
   }
   const tls = normalizeTlsConfig(tlsFromConfig);
   if (tls) {
