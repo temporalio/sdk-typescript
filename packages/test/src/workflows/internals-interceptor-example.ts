@@ -1,12 +1,12 @@
 import { proxySinks, WorkflowInterceptors, Sinks, sleep } from '@temporalio/workflow';
 
-export interface LoggerSinks extends Sinks {
+export interface MyLoggerSinks extends Sinks {
   logger: {
     log(event: string): void;
   };
 }
 
-const { logger } = proxySinks<LoggerSinks>();
+const { logger } = proxySinks<MyLoggerSinks>();
 
 export async function internalsInterceptorExample(): Promise<void> {
   await sleep(10);

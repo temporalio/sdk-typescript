@@ -1,18 +1,19 @@
 /* eslint @typescript-eslint/no-non-null-assertion: 0 */
 import test from 'ava';
 import { v4 as uuid4 } from 'uuid';
-import { WorkflowClient } from '@temporalio/client';
+import { Connection, WorkflowClient } from '@temporalio/client';
 import {
   DefaultLogger,
   InjectedSinks,
   Runtime,
-  LoggerSinks as DefaultLoggerSinks,
   InjectedSinkFunction,
   WorkerOptions,
+  LogEntry,
 } from '@temporalio/worker';
+import { LoggerSinksInternal as DefaultLoggerSinks } from '@temporalio/workflow/lib/logs';
 import { SearchAttributes, WorkflowInfo } from '@temporalio/workflow';
 import { UnsafeWorkflowInfo } from '@temporalio/workflow/src/interfaces';
-import { RUN_INTEGRATION_TESTS, Worker } from './helpers';
+import { RUN_INTEGRATION_TESTS, Worker, registerDefaultCustomSearchAttributes } from './helpers';
 import { defaultOptions } from './mock-native-worker';
 import * as workflows from './workflows';
 
@@ -22,12 +23,12 @@ class DependencyError extends Error {
   }
 }
 
-function asDefaultLoggerSink(
+function asSdkLoggerSink(
   fn: (info: WorkflowInfo, message: string, attrs?: Record<string, unknown>) => Promise<void>,
   opts?: Omit<InjectedSinkFunction<any>, 'fn'>
 ): InjectedSinks<DefaultLoggerSinks> {
   return {
-    defaultWorkerLogger: {
+    __temporal_logger: {
       trace: { fn, ...opts },
       debug: { fn, ...opts },
       info: { fn, ...opts },
@@ -38,17 +39,20 @@ function asDefaultLoggerSink(
 }
 
 if (RUN_INTEGRATION_TESTS) {
-  const recordedLogs: any[] = [];
-  test.before((_) => {
+  const recordedLogs: { [workflowId: string]: LogEntry[] } = {};
+
+  test.before(async (_) => {
+    await registerDefaultCustomSearchAttributes(await Connection.connect({}));
     Runtime.install({
-      logger: new DefaultLogger('DEBUG', ({ level, message, meta }) => {
-        if (message === 'External sink function threw an error') recordedLogs.push({ level, message, meta });
+      logger: new DefaultLogger('DEBUG', (entry: LogEntry) => {
+        const workflowId = (entry.meta as any)?.workflowInfo?.workflowId;
+        recordedLogs[workflowId] ??= [];
+        recordedLogs[workflowId].push(entry);
       }),
     });
   });
 
-  // Must be serial because it uses the global Runtime to check for error messages
-  test.serial('Worker injects sinks', async (t) => {
+  test('Worker injects sinks', async (t) => {
     interface RecordedCall {
       info: WorkflowInfo;
       counter: number;
@@ -153,12 +157,13 @@ if (RUN_INTEGRATION_TESTS) {
     ]);
 
     t.deepEqual(
-      recordedLogs.map((x) => ({
+      recordedLogs[info.workflowId].map((x: LogEntry) => ({
         ...x,
         meta: {
           ...x.meta,
-          workflowInfo: fixWorkflowInfoDates(x.meta.workflowInfo),
+          workflowInfo: fixWorkflowInfoDates(x.meta?.workflowInfo),
         },
+        timestampNanos: undefined,
       })),
       thrownErrors.map((error) => ({
         level: 'ERROR',
@@ -169,6 +174,7 @@ if (RUN_INTEGRATION_TESTS) {
           fnName: error.fnName,
           workflowInfo: info,
         },
+        timestampNanos: undefined,
       }))
     );
   });
@@ -369,7 +375,7 @@ if (RUN_INTEGRATION_TESTS) {
     const taskQueue = `${__filename}-${t.title}`;
 
     const recordedMessages = Array<{ message: string; searchAttributes: SearchAttributes }>();
-    const sinks = asDefaultLoggerSink(async (info, message, _attrs) => {
+    const sinks = asSdkLoggerSink(async (info, message, _attrs) => {
       recordedMessages.push({
         message,
         searchAttributes: info.searchAttributes,

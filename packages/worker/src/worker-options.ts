@@ -9,6 +9,7 @@ import { ActivityInboundLogInterceptor } from './activity-log-interceptor';
 import { NativeConnection } from './connection';
 import { WorkerInterceptors } from './interceptors';
 import { Logger } from './logger';
+import { initLoggerSink } from './workflow/logger';
 import { Runtime } from './runtime';
 import { InjectedSinks } from './sinks';
 import { MiB } from './utils';
@@ -444,10 +445,9 @@ export interface WorkerOptions {
    * guarantees, please consider using local activities instead. For use cases that require
    * _exactly-once_ or _at-most-once_ execution guarantees, please consider using regular activities.
    *
-   * The SDK itself may register sinks functions required to support workflow features. At the moment, the only such
-   * sink is 'defaultWorkerLogger', which is used by the workflow context logger (ie. `workflow.log.info()` and
-   * friends); other sinks may be added in the future. You may override these default sinks by explicitely registering
-   * sinks with the same name.
+   * Sink names starting with `__temporal_` are reserved for use by the SDK itself. Do not register
+   * or use such sink. Registering a sink named `defaultWorkerLogger` to redirect workflow logs to a
+   * custom logger is deprecated. Register a custom logger through {@link Runtime.logger} instead.
    */
   sinks?: InjectedSinks<any>;
 
@@ -594,45 +594,21 @@ export interface ReplayWorkerOptions
 }
 
 /**
- * Returns the `defaultWorkerLogger` sink which forwards logs from the Workflow sandbox to a given logger.
+ * Build the sink used internally by the SDK to forwards log messages from the Workflow sandbox to an actual logger.
  *
  * @param logger a {@link Logger} - defaults to the {@link Runtime} singleton logger.
+ *
+ * @deprecated Calling `defaultSink()` is no longer required. To configure a custom logger, set the
+ *             {@see Runtime.logger} property instead.
  */
+// eslint-disable-next-line deprecation/deprecation
 export function defaultSinks(logger?: Logger): InjectedSinks<LoggerSinks> {
-  return {
-    defaultWorkerLogger: {
-      trace: {
-        fn(_, message, attrs) {
-          logger ??= Runtime.instance().logger;
-          logger.trace(message, attrs);
-        },
-      },
-      debug: {
-        fn(_, message, attrs) {
-          logger ??= Runtime.instance().logger;
-          logger.debug(message, attrs);
-        },
-      },
-      info: {
-        fn(_, message, attrs) {
-          logger ??= Runtime.instance().logger;
-          logger.info(message, attrs);
-        },
-      },
-      warn: {
-        fn(_, message, attrs) {
-          logger ??= Runtime.instance().logger;
-          logger.warn(message, attrs);
-        },
-      },
-      error: {
-        fn(_, message, attrs) {
-          logger ??= Runtime.instance().logger;
-          logger.error(message, attrs);
-        },
-      },
-    },
-  };
+  // initLoggerSink() returns a sink that complies to the new LoggerSinksInternal API (ie. named __temporal_logger), but
+  // code that is still calling defaultSinks() expects return type to match the deprecated LoggerSinks API. Silently
+  // cast just to mask type checking issues, even though we know this is wrong. Users shouldn't call functions directly
+  // on the returned object anyway.
+  // eslint-disable-next-line deprecation/deprecation
+  return initLoggerSink(logger) as unknown as InjectedSinks<LoggerSinks>;
 }
 
 /**
@@ -645,6 +621,7 @@ export function appendDefaultInterceptors(
   logger?: Logger | undefined
 ): WorkerInterceptors {
   return {
+    // eslint-disable-next-line deprecation/deprecation
     activityInbound: [...(interceptors.activityInbound ?? []), (ctx) => new ActivityInboundLogInterceptor(ctx, logger)],
     workflowModules: [...(interceptors.workflowModules ?? []), ...defaultWorkflowInterceptorModules],
   };
@@ -697,7 +674,12 @@ export function addDefaultWorkerOptions(options: WorkerOptions): WorkerOptionsWi
     debugMode: debugMode ?? false,
     interceptors: appendDefaultInterceptors({}),
     nonStickyToStickyPollRatio: nonStickyToStickyPollRatio ?? 0.2,
-    sinks: { ...defaultSinks(), ...sinks },
+    sinks: {
+      ...initLoggerSink(Runtime.instance().logger),
+      // Fix deprecated registration of the 'defaultWorkerLogger' sink
+      ...(sinks?.defaultWorkerLogger ? { __temporal_logger: sinks.defaultWorkerLogger } : {}),
+      ...sinks,
+    },
     ...rest,
     maxConcurrentWorkflowTaskExecutions,
     maxConcurrentActivityTaskExecutions,

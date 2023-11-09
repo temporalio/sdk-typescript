@@ -31,7 +31,7 @@ import {
   WorkflowInfo,
   WorkflowCreateOptionsInternal,
 } from './interfaces';
-import { SinkCall } from './sinks';
+import { type SinkCall } from './sinks';
 import { untrackPromise } from './stack-helpers';
 import pkg from './pkg';
 import { maybeGetActivatorUntyped } from './global-attributes';
@@ -385,6 +385,7 @@ export class Activator implements ActivationHandler {
 
   public startWorkflow(activation: coresdk.workflow_activation.IStartWorkflow): void {
     const execute = composeInterceptors(this.interceptors.inbound, 'execute', this.startWorkflowNextHandler.bind(this));
+
     untrackPromise(
       execute({
         headers: activation.headers ?? {},
@@ -700,6 +701,12 @@ export class Activator implements ActivationHandler {
   failureToError(failure: ProtoFailure): Error {
     return this.failureConverter.failureToError(failure, this.payloadConverter);
   }
+}
+
+export function assertInWorkflowContext(message: string): Activator {
+  const activator = maybeGetActivator();
+  if (activator == null) throw new IllegalStateError(message);
+  return activator;
 }
 
 export function maybeGetActivator(): Activator | undefined {
