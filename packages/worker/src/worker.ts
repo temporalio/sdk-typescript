@@ -1259,6 +1259,8 @@ export class Worker {
     const { sinks } = this.options;
 
     const filteredCalls = externalCalls
+      // Fix depreacted usage of the 'defaultWorkerLogger' sink
+      .map((call) => (call.ifaceName === 'defaultWorkerLogger' ? { ...call, ifaceName: '__temporal_logger' } : call))
       // Map sink call to the corresponding sink function definition
       .map((call) => ({ call, sink: sinks?.[call.ifaceName]?.[call.fnName] }))
       // Reject calls to undefined sink definitions

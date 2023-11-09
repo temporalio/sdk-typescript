@@ -12,12 +12,28 @@ export interface WorkflowLogger extends Sink {
 
 /**
  * Sink interface for forwarding logs from the Workflow sandbox to the Worker
+ *
+ * @deprecated Do not use LoggerSinks directly. To log from Workflow code, use the `log` object
+ *             exported by the `@temporalio/workflow` package. To capture log messages emitted
+ *             by Workflow code, set the {@see Runtime.logger} property.
  */
-export interface LoggerSinks extends Sinks {
+export interface LoggerSinksDeprecated extends Sinks {
+  /**
+   * @deprecated Do not use LoggerSinks directly. To log from Workflow code, use the `log` object
+   *             exported by the `@temporalio/workflow` package. To capture log messages emitted
+   *             by Workflow code, set the {@link Runtime.logger} property.
+   */
   defaultWorkerLogger: WorkflowLogger;
 }
 
-const loggerSink = proxySinks<LoggerSinks>().defaultWorkerLogger;
+/**
+ * Sink interface for forwarding logs from the Workflow sandbox to the Worker
+ */
+export interface LoggerSinksInternal extends Sinks {
+  __temporal_logger: WorkflowLogger;
+}
+
+const loggerSink = proxySinks<LoggerSinksInternal>().__temporal_logger;
 
 /**
  * Symbol used by the SDK logger to extract a timestamp from log attributes.
