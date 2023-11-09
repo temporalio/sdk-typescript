@@ -3,7 +3,6 @@ export interface TLSConfig {
   /**
    * Overrides the target name used for SSL host name checking.
    * If this attribute is not specified, the name used for SSL host name checking will be the host from {@link ServerOptions.url}.
-   * This _should_ be used for testing only.
    */
   serverNameOverride?: string;
   /**
