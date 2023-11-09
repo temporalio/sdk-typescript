@@ -6,6 +6,7 @@ import {
   CancelledFailure,
   ensureApplicationFailure,
   FAILURE_SOURCE,
+  IllegalStateError,
   LoadedDataConverter,
 } from '@temporalio/common';
 import { encodeErrorToFailure, encodeToPayload } from '@temporalio/common/lib/internal-non-workflow';
@@ -15,9 +16,8 @@ import { coresdk } from '@temporalio/proto';
 import {
   ActivityExecuteInput,
   ActivityInboundCallsInterceptor,
-  ActivityInboundCallsInterceptorFactory,
+  ActivityInterceptorsFactory,
   ActivityOutboundCallsInterceptor,
-  ActivityOutboundCallsInterceptorFactory,
 } from './interceptors';
 import { Runtime } from './runtime';
 import { Logger } from './logger';
@@ -41,13 +41,10 @@ export class Activity {
 
   constructor(
     public readonly info: Info,
-    public readonly fn: ActivityFunction<any[], any>,
+    public readonly fn: ActivityFunction<any[], any> | undefined,
     public readonly dataConverter: LoadedDataConverter,
     public readonly heartbeatCallback: Context['heartbeat'],
-    interceptors?: {
-      inbound?: ActivityInboundCallsInterceptorFactory[];
-      outbound?: ActivityOutboundCallsInterceptorFactory[];
-    }
+    interceptors: ActivityInterceptorsFactory[]
   ) {
     const promise = new Promise<never>((_, reject) => {
       this.cancel = (reason: CancelReason) => {
@@ -65,10 +62,13 @@ export class Activity {
     );
     // Prevent unhandled rejection
     promise.catch(() => undefined);
-    this.interceptors = {
-      inbound: (interceptors?.inbound ?? []).map((factory) => factory(this.context)),
-      outbound: (interceptors?.outbound ?? []).map((factory) => factory(this.context)),
-    };
+    this.interceptors = { inbound: [], outbound: [] };
+    interceptors
+      .map((factory) => factory(this.context))
+      .forEach(({ inbound, outbound }) => {
+        if (inbound?.length) this.interceptors.inbound.push(...inbound);
+        if (outbound?.length) this.interceptors.outbound.push(...outbound);
+      });
   }
 
   protected getLogAttributes(): Record<string, unknown> {
@@ -105,14 +105,14 @@ export class Activity {
   /**
    * Actually executes the function.
    *
-   * Exist mostly for cutting it out of the stack trace for failures.
+   * Any call up to this function and including this one will be trimmed out of stack traces.
    */
-  protected async execute(input: ActivityExecuteInput): Promise<unknown> {
+  protected async execute(fn: ActivityFunction<any[], any>, input: ActivityExecuteInput): Promise<unknown> {
     let error: any = UNINITIALIZED; // In case someone decides to throw undefined...
     const startTime = process.hrtime.bigint();
     this.context.log.debug('Activity started');
     try {
-      const executeNextHandler = ({ args }: any) => this.fn(...args);
+      const executeNextHandler = ({ args }: any) => fn(...args);
       const executeWithInterceptors = composeInterceptors(this.interceptors.inbound, 'execute', executeNextHandler);
       return await executeWithInterceptors(input);
     } catch (err: any) {
@@ -140,7 +140,8 @@ export class Activity {
   public run(input: ActivityExecuteInput): Promise<coresdk.activity_result.IActivityExecutionResult> {
     return asyncLocalStorage.run(this.context, async (): Promise<coresdk.activity_result.IActivityExecutionResult> => {
       try {
-        const result = await this.execute(input);
+        if (this.fn === undefined) throw new IllegalStateError('Activity function is not defined');
+        const result = await this.execute(this.fn, input);
         return { completed: { result: await encodeToPayload(this.dataConverter, result) } };
       } catch (err) {
         if (err instanceof CompleteAsyncError) {
@@ -176,8 +177,9 @@ export class Activity {
     });
   }
 
-  public runNoEncoding(input: ActivityExecuteInput): Promise<unknown> {
-    return asyncLocalStorage.run(this.context, () => this.execute(input));
+  public runNoEncoding(fn: ActivityFunction<any[], any>, input: ActivityExecuteInput): Promise<unknown> {
+    if (this.fn !== undefined) throw new IllegalStateError('Activity function is not defined');
+    return asyncLocalStorage.run(this.context, () => this.execute(fn, input));
   }
 }
 

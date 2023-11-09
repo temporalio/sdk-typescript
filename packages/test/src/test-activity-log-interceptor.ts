@@ -123,9 +123,8 @@ test('(Legacy) ActivityInboundLogInterceptor does not override Context.log by de
   const env = new MockActivityEnvironment(
     {},
     {
-      interceptors: {
-        inbound: [(ctx) => new ActivityInboundLogInterceptor(ctx)],
-      },
+      // eslint-disable-next-line deprecation/deprecation
+      interceptors: [(ctx) => ({ inbound: [new ActivityInboundLogInterceptor(ctx)] })],
     }
   );
   await env.run(async () => {
@@ -145,9 +144,8 @@ test('(Legacy) ActivityInboundLogInterceptor overrides Context.log if a logger i
   const env = new MockActivityEnvironment(
     {},
     {
-      interceptors: {
-        inbound: [(ctx) => new ActivityInboundLogInterceptor(ctx, logger)],
-      },
+      // eslint-disable-next-line deprecation/deprecation
+      interceptors: [(ctx) => ({ inbound: [new ActivityInboundLogInterceptor(ctx, logger)] })],
     }
   );
   await env.run(async () => {
@@ -160,6 +158,7 @@ test('(Legacy) ActivityInboundLogInterceptor overrides Context.log if a logger i
 });
 
 test('(Legacy) ActivityInboundLogInterceptor overrides Context.log if class is extended', async (t) => {
+  // eslint-disable-next-line deprecation/deprecation
   class CustomActivityInboundLogInterceptor extends ActivityInboundLogInterceptor {
     protected logAttributes(): Record<string, unknown> {
       const { namespace: _, ...rest } = super.logAttributes();
@@ -172,9 +171,7 @@ test('(Legacy) ActivityInboundLogInterceptor overrides Context.log if class is e
   const env = new MockActivityEnvironment(
     {},
     {
-      interceptors: {
-        inbound: [(ctx) => new CustomActivityInboundLogInterceptor(ctx)],
-      },
+      interceptors: [(ctx) => ({ inbound: [new CustomActivityInboundLogInterceptor(ctx)] })],
     }
   );
   await env.run(async () => {

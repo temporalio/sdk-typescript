@@ -5,9 +5,10 @@ import { DataConverter, LoadedDataConverter } from '@temporalio/common';
 import { Duration, msOptionalToNumber, msToNumber } from '@temporalio/common/lib/time';
 import { loadDataConverter } from '@temporalio/common/lib/internal-non-workflow';
 import { LoggerSinks } from '@temporalio/workflow';
+import { Context } from '@temporalio/activity';
 import { ActivityInboundLogInterceptor } from './activity-log-interceptor';
 import { NativeConnection } from './connection';
-import { WorkerInterceptors } from './interceptors';
+import { CompiledWorkerInterceptors, WorkerInterceptors } from './interceptors';
 import { Logger } from './logger';
 import { initLoggerSink } from './workflow/logger';
 import { Runtime } from './runtime';
@@ -536,6 +537,8 @@ export type WorkerOptionsWithDefaults = WorkerOptions &
       | 'reuseV8Context'
     >
   > & {
+    interceptors: Required<WorkerInterceptors>;
+
     /**
      * Time to wait for result when calling a Workflow isolate function.
      * @format number of milliseconds or {@link https://www.npmjs.com/package/ms | ms-formatted string}
@@ -551,7 +554,8 @@ export type WorkerOptionsWithDefaults = WorkerOptions &
  * {@link WorkerOptions} where the attributes the Worker requires are required and time units are converted from ms
  * formatted strings to numbers.
  */
-export interface CompiledWorkerOptions extends Omit<WorkerOptionsWithDefaults, 'serverOptions'> {
+export interface CompiledWorkerOptions extends Omit<WorkerOptionsWithDefaults, 'serverOptions' | 'interceptors'> {
+  interceptors: CompiledWorkerInterceptors;
   shutdownGraceTimeMs: number;
   shutdownForceTimeMs?: number;
   isolateExecutionTimeoutMs: number;
@@ -622,24 +626,34 @@ export function defaultSinks(logger?: Logger): InjectedSinks<LoggerSinks> {
 export function appendDefaultInterceptors(
   interceptors: WorkerInterceptors,
   logger?: Logger | undefined
-): WorkerInterceptors {
-  if (!logger || logger === Runtime.instance().logger) {
-    // No need for the ActivityInboundLogInterceptor if not changing the logger.
-    // Don't worry on this being unclean, this code will be optimized in the next PR.
-    return {
-      activityInbound: interceptors.activityInbound ?? [],
-      activityOutbound: interceptors.activityOutbound ?? [],
-      workflowModules: [...(interceptors.workflowModules ?? []), ...defaultWorkflowInterceptorModules],
-    };
+): Required<WorkerInterceptors> {
+  // FIXME: Don't worry for this function being unclean, this code will be optimized in the next PR.
+
+  // eslint-disable-next-line deprecation/deprecation
+  let activityInbound = interceptors.activityInbound ?? [];
+  if (logger && logger !== Runtime.instance().logger) {
+    activityInbound = [
+      // eslint-disable-next-line deprecation/deprecation
+      (ctx) => new ActivityInboundLogInterceptor(ctx, logger),
+      ...activityInbound,
+    ];
   }
 
   return {
-    activityInbound: [
-      (ctx) => new ActivityInboundLogInterceptor(ctx, logger), // eslint-disable-line deprecation/deprecation
-      ...(interceptors.activityInbound ?? []),
-    ],
-    activityOutbound: interceptors.activityOutbound ?? [],
+    activityInbound,
+    activity: interceptors.activity ?? [],
     workflowModules: [...(interceptors.workflowModules ?? []), ...defaultWorkflowInterceptorModules],
+  };
+}
+
+export function compileWorkerInterceptors({
+  activity,
+  activityInbound, // eslint-disable-line deprecation/deprecation
+  workflowModules,
+}: Required<WorkerInterceptors>): CompiledWorkerInterceptors {
+  return {
+    activity: [...activityInbound.map((factory) => (ctx: Context) => ({ inbound: [factory(ctx)] })), ...activity],
+    workflowModules,
   };
 }
 
@@ -653,6 +667,7 @@ export function addDefaultWorkerOptions(options: WorkerOptions): WorkerOptionsWi
     reuseV8Context,
     sinks,
     nonStickyToStickyPollRatio,
+    interceptors,
     ...rest
   } = options;
   const debugMode = options.debugMode || isSet(process.env.TEMPORAL_DEBUG);
@@ -688,11 +703,7 @@ export function addDefaultWorkerOptions(options: WorkerOptions): WorkerOptionsWi
     showStackTraceSources: showStackTraceSources ?? false,
     reuseV8Context: reuseV8Context ?? false,
     debugMode: debugMode ?? false,
-    interceptors: appendDefaultInterceptors({
-      activityInbound: options.interceptors?.activityInbound ?? [],
-      activityOutbound: options.interceptors?.activityOutbound ?? [],
-      workflowModules: options.interceptors?.workflowModules ?? [],
-    }),
+    interceptors: appendDefaultInterceptors(interceptors ?? {}),
     nonStickyToStickyPollRatio: nonStickyToStickyPollRatio ?? 0.2,
     sinks: {
       ...initLoggerSink(Runtime.instance().logger),
@@ -734,6 +745,7 @@ export function compileWorkerOptions(opts: WorkerOptionsWithDefaults): CompiledW
 
   return {
     ...opts,
+    interceptors: compileWorkerInterceptors(opts.interceptors),
     shutdownGraceTimeMs: msToNumber(opts.shutdownGraceTime),
     shutdownForceTimeMs: msOptionalToNumber(opts.shutdownForceTime),
     stickyQueueScheduleToStartTimeoutMs: msToNumber(opts.stickyQueueScheduleToStartTimeout),

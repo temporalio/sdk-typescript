@@ -31,6 +31,8 @@ export interface ActivityInboundCallsInterceptor {
 
 /**
  * A function that takes Activity Context and returns an interceptor
+ *
+ * @deprecated Use {@link ActivityInterceptorsFactory} instead
  */
 export interface ActivityInboundCallsInterceptorFactory {
   (ctx: ActivityContext): ActivityInboundCallsInterceptor;
@@ -51,25 +53,33 @@ export interface ActivityOutboundCallsInterceptor {
   getLogAttributes?: (input: GetLogAttributesInput, next: Next<this, 'getLogAttributes'>) => Record<string, unknown>;
 }
 
+export interface ActivityInterceptors {
+  inbound?: ActivityInboundCallsInterceptor[];
+  outbound?: ActivityOutboundCallsInterceptor[];
+}
+
 /**
  * A function that takes Activity Context and returns an interceptor
  */
-export interface ActivityOutboundCallsInterceptorFactory {
-  (ctx: ActivityContext): ActivityOutboundCallsInterceptor;
-}
+export type ActivityInterceptorsFactory = (ctx: ActivityContext) => ActivityInterceptors;
 
 /**
  * Structure for passing in Worker interceptors via {@link WorkerOptions}
  */
 export interface WorkerInterceptors {
   /**
-   * List of factory functions returning {@link ActivityInboundCallsInterceptor}s
+   * List of factory functions that instanciate {@link ActivityInboundCallsInterceptor}s and
+   * {@link ActivityOutboundCallsInterceptor}s.
    */
-  activityInbound?: ActivityInboundCallsInterceptorFactory[];
+  activity?: ActivityInterceptorsFactory[];
   /**
-   * List of factory functions returning {@link ActivityOutboundCallsInterceptor}s
+   * List of factory functions returning {@link ActivityInboundCallsInterceptor}s. If both `activity` and
+   * `activityInbound` is supplied, then entries from `activityInbound` will be prepended to inbound interceptors
+   * instanciated from `activity`.
+   *
+   * @deprecated Use {@link WorkerInterceptors.activity} instead.
    */
-  activityOutbound?: ActivityOutboundCallsInterceptorFactory[];
+  activityInbound?: ActivityInboundCallsInterceptorFactory[]; // eslint-disable-line deprecation/deprecation
   /**
    * List of modules to search for Workflow interceptors in
    * - Modules should export an `interceptors` variable of type {@link WorkflowInterceptorsFactory}
@@ -79,3 +89,5 @@ export interface WorkerInterceptors {
    */
   workflowModules?: string[];
 }
+
+export type CompiledWorkerInterceptors = Required<Pick<WorkerInterceptors, 'activity' | 'workflowModules'>>;

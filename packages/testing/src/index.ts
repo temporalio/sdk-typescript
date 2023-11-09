@@ -11,7 +11,6 @@
 import 'abort-controller/polyfill'; // eslint-disable-line import/no-unassigned-import
 import path from 'node:path';
 import events from 'node:events';
-import { AsyncLocalStorage } from 'node:async_hooks';
 import * as activity from '@temporalio/activity';
 import {
   AsyncCompletionClient,
@@ -21,20 +20,9 @@ import {
   WorkflowClientOptions,
   WorkflowResultOptions,
 } from '@temporalio/client';
-import {
-  ActivityFunction,
-  Duration,
-  IllegalStateError,
-  defaultFailureConverter,
-  defaultPayloadConverter,
-} from '@temporalio/common';
+import { ActivityFunction, Duration, defaultFailureConverter, defaultPayloadConverter } from '@temporalio/common';
 import { msToNumber, msToTs, tsToMs } from '@temporalio/common/lib/time';
-import {
-  ActivityInboundCallsInterceptorFactory,
-  ActivityOutboundCallsInterceptorFactory,
-  NativeConnection,
-  Runtime,
-} from '@temporalio/worker';
+import { ActivityInterceptorsFactory, NativeConnection, Runtime } from '@temporalio/worker';
 import { Activity } from '@temporalio/worker/lib/activity';
 import {
   EphemeralServer,
@@ -378,10 +366,7 @@ export class TestWorkflowEnvironment {
 }
 
 export interface MockActivityEnvironmentOptions {
-  interceptors?: {
-    inbound?: ActivityInboundCallsInterceptorFactory[];
-    outbound?: ActivityOutboundCallsInterceptorFactory[];
-  };
+  interceptors?: ActivityInterceptorsFactory[];
 }
 
 /**
@@ -407,8 +392,6 @@ export const defaultActivityInfo: activity.Info = {
   currentAttemptScheduledTimestampMs: 1,
 };
 
-const mockActivityContextStorage: AsyncLocalStorage<() => Promise<unknown>> = new AsyncLocalStorage();
-
 /**
  * An execution environment for testing Activities.
  *
@@ -430,16 +413,10 @@ export class MockActivityEnvironment extends events.EventEmitter {
     };
     this.activity = new Activity(
       { ...defaultActivityInfo, ...info },
-      () =>
-        (
-          mockActivityContextStorage.getStore() ??
-          (() => {
-            throw new IllegalStateError('Illegal State: no activity function set');
-          })
-        )(),
+      undefined,
       loadedDataConverter,
       heartbeatCallback,
-      opts?.interceptors
+      opts?.interceptors ?? []
     );
     this.context = this.activity.context;
     this.cancel = this.activity.cancel;
@@ -449,8 +426,6 @@ export class MockActivityEnvironment extends events.EventEmitter {
    * Run a function in Activity Context
    */
   public async run<P extends any[], R, F extends ActivityFunction<P, R>>(fn: F, ...args: P): Promise<R> {
-    return (await mockActivityContextStorage.run(fn, () =>
-      this.activity.runNoEncoding({ args, headers: {} })
-    )) as Promise<R>;
+    return this.activity.runNoEncoding(fn as ActivityFunction<any, any>, { args, headers: {} }) as Promise<R>;
   }
 }

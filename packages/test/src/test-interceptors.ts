@@ -35,13 +35,17 @@ if (RUN_INTEGRATION_TESTS) {
       ...defaultOptions,
       taskQueue,
       interceptors: {
-        activityInbound: [
+        activity: [
           () => ({
-            async execute(input, next) {
-              const encoded = input.headers.message;
-              const receivedMessage = encoded ? defaultPayloadConverter.fromPayload(encoded) : '';
-              return next({ ...input, args: [receivedMessage] });
-            },
+            inbound: [
+              {
+                async execute(input, next) {
+                  const encoded = input.headers.message;
+                  const receivedMessage = encoded ? defaultPayloadConverter.fromPayload(encoded) : '';
+                  return next({ ...input, args: [receivedMessage] });
+                },
+              },
+            ],
           }),
         ],
         workflowModules: [require.resolve('./workflows/interceptor-example')],
@@ -124,7 +128,7 @@ if (RUN_INTEGRATION_TESTS) {
     });
   });
 
-  test.serial('WorkflowClientCallsInterceptor intercepts terminate and cancel (deprecated factory form)', async (t) => {
+  test.serial('(Legacy) WorkflowClientCallsInterceptor intercepts terminate and cancel', async (t) => {
     const taskQueue = 'test-interceptor-term-and-cancel';
     const message = uuid4();
     // Use these to coordinate with workflow activation to complete only after termination
