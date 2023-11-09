@@ -112,5 +112,6 @@ export {
    *             exported by the `@temporalio/workflow` package. To capture log messages emitted
    *             by Workflow code, set the {@see Runtime.logger} property.
    */
-  LoggerSinks,
+  // eslint-disable-next-line deprecation/deprecation
+  LoggerSinksDeprecated as LoggerSinks,
 } from './logs';

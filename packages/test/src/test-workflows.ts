@@ -1568,7 +1568,7 @@ test('logAndTimeout', async (t) => {
   });
   t.deepEqual(calls, [
     {
-      ifaceName: 'defaultWorkerLogger',
+      ifaceName: '__temporal_logger',
       fnName: 'debug',
       args: [
         'Workflow started',
@@ -1582,7 +1582,7 @@ test('logAndTimeout', async (t) => {
       ],
     },
     {
-      ifaceName: 'defaultWorkerLogger',
+      ifaceName: '__temporal_logger',
       fnName: 'info',
       args: [
         'logging before getting stuck',

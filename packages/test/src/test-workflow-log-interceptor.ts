@@ -1,7 +1,16 @@
 import anyTest, { TestFn, ExecutionContext } from 'ava';
 import { v4 as uuid4 } from 'uuid';
-import { DefaultLogger, LogEntry, Runtime, defaultSinks } from '@temporalio/worker';
+import {
+  DefaultLogger,
+  InjectedSinks,
+  LogEntry,
+  LogLevel,
+  LoggerSinks,
+  Runtime,
+  defaultSinks,
+} from '@temporalio/worker';
 import { TestWorkflowEnvironment } from '@temporalio/testing';
+import { WorkflowInfo } from '@temporalio/workflow';
 import * as workflows from './workflows';
 import { Worker } from './helpers';
 
@@ -119,6 +128,7 @@ test('(Legacy) defaultSinks(logger) can be used to customize where logs are sent
     connection: nativeConnection,
     taskQueue: t.context.taskQueue,
     workflowsPath: require.resolve('./workflows'),
+    // eslint-disable-next-line deprecation/deprecation
     sinks: defaultSinks(logger),
   });
   await worker.runUntil(
@@ -136,4 +146,56 @@ test('(Legacy) defaultSinks(logger) can be used to customize where logs are sent
   t.is(startLog.meta?.workflowType, 'successString');
   t.is(endLog.level, 'DEBUG');
   t.is(endLog.message, 'Workflow completed');
+});
+
+test('(Legacy) Can register defaultWorkerLogger sink to customize where logs are sent', async (t) => {
+  const { client } = t.context.testEnv;
+  const workflowId = uuid4();
+  const { nativeConnection } = t.context.testEnv;
+  const logs = Array<LogEntry>();
+  const fn = (level: LogLevel, _info: WorkflowInfo, message: string, attrs?: Record<string, unknown>) => {
+    logs.push({ level, message, meta: attrs, timestampNanos: 0n });
+  };
+  const worker = await Worker.create({
+    connection: nativeConnection,
+    taskQueue: t.context.taskQueue,
+    workflowsPath: require.resolve('./workflows'),
+    // eslint-disable-next-line deprecation/deprecation
+    sinks: <InjectedSinks<LoggerSinks>>{
+      defaultWorkerLogger: {
+        trace: { fn: fn.bind(undefined, 'TRACE') },
+        debug: { fn: fn.bind(undefined, 'DEBUG') },
+        info: { fn: fn.bind(undefined, 'INFO') },
+        warn: { fn: fn.bind(undefined, 'WARN') },
+        error: { fn: fn.bind(undefined, 'ERROR') },
+      },
+    },
+  });
+  await worker.runUntil(
+    client.workflow.execute(workflows.successString, { workflowId, taskQueue: t.context.taskQueue })
+  );
+  t.false(workflowId in recordedLogs);
+  t.true(logs.length >= 2);
+  const [startLog, endLog] = logs;
+  t.is(startLog.level, 'DEBUG');
+  t.is(startLog.message, 'Workflow started');
+  t.is(startLog.meta?.workflowId, workflowId);
+  t.true(typeof startLog.meta?.runId === 'string');
+  t.is(startLog.meta?.taskQueue, t.context.taskQueue);
+  t.is(startLog.meta?.namespace, 'default');
+  t.is(startLog.meta?.workflowType, 'successString');
+  t.is(endLog.level, 'DEBUG');
+  t.is(endLog.message, 'Workflow completed');
+});
+
+test('(Legacy) Can explicitly call defaultWorkerLogger sink to emit logs', async (t) => {
+  const { client } = t.context.testEnv;
+  const workflowId = uuid4();
+  const [_, midLog] = await withWorker(
+    t,
+    client.workflow.execute(workflows.useDepreatedLoggerSinkWorkflow, { workflowId, taskQueue: t.context.taskQueue }),
+    workflowId
+  );
+  t.is(midLog.level, 'INFO');
+  t.is(midLog.message, 'Log message from workflow');
 });

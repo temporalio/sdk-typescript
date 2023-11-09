@@ -10,7 +10,7 @@ import {
   WorkerOptions,
   LogEntry,
 } from '@temporalio/worker';
-import { LoggerSinks as DefaultLoggerSinks } from '@temporalio/workflow/lib/logs';
+import { LoggerSinksInternal as DefaultLoggerSinks } from '@temporalio/workflow/lib/logs';
 import { SearchAttributes, WorkflowInfo } from '@temporalio/workflow';
 import { UnsafeWorkflowInfo } from '@temporalio/workflow/src/interfaces';
 import { RUN_INTEGRATION_TESTS, Worker, registerDefaultCustomSearchAttributes } from './helpers';
@@ -23,12 +23,12 @@ class DependencyError extends Error {
   }
 }
 
-function asDefaultLoggerSink(
+function asSdkLoggerSink(
   fn: (info: WorkflowInfo, message: string, attrs?: Record<string, unknown>) => Promise<void>,
   opts?: Omit<InjectedSinkFunction<any>, 'fn'>
 ): InjectedSinks<DefaultLoggerSinks> {
   return {
-    defaultWorkerLogger: {
+    __temporal_logger: {
       trace: { fn, ...opts },
       debug: { fn, ...opts },
       info: { fn, ...opts },
@@ -375,7 +375,7 @@ if (RUN_INTEGRATION_TESTS) {
     const taskQueue = `${__filename}-${t.title}`;
 
     const recordedMessages = Array<{ message: string; searchAttributes: SearchAttributes }>();
-    const sinks = asDefaultLoggerSink(async (info, message, _attrs) => {
+    const sinks = asSdkLoggerSink(async (info, message, _attrs) => {
       recordedMessages.push({
         message,
         searchAttributes: info.searchAttributes,
