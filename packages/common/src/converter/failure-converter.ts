@@ -32,9 +32,9 @@ const CUTOFF_STACK_PATTERNS = combineRegExp(
 );
 
 /**
- * Any stack trace frames that match any of those wil be ignored
+ * Any stack trace frames that match any of those wil be dopped
  */
-const IGNORED_STACK_FRAMES_PATTERNS = combineRegExp(
+const DROPPED_STACK_FRAMES_PATTERNS = combineRegExp(
   /** Internal functions used to recursively chain interceptors */
   /\s+at next \(.*[\\/]common[\\/](?:src|lib)[\\/]interceptors\.[jt]s:\d+:\d+\)/,
   /** Internal functions used to recursively chain interceptors */
@@ -47,9 +47,9 @@ const IGNORED_STACK_FRAMES_PATTERNS = combineRegExp(
 export function cutoffStackTrace(stack?: string): string {
   const lines = (stack ?? '').split(/\r?\n/);
   const acc = Array<string>();
-  lineLoop: for (const line of lines) {
-    if (CUTOFF_STACK_PATTERNS.test(line)) break lineLoop;
-    if (!IGNORED_STACK_FRAMES_PATTERNS.test(line)) acc.push(line);
+  for (const line of lines) {
+    if (CUTOFF_STACK_PATTERNS.test(line)) break;
+    if (!DROPPED_STACK_FRAMES_PATTERNS.test(line)) acc.push(line);
   }
   return acc.join('\n');
 }

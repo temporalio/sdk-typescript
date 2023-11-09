@@ -62,8 +62,8 @@ export {
 
 export {
   /**
-   * @deprecated `ActivityInboundLogInterceptor` is deprecated. Activity life cycle events are now automatically logged
-   *             by the SDK. To customize activity log attributes, register a custom `ActivityOutboundCallsInterceptor`
+   * @deprecated `ActivityInboundLogInterceptor` is deprecated. Activity lifecycle events are now automatically logged
+   *             by the SDK. To customize activity log attributes, register a custom {@link ActivityOutboundCallsInterceptor}
    *             that intercepts the `getLogAttributes()` method. To customize where log messages are sent,
    *             set the {@see Runtime.logger} property.
    */

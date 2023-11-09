@@ -119,7 +119,7 @@ test('Activity Worker logs when activity is cancelled with signal', async (t) =>
   t.deepEqual(rest, activityLogAttributes(defaultActivityInfo));
 });
 
-test('(Legacy) Activity Log Interceptor dont override Context.log by default', async (t) => {
+test('(Legacy) ActivityInboundLogInterceptor does not override Context.log by default', async (t) => {
   const env = new MockActivityEnvironment(
     {},
     {
@@ -159,11 +159,12 @@ test('(Legacy) ActivityInboundLogInterceptor overrides Context.log if a logger i
   t.not(entry2, undefined);
 });
 
-test('(Legacy) Activity Log Interceptor override Context.log if class is extended', async (t) => {
+test('(Legacy) ActivityInboundLogInterceptor overrides Context.log if class is extended', async (t) => {
   class CustomActivityInboundLogInterceptor extends ActivityInboundLogInterceptor {
     protected logAttributes(): Record<string, unknown> {
+      const { namespace: _, ...rest } = super.logAttributes();
       return {
-        ...super.logAttributes(),
+        ...rest,
         custom: 'attribute',
       };
     }
@@ -183,5 +184,7 @@ test('(Legacy) Activity Log Interceptor override Context.log if class is extende
   const activityLogEntry = logs.find((entry) => entry.message === 'log message from activity');
   t.not(activityLogEntry, undefined);
   t.is(activityLogEntry?.level, 'DEBUG');
-  t.is(activityLogEntry?.meta?.['custom'], 'attribute');
+  t.is(activityLogEntry?.meta?.taskQueue, env.context.info.taskQueue);
+  t.is(activityLogEntry?.meta?.custom, 'attribute');
+  t.false('namespace' in (activityLogEntry?.meta ?? {}));
 });

@@ -9,8 +9,8 @@ import { Runtime } from './runtime';
  * and behaves as a noop in most cases. It is only kept arround to avoid breaking code out there that was previously
  * refering to it.
  *
- * @deprecated `ActivityInboundLogInterceptor` is deprecated. Activity life cycle events are now automatically logged
- *             by the SDK. To customize activity log attributes, register a custom `ActivityOutboundCallsInterceptor`
+ * @deprecated `ActivityInboundLogInterceptor` is deprecated. Activity lifecycle events are now automatically logged
+ *             by the SDK. To customize activity log attributes, register a custom {@link ActivityOutboundCallsInterceptor}
  *             that intercepts the `getLogAttributes()` method. To customize where log messages are sent, set the
  *             {@see Runtime.logger} property.
  */
@@ -51,7 +51,7 @@ export class ActivityInboundLogInterceptor implements ActivityInboundCallsInterc
   }
 
   async execute(input: ActivityExecuteInput, next: Next<ActivityInboundCallsInterceptor, 'execute'>): Promise<unknown> {
-    // Logging of activity's life cycle events is now handled in `worker/src/activity.ts`
+    // Logging of activity's lifecycle events is now handled in `worker/src/activity.ts`
     return next(input);
   }
 }
