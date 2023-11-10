@@ -57,8 +57,8 @@ if (RUN_INTEGRATION_TESTS) {
       interceptors: {
         workflowModules: [require.resolve('./workflows/otel-interceptors')],
         activity: [
-          OpenTelemetryActivityInboundInterceptor.asFactory(),
-          ConnectionInjectorInterceptor.asFactory(connection),
+          OpenTelemetryActivityInboundInterceptor.createFactory(),
+          ConnectionInjectorInterceptor.createFactory(connection),
         ],
       },
       sinks,
@@ -174,7 +174,7 @@ if (RUN_INTEGRATION_TESTS) {
       taskQueue: 'test-otel',
       interceptors: {
         workflowModules: [require.resolve('./workflows/otel-interceptors')],
-        activity: [OpenTelemetryActivityInboundInterceptor.asFactory()],
+        activity: [OpenTelemetryActivityInboundInterceptor.createFactory()],
       },
       sinks,
     });

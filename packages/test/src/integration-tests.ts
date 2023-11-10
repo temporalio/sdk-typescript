@@ -96,7 +96,7 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
       taskQueue: 'test',
       dataConverter,
       interceptors: appendDefaultInterceptors({
-        activity: [ConnectionInjectorInterceptor.asFactory(connection, loadDataConverter(dataConverter))],
+        activity: [ConnectionInjectorInterceptor.createFactory(connection, loadDataConverter(dataConverter))],
       }),
       showStackTraceSources: true,
     });

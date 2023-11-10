@@ -62,7 +62,7 @@ function helpers(t: ExecutionContext<Context>): Helpers {
         workflowBundle: t.context.workflowBundle,
         taskQueue,
         interceptors: appendDefaultInterceptors({
-          activity: interceptors?.activity ?? [ConnectionInjectorInterceptor.asFactory(t.context.env.connection)],
+          activity: interceptors?.activity ?? [ConnectionInjectorInterceptor.createFactory(t.context.env.connection)],
         }),
         showStackTraceSources: true,
         ...rest,

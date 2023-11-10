@@ -23,7 +23,7 @@ export interface InterceptorOptions {
  * provided in the Activity input headers.
  */
 export class OpenTelemetryActivityInboundInterceptor implements ActivityInboundCallsInterceptor {
-  static asFactory(options?: InterceptorOptions): ActivityInterceptorsFactory {
+  static createFactory(options?: InterceptorOptions): ActivityInterceptorsFactory {
     return (ctx) => ({ inbound: [new OpenTelemetryActivityInboundInterceptor(ctx, options)] });
   }
 

@@ -9,7 +9,7 @@ import {
 } from '@temporalio/worker';
 
 export class ConnectionInjectorInterceptor implements ActivityInboundCallsInterceptor {
-  public static asFactory(
+  public static createFactory(
     connection: ConnectionLike,
     dataConverter = defaultDataConverter
   ): ActivityInterceptorsFactory {
