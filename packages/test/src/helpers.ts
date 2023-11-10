@@ -52,6 +52,8 @@ export function cleanStackTrace(ostack: string): string {
       .replace(/:\d+:\d+/g, '')
       .replace(/^\s*/gms, '    at ')
       .replace(/\[as fn\] /, '')
+      // Avoid https://github.com/nodejs/node/issues/42417
+      .replace(/at null\./g, 'at ')
       .replace(/\\/g, '/');
 
   return normalizedStack ? `${firstLine}\n${normalizedStack}` : firstLine;

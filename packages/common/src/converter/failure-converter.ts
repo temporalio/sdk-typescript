@@ -32,13 +32,14 @@ const CUTOFF_STACK_PATTERNS = combineRegExp(
 );
 
 /**
- * Any stack trace frames that match any of those wil be dopped
+ * Any stack trace frames that match any of those wil be dopped.
+ * The "null." prefix on some cases is to avoid https://github.com/nodejs/node/issues/42417
  */
 const DROPPED_STACK_FRAMES_PATTERNS = combineRegExp(
   /** Internal functions used to recursively chain interceptors */
-  /\s+at next \(.*[\\/]common[\\/](?:src|lib)[\\/]interceptors\.[jt]s:\d+:\d+\)/,
+  /\s+at (null\.)?next \(.*[\\/]common[\\/](?:src|lib)[\\/]interceptors\.[jt]s:\d+:\d+\)/,
   /** Internal functions used to recursively chain interceptors */
-  /\s+at executeNextHandler \(.*[\\/]worker[\\/](?:src|lib)[\\/]activity\.[jt]s:\d+:\d+\)/
+  /\s+at (null\.)?executeNextHandler \(.*[\\/]worker[\\/](?:src|lib)[\\/]activity\.[jt]s:\d+:\d+\)/
 );
 
 /**
