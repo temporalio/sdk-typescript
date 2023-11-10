@@ -395,8 +395,11 @@ export const defaultActivityInfo: activity.Info = {
 /**
  * An execution environment for testing Activities.
  *
- * Mocks Activity {@link Context | activity.Context} and exposes hooks for
- * cancellation and heartbeats.
+ * Mocks Activity {@link Context | activity.Context} and exposes hooks for cancellation and heartbeats.
+ *
+ * Note that the `Context` object used by this environment will be reused for all activities that are run in this
+ * environment. Consequently, once `cancel()` is called, any further activity that gets executed in this environment
+ * will immediately be in a cancelled state.
  */
 export class MockActivityEnvironment extends events.EventEmitter {
   public cancel: (reason?: any) => void = () => undefined;
