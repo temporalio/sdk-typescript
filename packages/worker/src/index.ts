@@ -65,7 +65,7 @@ export {
    * @deprecated `ActivityInboundLogInterceptor` is deprecated. Activity lifecycle events are now automatically logged
    *             by the SDK. To customize activity log attributes, register a custom {@link ActivityOutboundCallsInterceptor}
    *             that intercepts the `getLogAttributes()` method. To customize where log messages are sent,
-   *             set the {@see Runtime.logger} property.
+   *             set the {@link Runtime.logger} property.
    */
   ActivityInboundLogInterceptor, // eslint-disable-line deprecation/deprecation
 } from './activity-log-interceptor';
@@ -78,18 +78,18 @@ export {
 export {
   /**
    * @deprecated Including `defaultSinks()` in the worker options is no longer required. To configure
-   *             a custom logger, set the {@see Runtime.logger} property instead.
+   *             a custom logger, set the {@link Runtime.logger} property instead.
    */
   defaultSinks, // eslint-disable-line deprecation/deprecation
   /**
-   * @deprecated This no longer contains a source map. Use {@see WorkflowBundlePath} instead.
+   * @deprecated This no longer contains a source map. Use {@link WorkflowBundlePath} instead.
    */
   WorkflowBundlePathWithSourceMap, // eslint-disable-line deprecation/deprecation
 } from './worker-options';
 export {
   /**
    * @deprecated Do not use `LoggerSinks` directly. To log from Workflow code, use the `log` object exported by the `@temporalio/workflow`
-   *             package. To capture log messages emitted by Workflow code, set the {@see Runtime.logger} property.
+   *             package. To capture log messages emitted by Workflow code, set the {@link Runtime.logger} property.
    */
   LoggerSinks, // eslint-disable-line deprecation/deprecation
 } from '@temporalio/workflow';

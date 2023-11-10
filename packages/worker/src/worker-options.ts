@@ -606,7 +606,7 @@ export interface ReplayWorkerOptions
  * @param logger a {@link Logger} - defaults to the {@link Runtime} singleton logger.
  *
  * @deprecated Calling `defaultSink()` is no longer required. To configure a custom logger, set the
- *             {@see Runtime.logger} property instead.
+ *             {@link Runtime.logger} property instead.
  */
 // eslint-disable-next-line deprecation/deprecation
 export function defaultSinks(logger?: Logger): InjectedSinks<LoggerSinks> {
