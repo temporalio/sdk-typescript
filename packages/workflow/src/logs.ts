@@ -1,6 +1,9 @@
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
-import { Sink, Sinks, proxySinks } from './sinks';
-import { assertInWorkflowContext } from './internals';
+import { untrackPromise } from './stack-helpers';
+import { type Sink, type Sinks, proxySinks } from './sinks';
+import { isCancellation } from './errors';
+import { WorkflowInfo, ContinueAsNew } from './interfaces';
+import { assertInWorkflowContext } from './global-attributes';
 
 export interface WorkflowLogger extends Sink {
   trace(message: string, attrs?: Record<string, unknown>): void;
@@ -64,10 +67,52 @@ export const log: WorkflowLogger = Object.fromEntries(
         return loggerSink[level](message, {
           // Inject the call time in nanosecond resolution as expected by the worker logger.
           [LogTimestamp]: activator.getTimeOfDay(),
-          ...getLogAttributes({}),
+          ...getLogAttributes(workflowLogAttributes(activator.info)),
           ...attrs,
         });
       },
     ];
   })
 ) as any;
+
+export function executeWorkflowWithLifeCycle(fn: () => Promise<unknown>): Promise<unknown> {
+  log.debug('Workflow started');
+  const p = fn().then(
+    (res) => {
+      log.debug('Workflow completed');
+      return res;
+    },
+    (error) => {
+      // Avoid using instanceof checks in case the modules they're defined in loaded more than once,
+      // e.g. by jest or when multiple versions are installed.
+      if (typeof error === 'object' && error != null) {
+        if (isCancellation(error)) {
+          log.debug('Workflow completed as cancelled');
+          throw error;
+        } else if (error instanceof ContinueAsNew) {
+          log.debug('Workflow continued as new');
+          throw error;
+        }
+      }
+      log.warn('Workflow failed', { error });
+      throw error;
+    }
+  );
+  // Avoid showing this interceptor in stack trace query
+  untrackPromise(p);
+  return p;
+}
+
+/**
+ * Returns a map of attributes to be set _by default_ on log messages for a given Workflow.
+ * Note that this function may be called from outside of the Workflow context (eg. by the worker itself).
+ */
+export function workflowLogAttributes(info: WorkflowInfo): Record<string, unknown> {
+  return {
+    namespace: info.namespace,
+    taskQueue: info.taskQueue,
+    workflowId: info.workflowId,
+    runId: info.runId,
+    workflowType: info.workflowType,
+  };
+}

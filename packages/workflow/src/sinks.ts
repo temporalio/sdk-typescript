@@ -15,7 +15,7 @@
  */
 
 import { WorkflowInfo } from './interfaces';
-import { assertInWorkflowContext } from './internals';
+import { assertInWorkflowContext } from './global-attributes';
 
 /**
  * Any function signature can be used for Sink functions as long as the return type is `void`.
