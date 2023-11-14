@@ -62,7 +62,7 @@ async function withWorker(
   return logs as [LogEntry, LogEntry];
 }
 
-test('WorkflowInboundLogInterceptor logs when workflow completes', async (t) => {
+test('Workflow Worker logs when workflow completes', async (t) => {
   const { client } = t.context.testEnv;
   const workflowId = uuid4();
   const [startLog, endLog] = await withWorker(
@@ -81,7 +81,7 @@ test('WorkflowInboundLogInterceptor logs when workflow completes', async (t) => 
   t.is(endLog.message, 'Workflow completed');
 });
 
-test('WorkflowInboundLogInterceptor logs when workflow continues as new', async (t) => {
+test('Workflow Worker logs when workflow continues as new', async (t) => {
   const { client } = t.context.testEnv;
   const workflowId = uuid4();
   const [_, endLog] = await withWorker(
@@ -100,7 +100,7 @@ test('WorkflowInboundLogInterceptor logs when workflow continues as new', async 
   t.is(endLog.message, 'Workflow continued as new');
 });
 
-test('WorkflowInboundLogInterceptor logs warning when workflow fails', async (t) => {
+test('Workflow Worker logs warning when workflow fails', async (t) => {
   const { client } = t.context.testEnv;
   const workflowId = uuid4();
   const [_, endLog] = await withWorker(

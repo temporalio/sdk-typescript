@@ -9,7 +9,7 @@ import {
 
 /**
  * This interceptor used to be meant to log Workflow execution starts and completions, and attaches log attributes to
- * `workflow.log` calls. It is now deprecated and behaves as a noop in most cases. It is only kept arround to avoid
+ * `workflow.log` calls. It is now deprecated and behaves as a noop in all cases. It is only kept arround to avoid
  * breaking code out there that was previously refering to it.
  *
  * @deprecated `WorkflowLogInterceptor` is deprecated. Workflow lifecycle events are now automatically logged

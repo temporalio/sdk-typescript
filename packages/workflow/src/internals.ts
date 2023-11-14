@@ -34,7 +34,7 @@ import {
 import { type SinkCall } from './sinks';
 import { untrackPromise } from './stack-helpers';
 import pkg from './pkg';
-import { executeWorkflowWithLifeCycle } from './logs';
+import { executeWithLifecycleLogging } from './logs';
 
 enum StartChildWorkflowExecutionFailedCause {
   START_CHILD_WORKFLOW_EXECUTION_FAILED_CAUSE_UNSPECIFIED = 0,
@@ -377,7 +377,7 @@ export class Activator implements ActivationHandler {
     const execute = composeInterceptors(this.interceptors.inbound, 'execute', this.startWorkflowNextHandler.bind(this));
 
     untrackPromise(
-      executeWorkflowWithLifeCycle(() =>
+      executeWithLifecycleLogging(() =>
         execute({
           headers: activation.headers ?? {},
           args: arrayFromPayloads(this.payloadConverter, activation.arguments),

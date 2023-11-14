@@ -75,7 +75,7 @@ export const log: WorkflowLogger = Object.fromEntries(
   })
 ) as any;
 
-export function executeWorkflowWithLifeCycle(fn: () => Promise<unknown>): Promise<unknown> {
+export function executeWithLifecycleLogging(fn: () => Promise<unknown>): Promise<unknown> {
   log.debug('Workflow started');
   const p = fn().then(
     (res) => {
