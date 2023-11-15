@@ -652,7 +652,7 @@ export function compileWorkerInterceptors({
   workflowModules,
 }: Required<WorkerInterceptors>): CompiledWorkerInterceptors {
   return {
-    activity: [...activityInbound.map((factory) => (ctx: Context) => ({ inbound: [factory(ctx)] })), ...activity],
+    activity: [...activityInbound.map((factory) => (ctx: Context) => ({ inbound: factory(ctx) })), ...activity],
     workflowModules,
   };
 }

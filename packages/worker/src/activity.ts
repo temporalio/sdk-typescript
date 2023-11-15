@@ -66,8 +66,8 @@ export class Activity {
     interceptors
       .map((factory) => factory(this.context))
       .forEach(({ inbound, outbound }) => {
-        if (inbound?.length) this.interceptors.inbound.push(...inbound);
-        if (outbound?.length) this.interceptors.outbound.push(...outbound);
+        if (inbound) this.interceptors.inbound.push(inbound);
+        if (outbound) this.interceptors.outbound.push(outbound);
       });
   }
 

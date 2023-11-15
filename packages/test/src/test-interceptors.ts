@@ -37,15 +37,13 @@ if (RUN_INTEGRATION_TESTS) {
       interceptors: {
         activity: [
           () => ({
-            inbound: [
-              {
-                async execute(input, next) {
-                  const encoded = input.headers.message;
-                  const receivedMessage = encoded ? defaultPayloadConverter.fromPayload(encoded) : '';
-                  return next({ ...input, args: [receivedMessage] });
-                },
+            inbound: {
+              async execute(input, next) {
+                const encoded = input.headers.message;
+                const receivedMessage = encoded ? defaultPayloadConverter.fromPayload(encoded) : '';
+                return next({ ...input, args: [receivedMessage] });
               },
-            ],
+            },
           }),
         ],
         workflowModules: [require.resolve('./workflows/interceptor-example')],
