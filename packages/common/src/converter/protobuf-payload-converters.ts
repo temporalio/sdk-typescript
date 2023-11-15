@@ -193,7 +193,7 @@ function isProtobufType(type: unknown): type is Type {
   return (
     isRecord(type) &&
     // constructor.name may get mangled by minifiers; thanksfuly protobufjs also sets a className property
-    (type.constructor.name === 'Type' || (type.constructor as any).className === 'Type') &&
+    (type.constructor as any).className === 'Type') &&
     hasOwnProperties(type, ['parent', 'name', 'create', 'encode', 'decode']) &&
     typeof type.name === 'string' &&
     typeof type.create === 'function' &&
@@ -216,7 +216,7 @@ function getNamespacedTypeName(node: Type | Namespace): string {
 
 function isRoot(root: unknown): root is Root {
   // constructor.name may get mangled by minifiers; thanksfuly protobufjs also sets a className property
-  return isRecord(root) && (root.constructor.name === 'Root' || (root.constructor as any).className === 'Root');
+  return isRecord(root) && (root.constructor as any).className === 'Root');
 }
 
 export interface DefaultPayloadConverterWithProtobufsOptions {
