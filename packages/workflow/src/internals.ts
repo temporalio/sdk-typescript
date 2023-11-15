@@ -15,11 +15,11 @@ import {
   ProtoFailure,
 } from '@temporalio/common';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
-import { checkExtends, SymbolBasedInstanceOfError } from '@temporalio/common/lib/type-helpers';
+import { checkExtends } from '@temporalio/common/lib/type-helpers';
 import type { coresdk } from '@temporalio/proto';
 import { alea, RNG } from './alea';
 import { RootCancellationScope } from './cancellation-scope';
-import { DeterminismViolationError, isCancellation } from './errors';
+import { DeterminismViolationError, LocalActivityDoBackoff, isCancellation } from './errors';
 import { QueryInput, SignalInput, WorkflowExecuteInput, WorkflowInterceptors } from './interceptors';
 import {
   ContinueAsNew,
@@ -34,7 +34,7 @@ import {
 import { type SinkCall } from './sinks';
 import { untrackPromise } from './stack-helpers';
 import pkg from './pkg';
-import { maybeGetActivatorUntyped } from './global-attributes';
+import { executeWithLifecycleLogging } from './logs';
 
 enum StartChildWorkflowExecutionFailedCause {
   START_CHILD_WORKFLOW_EXECUTION_FAILED_CAUSE_UNSPECIFIED = 0,
@@ -65,16 +65,6 @@ export interface Completion {
 export interface Condition {
   fn(): boolean;
   resolve(): void;
-}
-
-/**
- * A class that acts as a marker for this special result type
- */
-@SymbolBasedInstanceOfError('LocalActivityDoBackoff')
-export class LocalActivityDoBackoff extends Error {
-  constructor(public readonly backoff: coresdk.activity_result.IDoBackoff) {
-    super();
-  }
 }
 
 export type ActivationHandlerFunction<K extends keyof coresdk.workflow_activation.IWorkflowActivationJob> = (
@@ -387,10 +377,12 @@ export class Activator implements ActivationHandler {
     const execute = composeInterceptors(this.interceptors.inbound, 'execute', this.startWorkflowNextHandler.bind(this));
 
     untrackPromise(
-      execute({
-        headers: activation.headers ?? {},
-        args: arrayFromPayloads(this.payloadConverter, activation.arguments),
-      }).then(this.completeWorkflow.bind(this), this.handleWorkflowFailure.bind(this))
+      executeWithLifecycleLogging(() =>
+        execute({
+          headers: activation.headers ?? {},
+          args: arrayFromPayloads(this.payloadConverter, activation.arguments),
+        })
+      ).then(this.completeWorkflow.bind(this), this.handleWorkflowFailure.bind(this))
     );
   }
 
@@ -701,24 +693,6 @@ export class Activator implements ActivationHandler {
   failureToError(failure: ProtoFailure): Error {
     return this.failureConverter.failureToError(failure, this.payloadConverter);
   }
-}
-
-export function assertInWorkflowContext(message: string): Activator {
-  const activator = maybeGetActivator();
-  if (activator == null) throw new IllegalStateError(message);
-  return activator;
-}
-
-export function maybeGetActivator(): Activator | undefined {
-  return maybeGetActivatorUntyped() as Activator | undefined;
-}
-
-export function getActivator(): Activator {
-  const activator = maybeGetActivator();
-  if (activator === undefined) {
-    throw new IllegalStateError('Workflow uninitialized');
-  }
-  return activator;
 }
 
 function getSeq<T extends { seq?: number | null }>(activation: T): number {

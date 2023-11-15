@@ -14,7 +14,7 @@ import { initLoggerSink } from './workflow/logger';
 import { Runtime } from './runtime';
 import { InjectedSinks } from './sinks';
 import { MiB } from './utils';
-import { defaultWorkflowInterceptorModules, WorkflowBundleWithSourceMap } from './workflow/bundler';
+import { WorkflowBundleWithSourceMap } from './workflow/bundler';
 
 export type { WebpackConfiguration };
 
@@ -417,6 +417,9 @@ export interface WorkerOptions {
 
    * When using {@link workflowBundle}, these Workflow interceptors (`WorkerInterceptors.workflowModules`) are not used.
    * Instead, provide them via {@link BundleOptions.workflowInterceptorModules} when calling {@link bundleWorkflowCode}.
+   *
+   * Before v1.9.0, calling `appendDefaultInterceptors()` was required when registering custom interceptors in order to
+   * preserve SDK's logging interceptors. This is no longer the case.
    */
   interceptors?: WorkerInterceptors;
 
@@ -622,27 +625,25 @@ export function defaultSinks(logger?: Logger): InjectedSinks<LoggerSinks> {
  * Appends the default Worker logging interceptors to given interceptor arrays.
  *
  * @param logger a {@link Logger} - defaults to the {@link Runtime} singleton logger.
+ *
+ * @deprecated Calling `appendDefaultInterceptors()` is no longer required. To configure a custom logger, set the
+ *             {@see Runtime.logger} property instead.
  */
 export function appendDefaultInterceptors(
   interceptors: WorkerInterceptors,
   logger?: Logger | undefined
-): Required<WorkerInterceptors> {
-  // FIXME: Don't worry for this function being unclean, this code will be optimized in the next PR.
-
-  // eslint-disable-next-line deprecation/deprecation
-  let activityInbound = interceptors.activityInbound ?? [];
-  if (logger && logger !== Runtime.instance().logger) {
-    activityInbound = [
-      // eslint-disable-next-line deprecation/deprecation
-      (ctx) => new ActivityInboundLogInterceptor(ctx, logger),
-      ...activityInbound,
-    ];
-  }
+): WorkerInterceptors {
+  if (!logger || logger === Runtime.instance().logger) return interceptors;
 
   return {
-    activityInbound,
-    activity: interceptors.activity ?? [],
-    workflowModules: [...(interceptors.workflowModules ?? []), ...defaultWorkflowInterceptorModules],
+    activityInbound: [
+      // eslint-disable-next-line deprecation/deprecation
+      (ctx) => new ActivityInboundLogInterceptor(ctx, logger),
+      // eslint-disable-next-line deprecation/deprecation
+      ...(interceptors.activityInbound ?? []),
+    ],
+    activity: interceptors.activity,
+    workflowModules: interceptors.workflowModules,
   };
 }
 
@@ -703,7 +704,12 @@ export function addDefaultWorkerOptions(options: WorkerOptions): WorkerOptionsWi
     showStackTraceSources: showStackTraceSources ?? false,
     reuseV8Context: reuseV8Context ?? false,
     debugMode: debugMode ?? false,
-    interceptors: appendDefaultInterceptors(interceptors ?? {}),
+    interceptors: {
+      activity: interceptors?.activity ?? [],
+      // eslint-disable-next-line deprecation/deprecation
+      activityInbound: interceptors?.activityInbound ?? [],
+      workflowModules: interceptors?.workflowModules ?? [],
+    },
     nonStickyToStickyPollRatio: nonStickyToStickyPollRatio ?? 0.2,
     sinks: {
       ...initLoggerSink(Runtime.instance().logger),

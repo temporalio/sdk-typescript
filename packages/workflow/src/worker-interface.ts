@@ -11,9 +11,9 @@ import { disableStorage } from './cancellation-scope';
 import { DeterminismViolationError } from './errors';
 import { WorkflowInterceptorsFactory } from './interceptors';
 import { WorkflowCreateOptionsInternal } from './interfaces';
-import { Activator, getActivator } from './internals';
+import { Activator } from './internals';
+import { setActivatorUntyped, getActivator } from './global-attributes';
 import { type SinkCall } from './sinks';
-import { setActivatorUntyped } from './global-attributes';
 
 // Export the type for use on the "worker" side
 export { PromiseStackStore } from './internals';

@@ -39,7 +39,8 @@ import {
   Handler,
   WorkflowInfo,
 } from './interfaces';
-import { LocalActivityDoBackoff, assertInWorkflowContext, getActivator, maybeGetActivator } from './internals';
+import { LocalActivityDoBackoff } from './errors';
+import { assertInWorkflowContext, getActivator, maybeGetActivator } from './global-attributes';
 import { untrackPromise } from './stack-helpers';
 import { ChildWorkflowHandle, ExternalWorkflowHandle } from './workflow-handle';
 
