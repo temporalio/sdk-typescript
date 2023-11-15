@@ -39,5 +39,5 @@ export async function logSinkTester(): Promise<void> {
 const { defaultWorkerLogger } = wf.proxySinks<wf.LoggerSinks>();
 
 export async function useDepreatedLoggerSinkWorkflow(): Promise<void> {
-  defaultWorkerLogger.info(`Log message from workflow`, { workflowId: wf.workflowInfo().workflowId });
+  defaultWorkerLogger.info('Log message from workflow', { workflowId: wf.workflowInfo().workflowId });
 }

@@ -6,6 +6,7 @@ import {
   CancelledFailure,
   ensureApplicationFailure,
   FAILURE_SOURCE,
+  IllegalStateError,
   LoadedDataConverter,
 } from '@temporalio/common';
 import { encodeErrorToFailure, encodeToPayload } from '@temporalio/common/lib/internal-non-workflow';
@@ -15,9 +16,13 @@ import { coresdk } from '@temporalio/proto';
 import {
   ActivityExecuteInput,
   ActivityInboundCallsInterceptor,
-  ActivityInboundCallsInterceptorFactory,
+  ActivityInterceptorsFactory,
+  ActivityOutboundCallsInterceptor,
 } from './interceptors';
 import { Runtime } from './runtime';
+import { Logger } from './logger';
+
+const UNINITIALIZED = Symbol('UNINITIALIZED');
 
 export type CancelReason =
   | keyof typeof coresdk.activity_task.ActivityCancelReason
@@ -31,16 +36,15 @@ export class Activity {
   public readonly abortController: AbortController = new AbortController();
   public readonly interceptors: {
     inbound: ActivityInboundCallsInterceptor[];
+    outbound: ActivityOutboundCallsInterceptor[];
   };
 
   constructor(
     public readonly info: Info,
-    public readonly fn: ActivityFunction<any[], any>,
+    public readonly fn: ActivityFunction<any[], any> | undefined,
     public readonly dataConverter: LoadedDataConverter,
     public readonly heartbeatCallback: Context['heartbeat'],
-    interceptors?: {
-      inbound?: ActivityInboundCallsInterceptorFactory[];
-    }
+    interceptors: ActivityInterceptorsFactory[]
   ) {
     const promise = new Promise<never>((_, reject) => {
       this.cancel = (reason: CancelReason) => {
@@ -54,29 +58,90 @@ export class Activity {
       promise,
       this.abortController.signal,
       this.heartbeatCallback,
-      Runtime.instance().logger
+      this.makeActivityLogger()
     );
     // Prevent unhandled rejection
     promise.catch(() => undefined);
-    this.interceptors = {
-      inbound: (interceptors?.inbound ?? []).map((factory) => factory(this.context)),
+    this.interceptors = { inbound: [], outbound: [] };
+    interceptors
+      .map((factory) => factory(this.context))
+      .forEach(({ inbound, outbound }) => {
+        if (inbound) this.interceptors.inbound.push(inbound);
+        if (outbound) this.interceptors.outbound.push(outbound);
+      });
+  }
+
+  protected getLogAttributes(): Record<string, unknown> {
+    const logAttributes = activityLogAttributes(this.info);
+    // In case some interceptor uses the logger while initializing...
+    if (this.interceptors == null) return logAttributes;
+    return composeInterceptors(this.interceptors.outbound, 'getLogAttributes', (a) => a)(logAttributes);
+  }
+
+  protected makeActivityLogger(): Logger {
+    const parentLogger = Runtime.instance().logger;
+    return {
+      log: (level, message, attrs) => {
+        return parentLogger.log(level, message, { ...this.getLogAttributes(), ...attrs });
+      },
+      trace: (message, attrs) => {
+        return parentLogger.trace(message, { ...this.getLogAttributes(), ...attrs });
+      },
+      debug: (message, attrs) => {
+        return parentLogger.debug(message, { ...this.getLogAttributes(), ...attrs });
+      },
+      info: (message, attrs) => {
+        return parentLogger.info(message, { ...this.getLogAttributes(), ...attrs });
+      },
+      warn: (message, attrs) => {
+        return parentLogger.warn(message, { ...this.getLogAttributes(), ...attrs });
+      },
+      error: (message, attrs) => {
+        return parentLogger.error(message, { ...this.getLogAttributes(), ...attrs });
+      },
     };
   }
 
   /**
    * Actually executes the function.
    *
-   * Exist mostly for cutting it out of the stack trace for failures.
+   * Any call up to this function and including this one will be trimmed out of stack traces.
    */
-  protected async execute({ args }: ActivityExecuteInput): Promise<coresdk.activity_result.IActivityExecutionResult> {
-    return await this.fn(...args);
+  protected async execute(fn: ActivityFunction<any[], any>, input: ActivityExecuteInput): Promise<unknown> {
+    let error: any = UNINITIALIZED; // In case someone decides to throw undefined...
+    const startTime = process.hrtime.bigint();
+    this.context.log.debug('Activity started');
+    try {
+      const executeNextHandler = ({ args }: any) => fn(...args);
+      const executeWithInterceptors = composeInterceptors(this.interceptors.inbound, 'execute', executeNextHandler);
+      return await executeWithInterceptors(input);
+    } catch (err: any) {
+      error = err;
+      throw err;
+    } finally {
+      const durationNanos = process.hrtime.bigint() - startTime;
+      const durationMs = Number(durationNanos / 1_000_000n);
+
+      if (error === UNINITIALIZED) {
+        this.context.log.debug('Activity completed', { durationMs });
+      } else if (
+        (error instanceof CancelledFailure || isAbortError(error)) &&
+        this.context.cancellationSignal.aborted
+      ) {
+        this.context.log.debug('Activity completed as cancelled', { durationMs });
+      } else if (error instanceof CompleteAsyncError) {
+        this.context.log.debug('Activity will complete asynchronously', { durationMs });
+      } else {
+        this.context.log.warn('Activity failed', { error, durationMs });
+      }
+    }
   }
 
   public run(input: ActivityExecuteInput): Promise<coresdk.activity_result.IActivityExecutionResult> {
     return asyncLocalStorage.run(this.context, async (): Promise<coresdk.activity_result.IActivityExecutionResult> => {
       try {
-        const execute = composeInterceptors(this.interceptors.inbound, 'execute', (inp) => this.execute(inp));
-        const result = await execute(input);
+        if (this.fn === undefined) throw new IllegalStateError('Activity function is not defined');
+        const result = await this.execute(this.fn, input);
         return { completed: { result: await encodeToPayload(this.dataConverter, result) } };
       } catch (err) {
         if (err instanceof CompleteAsyncError) {
@@ -111,4 +176,27 @@ export class Activity {
       }
     });
   }
+
+  public runNoEncoding(fn: ActivityFunction<any[], any>, input: ActivityExecuteInput): Promise<unknown> {
+    if (this.fn !== undefined) throw new IllegalStateError('Activity function is defined');
+    return asyncLocalStorage.run(this.context, () => this.execute(fn, input));
+  }
+}
+
+/**
+ * Returns a map of attributes to be set on log messages for a given Activity
+ */
+export function activityLogAttributes(info: Info): Record<string, unknown> {
+  return {
+    isLocal: info.isLocal,
+    attempt: info.attempt,
+    namespace: info.workflowNamespace,
+    taskToken: info.base64TaskToken,
+    workflowId: info.workflowExecution.workflowId,
+    workflowRunId: info.workflowExecution.runId,
+    workflowType: info.workflowType,
+    activityId: info.activityId,
+    activityType: info.activityType,
+    taskQueue: info.taskQueue,
+  };
 }

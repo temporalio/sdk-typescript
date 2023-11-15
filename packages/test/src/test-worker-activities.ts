@@ -88,7 +88,7 @@ test('Worker runs an activity and reports failure', async (t) => {
           source: 'TypeScriptSDK',
           stackTrace: dedent`
             Error: :(
-                at Activity.throwAnError (test/src/activities/index.ts)
+                at throwAnError (test/src/activities/index.ts)
           `,
           applicationFailureInfo: { type: 'Error', nonRetryable: false },
         },

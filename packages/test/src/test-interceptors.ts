@@ -35,12 +35,14 @@ if (RUN_INTEGRATION_TESTS) {
       ...defaultOptions,
       taskQueue,
       interceptors: {
-        activityInbound: [
+        activity: [
           () => ({
-            async execute(input, next) {
-              const encoded = input.headers.message;
-              const receivedMessage = encoded ? defaultPayloadConverter.fromPayload(encoded) : '';
-              return next({ ...input, args: [receivedMessage] });
+            inbound: {
+              async execute(input, next) {
+                const encoded = input.headers.message;
+                const receivedMessage = encoded ? defaultPayloadConverter.fromPayload(encoded) : '';
+                return next({ ...input, args: [receivedMessage] });
+              },
             },
           }),
         ],
@@ -124,7 +126,7 @@ if (RUN_INTEGRATION_TESTS) {
     });
   });
 
-  test.serial('WorkflowClientCallsInterceptor intercepts terminate and cancel (deprecated factory form)', async (t) => {
+  test.serial('(Legacy) WorkflowClientCallsInterceptor intercepts terminate and cancel', async (t) => {
     const taskQueue = 'test-interceptor-term-and-cancel';
     const message = uuid4();
     // Use these to coordinate with workflow activation to complete only after termination
@@ -245,7 +247,6 @@ if (RUN_INTEGRATION_TESTS) {
       ApplicationFailure: Expected anything other than 1
           at Function.nonRetryable (common/src/failure.ts)
           at Object.continueAsNew (test/src/workflows/interceptor-example.ts)
-          at next (common/src/interceptors.ts)
           at workflow/src/workflow.ts
           at continueAsNewToDifferentWorkflow (test/src/workflows/continue-as-new-to-different-workflow.ts)
     `

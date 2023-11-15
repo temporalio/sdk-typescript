@@ -253,14 +253,17 @@ export class Context {
   /**
    * The logger for this Activity.
    *
-   * This defaults to the `Runtime`'s Logger (see {@link Runtime.logger}). If the {@link ActivityInboundLogInterceptor}
-   * is installed (by default, it is; see {@link WorkerOptions.interceptors}), then various attributes from the current
-   * Activity context will automatically be included as metadata on every log entries, and some key events of the
-   * Activity's life cycle will automatically be logged (at 'DEBUG' level for most messages; 'WARN' for failures).
+   * This defaults to the `Runtime`'s Logger (see {@link Runtime.logger}). Attributes from the current Activity context
+   * will automatically be included as metadata on every log entries, and some key events of the Activity's lifecycle
+   * will automatically be logged (at 'DEBUG' level for most messages; 'WARN' for failures).
    *
-   * To use a different Logger, either overwrite this property from an Activity Interceptor, or explicitly register the
-   * `ActivityInboundLogInterceptor` with your custom Logger. You may also subclass `ActivityInboundLogInterceptor` to
-   * customize attributes that are emitted as metadata.
+   * To customize log attributes, register a {@link ActivityOutboundCallsInterceptor} that intercepts the
+   * `getLogAttributes()` method.
+   *
+   * Modifying the context logger (eg. `context.log = myCustomLogger` or by an {@link ActivityInboundLogInterceptor}
+   * with a custom logger as argument) is deprecated. Doing so will prevent automatic inclusion of custom log attributes
+   * through the `getLogAttributes()` interceptor. To customize _where_ log messages are sent, set the
+   * {@link Runtime.logger} property instead.
    */
   public log: Logger;
 
@@ -274,13 +277,13 @@ export class Context {
     cancelled: Promise<never>,
     cancellationSignal: AbortSignal,
     heartbeat: (details?: any) => void,
-    logger: Logger
+    log: Logger
   ) {
     this.info = info;
     this.cancelled = cancelled;
     this.cancellationSignal = cancellationSignal;
     this.heartbeatFn = heartbeat;
-    this.log = logger;
+    this.log = log;
   }
 
   /**

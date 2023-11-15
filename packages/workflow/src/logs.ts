@@ -15,7 +15,7 @@ export interface WorkflowLogger extends Sink {
  *
  * @deprecated Do not use LoggerSinks directly. To log from Workflow code, use the `log` object
  *             exported by the `@temporalio/workflow` package. To capture log messages emitted
- *             by Workflow code, set the {@see Runtime.logger} property.
+ *             by Workflow code, set the {@link Runtime.logger} property.
  */
 export interface LoggerSinksDeprecated extends Sinks {
   /**

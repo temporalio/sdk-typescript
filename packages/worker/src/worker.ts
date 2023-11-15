@@ -46,8 +46,7 @@ import * as native from '@temporalio/core-bridge';
 import { ShutdownError, UnexpectedError } from '@temporalio/core-bridge';
 import { coresdk, temporal } from '@temporalio/proto';
 import { type SinkCall, type WorkflowInfo } from '@temporalio/workflow';
-import { Activity, CancelReason } from './activity';
-import { activityLogAttributes } from './activity-log-interceptor';
+import { Activity, CancelReason, activityLogAttributes } from './activity';
 import { extractNativeClient, extractReferenceHolders, InternalNativeConnection, NativeConnection } from './connection';
 import { ActivityExecuteInput } from './interceptors';
 import { Logger } from './logger';
@@ -621,7 +620,7 @@ export class Worker {
       if (compiledOptions.bundlerOptions) {
         logger.warn('Ignoring WorkerOptions.bundlerOptions because WorkerOptions.workflowBundle is set');
       }
-      const modules = compiledOptions.interceptors?.workflowModules;
+      const modules = compiledOptions.interceptors.workflowModules;
       // Warn if user tries to customize the default set of workflow interceptor modules
       if (modules && new Set([...modules, ...defaultWorkflowInterceptorModules]).size !== modules.length) {
         logger.warn(
@@ -642,7 +641,7 @@ export class Worker {
       const bundler = new WorkflowCodeBundler({
         logger,
         workflowsPath: compiledOptions.workflowsPath,
-        workflowInterceptorModules: compiledOptions.interceptors?.workflowModules,
+        workflowInterceptorModules: compiledOptions.interceptors.workflowModules,
         failureConverterPath: compiledOptions.dataConverter?.failureConverterPath,
         payloadConverterPath: compiledOptions.dataConverter?.payloadConverterPath,
         ignoreModules: compiledOptions.bundlerOptions?.ignoreModules,
@@ -905,7 +904,7 @@ export class Worker {
                           activity?.cancel('HEARTBEAT_DETAILS_CONVERSION_FAILED'); // activity must be defined
                         },
                       }),
-                    { inbound: this.options.interceptors?.activityInbound }
+                    this.options.interceptors.activity
                   );
                   output = { type: 'run', activity, input };
                   break;
