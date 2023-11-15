@@ -4,7 +4,6 @@ import { firstValueFrom, Subject } from 'rxjs';
 import { WorkflowFailedError, WorkflowHandle, WorkflowStartOptions } from '@temporalio/client';
 import { TestWorkflowEnvironment, workflowInterceptorModules } from '@temporalio/testing';
 import {
-  appendDefaultInterceptors,
   bundleWorkflowCode,
   DefaultLogger,
   LogLevel,
@@ -53,9 +52,9 @@ function helpers(t: ExecutionContext<Context>): Helpers {
         connection: t.context.env.nativeConnection,
         workflowBundle: t.context.workflowBundle,
         taskQueue,
-        interceptors: appendDefaultInterceptors({
-          activityInbound: [() => new ConnectionInjectorInterceptor(t.context.env.connection)],
-        }),
+        interceptors: {
+          activity: [() => ({ inbound: new ConnectionInjectorInterceptor(t.context.env.connection) })],
+        },
         showStackTraceSources: true,
         ...opts,
       });

@@ -17,9 +17,7 @@ export {
   PrometheusMetricsExporter,
   TelemetryOptions,
 } from '@temporalio/core-bridge';
-export { LoggerSinks } from '@temporalio/workflow';
-export { ActivityInboundLogInterceptor, activityLogAttributes } from './activity-log-interceptor';
-export { NativeConnection as NativeConnection } from './connection';
+export { NativeConnection } from './connection';
 export { NativeConnectionOptions, RequiredNativeConnectionOptions, TLSConfig } from './connection-options';
 export { startDebugReplayer } from './debug-replayer';
 export { IllegalStateError } from '@temporalio/common';
@@ -39,29 +37,77 @@ export {
   WorkerStatus,
 } from './worker';
 export {
-  appendDefaultInterceptors,
   CompiledWorkerOptions,
-  defaultSinks,
   ReplayWorkerOptions,
   WorkerOptions,
   WorkflowBundle,
   WorkflowBundleOption,
   WorkflowBundlePath,
-  WorkflowBundlePathWithSourceMap, // eslint-disable-line deprecation/deprecation
 } from './worker-options';
 export { ReplayError, ReplayHistoriesIterable, ReplayResult } from './replay';
+export { BundleOptions, bundleWorkflowCode, WorkflowBundleWithSourceMap } from './workflow/bundler';
+
+// Anything below this line is deprecated
+
 export {
+  /**
+   * @deprecated `ActivityInboundLogInterceptor` is deprecated. Activity lifecycle events are now automatically logged
+   *             by the SDK. To customize activity log attributes, register a custom {@link ActivityOutboundCallsInterceptor}
+   *             that intercepts the `getLogAttributes()` method. To customize where log messages are sent,
+   *             set the {@link Runtime.logger} property.
+   */
+  ActivityInboundLogInterceptor, // eslint-disable-line deprecation/deprecation
+} from './activity-log-interceptor';
+export {
+  /**
+   * @deprecated This function is meant for internal usage. Don't use it.
+   */
+  activityLogAttributes,
+} from './activity';
+export {
+  /**
+   * @deprecated Including `appendDefaultInterceptors()` in the worker options is no longer required. To configure a
+   *             custom logger, set the {@see Runtime.logger} property instead.
+   */
+  appendDefaultInterceptors, // eslint-disable-line deprecation/deprecation
+  /**
+   * @deprecated Including `defaultSinks()` in the worker options is no longer required. To configure
+   *             a custom logger, set the {@link Runtime.logger} property instead.
+   */
+  defaultSinks, // eslint-disable-line deprecation/deprecation
+  /**
+   * @deprecated This no longer contains a source map. Use {@link WorkflowBundlePath} instead.
+   */
+  WorkflowBundlePathWithSourceMap, // eslint-disable-line deprecation/deprecation
+} from './worker-options';
+export {
+  /**
+   * @deprecated Do not use `LoggerSinks` directly. To log from Workflow code, use the `log` object exported by the `@temporalio/workflow`
+   *             package. To capture log messages emitted by Workflow code, set the {@link Runtime.logger} property.
+   */
+  LoggerSinks, // eslint-disable-line deprecation/deprecation
+} from '@temporalio/workflow';
+export {
+  /**
+   * @deprecated `WorkflowInboundLogInterceptor` is deprecated. Workflow lifecycle events are now automatically logged
+   *             by the SDK. To customize workflow log attributes, simply register a custom `WorkflowInterceptors` that
+   *             intercepts the `outbound.getLogAttributes()` method.
+   */
   WorkflowInboundLogInterceptor, // eslint-disable-line deprecation/deprecation
-  WorkflowLogInterceptor,
-  workflowLogAttributes,
+  /**
+   * @deprecated `WorkflowLogInterceptor` is deprecated. Workflow lifecycle events are now automatically logged
+   *             by the SDK. To customize workflow log attributes, simply register a custom `WorkflowInterceptors` that
+   *             intercepts the `outbound.getLogAttributes()` method.
+   */
+  WorkflowLogInterceptor, // eslint-disable-line deprecation/deprecation
 } from './workflow-log-interceptor';
 export {
-  BundleOptions,
-  bundleWorkflowCode,
-  defaultWorkflowInterceptorModules,
   /**
-   * @deprecated Use `defaultWorkflowInterceptorModules` instead
+   * @deprecated This function is meant for internal usage. Don't use it.
    */
-  defaultWorkflowInterceptorModules as defaultWorflowInterceptorModules,
-  WorkflowBundleWithSourceMap,
-} from './workflow/bundler';
+  workflowLogAttributes,
+} from '@temporalio/workflow/lib/logs';
+/**
+ * @deprecated Including `defaultWorkflowInterceptorModules` in BundlerOptions.workflowInterceptorModules is no longer required.
+ */
+export const defaultWorkflowInterceptorModules = [];

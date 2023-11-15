@@ -14,7 +14,6 @@ import { msToNumber } from '@temporalio/common/lib/time';
 import { temporal } from '@temporalio/proto';
 import { TestWorkflowEnvironment, workflowInterceptorModules } from '@temporalio/testing';
 import {
-  appendDefaultInterceptors,
   bundleWorkflowCode,
   DefaultLogger,
   LogLevel,
@@ -61,11 +60,11 @@ function helpers(t: ExecutionContext<Context>): Helpers {
         connection: t.context.env.nativeConnection,
         workflowBundle: t.context.workflowBundle,
         taskQueue,
-        interceptors: appendDefaultInterceptors({
-          activityInbound: interceptors?.activityInbound ?? [
-            () => new ConnectionInjectorInterceptor(t.context.env.connection),
+        interceptors: {
+          activity: interceptors?.activity ?? [
+            () => ({ inbound: new ConnectionInjectorInterceptor(t.context.env.connection) }),
           ],
-        }),
+        },
         showStackTraceSources: true,
         ...rest,
       });
@@ -505,11 +504,13 @@ test.serial('Local activity can be intercepted', async (t) => {
       },
     },
     interceptors: {
-      activityInbound: [
+      activity: [
         () => ({
-          async execute(input, next) {
-            t.is(defaultPayloadConverter.fromPayload(input.headers.secret), 'shhh');
-            return await next(input);
+          inbound: {
+            async execute(input, next) {
+              t.is(defaultPayloadConverter.fromPayload(input.headers.secret), 'shhh');
+              return await next(input);
+            },
           },
         }),
       ],

@@ -34,9 +34,9 @@ import {
   WorkflowNotFoundError,
 } from '@temporalio/common';
 import { msToNumber, tsToMs } from '@temporalio/common/lib/time';
-import { decode, decodeFromPayloadsAtIndex, loadDataConverter } from '@temporalio/common/lib/internal-non-workflow';
+import { decode, decodeFromPayloadsAtIndex } from '@temporalio/common/lib/internal-non-workflow';
 import * as iface from '@temporalio/proto';
-import { appendDefaultInterceptors, DefaultLogger, makeTelemetryFilterString, Runtime } from '@temporalio/worker';
+import { DefaultLogger, makeTelemetryFilterString, Runtime } from '@temporalio/worker';
 import pkg from '@temporalio/worker/lib/pkg';
 import { UnsafeWorkflowInfo } from '@temporalio/workflow/src/interfaces';
 import * as activities from './activities';
@@ -95,9 +95,9 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
       activities,
       taskQueue: 'test',
       dataConverter,
-      interceptors: appendDefaultInterceptors({
-        activityInbound: [() => new ConnectionInjectorInterceptor(connection, loadDataConverter(dataConverter))],
-      }),
+      interceptors: {
+        activity: [() => ({ inbound: new ConnectionInjectorInterceptor(connection, loadedDataConverter) })],
+      },
       showStackTraceSources: true,
     });
 
@@ -222,7 +222,8 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
       cleanOptionalStackTrace(err.cause.cause.stack),
       dedent`
     Error: Fail me
-        at Activity.throwAnError (test/src/activities/index.ts)
+        at throwAnError (test/src/activities/index.ts)
+        at ConnectionInjectorInterceptor.execute (test/src/activities/interceptors.ts)
     `
     );
   });
@@ -256,7 +257,8 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
       dedent`
     ApplicationFailure: Fail me
         at Function.nonRetryable (common/src/failure.ts)
-        at Activity.throwAnError (test/src/activities/index.ts)
+        at throwAnError (test/src/activities/index.ts)
+        at ConnectionInjectorInterceptor.execute (test/src/activities/interceptors.ts)
       `
     );
   });

@@ -1,9 +1,11 @@
 /** TLS configuration options. */
 export interface TLSConfig {
   /**
-   * Overrides the target name used for SSL host name checking.
-   * If this attribute is not specified, the name used for SSL host name checking will be the host from {@link ServerOptions.url}.
-   * This _should_ be used for testing only.
+   * Overrides the target name (SNI) used for TLS host name checking.
+   * If this attribute is not specified, the name used for TLS host name checking will be the host from {@link ServerOptions.url}.
+   * This can be useful when you have reverse proxy in front of temporal server, and you may want to override the SNI to
+   * direct traffic to the appropriate backend server based on custom routing rules. Oppositely, connections could be refused
+   * if the provided SNI does not match the expected host. Adding this override should be done with care.
    */
   serverNameOverride?: string;
   /**

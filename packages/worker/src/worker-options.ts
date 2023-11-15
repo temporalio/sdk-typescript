@@ -5,14 +5,16 @@ import { DataConverter, LoadedDataConverter } from '@temporalio/common';
 import { Duration, msOptionalToNumber, msToNumber } from '@temporalio/common/lib/time';
 import { loadDataConverter } from '@temporalio/common/lib/internal-non-workflow';
 import { LoggerSinks } from '@temporalio/workflow';
+import { Context } from '@temporalio/activity';
 import { ActivityInboundLogInterceptor } from './activity-log-interceptor';
 import { NativeConnection } from './connection';
-import { WorkerInterceptors } from './interceptors';
+import { CompiledWorkerInterceptors, WorkerInterceptors } from './interceptors';
 import { Logger } from './logger';
+import { initLoggerSink } from './workflow/logger';
 import { Runtime } from './runtime';
 import { InjectedSinks } from './sinks';
 import { MiB } from './utils';
-import { defaultWorkflowInterceptorModules, WorkflowBundleWithSourceMap } from './workflow/bundler';
+import { WorkflowBundleWithSourceMap } from './workflow/bundler';
 
 export type { WebpackConfiguration };
 
@@ -407,11 +409,17 @@ export interface WorkerOptions {
   /**
    * A mapping of interceptor type to a list of factories or module paths.
    *
-   * By default, {@link ActivityInboundLogInterceptor} and {@link WorkflowInboundLogInterceptor} are installed. If you
-   * wish to customize the interceptors while keeping the defaults, use {@link appendDefaultInterceptors}.
+   * Interceptors are called in order, from the first to the last, each one making the call to the next one, and the
+   * last one calling the original (SDK provided) function.
    *
+   * By default, {@link WorkflowInboundLogInterceptor} is installed. If you wish to customize the interceptors while
+   * keeping the defaults, use {@link appendDefaultInterceptors}.
+
    * When using {@link workflowBundle}, these Workflow interceptors (`WorkerInterceptors.workflowModules`) are not used.
    * Instead, provide them via {@link BundleOptions.workflowInterceptorModules} when calling {@link bundleWorkflowCode}.
+   *
+   * Before v1.9.0, calling `appendDefaultInterceptors()` was required when registering custom interceptors in order to
+   * preserve SDK's logging interceptors. This is no longer the case.
    */
   interceptors?: WorkerInterceptors;
 
@@ -444,10 +452,9 @@ export interface WorkerOptions {
    * guarantees, please consider using local activities instead. For use cases that require
    * _exactly-once_ or _at-most-once_ execution guarantees, please consider using regular activities.
    *
-   * The SDK itself may register sinks functions required to support workflow features. At the moment, the only such
-   * sink is 'defaultWorkerLogger', which is used by the workflow context logger (ie. `workflow.log.info()` and
-   * friends); other sinks may be added in the future. You may override these default sinks by explicitely registering
-   * sinks with the same name.
+   * Sink names starting with `__temporal_` are reserved for use by the SDK itself. Do not register
+   * or use such sink. Registering a sink named `defaultWorkerLogger` to redirect workflow logs to a
+   * custom logger is deprecated. Register a custom logger through {@link Runtime.logger} instead.
    */
   sinks?: InjectedSinks<any>;
 
@@ -533,6 +540,8 @@ export type WorkerOptionsWithDefaults = WorkerOptions &
       | 'reuseV8Context'
     >
   > & {
+    interceptors: Required<WorkerInterceptors>;
+
     /**
      * Time to wait for result when calling a Workflow isolate function.
      * @format number of milliseconds or {@link https://www.npmjs.com/package/ms | ms-formatted string}
@@ -548,7 +557,8 @@ export type WorkerOptionsWithDefaults = WorkerOptions &
  * {@link WorkerOptions} where the attributes the Worker requires are required and time units are converted from ms
  * formatted strings to numbers.
  */
-export interface CompiledWorkerOptions extends Omit<WorkerOptionsWithDefaults, 'serverOptions'> {
+export interface CompiledWorkerOptions extends Omit<WorkerOptionsWithDefaults, 'serverOptions' | 'interceptors'> {
+  interceptors: CompiledWorkerInterceptors;
   shutdownGraceTimeMs: number;
   shutdownForceTimeMs?: number;
   isolateExecutionTimeoutMs: number;
@@ -594,59 +604,57 @@ export interface ReplayWorkerOptions
 }
 
 /**
- * Returns the `defaultWorkerLogger` sink which forwards logs from the Workflow sandbox to a given logger.
+ * Build the sink used internally by the SDK to forwards log messages from the Workflow sandbox to an actual logger.
  *
  * @param logger a {@link Logger} - defaults to the {@link Runtime} singleton logger.
+ *
+ * @deprecated Calling `defaultSink()` is no longer required. To configure a custom logger, set the
+ *             {@link Runtime.logger} property instead.
  */
+// eslint-disable-next-line deprecation/deprecation
 export function defaultSinks(logger?: Logger): InjectedSinks<LoggerSinks> {
-  return {
-    defaultWorkerLogger: {
-      trace: {
-        fn(_, message, attrs) {
-          logger ??= Runtime.instance().logger;
-          logger.trace(message, attrs);
-        },
-      },
-      debug: {
-        fn(_, message, attrs) {
-          logger ??= Runtime.instance().logger;
-          logger.debug(message, attrs);
-        },
-      },
-      info: {
-        fn(_, message, attrs) {
-          logger ??= Runtime.instance().logger;
-          logger.info(message, attrs);
-        },
-      },
-      warn: {
-        fn(_, message, attrs) {
-          logger ??= Runtime.instance().logger;
-          logger.warn(message, attrs);
-        },
-      },
-      error: {
-        fn(_, message, attrs) {
-          logger ??= Runtime.instance().logger;
-          logger.error(message, attrs);
-        },
-      },
-    },
-  };
+  // initLoggerSink() returns a sink that complies to the new LoggerSinksInternal API (ie. named __temporal_logger), but
+  // code that is still calling defaultSinks() expects return type to match the deprecated LoggerSinks API. Silently
+  // cast just to mask type checking issues, even though we know this is wrong. Users shouldn't call functions directly
+  // on the returned object anyway.
+  // eslint-disable-next-line deprecation/deprecation
+  return initLoggerSink(logger) as unknown as InjectedSinks<LoggerSinks>;
 }
 
 /**
  * Appends the default Worker logging interceptors to given interceptor arrays.
  *
  * @param logger a {@link Logger} - defaults to the {@link Runtime} singleton logger.
+ *
+ * @deprecated Calling `appendDefaultInterceptors()` is no longer required. To configure a custom logger, set the
+ *             {@see Runtime.logger} property instead.
  */
 export function appendDefaultInterceptors(
   interceptors: WorkerInterceptors,
   logger?: Logger | undefined
 ): WorkerInterceptors {
+  if (!logger || logger === Runtime.instance().logger) return interceptors;
+
   return {
-    activityInbound: [...(interceptors.activityInbound ?? []), (ctx) => new ActivityInboundLogInterceptor(ctx, logger)],
-    workflowModules: [...(interceptors.workflowModules ?? []), ...defaultWorkflowInterceptorModules],
+    activityInbound: [
+      // eslint-disable-next-line deprecation/deprecation
+      (ctx) => new ActivityInboundLogInterceptor(ctx, logger),
+      // eslint-disable-next-line deprecation/deprecation
+      ...(interceptors.activityInbound ?? []),
+    ],
+    activity: interceptors.activity,
+    workflowModules: interceptors.workflowModules,
+  };
+}
+
+export function compileWorkerInterceptors({
+  activity,
+  activityInbound, // eslint-disable-line deprecation/deprecation
+  workflowModules,
+}: Required<WorkerInterceptors>): CompiledWorkerInterceptors {
+  return {
+    activity: [...activityInbound.map((factory) => (ctx: Context) => ({ inbound: factory(ctx) })), ...activity],
+    workflowModules,
   };
 }
 
@@ -660,6 +668,7 @@ export function addDefaultWorkerOptions(options: WorkerOptions): WorkerOptionsWi
     reuseV8Context,
     sinks,
     nonStickyToStickyPollRatio,
+    interceptors,
     ...rest
   } = options;
   const debugMode = options.debugMode || isSet(process.env.TEMPORAL_DEBUG);
@@ -695,9 +704,19 @@ export function addDefaultWorkerOptions(options: WorkerOptions): WorkerOptionsWi
     showStackTraceSources: showStackTraceSources ?? false,
     reuseV8Context: reuseV8Context ?? false,
     debugMode: debugMode ?? false,
-    interceptors: appendDefaultInterceptors({}),
+    interceptors: {
+      activity: interceptors?.activity ?? [],
+      // eslint-disable-next-line deprecation/deprecation
+      activityInbound: interceptors?.activityInbound ?? [],
+      workflowModules: interceptors?.workflowModules ?? [],
+    },
     nonStickyToStickyPollRatio: nonStickyToStickyPollRatio ?? 0.2,
-    sinks: { ...defaultSinks(), ...sinks },
+    sinks: {
+      ...initLoggerSink(Runtime.instance().logger),
+      // Fix deprecated registration of the 'defaultWorkerLogger' sink
+      ...(sinks?.defaultWorkerLogger ? { __temporal_logger: sinks.defaultWorkerLogger } : {}),
+      ...sinks,
+    },
     ...rest,
     maxConcurrentWorkflowTaskExecutions,
     maxConcurrentActivityTaskExecutions,
@@ -732,6 +751,7 @@ export function compileWorkerOptions(opts: WorkerOptionsWithDefaults): CompiledW
 
   return {
     ...opts,
+    interceptors: compileWorkerInterceptors(opts.interceptors),
     shutdownGraceTimeMs: msToNumber(opts.shutdownGraceTime),
     shutdownForceTimeMs: msOptionalToNumber(opts.shutdownForceTime),
     stickyQueueScheduleToStartTimeoutMs: msToNumber(opts.stickyQueueScheduleToStartTimeout),

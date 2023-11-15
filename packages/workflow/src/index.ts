@@ -98,7 +98,20 @@ export {
   UnsafeWorkflowInfo,
   WorkflowInfo,
 } from './interfaces';
-export { LoggerSinks, Sink, SinkCall, SinkFunction, Sinks } from './sinks';
+export { proxySinks, Sink, SinkCall, SinkFunction, Sinks } from './sinks';
+export { log } from './logs';
 export { Trigger } from './trigger';
 export * from './workflow';
 export { ChildWorkflowHandle, ExternalWorkflowHandle } from './workflow-handle';
+
+// Anything below this line is deprecated
+
+export {
+  /**
+   * @deprecated Do not use LoggerSinks directly. To log from Workflow code, use the `log` object
+   *             exported by the `@temporalio/workflow` package. To capture log messages emitted
+   *             by Workflow code, set the {@link Runtime.logger} property.
+   */
+  // eslint-disable-next-line deprecation/deprecation
+  LoggerSinksDeprecated as LoggerSinks,
+} from './logs';

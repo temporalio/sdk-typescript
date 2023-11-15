@@ -20,9 +20,10 @@ import {
   WorkflowClientOptions,
   WorkflowResultOptions,
 } from '@temporalio/client';
-import { ActivityFunction, CancelledFailure, Duration } from '@temporalio/common';
+import { ActivityFunction, Duration, defaultFailureConverter, defaultPayloadConverter } from '@temporalio/common';
 import { msToNumber, msToTs, tsToMs } from '@temporalio/common/lib/time';
-import { NativeConnection, Runtime } from '@temporalio/worker';
+import { ActivityInterceptorsFactory, NativeConnection, Runtime } from '@temporalio/worker';
+import { Activity } from '@temporalio/worker/lib/activity';
 import {
   EphemeralServer,
   EphemeralServerConfig,
@@ -364,6 +365,10 @@ export class TestWorkflowEnvironment {
   }
 }
 
+export interface MockActivityEnvironmentOptions {
+  interceptors?: ActivityInterceptorsFactory[];
+}
+
 /**
  * Used as the default activity info for Activities executed in the {@link MockActivityEnvironment}
  */
@@ -390,39 +395,40 @@ export const defaultActivityInfo: activity.Info = {
 /**
  * An execution environment for testing Activities.
  *
- * Mocks Activity {@link Context | activity.Context} and exposes hooks for
- * cancellation and heartbeats.
+ * Mocks Activity {@link Context | activity.Context} and exposes hooks for cancellation and heartbeats.
+ *
+ * Note that the `Context` object used by this environment will be reused for all activities that are run in this
+ * environment. Consequently, once `cancel()` is called, any further activity that gets executed in this environment
+ * will immediately be in a cancelled state.
  */
 export class MockActivityEnvironment extends events.EventEmitter {
   public cancel: (reason?: any) => void = () => undefined;
   public readonly context: activity.Context;
+  private readonly activity: Activity;
 
-  constructor(info?: Partial<activity.Info>) {
+  constructor(info?: Partial<activity.Info>, opts?: MockActivityEnvironmentOptions) {
     super();
-    const abortController = new AbortController();
-    const promise = new Promise<never>((_, reject) => {
-      this.cancel = (reason?: any) => {
-        abortController.abort();
-        reject(new CancelledFailure(reason));
-      };
-    });
     const heartbeatCallback = (details?: unknown) => this.emit('heartbeat', details);
-    this.context = new activity.Context(
+    const loadedDataConverter = {
+      payloadConverter: defaultPayloadConverter,
+      payloadCodecs: [],
+      failureConverter: defaultFailureConverter,
+    };
+    this.activity = new Activity(
       { ...defaultActivityInfo, ...info },
-      promise,
-      abortController.signal,
+      undefined,
+      loadedDataConverter,
       heartbeatCallback,
-      Runtime.instance().logger
+      opts?.interceptors ?? []
     );
-    promise.catch(() => {
-      /* avoid unhandled rejection */
-    });
+    this.context = this.activity.context;
+    this.cancel = this.activity.cancel;
   }
 
   /**
    * Run a function in Activity Context
    */
-  public run<P extends any[], R, F extends ActivityFunction<P, R>>(fn: F, ...args: P): Promise<R> {
-    return activity.asyncLocalStorage.run(this.context, fn, ...args);
+  public async run<P extends any[], R, F extends ActivityFunction<P, R>>(fn: F, ...args: P): Promise<R> {
+    return this.activity.runNoEncoding(fn as ActivityFunction<any, any>, { args, headers: {} }) as Promise<R>;
   }
 }

@@ -34,3 +34,10 @@ export async function logSinkTester(): Promise<void> {
     }`
   );
 }
+
+// eslint-disable-next-line deprecation/deprecation
+const { defaultWorkerLogger } = wf.proxySinks<wf.LoggerSinks>();
+
+export async function useDepreatedLoggerSinkWorkflow(): Promise<void> {
+  defaultWorkerLogger.info('Log message from workflow', { workflowId: wf.workflowInfo().workflowId });
+}

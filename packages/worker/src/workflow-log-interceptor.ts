@@ -1,74 +1,46 @@
 import {
-  isCancellation,
   Next,
   WorkflowExecuteInput,
   WorkflowInboundCallsInterceptor,
   WorkflowOutboundCallsInterceptor,
-  workflowInfo,
-  WorkflowInfo,
   WorkflowInterceptorsFactory,
-  log,
-  ContinueAsNew,
   GetLogAttributesInput,
 } from '@temporalio/workflow';
-import { untrackPromise } from '@temporalio/workflow/lib/stack-helpers';
 
 /**
- * Returns a map of attributes to be set on log messages for a given Workflow
+ * This interceptor used to be meant to log Workflow execution starts and completions, and attaches log attributes to
+ * `workflow.log` calls. It is now deprecated and behaves as a noop in all cases. It is only kept arround to avoid
+ * breaking code out there that was previously refering to it.
+ *
+ * @deprecated `WorkflowLogInterceptor` is deprecated. Workflow lifecycle events are now automatically logged
+ *             by the SDK. To customize workflow log attributes, simply register a custom `WorkflowInterceptors` that
+ *             intercepts the `outbound.getLogAttributes()` method.
  */
-export function workflowLogAttributes(info: WorkflowInfo): Record<string, unknown> {
-  return {
-    namespace: info.namespace,
-    taskQueue: info.taskQueue,
-    workflowId: info.workflowId,
-    runId: info.runId,
-    workflowType: info.workflowType,
-  };
-}
-
-/** Logs workflow execution starts and completions, attaches log attributes to `workflow.log` calls  */
 export class WorkflowLogInterceptor implements WorkflowInboundCallsInterceptor, WorkflowOutboundCallsInterceptor {
   getLogAttributes(
     input: GetLogAttributesInput,
     next: Next<WorkflowOutboundCallsInterceptor, 'getLogAttributes'>
   ): Record<string, unknown> {
-    return next({ ...input, ...workflowLogAttributes(workflowInfo()) });
+    return next(input);
   }
 
   execute(input: WorkflowExecuteInput, next: Next<WorkflowInboundCallsInterceptor, 'execute'>): Promise<unknown> {
-    log.debug('Workflow started');
-    const p = next(input).then(
-      (res) => {
-        log.debug('Workflow completed');
-        return res;
-      },
-      (error) => {
-        // Avoid using instanceof checks in case the modules they're defined in loaded more than once,
-        // e.g. by jest or when multiple versions are installed.
-        if (typeof error === 'object' && error != null) {
-          if (isCancellation(error)) {
-            log.debug('Workflow completed as cancelled');
-            throw error;
-          } else if (error instanceof ContinueAsNew) {
-            log.debug('Workflow continued as new');
-            throw error;
-          }
-        }
-        log.warn('Workflow failed', { error });
-        throw error;
-      }
-    );
-    // Avoid showing this interceptor in stack trace query
-    untrackPromise(p);
-    return p;
+    // Logging of workflow's lifecycle events is now handled in `workflow/src/logs.ts`
+    return next(input);
   }
 }
 
-/** @deprecated use {@link WorkflowLogInterceptor} instead */
+/**
+ * @deprecated `WorkflowInboundLogInterceptor` is deprecated. Workflow lifecycle events are now automatically logged
+ *             by the SDK. To customize workflow log attributes, simply register a custom `WorkflowInterceptors` that
+ *             intercepts the `outbound.getLogAttributes()` method.
+ */
+// eslint-disable-next-line deprecation/deprecation
 export const WorkflowInboundLogInterceptor = WorkflowLogInterceptor;
 
 // ts-prune-ignore-next
 export const interceptors: WorkflowInterceptorsFactory = () => {
+  // eslint-disable-next-line deprecation/deprecation
   const interceptor = new WorkflowLogInterceptor();
   return { inbound: [interceptor], outbound: [interceptor] };
 };
