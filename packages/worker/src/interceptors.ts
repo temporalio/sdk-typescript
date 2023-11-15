@@ -54,8 +54,8 @@ export interface ActivityOutboundCallsInterceptor {
 }
 
 export interface ActivityInterceptors {
-  inbound?: ActivityInboundCallsInterceptor[];
-  outbound?: ActivityOutboundCallsInterceptor[];
+  inbound?: ActivityInboundCallsInterceptor;
+  outbound?: ActivityOutboundCallsInterceptor;
 }
 
 /**

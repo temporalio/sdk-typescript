@@ -34,7 +34,7 @@ import {
   WorkflowNotFoundError,
 } from '@temporalio/common';
 import { msToNumber, tsToMs } from '@temporalio/common/lib/time';
-import { decode, decodeFromPayloadsAtIndex, loadDataConverter } from '@temporalio/common/lib/internal-non-workflow';
+import { decode, decodeFromPayloadsAtIndex } from '@temporalio/common/lib/internal-non-workflow';
 import * as iface from '@temporalio/proto';
 import { DefaultLogger, makeTelemetryFilterString, Runtime } from '@temporalio/worker';
 import pkg from '@temporalio/worker/lib/pkg';
@@ -96,7 +96,7 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
       taskQueue: 'test',
       dataConverter,
       interceptors: {
-        activity: [ConnectionInjectorInterceptor.createFactory(connection, loadDataConverter(dataConverter))],
+        activity: [() => ({ inbound: new ConnectionInjectorInterceptor(connection, loadedDataConverter) })],
       },
       showStackTraceSources: true,
     });

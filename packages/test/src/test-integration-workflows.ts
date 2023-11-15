@@ -53,7 +53,7 @@ function helpers(t: ExecutionContext<Context>): Helpers {
         workflowBundle: t.context.workflowBundle,
         taskQueue,
         interceptors: {
-          activity: [ConnectionInjectorInterceptor.createFactory(t.context.env.connection)],
+          activity: [() => ({ inbound: new ConnectionInjectorInterceptor(t.context.env.connection) })],
         },
         showStackTraceSources: true,
         ...opts,

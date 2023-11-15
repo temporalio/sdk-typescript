@@ -61,7 +61,9 @@ function helpers(t: ExecutionContext<Context>): Helpers {
         workflowBundle: t.context.workflowBundle,
         taskQueue,
         interceptors: {
-          activity: interceptors?.activity ?? [ConnectionInjectorInterceptor.createFactory(t.context.env.connection)],
+          activity: interceptors?.activity ?? [
+            () => ({ inbound: new ConnectionInjectorInterceptor(t.context.env.connection) }),
+          ],
         },
         showStackTraceSources: true,
         ...rest,
@@ -504,14 +506,12 @@ test.serial('Local activity can be intercepted', async (t) => {
     interceptors: {
       activity: [
         () => ({
-          inbound: [
-            {
-              async execute(input, next) {
-                t.is(defaultPayloadConverter.fromPayload(input.headers.secret), 'shhh');
-                return await next(input);
-              },
+          inbound: {
+            async execute(input, next) {
+              t.is(defaultPayloadConverter.fromPayload(input.headers.secret), 'shhh');
+              return await next(input);
             },
-          ],
+          },
         }),
       ],
     },

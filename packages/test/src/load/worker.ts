@@ -182,7 +182,7 @@ async function main() {
       maxConcurrentActivityTaskPolls,
       maxConcurrentWorkflowTaskPolls,
       interceptors: {
-        activity: [ConnectionInjectorInterceptor.createFactory(clientConnection)],
+        activity: [() => ({ inbound: new ConnectionInjectorInterceptor(clientConnection) })],
       },
       // Can't reuse the helper because it defines `test` and ava thinks it's an ava test.
       reuseV8Context: ['1', 't', 'true'].includes((process.env.REUSE_V8_CONTEXT ?? 'false').toLowerCase()),
