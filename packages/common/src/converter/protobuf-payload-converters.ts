@@ -192,7 +192,8 @@ function resetBufferInGlobal(hasChanged: boolean): void {
 function isProtobufType(type: unknown): type is Type {
   return (
     isRecord(type) &&
-    type.constructor.name === 'Type' &&
+    // constructor.name may get mangled by minifiers; thanksfuly protobufjs also sets a className property
+    (type.constructor as any).className === 'Type' &&
     hasOwnProperties(type, ['parent', 'name', 'create', 'encode', 'decode']) &&
     typeof type.name === 'string' &&
     typeof type.create === 'function' &&
@@ -214,7 +215,8 @@ function getNamespacedTypeName(node: Type | Namespace): string {
 }
 
 function isRoot(root: unknown): root is Root {
-  return isRecord(root) && root.constructor.name === 'Root';
+  // constructor.name may get mangled by minifiers; thanksfuly protobufjs also sets a className property
+  return isRecord(root) && (root.constructor as any).className === 'Root';
 }
 
 export interface DefaultPayloadConverterWithProtobufsOptions {
