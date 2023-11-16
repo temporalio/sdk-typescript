@@ -5,12 +5,9 @@ use neon::{
     prelude::*,
     types::{JsBoolean, JsNumber, JsString},
 };
-use std::{collections::HashMap, net::SocketAddr, time::Duration};
+use std::{collections::HashMap, time::Duration};
 use temporal_sdk_core::{
-    api::telemetry::{
-        Logger, MetricTemporality, MetricsExporter, OtelCollectorOptions, TelemetryOptions,
-        TelemetryOptionsBuilder,
-    },
+    api::telemetry::{TelemetryOptions, TelemetryOptionsBuilder},
     api::worker::{WorkerConfig, WorkerConfigBuilder},
     ephemeral_server::{
         TemporalDevServerConfig, TemporalDevServerConfigBuilder, TestServerConfig,
@@ -161,84 +158,9 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
             .expect("Core server gateway options must be valid"))
     }
 
-    fn as_telemetry_options(&self, cx: &mut FunctionContext) -> NeonResult<TelemetryOptions> {
-        let mut telemetry_opts = TelemetryOptionsBuilder::default();
-        telemetry_opts.no_temporal_prefix_for_metrics(
-            js_optional_value_getter!(cx, self, "noTemporalPrefixForMetrics", JsBoolean)
-                .unwrap_or_default(),
-        );
-
-        if let Some(ref logging) = js_optional_getter!(cx, self, "logging", JsObject) {
-            let filter = js_value_getter!(cx, logging, "filter", JsString);
-            if get_optional(cx, logging, "console").is_some() {
-                telemetry_opts.logging(Logger::Console { filter });
-            } else if get_optional(cx, logging, "forward").is_some() {
-                telemetry_opts.logging(Logger::Forward { filter });
-            } else {
-                cx.throw_type_error(
-                    "Invalid telemetryOptions.logging, expected either 'console' or 'forward' property",
-                )?;
-            }
-        }
-
-        if let Some(ref metrics) = js_optional_getter!(cx, self, "metrics", JsObject) {
-            if let Some(temporality) =
-                js_optional_value_getter!(cx, metrics, "temporality", JsString)
-            {
-                match temporality.as_str() {
-                    "cumulative" => {
-                        telemetry_opts.metric_temporality(MetricTemporality::Cumulative);
-                    }
-                    "delta" => {
-                        telemetry_opts.metric_temporality(MetricTemporality::Delta);
-                    }
-                    _ => {
-                        cx.throw_type_error("Invalid telemetryOptions.metrics.temporality, expected 'cumulative' or 'delta'")?;
-                    }
-                };
-            }
-            if let Some(ref prom) = js_optional_getter!(cx, metrics, "prometheus", JsObject) {
-                                let addr = js_value_getter!(cx, prom, "bindAddress", JsString);
-                match addr.parse::<SocketAddr>() {
-                    Ok(address) => telemetry_opts.metrics(MetricsExporter::Prometheus(address)),
-                    Err(_) => cx.throw_type_error(
-                        "Invalid telemetryOptions.metrics.prometheus.bindAddress",
-                    )?,
-                };
-            } else if let Some(ref otel) = js_optional_getter!(cx, metrics, "otel", JsObject) {
-                let url = js_value_getter!(cx, otel, "url", JsString);
-                let url = match Url::parse(&url) {
-                    Ok(url) => url,
-                    Err(_) => cx.throw_type_error("Invalid telemetryOptions.metrics.otel.url")?,
-                };
-                let headers =
-                    if let Some(ref headers) = js_optional_getter!(cx, otel, "headers", JsObject) {
-                        headers.as_hash_map_of_string_to_string(cx)?
-                    } else {
-                        Default::default()
-                    };
-                let metric_periodicity = Some(Duration::from_millis(js_value_getter!(
-                    cx,
-                    otel,
-                    "metricsExportInterval",
-                    JsNumber
-                ) as u64));
-                telemetry_opts.metrics(MetricsExporter::Otel(OtelCollectorOptions {
-                    url,
-                    headers,
-                    metric_periodicity,
-                }));
-            } else {
-                cx.throw_type_error(
-                    "Invalid telemetryOptions.metrics, missing `prometheus` or `otel` option",
-                )?
-            }
-        }
-
-        telemetry_opts.build().map_err(|reason| {
-            cx.throw_type_error::<_, TelemetryOptions>(format!("{}", reason))
-                .unwrap_err()
-        })
+    fn as_telemetry_options(&self, _: &mut FunctionContext) -> NeonResult<TelemetryOptions> {
+        let telemetry_opts = TelemetryOptionsBuilder::default();
+        Ok(telemetry_opts.build().unwrap())
     }
 
     fn as_worker_config(&self, cx: &mut FunctionContext) -> NeonResult<WorkerConfig> {

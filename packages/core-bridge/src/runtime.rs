@@ -145,13 +145,9 @@ pub fn start_bridge_loop(
                     headers,
                     callback,
                 } => {
-                    let runtime_clone = core_runtime.clone();
                     core_runtime.tokio_handle().spawn(async move {
                         match options
-                            .connect_no_namespace(
-                                runtime_clone.metric_meter().as_deref(),
-                                headers.map(|h| Arc::new(RwLock::new(h))),
-                            )
+                            .connect_no_namespace(None, headers.map(|h| Arc::new(RwLock::new(h))))
                             .await
                         {
                             Err(err) => {
