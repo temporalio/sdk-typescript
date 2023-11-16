@@ -149,7 +149,7 @@ pub fn start_bridge_loop(
                     core_runtime.tokio_handle().spawn(async move {
                         match options
                             .connect_no_namespace(
-                                runtime_clone.metric_meter().as_deref(),
+                                runtime_clone.telemetry().get_metric_meter(),
                                 headers.map(|h| Arc::new(RwLock::new(h))),
                             )
                             .await
