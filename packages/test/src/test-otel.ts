@@ -16,7 +16,7 @@ import {
   OpenTelemetryActivityInboundInterceptor,
 } from '@temporalio/interceptors-opentelemetry/lib/worker';
 import { OpenTelemetrySinks, SpanName, SPAN_DELIMITER } from '@temporalio/interceptors-opentelemetry/lib/workflow';
-import { DefaultLogger, InjectedSinks, makeTelemetryFilterString, Runtime } from '@temporalio/worker';
+import { DefaultLogger, InjectedSinks, Runtime } from '@temporalio/worker';
 import * as activities from './activities';
 import { ConnectionInjectorInterceptor } from './activities/interceptors';
 import { RUN_INTEGRATION_TESTS, Worker } from './helpers';
@@ -157,12 +157,6 @@ if (RUN_INTEGRATION_TESTS) {
     const logger = new DefaultLogger('DEBUG');
     Runtime.install({
       logger,
-      telemetryOptions: {
-        tracing: {
-          filter: makeTelemetryFilterString({ core: 'DEBUG' }),
-          otel: { url: oTelUrl },
-        },
-      },
     });
     const sinks: InjectedSinks<OpenTelemetrySinks> = {
       exporter: makeWorkflowExporter(exporter, staticResource),

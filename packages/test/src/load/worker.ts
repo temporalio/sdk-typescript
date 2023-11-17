@@ -110,7 +110,6 @@ async function main() {
   const maxConcurrentWorkflowTaskPolls = args['--max-wft-pollers'] ?? 2;
   const maxConcurrentActivityTaskPolls = args['--max-at-pollers'] ?? 2;
   const workflowThreadPoolSize: number | undefined = args['--wf-thread-pool-size'];
-  const oTelUrl = args['--otel-url'];
   const logLevel = (args['--log-level'] || 'INFO').toUpperCase();
   const logFile = args['--log-file'];
   const serverAddress = getRequired(args, '--server-address');
@@ -126,14 +125,6 @@ async function main() {
       filter: makeTelemetryFilterString({ core: logLevel as LogLevel }),
       forward: {},
     },
-    ...(oTelUrl
-      ? {
-          filter: makeTelemetryFilterString({ core: logLevel as LogLevel }),
-          tracing: {
-            otel: { url: oTelUrl },
-          },
-        }
-      : undefined),
   };
 
   const logger = logFile
