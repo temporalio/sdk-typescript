@@ -14,8 +14,10 @@ use temporal_client::{ClientInitError, ConfiguredClient, TemporalServiceClientWi
 use temporal_sdk_core::api::telemetry::{CoreTelemetry, TelemetryOptions};
 use temporal_sdk_core::CoreRuntime;
 use temporal_sdk_core::{
-    ephemeral_server::EphemeralServer as CoreEphemeralServer, init_replay_worker, init_worker,
-    replay::HistoryForReplay, ClientOptions, RetryClient, WorkerConfig,
+    ephemeral_server::EphemeralServer as CoreEphemeralServer,
+    init_replay_worker, init_worker,
+    replay::{HistoryForReplay, ReplayWorkerInput},
+    ClientOptions, RetryClient, WorkerConfig,
 };
 use tokio::sync::{
     mpsc::{channel, unbounded_channel, Sender, UnboundedReceiver, UnboundedSender},
@@ -247,7 +249,7 @@ pub fn start_bridge_loop(
                     callback,
                 } => {
                     let (tunnel, stream) = HistoryForReplayTunnel::new(runtime);
-                    match init_replay_worker(config, Box::pin(stream)) {
+                    match init_replay_worker(ReplayWorkerInput::new(config, Box::pin(stream))) {
                         Ok(worker) => {
                             let (tx, rx) = unbounded_channel();
                             core_runtime.tokio_handle().spawn(start_worker_loop(
