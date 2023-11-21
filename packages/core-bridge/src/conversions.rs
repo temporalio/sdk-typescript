@@ -5,18 +5,21 @@ use neon::{
     prelude::*,
     types::{JsBoolean, JsNumber, JsString},
 };
-use std::{collections::HashMap, net::SocketAddr, time::Duration, sync::Arc};
+use std::{collections::HashMap, net::SocketAddr, sync::Arc, time::Duration};
 use temporal_sdk_core::{
-    api::telemetry::{
-        Logger, MetricTemporality, TelemetryOptions,
-        TelemetryOptionsBuilder,
+    api::telemetry::{Logger, MetricTemporality, TelemetryOptions, TelemetryOptionsBuilder},
+    api::{
+        telemetry::{
+            metrics::CoreMeter, OtelCollectorOptionsBuilder, PrometheusExporterOptionsBuilder,
+        },
+        worker::{WorkerConfig, WorkerConfigBuilder},
     },
-    api::{worker::{WorkerConfig, WorkerConfigBuilder}, telemetry::{PrometheusExporterOptionsBuilder, metrics::CoreMeter, OtelCollectorOptionsBuilder}},
     ephemeral_server::{
         TemporalDevServerConfig, TemporalDevServerConfigBuilder, TestServerConfig,
         TestServerConfigBuilder,
     },
-    ClientOptions, ClientOptionsBuilder, ClientTlsConfig, RetryConfig, TlsConfig, Url, telemetry::{start_prometheus_metric_exporter, build_otlp_metric_exporter},
+    telemetry::{build_otlp_metric_exporter, start_prometheus_metric_exporter},
+    ClientOptions, ClientOptionsBuilder, ClientTlsConfig, RetryConfig, TlsConfig, Url,
 };
 
 pub enum EphemeralServerConfig {
@@ -163,7 +166,9 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
 
     fn as_telemetry_options(&self, cx: &mut FunctionContext) -> NeonResult<TelemetryOptions> {
         let mut telemetry_opts = TelemetryOptionsBuilder::default();
-        if js_optional_value_getter!(cx, self, "noTemporalPrefixForMetrics", JsBoolean).unwrap_or_default() {
+        if js_optional_value_getter!(cx, self, "noTemporalPrefixForMetrics", JsBoolean)
+            .unwrap_or_default()
+        {
             telemetry_opts.metric_prefix("".to_string());
         }
 
@@ -193,35 +198,45 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
                 let addr = js_value_getter!(cx, prom, "bindAddress", JsString);
                 match addr.parse::<SocketAddr>() {
                     Ok(addr) => options.socket_addr(addr),
-                    Err(_) => return cx.throw_type_error(
-                        "Invalid telemetryOptions.metrics.prometheus.bindAddress",
-                    )?,
+                    Err(_) => {
+                        return cx.throw_type_error(
+                            "Invalid telemetryOptions.metrics.prometheus.bindAddress",
+                        )?
+                    }
                 };
 
-
-                let options = options.build().expect("Failed to build prometheus exporter options");
-                let prom_info = start_prometheus_metric_exporter(options).expect("Failed creating prometheus exporter");
+                let options = options
+                    .build()
+                    .expect("Failed to build prometheus exporter options");
+                let prom_info = start_prometheus_metric_exporter(options)
+                    .expect("Failed creating prometheus exporter");
                 telemetry_opts.metrics(prom_info.meter as Arc<dyn CoreMeter>);
-
             } else if let Some(ref otel) = js_optional_getter!(cx, metrics, "otel", JsObject) {
                 let mut options = OtelCollectorOptionsBuilder::default();
 
                 let url = js_value_getter!(cx, otel, "url", JsString);
                 match Url::parse(&url) {
                     Ok(url) => options.url(url),
-                    Err(_) => return cx.throw_type_error("Invalid telemetryOptions.metrics.otel.url"),
+                    Err(_) => {
+                        return cx.throw_type_error("Invalid telemetryOptions.metrics.otel.url")
+                    }
                 };
 
                 if let Some(ref headers) = js_optional_getter!(cx, otel, "headers", JsObject) {
                     options.headers(headers.as_hash_map_of_string_to_string(cx)?);
                 };
 
-                if let Some(metric_periodicity) = js_optional_value_getter!(cx, otel, "metricsExportInterval", JsNumber).map(|f| f as u64) {
+                if let Some(metric_periodicity) =
+                    js_optional_value_getter!(cx, otel, "metricsExportInterval", JsNumber)
+                        .map(|f| f as u64)
+                {
                     options.metric_periodicity(Duration::from_millis(metric_periodicity));
                 }
 
                 // FIXME: Move temporality to the otel object
-                if let Some(temporality) = js_optional_value_getter!(cx, metrics, "temporality", JsString) {
+                if let Some(temporality) =
+                    js_optional_value_getter!(cx, metrics, "temporality", JsString)
+                {
                     match temporality.as_str() {
                         "cumulative" => options.metric_temporality(MetricTemporality::Cumulative),
                         "delta" => options.metric_temporality(MetricTemporality::Delta),
@@ -231,8 +246,11 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
                     };
                 };
 
-                let options = options.build().expect("Failed to build otlp exporter options");
-                let otlp_exporter = build_otlp_metric_exporter(options).expect("Failed to build otlp exporter");
+                let options = options
+                    .build()
+                    .expect("Failed to build otlp exporter options");
+                let otlp_exporter =
+                    build_otlp_metric_exporter(options).expect("Failed to build otlp exporter");
                 telemetry_opts.metrics(Arc::new(otlp_exporter) as Arc<dyn CoreMeter>);
             } else {
                 cx.throw_type_error(
