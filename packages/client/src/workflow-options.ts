@@ -65,6 +65,10 @@ export function compileWorkflowOptions<T extends WorkflowOptions>(options: T): W
   };
 }
 
+export interface WorkflowUpdateOptions {
+  readonly updateId?: string;
+}
+
 export type WorkflowSignalWithStartOptions<SignalArgs extends any[] = []> = SignalArgs extends [any, ...any[]]
   ? WorkflowSignalWithStartOptionsWithArgs<SignalArgs>
   : WorkflowSignalWithStartOptionsWithoutArgs<SignalArgs>;

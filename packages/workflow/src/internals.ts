@@ -12,7 +12,10 @@ import {
   WorkflowExecutionAlreadyStartedError,
   WorkflowQueryType,
   WorkflowSignalType,
+  WorkflowUpdateType,
   ProtoFailure,
+  WorkflowUpdateValidatorType,
+  ApplicationFailure,
 } from '@temporalio/common';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import { checkExtends } from '@temporalio/common/lib/type-helpers';
@@ -20,7 +23,7 @@ import type { coresdk } from '@temporalio/proto';
 import { alea, RNG } from './alea';
 import { RootCancellationScope } from './cancellation-scope';
 import { DeterminismViolationError, LocalActivityDoBackoff, isCancellation } from './errors';
-import { QueryInput, SignalInput, WorkflowExecuteInput, WorkflowInterceptors } from './interceptors';
+import { QueryInput, SignalInput, UpdateInput, WorkflowExecuteInput, WorkflowInterceptors } from './interceptors';
 import {
   ContinueAsNew,
   DefaultSignalHandler,
@@ -113,6 +116,11 @@ export class Activator implements ActivationHandler {
    * which delays query handler registration.
    */
   protected readonly bufferedQueries = Array<coresdk.workflow_activation.IQueryWorkflow>();
+
+  /**
+   * Mapping of update name to handler and validator
+   */
+  readonly updateHandlers = new Map<string, { handler: WorkflowUpdateType; validator?: WorkflowUpdateValidatorType }>();
 
   /**
    * Mapping of signal name to handler
@@ -477,7 +485,7 @@ export class Activator implements ActivationHandler {
     }
   }
 
-  // Intentionally not made function async so this handler doesn't show up in the stack trace
+  // Intentionally non-async function so this handler doesn't show up in the stack trace
   protected queryWorkflowNextHandler({ queryName, args }: QueryInput): Promise<unknown> {
     const fn = this.queryHandlers.get(queryName);
     if (fn === undefined) {
@@ -527,6 +535,108 @@ export class Activator implements ActivationHandler {
     );
   }
 
+  public doUpdate(activation: coresdk.workflow_activation.IDoUpdate): void {
+    const { id: updateId, name, headers, runValidator } = activation;
+    if (!updateId) {
+      throw new TypeError('Missing activation update id');
+    }
+    if (!name) {
+      throw new TypeError('Missing activation update name');
+    }
+    if (!this.updateHandlers.has(name)) {
+      // TODO (dan): Signal is able to handle this situation more gracefully by
+      // using this.bufferedSignals. Should something analogous exist for
+      // Update?
+      this.rejectUpdate(updateId, ApplicationFailure.nonRetryable(`Update has no handler: ${name}`));
+      return;
+    }
+    const execute = composeInterceptors(this.interceptors.inbound, 'handleUpdate', this.updateNextHandler.bind(this));
+
+    const validate = composeInterceptors(
+      this.interceptors.inbound,
+      'validateUpdate',
+      this.validateUpdateNextHandler.bind(this)
+    );
+
+    const makeInput = (): UpdateInput => ({
+      updateId,
+      args: arrayFromPayloads(this.payloadConverter, activation.input),
+      name,
+      headers: headers ?? {},
+    });
+
+    // The implementation below is responsible for upholding, and constrained
+    // by, the following contract:
+    //
+    // 1. During validation, any error must fail the Update; during the Update
+    //    itself, Temporal errors fail the Update whereas other errors fail the
+    //    activation.
+    //
+    // 2. The handler must not see any mutations of the arguments made by the
+    //    validator.
+    //
+    // 3. Any error when decoding/deserializing input must be caught and result
+    //    in rejection of the Update before it is accepted, even if there is no
+    //    validator.
+    //
+    // 4. The initial synchronous portion of the (async) Update handler should
+    //    be executed after the (sync) validator completes such that there is
+    //    minimal opportunity for a different concurrent task to be scheduled
+    //    between them.
+    //
+    // 5. The stack trace view provided in the Temporal UI must not be polluted
+    //    by promises that do not derive from user code. This implies that
+    //    async/await syntax may not be used.
+    //
+    // Note that there is a deliberately unhandled promise rejection below.
+    // These are caught elsewhere and fail the corresponding activation.
+    let input: UpdateInput;
+    try {
+      if (runValidator) {
+        validate(makeInput());
+      }
+      input = makeInput();
+    } catch (error) {
+      this.rejectUpdate(updateId, error);
+      return;
+    }
+    this.acceptUpdate(updateId);
+    untrackPromise(
+      execute(input)
+        .then((result) => this.completeUpdate(updateId, result))
+        .catch((error) => {
+          if (error instanceof TemporalFailure) {
+            this.rejectUpdate(updateId, error);
+          } else {
+            throw error;
+          }
+        })
+    );
+  }
+
+  // Intentionally non-async function so this handler doesn't show up in the
+  // stack trace. The user's handler may be a normal function or an async
+  // function.
+  protected updateNextHandler({ name, args }: UpdateInput): Promise<unknown> {
+    const entry = this.updateHandlers.get(name);
+    if (!entry) {
+      return Promise.reject(new IllegalStateError(`No registered update handler for update: ${name}`));
+    }
+    const { handler } = entry;
+    try {
+      return Promise.resolve(handler(...args));
+    } catch (error) {
+      return Promise.reject(error);
+    }
+  }
+
+  protected validateUpdateNextHandler({ name, args }: UpdateInput): void {
+    const { validator } = this.updateHandlers.get(name) ?? {};
+    if (validator) {
+      validator(...args);
+    }
+  }
+
   public async signalWorkflowNextHandler({ signalName, args }: SignalInput): Promise<void> {
     const fn = this.signalHandlers.get(signalName);
     if (fn) {
@@ -534,7 +644,7 @@ export class Activator implements ActivationHandler {
     } else if (this.defaultSignalHandler) {
       return await this.defaultSignalHandler(signalName, ...args);
     } else {
-      throw new IllegalStateError(`No registered signal handler for signal ${signalName}`);
+      throw new IllegalStateError(`No registered signal handler for signal: ${signalName}`);
     }
   }
 
@@ -653,6 +763,30 @@ export class Activator implements ActivationHandler {
       respondToQuery: {
         queryId,
         failed: this.errorToFailure(ensureTemporalFailure(error)),
+      },
+    });
+  }
+
+  private acceptUpdate(updateId: string): void {
+    const protocolInstanceId = updateId;
+    this.pushCommand({
+      updateResponse: { protocolInstanceId, accepted: this.payloadConverter.toPayload(null) },
+    });
+  }
+
+  private completeUpdate(updateId: string, result: unknown): void {
+    const protocolInstanceId = updateId;
+    this.pushCommand({
+      updateResponse: { protocolInstanceId, completed: this.payloadConverter.toPayload(result) },
+    });
+  }
+
+  private rejectUpdate(updateId: string, error: unknown): void {
+    const protocolInstanceId = updateId;
+    this.pushCommand({
+      updateResponse: {
+        protocolInstanceId,
+        rejected: this.errorToFailure(ensureTemporalFailure(error)),
       },
     });
   }

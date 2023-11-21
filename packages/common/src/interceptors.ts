@@ -27,7 +27,7 @@ export function composeInterceptors<I, M extends keyof I>(interceptors: I[], met
     const interceptor = interceptors[i];
     if (interceptor[method] !== undefined) {
       const prev = next;
-      // We loose type safety here because Typescript can't deduce that interceptor[method] is a function that returns
+      // We lose type safety here because Typescript can't deduce that interceptor[method] is a function that returns
       // the same type as Next<I, M>
       next = ((input: any) => (interceptor[method] as any)(input, prev)) as any;
     }

@@ -13,9 +13,9 @@ import {
   TerminateWorkflowExecutionResponse,
   WorkflowExecution,
 } from './types';
-import { CompiledWorkflowOptions } from './workflow-options';
+import { CompiledWorkflowOptions, WorkflowUpdateOptions } from './workflow-options';
 
-export { Next, Headers };
+export { Headers, Next };
 
 /** Input for WorkflowClientInterceptor.start */
 export interface WorkflowStartInput {
@@ -23,6 +23,23 @@ export interface WorkflowStartInput {
   readonly workflowType: string;
   readonly headers: Headers;
   readonly options: CompiledWorkflowOptions;
+}
+
+/** Input for WorkflowClientInterceptor.update */
+export interface WorkflowStartUpdateInput {
+  readonly updateName: string;
+  readonly args: unknown[];
+  readonly workflowExecution: WorkflowExecution;
+  readonly firstExecutionRunId?: string;
+  readonly headers: Headers;
+  readonly options: WorkflowUpdateOptions;
+}
+
+/** Output for WorkflowClientInterceptor.startUpdate */
+export interface WorkflowStartUpdateOutput {
+  readonly updateId: string;
+  readonly workflowRunId: string;
+  readonly outcome?: temporal.api.update.v1.IOutcome;
 }
 
 /** Input for WorkflowClientInterceptor.signal */
@@ -81,6 +98,15 @@ export interface WorkflowClientInterceptor {
    * {@link signalWithStart} most likely needs to be implemented too
    */
   start?: (input: WorkflowStartInput, next: Next<this, 'start'>) => Promise<string /* runId */>;
+  /**
+   * Intercept a service call to updateWorkflowExecution
+   *
+   * @experimental Update is an experimental feature.
+   */
+  startUpdate?: (
+    input: WorkflowStartUpdateInput,
+    next: Next<this, 'startUpdate'>
+  ) => Promise<WorkflowStartUpdateOutput>;
   /**
    * Intercept a service call to signalWorkflowExecution
    *

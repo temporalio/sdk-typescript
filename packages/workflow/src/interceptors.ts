@@ -18,6 +18,15 @@ export interface WorkflowExecuteInput {
   readonly headers: Headers;
 }
 
+/** Input for WorkflowInboundCallsInterceptor.handleUpdate and
+ * WorkflowInboundCallsInterceptor.validateUpdate */
+export interface UpdateInput {
+  readonly updateId: string;
+  readonly name: string;
+  readonly args: unknown[];
+  readonly headers: Headers;
+}
+
 /** Input for WorkflowInboundCallsInterceptor.handleSignal */
 export interface SignalInput {
   readonly signalName: string;
@@ -43,6 +52,15 @@ export interface WorkflowInboundCallsInterceptor {
    * @return result of the Workflow execution
    */
   execute?: (input: WorkflowExecuteInput, next: Next<this, 'execute'>) => Promise<unknown>;
+
+  /** Called when Update handler is called
+   *
+   * @return result of the Update
+   */
+  handleUpdate?: (input: UpdateInput, next: Next<this, 'handleUpdate'>) => Promise<unknown>;
+
+  /** Called when update validator called */
+  validateUpdate?: (input: UpdateInput, next: Next<this, 'validateUpdate'>) => void;
 
   /** Called when signal is delivered to a Workflow execution */
   handleSignal?: (input: SignalInput, next: Next<this, 'handleSignal'>) => Promise<void>;

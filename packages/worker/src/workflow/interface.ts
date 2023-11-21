@@ -9,7 +9,7 @@ export interface Workflow {
    * Activate the Workflow.
    *
    * This method should return a completion after processing a single activation.
-   * It is guaranteed to that only a single activation will be processed concurrently for a Workflow execution.
+   * It is guaranteed that only a single activation will be processed concurrently for a Workflow execution.
    */
   activate(
     activation: coresdk.workflow_activation.IWorkflowActivation

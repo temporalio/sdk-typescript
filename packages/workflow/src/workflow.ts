@@ -12,10 +12,12 @@ import {
   SignalDefinition,
   toPayloads,
   UntypedActivities,
+  UpdateDefinition,
   WithWorkflowArgs,
   Workflow,
   WorkflowResultType,
   WorkflowReturnType,
+  WorkflowUpdateValidatorType,
 } from '@temporalio/common';
 import { versioningIntentToProto } from '@temporalio/common/lib/versioning-intent-enum';
 import { Duration, msOptionalToTs, msToNumber, msToTs, tsToMs } from '@temporalio/common/lib/time';
@@ -37,6 +39,7 @@ import {
   DefaultSignalHandler,
   EnhancedStackTrace,
   Handler,
+  UpdateValidator,
   WorkflowInfo,
 } from './interfaces';
 import { LocalActivityDoBackoff } from './errors';
@@ -1089,6 +1092,21 @@ function conditionInner(fn: () => boolean): Promise<void> {
 }
 
 /**
+ * Define an update method for a Workflow.
+ *
+ * Definitions are used to register handler in the Workflow via {@link setHandler} and to update Workflows using a {@link WorkflowHandle}, {@link ChildWorkflowHandle} or {@link ExternalWorkflowHandle}.
+ * Definitions can be reused in multiple Workflows.
+ */
+export function defineUpdate<Ret, Args extends any[] = [], Name extends string = string>(
+  name: Name
+): UpdateDefinition<Ret, Args, Name> {
+  return {
+    type: 'update',
+    name,
+  } as UpdateDefinition<Ret, Args, Name>;
+}
+
+/**
  * Define a signal method for a Workflow.
  *
  * Definitions are used to register handler in the Workflow via {@link setHandler} and to signal Workflows using a {@link WorkflowHandle}, {@link ChildWorkflowHandle} or {@link ExternalWorkflowHandle}.
@@ -1119,19 +1137,39 @@ export function defineQuery<Ret, Args extends any[] = [], Name extends string = 
 }
 
 /**
- * Set a handler function for a Workflow query or signal.
+ * Set a handler function for a Workflow update, signal, or query.
  *
- * If this function is called multiple times for a given signal or query name the last handler will overwrite any previous calls.
+ * If this function is called multiple times for a given update, signal, or query name the last handler will overwrite any previous calls.
  *
- * @param def a {@link SignalDefinition} or {@link QueryDefinition} as returned by {@link defineSignal} or {@link defineQuery} respectively.
+ * @param def an {@link UpdateDefinition}, {@link SignalDefinition}, or {@link QueryDefinition} as returned by {@link defineUpdate}, {@link defineSignal}, or {@link defineQuery} respectively.
  * @param handler a compatible handler function for the given definition or `undefined` to unset the handler.
  */
 export function setHandler<Ret, Args extends any[], T extends SignalDefinition<Args> | QueryDefinition<Ret, Args>>(
   def: T,
   handler: Handler<Ret, Args, T> | undefined
-): void {
+): void;
+export function setHandler<Ret, Args extends any[], T extends UpdateDefinition<Ret, Args>>(
+  def: T,
+  handler: Handler<Ret, Args, T> | undefined,
+  options?: { validator: UpdateValidator<Args> }
+): void;
+
+export function setHandler<
+  Ret,
+  Args extends any[],
+  T extends UpdateDefinition<Ret, Args> | SignalDefinition<Args> | QueryDefinition<Ret, Args>
+>(def: T, handler: Handler<Ret, Args, T> | undefined, options?: { validator: UpdateValidator<Args> }): void {
   const activator = assertInWorkflowContext('Workflow.setHandler(...) may only be used from a Workflow Execution.');
-  if (def.type === 'signal') {
+  if (def.type === 'update') {
+    if (typeof handler === 'function') {
+      const validator = options?.validator as WorkflowUpdateValidatorType | undefined;
+      activator.updateHandlers.set(def.name, { handler, validator });
+    } else if (handler == null) {
+      activator.updateHandlers.delete(def.name);
+    } else {
+      throw new TypeError(`Expected handler to be either a function or 'undefined'. Got: '${typeof handler}'`);
+    }
+  } else if (def.type === 'signal') {
     if (typeof handler === 'function') {
       activator.signalHandlers.set(def.name, handler as any);
       activator.dispatchBufferedSignals();

@@ -4,6 +4,8 @@ export type Payload = temporal.api.common.v1.IPayload;
 
 /** Type that can be returned from a Workflow `execute` function */
 export type WorkflowReturnType = Promise<any>;
+export type WorkflowUpdateType = (...args: any[]) => Promise<any> | any;
+export type WorkflowUpdateValidatorType = (...args: any[]) => void;
 export type WorkflowSignalType = (...args: any[]) => Promise<void> | void;
 export type WorkflowQueryType = (...args: any[]) => any;
 
@@ -16,6 +18,29 @@ export type WorkflowQueryType = (...args: any[]) => any;
 export type Workflow = (...args: any[]) => WorkflowReturnType;
 
 declare const argsBrand: unique symbol;
+declare const retBrand: unique symbol;
+
+/**
+ * An interface representing a Workflow update definition, as returned from {@link defineUpdate}
+ *
+ * @remarks `Args` can be used for parameter type inference in handler functions and *WorkflowHandle methods.
+ * `Name` can optionally be specified with a string literal type to preserve type-level knowledge of the update name.
+ */
+export interface UpdateDefinition<Ret, Args extends any[] = [], Name extends string = string> {
+  type: 'update';
+  name: Name;
+  /**
+   * Virtual type brand to maintain a distinction between {@link UpdateDefinition} types with different args.
+   * This field is not present at run-time.
+   */
+  [argsBrand]: Args;
+  /**
+   * Virtual type brand to maintain a distinction between {@link UpdateDefinition} types with different return types.
+   * This field is not present at run-time.
+   */
+  [retBrand]: Ret;
+}
+
 /**
  * An interface representing a Workflow signal definition, as returned from {@link defineSignal}
  *
@@ -32,7 +57,6 @@ export interface SignalDefinition<Args extends any[] = [], Name extends string =
   [argsBrand]: Args;
 }
 
-declare const retBrand: unique symbol;
 /**
  * An interface representing a Workflow query definition as returned from {@link defineQuery}
  *
