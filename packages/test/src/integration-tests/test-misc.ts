@@ -1,105 +1,14 @@
-import { randomUUID } from 'crypto';
-import { ExecutionContext, TestFn } from 'ava';
 import { firstValueFrom, Subject } from 'rxjs';
-import { WorkflowFailedError, WorkflowHandle, WorkflowStartOptions } from '@temporalio/client';
-import { TestWorkflowEnvironment, workflowInterceptorModules } from '@temporalio/testing';
-import {
-  bundleWorkflowCode,
-  DefaultLogger,
-  LogLevel,
-  Runtime,
-  WorkerOptions,
-  WorkflowBundle,
-} from '@temporalio/worker';
+import { WorkflowFailedError } from '@temporalio/client';
 import * as activity from '@temporalio/activity';
-import * as workflow from '@temporalio/workflow';
-import { CancelReason } from '@temporalio/worker/lib/activity';
 import { tsToMs } from '@temporalio/common/lib/time';
-import { test as anyTest, bundlerOptions, Worker } from './helpers';
-import { activityStartedSignal } from './workflows/definitions';
-import { signalSchedulingWorkflow } from './activities/helpers';
-import { ConnectionInjectorInterceptor } from './activities/interceptors';
+import { CancelReason } from '@temporalio/worker/lib/activity';
+import * as workflow from '@temporalio/workflow';
+import { signalSchedulingWorkflow } from '../activities/helpers';
+import { activityStartedSignal } from '../workflows/definitions';
+import { helpers, makeTestFunction } from './helpers';
 
-interface Context {
-  env: TestWorkflowEnvironment;
-  workflowBundle: WorkflowBundle;
-}
-
-const test = anyTest as TestFn<Context>;
-
-interface Helpers {
-  taskQueue: string;
-  createWorker(opts?: Partial<WorkerOptions>): Promise<Worker>;
-  executeWorkflow<T extends () => Promise<any>>(workflowType: T): Promise<workflow.WorkflowResultType<T>>;
-  executeWorkflow<T extends workflow.Workflow>(
-    fn: T,
-    opts: Omit<WorkflowStartOptions<T>, 'taskQueue' | 'workflowId'>
-  ): Promise<workflow.WorkflowResultType<T>>;
-  startWorkflow<T extends () => Promise<any>>(workflowType: T): Promise<WorkflowHandle<T>>;
-  startWorkflow<T extends workflow.Workflow>(
-    fn: T,
-    opts: Omit<WorkflowStartOptions<T>, 'taskQueue' | 'workflowId'>
-  ): Promise<WorkflowHandle<T>>;
-}
-
-function helpers(t: ExecutionContext<Context>): Helpers {
-  const taskQueue = t.title.replace(/ /g, '_');
-
-  return {
-    taskQueue,
-    async createWorker(opts?: Partial<WorkerOptions>): Promise<Worker> {
-      return await Worker.create({
-        connection: t.context.env.nativeConnection,
-        workflowBundle: t.context.workflowBundle,
-        taskQueue,
-        interceptors: {
-          activity: [() => ({ inbound: new ConnectionInjectorInterceptor(t.context.env.connection) })],
-        },
-        showStackTraceSources: true,
-        ...opts,
-      });
-    },
-    async executeWorkflow(
-      fn: workflow.Workflow,
-      opts?: Omit<WorkflowStartOptions, 'taskQueue' | 'workflowId'>
-    ): Promise<any> {
-      return await t.context.env.client.workflow.execute(fn, {
-        taskQueue,
-        workflowId: randomUUID(),
-        ...opts,
-      });
-    },
-    async startWorkflow(
-      fn: workflow.Workflow,
-      opts?: Omit<WorkflowStartOptions, 'taskQueue' | 'workflowId'>
-    ): Promise<WorkflowHandle<workflow.Workflow>> {
-      return await t.context.env.client.workflow.start(fn, {
-        taskQueue,
-        workflowId: randomUUID(),
-        ...opts,
-      });
-    },
-  };
-}
-
-test.before(async (t) => {
-  // Ignore invalid log levels
-  Runtime.install({ logger: new DefaultLogger((process.env.TEST_LOG_LEVEL || 'DEBUG').toUpperCase() as LogLevel) });
-  const env = await TestWorkflowEnvironment.createLocal();
-  const workflowBundle = await bundleWorkflowCode({
-    ...bundlerOptions,
-    workflowInterceptorModules,
-    workflowsPath: __filename,
-  });
-  t.context = {
-    env,
-    workflowBundle,
-  };
-});
-
-test.after.always(async (t) => {
-  await t.context.env.teardown();
-});
+const test = makeTestFunction({ workflowsPath: __filename });
 
 export async function parent(): Promise<void> {
   await workflow.startChild(child, { workflowId: 'child' });

@@ -1,4 +1,10 @@
 /* eslint @typescript-eslint/no-non-null-assertion: 0 */
+
+/**
+ * Our most recent style of integration tests are those in the
+ * integration-tests/ directory. This file has been given the suffix -old to
+ * distinguish the different variants.
+ */
 import path from 'node:path';
 import v8 from 'node:v8';
 import { readFileSync } from 'node:fs';
