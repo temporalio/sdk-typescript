@@ -1,6 +1,6 @@
 import { randomUUID } from 'crypto';
-import { ErrorConstructor, ExecutionContext, TestFn } from 'ava';
-import { WorkflowFailedError, WorkflowHandle, WorkflowStartOptions } from '@temporalio/client';
+import { ExecutionContext, TestFn } from 'ava';
+import { WorkflowHandle, WorkflowStartOptions } from '@temporalio/client';
 import {
   LocalTestWorkflowEnvironmentOptions,
   TestWorkflowEnvironment,
