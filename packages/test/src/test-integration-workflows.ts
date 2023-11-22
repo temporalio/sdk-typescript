@@ -292,7 +292,6 @@ test('Start of workflow is delayed', async (t) => {
   });
   const { events } = await handle.fetchHistory();
   const workflowExecutionStartedEvent = events?.find((ev) => ev.workflowExecutionStartedEventAttributes);
-  console.log(workflowExecutionStartedEvent);
   const startDelay = workflowExecutionStartedEvent?.workflowExecutionStartedEventAttributes?.firstWorkflowTaskBackoff;
   t.is(tsToMs(startDelay), 5678000);
 });
@@ -310,7 +309,6 @@ test('Start of workflow with signal is delayed', async (t) => {
 
   const { events } = await handle.fetchHistory();
   const workflowExecutionStartedEvent = events?.find((ev) => ev.workflowExecutionStartedEventAttributes);
-  console.log(workflowExecutionStartedEvent);
   const startDelay = workflowExecutionStartedEvent?.workflowExecutionStartedEventAttributes?.firstWorkflowTaskBackoff;
   t.is(tsToMs(startDelay), 4678000);
 });

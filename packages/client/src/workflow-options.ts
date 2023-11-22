@@ -37,7 +37,6 @@ export interface WorkflowOptions extends CommonWorkflowOptions {
 
   /**
    * Amount of time to wait before starting the workflow.
-   * This is ignored within a Schedule, as expected by {@link ScheduleClient.create}.
    *
    * @experimental
    */
