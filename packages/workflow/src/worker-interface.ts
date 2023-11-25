@@ -6,7 +6,7 @@
 import { IllegalStateError } from '@temporalio/common';
 import { msToTs, tsToMs } from '@temporalio/common/lib/time';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
-import type { coresdk } from '@temporalio/proto';
+import { coresdk } from '@temporalio/proto';
 import { disableStorage } from './cancellation-scope';
 import { DeterminismViolationError } from './errors';
 import { WorkflowInterceptorsFactory } from './interceptors';
@@ -245,9 +245,11 @@ export function activate(activation: coresdk.workflow_activation.WorkflowActivat
  */
 export function concludeActivation(): coresdk.workflow_completion.IWorkflowActivationCompletion {
   const activator = getActivator();
+  activator.rejectBufferedUpdates();
   const intercept = composeInterceptors(activator.interceptors.internals, 'concludeActivation', (input) => input);
   const { info } = activator;
   const { commands } = intercept({ commands: activator.getAndResetCommands() });
+
   return {
     runId: info.runId,
     successful: { commands },

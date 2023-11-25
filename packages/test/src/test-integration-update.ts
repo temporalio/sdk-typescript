@@ -191,6 +191,73 @@ test('Update id can be assigned and is present on returned handle', async (t) =>
   });
 });
 
+// The following tests construct scenarios in which doUpdate jobs are packaged
+// together with startWorkflow in the first Activation. We test this because it
+// provides test coverage for Update buffering: were it not for the buffering,
+// we would attempt to start performing the Update (validate and handle) before
+// its handler is set, since sdk-core sorts Update jobs with Signal jobs, i.e.
+// ahead of jobs such as startWorkflow and completeActivity that might result in
+// a setHandler call. Also note that we do need to make this guarantee to users,
+// because a user might know that their Update is in the first WFT, for example
+// because they are doing something similar to what this test does to achieve
+// that.
+
+// TODO: we currently lack a way to ensure, without race conditions, via SDK
+// APIs, that Updates are packaged together with startWorkflow in the first
+// Activation. In lieu of a non-racy implementation, the test below does the
+// following:
+// 1. Client sends and awaits startWorkflow.
+// 2. Client sends but does not await executeUpdate.
+// 3. Wait for long enough to be confident that the server handled the
+//    executeUpdate and is now waiting for the Update to advance to Completed.
+// 4. Start the Worker.
+
+const stateMutatingUpdate = wf.defineUpdate('stateMutatingUpdate');
+
+export async function setUpdateHandlerAndExit(): Promise<string> {
+  let state = 'initial';
+  const mutateState = () => {
+    state = 'mutated-by-update';
+  };
+  wf.setHandler(stateMutatingUpdate, mutateState);
+  // If an Update is present in the first WFT, then the handler should be called
+  // before the workflow exits and the workflow return value should reflect its
+  // side effects.
+  return state;
+}
+
+test('Update is always delivered', async (t) => {
+  const { createWorker, startWorkflow } = helpers(t);
+  const wfHandle = await startWorkflow(setUpdateHandlerAndExit);
+  // eslint-disable-next-line @typescript-eslint/no-floating-promises
+  wfHandle.executeUpdate(stateMutatingUpdate);
+  await new Promise((res) => setTimeout(res, 1000));
+  const worker = await createWorker();
+  await worker.runUntil(async () => {
+    // Worker receives activation: [doUpdate, startWorkflow]
+    const wfResult = await wfHandle.result();
+    t.deepEqual(wfResult, 'mutated-by-update');
+  });
+});
+
+test('Two Updates in first WFT', async (t) => {
+  const { createWorker, startWorkflow } = helpers(t);
+  const wfHandle = await startWorkflow(workflowWithUpdates);
+  // eslint-disable-next-line @typescript-eslint/no-floating-promises
+  wfHandle.executeUpdate(update, { args: ['1'] });
+  // eslint-disable-next-line @typescript-eslint/no-floating-promises
+  wfHandle.executeUpdate(doneUpdate);
+  await new Promise((res) => setTimeout(res, 1000));
+  const worker = await createWorker();
+  await worker.runUntil(async () => {
+    // Worker receives activation: [doUpdate, doUpdate, startWorkflow]. The
+    // updates initially lack a handler, are pushed to a buffer, and are
+    // executed when their handler is available.
+    const wfResult = await wfHandle.result();
+    t.deepEqual(wfResult, ['1', 'done', '$']);
+  });
+});
+
 /* BEGIN: Test example from WorkflowHandle docstring */
 export const incrementSignal = wf.defineSignal<[number]>('increment');
 export const getValueQuery = wf.defineQuery<number>('getValue');

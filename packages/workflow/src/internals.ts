@@ -104,6 +104,11 @@ export class Activator implements ActivationHandler {
   };
 
   /**
+   * Holds buffered Update calls until a handler is registered
+   */
+  readonly bufferedUpdates = Array<coresdk.workflow_activation.IDoUpdate>();
+
+  /**
    * Holds buffered signal calls until a handler is registered
    */
   readonly bufferedSignals = Array<coresdk.workflow_activation.ISignalWorkflow>();
@@ -544,10 +549,7 @@ export class Activator implements ActivationHandler {
       throw new TypeError('Missing activation update name');
     }
     if (!this.updateHandlers.has(name)) {
-      // TODO (dan): Signal is able to handle this situation more gracefully by
-      // using this.bufferedSignals. Should something analogous exist for
-      // Update?
-      this.rejectUpdate(updateId, ApplicationFailure.nonRetryable(`Update has no handler: ${name}`));
+      this.bufferedUpdates.push(activation);
       return;
     }
     const execute = composeInterceptors(this.interceptors.inbound, 'handleUpdate', this.updateNextHandler.bind(this));
@@ -681,6 +683,29 @@ export class Activator implements ActivationHandler {
         const [signal] = bufferedSignals.splice(foundIndex, 1);
         this.signalWorkflow(signal);
       }
+    }
+  }
+
+  public dispatchBufferedUpdates(): void {
+    const bufferedUpdates = this.bufferedUpdates;
+    while (bufferedUpdates.length) {
+      const foundIndex = bufferedUpdates.findIndex((update) => update.name && this.updateHandlers.has(update.name));
+      if (foundIndex === -1) {
+        // No buffered Updates have a handler yet.
+        break;
+      }
+      const [update] = bufferedUpdates.splice(foundIndex, 1);
+      this.doUpdate(update);
+    }
+  }
+
+  public rejectBufferedUpdates(): void {
+    while (this.bufferedUpdates.length) {
+      const [update] = this.bufferedUpdates.splice(0, 1);
+      if (!update.id) {
+        throw new TypeError('Missing activation update id');
+      }
+      this.rejectUpdate(update.id, ApplicationFailure.nonRetryable(`Update has no handler: ${update.name}`));
     }
   }
 
