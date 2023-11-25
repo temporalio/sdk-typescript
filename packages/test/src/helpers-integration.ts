@@ -15,8 +15,8 @@ import {
   bundleWorkflowCode,
 } from '@temporalio/worker';
 import * as workflow from '@temporalio/workflow';
-import { ConnectionInjectorInterceptor } from '../activities/interceptors';
-import { Worker, test as anyTest, bundlerOptions } from '../helpers';
+import { ConnectionInjectorInterceptor } from './activities/interceptors';
+import { Worker, test as anyTest, bundlerOptions } from './helpers';
 
 export interface Context {
   env: TestWorkflowEnvironment;
