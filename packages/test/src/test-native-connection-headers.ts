@@ -12,9 +12,9 @@ test('NativeConnection passes headers provided in options', async (t) => {
   const packageDefinition = protoLoader.loadSync(
     path.resolve(
       __dirname,
-      '../../core-bridge/sdk-core/protos/api_upstream/temporal/api/workflowservice/v1/service.proto'
+      '../../core-bridge/sdk-core/sdk-core-protos/protos/api_upstream/temporal/api/workflowservice/v1/service.proto'
     ),
-    { includeDirs: [path.resolve(__dirname, '../../core-bridge/sdk-core/protos/api_upstream')] }
+    { includeDirs: [path.resolve(__dirname, '../../core-bridge/sdk-core/sdk-core-protos/protos/api_upstream')] }
   );
   const protoDescriptor = grpc.loadPackageDefinition(packageDefinition) as any;
 
