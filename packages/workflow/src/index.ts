@@ -20,18 +20,19 @@
  * <!--SNIPSTART typescript-schedule-activity-workflow-->
  * <!--SNIPEND-->
  *
- * ### Signals and Queries
+ * ### Updates, Signals and Queries
  *
- * To add signal handlers to a Workflow, add a signals property to the exported `workflow` object. Signal handlers can
- * return either `void` or `Promise<void>`, you may schedule activities and timers from a signal handler.
+ * Use {@link setHandler} to set handlers for Updates, Signals, and Queries.
  *
- * To add query handlers to a Workflow, add a queries property to the exported `workflow` object. Query handlers must
- * **not** mutate any variables or generate any commands (like Activities or Timers), they run synchronously and thus
- * **must** return a `Promise`.
+ * Update and Signal handlers can be functions or async functions, and you may schedule activities, child workflows, timers etc.
+ * Update handlers may return a value, but signal handlers may not (return `void` or `Promise<void>`).
+ *
+ * Query handlers may **not** be async functions, and may **not** mutate any variables or generate any commands
+ * (such as Activities or Timers).
  *
  * #### Implementation
  *
- * <!--SNIPSTART typescript-workflow-signal-implementation-->
+ * <!--SNIPSTART typescript-workflow-update-signal-query-example-->
  * <!--SNIPEND-->
  *
  * ### More
