@@ -101,6 +101,9 @@ module.exports = {
         docs: {
           sidebarPath: require.resolve('./sidebars.js'),
           routeBasePath: '/',
+          editUrl: ({ docPath }) => {
+            return `https://holocron.so/github/pr/temporalio/sdk-typescript/main/editor/packages/docs/docs/${docPath}`
+          },
         },
         theme: {
           customCss: require.resolve('./src/css/custom.css'),
