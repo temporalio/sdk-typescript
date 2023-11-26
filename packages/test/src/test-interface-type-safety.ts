@@ -1,5 +1,12 @@
 import test from 'ava';
-import { defineSignal, defineQuery, ExternalWorkflowHandle, ChildWorkflowHandle, Workflow } from '@temporalio/workflow';
+import {
+  defineSignal,
+  defineQuery,
+  ExternalWorkflowHandle,
+  ChildWorkflowHandle,
+  Workflow,
+  defineUpdate,
+} from '@temporalio/workflow';
 import { WorkflowHandle } from '@temporalio/client';
 
 test('SignalDefinition Name type safety', (t) => {
@@ -48,6 +55,36 @@ test('QueryDefinition Args and Ret type safety', (t) => {
 
   const argVariantA = defineQuery<string, [number]>('a');
   const argVariantB = defineQuery<string, [string]>('b');
+
+  type ArgTypeAssertion = typeof argVariantB extends typeof argVariantA ? 'intermixable' : 'not-intermixable';
+
+  const _argAssertion: ArgTypeAssertion = 'not-intermixable';
+  t.pass();
+});
+
+test('UpdateDefinition Name type safety', (t) => {
+  // @ts-expect-error Assert expect a type error when generic and concrete names do not match
+  defineUpdate<void, [string], 'mismatch'>('illegal value');
+
+  const updateA = defineUpdate<void, [string], 'a'>('a');
+  const updateB = defineUpdate<void, [string], 'b'>('b');
+
+  type TypeAssertion = typeof updateB extends typeof updateA ? 'intermixable' : 'not-intermixable';
+
+  const _assertion: TypeAssertion = 'not-intermixable';
+  t.pass();
+});
+
+test('UpdateDefinition Args and Ret type safety', (t) => {
+  const retVariantA = defineUpdate<string>('a');
+  const retVariantB = defineUpdate<number>('b');
+
+  type RetTypeAssertion = typeof retVariantB extends typeof retVariantA ? 'intermixable' : 'not-intermixable';
+
+  const _retAssertion: RetTypeAssertion = 'not-intermixable';
+
+  const argVariantA = defineUpdate<string, [number]>('a');
+  const argVariantB = defineUpdate<string, [string]>('b');
 
   type ArgTypeAssertion = typeof argVariantB extends typeof argVariantA ? 'intermixable' : 'not-intermixable';
 
