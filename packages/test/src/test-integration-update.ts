@@ -257,3 +257,57 @@ test('Two Updates in first WFT', async (t) => {
     t.deepEqual(wfResult, ['1', 'done', '$']);
   });
 });
+
+// The following test would fail if the point at which the Update handler is
+// executed differed between first execution and replay (in that case, the
+// Update implementation would be violating workflow determinism).
+const earlyExecutedUpdate = wf.defineUpdate('earlyExecutedUpdate');
+const handlerHasBeenExecutedQuery = wf.defineQuery<boolean>('handlerHasBeenExecutedQuery');
+const openGateSignal = wf.defineSignal('openGateSignal');
+
+export async function updateReplayTestWorkflow(): Promise<boolean> {
+  let handlerHasBeenExecuted = false;
+  wf.setHandler(earlyExecutedUpdate, () => void (handlerHasBeenExecuted = true));
+  const handlerWasExecutedEarly = handlerHasBeenExecuted;
+
+  wf.setHandler(handlerHasBeenExecutedQuery, () => handlerHasBeenExecuted);
+
+  let gateOpen = false;
+  wf.setHandler(openGateSignal, () => void (gateOpen = true));
+  await wf.condition(() => gateOpen);
+
+  return handlerWasExecutedEarly;
+}
+
+test('Update handler is called at same point during first execution and replay', async (t) => {
+  const { createWorker, startWorkflow } = helpers(t);
+
+  // Start a Workflow and an Update of that Workflow.
+  const wfHandle = await startWorkflow(updateReplayTestWorkflow);
+  // Race condition: wait long enough for the Update to have been admitted, so
+  // that it is in the first WFT, along with startWorkflow.
+  // eslint-disable-next-line @typescript-eslint/no-floating-promises
+  wfHandle.executeUpdate(earlyExecutedUpdate);
+  await new Promise((res) => setTimeout(res, 1000));
+
+  const worker1 = await createWorker();
+  // Worker1 advances the workflow beyond the point where the update handler is
+  // invoked.
+  await worker1.runUntil(async () => {
+    // Use a query to wait until the update handler has been executed (the query
+    // handler is not set until after the desired point).
+    t.true(await wfHandle.query(handlerHasBeenExecutedQuery));
+    // The workflow is now waiting for the gate to open.
+  });
+  // Worker2 does not have the workflow in cache so will replay.
+  const worker2 = await createWorker();
+  await worker2.runUntil(async () => {
+    await wfHandle.signal(openGateSignal);
+    const handlerWasExecutedEarly = await wfHandle.result();
+    // If the Update handler is invoked at the same point during replay as it
+    // was on first execution then this will pass. But if, for example, the
+    // handler was invoked during replay _after_ advancing workflow code (which
+    // would violate workflow determinism), then this would not pass.
+    t.is(handlerWasExecutedEarly, true);
+  });
+});
