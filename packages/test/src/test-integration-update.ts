@@ -1,3 +1,5 @@
+import { status as grpcStatus } from '@grpc/grpc-js';
+import { isGrpcServiceError } from '@temporalio/client';
 import * as wf from '@temporalio/workflow';
 import { helpers, makeTestFunction } from './helpers-integration';
 
@@ -56,6 +58,32 @@ test('Update can be executed via startUpdate() and handle.result()', async (t) =
 
     const wfResult = await wfHandle.result();
     t.deepEqual(wfResult, ['1', 'done', '$']);
+  });
+});
+
+test('Update handle can be created from identifiers and used to obtain result', async (t) => {
+  const { createWorker, startWorkflow } = helpers(t);
+  const worker = await createWorker();
+  await worker.runUntil(async () => {
+    const updateId = 'my-update-id';
+    const wfHandle = await startWorkflow(workflowWithUpdates);
+    const updateHandleFromStartUpdate = await wfHandle.startUpdate(update, { args: ['1'], updateId });
+
+    const updateHandle = wfHandle.getUpdateHandle(updateId, wfHandle.workflowId);
+    t.deepEqual(await updateHandle.result(), ['1']);
+
+    t.truthy(updateHandleFromStartUpdate.workflowRunId);
+    const updateHandle2 = wfHandle.getUpdateHandle(
+      updateId,
+      wfHandle.workflowId,
+      updateHandleFromStartUpdate.workflowRunId
+    );
+    t.deepEqual(await updateHandle2.result(), ['1']);
+
+    const incorrectRunId = wf.uuid4();
+    const updateHandle3 = wfHandle.getUpdateHandle(updateId, wfHandle.workflowId, incorrectRunId);
+    const err = await t.throwsAsync(updateHandle3.result());
+    t.true(isGrpcServiceError(err) && err.code === grpcStatus.NOT_FOUND);
   });
 });
 
