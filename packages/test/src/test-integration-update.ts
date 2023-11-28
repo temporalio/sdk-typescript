@@ -216,9 +216,7 @@ const stateMutatingUpdate = wf.defineUpdate('stateMutatingUpdate');
 
 export async function setUpdateHandlerAndExit(): Promise<string> {
   let state = 'initial';
-  const mutateState = () => {
-    state = 'mutated-by-update';
-  };
+  const mutateState = () => void (state = 'mutated-by-update');
   wf.setHandler(stateMutatingUpdate, mutateState);
   // If an Update is present in the first WFT, then the handler should be called
   // before the workflow exits and the workflow return value should reflect its
@@ -229,9 +227,13 @@ export async function setUpdateHandlerAndExit(): Promise<string> {
 test('Update is always delivered', async (t) => {
   const { createWorker, startWorkflow } = helpers(t);
   const wfHandle = await startWorkflow(setUpdateHandlerAndExit);
+
+  // Race condition: wait long enough for the Update to have been admitted, so
+  // that it is in the first WFT, along with startWorkflow.
   // eslint-disable-next-line @typescript-eslint/no-floating-promises
   wfHandle.executeUpdate(stateMutatingUpdate);
   await new Promise((res) => setTimeout(res, 1000));
+
   const worker = await createWorker();
   await worker.runUntil(async () => {
     // Worker receives activation: [doUpdate, startWorkflow]
@@ -243,11 +245,15 @@ test('Update is always delivered', async (t) => {
 test('Two Updates in first WFT', async (t) => {
   const { createWorker, startWorkflow } = helpers(t);
   const wfHandle = await startWorkflow(workflowWithUpdates);
+
+  // Race condition: wait long enough for the Updates to have been admitted, so
+  // that they are in the first WFT, along with startWorkflow.
   // eslint-disable-next-line @typescript-eslint/no-floating-promises
   wfHandle.executeUpdate(update, { args: ['1'] });
   // eslint-disable-next-line @typescript-eslint/no-floating-promises
   wfHandle.executeUpdate(doneUpdate);
   await new Promise((res) => setTimeout(res, 1000));
+
   const worker = await createWorker();
   await worker.runUntil(async () => {
     // Worker receives activation: [doUpdate, doUpdate, startWorkflow]. The

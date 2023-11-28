@@ -1171,18 +1171,14 @@ export function setHandler<Ret, Args extends any[], T extends UpdateDefinition<R
 //    of the activation?) What are the execution semantics of Workflow and
 //    Signal/Update handler code given that they are concurrent? Can the user
 //    rely on Signal/Update side effects being reflected in the Workflow return
-//    value, or in the value passed to Continue-As-New?
+//    value, or in the value passed to Continue-As-New? If the handler is an
+//    async function / coroutine, how much of it is executed and when is the
+//    rest executed?
 //
-// 3. If the handler is an async function / coroutine, how much of it is
-//    executed and when is the rest executed?
-//
-// 4. What happens if the handler is not executed? (i.e. because it wasn't
+// 3. What happens if the handler is not executed? (i.e. because it wasn't
 //    available in the sense defined by (1))
 //
-// 5. In the case of Update, when is the validation function executed?
-//
-// Our implementation must also satisfy our usual determinism requirements, so
-// that execution semantics on replay are identical to those on first execution.
+// 4. In the case of Update, when is the validation function executed?
 //
 // The implementation for Typescript is as follows:
 //
@@ -1214,11 +1210,10 @@ export function setHandler<Ret, Args extends any[], T extends UpdateDefinition<R
 //    value, and in the value passed to Continue-As-New. Activation jobs are
 //    processed in the order supplied by sdk-core, i.e. Signals, then Updates,
 //    then other jobs. Within each group, the order sent by the server is
-//    preserved.
+//    preserved. If the handler is async, it is executed up to its first yield
+//    point.
 //
-// 3. The handler is executed up to its first yield point.
-//
-// 4. Signal case: If a handler does not become available for a Signal job then
+// 3. Signal case: If a handler does not become available for a Signal job then
 //    the job remains in the buffer. If a handler for the Signal becomes
 //    available in a subsequent Activation (of the same or a subsequent WFT)
 //    then the handler will be executed. If not, then the Signal will never be
