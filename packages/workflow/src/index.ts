@@ -24,11 +24,12 @@
  *
  * Use {@link setHandler} to set handlers for Updates, Signals, and Queries.
  *
- * Update and Signal handlers can be functions or async functions, and you may schedule activities, child workflows, timers etc.
- * Update handlers may return a value, but signal handlers may not (return `void` or `Promise<void>`).
+ * Update and Signal handlers can be either async or non-async functions. Update handlers may return a value, but signal
+ * handlers may not (return `void` or `Promise<void>`). You may use Activities, Timers, child Workflows, etc in Update
+ * and Signal handlers.
  *
- * Query handlers may **not** be async functions, and may **not** mutate any variables or generate any commands
- * (such as Activities or Timers).
+ * Query handlers may **not** be async functions, and may **not** mutate any variables or use Activities, Timers,
+ * child Workflows, etc.
  *
  * #### Implementation
  *
