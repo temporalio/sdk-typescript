@@ -5,12 +5,17 @@ import * as activity from '@temporalio/activity';
 import { tsToMs } from '@temporalio/common/lib/time';
 import { CancelReason } from '@temporalio/worker/lib/activity';
 import * as workflow from '@temporalio/workflow';
-import { signalSchedulingWorkflow } from '../activities/helpers';
-import { activityStartedSignal } from '../workflows/definitions';
-import * as workflows from '../workflows';
-import { helpers, makeTestFunction } from './helpers';
+import { signalSchedulingWorkflow } from './activities/helpers';
+import { activityStartedSignal } from './workflows/definitions';
+import * as workflows from './workflows';
+import { helpers, makeTestFunction } from './helpers-integration';
 
-const test = makeTestFunction({ workflowsPath: __filename });
+const test = makeTestFunction({
+  workflowsPath: __filename,
+  workflowEnvironmentOpts: {
+    server: { executable: { type: 'cached-download', version: 'latest' } },
+  },
+});
 
 export async function parent(): Promise<void> {
   await workflow.startChild(child, { workflowId: 'child' });
