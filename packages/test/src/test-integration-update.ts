@@ -45,27 +45,6 @@ export async function workflowWithUpdates(): Promise<string[]> {
   return state;
 }
 
-export const updateWithMutableArg = wf.defineUpdate<string[], [[string]]>('updateWithMutableArg');
-
-export async function workflowWithMutatingValidator(): Promise<string[]> {
-  const state: string[] = [];
-  const updateHandler = async (arg: [string]): Promise<string[]> => {
-    state.push(arg[0]);
-    return state;
-  };
-  const doneUpdateHandler = (): void => {
-    state.push('done');
-  };
-  const validator = (arg: [string]): void => {
-    arg[0] = 'mutated!';
-  };
-  wf.setHandler(updateWithMutableArg, updateHandler, { validator });
-  wf.setHandler(doneUpdate, doneUpdateHandler);
-  await wf.condition(() => state.includes('done'));
-  state.push('$');
-  return state;
-}
-
 test('Update can be executed via executeUpdate()', async (t) => {
   const { createWorker, startWorkflow } = helpers(t);
   const worker = await createWorker();
@@ -125,16 +104,6 @@ test('Update validator can reject when using handle.result() but handle can be o
   });
 });
 
-test('Update handler does not see mutations to arguments made by validator', async (t) => {
-  const { createWorker, startWorkflow } = helpers(t);
-  const worker = await createWorker();
-  await worker.runUntil(async () => {
-    const wfHandle = await startWorkflow(workflowWithMutatingValidator);
-    const updateResult = await wfHandle.executeUpdate(updateWithMutableArg, { args: [['1']] });
-    t.deepEqual(updateResult, ['1']);
-  });
-});
-
 test('Update: ApplicationFailure in handler rejects the update', async (t) => {
   const { createWorker, startWorkflow, assertWorkflowUpdateFailed } = helpers(t);
   const worker = await createWorker();
@@ -188,6 +157,37 @@ test('Update id can be assigned and is present on returned handle', async (t) =>
     const wfHandle = await startWorkflow(workflowWithUpdates);
     const updateHandle = await wfHandle.startUpdate(doneUpdate, { updateId: 'my-update-id' });
     t.is(updateHandle.updateId, 'my-update-id');
+  });
+});
+
+export const updateWithMutableArg = wf.defineUpdate<string[], [[string]]>('updateWithMutableArg');
+
+export async function workflowWithMutatingValidator(): Promise<string[]> {
+  const state: string[] = [];
+  const updateHandler = async (arg: [string]): Promise<string[]> => {
+    state.push(arg[0]);
+    return state;
+  };
+  const doneUpdateHandler = (): void => {
+    state.push('done');
+  };
+  const validator = (arg: [string]): void => {
+    arg[0] = 'mutated!';
+  };
+  wf.setHandler(updateWithMutableArg, updateHandler, { validator });
+  wf.setHandler(doneUpdate, doneUpdateHandler);
+  await wf.condition(() => state.includes('done'));
+  state.push('$');
+  return state;
+}
+
+test('Update handler does not see mutations to arguments made by validator', async (t) => {
+  const { createWorker, startWorkflow } = helpers(t);
+  const worker = await createWorker();
+  await worker.runUntil(async () => {
+    const wfHandle = await startWorkflow(workflowWithMutatingValidator);
+    const updateResult = await wfHandle.executeUpdate(updateWithMutableArg, { args: [['1']] });
+    t.deepEqual(updateResult, ['1']);
   });
 });
 
