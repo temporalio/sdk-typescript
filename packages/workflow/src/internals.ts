@@ -639,7 +639,7 @@ export class Activator implements ActivationHandler {
   public dispatchBufferedUpdates(): void {
     const bufferedUpdates = this.bufferedUpdates;
     while (bufferedUpdates.length) {
-      const foundIndex = bufferedUpdates.findIndex((update) => update.name && this.updateHandlers.has(update.name));
+      const foundIndex = bufferedUpdates.findIndex((update) => this.updateHandlers.has(update.name as string));
       if (foundIndex === -1) {
         // No buffered Updates have a handler yet.
         break;
@@ -706,7 +706,7 @@ export class Activator implements ActivationHandler {
         // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
         this.signalWorkflow(bufferedSignals.shift()!);
       } else {
-        const foundIndex = bufferedSignals.findIndex((signal) => this.signalHandlers.has(signal.signalName ?? ''));
+        const foundIndex = bufferedSignals.findIndex((signal) => this.signalHandlers.has(signal.signalName as string));
         if (foundIndex === -1) break;
         const [signal] = bufferedSignals.splice(foundIndex, 1);
         this.signalWorkflow(signal);
