@@ -636,6 +636,34 @@ export class Activator implements ActivationHandler {
     }
   }
 
+  public dispatchBufferedUpdates(): void {
+    const bufferedUpdates = this.bufferedUpdates;
+    while (bufferedUpdates.length) {
+      const foundIndex = bufferedUpdates.findIndex((update) => update.name && this.updateHandlers.has(update.name));
+      if (foundIndex === -1) {
+        // No buffered Updates have a handler yet.
+        break;
+      }
+      const [update] = bufferedUpdates.splice(foundIndex, 1);
+      this.doUpdate(update);
+    }
+  }
+
+  public rejectBufferedUpdates(): void {
+    while (this.bufferedUpdates.length) {
+      const update = this.bufferedUpdates.shift();
+      if (update) {
+        if (!update.id) {
+          throw new TypeError('Missing activation update id');
+        }
+        this.rejectUpdate(
+          update.id,
+          ApplicationFailure.nonRetryable(`No registered handler for update: ${update.name}`)
+        );
+      }
+    }
+  }
+
   public async signalWorkflowNextHandler({ signalName, args }: SignalInput): Promise<void> {
     const fn = this.signalHandlers.get(signalName);
     if (fn) {
@@ -682,34 +710,6 @@ export class Activator implements ActivationHandler {
         if (foundIndex === -1) break;
         const [signal] = bufferedSignals.splice(foundIndex, 1);
         this.signalWorkflow(signal);
-      }
-    }
-  }
-
-  public dispatchBufferedUpdates(): void {
-    const bufferedUpdates = this.bufferedUpdates;
-    while (bufferedUpdates.length) {
-      const foundIndex = bufferedUpdates.findIndex((update) => update.name && this.updateHandlers.has(update.name));
-      if (foundIndex === -1) {
-        // No buffered Updates have a handler yet.
-        break;
-      }
-      const [update] = bufferedUpdates.splice(foundIndex, 1);
-      this.doUpdate(update);
-    }
-  }
-
-  public rejectBufferedUpdates(): void {
-    while (this.bufferedUpdates.length) {
-      const update = this.bufferedUpdates.shift();
-      if (update) {
-        if (!update.id) {
-          throw new TypeError('Missing activation update id');
-        }
-        this.rejectUpdate(
-          update.id,
-          ApplicationFailure.nonRetryable(`No registered handler for update: ${update.name}`)
-        );
       }
     }
   }
