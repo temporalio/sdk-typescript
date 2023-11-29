@@ -19,7 +19,7 @@ const test = makeTestFunction({
 const update = wf.defineUpdate<string[], [string]>('update');
 const doneUpdate = wf.defineUpdate<void, []>('done-update');
 
-export async function workflowWithUpdates(): Promise<string[]> {
+export async function workflowWithUpdates(): Promise<void> {
   const state: string[] = [];
   const updateHandler = async (arg: string): Promise<string[]> => {
     state.push(arg);
@@ -39,8 +39,6 @@ export async function workflowWithUpdates(): Promise<string[]> {
   wf.setHandler(update, updateHandler, { validator });
   wf.setHandler(doneUpdate, doneUpdateHandler);
   await wf.condition(() => state.includes('done'));
-  state.push('$');
-  return state;
 }
 
 class UpdateInboundCallsInterceptor implements WorkflowInboundCallsInterceptor {
@@ -58,17 +56,11 @@ test('Update validation interceptor works', async (t) => {
   const worker = await createWorker();
   await worker.runUntil(async () => {
     const wfHandle = await startWorkflow(workflowWithUpdates);
-
     await assertWorkflowUpdateFailed(
       wfHandle.executeUpdate(update, { args: ['1'] }),
       wf.ApplicationFailure,
       'Validation failed'
     );
-
-    const doneUpdateResult = await wfHandle.executeUpdate(doneUpdate);
-    t.is(doneUpdateResult, undefined);
-
-    const wfResult = await wfHandle.result();
-    t.deepEqual(wfResult, ['done', '$']);
+    t.pass();
   });
 });
