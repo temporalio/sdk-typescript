@@ -2,6 +2,20 @@ import * as wf from '@temporalio/workflow';
 import { Next, UpdateInput, WorkflowInboundCallsInterceptor } from '@temporalio/workflow';
 import { helpers, makeTestFunction } from './helpers-integration';
 
+const test = makeTestFunction({
+  workflowsPath: __filename,
+  workflowInterceptorModules: [__filename],
+  // TODO: remove this server config when default test server supports update
+  workflowEnvironmentOpts: {
+    server: {
+      executable: {
+        type: 'cached-download',
+        version: 'latest',
+      },
+    },
+  },
+});
+
 const update = wf.defineUpdate<string[], [string]>('update');
 const doneUpdate = wf.defineUpdate<void, []>('done-update');
 
@@ -28,20 +42,6 @@ export async function workflowWithUpdates(): Promise<string[]> {
   state.push('$');
   return state;
 }
-
-const test = makeTestFunction({
-  workflowsPath: __filename,
-  workflowInterceptorModules: [__filename],
-  // TODO: remove this server config when default test server supports update
-  workflowEnvironmentOpts: {
-    server: {
-      executable: {
-        type: 'cached-download',
-        version: 'latest',
-      },
-    },
-  },
-});
 
 class UpdateInboundCallsInterceptor implements WorkflowInboundCallsInterceptor {
   validateUpdate(input: UpdateInput, next: Next<UpdateInboundCallsInterceptor, 'validateUpdate'>): void {
