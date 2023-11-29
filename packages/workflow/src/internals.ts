@@ -705,7 +705,7 @@ export class Activator implements ActivationHandler {
       if (!update.id) {
         throw new TypeError('Missing activation update id');
       }
-      this.rejectUpdate(update.id, ApplicationFailure.nonRetryable(`Update has no handler: ${update.name}`));
+      this.rejectUpdate(update.id, ApplicationFailure.nonRetryable(`No registered handler for update: ${update.name}`));
     }
   }
 

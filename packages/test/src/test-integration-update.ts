@@ -129,7 +129,7 @@ test('Update is rejected if there is no handler', async (t) => {
     await assertWorkflowUpdateFailed(
       wfHandle.executeUpdate(updateWithoutHandler, { args: [''] }),
       wf.ApplicationFailure,
-      'Update has no handler: updateWithoutHandler'
+      'No registered handler for update: updateWithoutHandler'
     );
   });
 });
