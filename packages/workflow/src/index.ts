@@ -26,7 +26,8 @@
  *
  * Update and Signal handlers can be either async or non-async functions. Update handlers may return a value, but signal
  * handlers may not (return `void` or `Promise<void>`). You may use Activities, Timers, child Workflows, etc in Update
- * and Signal handlers.
+ * and Signal handlers, but this should be done cautiously: for example, note that if you await async operations such as
+ * these in an Update or Signal handler, then you are responsible for ensuring that the workflow does not complete first.
  *
  * Query handlers may **not** be async functions, and may **not** mutate any variables or use Activities, Timers,
  * child Workflows, etc.
