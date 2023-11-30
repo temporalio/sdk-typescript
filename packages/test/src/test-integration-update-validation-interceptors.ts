@@ -5,15 +5,6 @@ import { helpers, makeTestFunction } from './helpers-integration';
 const test = makeTestFunction({
   workflowsPath: __filename,
   workflowInterceptorModules: [__filename],
-  // TODO: remove this server config when default test server supports update
-  workflowEnvironmentOpts: {
-    server: {
-      executable: {
-        type: 'cached-download',
-        version: 'latest',
-      },
-    },
-  },
 });
 
 const update = wf.defineUpdate<string[], [string]>('update');

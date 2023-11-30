@@ -1,18 +1,7 @@
 import * as wf from '@temporalio/workflow';
 import { helpers, makeTestFunction } from './helpers-integration';
 
-const test = makeTestFunction({
-  workflowsPath: __filename,
-  workflowEnvironmentOpts: {
-    // TODO: remove this server config when default test server supports update
-    server: {
-      executable: {
-        type: 'cached-download',
-        version: 'latest',
-      },
-    },
-  },
-});
+const test = makeTestFunction({ workflowsPath: __filename });
 
 /* Example from WorkflowHandle docstring */
 
