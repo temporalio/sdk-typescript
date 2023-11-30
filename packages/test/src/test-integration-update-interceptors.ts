@@ -5,21 +5,6 @@ import { helpers, makeTestFunction } from './helpers-integration';
 
 const update = wf.defineUpdate<string[], [string]>('update');
 
-export async function workflowWithUpdates(): Promise<string[]> {
-  const state: string[] = [];
-  const updateHandler = async (arg: string): Promise<string[]> => {
-    state.push(arg);
-    if (arg === 'fail-update') {
-      throw new wf.ApplicationFailure(`Deliberate ApplicationFailure in handler`);
-    }
-    return state;
-  };
-  wf.setHandler(update, updateHandler);
-  await wf.condition(() => state.includes('done'));
-  state.push('$');
-  return state;
-}
-
 const test = makeTestFunction({
   workflowsPath: __filename,
   workflowInterceptorModules: [__filename],
@@ -44,6 +29,21 @@ const test = makeTestFunction({
     },
   },
 });
+
+export async function workflowWithUpdates(): Promise<string[]> {
+  const state: string[] = [];
+  const updateHandler = async (arg: string): Promise<string[]> => {
+    state.push(arg);
+    if (arg === 'fail-update') {
+      throw new wf.ApplicationFailure(`Deliberate ApplicationFailure in handler`);
+    }
+    return state;
+  };
+  wf.setHandler(update, updateHandler);
+  await wf.condition(() => state.includes('done'));
+  state.push('$');
+  return state;
+}
 
 class UpdateInboundCallsInterceptor implements WorkflowInboundCallsInterceptor {
   async handleUpdate(input: UpdateInput, next: Next<UpdateInboundCallsInterceptor, 'handleUpdate'>): Promise<unknown> {
