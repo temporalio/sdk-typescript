@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import { firstValueFrom, Subject } from 'rxjs';
 import { WorkflowFailedError } from '@temporalio/client';
 import * as activity from '@temporalio/activity';
@@ -6,6 +7,7 @@ import { CancelReason } from '@temporalio/worker/lib/activity';
 import * as workflow from '@temporalio/workflow';
 import { signalSchedulingWorkflow } from './activities/helpers';
 import { activityStartedSignal } from './workflows/definitions';
+import * as workflows from './workflows';
 import { helpers, makeTestFunction } from './helpers-integration';
 
 const test = makeTestFunction({ workflowsPath: __filename });
@@ -190,4 +192,33 @@ test('Activity initialInterval is not getting rounded', async (t) => {
   const activityTaskScheduledEvents = events?.find((ev) => ev.activityTaskScheduledEventAttributes);
   const retryPolicy = activityTaskScheduledEvents?.activityTaskScheduledEventAttributes?.retryPolicy;
   t.is(tsToMs(retryPolicy?.initialInterval), 50);
+});
+
+test('Start of workflow is delayed', async (t) => {
+  const { startWorkflow } = helpers(t);
+  // This workflow never runs
+  const handle = await startWorkflow(runTestActivity, {
+    startDelay: '5678s',
+  });
+  const { events } = await handle.fetchHistory();
+  const workflowExecutionStartedEvent = events?.find((ev) => ev.workflowExecutionStartedEventAttributes);
+  const startDelay = workflowExecutionStartedEvent?.workflowExecutionStartedEventAttributes?.firstWorkflowTaskBackoff;
+  t.is(tsToMs(startDelay), 5678000);
+});
+
+test('Start of workflow with signal is delayed', async (t) => {
+  const { taskQueue } = helpers(t);
+  // This workflow never runs
+  const handle = await t.context.env.client.workflow.signalWithStart(workflows.interruptableWorkflow, {
+    workflowId: randomUUID(),
+    taskQueue,
+    startDelay: '4678s',
+    signal: workflows.interruptSignal,
+    signalArgs: ['Never called'],
+  });
+
+  const { events } = await handle.fetchHistory();
+  const workflowExecutionStartedEvent = events?.find((ev) => ev.workflowExecutionStartedEventAttributes);
+  const startDelay = workflowExecutionStartedEvent?.workflowExecutionStartedEventAttributes?.firstWorkflowTaskBackoff;
+  t.is(tsToMs(startDelay), 4678000);
 });

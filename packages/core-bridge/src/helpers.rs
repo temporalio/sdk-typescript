@@ -189,13 +189,16 @@ where
 }
 
 // Recursively convert a Serde value to a JS value
-pub fn serde_value_to_js_value<'a>(cx: &mut impl Context<'a>, val: serde_json::Value) -> JsResult<'a, JsValue> {
+pub fn serde_value_to_js_value<'a>(
+    cx: &mut impl Context<'a>,
+    val: serde_json::Value,
+) -> JsResult<'a, JsValue> {
     match val {
         serde_json::Value::String(s) => Ok(cx.string(s).upcast()),
         serde_json::Value::Number(n) => Ok(cx.number(n.as_f64().unwrap()).upcast()),
         serde_json::Value::Bool(b) => Ok(cx.boolean(b).upcast()),
         serde_json::Value::Null => Ok(cx.null().upcast()),
-        serde_json::Value::Array(vec    ) => {
+        serde_json::Value::Array(vec) => {
             let arr: Handle<'a, JsArray> = JsArray::new(cx, vec.len() as u32);
             for (i, v) in vec.into_iter().enumerate() {
                 let v = serde_value_to_js_value(cx, v)?;
@@ -203,13 +206,14 @@ pub fn serde_value_to_js_value<'a>(cx: &mut impl Context<'a>, val: serde_json::V
             }
             Ok(arr.upcast())
         }
-        serde_json::Value::Object(map) => {
-            hashmap_to_js_value(cx, map).map(|v| v.upcast())
-        }
+        serde_json::Value::Object(map) => hashmap_to_js_value(cx, map).map(|v| v.upcast()),
     }
 }
 
-pub fn hashmap_to_js_value<'a>(cx: &mut impl Context<'a>, map: impl IntoIterator<Item = (String, serde_json::Value)>) -> JsResult<'a, JsObject> {
+pub fn hashmap_to_js_value<'a>(
+    cx: &mut impl Context<'a>,
+    map: impl IntoIterator<Item = (String, serde_json::Value)>,
+) -> JsResult<'a, JsObject> {
     let obj: Handle<'a, JsObject> = cx.empty_object();
     for (k, v) in map {
         let k = cx.string(snake_to_camel(k));
@@ -228,7 +232,7 @@ fn snake_to_camel(input: String) -> String {
                 result.push_str(&input[..first]);
             }
             let mut capitalize = true;
-            for c in input[first+1..].chars() {
+            for c in input[first + 1..].chars() {
                 if c == '_' {
                     capitalize = true;
                 } else if capitalize {
@@ -251,6 +255,9 @@ mod tests {
     fn snake_to_camel_works() {
         assert_eq!(snake_to_camel("this_is_a_test".into()), "thisIsATest");
         assert_eq!(snake_to_camel("this___IS_a_TEST".into()), "thisIsATest");
-        assert_eq!(snake_to_camel("éàç_this_is_a_test".into()), "éàçThisIsATest");
+        assert_eq!(
+            snake_to_camel("éàç_this_is_a_test".into()),
+            "éàçThisIsATest"
+        );
     }
 }

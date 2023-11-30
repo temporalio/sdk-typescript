@@ -1,8 +1,8 @@
-import type { temporal, google } from '@temporalio/proto';
+import type { temporal } from '@temporalio/proto';
 import { SearchAttributes, Workflow } from './interfaces';
 import { RetryPolicy } from './retry-policy';
-import { Duration, msOptionalToTs } from './time';
-import { checkExtends, Replace } from './type-helpers';
+import { Duration } from './time';
+import { checkExtends } from './type-helpers';
 
 // Avoid importing the proto implementation to reduce workflow bundle size
 // Copied from temporal.api.enums.v1.WorkflowIdReusePolicy
@@ -134,26 +134,6 @@ export interface WorkflowDurationOptions {
 }
 
 export type CommonWorkflowOptions = BaseWorkflowOptions & WorkflowDurationOptions;
-
-export type WithCompiledWorkflowOptions<T extends CommonWorkflowOptions> = Replace<
-  T,
-  {
-    workflowExecutionTimeout?: google.protobuf.IDuration;
-    workflowRunTimeout?: google.protobuf.IDuration;
-    workflowTaskTimeout?: google.protobuf.IDuration;
-  }
->;
-
-export function compileWorkflowOptions<T extends CommonWorkflowOptions>(options: T): WithCompiledWorkflowOptions<T> {
-  const { workflowExecutionTimeout, workflowRunTimeout, workflowTaskTimeout, ...rest } = options;
-
-  return {
-    ...rest,
-    workflowExecutionTimeout: msOptionalToTs(workflowExecutionTimeout),
-    workflowRunTimeout: msOptionalToTs(workflowRunTimeout),
-    workflowTaskTimeout: msOptionalToTs(workflowTaskTimeout),
-  };
-}
 
 export function extractWorkflowType<T extends Workflow>(workflowTypeOrFunc: string | T): string {
   if (typeof workflowTypeOrFunc === 'string') return workflowTypeOrFunc as string;

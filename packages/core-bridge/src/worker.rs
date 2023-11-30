@@ -83,19 +83,11 @@ pub async fn start_worker_loop(
                         worker.initiate_shutdown();
                         send_result(channel, callback, |cx| Ok(cx.undefined()));
                     }
-                    WorkerRequest::PollWorkflowActivation {
-                        callback,
-                    } => {
-                        handle_poll_workflow_activation_request(
-                            worker, channel, callback,
-                        )
-                        .await
+                    WorkerRequest::PollWorkflowActivation { callback } => {
+                        handle_poll_workflow_activation_request(worker, channel, callback).await
                     }
-                    WorkerRequest::PollActivityTask {
-                        callback,
-                    } => {
-                        handle_poll_activity_task_request(worker, channel, callback)
-                            .await
+                    WorkerRequest::PollActivityTask { callback } => {
+                        handle_poll_activity_task_request(worker, channel, callback).await
                     }
                     WorkerRequest::CompleteWorkflowActivation {
                         completion,
@@ -104,11 +96,7 @@ pub async fn start_worker_loop(
                         void_future_to_js(
                             channel,
                             callback,
-                            async move {
-                                worker
-                                    .complete_workflow_activation(completion)
-                                    .await
-                            },
+                            async move { worker.complete_workflow_activation(completion).await },
                             |cx, err| -> JsResult<JsObject> {
                                 match err {
                                     CompleteWfError::MalformedWorkflowCompletion {
@@ -126,11 +114,7 @@ pub async fn start_worker_loop(
                         void_future_to_js(
                             channel,
                             callback,
-                            async move {
-                                worker
-                                    .complete_activity_task(completion)
-                                    .await
-                            },
+                            async move { worker.complete_activity_task(completion).await },
                             |cx, err| -> JsResult<JsObject> {
                                 match err {
                                     CompleteActivityError::MalformedActivityCompletion {
@@ -158,10 +142,7 @@ async fn handle_poll_workflow_activation_request(
     channel: Arc<Channel>,
     callback: Root<JsFunction>,
 ) {
-    match worker
-        .poll_workflow_activation()
-        .await
-    {
+    match worker.poll_workflow_activation().await {
         Ok(task) => {
             send_result(channel, callback, move |cx| {
                 let len = task.encoded_len();

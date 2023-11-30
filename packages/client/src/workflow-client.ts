@@ -688,6 +688,7 @@ export class WorkflowClient extends BaseClient {
       workflowExecutionTimeout: options.workflowExecutionTimeout,
       workflowRunTimeout: options.workflowRunTimeout,
       workflowTaskTimeout: options.workflowTaskTimeout,
+      workflowStartDelay: options.startDelay,
       retryPolicy: options.retry ? compileRetryPolicy(options.retry) : undefined,
       memo: options.memo ? { fields: await encodeMapToPayloads(this.dataConverter, options.memo) } : undefined,
       searchAttributes: options.searchAttributes
@@ -735,6 +736,7 @@ export class WorkflowClient extends BaseClient {
       workflowExecutionTimeout: opts.workflowExecutionTimeout,
       workflowRunTimeout: opts.workflowRunTimeout,
       workflowTaskTimeout: opts.workflowTaskTimeout,
+      workflowStartDelay: opts.startDelay,
       retryPolicy: opts.retry ? compileRetryPolicy(opts.retry) : undefined,
       memo: opts.memo ? { fields: await encodeMapToPayloads(this.dataConverter, opts.memo) } : undefined,
       searchAttributes: opts.searchAttributes

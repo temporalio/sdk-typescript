@@ -1,10 +1,7 @@
-import {
-  CommonWorkflowOptions,
-  SignalDefinition,
-  WithCompiledWorkflowOptions,
-  WithWorkflowArgs,
-  Workflow,
-} from '@temporalio/common';
+import { CommonWorkflowOptions, SignalDefinition, WithWorkflowArgs, Workflow } from '@temporalio/common';
+import { Duration, msOptionalToTs } from '@temporalio/common/lib/time';
+import { Replace } from '@temporalio/common/lib/type-helpers';
+import { google } from '@temporalio/proto';
 
 export * from '@temporalio/common/lib/workflow-options';
 
@@ -37,6 +34,35 @@ export interface WorkflowOptions extends CommonWorkflowOptions {
    * @default true
    */
   followRuns?: boolean;
+
+  /**
+   * Amount of time to wait before starting the workflow.
+   *
+   * @experimental
+   */
+  startDelay?: Duration;
+}
+
+export type WithCompiledWorkflowOptions<T extends WorkflowOptions> = Replace<
+  T,
+  {
+    workflowExecutionTimeout?: google.protobuf.IDuration;
+    workflowRunTimeout?: google.protobuf.IDuration;
+    workflowTaskTimeout?: google.protobuf.IDuration;
+    startDelay?: google.protobuf.IDuration;
+  }
+>;
+
+export function compileWorkflowOptions<T extends WorkflowOptions>(options: T): WithCompiledWorkflowOptions<T> {
+  const { workflowExecutionTimeout, workflowRunTimeout, workflowTaskTimeout, startDelay, ...rest } = options;
+
+  return {
+    ...rest,
+    workflowExecutionTimeout: msOptionalToTs(workflowExecutionTimeout),
+    workflowRunTimeout: msOptionalToTs(workflowRunTimeout),
+    workflowTaskTimeout: msOptionalToTs(workflowTaskTimeout),
+    startDelay: msOptionalToTs(startDelay),
+  };
 }
 
 export type WorkflowSignalWithStartOptions<SignalArgs extends any[] = []> = SignalArgs extends [any, ...any[]]
