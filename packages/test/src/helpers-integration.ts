@@ -113,12 +113,12 @@ export function helpers(t: ExecutionContext<Context>): Helpers {
       causeConstructor: ErrorConstructor,
       message?: string
     ): Promise<void> {
-      const err: WorkflowUpdateFailedError | undefined = await t.throwsAsync(p, {
+      const err: WorkflowUpdateFailedError = (await t.throwsAsync(p, {
         instanceOf: WorkflowUpdateFailedError,
-      });
-      t.true(err?.cause instanceof causeConstructor);
+      })) as WorkflowUpdateFailedError;
+      t.true(err.cause instanceof causeConstructor);
       if (message !== undefined) {
-        t.is(err?.cause?.message, message);
+        t.is(err.cause?.message, message);
       }
     },
     async assertWorkflowFailedError(
@@ -126,12 +126,12 @@ export function helpers(t: ExecutionContext<Context>): Helpers {
       causeConstructor: ErrorConstructor,
       message?: string
     ): Promise<void> {
-      const err: WorkflowFailedError | undefined = await t.throwsAsync(p, {
+      const err: WorkflowFailedError = (await t.throwsAsync(p, {
         instanceOf: WorkflowFailedError,
-      });
-      t.true(err?.cause instanceof causeConstructor);
+      })) as WorkflowFailedError;
+      t.true(err.cause instanceof causeConstructor);
       if (message !== undefined) {
-        t.is(err?.cause?.message, message);
+        t.is(err.cause?.message, message);
       }
     },
   };
