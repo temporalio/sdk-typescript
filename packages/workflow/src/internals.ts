@@ -374,8 +374,7 @@ export class Activator implements ActivationHandler {
     try {
       promise = workflow(...args);
     } finally {
-      // Guarantee this runs even if there was an exception when invoking the Workflow function
-      // Otherwise this Workflow will now be queryable.
+      // Queries must be handled even if there was an exception when invoking the Workflow function.
       this.workflowFunctionWasCalled = true;
       // Empty the buffer
       const buffer = this.bufferedQueries.splice(0);
