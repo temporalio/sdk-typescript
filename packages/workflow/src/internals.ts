@@ -794,22 +794,19 @@ export class Activator implements ActivationHandler {
   }
 
   private acceptUpdate(updateId: string): void {
-    const protocolInstanceId = updateId;
-    this.pushCommand({ updateResponse: { protocolInstanceId, accepted: {} } });
+    this.pushCommand({ updateResponse: { protocolInstanceId: updateId, accepted: {} } });
   }
 
   private completeUpdate(updateId: string, result: unknown): void {
-    const protocolInstanceId = updateId;
     this.pushCommand({
-      updateResponse: { protocolInstanceId, completed: this.payloadConverter.toPayload(result) },
+      updateResponse: { protocolInstanceId: updateId, completed: this.payloadConverter.toPayload(result) },
     });
   }
 
   private rejectUpdate(updateId: string, error: unknown): void {
-    const protocolInstanceId = updateId;
     this.pushCommand({
       updateResponse: {
-        protocolInstanceId,
+        protocolInstanceId: updateId,
         rejected: this.errorToFailure(ensureTemporalFailure(error)),
       },
     });
