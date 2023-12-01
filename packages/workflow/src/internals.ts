@@ -621,11 +621,7 @@ export class Activator implements ActivationHandler {
       return Promise.reject(new IllegalStateError(`No registered update handler for update: ${name}`));
     }
     const { handler } = entry;
-    try {
-      return Promise.resolve(handler(...args));
-    } catch (error) {
-      return Promise.reject(error);
-    }
+    return await handler(...args);
   }
 
   protected validateUpdateNextHandler({ name, args }: UpdateInput): void {
