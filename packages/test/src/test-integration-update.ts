@@ -3,11 +3,7 @@ import { helpers, makeTestFunction } from './helpers-integration';
 
 const test = makeTestFunction({ workflowsPath: __filename });
 
-// An update with arguments and return value, with which we associate an async
-// handler function and a validator.
 export const update = wf.defineUpdate<string[], [string]>('update');
-// A update that accepts no arguments and returns nothing, with which we
-// associate a sync handler function, but no validator.
 export const doneUpdate = wf.defineUpdate<void, []>('done-update');
 
 export async function workflowWithUpdates(): Promise<string[]> {
@@ -16,6 +12,7 @@ export async function workflowWithUpdates(): Promise<string[]> {
     state.push(arg);
     return state;
   };
+  // handlers can be sync
   const doneUpdateHandler = (): void => {
     state.push('done');
   };
@@ -161,23 +158,15 @@ test('Update id can be assigned and is present on returned handle', async (t) =>
 
 export const updateWithMutableArg = wf.defineUpdate<string[], [[string]]>('updateWithMutableArg');
 
-export async function workflowWithMutatingValidator(): Promise<string[]> {
-  const state: string[] = [];
+export async function workflowWithMutatingValidator(): Promise<void> {
   const updateHandler = async (arg: [string]): Promise<string[]> => {
-    state.push(arg[0]);
-    return state;
-  };
-  const doneUpdateHandler = (): void => {
-    state.push('done');
+    return arg;
   };
   const validator = (arg: [string]): void => {
     arg[0] = 'mutated!';
   };
   wf.setHandler(updateWithMutableArg, updateHandler, { validator });
-  wf.setHandler(doneUpdate, doneUpdateHandler);
-  await wf.condition(() => state.includes('done'));
-  state.push('$');
-  return state;
+  await wf.condition(() => false);
 }
 
 test('Update handler does not see mutations to arguments made by validator', async (t) => {
