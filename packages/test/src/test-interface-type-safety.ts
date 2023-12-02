@@ -1,6 +1,7 @@
 import test from 'ava';
 import { defineSignal, defineQuery, ExternalWorkflowHandle, ChildWorkflowHandle, Workflow } from '@temporalio/workflow';
 import { WorkflowHandle } from '@temporalio/client';
+import * as wf from '@temporalio/workflow';
 
 test('SignalDefinition Name type safety', (t) => {
   // @ts-expect-error Assert expect a type error when generic and concrete names do not match
@@ -63,6 +64,43 @@ test('Can call signal on any WorkflowHandle', async (t) => {
   ) {
     await handle.signal(defineSignal('signal'));
   }
+
+  t.pass();
+});
+
+test('Signal handler type safety', (t) => {
+  const signal = defineSignal<[string]>('a');
+
+  wf.setHandler(signal, (arg: string): void => {});
+
+  // @ts-expect-error signal handler must take string argument
+  wf.setHandler(signal, (arg: number) => {});
+
+  // FIXME: @ts-expect-error signal handler must take string argument
+  wf.setHandler(signal, () => {});
+
+  // @ts-expect-error signal handler must return void
+  wf.setHandler(signal, (arg: string): string => '');
+
+  t.pass();
+});
+
+test('Query handler type safety', (t) => {
+  const query = defineQuery<string, [string]>('a');
+
+  wf.setHandler(query, (arg: string): string => '');
+
+  // @ts-expect-error query handler argument type must match
+  wf.setHandler(query, (arg: number): string => '');
+
+  // FIXME: @ts-expect-error query handler argument type must match
+  wf.setHandler(query, (): string => '');
+
+  // @ts-expect-error query handler return type must match
+  wf.setHandler(query, (arg: string): void => {});
+
+  // @ts-expect-error query handler return type must match
+  wf.setHandler(query, (arg: string): number => 7);
 
   t.pass();
 });
