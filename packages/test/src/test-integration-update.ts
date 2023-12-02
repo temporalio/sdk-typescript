@@ -16,12 +16,7 @@ export async function workflowWithUpdates(): Promise<string[]> {
   const doneUpdateHandler = (): void => {
     state.push('done');
   };
-  const validator = (arg: string): void => {
-    if (arg === 'bad-arg') {
-      throw new Error('Validation failed');
-    }
-  };
-  wf.setHandler(update, updateHandler, { validator });
+  wf.setHandler(update, updateHandler);
   wf.setHandler(doneUpdate, doneUpdateHandler);
   await wf.condition(() => state.includes('done'));
   state.push('$');
@@ -64,13 +59,30 @@ test('Update can be executed via startUpdate() and handle.result()', async (t) =
   });
 });
 
+const stringToStringUpdate = wf.defineUpdate<string, [string]>('stringToStringUpdate');
+
+export async function workflowWithUpdateValidator(): Promise<void> {
+  const updateHandler = async (_: string): Promise<string> => {
+    return 'update-result';
+  };
+  const validator = (arg: string): void => {
+    if (arg === 'bad-arg') {
+      throw new Error('Validation failed');
+    }
+  };
+  wf.setHandler(stringToStringUpdate, updateHandler, { validator });
+  await wf.condition(() => false);
+}
+
 test('Update validator can reject when using executeUpdate()', async (t) => {
   const { createWorker, startWorkflow, assertWorkflowUpdateFailed } = helpers(t);
   const worker = await createWorker();
   await worker.runUntil(async () => {
-    const wfHandle = await startWorkflow(workflowWithUpdates);
+    const wfHandle = await startWorkflow(workflowWithUpdateValidator);
+    const result = await wfHandle.executeUpdate(stringToStringUpdate, { args: ['arg'] });
+    t.is(result, 'update-result');
     await assertWorkflowUpdateFailed(
-      wfHandle.executeUpdate(update, { args: ['bad-arg'] }),
+      wfHandle.executeUpdate(stringToStringUpdate, { args: ['bad-arg'] }),
       wf.ApplicationFailure,
       'Validation failed'
     );
@@ -81,8 +93,10 @@ test('Update validator can reject when using handle.result() but handle can be o
   const { createWorker, startWorkflow, assertWorkflowUpdateFailed } = helpers(t);
   const worker = await createWorker();
   await worker.runUntil(async () => {
-    const wfHandle = await startWorkflow(workflowWithUpdates);
-    const updateHandle = await wfHandle.startUpdate(update, { args: ['bad-arg'] });
+    const wfHandle = await startWorkflow(workflowWithUpdateValidator);
+    let updateHandle = await wfHandle.startUpdate(stringToStringUpdate, { args: ['arg'] });
+    t.is(await updateHandle.result(), 'update-result');
+    updateHandle = await wfHandle.startUpdate(stringToStringUpdate, { args: ['bad-arg'] });
     await assertWorkflowUpdateFailed(updateHandle.result(), wf.ApplicationFailure, 'Validation failed');
   });
 });
