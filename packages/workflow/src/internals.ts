@@ -551,11 +551,6 @@ export class Activator implements ActivationHandler {
       this.bufferedUpdates.push(activation);
       return;
     }
-    const validate = composeInterceptors(
-      this.interceptors.inbound,
-      'validateUpdate',
-      this.validateUpdateNextHandler.bind(this)
-    );
 
     const makeInput = (): UpdateInput => ({
       updateId,
@@ -591,7 +586,12 @@ export class Activator implements ActivationHandler {
     // These are caught elsewhere and fail the corresponding activation.
     let input: UpdateInput;
     try {
-      if (runValidator) {
+      if (runValidator && this.updateHandlers.get(name)?.validator) {
+        const validate = composeInterceptors(
+          this.interceptors.inbound,
+          'validateUpdate',
+          this.validateUpdateNextHandler.bind(this)
+        );
         validate(makeInput());
       }
       input = makeInput();
