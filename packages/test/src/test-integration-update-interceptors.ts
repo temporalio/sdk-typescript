@@ -23,7 +23,7 @@ const test = makeTestFunction({
 
 const update = wf.defineUpdate<string, [string]>('update');
 
-export async function workflowWithUpdates(): Promise<void> {
+export async function workflowWithUpdate(): Promise<void> {
   const updateHandler = async (arg: string): Promise<string> => arg;
   const validator = (arg: string): void => {
     if (arg === 'bad-arg') {
@@ -53,7 +53,7 @@ test('Update client and inbound interceptors work for executeUpdate', async (t) 
   const { createWorker, startWorkflow } = helpers(t);
   const worker = await createWorker();
   await worker.runUntil(async () => {
-    const wfHandle = await startWorkflow(workflowWithUpdates);
+    const wfHandle = await startWorkflow(workflowWithUpdate);
 
     const updateResult = await wfHandle.executeUpdate(update, { args: ['1'] });
     t.deepEqual(updateResult, '1-clientIntercepted-inboundIntercepted');
@@ -64,7 +64,7 @@ test('Update client and inbound interceptors work for startUpdate', async (t) =>
   const { createWorker, startWorkflow } = helpers(t);
   const worker = await createWorker();
   await worker.runUntil(async () => {
-    const wfHandle = await startWorkflow(workflowWithUpdates);
+    const wfHandle = await startWorkflow(workflowWithUpdate);
 
     const updateHandle = await wfHandle.startUpdate(update, { args: ['1'] });
     const updateResult = await updateHandle.result();
@@ -76,7 +76,7 @@ test('Update validation interceptor works', async (t) => {
   const { createWorker, startWorkflow, assertWorkflowUpdateFailed } = helpers(t);
   const worker = await createWorker();
   await worker.runUntil(async () => {
-    const wfHandle = await startWorkflow(workflowWithUpdates);
+    const wfHandle = await startWorkflow(workflowWithUpdate);
     await assertWorkflowUpdateFailed(
       wfHandle.executeUpdate(update, { args: ['validation-interceptor-will-make-me-invalid'] }),
       wf.ApplicationFailure,
