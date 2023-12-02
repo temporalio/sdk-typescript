@@ -14,9 +14,6 @@ export async function workflowWithUpdates(): Promise<string[]> {
   const state: string[] = [];
   const updateHandler = async (arg: string): Promise<string[]> => {
     state.push(arg);
-    if (arg === 'fail-update') {
-      throw new wf.ApplicationFailure(`Deliberate ApplicationFailure in handler`);
-    }
     return state;
   };
   const doneUpdateHandler = (): void => {
@@ -93,19 +90,32 @@ test('Update validator can reject when using handle.result() but handle can be o
   });
 });
 
+const syncUpdate = wf.defineUpdate('sync');
+const asyncUpdate = wf.defineUpdate('async');
+
+export async function handlerRaisesException(): Promise<void> {
+  wf.setHandler(syncUpdate, (): void => {
+    throw new wf.ApplicationFailure(`Deliberate ApplicationFailure in handler`);
+  });
+  wf.setHandler(asyncUpdate, async (): Promise<void> => {
+    throw new wf.ApplicationFailure(`Deliberate ApplicationFailure in handler`);
+  });
+  await wf.condition(() => false);
+}
+
 test('Update: ApplicationFailure in handler rejects the update', async (t) => {
   const { createWorker, startWorkflow, assertWorkflowUpdateFailed } = helpers(t);
   const worker = await createWorker();
   await worker.runUntil(async () => {
-    const wfHandle = await startWorkflow(workflowWithUpdates);
-    await assertWorkflowUpdateFailed(
-      wfHandle.executeUpdate(update, { args: ['fail-update'] }),
-      wf.ApplicationFailure,
-      'Deliberate ApplicationFailure in handler'
-    );
-    await wfHandle.executeUpdate(update, { args: ['done'] });
-    const wfResult = await wfHandle.result();
-    t.deepEqual(wfResult, ['fail-update', 'done', '$']);
+    const wfHandle = await startWorkflow(handlerRaisesException);
+    for (const upd of [syncUpdate, asyncUpdate]) {
+      await assertWorkflowUpdateFailed(
+        wfHandle.executeUpdate(upd),
+        wf.ApplicationFailure,
+        'Deliberate ApplicationFailure in handler'
+      );
+    }
+    t.pass();
   });
 });
 
