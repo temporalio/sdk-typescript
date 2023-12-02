@@ -85,3 +85,20 @@ test('Update validation interceptor works', async (t) => {
     t.pass();
   });
 });
+
+export async function workflowWithUpdateWithoutValidator(): Promise<void> {
+  const updateHandler = async (arg: string): Promise<string> => arg;
+  wf.setHandler(update, updateHandler);
+  await wf.condition(() => false); // Ensure the update is handled if it is dispatched in a second WFT.
+}
+
+test('Update validation interceptors are not run when no validator', async (t) => {
+  const { createWorker, startWorkflow } = helpers(t);
+  const worker = await createWorker();
+  await worker.runUntil(async () => {
+    const wfHandle = await startWorkflow(workflowWithUpdateWithoutValidator);
+    const arg = 'validation-interceptor-will-make-me-invalid';
+    const result = await wfHandle.executeUpdate(update, { args: [arg] });
+    t.true(result.startsWith(arg));
+  });
+});
