@@ -551,8 +551,6 @@ export class Activator implements ActivationHandler {
       this.bufferedUpdates.push(activation);
       return;
     }
-    const execute = composeInterceptors(this.interceptors.inbound, 'handleUpdate', this.updateNextHandler.bind(this));
-
     const validate = composeInterceptors(
       this.interceptors.inbound,
       'validateUpdate',
@@ -601,6 +599,7 @@ export class Activator implements ActivationHandler {
       this.rejectUpdate(updateId, error);
       return;
     }
+    const execute = composeInterceptors(this.interceptors.inbound, 'handleUpdate', this.updateNextHandler.bind(this));
     this.acceptUpdate(updateId);
     untrackPromise(
       execute(input)
