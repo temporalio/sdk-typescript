@@ -76,7 +76,7 @@ test('Signal handler type safety', (t) => {
   // @ts-expect-error signal handler must take string argument
   wf.setHandler(signal, (arg: number) => {});
 
-  // FIXME: @ts-expect-error signal handler must take string argument
+  // @ts-expect-error signal handler must take string argument
   wf.setHandler(signal, () => {});
 
   // @ts-expect-error signal handler must return void
@@ -93,7 +93,7 @@ test('Query handler type safety', (t) => {
   // @ts-expect-error query handler argument type must match
   wf.setHandler(query, (arg: number): string => '');
 
-  // FIXME: @ts-expect-error query handler argument type must match
+  // @ts-expect-error query handler argument type must match
   wf.setHandler(query, (): string => '');
 
   // @ts-expect-error query handler return type must match

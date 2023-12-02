@@ -438,10 +438,10 @@ export type Handler<
   Ret,
   Args extends any[],
   T extends SignalDefinition<Args> | QueryDefinition<Ret, Args>
-> = T extends SignalDefinition<infer A>
-  ? (...args: A) => void | Promise<void>
-  : T extends QueryDefinition<infer R, infer A>
-  ? (...args: A) => R
+> = T extends SignalDefinition<Args>
+  ? (...args: Args) => void | Promise<void>
+  : T extends QueryDefinition<Ret, Args>
+  ? (...args: Args) => Ret
   : never;
 
 /**
