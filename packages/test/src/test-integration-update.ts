@@ -59,6 +59,35 @@ test('Update can be executed via startUpdate() and handle.result()', async (t) =
   });
 });
 
+const activities = {
+  async myActivity(): Promise<number> {
+    return 3;
+  },
+};
+
+const proxyActivities = wf.proxyActivities<typeof activities>({
+  startToCloseTimeout: '5s',
+});
+
+const updateThatExecutesActivity = wf.defineUpdate<number, [number]>('updateThatExecutesActivity');
+
+export async function workflowWithMultiTaskUpdate(): Promise<void> {
+  wf.setHandler(updateThatExecutesActivity, async (arg: number) => {
+    return arg + (await proxyActivities.myActivity());
+  });
+  await wf.condition(() => false);
+}
+
+test('Update handler can execute activity', async (t) => {
+  const { createWorker, startWorkflow } = helpers(t);
+  const worker = await createWorker({ activities });
+  await worker.runUntil(async () => {
+    const wfHandle = await startWorkflow(workflowWithMultiTaskUpdate);
+    const result = await wfHandle.executeUpdate(updateThatExecutesActivity, { args: [4] });
+    t.is(result, 7);
+  });
+});
+
 const stringToStringUpdate = wf.defineUpdate<string, [string]>('stringToStringUpdate');
 
 export async function workflowWithUpdateValidator(): Promise<void> {
