@@ -648,11 +648,8 @@ export class Activator implements ActivationHandler {
     while (this.bufferedUpdates.length) {
       const update = this.bufferedUpdates.shift();
       if (update) {
-        if (!update.id) {
-          throw new TypeError('Missing activation update id');
-        }
         this.rejectUpdate(
-          update.id,
+          update.id!,
           ApplicationFailure.nonRetryable(`No registered handler for update: ${update.name}`)
         );
       }
