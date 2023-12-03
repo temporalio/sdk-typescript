@@ -222,16 +222,19 @@ test('Update handler does not see mutations to arguments made by validator', asy
   });
 });
 
-// The following tests construct scenarios in which doUpdate jobs are packaged
-// together with startWorkflow in the first Activation. We test this because it
-// provides test coverage for Update buffering: were it not for the buffering,
-// we would attempt to start performing the Update (validate and handle) before
-// its handler is set, since sdk-core sorts Update jobs with Signal jobs, i.e.
-// ahead of jobs such as startWorkflow and completeActivity that might result in
-// a setHandler call. Also note that we do need to make this guarantee to users,
-// because a user might know that their Update is in the first WFT, for example
-// because they are doing something similar to what this test does to achieve
-// that.
+// The following tests test dispatch of buffered updates. An update is pushed to
+// the buffer if its handler is not available when attempting to handle the
+// update. If the handler is subsequently set by a setHandler call during
+// processing of the same activation, then the handler is invoked on the
+// buffered update . Otherwise, the buffered update is rejected. Hence in order
+// to test dispatch of buffered updates, we need to cause the update job to be
+// packaged together with another job that will cause the handler to be set
+// (e.g. startWorkflow, or completeActivity). This scenario is typically
+// encountered in the first WFT, and that is what these tests recreate. They
+// start the workflow with startDelay, and then send an update (without waiting
+// for the server's response) to ensure that doUpdate and startWorkflow are
+// packaged in the same WFT (despite the large startDelay value, the server will
+// dispatch a WFT when the update is received).
 
 // TODO: we currently lack a way to ensure, without race conditions, via SDK
 // APIs, that Updates are packaged together with startWorkflow in the first
