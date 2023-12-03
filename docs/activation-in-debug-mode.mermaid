@@ -12,7 +12,7 @@ sequenceDiagram
     end
     Core->>-MT: Respond with Activation
     MT->>MT: Decode Payloads
-    loop patches, signals, completions, queries as jobs
+    loop patches, signals, updates, completions, queries as jobs
         MT->>VM: Activate(jobs)
         VM->>VM: Run Microtasks
         MT->>VM: Try Unblock Conditions
