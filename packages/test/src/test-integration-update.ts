@@ -252,8 +252,9 @@ test('Update is always delivered', async (t) => {
   const { createWorker, startWorkflow } = helpers(t);
   const wfHandle = await startWorkflow(setUpdateHandlerAndExit, { startDelay: '10000 days' });
 
-  // eslint-disable-next-line @typescript-eslint/no-floating-promises
-  wfHandle.executeUpdate(stateMutatingUpdate);
+  wfHandle.executeUpdate(stateMutatingUpdate).catch(() => {
+    /* ignore */
+  });
   const worker = await createWorker();
   await worker.runUntil(async () => {
     // Worker receives activation: [doUpdate, startWorkflow]
@@ -266,10 +267,12 @@ test('Two Updates in first WFT', async (t) => {
   const { createWorker, startWorkflow } = helpers(t);
   const wfHandle = await startWorkflow(workflowWithUpdates, { startDelay: '10000 days' });
 
-  // eslint-disable-next-line @typescript-eslint/no-floating-promises
-  wfHandle.executeUpdate(update, { args: ['1'] });
-  // eslint-disable-next-line @typescript-eslint/no-floating-promises
-  wfHandle.executeUpdate(doneUpdate);
+  wfHandle.executeUpdate(update, { args: ['1'] }).catch(() => {
+    /* ignore */
+  });
+  wfHandle.executeUpdate(doneUpdate).catch(() => {
+    /* ignore */
+  });
   // Race condition: we want the second update to be in the WFT together with
   // the first, so allow some time to ensure that happens.
   await new Promise((res) => setTimeout(res, 500));
@@ -310,8 +313,9 @@ test('Update handler is called at same point during first execution and replay',
 
   // Start a Workflow and an Update of that Workflow.
   const wfHandle = await startWorkflow(updateReplayTestWorkflow, { startDelay: '10000 days' });
-  // eslint-disable-next-line @typescript-eslint/no-floating-promises
-  wfHandle.executeUpdate(earlyExecutedUpdate);
+  wfHandle.executeUpdate(earlyExecutedUpdate).catch(() => {
+    /* ignore */
+  });
   await new Promise((res) => setTimeout(res, 1000));
 
   const worker1 = await createWorker();
