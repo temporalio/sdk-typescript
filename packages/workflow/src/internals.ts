@@ -540,12 +540,15 @@ export class Activator implements ActivationHandler {
   }
 
   public doUpdate(activation: coresdk.workflow_activation.IDoUpdate): void {
-    const { id: updateId, name, headers, runValidator } = activation;
+    const { id: updateId, protocolInstanceId, name, headers, runValidator } = activation;
     if (!updateId) {
       throw new TypeError('Missing activation update id');
     }
     if (!name) {
       throw new TypeError('Missing activation update name');
+    }
+    if (!protocolInstanceId) {
+      throw new TypeError('Missing activation update protocolInstanceId');
     }
     if (!this.updateHandlers.has(name)) {
       this.bufferedUpdates.push(activation);
@@ -596,17 +599,17 @@ export class Activator implements ActivationHandler {
       }
       input = makeInput();
     } catch (error) {
-      this.rejectUpdate(updateId, error);
+      this.rejectUpdate(protocolInstanceId, error);
       return;
     }
     const execute = composeInterceptors(this.interceptors.inbound, 'handleUpdate', this.updateNextHandler.bind(this));
-    this.acceptUpdate(updateId);
+    this.acceptUpdate(protocolInstanceId);
     untrackPromise(
       execute(input)
-        .then((result) => this.completeUpdate(updateId, result))
+        .then((result) => this.completeUpdate(protocolInstanceId, result))
         .catch((error) => {
           if (error instanceof TemporalFailure) {
-            this.rejectUpdate(updateId, error);
+            this.rejectUpdate(protocolInstanceId, error);
           } else {
             throw error;
           }
@@ -648,7 +651,8 @@ export class Activator implements ActivationHandler {
       const update = this.bufferedUpdates.shift();
       if (update) {
         this.rejectUpdate(
-          update.id!,
+          /* eslint-disable @typescript-eslint/no-non-null-assertion */
+          update.protocolInstanceId!,
           ApplicationFailure.nonRetryable(`No registered handler for update: ${update.name}`)
         );
       }
@@ -785,20 +789,20 @@ export class Activator implements ActivationHandler {
     });
   }
 
-  private acceptUpdate(updateId: string): void {
-    this.pushCommand({ updateResponse: { protocolInstanceId: updateId, accepted: {} } });
+  private acceptUpdate(protocolInstanceId: string): void {
+    this.pushCommand({ updateResponse: { protocolInstanceId, accepted: {} } });
   }
 
-  private completeUpdate(updateId: string, result: unknown): void {
+  private completeUpdate(protocolInstanceId: string, result: unknown): void {
     this.pushCommand({
-      updateResponse: { protocolInstanceId: updateId, completed: this.payloadConverter.toPayload(result) },
+      updateResponse: { protocolInstanceId, completed: this.payloadConverter.toPayload(result) },
     });
   }
 
-  private rejectUpdate(updateId: string, error: unknown): void {
+  private rejectUpdate(protocolInstanceId: string, error: unknown): void {
     this.pushCommand({
       updateResponse: {
-        protocolInstanceId: updateId,
+        protocolInstanceId,
         rejected: this.errorToFailure(ensureTemporalFailure(error)),
       },
     });
