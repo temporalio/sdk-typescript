@@ -71,16 +71,16 @@ test('Can call signal on any WorkflowHandle', async (t) => {
 test('Signal handler type safety', (t) => {
   const signal = defineSignal<[string]>('a');
 
-  wf.setHandler(signal, (arg: string): void => {});
+  wf.setHandler(signal, (_arg: string): void => {});
 
   // @ts-expect-error signal handler must take string argument
-  wf.setHandler(signal, (arg: number) => {});
+  wf.setHandler(signal, (_arg: number) => {});
 
   // @ts-expect-error signal handler must take string argument
   wf.setHandler(signal, () => {});
 
   // @ts-expect-error signal handler must return void
-  wf.setHandler(signal, (arg: string): string => '');
+  wf.setHandler(signal, (_arg: string): string => '');
 
   t.pass();
 });
@@ -88,19 +88,19 @@ test('Signal handler type safety', (t) => {
 test('Query handler type safety', (t) => {
   const query = defineQuery<string, [string]>('a');
 
-  wf.setHandler(query, (arg: string): string => '');
+  wf.setHandler(query, (_arg: string): string => '');
 
   // @ts-expect-error query handler argument type must match
-  wf.setHandler(query, (arg: number): string => '');
+  wf.setHandler(query, (_arg: number): string => '');
 
   // @ts-expect-error query handler argument type must match
   wf.setHandler(query, (): string => '');
 
   // @ts-expect-error query handler return type must match
-  wf.setHandler(query, (arg: string): void => {});
+  wf.setHandler(query, (_arg: string): void => {});
 
   // @ts-expect-error query handler return type must match
-  wf.setHandler(query, (arg: string): number => 7);
+  wf.setHandler(query, (_arg: string): number => 7);
 
   t.pass();
 });
