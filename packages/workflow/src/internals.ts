@@ -565,23 +565,25 @@ export class Activator implements ActivationHandler {
     // The implementation below is responsible for upholding, and constrained
     // by, the following contract:
     //
-    // 1. During validation, any error must fail the Update; during the Update
+    // 1. If no validator is present then validation interceptors will not be run.
+    //
+    // 2. During validation, any error must fail the Update; during the Update
     //    itself, Temporal errors fail the Update whereas other errors fail the
     //    activation.
     //
-    // 2. The handler must not see any mutations of the arguments made by the
+    // 3. The handler must not see any mutations of the arguments made by the
     //    validator.
     //
-    // 3. Any error when decoding/deserializing input must be caught and result
+    // 4. Any error when decoding/deserializing input must be caught and result
     //    in rejection of the Update before it is accepted, even if there is no
     //    validator.
     //
-    // 4. The initial synchronous portion of the (async) Update handler should
+    // 5. The initial synchronous portion of the (async) Update handler should
     //    be executed after the (sync) validator completes such that there is
     //    minimal opportunity for a different concurrent task to be scheduled
     //    between them.
     //
-    // 5. The stack trace view provided in the Temporal UI must not be polluted
+    // 6. The stack trace view provided in the Temporal UI must not be polluted
     //    by promises that do not derive from user code. This implies that
     //    async/await syntax may not be used.
     //
