@@ -318,7 +318,8 @@ test('Update handler is called at same point during first execution and replay',
   });
   await new Promise((res) => setTimeout(res, 1000));
 
-  const worker1 = await createWorker();
+  // Avoid waiting for sticky execution timeout on worker transition
+  const worker1 = await createWorker({ maxCachedWorkflows: 0 });
   // Worker1 advances the workflow beyond the point where the update handler is
   // invoked.
   await worker1.runUntil(async () => {
