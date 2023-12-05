@@ -11,9 +11,9 @@ import { temporal, grpc as grpcProto } from '@temporalio/proto';
 const workflowServicePackageDefinition = protoLoader.loadSync(
   path.resolve(
     __dirname,
-    '../../core-bridge/sdk-core/protos/api_upstream/temporal/api/workflowservice/v1/service.proto'
+    '../../core-bridge/sdk-core/sdk-core-protos/protos/api_upstream/temporal/api/workflowservice/v1/service.proto'
   ),
-  { includeDirs: [path.resolve(__dirname, '../../core-bridge/sdk-core/protos/api_upstream')] }
+  { includeDirs: [path.resolve(__dirname, '../../core-bridge/sdk-core/sdk-core-protos/protos/api_upstream')] }
 );
 const workflowServiceProtoDescriptor = grpc.loadPackageDefinition(workflowServicePackageDefinition) as any;
 
@@ -95,7 +95,7 @@ test('withMetadata / withDeadline / withAbortSignal set the CallContext for RPC 
 
 test('healthService works', async (t) => {
   const packageDefinition = protoLoader.loadSync(
-    path.resolve(__dirname, '../../core-bridge/sdk-core/protos/grpc/health/v1/health.proto')
+    path.resolve(__dirname, '../../core-bridge/sdk-core/sdk-core-protos/protos/grpc/health/v1/health.proto')
   );
   const protoDescriptor = grpc.loadPackageDefinition(packageDefinition) as any;
 

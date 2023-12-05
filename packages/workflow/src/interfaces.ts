@@ -5,6 +5,7 @@ import {
   CommonWorkflowOptions,
   SearchAttributes,
   SignalDefinition,
+  UpdateDefinition,
   QueryDefinition,
   Duration,
   VersioningIntent,
@@ -432,19 +433,26 @@ export interface WorkflowCreateOptionsInternal extends WorkflowCreateOptions {
 }
 
 /**
- * A handler function capable of accepting the arguments for a given SignalDefinition or QueryDefinition.
+ * A handler function capable of accepting the arguments for a given UpdateDefinition, SignalDefinition or QueryDefinition.
  */
 export type Handler<
   Ret,
   Args extends any[],
-  T extends SignalDefinition<Args> | QueryDefinition<Ret, Args>
-> = T extends SignalDefinition<infer A>
+  T extends UpdateDefinition<Ret, Args> | SignalDefinition<Args> | QueryDefinition<Ret, Args>
+> = T extends UpdateDefinition<infer R, infer A>
+  ? (...args: A) => R | Promise<R>
+  : T extends SignalDefinition<infer A>
   ? (...args: A) => void | Promise<void>
   : T extends QueryDefinition<infer R, infer A>
   ? (...args: A) => R
   : never;
 
 /**
- * A handler function accepting signals calls for non-registered signal names.
+ * A handler function accepting signal calls for non-registered signal names.
  */
 export type DefaultSignalHandler = (signalName: string, ...args: unknown[]) => void | Promise<void>;
+
+/**
+ * A validation function capable of accepting the arguments for a given UpdateDefinition.
+ */
+export type UpdateValidator<Args extends any[]> = (...args: Args) => void;

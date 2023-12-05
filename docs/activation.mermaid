@@ -14,7 +14,7 @@ sequenceDiagram
     Core->>-MT: Respond with Activation
     MT->>MT: Decode Payloads
     MT->>+WT: Run Workflow Activation
-    loop patches, signals, completions, queries as jobs
+    loop patches, signals, updates, completions, queries as jobs
         WT->>VM: Activate(jobs)
         VM->>VM: Run Microtasks
         WT->>VM: Try Unblock Conditions

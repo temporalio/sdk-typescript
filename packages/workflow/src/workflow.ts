@@ -12,10 +12,12 @@ import {
   SignalDefinition,
   toPayloads,
   UntypedActivities,
+  UpdateDefinition,
   WithWorkflowArgs,
   Workflow,
   WorkflowResultType,
   WorkflowReturnType,
+  WorkflowUpdateValidatorType,
 } from '@temporalio/common';
 import { versioningIntentToProto } from '@temporalio/common/lib/versioning-intent-enum';
 import { Duration, msOptionalToTs, msToNumber, msToTs, tsToMs } from '@temporalio/common/lib/time';
@@ -37,6 +39,7 @@ import {
   DefaultSignalHandler,
   EnhancedStackTrace,
   Handler,
+  UpdateValidator,
   WorkflowInfo,
 } from './interfaces';
 import { LocalActivityDoBackoff } from './errors';
@@ -1089,6 +1092,21 @@ function conditionInner(fn: () => boolean): Promise<void> {
 }
 
 /**
+ * Define an update method for a Workflow.
+ *
+ * Definitions are used to register handler in the Workflow via {@link setHandler} and to update Workflows using a {@link WorkflowHandle}, {@link ChildWorkflowHandle} or {@link ExternalWorkflowHandle}.
+ * Definitions can be reused in multiple Workflows.
+ */
+export function defineUpdate<Ret, Args extends any[] = [], Name extends string = string>(
+  name: Name
+): UpdateDefinition<Ret, Args, Name> {
+  return {
+    type: 'update',
+    name,
+  } as UpdateDefinition<Ret, Args, Name>;
+}
+
+/**
  * Define a signal method for a Workflow.
  *
  * Definitions are used to register handler in the Workflow via {@link setHandler} and to signal Workflows using a {@link WorkflowHandle}, {@link ChildWorkflowHandle} or {@link ExternalWorkflowHandle}.
@@ -1119,19 +1137,122 @@ export function defineQuery<Ret, Args extends any[] = [], Name extends string = 
 }
 
 /**
- * Set a handler function for a Workflow query or signal.
+ * Set a handler function for a Workflow update, signal, or query.
  *
- * If this function is called multiple times for a given signal or query name the last handler will overwrite any previous calls.
+ * If this function is called multiple times for a given update, signal, or query name the last handler will overwrite any previous calls.
  *
- * @param def a {@link SignalDefinition} or {@link QueryDefinition} as returned by {@link defineSignal} or {@link defineQuery} respectively.
+ * @param def an {@link UpdateDefinition}, {@link SignalDefinition}, or {@link QueryDefinition} as returned by {@link defineUpdate}, {@link defineSignal}, or {@link defineQuery} respectively.
  * @param handler a compatible handler function for the given definition or `undefined` to unset the handler.
  */
 export function setHandler<Ret, Args extends any[], T extends SignalDefinition<Args> | QueryDefinition<Ret, Args>>(
   def: T,
   handler: Handler<Ret, Args, T> | undefined
-): void {
+): void;
+export function setHandler<Ret, Args extends any[], T extends UpdateDefinition<Ret, Args>>(
+  def: T,
+  handler: Handler<Ret, Args, T> | undefined,
+  options?: { validator: UpdateValidator<Args> }
+): void;
+
+// For Updates and Signals we want to make a public guarantee something like the
+// following:
+//
+//   "If a WFT contains a Signal/Update, and if a handler is available for that
+//   Signal/Update, then the handler will be executed.""
+//
+// However, that statement is not well-defined, leaving several questions open:
+//
+// 1. What does it mean for a handler to be "available"? What happens if the
+//    handler is not present initially but is set at some point during the
+//    Workflow code that is executed in that WFT? What happens if the handler is
+//    set and then deleted, or replaced with a different handler?
+//
+// 2. When is the handler executed? (When it first becomes available? At the end
+//    of the activation?) What are the execution semantics of Workflow and
+//    Signal/Update handler code given that they are concurrent? Can the user
+//    rely on Signal/Update side effects being reflected in the Workflow return
+//    value, or in the value passed to Continue-As-New? If the handler is an
+//    async function / coroutine, how much of it is executed and when is the
+//    rest executed?
+//
+// 3. What happens if the handler is not executed? (i.e. because it wasn't
+//    available in the sense defined by (1))
+//
+// 4. In the case of Update, when is the validation function executed?
+//
+// The implementation for Typescript is as follows:
+//
+// 1. sdk-core sorts Signal and Update jobs (and Patches) ahead of all other
+//    jobs. Thus if the handler is available at the start of the Activation then
+//    the Signal/Update will be executed before Workflow code is executed. If it
+//    is not, then the Signal/Update calls is pushed to a buffer.
+//
+// 2. On each call to setHandler for a given Signal/Update, we make a pass
+//    through the buffer list. If a buffered job is associated with the just-set
+//    handler, then the job is removed from the buffer and the initial
+//    synchronous portion of the handler is invoked on that input (i.e.
+//    preempting workflow code).
+//
+// Thus in the case of Typescript the questions above are answered as follows:
+//
+// 1. A handler is "available" if it is set at the start of the Activation or
+//    becomes set at any point during the Activation. If the handler is not set
+//    initially then it is executed as soon as it is set. Subsequent deletion or
+//    replacement by a different handler has no impact because the jobs it was
+//    handling have already been handled and are no longer in the buffer.
+//
+// 2. The handler is executed as soon as it becomes available. I.e. if the
+//    handler is set at the start of the Activation then it is executed when
+//    first attempting to process the Signal/Update job; alternatively, if it is
+//    set by a setHandler call made by Workflow code, then it is executed as
+//    part of that call (preempting Workflow code). Therefore, a user can rely
+//    on Signal/Update side effects being reflected in e.g. the Workflow return
+//    value, and in the value passed to Continue-As-New. Activation jobs are
+//    processed in the order supplied by sdk-core, i.e. Signals, then Updates,
+//    then other jobs. Within each group, the order sent by the server is
+//    preserved. If the handler is async, it is executed up to its first yield
+//    point.
+//
+// 3. Signal case: If a handler does not become available for a Signal job then
+//    the job remains in the buffer. If a handler for the Signal becomes
+//    available in a subsequent Activation (of the same or a subsequent WFT)
+//    then the handler will be executed. If not, then the Signal will never be
+//    responded to and this causes no error.
+//
+//    Update case: If a handler does not become available for an Update job then
+//    the Update is rejected at the end of the Activation. Thus, if a user does
+//    not want an Update to be rejected for this reason, then it is their
+//    responsibility to ensure that their application and workflow code interact
+//    such that a handler is available for the Update during any Activation
+//    which might contain their Update job. (Note that the user often has
+//    uncertainty about which WFT their Signal/Update will appear in. For
+//    example, if they call startWorkflow() followed by startUpdate(), then they
+//    will typically not know whether these will be delivered in one or two
+//    WFTs. On the other hand there are situations where they would have reason
+//    to believe they are in the same WFT, for example if they do not start
+//    Worker polling until after they have verified that both requests have
+//    succeeded.)
+//
+// 5. If an Update has a validation function then it is executed immediately
+//    prior to the handler. (Note that the validation function is required to be
+//    synchronous).
+export function setHandler<
+  Ret,
+  Args extends any[],
+  T extends UpdateDefinition<Ret, Args> | SignalDefinition<Args> | QueryDefinition<Ret, Args>
+>(def: T, handler: Handler<Ret, Args, T> | undefined, options?: { validator: UpdateValidator<Args> }): void {
   const activator = assertInWorkflowContext('Workflow.setHandler(...) may only be used from a Workflow Execution.');
-  if (def.type === 'signal') {
+  if (def.type === 'update') {
+    if (typeof handler === 'function') {
+      const validator = options?.validator as WorkflowUpdateValidatorType | undefined;
+      activator.updateHandlers.set(def.name, { handler, validator });
+      activator.dispatchBufferedUpdates();
+    } else if (handler == null) {
+      activator.updateHandlers.delete(def.name);
+    } else {
+      throw new TypeError(`Expected handler to be either a function or 'undefined'. Got: '${typeof handler}'`);
+    }
+  } else if (def.type === 'signal') {
     if (typeof handler === 'function') {
       activator.signalHandlers.set(def.name, handler as any);
       activator.dispatchBufferedSignals();

@@ -70,6 +70,13 @@ export class WorkflowCodecRunner {
                     details: await decodeOptional(this.codecs, job.cancelWorkflow.details),
                   }
                 : null,
+              doUpdate: job.doUpdate
+                ? {
+                    ...job.doUpdate,
+                    input: await decodeOptional(this.codecs, job.doUpdate.input),
+                    headers: noopDecodeMap(job.doUpdate.headers),
+                  }
+                : null,
               signalWorkflow: job.signalWorkflow
                 ? {
                     ...job.signalWorkflow,
@@ -217,6 +224,13 @@ export class WorkflowCodecRunner {
                             ),
                           },
                           failed: await encodeOptionalFailure(this.codecs, command.respondToQuery.failed),
+                        }
+                      : undefined,
+                    updateResponse: command.updateResponse
+                      ? {
+                          ...command.updateResponse,
+                          rejected: await encodeOptionalFailure(this.codecs, command.updateResponse.rejected),
+                          completed: await encodeOptionalSingle(this.codecs, command.updateResponse.completed),
                         }
                       : undefined,
 

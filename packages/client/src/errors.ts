@@ -36,6 +36,17 @@ export class WorkflowFailedError extends Error {
 }
 
 /**
+ * Thrown by the client while waiting on Workflow Update result if Update
+ * completes with failure.
+ */
+@SymbolBasedInstanceOfError('WorkflowUpdateFailedError')
+export class WorkflowUpdateFailedError extends Error {
+  public constructor(message: string, public readonly cause: TemporalFailure | undefined) {
+    super(message);
+  }
+}
+
+/**
  * Thrown the by client while waiting on Workflow execution result if Workflow
  * continues as new.
  *
