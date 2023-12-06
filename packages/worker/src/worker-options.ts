@@ -322,31 +322,17 @@ export interface WorkerOptions {
    * Cached Workflows continue execution from their last stopping point. If the Worker is asked to run an uncached
    * Workflow, it will need to fetch and replay the entire Workflow history.
    *
-   * #### When `reuseV8Context` is disabled
-   * The major factors contributing to a Workflow Execution's memory weight are:
-   *
-   * - its input arguments;
-   * - allocations made and retained by the Workflow itself;
-   * - allocations made and retained by all loaded librairies (including the Node JS builtin context);
-   * - the size of all Payloads sent or received by the Workflow (see Core SDK issue #363).
-   *
-   * Most users are able to fil at least 250 Workflows per GB of available memory. In some performance test, we
-   * managed to fit 750 Workflows per GB. Your millage may vary.
-   *
-   * #### When `reuseV8Context` is enabled
    * The major factors contributing to a Workflow Execution's memory weight are:
    *
    * - its input arguments;
    * - allocations made and retained by the Workflow itself;
    * - the size of all Payloads sent or received by the Workflow (see Core SDK issue #363).
    *
-   * Since most objects are shared/reused across Workflows, the per-Workflow memory footprint is much smaller. Most
-   * users are able to fit at least 600 Workflows per GB of available memory. In one reference performance test,
+   * Most users are able to fit at least 600 Workflows per GB of available memory. In one reference performance test,
    * memory usage grew by approximately 1 MB per cached Workflow (that is including memory used for activity executions
    * of these Workflows). Your millage may vary.
    *
-   * @default if `reuseV8Context = true`, then `max(floor(max(maxHeapMemory - 200MB, 0) * (600WF / 1024MB)), 10)`.
-   *          Otherwise `max(floor(max(maxHeapMemory - 400MB, 0) * (250WF / 1024MB)), 10)`
+   * @default Default to `max(floor(max(maxHeapMemory - 200MB, 0) * (600WF / 1024MB)), 10)`.
    */
   maxCachedWorkflows?: number;
 
@@ -371,20 +357,15 @@ export interface WorkerOptions {
    * create and maintain a per-Workflow isolated execution environments (aka. the Workflow Sandbox), implemented as
    * {@link https://nodejs.org/api/vm.html | VM } contexts.
    *
-   * **When `reuseV8Context` is disabled**, a new VM context is created for each Workflow handled by the Worker.
-   * Creating a new VM context is a relatively lengthy operation which blocks the Node.js event loop. Using multiple
-   * threads helps compensate the impact of this operation on the Worker's performance.
-   *
-   * **When `reuseV8Context` is enabled**, a single VM context is created for each worker thread, then reused for every
-   * Workflows handled by that thread (per-Workflow objects get shuffled in and out of that context on every Workflow
-   * Task). Consequently, there is generally no advantage in using multiple threads when `reuseV8Context` is enabled.
+   * A single VM context is created for each worker thread, then reused for every Workflows handled by that thread
+   * (per-Workflow objects get shuffled in and out of that context on every Workflow Task).
    *
    * If more than one thread is used, Workflows will be load-balanced evenly between worker threads on the first
    * Activation of a Workflow Execution, based on the number of Workflows currently owned by each worker thread;
    * futher Activations of that Workflow Execution will then be handled by the same thread, until the Workflow Execution
    * gets evicted from cache.
    *
-   * @default 1 if 'reuseV8Context' is enabled; 2 otherwise. Ignored if `debugMode` is enabled.
+   * @default 1 - Ignored if `debugMode` is enabled.
    */
   workflowThreadPoolSize?: number;
 
@@ -481,15 +462,7 @@ export interface WorkerOptions {
   debugMode?: boolean;
 
   /**
-   * Toggle whether to reuse a single V8 context for the workflow sandbox.
-   *
-   * Context reuse significantly decreases the amount of resources taken up by workflows.
-   * From running basic stress tests we've observed 2/3 reduction in memory usage and 1/3 to 1/2 in CPU usage with this
-   * feature turned on.
-   *
-   * Note that we plan to turn this option on by default starting with 1.9.0.
-   *
-   * @default false (will change in the future)
+   * @deprecated The non-reuseV8Context execution model is no longer supported. This option is ignored.
    */
   reuseV8Context?: boolean;
 
@@ -537,7 +510,6 @@ export type WorkerOptionsWithDefaults = WorkerOptions &
       | 'defaultHeartbeatThrottleInterval'
       | 'showStackTraceSources'
       | 'debugMode'
-      | 'reuseV8Context'
     >
   > & {
     interceptors: Required<WorkerInterceptors>;
@@ -665,7 +637,6 @@ export function addDefaultWorkerOptions(options: WorkerOptions): WorkerOptionsWi
     maxCachedWorkflows,
     showStackTraceSources,
     namespace,
-    reuseV8Context,
     sinks,
     nonStickyToStickyPollRatio,
     interceptors,
@@ -676,9 +647,7 @@ export function addDefaultWorkerOptions(options: WorkerOptions): WorkerOptionsWi
   const maxConcurrentActivityTaskExecutions = options.maxConcurrentActivityTaskExecutions ?? 100;
 
   const heapSizeMiB = v8.getHeapStatistics().heap_size_limit / MiB;
-  const defaultMaxCachedWorkflows = reuseV8Context
-    ? Math.max(Math.floor((Math.max(heapSizeMiB - 200, 0) * 600) / 1024), 10)
-    : Math.max(Math.floor((Math.max(heapSizeMiB - 400, 0) * 250) / 1024), 10);
+  const defaultMaxCachedWorkflows = Math.max(Math.floor((Math.max(heapSizeMiB - 200, 0) * 600) / 1024), 10);
 
   if (useVersioning && !buildId) {
     throw new TypeError('Must provide a buildId if useVersioning is true');
@@ -699,10 +668,9 @@ export function addDefaultWorkerOptions(options: WorkerOptions): WorkerOptionsWi
     defaultHeartbeatThrottleInterval: '30s',
     // 4294967295ms is the maximum allowed time
     isolateExecutionTimeout: debugMode ? '4294967295ms' : '5s',
-    workflowThreadPoolSize: reuseV8Context ? 1 : 2,
+    workflowThreadPoolSize: 1,
     maxCachedWorkflows: maxCachedWorkflows ?? defaultMaxCachedWorkflows,
     showStackTraceSources: showStackTraceSources ?? false,
-    reuseV8Context: reuseV8Context ?? false,
     debugMode: debugMode ?? false,
     interceptors: {
       activity: interceptors?.activity ?? [],

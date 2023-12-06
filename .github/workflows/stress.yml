@@ -42,14 +42,13 @@ env:
   TEMPORAL_TESTING_LOG_DIR: /tmp/worker-logs
   TEMPORAL_TESTING_MEM_LOG_DIR: /tmp/worker-mem-logs
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  REUSE_V8_CONTEXT: ${{ inputs.reuse-v8-context }}
 
 jobs:
   stress-test:
     runs-on: buildjet-4vcpu-ubuntu-2204
     steps:
       - name: Print build info
-        run: 'echo test-type: ${{ inputs.test-type }}, test-timeout-minutes: ${{ inputs.test-timeout-minutes }}, reuse-v8-context: $REUSE_V8_CONTEXT'
+        run: 'echo test-type: ${{ inputs.test-type }}, test-timeout-minutes: ${{ inputs.test-timeout-minutes }}'
       - uses: actions/checkout@v2
         with:
           submodules: recursive

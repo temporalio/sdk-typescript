@@ -18,14 +18,13 @@ export function u8(s: string): Uint8Array {
   return new TextEncoder().encode(s);
 }
 
-export function isSet(env: string | undefined): boolean {
-  if (env === undefined) return false;
+function isSet(env: string | undefined, def: boolean): boolean {
+  if (env === undefined) return def;
   env = env.toLocaleLowerCase();
   return env === '1' || env === 't' || env === 'true';
 }
 
-export const RUN_INTEGRATION_TESTS = inWorkflowContext() || isSet(process.env.RUN_INTEGRATION_TESTS);
-export const REUSE_V8_CONTEXT = inWorkflowContext() || isSet(process.env.REUSE_V8_CONTEXT);
+export const RUN_INTEGRATION_TESTS = inWorkflowContext() || isSet(process.env.RUN_INTEGRATION_TESTS, false);
 
 export async function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -124,7 +123,7 @@ if (inWorkflowContext()) {
 
 export class Worker extends worker.Worker {
   static async create(options: WorkerOptions): Promise<worker.Worker> {
-    return RealWorker.create({ ...options, reuseV8Context: REUSE_V8_CONTEXT });
+    return RealWorker.create({ ...options });
   }
 }
 

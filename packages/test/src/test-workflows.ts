@@ -16,20 +16,19 @@ import { msToTs } from '@temporalio/common/lib/time';
 import { coresdk } from '@temporalio/proto';
 import { LogTimestamp } from '@temporalio/worker';
 import { WorkflowCodeBundler } from '@temporalio/worker/lib/workflow/bundler';
-import { VMWorkflow, VMWorkflowCreator } from '@temporalio/worker/lib/workflow/vm';
 import { ReusableVMWorkflow, ReusableVMWorkflowCreator } from '@temporalio/worker/lib/workflow/reusable-vm';
 import { parseWorkflowCode } from '@temporalio/worker/lib/worker';
 import * as activityFunctions from './activities';
-import { cleanStackTrace, REUSE_V8_CONTEXT, u8 } from './helpers';
+import { cleanStackTrace, u8 } from './helpers';
 import { ProcessedSignal } from './workflows';
 
 export interface Context {
-  workflow: VMWorkflow | ReusableVMWorkflow;
+  workflow: ReusableVMWorkflow;
   logs: unknown[][];
   workflowType: string;
   startTime: number;
   runId: string;
-  workflowCreator: TestVMWorkflowCreator | TestReusableVMWorkflowCreator;
+  workflowCreator: TestReusableVMWorkflowCreator;
 }
 
 const test = anyTest as TestFn<Context>;
@@ -41,14 +40,6 @@ function injectConsole(logsGetter: (runId: string) => unknown[][], context: vm.C
       logsGetter(runId).push(args);
     },
   };
-}
-
-class TestVMWorkflowCreator extends VMWorkflowCreator {
-  public logs: Record<string, unknown[][]> = {};
-
-  override injectConsole(context: vm.Context) {
-    injectConsole((runId) => this.logs[runId], context);
-  }
 }
 
 class TestReusableVMWorkflowCreator extends ReusableVMWorkflowCreator {
@@ -65,9 +56,7 @@ test.before(async (t) => {
   const workflowBundle = parseWorkflowCode((await bundler.createBundle()).code);
   // FIXME: isolateExecutionTimeoutMs used to be 200 ms, but that's causing
   //        lot of flakes on CI. Revert this after investigation / resolution.
-  t.context.workflowCreator = REUSE_V8_CONTEXT
-    ? await TestReusableVMWorkflowCreator.create(workflowBundle, 400, new Set())
-    : await TestVMWorkflowCreator.create(workflowBundle, 400, new Set());
+  t.context.workflowCreator = await TestReusableVMWorkflowCreator.create(workflowBundle, 400, new Set());
 });
 
 test.after.always(async (t) => {
@@ -97,7 +86,7 @@ async function createWorkflow(
   workflowType: string,
   runId: string,
   startTime: number,
-  workflowCreator: VMWorkflowCreator | ReusableVMWorkflowCreator
+  workflowCreator: ReusableVMWorkflowCreator
 ) {
   const workflow = (await workflowCreator.createWorkflow({
     info: {
@@ -121,7 +110,7 @@ async function createWorkflow(
     now: startTime,
     patches: [],
     showStackTraceSources: true,
-  })) as VMWorkflow;
+  })) as ReusableVMWorkflow;
   return workflow;
 }
 

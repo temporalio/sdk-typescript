@@ -70,7 +70,6 @@ jobs:
         env:
           # NOTE: Newer tests start their own server and are not subject to this env var.
           RUN_INTEGRATION_TESTS: ${{ startsWith(matrix.os, 'ubuntu') }}
-          REUSE_V8_CONTEXT: ${{ matrix.reuse-v8-context }}
 
       - uses: actions/upload-artifact@v3
         if: ${{ failure() }}

@@ -5,7 +5,7 @@ import { ApplicationFailure, arrayFromPayloads } from '@temporalio/common';
 import { bundleWorkflowCode, WorkflowBundle } from '@temporalio/worker';
 import { sleep } from '@temporalio/workflow';
 import { WorkflowFailedError } from '@temporalio/client';
-import { test as anyTest, bundlerOptions, Worker, REUSE_V8_CONTEXT } from './helpers';
+import { test as anyTest, bundlerOptions, Worker } from './helpers';
 
 interface Context {
   env: TestWorkflowEnvironment;
@@ -17,10 +17,6 @@ interface Context {
 const test = anyTest as TestFn<Context>;
 
 const withReusableContext = test.macro<[ImplementationFn<[], Context>]>(async (t, fn) => {
-  if (!REUSE_V8_CONTEXT) {
-    t.pass('Skipped since REUSE_V8_CONTEXT is not set');
-    return;
-  }
   await fn(t);
 });
 

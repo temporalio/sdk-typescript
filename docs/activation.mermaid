@@ -1,4 +1,5 @@
 %% Activation diagram for Worker with `reuseV8Context` option off
+%% FIXME: Update this diagram now that non-reuseV8Context has been removed
 sequenceDiagram
     participant Server
     participant Core as Rust Core
@@ -28,6 +29,6 @@ sequenceDiagram
     WT-->>-MT: Respond with Sink Calls
     MT->>MT: Run Sink Functions
     MT->>Core: Complete Activation
-    opt Completed Workflow Task   
+    opt Completed Workflow Task
         Core->>Server: Complete Workflow Task
     end

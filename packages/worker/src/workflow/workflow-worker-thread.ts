@@ -2,7 +2,6 @@ import { isMainThread, parentPort as parentPortOrNull } from 'node:worker_thread
 import { IllegalStateError } from '@temporalio/common';
 import { Workflow, WorkflowCreator } from './interface';
 import { ReusableVMWorkflowCreator } from './reusable-vm';
-import { VMWorkflowCreator } from './vm';
 import { WorkerThreadRequest } from './workflow-worker-thread/input';
 import { WorkerThreadResponse } from './workflow-worker-thread/output';
 
@@ -30,21 +29,12 @@ let workflowGetter: (runId: string) => Workflow | undefined;
 async function handleRequest({ requestId, input }: WorkerThreadRequest): Promise<WorkerThreadResponse> {
   switch (input.type) {
     case 'init':
-      if (input.reuseV8Context) {
-        workflowCreator = await ReusableVMWorkflowCreator.create(
-          input.workflowBundle,
-          input.isolateExecutionTimeoutMs,
-          input.registeredActivityNames
-        );
-        workflowGetter = (runId) => ReusableVMWorkflowCreator.workflowByRunId.get(runId);
-      } else {
-        workflowCreator = await VMWorkflowCreator.create(
-          input.workflowBundle,
-          input.isolateExecutionTimeoutMs,
-          input.registeredActivityNames
-        );
-        workflowGetter = (runId) => VMWorkflowCreator.workflowByRunId.get(runId);
-      }
+      workflowCreator = await ReusableVMWorkflowCreator.create(
+        input.workflowBundle,
+        input.isolateExecutionTimeoutMs,
+        input.registeredActivityNames
+      );
+      workflowGetter = (runId) => ReusableVMWorkflowCreator.workflowByRunId.get(runId);
       return ok(requestId);
     case 'destroy':
       await workflowCreator?.destroy();
