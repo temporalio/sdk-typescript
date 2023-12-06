@@ -18,7 +18,7 @@ const test = anyTest as TestFn<Context>;
 
 const withReusableContext = test.macro<[ImplementationFn<[], Context>]>(async (t, fn) => {
   if (!REUSE_V8_CONTEXT) {
-    t.pass('Skipped since REUSE_V8_CONTEXT is not set');
+    t.pass('Skipped since REUSE_V8_CONTEXT is set to false');
     return;
   }
   await fn(t);

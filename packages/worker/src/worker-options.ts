@@ -487,9 +487,10 @@ export interface WorkerOptions {
    * From running basic stress tests we've observed 2/3 reduction in memory usage and 1/3 to 1/2 in CPU usage with this
    * feature turned on.
    *
-   * Note that we plan to turn this option on by default starting with 1.9.0.
+   * WARNING: There is currently no known reason to turn this off. The non-`reuseV8Context` execution model will be
+   * completely removed in 1.10.0. Please update your worker options to use `reuseV8Context: true` as soon as possible.
    *
-   * @default false (will change in the future)
+   * @default true
    */
   reuseV8Context?: boolean;
 
@@ -665,7 +666,6 @@ export function addDefaultWorkerOptions(options: WorkerOptions): WorkerOptionsWi
     maxCachedWorkflows,
     showStackTraceSources,
     namespace,
-    reuseV8Context,
     sinks,
     nonStickyToStickyPollRatio,
     interceptors,
@@ -674,6 +674,8 @@ export function addDefaultWorkerOptions(options: WorkerOptions): WorkerOptionsWi
   const debugMode = options.debugMode || isSet(process.env.TEMPORAL_DEBUG);
   const maxConcurrentWorkflowTaskExecutions = options.maxConcurrentWorkflowTaskExecutions ?? 40;
   const maxConcurrentActivityTaskExecutions = options.maxConcurrentActivityTaskExecutions ?? 100;
+
+  const reuseV8Context = options.reuseV8Context ?? true;
 
   const heapSizeMiB = v8.getHeapStatistics().heap_size_limit / MiB;
   const defaultMaxCachedWorkflows = reuseV8Context
@@ -702,7 +704,6 @@ export function addDefaultWorkerOptions(options: WorkerOptions): WorkerOptionsWi
     workflowThreadPoolSize: reuseV8Context ? 1 : 2,
     maxCachedWorkflows: maxCachedWorkflows ?? defaultMaxCachedWorkflows,
     showStackTraceSources: showStackTraceSources ?? false,
-    reuseV8Context: reuseV8Context ?? false,
     debugMode: debugMode ?? false,
     interceptors: {
       activity: interceptors?.activity ?? [],
@@ -718,6 +719,7 @@ export function addDefaultWorkerOptions(options: WorkerOptions): WorkerOptionsWi
       ...sinks,
     },
     ...rest,
+    reuseV8Context,
     maxConcurrentWorkflowTaskExecutions,
     maxConcurrentActivityTaskExecutions,
   };
