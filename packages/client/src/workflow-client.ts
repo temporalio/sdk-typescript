@@ -167,7 +167,11 @@ export interface WorkflowHandle<T extends Workflow = Workflow> extends BaseWorkf
   /**
    * Get a handle to an Update.
    */
-  getUpdateHandle<Ret>(updateId: string, workflowId: string, workflowRunId?: string): WorkflowUpdateHandle<Ret>;
+  getUpdateHandle<Ret>(
+    updateId: string,
+    workflowId: string,
+    options?: GetWorkflowUpdateHandleOptions
+  ): WorkflowUpdateHandle<Ret>;
 
   /**
    * Query a running or completed Workflow.
@@ -366,6 +370,16 @@ export interface WorkflowUpdateHandle<Ret> {
    * @throws {@link WorkflowUpdateFailedError} if ApplicationFailure is thrown in the Update handler.
    */
   result(): Promise<Ret>;
+}
+
+/**
+ * Options for {@link WorkflowHandle.getUpdateHandle}
+ */
+export interface GetWorkflowUpdateHandleOptions {
+  /**
+   * The ID of the Run of the Workflow targeted by the Update.
+   */
+  workflowRunId?: string;
 }
 
 /**
@@ -785,9 +799,10 @@ export class WorkflowClient extends BaseClient {
   protected createWorkflowUpdateHandle<Ret>(
     updateId: string,
     workflowId: string,
-    workflowRunId?: string,
+    options?: GetWorkflowUpdateHandleOptions,
     outcome?: temporal.api.update.v1.IOutcome
   ): WorkflowUpdateHandle<Ret> {
+    const workflowRunId = options?.workflowRunId;
     return {
       updateId,
       workflowId,
@@ -1062,7 +1077,7 @@ export class WorkflowClient extends BaseClient {
       return this.createWorkflowUpdateHandle<Ret>(
         output.updateId,
         input.workflowExecution.workflowId,
-        output.workflowRunId,
+        { workflowRunId: output.workflowRunId },
         output.outcome
       );
     };
@@ -1141,8 +1156,12 @@ export class WorkflowClient extends BaseClient {
         );
         return await handle.result();
       },
-      getUpdateHandle<Ret>(updateId: string, workflowId: string, workflowRunId?: string): WorkflowUpdateHandle<Ret> {
-        return this.client.createWorkflowUpdateHandle(updateId, workflowId, workflowRunId);
+      getUpdateHandle<Ret>(
+        updateId: string,
+        workflowId: string,
+        options?: GetWorkflowUpdateHandleOptions
+      ): WorkflowUpdateHandle<Ret> {
+        return this.client.createWorkflowUpdateHandle(updateId, workflowId, options);
       },
       async signal<Args extends any[]>(def: SignalDefinition<Args> | string, ...args: Args): Promise<void> {
         const next = this.client._signalWorkflowHandler.bind(this.client);

@@ -73,15 +73,13 @@ test('Update handle can be created from identifiers and used to obtain result', 
     t.deepEqual(await updateHandle.result(), ['1']);
 
     t.truthy(updateHandleFromStartUpdate.workflowRunId);
-    const updateHandle2 = wfHandle.getUpdateHandle(
-      updateId,
-      wfHandle.workflowId,
-      updateHandleFromStartUpdate.workflowRunId
-    );
+    const updateHandle2 = wfHandle.getUpdateHandle(updateId, wfHandle.workflowId, {
+      workflowRunId: updateHandleFromStartUpdate.workflowRunId,
+    });
     t.deepEqual(await updateHandle2.result(), ['1']);
 
     const incorrectRunId = wf.uuid4();
-    const updateHandle3 = wfHandle.getUpdateHandle(updateId, wfHandle.workflowId, incorrectRunId);
+    const updateHandle3 = wfHandle.getUpdateHandle(updateId, wfHandle.workflowId, { workflowRunId: incorrectRunId });
     const err = await t.throwsAsync(updateHandle3.result());
     t.true(isGrpcServiceError(err) && err.code === grpcStatus.NOT_FOUND);
   });
