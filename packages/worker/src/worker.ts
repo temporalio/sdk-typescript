@@ -118,7 +118,9 @@ export type ActivityTaskWithBase64Token = {
   base64TaskToken: string;
 };
 
-type CompiledWorkerOptionsWithBuildId = CompiledWorkerOptions & { buildId: string };
+type CompiledWorkerOptionsWithBuildId = CompiledWorkerOptions & {
+  buildId: string;
+};
 
 /**
  * Combined error information for {@link Worker.runUntil}
@@ -208,7 +210,10 @@ export class NativeWorker implements NativeWorkerLike {
   public static async createReplay(options: CompiledWorkerOptionsWithBuildId): Promise<NativeReplayHandle> {
     const runtime = Runtime.instance();
     const replayer = await runtime.createReplayWorker(options);
-    return { worker: new NativeWorker(runtime, replayer.worker), historyPusher: replayer.pusher };
+    return {
+      worker: new NativeWorker(runtime, replayer.worker),
+      historyPusher: replayer.pusher,
+    };
   }
 
   protected constructor(protected readonly runtime: Runtime, protected readonly nativeWorker: native.Worker) {
@@ -461,6 +466,7 @@ export class Worker {
     // This isn't required for vscode, only for Chrome Dev Tools which doesn't support debugging worker threads.
     // We also rely on this in debug-replayer where we inject a global variable to be read from workflow context.
     if (compiledOptions.debugMode) {
+      // eslint-disable-next-line deprecation/deprecation
       if (compiledOptions.reuseV8Context) {
         return await ReusableVMWorkflowCreator.create(
           workflowBundle,
@@ -478,7 +484,8 @@ export class Worker {
         workflowBundle,
         threadPoolSize: compiledOptions.workflowThreadPoolSize,
         isolateExecutionTimeoutMs: compiledOptions.isolateExecutionTimeoutMs,
-        reuseV8Context: compiledOptions.reuseV8Context ?? false,
+        // eslint-disable-next-line deprecation/deprecation
+        reuseV8Context: compiledOptions.reuseV8Context ?? true,
         registeredActivityNames,
       });
     }
@@ -828,7 +835,11 @@ export class Worker {
                     type: 'result';
                     result: coresdk.activity_result.IActivityExecutionResult;
                   }
-                | { type: 'run'; activity: Activity; input: ActivityExecuteInput }
+                | {
+                    type: 'run';
+                    activity: Activity;
+                    input: ActivityExecuteInput;
+                  }
                 | { type: 'ignore' };
               switch (variant) {
                 case 'start': {
@@ -854,7 +865,10 @@ export class Worker {
                             message: `Activity function ${activityType} is not registered on this Worker, available activities: ${JSON.stringify(
                               Object.keys(this.options.activities ?? {})
                             )}`,
-                            applicationFailureInfo: { type: 'NotFoundError', nonRetryable: false },
+                            applicationFailureInfo: {
+                              type: 'NotFoundError',
+                              nonRetryable: false,
+                            },
                           },
                         },
                       },
@@ -912,7 +926,9 @@ export class Worker {
                 case 'cancel': {
                   output = { type: 'ignore' };
                   if (activity === undefined) {
-                    this.log.error('Tried to cancel a non-existing activity', { taskToken: base64TaskToken });
+                    this.log.error('Tried to cancel a non-existing activity', {
+                      taskToken: base64TaskToken,
+                    });
                     break;
                   }
                   // NOTE: activity will not be considered cancelled until it confirms cancellation (by throwing a CancelledFailure)
@@ -1013,15 +1029,24 @@ export class Worker {
             // Core has indicated that it will not return any more poll results, evict all cached WFs
             filter((state) => state !== 'POLLING'),
             first(),
-            map((): { activation: coresdk.workflow_activation.WorkflowActivation; synthetic: true } => {
-              return {
-                activation: coresdk.workflow_activation.WorkflowActivation.create({
-                  runId: group$.key,
-                  jobs: [{ removeFromCache: Worker.SELF_INDUCED_SHUTDOWN_EVICTION }],
-                }),
-                synthetic: true,
-              };
-            }),
+            map(
+              (): {
+                activation: coresdk.workflow_activation.WorkflowActivation;
+                synthetic: true;
+              } => {
+                return {
+                  activation: coresdk.workflow_activation.WorkflowActivation.create({
+                    runId: group$.key,
+                    jobs: [
+                      {
+                        removeFromCache: Worker.SELF_INDUCED_SHUTDOWN_EVICTION,
+                      },
+                    ],
+                  }),
+                  synthetic: true,
+                };
+              }
+            ),
             takeUntil(group$.pipe(last(undefined, null)))
           )
         ).pipe(
@@ -1227,7 +1252,10 @@ export class Worker {
                 }).finish();
                 // We do not dispose of the Workflow yet, wait to be evicted from Core.
                 // This is done to simplify the Workflow lifecycle so Core is the sole driver.
-                return { state: undefined, output: { close: true, completion } };
+                return {
+                  state: undefined,
+                  output: { close: true, completion },
+                };
               }
             },
             undefined
@@ -1298,7 +1326,10 @@ export class Worker {
    */
   protected activityHeartbeat$(): Observable<void> {
     function process(state: HeartbeatState, heartbeat: Heartbeat): HeartbeatStateAndOutput {
-      return { state: { ...state, processing: true, pending: undefined }, output: { type: 'send', heartbeat } };
+      return {
+        state: { ...state, processing: true, pending: undefined },
+        output: { type: 'send', heartbeat },
+      };
     }
 
     function storePending(state: HeartbeatState, heartbeat: Heartbeat): HeartbeatStateAndOutput {
@@ -1307,7 +1338,12 @@ export class Worker {
 
     function complete(callback: () => void): HeartbeatStateAndOutput {
       return {
-        state: { pending: undefined, completionCallback: undefined, processing: false, closed: true },
+        state: {
+          pending: undefined,
+          completionCallback: undefined,
+          processing: false,
+          closed: true,
+        },
         output: { type: 'close', completionCallback: callback },
       };
     }
@@ -1325,7 +1361,10 @@ export class Worker {
             (state: HeartbeatState, input: HeartbeatInput): HeartbeatStateAndOutput => {
               if (input.type === 'create') {
                 this.numHeartbeatingActivitiesSubject.next(this.numHeartbeatingActivitiesSubject.value + 1);
-                return { state: { processing: false, closed: false }, output: null };
+                return {
+                  state: { processing: false, closed: false },
+                  output: null,
+                };
               }
               // Ignore any input if we've marked this activity heartbeat stream as closed
               // (rogue heartbeat)
@@ -1350,7 +1389,10 @@ export class Worker {
                     return complete(state.completionCallback);
                   } else {
                     // Nothing to do, wait for completion or heartbeat
-                    return { state: { ...state, processing: false }, output: null };
+                    return {
+                      state: { ...state, processing: false },
+                      output: null,
+                    };
                   }
                 case 'completion':
                   if (state.processing) {
@@ -1409,7 +1451,10 @@ export class Worker {
               }).finish();
               this.nativeWorker.recordActivityHeartbeat(byteArrayToBuffer(arr));
             } finally {
-              this.activityHeartbeatSubject.next({ type: 'flush', base64TaskToken });
+              this.activityHeartbeatSubject.next({
+                type: 'flush',
+                base64TaskToken,
+              });
             }
           }),
           tap({ complete: group$.close })
@@ -1484,7 +1529,10 @@ export class Worker {
       const task = coresdk.activity_task.ActivityTask.decode(new Uint8Array(buffer));
       const { taskToken, ...rest } = task;
       const base64TaskToken = formatTaskToken(taskToken);
-      this.log.trace('Got activity task', { taskToken: base64TaskToken, ...rest });
+      this.log.trace('Got activity task', {
+        taskToken: base64TaskToken,
+        ...rest,
+      });
       const { variant } = task;
       if (variant === undefined) {
         throw new TypeError('Got an activity task without a "variant" attribute');
