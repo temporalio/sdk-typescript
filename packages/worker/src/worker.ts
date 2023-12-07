@@ -466,7 +466,6 @@ export class Worker {
     // This isn't required for vscode, only for Chrome Dev Tools which doesn't support debugging worker threads.
     // We also rely on this in debug-replayer where we inject a global variable to be read from workflow context.
     if (compiledOptions.debugMode) {
-      // eslint-disable-next-line deprecation/deprecation
       if (compiledOptions.reuseV8Context) {
         return await ReusableVMWorkflowCreator.create(
           workflowBundle,
@@ -484,7 +483,6 @@ export class Worker {
         workflowBundle,
         threadPoolSize: compiledOptions.workflowThreadPoolSize,
         isolateExecutionTimeoutMs: compiledOptions.isolateExecutionTimeoutMs,
-        // eslint-disable-next-line deprecation/deprecation
         reuseV8Context: compiledOptions.reuseV8Context ?? true,
         registeredActivityNames,
       });
