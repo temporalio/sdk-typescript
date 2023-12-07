@@ -301,6 +301,9 @@ export interface WorkflowResultOptions {
   followRuns?: boolean;
 }
 
+/**
+ * Options for {@link WorkflowClient.getHandle}
+ */
 export interface GetWorkflowHandleOptions extends WorkflowResultOptions {
   /**
    * ID of the first execution in the Workflow execution chain.
