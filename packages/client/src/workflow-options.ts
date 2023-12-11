@@ -66,6 +66,12 @@ export function compileWorkflowOptions<T extends WorkflowOptions>(options: T): W
 }
 
 export interface WorkflowUpdateOptions {
+  /**
+   * The Update Id, which is a per-Workflow-Execution idempotency key.
+   *
+   * We recommend setting it to a meaningful business ID or idempotency key (like a request ID) passed from upstream. If
+   * it is not provided, it will be set to a random string by the Client.
+   */
   readonly updateId?: string;
 }
 
