@@ -19,7 +19,7 @@ import {
 } from '@temporalio/common';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import { checkExtends } from '@temporalio/common/lib/type-helpers';
-import type { coresdk } from '@temporalio/proto';
+import type { coresdk, temporal } from '@temporalio/proto';
 import { alea, RNG } from './alea';
 import { RootCancellationScope } from './cancellation-scope';
 import { DeterminismViolationError, LocalActivityDoBackoff, isCancellation } from './errors';
@@ -125,12 +125,15 @@ export class Activator implements ActivationHandler {
   /**
    * Mapping of update name to handler and validator
    */
-  readonly updateHandlers = new Map<string, { handler: WorkflowUpdateType; validator?: WorkflowUpdateValidatorType }>();
+  readonly updateHandlers = new Map<
+    string,
+    { handler: WorkflowUpdateType; validator?: WorkflowUpdateValidatorType; description?: string }
+  >();
 
   /**
    * Mapping of signal name to handler
    */
-  readonly signalHandlers = new Map<string, WorkflowSignalType>();
+  readonly signalHandlers = new Map<string, { handler: WorkflowSignalType; description?: string }>();
 
   /**
    * A signal handler that catches calls for non-registered signal names.
@@ -157,38 +160,76 @@ export class Activator implements ActivationHandler {
   /**
    * Mapping of query name to handler
    */
-  public readonly queryHandlers = new Map<string, WorkflowQueryType>([
+  public readonly queryHandlers = new Map<string, { handler: WorkflowQueryType; description?: string }>([
     [
       '__stack_trace',
-      () => {
-        return this.getStackTraces()
-          .map((s) => s.formatted)
-          .join('\n\n');
+      {
+        handler: () => {
+          return this.getStackTraces()
+            .map((s) => s.formatted)
+            .join('\n\n');
+        },
+        description: 'Returns a sensible stack trace.',
       },
     ],
     [
       '__enhanced_stack_trace',
-      (): EnhancedStackTrace => {
-        const { sourceMap } = this;
-        const sdk: SDKInfo = { name: 'typescript', version: pkg.version };
-        const stacks = this.getStackTraces().map(({ structured: locations }) => ({ locations }));
-        const sources: Record<string, FileSlice[]> = {};
-        if (this.showStackTraceSources) {
-          for (const { locations } of stacks) {
-            for (const { filePath } of locations) {
-              if (!filePath) continue;
-              const content = sourceMap?.sourcesContent?.[sourceMap?.sources.indexOf(filePath)];
-              if (!content) continue;
-              sources[filePath] = [
-                {
-                  content,
-                  lineOffset: 0,
-                },
-              ];
+      {
+        handler: (): EnhancedStackTrace => {
+          const { sourceMap } = this;
+          const sdk: SDKInfo = { name: 'typescript', version: pkg.version };
+          const stacks = this.getStackTraces().map(({ structured: locations }) => ({ locations }));
+          const sources: Record<string, FileSlice[]> = {};
+          if (this.showStackTraceSources) {
+            for (const { locations } of stacks) {
+              for (const { filePath } of locations) {
+                if (!filePath) continue;
+                const content = sourceMap?.sourcesContent?.[sourceMap?.sources.indexOf(filePath)];
+                if (!content) continue;
+                sources[filePath] = [
+                  {
+                    content,
+                    lineOffset: 0,
+                  },
+                ];
+              }
             }
           }
-        }
-        return { sdk, stacks, sources };
+          return { sdk, stacks, sources };
+        },
+        description: 'Returns a stack trace annotated with source information.',
+      },
+    ],
+    [
+      '__temporal_workflow_metadata',
+      {
+        handler: (): temporal.api.sdk.v1.IWorkflowMetadata => {
+          const workflowType = this.info.workflowType;
+          const description = this.info?.memo?.__temporal_workflow_description;
+          const queryDefinitions = Array.from(this.queryHandlers.entries()).map(([name, value]) => ({
+            name,
+            description: value.description,
+          }));
+          const signalDefinitions = Array.from(this.signalHandlers.entries()).map(([name, value]) => ({
+            name,
+            description: value.description,
+          }));
+          const updateDefinitions = Array.from(this.updateHandlers.entries()).map(([name, value]) => ({
+            name,
+            description: value.description,
+          }));
+          return {
+            definition: {
+              type: workflowType,
+              description: typeof description === 'string' ? description : null,
+              queryDefinitions,
+              signalDefinitions,
+              updateDefinitions,
+            },
+          };
+        },
+        description:
+          'Returns metadata associated with this workflow. Use `memo.__temporal_workflow_description` to add a workflow description.',
       },
     ],
   ]);
@@ -491,7 +532,7 @@ export class Activator implements ActivationHandler {
 
   // Intentionally non-async function so this handler doesn't show up in the stack trace
   protected queryWorkflowNextHandler({ queryName, args }: QueryInput): Promise<unknown> {
-    const fn = this.queryHandlers.get(queryName);
+    const fn = this.queryHandlers.get(queryName)?.handler;
     if (fn === undefined) {
       const knownQueryTypes = [...this.queryHandlers.keys()].join(' ');
       // Fail the query
@@ -662,7 +703,7 @@ export class Activator implements ActivationHandler {
   }
 
   public async signalWorkflowNextHandler({ signalName, args }: SignalInput): Promise<void> {
-    const fn = this.signalHandlers.get(signalName);
+    const fn = this.signalHandlers.get(signalName)?.handler;
     if (fn) {
       return await fn(...args);
     } else if (this.defaultSignalHandler) {
