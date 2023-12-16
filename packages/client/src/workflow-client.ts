@@ -165,13 +165,9 @@ export interface WorkflowHandle<T extends Workflow = Workflow> extends BaseWorkf
   ): Promise<WorkflowUpdateHandle<Ret>>;
 
   /**
-   * Get a handle to an Update.
+   * Get a handle to an Update of this Workflow.
    */
-  getUpdateHandle<Ret>(
-    updateId: string,
-    workflowId: string,
-    options?: GetWorkflowUpdateHandleOptions
-  ): WorkflowUpdateHandle<Ret>;
+  getUpdateHandle<Ret>(updateId: string, options?: GetWorkflowUpdateHandleOptions): WorkflowUpdateHandle<Ret>;
 
   /**
    * Query a running or completed Workflow.
@@ -1156,11 +1152,7 @@ export class WorkflowClient extends BaseClient {
         );
         return await handle.result();
       },
-      getUpdateHandle<Ret>(
-        updateId: string,
-        workflowId: string,
-        options?: GetWorkflowUpdateHandleOptions
-      ): WorkflowUpdateHandle<Ret> {
+      getUpdateHandle<Ret>(updateId: string, options?: GetWorkflowUpdateHandleOptions): WorkflowUpdateHandle<Ret> {
         return this.client.createWorkflowUpdateHandle(updateId, workflowId, options);
       },
       async signal<Args extends any[]>(def: SignalDefinition<Args> | string, ...args: Args): Promise<void> {
