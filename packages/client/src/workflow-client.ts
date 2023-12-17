@@ -472,7 +472,7 @@ export class WorkflowClient extends BaseClient {
 
   /**
    * Sends a signal to a running Workflow or starts a new one if not already running and immediately signals it.
-   * Useful when you're unsure of the Workflows' run state.
+   * Useful when you're unsure of the Workflow's run state.
    *
    * @returns the runId of the Workflow
    */
