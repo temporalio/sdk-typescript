@@ -167,7 +167,7 @@ export interface WorkflowHandle<T extends Workflow = Workflow> extends BaseWorkf
   /**
    * Get a handle to an Update of this Workflow.
    */
-  getUpdateHandle<Ret>(updateId: string, options?: GetWorkflowUpdateHandleOptions): WorkflowUpdateHandle<Ret>;
+  getUpdateHandle<Ret>(updateId: string): WorkflowUpdateHandle<Ret>;
 
   /**
    * Query a running or completed Workflow.
@@ -795,10 +795,9 @@ export class WorkflowClient extends BaseClient {
   protected createWorkflowUpdateHandle<Ret>(
     updateId: string,
     workflowId: string,
-    options?: GetWorkflowUpdateHandleOptions,
+    workflowRunId?: string,
     outcome?: temporal.api.update.v1.IOutcome
   ): WorkflowUpdateHandle<Ret> {
-    const workflowRunId = options?.workflowRunId;
     return {
       updateId,
       workflowId,
@@ -1073,7 +1072,7 @@ export class WorkflowClient extends BaseClient {
       return this.createWorkflowUpdateHandle<Ret>(
         output.updateId,
         input.workflowExecution.workflowId,
-        { workflowRunId: output.workflowRunId },
+        output.workflowRunId,
         output.outcome
       );
     };
@@ -1152,8 +1151,8 @@ export class WorkflowClient extends BaseClient {
         );
         return await handle.result();
       },
-      getUpdateHandle<Ret>(updateId: string, options?: GetWorkflowUpdateHandleOptions): WorkflowUpdateHandle<Ret> {
-        return this.client.createWorkflowUpdateHandle(updateId, workflowId, options);
+      getUpdateHandle<Ret>(updateId: string): WorkflowUpdateHandle<Ret> {
+        return this.client.createWorkflowUpdateHandle(updateId, workflowId, runId);
       },
       async signal<Args extends any[]>(def: SignalDefinition<Args> | string, ...args: Args): Promise<void> {
         const next = this.client._signalWorkflowHandler.bind(this.client);
