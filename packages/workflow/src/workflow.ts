@@ -1352,5 +1352,55 @@ export function upsertSearchAttributes(searchAttributes: SearchAttributes): void
   });
 }
 
+/**
+ * Updates this Workflow's Memo by merging the provided `memo` with the existing Memo,
+ * `workflowInfo().memo`.
+ *
+ * For example, this Workflow code:
+ *
+ * ```ts
+ * upsertMemo({
+ *   key1: value,
+ * });
+ * upsertMemo({
+ *   key2: value,
+ * });
+ * ```
+ *
+ * would result in the Workflow having these Memo:
+ *
+ * ```ts
+ * {
+ *   key1: value,
+ *   key2: value,
+ * }
+ * ```
+ *
+ * @param memo The Record to merge. Use a value of `null` to clear a key from the Memo.
+ */
+export function upsertMemo(memo: Record<string, unknown>): void {
+  const activator = assertInWorkflowContext('Workflow.upsertMemo(...) may only be used from a Workflow Execution.');
+
+  if (memo == null) {
+    throw new Error('memo must be a non-null Record');
+  }
+
+  activator.pushCommand({
+    modifyWorkflowProperties: {
+      upsertedMemo: mapToPayloads(activator.payloadConverter, memo),
+    },
+  });
+
+  activator.mutateWorkflowInfo((info: WorkflowInfo): WorkflowInfo => {
+    return {
+      ...info,
+      memo: {
+        ...info.memo,
+        ...memo,
+      },
+    };
+  });
+}
+
 export const stackTraceQuery = defineQuery<string>('__stack_trace');
 export const enhancedStackTraceQuery = defineQuery<EnhancedStackTrace>('__enhanced_stack_trace');

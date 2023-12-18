@@ -417,6 +417,44 @@ if (RUN_INTEGRATION_TESTS) {
     ]);
   });
 
+  test('Sink functions contains upserted memo', async (t) => {
+    const taskQueue = `${__filename}-${t.title}`;
+
+    const recordedMessages = Array<{ message: string; memo: Record<string, unknown> | undefined }>();
+    const sinks = asSdkLoggerSink(async (info, message, _attrs) => {
+      recordedMessages.push({
+        message,
+        memo: info.memo,
+      });
+    });
+
+    const client = new WorkflowClient();
+
+    const worker = await Worker.create({
+      ...defaultOptions,
+      taskQueue,
+      sinks,
+    });
+    await worker.runUntil(
+      client.execute(workflows.upsertAndReadMemo, {
+        taskQueue,
+        workflowId: uuid4(),
+        args: [{ note: 'foo' }],
+      })
+    );
+
+    t.deepEqual(recordedMessages, [
+      {
+        message: 'Workflow started',
+        memo: undefined,
+      },
+      {
+        message: 'Workflow completed',
+        memo: { note: 'foo' },
+      },
+    ]);
+  });
+
   test('Core issue 589', async (t) => {
     const taskQueue = `${__filename}-${t.title}`;
 
