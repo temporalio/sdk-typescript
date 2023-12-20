@@ -1,11 +1,11 @@
 import test from 'ava';
 import { v4 as uuid4 } from 'uuid';
+import fetch from 'node-fetch';
 import { WorkflowClient } from '@temporalio/client';
 import { DefaultLogger, NativeConnection, Runtime } from '@temporalio/worker';
 import * as activities from './activities';
 import { RUN_INTEGRATION_TESTS, Worker } from './helpers';
 import * as workflows from './workflows';
-import fetch from 'node-fetch';
 
 if (RUN_INTEGRATION_TESTS) {
   test.serial('Prometheus metrics work', async (t) => {
