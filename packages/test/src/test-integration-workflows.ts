@@ -222,3 +222,75 @@ test('Start of workflow with signal is delayed', async (t) => {
   const startDelay = workflowExecutionStartedEvent?.workflowExecutionStartedEventAttributes?.firstWorkflowTaskBackoff;
   t.is(tsToMs(startDelay), 4678000);
 });
+
+export async function executeEagerActivity(): Promise<string> {
+  // If eager activity dispatch is working, then the task will always be dispatched to the workflow
+  // worker. Otherwise, chances are 50%-50% for either workers. We execute the activity 20 times to
+  // make sure that the workflow worker is really getting the task thanks to eager activity
+  // dispatch, and not out of pure luck.
+  for (let i = 0; i < 20; i++) {
+    const res = await workflow
+      .proxyActivities({ scheduleToCloseTimeout: '5s', allowEagerDispatch: true })
+      .testActivity()
+      .catch(() => 'failed');
+    if (res === 'failed') return res;
+  }
+  return 'success';
+}
+
+test('Worker request Eager Activity Dispatch if possible', async (t) => {
+  const { createWorker, startWorkflow } = helpers(t);
+
+  const activityWorker = await createWorker({
+    activities: {
+      testActivity: () => 'failed',
+    },
+    workflowBundle: undefined,
+    maxConcurrentActivityTaskPolls: 100,
+  });
+  const workflowWorker = await createWorker({
+    activities: {
+      testActivity: () => 'success',
+    },
+    maxConcurrentActivityTaskPolls: 2,
+  });
+  const handle = await startWorkflow(executeEagerActivity);
+  const result = await activityWorker.runUntil(workflowWorker.runUntil(handle.result()));
+  const { events } = await handle.fetchHistory();
+
+  t.is(result, 'success');
+  t.false(events?.some?.((ev) => ev.activityTaskTimedOutEventAttributes));
+  const activityTaskStarted = events?.filter?.((ev) => ev.activityTaskStartedEventAttributes);
+  t.is(activityTaskStarted?.length, 20);
+  t.true(activityTaskStarted?.every((ev) => ev.activityTaskStartedEventAttributes?.attempt === 1));
+});
+
+export async function dontExecuteEagerActivity(): Promise<string> {
+  return (await workflow
+    .proxyActivities({ scheduleToCloseTimeout: '5s', allowEagerDispatch: true })
+    .testActivity()
+    .catch(() => 'failed')) as string;
+}
+
+test('Worker dont request Eager Activity Dispatch if no activity registered', async (t) => {
+  const { createWorker, startWorkflow } = helpers(t);
+
+  const activityWorker = await createWorker({
+    activities: {
+      testActivity: () => 'success',
+    },
+    workflowBundle: undefined,
+  });
+  const workflowWorker = await createWorker({
+    activities: {},
+  });
+  const handle = await startWorkflow(dontExecuteEagerActivity);
+  const result = await activityWorker.runUntil(workflowWorker.runUntil(handle.result()));
+  const { events } = await handle.fetchHistory();
+
+  t.is(result, 'success');
+  t.false(events?.some?.((ev) => ev.activityTaskTimedOutEventAttributes));
+  const activityTaskStarted = events?.filter?.((ev) => ev.activityTaskStartedEventAttributes);
+  t.is(activityTaskStarted?.length, 1);
+  t.is(activityTaskStarted?.[0]?.activityTaskStartedEventAttributes?.attempt, 1);
+});
