@@ -28,7 +28,6 @@
     "test.watch": "lerna run --stream test.watch",
     "ci-stress": "node ./packages/test/lib/load/run-all-stress-ci-scenarios.js",
     "ci-nightly": "node ./packages/test/lib/load/run-all-nightly-scenarios.js",
-    "wait-namespace": "node ./scripts/wait-on-temporal.mjs",
     "lint": "eslint packages/*/src --ext .ts --no-error-on-unmatched-pattern --fix && prettier --write . && lerna run --no-bail --stream lint",
     "lint.check": "eslint packages/*/src --ext .ts --no-error-on-unmatched-pattern && prettier --end-of-line auto --check .  && lerna run --no-bail --stream lint.check",
     "lint.prune": "ts-prune --error -p tsconfig.prune.json --ignore \"used in module\" --skip \".d.ts\"",
