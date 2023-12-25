@@ -60,6 +60,10 @@ jobs:
         run: docker-compose up -d
         working-directory: docker-compose
         if: ${{ startsWith(matrix.os, 'ubuntu') }}
+
+      - name: Wait for Temporal Server
+        run: npm run wait-namespace
+        if: ${{ startsWith(matrix.os, 'ubuntu') }}
       # end:docker-compose
 
       - run: npm test
@@ -260,6 +264,16 @@ jobs:
         run: docker-compose up -d
         working-directory: docker-compose
         if: ${{ matrix.server == 'local' }}
+
+      # Copy wait-on-temporal script to the example project where the built client package is installed
+      - run: cp scripts/wait-on-temporal.mjs /tmp/registry/example
+        if: ${{ matrix.server == 'local' }}
+
+      - name: Wait for Temporal Server
+        run: node wait-on-temporal.mjs
+        working-directory: /tmp/registry/example
+        if: ${{ matrix.server == 'local' }}
+      # end:docker-compose
 
       - name: Create certs dir
         # We write the certs to disk because it serves the sample
