@@ -5,11 +5,14 @@ async function main() {
   const { registryDir } = await getArgs();
   await withRegistry(registryDir, async () => {
     try {
-      await spawnNpx(['lerna', 'publish', 'from-package', '--yes', '--registry', 'http://localhost:4873/'], {
-        stdio: 'inherit',
-        stdout: 'inherit',
-        stderr: 'inherit',
-      });
+      await spawnNpx(
+        ['lerna', 'publish', 'from-package', '--yes', '--registry', 'http://localhost:4873/', '--dist-tag', 'latest'],
+        {
+          stdio: 'inherit',
+          stdout: 'inherit',
+          stderr: 'inherit',
+        }
+      );
     } catch (e) {
       console.error(e);
       throw new Error('Failed to publish to registry');
