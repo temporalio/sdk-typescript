@@ -223,45 +223,49 @@ test('Start of workflow with signal is delayed', async (t) => {
   t.is(tsToMs(startDelay), 4678000);
 });
 
-export async function executeEagerActivity(): Promise<string> {
-  // If eager activity dispatch is working, then the task will always be dispatched to the workflow
-  // worker. Otherwise, chances are 50%-50% for either workers. We execute the activity 20 times to
-  // make sure that the workflow worker is really getting the task thanks to eager activity
-  // dispatch, and not out of pure luck.
-  for (let i = 0; i < 20; i++) {
-    const res = await workflow
+export async function executeEagerActivity(): Promise<string[]> {
+  const results: string[] = [];
+
+  const scheduleActivity = () =>
+    workflow
       .proxyActivities({ scheduleToCloseTimeout: '5s', allowEagerDispatch: true })
-      .testActivity()
-      .catch(() => 'failed');
-    if (res === 'failed') return res;
+      .then((res: string) => results.push(res));
+
+  for (let i = 0; i < 10; i++) {
+    // Schedule 3 activities at a time (`MAX_EAGER_ACTIVITY_RESERVATIONS_PER_WORKFLOW_TASK`)
+    await Promise.all([scheduleActivity(), scheduleActivity(), scheduleActivity()]);
   }
-  return 'success';
+  return results;
 }
 
-test('Worker request Eager Activity Dispatch if possible', async (t) => {
+test('Worker requests Eager Activity Dispatch if possible', async (t) => {
   const { createWorker, startWorkflow } = helpers(t);
+
+  // If eager activity dispatch is working, then the task will always be dispatched to the workflow
+  // worker. Otherwise, chances are 50%-50% for either workers. The test workflow schedule the
+  // activity 30 times to make sure that the workflow worker is really getting the task thanks to
+  // eager activity dispatch, and not out of pure luck.
 
   const activityWorker = await createWorker({
     activities: {
-      testActivity: () => 'failed',
+      testActivity: () => 'activity-only-worker',
     },
+    // Override the default workflow bundle, to make this an activity-only worker
     workflowBundle: undefined,
-    maxConcurrentActivityTaskPolls: 100,
   });
   const workflowWorker = await createWorker({
     activities: {
-      testActivity: () => 'success',
+      testActivity: () => 'workflow-and-activity-worker',
     },
-    maxConcurrentActivityTaskPolls: 2,
   });
   const handle = await startWorkflow(executeEagerActivity);
-  const result = await activityWorker.runUntil(workflowWorker.runUntil(handle.result()));
+  const results = await activityWorker.runUntil(workflowWorker.runUntil(handle.result()));
   const { events } = await handle.fetchHistory();
 
-  t.is(result, 'success');
+  t.true(results.every((res) => res === 'workflow-and-activity-worker'));
   t.false(events?.some?.((ev) => ev.activityTaskTimedOutEventAttributes));
   const activityTaskStarted = events?.filter?.((ev) => ev.activityTaskStartedEventAttributes);
-  t.is(activityTaskStarted?.length, 20);
+  t.is(activityTaskStarted?.length, 30);
   t.true(activityTaskStarted?.every((ev) => ev.activityTaskStartedEventAttributes?.attempt === 1));
 });
 
@@ -272,13 +276,20 @@ export async function dontExecuteEagerActivity(): Promise<string> {
     .catch(() => 'failed')) as string;
 }
 
-test('Worker dont request Eager Activity Dispatch if no activity registered', async (t) => {
+test("Worker doesn't request Eager Activity Dispatch if no activities are registered", async (t) => {
   const { createWorker, startWorkflow } = helpers(t);
+
+  // If the activity was eagerly dispatched to the Workflow worker even though it is a Workflow-only
+  // worker, then the activity execution will timeout (because tasks are not being polled) or
+  // otherwise fail (because no activity is registered under that name). Therefore, if the history
+  // shows only one attempt for that activity and no timeout, that can only mean that the activity
+  // was not eagerly dispatched.
 
   const activityWorker = await createWorker({
     activities: {
       testActivity: () => 'success',
     },
+    // Override the default workflow bundle, to make this an activity-only worker
     workflowBundle: undefined,
   });
   const workflowWorker = await createWorker({

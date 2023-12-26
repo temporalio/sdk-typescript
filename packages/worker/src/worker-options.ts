@@ -200,8 +200,9 @@ export interface WorkerOptions {
    * Whether or not to poll on the Activity task queue.
    *
    * If disabled and activities are registered on the Worker, it will run only local Activities.
+   * This setting is ignored if no activity is registed on the Worker.
    *
-   * @default true if `activities` is non-empty; false otherwise
+   * @default true
    */
   enableNonLocalActivities?: boolean;
 
