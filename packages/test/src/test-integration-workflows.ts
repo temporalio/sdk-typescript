@@ -223,19 +223,20 @@ test('Start of workflow with signal is delayed', async (t) => {
   t.is(tsToMs(startDelay), 4678000);
 });
 
-export async function executeEagerActivity(): Promise<string[]> {
-  const results: string[] = [];
-
+export async function executeEagerActivity(): Promise<void> {
   const scheduleActivity = () =>
     workflow
       .proxyActivities({ scheduleToCloseTimeout: '5s', allowEagerDispatch: true })
-      .then((res: string) => results.push(res));
+      .testActivity()
+      .then((res) => {
+        if (res !== 'workflow-and-activity-worker')
+          throw workflow.ApplicationFailure.nonRetryable('Activity was not eagerly dispatched');
+      });
 
   for (let i = 0; i < 10; i++) {
     // Schedule 3 activities at a time (`MAX_EAGER_ACTIVITY_RESERVATIONS_PER_WORKFLOW_TASK`)
     await Promise.all([scheduleActivity(), scheduleActivity(), scheduleActivity()]);
   }
-  return results;
 }
 
 test('Worker requests Eager Activity Dispatch if possible', async (t) => {
@@ -259,10 +260,9 @@ test('Worker requests Eager Activity Dispatch if possible', async (t) => {
     },
   });
   const handle = await startWorkflow(executeEagerActivity);
-  const results = await activityWorker.runUntil(workflowWorker.runUntil(handle.result()));
+  await activityWorker.runUntil(workflowWorker.runUntil(handle.result()));
   const { events } = await handle.fetchHistory();
 
-  t.true(results.every((res) => res === 'workflow-and-activity-worker'));
   t.false(events?.some?.((ev) => ev.activityTaskTimedOutEventAttributes));
   const activityTaskStarted = events?.filter?.((ev) => ev.activityTaskStartedEventAttributes);
   t.is(activityTaskStarted?.length, 30);
