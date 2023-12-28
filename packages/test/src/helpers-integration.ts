@@ -28,6 +28,18 @@ export interface Context {
   workflowBundle: WorkflowBundle;
 }
 
+const defaultDynamicConfigOptions = [
+  'frontend.enableUpdateWorkflowExecution=true',
+  'frontend.enableUpdateWorkflowExecutionAsyncAccepted=true',
+  'frontend.workerVersioningDataAPIs=true',
+  'frontend.workerVersioningWorkflowAPIs=true',
+  'system.enableActivityEagerExecution=true',
+  'system.enableEagerWorkflowStart=true',
+  'system.forceSearchAttributesCacheRefreshOnRead=true',
+  'worker.buildIdScavengerEnabled=true',
+  'worker.removableBuildIdDurationSinceDefault=1',
+];
+
 export function makeTestFunction(opts: {
   workflowsPath: string;
   workflowEnvironmentOpts?: LocalTestWorkflowEnvironmentOptions;
@@ -37,7 +49,16 @@ export function makeTestFunction(opts: {
   test.before(async (t) => {
     // Ignore invalid log levels
     Runtime.install({ logger: new DefaultLogger((process.env.TEST_LOG_LEVEL || 'DEBUG').toUpperCase() as LogLevel) });
-    const env = await TestWorkflowEnvironment.createLocal(opts.workflowEnvironmentOpts);
+    const env = await TestWorkflowEnvironment.createLocal({
+      ...opts.workflowEnvironmentOpts,
+      server: {
+        ...opts.workflowEnvironmentOpts?.server,
+        extraArgs: [
+          ...defaultDynamicConfigOptions.flatMap((opt) => ['--dynamic-config-value', opt]),
+          ...(opts.workflowEnvironmentOpts?.server?.extraArgs ?? []),
+        ],
+      },
+    });
     const workflowBundle = await bundleWorkflowCode({
       ...bundlerOptions,
       workflowInterceptorModules: [...defaultWorkflowInterceptorModules, ...(opts.workflowInterceptorModules ?? [])],
