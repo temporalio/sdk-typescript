@@ -222,3 +222,86 @@ test('Start of workflow with signal is delayed', async (t) => {
   const startDelay = workflowExecutionStartedEvent?.workflowExecutionStartedEventAttributes?.firstWorkflowTaskBackoff;
   t.is(tsToMs(startDelay), 4678000);
 });
+
+export async function executeEagerActivity(): Promise<void> {
+  const scheduleActivity = () =>
+    workflow
+      .proxyActivities({ scheduleToCloseTimeout: '5s', allowEagerDispatch: true })
+      .testActivity()
+      .then((res) => {
+        if (res !== 'workflow-and-activity-worker')
+          throw workflow.ApplicationFailure.nonRetryable('Activity was not eagerly dispatched');
+      });
+
+  for (let i = 0; i < 10; i++) {
+    // Schedule 3 activities at a time (`MAX_EAGER_ACTIVITY_RESERVATIONS_PER_WORKFLOW_TASK`)
+    await Promise.all([scheduleActivity(), scheduleActivity(), scheduleActivity()]);
+  }
+}
+
+test('Worker requests Eager Activity Dispatch if possible', async (t) => {
+  const { createWorker, startWorkflow } = helpers(t);
+
+  // If eager activity dispatch is working, then the task will always be dispatched to the workflow
+  // worker. Otherwise, chances are 50%-50% for either workers. The test workflow schedule the
+  // activity 30 times to make sure that the workflow worker is really getting the task thanks to
+  // eager activity dispatch, and not out of pure luck.
+
+  const activityWorker = await createWorker({
+    activities: {
+      testActivity: () => 'activity-only-worker',
+    },
+    // Override the default workflow bundle, to make this an activity-only worker
+    workflowBundle: undefined,
+  });
+  const workflowWorker = await createWorker({
+    activities: {
+      testActivity: () => 'workflow-and-activity-worker',
+    },
+  });
+  const handle = await startWorkflow(executeEagerActivity);
+  await activityWorker.runUntil(workflowWorker.runUntil(handle.result()));
+  const { events } = await handle.fetchHistory();
+
+  t.false(events?.some?.((ev) => ev.activityTaskTimedOutEventAttributes));
+  const activityTaskStarted = events?.filter?.((ev) => ev.activityTaskStartedEventAttributes);
+  t.is(activityTaskStarted?.length, 30);
+  t.true(activityTaskStarted?.every((ev) => ev.activityTaskStartedEventAttributes?.attempt === 1));
+});
+
+export async function dontExecuteEagerActivity(): Promise<string> {
+  return (await workflow
+    .proxyActivities({ scheduleToCloseTimeout: '5s', allowEagerDispatch: true })
+    .testActivity()
+    .catch(() => 'failed')) as string;
+}
+
+test("Worker doesn't request Eager Activity Dispatch if no activities are registered", async (t) => {
+  const { createWorker, startWorkflow } = helpers(t);
+
+  // If the activity was eagerly dispatched to the Workflow worker even though it is a Workflow-only
+  // worker, then the activity execution will timeout (because tasks are not being polled) or
+  // otherwise fail (because no activity is registered under that name). Therefore, if the history
+  // shows only one attempt for that activity and no timeout, that can only mean that the activity
+  // was not eagerly dispatched.
+
+  const activityWorker = await createWorker({
+    activities: {
+      testActivity: () => 'success',
+    },
+    // Override the default workflow bundle, to make this an activity-only worker
+    workflowBundle: undefined,
+  });
+  const workflowWorker = await createWorker({
+    activities: {},
+  });
+  const handle = await startWorkflow(dontExecuteEagerActivity);
+  const result = await activityWorker.runUntil(workflowWorker.runUntil(handle.result()));
+  const { events } = await handle.fetchHistory();
+
+  t.is(result, 'success');
+  t.false(events?.some?.((ev) => ev.activityTaskTimedOutEventAttributes));
+  const activityTaskStarted = events?.filter?.((ev) => ev.activityTaskStartedEventAttributes);
+  t.is(activityTaskStarted?.length, 1);
+  t.is(activityTaskStarted?.[0]?.activityTaskStartedEventAttributes?.attempt, 1);
+});

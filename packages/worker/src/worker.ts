@@ -464,11 +464,7 @@ export class Worker {
     workflowBundle: WorkflowBundleWithSourceMapAndFilename,
     compiledOptions: CompiledWorkerOptions
   ): Promise<WorkflowCreator> {
-    const registeredActivityNames = new Set(
-      Object.entries(compiledOptions.activities ?? {})
-        .filter(([_, v]) => typeof v === 'function')
-        .map(([k]) => k)
-    );
+    const registeredActivityNames = new Set(compiledOptions.activities.keys());
     // This isn't required for vscode, only for Chrome Dev Tools which doesn't support debugging worker threads.
     // We also rely on this in debug-replayer where we inject a global variable to be read from workflow context.
     if (compiledOptions.debugMode) {
@@ -858,8 +854,7 @@ export class Worker {
                   );
 
                   const { activityType } = info;
-                  // activities is of type "object" which does not support string indexes
-                  const fn = (this.options.activities as any)?.[activityType];
+                  const fn = this.options.activities.get(activityType);
                   if (typeof fn !== 'function') {
                     output = {
                       type: 'result',
@@ -867,7 +862,7 @@ export class Worker {
                         failed: {
                           failure: {
                             message: `Activity function ${activityType} is not registered on this Worker, available activities: ${JSON.stringify(
-                              Object.keys(this.options.activities ?? {})
+                              [...this.options.activities.keys()]
                             )}`,
                             applicationFailureInfo: {
                               type: 'NotFoundError',
@@ -1158,6 +1153,7 @@ export class Worker {
     activation: coresdk.workflow_activation.WorkflowActivation,
     startWorkflow: coresdk.workflow_activation.IStartWorkflow
   ): Promise<WorkflowWithLogAttributes> {
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     const workflowCreator = this.workflowCreator!;
     if (
       !(
@@ -1531,7 +1527,7 @@ export class Worker {
 
   protected activity$(): Observable<void> {
     // This Worker did not register any activities, return early
-    if (this.options.activities === undefined || Object.keys(this.options.activities).length === 0) {
+    if (!this.options.activities?.size) {
       if (!this.isReplayWorker) this.log.warn('No activities registered, not polling for activity tasks');
       this.activityPollerStateSubject.next('SHUTDOWN');
       return EMPTY;
