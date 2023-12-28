@@ -1,7 +1,7 @@
 import * as os from 'node:os';
 import * as v8 from 'node:v8';
 import type { Configuration as WebpackConfiguration } from 'webpack';
-import { DataConverter, LoadedDataConverter } from '@temporalio/common';
+import { ActivityFunction, DataConverter, LoadedDataConverter } from '@temporalio/common';
 import { Duration, msOptionalToNumber, msToNumber } from '@temporalio/common/lib/time';
 import { loadDataConverter } from '@temporalio/common/lib/internal-non-workflow';
 import { LoggerSinks } from '@temporalio/workflow';
@@ -200,6 +200,7 @@ export interface WorkerOptions {
    * Whether or not to poll on the Activity task queue.
    *
    * If disabled and activities are registered on the Worker, it will run only local Activities.
+   * This setting is ignored if no activity is registed on the Worker.
    *
    * @default true
    */
@@ -559,7 +560,8 @@ export type WorkerOptionsWithDefaults = WorkerOptions &
  * {@link WorkerOptions} where the attributes the Worker requires are required and time units are converted from ms
  * formatted strings to numbers.
  */
-export interface CompiledWorkerOptions extends Omit<WorkerOptionsWithDefaults, 'serverOptions' | 'interceptors'> {
+export interface CompiledWorkerOptions
+  extends Omit<WorkerOptionsWithDefaults, 'serverOptions' | 'interceptors' | 'activities'> {
   interceptors: CompiledWorkerInterceptors;
   shutdownGraceTimeMs: number;
   shutdownForceTimeMs?: number;
@@ -568,6 +570,7 @@ export interface CompiledWorkerOptions extends Omit<WorkerOptionsWithDefaults, '
   maxHeartbeatThrottleIntervalMs: number;
   defaultHeartbeatThrottleIntervalMs: number;
   loadedDataConverter: LoadedDataConverter;
+  activities: Map<string, ActivityFunction>;
 }
 
 /**
@@ -752,6 +755,8 @@ export function compileWorkerOptions(opts: WorkerOptionsWithDefaults): CompiledW
     opts.maxConcurrentWorkflowTaskExecutions = 2;
   }
 
+  const activities = new Map(Object.entries(opts.activities ?? {}).filter(([_, v]) => typeof v === 'function'));
+
   return {
     ...opts,
     interceptors: compileWorkerInterceptors(opts.interceptors),
@@ -762,5 +767,7 @@ export function compileWorkerOptions(opts: WorkerOptionsWithDefaults): CompiledW
     maxHeartbeatThrottleIntervalMs: msToNumber(opts.maxHeartbeatThrottleInterval),
     defaultHeartbeatThrottleIntervalMs: msToNumber(opts.defaultHeartbeatThrottleInterval),
     loadedDataConverter: loadDataConverter(opts.dataConverter),
+    activities,
+    enableNonLocalActivities: opts.enableNonLocalActivities && activities.size > 0,
   };
 }

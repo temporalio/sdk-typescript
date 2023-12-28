@@ -5,6 +5,10 @@ const { spawnNpx } = require('./utils');
 
 async function main() {
   const { registryDir, targetDir, initArgs } = await getArgs();
+  // Force samples to use the same version of @temporalio/* packages as the one
+  // we are testing. This is required when testing against a pre-release version,
+  // which would not be otherwise matched by specifier like ^1.8.0.
+  const { version } = require('../lerna.json');
 
   await withRegistry(registryDir, async () => {
     console.log('spawning npx @temporalio/create with args:', initArgs);
@@ -14,7 +18,7 @@ async function main() {
       writeFileSync(npmConfigFile, npmConfig, { encoding: 'utf-8' });
 
       await spawnNpx(
-        ['@temporalio/create', targetDir, '--no-git-init', '--temporalio-version', 'latest', ...initArgs],
+        [`@temporalio/create@${version}`, targetDir, '--no-git-init', '--sdk-version', version, ...initArgs],
         {
           stdio: 'inherit',
           stdout: 'inherit',
