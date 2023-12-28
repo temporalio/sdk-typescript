@@ -37,8 +37,8 @@ impl ArrayHandleConversionsExt for Handle<'_, JsArray> {
         let len = js_vec.len();
         let mut ret_vec = Vec::<String>::with_capacity(len);
 
-        for i in 0..len - 1 {
-            ret_vec[i] = js_vec[i].downcast_or_throw::<JsString, _>(cx)?.value(cx);
+        for i in 0..len {
+            ret_vec.push(js_vec[i].downcast_or_throw::<JsString, _>(cx)?.value(cx));
         }
         Ok(ret_vec)
     }
