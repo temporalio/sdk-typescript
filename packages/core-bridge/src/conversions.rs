@@ -44,10 +44,15 @@ impl ArrayHandleConversionsExt for Handle<'_, JsArray> {
     }
 }
 
+type TelemOptsRes = NeonResult<(
+    TelemetryOptions,
+    Option<Box<dyn FnOnce() -> Arc<dyn CoreMeter> + Send>>,
+)>;
+
 pub trait ObjectHandleConversionsExt {
     fn set_default(&self, cx: &mut FunctionContext, key: &str, value: &str) -> NeonResult<()>;
     fn as_client_options(&self, ctx: &mut FunctionContext) -> NeonResult<ClientOptions>;
-    fn as_telemetry_options(&self, cx: &mut FunctionContext) -> NeonResult<TelemetryOptions>;
+    fn as_telemetry_options(&self, cx: &mut FunctionContext) -> TelemOptsRes;
     fn as_worker_config(&self, cx: &mut FunctionContext) -> NeonResult<WorkerConfig>;
     fn as_ephemeral_server_config(
         &self,
@@ -164,7 +169,7 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
             .expect("Core server gateway options must be valid"))
     }
 
-    fn as_telemetry_options(&self, cx: &mut FunctionContext) -> NeonResult<TelemetryOptions> {
+    fn as_telemetry_options(&self, cx: &mut FunctionContext) -> TelemOptsRes {
         let mut telemetry_opts = TelemetryOptionsBuilder::default();
         if js_optional_value_getter!(cx, self, "noTemporalPrefixForMetrics", JsBoolean)
             .unwrap_or_default()
@@ -185,6 +190,8 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
             }
         }
 
+        let mut meter_maker = None;
+
         if let Some(ref metrics) = js_optional_getter!(cx, self, "metrics", JsObject) {
             if let Some(ref prom) = js_optional_getter!(cx, metrics, "prometheus", JsObject) {
                 if js_optional_getter!(cx, metrics, "otel", JsObject).is_some() {
@@ -201,16 +208,24 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
                     Err(_) => {
                         return cx.throw_type_error(
                             "Invalid telemetryOptions.metrics.prometheus.bindAddress",
-                        )?
+                        )?;
                     }
                 };
 
-                let options = options
-                    .build()
-                    .expect("Failed to build prometheus exporter options");
-                let prom_info = start_prometheus_metric_exporter(options)
-                    .expect("Failed creating prometheus exporter");
-                telemetry_opts.metrics(prom_info.meter as Arc<dyn CoreMeter>);
+                let options = options.build().map_err(|e| {
+                    cx.throw_type_error::<_, TelemetryOptions>(format!(
+                        "Failed to build prometheus exporter options: {:?}",
+                        e
+                    ))
+                    .unwrap_err()
+                })?;
+
+                meter_maker = Some(Box::new(move || {
+                    let prom_info = start_prometheus_metric_exporter(options)
+                        .expect("Failed creating prometheus exporter");
+                    prom_info.meter as Arc<dyn CoreMeter>
+                })
+                    as Box<dyn FnOnce() -> Arc<dyn CoreMeter> + Send>);
             } else if let Some(ref otel) = js_optional_getter!(cx, metrics, "otel", JsObject) {
                 let mut options = OtelCollectorOptionsBuilder::default();
 
@@ -218,7 +233,7 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
                 match Url::parse(&url) {
                     Ok(url) => options.url(url),
                     Err(_) => {
-                        return cx.throw_type_error("Invalid telemetryOptions.metrics.otel.url")
+                        return cx.throw_type_error("Invalid telemetryOptions.metrics.otel.url");
                     }
                 };
 
@@ -246,12 +261,19 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
                     };
                 };
 
-                let options = options
-                    .build()
-                    .expect("Failed to build otlp exporter options");
-                let otlp_exporter =
-                    build_otlp_metric_exporter(options).expect("Failed to build otlp exporter");
-                telemetry_opts.metrics(Arc::new(otlp_exporter) as Arc<dyn CoreMeter>);
+                let options = options.build().map_err(|e| {
+                    cx.throw_type_error::<_, TelemetryOptions>(format!(
+                        "Failed to build otlp exporter options: {:?}",
+                        e
+                    ))
+                    .unwrap_err()
+                })?;
+
+                meter_maker = Some(Box::new(move || {
+                    let otlp_exporter =
+                        build_otlp_metric_exporter(options).expect("Failed to build otlp exporter");
+                    Arc::new(otlp_exporter) as Arc<dyn CoreMeter>
+                }));
             } else {
                 cx.throw_type_error(
                     "Invalid telemetryOptions.metrics, missing `prometheus` or `otel` option",
@@ -259,10 +281,13 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
             }
         }
 
-        telemetry_opts.build().map_err(|reason| {
-            cx.throw_type_error::<_, TelemetryOptions>(format!("{}", reason))
-                .unwrap_err()
-        })
+        Ok((
+            telemetry_opts.build().map_err(|reason| {
+                cx.throw_type_error::<_, TelemetryOptions>(format!("{}", reason))
+                    .unwrap_err()
+            })?,
+            meter_maker,
+        ))
     }
 
     fn as_worker_config(&self, cx: &mut FunctionContext) -> NeonResult<WorkerConfig> {
