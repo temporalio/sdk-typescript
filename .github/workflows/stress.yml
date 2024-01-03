@@ -50,13 +50,13 @@ jobs:
     steps:
       - name: Print build info
         run: 'echo test-type: ${{ inputs.test-type }}, test-timeout-minutes: ${{ inputs.test-timeout-minutes }}, reuse-v8-context: $REUSE_V8_CONTEXT'
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
         with:
           submodules: recursive
       - uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
-      - uses: actions/setup-node@v1
+      - uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node }}
       - name: Install protoc
@@ -75,7 +75,7 @@ jobs:
 
       # docker-compose
       - name: Checkout docker-compose repo
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
         with:
           repository: temporalio/docker-compose
           path: docker-compose
@@ -93,12 +93,12 @@ jobs:
       - run: 'timeout ${{ inputs.test-timeout-minutes }}m npm run ${{ inputs.test-type }}'
       - run: for f in $TEMPORAL_TESTING_LOG_DIR/*.log; do tail -20000 $f > $TEMPORAL_TESTING_LOG_DIR/tails/$(basename $f); done
         if: ${{ always() }}
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         if: ${{ always() }}
         with:
           name: worker-logs
           path: ${{ env.TEMPORAL_TESTING_LOG_DIR }}/tails
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         if: ${{ always() }}
         with:
           name: worker-mem-logs

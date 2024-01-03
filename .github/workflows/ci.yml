@@ -15,23 +15,23 @@ jobs:
     strategy:
       fail-fast: true
       matrix:
-        reuse-v8-context: [false]
-        node: [14, 16]
+        reuse-v8-context: [true]
+        node: [14, 16, 18, 20]
         os: [ubuntu-latest, macos-latest, windows-latest]
         include:
           - os: ubuntu-latest
-            node: 16
-            reuse-v8-context: true
+            node: 20
+            reuse-v8-context: false
 
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
         with:
           submodules: recursive
       - uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
-      - uses: actions/setup-node@v1
+      - uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node }}
       - name: Install protoc
@@ -50,7 +50,7 @@ jobs:
 
       # docker-compose
       - name: Checkout docker-compose repo
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
         with:
           repository: temporalio/docker-compose
           path: docker-compose
@@ -72,7 +72,7 @@ jobs:
           RUN_INTEGRATION_TESTS: ${{ startsWith(matrix.os, 'ubuntu') }}
           REUSE_V8_CONTEXT: ${{ matrix.reuse-v8-context }}
 
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         if: ${{ failure() }}
         with:
           name: npm-logs
@@ -83,12 +83,12 @@ jobs:
   build-docs:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
         with:
           submodules: recursive
-      - uses: actions/setup-node@v1
+      - uses: actions/setup-node@v4
         with:
-          node-version: 16
+          node-version: 20
       - name: Install protoc
         uses: arduino/setup-protoc@v1
         with:
@@ -115,12 +115,12 @@ jobs:
   lint-and-prune:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
         with:
           submodules: recursive
-      - uses: actions/setup-node@v1
+      - uses: actions/setup-node@v4
         with:
-          node-version: 16
+          node-version: 20
       - name: Install protoc
         uses: arduino/setup-protoc@v1
         with:
@@ -156,15 +156,15 @@ jobs:
             target: x86_64-pc-windows-msvc
     runs-on: ${{ matrix.runsOn }}
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
         with:
           submodules: recursive
       - uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
-      - uses: actions/setup-node@v1
+      - uses: actions/setup-node@v4
         with:
-          node-version: 16
+          node-version: 20
       - name: Install protoc
         uses: arduino/setup-protoc@v1
         with:
@@ -194,7 +194,7 @@ jobs:
       - run: git restore packages/create-project/cli.js
         if: ${{ matrix.runsOn == 'windows-latest' }}
       - run: node scripts/publish-to-verdaccio.js --registry-dir /tmp/registry
-      - uses: actions/upload-artifact@v2
+      - uses: actions/upload-artifact@v4
         with:
           name: packages-${{ matrix.target }}
           path: /tmp/registry/storage
@@ -208,22 +208,22 @@ jobs:
         include:
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
-            node: 16
+            node: 20
             server: local
             sample: hello-world
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
-            node: 16
+            node: 20
             server: local
             sample: fetch-esm
           - os: macos-latest
             target: x86_64-apple-darwin
-            node: 16
+            node: 20
             server: cloud
             sample: hello-world-mtls
           - os: windows-latest
             target: x86_64-pc-windows-msvc
-            node: 16
+            node: 20
             server: cloud
             sample: hello-world-mtls
 
@@ -234,9 +234,9 @@ jobs:
       TEMPORAL_CLIENT_KEY: ${{ secrets.TEMPORAL_CLIENT_KEY }}
     steps:
       # We don't need the core submodule here since we don't build the project
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
         if: ${{ matrix.server != 'cloud' || env.TEMPORAL_CLIENT_CERT != '' }}
-      - uses: actions/setup-node@v1
+      - uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node }}
         if: ${{ matrix.server != 'cloud' || env.TEMPORAL_CLIENT_CERT != '' }}
@@ -244,7 +244,7 @@ jobs:
       - name: Install dependencies without compilation
         run: npm ci --ignore-scripts
         if: ${{ matrix.server != 'cloud' || env.TEMPORAL_CLIENT_CERT != '' }}
-      - uses: actions/download-artifact@v2
+      - uses: actions/download-artifact@v4
         with:
           name: packages-${{ matrix.target }}
           path: /tmp/registry/storage
@@ -254,7 +254,7 @@ jobs:
 
       # docker-compose
       - name: Checkout docker-compose repo
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
         with:
           repository: temporalio/docker-compose
           path: docker-compose
