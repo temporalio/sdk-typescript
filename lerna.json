@@ -10,5 +10,19 @@
       "message": "chore(release): Publish"
     }
   },
-  "useWorkspaces": true
+  "packages": [
+    "packages/activity",
+    "packages/client",
+    "packages/common",
+    "packages/core-bridge",
+    "packages/create-project",
+    "packages/interceptors-opentelemetry",
+    "packages/meta",
+    "packages/nyc-test-coverage",
+    "packages/proto",
+    "packages/test",
+    "packages/testing",
+    "packages/worker",
+    "packages/workflow"
+  ]
 }

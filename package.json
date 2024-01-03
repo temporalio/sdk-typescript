@@ -91,20 +91,5 @@
     "node": ">= 14.18.0",
     "npm": ">= 6.0.0",
     "rustc": ">= 1.53.0"
-  },
-  "workspaces": [
-    "packages/activity",
-    "packages/client",
-    "packages/common",
-    "packages/core-bridge",
-    "packages/create-project",
-    "packages/interceptors-opentelemetry",
-    "packages/meta",
-    "packages/nyc-test-coverage",
-    "packages/proto",
-    "packages/test",
-    "packages/testing",
-    "packages/worker",
-    "packages/workflow"
-  ]
+  }
 }
