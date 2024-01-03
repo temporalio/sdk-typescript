@@ -8,18 +8,22 @@ import * as activities from './activities';
 import { RUN_INTEGRATION_TESTS, Worker } from './helpers';
 import * as workflows from './workflows';
 
+async function getRandomPort(): Promise<number> {
+  return new Promise<number>((res) => {
+    const srv = net.createServer();
+    srv.listen(0, () => {
+      const addr = srv.address();
+      if (typeof addr === 'string' || addr === null) {
+        throw new Error('Unexpected server address type');
+      }
+      srv.close((_) => res(addr.port));
+    });
+  });
+}
+
 if (RUN_INTEGRATION_TESTS) {
   test.serial('Prometheus metrics work', async (t) => {
-    const port = await new Promise((res) => {
-      const srv = net.createServer();
-      srv.listen(0, () => {
-        const addr = srv.address();
-        if (typeof addr === 'string' || addr === null) {
-          throw new Error('Unexpected server address type');
-        }
-        srv.close((_) => res(addr.port));
-      });
-    });
+    const port = await getRandomPort();
     Runtime.install({
       telemetryOptions: {
         metrics: {
@@ -30,7 +34,7 @@ if (RUN_INTEGRATION_TESTS) {
       },
     });
     const connection = await NativeConnection.connect({
-      address: 'localhost:7233',
+      address: '127.0.0.1:7233',
     });
     const worker = await Worker.create({
       connection,

@@ -6,7 +6,7 @@
     "docusaurus": "docusaurus",
     "start": "TYPEDOC_WATCH=true DOCUSAURUS_NO_DUPLICATE_TITLE_WARNING=false docusaurus start",
     "build-docs": "TYPEDOC_WATCH=false DOCUSAURUS_NO_DUPLICATE_TITLE_WARNING=false docusaurus build",
-    "maybe-install-deps-and-build-docs": "(test -d node_modules || npm ci) && npm run build-docs",
+    "install-deps-and-build-docs": "(test -d node_modules || npm ci) && npm run build-docs",
     "swizzle": "docusaurus swizzle",
     "deploy": "docusaurus deploy",
     "clear": "docusaurus clear",
