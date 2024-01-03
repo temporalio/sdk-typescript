@@ -49,7 +49,7 @@ if (RUN_INTEGRATION_TESTS) {
         taskQueue: 'test-prometheus',
         workflowId: uuid4(),
       });
-      const resp = await fetch(`http://localhost:${port}/metrics`);
+      const resp = await fetch(`http://127.0.0.1:${port}/metrics`);
       // We're not concerned about exact details here, just that the metrics are present
       const text = await resp.text();
       t.assert(text.includes('task_slots'));
