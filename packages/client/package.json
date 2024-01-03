@@ -17,7 +17,7 @@
     "@temporalio/common": "file:../common",
     "@temporalio/proto": "file:../proto",
     "abort-controller": "^3.0.0",
-    "long": "^5.2.0",
+    "long": "^5.2.3",
     "uuid": "^8.3.2"
   },
   "devDependencies": {

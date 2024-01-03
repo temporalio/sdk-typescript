@@ -13,7 +13,7 @@
   "license": "MIT",
   "dependencies": {
     "@temporalio/proto": "file:../proto",
-    "long": "^5.2.0",
+    "long": "^5.2.3",
     "ms": "^3.0.0-canary.1",
     "proto3-json-serializer": "^1.0.3",
     "protobufjs": "^7.2.5"
