@@ -8,15 +8,7 @@
     },
     "version": {
       "message": "chore(release): Publish"
-    },
-    "bootstrap": {
-      "npmClientArgs": [
-        "--no-package-lock"
-      ]
     }
   },
-  "packages": [
-    "packages/*"
-  ],
   "useWorkspaces": true
 }
