@@ -195,7 +195,7 @@ jobs:
       - run: git restore packages/create-project/cli.js
         if: ${{ matrix.runsOn == 'windows-latest' }}
       - run: node scripts/publish-to-verdaccio.js --registry-dir /tmp/registry
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v3
         with:
           name: packages-${{ matrix.target }}
           path: /tmp/registry/storage
