@@ -9,6 +9,5 @@
     "version": {
       "message": "chore(release): Publish"
     }
-  },
-  "useWorkspaces": true
+  }
 }

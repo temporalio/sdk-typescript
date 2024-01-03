@@ -20,7 +20,7 @@
   "author": "Temporal Technologies Inc. <sdk@temporal.io>",
   "license": "MIT",
   "dependencies": {
-    "long": "^5.2.0",
+    "long": "^5.2.3",
     "protobufjs": "^7.2.5"
   },
   "bugs": {

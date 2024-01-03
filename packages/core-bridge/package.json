@@ -24,7 +24,7 @@
   "dependencies": {
     "@temporalio/common": "file:../common",
     "arg": "^5.0.2",
-    "cargo-cp-artifact": "^0.1.6",
+    "cargo-cp-artifact": "^0.1.8",
     "which": "^2.0.2"
   },
   "bugs": {
