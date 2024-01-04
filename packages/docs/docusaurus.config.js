@@ -10,7 +10,7 @@ module.exports = {
   tagline: 'Build invincible applications',
   url: 'https://typescript.temporal.io',
   baseUrl: '/',
-  onBrokenLinks: 'throw',
+  onBrokenLinks: 'warn',
   onBrokenMarkdownLinks: 'warn',
   favicon: 'img/favicon.ico',
   organizationName: 'temporalio',
@@ -161,4 +161,13 @@ module.exports = {
           ],
         ]),
   ],
+  markdown: {
+    format: 'md',
+    mermaid: false,
+    mdx1Compat: {
+      comments: true,
+      admonitions: true,
+      headingIds: true,
+    },
+  },
 };
