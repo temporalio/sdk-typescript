@@ -25,13 +25,13 @@ jobs:
 
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v2
         with:
           submodules: recursive
       - uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v1
         with:
           node-version: ${{ matrix.node }}
       - name: Install protoc
@@ -50,7 +50,7 @@ jobs:
 
       # docker-compose
       - name: Checkout docker-compose repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v2
         with:
           repository: temporalio/docker-compose
           path: docker-compose
@@ -72,7 +72,7 @@ jobs:
           RUN_INTEGRATION_TESTS: ${{ startsWith(matrix.os, 'ubuntu') }}
           REUSE_V8_CONTEXT: ${{ matrix.reuse-v8-context }}
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v3
         if: ${{ failure() }}
         with:
           name: npm-logs
@@ -83,10 +83,10 @@ jobs:
   build-docs:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v2
         with:
           submodules: recursive
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v1
         with:
           node-version: 20
       - name: Install protoc
@@ -115,10 +115,10 @@ jobs:
   lint-and-prune:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v2
         with:
           submodules: recursive
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v1
         with:
           node-version: 20
       - name: Install protoc
@@ -156,14 +156,13 @@ jobs:
             target: x86_64-pc-windows-msvc
     runs-on: ${{ matrix.runsOn }}
     steps:
-      # Can't use v4 actions here as they require node 20, which doesn't work on GLIBC 2.28 workers
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v2
         with:
           submodules: recursive
       - uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
-      - uses: actions/setup-node@v3
+      - uses: actions/setup-node@v1
         with:
           node-version: 16
       - name: Install protoc
@@ -195,7 +194,7 @@ jobs:
       - run: git restore packages/create-project/cli.js
         if: ${{ matrix.runsOn == 'windows-latest' }}
       - run: node scripts/publish-to-verdaccio.js --registry-dir /tmp/registry
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v2
         with:
           name: packages-${{ matrix.target }}
           path: /tmp/registry/storage
@@ -235,9 +234,9 @@ jobs:
       TEMPORAL_CLIENT_KEY: ${{ secrets.TEMPORAL_CLIENT_KEY }}
     steps:
       # We don't need the core submodule here since we don't build the project
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v2
         if: ${{ matrix.server != 'cloud' || env.TEMPORAL_CLIENT_CERT != '' }}
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v1
         with:
           node-version: ${{ matrix.node }}
         if: ${{ matrix.server != 'cloud' || env.TEMPORAL_CLIENT_CERT != '' }}
@@ -245,7 +244,7 @@ jobs:
       - name: Install dependencies without compilation
         run: npm ci --ignore-scripts
         if: ${{ matrix.server != 'cloud' || env.TEMPORAL_CLIENT_CERT != '' }}
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v2
         with:
           name: packages-${{ matrix.target }}
           path: /tmp/registry/storage
@@ -255,7 +254,7 @@ jobs:
 
       # docker-compose
       - name: Checkout docker-compose repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v2
         with:
           repository: temporalio/docker-compose
           path: docker-compose
