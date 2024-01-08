@@ -17,7 +17,7 @@ const operatorServiceProtoPath = resolve(protoBaseDir, 'api_upstream/temporal/ap
 const errorDetailsProtoPath = resolve(protoBaseDir, 'api_upstream/temporal/api/errordetails/v1/message.proto');
 const testServiceRRProtoPath = resolve(
   protoBaseDir,
-  'testsrv_upstream/temporal/api/testservice/v1/request_response.proto'
+  'testsrv_upstream/temporal/api/testservice/v1/request_response.proto',
 );
 const testServiceProtoPath = resolve(protoBaseDir, 'testsrv_upstream/temporal/api/testservice/v1/service.proto');
 const healthServiceProtoPath = resolve(protoBaseDir, 'grpc/health/v1/health.proto');
@@ -84,7 +84,7 @@ async function compileProtos(dtsOutputFile, ...args) {
 async function main() {
   mkdirSync(outputDir, { recursive: true });
 
-  const protoFiles = glob.sync(resolve(protoBaseDir, '**/*.proto'));
+  const protoFiles = glob.sync(resolve(protoBaseDir, '**/*.proto'), { posix: true });
   const protosMTime = Math.max(...protoFiles.map(mtime));
   const genMTime = mtime(jsOutputFile);
 
@@ -98,7 +98,7 @@ async function main() {
     '--path',
     resolve(protoBaseDir, 'api_upstream'),
     '--path',
-    resolve(protoBaseDir, 'local')
+    resolve(protoBaseDir, 'local'),
   );
 
   console.log('Done');
