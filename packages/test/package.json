@@ -51,7 +51,7 @@
     "long": "^5.2.3",
     "rxjs": "7.8.1",
     "stack-utils": "^2.0.6",
-    "uuid": "^8.3.2"
+    "uuid": "^9.0.1"
   },
   "devDependencies": {
     "@types/async-retry": "^1.4.8",
@@ -59,7 +59,7 @@
     "@types/ms": "^0.7.34",
     "@types/node-fetch": "^2.6.10",
     "@types/pidusage": "^2.0.5",
-    "@types/uuid": "^8.3.4"
+    "@types/uuid": "^9.0.7"
   },
   "bugs": {
     "url": "https://github.com/temporalio/sdk-typescript/issues"
