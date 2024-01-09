@@ -18,7 +18,10 @@ import { defaultOptions } from './mock-native-worker';
 import * as workflows from './workflows';
 
 class DependencyError extends Error {
-  constructor(public readonly ifaceName: string, public readonly fnName: string) {
+  constructor(
+    public readonly ifaceName: string,
+    public readonly fnName: string
+  ) {
     super(`${ifaceName}.${fnName}`);
   }
 }

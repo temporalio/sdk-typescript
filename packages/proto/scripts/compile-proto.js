@@ -17,7 +17,7 @@ const operatorServiceProtoPath = resolve(protoBaseDir, 'api_upstream/temporal/ap
 const errorDetailsProtoPath = resolve(protoBaseDir, 'api_upstream/temporal/api/errordetails/v1/message.proto');
 const testServiceRRProtoPath = resolve(
   protoBaseDir,
-  'testsrv_upstream/temporal/api/testservice/v1/request_response.proto',
+  'testsrv_upstream/temporal/api/testservice/v1/request_response.proto'
 );
 const testServiceProtoPath = resolve(protoBaseDir, 'testsrv_upstream/temporal/api/testservice/v1/service.proto');
 const healthServiceProtoPath = resolve(protoBaseDir, 'grpc/health/v1/health.proto');
@@ -86,9 +86,8 @@ async function main() {
 
   // DO NOT MERGE THIS - JWH
   console.log(`protoBaseDir: ${protoBaseDir}`);
-  console.log(`resolved protoBaseDir: ${resolve(protoBaseDir, '**/*.proto')}`);
 
-  const protoFiles = glob.sync(resolve(protoBaseDir, '**/*.proto'), { posix: true });
+  const protoFiles = glob.sync('**/*.proto', { cwd: protoBaseDir });
 
   // DO NOT MERGE THIS - JWH
   console.log(`protoFiles: ${protoFiles.join(', ')}`);
@@ -106,7 +105,7 @@ async function main() {
     '--path',
     resolve(protoBaseDir, 'api_upstream'),
     '--path',
-    resolve(protoBaseDir, 'local'),
+    resolve(protoBaseDir, 'local')
   );
 
   console.log('Done');

@@ -18,7 +18,7 @@ const protoBaseDir = resolve(__dirname, '../protos');
 // DO NOT MERGE THIS - JWH
 console.log(`protoBaseDir: ${protoBaseDir}`);
 
-const protoFiles = glob.sync(protoBaseDir + '/*.proto', { posix: true });
+const protoFiles = glob.sync('*.proto', { cwd: protoBaseDir });
 
 // DO NOT MERGE THIS - JWH
 console.log(`protoFiles: ${protoFiles.join(', ')}`);

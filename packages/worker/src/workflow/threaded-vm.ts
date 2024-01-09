@@ -211,7 +211,10 @@ export class VMWorkflowThreadProxy implements Workflow {
     return new this(workerThreadClient, options.info.runId);
   }
 
-  constructor(protected readonly workerThreadClient: WorkerThreadClient, public readonly runId: string) {}
+  constructor(
+    protected readonly workerThreadClient: WorkerThreadClient,
+    public readonly runId: string
+  ) {}
 
   /**
    * Proxy request to the VMWorkflow instance

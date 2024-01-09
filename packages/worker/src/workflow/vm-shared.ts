@@ -74,8 +74,8 @@ function formatCallsiteName(callsite: NodeJS.CallSite): string | null {
   return typeName && methodName
     ? `${typeName}.${methodName}`
     : isConstructor && functionName
-    ? `new ${functionName}`
-    : functionName;
+      ? `new ${functionName}`
+      : functionName;
 }
 
 /**

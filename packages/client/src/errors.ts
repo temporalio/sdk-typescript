@@ -41,7 +41,10 @@ export class WorkflowFailedError extends Error {
  */
 @SymbolBasedInstanceOfError('WorkflowUpdateFailedError')
 export class WorkflowUpdateFailedError extends Error {
-  public constructor(message: string, public readonly cause: TemporalFailure | undefined) {
+  public constructor(
+    message: string,
+    public readonly cause: TemporalFailure | undefined
+  ) {
     super(message);
   }
 }
@@ -54,7 +57,10 @@ export class WorkflowUpdateFailedError extends Error {
  */
 @SymbolBasedInstanceOfError('WorkflowExecutionContinuedAsNewError')
 export class WorkflowContinuedAsNewError extends Error {
-  public constructor(message: string, public readonly newExecutionRunId: string) {
+  public constructor(
+    message: string,
+    public readonly newExecutionRunId: string
+  ) {
     super(message);
   }
 }
