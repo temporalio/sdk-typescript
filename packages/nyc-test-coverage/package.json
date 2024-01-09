@@ -30,7 +30,7 @@
     "@temporalio/workflow": "file:../workflow",
     "convert-source-map": "^2.0.0",
     "istanbul-lib-coverage": "^3.2.2",
-    "istanbul-lib-instrument": "^5.2.1",
+    "istanbul-lib-instrument": "^6.0.1",
     "ts-loader": "^9.5.1"
   },
   "devDependencies": {

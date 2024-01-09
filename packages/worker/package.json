@@ -23,7 +23,7 @@
     "abort-controller": "^3.0.0",
     "cargo-cp-artifact": "^0.1.8",
     "heap-js": "^2.3.0",
-    "memfs": "^3.6.0",
+    "memfs": "^4.6.0",
     "rxjs": "^7.8.1",
     "source-map": "^0.7.4",
     "source-map-loader": "^4.0.2",

@@ -84,7 +84,15 @@ async function compileProtos(dtsOutputFile, ...args) {
 async function main() {
   mkdirSync(outputDir, { recursive: true });
 
+  // DO NOT MERGE THIS - JWH
+  console.log(`protoBaseDir: ${protoBaseDir}`);
+  console.log(`resolved protoBaseDir: ${resolve(protoBaseDir, '**/*.proto')}`);
+
   const protoFiles = glob.sync(resolve(protoBaseDir, '**/*.proto'), { posix: true });
+
+  // DO NOT MERGE THIS - JWH
+  console.log(`protoFiles: ${protoFiles.join(', ')}`);
+
   const protosMTime = Math.max(...protoFiles.map(mtime));
   const genMTime = mtime(jsOutputFile);
 

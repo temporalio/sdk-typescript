@@ -14,7 +14,14 @@ const moduleOutputFile = resolve(outputDir, 'json-module.js');
 const typesOutputFile = resolve(outputDir, 'root.d.ts');
 const tempFile = resolve(outputDir, 'temp.js');
 const protoBaseDir = resolve(__dirname, '../protos');
+
+// DO NOT MERGE THIS - JWH
+console.log(`protoBaseDir: ${protoBaseDir}`);
+
 const protoFiles = glob.sync(protoBaseDir + '/*.proto', { posix: true });
+
+// DO NOT MERGE THIS - JWH
+console.log(`protoFiles: ${protoFiles.join(', ')}`);
 
 function mtime(path) {
   try {
