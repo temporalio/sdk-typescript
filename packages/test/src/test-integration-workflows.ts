@@ -371,6 +371,8 @@ test('Build Id appropriately set in workflow info', async (t) => {
   worker2Prom.catch((err) => {
     t.fail('Worker 1.1 run error: ' + JSON.stringify(err));
   });
+  bid = await wf1.query(getBuildIdQuery);
+  t.is(bid, '1.0');
 
   await wf1.signal(finishSignal);
   await wf1.result();
