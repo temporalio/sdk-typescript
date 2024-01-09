@@ -15,7 +15,9 @@
     "@temporalio/proto": "file:../proto",
     "long": "^5.2.3",
     "ms": "^3.0.0-canary.1",
-    "proto3-json-serializer": "^2.0.0",
+    "proto3-json-serializer": "^2.0.0"
+  },
+  "devDependencies": {
     "protobufjs": "^7.2.5"
   },
   "bugs": {
