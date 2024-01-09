@@ -11,6 +11,7 @@ use std::{
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 use temporal_client::{ClientInitError, ConfiguredClient, TemporalServiceClientWithMetrics};
+use temporal_sdk_core::api::telemetry::metrics::CoreMeter;
 use temporal_sdk_core::api::telemetry::{CoreTelemetry, TelemetryOptions};
 use temporal_sdk_core::CoreRuntime;
 use temporal_sdk_core::{
@@ -116,17 +117,26 @@ pub enum RuntimeRequest {
 /// Bridges requests from JS to core and sends responses back to JS using a neon::Channel.
 /// Blocks current thread until a [Shutdown] request is received in channel.
 pub fn start_bridge_loop(
-    telemetry_options: TelemetryOptions,
+    telemetry_options: (
+        TelemetryOptions,
+        Option<Box<dyn FnOnce() -> Arc<dyn CoreMeter> + Send>>,
+    ),
     channel: Arc<Channel>,
     receiver: &mut UnboundedReceiver<RuntimeRequest>,
 ) {
     let mut tokio_builder = tokio::runtime::Builder::new_multi_thread();
     tokio_builder.enable_all().thread_name("core");
-    let core_runtime = Arc::new(
-        CoreRuntime::new(telemetry_options, tokio_builder).expect("Failed to create CoreRuntime"),
-    );
+    let telem_opts = telemetry_options.0;
+    let meter_maker = telemetry_options.1;
+    let mut core_runtime =
+        CoreRuntime::new(telem_opts, tokio_builder).expect("Failed to create CoreRuntime");
 
     core_runtime.tokio_handle().block_on(async {
+        if let Some(meter_maker) = meter_maker {
+            core_runtime
+                .telemetry_mut()
+                .attach_late_init_metrics(meter_maker());
+        }
         loop {
             let request_option = receiver.recv().await;
             let request = match request_option {
@@ -147,13 +157,10 @@ pub fn start_bridge_loop(
                     headers,
                     callback,
                 } => {
-                    let runtime_clone = core_runtime.clone();
+                    let mm = core_runtime.telemetry().get_metric_meter();
                     core_runtime.tokio_handle().spawn(async move {
                         match options
-                            .connect_no_namespace(
-                                runtime_clone.telemetry().get_metric_meter(),
-                                headers.map(|h| Arc::new(RwLock::new(h))),
-                            )
+                            .connect_no_namespace(mm, headers.map(|h| Arc::new(RwLock::new(h))))
                             .await
                         {
                             Err(err) => {
