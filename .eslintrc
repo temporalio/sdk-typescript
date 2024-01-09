@@ -38,8 +38,6 @@
     "import/no-relative-packages": "error",
     "import/export": "error",
     "import/no-named-as-default": "error",
-    // TODO enable and fix
-    // "import/no-deprecated": "error",
     "import/no-extraneous-dependencies": "error",
     "import/no-mutable-exports": "error",
     "import/unambiguous": "error",
