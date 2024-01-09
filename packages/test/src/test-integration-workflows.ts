@@ -9,6 +9,7 @@ import { signalSchedulingWorkflow } from './activities/helpers';
 import { activityStartedSignal } from './workflows/definitions';
 import * as workflows from './workflows';
 import { helpers, makeTestFunction } from './helpers-integration';
+import { defineQuery, defineSignal } from '@temporalio/workflow';
 
 const test = makeTestFunction({ workflowsPath: __filename });
 
@@ -304,4 +305,79 @@ test("Worker doesn't request Eager Activity Dispatch if no activities are regist
   const activityTaskStarted = events?.filter?.((ev) => ev.activityTaskStartedEventAttributes);
   t.is(activityTaskStarted?.length, 1);
   t.is(activityTaskStarted?.[0]?.activityTaskStartedEventAttributes?.attempt, 1);
+});
+
+export const finishSignal = defineSignal('finish');
+export const getBuildIdQuery = defineQuery<string>('getBuildId');
+
+export async function buildIdTester(): Promise<void> {
+  const { echo } = workflow.proxyActivities({ startToCloseTimeout: '5s' });
+  let doFinish = false;
+
+  workflow.setHandler(finishSignal, () => {
+    doFinish = true;
+  });
+  workflow.setHandler(getBuildIdQuery, () => {
+    return workflow.workflowInfo().currentBuildId ?? '';
+  });
+
+  await workflow.sleep(1);
+  if (workflow.workflowInfo().currentBuildId === '1.0') {
+    await echo('hi');
+  }
+
+  await workflow.condition(() => doFinish);
+}
+
+test('Build Id appropriately set in workflow info', async (t) => {
+  const { taskQueue, createWorker } = helpers(t);
+  const wfid = `${taskQueue}-` + randomUUID();
+  const client = t.context.env.client;
+  const activities = {
+    async echo(s: string) {
+      return s;
+    },
+  };
+
+  const worker1 = await createWorker({
+    buildId: '1.0',
+    activities,
+  });
+  const worker1Prom = worker1.run();
+  worker1Prom.catch((err) => {
+    t.fail('Worker 1.0 run error: ' + JSON.stringify(err));
+  });
+
+  const wf1 = await client.workflow.start(buildIdTester, {
+    taskQueue,
+    workflowId: wfid,
+  });
+  let bid = await wf1.query(getBuildIdQuery);
+  t.is(bid, '1.0');
+
+  worker1.shutdown();
+  await worker1Prom;
+
+  await client.workflowService.resetStickyTaskQueue({
+    namespace: worker1.options.namespace,
+    execution: { workflowId: wfid },
+  });
+
+  const worker2 = await createWorker({
+    buildId: '1.1',
+    activities,
+  });
+  const worker2Prom = worker2.run();
+  worker2Prom.catch((err) => {
+    t.fail('Worker 1.1 run error: ' + JSON.stringify(err));
+  });
+
+  await wf1.signal(finishSignal);
+  await wf1.result();
+  bid = await wf1.query(getBuildIdQuery);
+  t.is(bid, '1.1');
+
+  worker2.shutdown();
+  await worker2Prom;
+  t.pass();
 });
