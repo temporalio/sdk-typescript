@@ -5,11 +5,11 @@ import * as activity from '@temporalio/activity';
 import { tsToMs } from '@temporalio/common/lib/time';
 import { CancelReason } from '@temporalio/worker/lib/activity';
 import * as workflow from '@temporalio/workflow';
+import { defineQuery, defineSignal } from '@temporalio/workflow';
 import { signalSchedulingWorkflow } from './activities/helpers';
 import { activityStartedSignal } from './workflows/definitions';
 import * as workflows from './workflows';
 import { helpers, makeTestFunction } from './helpers-integration';
-import { defineQuery, defineSignal } from '@temporalio/workflow';
 
 const test = makeTestFunction({ workflowsPath: __filename });
 

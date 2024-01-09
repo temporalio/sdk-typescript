@@ -37,22 +37,22 @@ impl ArrayHandleConversionsExt for Handle<'_, JsArray> {
         let len = js_vec.len();
         let mut ret_vec = Vec::<String>::with_capacity(len);
 
-        for i in 0..len {
-            ret_vec.push(js_vec[i].downcast_or_throw::<JsString, _>(cx)?.value(cx));
+        for i in js_vec.iter().take(len) {
+            ret_vec.push(i.downcast_or_throw::<JsString, _>(cx)?.value(cx));
         }
         Ok(ret_vec)
     }
 }
 
-type TelemOptsRes = NeonResult<(
+pub(crate) type TelemOptsRes = (
     TelemetryOptions,
     Option<Box<dyn FnOnce() -> Arc<dyn CoreMeter> + Send>>,
-)>;
+);
 
 pub trait ObjectHandleConversionsExt {
     fn set_default(&self, cx: &mut FunctionContext, key: &str, value: &str) -> NeonResult<()>;
     fn as_client_options(&self, ctx: &mut FunctionContext) -> NeonResult<ClientOptions>;
-    fn as_telemetry_options(&self, cx: &mut FunctionContext) -> TelemOptsRes;
+    fn as_telemetry_options(&self, cx: &mut FunctionContext) -> NeonResult<TelemOptsRes>;
     fn as_worker_config(&self, cx: &mut FunctionContext) -> NeonResult<WorkerConfig>;
     fn as_ephemeral_server_config(
         &self,
@@ -169,7 +169,7 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
             .expect("Core server gateway options must be valid"))
     }
 
-    fn as_telemetry_options(&self, cx: &mut FunctionContext) -> TelemOptsRes {
+    fn as_telemetry_options(&self, cx: &mut FunctionContext) -> NeonResult<TelemOptsRes> {
         let mut telemetry_opts = TelemetryOptionsBuilder::default();
         if js_optional_value_getter!(cx, self, "noTemporalPrefixForMetrics", JsBoolean)
             .unwrap_or_default()
